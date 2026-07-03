@@ -1,0 +1,16 @@
+{
+  "scripts": {
+    "build": "node build.js",
+    "smoke": "node scripts/smoke-generated-seeds.js && node scripts/smoke-games.js",
+    "validate:games": "node scripts/audit-music-driven.js",
+    "validate:pack": "node scripts/validate-game-pack.js",
+    "validate:pack:strict": "node scripts/validate-game-pack.js --strict",
+    "audition:music": "node build.js && node scripts/audition-generated-music.js --seeds 60",
+    "audition:render": "node build.js && node scripts/audition-generated-music.js --render",
+    "scaffold:game": "node scripts/scaffold-game-pack.js",
+    "pack:tools": "node scripts/pack-tools.js"
+  },
+  "devDependencies": {
+    "playwright": "^1.61.1"
+  }
+}

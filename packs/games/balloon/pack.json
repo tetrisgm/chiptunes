@@ -1,0 +1,13 @@
+{
+  "schema": "rrr-pack@3",
+  "kind": "game",
+  "id": "balloon",
+  "name": "BALLOON FIGHT",
+  "version": "1.0.0",
+  "author": "Retro Rave Radio",
+  "license": "MIT",
+  "app": {
+    "contract": 3
+  },
+  "permissions": []
+}
