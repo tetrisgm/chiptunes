@@ -122,7 +122,12 @@ const Audio = (()=>{
       for(var si=0; si<palette.samples.length; si++){
         var s=palette.samples[si]; if(!s || !s.pcm || !s.pcm.length) continue;
         var spcm=new Float32Array(s.pcm);
-        samples.push(Object.assign({}, s, {pcm:spcm}));
+        var so={ id:s.id, rate:s.rate, pcm:spcm };                    // worklet reads baseFreq/loopStart/loopEnd
+        so.baseFreq=(s.baseFreq!=null) ? s.baseFreq : (s.baseMidi!=null ? mtof(s.baseMidi) : 261.626);
+        if(s.loop && typeof s.loop==='object'){ if(s.loop.start!=null) so.loopStart=s.loop.start; if(s.loop.end!=null) so.loopEnd=s.loop.end; }
+        if(s.loopStart!=null) so.loopStart=s.loopStart;
+        if(s.loopEnd!=null) so.loopEnd=s.loopEnd;
+        samples.push(so);
         if(transfer) transfers.push(spcm.buffer);
       }
     }
@@ -586,17 +591,18 @@ const Audio = (()=>{
   // { tBeat, dur(beats), ch, vel, seed, midi?, artic:{...} }; the worklet reads
   // { time, dur(seconds), slot, freq, vel, seed, accent/slideSemis/arp/dutyStart/from/tie/cut/q/drive/sendEcho }.
   var _ARTIC_MAP={ accent:'accent', slide:'slideSemis', arp:'arp', dutyStart:'dutyStart',
-    tie:'tie', cut:'cut', q:'q', drive:'drive', sendEcho:'sendEcho' };
+    tie:'tie', cut:'cut', cutMul:'cutMul', q:'q', drive:'drive', sendEcho:'sendEcho' };
   function deckEventToWorklet(d, ev, t){
     if(!ev || ev.kind==='chord' || ev.kind==='meta') return null;
     var ratio=Math.max(0.25, Math.min(4, d.bpm/(d.nativeBpm||d.bpm||128)));
+    // start from a copy so a composer emitting documented top-level WEvent fields (pan/from/cut/slideSemis/...)
+    // keeps them; then translate the composer-native fields (ch->slot, dur beats->sec, midi->freq, artic->flat).
+    var we=Object.assign({}, ev);
+    delete we.tBeat; delete we.durBeat; delete we.artic; delete we.ch; delete we.midi;
+    we.time=t;
+    we.slot=(typeof ev.slot==='string' ? ev.slot : ev.ch) || 'lead';
     var durBeats=(ev.durBeat!=null) ? ev.durBeat : (ev.dur!=null ? ev.dur : null);
-    var we={
-      time:t,
-      slot:(typeof ev.slot==='string' ? ev.slot : ev.ch) || 'lead',   // composer `ch` -> worklet `slot`
-      dur:(durBeats!=null) ? Math.max(0.006, durBeats*d.spb) : 0.1,     // composer beats -> seconds
-      vel:ev.vel, seed:ev.seed, generation:d.generation
-    };
+    we.dur=(durBeats!=null) ? Math.max(0.006, durBeats*d.spb) : 0.1;
     var f=(ev.freq!=null) ? +ev.freq : (ev.midi!=null ? mtof(+ev.midi) : 0);
     if(f) we.freq=Math.max(20, Math.min(20000, f*ratio));
     var a=ev.artic;
@@ -604,6 +610,7 @@ const Audio = (()=>{
       for(var key in _ARTIC_MAP){ if(a[key]!=null) we[_ARTIC_MAP[key]]=a[key]; }
       if(a.from!=null){ var ff=mtof(+a.from)*ratio; if(ff) we.from=Math.max(20, Math.min(20000, ff)); }  // portamento origin (midi -> Hz)
     }
+    we.generation=d.generation;
     return we;
   }
   function pushDeckEvent(d, ev, t){

@@ -11,11 +11,13 @@
 //     events:[{tBeat,dur,ch,midi?,vel,artic?,seed}] }        // sorted by tBeat
 //   ch: lead|bass|chord|pad|counter|kick|snare|hat|fx. swing is applied by the ENGINE to off-16ths
 //   (events are on a straight grid). Hat events with dur>=0.4 beats are OPEN hats (percs.hat.openDecay).
-// VoiceDef: { id, wave:'pulse|tri|saw|sine|wavetable|sample', duty?, dutyEnv?{steps,hz}, partials?,
-//   crunchBits?, sampleId?, env:{a,d,s,r}, filter?:{cut,q,envAmt,envT}, vib?:{rate,depth,delay},
-//   arpHz?, glide?, detune?, sub?, gain, pan, sendEcho }
-// PercDef:  { id, kind:'kick|snare|hat|riser', freq?:{a,b,t}, noise?:{bits,period}, tone?, sweep?,
-//   body, click, decay, openDecay?, gain, pan, sendEcho }
+// These mirror the worklet's VoiceDef/PercDef contract (audio.js buildPaletteMsg maps wave->osc and
+// baseMidi->baseFreq; everything else must already match the worklet field names/nesting).
+// VoiceDef: { id, wave:'pulse|tri|saw|sine|wavetable|sample', duty?, partials?, crunchBits?, sampleId?,
+//   env:{a,d,s,r}, filter?:{cutHz,q,envAmt,envT}, vib?:{rate,depth,delay},
+//   chip?:{arpHz,dutyEnv[],dutyEnvLoop,tickHz}, glide?, detune?, sub?, gain, pan, sendEcho }
+// PercDef:  { id, kind:'kick|snare|hat|tom|zap', tone:{freq,end,sweepT,level,decT,osc},
+//   noise?:{mode,period,level,decT,hp}, click?:{level,decT}, openDecay?, gainMul, pan, sendEcho }
 // EchoDef:  { beats, fb, wet, damp, spread }   panLayout: { mode:'soft|hardLCR', pos:{role:-1..1} }
 // Sample:   { id, rate, baseMidi, loop?:{start,end}, pcm:Float32Array }   (synthesized in compile)
 // Fingerprint: { bpm, keyPc, brightness, waveClass, grooveFamily, density, energyPeak, echoDepth }
@@ -78,7 +80,7 @@ function stPalette(token){
     ['sample',0.10+(era==='snes'?0.14*eraAmt:0)] ]); }
   function envP(a,d,s,rl,j){ j=j==null?0.35:j;
     return {a:rd3(a*(1-j/2+j*r())), d:rd3(d*(1-j/2+j*r())), s:rd3(cl01(s*(1-j/2+j*r()))), r:rd3(rl*(1-j/2+j*r()))}; }
-  function filt(cutBase,cutSpan,q){ return {cut:Math.round(cutBase+cutSpan*Math.pow(brightness,1.15)*(0.7+0.6*r())),
+  function filt(cutBase,cutSpan,q){ return {cutHz:Math.round(cutBase+cutSpan*Math.pow(brightness,1.15)*(0.7+0.6*r())),
     q:rd3(q), envAmt:rd3(0.6+2.4*r()), envT:rd3(0.06+0.5*r())}; }
   function gainFor(base,q,detune){ var g=base/(1+Math.max(0,(q||1)-1.2)*0.16); if(detune) g*=0.92; return rd3(g); }
   var samples=[];   // recipes; PCM baked in compile()
@@ -94,7 +96,8 @@ function stPalette(token){
   // --- lead ---
   var lf=leadFam(), lead={ id:'lead', wave:lf, gain:0, pan:0 };
   if(lf==='pulse'){ lead.duty=pick(r,DUTIES);
-    if(r()<0.38) lead.dutyEnv={steps:[lead.duty, pick(r,DUTIES.filter(function(d){return d!==lead.duty;}))], hz:pick(r,[7.5,15,30])}; }
+    if(r()<0.38){ var dsteps=[lead.duty, pick(r,DUTIES.filter(function(d){return d!==lead.duty;}))], dhz=pick(r,[7.5,15,30]);
+      lead.chip={dutyEnv:dsteps, dutyEnvLoop:true, tickHz:clamp(dhz*dsteps.length,5,240)}; } }
   if(lf==='wavetable'){ var rec=pick(r,WT_RECIPES); lead.partials=mkPartials(r,rec,brightness);
     if(era==='gb'||grit>0.62) lead.crunchBits=4; }
   if(lf==='sample') lead.sampleId=sampleRecipe(r()<0.6?'fmpluck':'bell','lead');
@@ -114,7 +117,7 @@ function stPalette(token){
   var cq=rd3(0.8+1.6*r());
   chord.env=envP(0.003,0.08,0.12,0.05);
   chord.filter=filt(900,6000,cq);
-  chord.arpHz=wpick(r,[[60,1.2],[30,1]]);
+  chord.chip={arpHz:wpick(r,[[60,1.2],[30,1]])};   // arp rate lives under chip.* in the worklet contract
   chord.gain=gainFor(0.4,cq); chord.sendEcho=rd3(0.12+0.22*r());
   // --- bass ---
   var bfam=wpick(r,[['tri',1.0+(era==='nes'?0.6:0)],['pulse',0.5],['saw',0.35+(era==='sega'?0.55:0)],['sine',0.3],['wavetable',0.25]]);
@@ -124,7 +127,7 @@ function stPalette(token){
   var bacid = bfam==='saw' && r()<0.3;
   var bq = bacid? rd3(4+5*r()) : rd3(0.7+1.2*r());
   bass.env=envP(0.005,0.2,0.55,0.06);
-  bass.filter={cut:Math.round(bacid?(380+320*r()):(320+520*r())), q:bq, envAmt:rd3(bacid?2.2+1.6*r():0.8+0.8*r()), envT:rd3(0.1+0.4*r())};
+  bass.filter={cutHz:Math.round(bacid?(380+320*r()):(320+520*r())), q:bq, envAmt:rd3(bacid?2.2+1.6*r():0.8+0.8*r()), envT:rd3(0.1+0.4*r())};
   if(bacid) bass.glide=rd3(0.03+0.04*r());
   if(bfam==='sine'||r()<0.25) bass.sub=rd3(0.15+0.2*r());
   bass.gain=gainFor(0.62,bq); bass.sendEcho=0.02;
@@ -156,19 +159,29 @@ function stPalette(token){
     if(vv.wave==='wavetable'||vv.wave==='sample'){ exotic++;
       if(exotic>2){ vv.wave='pulse'; vv.duty=vv.duty||0.25; delete vv.partials; delete vv.crunchBits; delete vv.sampleId; exotic--; } } }
   samples=samples.filter(function(s){ return (lead.sampleId===s.id)||(pad&&pad.sampleId===s.id); });
-  // --- percussion — per-track drum personality ---
+  // --- percussion — per-track drum personality. Emits the worklet PercDef contract directly
+  //     (tone/noise/click nested + gainMul), anchored near the engine's known-good defaults. ---
+  var noiseBits=(era==='gb'?7:15);
   var percs={
-    kick:{ id:'kick', kind:'kick', freq:{a:Math.round(150+180*r()), b:Math.round(40+18*r()), t:rd3(0.05+0.07*r())},
-      body:rd3(0.75+0.25*r()), click:rd3(era==='snes'?0.06+0.14*r():0.18+0.4*r()), decay:rd3(0.1+0.1*r()),
-      gain:0.9, pan:0, sendEcho:0 },
-    snare:{ id:'snare', kind:'snare', noise:{bits:(era==='gb'?7:15), period:2+((r()*5)|0)}, tone:Math.round(165+85*r()),
-      body:rd3(0.18+0.3*r()+(era==='snes'?0.15:0)), click:rd3(0.1+0.2*r()), decay:rd3(0.09+0.09*r()),
-      gain:0.8, pan:rd3((r()<0.5?-1:1)*0.06), sendEcho:rd3(0.04+0.1*r()) },
-    hat:{ id:'hat', kind:'hat', noise:{bits:15, period:(r()<0.55?0:1)}, tone:Math.round(5200+2800*r()),
-      body:0.05, click:rd3(0.25+0.2*r()), decay:rd3(0.018+0.032*r()), openDecay:rd3(0.15+0.2*r()),
-      gain:0.6, pan:rd3((r()<0.5?-1:1)*(0.14+0.14*r())), sendEcho:0 },
-    fx:{ id:'fx', kind:'riser', noise:{bits:15, period:3}, sweep:{a:Math.round(280+320*r()), b:Math.round(2600+2600*r())},
-      body:0.2, click:0, decay:0.4, gain:0.5, pan:0, sendEcho:rd3(0.1+0.15*r()) }
+    kick:{ id:'kick', kind:'kick',
+      tone:{ freq:Math.round(150+180*r()), end:Math.round(40+18*r()), sweepT:rd3(0.04+0.05*r()), level:rd3(0.95+0.35*r()), decT:rd3(0.075+0.06*r()), osc:'sine' },
+      click:{ level:rd3(era==='snes'?0.06+0.14*r():0.18+0.4*r()) },
+      gainMul:1, pan:0, sendEcho:0 },
+    snare:{ id:'snare', kind:'snare',
+      tone:{ freq:Math.round(165+85*r()), end:Math.round(140+40*r()), sweepT:0.02, level:rd3(0.24+0.28*r()+(era==='snes'?0.12:0)), decT:rd3(0.03+0.03*r()), osc:'sine' },
+      noise:{ mode:noiseBits, period:2+((r()*5)|0), level:rd3(0.72+0.28*r()), decT:rd3(0.08+0.09*r()), hp:rd3(0.3+0.35*r()) },
+      click:{ level:rd3(0.1+0.2*r()) },
+      gainMul:1, pan:rd3((r()<0.5?-1:1)*0.06), sendEcho:rd3(0.04+0.1*r()) },
+    hat:{ id:'hat', kind:'hat',
+      tone:{ level:0 },
+      noise:{ mode:(r()<0.6?7:15), period:(r()<0.55?0:1), level:rd3(0.62+0.28*r()), decT:rd3(0.016+0.03*r()), hp:rd3(0.6+0.32*r()) },
+      click:{ level:rd3(0.25+0.2*r()) }, openDecay:rd3(0.15+0.2*r()),
+      gainMul:rd3(0.7+0.25*r()), pan:rd3((r()<0.5?-1:1)*(0.14+0.14*r())), sendEcho:0 },
+    fx:{ id:'fx', kind:'zap',
+      tone:{ freq:Math.round(240+220*r()), end:Math.round(2400+2400*r()), sweepT:rd3(0.16+0.16*r()), level:rd3(0.5+0.24*r()), decT:rd3(0.2+0.2*r()), osc:'saw' },
+      noise:{ mode:15, period:3, level:rd3(0.08+0.16*r()), decT:rd3(0.2+0.2*r()) },
+      click:{ level:0 },
+      gainMul:0.5, pan:0, sendEcho:rd3(0.1+0.15*r()) }
   };
   // --- echo + pans ---
   var wet=cl01((0.12+0.34*r())*(era==='nes'?0.55:(era==='gb'?0.75:(era==='snes'?1.25:1))));
@@ -783,9 +796,9 @@ function compile(token){
       var steps = modeName==='offstab'?[2,6,10,14] : modeName==='stabsync'?[0,3,8,11] : [0,4,8,12];
       for(i=0;i<steps.length;i++){ st=steps[i];
         var ch2=segChord(S,bar,st), at2=mo.arpFig.stabArp?arpTable(ch2.voic):null;
-        var a={}; if(at2) a.arp=at2; if(st===steps[0]) a.accent=1; if(modeName!=='pulse4') a.cut=0.6;
+        var a={}; if(at2) a.arp=at2; if(st===steps[0]) a.accent=1; if(modeName!=='pulse4') a.cutMul=0.6;   // 0.6x freq, not an absolute Hz
         push(t0+st/4+hum(), modeName==='pulse4'?0.7:0.4, 'chord', ch2.voic[0]+lf,
-          (modeName==='pulse4'?0.5:0.62)*sg*(st===steps[0]?1.06:0.96), (a.arp||a.accent||a.cut)?a:null);
+          (modeName==='pulse4'?0.5:0.62)*sg*(st===steps[0]?1.06:0.96), (a.arp||a.accent||a.cutMul)?a:null);
       }
     } else {
       var stepN = modeName==='arp8'?2:1, dur=modeName==='arp8'?0.42:0.22, idx=0;
