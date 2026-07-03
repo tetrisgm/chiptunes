@@ -112,7 +112,7 @@ class RetroRaveGeneratedSynth extends AudioWorkletProcessor {
     if (type === 'palette') { this._palette(msg); return; }
     if (type === 'echoTime') {
       if (msg.generation && msg.generation !== this.generation) return;
-      const spb = num(msg.secondsPerBeat, 0);
+      const spb = num(msg.secondsPerBeat, num(msg.spb, 0));
       if (spb <= 0) return;
       const line = this._lineForGen(this.generation);
       if (!line || line.frozen) return;

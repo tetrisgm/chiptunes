@@ -98,13 +98,14 @@ const Audio = (()=>{
   function buildPaletteMsg(palette, generation, transfer){
     palette = palette || {};
     var transfers=[];
-    function cloneDefs(src){
+    function cloneDefs(src, isVoice){
       var out={};
       if(!src) return out;
       if(Array.isArray(src)){ var m={}; for(var i=0;i<src.length;i++){ var d=src[i]; if(d) m[d.id||d.role||('v'+i)]=d; } src=m; }
       Object.keys(src).forEach(function(k){
         var d=src[k]; if(!d){ return; }
         var c=Object.assign({}, d);
+        if(isVoice && c.osc==null && c.wave!=null) c.osc=c.wave;   // composer VoiceDefs use `wave`; the worklet reads `osc`
         if(c.sample && c.sample.pcm && c.sample.pcm.length){
           var pcm=new Float32Array(c.sample.pcm);
           c.sample=Object.assign({}, c.sample, {pcm:pcm});
@@ -114,7 +115,22 @@ const Audio = (()=>{
       });
       return out;
     }
-    return { msg:{ type:'palette', generation:generation, voices:cloneDefs(palette.voices), percs:cloneDefs(palette.percs), echo:(palette.echo?Object.assign({},palette.echo):null) }, transfers:transfers };
+    // sample bank: copy each PCM into a fresh Float32Array (optionally transferred) so the Score stays reusable
+    var samples=null;
+    if(Array.isArray(palette.samples) && palette.samples.length){
+      samples=[];
+      for(var si=0; si<palette.samples.length; si++){
+        var s=palette.samples[si]; if(!s || !s.pcm || !s.pcm.length) continue;
+        var spcm=new Float32Array(s.pcm);
+        samples.push(Object.assign({}, s, {pcm:spcm}));
+        if(transfer) transfers.push(spcm.buffer);
+      }
+    }
+    return { msg:{ type:'palette', generation:generation,
+      voices:cloneDefs(palette.voices, true), percs:cloneDefs(palette.percs, false),
+      echo:(palette.echo?Object.assign({},palette.echo):null),
+      panLayout:(palette.panLayout?Object.assign({},palette.panLayout):null),
+      samples:samples }, transfers:transfers };
   }
 
   /* ---------------- ENGINE facade (public worklet v2 surface) ---------------- */
@@ -132,7 +148,7 @@ const Audio = (()=>{
     beginBatch(){ if(!genWorkletBatch) genWorkletBatch=[]; },
     flush(){ genWorkletFlush(); },
     setTempo(spbSec, bpm, generation){                 // tempo-synced echo lines follow the audible deck
-      return genWorkletPost({type:'echoTime', spb:spbSec, bpm:bpm||Math.round(60/Math.max(0.05,spbSec)), generation:generation!=null?generation:genWorkletGeneration});
+      return genWorkletPost({type:'echoTime', secondsPerBeat:spbSec, spb:spbSec, bpm:bpm||Math.round(60/Math.max(0.05,spbSec)), generation:generation!=null?generation:genWorkletGeneration});
     },
     killAll(fade){                                     // fade every live voice; scheduled future stays (clear it separately)
       var t=(ctx&&ctx.currentTime)||0;
@@ -167,7 +183,7 @@ const Audio = (()=>{
         node.port.postMessage({type:'reset', generation:1, paused:false, mix:{}});
         var p=buildPaletteMsg(score.palette, 1, false);
         node.port.postMessage(p.msg);
-        node.port.postMessage({type:'echoTime', spb:rspb, bpm:bpm, generation:1});
+        node.port.postMessage({type:'echoTime', secondsPerBeat:rspb, spb:rspb, bpm:bpm, generation:1});
         var evs=score.events, out=[];
         for(var i=0;i<evs.length;i++){
           var we=deckEventToWorklet({spb:rspb, bpm:bpm, nativeBpm:bpm, generation:1}, evs[i], lead+(evNum(evs[i].tBeat, evs[i].t))*rspb);
@@ -566,30 +582,40 @@ const Audio = (()=>{
     _genVisLast=null; _genVisT=-1; _bgVisLast=null; _bgVisT=-1;   // a tempo change is visible on the very next vis() read
   }
   // translate one Score event to a worklet WEvent at absolute time t (returns null for meta events)
+  // Translate a composer Score event -> the worklet's flat WEvent schema. The composer emits
+  // { tBeat, dur(beats), ch, vel, seed, midi?, artic:{...} }; the worklet reads
+  // { time, dur(seconds), slot, freq, vel, seed, accent/slideSemis/arp/dutyStart/from/tie/cut/q/drive/sendEcho }.
+  var _ARTIC_MAP={ accent:'accent', slide:'slideSemis', arp:'arp', dutyStart:'dutyStart',
+    tie:'tie', cut:'cut', q:'q', drive:'drive', sendEcho:'sendEcho' };
   function deckEventToWorklet(d, ev, t){
     if(!ev || ev.kind==='chord' || ev.kind==='meta') return null;
-    var we=Object.assign({}, ev);
-    delete we.tBeat; delete we.durBeat;
-    we.time=t;
-    we.dur=(ev.durBeat!=null) ? Math.max(0.006, ev.durBeat*d.spb) : Math.max(0.006, +ev.dur||0.1);
     var ratio=Math.max(0.25, Math.min(4, d.bpm/(d.nativeBpm||d.bpm||128)));
+    var durBeats=(ev.durBeat!=null) ? ev.durBeat : (ev.dur!=null ? ev.dur : null);
+    var we={
+      time:t,
+      slot:(typeof ev.slot==='string' ? ev.slot : ev.ch) || 'lead',   // composer `ch` -> worklet `slot`
+      dur:(durBeats!=null) ? Math.max(0.006, durBeats*d.spb) : 0.1,     // composer beats -> seconds
+      vel:ev.vel, seed:ev.seed, generation:d.generation
+    };
     var f=(ev.freq!=null) ? +ev.freq : (ev.midi!=null ? mtof(+ev.midi) : 0);
     if(f) we.freq=Math.max(20, Math.min(20000, f*ratio));
-    we.generation=d.generation;
+    var a=ev.artic;
+    if(a){
+      for(var key in _ARTIC_MAP){ if(a[key]!=null) we[_ARTIC_MAP[key]]=a[key]; }
+      if(a.from!=null){ var ff=mtof(+a.from)*ratio; if(ff) we.from=Math.max(20, Math.min(20000, ff)); }  // portamento origin (midi -> Hz)
+    }
     return we;
   }
   function pushDeckEvent(d, ev, t){
     var we=deckEventToWorklet(d, ev, t);
     if(!we) return;
     genWorkletPush(we, d.generation);
-    // visual hooks: perc -> beat events for the games; melodic -> pitch-height blips (musHue driver)
-    if(we.kind==='perc'){
-      var r=String(we.role||we.perc||'');
-      if(r.indexOf('kick')===0) pushAudioEvent({t:t, kind:'kick'});
-      else if(r.indexOf('snare')===0||r.indexOf('clap')===0) pushAudioEvent({t:t, kind:'snare'});
-    } else if(we.freq){
-      emitSnd(t, freqHy(we.freq), (we.vel!=null?we.vel:0.08)*3.5);
-    }
+    // visual hooks: percussion -> beat events for the games; melodic -> pitch-height blips (musHue driver)
+    var slot=String(we.slot||'');
+    var isPerc=/^(kick|snare|hat|tom|clap|perc|fx)$/.test(slot);
+    if(slot.indexOf('kick')===0) pushAudioEvent({t:t, kind:'kick'});
+    else if(slot.indexOf('snare')===0||slot.indexOf('clap')===0) pushAudioEvent({t:t, kind:'snare'});
+    if(!isPerc && we.freq) emitSnd(t, freqHy(we.freq), (we.vel!=null?we.vel:0.08)*3.5);
   }
   function scheduleDeck(d, now, horizon){
     if(!d) return 0;

@@ -111,7 +111,7 @@ for (const pack of gamePacks) {
   fs.mkdirSync(outDir, { recursive: true });
   const dist = Object.assign({}, manifest, {
     entry: 'pack.js',
-    entryHash: sha256(code),
+    entryHash: 'sha256-' + sha256(code),   // match the documented format + pack-tools output
     builtAt
   });
   fs.writeFileSync(path.join(outDir, 'pack.js'), code);
@@ -138,7 +138,7 @@ for (const pack of gamePacks) {
     license: 'MIT',
     entry: 'composer.js',
     composerV: 3,
-    entryHash: sha256(composerSrc),
+    entryHash: 'sha256-' + sha256(composerSrc),   // match the documented format + pack-tools output
     builtAt
   };
   fs.writeFileSync(path.join(outDir, 'composer.js'), composerSrc);

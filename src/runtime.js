@@ -2504,10 +2504,18 @@ async function _packLooseFiles(id){
   var files=[];
   try{
     var idx=h.tracksIndex ? await h.tracksIndex() : null;
-    (Array.isArray(idx&&idx.tracks)?idx.tracks:[]).forEach(function(t){
-      var f = (t && typeof t==='object' && !Array.isArray(t)) ? (t.file||t.name||t.path) : (Array.isArray(t)?(t[1]||t[0]):t);
+    // rrr-tracks@1: tracks live under albums[].tracks; also accept legacy root tracks/files arrays.
+    var lists=[];
+    if(idx){
+      if(Array.isArray(idx.albums)) idx.albums.forEach(function(a){ if(a&&Array.isArray(a.tracks)) lists.push(a.tracks); });
+      else if(idx.albums && typeof idx.albums==='object') Object.keys(idx.albums).forEach(function(k){ var a=idx.albums[k]; if(a&&Array.isArray(a.tracks)) lists.push(a.tracks); });
+      if(Array.isArray(idx.tracks)) lists.push(idx.tracks);
+      if(Array.isArray(idx.files)) lists.push(idx.files);
+    }
+    lists.forEach(function(tr){ tr.forEach(function(t){
+      var f = (t && typeof t==='object' && !Array.isArray(t)) ? (t.file||t.f||t.name||t.path) : (Array.isArray(t)?(t[1]||t[0]):t);
       if(f) files.push(String(f));
-    });
+    }); });
   }catch(e){}
   if(!files.length && h.readJSON){
     try{ var man=await h.readJSON('manifest.json'); (Array.isArray(man)?man:[]).forEach(function(n){ if(n) files.push(String(n)); }); }catch(e2){}

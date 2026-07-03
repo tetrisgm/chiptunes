@@ -257,6 +257,9 @@ window.CT_COMPOSERS = window.CT_COMPOSERS || {};
     if(row.needsPermission) return Promise.reject(new Error('pack needs permission — reconnect its linked folder'));
     if(!row.enabled) return Promise.reject(new Error('pack "'+row.id+'" is disabled'));
     if(!_ensureConsent(row)){ _emit(); return Promise.reject(new Error('consent declined for '+row.id)); }
+    // snapshot the registry slot so a pack that registers a global and THEN throws during eval
+    // cannot leak a half-broken entry into the runtime roster (which rebuilds straight off CT_GAMES).
+    var hadPrior=Object.prototype.hasOwnProperty.call(reg, row.id), prior=reg[row.id];
     row.loadP=_readText(row, _entryOf(row.manifest), CAP_CODE)
       .then(function(code){ return _evalPack(row, code); })
       .then(function(){
@@ -266,6 +269,7 @@ window.CT_COMPOSERS = window.CT_COMPOSERS || {};
         return reg[row.id];
       })
       .catch(function(e){
+        if(hadPrior) reg[row.id]=prior; else { try{ delete reg[row.id]; }catch(_e){} }   // roll back partial registration
         row.loadP=null;
         row.error=(e && e.message) || 'load failed';
         _emit();
