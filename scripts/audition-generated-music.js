@@ -378,7 +378,8 @@ async function renderGolden(tokens, report) {
     let engineReady = false;
     try {
       await page.waitForFunction(
-        () => window.Audio && window.Audio.Engine && typeof window.Audio.Engine.render === 'function',
+        // the app's Audio is a lexical global (window.Audio is the built-in HTMLAudioElement)
+        () => typeof Audio !== 'undefined' && Audio.Engine && typeof Audio.Engine.render === 'function',
         null, { timeout: 15000 }
       );
       engineReady = true;
@@ -400,9 +401,12 @@ async function renderGolden(tokens, report) {
             : (window.CT_COMPOSERS && (window.CT_COMPOSERS.rrr_core || Object.values(window.CT_COMPOSERS)[0]));
           if (!comp) throw new Error('no composer registered (activeComposer/CT_COMPOSERS missing)');
           const score = comp.compile(token);
-          const buf = await window.Audio.Engine.render(score);
+          const buf = await Audio.Engine.render(score);
           let sr, data;
-          if (buf && typeof buf.getChannelData === 'function') {
+          if (buf && buf.left) {                                  // {left,right,sampleRate} (the app's Engine.render)
+            sr = buf.sampleRate || 48000;
+            data = [buf.left, buf.right || buf.left];
+          } else if (buf && typeof buf.getChannelData === 'function') {
             sr = buf.sampleRate;
             data = [];
             for (let c = 0; c < Math.min(2, buf.numberOfChannels); c++) data.push(buf.getChannelData(c));
