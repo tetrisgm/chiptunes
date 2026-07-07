@@ -30,3 +30,5 @@ node_modules/
 .igdb-creds.json
 __pycache__/
 .claude/
+chip-originals
+chip-derived
