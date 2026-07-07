@@ -29,3 +29,4 @@ node_modules/
 # Secrets belt-and-braces (credentials must never land in git)
 .igdb-creds.json
 __pycache__/
+.claude/

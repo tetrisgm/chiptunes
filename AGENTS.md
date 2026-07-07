@@ -160,3 +160,19 @@ Use subagent fan-outs where files are disjoint (one-agent-per-game across
 `packs/games/<id>/`); keep delicate shared-file work (`audio.js`,
 `runtime.js`, `visualizer.js`, `packs.js`, build/tooling) coherent in the
 main loop. Match effort to the task.
+
+## Shared machinery lives in ~/dev/stack
+
+The owner keeps proven, tested kits in `~/dev/stack` (also installed as the
+`stack` Claude Code plugin: `/stack:add-signin`, `/stack:add-mac-app`,
+`/stack:new-project`). auth-kit is a full NextAuth v5 sign-in surface
+(Apple, Google, email magic links); mac-kit is a Swift package plus signed
+installer/notarize/Sparkle release scripts; template/ bootstraps new
+projects; runbooks/ cover the console and DNS work.
+
+This app is a static bundle by doctrine, so the kits do NOT apply to its
+current architecture. They apply the moment work grows service-shaped or
+native: accounts/sync for packs, a companion or wrapper app beyond Tauri, or
+a spun-off product. In those cases read the kit READMEs first and consume
+the kits; never hand-roll sign-in, installers, or updaters. Improvements to
+that machinery land in `~/dev/stack`, not in per-project copies.
