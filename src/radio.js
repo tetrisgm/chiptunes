@@ -6,9 +6,9 @@
 // Radio.setCurrent(). No DB / no accounts: Recently-Played + Liked lists + the counts all live in localStorage.
 const Radio = (()=>{
   const LS = 'retrorave.radio.v2';                                          // v2: fingerprint axes (v1 idiom counts are abandoned)
-  const KNOBS = ['tempoBand','brightness','grooveFamily','waveClass','energy'];   // the learned fingerprint axes (NOT user-selectable)
+  const KNOBS = ['tempoBand','brightness','grooveFamily','waveClass','energy','mood'];   // the learned fingerprint axes (NOT user-selectable)
   const TEMPO_MIN = 60, TEMPO_MAX = 220;                                    // manual DJ-deck range for every source
-  let state = { game:'random', tempo:null, playing:true };                  // tempo:null = auto: the track/deck BPM locked at track start
+  let state = { game:'random', tempo:null, playing:true, mood:'any' };   // mood: 'any'|'full'|'sparse'|'none' — pins the generated queue's lead-presence genre                  // tempo:null = auto: the track/deck BPM locked at track start
   let prefs = { likes:[], dislikes:[], recent:[] };
   let counts = {};                                             // counts[axis][value] = {up,down}
   let cur = null;                                              // current track fingerprint (set by the engine)
@@ -37,6 +37,9 @@ const Radio = (()=>{
   function prev(){ if(typeof window!=='undefined' && window.onRadioPrev) window.onRadioPrev(); }
   function playPause(){ state.playing=!state.playing; if(typeof Audio!=='undefined' && Audio.setPlaying) Audio.setPlaying(state.playing); save(); emit(); return state.playing; }
   function setGame(g){ state.game=g; if(typeof window!=='undefined'&&window.onRadioGame) window.onRadioGame(g); save(); emit(); }
+  const MOODS=['any','full','sparse','none'];
+  function setMood(m){ m=String(m||'any'); if(MOODS.indexOf(m)<0) m='any'; state.mood=m; save(); emit(); return m; }
+  function mood(){ return MOODS.indexOf(state.mood)>=0 ? state.mood : 'any'; }
   function tempoBounds(){ return [TEMPO_MIN, TEMPO_MAX]; }
   function clampTempo(bpm){ bpm=+bpm; return isFinite(bpm) ? Math.max(TEMPO_MIN, Math.min(TEMPO_MAX, Math.round(bpm))) : TEMPO_MIN; }
   function setTempo(bpm){
@@ -60,7 +63,7 @@ const Radio = (()=>{
     get state(){ return state; }, get prefs(){ return prefs; }, get current(){ return cur; },
     counts:()=>counts,
     bias, setCurrent,
-    thumbUp, thumbDown, next, prev, playPause, setGame, setTempo, nudgeTempo,
+    thumbUp, thumbDown, next, prev, playPause, setGame, setMood, mood, setTempo, nudgeTempo,
     tempoBounds,
     onChange(cb){ listeners.push(cb); },
   };

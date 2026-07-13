@@ -878,7 +878,8 @@ function _radioAxes(fp){
     brightness: br<0.34?'dark':br<0.67?'mid':'bright',
     grooveFamily: fp.grooveFamily||'',
     waveClass: fp.waveClass||'',
-    energy: ep<6.5?'low':ep<8.25?'mid':'high'
+    energy: ep<6.5?'low':ep<8.25?'mid':'high',
+    mood: fp.leadMode||''
   };
 }
 function _fpDistance(a,b){                                   // normalized mean axis distance in [0,1]
@@ -892,6 +893,7 @@ function _fpDistance(a,b){                                   // normalized mean 
   push(Math.abs((+a.density||0)-(+b.density||0)));
   push(Math.abs((+a.energyPeak||0)-(+b.energyPeak||0))/10);
   push(Math.abs((+a.echoDepth||0)-(+b.echoDepth||0)));
+  push((a.leadMode||'full')===(b.leadMode||'full')?0:1);   // mood alternation counts as novelty
   return n?d/n:1;
 }
 function _minNoveltyDistance(fp){
@@ -924,15 +926,26 @@ function _biasScore(fp){
   return s;
 }
 function _nextGeneratedToken(){
-  var K=8, best=null, bestScore=-1e9;
+  // Mood pinning: when Radio.mood() names a lead-presence genre ('full' hook-
+  // driven / 'sparse' occasional color / 'none' instrumental), only matching
+  // candidates compete; mint deeper to find them. 'any' = the default mix —
+  // the composer samples the three genres per token and novelty scoring (fp
+  // leadMode axis) keeps them alternating.
+  var mood=null; try{ mood=(typeof Radio!=='undefined'&&Radio.mood)?Radio.mood():null; }catch(e){}
+  if(mood==='any') mood=null;
+  var K=mood?28:8, best=null, bestScore=-1e9, bestAny=null, bestAnyScore=-1e9, matched=0;
   for(var i=0;i<K;i++){
     var tok=_mintComposerToken(), fp=_fingerprintToken(tok);
-    if(!fp){ if(!best) best=tok; continue; }                 // no composer fingerprint available: first mint wins
+    if(!fp){ if(!bestAny) bestAny=tok; continue; }           // no composer fingerprint available: first mint wins
     var s = 1.6*_minNoveltyDistance(fp) + 1.2*_pacingFit(fp,_genArcPos) + 0.8*_biasScore(fp) + 0.6*_tempoFit(fp);
+    if(s>bestAnyScore){ bestAnyScore=s; bestAny=tok; }
+    if(mood && (fp.leadMode||'full')!==mood) continue;
+    matched++;
     if(s>bestScore){ bestScore=s; best=tok; }
+    if(!mood && matched>=8) break;
   }
   _genArcPos++;
-  return best || _mintComposerToken();
+  return best || bestAny || _mintComposerToken();
 }
 function _mintToken(){ return _nextGeneratedToken(); }       // the fresh-track mint every auto-advance/skip path uses
 function _noteGeneratedPlaying(tok){                          // a generated track is NOW playing: log fp for novelty + Radio learning
@@ -1691,6 +1704,7 @@ function _ensurePlaybarMenu(){
     else if(act==='album') _transportDetail();
     else if(act==='publisher') _transportPublisher();
     else if(act==='info' && window.toggleTrackPanel) toggleTrackPanel();
+    else if(act==='mood') _cycleMood();
   });
   document.addEventListener('click', function(ev){
     if(!_pbMenuEl || !_pbMenuEl.classList.contains('show')) return;
@@ -1721,7 +1735,19 @@ function _renderPlaybarMenu(){
     _pbMenuItem('album','cart','Go to album',canAlbum?_prettyName(_curAlbum||''):'No album route for this source',!canAlbum)+
     _pbMenuItem('publisher','cloud','Go to publisher',pub||'No publisher metadata yet',!pub)+
     _pbMenuItem('info','info','View track info','Open technical and library details',!Audio.started)+
+    _pbMenuItem('mood','stop','Mood: '+_moodLabel(),'Generated radio genre — tap to cycle',false)+
     '</div>';
+}
+var _MOOD_LABELS={ any:'All moods', full:'Melodic', sparse:'Mellow', none:'Instrumental' };
+function _moodLabel(){ var m='any'; try{ m=(typeof Radio!=='undefined'&&Radio.mood)?Radio.mood():'any'; }catch(e){} return _MOOD_LABELS[m]||'All moods'; }
+function _cycleMood(){
+  var order=['any','full','sparse','none'];
+  var m='any'; try{ m=Radio.mood(); }catch(e){}
+  var nx=order[(order.indexOf(m)+1)%order.length];
+  try{ Radio.setMood(nx); }catch(e){}
+  try{ var q=new URLSearchParams(location.search||''); if(nx==='any') q.delete('mood'); else q.set('mood',nx);
+    var qs=q.toString(); history.replaceState(null,'',(location.pathname||'/')+(qs?'?'+qs:'')+(location.hash||'')); }catch(e){}
+  if(window._toast) _toast('Radio mood: '+_moodLabel()+(nx==='any'?'':' — next tracks will match'));
 }
 function _playbarMenuAnchor(){
   var item=document.getElementById('pbItemMore'), main=document.getElementById('pbMore');
@@ -3893,6 +3919,11 @@ if(typeof Packs!=='undefined' && Packs.init){
   }catch(e){}
 }
 // ----- BOOT ROUTE: home by default; /watch and /radio act immediately; legacy heads collapse to '/'. -----
+// deep-linkable radio mood: ?mood=full|sparse|none pins the generated genre (like ?game=)
+try{
+  var _mq=new URLSearchParams(location.search||'').get('mood');
+  if(_mq && typeof Radio!=='undefined' && Radio.setMood) Radio.setMood(String(_mq).toLowerCase());
+}catch(e){}
 buildHomeTiles();
 (function(){
   var head=String(_pathParts(location.pathname||'/')[0]||'').toLowerCase();

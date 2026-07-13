@@ -160,7 +160,7 @@ function structureProblems(score) {
     const b = sectionStart(first);
     const onset = (b == null || !bpm) ? null : b * bpb * 60 / bpm;
     if (onset == null) p.push('first section has no resolvable start bar');
-    else if (onset >= THRESHOLDS.hookOnsetSec) p.push(`hook onset ${onset.toFixed(1)}s >= ${THRESHOLDS.hookOnsetSec}s`);
+    else if (onset >= THRESHOLDS.hookOnsetSec && leadModeOf(score) === 'full') p.push(`hook onset ${onset.toFixed(1)}s >= ${THRESHOLDS.hookOnsetSec}s`);   // sparse tracks may introduce the lead at the drop; none-tracks have no hook
     const energies = sections.map(sectionEnergy);
     if (energies.some(e => e == null)) p.push('section(s) missing energy field (e)');
     else if (!energies.some(e => e >= THRESHOLDS.minPeakEnergy)) p.push(`no section with e>=${THRESHOLDS.minPeakEnergy} (max ${Math.max.apply(null, energies)})`);
@@ -242,6 +242,7 @@ function sectionNoveltyProblems(score) {
   return problems;
 }
 
+function leadModeOf(score) { return (score && score.palette && score.palette.leadMode) || 'full'; }
 function restatements(score) {
   const sections = scoreSections(score);
   if (!sections || !sections.length) return 0;
@@ -278,7 +279,7 @@ function analyzeToken(composer, token) {
   row.problems.push(...sectionNoveltyProblems(score));
   const rest = restatements(score);
   row.restatements = rest;
-  if (rest < THRESHOLDS.minRestatements) row.problems.push(`hook restated ${rest}x (< ${THRESHOLDS.minRestatements})`);
+  if (rest < THRESHOLDS.minRestatements && leadModeOf(score) === 'full') row.problems.push(`hook restated ${rest}x (< ${THRESHOLDS.minRestatements})`);   // instrumental/sparse moods restate less by design
   const dur = scoreDurationSec(score);
   row.durationSec = dur == null ? null : +dur.toFixed(1);
   row.bpm = scoreBpm(score);

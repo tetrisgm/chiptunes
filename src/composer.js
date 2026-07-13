@@ -20,7 +20,7 @@
 //   noise?:{mode,period,level,decT,hp}, click?:{level,decT}, openDecay?, gainMul, pan, sendEcho }
 // EchoDef:  { beats, fb, level, damp:0..1, spreadMs, pingPong }   panLayout: { mode:'soft|hardLCR', pos:{role:-1..1} }
 // Sample:   { id, rate, baseMidi, loop?:{start,end}, pcm:Float32Array }   (synthesized in compile)
-// Fingerprint: { bpm, keyPc, brightness, waveClass, grooveFamily, density, energyPeak, echoDepth }
+// Fingerprint: { bpm, keyPc, brightness, waveClass, grooveFamily, density, energyPeak, echoDepth, leadMode }
 (function(){
 'use strict';
 var G = typeof globalThis!=='undefined' ? globalThis : (typeof window!=='undefined' ? window : this);
@@ -71,6 +71,12 @@ function stPalette(token){
   var grit=cl01(0.15+0.7*r() + (0.5-brightness)*0.25);
   var era=wpick(r,[['nes',0.3],['gb',0.27],['sega',0.2],['snes',0.23]]);
   var eraAmt=0.5+0.5*r();
+  // LEAD-PRESENCE MOOD (deterministic per token): 'full' = hook-driven as ever;
+  // 'sparse' = ~a third of the melody at half volume (lead as occasional color);
+  // 'none' = instrumental groove — the accompaniment IS the track (the owner:
+  // "it's better in the background with the lead muted" — now a first-class
+  // genre). The radio queue mixes all three; Radio.setMood pins one.
+  var leadMode=wpick(r,[['full',0.38],['sparse',0.32],['none',0.30]]);
   var DUTIES=[0.125,0.25,0.5];
   function leadFam(){ return wpick(r,[
     ['pulse',1.0+((era==='nes'||era==='gb')?0.9*eraAmt:0)],
@@ -216,9 +222,10 @@ function stPalette(token){
   // --- waveClass (fingerprint axis) ---
   var flead=famOf(lead), fchord=famOf(chord);
   var waveClass = (flead==='pulse'&&fchord==='pulse')?'pulse' : (flead==='saw')?'saw' : (flead==='wave'&&fchord==='wave')?'wave' : (flead===fchord?flead:'mixed');
+  if(leadMode==='sparse'){ lead.gainMul=rd3(lead.gainMul*0.5); if(counter) counter.gainMul=rd3(counter.gainMul*0.5); }
   var voices={ lead:lead, bass:bass, chord:chord };
   if(pad) voices.pad=pad; if(counter) voices.counter=counter;
-  return { brightness:brightness, grit:grit, era:era, waveClass:waveClass,
+  return { brightness:brightness, grit:grit, era:era, waveClass:waveClass, leadMode:leadMode,
     voices:voices, percs:percs, echo:echo, panLayout:panLayout, sampleRecipes:samples };
 }
 
@@ -705,6 +712,22 @@ function stArrange(token,pal,gr,ha,mo){
     } else { // outro
       d.counter=0; d.pad=hasP?1:0; d.drums='half'; d.op='asis';
     }
+    // LEAD-PRESENCE MOOD overrides (pal.leadMode): 'none' silences melody
+    // everywhere (accompaniment carries — chord on, pad likelier); 'sparse'
+    // keeps the lead only as occasional color: the drop (payoff), the first
+    // groove in call-answer form, sometimes a bridge. flow goes instrumental.
+    var lm=pal.leadMode||'full';
+    if(lm==='none'){
+      d.lead=0; d.counter=0;
+      if(role==='groove'||role==='flow'||role==='bridge'||role==='drop') d.chord=1;
+      if(hasP && !d.pad && r()<0.4) d.pad=1;
+    } else if(lm==='sparse'){
+      if(role==='groove'){ d.lead=(grooveN===1||r()<0.15)?1:0; if(d.lead) d.leadEvery=2; }
+      else if(role==='flow'){ d.lead=0; }
+      else if(role==='bridge'){ d.lead=r()<0.25?1:0; }
+      else if(role==='drop'){ d.leadEvery=2; }   // even the payoff answers rather than preaches
+      if(!d.lead) d.counter=0;
+    }
     if(role!=='drop' && role!=='outro' && role!=='break' && role!=='build' &&
        pal.voices.lead.wave==='pulse' && r()<0.3) d.duty=pick(r,[0.125,0.25,0.5]);
     // LAYER BUDGET: counter and pad never stack in one section. A GB runs the
@@ -1059,13 +1082,15 @@ function compile(token){
       // pre-dominant pull...
       push(t0,1.4,'chord',ha.voicPre[0]+lf2,0.6,{arp:atP||[0,4,7],accent:1});
       push(t0,1.8,'bass',bassRoot(ha.cadPre,S.atBar),0.74);
-      push(t0+2,0.9,'lead',leadMidi(2,S.atBar,0),0.66);
-      push(t0+3,0.9,'lead',leadMidi(1,S.atBar,0),0.62);
+      if(pal.leadMode!=='none'){
+        push(t0+2,0.9,'lead',leadMidi(2,S.atBar,0),0.66);
+        push(t0+3,0.9,'lead',leadMidi(1,S.atBar,0),0.62);
+      }
       push(t0,0.25,'kick',null,0.8);
       // ...home.
       push(t0+4,3,'chord',ha.voicFin[0]+lf2,0.62,{arp:atF||[0,4,7],accent:1,sendEcho:0.6});
       push(t0+4,3,'bass',bassRoot(0,S.atBar+1),0.76);
-      push(t0+4,3.4,'lead',leadMidi(0,S.atBar+1,0),0.72,{sendEcho:0.5});
+      if(pal.leadMode!=='none') push(t0+4,3.4,'lead',leadMidi(0,S.atBar+1,0),0.72,{sendEcho:0.5});
       push(t0+4,0.25,'kick',null,0.85);
       push(t0+4,0.5,'hat',null,0.36);
       if(S.pad){ var vf=ha.voicFin, pj; for(pj=0;pj<vf.length;pj++) push(t0+4+pj*0.01,3.4,'pad',vf[pj]+lf2,0.3); }
@@ -1099,7 +1124,7 @@ function compile(token){
       if(S.counter&&pal.voices.counter) emitCounter(S,si,bar,rf,answering);
       if(S.pad&&pal.voices.pad) emitPad(S,si,bar);
     }
-    if(S.role==='build'){   // 2-note chromatic pickup into the drop
+    if(S.role==='build' && pal.leadMode!=='none'){   // 2-note chromatic pickup into the drop
       var hm=leadMidi(mo.degs[0],S.atBar+S.bars,0);
       push((S.atBar+S.bars)*4-0.5,0.22,'lead',hm-2,0.7);
       push((S.atBar+S.bars)*4-0.25,0.22,'lead',hm-1,0.74);
@@ -1126,7 +1151,7 @@ function compile(token){
     bins[b2]=(bins[b2]||0)+e3.vel*w; }
   for(k2 in bins) if(bins[k2]>mx) mx=bins[k2];
   var gainScalar=rr(clamp(3.1/Math.max(3.1,mx),0.55,1));
-  var palette={ voices:pal.voices, percs:pal.percs, echo:pal.echo, panLayout:pal.panLayout };
+  var palette={ voices:pal.voices, percs:pal.percs, echo:pal.echo, panLayout:pal.panLayout, leadMode:pal.leadMode };
   if(samples.length) palette.samples=samples;
   return {
     v:3, token:token, bpm:gr.bpm, swing:gr.swing, keyPc:ha.keyPc, mode:iv.slice(),
@@ -1142,7 +1167,7 @@ function fingerprint(token){
   token=normToken(token);
   var pal=stPalette(token), gr=stGroove(token,pal), ha=stHarmony(token,pal);
   return { bpm:gr.bpm, keyPc:ha.keyPc, brightness:rr(pal.brightness), waveClass:pal.waveClass,
-    grooveFamily:gr.family, density:gr.density, energyPeak:peakEnergy(token), echoDepth:pal.echo.level };
+    grooveFamily:gr.family, density:gr.density, energyPeak:peakEnergy(token), echoDepth:pal.echo.level, leadMode:pal.leadMode };
 }
 
 var API={ V:3, id:'rrr_core', compile:compile, fingerprint:fingerprint };

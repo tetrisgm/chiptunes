@@ -204,7 +204,7 @@ function checkScoreStructure(token, score) {
   }
 
   // -- 500-seed fingerprint diversity --
-  const FP_FIELDS = ['bpm', 'keyPc', 'brightness', 'waveClass', 'grooveFamily', 'density', 'energyPeak', 'echoDepth'];
+  const FP_FIELDS = ['bpm', 'keyPc', 'brightness', 'waveClass', 'grooveFamily', 'density', 'energyPeak', 'echoDepth', 'leadMode'];
   const hist = { waveClass: {}, grooveFamily: {} };
   let fpCount = 0, fieldMissing = new Set();
   for (let i = 0; i < 500; i++) {
