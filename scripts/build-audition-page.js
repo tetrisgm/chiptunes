@@ -62,7 +62,23 @@ function listAudio(dir) {
 }
 
 const renders = listAudio(RENDER_DIR);
-const refs = listAudio(REFS_DIR);
+// COPY refs into the audition subtree. The page is opened over file://, and
+// Safari's local-file sandbox blocks subresources OUTSIDE the page's own
+// directory tree — a ../../../chip-originals/refs/... path silently refuses to
+// load ("nothing plays" on whichever blinded side is the ref). With the refs
+// copied under audition/refs/ every path points downward and file:// works in
+// every browser. Still local-only: chip-derived is gitignored and never served.
+const REFS_LOCAL = path.join(AUDITION_DIR, 'refs');
+const srcRefs = listAudio(REFS_DIR);
+fs.mkdirSync(REFS_LOCAL, { recursive: true });
+const wanted = new Set(srcRefs.map(f => path.basename(f)));
+for (const f of fs.readdirSync(REFS_LOCAL)) { if (!wanted.has(f)) fs.unlinkSync(path.join(REFS_LOCAL, f)); }  // prune stale
+for (const f of srcRefs) {
+  const dst = path.join(REFS_LOCAL, path.basename(f));
+  const st = fs.statSync(f);
+  if (!fs.existsSync(dst) || fs.statSync(dst).size !== st.size) fs.copyFileSync(f, dst);
+}
+const refs = listAudio(REFS_LOCAL);
 
 // Deterministic pairing: seed from the file lists so re-running with the same
 // corpus builds the same session, and new renders/refs reshuffle predictably.
@@ -103,6 +119,9 @@ const html = `<!doctype html>
   .keyhint { color:#8888aa; font-size:12px; }
   #progress { color:#b8f818; }
   #reveal { min-height:1.4em; color:#fca044; }
+  .stat { font-size:11px; margin-top:6px; color:#8888aa; min-height:1.2em; }
+  .stat.err { color:#f85858; }
+  .stat.ready { color:#78f8a8; }
   .muted { color:#8888aa; }
   audio { display:none; }
 </style>
@@ -111,8 +130,8 @@ ${emptyMsg ? `<div class="card">${emptyMsg}</div>` : `
 <div class="card">
   <div id="progress"></div>
   <div class="sides">
-    <div class="side" id="sideA" onclick="playSide('A')"><h2>A</h2><span class="keyhint">press a</span></div>
-    <div class="side" id="sideB" onclick="playSide('B')"><h2>B</h2><span class="keyhint">press b</span></div>
+    <div class="side" id="sideA" onclick="playSide('A')"><h2>A</h2><span class="keyhint">press a</span><div class="stat" id="statA"></div></div>
+    <div class="side" id="sideB" onclick="playSide('B')"><h2>B</h2><span class="keyhint">press b</span><div class="stat" id="statB"></div></div>
   </div>
   <div class="verdict">
     <button id="v1" onclick="setVerdict('A')">1 · A better</button>
@@ -144,8 +163,23 @@ const STORE_KEY = 'rrr.audition.v1';
 let idx = 0, verdict = null, tags = new Set();
 const $ = id => document.getElementById(id);
 
-function store() { try { return JSON.parse(localStorage.getItem(STORE_KEY) || '{"ratings":[]}'); } catch (e) { return { ratings: [] }; } }
-function save(s) { localStorage.setItem(STORE_KEY, JSON.stringify(s)); }
+// localStorage can be DENIED (strict cookie/site-data settings, some file://
+// contexts). Ratings must never be lost to that: keep an in-memory copy as the
+// source of truth and mirror to localStorage when possible.
+let MEM = null;
+function store() {
+  if (MEM) return MEM;
+  try { MEM = JSON.parse(localStorage.getItem(STORE_KEY) || '{"ratings":[]}'); }
+  catch (e) { MEM = { ratings: [] }; }
+  return MEM;
+}
+function save(s) {
+  MEM = s;
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(s)); }
+  catch (e) { /* storage denied: in-memory only — Export still works; warn in summary */
+    const el = $('summary'); if (el && !el.dataset.warned) { el.dataset.warned = '1'; el.textContent = 'NOTE: browser storage is blocked — ratings live only in this tab. Export before closing!'; }
+  }
+}
 function ratedIds() { return new Set(store().ratings.map(r => r.pair)); }
 
 function firstUnrated() {
@@ -157,20 +191,46 @@ function firstUnrated() {
 function srcFor(side) {
   const p = PAIRS[idx];
   const isRender = (side === 'A') === p.renderIsA;
-  return isRender ? p.render : p.ref;
+  return encodeURI(isRender ? p.render : p.ref);   // spaces/quotes in ref names
+}
+
+// Preload BOTH sides when a pair becomes current, with visible per-side status —
+// a side that fails to load says ERROR instead of silently playing nothing, and
+// buffering happens before the first keypress instead of stuttering after it.
+const ERR_NAMES = { 1: 'aborted', 2: 'network', 3: 'decode failed', 4: 'file not found / unsupported' };
+function wireAudio(side) {
+  const a = $(side === 'A' ? 'audA' : 'audB'), st = $('stat' + side);
+  a.preload = 'auto';
+  a.addEventListener('error', () => { st.textContent = 'ERROR: ' + (ERR_NAMES[(a.error || {}).code] || 'load failed'); st.className = 'stat err'; });
+  a.addEventListener('canplaythrough', () => { if (st.className !== 'stat err') { st.textContent = 'ready'; st.className = 'stat ready'; } });
+  a.addEventListener('waiting', () => { st.textContent = 'buffering…'; st.className = 'stat'; });
+  a.addEventListener('stalled', () => { if (st.className !== 'stat ready') { st.textContent = 'stalled — still loading'; st.className = 'stat'; } });
+  a.addEventListener('ended', () => $('side' + side).classList.remove('playing'));
+}
+function loadPair() {
+  if (idx >= PAIRS.length) return;
+  for (const side of ['A', 'B']) {
+    const a = $(side === 'A' ? 'aud' + side : 'aud' + side), st = $('stat' + side);
+    st.textContent = 'loading…'; st.className = 'stat';
+    a.src = srcFor(side);
+    a.load();
+  }
 }
 
 function stopAll() {
-  for (const id of ['audA', 'audB']) { const a = $(id); a.pause(); a.currentTime = 0; }
+  for (const id of ['audA', 'audB']) { const a = $(id); a.pause(); }
   $('sideA').classList.remove('playing');
   $('sideB').classList.remove('playing');
 }
 
 function playSide(side) {
   if (idx >= PAIRS.length) return;
-  stopAll();
-  const a = $(side === 'A' ? 'audA' : 'audB');
-  a.src = srcFor(side);
+  const a = $(side === 'A' ? 'audA' : 'audB'), other = $(side === 'A' ? 'audB' : 'audA');
+  other.pause();
+  $('side' + (side === 'A' ? 'B' : 'A')).classList.remove('playing');
+  // re-pressing the playing side restarts it; first press just plays (src is preloaded)
+  if (!a.paused) a.currentTime = 0;
+  else if (a.ended) a.currentTime = 0;
   a.play().catch(() => {});
   $('side' + side).classList.add('playing');
 }
@@ -210,6 +270,7 @@ function next() {
   verdict = null; tags = new Set();
   setVerdict(null); for (const t of ['drums', 'melody', 'mix', 'form']) $('t' + t).classList.remove('sel');
   idx = Math.min(PAIRS.length, idx + 1);
+  loadPair();
   render();
 }
 
@@ -262,7 +323,7 @@ document.addEventListener('keydown', e => {
   else if (k === ' ') { stopAll(); e.preventDefault(); }
 });
 
-if (PAIRS.length) { idx = firstUnrated(); render(); }
+if (PAIRS.length) { wireAudio('A'); wireAudio('B'); idx = firstUnrated(); loadPair(); render(); }
 </script>
 `;
 
