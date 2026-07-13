@@ -886,7 +886,14 @@ function compile(token){
     for(i=0;i<reps;i++){
       var c=segChord(S,bar,i*8), durBars=Math.min(blockBars,S.bars-bar);
       var dur=ha.hr===0.5?1.9:durBars*4-0.15, j;
-      for(j=0;j<c.voic.length;j++) push(t0+i*2+j*0.01,dur,'pad',c.voic[j]+lf,(0.42+0.02*S.e)*sg*0.55);
+      // Pad = a rootless 2-note upper dyad, sustained an octave below the chord
+      // stabs. The bass owns the root and the chord stab leads on voic[0], so
+      // doubling either at unison was pure masking (was ~72% of all register
+      // collisions). Instead the pad holds guide tones — 3rd+7th on a seventh
+      // chord, 3rd+5th on a triad — a warm harmonic bed that clears both the
+      // chord's mid-high register and the bass's low end.
+      for(j=1;j<c.voic.length;j++){ if(c.voic.length>=4&&j===2) continue;   // drop the 5th when a 7th is present (bass covers root+5th)
+        push(t0+i*2+j*0.01,dur,'pad',c.voic[j]+lf-12,(0.42+0.02*S.e)*sg*0.55); }
     }
   }
   // ----- walk the sections -----
