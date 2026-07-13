@@ -190,8 +190,9 @@ const Audio = (()=>{
         node.port.postMessage(p.msg);
         node.port.postMessage({type:'echoTime', secondsPerBeat:rspb, spb:rspb, bpm:bpm, generation:1});
         var evs=score.events, out=[];
+        var rvs=(score.gainScalar>0 && score.gainScalar<=1) ? score.gainScalar : 1;   // same density duck as live decks
         for(var i=0;i<evs.length;i++){
-          var we=deckEventToWorklet({spb:rspb, bpm:bpm, nativeBpm:bpm, generation:1}, evs[i], lead+(evNum(evs[i].tBeat, evs[i].t))*rspb);
+          var we=deckEventToWorklet({spb:rspb, bpm:bpm, nativeBpm:bpm, generation:1, velScale:rvs}, evs[i], lead+(evNum(evs[i].tBeat, evs[i].t))*rspb);
           if(we) out.push(we);
         }
         node.port.postMessage({type:'events', generation:1, events:out});
@@ -563,7 +564,11 @@ const Audio = (()=>{
     var d={ tok:cs.tok, score:score, events:evs, fp:cs.fp, generation:generation,
       nativeBpm:native, bpm:bpm, spb:60/bpm, origin:origin, totalBeats:beats,
       endTime:origin + beats*(60/bpm), cursor:0, sections:normalizeSections(score),
-      chords:chordTimeline(score), paletteSent:false };
+      chords:chordTimeline(score), paletteSent:false,
+      // per-track density duck (0.55..1): the composer computes it for every
+      // Score but nothing consumed it — the densest tracks played up to +5dB
+      // hotter than designed. Applied to every event vel in deckEventToWorklet.
+      velScale:(score.gainScalar>0 && score.gainScalar<=1) ? score.gainScalar : 1 };
     return d;
   }
   function retimeDeckOrigin(d, origin){ d.origin=origin; d.endTime=origin + d.totalBeats*d.spb; }
@@ -610,6 +615,7 @@ const Audio = (()=>{
       for(var key in _ARTIC_MAP){ if(a[key]!=null) we[_ARTIC_MAP[key]]=a[key]; }
       if(a.from!=null){ var ff=mtof(+a.from)*ratio; if(ff) we.from=Math.max(20, Math.min(20000, ff)); }  // portamento origin (midi -> Hz)
     }
+    if(d.velScale!=null && d.velScale!==1 && we.vel!=null) we.vel=we.vel*d.velScale;   // Score.gainScalar density duck
     we.generation=d.generation;
     return we;
   }

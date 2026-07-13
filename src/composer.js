@@ -14,11 +14,11 @@
 // These mirror the worklet's VoiceDef/PercDef contract (audio.js buildPaletteMsg maps wave->osc and
 // baseMidi->baseFreq; everything else must already match the worklet field names/nesting).
 // VoiceDef: { id, wave:'pulse|tri|saw|sine|wavetable|sample', duty?, partials?, crunchBits?, sampleId?,
-//   env:{a,d,s,r}, filter?:{cutHz,q,envAmt,envT}, vib?:{rate,depth,delay},
-//   chip?:{arpHz,dutyEnv[],dutyEnvLoop,tickHz}, glide?, detune?, sub?, gain, pan, sendEcho }
+//   env:{a,d,s,r}, filter?:{cutHz,q,envAmt,envT}, vib?:{rate,depth(SEMITONES),delay},
+//   chip?:{arpHz,dutyEnv[],dutyEnvLoop,tickHz}, glide?, detune?, sub?, gainMul, pan, sendEcho }
 // PercDef:  { id, kind:'kick|snare|hat|tom|zap', tone:{freq,end,sweepT,level,decT,osc},
 //   noise?:{mode,period,level,decT,hp}, click?:{level,decT}, openDecay?, gainMul, pan, sendEcho }
-// EchoDef:  { beats, fb, wet, damp, spread }   panLayout: { mode:'soft|hardLCR', pos:{role:-1..1} }
+// EchoDef:  { beats, fb, level, damp:0..1, spreadMs, pingPong }   panLayout: { mode:'soft|hardLCR', pos:{role:-1..1} }
 // Sample:   { id, rate, baseMidi, loop?:{start,end}, pcm:Float32Array }   (synthesized in compile)
 // Fingerprint: { bpm, keyPc, brightness, waveClass, grooveFamily, density, energyPeak, echoDepth }
 (function(){
@@ -94,10 +94,12 @@ function stPalette(token){
     samples.push(rec); return rec.id;
   }
   // --- lead ---
-  var lf=leadFam(), lead={ id:'lead', wave:lf, gain:0, pan:0 };
+  var lf=leadFam(), lead={ id:'lead', wave:lf, gainMul:0, pan:0 };
   if(lf==='pulse'){ lead.duty=pick(r,DUTIES);
     if(r()<0.38){ var dsteps=[lead.duty, pick(r,DUTIES.filter(function(d){return d!==lead.duty;}))], dhz=pick(r,[7.5,15,30]);
-      lead.chip={dutyEnv:dsteps, dutyEnvLoop:true, tickHz:clamp(dhz*dsteps.length,5,240)}; } }
+      // one-shot duty sweep (LSDJ practice: duty envelopes are attack transients);
+      // a LOOPING toggle at 7.5-30Hz was a rough AM buzz for the whole note.
+      lead.chip={dutyEnv:dsteps, dutyEnvLoop:false, tickHz:clamp(dhz*dsteps.length,5,240)}; } }
   if(lf==='wavetable'){ var rec=pick(r,WT_RECIPES); lead.partials=mkPartials(r,rec,brightness);
     if(era==='gb'||grit>0.62) lead.crunchBits=4; }
   if(lf==='sample') lead.sampleId=sampleRecipe(r()<0.6?'fmpluck':'bell','lead');
@@ -105,23 +107,26 @@ function stPalette(token){
   var lq = acid? rd3(5+4*r()) : rd3(0.7+1.9*r());
   lead.env=envP(0.005,0.12,0.78,0.08);
   lead.filter=filt(acid?500:1000, acid?2600:7000, lq);
-  lead.vib={rate:rd3(4.2+2.6*r()), depth:Math.round(8+((era==='gb')?30:24)*r()), delay:rd3(0.05+0.14*r())};
+  // vib depth is SEMITONES in the worklet contract — real chip vibrato is subtle
+  // (0.08–0.38 st). This was 8–38 (intended cents), which the worklet clipped to
+  // 12 and played as SEMITONES: a ±octave 4–7Hz siren on every held lead note.
+  lead.vib={rate:rd3(4.2+2.6*r()), depth:rd3(0.08+((era==='gb')?0.30:0.24)*r()), delay:rd3(0.05+0.14*r())};
   if(acid){ lead.glide=rd3(0.04+0.05*r()); lead.env.s=rd3(0.5); }
   if(r()<0.22 && lf!=='sample') lead.detune=Math.round(6+16*r());
-  lead.gain=gainFor(0.5,lq,lead.detune); lead.sendEcho=rd3(0.1+0.2*r());
+  lead.gainMul=gainFor(0.5,lq,lead.detune); lead.sendEcho=rd3(0.1+0.2*r());
   // --- chord (the LSDJ arp/stab voice) ---
   var cfam=wpick(r,[['pulse',1.1],['wavetable',0.6+(era==='snes'?0.5:0)],['saw',0.35+(era==='sega'?0.5:0)]]);
-  var chord={ id:'chord', wave:cfam, gain:0, pan:0 };
+  var chord={ id:'chord', wave:cfam, gainMul:0, pan:0 };
   if(cfam==='pulse') chord.duty=pick(r,[0.25,0.25,0.5,0.125]);
   if(cfam==='wavetable'){ chord.partials=mkPartials(r,pick(r,WT_RECIPES),brightness); if(era==='gb') chord.crunchBits=4; }
   var cq=rd3(0.8+1.6*r());
   chord.env=envP(0.003,0.08,0.12,0.05);
   chord.filter=filt(900,6000,cq);
   chord.chip={arpHz:wpick(r,[[60,1.2],[30,1]])};   // arp rate lives under chip.* in the worklet contract
-  chord.gain=gainFor(0.4,cq); chord.sendEcho=rd3(0.12+0.22*r());
+  chord.gainMul=gainFor(0.4,cq); chord.sendEcho=rd3(0.12+0.22*r());
   // --- bass ---
   var bfam=wpick(r,[['tri',1.0+(era==='nes'?0.6:0)],['pulse',0.5],['saw',0.35+(era==='sega'?0.55:0)],['sine',0.3],['wavetable',0.25]]);
-  var bass={ id:'bass', wave:bfam, gain:0, pan:0 };
+  var bass={ id:'bass', wave:bfam, gainMul:0, pan:0 };
   if(bfam==='pulse') bass.duty=pick(r,[0.25,0.5]);
   if(bfam==='wavetable') bass.partials=mkPartials(r,pick(r,[WT_RECIPES[0],WT_RECIPES[5]]),0.3);
   var bacid = bfam==='saw' && r()<0.3;
@@ -130,28 +135,28 @@ function stPalette(token){
   bass.filter={cutHz:Math.round(bacid?(380+320*r()):(320+520*r())), q:bq, envAmt:rd3(bacid?2.2+1.6*r():0.8+0.8*r()), envT:rd3(0.1+0.4*r())};
   if(bacid) bass.glide=rd3(0.03+0.04*r());
   if(bfam==='sine'||r()<0.25) bass.sub=rd3(0.15+0.2*r());
-  bass.gain=gainFor(0.62,bq); bass.sendEcho=0.02;
+  bass.gainMul=gainFor(0.62,bq); bass.sendEcho=0.02;
   // --- pad / counter (optional) ---
   var pad=null, counter=null;
   if(r() < 0.5+(era==='snes'?0.22:0)-(era==='gb'?0.15:0)){
     var pfam=wpick(r,[['wavetable',1],['pulse',0.6],['saw',0.5],['sine',0.3],['sample',0.18+(era==='snes'?0.12:0)]]);
-    pad={ id:'pad', wave:pfam, gain:0, pan:0 };
+    pad={ id:'pad', wave:pfam, gainMul:0, pan:0 };
     if(pfam==='pulse'){ pad.duty=0.5; pad.detune=Math.round(6+10*r()); }
     if(pfam==='saw'){ pad.detune=Math.round(8+14*r()); }
     if(pfam==='wavetable') pad.partials=mkPartials(r,pick(r,[WT_RECIPES[4],WT_RECIPES[0],WT_RECIPES[3]]),brightness*0.8);
     if(pfam==='sample') pad.sampleId=sampleRecipe(r()<0.55?'choir':'organette','pad');
     pad.env={a:rd3(0.25+0.35*r()), d:rd3(0.4+0.3*r()), s:rd3(0.8+0.12*r()), r:rd3(0.4+0.3*r())};
     pad.filter=filt(700,3600,1);
-    pad.gain=gainFor(0.3,1,pad.detune); pad.sendEcho=rd3(0.3+0.25*r());
+    pad.gainMul=gainFor(0.3,1,pad.detune); pad.sendEcho=rd3(0.3+0.25*r());
   }
   if(r()<0.55){
-    counter={ id:'counter', wave: lf==='pulse'?'pulse':wpick(r,[['pulse',1],['wavetable',0.6],['tri',0.5]]), gain:0, pan:0 };
+    counter={ id:'counter', wave: lf==='pulse'?'pulse':wpick(r,[['pulse',1],['wavetable',0.6],['tri',0.5]]), gainMul:0, pan:0 };
     if(counter.wave==='pulse') counter.duty=pick(r,DUTIES.filter(function(d){ return d!==lead.duty; }));
     if(counter.wave==='wavetable') counter.partials=mkPartials(r,pick(r,WT_RECIPES),brightness);
     counter.env=envP(0.005,0.1,0.6,0.09);
     counter.filter=filt(800,5200,1);
-    counter.vib={rate:rd3(4+2*r()), depth:Math.round(6+14*r()), delay:rd3(0.08+0.12*r())};
-    counter.gain=0.34; counter.sendEcho=rd3(0.14+0.2*r());
+    counter.vib={rate:rd3(4+2*r()), depth:rd3(0.06+0.14*r()), delay:rd3(0.08+0.12*r())};   // semitones (see lead.vib)
+    counter.gainMul=0.34; counter.sendEcho=rd3(0.14+0.2*r());
   }
   // exotic-budget: at most 2 wavetable/sample melodic voices; extras demote to pulse
   var vs=[lead,chord,pad,counter], exotic=0, i2;
@@ -183,10 +188,14 @@ function stPalette(token){
       click:{ level:0 },
       gainMul:0.5, pan:0, sendEcho:rd3(0.1+0.15*r()) }
   };
-  // --- echo + pans ---
+  // --- echo + pans --- (worklet-native EchoDef: level, damp 0..1 dark<-..->0 bright, spreadMs.
+  //     The old {wet, dampHz, spread} fields were silently ignored: level stuck at the 0.2
+  //     default and damp clipped to 1 = repeats lowpassed to mud.)
   var wet=cl01((0.12+0.34*r())*(era==='nes'?0.55:(era==='gb'?0.75:(era==='snes'?1.25:1))));
+  var dampHz=2200+4500*r();   // intended repeat brightness, mapped to the worklet's 0..1 damp
   var echo={ beats:wpick(r,[[0.375,1.2],[0.5,1],[0.75,0.6],[0.25,0.4]]), fb:rd3(0.22+0.3*r()),
-    wet:rd3(clamp(wet,0.06,0.5)), damp:Math.round(2200+4500*r()), spread:rd3(0.3+0.6*r()) };
+    level:rd3(clamp(wet,0.06,0.5)), damp:rd3(clamp(1-(dampHz-1500)/7000,0.15,0.85)),
+    spreadMs:Math.round((0.3+0.6*r())*24), pingPong:(r()<0.25) };
   var hard = r() < (era==='gb'?0.22:0.06);
   var sgn = r()<0.5?1:-1;
   var pos={ lead:0, counter:rd3(sgn*(hard?1:0.34+0.14*r())), chord:rd3(-sgn*(hard?1:0.26+0.14*r())),
@@ -349,7 +358,13 @@ var ONSETS=[
   {p:[0,3,8,11,12],     d:0.5,  tag:'latin'},
   {p:[0,2,4,8,10,12],   d:0.55, tag:'even'},
   {p:[0,1,4,8,9,12],    d:0.5,  tag:'doubleup'},
-  {p:[0,4,7,8,12,15],   d:0.55, tag:'pickup'}
+  {p:[0,4,7,8,12,15],   d:0.55, tag:'pickup'},
+  // sparse cells — the real-library norm (GB pulse1 median 3.8 notes/bar,
+  // p25 2.3; the old pool bottomed out at 4 and modal picks were 6)
+  {p:[0,4,8],           d:0.24, tag:'triple'},
+  {p:[0,3,8],           d:0.22, tag:'callshort'},
+  {p:[0,6,10,12],       d:0.32, tag:'offcall'},
+  {p:[0,2,8],           d:0.24, tag:'snap'}
 ];
 // merged, de-platformed corpus interval cells (single weighted pool; scale-degree deltas)
 var CELLS=[
@@ -451,7 +466,11 @@ function stMotif(token,pal,gr,ha){
   for(i=0;i<ONSETS.length;i++){
     var t=ONSETS[i], ov=0, j;
     for(j=0;j<t.p.length;j++) if(gr.accentSteps.indexOf(t.p[j])>=0) ov++;
-    var sc=0.55*ov/t.p.length + 0.45*(1-Math.abs(t.d-gr.density)) + (t.tag==='gallop'&&gr.family==='gallop'?0.3:0) + r()*0.15;
+    // density target is DAMPED (x0.72): the groove's drum density shouldn't drag
+    // the melody to the same busyness — the lead is a voice, not a hi-hat. More
+    // scoring noise (0.28) so sparse cells actually win sometimes instead of the
+    // argmax always landing on 6-onset templates.
+    var sc=0.45*ov/t.p.length + 0.45*(1-Math.abs(t.d-gr.density*0.72)) + (t.tag==='gallop'&&gr.family==='gallop'?0.3:0) + r()*0.28;
     if(sc>bs){ bs=sc; best=t; }
   }
   var onsets=best.p.slice();
@@ -465,9 +484,23 @@ function stMotif(token,pal,gr,ha){
   }
   var N=onsets.length, span=hookBars*16;
   var len16=[], anchors=[];
+  // ARTICULATION: real chip leads phrase with RESTS. The old rule set every
+  // note's length to the full gap to the next onset — a wall-to-wall legato
+  // ribbon with 0 rest steps (measured 94.5% 16th occupancy vs the real-library
+  // norm of ~half of bars holding a full beat of silence). Now a per-hook gate
+  // style caps note lengths (tight/norm keep air between notes) and the last
+  // note in each bar HOLDS — the classic GB phrase ending (sustain + vibrato +
+  // echo tail into the gap).
+  var gate=wpick(r,[['tight',0.9],['norm',1.2],['legato',0.5]]);
   for(i=0;i<N;i++){
     var nx=(i<N-1?onsets[i+1]:span);
-    len16.push(Math.min(8,nx-onsets[i]));
+    var maxL=Math.min(8,nx-onsets[i]);
+    var lastInBar=(i===N-1)||(Math.floor(onsets[i+1]/16)>Math.floor(onsets[i]/16));
+    var L16;
+    if(lastInBar||gate==='legato') L16=maxL;                                   // hold the phrase-ender
+    else if(gate==='tight') L16=Math.min(maxL,1+((r()<0.3)?1:0));              // staccato cell
+    else L16=Math.min(maxL,wpick(r,[[1,0.5],[2,1.2],[3,0.4],[4,0.5]]));        // spoken, with air
+    len16.push(L16);
     anchors.push(onsets[i]%4===0);
   }
   function chordDegAt(idx){
@@ -554,8 +587,11 @@ function stArrange(token,pal,gr,ha,mo){
       d.op = grooveN===1 ? 'asis' : pick(r,['asis','endvar','nudge']);
       d.loopPos = pick(r,[0,0,'B']);
       if(grooveN>1 && r()<0.12) d.regShift=12;
+      if(grooveN>1 && r()<0.22) d.leadEvery=2;   // later grooves sometimes call-and-answer too
     } else if(role==='flow'){
-      d.counter=hasC?1:0; d.leadEvery=hasC?2:1;
+      // flow = the mellow stretch: call-and-answer even without a counter voice
+      // (silent answer bars over chord+bass+drums are the classic breakdown)
+      d.counter=hasC?1:0; d.leadEvery=hasC?2:(r()<0.3?2:1);
       d.pad = hasP && r()<0.7 ? 1 : 0;
       d.drums = wpick(r,[['B',1],['half',0.7],['A',0.5]]);
       d.op = pick(r,['fragment','invert','nudge']);
@@ -589,6 +625,12 @@ function stArrange(token,pal,gr,ha,mo){
     }
     if(role!=='drop' && role!=='outro' && role!=='break' && role!=='build' &&
        pal.voices.lead.wave==='pulse' && r()<0.3) d.duty=pick(r,[0.125,0.25,0.5]);
+    // LAYER BUDGET: counter and pad never stack in one section. A GB runs the
+    // lead + ONE companion pulse + wave bass + noise; five pitched layers at
+    // once (lead+chord+counter+pad+bass, as drops used to flag) reads as chaos
+    // on any speaker. Chord stays (it's the LSDJ arp identity); the third
+    // accompaniment slot is counter XOR pad.
+    if(d.counter&&d.pad){ if(r()<0.5) d.counter=0; else d.pad=0; }
     for(var k in d) S[k]=d[k];
   }
   function maskStr(S){ return 'L'+S.lead+'C'+S.counter+'H'+S.chord+'B'+S.bass+'P'+S.pad; }
@@ -855,37 +897,44 @@ function compile(token){
   function emitLead(S,si,bar,rf,seq){
     if(S.leadEvery>1 && Math.floor(bar/mo.hookBars)%S.leadEvery===1) return;
     var t0=(S.atBar+bar)*4, sg=secGainOf(S.e);
-    var cyc=bar%mo.hookBars, i;
+    var cyc=bar%mo.hookBars, i, first=true;
     for(i=0;i<seq.onsets.length;i++){
       var on=seq.onsets[i]; if(on<cyc*16||on>=(cyc+1)*16) continue;
       var st=on-cyc*16, m=leadMidi(seq.degs[i],S.atBar+bar,S.regShift);
       var l16=seq.len[i], dur=l16*0.25*(l16===1&&gr.density>0.5?0.7:0.92);
       var a=null;
-      if(gr.accentSteps.indexOf(st)>=0){ a=a||{}; a.accent=1; }
+      // Accent ONLY the phrase-start note. The old rule accented every groove
+      // accent-step hit (76% of lead notes — templates are argmax-picked for
+      // accent overlap), and the composer baked a 1.1x on top of the worklet's
+      // own 1.3x accent multiplier: a double accent that made 3 of 4 lead notes
+      // the loudest thing in the mix. Worklet's 1.3x alone is the accent now.
+      if(first && gr.accentSteps.indexOf(st)>=0){ a=a||{}; a.accent=1; }
+      first=false;
       if(prevLeadMidi!=null && Math.abs(m-prevLeadMidi)>=5 && rf()<0.3){ a=a||{}; a.slide=rd3(0.04+0.04*rf()); a.from=prevLeadMidi; }
       if(S.duty!=null && st===seq.onsets[0]%16){ a=a||{}; a.dutyStart=S.duty; }
       if(prevLeadMidi===m && l16<=2 && rf()<0.35){ a=a||{}; a.tie=1; }
-      push(t0+st/4,dur,'lead',m,0.82*sg*(a&&a.accent?1.1:0.97),a);
+      push(t0+st/4,dur,'lead',m,0.74*sg*(a&&a.accent?1.0:0.94),a);
       prevLeadMidi=m;
     }
   }
-  function emitCounter(S,si,bar,rf){
-    if(S.leadEvery>1 && Math.floor(bar/mo.hookBars)%S.leadEvery===0 && S.lead) return;  // speak in the answer bars
-    var t0=(S.atBar+bar)*4, sg=secGainOf(S.e), cyc=bar%mo.hookBars;
-    var occ=new Array(16), i, j;
-    for(i=0;i<mo.onsets.length;i++){ var on=mo.onsets[i];
-      if(on>=cyc*16&&on<(cyc+1)*16) for(j=0;j<mo.len16[i]&&(on%16)+j<16;j++) occ[(on%16)+j]=1; }
-    var runs=[], st=-1;
-    for(i=0;i<16;i++){ if(!occ[i]){ if(st<0) st=i; } else if(st>=0){ runs.push([st,i-st]); st=-1; } }
-    if(st>=0) runs.push([st,16-st]);
-    var reg = S.regShift===-12?0:-12, count=0;
-    for(i=0;i<runs.length&&count<3;i++){ if(runs[i][1]<3) continue;
-      var idx=(i+bar)%mo.degs.length, d=mo.degs[idx];
+  // The counter is the ANSWER voice: it speaks only where the lead rests — the
+  // leadEvery answer statements and phrase-breath bars — with a short 2-4 note
+  // phrase derived from the hook tail, then silence. (The old version tried to
+  // stuff every intra-bar gap of the hook's occupancy map; the legato hook had
+  // no gaps, so it emitted ZERO notes across every track ever generated — dead
+  // code — and call-and-response never made it to the speakers.)
+  function emitCounter(S,si,bar,rf,answering){
+    if(!answering) return;
+    var t0=(S.atBar+bar)*4, sg=secGainOf(S.e);
+    var reg = S.regShift===-12?0:-12;
+    var n=2+((rf()*3)|0); if(n>mo.degs.length) n=mo.degs.length;   // 2-4 notes
+    var st0=rf()<0.6?0:2, k;
+    for(k=0;k<n;k++){
+      var idx=mo.degs.length-n+k, d=mo.degs[idx];
       d = mo.counterFig.mode==='invert' ? 2*mo.degs[0]-d : d-2;
-      if(runs[i][0]%4===0) d=chordToneNear(d,segChord(S,bar,runs[i][0]).deg,L);
+      if(k===n-1) d=chordToneNear(d,segChord(S,bar,Math.min(15,st0+k*2)).deg,L);
       var m=leadMidi(clamp(d,-7,10),S.atBar+bar,reg);
-      push(t0+runs[i][0]/4+hum(),Math.min(runs[i][1],4)*0.24,'counter',m,0.56*sg);
-      count++;
+      push(t0+(st0+k*2)/4+hum(),(k===n-1?0.9:0.42),'counter',m,0.5*sg*(k===0?1:0.92));
     }
   }
   function emitPad(S,si,bar){
@@ -930,12 +979,25 @@ function compile(token){
       continue;   // the rest of the outro bars are the echo tail
     }
     if(S.riser) push(S.atBar*4,S.bars*4-0.25,'fx',null,0.45+0.05*S.e/2,{sendEcho:0.25});
+    // PHRASE BREATHING: after every 3rd/4th hook statement the lead rests a bar
+    // while the groove keeps pumping — the classic chiptune verse move (real GB:
+    // ~half of per-channel bars hold a full beat of silence; this lead used to
+    // play 81% of ALL bars with 23-bar unbroken runs). Irregular by seed — the
+    // interval AND phase vary per section, never a fixed 4/8-bar grid. Drops
+    // stay full-on (they're the payoff); track opening never rests.
+    var restEvery=(S.lead && S.bars>=6 && S.role!=='drop')?3+((rf()*2)|0):0;
+    var restPhase=restEvery?((rf()*restEvery)|0):0;
     for(bar=0;bar<S.bars;bar++){
+      var stmt=Math.floor(bar/mo.hookBars);
+      var restBar = restEvery>0 && bar>0 && (S.atBar+bar)>=2 &&
+        stmt%restEvery===restPhase && bar%mo.hookBars===mo.hookBars-1;
+      var answering = restBar ||
+        (S.lead && S.leadEvery>1 && Math.floor(bar/mo.hookBars)%S.leadEvery===1);
       emitDrums(S,si,bar,rf);
       if(S.bass) emitBass(S,si,bar,rf);
       if(S.chord) emitChord(S,si,bar,rf);
-      if(S.lead){ var seq=applyOp(S.op,R(token,'F:op:'+si)); emitLead(S,si,bar,rf,seq); }
-      if(S.counter&&pal.voices.counter) emitCounter(S,si,bar,rf);
+      if(S.lead && !restBar){ var seq=applyOp(S.op,R(token,'F:op:'+si)); emitLead(S,si,bar,rf,seq); }
+      if(S.counter&&pal.voices.counter) emitCounter(S,si,bar,rf,answering);
       if(S.pad&&pal.voices.pad) emitPad(S,si,bar);
     }
     if(S.role==='build'){   // 2-note chromatic pickup into the drop
@@ -981,7 +1043,7 @@ function fingerprint(token){
   token=normToken(token);
   var pal=stPalette(token), gr=stGroove(token,pal), ha=stHarmony(token,pal);
   return { bpm:gr.bpm, keyPc:ha.keyPc, brightness:rr(pal.brightness), waveClass:pal.waveClass,
-    grooveFamily:gr.family, density:gr.density, energyPeak:peakEnergy(token), echoDepth:pal.echo.wet };
+    grooveFamily:gr.family, density:gr.density, energyPeak:peakEnergy(token), echoDepth:pal.echo.level };
 }
 
 var API={ V:3, id:'rrr_core', compile:compile, fingerprint:fingerprint };
