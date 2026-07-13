@@ -17,11 +17,19 @@
 # Usage: serve.py <port> <directory>
 import os
 import sys
-from http.server import HTTPServer, SimpleHTTPRequestHandler
+from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 1338
 DIRECTORY = sys.argv[2] if len(sys.argv) > 2 else "dist"
 NO_FALLBACK_PREFIXES = ("/packs/", "/lib/")
+
+
+class BurstServer(ThreadingHTTPServer):
+    # The pack loader opens 30+ connections in one burst. socketserver's default
+    # listen backlog is 5, so the OS refuses the overflow (connection reset) and a
+    # random subset of games vanishes each load. A deep backlog absorbs the burst.
+    daemon_threads = True
+    request_queue_size = 256
 
 
 class SPAHandler(SimpleHTTPRequestHandler):
@@ -55,7 +63,12 @@ class SPAHandler(SimpleHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    httpd = HTTPServer(("127.0.0.1", PORT), SPAHandler)
+    # BurstServer = ThreadingHTTPServer with a deep listen backlog. The pack
+    # loader fetches every pack.js/pack.json in one concurrent burst (30+ at
+    # once); the stock server (single-threaded, backlog 5) refused most of the
+    # burst, so cloudflared returned 502 for a random subset every load and a
+    # different handful of games "disappeared" each refresh.
+    httpd = BurstServer(("127.0.0.1", PORT), SPAHandler)
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

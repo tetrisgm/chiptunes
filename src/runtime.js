@@ -1221,7 +1221,13 @@ function gamePickerVisible(){ return !!(_gamePickerEl && _gamePickerEl.classList
 function gameLabel(key){
   if(key==='random') return 'Random';
   var gm=GAME_BY_KEY[key];
-  return (gm && gm.name) ? gm.name : key.replace(/_/g,' ').replace(/\b\w/g, function(c){ return c.toUpperCase(); });
+  if(gm && gm.name) return gm.name;
+  // not loaded yet: use the discovered manifest name so the picker reads
+  // "PAC-MAN" / "BRICKTAP", not a title-cased id, before the pack loads.
+  try{
+    if(typeof Packs!=='undefined' && Packs.get){ var h=Packs.get(key); if(h && h.manifest && h.manifest.name) return h.manifest.name; }
+  }catch(e){}
+  return key.replace(/_/g,' ').replace(/\b\w/g, function(c){ return c.toUpperCase(); });
 }
 function buildGamePicker(){
   if(_gamePickerEl) return _gamePickerEl;
@@ -1238,9 +1244,21 @@ function buildGamePicker(){
   return el;
 }
 function _pickerGameKeys(){
-  return GAMES.filter(function(gm){ return gm && !gm.hiddenFromRandom && !_BROKEN_GAMES[gm.key]; })
-    .map(function(gm){ return gm.key; })
-    .sort();
+  // The picker lists the full DISCOVERED roster, not just the eagerly-warmed
+  // packs in CT_GAMES (radio warms only ~2 at startup; the rest load lazily).
+  // Selecting an unloaded game triggers its pack load (chooseVisualizerGame ->
+  // _ensureGamePackLoaded) and shows balloon meanwhile. Without this the picker
+  // only ever offered the 2-3 warmed games.
+  var seen={}, keys=[];
+  function add(k){ if(!k||seen[k]||_BROKEN_GAMES[k]) return; var gm=GAME_BY_KEY[k]; if(gm&&gm.hiddenFromRandom) return; seen[k]=1; keys.push(k); }
+  try{
+    if(typeof Packs!=='undefined' && Packs.list){
+      var L=Packs.list()||[], i;
+      for(i=0;i<L.length;i++){ if(L[i] && L[i].kind==='game') add(L[i].id); }
+    }
+  }catch(e){}
+  for(var j=0;j<GAMES.length;j++){ if(GAMES[j]) add(GAMES[j].key); }   // inline/loaded games the loader may not surface
+  return keys.sort();
 }
 function _fillGamePickerList(){
   if(!_gamePickerEl) return;
