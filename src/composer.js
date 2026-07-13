@@ -166,20 +166,26 @@ function stPalette(token){
   samples=samples.filter(function(s){ return (lead.sampleId===s.id)||(pad&&pad.sampleId===s.id); });
   // --- percussion — per-track drum personality. Emits the worklet PercDef contract directly
   //     (tone/noise/click nested + gainMul), anchored near the engine's known-good defaults. ---
-  var noiseBits=(era==='gb'?7:15);
+  // The 7-stage LFSR ("short mode") is the famously METALLIC GB ring — great as
+  // an occasional hat color, but a whole track of mode-7 snares reads as a cheap
+  // metal "tshk" hammering every backbeat. Snare bodies default to white noise
+  // (mode 15) with short mode only as a sometimes-GB accent; mode-7 hats avoid
+  // period 0 (its brightest, ringiest setting).
+  var snareMode=(era==='gb'&&r()<0.35)?7:15;
+  var hatMode=(r()<0.6?7:15);
   var percs={
     kick:{ id:'kick', kind:'kick',
       tone:{ freq:Math.round(150+180*r()), end:Math.round(40+18*r()), sweepT:rd3(0.04+0.05*r()), level:rd3(0.95+0.35*r()), decT:rd3(0.075+0.06*r()), osc:'sine' },
       click:{ level:rd3(era==='snes'?0.06+0.14*r():0.18+0.4*r()) },
       gainMul:1, pan:0, sendEcho:0 },
     snare:{ id:'snare', kind:'snare',
-      tone:{ freq:Math.round(165+85*r()), end:Math.round(140+40*r()), sweepT:0.02, level:rd3(0.24+0.28*r()+(era==='snes'?0.12:0)), decT:rd3(0.03+0.03*r()), osc:'sine' },
-      noise:{ mode:noiseBits, period:2+((r()*5)|0), level:rd3(0.72+0.28*r()), decT:rd3(0.08+0.09*r()), hp:rd3(0.3+0.35*r()) },
+      tone:{ freq:Math.round(165+85*r()), end:Math.round(140+40*r()), sweepT:0.02, level:rd3(0.16+0.2*r()+(era==='snes'?0.1:0)), decT:rd3(0.03+0.03*r()), osc:'sine' },
+      noise:{ mode:snareMode, period:2+((r()*5)|0), level:rd3(0.72+0.28*r()), decT:rd3(0.08+0.09*r()), hp:rd3(0.3+0.35*r()) },
       click:{ level:rd3(0.1+0.2*r()) },
       gainMul:1, pan:rd3((r()<0.5?-1:1)*0.06), sendEcho:rd3(0.04+0.1*r()) },
     hat:{ id:'hat', kind:'hat',
       tone:{ level:0 },
-      noise:{ mode:(r()<0.6?7:15), period:(r()<0.55?0:1), level:rd3(0.62+0.28*r()), decT:rd3(0.016+0.03*r()), hp:rd3(0.6+0.32*r()) },
+      noise:{ mode:hatMode, period:hatMode===7?1+((r()*2)|0):(r()<0.55?0:1), level:rd3(0.62+0.28*r()), decT:rd3(0.016+0.03*r()), hp:rd3(0.6+0.32*r()) },
       click:{ level:rd3(0.25+0.2*r()) }, openDecay:rd3(0.15+0.2*r()),
       gainMul:rd3(0.7+0.25*r()), pan:rd3((r()<0.5?-1:1)*(0.14+0.14*r())), sendEcho:0 },
     fx:{ id:'fx', kind:'zap',
@@ -252,8 +258,12 @@ function stGroove(token,pal){
   // fill vocabulary DERIVED from the track's own pattern (never a fixed-grid stamp)
   var fMap={}; patA.s.concat(patA.k).forEach(function(x){ if(x>=8) fMap[x]=1; });
   [10,12,13,14,15].forEach(function(x){ if(r()<0.75) fMap[x]=1; });
+  // UNTUNED roll: pitched snares (midi on a noise sweep) read as a cheap
+  // metallic "donk", and this fill fires at ~75% of section boundaries — it
+  // was one of the most-repeated sounds in the mix. The velocity ramp alone
+  // carries the crescendo.
   var cresc=Object.keys(fMap).map(Number).sort(function(a,b){return a-b;}).map(function(st){
-    return { st:st, ch:'snare', vel:rd3(0.34+0.5*(st-8)/7), midi:(r()<0.4? 55-((st-8)>>1) : null) }; });
+    return { st:st, ch:'snare', vel:rd3(0.34+0.5*(st-8)/7), midi:null }; });
   var stMap={}; patA.k.forEach(function(x){ stMap[x>=8?x:x+8]=1; }); if(r()<0.7) stMap[14]=1;
   var stut=Object.keys(stMap).map(Number).sort(function(a,b){return a-b;}).map(function(st){
     return { st:st, ch:'kick', vel:rd3(0.6+0.02*(st-8)), midi:null }; });
@@ -538,12 +548,30 @@ function stMotif(token,pal,gr,ha){
     break:[['stabsync',1],['arp16',0.8],['offstab',0.6]],
     halftime:[['pulse4',1],['arp8',0.7]],
     gallop:[['arp16',1],['arp8',0.8],['stabsync',0.6]] };
+  // Arp personality = SHAPE x RHYTHM, not just up/down 8ths. ord adds broken
+  // (alternating pairs) and pedal (return-to-root) figures; rhythm spans
+  // quarters (r4, long gliding notes) through dotted-8th drive (dot), gated
+  // 16ths (gate, one step muted per cycle) and straight r8/r16 — weighted by
+  // groove family. Before this, every arp in every track was a straight
+  // up-or-down cycle at a fixed rate ("two or three kinds, always the same
+  // rhythm" — the owner heard it exactly).
+  var ARH={ four:[['r8',1],['r16',0.8],['dot',0.55],['r4',0.4]],
+    backbeat:[['r8',1],['dot',0.7],['gate',0.6],['r4',0.4]],
+    break:[['r8',1],['dot',0.6],['r4',0.5]],
+    halftime:[['r4',1],['r8',0.7],['dot',0.4]],
+    gallop:[['gate',1],['r16',0.9],['dot',0.6]] };
   var arpFig={ mode:wpick(r,CFIGS[gr.family]||CFIGS.backbeat),
-    dir:pick(r,['up','up','updown','down']), span:(r()<0.35?2:1), stabArp:r()<0.78 };
+    ord:wpick(r,[['up',1],['down',0.6],['updown',0.8],['broken',0.7],['pedal',0.6]]),
+    rhythm:wpick(r,ARH[gr.family]||ARH.backbeat),
+    span:(r()<0.35?2:1), stabArp:r()<0.78 };
   var altChord = /arp/.test(arpFig.mode) ? 'offstab' : 'arp16';
+  // the alternate arp (chordVar sections) flips BOTH axes for real contrast
+  var altOrd=pick(r,['up','updown','broken','pedal'].filter(function(o){ return o!==arpFig.ord; }));
+  var altRhythm=pick(r,['r8','dot','r4','r16'].filter(function(x){ return x!==arpFig.rhythm; }));
   var counterFig={ mode:r()<0.5?'echo':'invert' };
   return { hookBars:hookBars, onsets:onsets, len16:len16, degs:degs, anchors:anchors, gen:gen,
-    leadBase:leadBase, bassFig:bassFig, arpFig:arpFig, altChord:altChord, counterFig:counterFig };
+    leadBase:leadBase, bassFig:bassFig, arpFig:arpFig, altChord:altChord,
+    altOrd:altOrd, altRhythm:altRhythm, counterFig:counterFig };
 }
 
 // ---------- stage E: arrangement — form grammar, novelty by construction, energy arc ----------
@@ -843,25 +871,36 @@ function compile(token){
           (modeName==='pulse4'?0.5:0.62)*sg*(st===steps[0]?1.06:0.96), (a.arp||a.accent||a.cutMul)?a:null);
       }
     } else {
-      // Arp comps UNDER the lead. When a lead carries the hook, a dense arp16
-      // in the same register masks it (78% of chord/lead collisions came from
-      // busy-arp bars, and there is no free lane below the lead — the bass and
-      // rootless pad own it, so the arp can't just drop down). Under a lead the
-      // arp thins to arp8 (halves the collision surface without moving register)
-      // and ducks a touch so the lead stays the top voice. With no lead it keeps
-      // the full bright arp16. (Note: dropping the octave-up reach was tried and
-      // reverted — it re-indexed the arp onto lead pitches and made 12 seeds
-      // worse; the density thin is near-monotonic.)
-      var underLead=(modeName!=='arp8' && S.lead);
-      var stepN = (modeName==='arp8'||underLead)?2:1, dur=(modeName==='arp8'||underLead)?0.42:0.22, idx=0;
-      for(st=0;st<16;st+=stepN){
+      // Arp = SHAPE x RHYTHM (mo.arpFig.ord / .rhythm; chordVar sections flip to
+      // the alternate pair for real contrast). Rhythms: r16 straight 16ths, r8
+      // 8ths, dot dotted-8th drive (every 3 steps), gate gated 16ths (one step
+      // muted per 4), r4 long quarters. Section-aware: drops lift one density
+      // notch, flow/bridge drop one. Under a lead the busy rhythms (r16/gate)
+      // thin to r8 + a small duck so the lead stays the top voice — but dot/r4
+      // KEEP their character (the old rule forced every under-lead arp to
+      // identical straight 8ths, which is why they all sounded the same).
+      // (Octave-drop under lead was tried and reverted: it re-indexed the arp
+      // onto lead pitches and made 12 seeds worse. Density is the safe lever.)
+      var ord = S.chordVar ? mo.altOrd : mo.arpFig.ord;
+      var rhy = S.chordVar ? mo.altRhythm : mo.arpFig.rhythm;
+      if(S.role==='drop' && rhy==='r8') rhy='r16';
+      else if((S.role==='flow'||S.role==='bridge') && rhy==='r16') rhy='r8';
+      if(S.lead && (rhy==='r16'||rhy==='gate')) rhy='r8';
+      var RH={ r16:{stepN:1,dur:0.22}, r8:{stepN:2,dur:0.42}, dot:{stepN:3,dur:0.32},
+        gate:{stepN:1,dur:0.22,mask:[1,1,0,1]}, r4:{stepN:4,dur:0.85} };
+      var rh=RH[rhy]||RH.r8, idx=0;
+      for(st=0;st<16;st+=rh.stepN){
+        if(rh.mask && !rh.mask[(st/rh.stepN)%rh.mask.length]){ idx++; continue; }
         var ch3=segChord(S,bar,st), notes=ch3.voic.slice();
         if(mo.arpFig.span===2) notes=notes.concat([notes[0]+12]);
         var n=notes.length, j;
-        if(mo.arpFig.dir==='down') j=n-1-(idx%n);
-        else if(mo.arpFig.dir==='updown'){ var cyc=2*n-2||1, p=idx%cyc; j=p<n?p:cyc-p; }
+        if(ord==='down') j=n-1-(idx%n);
+        else if(ord==='updown'){ var cyc=2*n-2||1, p=idx%cyc; j=p<n?p:cyc-p; }
+        else if(ord==='broken'){ var bo=[0,2,1,3]; j=bo[idx%Math.min(4,n)]%n; }        // alternating pairs
+        else if(ord==='pedal'){ j=(idx%2===0)?0:(1+((idx>>1)%(n-1||1))); }             // return-to-root
         else j=idx%n;
-        push(t0+st/4+hum(),dur,'chord',notes[j]+lf,0.5*sg*(st%4===0?1.12:0.92)*(S.lead?0.85:1));
+        push(t0+st/4+hum(),rh.dur,'chord',notes[j]+lf,
+          0.5*sg*(st%4===0?1.12:0.92)*(S.lead?0.85:1)*(rhy==='r4'?1.06:1));
         idx++;
       }
     }
