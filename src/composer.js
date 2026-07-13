@@ -801,7 +801,17 @@ function compile(token){
           (modeName==='pulse4'?0.5:0.62)*sg*(st===steps[0]?1.06:0.96), (a.arp||a.accent||a.cutMul)?a:null);
       }
     } else {
-      var stepN = modeName==='arp8'?2:1, dur=modeName==='arp8'?0.42:0.22, idx=0;
+      // Arp comps UNDER the lead. When a lead carries the hook, a dense arp16
+      // in the same register masks it (78% of chord/lead collisions came from
+      // busy-arp bars, and there is no free lane below the lead — the bass and
+      // rootless pad own it, so the arp can't just drop down). Under a lead the
+      // arp thins to arp8 (halves the collision surface without moving register)
+      // and ducks a touch so the lead stays the top voice. With no lead it keeps
+      // the full bright arp16. (Note: dropping the octave-up reach was tried and
+      // reverted — it re-indexed the arp onto lead pitches and made 12 seeds
+      // worse; the density thin is near-monotonic.)
+      var underLead=(modeName!=='arp8' && S.lead);
+      var stepN = (modeName==='arp8'||underLead)?2:1, dur=(modeName==='arp8'||underLead)?0.42:0.22, idx=0;
       for(st=0;st<16;st+=stepN){
         var ch3=segChord(S,bar,st), notes=ch3.voic.slice();
         if(mo.arpFig.span===2) notes=notes.concat([notes[0]+12]);
@@ -809,7 +819,7 @@ function compile(token){
         if(mo.arpFig.dir==='down') j=n-1-(idx%n);
         else if(mo.arpFig.dir==='updown'){ var cyc=2*n-2||1, p=idx%cyc; j=p<n?p:cyc-p; }
         else j=idx%n;
-        push(t0+st/4+hum(),dur,'chord',notes[j]+lf,0.5*sg*(st%4===0?1.12:0.92));
+        push(t0+st/4+hum(),dur,'chord',notes[j]+lf,0.5*sg*(st%4===0?1.12:0.92)*(S.lead?0.85:1));
         idx++;
       }
     }
