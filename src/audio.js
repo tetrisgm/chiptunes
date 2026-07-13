@@ -176,12 +176,15 @@ const Audio = (()=>{
       var lead=0.06, seconds=beats*rspb + 1.8;
       var oc=new OfflineAudioContext(2, Math.ceil((seconds+lead)*sr), sr);
       var m=oc.createGain(); m.gain.value=0.42;
+      // keep IDENTICAL to the live master chain in init() (voicing EQ + leveler + makeup + limiter)
+      var pe=oc.createBiquadFilter(); pe.type='peaking'; pe.frequency.value=1200; pe.Q.value=0.8; pe.gain.value=3.5;
+      var ae=oc.createBiquadFilter(); ae.type='highshelf'; ae.frequency.value=8000; ae.gain.value=-6;
       var c=oc.createDynamicsCompressor();
       c.threshold.value=-24; c.knee.value=10; c.ratio.value=3; c.attack.value=0.01; c.release.value=0.25;
-      var mk=oc.createGain(); mk.gain.value=1.7;
+      var mk=oc.createGain(); mk.gain.value=1.9;
       var lim=oc.createDynamicsCompressor();
       lim.threshold.value=-1.5; lim.knee.value=0; lim.ratio.value=20; lim.attack.value=0.002; lim.release.value=0.06;
-      m.connect(c); c.connect(mk); mk.connect(lim); lim.connect(oc.destination);
+      m.connect(pe); pe.connect(ae); ae.connect(c); c.connect(mk); mk.connect(lim); lim.connect(oc.destination);
       return oc.audioWorklet.addModule(opts.workletUrl||WORKLET_URL).then(function(){
         var node=new AudioWorkletNode(oc, WORKLET_NAME, {numberOfInputs:0, numberOfOutputs:1, outputChannelCount:[2]});
         node.connect(m);
@@ -196,7 +199,25 @@ const Audio = (()=>{
           if(we) out.push(we);
         }
         node.port.postMessage({type:'events', generation:1, events:out});
-        return oc.startRendering();
+        // OFFLINE RENDER RACE: an OfflineAudioContext renders as fast as it can,
+        // and worklet port messages are delivered asynchronously — if the render
+        // outruns delivery, the processor renders the ENTIRE track before the
+        // palette/events arrive: a full-length file of pure silence (hit ~40% of
+        // golden renders, at random). Canonical fix: suspend at t=0, start the
+        // render (audio thread now alive but parked), ping the worklet and wait
+        // for its pong (port messages are ordered, so pong => palette+events
+        // processed), then resume. 5s pong timeout so a broken processor can't
+        // deadlock the render — it proceeds and the silence gate catches it.
+        var suspendP = oc.suspend(0);
+        var pongP = new Promise(function(resolve){
+          var to=setTimeout(function(){ resolve('timeout'); }, 5000);
+          node.port.onmessage=function(e){ if(e.data && e.data.type==='pong'){ clearTimeout(to); resolve('pong'); } };
+        });
+        node.port.postMessage({type:'ping', n:1});
+        var renderP = oc.startRendering();
+        return suspendP.then(function(){ return pongP; })
+          .then(function(){ return oc.resume(); })
+          .then(function(){ return renderP; });
       }).then(function(buf){
         return { left:buf.getChannelData(0), right:(buf.numberOfChannels>1?buf.getChannelData(1):buf.getChannelData(0)), seconds:buf.duration, sampleRate:buf.sampleRate };
       });
@@ -443,16 +464,27 @@ const Audio = (()=>{
     try{ ctx = new AudioCtor({latencyHint:'playback'}); }
     catch(e){ ctx = new AudioCtor(); }
     master = ctx.createGain(); master.gain.value = masterTargetGain();   // headroom into the leveler
+    // MASTER VOICING EQ — measured against the owner's reference records
+    // (Chipzel/Disasterpeace): at equal RMS the renders carried HALF the refs'
+    // presence-mid share (600-2500Hz: 8% vs 17%) and 6x their >8kHz air (9% vs
+    // 1.5% — real chip hardware rolls off up there). Presence bell + air shelf
+    // close exactly that gap. MUST stay identical to the offline render chain
+    // in Engine.render.
+    var presEq = ctx.createBiquadFilter(); presEq.type='peaking';
+    presEq.frequency.value=1200; presEq.Q.value=0.8; presEq.gain.value=3.5;
+    var airEq = ctx.createBiquadFilter(); airEq.type='highshelf';
+    airEq.frequency.value=8000; airEq.gain.value=-6;
     comp = ctx.createDynamicsCompressor();                   // RADIO LEVELER: gentle soft-knee, slow-ish attack (no pumping)
     comp.threshold.value=-24; comp.knee.value=10; comp.ratio.value=3;
     comp.attack.value=0.01; comp.release.value=0.25;
-    var makeup = ctx.createGain(); makeup.gain.value = 1.7;  // POST-comp makeup -> full, consistent broadcast level
+    var makeup = ctx.createGain(); makeup.gain.value = 1.9;  // POST-comp makeup -> full broadcast level (renders sat 2.7dB under the refs' ceiling at 1.7)
     var limiter = ctx.createDynamicsCompressor();            // BRICK-WALL limiter -> no clipping/crackle
     limiter.threshold.value=-1.5; limiter.knee.value=0; limiter.ratio.value=20;
     limiter.attack.value=0.002; limiter.release.value=0.06;
     genGain = ctx.createGain(); genGain.gain.value = 1.0;    // GENERATIVE sub-mix -> muted when an EXTERNAL source drives instead
     genGain.connect(master);
-    master.connect(comp); comp.connect(makeup); makeup.connect(limiter); limiter.connect(ctx.destination);   // master -> leveler -> makeup -> limiter -> out
+    master.connect(presEq); presEq.connect(airEq); airEq.connect(comp);
+    comp.connect(makeup); makeup.connect(limiter); limiter.connect(ctx.destination);   // master -> EQ -> leveler -> makeup -> limiter -> out
     try{ _masterAna=ctx.createAnalyser(); _masterAna.fftSize=2048; _masterAna.smoothingTimeConstant=0.5; master.connect(_masterAna); }catch(e){}   // SPECTRUM tap (a sink, doesn't alter the signal)
     ensureGeneratedWorklet();
 

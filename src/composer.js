@@ -187,7 +187,7 @@ function stPalette(token){
       tone:{ level:0 },
       noise:{ mode:hatMode, period:hatMode===7?1+((r()*2)|0):(r()<0.55?0:1), level:rd3(0.62+0.28*r()), decT:rd3(0.016+0.03*r()), hp:rd3(0.6+0.32*r()) },
       click:{ level:rd3(0.25+0.2*r()) }, openDecay:rd3(0.15+0.2*r()),
-      gainMul:rd3(0.7+0.25*r()), pan:rd3((r()<0.5?-1:1)*(0.14+0.14*r())), sendEcho:0 },
+      gainMul:rd3(0.7+0.25*r()), pan:rd3((r()<0.5?-1:1)*(0.22+0.2*r())), sendEcho:0 },   // hats wider (width gap vs refs)
     fx:{ id:'fx', kind:'zap',
       tone:{ freq:Math.round(240+220*r()), end:Math.round(2400+2400*r()), sweepT:rd3(0.16+0.16*r()), level:rd3(0.5+0.24*r()), decT:rd3(0.2+0.2*r()), osc:'saw' },
       noise:{ mode:15, period:3, level:rd3(0.08+0.16*r()), decT:rd3(0.2+0.2*r()) },
@@ -199,13 +199,17 @@ function stPalette(token){
   //     default and damp clipped to 1 = repeats lowpassed to mud.)
   var wet=cl01((0.12+0.34*r())*(era==='nes'?0.55:(era==='gb'?0.75:(era==='snes'?1.25:1))));
   var dampHz=2200+4500*r();   // intended repeat brightness, mapped to the worklet's 0..1 damp
+  // WIDTH: measured against the reference records, renders were 3-6x narrower
+  // than EVERY ref (side/mid 0.055 vs Chipzel 0.173 / Disasterpeace 0.318 —
+  // zero overlap between distributions). Chipzel's LSDJ hard-pan "big" reads
+  // instantly. Wider soft pans, more ping-pong echo, more echo spread.
   var echo={ beats:wpick(r,[[0.375,1.2],[0.5,1],[0.75,0.6],[0.25,0.4]]), fb:rd3(0.22+0.3*r()),
     level:rd3(clamp(wet,0.06,0.5)), damp:rd3(clamp(1-(dampHz-1500)/7000,0.15,0.85)),
-    spreadMs:Math.round((0.3+0.6*r())*24), pingPong:(r()<0.25) };
-  var hard = r() < (era==='gb'?0.22:0.06);
+    spreadMs:Math.round(10+(0.3+0.6*r())*30), pingPong:(r()<0.45) };
+  var hard = r() < (era==='gb'?0.3:0.1);
   var sgn = r()<0.5?1:-1;
-  var pos={ lead:0, counter:rd3(sgn*(hard?1:0.34+0.14*r())), chord:rd3(-sgn*(hard?1:0.26+0.14*r())),
-    bass:0, pad:rd3(sgn*(hard?0:0.2+0.12*r())), kick:0, snare:percs.snare.pan, hat:percs.hat.pan, fx:0 };
+  var pos={ lead:0, counter:rd3(sgn*(hard?1:0.5+0.2*r())), chord:rd3(-sgn*(hard?1:0.4+0.18*r())),
+    bass:0, pad:rd3(sgn*(hard?0:0.3+0.16*r())), kick:0, snare:percs.snare.pan, hat:percs.hat.pan, fx:0 };
   var panLayout={ mode:hard?'hardLCR':'soft', pos:pos };
   if(counter) counter.pan=pos.counter;
   chord.pan=pos.chord; if(pad) pad.pan=pos.pad;
@@ -423,7 +427,8 @@ function skeletonMotif(r,n,anchors,chordDegAt,L){
   }
   return m;
 }
-function discipline(m,anchors,chordDegAt,L){
+function discipline(m,anchors,chordDegAt,L,maxRun){
+  maxRun=maxRun||3;   // per-hook 'hammer' style may raise this to 5 — the corpus' #1 cell is a hammered pitch
   var out=m.slice(), i, lastLeap=0, same=0;
   for(i=0;i<out.length;i++){
     out[i]=Math.round(out[i]||0);
@@ -433,7 +438,7 @@ function discipline(m,anchors,chordDegAt,L){
       if(Math.abs(lastLeap)>=4 && Math.abs(out[i]-out[i-1])>=3 && (out[i]-out[i-1])*lastLeap>0)
         out[i]=out[i-1]-(lastLeap>0?1:-1);          // stepwise recovery after a leap
       if(out[i]===out[i-1]) same++; else same=0;
-      if(same>=3) out[i]+=((i%2)?1:-1);
+      if(same>=maxRun) out[i]+=((i%2)?1:-1);
     }
     if(anchors[i]) out[i]=chordToneNear(out[i],chordDegAt(i),L);
     out[i]=clamp(out[i],-7,10);
@@ -450,8 +455,13 @@ function singability(m,onsets,accents,iv){
   var mx=-99, mn=99; for(i=0;i<s.length;i++){ if(s[i]>mx)mx=s[i]; if(s[i]<mn)mn=s[i]; }
   var span=mx-mn, sc=0;
   sc += 1-cl01(Math.abs(span-10.5)/10);
+  // 2-pitch hooks are LEGAL chiptune (hammered riffs); reward repeats in the
+  // corpus band (GB repeatRate p50 0.47) instead of punishing economy.
   var seen={}, uniq=0; for(i=0;i<m.length;i++) if(!seen[m[i]]){ seen[m[i]]=1; uniq++; }
-  sc += (uniq>=3&&uniq<=7)?0.8:(uniq===2?0.2:0.3);
+  sc += (uniq>=2&&uniq<=7)?0.8:0.3;
+  var reps=0; for(i=1;i<m.length;i++) if(m[i]===m[i-1]) reps++;
+  var rr=reps/Math.max(1,m.length-1);
+  sc += (rr>=0.2&&rr<=0.55)?0.5:(rr>0.55?0.2:0);
   var steps=0, flips=0, prevDir=0, leaps=0;
   for(i=1;i<s.length;i++){ var d=s[i]-s[i-1];
     if(Math.abs(d)<=2) steps++;
@@ -517,20 +527,64 @@ function stMotif(token,pal,gr,ha){
     var st=onsets[idx], ci=Math.floor((st/16)/ha.hr)%4;
     return ha.loopA[ci];
   }
-  // three pitch generators; reject-resample <=8 on singability
+  // Pitch construction is AA' BY CONSTRUCTION, not a through-composed walk.
+  // Real hooks are a CELL and its ANSWER: the corpus' #1 interval 4-gram is
+  // literally 0,0,0,0 (hammered pitch, 51% of GB tracks) and one cell owns
+  // 21-28% of a track's melodic motion — while the old generators ran ONE
+  // random walk across the whole 2-bar span (bar-2/bar-1 pitch similarity
+  // MEDIAN 0.0; only 22% of hooks were statement+answer). Now the generators
+  // produce BAR 1 only; bar 2 restates bar 1's cell on its own (already
+  // rhythm-varied) onset grid, transposed as an answer, tail resolved to the
+  // cadence. hammer legalizes 4-5 note pitch runs (corpus norm, was capped 3).
+  var N1=0; for(i=0;i<N;i++) if(onsets[i]<16) N1++;
+  var hammer=r()<0.4, maxRun=hammer?5:3;
   var gen=wpick(r,[['contour',0.4],['corpus',0.35],['skeleton',0.25]]);
   var intent=pick(r,INTENTS);
+  var a1=anchors.slice(0,N1);
   var bestM=null, bestSc=-1e9, tries=0;
   while(tries++<8){
-    var raw = gen==='contour' ? contourMotif(r,intent,N)
-            : gen==='corpus'  ? corpusMotif(r,N)
-            : skeletonMotif(r,N,anchors,chordDegAt,L);
-    var m=discipline(raw,anchors,chordDegAt,L);
-    var sc=singability(m,onsets,gr.accentSteps,ha.mode.iv);
+    var raw = gen==='contour' ? contourMotif(r,intent,N1)
+            : gen==='corpus'  ? corpusMotif(r,N1)
+            : skeletonMotif(r,N1,a1,chordDegAt,L);
+    var m=discipline(raw,a1,chordDegAt,L,maxRun);
+    var sc=singability(m,onsets.slice(0,N1),gr.accentSteps,ha.mode.iv);
     if(sc>bestSc){ bestSc=sc; bestM=m; }
     if(sc>=2.6) break;
   }
-  var degs=bestM;
+  // HAMMERIZE: raising the run cap alone creates nothing — the walk generators
+  // rarely EMIT repeats. For hammer-style hooks, collapse small steps onto the
+  // previous pitch (anchors kept): the corpus' signature 0,0,0,0 cell appears
+  // because real writers hammer a pitch and let the envelope/duty do the work.
+  if(hammer){ for(i=1;i<N1;i++){ if(!a1[i] && Math.abs(bestM[i]-bestM[i-1])<=2 && r()<0.55) bestM[i]=bestM[i-1]; } }
+  // PEAK SHAPING: give the cell ONE clear climax on a strong step (only 33% of
+  // hooks had a unique strong-beat peak; real hooks nearly always do).
+  (function(){
+    var mx=-99, mi=-1;
+    for(i=0;i<N1;i++) if(bestM[i]>mx){ mx=bestM[i]; mi=i; }
+    var uniq=bestM.filter(function(d){ return d===mx; }).length===1;
+    if(!(uniq && onsets[mi]%4===0)){
+      var target=-1;                                      // strong-step onset in the back half of the cell
+      for(i=N1-1;i>=0;i--) if(onsets[i]%4===0 && onsets[i]>=6 && onsets[i]<16){ target=i; break; }
+      if(target<0) for(i=N1-1;i>=0;i--) if(onsets[i]%4===0){ target=i; break; }
+      if(target>=0){
+        var pk=clamp(mx+1+((r()<0.3&&mx<9)?1:0),-7,10);
+        var okL=target===0 || Math.abs(pk-bestM[target-1])<=5;
+        var okR=target===N1-1 || Math.abs(pk-bestM[target+1])<=5;
+        if(okL&&okR) bestM[target]=pk;
+      }
+    }
+  })();
+  var degs=bestM.slice();
+  if(hookBars===2){
+    var N2=N-N1;
+    var tr=wpick(r,[[0,1.2],[-1,0.8],[1,0.5],[-2,0.4],[2,0.25]]);   // the answer's transposition
+    for(i=0;i<N2;i++) degs.push(clamp(bestM[i%N1]+tr,-7,10));
+    // tail cadence: the answer RESOLVES instead of wandering off
+    degs[N-1]=clamp(chordToneNear(degs[N-1],chordDegAt(N-1),L),-7,10);
+    if(N2>=3 && r()<0.6) degs[N-2]=clamp(degs[N-1]+(r()<0.5?1:-1),-7,10);
+    // one smoothing pass across the bar boundary (keeps leaps sane, keeps anchors)
+    degs=discipline(degs,anchors,chordDegAt,L,maxRun);
+  }
   // lead register base: median lands near 72 (singable), then folded to 58..90 at emit
   var semis=degs.map(function(d){ return degSemis(d,ha.mode.iv); }).slice().sort(function(a,b){return a-b;});
   var med=semis[semis.length>>1], leadBase=60, cand=[36,48,60,72], bd=1e9;
@@ -1026,6 +1080,12 @@ function compile(token){
     // stay full-on (they're the payoff); track opening never rests.
     var restEvery=(S.lead && S.bars>=6 && S.role!=='drop')?3+((rf()*2)|0):0;
     var restPhase=restEvery?((rf()*restEvery)|0):0;
+    // PERIOD STRUCTURE: statements alternate A A' A A'' — even statements play
+    // the section's op as-is, odd ones a varied answer. Without this, 1-bar
+    // hooks restated VERBATIM every bar for a whole section (41% of tracks):
+    // the "only ever repeats" failure, the mirror of through-composition.
+    var seqA=applyOp(S.op,R(token,'F:op:'+si));
+    var seqB=applyOp(S.op==='asis'?'endvar':S.op,R(token,'F:op2:'+si));
     for(bar=0;bar<S.bars;bar++){
       var stmt=Math.floor(bar/mo.hookBars);
       var restBar = restEvery>0 && bar>0 && (S.atBar+bar)>=2 &&
@@ -1035,7 +1095,7 @@ function compile(token){
       emitDrums(S,si,bar,rf);
       if(S.bass) emitBass(S,si,bar,rf);
       if(S.chord) emitChord(S,si,bar,rf);
-      if(S.lead && !restBar){ var seq=applyOp(S.op,R(token,'F:op:'+si)); emitLead(S,si,bar,rf,seq); }
+      if(S.lead && !restBar) emitLead(S,si,bar,rf,(stmt%2===1)?seqB:seqA);
       if(S.counter&&pal.voices.counter) emitCounter(S,si,bar,rf,answering);
       if(S.pad&&pal.voices.pad) emitPad(S,si,bar);
     }

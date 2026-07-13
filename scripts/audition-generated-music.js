@@ -442,6 +442,15 @@ async function renderGolden(tokens, report) {
         }, token);
         fs.writeFileSync(wavFile, Buffer.concat(chunks));
         row.seconds = meta.seconds;
+        // SILENCE GATE (hard): a full-length all-zero render shipped 10/24 goldens
+        // once (offline worklet message race) and every downstream metric + the
+        // blind A/B silently consumed them. Peak==0 can never be a soft problem.
+        {
+          const wb = fs.readFileSync(wavFile);
+          let pk = 0;
+          for (let i = 44; i < wb.length - 1; i += 128) { const s = Math.abs(wb.readInt16LE(i)); if (s > pk) pk = s; }
+          if (pk === 0) { row.hard.push('rendered file is PURE SILENCE (peak sample 0) — offline render failed'); }
+        }
         const m = audioMetrics.analyzeWav(wavFile);
         row.metrics = m;
         if (m.energyAt10sPct < THRESHOLDS.minEnergyAt10sPct) row.problems.push(`energy@10s ${m.energyAt10sPct}% < ${THRESHOLDS.minEnergyAt10sPct}%`);
