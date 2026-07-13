@@ -1285,6 +1285,22 @@ function _onGamePacksChanged(){
   var fixed=fixedGamePref();
   if(fixed && GAME_BY_KEY[fixed] && curGameKey!==fixed && (sceneKind==='game'||_watchOnly)){ randomMode=false; showGame(fixed); }
 }
+// Warm the FULL discovered game roster in the background. The loader eagerly
+// warms only ~2 packs at startup (fast radio start); the rest load lazily on
+// explicit pick. But the RANDOM montage (watch / radio auto-shuffle) draws from
+// POOL = loaded games only, so without this it would forever cycle just the 2-3
+// warmed packs and every other game (Tetris, Mario, DK, Zelda, ...) would never
+// appear. Loading each pack registers it into CT_GAMES -> _onGamePacksChanged
+// rebuilds POOL, so the montage fills out to the whole roster within a beat.
+function _warmAllGames(){
+  try{
+    if(typeof Packs==='undefined' || !Packs.list) return;
+    var L=Packs.list()||[], i, p;
+    for(i=0;i<L.length;i++){ p=L[i];
+      if(p && p.kind==='game' && !GAME_BY_KEY[p.id] && !_BROKEN_GAMES[p.id]) _ensureGamePackLoaded(p.id);
+    }
+  }catch(e){}
+}
 function _syncGamePicker(){
   var el=buildGamePicker();
   _fillGamePickerList();
@@ -3868,7 +3884,8 @@ window.addEventListener('drop', function(ev){ ev.preventDefault();
 // ----- PACKS wiring: registry (+picker) refresh once packs land, and on every later change. -----
 if(typeof Packs!=='undefined' && Packs.init){
   try{
-    Packs.init().then(function(){ _onGamePacksChanged(); }, function(){ _onGamePacksChanged(); });
+    Packs.init().then(function(){ _onGamePacksChanged(); setTimeout(_warmAllGames, 1200); },
+                      function(){ _onGamePacksChanged(); setTimeout(_warmAllGames, 1200); });
     if(Packs.onChange) Packs.onChange(function(){
       _onGamePacksChanged();
       if(typeof _updatePlaybar==='function' && typeof Audio!=='undefined' && Audio.started && !_backgroundUiDormant()) _updatePlaybar();
