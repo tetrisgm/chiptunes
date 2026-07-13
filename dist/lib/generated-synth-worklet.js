@@ -121,6 +121,13 @@ class RetroRaveGeneratedSynth extends AudioWorkletProcessor {
       this._retimeLine(line, line.def);
       return;
     }
+    if (type === 'ping') {
+      // ack round-trip: lets an offline renderer confirm every prior port message
+      // (palette/events) has been processed before it un-suspends the render.
+      // Port messages are ordered, so pong-after-events == events are in.
+      this.port.postMessage({ type: 'pong', n: msg.n });
+      return;
+    }
     if (type === 'clearFuture') {
       if (msg.generation && msg.generation !== this.generation) return;
       const cutoff = isFinite(msg.time) ? +msg.time : currentTime;

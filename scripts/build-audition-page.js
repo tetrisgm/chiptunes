@@ -159,7 +159,7 @@ ${emptyMsg ? `<div class="card">${emptyMsg}</div>` : `
 `}
 <script>
 const PAIRS = ${JSON.stringify(pairs)};
-const STORE_KEY = 'rrr.audition.v1';
+const STORE_KEY = 'rrr.audition.v2';   // v2: round-6 renders (v1 session was contaminated by silent renders)
 let idx = 0, verdict = null, tags = new Set();
 const $ = id => document.getElementById(id);
 
