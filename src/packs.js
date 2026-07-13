@@ -144,7 +144,7 @@ window.CT_COMPOSERS = window.CT_COMPOSERS || {};
     if(row.needsPermission) return Promise.reject(new Error('pack needs permission — reconnect its linked folder'));
     if(row.source==='served'){
       var url='/packs/'+_encPath(row.base+'/'+rel);
-      return fetch(url).then(function(r){
+      return _fetchRetry(url).then(function(r){
         if(!r.ok){ var er=new Error('HTTP '+r.status+' '+url); if(r.status===404) er.notFound=true; throw er; }
         return r.arrayBuffer();
       }).then(function(buf){
@@ -329,8 +329,29 @@ window.CT_COMPOSERS = window.CT_COMPOSERS || {};
   }
 
   // ---- discovery: served -----------------------------------------------------
+  // A transient tunnel/server hiccup (502/503/504 or a dropped connection)
+  // must NOT permanently drop a pack for the whole session — that is what turned
+  // a single origin blip into "most games missing" / "just one game" (the served
+  // index or a pack.json 5xx'd, discovery returned empty, only inline balloon
+  // survived). Retry 5xx and network errors a few times with short backoff; a
+  // genuine 404 (pack absent — serve.py 404s missing /packs paths) is NOT
+  // retried and falls through as before.
+  function _sleep(ms){ return new Promise(function(res){ setTimeout(res, ms); }); }
+  function _fetchRetry(url, tries){
+    tries = tries || 3;
+    function attempt(n){
+      return fetch(url).then(function(r){
+        if(!r.ok && r.status>=500 && n<tries) return _sleep(150*n).then(function(){ return attempt(n+1); });
+        return r;
+      }, function(e){
+        if(n<tries) return _sleep(150*n).then(function(){ return attempt(n+1); });
+        throw e;
+      });
+    }
+    return attempt(1);
+  }
   function _discoverServed(){
-    return fetch('/packs/index.json').then(function(r){
+    return _fetchRetry('/packs/index.json').then(function(r){
       if(!r.ok) return [];
       return r.text().then(function(t){
         if(t.length>CAP_INDEX || /^\s*</.test(t)) return [];
@@ -343,7 +364,7 @@ window.CT_COMPOSERS = window.CT_COMPOSERS || {};
             var p = typeof ent==='string' ? ent
               : (ent && typeof ent==='object' ? (ent.path || (KIND_DIR[ent.kind] && ent.id ? KIND_DIR[ent.kind]+'/'+ent.id : '')) : '');
             if(!p || !_safeRel(p)) return;
-            jobs.push(fetch('/packs/'+_encPath(p)+'/pack.json').then(function(r2){
+            jobs.push(_fetchRetry('/packs/'+_encPath(p)+'/pack.json').then(function(r2){
               if(!r2.ok) throw new Error('HTTP '+r2.status);
               return r2.text();
             }).then(function(t2){
