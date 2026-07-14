@@ -501,6 +501,11 @@
   body.ai-visual #playbar .pb-item-more.on{ background:rgba(255,255,255,.13); color:#fff; }
   body.ai-visual #playbar .pb-play{ width:46px; height:46px; }
   body.ai-visual #playbar .pb-volume{ min-width:54px; }
+  /* idle hides the CURSOR too (TV mode): any movement flips controls-active
+     back on via the pointermove poke, so the cursor reappears instantly */
+  body.ai-visual:not(.controls-active), body.ai-visual:not(.controls-active) *,
+  body.watch-visual:not(.controls-active), body.watch-visual:not(.controls-active) *,
+  body.song-visual:not(.controls-active), body.song-visual:not(.controls-active) *{ cursor:none !important; }
   body.ai-visual #rlist{ opacity:0; pointer-events:none; transition:opacity .22s ease, transform .22s ease; }
   body.ai-visual #rfullscreen{ display:inline-flex; opacity:0; pointer-events:none; transform:translateY(0); }
   body.ai-visual.controls-active #rlist{ opacity:1; pointer-events:auto; }
