@@ -149,18 +149,26 @@
   .rbtn.down.act{ border-color:#f85858; color:#f85858; }
   .rbtn.on{ border-color:var(--accent2); color:var(--accent2); box-shadow:2px 2px 0 #1a6a48; }   /* selected tempo preset */
   #rtempo{ display:flex; align-items:center; gap:4px; pointer-events:auto; }   /* no container box — just the BPM button */
-  #rlist{ position:fixed; top:8px; left:8px; z-index:14; }                       /* welcome/menu toggle -> TOP-LEFT corner */
+  /* corner buttons (menu top-left, fullscreen top-right) share the VOLUME
+     button's container language: 54px glass circle, 18px inset, same
+     bg/border/blur/shadow as the playbar's right cluster. */
+  #rlist{ position:fixed; top:18px; left:18px; z-index:24; width:54px; height:54px; min-width:54px; padding:0;
+    display:inline-flex; align-items:center; justify-content:center; border-radius:999px;
+    border:1px solid rgba(255,255,255,.12); background:rgba(8,6,16,.52); color:#d9d3ee;
+    box-shadow:0 10px 32px rgba(0,0,0,.34); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+    font-size:0; }
+  #rlist:hover{ background:rgba(24,18,48,.6); color:#fff; border-color:rgba(255,255,255,.22); }
   #rlist.on{ border-color:var(--accent); color:var(--accent); }
   #rfullscreen{
-    display:none; position:fixed; top:14px; right:18px; z-index:24; align-items:center; justify-content:center;
-    min-height:34px; min-width:34px; padding:7px; border-radius:999px; border:1px solid rgba(255,255,255,.12);
-    background:rgba(8,6,16,.42); color:rgba(255,255,255,.92); cursor:pointer; pointer-events:auto;
-    text-shadow:0 1px 8px rgba(0,0,0,.65); box-shadow:0 8px 28px rgba(0,0,0,.22);
-    backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+    display:none; position:fixed; top:18px; right:18px; z-index:24; align-items:center; justify-content:center;
+    width:54px; height:54px; min-width:54px; padding:0; border-radius:999px; border:1px solid rgba(255,255,255,.12);
+    background:rgba(8,6,16,.52); color:#d9d3ee; cursor:pointer; pointer-events:auto;
+    box-shadow:0 10px 32px rgba(0,0,0,.34);
+    backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
     opacity:0; transform:translateY(-6px); transition:opacity .22s ease, transform .22s ease, border-color .12s, color .12s, background .12s;
   }
-  #rfullscreen:hover, #rfullscreen.on{ border-color:rgba(248,120,248,.62); color:#fff; background:rgba(24,18,48,.58); }
-  #rfullscreen svg{ width:16px; height:16px; flex:0 0 auto; }
+  #rfullscreen:hover, #rfullscreen.on{ border-color:rgba(255,255,255,.22); color:#fff; background:rgba(24,18,48,.6); }
+  #rfullscreen svg{ width:20px; height:20px; flex:0 0 auto; }
   #rfullscreen.unsupported{ display:none !important; }
   body.is-fullscreen #rlist,
   body.is-fullscreen #rfullscreen,
@@ -295,7 +303,7 @@
   /* tempo group hosted inside the mix menu */
   #mixtemposlot #rtempo{ display:flex; align-items:center; gap:8px; flex-wrap:nowrap; width:100%; }
   #mixtemposlot #rtemposlider{ flex:1 1 auto; min-width:120px; }
-  #rlist svg{ width:24px; height:24px; }
+  #rlist svg{ width:20px; height:20px; }
   /* vertical action rail, bottom-right */
   #transport{ position:fixed; right:12px; bottom:20px; flex-direction:column; gap:15px; align-items:center; }
   #transport .rbtn{ width:54px; height:54px; min-width:54px; border-radius:50%; padding:0;
@@ -527,8 +535,9 @@
 	  body.watch-visual.watch-can-resume.controls-active #resumeMusic{ opacity:1; pointer-events:auto; transform:translate(-50%,0); }
 	  body.watch-visual #rfullscreen:hover{ opacity:1; }
   @media (max-width:760px){
-    body.ai-visual #rfullscreen{ top:12px; right:12px; min-height:32px; padding:6px 10px; font-size:13px; }
-    body.watch-visual #rfullscreen{ top:12px; right:12px; min-height:32px; padding:6px 10px; font-size:13px; }
+    body.ai-visual #rfullscreen{ top:12px; right:12px; width:46px; height:46px; min-width:46px; }
+    body.ai-visual #rlist{ top:12px; left:12px; width:46px; height:46px; min-width:46px; }
+    body.watch-visual #rfullscreen{ top:12px; right:12px; width:46px; height:46px; min-width:46px; }
     body.ai-visual #playbar .pb-left{ left:12px; right:auto; bottom:14px; gap:8px; max-width:calc(100vw - 24px); }
     body.ai-visual #playbar .pb-cover{ width:44px; height:44px; }
     body.ai-visual #playbar .pb-info{ max-width:calc(100vw - 24px); padding:7px 9px 7px 10px; border-radius:11px; }
