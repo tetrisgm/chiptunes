@@ -1,7 +1,6 @@
 // build.js — bundle src/*.js into a single self-contained dist/index.html AND
 // publish every first-party pack to dist/packs/ (games via the shared pack-build
 // routine, the rrr_core composer as the reference composer pack, plus an index.json
-// covering any user music packs already sitting in dist/packs/music/).
 // We AUTHOR in src/ + packs/games/ (cheap per-file edits) but SERVE one inline
 // <script> (one request, robust over python http.server) + runtime-loaded packs.
 // Run `node build.js` after editing any src or pack file.
@@ -46,8 +45,8 @@ const ORDER = [
   'src/game-roster.js',
   'src/packs.js',
   ...inlineGameSources,
-  'src/runtime.js',
-  'src/library.js'
+  'src/favorites.js',
+  'src/runtime.js'
 ];
 
 const shellPath = path.join(ROOT, 'src', 'shell.html');
@@ -84,7 +83,7 @@ for (const stale of ['create', 'listen', 'play', 'wip']) {
     if (entry.isFile()) fs.copyFileSync(path.join(docsSrc, entry.name), path.join(docsDst, entry.name));
   }
 }
-for (const route of ['radio', 'browse', 'watch']) {
+for (const route of ['radio', 'watch']) {
   fs.mkdirSync(path.join(DIST, route), { recursive: true });
   fs.writeFileSync(path.join(DIST, route, 'index.html'), html);
 }
@@ -95,11 +94,6 @@ for (const entry of fs.readdirSync(path.join(ROOT, 'src', 'lib'), { withFileType
   fs.copyFileSync(path.join(ROOT, 'src', 'lib', entry.name), path.join(DIST, 'lib', entry.name));
 }
 // the shared BPM kernel lives in scripts/lib (used by pack-tools too); serve it so the in-app
-// fallback worker can importScripts('/lib/bpm-kernel.js').
-{
-  const bpmKernel = path.join(ROOT, 'scripts', 'lib', 'bpm-kernel.js');
-  if (fs.existsSync(bpmKernel)) fs.copyFileSync(bpmKernel, path.join(DIST, 'lib', 'bpm-kernel.js'));
-}
 
 // ---- publish packs: every first-party game becomes a runtime-loaded pack ----
 const builtAt = new Date().toISOString();
@@ -146,28 +140,8 @@ for (const pack of gamePacks) {
   indexPacks.push({ id: 'rrr_core', kind: 'composer', dir: 'composers/rrr_core', name: manifest.name, version: manifest.version });
 }
 
-// music packs are user content (built by pack-tools into dist/packs/music/, never in
-// git) — scan whatever is installed so the served index makes them discoverable.
-const musicRoot = path.join(DIST, 'packs', 'music');
-if (fs.existsSync(musicRoot)) {
-  for (const entry of fs.readdirSync(musicRoot, { withFileTypes: true }).sort((a, b) => a.name < b.name ? -1 : 1)) {
-    if (!entry.isDirectory()) continue;
-    const mPath = path.join(musicRoot, entry.name, 'pack.json');
-    if (!fs.existsSync(mPath)) continue;
-    let m;
-    try { m = JSON.parse(fs.readFileSync(mPath, 'utf8')); }
-    catch (e) { console.error('build: skipping music pack with bad pack.json:', entry.name, '(' + e.message + ')'); continue; }
-    if (m.kind !== 'music' || m.id !== entry.name) {
-      console.error('build: skipping music pack with mismatched manifest:', entry.name);
-      continue;
-    }
-    indexPacks.push({ id: m.id, kind: 'music', dir: 'music/' + m.id, name: m.name, version: m.version });
-  }
-}
-
 fs.writeFileSync(path.join(DIST, 'packs', 'index.json'),
   JSON.stringify({ schema: 'rrr-pack-index@1', packs: indexPacks }, null, 2) + '\n');
 
 console.log('built dist/index.html:', html.length, 'bytes from', ORDER.length, 'sources (', js.length, 'B JS )',
-  '+ routes radio/browse/watch + dist/lib +', gamePacks.length, 'game packs + rrr_core composer pack +',
-  indexPacks.filter(p => p.kind === 'music').length, 'music packs in dist/packs/index.json');
+  '+ routes radio/watch + dist/lib +', gamePacks.length, 'game packs + rrr_core composer pack in dist/packs/index.json');

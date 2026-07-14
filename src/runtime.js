@@ -494,9 +494,6 @@ function _writeDiagnostics(RX, paused, now){
   d.rrrStation=String(typeof _station!=='undefined'?_station:'');
   d.rrrNowSource=String(typeof _nowSource!=='undefined'?_nowSource:'');
   d.rrrNow=String(typeof _curName!=='undefined'?_curName:'');
-  d.rrrPlatform=String(typeof _curPlat!=='undefined'?_curPlat:'');
-  d.rrrAlbum=String(typeof _curAlbum!=='undefined'?_curAlbum:'');
-  d.rrrEngine=String(typeof _eng!=='undefined'?_eng:'');
   d.rrrGame=String(selGame&&selGame.key||'');
   d.rrrGameCount=String(typeof CT_GAMES!=='undefined'?Object.keys(CT_GAMES).length:0);
   d.rrrStarted=String(!!(Audio&&Audio.started));
@@ -510,8 +507,6 @@ function _writeDiagnostics(RX, paused, now){
   d.rrrBpm=String(RX&&RX.bpm||0);
   d.rrrSignal=e.toFixed(4);
   d.rrrIdle=String(!!(RX&&RX.idle));
-  d.rrrTempoDb=String(_tempoBpm(_chipTempoTrackBpm[_chipTempoTrackKey])||0);
-  if(diag || !d.rrrTrackDb) d.rrrTrackDb=JSON.stringify(window._chipTrackDbStatus?window._chipTrackDbStatus():{});
 }
 let _frameTarget = 16.7, _renderEMA = 6;        // aim for 60fps; adapt down only when rendering is genuinely heavy
 let _frameReq = 0, _frameSeq = 0, _frameStoppedAt = 0;
@@ -595,7 +590,6 @@ document.addEventListener('visibilitychange', ()=>{
   if(Audio.resume) Audio.resume();                                                    // make sure the context didn't stay suspended
   try{ if(_silentEl) { const p=_silentEl.play(); if(p&&p.catch) p.catch(()=>{}); } }catch(e){}   // keep the media-playing flag alive
   if(_pendingVisualRefresh){ _pendingVisualRefresh=false; try{ _deriveGame(_curSlug); }catch(e){} }
-  if(typeof _scheduleNextChipPreflight==='function') try{ _scheduleNextChipPreflight(); }catch(e){}
   if(away > 1500 && sceneKind==='game' && selGame && selState) _reseatScene = true;   // >1.5s away -> ignore the gap, restart the scene live
   _hiddenAt = 0;
   _syncWakeLock();
@@ -612,7 +606,6 @@ window.addEventListener('focus', function(){
   if(Audio.resume) Audio.resume();
   try{ if(_silentEl) { const p=_silentEl.play(); if(p&&p.catch) p.catch(()=>{}); } }catch(e){}
   if(_pendingVisualRefresh){ _pendingVisualRefresh=false; try{ _deriveGame(_curSlug); }catch(e){} }
-  if(typeof _scheduleNextChipPreflight==='function') try{ _scheduleNextChipPreflight(); }catch(e){}
   if(away > 1500 && sceneKind==='game' && selGame && selState) _reseatScene = true;
   _hiddenAt = 0;
   _syncWakeLock();
@@ -667,13 +660,6 @@ function handleEscapeShortcut(ev){
   if(panelVisible('trackpanel') && window.closeTrackPanel){ window.closeTrackPanel(); consumeKeyEvent(ev); return true; }
   if(panelVisible('mixpanel') && window.closeMixPanel){ window.closeMixPanel(); consumeKeyEvent(ev); return true; }
   if(gamePickerVisible()){ closeGamePicker(); consumeKeyEvent(ev); return true; }
-  if(_browseModalVisible()){
-    var before=(window._libView && _libView()) || '';
-    if(window._libBack) _libBack(); else closeBrowseModal();
-    if(before==='browse' && window._libView && _libView()==='browse' && window.buildHome) buildHome();
-    consumeKeyEvent(ev);
-    return true;
-  }
   if(_welcomeModalVisible()){ closeWelcomeModal(); consumeKeyEvent(ev); return true; }
   if(window.toggleWelcomeModal){ window.toggleWelcomeModal(); consumeKeyEvent(ev); return true; }
   return false;
@@ -955,7 +941,7 @@ function _noteGeneratedPlaying(tok){                          // a generated tra
   try{ if(typeof Radio!=='undefined'&&Radio.setCurrent) Radio.setCurrent(Object.assign({token:tok}, fp, _radioAxes(fp)||{})); }catch(e){}
 }
 let _trkHist=[], _trkI=-1;                                                          // session history of slugs (for prev/next)
-let _queue=null, _queueI=-1;                                                        // active mixed PLAYLIST queue: generated + chip + tracker items
+let _queue=null, _queueI=-1;                                                        // active PLAYLIST queue: generated items
 function _pushHist(s){ _trkHist.length=_trkI+1; _trkHist.push(s); _trkI=_trkHist.length-1; return s; }
 function _queueItem(it){ if(!it) return null;
   if(typeof it==='string') return {kind:'gen',slug:it,name:_deslug(it)};
@@ -988,7 +974,7 @@ function _advanceQueue(delta){
   return _playQueueAt(ni);
 }
 // engine asks for the NEXT generated track's name. If the active playlist's next item is generated, return its slug.
-// If the next item is chip/tracker, switch sources after the scheduler unwinds; otherwise fall back to random radio.
+// Advance within the generated queue; otherwise fall back to random radio.
 function _radioMint(){ var s;
   if(_queue && _queueI+1 < _queue.length){
     var next=_queue[_queueI+1];
@@ -1005,8 +991,6 @@ function _radioPrefsBackfill(kind){ return kind==='liked'?((Radio.prefs&&Radio.p
   : kind==='disliked'?((Radio.prefs&&Radio.prefs.dislikes)||[]) : []; }
 function _itemKey(it){ if(!it) return ''; if(window._libraryItemId) return _libraryItemId(it);
   if(it.kind==='gen'||it.slug) return 'g:'+(it.slug||'');
-  if(it.kind==='chip') return 'c:'+(it.p||'')+'/'+(it.s||'')+(it.trackName?'/'+it.trackName:(typeof it.track==='number'?'/'+it.track:''));
-  if(it.kind==='tracker') return 'm:'+(it.source||'tracker')+'/'+(it.trackName||it.name||it.track||'');
   return ''; }
 function _playlistItems(kind){
   var out=[], seen={};
@@ -1024,14 +1008,6 @@ function _playlistItems(kind){
 function _playListItem(it, opts){ if(!it) return false; opts=opts||{};
   if(!opts.keepQueue) _clearPlaybackQueue();
   if((it.kind==='gen'||it.slug) && it.slug){ _playGenerated(it.slug, {keepQueue:!!opts.keepQueue}); return true; }
-  if(it.kind==='tracker' && it.source && typeof _playChipStation==='function'){
-    window.__rrrTrackerTrackRequest={source:it.source,index:(typeof it.track==='number'?it.track:null),name:it.trackName||null};
-    _playChipStation(it.source, {keepQueue:!!opts.keepQueue}); return true;
-  }
-  if(it.kind==='chip' && it.p && it.s && window._playAlbum){
-    var aopts={keepQueue:!!opts.keepQueue}; if(typeof it.track==='number') aopts.track=it.track; if(it.trackName) aopts.trackName=it.trackName;
-    window._playAlbum(it.p,it.s,aopts); return true;
-  }
   return false;
 }
 function _playSection(key, startKey, opts){
@@ -1171,35 +1147,27 @@ function syncTempoUI(){ const sl=document.getElementById('rtemposlider'), read=d
   if(minus) minus.disabled = knobVal <= +sl.min;
   if(plus) plus.disabled = knobVal >= +sl.max;
   if(read){ read.textContent = (live!=null || cur!=null) ? (val+' BPM') : '—'; read.title = (cur==null) ? 'Track BPM / AUTO' : 'Manual BPM override'; }
-  if(typeof window!=='undefined' && window._syncPlaybackTempoFromAnalyzer) window._syncPlaybackTempoFromAnalyzer(cur, native||detected);
 }
 function syncRadioUI(){ syncTempoUI(); }
 function syncBrowseButton(){
   const btn=document.getElementById('rlist');
   if(btn){
-    btn.classList.toggle('on', _browseModalVisible() || _welcomeModalVisible());
+    btn.classList.toggle('on', _welcomeModalVisible());
     btn.hidden=false; btn.removeAttribute('aria-hidden');
   }
 }
 function _welcomeModalVisible(){
   var introEl=document.getElementById('intro');
-  return !!(introEl && introEl.style.display!=='none' && !introEl.classList.contains('hidden') &&
-    !introEl.classList.contains('lib'));
+  return !!(introEl && introEl.style.display!=='none' && !introEl.classList.contains('hidden'));
 }
 function _welcomeCanDismiss(){
   return !!((typeof Audio!=='undefined' && Audio.started) || (typeof _watchOnly!=='undefined' && _watchOnly));
-}
-function _browseModalVisible(){
-  var introEl=document.getElementById('intro');
-  return !!(introEl && introEl.style.display!=='none' && !introEl.classList.contains('hidden') &&
-    introEl.classList.contains('lib') && window._libRouteActive && _libRouteActive());
 }
 function openWelcomeModal(){
   if(typeof closeMixPanel==='function') closeMixPanel();
   if(typeof _closePlaybarMenu==='function') _closePlaybarMenu();
   if(window.openProductHome) window.openProductHome();
   else if(window.buildHome) window.buildHome();
-  else if(window._showLibContainer){ _showLibContainer(); if(window.buildHomeTiles) window.buildHomeTiles(); }
   else { var introEl=document.getElementById('intro'); if(introEl){ _revealed=false; introEl.style.display=''; introEl.classList.remove('hidden','lib'); if(window.buildHomeTiles) window.buildHomeTiles(); } }
   if(typeof syncBrowseButton==='function') syncBrowseButton();
   if(typeof _syncVisualChrome==='function') _syncVisualChrome();
@@ -1211,18 +1179,7 @@ function closeWelcomeModal(){
   if(typeof syncBrowseButton==='function') syncBrowseButton();
   if(typeof _syncVisualChrome==='function') _syncVisualChrome();
 }
-function openBrowseModal(){
-  if(typeof _exitWatchMode==='function') _exitWatchMode();
-  if(window.buildBrowse) window.buildBrowse();
-  else showHome();
-}
-function closeBrowseModal(){
-  if(window._libExit) _libExit();
-  else if(window._hideLibContainer) _hideLibContainer();
-}
 window.toggleWelcomeModal=function(){ if(_welcomeModalVisible()) closeWelcomeModal(); else openWelcomeModal(); };
-window.toggleBrowseModal=function(){ if(_browseModalVisible()) closeBrowseModal(); else openBrowseModal(); };
-window._syncBrowseChromeForView=function(){ syncBrowseButton(); };
 let _gamePickerEl=null;
 function gamePickerVisible(){ return !!(_gamePickerEl && _gamePickerEl.classList.contains('show')); }
 function gameLabel(key){
@@ -1326,8 +1283,7 @@ window.closeGamePicker=closeGamePicker;
 window.toggleGamePicker=toggleGamePicker;
 document.addEventListener('click', function(ev){
   var introEl=document.getElementById('intro');
-  if(introEl && ev.target===introEl && introEl.classList.contains('lib') && _browseModalVisible()) closeBrowseModal();
-  else if(introEl && ev.target===introEl && _welcomeModalVisible()) closeWelcomeModal();
+  if(introEl && ev.target===introEl && _welcomeModalVisible()) closeWelcomeModal();
 });
 document.addEventListener('keydown', handleEscapeShortcut, true);
 buildRadioUI();
@@ -1338,38 +1294,15 @@ function refreshNow(){ updateNow(); }
 function updateNow(){ if(!Audio.started){ if(typeof _updatePlaybar==='function')_updatePlaybar(); return; }
   if(trackEl) trackEl.innerHTML = '<span class="note">'+svgIcon('note')+'</span><span class="ttl">'+_curName+'</span><span class="more">details'+svgIcon('chevron')+'</span>';
   if(typeof _updatePlaybar==='function') _updatePlaybar();
-  if(window._libOnTrackChange) _libOnTrackChange();
 }
 // ===== Roon-style bottom transport bar: cover + track name + ⏮ ⏯ ⏭ + like (replaces the old caption + right rail) =====
 var _pbEl=null, _pbMenuEl=null;
-var TRACKER_PLATS=['amiga','demoscene','keygen'];
-var _chipPlayer=null, _chipList=[], _chipI=0, _chipReady=null;
 function _pbIcon(n){ return ({
   prev:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2.2v12H6z"/><path d="M20 6 L9.5 12 L20 18 Z"/></svg>',
   next:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.8 6H18v12h-2.2z"/><path d="M4 6 L14.5 12 L4 18 Z"/></svg>',
   play:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5 L19 12 L7 19 Z"/></svg>',
-  pause:'<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6.5" y="5" width="3.5" height="14" rx="1"/><rect x="14" y="5" width="3.5" height="14" rx="1"/></svg>',
-  stop:'<svg viewBox="0 0 24 24" fill="currentColor"><rect x="7" y="7" width="10" height="10" rx="1.5"/></svg>',
-  eject:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 5.5 5.6 14h12.8L12 5.5Z"/><rect x="5" y="16.5" width="14" height="2.5" rx="1"/></svg>'
+  pause:'<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6.5" y="5" width="3.5" height="14" rx="1"/><rect x="14" y="5" width="3.5" height="14" rx="1"/></svg>'
 })[n]||''; }
-// Covers ship inside each MUSIC PACK (covers/<platform_album>.jpg — same sanitized name the old covers/ dir used).
-// PackHandle.fileURL() is async, so resolve once into a cache and refresh the playbar when the URL lands.
-var _coverUrlCache={};
-function _gameCoverPath(p,s){
-  if(!p||!s) return '';
-  var key=String(p)+'|'+String(s);
-  if(key in _coverUrlCache) return _coverUrlCache[key]||'';
-  _coverUrlCache[key]='';
-  try{
-    var h=(typeof Packs!=='undefined'&&Packs.get)?Packs.get(p):null;
-    if(h && h.fileURL){
-      Promise.resolve(h.fileURL('covers/'+(p+'/'+s).replace(/[^A-Za-z0-9]/g,'_')+'.jpg')).then(function(u){
-        if(u){ _coverUrlCache[key]=u; if(typeof _updatePlaybar==='function' && !_backgroundUiDormant()) _updatePlaybar(); }
-      }, function(){});
-    }
-  }catch(e){}
-  return '';
-}
 function _wirePlaybarButton(id, fn){
   var b=document.getElementById(id); if(!b || b._pbWired) return; b._pbWired=true;
   function run(ev, opts){ if(ev){ if(!opts || opts.preventDefault!==false) ev.preventDefault(); ev.stopPropagation(); } fn(); }
@@ -1427,14 +1360,11 @@ function buildPlaybar(){ _pbEl=document.getElementById('playbar'); if(!_pbEl||_p
   }
   // The track title is just text. Album navigation lives on the cover and album name.
   document.getElementById('pbTitle').onclick=function(ev){ ev.stopPropagation(); if(_nowSource==='generated' && window.toggleTrackPanel) toggleTrackPanel(); };
-  document.getElementById('pbSub').onclick=function(ev){ ev.stopPropagation(); if(_transportCanGoAlbum()) _transportDetail(); };
-  document.getElementById('pbCover').onclick=function(ev){ ev.stopPropagation(); _transportDetail(); };
   buildResumeMusicButton();
 }
-function _transportIsChip(){ return !!(Audio.extActive && Audio.extActive() && (typeof _albumQ!=='undefined') && _albumQ && (typeof _curAlbum!=='undefined') && _curAlbum); }
 function _transportIsGated(){ return !!(_nowSource==='generated' && Audio.running && !Audio.running() && !(Audio.isPaused&&Audio.isPaused())); }
 function _transportNeedsResume(){ return !!(Audio.started && Audio.running && !Audio.running() && !(Audio.isPaused&&Audio.isPaused())); }
-function _transportIsPaused(){ if(_watchOnly && !_watchMicActive) return false; if(Audio.isPaused && Audio.isPaused()) return true; if(_transportIsGated() || _transportNeedsResume()) return true; return _transportIsChip() ? !!_gmePaused : !(typeof Radio!=='undefined' && Radio.state ? Radio.state.playing : true); }
+function _transportIsPaused(){ if(_watchOnly && !_watchMicActive) return false; if(Audio.isPaused && Audio.isPaused()) return true; if(_transportIsGated() || _transportNeedsResume()) return true; return !(typeof Radio!=='undefined' && Radio.state ? Radio.state.playing : true); }
 function _transportUserPaused(){ return !!(Audio && Audio.isPaused && Audio.isPaused() && !_transportIsGated()); }
 function _syncPlayIcon(){ var paused=_transportIsPaused(), b=document.getElementById('pbPlay'), icon=paused?'play':'pause';
   if(b && b.dataset.icon!==icon){ b.dataset.icon=icon; b.innerHTML=_pbIcon(icon); }
@@ -1536,7 +1466,6 @@ function _pokeVisualControls(){ _syncVisualChrome(); if(document.body && (docume
 ['pointermove','pointerdown','touchstart','keydown','wheel'].forEach(function(type){
   window.addEventListener(type, _pokeVisualControls, {capture:true, passive:true});
 });
-function _transportUsesTracker(){ return (typeof _station!=='undefined') && _packDecoder(_station)==='openmpt' && !!_chipPlayer; }
 function _ensureGeneratedTransport(){
   if(_nowSource!=='generated') return;
   if(Audio.extActive && Audio.extActive() && Audio.stopExternal) Audio.stopExternal();
@@ -1550,10 +1479,8 @@ function _transportToggle(){
   if(_transportNeedsResume()){
     _markTransportDiag('resume-gated');
     startAudio(true); if(Audio.resume) Audio.resume(true); if(typeof unlockAudioSession==='function') unlockAudioSession();
-    if(_transportIsChip()) _chipSetPaused(false);
-    else if(Audio.setPlaying) Audio.setPlaying(true);
+    if(Audio.setPlaying) Audio.setPlaying(true);
   }
-  else if(_transportIsChip()){ _markTransportDiag('chip'); _chipSetPaused(!_gmePaused); }
   else if(_nowSource==='generated' && Audio.isPaused && Audio.isPaused()){
     _markTransportDiag('generated-paused');
     startAudio(true); if(Audio.resume) Audio.resume(true); if(typeof unlockAudioSession==='function') unlockAudioSession(); if(Audio.setPlaying) Audio.setPlaying(true);
@@ -1568,7 +1495,6 @@ function _transportToggle(){
   else if(typeof Radio!=='undefined' && Radio.playPause){ _markTransportDiag('radio-playpause'); Radio.playPause(); }
   else { _markTransportDiag('none'); }
   _syncPlayIcon();
-  if(window._libOnTrackChange) _libOnTrackChange();
 }
 	function _transportStop(){
 	  _markTransportDiag('stop');
@@ -1577,77 +1503,18 @@ function _transportToggle(){
 function _transportNext(){
   if(_watchOnly && !_watchMicActive){ advanceRandomVisualizer(); return; }
   if(_advanceQueue(1)) return;
-  if(_transportIsChip()){ _gmeAdvancing=false; _gmeNext(); return; }
-  if(_transportUsesTracker()){ _gmeAdvancing=false; _chipNext(); return; }
   if(_nowSource==='generated') _ensureGeneratedTransport();
   if(typeof Radio!=='undefined'&&Radio.next){ Radio.next(); }
 }
 function _transportPrev(){
   if(_watchOnly && !_watchMicActive){ advanceRandomVisualizer(); return; }
   if(_advanceQueue(-1)) return;
-  if(_transportIsChip()){
-    _gmeAdvancing=false;
-    if(_chipList&&_chipList.length){ _chipI=Math.max(0,_chipI-1); _gmePlayTrack(); }
-    return;
-  }
-  if(_transportUsesTracker()){
-    _gmeAdvancing=false;
-    if(_chipList&&_chipList.length){ _chipI=Math.max(0,_chipI-1); _chipPlayTrack(); }
-    return;
-  }
   if(_nowSource==='generated') _ensureGeneratedTransport();
   if(typeof Radio!=='undefined'&&Radio.prev){ Radio.prev(); }
 }
-function _chipRawLabel(item){ if(item&&item.name) return item.name; if(typeof item==='string') return String(item).split('/').pop(); return ''; }
-function _curChipTrackItem(){ var item=(_chipList&&_chipList[_chipI])||{}, label=_chipRawLabel(item), idx=Math.max(0,_chipI|0);
-  return {kind:'chip',p:_curPlat,s:_curAlbum,track:idx,trackName:label||null,name:_prettyName(label||('Track '+(idx+1))),albumName:_prettyName(_curAlbum||'')}; }
-function _curTrackerTrackItem(){ var item=(_chipList&&_chipList[_chipI])||'', label=_chipRawLabel(item), idx=Math.max(0,_chipI|0), src=_station||_curPlat||'tracker';
-  return {kind:'tracker',source:src,track:idx,trackName:label||null,name:_prettyName(label||('Track '+(idx+1))),albumName:_prettyName(src)}; }
-// the thing currently playing, as a unified tracking item — chip TRACK OR generated track (so likes/dislikes/recent are track-specific)
-function _curItem(){ if(_transportIsChip()) return _curChipTrackItem(); if(_transportUsesTracker()) return _curTrackerTrackItem(); if(_nowSource==='generated' && _curSlug) return {kind:'gen',slug:_curSlug,name:_curName}; return null; }
+// the thing currently playing, as a tracking item (likes/dislikes/recent are track-specific)
+function _curItem(){ if(_nowSource==='generated' && _curSlug) return {kind:'gen',slug:_curSlug,name:_curName}; return null; }
 window._currentNowPlaying=function(){ var it=_curItem()||{}; return Object.assign({gameKey:curGameKey||'', paused:_transportIsPaused()}, it); };
-function _currentAlbumInfo(){ if(!_curPlat||!_curAlbum) return null;
-  var info=null; try{ if(window._libAlbumInfo) info=_libAlbumInfo(_curPlat,_curAlbum); }catch(e){}
-  return info || {title:_prettyName(_curAlbum),platform:String(_curPlat||'').toUpperCase(),publisher:''}; }
-function _transportCanGoAlbum(){ return !!(_transportIsChip() && _curPlat && _curAlbum && window._libOpenGame); }
-function _transportPublisherName(){ var info=_currentAlbumInfo(); return (info&&(info.publisher||info.pub)) || ''; }
-function _transportPublisher(){ var name=_transportPublisherName();
-  if(name && window._libOpenPublisher){ _libOpenPublisher(name); return; }
-  if(window._toast)_toast('No publisher for this track'); }
-function _trackDetailsExternalText(){
-  var it=_curItem(); if(!it || (it.kind!=='chip' && it.kind!=='tracker')) return '';
-  var info=it.kind==='chip' ? _currentAlbumInfo() : null, L=[];
-  L.push('=== RETRO RAVE RADIO TRACK ===');
-  L.push('source: '+(it.kind==='tracker' ? 'tracker module' : 'chip archive'));
-  L.push('platform: '+(info&&info.platform ? info.platform : _prettyName(it.p||it.source||'chip')));
-  if(it.kind==='chip'){
-    L.push('album: '+(info&&info.title ? info.title : _prettyName(it.s||'')));
-    if(info&&info.publisher) L.push('publisher: '+info.publisher);
-    if(info&&info.developer) L.push('developer: '+info.developer);
-    if(info&&info.composer) L.push('composer: '+info.composer);
-    if(info&&info.year) L.push('year: '+info.year);
-  } else {
-    L.push('collection: '+_prettyName(it.source||'tracker'));
-  }
-  L.push('track: '+((it.track||0)+1));
-  L.push('title: '+(it.name||_prettyName(it.trackName||'')));
-  if(it.trackName) L.push('file: '+it.trackName);
-  return L.join('\n');
-}
-function _trackSummaryExternal(){
-  var it=_curItem(); if(!it || (it.kind!=='chip' && it.kind!=='tracker')) return null;
-  var info=it.kind==='chip' ? _currentAlbumInfo() : null;
-  return {
-    source: it.kind==='tracker' ? 'tracker' : 'chip',
-    platform: info&&info.platform ? info.platform : _prettyName(it.p||it.source||'chip'),
-    album: it.kind==='chip' ? ((info&&info.title)||_prettyName(it.s||'')) : _prettyName(it.source||'tracker'),
-    publisher: info&&info.publisher ? info.publisher : '',
-    track: (it.track||0)+1,
-    title: it.name||_prettyName(it.trackName||'')
-  };
-}
-window._currentExternalTrackDetailsText=_trackDetailsExternalText;
-window._currentExternalTrackSummary=_trackSummaryExternal;
 var _listenStatsAt=0;
 function _listenStatsTick(){
   var now=(typeof performance!=='undefined'&&performance.now)?performance.now():Date.now();
@@ -1666,7 +1533,7 @@ function _transportHeart(){ var it=_curItem(); if(!it){ _heartBurstVisual(); ret
   var liked = window._likeToggle ? _likeToggle(it) : false;
   setPlaybarHeartLiked(document.getElementById('pbHeart'), liked);
   if(liked) _heartBurstVisual();
-  if(window._toast)_toast(liked?'Liked':'Unliked'); if(window._libOnTrackChange)_libOnTrackChange(); }
+  if(window._toast)_toast(liked?'Liked':'Unliked'); }
 function _transportAddPlaylist(){ var it=_curItem(); if(!it){ if(window._toast)_toast('No track playing'); return; }
   var name=''; try{ name=prompt('Add to playlist', 'My Playlist')||''; }catch(e){}
   name=String(name).trim(); if(!name) return;
@@ -1676,9 +1543,8 @@ function _transportDislike(){ var it=_curItem(); if(!it||!window._dislikeToggle)
   var dis=_dislikeToggle(it);
   setPlaybarHeartLiked(document.getElementById('pbHeart'), false);
   if(window._toast)_toast(dis?'Not for me — skipping':'Removed');
-  if(dis && _transportUsesTracker() && _chipList.length>1){ _chipList.splice(_chipI,1); _chipI=Math.max(-1,_chipI-1); }
   if(dis){ _transportNext(); }   // transport dislike is track-level; album detail dislike remains album-level
-  if(window._libOnTrackChange)_libOnTrackChange(); }
+  }
 function _pbMenuEsc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
 function _pbMenuItem(act,icon,label,sub,disabled){
   return '<button type="button" class="pbm-row" data-pbact="'+act+'"'+(disabled?' disabled':'')+'>'+
@@ -1710,7 +1576,6 @@ function _currentMenuHeader(){
   if(it){
     title=it.name || title;
     if(it.kind==='gen') sub='Generated';
-    else if(it.kind==='tracker') sub=_prettyName(it.source||'tracker');
     else if(it.kind==='chip'){ var info=_currentAlbumInfo(); sub=((info&&info.title)||_prettyName(it.s||''))+(info&&info.platform?' · '+info.platform:''); }
   }
   return '<div class="pbm-head"><div class="pbm-title">'+_pbMenuEsc(title)+'</div><div class="pbm-headsub">'+_pbMenuEsc(sub||'Retro Rave Radio')+'</div></div>';
@@ -1744,28 +1609,16 @@ function _togglePlaybarMenu(){
   _renderPlaybarMenu(); el.classList.add('show'); if(btn) btn.classList.add('on');
   _placePlaybarMenu(); if(window.closeMixPanel) closeMixPanel();
 }
-function _transportQueue(){ if(_transportIsChip() && window._libOpenQueue){
-    // toggle: tap shows the queue over the scene; tap again (while already on the queue) returns to the scene
-    if(_libContainerVisible() && window._libView && _libView()==='queue'){ _hideLibContainer(); }
-    else { _libOpenQueue(); }
-  } else if(window.toggleTrackPanel){ toggleTrackPanel(); } }
-function _transportDetail(){ if(_transportIsChip() && window._libOpenGame){ _libOpenGame(_curPlat,_curAlbum); } else if(window.toggleTrackPanel){ toggleTrackPanel(); } }
+function _transportDetail(){ if(window.toggleTrackPanel){ toggleTrackPanel(); } }
 function _updatePlaybar(){ if(!_pbEl) buildPlaybar(); if(!_pbEl) return;
   if(typeof _syncVisualChrome==='function') _syncVisualChrome();
   if(!Audio.started){ _listenStatsAt=0; _pbEl.classList.remove('show'); if(typeof _syncVisualChrome==='function') _syncVisualChrome(); return; }
   _listenStatsTick();
   _pbEl.classList.add('show');
-  var chip=_transportIsChip(), tracker=_transportUsesTracker(), title=_curName||'—', sub='';
-  if(chip){ var pre=_prettyName(_curAlbum)+' · '; sub=_prettyName(_curAlbum); if(_curName&&_curName.indexOf(pre)===0) title=_curName.slice(pre.length); }
-  else if(tracker){ sub=_prettyName(_station||_curPlat||'tracker'); }
+  var title=_curName||'—', sub='';
   var T=document.getElementById('pbTitle'), S=document.getElementById('pbSub'), C=document.getElementById('pbCover'), H=document.getElementById('pbHeart');
-  if(T) T.textContent=title; if(S){ S.textContent=sub; S.classList.toggle('link', _transportCanGoAlbum()); S.title=_transportCanGoAlbum()?'Open album':''; }
-  if(C){
-    var cp=chip?_gameCoverPath(_curPlat,_curAlbum):'';
-    C.classList.toggle('has-cover', !!cp);
-    C.classList.toggle('no-cover', !cp);
-    C.innerHTML = cp ? '<img src="'+cp+'" onerror="var p=this.closest(\'.pb-cover\'); if(p){ p.classList.remove(\'has-cover\'); p.classList.add(\'no-cover\'); } this.remove();">' : '';
-  }
+  if(T) T.textContent=title; if(S){ S.textContent=sub; S.classList.remove('link'); S.title=''; }
+  if(C){ C.classList.remove('has-cover'); C.classList.add('no-cover'); C.innerHTML=''; }
   var it=_curItem();
   setPlaybarHeartLiked(H, !!(it && window._isLiked && _isLiked(it)));
   if(_pbMenuEl && _pbMenuEl.classList.contains('show')){ _renderPlaybarMenu(); _placePlaybarMenu(); }
@@ -1864,17 +1717,7 @@ function _mediaGeneratedArtwork(slug, title){
 }
 function _mediaDescriptor(){
   var title=_curName||'Retro Rave Radio', artist='Retro Rave Radio', album='Retro Rave Radio', art=null;
-  if(_transportIsChip()){
-    var info=_currentAlbumInfo()||{}, pre=_prettyName(_curAlbum)+' · ';
-    if(title.indexOf(pre)===0) title=title.slice(pre.length);
-    album=info.title || _prettyName(_curAlbum||'Game soundtrack');
-    artist=info.composer || info.publisher || info.developer || info.platform || 'Game soundtrack';
-    var cp=_gameCoverPath(_curPlat,_curAlbum);
-    if(cp) art=[{src:_mediaAbs(cp), sizes:'512x512', type:'image/jpeg'}];
-  } else if(_transportUsesTracker()){
-    album=_prettyName(_station||_curPlat||'Tracker music');
-    artist='Demoscene / tracker music';
-  } else if(_nowSource==='generated'){
+  if(_nowSource==='generated'){
     album='Endless generated radio';
     artist='Retro Rave Radio';
     art=[{src:_mediaGeneratedArtwork(_curSlug,title), sizes:'512x512', type:'image/png'}];
@@ -2014,22 +1857,13 @@ function unlockAudioSession(){
 
 // ---- URL routing: /track/<slug> is the current generated track. Each generated song updates it via replaceState;
 // loading a track URL reseeds that exact song. The GAME is NOT in the URL path; ?game= is a presentation setting.
-// Route table: / (home) · /radio · /browse[...] (library) · /watch · /track/<slug>. Legacy heads redirect home. ----
+// Route table: / (home) · /radio · /watch · /track/<slug>. Legacy heads redirect home. ----
 function _pathParts(path){
   var p=String(path||location.pathname||'/').split('?')[0].replace(/^\/+|\/+$/g,'');
   if(!p) return [];
   return p.split('/').map(function(x){ try{ return decodeURIComponent(x); }catch(e){ return x; } });
 }
-function _isLibraryRoute(path){
-  var head=String(_pathParts(path)[0]||'').toLowerCase();
-  return !head || head==='browse' || head==='queue';
-}
 function _generatedRoute(slug){ return '/track/'+encodeURIComponent(String(slug||'').toLowerCase()); }
-function _orphanChipTrackQuery(){
-  if(_isLibraryRoute(location.pathname||'')) return false;
-  var q=null; try{ q=new URLSearchParams(location.search||''); }catch(e){ return false; }
-  return !!(q.has('track') || q.has('name') || q.has('file'));
-}
 function _queryFlag(name){
   try{
     var q=new URLSearchParams(location.search||'');
@@ -2038,7 +1872,6 @@ function _queryFlag(name){
   }catch(e){ return false; }
 }
 function _readSlug(){
-  if(_orphanChipTrackQuery()) return null;
   var p = (location.pathname||'/').replace(/^\/+|\/+$/g,'');
   var parts=p ? p.split('/').map(function(x){ try{ return decodeURIComponent(x); }catch(e){ return x; } }) : [];
   parts=parts.map(function(x){ return String(x||'').toLowerCase(); });
@@ -2055,7 +1888,7 @@ function _routeQueryExtras(){                                 // ?game= survives
 }
 function syncRoute(slug){
   if(!slug || typeof history==='undefined' || !history.replaceState) return;
-  if((window._libRouteActive && _libRouteActive()) || (Audio.extActive && Audio.extActive())) return;   // a library route / chip album owns the URL — don't overwrite it with the generated slug
+  if(Audio.extActive && Audio.extActive()) return;   // an external source (mic/file) owns the URL — don't overwrite it with the generated slug
   var intro=document.getElementById('intro');
   if(intro && !intro.classList.contains('hidden') && getComputedStyle(intro).display!=='none') return;  // Home owns the root route while it is visible
   var want = _generatedRoute(slug) + _routeQueryExtras();
@@ -2063,8 +1896,6 @@ function syncRoute(slug){
 }
 window.addEventListener('popstate', ()=>{ if(!bootDone) return;
   if(window._productRouteTo && _productRouteTo(location.pathname+location.search)) return; // / · /radio · /watch (+ legacy heads) are product routes, not track history
-  if(window._libRouteTo && _libRouteTo(location.pathname+location.search)) return;        // a library route (/browse/...) -> navigate the library, no reload
-  if(window._libExit) _libExit();                                                        // generated track -> leave the library overlay (restore the scene) + unstick syncRoute
   if(typeof Audio==='undefined' || !Audio.gotoTrack) return;
   var s=_readSlug(); if(s && s!==_curSlug){ if(_watchOnly && typeof _exitWatchMode==='function') _exitWatchMode(); _trkHist=[s]; _trkI=0; Audio.gotoTrack(s); } });
 
@@ -2190,18 +2021,9 @@ document.getElementById('start').addEventListener('click', ()=>startAudio(true))
 // chooser the station TILES are the explicit entry, so stand down while it's showing.
 function _gestureLaunchTarget(ev){
   var t=ev&&ev.target; if(!t||!t.closest) return null;
-  return t.closest('[data-ai-group],[data-ai],[data-genplay],[data-st],[data-play],[data-playtrack],[data-shuffle],[data-pubradio],[data-devradio],[data-compradio],#start,#pbPlay');
+  return t.closest('[data-st],#start,#pbPlay');
 }
-function _gestureWantsExternal(el){
-  if(!el || !el.matches) return false;
-  if(el.matches('[data-ai-group],[data-ai],[data-genplay]')) return false;
-  if(el.matches('[data-st]')){
-    var st=el.dataset&&el.dataset.st;
-    if(st==='browse' || st==='watch') return false;
-    return !(st==='generated' || st==='radio' || st==='liked');
-  }
-  return !!el.matches('[data-play],[data-playtrack],[data-shuffle],[data-pubradio],[data-devradio],[data-compradio]');
-}
+function _gestureWantsExternal(el){ return false; }   // every station is the generated radio now (mic/file boot audio in their own handlers)
 function _gestureShouldResumePaused(ev){
   if(!ev || !/^(pointerdown|mousedown|click|touchstart)$/.test(ev.type)) return false;
   if(shortcutTargetBlocked(ev)) return false;
@@ -2221,7 +2043,6 @@ function _resumePausedFromGesture(ev){
 }
 function _firstGesture(ev){
   if(shortcutTargetBlocked(ev)) return;
-  if(!bootDone && _orphanChipTrackQuery()) return;
   var intro=document.getElementById('intro');
   if(!bootDone && intro && !intro.classList.contains('hidden') && getComputedStyle(intro).display!=='none'){
     var launch=_gestureLaunchTarget(ev);
@@ -2245,17 +2066,14 @@ _audioUnlockEvents.forEach(function(t){ document.addEventListener(t,_firstGestur
 let _station='generated', _micStream=null, _fileSrc=null;
 // DIRECT GENERATED TRACK LINK (/track/<phrase>-<code8>): drop straight into the game (skip the menu); audio resumes on
 // the first interaction above. Autoplay-allowed browsers start instantly; others show the hint until you touch anything.
-if(typeof _orphanChipTrackQuery==='function' && _orphanChipTrackQuery() && typeof history!=='undefined' && history.replaceState){
-  try{ history.replaceState(null,'','/'); }catch(e){}
-}
 if(typeof _readSlug==='function' && _readSlug()){
   if(document.body) document.body.classList.add('ai-visual');
   startAudio(false);
 }
 
 // =====================================================================================================
-//  INPUT SOURCES. The games visualize whatever you pick: the GENERATED radio, your LIKED tracks, your installed
-//  MUSIC PACKS, dropped files, or the MIC (any sound in the room). Non-generated modes route external audio through
+//  INPUT SOURCES. The games visualize the GENERATED radio, your LIKED tracks, dropped
+//  audio files, or the MIC. Non-generated modes route external audio through
 //  Audio.playExternal() so the analyser drives the beat clock; switching back calls Audio.stopExternal().
 // =====================================================================================================
 function _setTransportPlaying(){
@@ -2263,7 +2081,7 @@ function _setTransportPlaying(){
   else if(Audio.setPlaying) Audio.setPlaying(true);
   if(typeof _syncPlayIcon==='function') _syncPlayIcon();
 }
-function _backToGenerated(){ if(typeof _exitWatchMode==='function') _exitWatchMode(); _clearPlaybackQueue(); _chipStopRenderAhead(); var wasExt = Audio.extActive && Audio.extActive(); if(Audio.stopExternal) Audio.stopExternal(); _station='generated'; _nowSource='generated';
+function _backToGenerated(){ if(typeof _exitWatchMode==='function') _exitWatchMode(); _clearPlaybackQueue(); var wasExt = Audio.extActive && Audio.extActive(); if(Audio.stopExternal) Audio.stopExternal(); _station='generated'; _nowSource='generated';
   if(window._applyMixScopeForSource) window._applyMixScopeForSource();
   if(window.refreshMixPanel) window.refreshMixPanel();
   if(typeof _syncVisualChrome==='function') _syncVisualChrome();
@@ -2272,10 +2090,9 @@ function _backToGenerated(){ if(typeof _exitWatchMode==='function') _exitWatchMo
   if(wasExt && Audio.gotoTrack) Audio.gotoTrack(_nextGeneratedToken()); }
 // play a SPECIFIC generated track by its slug (from a Recently-played / Liked card) — leaves any chip source, reseeds that song
 function _playGenerated(slug, opts){ opts=opts||{}; if(typeof _exitWatchMode==='function') _exitWatchMode(); if(!opts.keepQueue) _clearPlaybackQueue(); if(typeof startAudio==='function') startAudio(true);
-  _chipStopRenderAhead();
   _setTransportPlaying();
   if(Audio.extActive && Audio.extActive() && Audio.stopExternal) Audio.stopExternal();
-  _station='generated'; _nowSource='generated'; _gmePaused=false;
+  _station='generated'; _nowSource='generated';
   if(window._applyMixScopeForSource) window._applyMixScopeForSource();
   if(window.refreshMixPanel) window.refreshMixPanel();
   if(typeof _syncVisualChrome==='function') _syncVisualChrome();
@@ -2288,10 +2105,9 @@ function _startEndlessRadio(){
   _clearPlaybackQueue();
   var alreadyBooted=!!bootDone;
   if(typeof startAudio==='function') startAudio(true);
-  _chipStopRenderAhead();
   _setTransportPlaying();
   if(Audio.extActive && Audio.extActive() && Audio.stopExternal) Audio.stopExternal();
-  _station='generated'; _nowSource='generated'; _gmePaused=false;
+  _station='generated'; _nowSource='generated';
   if(alreadyBooted && Audio.gotoTrack){ var tok=_nextGeneratedToken(); _trkHist=[tok]; _trkI=0; Audio.gotoTrack(tok); }
   if(window._applyMixScopeForSource) window._applyMixScopeForSource();
   if(window.refreshMixPanel) window.refreshMixPanel();
@@ -2302,7 +2118,6 @@ function _startEndlessRadio(){
 window._startEndlessRadio=_startEndlessRadio;
 async function _playMic(){
 	  _clearPlaybackQueue();
-	  _chipStopRenderAhead();
 	  try{ const ctx=Audio.audioCtx(); if(!ctx) return false;
 	    _setTransportPlaying();
 	    _setExternalNowPlaying('Room microphone');
@@ -2409,12 +2224,8 @@ function _stopAudiblePlaybackForWatch(){
   try{ if(window.closeMixPanel) window.closeMixPanel(); }catch(e){}
   try{ if(window.closeTrackPanel) window.closeTrackPanel(); }catch(e){}
   try{ if(_genPlayTimer){ clearTimeout(_genPlayTimer); _genPlayTimer=null; } }catch(e){}
-  try{ _gmeAdvancing=false; _gmePaused=true; }catch(e){}
-  try{ if(typeof _chipStopRenderAhead==='function') _chipStopRenderAhead(); }catch(e){}
-  try{ if(_chipPlayer && _chipPlayer.stop) _chipPlayer.stop(); else if(_chipPlayer && _chipPlayer.pause) _chipPlayer.pause(); }catch(e){}
   try{ if(_fileSrc){ _fileSrc.stop(); _fileSrc=null; } }catch(e){}
   try{ if(Audio.extActive && Audio.extActive() && Audio.stopExternal) Audio.stopExternal(); }catch(e){}
-  try{ if(typeof _chipSetPaused==='function') _chipSetPaused(true); }catch(e){}
   try{ if(Audio.setPlaying) Audio.setPlaying(false); }catch(e){}
   try{ if(typeof Radio!=='undefined' && Radio.state) Radio.state.playing=false; }catch(e){}
   try{ if(typeof _clearMediaSession==='function') _clearMediaSession(); }catch(e){}
@@ -2476,7 +2287,6 @@ async function _toggleVisualizerMic(){
 window.enterWatchMode=enterWatchMode;
 window._transportStop=_transportStop;
 async function _playFile(file){ _clearPlaybackQueue(); try{ const ctx=Audio.audioCtx(); if(!ctx) return false;
-  _chipStopRenderAhead();
   _setTransportPlaying();
   if(Audio.playExternal) Audio.playExternal(null, {source:'file'});
   const buf=await ctx.decodeAudioData(await file.arrayBuffer());
@@ -2486,171 +2296,13 @@ async function _playFile(file){ _clearPlaybackQueue(); try{ const ctx=Audio.audi
   _setExternalNowPlaying(file.name.replace(/\.[^.]+$/,'')); return true;
 }catch(e){ if(window._toast)_toast('Could not play that file'); return false; } }
 
-// ---- CHIP-MUSIC stations: every station id IS a MUSIC PACK id (Packs.get(id)). Album archives, loose tracker
-//  modules, covers, and bpm metadata all come from the PackHandle — the decode pipeline below is unchanged.
 function _prettyName(fn){ try{ fn=decodeURIComponent(fn); }catch(e){} return String(fn).replace(/\.[^.]+$/,'').replace(/[_-]+/g,' ').replace(/([a-z])([A-Z0-9])/g,'$1 $2').replace(/\s+/g,' ').trim(); }
 function _shuffle(a){ a=a.slice(); for(var i=a.length-1;i>0;i--){ var j=(Math.random()*(i+1))|0, t=a[i]; a[i]=a[j]; a[j]=t; } return a; }
-function _packHandle(id){ try{ return (typeof Packs!=='undefined'&&Packs.get) ? Packs.get(id) : null; }catch(e){ return null; } }
-function _packManifest(id){ var h=_packHandle(id); return (h&&h.manifest)||null; }
-// which decode engine owns a station: manifest.decoder ('vgm'|'gme'|'openmpt'); legacy platform names as fallback.
-function _packDecoder(id){
-  var m=_packManifest(id);
-  if(m && m.kind==='music' && m.decoder) return String(m.decoder);
-  if(_VGM_PLATS.indexOf(id)>=0) return 'vgm';
-  if(TRACKER_PLATS.indexOf(id)>=0) return 'openmpt';
-  if(id==='snes') return 'gme';
-  return '';
-}
-function _stationIsMusicPack(id){
-  var m=_packManifest(id);
-  return !!(m && m.kind==='music') || _packDecoder(id)!=='';
-}
-window._chipEnsureDecoder=function(id){                       // library uses this instead of guessing by platform name
-  var d=_packDecoder(id);
-  return d==='vgm' ? _ensureVgm() : (d==='openmpt' ? _ensureChipMod() : _ensureGme());
-};
-// pack bytes for one file (ArrayBuffer). Views are copied so worker transfers can't neuter the pack's cache.
-function _packReadBytes(id, rel, ms){
-  var h=_packHandle(id);
-  if(!h || !h.readFile) return Promise.reject(new Error('music pack missing: '+id));
-  return _timeoutPromise(h.readFile(rel), ms||_CHIP_LOAD_TIMEOUT, 'pack read timeout: '+rel).then(function(ab){
-    if(ab instanceof ArrayBuffer) return ab;
-    if(ab && ab.buffer instanceof ArrayBuffer){
-      return (ab.byteOffset===0 && ab.byteLength===ab.buffer.byteLength) ? ab.buffer : ab.buffer.slice(ab.byteOffset, ab.byteOffset+ab.byteLength);
-    }
-    throw new Error('pack read gave no bytes: '+rel);
-  });
-}
-// chiptune3.js is an ES MODULE; load it once via an inline <script type=module> that re-exports the class to a global,
-// so the main classic bundle can use it without a dynamic import() in the bundle itself.
-function _ensureChipMod(){ if(_chipReady) return _chipReady;
-  _chipReady=new Promise(function(resolve,reject){
-    if(window.__RRChip) return resolve(window.__RRChip);
-    var s=document.createElement('script'); s.type='module';
-    s.textContent="import {ChiptuneJsPlayer} from '/lib/chiptune3.js'; window.__RRChip=ChiptuneJsPlayer; window.dispatchEvent(new Event('rrchip'));";
-    window.addEventListener('rrchip', function(){ resolve(window.__RRChip); }, {once:true});
-    s.onerror=function(){ reject(new Error('chiptune3 module load')); };
-    document.head.appendChild(s);
-  }); return _chipReady; }
-// loose-layout track list for a music pack: rrr-tracks@1 index first, plain manifest.json as a fallback.
-async function _packLooseFiles(id){
-  var h=_packHandle(id); if(!h) return [];
-  var files=[];
-  try{
-    var idx=h.tracksIndex ? await h.tracksIndex() : null;
-    // rrr-tracks@1: tracks live under albums[].tracks; also accept legacy root tracks/files arrays.
-    var lists=[];
-    if(idx){
-      if(Array.isArray(idx.albums)) idx.albums.forEach(function(a){ if(a&&Array.isArray(a.tracks)) lists.push(a.tracks); });
-      else if(idx.albums && typeof idx.albums==='object') Object.keys(idx.albums).forEach(function(k){ var a=idx.albums[k]; if(a&&Array.isArray(a.tracks)) lists.push(a.tracks); });
-      if(Array.isArray(idx.tracks)) lists.push(idx.tracks);
-      if(Array.isArray(idx.files)) lists.push(idx.files);
-    }
-    lists.forEach(function(tr){ tr.forEach(function(t){
-      var f = (t && typeof t==='object' && !Array.isArray(t)) ? (t.file||t.f||t.name||t.path) : (Array.isArray(t)?(t[1]||t[0]):t);
-      if(f) files.push(String(f));
-    }); });
-  }catch(e){}
-  if(!files.length && h.readJSON){
-    try{ var man=await h.readJSON('manifest.json'); (Array.isArray(man)?man:[]).forEach(function(n){ if(n) files.push(String(n)); }); }catch(e2){}
-  }
-  return files;
-}
-async function _playChipStation(packId, opts){
-  opts=opts||{}; if(!opts.keepQueue) _clearPlaybackQueue();
-  _chipStopRenderAhead();
-  if(typeof startAudio==='function') startAudio(true, {external:true});
-  if(window._toast)_toast('loading '+packId+'…');
-  var ctx=Audio.audioCtx(); if(!ctx) return false;
-  if(Audio.playExternal) Audio.playExternal(null, {source:'chip'});
-  _curPlat=packId; _curAlbum='';
-  _setExternalNowPlaying(_prettyName(packId));
-  var Player; try{ Player=await _ensureChipMod(); }catch(e){ if(window._toast)_toast('chip engine failed to load'); return false; }
-  if(!_chipPlayer){
-    _chipPlayer=new Player({ context:ctx, repeatCount:0, stereoSeparation:100, interpolationFilter:0 });
-    await new Promise(function(res){ var done=false, fin=function(){ if(!done){ done=true; res(); } };
-      _chipPlayer.onInitialized(fin); setTimeout(fin, 9000); });          // wait for the AudioWorklet to register (cap 9s)
-    _chipPlayer.onEnded(function(){ _chipNext(); });
-  }
-  if(_chipPlayer.gain) Audio.playExternal(_chipPlayer.gain);              // route the worklet output through our analyser + leveler
-  var names=await _packLooseFiles(packId);
-  if(!names || !names.length){ if(window._toast)_toast('no playable files in the '+packId+' pack'); return false; }
-  if(window._isDisliked){
-    var kept=names.filter(function(n){ var label=String(n).split('/').pop(); return !_isDisliked({kind:'tracker',source:packId,trackName:label,name:_prettyName(label)}); });
-    if(kept.length) names=kept;
-  }
-  var req=window.__rrrTrackerTrackRequest, ordered=null;
-  if(req && req.source===packId){
-    var pick=-1;
-    if(req.name){
-      for(var ti=0; ti<names.length; ti++){ var lbl=String(names[ti]).split('/').pop(); if(names[ti]===req.name || lbl===req.name){ pick=ti; break; } }
-    }
-    if(pick<0 && typeof req.index==='number') pick=Math.max(0, Math.min(names.length-1, req.index|0));
-    if(pick>=0) ordered=[names[pick]].concat(_shuffle(names.filter(function(_,i){ return i!==pick; })));
-    window.__rrrTrackerTrackRequest=null;
-  }
-  _chipList=(ordered||_shuffle(names)).map(function(n){ return {name:String(n).split('/').pop(), file:String(n)}; });
-  _chipI=0; _station=packId; if(window._applyMixScopeForSource) window._applyMixScopeForSource(); if(window.refreshMixPanel) window.refreshMixPanel(); _chipPlayTrack(); return true;
-}
-function _chipPlayTrack(){ var item=_chipList[_chipI]; if(!item||!_chipPlayer) return;
-  var file=item.file||String(item), label=(item.name||file).split('/').pop();
-  _setExternalNowPlaying(_prettyName(label));
-  advanceRandomVisualizer();
-  if(window._recordTrackerPlay) _recordTrackerPlay(_station||_curPlat||'tracker', _chipI, label);
-  var h=_packHandle(_station||_curPlat);
-  var urlP = item.url ? Promise.resolve(item.url)
-    : (h && h.fileURL ? Promise.resolve(h.fileURL(file)) : Promise.reject(new Error('no pack for '+_station)));
-  urlP.then(function(url){ item.url=url; if(_chipList[_chipI]===item) _chipPlayer.load(url); },   // chiptune3 fetches + decodes off-thread
-    function(){ if(window._toast)_toast('could not read '+label); _chipNext(); });
-}
-function _chipNext(){ if(_advanceQueue(1)) return; if(!_chipList.length) return; _chipI=(_chipI+1)%_chipList.length; _chipPlayTrack(); }
-
-// ---- GME/VGM stations: console music decodes through libgme/libvgm WASM into a render-ahead PCM queue.
-//  The preferred sink is a tiny AudioWorklet; the fallback schedules AudioBufferSource chunks directly.
-//  No ScriptProcessorNode: background playback survives browser throttling as long as the queue is kept ahead. ----
-let _gme=null, _gmeEmu=0, _gmeNode=null, _chipOutGain=null, _chipAwNode=null, _chipAwReady=null, _gmeBufPtr=0, _gmeBufLen=0, _gmeReady=null, _gmeFrames=0, _gmeAdvancing=false, _gmeDead=false, _gmeMaxAmp=0, _gmePaused=false;
-let _gmeStemEmus=[], _gmeStemGains=Array.from({length:16}, function(){ return 1; }), _gmeStemBufPtr=0, _gmeStemBufLen=0, _gmeVoiceCount=0, _gmeCustomMix=false, _gmeMixL=null, _gmeMixR=null;
-let _albumQ=null, _albumI=-1, _curPlat='', _curAlbum='', _gmeAlbMiss=0, _zstdReady=null;   // album station state (tiny index + lazy per-album .tar.zst, unpacked in memory)
-window.__rrrAlbumTrackRequest=null;                                                        // {p,s,index,name,trackSlug}: route/deep-link request for a specific album track
-function _routeSlug(s){
-  s=String(s==null?'':s);
-  try{ s=s.normalize('NFKD').replace(/[\u0300-\u036f]/g,''); }catch(e){}
-  var out=s.toLowerCase().replace(/&/g,' and ').replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
-  return out || s.trim().replace(/\s+/g,'-').toLowerCase();
-}
-function _chipLabelSlug(label, stripIndex){
-  var s=_prettyName(label||'');
-  if(stripIndex) s=s.replace(/^\s*\d+\s*[-.)_]?\s*/,'');
-  return _routeSlug(s);
-}
-window.__rrrTrackerTrackRequest=null;                                                      // {source,index,name}: playlist request for a specific tracker module
-let _gmeShuffleTracks=false; window._setGmeShuffle=function(v){ _gmeShuffleTracks=!!v; };   // shuffle tracks WITHIN each album (the album-page Shuffle button)
-let _gmeDisSkip=0, _chipDisTrackSkip=0;                                                     // bounded counters so disliked album/track skipping can't loop forever
-let _vgm=null, _vgmReady=null, _vgmLoaded=false, _vgmBufPtr=0, _vgmBufLen=0, _vgmStatsPtr=0, _vgmStatsLen=0, _eng='gme', _vgmStemMask=0;   // libvgm (full multi-chip VGM player) alongside libgme (SPC). _eng = which engine owns the current track
-let _chipLoadTimer=0, _chipLoadToken=0, _chipFadeFrames=0, _chipBadBlocks=0;
-let _chipAlbumWorker=null, _chipAlbumWorkerBad=false, _chipAlbumJobSeq=0, _chipAlbumJobs={}, _chipAlbumInflight={}, _chipAlbumPrefetchTimer=0, _chipAlbumLoadSeq=0, _chipAlbumDemandSeq=0;
-const _chipAlbumCache=new Map();
-let _chipOutMode='none', _chipSchedTimer=0, _chipSchedActive=false, _chipSchedGen=0, _chipSchedUntil=0, _chipSchedSources=[], _chipRenderBusy=false, _chipPlayBaseFrame=0, _chipPlayBaseCtx=0, _chipAwQueuedFrames=0, _chipAwPlayedSourceFrames=0, _chipAwUnderruns=0, _chipAdvanceTimer=0, _chipSemanticDelayMs=0;
-const _CHIP_LOAD_TIMEOUT=12000;
-const _CHIP_RENDER_CHUNK_FRAMES=16384;   // source ratio max is 4x, so 16384 output frames stays within _chipSourceFrames()' 65536 cap.
-const _CHIP_AHEAD_FG=3.0;
-const _CHIP_AHEAD_BG=45.0;
-const _CHIP_PUMP_FG=120;
-const _CHIP_PUMP_BG=5000;
-const _CHIP_PUMP_BUDGET_FG_MS=8;
-const _CHIP_PUMP_BUDGET_BG_MS=28;
-const _CHIP_PUMP_CAP_FG=3;
-const _CHIP_PUMP_CAP_BG=8;
-const _CHIP_ALBUM_CACHE_MAX=3;
-const _SNES_STEM_ANALYSIS=false;   // stability first: only render SNES per-voice emus when the mixer actually needs custom native mix.
-const _VGM_PLATS=['genesis','nes','gameboy','turbografx','neogeo','neogeopocket'];          // raw .vgm -> libvgm; snes(SPC) -> libgme
-const _VGM_STEM_KEYS=Array.from({length:16}, function(_,i){ return 'chip'+i; });             // must match vgm_wasm.cpp stem order
 const _GEN_MIX_KEYS=['master','lead','bass','kick','snare','hat','arp','pad','fx'];
-const _ALL_MIX_KEYS=_GEN_MIX_KEYS.concat(_VGM_STEM_KEYS);
+const _ALL_MIX_KEYS=_GEN_MIX_KEYS;
 const _SESSION_MIX={};                                                                        // in-memory only: refresh resets tempo/EQ
 function _mixScopeKey(){
   if(_station==='generated' || _station==='liked') return 'generated';
-  if(_curPlat && _station===_curPlat) return 'chip:'+_curPlat;
   return 'source:'+(_station||'generated');
 }
 function _scopeMix(scope){ scope=scope||_mixScopeKey(); return _SESSION_MIX[scope] || (_SESSION_MIX[scope]={}); }
@@ -2666,1104 +2318,6 @@ window._sessionMixScope=_mixScopeKey;
 window._sessionMixGet=function(){ var scope=_mixScopeKey(), out={}; _ALL_MIX_KEYS.forEach(function(k){ out[k]=_scopeMixValue(scope,k); }); return out; };
 window._sessionMixSet=function(key, val){ var scope=_mixScopeKey(); _scopeMix(scope)[key]=Math.max(0, Math.min(3, +val||0)); if(Audio&&Audio.setMix) Audio.setMix(key, _scopeMix(scope)[key]); return _scopeMix(scope)[key]; };
 window._sessionMixReset=function(keys){ var scope=_mixScopeKey(), s=_scopeMix(scope); (keys||_ALL_MIX_KEYS).forEach(function(k){ s[k]=1; if(Audio&&Audio.setMix) Audio.setMix(k,1); }); };
-let _chipTempoBaseBpm=0, _chipTempoRatio=1, _chipTempoTrackKey='';
-const _chipTempoTrackBpm={};
-let _chipTrackDbWarmTimer=0;
-const _packTracksState={};                                    // packId -> 'loading' | 'ready' | 'missing'
-const _chipTrackDbByKey={}, _chipTrackDbAlbumBpm={};          // keys: '<packId>|<albumDir>|<file>' / '<packId>|<albumDir>'
-let _chipPreflightBusy=false;
-const _CHIP_PREFLIGHT_SECONDS=22;
-function _tempoBpm(b){ b=+b; return (isFinite(b)&&b>=50&&b<=240) ? Math.round(b) : 0; }
-function _tempoNormBpm(b, prev){
-  b=+b; if(!isFinite(b)||b<=0) return 0;
-  var cand=[b,b*2,b/2], best=0, bd=1e9, target=prev||128;
-  for(var i=0;i<cand.length;i++){
-    var c=cand[i]; if(c<55||c>220) continue;
-    if(!prev){ while(c<82 && c*2<=220)c*=2; while(c>188 && c/2>=55)c/=2; }
-    var d=Math.abs(c-target); if(d<bd){ bd=d; best=c; }
-  }
-  return _tempoBpm(best||b);
-}
-function _chipTrackKeyFor(label){
-  return String(_curPlat||'chip')+'|'+String(_curAlbum||'')+'|'+String(label||'');
-}
-function _chipDbKey(platform, album, file){ return String(platform||'chip')+'|'+String(album||'')+'|'+String(file||''); }
-// rrr-tracks@1 ingest (tolerant: object rows {album,file,bpm} or array rows [album,file,...,bpm]; albums map or rows)
-function _rowVal(t, keys, idx){
-  if(t && typeof t==='object' && !Array.isArray(t)){ for(var i=0;i<keys.length;i++){ if(t[keys[i]]!=null) return t[keys[i]]; } return null; }
-  return Array.isArray(t) ? t[idx] : null;
-}
-function _rowBpm(t){
-  if(t && typeof t==='object' && !Array.isArray(t)) return _tempoBpm(t.bpm);
-  if(Array.isArray(t)){ for(var i=t.length-1;i>=2;i--){ var b=_tempoBpm(t[i]); if(b) return b; } }
-  return 0;
-}
-function _ingestPackTracks(packId, db){
-  if(!db || typeof db!=='object') return false;
-  var albums=db.albums, tracks=db.tracks;
-  if(albums && !Array.isArray(albums)){
-    Object.keys(albums).forEach(function(a){ var v=albums[a], bpm=_tempoBpm(v&&v.bpm!=null?v.bpm:v); if(bpm) _chipTrackDbAlbumBpm[packId+'|'+a]=bpm; });
-  }
-  (Array.isArray(albums)?albums:[]).forEach(function(a){
-    var dir=_rowVal(a,['album','albumDir','dir','slug'],0), bpm=_rowBpm(a);
-    if(dir&&bpm) _chipTrackDbAlbumBpm[packId+'|'+String(dir)]=bpm;
-  });
-  if(tracks && !Array.isArray(tracks)){
-    Object.keys(tracks).forEach(function(k){ var v=tracks[k], bpm=_tempoBpm(v&&v.bpm!=null?v.bpm:v); if(!bpm) return;
-      var i=k.indexOf('/'), album=i>=0?k.slice(0,i):'', file=i>=0?k.slice(i+1):k;
-      _chipTrackDbByKey[_chipDbKey(packId, album, file)]=bpm; });
-  }
-  (Array.isArray(tracks)?tracks:[]).forEach(function(t){
-    if(!t) return;
-    var album=_rowVal(t,['album','albumDir','dir'],0), file=_rowVal(t,['file','name','path'],1), bpm=_rowBpm(t);
-    if(!bpm) bpm=_tempoBpm(_chipTrackDbAlbumBpm[packId+'|'+String(album||'')]);
-    if(!file || !bpm) return;
-    _chipTrackDbByKey[_chipDbKey(packId, album, file)]=bpm;
-  });
-  return true;
-}
-// tempo metadata comes from the pack's own tracks.json (PackHandle.tracksIndex) — no global /chip DB anymore
-function _ensureChipTrackDb(packId){
-  packId=packId||_curPlat;
-  if(!packId) return Promise.resolve(false);
-  var st=_packTracksState[packId];
-  if(st==='ready') return Promise.resolve(true);
-  if(st==='missing') return Promise.resolve(false);
-  if(st && typeof st.then==='function') return st;
-  var h=_packHandle(packId);
-  if(!h || !h.tracksIndex){ _packTracksState[packId]='missing'; return Promise.resolve(false); }
-  var job=Promise.resolve().then(function(){ return h.tracksIndex(); })
-    .then(function(db){ var ok=_ingestPackTracks(packId, db); _packTracksState[packId]=ok?'ready':'missing'; return ok; })
-    .catch(function(){ _packTracksState[packId]='missing'; return false; });
-  _packTracksState[packId]=job;
-  return job;
-}
-window._ensureChipTrackDb=_ensureChipTrackDb;
-function _warmChipTrackDb(delay, packId){
-  if(_chipTrackDbWarmTimer) return;
-  _chipTrackDbWarmTimer=setTimeout(function(){ _chipTrackDbWarmTimer=0; _ensureChipTrackDb(packId); }, Math.max(0, delay==null?1400:+delay||0));
-}
-window._warmChipTrackDb=_warmChipTrackDb;
-function _seedChipTempoFromDb(label){
-  var key=_chipTrackKeyFor(label), bpm=_tempoBpm(_chipTrackDbByKey[_chipDbKey(_curPlat,_curAlbum,label)]);
-  if(!bpm) bpm=_tempoBpm(_chipTrackDbAlbumBpm[String(_curPlat||'')+'|'+String(_curAlbum||'')]);
-  if(bpm){ _chipTempoTrackBpm[key]=bpm; return bpm; }
-  return _tempoBpm(_chipTempoTrackBpm[key]);
-}
-window._chipTrackDbStatus=function(){ var packs={}; Object.keys(_packTracksState).forEach(function(k){ packs[k]=typeof _packTracksState[k]==='string'?_packTracksState[k]:'loading'; });
-  return { packs:packs, tracks:Object.keys(_chipTrackDbByKey).length, albums:Object.keys(_chipTrackDbAlbumBpm).length }; };
-function _estimateBpmFromEnvelope(env, blockDur, prev){
-  var n=env&&env.length||0; if(n<32 || !(blockDur>0)) return 0;
-  var smooth=new Array(n), flux=new Array(n), maxEnv=0, sm=0, i;
-  for(i=0;i<n;i++){ sm=sm*0.62+(env[i]||0)*0.38; smooth[i]=sm; if(sm>maxEnv) maxEnv=sm; }
-  if(maxEnv<0.0025) return 0;
-  var mean=0, count=0;
-  for(i=1;i<n;i++){
-    var d=smooth[i]-smooth[i-1]; if(d<0)d=0;
-    if(smooth[i]<maxEnv*0.045) d*=0.35;
-    flux[i]=d; mean+=d; count++;
-  }
-  mean=count?mean/count:0;
-  var minLag=Math.max(2, Math.round(60/(220*blockDur)));
-  var maxLag=Math.min(Math.floor(n/2), Math.round(60/(55*blockDur)));
-  var bestLag=0, bestScore=0;
-  for(var lag=minLag; lag<=maxLag; lag++){
-    var score=0, normA=0, normB=0;
-    for(i=lag;i<n;i++){
-      var a=Math.max(0,(flux[i]||0)-mean*0.35), b=Math.max(0,(flux[i-lag]||0)-mean*0.35);
-      score+=a*b; normA+=a*a; normB+=b*b;
-    }
-    if(normA<=0 || normB<=0) continue;
-    score/=Math.sqrt(normA*normB);
-    var bpm=60/(lag*blockDur);
-    if(bpm<70) score*=0.94;
-    if(bpm>180) score*=0.96;
-    if(score>bestScore){ bestScore=score; bestLag=lag; }
-  }
-  if(!bestLag || bestScore<0.055) return 0;
-  return _tempoNormBpm(60/(bestLag*blockDur), prev);
-}
-function _preflightVgmBpmFromPtr(ptr, len, sr, key, seconds, prev){
-  if(!ptr || !_vgm || !_vgm.ccall || !_vgm._vgm_analyze_bpm) return 0;
-  key=key||_chipTempoTrackKey; var cached=_tempoBpm(_chipTempoTrackBpm[key]); if(cached) return cached;
-  var bpm=0;
-  try{ bpm=_vgm.ccall('vgm_analyze_bpm','number',['number','number','number','number'],[ptr, len, sr, seconds||_CHIP_PREFLIGHT_SECONDS]); }catch(e){ bpm=0; }
-  bpm=_tempoNormBpm(bpm, prev||_chipTempoBaseBpm||0);
-  if(bpm && key) _chipTempoTrackBpm[key]=bpm;
-  return bpm;
-}
-function _preflightVgmBpm(bytes, sr, key, seconds, prev){
-  if(!_vgm || !_vgm._malloc || !bytes) return 0;
-  var dp=0, bpm=0;
-  try{
-    dp=_vgm._malloc(bytes.length); _vgm.HEAPU8.set(bytes, dp);
-    bpm=_preflightVgmBpmFromPtr(dp, bytes.length, sr, key, seconds, prev);
-  }catch(e){ bpm=0; }
-  if(dp) try{ _vgm._free(dp); }catch(e2){}
-  return bpm;
-}
-function _preflightGmeBpm(bytes, sr, key, seconds, prev){
-  if(!_gme || !bytes) return 0;
-  key=key||_chipTempoTrackKey; var cached=_tempoBpm(_chipTempoTrackBpm[key]); if(cached) return cached;
-  var dataPtr=0, outPtr=0, bufPtr=0, emu=0, bpm=0;
-  var frames=1024, n=frames*2, env=[], blocks=Math.max(32, Math.floor((sr||44100)*(seconds||_CHIP_PREFLIGHT_SECONDS)/frames));
-  try{
-    dataPtr=_gme._malloc(bytes.length); _gme.HEAPU8.set(bytes, dataPtr);
-    outPtr=_gme._malloc(4);
-    var err=_gme.ccall('gme_open_data','number',['number','number','number','number'],[dataPtr, bytes.length, outPtr, sr||44100]);
-    emu=_gme.getValue(outPtr,'i32');
-    if(err||!emu) return 0;
-    _gme._gme_start_track(emu, 0);
-    if(_gme._gme_set_fade) _gme._gme_set_fade(emu, 140000);
-    bufPtr=_gme._malloc(n*2);
-    var heap, base;
-    for(var b=0;b<blocks;b++){
-      _gme._gme_play(emu, n, bufPtr);
-      heap=_gme.HEAP16; base=bufPtr>>1;
-      var sum=0, peak=0;
-      for(var i=0;i<frames;i++){
-        var mono=((heap[base+i*2]||0)+(heap[base+i*2+1]||0))*0.5, v=mono/32768, av=Math.abs(v);
-        sum+=v*v; if(av>peak) peak=av;
-      }
-      env.push(Math.sqrt(sum/frames)*0.78 + peak*0.22);
-      if(_gme._gme_track_ended && _gme._gme_track_ended(emu)) break;
-    }
-    bpm=_estimateBpmFromEnvelope(env, frames/(sr||44100), prev||_chipTempoBaseBpm||0);
-    if(bpm && key) _chipTempoTrackBpm[key]=bpm;
-  }catch(e){ bpm=0; }
-  finally{
-    if(emu) try{ _gme._gme_delete(emu); }catch(e0){}
-    if(bufPtr) try{ _gme._free(bufPtr); }catch(e1){}
-    if(outPtr) try{ _gme._free(outPtr); }catch(e2){}
-    if(dataPtr) try{ _gme._free(dataPtr); }catch(e3){}
-  }
-  return bpm;
-}
-function _preflightChipBpm(bytes, label, key, seconds){
-  key=key||_chipTrackKeyFor(label);
-  var cached=_tempoBpm(_chipTempoTrackBpm[key]); if(cached) return cached;
-  var sr=(Audio.audioCtx()||{}).sampleRate||44100;
-  var isVgm=bytes && bytes.length>0x20 && bytes[0]===0x56 && bytes[1]===0x67 && bytes[2]===0x6D && bytes[3]===0x20;
-  return isVgm ? _preflightVgmBpm(bytes, sr, key, seconds||_CHIP_PREFLIGHT_SECONDS, _chipTempoBaseBpm||0)
-               : _preflightGmeBpm(bytes, sr, key, seconds||_CHIP_PREFLIGHT_SECONDS, _chipTempoBaseBpm||0);
-}
-function _scheduleNextChipPreflight(){
-  if(!_queryFlag('chip-live-bpm') && !_queryFlag('chipLiveBpm')) return;
-  if(_backgroundUiDormant()) return;
-  if(_chipPreflightBusy || !_albumQ || !_chipList || !_chipList.length) return;
-  var nextI=_chipI+1; if(nextI>=_chipList.length) return;
-  var item=_chipList[nextI]; if(!item || !item.bytes) return;
-  var key=_chipTrackKeyFor(item.name); if(_tempoBpm(_chipTempoTrackBpm[key])) return;
-  if(_seedChipTempoFromDb(item.name)) return;
-  var run=function(){
-    if(_chipPreflightBusy || _gmeDead || _tempoBpm(_chipTempoTrackBpm[key])) return;
-    _chipPreflightBusy=true;
-    try{ _preflightChipBpm(item.bytes, item.name, key, 14); }
-    finally{ _chipPreflightBusy=false; }
-  };
-  if(window.requestIdleCallback) window.requestIdleCallback(run, {timeout:1800});
-  else setTimeout(run, 900);
-}
-function _decoderTempoActive(){
-  if(_station!==_curPlat) return false;
-  if(_eng==='vgm') return _packDecoder(_curPlat)==='vgm' && _vgmLoaded && !!(_vgm&&_vgm.ccall);
-  return _eng==='gme' && _packDecoder(_curPlat)==='gme' && !!(_gme&&_gmeEmu);
-}
-function _applyDecoderTempoRatio(r, force){
-  r=Math.max(0.25, Math.min(4, +r||1));
-  var old=_chipTempoRatio; _chipTempoRatio=r;
-  if(!force && Math.abs(old-r)<0.004) return;
-  // Keep emulators at native chip timing. BPM changes are DJ-deck varispeed in the output resampler, so pitch shifts too.
-  try{
-    if(_eng==='vgm' && _vgm && _vgm.ccall) _vgm.ccall('vgm_set_tempo','void',['number'],[1]);
-    else if(_eng==='gme' && _gme && _gme._gme_set_tempo){
-      if(_gmeEmu) _gme._gme_set_tempo(_gmeEmu, 1);
-      for(var i=0;i<_gmeStemEmus.length;i++) if(_gmeStemEmus[i]) _gme._gme_set_tempo(_gmeStemEmus[i], 1);
-    }
-  }catch(e){}
-  if(!force) _chipInvalidateAhead('tempo');
-}
-function _resetPlaybackTempoBase(){ _chipTempoBaseBpm=0; _applyDecoderTempoRatio(1, true); }
-function _syncDecoderTempo(manualBpm, detectedBpm, seedBpm, forceBase){
-  if(!_decoderTempoActive()) return;
-  var target=_tempoBpm(manualBpm), det=_tempoBpm(detectedBpm), seed=_tempoBpm(seedBpm);
-  if(!target){
-    if(forceBase || !_chipTempoBaseBpm){
-      var base=seed || det;
-      if(base){ _chipTempoBaseBpm=base; if(_chipTempoTrackKey) _chipTempoTrackBpm[_chipTempoTrackKey]=base; }
-    }
-    _applyDecoderTempoRatio(1, false);
-    return;
-  }
-  if(forceBase || !_chipTempoBaseBpm){
-    var base2=seed || _tempoBpm(_chipTempoTrackBpm[_chipTempoTrackKey]) || det;
-    if(base2){ _chipTempoBaseBpm=base2; if(_chipTempoTrackKey) _chipTempoTrackBpm[_chipTempoTrackKey]=base2; }
-  }
-  if(!_chipTempoBaseBpm) return;
-  if(_chipTempoTrackKey) _chipTempoTrackBpm[_chipTempoTrackKey]=_chipTempoBaseBpm;
-  _applyDecoderTempoRatio(target / _chipTempoBaseBpm, false);
-}
-window._setPlaybackTempoBpm=function(bpm, seedBpm){ _syncDecoderTempo(bpm, null, seedBpm, true); };
-window._syncPlaybackTempoFromAnalyzer=function(bpm, detectedBpm){ _syncDecoderTempo(bpm, detectedBpm, null, false); };
-function _chipPlaybackRatio(){ return Math.max(0.25, Math.min(4, +_chipTempoRatio||1)); }
-function _chipSourceFrames(outFrames){ return Math.max(2, Math.min(65536, Math.round((outFrames||0)*_chipPlaybackRatio()))); }
-function _resampleHeap16ToOutput(heap, base, srcFrames, L, R, outFrames){
-  srcFrames=Math.max(1, srcFrames|0); outFrames=Math.max(1, outFrames|0);
-  var amp=0, step=(srcFrames>1&&outFrames>1)?((srcFrames-1)/(outFrames-1)):0;
-  for(var f=0; f<outFrames; f++){
-    var p=f*step, i0=Math.floor(p), i1=Math.min(srcFrames-1, i0+1), q=p-i0;
-    var l0=(heap[base+i0*2]||0), r0=(heap[base+i0*2+1]||0), l1=(heap[base+i1*2]||0), r1=(heap[base+i1*2+1]||0);
-    var lv=(l0+(l1-l0)*q)/32768, rv=(r0+(r1-r0)*q)/32768;
-    L[f]=lv; R[f]=rv; var a=Math.max(Math.abs(lv), Math.abs(rv)); if(a>amp) amp=a;
-  }
-  return amp;
-}
-function _resampleFloatStereoToOutput(srcL, srcR, srcFrames, L, R, outFrames){
-  srcFrames=Math.max(1, srcFrames|0); outFrames=Math.max(1, outFrames|0);
-  var amp=0, step=(srcFrames>1&&outFrames>1)?((srcFrames-1)/(outFrames-1)):0;
-  for(var f=0; f<outFrames; f++){
-    var p=f*step, i0=Math.floor(p), i1=Math.min(srcFrames-1, i0+1), q=p-i0;
-    var lv=((srcL[i0]||0)+((srcL[i1]||0)-(srcL[i0]||0))*q)/32768;
-    var rv=((srcR[i0]||0)+((srcR[i1]||0)-(srcR[i0]||0))*q)/32768;
-    L[f]=lv; R[f]=rv; var a=Math.max(Math.abs(lv), Math.abs(rv)); if(a>amp) amp=a;
-  }
-  return amp;
-}
-const _CHIP_ROLE_MAP={
-  // Source-agnostic music role map. Games bind to "lead"/"bass"/"perc"; only this layer knows console channel names.
-  nes:          { lead:[0], counter:[1,5], bass:[2], perc:[3,4], noise:[3] },        // Pulse 1 is the primary melodic lead.
-  gameboy:      { lead:[0], counter:[1], bass:[2], perc:[3], noise:[3] },            // DMG Pulse 1 mirrors NES Pulse 1.
-  genesis:      { lead:[0,1,2], counter:[3,4], bass:[5,10], perc:[9,10], noise:[9] },
-  turbografx:   { lead:[0], counter:[1,2], bass:[3], perc:[4,5], noise:[5] },
-  neogeo:       { lead:[0,1], counter:[2,3,4,5], bass:[12,13,14,15], perc:[6,7,8,9,10,11,12], noise:[15] },
-  neogeopocket: { lead:[0,4], counter:[1,2,5,6], bass:[2,6], perc:[3,7], noise:[3,7] },
-  snes:         { lead:[0], counter:[1,2], bass:[3], perc:[4,5,6,7], noise:[7] }
-};
-let _chipStemPrev=[], _chipStemAvg=[], _chipStemHz=[], _chipSemSeq=0;
-function _stemRoleNames(platform, stem){
-  var m=_CHIP_ROLE_MAP[platform]||{}, out=[];
-  Object.keys(m).forEach(function(role){ if((m[role]||[]).indexOf(stem)>=0) out.push(role); });
-  return out.length?out:null;
-}
-function _stemChannelLabel(platform, stem){
-  var rows=_VGM_MIX_ROWS[platform]||[];
-  for(var i=0;i<rows.length;i++){ if(rows[i][0]==='chip'+stem) return rows[i][1]; }
-  return 'Channel '+(stem+1);
-}
-function _freqHi(hz){
-  if(!(hz>20)) return 0.5;
-  return Math.max(0, Math.min(1, (Math.log2(hz)-6)/5));   // same scale as audio.js freqHy(): ~64Hz..2kHz
-}
-function _roleSlot(roles, role){ return roles[role] || (roles[role]={ energy:0, onset:0, hi:0.5, band:12, notes:[] }); }
-function _pushChipStemSemantics(platform, statAt, frames, sr){
-  if(_backgroundUiDormant()) return;
-  if(!Audio || !Audio.pushSemanticFrame) return;
-  var roles={}, any=false;
-  for(var stem=0; stem<16; stem++){
-    var st=statAt(stem); if(!st) continue;
-    var rms=st.rms||0, peak=st.peak||0, hz=st.hz||0, active=st.active||0;
-    var names=_stemRoleNames(platform||_curPlat, stem); if(!names || !active) continue;
-    var avg=(_chipStemAvg[stem]||0)*0.86 + rms*0.14, prev=_chipStemPrev[stem]||0, prevHz=_chipStemHz[stem]||0;
-    var pitchMove=(hz>40 && prevHz>40) ? Math.abs(Math.log2(hz/prevHz)) : 0;
-    var onset=(rms>0.0015 && peak>0.008 && (rms>avg*1.35 || rms-prev>0.0035 || pitchMove>0.10));
-    _chipStemAvg[stem]=avg; _chipStemPrev[stem]=rms; if(hz>35) _chipStemHz[stem]=hz;
-    var hi=_freqHi(hz), band=Math.max(0, Math.min(23, Math.round(hi*23))), mag=Math.max(0, Math.min(1, peak*2.2 + rms*6.0));
-    names.forEach(function(role){
-      var r=_roleSlot(roles, role); r.energy=Math.max(r.energy, Math.max(rms*7, peak*1.25)); r.hi=hi; r.band=band;
-      if(onset){
-        r.onset=Math.max(r.onset, mag);
-        r.notes.push({ id:(platform||_curPlat)+':'+stem+':'+(++_chipSemSeq), hi:hi, band:band, mag:mag, hz:hz, stem:stem, channel:_stemChannelLabel(platform||_curPlat, stem), native:true });
-      }
-    });
-    any = any || onset || rms>0.0012 || peak>0.006;
-  }
-  if(any){
-    var frame={ source:platform||_curPlat, roles:roles, frames:frames, sampleRate:sr };
-    var delay=Math.max(0, _chipSemanticDelayMs||0);
-    if(delay>8 && !_backgroundUiDormant()) setTimeout(function(){ try{ Audio.pushSemanticFrame(frame); }catch(e){} }, delay);
-    else if(!_backgroundUiDormant()) Audio.pushSemanticFrame(frame);
-  }
-}
-function _pushVgmSemantics(frames, sr){
-  if(_backgroundUiDormant()) return;
-  if(!_vgm || !_vgmLoaded || !_vgm._vgm_stem_stats) return;
-  var floats=16*4;
-  if(!_vgmStatsPtr || _vgmStatsLen<floats){ if(_vgmStatsPtr) _vgm._free(_vgmStatsPtr); _vgmStatsPtr=_vgm._malloc(floats*4); _vgmStatsLen=floats; }
-  try{ _vgm._vgm_stem_stats(_vgmStatsPtr, floats); }catch(e){ return; }
-  var heap=_vgm.HEAPF32, base=_vgmStatsPtr>>2;
-  _pushChipStemSemantics(_curPlat, function(stem){
-    return { rms:heap[base+stem*4]||0, peak:heap[base+stem*4+1]||0, hz:(heap[base+stem*4+2]||0)*_chipPlaybackRatio(), active:heap[base+stem*4+3]||0 };
-  }, frames, sr);
-}
-const _VGM_MIX_ROWS={
-  nes:          [['chip0','Pulse 1'],['chip1','Pulse 2'],['chip2','Triangle'],['chip3','Noise'],['chip4','DPCM'],['chip5','FDS']],
-  gameboy:      [['chip0','Pulse 1'],['chip1','Pulse 2'],['chip2','Wave'],['chip3','Noise']],
-  turbografx:   [['chip0','PSG 1'],['chip1','PSG 2'],['chip2','PSG 3'],['chip3','PSG 4'],['chip4','PSG 5'],['chip5','PSG 6']],
-  genesis:      [['chip0','FM 1'],['chip1','FM 2'],['chip2','FM 3'],['chip3','FM 4'],['chip4','FM 5'],['chip5','FM 6'],['chip6','PSG 1'],['chip7','PSG 2'],['chip8','PSG 3'],['chip9','PSG Noise'],['chip10','DAC']],
-  neogeo:       [['chip0','FM 1'],['chip1','FM 2'],['chip2','FM 3'],['chip3','FM 4'],['chip4','FM 5'],['chip5','FM 6'],['chip6','ADPCM-A 1'],['chip7','ADPCM-A 2'],['chip8','ADPCM-A 3'],['chip9','ADPCM-A 4'],['chip10','ADPCM-A 5'],['chip11','ADPCM-A 6'],['chip12','ADPCM-B'],['chip13','SSG A'],['chip14','SSG B'],['chip15','SSG C']],
-  neogeopocket: [['chip0','Tone A1'],['chip1','Tone A2'],['chip2','Tone A3'],['chip3','Noise A'],['chip4','Tone B1'],['chip5','Tone B2'],['chip6','Tone B3'],['chip7','Noise B']]
-};
-function _chipMixerRows(){
-  if(_eng==='gme' && _gmeEmu && _curPlat==='snes'){
-    var n=Math.min(_gmeVoiceCount||8, 16), out=[];
-    for(var i=0;i<n;i++) out.push(['chip'+i, 'DSP Voice '+(i+1)]);
-    return out;
-  }
-  if(_eng!=='vgm' || !_vgmLoaded) return null;
-  var rows=(_VGM_MIX_ROWS[_curPlat]||[]).slice();
-  if(_vgmStemMask) rows=rows.filter(function(r){ var i=+String(r[0]).replace('chip',''); return (_vgmStemMask & (1<<i)); });
-  return rows;
-}
-window._chipMixerRows=_chipMixerRows;
-window._chipMixerHint=function(){
-  if(_eng==='vgm' && _vgmLoaded) return 'Native '+String(_curPlat||'chip').toUpperCase()+' channel volumes. Hidden rows are channels not present in this track.';
-  if(_eng==='gme' && _gmeEmu && _curPlat==='snes') return 'Native SNES S-DSP voice volumes.';
-  if(_station==='generated' || _station==='liked') return 'Generated-track voice volumes.';
-  return 'This source is a mixed stereo stream here, so only Volume is shown until we add native channel output for it.';
-};
-function _applyVgmMix(){ if(!_vgm || !_vgm.ccall) return;
-  var m=(Audio&&Audio.getMix)?Audio.getMix():{};
-  _VGM_STEM_KEYS.forEach(function(key, stem){
-    _vgm.ccall('vgm_set_stem_gain','void',['number','number'],[stem, (typeof m[key]==='number'?m[key]:1)]);
-  });
-}
-function _applyGmeMix(){
-  var m=(Audio&&Audio.getMix)?Audio.getMix():{};
-  _VGM_STEM_KEYS.forEach(function(key, stem){
-    _gmeStemGains[stem]=(typeof m[key]==='number'?m[key]:1);
-  });
-}
-window._chipNativeMixActive=function(){ return (_eng==='vgm' && _vgmLoaded && !!(_vgm&&_vgm.ccall)) || (_eng==='gme' && _gmeEmu && _curPlat==='snes'); };
-window._setChipStemMix=function(key, val){
-  var m=/^chip(\d+)$/.exec(String(key));
-  if(_eng==='vgm' && _vgmLoaded && _vgm && _vgm.ccall && m){
-    _vgm.ccall('vgm_set_stem_gain','void',['number','number'],[+m[1], +val||0]);
-  } else if(_eng==='gme' && _gmeEmu && _curPlat==='snes' && m){
-    _gmeStemGains[+m[1]] = Math.max(0, Math.min(3, +val||0));
-  }
-  _chipInvalidateAhead('mix');
-  if(Audio&&Audio.refreshMix) Audio.refreshMix();
-};
-function _timeoutPromise(p, ms, label){
-  var to=0;
-  return Promise.race([
-    Promise.resolve(p),
-    new Promise(function(_, reject){ to=setTimeout(function(){ reject(new Error(label||'timeout')); }, ms||_CHIP_LOAD_TIMEOUT); })
-  ]).finally(function(){ if(to) clearTimeout(to); });
-}
-function _chipLoading(label){
-  _chipLoadToken++;
-  var token=_chipLoadToken, shown=label||_prettyName(_curAlbum||_curPlat||'track');
-  if(_chipLoadTimer) clearTimeout(_chipLoadTimer);
-  _chipLoadTimer=setTimeout(function(){
-    if(token!==_chipLoadToken) return;
-    if(typeof document!=='undefined' && document.documentElement) document.documentElement.dataset.rrrChipLoadTimeout=String(shown);
-    if(window._toast) _toast('skipping stalled chip track');
-    _gmeAdvancing=true;
-    try{ _gmeNext(); }catch(e){ try{ _gmeNextAlbum(); }catch(e2){} }
-  }, _CHIP_LOAD_TIMEOUT);
-}
-function _chipLoaded(){
-  _chipLoadToken++;
-  if(_chipLoadTimer){ clearTimeout(_chipLoadTimer); _chipLoadTimer=0; }
-  _chipFadeFrames=4096;
-  _chipBadBlocks=0;
-}
-function _chipOutputSane(L, R, frames){
-  var peak=0, sum=0, bad=false;
-  for(var i=0;i<frames;i++){
-    var l=L[i]||0, r=R[i]||0;
-    if(!isFinite(l) || !isFinite(r)){ bad=true; l=0; r=0; }
-    peak=Math.max(peak, Math.abs(l), Math.abs(r));
-    sum+=l*l+r*r;
-  }
-  var rms=Math.sqrt(sum/Math.max(1, frames*2));
-  if(bad || peak>1.08 || rms>0.62){
-    for(var z=0; z<frames; z++){ L[z]=0; R[z]=0; }
-    _chipBadBlocks++;
-    if(typeof document!=='undefined' && document.documentElement) document.documentElement.dataset.rrrChipBadPcm=JSON.stringify({peak:+peak.toFixed(3),rms:+rms.toFixed(3),blocks:_chipBadBlocks});
-    if(_chipBadBlocks>=1 && !_gmeAdvancing){ _gmeAdvancing=true; setTimeout(_gmeNext,0); }
-    return false;
-  }
-  _chipBadBlocks=0;
-  if(_chipFadeFrames>0){
-    var total=Math.max(1, _chipFadeFrames), done=4096-total;
-    for(var f=0; f<frames; f++){
-      var k=Math.min(1, Math.max(0, (done+f)/4096));
-      L[f]*=k; R[f]*=k;
-    }
-    _chipFadeFrames=Math.max(0, _chipFadeFrames-frames);
-  }
-  return true;
-}
-function _ensureGme(){ if(_gmeReady) return _gmeReady;
-  _gmeReady=new Promise(function(resolve,reject){
-    function boot(){ if(!window.createLibGme) return reject(new Error('no createLibGme'));
-      window.createLibGme({ locateFile:function(p){ return '/lib/'+p; } }).then(function(M){ _gme=M; resolve(M); }, reject); }
-    if(window.createLibGme){ boot(); return; }                          // factory already loaded (e.g. rebuilding after a crash) — reuse it
-    var s=document.createElement('script'); s.src='/lib/libgme.js';
-    s.onload=boot; s.onerror=function(){ reject(new Error('libgme load')); };
-    document.head.appendChild(s);
-  });
-  _gmeReady=_timeoutPromise(_gmeReady, _CHIP_LOAD_TIMEOUT, 'libgme load timeout').catch(function(e){ _gmeReady=null; _gme=null; throw e; });
-  return _gmeReady; }
-// libvgm (self-compiled WASM, full multi-chip VGM player) — renders the chips libgme's VGM can't (NES APU, DMG, HuC6280, YM2610, T6W28…)
-function _ensureVgm(){ if(_vgm) return Promise.resolve(_vgm); if(_vgmReady) return _vgmReady;
-  _vgmReady=new Promise(function(resolve,reject){
-    function boot(){ if(!window.createLibVgm) return reject(new Error('no createLibVgm'));
-      window.createLibVgm({ locateFile:function(p){ return '/lib/'+p; } }).then(function(M){ _vgm=M; resolve(M); }, reject); }
-    if(window.createLibVgm){ boot(); return; }
-    var s=document.createElement('script'); s.src='/lib/libvgm.js';
-    s.onload=boot; s.onerror=function(){ reject(new Error('libvgm load')); };
-    document.head.appendChild(s);
-  });
-  _vgmReady=_timeoutPromise(_vgmReady, _CHIP_LOAD_TIMEOUT, 'libvgm load timeout').catch(function(e){ _vgmReady=null; _vgm=null; throw e; });
-  return _vgmReady; }
-// zstd decoder (fzstd, pure-JS, ~8KB) for per-album .tar.zst — loaded once on first chip-station use
-function _ensureZstd(){ if(window.fzstd) return Promise.resolve(window.fzstd); if(_zstdReady) return _zstdReady;
-  _zstdReady=new Promise(function(res,rej){ var s=document.createElement('script'); s.src='/lib/fzstd.js';
-    s.onload=function(){ window.fzstd?res(window.fzstd):rej(new Error('fzstd')); }; s.onerror=function(){ rej(new Error('fzstd load')); };
-    document.head.appendChild(s); });
-  _zstdReady=_timeoutPromise(_zstdReady, _CHIP_LOAD_TIMEOUT, 'fzstd load timeout').catch(function(e){ _zstdReady=null; throw e; });
-  return _zstdReady; }
-// minimal tar reader -> [[name, Uint8Array view], …]; our archives use bare filenames (<100 chars), one dir level
-function _parseTar(buf){ var f=[],off=0; function s(o,n){ var x=''; for(var i=0;i<n;i++){ var c=buf[o+i]; if(!c)break; x+=String.fromCharCode(c); } return x; }
-  while(off+512<=buf.length){ var name=s(off,100); if(!name) break; var size=parseInt((s(off+124,12)||'').trim(),8)||0; var t=buf[off+156]; off+=512;
-    if(t===0||t===48) f.push([name, buf.subarray(off, off+size)]); off+=Math.ceil(size/512)*512; } return f; }
-function _chipAlbumKey(p,s){ return String(p||'')+'|'+String(s||''); }
-function _chipAlbumBytes(p,s,ms){ return _packReadBytes(p, 'albums/'+s+'/_album.tar.zst', ms); }   // archive comes from the MUSIC PACK
-function _chipAlbumCacheGet(key){
-  if(!_chipAlbumCache.has(key)) return null;
-  var v=_chipAlbumCache.get(key);
-  _chipAlbumCache.delete(key);
-  _chipAlbumCache.set(key, v);
-  return v;
-}
-function _chipAlbumCacheSet(key, entries){
-  if(!entries || !entries.length) return entries;
-  if(_chipAlbumCache.has(key)) _chipAlbumCache.delete(key);
-  _chipAlbumCache.set(key, entries);
-  while(_chipAlbumCache.size>_CHIP_ALBUM_CACHE_MAX){
-    var first=_chipAlbumCache.keys().next().value;
-    _chipAlbumCache.delete(first);
-  }
-  return entries;
-}
-function _ensureChipAlbumWorker(){
-  if(_chipAlbumWorkerBad || typeof Worker==='undefined') return null;
-  if(_chipAlbumWorker) return _chipAlbumWorker;
-  try{
-    _chipAlbumWorker=new Worker('/lib/chip-album-worker.js');
-    _chipAlbumWorker.onmessage=function(ev){
-      var msg=ev.data||{}, job=_chipAlbumJobs[msg.id];
-      if(!job) return;
-      delete _chipAlbumJobs[msg.id];
-      if(msg.type==='unpacked' && msg.buffer && msg.entries){
-        var buf=msg.buffer;
-        job.resolve((msg.entries||[]).map(function(e){
-          return [e.name, new Uint8Array(buf, e.offset|0, e.size|0)];
-        }));
-      } else {
-        job.reject(new Error(msg.message||'album unpack failed'));
-      }
-    };
-    _chipAlbumWorker.onerror=function(ev){
-      _chipAlbumWorkerBad=true;
-      try{ _chipAlbumWorker.terminate(); }catch(e){}
-      _chipAlbumWorker=null;
-      Object.keys(_chipAlbumJobs).forEach(function(id){
-        var job=_chipAlbumJobs[id]; delete _chipAlbumJobs[id];
-        if(job) job.reject(new Error((ev&&ev.message)||'album worker failed'));
-      });
-    };
-  }catch(e){
-    _chipAlbumWorkerBad=true;
-    _chipAlbumWorker=null;
-  }
-  return _chipAlbumWorker;
-}
-function _cancelChipAlbumWorkerJobs(reason){
-  var ids=Object.keys(_chipAlbumJobs);
-  if(!ids.length) return;
-  if(_chipAlbumWorker){
-    try{ _chipAlbumWorker.terminate(); }catch(e){}
-    _chipAlbumWorker=null;
-  }
-  ids.forEach(function(id){
-    var job=_chipAlbumJobs[id]; delete _chipAlbumJobs[id];
-    if(job) job.reject(new Error(reason||'album unpack superseded'));
-  });
-}
-function _chipUnpackAlbumInWorker(key, ab, opts){
-  var w=_ensureChipAlbumWorker();
-  if(!w) return Promise.reject(new Error('no album worker'));
-  opts=opts||{};
-  return new Promise(function(resolve,reject){
-    var id=++_chipAlbumJobSeq;
-    _chipAlbumJobs[id]={resolve:resolve,reject:reject,key:key,prefetch:!!opts.prefetch};
-    try{ w.postMessage({type:'unpack',id:id,key:key,buffer:ab}, [ab]); }
-    catch(e){ delete _chipAlbumJobs[id]; reject(e); }
-  });
-}
-function _chipUnpackAlbumOnMain(ab){
-  return _ensureZstd().then(function(){
-    return _parseTar(window.fzstd.decompress(new Uint8Array(ab)));
-  });
-}
-function _loadChipAlbumEntries(p,s,opts){
-  opts=opts||{};
-  var key=_chipAlbumKey(p,s), cached=_chipAlbumCacheGet(key);
-  if(cached) return Promise.resolve(cached);
-  if(_chipAlbumInflight[key]) return _chipAlbumInflight[key];
-  var demandSeq=_chipAlbumDemandSeq;
-  if(!opts.prefetch){
-    demandSeq=++_chipAlbumDemandSeq;
-    _cancelChipAlbumWorkerJobs('album load superseded');
-  }
-  var job=_chipAlbumBytes(p, s, opts.prefetch ? Math.max(_CHIP_LOAD_TIMEOUT, 22000) : _CHIP_LOAD_TIMEOUT)
-    .then(function(ab){
-      if(!opts.prefetch && demandSeq!==_chipAlbumDemandSeq) throw new Error('stale album load');
-      if(!_queryFlag('album-main-thread')) return _chipUnpackAlbumInWorker(key, ab, opts).catch(function(err){
-        if(opts.prefetch) throw err;
-        if(!opts.prefetch && demandSeq!==_chipAlbumDemandSeq) throw new Error('stale album load');
-        // the transfer may have neutered ab -> re-read from the pack before falling back to the main thread
-        return (ab && ab.byteLength ? _chipUnpackAlbumOnMain(ab) : _chipAlbumBytes(p, s, _CHIP_LOAD_TIMEOUT).then(_chipUnpackAlbumOnMain));
-      });
-      return _chipUnpackAlbumOnMain(ab);
-    })
-    .then(function(entries){
-      if(entries && entries.length) _chipAlbumCacheSet(key, entries);
-      return entries;
-    })
-    .finally(function(){ delete _chipAlbumInflight[key]; });
-  _chipAlbumInflight[key]=job;
-  return job;
-}
-function _chipAlbumItemAt(i){
-  if(!_albumQ || !_albumQ.length) return null;
-  var q=_albumQ[((i%_albumQ.length)+_albumQ.length)%_albumQ.length];
-  if(q && typeof q==='object') return {p:q.p||_curPlat, s:q.s||q.album||''};
-  return {p:_curPlat, s:q};
-}
-function _nextChipAlbumForPrefetch(){
-  if(!_albumQ || !_albumQ.length) return null;
-  for(var step=1; step<=_albumQ.length; step++){
-    var it=_chipAlbumItemAt(_albumI+step);
-    if(!it || !it.p || !it.s) continue;
-    if(window._isDisliked && _isDisliked({kind:'chip',p:it.p,s:it.s})) continue;
-    if(it.p===_curPlat && it.s===_curAlbum && _albumQ.length>1) continue;
-    return it;
-  }
-  return null;
-}
-function _prefetchNextChipAlbum(){
-  if(_chipAlbumPrefetchTimer){ clearTimeout(_chipAlbumPrefetchTimer); _chipAlbumPrefetchTimer=0; }
-  var next=_nextChipAlbumForPrefetch();
-  if(!next) return;
-  var key=_chipAlbumKey(next.p,next.s);
-  if(_chipAlbumCacheGet(key) || _chipAlbumInflight[key]) return;
-  var run=function(){ _chipAlbumPrefetchTimer=0; _loadChipAlbumEntries(next.p,next.s,{prefetch:true}).catch(function(){}); };
-  _chipAlbumPrefetchTimer=setTimeout(run, 1200);
-}
-function _gmeFreeStemEmus(){
-  if(_gme && _gmeStemEmus.length){
-    _gmeStemEmus.forEach(function(emu){ if(emu){ try{ _gme._gme_delete(emu); }catch(e){} } });
-  }
-  _gmeStemEmus=[]; _gmeVoiceCount=0; _gmeCustomMix=false;
-}
-function _gmeCustomMixWanted(){
-  if(_eng!=='gme' || !_gmeEmu || _curPlat!=='snes' || !_gmeStemEmus.length) return false;
-  for(var i=0;i<_gmeVoiceCount;i++){ var g=_gmeStemGains[i]; if(g<0.999 || g>1.001) return true; }
-  return false;
-}
-function _gmeSyncStemMode(custom){
-  if(custom===_gmeCustomMix) return;
-  if(!_gme || !_gmeEmu) return;
-  if(custom){
-    for(var i=0;i<_gmeStemEmus.length;i++){
-      if(_gmeStemEmus[i] && _gme._gme_seek_samples) _gme._gme_seek_samples(_gmeStemEmus[i], _gmeFrames);
-    }
-  } else if(_gme._gme_seek_samples) {
-    _gme._gme_seek_samples(_gmeEmu, _gmeFrames);
-  }
-  _gmeCustomMix=custom;
-}
-function _gmeOpenStemEmus(bytes, track, sampleRate){
-  _gmeFreeStemEmus();
-  if(!_gme || _curPlat!=='snes' || !_gme._gme_voice_count || !_gme._gme_mute_voices) return;
-  _gmeVoiceCount=Math.min(16, Math.max(0, _gme._gme_voice_count(_gmeEmu)||0));
-  if(!_gmeVoiceCount) return;
-  for(var voice=0; voice<_gmeVoiceCount; voice++){
-    var dataPtr=_gme._malloc(bytes.length), outPtr=_gme._malloc(4), emu=0;
-    try{
-      _gme.HEAPU8.set(bytes, dataPtr);
-      var err=_gme.ccall('gme_open_data','number',['number','number','number','number'],[dataPtr, bytes.length, outPtr, sampleRate]);
-      emu=_gme.getValue(outPtr,'i32');
-      if(!err && emu){
-        _gme._gme_start_track(emu, track||0);
-        if(_gme._gme_set_fade) _gme._gme_set_fade(emu, 140000);
-        _gme._gme_mute_voices(emu, ~(1<<voice));
-        _gmeStemEmus[voice]=emu;
-      }
-    }catch(e){ if(emu){ try{ _gme._gme_delete(emu); }catch(e2){} } }
-    _gme._free(outPtr); _gme._free(dataPtr);
-  }
-}
-function _renderGmeStems(srcFrames, n, sr, emitMix, L, R, outFrames){
-  if(!_gme || _curPlat!=='snes' || !_gmeStemEmus.length) return -1;
-  if(!emitMix && _backgroundUiDormant()) return -1;
-  if(_gmeStemBufLen<n){ if(_gmeStemBufPtr) _gme._free(_gmeStemBufPtr); _gmeStemBufPtr=_gme._malloc(n*2); _gmeStemBufLen=n; }
-  if(emitMix){
-    if(!_gmeMixL || _gmeMixL.length<srcFrames){ _gmeMixL=new Float32Array(srcFrames); _gmeMixR=new Float32Array(srcFrames); }
-    _gmeMixL.fill(0,0,srcFrames); _gmeMixR.fill(0,0,srcFrames);
-  }
-  var heap=_gme.HEAP16, base=_gmeStemBufPtr>>1, sumSq=[], peak=[], crossings=[], samples=[], prevSign=[], amp=0;
-  for(var voice=0; voice<_gmeVoiceCount; voice++){
-    var emu=_gmeStemEmus[voice]; if(!emu) continue;
-    _gme._gme_play(emu, n, _gmeStemBufPtr);
-    var gain=(_gmeStemGains[voice]==null?1:_gmeStemGains[voice]);
-    for(var sf=0; sf<srcFrames; sf++){
-      var li=heap[base+sf*2]||0, ri=heap[base+sf*2+1]||0, mono=(li+ri)*0.5, v=mono/32768, av=Math.abs(v);
-      sumSq[voice]=(sumSq[voice]||0)+v*v;
-      peak[voice]=Math.max(peak[voice]||0, av);
-      var sign=mono>220 ? 1 : (mono<-220 ? -1 : 0);
-      if(sign && prevSign[voice] && sign!==prevSign[voice]) crossings[voice]=(crossings[voice]||0)+1;
-      if(sign) prevSign[voice]=sign;
-      samples[voice]=(samples[voice]||0)+1;
-      if(emitMix && gain>0.0001){ _gmeMixL[sf]+=li*gain; _gmeMixR[sf]+=ri*gain; }
-    }
-  }
-  _pushChipStemSemantics('snes', function(stem){
-    if(stem>=_gmeVoiceCount || !_gmeStemEmus[stem]) return null;
-    var smp=samples[stem]||0, rms=smp?Math.sqrt((sumSq[stem]||0)/smp):0, hz=(smp && (crossings[stem]||0)>1) ? ((crossings[stem]||0)*sr/(2*smp))*_chipPlaybackRatio() : 0;
-    return { rms:rms, peak:peak[stem]||0, hz:hz, active:1 };
-  }, srcFrames, sr);
-  if(!emitMix) return -1;
-  return _resampleFloatStereoToOutput(_gmeMixL, _gmeMixR, srcFrames, L, R, outFrames||srcFrames);
-}
-function _chipRenderable(){
-  return !_gmeDead && (_eng==='vgm' ? (_vgmLoaded && !!(_vgm&&_vgm.ccall)) : !!(_gme&&_gmeEmu));
-}
-function _chipAheadTarget(){ return _backgroundUiDormant() ? _CHIP_AHEAD_BG : _CHIP_AHEAD_FG; }
-function _chipPumpDelay(){ return _backgroundUiDormant() ? _CHIP_PUMP_BG : _CHIP_PUMP_FG; }
-function _chipPumpNow(){ return (typeof performance!=='undefined' && performance.now) ? performance.now() : Date.now(); }
-function _chipPumpContinueDelay(bgDormant, queued, target){
-  if(queued>=target) return _chipPumpDelay();
-  if(queued<0.8) return 0;
-  return bgDormant ? 25 : 16;
-}
-function _chipClearSources(){
-  for(var i=0;i<_chipSchedSources.length;i++){ try{ _chipSchedSources[i].stop(0); }catch(e){} try{ _chipSchedSources[i].disconnect(); }catch(e2){} }
-  _chipSchedSources=[];
-  _chipSchedUntil=0;
-}
-function _chipPostWorklet(msg, transfers){
-  if(_chipAwNode && _chipAwNode.port){ try{ _chipAwNode.port.postMessage(msg, transfers||[]); return true; }catch(e){} }
-  return false;
-}
-function _chipResetQueuedOutput(frame, paused){
-  var ctx=Audio.audioCtx&&Audio.audioCtx(); frame=Math.max(0, Math.floor(frame||0));
-  _chipSchedGen++;
-  _chipPlayBaseFrame=frame;
-  _chipPlayBaseCtx=ctx ? ctx.currentTime : 0;
-  _chipAwQueuedFrames=0; _chipAwPlayedSourceFrames=0; _chipAwUnderruns=0;
-  _chipClearSources();
-  _chipPostWorklet({type:'reset', generation:_chipSchedGen, paused:!!paused});
-}
-function _chipWorkletStatus(msg){
-  if(!msg || msg.type!=='status' || msg.generation!==_chipSchedGen) return;
-  _chipAwQueuedFrames=Math.max(0, msg.queuedOutputFrames||0);
-  _chipAwPlayedSourceFrames=Math.max(0, msg.playedSourceFrames||0);
-  _chipAwUnderruns=Math.max(0, msg.underruns||0);
-}
-async function _chipEnsureOutput(ctx){
-  if(!_chipOutGain){
-    _chipOutGain=ctx.createGain();
-    _chipOutGain.gain.value=1;
-    _gmeNode=_chipOutGain;
-  }
-  if(_chipOutMode==='worklet' || _chipOutMode==='buffer') return _chipOutGain;
-  _chipOutMode='buffer';
-  var forceBuffer=_queryFlag('chipBuffer') || _queryFlag('chip-buffer');
-  if(ctx.audioWorklet && typeof AudioWorkletNode!=='undefined' && !forceBuffer){
-    if(!_chipAwReady){
-      _chipAwReady=ctx.audioWorklet.addModule('/lib/chip-pcm-worklet.js').then(function(){
-        _chipAwNode=new AudioWorkletNode(ctx, 'retro-rave-chip-pcm', {numberOfInputs:0, numberOfOutputs:1, outputChannelCount:[2]});
-        _chipAwNode.port.onmessage=function(ev){ _chipWorkletStatus(ev.data||{}); };
-        _chipAwNode.connect(_chipOutGain);
-        _chipOutMode='worklet';
-        return true;
-      }).catch(function(e){
-        _chipOutMode='buffer';
-        if(typeof document!=='undefined' && document.documentElement) document.documentElement.dataset.rrrChipWorkletError=String(e&&e.message||e).slice(0,160);
-        return false;
-      });
-    }
-    await _chipAwReady;
-  } else if(forceBuffer && typeof document!=='undefined' && document.documentElement){
-    document.documentElement.dataset.rrrChipWorkletError='forced buffer output';
-  }
-  if(typeof document!=='undefined' && document.documentElement) document.documentElement.dataset.rrrChipOutput=_chipOutMode;
-  return _chipOutGain;
-}
-function _chipAudibleSourceFrame(){
-  var ctx=Audio.audioCtx&&Audio.audioCtx(), sr=(ctx&&ctx.sampleRate)||44100;
-  if(_chipOutMode==='worklet') return Math.max(0, Math.floor(_chipPlayBaseFrame + (_chipAwPlayedSourceFrames||0)));
-  if(_gmePaused) return Math.max(0, Math.floor(_chipPlayBaseFrame||0));
-  if(ctx && _chipPlayBaseCtx){
-    var elapsed=Math.max(0, ctx.currentTime-_chipPlayBaseCtx);
-    return Math.max(0, Math.floor(_chipPlayBaseFrame + elapsed*sr*_chipPlaybackRatio()));
-  }
-  return Math.max(0, Math.floor(_gmeFrames||0));
-}
-function _chipSeekSourceFrame(frame){
-  frame=Math.max(0, Math.floor(frame||0));
-  try{
-    if(_eng==='vgm'){
-      if(_vgm && _vgm._vgm_seek_samples) _vgm._vgm_seek_samples(frame);
-      else if(_vgm && _vgm.ccall) _vgm.ccall('vgm_seek_samples','void',['number'],[frame]);
-      else return false;
-    } else {
-      if(!_gme || !_gme._gme_seek_samples) return false;
-      if(_gmeEmu) _gme._gme_seek_samples(_gmeEmu, frame);
-      for(var i=0;i<_gmeStemEmus.length;i++) if(_gmeStemEmus[i]) _gme._gme_seek_samples(_gmeStemEmus[i], frame);
-    }
-    _gmeFrames=frame;
-    _chipStemPrev=[]; _chipStemAvg=[]; _chipStemHz=[];
-    return true;
-  }catch(e){ return false; }
-}
-function _chipQueuedSeconds(){
-  var ctx=Audio.audioCtx&&Audio.audioCtx(), sr=(ctx&&ctx.sampleRate)||44100;
-  if(_chipOutMode==='worklet') return Math.max(0, (_chipAwQueuedFrames||0)/sr);
-  return ctx ? Math.max(0, _chipSchedUntil-ctx.currentTime) : 0;
-}
-function _chipScheduleAdvance(reason){
-  if(_gmeAdvancing) return;
-  _gmeAdvancing=true;
-  if(_chipAdvanceTimer) clearTimeout(_chipAdvanceTimer);
-  var delay=Math.max(0.02, _chipQueuedSeconds()+0.03);
-  if(typeof document!=='undefined' && document.documentElement) document.documentElement.dataset.rrrChipAdvance=JSON.stringify({reason:reason||'end', delay:+delay.toFixed(3)});
-  _chipAdvanceTimer=setTimeout(function(){ _chipAdvanceTimer=0; _gmeNext(); }, Math.min(65000, delay*1000));
-}
-function _chipRenderBlock(outFrames, audibleTime){
-  var ctx=Audio.audioCtx&&Audio.audioCtx(), sr=(ctx&&ctx.sampleRate)||44100, frames=Math.max(128, outFrames|0);
-  var sourceFrames=_chipSourceFrames(frames), sourceN=sourceFrames*2, L=new Float32Array(frames), R=new Float32Array(frames);
-  var heap=null, base=0, amp=0, renderedDirect=false, gmeCustom=false, ended=false, vgm=(_eng==='vgm'), oldDelay=_chipSemanticDelayMs;
-  var startFrame=_gmeFrames||0;
-  _chipSemanticDelayMs=Math.max(0, audibleTime&&ctx ? (audibleTime-ctx.currentTime)*1000 : 0);
-  try{
-    if(vgm){
-      if(_vgmBufLen<sourceN){ if(_vgmBufPtr) _vgm._free(_vgmBufPtr); _vgmBufPtr=_vgm._malloc(sourceN*2); _vgmBufLen=sourceN; }
-      _vgm.ccall('vgm_render','number',['number','number'],[_vgmBufPtr, sourceFrames]);
-      _pushVgmSemantics(sourceFrames, sr);
-      heap=_vgm.HEAP16; base=_vgmBufPtr>>1;
-    } else {
-      gmeCustom=_gmeCustomMixWanted(); _gmeSyncStemMode(gmeCustom);
-      if(gmeCustom){
-        amp=Math.max(amp, _renderGmeStems(sourceFrames, sourceN, sr, true, L, R, frames));
-        renderedDirect=true;
-      } else {
-        if(_gmeBufLen<sourceN){ if(_gmeBufPtr) _gme._free(_gmeBufPtr); _gmeBufPtr=_gme._malloc(sourceN*2); _gmeBufLen=sourceN; }
-        _gme._gme_play(_gmeEmu, sourceN, _gmeBufPtr);
-        heap=_gme.HEAP16; base=_gmeBufPtr>>1;
-        if(_SNES_STEM_ANALYSIS && !_backgroundUiDormant()) _renderGmeStems(sourceFrames, sourceN, sr, false, null, null);
-      }
-    }
-  }catch(err){
-    _chipSemanticDelayMs=oldDelay;
-    _gmeOnCrash();
-    return null;
-  }
-  _chipSemanticDelayMs=oldDelay;
-  if(!renderedDirect) amp=Math.max(amp, _resampleHeap16ToOutput(heap, base, sourceFrames, L, R, frames));
-  if(!_chipOutputSane(L, R, frames)) return null;
-  if(amp>_gmeMaxAmp) _gmeMaxAmp=amp;
-  _gmeFrames+=sourceFrames;
-  try{ ended = vgm ? !!_vgm.ccall('vgm_ended','number',[],[]) : !!_gme._gme_track_ended(gmeCustom&&_gmeStemEmus[0]?_gmeStemEmus[0]:_gmeEmu); }catch(err2){ _gmeOnCrash(); return null; }
-  return {L:L, R:R, frames:frames, sourceFrames:sourceFrames, startFrame:startFrame, ended:ended, silent:(_gmeFrames > sr*8 && _gmeMaxAmp < 0.004), overlong:(_gmeFrames > sr*150)};
-}
-function _chipScheduleBuffer(block, when){
-  var ctx=Audio.audioCtx&&Audio.audioCtx(); if(!ctx || !_chipOutGain) return false;
-  var sr=ctx.sampleRate||44100, buf=ctx.createBuffer(2, block.frames, sr), src=ctx.createBufferSource();
-  buf.copyToChannel(block.L, 0); buf.copyToChannel(block.R, 1);
-  src.buffer=buf; src.connect(_chipOutGain);
-  src.onended=function(){ var i=_chipSchedSources.indexOf(src); if(i>=0) _chipSchedSources.splice(i,1); try{ src.disconnect(); }catch(e){} };
-  if(!_chipSchedUntil || _chipSchedUntil<ctx.currentTime) _chipSchedUntil=Math.max(ctx.currentTime+0.08, when||0);
-  when=Math.max(_chipSchedUntil, ctx.currentTime+0.04);
-  if(!_chipPlayBaseCtx || when<=ctx.currentTime+0.12){ _chipPlayBaseCtx=when; _chipPlayBaseFrame=block.startFrame; }
-  src.start(when);
-  _chipSchedSources.push(src);
-  _chipSchedUntil=when + block.frames/sr;
-  return true;
-}
-function _chipEnqueueWorklet(block){
-  if(!_chipAwNode) return false;
-  if(!_chipAwQueuedFrames && !_chipAwPlayedSourceFrames) _chipPlayBaseFrame=block.startFrame;
-  _chipAwQueuedFrames += block.frames;
-  return _chipPostWorklet({type:'enqueue', generation:_chipSchedGen, l:block.L, r:block.R, sourceFrames:block.sourceFrames}, [block.L.buffer, block.R.buffer]);
-}
-function _chipPump(force){
-  if(_chipSchedTimer){ clearTimeout(_chipSchedTimer); _chipSchedTimer=0; }
-  if(!_chipSchedActive){
-    return;
-  }
-  if(_gmePaused || _gmeDead || !_chipRenderable()){
-    _chipSchedTimer=setTimeout(function(){ _chipPump(false); }, _chipPumpDelay());
-    return;
-  }
-  if(_chipRenderBusy){
-    _chipSchedTimer=setTimeout(function(){ _chipPump(false); }, 80);
-    return;
-  }
-  _chipRenderBusy=true;
-  try{
-    var ctx=Audio.audioCtx&&Audio.audioCtx(), sr=(ctx&&ctx.sampleRate)||44100, target=_chipAheadTarget(), queued=_chipQueuedSeconds();
-    var neededChunks=Math.ceil(Math.max(0, target-queued) * sr / _CHIP_RENDER_CHUNK_FRAMES) + 4;
-    var bgDormant=_backgroundUiDormant();
-    var maxChunks=Math.min(Math.max(neededChunks, 1), bgDormant?_CHIP_PUMP_CAP_BG:_CHIP_PUMP_CAP_FG), made=0;
-    var deadline=_chipPumpNow() + (bgDormant?_CHIP_PUMP_BUDGET_BG_MS:_CHIP_PUMP_BUDGET_FG_MS);
-    while(queued<target && made<maxChunks && !_gmeAdvancing && _chipRenderable()){
-      var audibleTime=ctx ? (ctx.currentTime + queued + (_chipOutMode==='buffer'?0.06:0)) : 0;
-      var block=_chipRenderBlock(_CHIP_RENDER_CHUNK_FRAMES, audibleTime);
-      if(!block) break;
-      if(_chipOutMode==='worklet') _chipEnqueueWorklet(block);
-      else _chipScheduleBuffer(block, Math.max(_chipSchedUntil||0, ctx.currentTime+0.08));
-      made++;
-      queued=_chipQueuedSeconds();
-      if(block.ended || block.silent || block.overlong){
-        _chipScheduleAdvance(block.ended?'ended':(block.silent?'silent':'overlong'));
-        break;
-      }
-      if(_chipPumpNow()>=deadline) break;
-    }
-    var _chipDiag={mode:_chipOutMode, queued:+queued.toFixed(2), target:target, gen:_chipSchedGen, frames:_gmeFrames, made:made, underruns:_chipAwUnderruns||0, bg:!!bgDormant, t:Date.now()};
-    if(typeof window!=='undefined') window.__rrrChipSched=_chipDiag;
-    if(!bgDormant && typeof document!=='undefined' && document.documentElement){
-      document.documentElement.dataset.rrrChipSched=JSON.stringify(_chipDiag);
-    }
-  }finally{
-    _chipRenderBusy=false;
-  }
-  _chipSchedTimer=setTimeout(function(){ _chipPump(false); }, _chipPumpContinueDelay(_backgroundUiDormant(), _chipQueuedSeconds(), _chipAheadTarget()));
-}
-function _chipStartRenderAhead(){
-  if(!_chipOutGain || !_chipRenderable()) return;
-  if(_chipAdvanceTimer){ clearTimeout(_chipAdvanceTimer); _chipAdvanceTimer=0; }
-  _chipSchedActive=true;
-  _chipResetQueuedOutput(_gmeFrames||0, _gmePaused);
-  if(!_gmePaused) _chipPump(true);
-}
-function _chipStopRenderAhead(){
-  _chipSchedActive=false;
-  if(_chipSchedTimer){ clearTimeout(_chipSchedTimer); _chipSchedTimer=0; }
-  if(_chipAdvanceTimer){ clearTimeout(_chipAdvanceTimer); _chipAdvanceTimer=0; }
-  _chipResetQueuedOutput(_chipAudibleSourceFrame(), true);
-}
-function _chipInvalidateAhead(reason){
-  if(!_chipSchedActive || !_chipRenderable()) return;
-  var frame=_chipAudibleSourceFrame();
-  if(!_chipSeekSourceFrame(frame)) return;
-  _chipResetQueuedOutput(frame, _gmePaused);
-  if(typeof document!=='undefined' && document.documentElement) document.documentElement.dataset.rrrChipInvalidate=JSON.stringify({reason:reason||'change', frame:frame, mode:_chipOutMode});
-  if(!_gmePaused) _chipPump(true);
-}
-function _chipSetPaused(paused){
-  paused=!!paused;
-  var pauseFrame = paused ? _chipAudibleSourceFrame() : 0;
-  var resumeFrame = !paused ? Math.max(0, Math.floor(_chipPlayBaseFrame||_gmeFrames||0)) : 0;
-  _gmePaused=paused;
-  if(Audio&&Audio.setExternalPaused) Audio.setExternalPaused(_gmePaused);
-  if(_gmePaused){
-    if(_chipOutMode==='worklet') _chipPostWorklet({type:'pause', generation:_chipSchedGen, paused:true});
-    else if(_chipSchedActive && _chipRenderable()){
-      if(_chipSeekSourceFrame(pauseFrame)) _chipResetQueuedOutput(pauseFrame, true);
-    }
-  } else {
-    if(_chipOutMode==='worklet') _chipPostWorklet({type:'pause', generation:_chipSchedGen, paused:false});
-    else if(_chipSchedActive && _chipRenderable()){
-      if(_chipSeekSourceFrame(resumeFrame)) _chipResetQueuedOutput(resumeFrame, false);
-    }
-    _chipPump(true);
-  }
-}
-function _chipRefillNow(){ if(_chipSchedActive && !_gmePaused) _chipPump(true); }
-if(typeof window!=='undefined' && window.addEventListener){
-  window._chipRefillNow=_chipRefillNow;
-  window.addEventListener('focus', function(){ setTimeout(_chipRefillNow,0); });
-  window.addEventListener('blur', function(){ setTimeout(_chipRefillNow,0); });
-  document.addEventListener('visibilitychange', function(){ setTimeout(_chipRefillNow,0); });
-}
-async function _gmeSetupNode(ctx){
-  await _chipEnsureOutput(ctx);
-  Audio.playExternal(_chipOutGain, {source:'chip', nativeBpm:_chipTempoTrackBpm[_chipTempoTrackKey]||0});   // route through our analyser + leveler
-  return true;
-}
-// A malformed/unsupported VGM can trap the wasm emulator (out-of-bounds); a trapped Emscripten module is dead, so we drop
-// the offending track, rebuild a fresh libgme, and resume — keeps a continuous radio session alive through a bad file.
-function _gmeOnCrash(){ if(_gmeDead) return; _gmeDead=true;
-  _chipStopRenderAhead();
-  if(_chipList.length){ _chipList.splice(_chipI,1); if(_chipI>=_chipList.length) _chipI=0; }   // never hit the crashing track again this session
-  if(window._toast)_toast('skipped a bad track');
-  var resume=function(){ _gmeDead=false; if(_chipList.length) _gmePlayTrack(); else if(_albumQ) _gmeNextAlbum(); };
-  if(_eng==='vgm'){ _vgmLoaded=false; _vgmStemMask=0; _vgmBufPtr=0; _vgmBufLen=0; _vgmStatsPtr=0; _vgmStatsLen=0; _vgm=null; _vgmReady=null;     // rebuild the dead module the crashed track belonged to
-    _ensureVgm().then(resume).catch(function(){ _gmeDead=false; }); }
-  else{ _gmeFreeStemEmus(); _gmeEmu=0; _gmeBufPtr=0; _gmeBufLen=0; _gmeStemBufPtr=0; _gmeStemBufLen=0; _gme=null; _gmeReady=null;
-    _ensureGme().then(resume).catch(function(){ _gmeDead=false; }); }
-}
-async function _playGmeStation(packId, opts){
-  opts=opts||{}; if(!opts.keepQueue) _clearPlaybackQueue();
-  if(window._toast)_toast('loading '+packId+'…');
-  var ctx=Audio.audioCtx(); if(!ctx) return false;
-  _setTransportPlaying();
-  _curPlat=packId; _station=packId;
-  _warmChipTrackDb(1800, packId);
-  _setExternalNowPlaying(_prettyName(packId));
-  _chipSetPaused(false);
-  if(Audio.playExternal) Audio.playExternal(null, {source:'chip'});
-  if(window._setGmeShuffle) _setGmeShuffle(false);   // plain station play starts unshuffled (don't inherit the album-page Shuffle flag)
-  try{ if(_packDecoder(packId)==='vgm') await _ensureVgm(); else await _ensureGme(); }   // decoder comes from the pack manifest
-  catch(e){ if(window._toast)_toast('chip engine failed to load'); return false; }
-  var h=_packHandle(packId), albums=null;
-  try{ if(h && h.albums) albums=await h.albums(); }catch(e){}                            // albums.json = [[albumDir, trackCount], ...]
-  if(albums && albums.length){                                          // album-index mode: tiny index now, lazy per-album archives on demand
-    _albumQ=_shuffle(albums.map(function(a){ return Array.isArray(a)?a[0]:a; })); _albumI=-1; _gmeAlbMiss=0;
-    await _gmeSetupNode(ctx); await _gmeNextAlbum(); return true;
-  }
-  var names=await _packLooseFiles(packId);                              // fallback: loose layout (no album index)
-  if(!names||!names.length){ if(window._toast)_toast('no playable files in the '+packId+' pack'); return false; }
-  _albumQ=null; _chipList=_shuffle(names).map(function(n){ return {name:String(n).split('/').pop(), file:String(n)}; });
-  _chipI=0; await _gmeSetupNode(ctx); _gmePlayTrack(); return true;
-}
-// album-index playback: shuffled album order; each game's soundtrack plays in track order, then on to the next game.
-async function _gmeNextAlbum(){
-  var loadSeq=++_chipAlbumLoadSeq;
-  if(!_albumQ||!_albumQ.length) return;
-  if(_gmeAlbMiss>_albumQ.length){ _gmeAlbMiss=0; _chipLoaded(); _setExternalNowPlaying(_prettyName(_curPlat||'chip')+' · no playable albums'); if(window._toast)_toast('no playable albums'); return; }   // every album failed to load -> give up
-  _albumI=(_albumI+1)%_albumQ.length;
-  var qitem=_albumQ[_albumI];
-  if(qitem && typeof qitem==='object'){ _curPlat=qitem.p||_curPlat; _curAlbum=qitem.s||qitem.album||''; }
-  else _curAlbum=qitem;
-  _station=_curPlat;
-  _chipLoading(_prettyName(_curAlbum));
-  if(window._isDisliked && _isDisliked({kind:'chip',p:_curPlat,s:_curAlbum}) && (_gmeDisSkip=(_gmeDisSkip||0)+1)<=_albumQ.length){ return _gmeNextAlbum(); }   // never resurface a disliked album (bounded)
-  _gmeDisSkip=0;
-  try{ if(_packDecoder(_curPlat)==='vgm') await _ensureVgm(); else await _ensureGme(); }
-  catch(e){ _gmeAlbMiss++; return _gmeNextAlbum(); }
-  if(loadSeq!==_chipAlbumLoadSeq) return;
-  if(window._applyMixScopeForSource) window._applyMixScopeForSource();
-  if(window.refreshMixPanel) window.refreshMixPanel();
-  var entries=null; try{ entries=await _loadChipAlbumEntries(_curPlat,_curAlbum); }catch(e){}
-  if(loadSeq!==_chipAlbumLoadSeq) return;
-  if(!entries||!entries.length){ _gmeAlbMiss++; return _gmeNextAlbum(); }
-  _gmeAlbMiss=0; _chipList=entries.map(function(e){ return {name:e[0], bytes:e[1]}; });   // whole album now in memory; track skips are 0-fetch
-  _chipDisTrackSkip=0;
-  if(_gmeShuffleTracks) _chipList=_shuffle(_chipList);                                    // album-page Shuffle: randomise this album's track order
-  var req=window.__rrrAlbumTrackRequest, startI=0;
-  if(req && req.p===_curPlat && req.s===_curAlbum){
-    if(req.trackSlug){
-      var want=_routeSlug(req.trackSlug), matched=false;
-      for(var si=0; si<_chipList.length; si++){
-        var lab=_chipList[si]&&_chipList[si].name;
-        if(_chipLabelSlug(lab,false)===want || _chipLabelSlug(lab,true)===want || ('track-'+(si+1))===want){ startI=si; matched=true; break; }
-      }
-      if(!matched && typeof req.index==='number') startI=Math.max(0, Math.min(_chipList.length-1, req.index|0));
-    } else if(req.name){
-      for(var ri=0; ri<_chipList.length; ri++){ if(_chipList[ri] && _chipList[ri].name===req.name){ startI=ri; break; } }
-    } else if(typeof req.index==='number') startI=Math.max(0, Math.min(_chipList.length-1, req.index|0));
-    window.__rrrAlbumTrackRequest=null;
-  }
-  _chipI=startI; _gmePlayTrack(); _prefetchNextChipAlbum();
-}
-// transparently gunzip .vgz (gzip) -> .vgm via the browser's DecompressionStream, so libgme (built without zlib) can read VGMRips files
-async function _maybeGunzip(ab){ var u=new Uint8Array(ab);
-  if(u.length>2 && u[0]===0x1f && u[1]===0x8b && typeof DecompressionStream!=='undefined'){
-    try{ return await new Response(new Response(ab).body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer(); }catch(e){}
-  }
-  return ab; }
-function _chipTrackNowName(label){ return (_albumQ&&_curAlbum?_prettyName(_curAlbum)+' · ':'')+_prettyName(label); }
-function _gmePlayTrack(){ var item=_chipList[_chipI]; if(item==null||_gmeDead) return;
-  _chipStopRenderAhead();
-  var pendingLabel=(item&&item.name)||String(item).split('/').pop();
-  if(window._isDisliked && _curAlbum && _isDisliked({kind:'chip',p:_curPlat,s:_curAlbum,track:_chipI,trackName:pendingLabel||null,name:_prettyName(pendingLabel||'')}) && (_chipDisTrackSkip=(_chipDisTrackSkip||0)+1)<=_chipList.length){ _gmeNext(); return; }
-  _chipDisTrackSkip=0;
-  _setExternalNowPlaying(_chipTrackNowName(pendingLabel));
-  advanceRandomVisualizer();
-  _chipLoading(_chipTrackNowName(pendingLabel));
-  if(item.bytes){ _gmeOpenBytes(item.bytes, item.name); return; }     // album mode: track already unpacked in memory (0-fetch)
-  _packReadBytes(_curPlat, item.file||String(item), _CHIP_LOAD_TIMEOUT).then(_maybeGunzip).then(function(ab){   // loose fallback: pack bytes (+ gunzip .vgz)
-    _gmeOpenBytes(new Uint8Array(ab), pendingLabel);
-  }).catch(function(){ _gmeNext(); });
-}
-// route a track to the right engine by file magic: "Vgm " -> libvgm (all chips); SPC/etc -> libgme
-function _gmeOpenBytes(bytes, label){ if(_gmeDead) return;
-  var nm=_chipTrackNowName(label);
-  _chipTempoTrackKey=_chipTrackKeyFor(label||nm||'');
-  _seedChipTempoFromDb(label||nm||'');
-  _resetPlaybackTempoBase();
-  _chipStemPrev=[]; _chipStemAvg=[]; _chipStemHz=[];
-  if(bytes.length>0x20 && bytes[0]===0x56 && bytes[1]===0x67 && bytes[2]===0x6D && bytes[3]===0x20){   // "Vgm "
-    if(!_vgm){ _gmeNext(); return; }
-    try{
-      var sr=(Audio.audioCtx()||{}).sampleRate||44100;
-      var dp=_vgm._malloc(bytes.length); _vgm.HEAPU8.set(bytes, dp);
-      if((_queryFlag('chip-live-bpm') || _queryFlag('chipLiveBpm')) && !_tempoBpm(_chipTempoTrackBpm[_chipTempoTrackKey])){
-        _preflightVgmBpmFromPtr(dp, bytes.length, sr, _chipTempoTrackKey, _CHIP_PREFLIGHT_SECONDS, _chipTempoBaseBpm||0);
-      }
-      var verr=_vgm.ccall('vgm_load','number',['number','number','number'],[dp, bytes.length, sr]); _vgm._free(dp);
-      if(verr){ _gmeNext(); return; }
-      _gmeFreeStemEmus(); if(_gmeEmu){ try{ _gme._gme_delete(_gmeEmu); }catch(e){} _gmeEmu=0; }
-      _eng='vgm'; _vgmLoaded=true; _gmeFrames=0; _gmeMaxAmp=0; _gmeAdvancing=false;
-      try{ _vgmStemMask=_vgm.ccall('vgm_active_stems','number',[],[])||0; }catch(e){ _vgmStemMask=0; }
-      if(Audio&&Audio.resetExternalClock) Audio.resetExternalClock(_chipTempoTrackBpm[_chipTempoTrackKey]||0);
-      if(_backgroundUiDormant()) _pendingVisualRefresh=true; else _reseatScene=true;
-      _applyDecoderTempoRatio(_chipTempoRatio, true); _syncDecoderTempo(Radio.state.tempo, null, _chipTempoTrackBpm[_chipTempoTrackKey]);
-      if(window._applyMixScopeForSource) window._applyMixScopeForSource();
-      _applyVgmMix(); if(Audio&&Audio.refreshMix) Audio.refreshMix();
-      if(!_backgroundUiDormant() && window.refreshMixPanel) window.refreshMixPanel();
-      _setExternalNowPlaying(nm); if(window._recordChipPlay && _albumQ && _curAlbum) _recordChipPlay(_curPlat,_curAlbum,_chipI,label);
-      if(!_backgroundUiDormant() && window._libSetAlbumTrack && _albumQ && _curAlbum) _libSetAlbumTrack(_curPlat,_curAlbum,_chipI,label);
-      _chipStartRenderAhead();
-      _chipLoaded();
-      _scheduleNextChipPreflight();
-    }catch(e){ _gmeOnCrash(); }
-    return;
-  }
-  if(!_gme){ _gmeNext(); return; }
-  try{
-    if((_queryFlag('chip-live-bpm') || _queryFlag('chipLiveBpm')) && !_tempoBpm(_chipTempoTrackBpm[_chipTempoTrackKey])){
-      _preflightChipBpm(bytes, label, _chipTempoTrackKey, _CHIP_PREFLIGHT_SECONDS);
-    }
-    _gmeFreeStemEmus();
-    if(_gmeEmu){ try{ _gme._gme_delete(_gmeEmu); }catch(e){} _gmeEmu=0; }
-    var dataPtr=_gme._malloc(bytes.length); _gme.HEAPU8.set(bytes, dataPtr);
-    var outPtr=_gme._malloc(4), sr2=(Audio.audioCtx()||{}).sampleRate||44100;
-    var gerr=_gme.ccall('gme_open_data','number',['number','number','number','number'],[dataPtr, bytes.length, outPtr, sr2]);
-    var emu=_gme.getValue(outPtr,'i32'); _gme._free(outPtr); _gme._free(dataPtr);
-    if(gerr||!emu){ _gmeNext(); return; }
-    _gme._gme_start_track(emu, 0); if(_gme._gme_set_fade) _gme._gme_set_fade(emu, 140000);
-    _eng='gme'; _vgmLoaded=false; _vgmStemMask=0; _gmeEmu=emu; _gmeFrames=0; _gmeMaxAmp=0; _gmeAdvancing=false;
-    if(Audio&&Audio.resetExternalClock) Audio.resetExternalClock(_chipTempoTrackBpm[_chipTempoTrackKey]||0);
-    if(_backgroundUiDormant()) _pendingVisualRefresh=true; else _reseatScene=true;
-    if(window._applyMixScopeForSource) window._applyMixScopeForSource();
-    _applyGmeMix(); _gmeOpenStemEmus(bytes, 0, sr2);
-    _applyDecoderTempoRatio(_chipTempoRatio, true); _syncDecoderTempo(Radio.state.tempo, null, _chipTempoTrackBpm[_chipTempoTrackKey]);
-    if(Audio&&Audio.refreshMix) Audio.refreshMix();
-    if(!_backgroundUiDormant() && window.refreshMixPanel) window.refreshMixPanel();
-    _setExternalNowPlaying(nm); if(window._recordChipPlay && _albumQ && _curAlbum) _recordChipPlay(_curPlat,_curAlbum,_chipI,label);
-    if(!_backgroundUiDormant() && window._libSetAlbumTrack && _albumQ && _curAlbum) _libSetAlbumTrack(_curPlat,_curAlbum,_chipI,label);
-    _chipStartRenderAhead();
-    _chipLoaded();
-    _scheduleNextChipPreflight();
-  }catch(e){ _gmeOnCrash(); }                                          // open/start trapped on a bad file -> rebuild + skip
-}
-function _gmeNext(){ _gmeAdvancing=false;
-  if(_advanceQueue(1)) return;
-  if(!_chipList.length){ if(_albumQ) _gmeNextAlbum(); return; }
-  if(_albumQ){ _chipI++; if(_chipI>=_chipList.length){ _gmeNextAlbum(); return; } }   // album done -> next game
-  else { _chipI=(_chipI+1)%_chipList.length; }                                        // flat fallback: wrap
-  _gmePlayTrack(); }
-
 // ===== HOME: pick a STATION. Each station is a lead-presence mood of the generated
 //  radio (Everything mixes all three), fronted by a game character sprite. =====
 const HOME_TILES = [
@@ -3832,7 +2386,6 @@ function enterStation(id){
   for(var hi=0;hi<HOME_TILES.length;hi++) if(HOME_TILES[hi].id===id){ mst=HOME_TILES[hi]; break; }
   if(mst){ try{ if(typeof Radio!=='undefined'&&Radio.setMood) Radio.setMood(mst.mood); }catch(e){} _startEndlessRadio(); return; }
   if(id==='radio' || id==='generated'){ _startEndlessRadio(); return; }
-  if(id==='browse'){ if(typeof _exitWatchMode==='function') _exitWatchMode(); if(window.buildBrowse) window.buildBrowse(); else if(window._toast) _toast('Browse is still loading'); return; }
   if(id==='watch'){ enterWatchMode(); return; }
   if(typeof _exitWatchMode==='function') _exitWatchMode();
   if(id==='mic'){ startAudio(true, {external:true}); _playMic(); hideHome(); return; }
@@ -3843,21 +2396,13 @@ function enterStation(id){
     _station='liked'; if(window._applyMixScopeForSource) window._applyMixScopeForSource(); if(window.refreshMixPanel) window.refreshMixPanel(); if(typeof _syncVisualChrome==='function') _syncVisualChrome(); hideHome(); return;
   }
   _clearPlaybackQueue();
-  var dec=_packDecoder(id);
-  if(_stationIsMusicPack(id) || dec){                              // any installed MUSIC PACK is a station
-    startAudio(true, {external:true});                             // external stations boot silence until their source connects
-    if(dec==='openmpt') _playChipStation(id); else _playGmeStation(id);
-    _station=id; if(window._applyMixScopeForSource) window._applyMixScopeForSource(); if(window.refreshMixPanel) window.refreshMixPanel(); if(typeof _syncVisualChrome==='function') _syncVisualChrome(); hideHome(); return;
-  }
-  if(window._toast) _toast('Nothing installed under "'+id+'" — import a pack first');
+  if(window._toast) _toast('Unknown station "'+id+'"');
 }
 function hideHome(){ if(typeof revealApp==='function') revealApp(); }                 // revealApp() hides #intro (= the Home)
 function showHome(){ var intro=document.getElementById('intro'); if(!intro) return; if(typeof _exitWatchMode==='function') _exitWatchMode(); if(document.documentElement) document.documentElement.classList.remove('boot-player-route'); window.__RRR_BOOT_PLAYER_ROUTE=false; _revealed=false; intro.style.display=''; intro.classList.remove('hidden'); openProductHome({replace:true}); if(typeof syncBrowseButton==='function') syncBrowseButton(); if(typeof _syncVisualChrome==='function') _syncVisualChrome(); }
 // reveal/dismiss the library overlay WITHOUT changing the current view (used by the transport bar so the queue/detail
 // shows over the scene; revealApp() had hidden #intro while a game scene plays, which is why taps "did nothing").
-window._showLibContainer=function(){ var intro=document.getElementById('intro'); if(!intro) return; if(document.documentElement) document.documentElement.classList.remove('boot-player-route'); window.__RRR_BOOT_PLAYER_ROUTE=false; _revealed=false; intro.style.display=''; intro.classList.remove('hidden'); };
 window._hideLibContainer=function(){ var intro=document.getElementById('intro'); if(!intro) return; _revealed=true; intro.classList.add('hidden'); setTimeout(function(){ if(_revealed) intro.style.display='none'; }, 500); };
-function _libContainerVisible(){ var intro=document.getElementById('intro'); return !!(intro && intro.style.display!=='none' && !intro.classList.contains('hidden')); }
 // ----- WATCH CHROME: a pointer-reveal strip (Home · game picker · mic) that auto-hides after 3s.
 //  Reuses the controls-active machinery; CSS shows it only under body.watch-visual. -----
 function buildWatchChrome(){
@@ -3948,8 +2493,6 @@ buildHomeTiles();
   var masterBox=document.createElement('div'); masterBox.className='mixmaster'; panel.appendChild(masterBox);
   var slEls={}, valEls={}, muteEls={}, activeRows=[], activeLevelRows=[], lastNonZero={};
   function currentRows(){
-    var chipRows=(window._chipMixerRows && window._chipMixerRows());
-    if(Array.isArray(chipRows)) return [MASTER_ROW].concat(chipRows);
     if(typeof _station!=='undefined' && _station!=='generated' && _station!=='liked') return [MASTER_ROW];
     return GEN_ROWS;
   }
@@ -4018,7 +2561,7 @@ buildHomeTiles();
     updateHint();
   }
   resetB.addEventListener('click', function(ev){ ev.stopPropagation(); var rows=activeLevelRows||[]; rows.forEach(function(r){ lastNonZero[lastKey(r[0])]=1; }); if(window._sessionMixReset) window._sessionMixReset(rows.map(function(r){ return r[0]; })); else rows.forEach(function(r){ Audio.setMix(r[0], 1); }); syncSliders(); refreshVolumeDock(); });
-  function updateHint(){ if(!hint) return; var show=!!(activeLevelRows&&activeLevelRows.length); hint.style.display=show?'':'none'; hint.textContent=show?((window._chipMixerHint&&window._chipMixerHint())||'Generated-track voice volumes.'):''; }
+  function updateHint(){ if(!hint) return; var show=!!(activeLevelRows&&activeLevelRows.length); hint.style.display=show?'':'none'; hint.textContent=show?'Generated-track voice volumes.':''; }
   function syncSliders(){ var m=activeMix(); activeRows.forEach(function(r){ var v=(typeof m[r[0]]==='number')?m[r[0]]:1;
     if(v>0.001) lastNonZero[lastKey(r[0])]=v;
     if(slEls[r[0]] && document.activeElement!==slEls[r[0]]) slEls[r[0]].value=v; if(valEls[r[0]]) valEls[r[0]].textContent=Math.round(v*100)+'%'; updateMuteButton(r[0], v); }); refreshVolumeDock(); }

@@ -43,10 +43,8 @@ const Audio = (()=>{
   let genWorkletNode = null, genWorkletReady = null, genWorkletActive = false, genWorkletBatch = null, genWorkletGeneration = 1, genWorkletStats = null;
   const WORKLET_URL = '/lib/generated-synth-worklet.js';
   const WORKLET_NAME = 'retro-rave-generated-synth';
-  // LIVE MIXER: per-voice gain multipliers for generated music plus chip0..chip15 for native console-channel stems.
   // 'master' scales the final gain; non-native external streams do not get fake per-role EQ.
   const MIX = { master:1, kick:1, snare:1, hat:1, bass:1, lead:1, arp:1, pad:1, fx:1 };
-  for(let i=0;i<16;i++) MIX['chip'+i]=1;
   function masterTargetGain(){ return muted ? 0.0001 : 0.42*MIX.master; }
   function holdParam(param, t){
     if(!param) return;
@@ -1503,7 +1501,7 @@ const Audio = (()=>{
     // LIVE MIXER: scale a voice role's level (1 = built-in). 'master' scales the master gain. Drives the on-screen mixer panel.
     setMix(role, val){ val=Math.max(0, Math.min(3, (+val||0)));
       if(role==='master'){ MIX.master=val; if(master&&ctx) master.gain.setTargetAtTime(masterTargetGain(), ctx.currentTime, 0.03); }
-      else if(MIX[role]!=null){ MIX[role]=val; if(typeof window!=='undefined'&&window._setChipStemMix) window._setChipStemMix(role, val); updateExtEq(); }
+      else if(MIX[role]!=null){ MIX[role]=val; updateExtEq(); }
       genWorkletSetMix();
       return Object.assign({}, MIX); },
     getMix(){ return Object.assign({}, MIX); },

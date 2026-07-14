@@ -100,9 +100,8 @@
     // discovery re-validates fully on the main thread; this rejects garbage before any write
     if(!m || typeof m!=='object' || Array.isArray(m)) return 'pack.json is not an object';
     if(m.schema!=='rrr-pack@3') return 'schema must be rrr-pack@3';
-    if(m.kind!=='game' && m.kind!=='music' && m.kind!=='composer') return 'unknown kind "'+m.kind+'"';
+    if(m.kind!=='game' && m.kind!=='composer') return 'unknown kind "'+m.kind+'"';
     if(typeof m.id!=='string' || !ID_RE.test(m.id)) return 'bad id (want ^[a-z][a-z0-9_]{1,31}$)';
-    if(m.kind==='music' && m.entry!=null) return 'music packs are data-only (entry forbidden)';
     return '';
   }
 

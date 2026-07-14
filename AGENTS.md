@@ -40,12 +40,16 @@ are concatenated, browser-IIFE style, and must pass `node --check`.
   DOM/WebAudio/Math.random; Node-loadable via `vm`.
 - `packs.js` — the pack loader (global `Packs`; served//OPFS/fsdir sources,
   IndexedDB `rrr-packs`, consent, error isolation) + `activeComposer()`.
-  Loads before runtime.js.
-- `library.js` — Browse = the sum of enabled music packs. No scraped-metadata
-  entity pages; album cards show what tracks.json/meta provide.
-- `runtime.js` — shell: 3-tile home, routes, scene loop, picker (derived from
-  `CT_GAMES` after `Packs.init()`, re-rendered on `Packs.onChange`), queue,
-  playbar, TikTok rail, watch mode, mic/file-drop, chip playback engine.
+  Two kinds only: game + composer (the music pack kind was deleted for the
+  generative-only release). Loads before runtime.js.
+- `favorites.js` — likes/recent/playlists persistence for GENERATED tracks
+  (localStorage `retrorave.games.v1`; rehomed from the deleted library.js —
+  the playbar heart/ban/liked-station sit on it).
+- `runtime.js` — shell: station-select home, routes, scene loop, picker
+  (derived from `CT_GAMES` after `Packs.init()`, re-rendered on
+  `Packs.onChange`), generated queue, playbar, TikTok rail, watch mode,
+  file-drop party visualizer. (Chip/NSF/tracker playback was DELETED —
+  generative-only.)
 - `game-roster.js` — layer load order only. The roster itself is a directory
   scan: `scripts/game-roster.cjs` exports
   `scanGamePacks(root) → [{id, dir, manifest}]` + `GAME_LAYER_ORDER`. No
@@ -56,10 +60,12 @@ are concatenated, browser-IIFE style, and must pass `node --check`.
 
 ## Routes + determinism
 
-`/` (3 tiles, locked wording: **Start Endless Radio / Browse My Music / Just
-Watch the Games**) · `/radio` (mints via active composer → replaceState
-`/track/<slug>`) · `/browse[/<packId>/<album>/<track>]` · `/watch` ·
-`/track/<slug>`. Legacy `listen|play|create|wip` → home.
+`/` (station select: **Select your station:** Everything! / Mellow /
+Instrumental / Melodic — each pins a lead-presence mood of the generated
+radio, fronted by a game character sprite) · `/radio` (mints via active
+composer → replaceState `/track/<slug>`) · `/watch` · `/track/<slug>` ·
+`?mood=full|sparse|none` deep-links a station. Legacy
+`listen|play|create|wip|browse` → home.
 
 Determinism contract: token → `activeComposer().compile(token)` → identical
 Score → identical audio, forever within a composer version. **No
@@ -89,16 +95,13 @@ must read correctly with no music. Editing one game reads its layer files,
 not the bundle. Docs: `docs/game-pack-authoring.md`,
 `docs/visualizer-game-architecture.md`, `docs/good-game-baselines.md`.
 
-## Music packs — ZERO copyrighted content in the repo
+## Music packs — DELETED (generative-only release)
 
-The app ships no music. The user's converted library lives at
-`dist/packs/music/<id>/` (gitignored) — built with
-`node scripts/pack-tools.js music build|convert-chip` (spec:
-`docs/pack-format.md`; walkthrough: `docs/music-pack-authoring.md`).
-`chip-originals/` (raw rips) and `chip-derived/` (analysis, audition pages)
-are LOCAL ONLY, gitignored, never under `dist/`. Never commit music content
-or scraped metadata; never treat `dist/` as canonical. Music packs are
-data-only by enforcement — a music manifest with `entry` is rejected.
+In-app music-pack playback (NSF/GB/VGM/tracker decoding, Browse, albums) was
+removed for the public release: the app plays ONLY generated music. The
+`music` pack kind is rejected by the loader; decoders/workers are gone from
+src/lib and dist/lib. `scripts/pack-tools.js music …` + docs remain as
+archived offline tooling only. Still true: never commit music content.
 
 ## Composer packs
 

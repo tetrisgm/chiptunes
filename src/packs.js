@@ -1,4 +1,4 @@
-// packs.js — the pack platform: ONE loader, three kinds (game / music / composer).
+// packs.js — the pack platform: ONE loader, two kinds (game / composer).
 // Everything third-party-addable routes through here: served /packs/ (first-party,
 // published by build.js), OPFS (zip sideload), and linked local folders (Chromium
 // File System Access — the interface a future Tauri/Workshop NativeDirSource fills).
@@ -12,9 +12,9 @@ window.CT_COMPOSERS = window.CT_COMPOSERS || {};
   var CAP_ARCHIVE=512*1024*1024;        // album .tar.zst / zip imports
   var CAP_CODE=20*1024*1024;            // pack.js / composer.js entry text
   var ID_RE=/^[a-z][a-z0-9_]{1,31}$/;
-  var KINDS={game:1,music:1,composer:1};
+  var KINDS={game:1,composer:1};   // generative-only: the 'music' pack kind was removed for release
   var SRC_RANK={inline:0, served:1, fsdir:2, opfs:3};   // duplicate ids: lowest rank wins
-  var KIND_DIR={game:'games', composer:'composers', music:'music'};
+  var KIND_DIR={game:'games', composer:'composers'};
 
   // ---- state ----------------------------------------------------------------
   var rows=new Map();                   // id -> winning row
@@ -95,13 +95,7 @@ window.CT_COMPOSERS = window.CT_COMPOSERS || {};
     if(m.schema!=='rrr-pack@3') return 'schema must be rrr-pack@3';
     if(!KINDS[m.kind]) return 'unknown kind "'+m.kind+'"';
     if(typeof m.id!=='string' || !ID_RE.test(m.id)) return 'bad id (want ^[a-z][a-z0-9_]{1,31}$)';
-    if(m.kind==='music'){
-      if(m.entry!=null) return 'music packs are data-only (entry forbidden)';
-      if(m.decoder!=='vgm' && m.decoder!=='gme' && m.decoder!=='openmpt') return 'bad decoder "'+m.decoder+'"';
-      if(m.layout!=null && m.layout!=='album-archive' && m.layout!=='loose') return 'bad layout "'+m.layout+'"';
-      if(m.albums!=null && !_safeRel(m.albums)) return 'bad albums path';
-      if(m.tracks!=null && !_safeRel(m.tracks)) return 'bad tracks path';
-    } else {
+    {
       if(!_safeRel(_entryOf(m))) return 'bad entry path';
       if(m.kind==='game' && !(m.app && m.app.contract===3)) return 'game pack needs app.contract 3';
       if(m.kind==='composer' && m.composerV!==3) return 'composer pack needs composerV 3';
@@ -113,11 +107,7 @@ window.CT_COMPOSERS = window.CT_COMPOSERS || {};
   function _encPath(p){ return p.split('/').map(encodeURIComponent).join('/'); }
   function _magicBad(rel, u8){
     function has(sig, off){ off=off||0; if(u8.length<off+sig.length) return false; for(var i=0;i<sig.length;i++) if(u8[off+i]!==sig[i]) return false; return true; }
-    var GZ=[0x1f,0x8b], VGM=[0x56,0x67,0x6d,0x20]; // 'Vgm '
     var ext=(rel.match(/\.([a-z0-9]+)$/i)||['',''])[1].toLowerCase();
-    if(ext==='zst') return has([0x28,0xb5,0x2f,0xfd]) ? '' : 'bad zstd magic';
-    if(ext==='vgm'||ext==='vgz') return (has(VGM)||has(GZ)) ? '' : 'bad vgm magic';
-    if(ext==='spc') return has([0x53,0x4e,0x45,0x53,0x2d,0x53,0x50,0x43,0x37,0x30,0x30]) ? '' : 'bad spc magic'; // 'SNES-SPC700'
     var head=''; for(var i=0;i<Math.min(u8.length,64);i++) head+=String.fromCharCode(u8[i]);
     if(/^\s*<(!doctype|html)/i.test(head) && ext!=='html' && ext!=='htm') return 'got HTML (missing file?)';
     return '';
@@ -278,42 +268,6 @@ window.CT_COMPOSERS = window.CT_COMPOSERS || {};
     return row.loadP;
   }
 
-  // ---- music pack data ----------------------------------------------------------
-  function _albums(row){
-    if(row.kind!=='music') return Promise.reject(new Error(row.id+' is not a music pack'));
-    if(row.cache.albums) return row.cache.albums;
-    var p;
-    // loose (tracker) packs have no albums.json — derive [[dir,count]] from tracks.json.
-    if(row.manifest.layout==='loose' || (!row.manifest.albums)){
-      p=_tracksIndex(row).then(function(t){
-        var out=[], al=(t && t.albums)||[];
-        for(var i=0;i<al.length;i++){ var a=al[i]; out.push([String(a.dir||''), (a.tracks&&a.tracks.length)||0]); }
-        return out;
-      });
-    } else {
-      p=_readJSON(row, row.manifest.albums||'albums.json', CAP_INDEX).then(function(a){
-        if(!Array.isArray(a)) throw new Error('albums.json must be an array');
-        var out=[];
-        for(var i=0;i<a.length;i++){ var e=a[i]; if(Array.isArray(e) && typeof e[0]==='string') out.push([e[0], +e[1]||0]); }
-        return out;
-      });
-    }
-    row.cache.albums=p;
-    p.catch(function(){ if(row.cache.albums===p) row.cache.albums=null; });
-    return p;
-  }
-  function _tracksIndex(row){
-    if(row.kind!=='music') return Promise.reject(new Error(row.id+' is not a music pack'));
-    if(row.cache.tracks) return row.cache.tracks;
-    var p=_readJSON(row, row.manifest.tracks||'tracks.json', CAP_INDEX).then(function(t){
-      if(t && typeof t==='object' && t.schema && t.schema!=='rrr-tracks@1') throw new Error('unsupported tracks schema '+t.schema);
-      return t;
-    }).catch(function(e){ if(e && e.notFound) return null; throw e; });
-    row.cache.tracks=p;
-    p.catch(function(){ if(row.cache.tracks===p) row.cache.tracks=null; });
-    return p;
-  }
-
   function _handle(row){
     return {
       manifest: row.manifest,
@@ -322,9 +276,7 @@ window.CT_COMPOSERS = window.CT_COMPOSERS || {};
       readJSON: function(rel, cap){ return _readJSON(row, rel, cap); },
       fileURL: function(rel){ return _fileURL(row, rel); },
       loadGame: function(){ return _loadCode(row, 'game'); },
-      loadComposer: function(){ return _loadCode(row, 'composer'); },
-      albums: function(){ return _albums(row); },
-      tracksIndex: function(){ return _tracksIndex(row); }
+      loadComposer: function(){ return _loadCode(row, 'composer'); }
     };
   }
 
@@ -597,28 +549,6 @@ window.CT_COMPOSERS = window.CT_COMPOSERS || {};
       });
   }
 
-  // ---- BPM analysis facade (bpm-worker + IndexedDB bpmCache) ---------------------
-  var bpmW=null, bpmSeq=0, bpmJobs={}, bpmQ=Promise.resolve();
-  function _bpmWorker(){
-    if(bpmW) return bpmW;
-    bpmW=new Worker('/lib/bpm-worker.js');
-    bpmW.onmessage=function(ev){
-      var m=ev.data||{}, j=bpmJobs[m.id];
-      if(!j) return;
-      delete bpmJobs[m.id];
-      if(m.type==='bpm') j.res({bpm:m.bpm||0, conf:m.conf||0});
-      else j.rej(new Error(m.message||'bpm analysis failed'));
-    };
-    bpmW.onerror=function(e){
-      var msg=(e && e.message) || 'bpm worker crashed';
-      for(var k in bpmJobs){ bpmJobs[k].rej(new Error(msg)); delete bpmJobs[k]; }
-      try{ bpmW.terminate(); }catch(e2){}
-      bpmW=null;
-    };
-    return bpmW;
-  }
-  function _bpmKey(packId, album, file){ return packId+'/'+album+'/'+file; }
-
   // ---- composer selection -----------------------------------------------------------
   function _setComposerSel(id){
     activeComposerSel=id;
@@ -658,7 +588,7 @@ window.CT_COMPOSERS = window.CT_COMPOSERS || {};
       return initP;
     },
     list: function(){
-      var ko={game:0, composer:1, music:2};
+      var ko={game:0, composer:1};
       var arr=Array.from(rows.values()).concat(shadows);
       arr.sort(function(a,b){
         return ((ko[a.kind]!=null?ko[a.kind]:3)-(ko[b.kind]!=null?ko[b.kind]:3)) || (a.seq-b.seq);
@@ -792,35 +722,6 @@ window.CT_COMPOSERS = window.CT_COMPOSERS || {};
       return _loadCode(row, 'composer').then(function(){ _setComposerSel(id); return true; });
     },
 
-    // BPM: idle analysis for bpm-less tracks; cached in IndexedDB keyed packId/album/file
-    bpmCached: function(packId, album, file){
-      return _idbGet('bpm', _bpmKey(packId, album, file)).then(function(r){ return r ? {bpm:r.bpm||0, conf:r.conf||0} : null; });
-    },
-    analyzeBpm: function(opts){
-      // opts: {packId, album, file, bytes:ArrayBuffer|Uint8Array (transferred!), ext:'vgm'|'vgz'|'spc', seconds?}
-      opts=opts||{};
-      var key=_bpmKey(opts.packId||'', opts.album||'', opts.file||'');
-      return _idbGet('bpm', key).then(function(hit){
-        if(hit) return {bpm:hit.bpm||0, conf:hit.conf||0};
-        var buf=opts.bytes instanceof ArrayBuffer ? opts.bytes
-          : (opts.bytes && opts.bytes.buffer ? opts.bytes.buffer.slice(opts.bytes.byteOffset, opts.bytes.byteOffset+opts.bytes.byteLength) : null);
-        if(!buf) return Promise.reject(new Error('analyzeBpm needs bytes'));
-        var run=function(){
-          return new Promise(function(res, rej){
-            var id=++bpmSeq;
-            bpmJobs[id]={res:res, rej:rej};
-            try{ _bpmWorker().postMessage({type:'analyze', id:id, buffer:buf, ext:opts.ext||'', seconds:opts.seconds||30}, [buf]); }
-            catch(e){ delete bpmJobs[id]; rej(e); }
-          });
-        };
-        var p=bpmQ.then(run, run);                 // strictly one analysis at a time
-        bpmQ=p.then(function(){}, function(){});
-        return p.then(function(r){
-          _idbPut('bpm', {key:key, bpm:r.bpm||0, conf:r.conf||0, ts:Date.now()});
-          return r;
-        });
-      });
-    }
   };
 
   window.Packs=API;
