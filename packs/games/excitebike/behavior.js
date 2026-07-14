@@ -8,7 +8,7 @@
       var target=b.targetLane;
       if(keys.up)target=Math.max(0,target-1);
       if(keys.down)target=Math.min(3,target+1);
-      st.intent={targetLane:target,up:false,down:false,throttle:!!(keys.right||keys.action||input.down),engineBrake:!!keys.left};
+      st.intent={targetLane:target,up:false,down:false,throttle:!!(keys.right||input.down),engineBrake:!!keys.left};
       return;
     }
     if(ctx.audio&&ctx.audio.paused){

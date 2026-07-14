@@ -482,7 +482,10 @@ const BombermanDefinition = (function(){
         if(stepBomber(dc,dr)) st.stepCd=0.12;
         else { bm.dir=(dc>0?1:dc<0?3:dr>0?2:0); st.stepCd=0.08; }
       }
-      if((IN.click || keys.action) && st.bombCd<=0){ if(placeBomb()) st.bombCd=0.3; }
+      // directional-only: you steer, bombs drop themselves on a relaxed cadence
+      // (per-owner bomb cap still applies); a pointer tap drops one instantly.
+      if(IN.click && st.bombCd<=0){ if(placeBomb()) st.bombCd=0.3; }
+      else if(st.bombCd<=0){ if(placeBomb()) st.bombCd=1.1; }
     } else {
       BombermanBehavior.updatePlayer({
         st:st,

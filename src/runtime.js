@@ -623,9 +623,10 @@ const clamp = (v,a,b)=> v<a?a : v>b?b : v;
 // Space/J/K are global transport. Arrows/WASD steer the game; Control is the game action.
 // idle ~1.5s -> the game's autopilot resumes. NO tap-tempo — input drives the GAME, the game drives the pace, the pace the sound.
 const INP = { x:0.5, y:0.5, down:false, clickPulse:false, keys:Object.create(null), lastActive:-1e9 };
+// DIRECTIONAL-ONLY controls: arrows or WASD, nothing else. Every game maps its
+// actions to a direction or automates them — no action/Ctrl key exists.
 const KEYMAP = { ArrowLeft:'left', ArrowRight:'right', ArrowUp:'up', ArrowDown:'down',
-  KeyA:'left', KeyD:'right', KeyW:'up', KeyS:'down',
-  ControlLeft:'action', ControlRight:'action' };
+  KeyA:'left', KeyD:'right', KeyW:'up', KeyS:'down' };
 function shortcutTargetBlocked(ev){
   var el=ev&&ev.target;
   if(!el) return false;
@@ -744,7 +745,7 @@ window.addEventListener('keydown', e=>{
   const act=KEYMAP[e.code]; if(!act) return;
   e.preventDefault();
   if(intro && !intro.classList.contains('hidden')){ startAudio(); return; }
-  if(!e.repeat){ INP.keys[act]=true; if(act==='action'){ INP.clickPulse=true; spawnBurst(INP.x*W, INP.y*H, 12); shake=Math.min(1,shake+0.6); } }
+  if(!e.repeat) INP.keys[act]=true;
   INP.lastActive=performance.now();
 });
 window.addEventListener('keyup', e=>{ const act=KEYMAP[e.code]; if(act) INP.keys[act]=false; });

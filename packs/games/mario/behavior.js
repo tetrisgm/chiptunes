@@ -348,8 +348,8 @@
       st.intent = {
         left:!!keys.left,
         right:!!keys.right,
-        jump:!!(keys.up || keys.action || input.down),
-        jumpHeld:!!(keys.up || keys.action || input.down),
+        jump:!!(keys.up || input.down),
+        jumpHeld:!!(keys.up || input.down),
         speedBias:1
       };
       return;

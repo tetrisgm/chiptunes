@@ -747,8 +747,8 @@ const ZeldaDefinition = (function(){
           if(IN.keys){
             if(IN.keys.up) moveDir='up'; else if(IN.keys.down) moveDir='down';
             else if(IN.keys.left) moveDir='left'; else if(IN.keys.right) moveDir='right';
-            if(IN.keys.action) wantAtk=true;
           }
+          wantAtk=true;   // directional-only: the sword swings itself (atkCd/swing gate the cadence below)
           if(IN.click) wantAtk=true;
         } else if(canControl){
           var aiIntent = ZeldaBehavior.decideAuto({

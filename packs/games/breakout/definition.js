@@ -94,7 +94,7 @@ const BreakoutDefinition = (function(){
     // ---- launch / relaunch (click or action; AI auto-serves when idle) ----
     if (st.onPaddle){
       st.aiServe += dt;
-      var doLaunch = act ? (IN.click || IN.keys.up || IN.keys.action) : (st.aiServe > 0.35);
+      var doLaunch = act ? (IN.click || IN.keys.up) : (st.aiServe > 0.35);   // directional-only: UP serves
       // keep the resting ball glued to the paddle
       for (var bi0=0; bi0<st.balls.length; bi0++){
         var rb=st.balls[bi0]; rb.x = paddleCx; rb.y = st.py - rb.r - 1; rb.vx=0; rb.vy=0;

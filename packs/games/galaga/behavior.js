@@ -68,7 +68,10 @@ const GalagaBehavior = (function(){
       else if (typeof IN.x === 'number' && (IN.down || IN.x !== 0.5)){
         sh.tx = x0 + Math.max(0, Math.min(1, IN.x)) * W;
       }
-      if (IN.click || IN.down || keys.action || keys.up) fireNow = true;
+      // DIRECTIONAL-ONLY controls: firing is AUTOMATIC while the player steers (classic
+      // arcade-autoplay feel). Cadence is unchanged — sh.fireGate (0.22s) and the bullet
+      // cap below already gate the rate. No action key / click is ever required.
+      fireNow = true;
     } else if (sh.alive){
       var aimX = sh.x;
       var mustDodge = false;

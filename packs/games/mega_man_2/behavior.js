@@ -5,7 +5,14 @@
     var st=ctx.state,h=st&&st.hero,input=ctx.IN||{},keys=input.keys||{};
     if(!h) return;
     if(input.active){
-      st.intent={left:!!keys.left,right:!!keys.right,up:!!keys.up,down:!!keys.down,jump:!!(keys.up||keys.action||input.down),shoot:!!(keys.action||input.down),speedBias:1};
+      // Directional-only controls: up = jump (or climb at ladders), down = climb down.
+      // Buster fire is AUTOMATIC on a steady tempo-synced cadence; pointer taps add extra shots.
+      var um=st.music||{};
+      st.userFireT=(st.userFireT||0)+(ctx.dt||0.016);
+      var fireCad=Math.max(0.16,(um.spb||0.38)*0.5);
+      var autoShoot=st.userFireT>=fireCad||!!um.fireAccent;
+      if(autoShoot) st.userFireT=0;
+      st.intent={left:!!keys.left,right:!!keys.right,up:!!keys.up,down:!!keys.down,jump:!!(keys.up||input.down),shoot:!!(autoShoot||input.click),speedBias:1};
       return;
     }
     if(ctx.audio&&ctx.audio.paused){ st.intent={left:false,right:false,up:false,down:false,jump:false,shoot:false,speedBias:1}; return; }

@@ -5,8 +5,10 @@
     var st=ctx.state,h=st&&st.hero,input=ctx.IN||{},keys=input.keys||{};
     if(!h)return;
     if(input.active){
+      // Directional-only controls: left/right run, up jumps (and aims up), down aims down.
+      // Fire is AUTOMATIC while active: definition's spb-based h.shootCd gates the cadence.
       var ax=(keys.left?-1:0)+(keys.right?1:0),ay=keys.up?-1:(keys.down?1:0);
-      st.intent={left:!!keys.left,right:!!keys.right,jump:!!(keys.up||keys.action),shoot:!!(keys.action||input.down)&&!(h.noShoot>0),aimX:ax||h.dir||1,aimY:ay,speedBias:1};
+      st.intent={left:!!keys.left,right:!!keys.right,jump:!!keys.up,shoot:!(h.noShoot>0),aimX:ax||h.dir||1,aimY:ay,speedBias:1};
       return;
     }
     if(ctx.audio&&ctx.audio.paused){st.intent={left:false,right:false,jump:false,shoot:false,aimX:h.aimX||h.dir||1,aimY:h.aimY||0,speedBias:1};return;}
@@ -24,6 +26,6 @@
     if(look.platform||(look.target&&look.target.y<h.y-20))speedBias*=.92;
     st.intent={left:false,right:true,jump:jump,shoot:shoot,aimX:look.aimX||h.dir||1,aimY:look.aimY||0,speedBias:speedBias};
   };
-  VisualizerGame.layer('contra','behavior',{packVersion:3,key:'contra',goals:['run right at arcade pace','jump gaps, bullets, blockers, and upper platforms','shoot soldiers, snipers, turrets, flyers, grenadiers, crawlers, jumpers, gunners, paratroopers, prone shooters, mortars, wall cannons, divers, and heavy soldiers in their actual lane','aim diagonal, upward, and backward when targets demand it','slow slightly when committing to an upper route','break weapon crates and use powered shots','keep pushing forward after obstruction instead of backing into loops'],perception:['gap ahead','solid obstruction ahead','upper platform ahead','enemy target vector','enemy bullet lane','hit recovery lockout'],policies:['music raises firing timing only when a target exists','shots and bullets are capped','jumping stays grounded','targets across multiple panes are valid','post-hit recovery slows movement and prevents firing'],musicInputsAllowed:['energy','beat','fireAccent','spb'],update:B.update});
+  VisualizerGame.layer('contra','behavior',{packVersion:3,key:'contra',goals:['run right at arcade pace','jump gaps, bullets, blockers, and upper platforms','shoot soldiers, snipers, turrets, flyers, grenadiers, crawlers, jumpers, gunners, paratroopers, prone shooters, mortars, wall cannons, divers, and heavy soldiers in their actual lane','aim diagonal, upward, and backward when targets demand it','slow slightly when committing to an upper route','break weapon crates and use powered shots','keep pushing forward after obstruction instead of backing into loops'],perception:['gap ahead','solid obstruction ahead','upper platform ahead','enemy target vector','enemy bullet lane','hit recovery lockout'],policies:['directional-only player controls: left/right run, up jumps and aims up, down aims down','player fire is automatic at the hero fire-fire-gate cadence in the facing direction','music raises firing timing only when a target exists','shots and bullets are capped','jumping stays grounded','targets across multiple panes are valid','post-hit recovery slows movement and prevents firing'],musicInputsAllowed:['energy','beat','fireAccent','spb'],update:B.update});
   if(typeof window!=='undefined')window.ContraBehavior=B;else this.ContraBehavior=B;
 })();

@@ -12,7 +12,17 @@
     var st=ctx.state,h=st&&st.hero,input=ctx.IN||{},keys=input.keys||{};
     if(!h)return;
     if(input.active){
-      st.intent={left:!!keys.left,right:!!keys.right,down:!!keys.down,morph:!!keys.down,jump:!!keys.up,shoot:!!(keys.action||input.down),aim:keys.up?'up':(keys.down?'down':(h.dir<0?'left':'right')),speedBias:1};
+      // Directional-only controls: up=jump, down=morph, left/right=run.
+      // Beam fire is AUTOMATIC on the autopilot's musical cadence, still enemy/door-gated.
+      var ulook=(typeof MetroidDefinition!=='undefined'&&MetroidDefinition.lookAhead)?MetroidDefinition.lookAhead(st):{};
+      var udt=ctx.dt||.016,um=st.music||{};
+      var uneed=!!(ulook.shootEnemy||ulook.shootDoor)&&!keys.down;
+      st.userAimT=uneed?(st.userAimT||0)+udt:0;
+      var ucadence=!!um.fireAccent||(um.beat||0)>.55||st.userAimT>Math.max(.16,(um.spb||.42)*.52);
+      var autoShoot=uneed&&ucadence;
+      if(autoShoot)st.userAimT=0;
+      var autoAim=ulook.shootDoor?doorAim(ulook.doorSide,h):(ulook.enemyTarget?(ulook.enemyTarget.y<h.y-18?'up':(ulook.enemyTarget.x<h.x?'left':'right')):(h.dir<0?'left':'right'));
+      st.intent={left:!!keys.left,right:!!keys.right,down:!!keys.down,morph:!!keys.down,jump:!!keys.up,shoot:!!(autoShoot||input.down),aim:keys.up?'up':(keys.down?'down':(autoShoot?autoAim:(h.dir<0?'left':'right'))),speedBias:1};
       return;
     }
     if(ctx.audio&&ctx.audio.paused){

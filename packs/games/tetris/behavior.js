@@ -33,7 +33,8 @@ const TetrisBehavior = (function(){
       }
       if (!K.left && !K.right) st.shiftHold = 0;
 
-      if (K.up || K.action){
+      // UP = rotate (modern standard). Directional-only keyboard: no action key exists.
+      if (K.up){
         if (!st._upHeld){
           if (tryRotate()) fx('blip');
           st._upHeld = true;
@@ -54,17 +55,15 @@ const TetrisBehavior = (function(){
       }
       if (!K.down) st.softHold = 0;
 
-      if (IN.click){
-        var guard = 0;
-        while (st.piece.x < st.lastTarget && guard++ < COLS){ if (!tryMove(1, 0, 0)) break; }
-        while (st.piece.x > st.lastTarget && guard++ < COLS){ if (!tryMove(-1, 0, 0)) break; }
-        hardDrop();
-      } else {
-        st.grav += dt;
-        if (st.grav >= gStep){
-          st.grav = 0;
-          if (!tryMove(0, 1, 0)) lockPiece();
-        }
+      // Pointer tap = bonus rotate (mouse/touch extra; never required for play).
+      if (IN.click && !st._upHeld){
+        if (tryRotate()) fx('blip');
+      }
+
+      st.grav += dt;
+      if (st.grav >= gStep){
+        st.grav = 0;
+        if (!tryMove(0, 1, 0)) lockPiece();
       }
       return;
     }

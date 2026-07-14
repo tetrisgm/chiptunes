@@ -299,7 +299,17 @@ const DkDefinition = (function(){
         var human=(IN&&IN.active);
         var inL=false,inR=false,inU=false,inD=false,inJ=false;
         if(human&&IN.keys){
-          inL=!!IN.keys.left; inR=!!IN.keys.right; inU=!!IN.keys.up; inD=!!IN.keys.down; inJ=!!IN.keys.action;
+          inL=!!IN.keys.left; inR=!!IN.keys.right; inU=!!IN.keys.up; inD=!!IN.keys.down;
+          // directional-only: UP climbs when at a ladder (same proximity test as
+          // the grab below), and JUMPS anywhere else — no action key.
+          var nearLad=false;
+          if(inU && !jm.onLadder && !jm.jumping){
+            for(var kj=0;kj<st.ladders.length;kj++){
+              var Lj=st.ladders[kj];
+              if(Lj.tier===jm.tier && !Lj.broken && Math.abs(ladX(Lj)-jm.x)<1.8*U){ nearLad=true; break; }
+            }
+          }
+          inJ=!!(inU && !jm.onLadder && !nearLad);
         } else if(!human){
           var intent=DkBehavior.decideIntent({
             st:st,

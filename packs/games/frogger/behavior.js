@@ -14,14 +14,25 @@ const FroggerBehavior = (function(){
     var wantHop = false;
     var hopDir = 0;
 
+    // DIRECTIONAL-ONLY controls: arrows/WASD hop ONE cell per press (rising
+    // edge, classic Frogger — holding a key does not machine-gun hops). The
+    // latch is only sampled while settled+active, which gives free input
+    // buffering: a press during a hop triggers exactly one hop on landing.
+    if(!st.keyLatch) st.keyLatch = {up:false, down:false, left:false, right:false};
+
     if(!busy && !hoppingPre && ctx.canHop){
       st.idleTimer += dt;
       if(IN.active){
-        if(keys.up){ wantHop=true; hopDir=0; }
-        else if(keys.down){ wantHop=true; hopDir=2; }
-        else if(keys.left){ wantHop=true; hopDir=3; }
-        else if(keys.right){ wantHop=true; hopDir=1; }
-        else if(IN.click){
+        var latch = st.keyLatch;
+        var kU = !!keys.up, kD = !!keys.down, kL = !!keys.left, kR = !!keys.right;
+        if(kU && !latch.up){ wantHop=true; hopDir=0; }
+        else if(kD && !latch.down){ wantHop=true; hopDir=2; }
+        else if(kL && !latch.left){ wantHop=true; hopDir=3; }
+        else if(kR && !latch.right){ wantHop=true; hopDir=1; }
+        latch.up=kU; latch.down=kD; latch.left=kL; latch.right=kR;
+        // pointer tap = OPTIONAL bonus hop toward the pointer (never required;
+        // keyboard play is complete with directions alone)
+        if(!wantHop && IN.click){
           wantHop=true;
           var px = (typeof IN.lx==='number') ? IN.lx : ctx.frogScreenX;
           var py = (typeof IN.ly==='number') ? IN.ly : ctx.frogScreenY;
