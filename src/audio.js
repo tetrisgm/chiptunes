@@ -31,7 +31,7 @@ const mtof = m => 440 * Math.pow(2,(m-69)/12);
    AUDIO ENGINE
    ============================================================ */
 const Audio = (()=>{
-  let ctx, master, comp, genGain;
+  let ctx, master, comp, genGain, masterOut=null, _captureDest=null;
   // EXTERNAL-SOURCE mode (party visualizer): when set, an outside Web Audio node (mic / file / chip player)
   // drives the games' beat clock via a real-time analyser, the generative engine is muted, and vis() returns the
   // analysed beat/energy instead of the internal clock. Lets the games dance to ANY audio we route through ctx.
@@ -493,6 +493,7 @@ const Audio = (()=>{
     genGain.connect(master);
     master.connect(presEq); presEq.connect(airEq); airEq.connect(comp);
     comp.connect(makeup); makeup.connect(limiter); limiter.connect(ctx.destination);   // master -> EQ -> leveler -> makeup -> limiter -> out
+    masterOut = limiter;   // the post-everything node (== what listeners hear); the broadcaster's video leg taps this
     try{ _masterAna=ctx.createAnalyser(); _masterAna.fftSize=2048; _masterAna.smoothingTimeConstant=0.5; master.connect(_masterAna); }catch(e){}   // SPECTRUM tap (a sink, doesn't alter the signal)
     ensureGeneratedWorklet();
 
@@ -1589,6 +1590,14 @@ const Audio = (()=>{
     gotoTrack(tok){ if(tok==null) return curTok; startTrack(String(tok), {fade:0.12}); return curTok; },
     // LIVE (shared clock schedule): mid-track join + mode wiring. See setLiveMode/startTrackAtOffset.
     gotoTrackAtOffset(tok, offsetSec){ return startTrackAtOffset(tok, offsetSec, {fade:0.12}); },
+    // BROADCASTER video leg: a MediaStream of the FINAL master output (post EQ/leveler/limiter =
+    // exactly what listeners hear). The headless /radio page combines this with canvas.captureStream
+    // for the YouTube feed. Sink-only (a fan-out tap; never alters the signal to the speakers).
+    captureStream(){
+      if(!ctx || !masterOut) return null;
+      try{ if(!_captureDest){ _captureDest=ctx.createMediaStreamDestination(); masterOut.connect(_captureDest); } return _captureDest.stream; }
+      catch(e){ return null; }
+    },
     setLiveMode,
     deckPosition(){ var d=deckCur; if(!d||!ctx) return null;
       return { tok:d.tok, sec:ctx.currentTime-d.origin, durSec:d.totalBeats*d.spb, next:deckNext?deckNext.tok:null }; },

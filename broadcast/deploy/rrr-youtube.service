@@ -1,0 +1,22 @@
+[Unit]
+Description=Retro Rave Radio - YouTube Live video leg (game visuals + audio -> RTMP)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=@USER@
+WorkingDirectory=@REPO@
+EnvironmentFile=/etc/retro-rave-radio.env
+# refuses to start without YT_STREAM_KEY (video.js throws) — so an empty key = harmless no-op
+ExecStart=/usr/bin/node @REPO@/broadcast/video.js
+Restart=always
+RestartSec=15
+StartLimitIntervalSec=180
+StartLimitBurst=5
+Environment=HOME=/home/@USER@
+# 720p30 software x264 is ~1 core; keep it from starving the audio broadcaster
+Nice=10
+
+[Install]
+WantedBy=multi-user.target

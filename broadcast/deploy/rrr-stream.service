@@ -1,0 +1,22 @@
+[Unit]
+Description=Retro Rave Radio - Roon/internet MP3 broadcaster (127.0.0.1:1340/radio.mp3)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=@USER@
+WorkingDirectory=@REPO@
+EnvironmentFile=/etc/retro-rave-radio.env
+ExecStart=/usr/bin/node @REPO@/broadcast/broadcaster.js
+Restart=always
+RestartSec=10
+# a wedged render/ffmpeg shouldn't thrash: cap restarts, and give Chromium room
+StartLimitIntervalSec=120
+StartLimitBurst=6
+# Chromium sandbox needs these; the box is single-tenant so it's acceptable
+Environment=HOME=/home/@USER@
+Nice=5
+
+[Install]
+WantedBy=multi-user.target
