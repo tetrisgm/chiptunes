@@ -8,7 +8,12 @@ const Radio = (()=>{
   const LS = 'retrorave.radio.v2';                                          // v2: fingerprint axes (v1 idiom counts are abandoned)
   const KNOBS = ['tempoBand','brightness','grooveFamily','waveClass','energy','mood'];   // the learned fingerprint axes (NOT user-selectable)
   const TEMPO_MIN = 60, TEMPO_MAX = 220;                                    // manual DJ-deck range for every source
-  let state = { game:'random', tempo:null, playing:true, mood:'any' };   // mood: 'any'|'full'|'sparse'|'none' — pins the generated queue's lead-presence genre                  // tempo:null = auto: the track/deck BPM locked at track start
+  // mood: 'any'|'full'|'sparse'|'none' — pins the generated queue's lead-presence genre.
+  // live: the Everything station's SHARED clock schedule (src/live.js) — true means "tuned to
+  // the broadcast" (default for fresh installs: you open the app and hear what everyone hears);
+  // any skip/mood-pin/tempo-pin forks to the private minted queue. Invariant: live ⇒ mood==='any'.
+  // tempo:null = auto: the track/deck BPM locked at track start.
+  let state = { game:'random', tempo:null, playing:true, mood:'any', live:true };
   let prefs = { likes:[], dislikes:[], recent:[] };
   let counts = {};                                             // counts[axis][value] = {up,down}
   let cur = null;                                              // current track fingerprint (set by the engine)
@@ -17,7 +22,9 @@ const Radio = (()=>{
   function tally(fp, dir){ for(const k of KNOBS){ const v=fp[k]; if(v==null||v==='') continue;
     (counts[k]=counts[k]||{}); (counts[k][v]=counts[k][v]||{up:0,down:0}); if(dir>0) counts[k][v].up++; else counts[k][v].down++; } }
   function rebuild(){ counts={}; prefs.likes.forEach(e=>tally(e,1)); prefs.dislikes.forEach(e=>tally(e,-1)); }
-  function load(){ try{ const d=JSON.parse(localStorage.getItem(LS)); if(d){ if(d.state) state=Object.assign(state,d.state); if(d.prefs) prefs=Object.assign(prefs,d.prefs); } }catch(e){} state.tempo=null; state.playing=true; rebuild(); }
+  function load(){ try{ const d=JSON.parse(localStorage.getItem(LS)); if(d){ if(d.state) state=Object.assign(state,d.state); if(d.prefs) prefs=Object.assign(prefs,d.prefs); } }catch(e){} state.tempo=null; state.playing=true;
+    if(state.mood && state.mood!=='any') state.live=false;   // invariant live⇒mood==='any': an upgrading user with a pinned mood is NOT live (default merged live:true in)
+    rebuild(); }
   function save(){ try{ localStorage.setItem(LS, JSON.stringify({state:Object.assign({}, state, {tempo:null, playing:true}), prefs})); }catch(e){} }
   function emit(){ listeners.forEach(f=>{ try{ f(); }catch(e){} }); }
 
@@ -38,7 +45,15 @@ const Radio = (()=>{
   function playPause(){ state.playing=!state.playing; if(typeof Audio!=='undefined' && Audio.setPlaying) Audio.setPlaying(state.playing); save(); emit(); return state.playing; }
   function setGame(g){ state.game=g; if(typeof window!=='undefined'&&window.onRadioGame) window.onRadioGame(g); save(); emit(); }
   const MOODS=['any','full','sparse','none'];
-  function setMood(m){ m=String(m||'any'); if(MOODS.indexOf(m)<0) m='any'; state.mood=m; save(); emit(); return m; }
+  function setMood(m){ m=String(m||'any'); if(MOODS.indexOf(m)<0) m='any';
+    if(m!=='any' && state.live) setLive(false);   // a mood pin is a fork off the shared broadcast
+    state.mood=m; save(); emit(); return m; }
+  function setLive(on){ on=!!on;
+    if(state.live===on) return on;
+    state.live=on;
+    if(typeof window!=='undefined' && window.onRadioLive){ try{ window.onRadioLive(on); }catch(e){} }
+    save(); emit(); return on; }
+  function live(){ return !!state.live; }
   function mood(){ return MOODS.indexOf(state.mood)>=0 ? state.mood : 'any'; }
   function tempoBounds(){ return [TEMPO_MIN, TEMPO_MAX]; }
   function clampTempo(bpm){ bpm=+bpm; return isFinite(bpm) ? Math.max(TEMPO_MIN, Math.min(TEMPO_MAX, Math.round(bpm))) : TEMPO_MIN; }
@@ -48,6 +63,8 @@ const Radio = (()=>{
     if(liveBpm==null && typeof Audio!=='undefined' && Audio.detectedBpm) liveBpm = Audio.detectedBpm();
     if(liveBpm==null && typeof Audio!=='undefined' && Audio.grid) liveBpm = Audio.grid().bpm;
     state.tempo = bpm==null?null:clampTempo(bpm);
+    if(state.tempo!=null && state.live) setLive(false);   // a tempo pin re-times the deck off the shared schedule -> fork
+
     if(typeof Audio!=='undefined'){
       if(state.tempo!=null){ if(Audio.setTempo) Audio.setTempo(state.tempo); }      // manual target -> apply now
       else if(Audio.extActive&&Audio.extActive()){ /* external/chip auto plays at native speed and displays detected BPM */ }
@@ -63,7 +80,7 @@ const Radio = (()=>{
     get state(){ return state; }, get prefs(){ return prefs; }, get current(){ return cur; },
     counts:()=>counts,
     bias, setCurrent,
-    thumbUp, thumbDown, next, prev, playPause, setGame, setMood, mood, setTempo, nudgeTempo,
+    thumbUp, thumbDown, next, prev, playPause, setGame, setMood, mood, setLive, live, setTempo, nudgeTempo,
     tempoBounds,
     onChange(cb){ listeners.push(cb); },
   };

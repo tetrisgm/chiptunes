@@ -412,6 +412,22 @@
 	    transform:translate(-50%,8px); transition:opacity .22s ease, transform .22s ease, background .12s ease; }
 	  #resumeMusic svg{ width:17px; height:17px; }
 	  #resumeMusic:hover{ background:rgba(255,255,255,.14); }
+	  /* BACK TO LIVE — rejoin the shared broadcast after a fork (skip/mood/tempo). Same pill language as #resumeMusic. */
+	  #backToLive{ position:fixed; left:50%; top:18px; z-index:24; display:none; align-items:center; justify-content:center; gap:9px;
+	    min-height:44px; padding:0 18px; border-radius:999px; border:1px solid rgba(255,93,93,.38);
+	    background:rgba(8,6,16,.58); color:#fff; box-shadow:0 12px 34px rgba(0,0,0,.38);
+	    backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); font:800 13px/1 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+	    letter-spacing:.02em; text-transform:lowercase; opacity:0; pointer-events:none; cursor:pointer;
+	    transform:translate(-50%,-8px); transition:opacity .22s ease, transform .22s ease, background .12s ease; }
+	  #backToLive .btl-dot{ width:9px; height:9px; border-radius:50%; background:#ff5d5d; box-shadow:0 0 10px rgba(255,93,93,.8); animation:btlPulse 1.6s ease-in-out infinite; }
+	  #backToLive:hover{ background:rgba(255,93,93,.22); }
+	  body.ai-visual.live-can-rejoin #backToLive{ display:inline-flex; }
+	  body.ai-visual.live-can-rejoin.controls-active #backToLive{ opacity:1; pointer-events:auto; transform:translate(-50%,0); }
+	  @keyframes btlPulse{ 0%,100%{ opacity:1; } 50%{ opacity:.35; } }
+	  /* LIVE badge in the playbar sub line (pulsing on-air dot) */
+	  #playbar .pb-sub.live{ color:#ff6d6d; font-weight:800; letter-spacing:.06em; }
+	  #playbar .pb-sub.live::before{ content:''; display:inline-block; width:8px; height:8px; border-radius:50%; background:#ff5d5d;
+	    margin-right:7px; box-shadow:0 0 8px rgba(255,93,93,.8); animation:btlPulse 1.6s ease-in-out infinite; }
 	  #hometiles.lib{ padding-bottom:112px; }   /* clear the fixed bar */
   @media (min-width:980px){
     #playbar{ left:0; right:0; min-height:82px; padding:8px 20px; }

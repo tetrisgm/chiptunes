@@ -292,10 +292,20 @@ const Audio = (()=>{
       genWorkletReset(transportPaused);
       genWorkletSetMix();
       // Decks minted before the worklet came up never reached the audio thread: re-key them onto
-      // fresh post-reset generations and restart them from the top, BEFORE any scheduler pass runs.
+      // fresh post-reset generations, BEFORE any scheduler pass runs. Normally restart from the top;
+      // in LIVE mode the deck was built at a mid-track offset (back-dated origin via startTrackAtOffset)
+      // and MUST keep its position — restarting from 0 would play the on-air track from the top for
+      // ~5s before the drift tick snaps it, so preserve origin and fast-forward the cursor to "now".
       if(deckCur){
-        deckCur.generation=Engine.newGeneration(); deckCur.paletteSent=false; deckCur.cursor=0;
-        if(ctx) retimeDeckOrigin(deckCur, ctx.currentTime+0.12);
+        deckCur.generation=Engine.newGeneration(); deckCur.paletteSent=false;
+        if(_liveMode && ctx){
+          var _bp=Math.max(0,(ctx.currentTime-deckCur.origin)/deckCur.spb), _evs=deckCur.events, _ci=0;
+          while(_ci<_evs.length && evNum(_evs[_ci].tBeat,_evs[_ci].t) < _bp) _ci++;
+          deckCur.cursor=_ci;
+        } else {
+          deckCur.cursor=0;
+          if(ctx) retimeDeckOrigin(deckCur, ctx.currentTime+0.12);
+        }
       }
       if(deckNext){
         deckNext.generation=Engine.newGeneration(); deckNext.paletteSent=false; deckNext.cursor=0;
@@ -570,8 +580,20 @@ const Audio = (()=>{
     out.sort(function(a,b){ return a.t-b.t; });
     return out;
   }
+  // LIVE mode (the shared clock schedule, src/live.js). While live: tempo pins are bypassed
+  // (a pin re-times the deck and drifts this client off the shared schedule — the runtime
+  // forks to private on pin anyway; this is belt-and-braces), the composer is routed by the
+  // schedule's PINNED id (never activeComposer() — a custom composer pack must not put a live
+  // listener in a parallel universe), and prepareNextDeck wall-anchors each track boundary
+  // via the sync hook (resets audio-clock-vs-wall skew every track).
+  var _liveMode=false, _liveComposerGet=null, _liveSyncFn=null;
+  function setLiveMode(on, composerGet, syncFn){
+    _liveMode=!!on; _liveComposerGet=(on&&composerGet)||null; _liveSyncFn=(on&&syncFn)||null;
+  }
   function compileScore(tok){
-    var C=activeComposerSafe();
+    var C=null;
+    if(_liveMode && _liveComposerGet){ try{ C=_liveComposerGet(tok); }catch(e){ C=null; } }
+    if(!C) C=activeComposerSafe();
     if(!C){ diag('compile', {tok:tok, err:'no composer registered', t:Date.now()}); return null; }
     try{
       var score=C.compile(tok);
@@ -583,7 +605,10 @@ const Audio = (()=>{
       return null;
     }
   }
-  function pinnedTempo(){ return (typeof Radio!=='undefined' && Radio.state && Radio.state.tempo!=null) ? Radio.state.tempo : null; }
+  function pinnedTempo(){
+    if(_liveMode) return null;   // live durations must run at native bpm or the client drifts within one track
+    return (typeof Radio!=='undefined' && Radio.state && Radio.state.tempo!=null) ? Radio.state.tempo : null;
+  }
   function mkDeck(cs, origin, generation){
     var score=cs.score;
     var native=clampBpm(score.bpm)||128;
@@ -755,11 +780,62 @@ const Audio = (()=>{
     if(started && !extMode) scheduler();
     return deckCur.tok;
   }
+  // LIVE join: start a token AT an offset (seconds) — the mid-track seek for the shared
+  // clock schedule. Same cold-open as startTrack (kill/clear/new generation), but the deck
+  // origin is BACK-DATED so (now - origin) already equals the offset: every downstream
+  // reader (sectionAt/advancePlayhead/updateMusicalNow/trackInfo) self-corrects, and the
+  // cursor fast-forward is the retimeDeckTempo precedent. Join fidelity is per-note
+  // deterministic (worklet voices seed per-event); sounding-note onsets before the offset
+  // and the echo line's first ~2s are the accepted differences vs having played from 0.
+  function startTrackAtOffset(forcedTok, offsetSec, opts){
+    opts=opts||{};
+    var tok=String(forcedTok||'');
+    if(!tok) return null;
+    var cs=compileScore(tok);
+    // live join failure: caller falls back to private — never substitute a random mint (desyncs the room)
+    if(!cs){ _autoRetryAt=(ctx?ctx.currentTime:0)+5; return null; }
+    if(ctx && started){
+      Engine.killAll(opts.fade!=null?opts.fade:0.12);
+      Engine.clearFuture(ctx.currentTime+0.02);
+    }
+    var gen=Engine.newGeneration();
+    var d=mkDeck(cs, 0, gen);
+    var off=Math.max(0, Math.min(+offsetSec||0, Math.max(0, d.totalBeats*d.spb-0.5)));
+    retimeDeckOrigin(d, (ctx?ctx.currentTime:0)+0.18-off);
+    var beatPos=off/d.spb, evs=d.events, i=0;          // cursor fast-forward (retimeDeckTempo precedent)
+    while(i<evs.length && evNum(evs[i].tBeat, evs[i].t) < beatPos) i++;
+    d.cursor=i;
+    deckCur=d; deckNext=null;
+    curSec=sectionAt(deckCur, Math.floor(beatPos/4));
+    updateMusicalNow(deckCur, curSec, beatPos); mnow.motifIdx=0;
+    setGridTempo(deckCur.bpm);
+    beatOrigin=deckCur.origin;   // games' bar counter matches the track position (grid continuity yields to the shared schedule)
+    Engine.setTempo(deckCur.spb, deckCur.bpm, gen);
+    energy=Math.max(energy||0, 0.35);
+    genTempoBaseBpm=deckCur.nativeBpm;
+    announceDeck(deckCur);
+    if(started && !extMode) scheduler();
+    return deckCur.tok;
+  }
   function prepareNextDeck(){
     if(deckNext || !deckCur) return;
     var cs=compileScore(mintTok());
     if(!cs){ _autoRetryAt=(ctx?ctx.currentTime:0)+5; return; }
     deckNext=mkDeck(cs, deckCur.endTime, Engine.newGeneration());
+    // LIVE: wall-anchor the boundary so audio-clock-vs-wall skew (~20ms/track) resets every
+    // track. The hook gets the minted next token and answers with its scheduled wall start;
+    // null (or an implausible anchor, e.g. the hour straddler whose successor starts at the
+    // FIXED boundary long before natural end) keeps the natural gapless chain — the live
+    // tick cold-opens the hour via gotoTrackAtOffset instead.
+    if(_liveMode && _liveSyncFn){
+      try{
+        var s=_liveSyncFn(deckNext.tok);
+        if(s && s.startWallMs!=null && s.nowMs!=null && ctx){
+          var o=ctx.currentTime + (s.startWallMs - s.nowMs)/1000;
+          if(Math.abs(o - deckCur.endTime) < 5) retimeDeckOrigin(deckNext, o);
+        }
+      }catch(e){}
+    }
     Engine.setTempo(deckNext.spb, deckNext.bpm, deckNext.generation);   // the new generation's echo line opens at the new tempo
   }
   function promoteDecks(now){
@@ -1511,6 +1587,11 @@ const Audio = (()=>{
     onTrackReady, onSeedReset, onMintToken, onTrackEnd,
     trackToken(){ return curTok; },
     gotoTrack(tok){ if(tok==null) return curTok; startTrack(String(tok), {fade:0.12}); return curTok; },
+    // LIVE (shared clock schedule): mid-track join + mode wiring. See setLiveMode/startTrackAtOffset.
+    gotoTrackAtOffset(tok, offsetSec){ return startTrackAtOffset(tok, offsetSec, {fade:0.12}); },
+    setLiveMode,
+    deckPosition(){ var d=deckCur; if(!d||!ctx) return null;
+      return { tok:d.tok, sec:ctx.currentTime-d.origin, durSec:d.totalBeats*d.spb, next:deckNext?deckNext.tok:null }; },
     // Quiet, in-key game hooks (over the Engine): the games' melodic support layer.
     gameMelodyNote, reactNote, reactOK, playRecipe,
     // ENGINE facade — worklet v2 protocol + offline render for the audition harness.

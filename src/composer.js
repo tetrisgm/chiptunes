@@ -1170,7 +1170,18 @@ function fingerprint(token){
     grooveFamily:gr.family, density:gr.density, energyPeak:peakEnergy(token), echoDepth:pal.echo.level, leadMode:pal.leadMode };
 }
 
-var API={ V:3, id:'rrr_core', compile:compile, fingerprint:fingerprint };
+// ---------- duration: stages A-C+E only (~0.1ms; no motifs/bake). Exact by
+// construction: stArrange never reads mo (per-stage RNG streams are independent),
+// and the engine's deck end is origin + totalBars*4 beats => totalBars*240/bpm s.
+// Used by the live schedule (src/live.js) to walk a block's playlist cheaply.
+function duration(token){
+  token=normToken(token);
+  var pal=stPalette(token), gr=stGroove(token,pal), ha=stHarmony(token,pal),
+      ar=stArrange(token,pal,gr,ha,null);
+  return ar.totalBars*240/gr.bpm;
+}
+
+var API={ V:3, id:'rrr_core', compile:compile, fingerprint:fingerprint, duration:duration };
 G.CT_COMPOSERS = G.CT_COMPOSERS || {};
 G.CT_COMPOSERS.rrr_core = API;
 if(typeof module!=='undefined' && module.exports) module.exports = API;

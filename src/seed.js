@@ -72,3 +72,6 @@ var Song = (function(){
     _hash32: hash32, _mulberry32: mulberry32                // exposed for tests
   };
 })();
+// Node export (live schedule + broadcaster + smoke tests import this file directly;
+// in the browser bundle the top-level var above is the shared binding). Same pattern as composer.js.
+if(typeof module!=='undefined' && module.exports) module.exports = Song;

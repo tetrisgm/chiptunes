@@ -1,0 +1,36 @@
+{
+  // radio-presence — live listener count for Retro Rave Radio.
+  // radio.ramine.net itself is served by Cloudflare Pages; this Worker only
+  // intercepts /api/* via a path-scoped zone route (NOT custom_domain, which
+  // would fight the existing Pages DNS record). Deploy: npm run deploy
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "radio-presence",
+  "main": "worker.js",
+  "compatibility_date": "2026-06-01",
+  "account_id": "4e958c1f2621ced0354e94826590e34f",
+
+  // One global Presence DO instance holds every listener's WebSocket
+  // (hibernation API), so the live count is just getWebSockets().length.
+  "durable_objects": {
+    "bindings": [
+      { "name": "PRESENCE", "class_name": "Presence" }
+    ]
+  },
+
+  // MUST be new_sqlite_classes: the free plan only allows SQLite-backed DOs
+  // (new_classes hard-fails at deploy time).
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["Presence"] }
+  ],
+
+  "routes": [
+    { "pattern": "radio.ramine.net/api/*", "zone_name": "ramine.net" }
+  ],
+
+  // Route-only worker: no workers.dev URL (the account has no workers.dev
+  // subdomain registered, and an extra third-party origin would just trip
+  // adblock lists anyway).
+  "workers_dev": false,
+
+  "observability": { "enabled": true }
+}

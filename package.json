@@ -1,6 +1,7 @@
 {
   "scripts": {
     "build": "node build.js",
+    "deploy": "node build.js && npx wrangler pages deploy dist --project-name retro-rave-radio --branch main --commit-dirty=true",
     "smoke": "node scripts/smoke-generated-seeds.js && node scripts/smoke-games.js",
     "validate:games": "node scripts/audit-music-driven.js",
     "validate:pack": "node scripts/validate-game-pack.js",

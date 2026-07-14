@@ -37,8 +37,10 @@ for (const key of INLINE_FALLBACK_KEYS) {
 const ORDER = [
   'src/seed.js',
   'src/composer.js',
+  'src/live.js',        // the shared broadcast schedule (pure fn of wall clock; needs Song + CT_COMPOSERS)
   'src/audio.js',
   'src/radio.js',
+  'src/presence.js',    // live listener count WS client (decoration only)
   'src/helpers.js',
   'src/visualizer.js',
   'src/sprites.js',

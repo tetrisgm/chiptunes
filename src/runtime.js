@@ -507,6 +507,13 @@ function _writeDiagnostics(RX, paused, now){
   d.rrrBpm=String(RX&&RX.bpm||0);
   d.rrrSignal=e.toFixed(4);
   d.rrrIdle=String(!!(RX&&RX.idle));
+  // LIVE broadcast state (the two-browser same-track smoke reads these)
+  try{ var LD=(typeof LiveCtl!=='undefined')?LiveCtl.debug():null;
+    d.rrrLive=String(!!(LD&&LD.active));
+    d.rrrLiveToken=String((LD&&LD.token)||'');
+    d.rrrLiveOffset=String(LD?LD.offsetSec:-1);
+    d.rrrLiveListeners=String(typeof window._presenceCount==='number'?window._presenceCount:-1);
+  }catch(eL){}
 }
 let _frameTarget = 16.7, _renderEMA = 6;        // aim for 60fps; adapt down only when rendering is genuinely heavy
 let _frameReq = 0, _frameSeq = 0, _frameStoppedAt = 0;
@@ -977,6 +984,12 @@ function _advanceQueue(delta){
 // engine asks for the NEXT generated track's name. If the active playlist's next item is generated, return its slug.
 // Advance within the generated queue; otherwise fall back to random radio.
 function _radioMint(){ var s;
+  // LIVE: the shared schedule supplies every auto-advance (before the playlist queue — live
+  // and queues are mutually exclusive by construction, but live must win if both ever set).
+  if(typeof LiveCtl!=='undefined' && LiveCtl.active()){
+    var lt=LiveCtl.nextToken();
+    if(lt) return _pushHist(lt);
+  }
   if(_queue && _queueI+1 < _queue.length){
     var next=_queue[_queueI+1];
     if(next && (next.kind==='gen'||next.slug) && next.slug){ _queueI++; s=next.slug; }
@@ -1325,6 +1338,26 @@ function _wirePlaybarButton(id, fn){
     run(ev);
   });
 }
+var _backToLiveEl=null;
+function buildBackToLiveButton(){                       // the #resumeMusic pattern: floating pill, shown via body class
+  if(_backToLiveEl) return _backToLiveEl;
+  if(!document.body) return null;
+  var b=document.createElement('button');
+  b.id='backToLive';
+  b.type='button';
+  b.title='Rejoin the live broadcast';
+  b.innerHTML='<span class="btl-dot"></span><span>back to live</span>';
+  document.body.appendChild(b);
+  _backToLiveEl=b;
+  _wirePlaybarButton('backToLive', function(){
+    if(typeof startAudio==='function') startAudio(true);
+    if(typeof Radio!=='undefined'&&Radio.setMood) Radio.setMood('any');    // rejoining Everything clears any pinned mood...
+    if(typeof Radio!=='undefined'&&Radio.setTempo) Radio.setTempo(null);   // ...and any pinned tempo (live runs at native bpm; a stale pin would re-apply on the next fork)
+    if(typeof _setTransportPlaying==='function') _setTransportPlaying();
+    LiveCtl.join();
+  });
+  return b;
+}
 var _resumeMusicEl=null;
 function buildResumeMusicButton(){
   if(_resumeMusicEl) return _resumeMusicEl;
@@ -1455,6 +1488,16 @@ function _syncVisualChrome(){
     document.body.classList.toggle('watch-visual', !!_watchOnly);
     document.body.classList.toggle('watch-mic-active', !!_watchMicActive);
     document.body.classList.toggle('watch-can-resume', !!(_watchOnly && !_watchMicActive && _watchReturnState));
+    // BACK TO LIVE pill: any forked/private generated session can rejoin the broadcast in one tap
+    var canRejoin=false;
+    try{
+      var introEl3=document.getElementById('intro');
+      var homeOpen=!!(introEl3 && introEl3.style.display!=='none' && !introEl3.classList.contains('hidden'));
+      canRejoin=!!(typeof LiveCtl!=='undefined' && !LiveCtl.active() && Audio.started && !_watchOnly && !homeOpen &&
+                   _nowSource==='generated' && !(Audio.extActive&&Audio.extActive()));
+    }catch(e3){}
+    document.body.classList.toggle('live-can-rejoin', canRejoin);
+    if(canRejoin && typeof buildBackToLiveButton==='function') buildBackToLiveButton();
   }
   if(on || _watchOnly){
     if(!_wasAiVisual) _setVisualControlsActive(true);
@@ -1501,14 +1544,158 @@ function _transportToggle(){
 	  _markTransportDiag('stop');
 	  if(typeof enterWatchMode==='function') enterWatchMode({resumeMusic:true});
 	}
+// ===== LIVE: the Everything station's shared broadcast. src/live.js is the pure clock
+//  schedule; this controller keeps the ENGINE on it: joins mid-track (gotoTrackAtOffset),
+//  refreshes the "what's next" answer the engine mints through _radioMint, wall-anchors
+//  each boundary (Audio.setLiveMode sync hook), and self-heals every tick — hour cold-open,
+//  OS-sleep drift, pause/resume, autoplay-gate lag all reduce to "deck ≠ schedule -> re-seek".
+//  Radio.state.live = persisted INTENT (forks clear it); LiveCtl.active() = engine is
+//  actually following the schedule right now (watch mode stops it without clearing intent).
+var LiveCtl = (function(){
+  var active=false, cur=null, timer=0, offsetMs=0, misses=0, lastSeekAt=0, tokBlock={}, tokBlockN=0;
+  function correctedNow(){ return Date.now()+offsetMs; }
+  // presence 'now' echo corrects only GROSS clock skew, with hysteresis so a client sitting near
+  // the ±15s threshold (jittered by network latency) can't flap offsetMs and reseek-storm the audio.
+  function setClockOffset(ms){
+    if(!isFinite(ms)) return;
+    if(offsetMs!==0){
+      if(Math.abs(ms)<10000) offsetMs=0;                     // clock resynced -> drop correction (10-15s deadband)
+      else if(Math.abs(ms-offsetMs)>5000) offsetMs=ms;       // real drift moved -> retrack; ignore jitter
+    } else if(Math.abs(ms)>15000){ offsetMs=ms; }
+  }
+  function resolve(){ try{ cur=Live.resolveAt(correctedNow()); }catch(e){ cur=null; } return cur; }
+  function remember(tok, blockN){ if(!tok) return; if(tokBlock[tok]==null){ tokBlock[tok]=blockN; if(++tokBlockN>64){ tokBlock={}; tokBlockN=0; } } }
+  // compile a live token under the composer of the block that token BELONGS to (not the block of
+  // NOW): at a future LIVE_VERSIONS flip, a deckNext prepared just before the boundary is next
+  // block's track 0 — it must render under the new composer even while now is still the old block.
+  function composerGet(tok){
+    try{
+      var bN=(tok!=null && tokBlock[tok]!=null) ? tokBlock[tok] : Math.floor(correctedNow()/Live.BLOCK_MS);
+      return Live.composerFor(bN);
+    }catch(e){ return null; }
+  }
+  // prepareNextDeck asks: when does this next token start on the wall? (null = natural chain;
+  // the hour straddler's successor cold-opens at the fixed boundary via tick, never the chain anchor)
+  function syncFn(nextTok){
+    if(!active) return null;
+    var r=resolve();
+    if(!r || r.boundary || nextTok!==r.nextToken) return null;
+    return { startWallMs:r.nextStartWallMs, nowMs:correctedNow() };
+  }
+  // the engine's next-track mint while live: the schedule's successor of what the DECK is playing
+  function nextToken(){
+    if(!active) return null;
+    var r=resolve(); if(!r) return null;
+    remember(r.token, r.blockN); remember(r.nextToken, r.boundary ? r.blockN+1 : r.blockN);
+    var deckTok=(Audio.trackToken && Audio.trackToken())||null;
+    if(deckTok===r.nextToken){    // deck already promoted ahead of wall (bg drift): answer one further
+      try{ var after=Live.resolveAt(r.nextStartWallMs+500); if(after && after.token===r.nextToken){ remember(after.nextToken, after.boundary?after.blockN+1:after.blockN); return after.nextToken; } }catch(e){}
+    }
+    return r.nextToken;
+  }
+  function seekToSchedule(){
+    var r=resolve(); if(!r) return false;
+    remember(r.token, r.blockN);
+    var off=(correctedNow()-r.startWallMs)/1000;
+    var ok=Audio.gotoTrackAtOffset && Audio.gotoTrackAtOffset(r.token, off);
+    if(ok){ lastSeekAt=Date.now(); if(typeof _pushHist==='function') _pushHist(r.token); }
+    return !!ok;
+  }
+  function tick(){
+    if(!active) return;
+    // Hidden tab: the scheduler runs on a deep background horizon and wall-anchors each boundary
+    // (prepareNextDeck) — the deck pointer legitimately LAGS the schedule by seconds, so a token/drift
+    // re-seek here would falsely cold-open (killAll) a correctly-playing track. Skip; the first
+    // foreground tick's drift check snaps back if genuinely off. (Bg timers are throttled anyway.)
+    if(typeof document!=='undefined' && document.hidden){ misses=0; return; }
+    if((Audio.isPaused && Audio.isPaused()) || (Audio.running && !Audio.running())) { misses=0; return; }   // paused/gated: resume self-heals below
+    var r=resolve(); if(!r) return;
+    var pos=Audio.deckPosition && Audio.deckPosition();
+    if(!pos){ return; }
+    if(Date.now()-lastSeekAt<5000) return;                       // seek settle guard
+    if(pos.tok!==r.token){
+      // off-schedule: hour boundary (straddler running past the fixed cold-open), OS sleep,
+      // or a chain that landed early/late. Two consecutive misses (~2s) = real, not a promote race.
+      if(++misses>=2){ misses=0; seekToSchedule(); }
+      return;
+    }
+    misses=0;
+    var drift=pos.sec-(correctedNow()-r.startWallMs)/1000;       // deck vs wall inside the same track
+    if(Math.abs(drift)>2.0) seekToSchedule();                    // suspensions freeze ctx.currentTime; the wall doesn't
+  }
+  function join(){
+    if(active) return true;
+    if(typeof Audio==='undefined' || !Audio.started || !Audio.gotoTrackAtOffset) return false;
+    if(Audio.extActive && Audio.extActive() && Audio.stopExternal) Audio.stopExternal();
+    active=true; misses=0;
+    Audio.setLiveMode(true, composerGet, syncFn);
+    if(!seekToSchedule()){                                        // schedule unavailable (composer missing): never brick — fall back private
+      active=false; Audio.setLiveMode(false);
+      try{ if(typeof Radio!=='undefined'&&Radio.setLive) Radio.setLive(false); }catch(e){}
+      return false;
+    }
+    try{ if(typeof Radio!=='undefined'&&Radio.setLive) Radio.setLive(true); }catch(e2){}
+    if(!timer) timer=setInterval(tick, 1000);
+    try{ if(history.replaceState && !window.__RRR_BOOT_PLAYER_ROUTE) history.replaceState(null,'','/radio'+(typeof _routeQueryExtras==='function'?_routeQueryExtras():'')); }catch(e3){}
+    if(typeof _updatePlaybar==='function') _updatePlaybar();
+    if(typeof _syncVisualChrome==='function') _syncVisualChrome();
+    return true;
+  }
+  function stop(){                                                // disengage the engine; INTENT (Radio.state.live) untouched
+    if(timer){ clearInterval(timer); timer=0; }
+    if(!active) return;
+    active=false;
+    try{ Audio.setLiveMode(false); }catch(e){}
+    if(typeof _updatePlaybar==='function') _updatePlaybar();
+    if(typeof _syncVisualChrome==='function') _syncVisualChrome();
+  }
+  function leave(){                                               // a FORK: skip/mood/tempo — intent cleared, pill appears
+    stop();
+    try{ if(typeof Radio!=='undefined'&&Radio.setLive) Radio.setLive(false); }catch(e){}
+  }
+  return { active:function(){ return active; }, join:join, stop:stop, leave:leave,
+           nextToken:nextToken, setClockOffset:setClockOffset,
+           debug:function(){ var r=active?resolve():null; return { active:active,
+             token:r?r.token:'', offsetSec:r?+(((correctedNow()-r.startWallMs)/1000).toFixed(2)):-1 }; } };
+})();
+window.LiveCtl=LiveCtl;
+// ANY explicit user pick of a specific track/source (Liked/Recent card, playlist, deep-link nav,
+// mic, dropped file, thumb-down) is a FORK off the shared broadcast — otherwise LiveCtl's drift
+// tick would yank the chosen track back to the schedule within ~2-3s. leave() clears the intent
+// and surfaces the back-to-live pill, exactly like a skip. Idempotent when not live.
+function _forkFromLive(){ if(typeof LiveCtl!=='undefined' && LiveCtl.active()) LiveCtl.leave(); }
+window._forkFromLive=_forkFromLive;
+// Radio.setLive is the single intent switch (setMood/setTempo funnels call it on fork) — mirror it into the engine.
+window.onRadioLive=function(on){ if(!on) LiveCtl.stop(); };
+// Everything-tile entry while live: same shell as _startEndlessRadio but the schedule supplies the track.
+function _startLiveRadio(){
+  if(typeof _exitWatchMode==='function') _exitWatchMode();
+  _clearPlaybackQueue();
+  if(typeof startAudio==='function') startAudio(true);            // boot path joins live itself when state.live is set
+  _setTransportPlaying();
+  if(Audio.extActive && Audio.extActive() && Audio.stopExternal) Audio.stopExternal();
+  _station='generated'; _nowSource='generated';
+  try{ if(typeof Radio!=='undefined'&&Radio.setLive) Radio.setLive(true); }catch(e){}
+  if(!LiveCtl.active() && !LiveCtl.join()){                                    // schedule broken -> private radio, never silence
+    try{ if(typeof Radio!=='undefined'&&Radio.setLive) Radio.setLive(false); }catch(e2){}   // clear intent first (recursion guard)
+    _startEndlessRadio(); return;
+  }
+  if(window._applyMixScopeForSource) window._applyMixScopeForSource();
+  if(window.refreshMixPanel) window.refreshMixPanel();
+  if(typeof _syncVisualChrome==='function') _syncVisualChrome();
+  if(typeof hideHome==='function') hideHome();
+}
+window._startLiveRadio=_startLiveRadio;
 function _transportNext(){
   if(_watchOnly && !_watchMicActive){ advanceRandomVisualizer(); return; }
+  if(LiveCtl.active()) LiveCtl.leave();                           // ANY skip = fork off the broadcast to the private queue
   if(_advanceQueue(1)) return;
   if(_nowSource==='generated') _ensureGeneratedTransport();
   if(typeof Radio!=='undefined'&&Radio.next){ Radio.next(); }
 }
 function _transportPrev(){
   if(_watchOnly && !_watchMicActive){ advanceRandomVisualizer(); return; }
+  if(LiveCtl.active()) LiveCtl.leave();
   if(_advanceQueue(-1)) return;
   if(_nowSource==='generated') _ensureGeneratedTransport();
   if(typeof Radio!=='undefined'&&Radio.prev){ Radio.prev(); }
@@ -1576,7 +1763,7 @@ function _currentMenuHeader(){
   var it=_curItem(), title=_curName||'Track', sub='';
   if(it){
     title=it.name || title;
-    if(it.kind==='gen') sub='Generated';
+    if(it.kind==='gen') sub=(typeof LiveCtl!=='undefined' && LiveCtl.active())?'Live broadcast':'Generated';
     else if(it.kind==='chip'){ var info=_currentAlbumInfo(); sub=((info&&info.title)||_prettyName(it.s||''))+(info&&info.platform?' · '+info.platform:''); }
   }
   return '<div class="pbm-head"><div class="pbm-title">'+_pbMenuEsc(title)+'</div><div class="pbm-headsub">'+_pbMenuEsc(sub||'Retro Rave Radio')+'</div></div>';
@@ -1617,8 +1804,13 @@ function _updatePlaybar(){ if(!_pbEl) buildPlaybar(); if(!_pbEl) return;
   _listenStatsTick();
   _pbEl.classList.add('show');
   var title=_curName||'—', sub='';
+  var liveOn=(typeof LiveCtl!=='undefined' && LiveCtl.active());
+  if(liveOn){
+    var n=(typeof window._presenceCount==='number') ? window._presenceCount : null;
+    sub = (n!=null && n>0) ? ('LIVE · '+n+' listening') : 'LIVE';   // count is decoration: 'LIVE' alone when the worker is unreachable
+  }
   var T=document.getElementById('pbTitle'), S=document.getElementById('pbSub'), C=document.getElementById('pbCover'), H=document.getElementById('pbHeart');
-  if(T) T.textContent=title; if(S){ S.textContent=sub; S.classList.remove('link'); S.title=''; }
+  if(T) T.textContent=title; if(S){ S.textContent=sub; S.classList.remove('link'); S.title=''; S.classList.toggle('live', liveOn); }
   if(C){ C.classList.remove('has-cover'); C.classList.add('no-cover'); C.innerHTML=''; }
   var it=_curItem();
   setPlaybarHeartLiked(H, !!(it && window._isLiked && _isLiked(it)));
@@ -1889,6 +2081,7 @@ function _routeQueryExtras(){                                 // ?game= survives
 }
 function syncRoute(slug){
   if(!slug || typeof history==='undefined' || !history.replaceState) return;
+  if(typeof LiveCtl!=='undefined' && LiveCtl.active()) return;   // LIVE owns the /radio route: reload rejoins the broadcast, not a /track replay
   if(Audio.extActive && Audio.extActive()) return;   // an external source (mic/file) owns the URL — don't overwrite it with the generated slug
   var intro=document.getElementById('intro');
   if(intro && !intro.classList.contains('hidden') && getComputedStyle(intro).display!=='none') return;  // Home owns the root route while it is visible
@@ -1898,7 +2091,7 @@ function syncRoute(slug){
 window.addEventListener('popstate', ()=>{ if(!bootDone) return;
   if(window._productRouteTo && _productRouteTo(location.pathname+location.search)) return; // / · /radio · /watch (+ legacy heads) are product routes, not track history
   if(typeof Audio==='undefined' || !Audio.gotoTrack) return;
-  var s=_readSlug(); if(s && s!==_curSlug){ if(_watchOnly && typeof _exitWatchMode==='function') _exitWatchMode(); _trkHist=[s]; _trkI=0; Audio.gotoTrack(s); } });
+  var s=_readSlug(); if(s && s!==_curSlug){ _forkFromLive(); if(_watchOnly && typeof _exitWatchMode==='function') _exitWatchMode(); _trkHist=[s]; _trkI=0; Audio.gotoTrack(s); } });
 
 // ===== TRACK READY: the engine fires this (with the slug) after each build. Reflect it in the URL + caption + media
 //  metadata. RANDOM visual mode derives a deterministic game from the slug; fixed game selections stay pinned. =====
@@ -1958,8 +2151,8 @@ function startAudio(viaGesture, opts){
       // PREV/NEXT walk a session HISTORY of slugs; a NEW skip mints a fresh random name (no deterministic ordering — but
       // every slug still plays the same song forever). The engine mints via _radioMint for auto-advance + plain skips.
       window.onRadioGame = g => { setUrlGamePref(g); randomMode = (g==='random'); showGame(g); };   // game selector = visual layer; ?game= makes it reloadable for testing
-      window.onRadioNext = () => { if(_trkI < _trkHist.length-1){ _trkI++; Audio.gotoTrack(_trkHist[_trkI]); } else if(Audio.nextMovement){ Audio.nextMovement(); } };   // forward in history, else a fresh track
-      window.onRadioPrev = () => { if(_trkI>0 && Audio.gotoTrack){ _trkI--; Audio.gotoTrack(_trkHist[_trkI]); }
+      window.onRadioNext = () => { _forkFromLive(); if(_trkI < _trkHist.length-1){ _trkI++; Audio.gotoTrack(_trkHist[_trkI]); } else if(Audio.nextMovement){ Audio.nextMovement(); } };   // forward in history, else a fresh track (thumbDown reaches here directly, bypassing _transportNext — fork here too)
+      window.onRadioPrev = () => { _forkFromLive(); if(_trkI>0 && Audio.gotoTrack){ _trkI--; Audio.gotoTrack(_trkHist[_trkI]); }
         else if(_curSlug && Audio.gotoTrack){ Audio.gotoTrack(_curSlug); } };   // back through history; at the head, restart the current generated track
       if(Audio.onMintToken) Audio.onMintToken(_radioMint);          // engine asks the runtime to mint each fresh track's TOKEN (fp-scored queue)
       if(Audio.onTrackReady) Audio.onTrackReady(_onTrack);          // after each build: URL + caption + game, derived from the slug (registered BEFORE the first track)
@@ -1967,14 +2160,20 @@ function startAudio(viaGesture, opts){
       if(!opts.external){
         _nowSource='generated';
         if(Radio.state.tempo!=null) Audio.setTempo(Radio.state.tempo);
-        // START at the shared slug from the URL (reproduces that exact song), else MINT a fresh
-        // random-named track — so each new session is a different track, while every slug stays a fixed shareable song.
-        var _startSlug = _wantSlug || _mintToken();
-        _trkHist = [_startSlug]; _trkI = 0;                     // history starts clean at the start track
-        if(Audio.gotoTrack) Audio.gotoTrack(_startSlug);
+        // START at the shared slug from the URL (reproduces that exact song — always a PRIVATE
+        // replay), else: live intent set (fresh default) -> tune the shared broadcast mid-track;
+        // otherwise MINT a fresh random-named track for a private endless session.
+        if(!_wantSlug && typeof LiveCtl!=='undefined' && typeof Radio!=='undefined' && Radio.live && Radio.live() && LiveCtl.join()){
+          _station='generated';
+        } else {
+          var _startSlug = _wantSlug || _mintToken();
+          _trkHist = [_startSlug]; _trkI = 0;                   // history starts clean at the start track
+          if(Audio.gotoTrack) Audio.gotoTrack(_startSlug);
+        }
       }
       Audio.resume(!!viaGesture);
       setupMediaSession();                                    // register as a real MEDIA SESSION so the browser keeps the tab playing all day in the background (+ media-key / lock-screen controls)
+      if(typeof Presence!=='undefined' && Presence.start) Presence.start();   // live listener count + clock check (pure decoration)
     } else {
       Audio.init(opts.external ? {external:{source:'chip'}} : undefined); Audio.resume(!!viaGesture);
     }
@@ -2091,6 +2290,7 @@ function _backToGenerated(){ if(typeof _exitWatchMode==='function') _exitWatchMo
   if(wasExt && Audio.gotoTrack) Audio.gotoTrack(_nextGeneratedToken()); }
 // play a SPECIFIC generated track by its slug (from a Recently-played / Liked card) — leaves any chip source, reseeds that song
 function _playGenerated(slug, opts){ opts=opts||{}; if(typeof _exitWatchMode==='function') _exitWatchMode(); if(!opts.keepQueue) _clearPlaybackQueue(); if(typeof startAudio==='function') startAudio(true);
+  _forkFromLive();   // explicit track pick (card/playlist/deep link) leaves the broadcast — placed AFTER startAudio (cold boot joins live there)
   _setTransportPlaying();
   if(Audio.extActive && Audio.extActive() && Audio.stopExternal) Audio.stopExternal();
   _station='generated'; _nowSource='generated';
@@ -2102,6 +2302,13 @@ function _playGenerated(slug, opts){ opts=opts||{}; if(typeof _exitWatchMode==='
 window._playGenerated=_playGenerated;
 // ===== TILE 1: Start Endless Radio — mint a fresh fp-scored token, play it, and put its route in the bar. =====
 function _startEndlessRadio(){
+  // live intent set (fresh install default / persisted "tuned in") -> the Everything broadcast
+  // IS the endless radio; only a fork demotes to the private mint below. If already engaged
+  // (back-button to /radio while live), stay put — don't fall through and mint a private track.
+  if(typeof LiveCtl!=='undefined' && typeof Radio!=='undefined' && Radio.live && Radio.live()){
+    if(LiveCtl.active()){ if(typeof hideHome==='function') hideHome(); return; }
+    _startLiveRadio(); return;
+  }
   if(typeof _exitWatchMode==='function') _exitWatchMode();
   _clearPlaybackQueue();
   var alreadyBooted=!!bootDone;
@@ -2118,6 +2325,7 @@ function _startEndlessRadio(){
 }
 window._startEndlessRadio=_startEndlessRadio;
 async function _playMic(){
+	  _forkFromLive();   // switching to an external source leaves the broadcast (badge would otherwise lie + tick would yank the return)
 	  _clearPlaybackQueue();
 	  try{ const ctx=Audio.audioCtx(); if(!ctx) return false;
 	    _setTransportPlaying();
@@ -2139,6 +2347,7 @@ function _captureMicReturnState(){
     nowSource:_nowSource,
     slug:slug,
     name:_curName,
+    live:!!(typeof LiveCtl!=='undefined' && LiveCtl.active()),
     route:(location.pathname||'/')+(location.search||'')
   };
 }
@@ -2159,6 +2368,7 @@ function _captureWatchReturnState(){
     station:_station,
     nowSource:_nowSource,
     name:_curName,
+    live:!!(typeof LiveCtl!=='undefined' && LiveCtl.active()),
     route:(location.pathname||'/')+(location.search||'')
   };
 }
@@ -2176,6 +2386,9 @@ function _resumeMusicFromWatch(){
   _watchReturnState=null;
   _watchOnly=false; _watchMicActive=false;
   _stopMicStream();
+  // was tuned to the broadcast before watch: rejoin the schedule (a private replay of the
+  // captured slug would silently demote live) — the join resolves the CURRENT on-air track.
+  if(st.live && typeof _startLiveRadio==='function'){ _startLiveRadio(); return; }
   var hasQueue=_restoreWatchQueue(st);
   var item=st.item || null;
   var played=false;
@@ -2220,6 +2433,7 @@ function _restoreAfterVisualizerMic(){
   if(typeof setupMediaSession==='function') setupMediaSession();
 }
 function _stopAudiblePlaybackForWatch(){
+  if(typeof LiveCtl!=='undefined') LiveCtl.stop();   // disengage the schedule (INTENT survives in the captured return state)
   _clearPlaybackQueue();
   try{ if(typeof _closePlaybarMenu==='function') _closePlaybarMenu(); }catch(e){}
   try{ if(window.closeMixPanel) window.closeMixPanel(); }catch(e){}
@@ -2287,7 +2501,7 @@ async function _toggleVisualizerMic(){
 }
 window.enterWatchMode=enterWatchMode;
 window._transportStop=_transportStop;
-async function _playFile(file){ _clearPlaybackQueue(); try{ const ctx=Audio.audioCtx(); if(!ctx) return false;
+async function _playFile(file){ _forkFromLive(); _clearPlaybackQueue(); try{ const ctx=Audio.audioCtx(); if(!ctx) return false;
   _setTransportPlaying();
   if(Audio.playExternal) Audio.playExternal(null, {source:'file'});
   const buf=await ctx.decodeAudioData(await file.arrayBuffer());
@@ -2385,7 +2599,13 @@ function enterStation(id){
   id=String(id||'');
   var mst=null;
   for(var hi=0;hi<HOME_TILES.length;hi++) if(HOME_TILES[hi].id===id){ mst=HOME_TILES[hi]; break; }
-  if(mst){ try{ if(typeof Radio!=='undefined'&&Radio.setMood) Radio.setMood(mst.mood); }catch(e){} _startEndlessRadio(); return; }
+  if(mst){
+    try{ if(typeof Radio!=='undefined'&&Radio.setMood) Radio.setMood(mst.mood); }catch(e){}
+    // Everything! = the shared LIVE broadcast (what everyone hears right now); mood tiles are
+    // private by construction (setMood already cleared the live intent for non-any moods).
+    if(mst.mood==='any'){ _startLiveRadio(); return; }
+    _startEndlessRadio(); return;
+  }
   if(id==='radio' || id==='generated'){ _startEndlessRadio(); return; }
   if(id==='watch'){ enterWatchMode(); return; }
   if(typeof _exitWatchMode==='function') _exitWatchMode();
@@ -2461,10 +2681,16 @@ buildHomeTiles();
   }
   if(head==='watch'){ enterWatchMode({noRoute:true}); return; }
   if(head==='radio'){
-    var tok=_nextGeneratedToken();
-    if(typeof history!=='undefined' && history.replaceState){ try{ history.replaceState(null,'',_generatedRoute(tok)+_routeQueryExtras()); }catch(e){} }
+    // live intent (fresh default / persisted): keep the /radio route and let startAudio's
+    // no-slug branch join the shared broadcast; otherwise mint a private track as before.
+    var liveBoot=false;
+    try{ liveBoot=!!(typeof Radio!=='undefined' && Radio.live && Radio.live()); }catch(e0){}
+    if(!liveBoot){
+      var tok=_nextGeneratedToken();
+      if(typeof history!=='undefined' && history.replaceState){ try{ history.replaceState(null,'',_generatedRoute(tok)+_routeQueryExtras()); }catch(e){} }
+    }
     if(document.body) document.body.classList.add('ai-visual');
-    startAudio(false);                                           // boots at the minted slug; sound arms on first tap
+    startAudio(false);                                           // boots at the minted slug (or joins live); sound arms on first tap
   }
 })();
 
