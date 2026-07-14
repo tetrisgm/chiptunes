@@ -59,7 +59,6 @@
   html.audio-background #playbar,
   html.audio-background #rlist,
   html.audio-background #rfullscreen,
-  html.audio-background #rmic,
   html.audio-background #mixpanel,
   html.audio-background #trackpanel,
   html.audio-background #pbMenu,
@@ -165,7 +164,6 @@
   #rfullscreen.unsupported{ display:none !important; }
   body.is-fullscreen #rlist,
   body.is-fullscreen #rfullscreen,
-  body.is-fullscreen #rmic{ display:none !important; }
 
   /* Visualizer picker opened by the G key. This is testing chrome, not game UI. */
   #gamepick{ position:fixed; inset:0; z-index:10040; display:none; align-items:center; justify-content:center;
@@ -442,8 +440,13 @@
     column-gap:8px; min-width:0; max-width:min(72vw,620px); padding:7px 10px 7px 12px; border-radius:12px;
     background:rgba(8,6,16,.46); border:1px solid rgba(255,255,255,.12);
     text-shadow:0 1px 8px rgba(0,0,0,.65); box-shadow:0 8px 28px rgba(0,0,0,.22);
-    backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); pointer-events:auto;
+    backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+    /* idle = GONE: after ~3s without movement every piece of chrome fully
+       disappears (not just dims) so only the game remains; any pointer/key
+       brings it all back via body.controls-active */
+    opacity:0; pointer-events:none; transition:opacity .22s ease;
   }
+  body.ai-visual.controls-active #playbar .pb-info{ opacity:1; pointer-events:auto; }
   body.ai-visual #playbar .pb-titleline{ display:contents; }
   body.ai-visual #playbar .pb-title{
     display:block; width:auto; max-width:100%; min-width:0; padding:0; border-radius:0; background:transparent; border:0;
@@ -488,15 +491,10 @@
   body.ai-visual #playbar .pb-item-more.on{ background:rgba(255,255,255,.13); color:#fff; }
   body.ai-visual #playbar .pb-play{ width:46px; height:46px; }
   body.ai-visual #playbar .pb-volume{ min-width:54px; }
-  body.ai-visual #rlist{ opacity:.18; transition:opacity .22s ease, transform .22s ease; }
-  body.ai-visual #rfullscreen{ display:inline-flex; opacity:.18; transform:translateY(0); }
-  body.ai-visual #rmic{ display:inline-flex; opacity:.18; transform:translateY(0); }
-  body.ai-visual.controls-active #rlist,
-  body.ai-visual #rlist:hover{ opacity:1; }
-  body.ai-visual.controls-active #rfullscreen,
-  body.ai-visual #rfullscreen:hover{ opacity:1; }
-  body.ai-visual.controls-active #rmic,
-  body.ai-visual #rmic:hover{ opacity:1; }
+  body.ai-visual #rlist{ opacity:0; pointer-events:none; transition:opacity .22s ease, transform .22s ease; }
+  body.ai-visual #rfullscreen{ display:inline-flex; opacity:0; pointer-events:none; transform:translateY(0); }
+  body.ai-visual.controls-active #rlist{ opacity:1; pointer-events:auto; }
+  body.ai-visual.controls-active #rfullscreen{ opacity:1; pointer-events:auto; }
   body.ai-visual #mixpanel{ bottom:78px; right:18px; }
   body.watch-visual #hud,
   body.watch-visual #presets,
@@ -507,7 +505,6 @@
   body.watch-visual #mixpanel,
   body.watch-visual #trackpanel,
   body.watch-visual #rlist,
-  body.watch-visual #rmic,
 	  body.watch-visual #pbMenu{ display:none !important; }   /* the #watchbar strip is watch mode's only chrome */
 	  body.watch-visual #rfullscreen{ display:inline-flex; opacity:0; pointer-events:none; transform:translateY(-6px); }
 	  body.watch-visual.controls-active #rfullscreen{ opacity:.6; pointer-events:auto; transform:translateY(0); }
@@ -517,10 +514,6 @@
   @media (max-width:760px){
     body.ai-visual #rfullscreen{ top:12px; right:12px; min-height:32px; padding:6px 10px; font-size:13px; }
     body.watch-visual #rfullscreen{ top:12px; right:12px; min-height:32px; padding:6px 10px; font-size:13px; }
-    body.ai-visual #rmic,
-    body.song-visual #rmic,
-    body.watch-visual #rmic{ top:12px; right:146px; min-height:32px; padding:6px 10px; }
-    #rmic .rmic-text{ display:none; }
     body.ai-visual #playbar .pb-left{ left:12px; right:auto; bottom:14px; gap:8px; max-width:calc(100vw - 24px); }
     body.ai-visual #playbar .pb-cover{ width:44px; height:44px; }
     body.ai-visual #playbar .pb-info{ max-width:calc(100vw - 24px); padding:7px 9px 7px 10px; border-radius:11px; }
