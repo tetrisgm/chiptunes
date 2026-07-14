@@ -155,30 +155,15 @@
   #rlist.on{ border-color:var(--accent); color:var(--accent); }
   #rfullscreen{
     display:none; position:fixed; top:14px; right:18px; z-index:24; align-items:center; justify-content:center;
-    min-height:34px; padding:7px 12px; border-radius:999px; border:1px solid rgba(255,255,255,.12);
+    min-height:34px; min-width:34px; padding:7px; border-radius:999px; border:1px solid rgba(255,255,255,.12);
     background:rgba(8,6,16,.42); color:rgba(255,255,255,.92); cursor:pointer; pointer-events:auto;
-    font:650 14px/1.25 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; letter-spacing:0; text-transform:none;
     text-shadow:0 1px 8px rgba(0,0,0,.65); box-shadow:0 8px 28px rgba(0,0,0,.22);
     backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
     opacity:0; transform:translateY(-6px); transition:opacity .22s ease, transform .22s ease, border-color .12s, color .12s, background .12s;
   }
   #rfullscreen:hover, #rfullscreen.on{ border-color:rgba(248,120,248,.62); color:#fff; background:rgba(24,18,48,.58); }
-  #rfullscreen svg{ width:16px; height:16px; margin-right:7px; flex:0 0 auto; }
+  #rfullscreen svg{ width:16px; height:16px; flex:0 0 auto; }
   #rfullscreen.unsupported{ display:none !important; }
-  #rmic{
-    display:none; position:fixed; top:14px; right:154px; z-index:24; min-height:34px; min-width:36px;
-    align-items:center; justify-content:center; gap:7px; border-radius:999px; padding:7px 12px;
-    background:rgba(8,6,16,.42); color:rgba(255,255,255,.92);
-    font:650 13px/1.25 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; letter-spacing:0; text-transform:none;
-    text-shadow:0 1px 8px rgba(0,0,0,.65); box-shadow:0 8px 28px rgba(0,0,0,.22);
-    backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
-    opacity:0; transform:translateY(-6px); transition:opacity .22s ease, transform .22s ease, border-color .12s, color .12s, background .12s;
-  }
-  #rmic svg{ width:17px; height:17px; flex:0 0 auto; }
-  body.song-visual #rmic{ display:inline-flex; opacity:.34; transform:translateY(0); }
-  body.song-visual #rmic:hover{ opacity:1; }
-  body.watch-visual #rmic{ display:inline-flex; opacity:.36; transform:translateY(0); }
-  body.watch-mic-active #rmic{ border-color:rgba(96,255,154,.78); color:#60ff9a; background:rgba(11,36,24,.56); box-shadow:0 0 18px rgba(96,255,154,.22); }
   body.is-fullscreen #rlist,
   body.is-fullscreen #rfullscreen,
   body.is-fullscreen #rmic{ display:none !important; }
@@ -241,14 +226,19 @@
   #intro .keys{ font-size:12px; color:#6f679a; letter-spacing:1px; max-width:520px; line-height:1.9; }
   #intro .keys b{ color:var(--accent2); }
   /* HOME station chooser */
-  #hometiles{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px;
-    width:min(920px,92vw); max-height:62vh; overflow-y:auto; padding:4px; }
+  #hometiles{ display:block; width:min(1060px,94vw); max-height:66vh; overflow-y:auto; padding:4px; }
+  #hometiles .stlabel{ font-family:var(--pixel); font-size:15px; letter-spacing:1.5px; color:#b8aede; margin:0 2px 14px; text-align:center; }
+  #hometiles .strow{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; }
+  @media (max-width:900px){ #hometiles .strow{ grid-template-columns:repeat(2,minmax(0,1fr)); } }
+  @media (max-width:480px){ #hometiles .strow{ grid-template-columns:1fr; } }
   .hometile{ pointer-events:auto; cursor:pointer; display:flex; align-items:center; gap:12px; text-align:left;
     min-height:128px; background:rgba(18,14,36,.78); color:var(--ink); border:2px solid #2f2752; border-radius:12px; padding:18px 17px;
     font-family:var(--pixel); box-shadow:3px 3px 0 #1a1436; transition:transform .12s, border-color .12s, background .12s; }
   .hometile:hover{ border-color:var(--accent); background:rgba(40,30,80,.7); transform:translateY(-2px); }
-  .hometile .htico{ flex:0 0 auto; width:42px; height:42px; display:flex; align-items:center; justify-content:center; color:var(--accent2); }
+  .hometile .htico{ flex:0 0 auto; width:48px; height:48px; display:flex; align-items:center; justify-content:center; color:var(--accent2); }
   .hometile .htico svg{ width:33px; height:33px; }
+  .hometile .htchar{ width:44px; height:44px; image-rendering:pixelated; image-rendering:crisp-edges; }
+  .hometile:hover .htchar{ transform:scale(1.12); transition:transform .12s; }
   .hometile .httxt{ display:flex; flex-direction:column; gap:7px; min-width:0; }
   .hometile .htname{ font-size:18px; letter-spacing:.4px; line-height:1.1; }
   .hometile .htdesc{ font:600 13px/1.35 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:#aaa2c8; text-transform:none; letter-spacing:0; white-space:normal; overflow:visible; text-overflow:clip; }
@@ -615,7 +605,9 @@
   #playbar .pb-right{ justify-self:end; display:flex; align-items:center; gap:4px; }
   #playbar .pb-right svg{ width:18px; height:18px; } #playbar .pb-right .liked svg{ color:var(--accent); }
   #playbar .pb-right .disliked svg{ color:#f85858; }
-  #playbar .pb-heart-inline{ grid-column:2; grid-row:1 / span 2; align-self:center; width:32px; height:32px; flex:0 0 auto; color:#cfc7f0; border-radius:50%; transition:background .12s,color .12s,box-shadow .12s,transform .12s; }
+  /* heart rides the TITLE row only (spanning both rows centered it against
+     title+subtitle together, leaving it visually low vs the title text) */
+  #playbar .pb-heart-inline{ grid-column:2; grid-row:1; align-self:center; width:32px; height:32px; flex:0 0 auto; color:#cfc7f0; border-radius:50%; transition:background .12s,color .12s,box-shadow .12s,transform .12s; }
   #playbar .pb-heart-inline:hover{ color:#fff; background:rgba(255,255,255,.10); box-shadow:0 0 0 1px rgba(207,199,240,.18) inset; transform:scale(1.04); }
   #playbar .pb-heart-inline.liked{ color:var(--accent); }
   #playbar .pb-heart-inline svg{ width:20px; height:20px; }

@@ -1074,7 +1074,9 @@ function _updateFullscreenButton(){
   if(on && typeof syncBrowseButton==='function') syncBrowseButton();
   b.classList.toggle('unsupported', !ok);
   b.classList.toggle('on', on);
-  b.innerHTML = svgIcon('fullscreen')+'<span>'+(on ? 'exit full screen' : 'go full screen')+'</span>';
+  b.innerHTML = svgIcon('fullscreen');
+  b.title = on ? 'Exit full screen' : 'Go full screen';
+  b.setAttribute('aria-label', b.title);
   b.title = on ? 'Exit full screen' : 'Go full screen';
 }
 function _toggleFullscreen(){
@@ -1118,14 +1120,6 @@ function buildRadioUI(){
     fsBtn.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); _pokeVisualControls(); _toggleFullscreen(); });
     document.body.appendChild(fsBtn); }
   _updateFullscreenButton();
-  let micBtn=document.getElementById('rmic');
-  if(!micBtn){ micBtn=mkRbtn('', function(){ _toggleVisualizerMic(); });
-    micBtn.id='rmic';
-    document.body.appendChild(micBtn);
-  }
-  micBtn.title='This will stop the current song and capture audio with your microphone so the game can react to your music.';
-  micBtn.setAttribute('aria-label','Capture room audio with microphone');
-  micBtn.innerHTML=svgIcon('mic')+'<span class="rmic-text">capture room</span>';
   // TRACK TITLE (bottom-left) is the "details" affordance now — clicking it expands the full track recipe (YouTube/TikTok-style)
   if(trackEl && !trackEl._wired){ trackEl._wired=true; trackEl.addEventListener('click', ev=>{ ev.stopPropagation(); window.toggleTrackPanel && window.toggleTrackPanel(); }); }
   buildTransport();                                            // hidden compatibility rail; superseded by #playbar
@@ -1419,12 +1413,11 @@ function buildPlaybar(){ _pbEl=document.getElementById('playbar'); if(!_pbEl||_p
     '<div class="pb-ctrl"><div class="pb-main-ctrl"><button id="pbPrev" title="Previous">'+_pbIcon('prev')+'</button>'+
     '<button class="pb-play" id="pbPlay" title="Play / Pause">'+_pbIcon('pause')+'</button>'+
     '<button id="pbNext" title="Next">'+_pbIcon('next')+'</button></div>'+
-    '<button class="pb-stop" id="pbStop" title="Eject music">'+_pbIcon('eject')+'</button></div>'+
+    '</div>'+
     '<div class="pb-right"><button id="pbVolume" class="pb-volume" title="Volume / mix"><span class="pbv-icon">'+svgIcon('spkOn')+'</span><span id="pbVolRead">100</span></button></div>';
   _wirePlaybarButton('pbPrev', _transportPrev);
   _wirePlaybarButton('pbNext', _transportNext);
   _wirePlaybarButton('pbPlay', _transportToggle);
-  _wirePlaybarButton('pbStop', _transportStop);
   _wirePlaybarButton('pbHeart', _transportHeart);
   _wirePlaybarButton('pbItemMore', _togglePlaybarMenu);
   _wirePlaybarButton('pbVolume', function(){ window.toggleMixPanel && window.toggleMixPanel(); });
@@ -1699,12 +1692,8 @@ function _ensurePlaybarMenu(){
     var row=ev.target.closest('[data-pbact]'); if(!row || row.disabled) return;
     ev.preventDefault(); ev.stopPropagation();
     var act=row.dataset.pbact; _closePlaybarMenu();
-    if(act==='playlist') _transportAddPlaylist();
-    else if(act==='ban') _transportDislike();
-    else if(act==='album') _transportDetail();
-    else if(act==='publisher') _transportPublisher();
+    if(act==='ban') _transportDislike();
     else if(act==='info' && window.toggleTrackPanel) toggleTrackPanel();
-    else if(act==='mood') _cycleMood();
   });
   document.addEventListener('click', function(ev){
     if(!_pbMenuEl || !_pbMenuEl.classList.contains('show')) return;
@@ -1727,27 +1716,12 @@ function _currentMenuHeader(){
   return '<div class="pbm-head"><div class="pbm-title">'+_pbMenuEsc(title)+'</div><div class="pbm-headsub">'+_pbMenuEsc(sub||'Retro Rave Radio')+'</div></div>';
 }
 function _renderPlaybarMenu(){
-  var it=_curItem(), canItem=!!it, canAlbum=_transportCanGoAlbum(), pub=_transportPublisherName();
+  var it=_curItem(), canItem=!!it;
   _ensurePlaybarMenu().innerHTML=_currentMenuHeader()+
     '<div class="pbm-actions">'+
-    _pbMenuItem('playlist','listAdd','Add to playlist','Save this specific track',!canItem)+
     _pbMenuItem('ban','dislike','Ban this track','Skip it and keep it out of rotation',!canItem)+
-    _pbMenuItem('album','cart','Go to album',canAlbum?_prettyName(_curAlbum||''):'No album route for this source',!canAlbum)+
-    _pbMenuItem('publisher','cloud','Go to publisher',pub||'No publisher metadata yet',!pub)+
     _pbMenuItem('info','info','View track info','Open technical and library details',!Audio.started)+
-    _pbMenuItem('mood','stop','Mood: '+_moodLabel(),'Generated radio genre — tap to cycle',false)+
     '</div>';
-}
-var _MOOD_LABELS={ any:'All moods', full:'Melodic', sparse:'Mellow', none:'Instrumental' };
-function _moodLabel(){ var m='any'; try{ m=(typeof Radio!=='undefined'&&Radio.mood)?Radio.mood():'any'; }catch(e){} return _MOOD_LABELS[m]||'All moods'; }
-function _cycleMood(){
-  var order=['any','full','sparse','none'];
-  var m='any'; try{ m=Radio.mood(); }catch(e){}
-  var nx=order[(order.indexOf(m)+1)%order.length];
-  try{ Radio.setMood(nx); }catch(e){}
-  try{ var q=new URLSearchParams(location.search||''); if(nx==='any') q.delete('mood'); else q.set('mood',nx);
-    var qs=q.toString(); history.replaceState(null,'',(location.pathname||'/')+(qs?'?'+qs:'')+(location.hash||'')); }catch(e){}
-  if(window._toast) _toast('Radio mood: '+_moodLabel()+(nx==='any'?'':' — next tracks will match'));
 }
 function _playbarMenuAnchor(){
   var item=document.getElementById('pbItemMore'), main=document.getElementById('pbMore');
@@ -3790,16 +3764,21 @@ function _gmeNext(){ _gmeAdvancing=false;
   else { _chipI=(_chipI+1)%_chipList.length; }                                        // flat fallback: wrap
   _gmePlayTrack(); }
 
-// ===== HOME: exactly three tiles. Tile 1 = the generated radio, tile 2 = the user's music-pack library,
-//  tile 3 = silent autopilot wallpaper mode (tile 1 without music). =====
+// ===== HOME: pick a STATION. Each station is a lead-presence mood of the generated
+//  radio (Everything mixes all three), fronted by a game character sprite. =====
 const HOME_TILES = [
-  { id:'radio',  icon:'shuffle',    name:'Start Endless Radio',  desc:'A brand-new generated chiptune track every skip. It never runs out.' },
-  { id:'browse', icon:'listAdd',    name:'Browse My Music',      desc:'Your installed music packs: albums, likes, and playlists.' },
-  { id:'watch',  icon:'fullscreen', name:'Just Watch the Games', desc:'Silent screensaver: the games play themselves. Optional mic reaction.' },
+  { id:'st-any',    mood:'any',    sprite:'pacman',  name:'Everything!',  desc:'The full mix — every mood in rotation.' },
+  { id:'st-sparse', mood:'sparse', sprite:'balloon', name:'Mellow',       desc:'Laid-back grooves, melody as a garnish.' },
+  { id:'st-none',   mood:'none',   sprite:'tetris',  name:'Instrumental', desc:'Pure grooves. No lead line at all.' },
+  { id:'st-full',   mood:'full',   sprite:'mario',   name:'Melodic',      desc:'Hook-driven chiptunes, front and center.' },
 ];
 function _homeEsc(v){ return String(v==null?'':v).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
-function _homeTile(t){ return '<button class="hometile" data-st="'+_homeEsc(t.id)+'">'+
-  '<span class="htico">'+svgIcon(t.icon)+'</span><span class="httxt"><span class="htname">'+_homeEsc(t.name)+'</span><span class="htdesc">'+_homeEsc(t.desc)+'</span></span></button>'; }
+function _homeTile(t){
+  var img='';
+  try{ if(typeof Sprites!=='undefined'&&Sprites.dataURL) img='<img class="htchar" alt="" src="'+Sprites.dataURL(t.sprite,44)+'">'; }catch(e){}
+  return '<button class="hometile station" data-st="'+_homeEsc(t.id)+'">'+
+    '<span class="htico">'+(img||svgIcon('shuffle'))+'</span><span class="httxt"><span class="htname">'+_homeEsc(t.name)+'</span><span class="htdesc">'+_homeEsc(t.desc)+'</span></span></button>';
+}
 function _showProductHomeShell(){
   var intro=document.getElementById('intro'), el=document.getElementById('hometiles');
   if(!intro || !el) return null;
@@ -3812,7 +3791,7 @@ function _showProductHomeShell(){
   return el;
 }
 function buildHomeTiles(){ var el=_showProductHomeShell(); if(!el) return;
-  el.innerHTML = HOME_TILES.map(_homeTile).join('');
+  el.innerHTML = '<div class="stlabel">Select your station:</div><div class="strow">'+HOME_TILES.map(_homeTile).join('')+'</div>';
   if(!el._wired){ el._wired=true; el.addEventListener('click', function(ev){ var tile=ev.target.closest('.hometile'); if(!tile) return; ev.stopPropagation(); enterStation(tile.dataset.st); }); }
 }
 window.buildHomeTiles=buildHomeTiles;
@@ -3849,6 +3828,9 @@ window._productRouteTo=function(path, opts){
 // ----- station entry: the three tiles + every music-pack id + mic + liked. -----
 function enterStation(id){
   id=String(id||'');
+  var mst=null;
+  for(var hi=0;hi<HOME_TILES.length;hi++) if(HOME_TILES[hi].id===id){ mst=HOME_TILES[hi]; break; }
+  if(mst){ try{ if(typeof Radio!=='undefined'&&Radio.setMood) Radio.setMood(mst.mood); }catch(e){} _startEndlessRadio(); return; }
   if(id==='radio' || id==='generated'){ _startEndlessRadio(); return; }
   if(id==='browse'){ if(typeof _exitWatchMode==='function') _exitWatchMode(); if(window.buildBrowse) window.buildBrowse(); else if(window._toast) _toast('Browse is still loading'); return; }
   if(id==='watch'){ enterWatchMode(); return; }
