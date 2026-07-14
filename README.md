@@ -1,39 +1,54 @@
 # Retro Rave Radio
 
-**An endless chiptune radio where classic games play themselves as the music
-video.** Open it, press one of three buttons.
+**Endless retro music that keeps making itself. Mini games that move to the
+beat.** Open it, pick a station, that's the whole manual.
 
-- **Start Endless Radio** — a generative chiptune composer writes an infinite,
-  never-repeating DJ set (real tracks with hooks, builds, and drops — not
-  loops), while an arcade game plays itself on screen, cut to the music.
-  Swipe to skip, double-tap to like; likes steer what comes next.
-- **Browse My Music** — your own chip-music library (NES, Game Boy, Genesis,
-  SNES, Amiga mods, …) as albums, played through the same game visualizers.
-  The app ships with no music: you add **music packs** (zip import or a linked
-  folder) and browse the sum of what's installed.
-- **Just Watch the Games** — the radio without the radio: silent wallpaper
-  mode. Games play themselves on a fixed internal clock, rotating scenes,
-  no audio ever. Flip on the mic and they dance to whatever your room hears.
+**▶ Play it: <https://retro-rave-radio.pages.dev>**
 
-Everything runs in the browser from one HTML file. Music can also come from
-your microphone or a dropped audio file — the games visualize any source.
+A generative chiptune composer writes an infinite, never-repeating DJ set —
+real tracks with hooks, builds, and drops, not loops — while a classic arcade
+game plays itself on screen, cut to the music. Swipe up to skip, double-tap
+to like; likes steer what comes next.
+
+## Stations
+
+The home screen is one choice — the mood of the radio:
+
+- **Everything!** — the full mix, every mood in rotation.
+- **Mellow** — laid-back grooves; the melody appears only as a garnish, at
+  half volume.
+- **Instrumental** — pure grooves, no lead line at all. Background gold.
+- **Melodic** — hook-driven chiptunes, front and center.
+
+Every generated track is deterministic: its shareable `/track/<slug>` URL
+plays back *identically*, note for note, forever (per composer version).
+
+## The games
+
+Sixteen arcade classics play **themselves** as the music video — each one an
+original re-implementation with an autopilot that cuts to the track. Grab
+the keys any time: **arrows or WASD are the only controls** (actions like
+firing, sword swings, and bombs handle themselves). Stop touching, and the
+autopilot takes back over.
+
+`/watch` is wallpaper mode: the games rotate silently on an internal beat
+clock, no audio ever. Optional room-mic reaction from the watch bar.
 
 ## What it never does
 
-- **No accounts, no tracking, no server.** It's a static file; all state is
-  local to your browser.
-- **No bundled copyrighted music.** The app ships zero content — bring your
-  own packs, built from your own rips with the included tools.
-- **No non-determinism where it matters.** Every generated track has a
-  shareable `/track/<slug>` link that plays back *identically*, note for
-  note, for anyone on the same composer version.
+- **No accounts, no tracking, no server.** One static HTML file; all state
+  lives in your browser.
+- **No bundled or streamed recordings.** Every note is synthesized live by
+  the in-browser engine. The repo ships zero audio content.
+- **No non-determinism where it matters.** Same track link, same song, every
+  time.
 
 ## Everything is a pack
 
-Games, music, and even the composer are runtime-loaded packs
-(`rrr-pack@3` — spec in [docs/pack-format.md](docs/pack-format.md)).
-Sideload a zip by dragging it onto the app, link a folder of packs, or PR one
-to this repo. A future Steam Workshop item is exactly one pack folder.
+Games and composers are runtime-loaded packs (`rrr-pack@3` — spec in
+[docs/pack-format.md](docs/pack-format.md)). Sideload a zip by dragging it
+onto the app, link a folder of packs, or PR one to this repo. A future Steam
+Workshop item is exactly one pack folder.
 
 ### Make a game pack
 
@@ -46,24 +61,11 @@ packs/games/<id>/
 
 `definition.js` is the game's rules, `behavior.js` its autopilot,
 `reactions.js` maps music roles (lead/bass/perc/drop/…) onto game systems,
-`renderer.js` draws. Scaffold one with
+`renderer.js` draws. Controls doctrine: directional-only — up/down/left/right
+must be enough; anything else automates. Scaffold one with
 `npm run scaffold:game -- my_game "My Game" "arcade"`, then read
 [docs/game-pack-authoring.md](docs/game-pack-authoring.md). PRs welcome —
 the roster is the directory tree, so a merged folder ships automatically.
-Workshop publishing comes with the desktop app.
-
-### Make (or get) music packs
-
-Point pack-tools at a folder of rips and it does the rest — album archives,
-tag extraction, optional per-track BPM analysis:
-
-```bash
-node scripts/pack-tools.js music build ~/rips/nes --id my_nes --name "My NES" --bpm
-node scripts/pack-tools.js zip dist/packs/music/my_nes
-```
-
-Drag the zip onto the app. Full walkthrough:
-[docs/music-pack-authoring.md](docs/music-pack-authoring.md).
 
 ### Make a composer pack
 
@@ -78,9 +80,9 @@ and select your composer in the Packs panel.
 ## Roadmap
 
 Web now → desktop later, on the Wallpaper Engine model: a Steam app with
-Workshop support (games / music / composers as Workshop items) and DLC. The
-pack format, the loader's directory-source interface, and the silent watch
-mode are already built for that milestone.
+Workshop support (games and composers as Workshop items) and DLC. The pack
+format, the loader's directory-source interface, and the silent watch mode
+are already built for that milestone.
 
 ## Development
 
@@ -100,13 +102,15 @@ python3 scripts/serve.py           # serve dist/ (SPA fallback + /packs hardenin
 | `npm run validate:pack -- <id>` \| `-- --all` | game-pack contract checks (`:strict` variant) |
 | `npm run audition:music` | symbolic composer battery |
 | `npm run scaffold:game -- <id> "Name" "family"` | new game pack |
-| `npm run pack:tools` | the pack SDK CLI (game/music/composer build, validate, zip) |
+| `npm run pack:tools` | the pack SDK CLI (game/composer build, validate, zip) |
+
+Deploys are a static upload of `dist/` to Cloudflare Pages:
+`npx wrangler pages deploy dist --project-name retro-rave-radio`.
 
 Contributor architecture notes live in [AGENTS.md](AGENTS.md); docs index in
 [docs/](docs/).
 
 ## License
 
-App code: see repository license. Packs carry their own `license` field —
-music packs built from commercial rips are for personal use and must not be
-redistributed through this repo.
+App code: see repository license. Game likenesses are used with permission.
+Packs carry their own `license` field.

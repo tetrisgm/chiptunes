@@ -545,8 +545,12 @@
     body.ai-visual #playbar .pb-title{ font-size:13px; }
     body.ai-visual #playbar .pb-sub{ font-size:11px; }
     body.ai-visual.controls-active #playbar .pb-title{ max-width:calc(100vw - 108px); }
-    body.ai-visual #playbar .pb-ctrl{ bottom:64px; }
-    body.ai-visual #playbar .pb-right{ right:12px; bottom:124px; }
+    /* one thumb row: transport pinned LEFT, volume pinned RIGHT — >100px
+       apart (the volume used to float at bottom:124px right above the next
+       button, and even same-row-centered it sat 6px away: mis-tap city) */
+    body.ai-visual #playbar .pb-ctrl{ bottom:64px; left:12px; transform:translate(0,8px); }
+    body.ai-visual.controls-active #playbar .pb-ctrl{ transform:translate(0,0); }
+    body.ai-visual #playbar .pb-right{ right:12px; bottom:64px; }
     body.ai-visual #mixpanel{ right:8px; bottom:80px; }
   }
   .dt-tracks .tr.now{ background:rgba(124,92,255,.14); } .dt-tracks .tr.now .trt{ color:var(--accent2); font-weight:700; }
