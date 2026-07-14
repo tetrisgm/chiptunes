@@ -2321,16 +2321,16 @@ window._sessionMixReset=function(keys){ var scope=_mixScopeKey(), s=_scopeMix(sc
 // ===== HOME: pick a STATION. Each station is a lead-presence mood of the generated
 //  radio (Everything mixes all three), fronted by a game character sprite. =====
 const HOME_TILES = [
-  { id:'st-any',    mood:'any',    sprite:'pacman',  name:'Everything!',  desc:'The full mix — every mood in rotation.' },
-  { id:'st-sparse', mood:'sparse', sprite:'balloon', name:'Mellow',       desc:'Laid-back grooves, melody as a garnish.' },
-  { id:'st-none',   mood:'none',   sprite:'tetris',  name:'Instrumental', desc:'Pure grooves. No lead line at all.' },
-  { id:'st-full',   mood:'full',   sprite:'mario',   name:'Melodic',      desc:'Hook-driven chiptunes, front and center.' },
+  { id:'st-any',    mood:'any',    sprite:'pacman',  name:'Everything!',  desc:'The full mix — every mood in rotation.',      c:'#ffd23e' },
+  { id:'st-sparse', mood:'sparse', sprite:'balloon', name:'Mellow',       desc:'Laid-back grooves, melody as a garnish.',     c:'#5ee08a' },
+  { id:'st-none',   mood:'none',   sprite:'tetris',  name:'Instrumental', desc:'Pure grooves. No lead line at all.',          c:'#4fd8f8' },
+  { id:'st-full',   mood:'full',   sprite:'mario',   name:'Melodic',      desc:'Hook-driven chiptunes, front and center.',    c:'#ff5d5d' },
 ];
 function _homeEsc(v){ return String(v==null?'':v).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
 function _homeTile(t){
   var img='';
-  try{ if(typeof Sprites!=='undefined'&&Sprites.dataURL) img='<img class="htchar" alt="" src="'+Sprites.dataURL(t.sprite,44)+'">'; }catch(e){}
-  return '<button class="hometile station" data-st="'+_homeEsc(t.id)+'">'+
+  try{ if(typeof Sprites!=='undefined'&&Sprites.dataURL) img='<img class="htchar" alt="" src="'+Sprites.dataURL(t.sprite,96)+'">'; }catch(e){}
+  return '<button class="hometile station" data-st="'+_homeEsc(t.id)+'" style="--stc:'+_homeEsc(t.c)+'">'+
     '<span class="htico">'+(img||svgIcon('shuffle'))+'</span><span class="httxt"><span class="htname">'+_homeEsc(t.name)+'</span><span class="htdesc">'+_homeEsc(t.desc)+'</span></span></button>';
 }
 function _showProductHomeShell(){
