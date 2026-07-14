@@ -2012,7 +2012,7 @@ function armSoundGesture(){
       '<div class="sh-brand">Retro Rave Radio</div>'+
       '<div class="sh-title">'+svgIcon('spkOn')+'<span>Tap anywhere to start</span></div>'+
       '<div class="sh-copy">Endless retro music that keeps making itself. Mini games that move to the beat.</div>'+
-      '<div class="sh-keys" aria-label="Game controls"><div class="sh-key-row top"><span>↑</span></div><div class="sh-key-row"><span>←</span><span>↓</span><span>→</span><span class="wide">Ctrl</span></div></div>'+
+      '<div class="sh-keys" aria-label="Game controls"><div class="sh-key-row top"><span>↑</span></div><div class="sh-key-row"><span>←</span><span>↓</span><span>→</span></div></div>'+
       '<div class="sh-note">Play with the arrow keys, or just watch.</div>'+
     '</div>'; document.body.appendChild(hint); }
   hint.classList.add('show');
