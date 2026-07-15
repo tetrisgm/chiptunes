@@ -36,3 +36,4 @@ chip-derived
 # health-kit self-report output (local-authoritative; uploaded separately).
 # Root-anchored so it ignores ONLY the top-level output dir, NOT scripts/health/ source.
 /health/
+.health.env
