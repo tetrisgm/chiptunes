@@ -142,7 +142,7 @@ function testSettings() {
   try {
     const store = new SettingsStore(directory);
     store.update({ wallpaperEnabled: true, fpsCap: 60 });
-    assert.deepEqual(new SettingsStore(directory).value, { wallpaperEnabled: true, fpsCap: 60, powerSaver: false, station: 'st-any' });
+    assert.deepEqual(new SettingsStore(directory).value, { wallpaperEnabled: true, fpsCap: 60, powerSaver: false, station: 'st-any', disabledDisplays: [] });
   } finally { fs.rmSync(directory, { recursive: true, force: true }); }
 }
 

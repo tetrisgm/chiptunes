@@ -136,7 +136,7 @@ function createWindow() {
     title: 'Retro Rave Radio',
     webPreferences: { preload: PRELOAD, contextIsolation: true, sandbox: false },
   });
-  win.loadFile(path.join(DIST, 'index.html'), { query: { mode: 'window' } });
+  win.loadFile(path.join(DIST, 'index.html'), { query: { mode: 'browse' } });   // Portal-style desktop control center
   win.on('closed', () => {
     win = null;
     if (!quitting && wallpaper && wallpaper.enabled && process.platform === 'darwin' && app.dock) app.dock.hide();
@@ -187,6 +187,30 @@ function setAudioMuted(muted) {
   refreshTray();
 }
 
+function setDisplayEnabled(id, on) {
+  id = String(id);
+  const cur = new Set((settings.value.disabledDisplays || []).map(String));
+  if (on) cur.delete(id); else cur.add(id);
+  settings.update({ disabledDisplays: [...cur] });
+  if (wallpaper) wallpaper.setDisplayEnabled(id, on);
+  refreshTray();
+}
+
+// All displays (for the browse view's per-monitor cards) with enabled + primary + audio-owner flags.
+function displayList() {
+  if (process.platform !== 'darwin' || !screen) return [];
+  const disabled = new Set(((settings && settings.value.disabledDisplays) || []).map(String));
+  const primaryId = String(screen.getPrimaryDisplay().id);
+  const all = screen.getAllDisplays();
+  const enabledIds = all.map(d => String(d.id)).filter(id => !disabled.has(id));
+  const audioOwnerId = enabledIds.includes(primaryId) ? primaryId : (enabledIds[0] || null);
+  return all.map(d => {
+    const id = String(d.id);
+    return { id, label: d.label || ('Display ' + id), width: d.bounds.width, height: d.bounds.height,
+      primary: id === primaryId, enabled: !disabled.has(id), audioOwner: id === audioOwnerId };
+  });
+}
+
 function setOpenAtLogin(openAtLogin) {
   app.setLoginItemSettings({ openAtLogin: !!openAtLogin, openAsHidden: !!openAtLogin });
   refreshTray();
@@ -206,6 +230,7 @@ function desktopState() {
     powerSaver: settings ? settings.value.powerSaver : false,
     station: settings ? settings.value.station : 'st-any',
     audioMuted: !!(wallpaper && wallpaper.userMuted),
+    displays: displayList(),
     nowPlaying: lastNowPlaying,
     openAtLogin: !!login.openAtLogin,
     performance: wallpaperPerformance,
@@ -225,6 +250,8 @@ ipcMain.handle('rrr:control', (_event, cmd) => {
     case 'setFps': setFpsCap(cmd.value); break;
     case 'setPowerSaver': setPowerSaver(!!cmd.value); break;
     case 'setAudioMuted': setAudioMuted(!!cmd.value); break;
+    case 'setDisplayEnabled': setDisplayEnabled(cmd.id, !!cmd.value); break;
+    case 'setLogin': setOpenAtLogin(!!cmd.value); break;
     case 'openWindow': createWindow(); break;
     case 'quit': quitApp(); break;
     default: return false;
@@ -285,6 +312,7 @@ function setupDesktop() {
       preload: PRELOAD,
       initialPerformance: wallpaperPerformance,
       station: settings.value.station,
+      disabledDisplays: settings.value.disabledDisplays,
     });
     power = new WallpaperPowerController({
       powerMonitor,

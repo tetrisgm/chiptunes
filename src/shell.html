@@ -42,6 +42,10 @@
     document.documentElement.classList.add('popover-mode','boot-player-route');
     window.__RRR_POPOVER_MODE=true;
     window.__RRR_BOOT_PLAYER_ROUTE=true;
+  } else if(shellMode==='browse' && isDesktopHost){
+    document.documentElement.classList.add('browse-mode','boot-player-route');
+    window.__RRR_BROWSE_MODE=true;
+    window.__RRR_BOOT_PLAYER_ROUTE=true;
   }
   // player-route boot: hide the Home overlay pre-paint for direct track/watch/radio links.
   // /track/<slug> (generated; slug may carry a '<composerId>.' prefix)
@@ -97,6 +101,16 @@
   html.popover-mode, html.popover-mode body{ background:transparent !important; cursor:default; overflow:hidden; }
   #popover{ display:none; }
   html.popover-mode #popover{ display:block; }
+  /* Electron desktop control-center window (Portal-style browse). */
+  html.browse-mode #stage, html.browse-mode .crt, html.browse-mode #hearts,
+  html.browse-mode #presets, html.browse-mode #hud, html.browse-mode #playbar,
+  html.browse-mode #intro, html.browse-mode #watchbar, html.browse-mode #radionav,
+  html.browse-mode #rlist, html.browse-mode #rfullscreen, html.browse-mode #mixpanel,
+  html.browse-mode #trackpanel, html.browse-mode #pbMenu, html.browse-mode #gamepick,
+  html.browse-mode #soundhint, html.browse-mode #resumeMusic{ display:none !important; }
+  html.browse-mode, html.browse-mode body{ background:var(--bg) !important; cursor:default; overflow:auto; height:auto; min-height:100%; }
+  #browse{ display:none; }
+  html.browse-mode #browse{ display:block; }
   body{
     font-family:var(--pixel);
     color:var(--ink);
@@ -735,6 +749,7 @@
   </div>
 
   <div id="popover"></div>
+  <div id="browse"></div>
 
 __SCRIPTS__
 

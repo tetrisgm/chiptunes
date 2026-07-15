@@ -10,6 +10,7 @@ const DEFAULTS = Object.freeze({
   fpsCap: 30,
   powerSaver: false,
   station: 'st-any',
+  disabledDisplays: [],
 });
 
 function normalize(input) {
@@ -19,6 +20,7 @@ function normalize(input) {
     fpsCap: [15, 30, 60].includes(fps) ? fps : DEFAULTS.fpsCap,
     powerSaver: !!(input && input.powerSaver),
     station: STATIONS.includes(input && input.station) ? input.station : DEFAULTS.station,
+    disabledDisplays: Array.isArray(input && input.disabledDisplays) ? input.disabledDisplays.map(String) : [],
   };
 }
 

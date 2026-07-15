@@ -4,6 +4,7 @@ const _RRR_DESKTOP_MODE=(function(){ try{ return new URLSearchParams(location.se
 const _WALLPAPER_MODE=_RRR_DESKTOP_MODE==='wallpaper' && !!(window.RRRNative && window.RRRNative.isDesktop);   // Electron-only; a bare ?mode=wallpaper on the web must NOT strip the UI
 const _WALLPAPER_AUDIO=(function(){ try{ return new URLSearchParams(location.search||'').get('audio')!=='0'; }catch(e){ return true; } })();
 const _POPOVER_MODE=_RRR_DESKTOP_MODE==='popover' && !!(window.RRRNative && window.RRRNative.isDesktop);   // Electron menu-bar popover (a controller, plays no audio itself)
+const _BROWSE_MODE=_RRR_DESKTOP_MODE==='browse' && !!(window.RRRNative && window.RRRNative.isDesktop);     // Electron desktop control-center window (Portal-style; also a controller)
 // ----- GAME REGISTRY: derived from window.CT_GAMES. The inline fallback pack(s) register at parse time;
 //  the rest arrive through Packs.init() / Packs.onChange (runtime-loaded game packs). No hardcoded roster. -----
 let GAMES=[], GAME_BY_KEY={}, POOL=[];
@@ -2711,6 +2712,7 @@ try{
 buildHomeTiles();
 (function(){
   if(_POPOVER_MODE){ try{ _renderPopover(); }catch(e){} return; }   // controller UI; no audio, no scene loop
+  if(_BROWSE_MODE){ try{ _renderBrowse(); }catch(e){} return; }     // Portal-style control center; no audio, no scene loop
   if(_WALLPAPER_MODE){
     if(document.body) document.body.classList.add('wallpaper-visual');
     var _wpStation=''; try{ _wpStation=new URLSearchParams(location.search||'').get('station')||''; }catch(e0){}
@@ -3157,6 +3159,109 @@ buildHomeTiles();
       document.getElementById('pvAudio').classList.toggle('on', !s.audioMuted && !!s.wallpaperEnabled);
       document.getElementById('pvFps').querySelector('.i').textContent=String(s.fpsCap||30);
       Array.prototype.forEach.call(host.querySelectorAll('.pv-mood'), function(b){ b.classList.toggle('on', b.getAttribute('data-st')===st); });
+    }
+    if(N.onDesktopState) N.onDesktopState(apply);
+    else if(N.desktopState) N.desktopState().then(apply)['catch'](function(){});
+  };
+
+  // ---- the Portal-style desktop control center (the app's main window: ?mode=browse) ----
+  window._renderBrowse=function(){
+    var host=document.getElementById('browse'); if(!host) return;
+    var TILES=(typeof HOME_TILES!=='undefined' && HOME_TILES.length) ? HOME_TILES : [{id:'st-any',name:'Everything!'}];
+    var css=document.createElement('style');
+    css.textContent=
+      '#browse{font-family:var(--pixel);color:#f4f2ff;min-height:100vh;-webkit-user-select:none;user-select:none;padding:26px 26px 96px}'+
+      '.bz-wrap{max-width:900px;margin:0 auto}'+
+      '.bz-h1{font-size:26px;letter-spacing:1px;font-weight:700}.bz-h1 span{color:var(--accent)}'+
+      '.bz-tag{color:#b9b2d6;font-size:13px;margin:4px 0 22px}'+
+      '.bz-sec{margin-bottom:26px}'+
+      '.bz-sect{font-size:12px;text-transform:uppercase;letter-spacing:1.2px;color:#8f88b3;margin-bottom:11px}'+
+      '.bz-stations{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}'+
+      '.bz-st{display:flex;gap:11px;align-items:center;border:1px solid rgba(255,255,255,.09);background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.02));border-radius:14px;padding:12px;cursor:pointer;transition:transform .08s}'+
+      '.bz-st:active{transform:scale(.98)}'+
+      '.bz-st.on{border-color:var(--accent);background:rgba(248,120,248,.16)}'+
+      '.bz-st .art{width:48px;height:48px;border-radius:11px;background:#2a2148;flex:0 0 auto;display:flex;align-items:center;justify-content:center;overflow:hidden;font-size:22px}'+
+      '.bz-st .art img{width:100%;height:100%;image-rendering:pixelated}'+
+      '.bz-st .nm{font-size:15px;font-weight:700}.bz-st .ds{font-size:11px;color:#b0a9cf;margin-top:2px;line-height:1.25}'+
+      '.bz-disp,.bz-set{display:flex;align-items:center;gap:12px;border:1px solid rgba(255,255,255,.09);background:rgba(255,255,255,.03);border-radius:12px;padding:12px 14px;margin-bottom:8px}'+
+      '.bz-disp .di,.bz-set .sl{flex:1}.bz-disp .dn,.bz-set .sl>b{font-size:14px;font-weight:700}'+
+      '.bz-disp .dm,.bz-set .sd{font-size:11px;color:#9a93bd;margin-top:2px}'+
+      '.bz-badge{font-size:9px;text-transform:uppercase;letter-spacing:.6px;background:rgba(104,136,252,.25);color:#cdd6ff;border-radius:6px;padding:2px 6px;margin-left:6px}'+
+      '.bz-sw{width:46px;height:26px;border-radius:14px;background:rgba(255,255,255,.14);position:relative;cursor:pointer;flex:0 0 auto;transition:background .12s}'+
+      '.bz-sw::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left .12s}'+
+      '.bz-sw.on{background:var(--accent2)}.bz-sw.on::after{left:23px}'+
+      '.bz-seg{display:flex;border:1px solid rgba(255,255,255,.14);border-radius:9px;overflow:hidden;flex:0 0 auto}'+
+      '.bz-seg button{background:transparent;color:#cfc8ea;border:0;padding:6px 13px;font-size:13px;cursor:pointer}'+
+      '.bz-seg button.on{background:var(--accent3);color:#0c0a1a}'+
+      '.bz-tr{position:fixed;left:0;right:0;bottom:0;background:rgba(13,10,28,.94);border-top:1px solid rgba(255,255,255,.08);display:flex;align-items:center;gap:12px;padding:12px 22px}'+
+      '.bz-tr .np{flex:1;min-width:0}.bz-tr .npt{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bz-tr .nps{font-size:11px;color:#9a93bd}.bz-tr .nps .live{color:#58f898;font-weight:700}'+
+      '.bz-tb{width:38px;height:38px;border-radius:50%;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.05);color:#f4f2ff;font-size:15px;cursor:pointer}'+
+      '.bz-tb.play{background:var(--accent);border-color:var(--accent);color:#160b1f}';
+    document.head.appendChild(css);
+
+    function esc(x){ var d=document.createElement('div'); d.textContent=String(x==null?'':x); return d.innerHTML; }
+    function art(id){ try{ var t=TILES.filter(function(x){return x.id===id})[0]; if(t&&t.sprite&&typeof Sprites!=='undefined'&&Sprites.dataURL) return '<img src="'+Sprites.dataURL(t.sprite,48)+'">'; }catch(e){} return '♪'; }
+    function sw(on){ return '<div class="bz-sw'+(on?' on':'')+'"></div>'; }
+
+    var stationCards=TILES.map(function(t){ return '<div class="bz-st" data-st="'+esc(t.id)+'"><div class="art">'+art(t.id)+'</div><div><div class="nm">'+esc(t.name||t.id)+'</div><div class="ds">'+esc(t.desc||'')+'</div></div></div>'; }).join('');
+    host.innerHTML=
+      '<div class="bz-wrap">'+
+      '  <div class="bz-h1">RETRO <span>RAVE</span> RADIO</div>'+
+      '  <div class="bz-tag">Your desktop control center — pick a station, choose your displays, run it as your wallpaper.</div>'+
+      '  <div class="bz-sec"><div class="bz-sect">Station</div><div class="bz-stations" id="bzStations">'+stationCards+'</div></div>'+
+      '  <div class="bz-sec"><div class="bz-sect">Displays</div><div id="bzDisplays"></div></div>'+
+      '  <div class="bz-sec"><div class="bz-sect">Settings</div><div id="bzSettings"></div></div>'+
+      '</div>'+
+      '<div class="bz-tr"><div class="np"><div class="npt" id="bzNpt">Paused</div><div class="nps" id="bzNps"></div></div>'+
+      '  <button class="bz-tb" id="bzPrev">⏮</button><button class="bz-tb play" id="bzPlay">▶</button><button class="bz-tb" id="bzNext">⏭</button></div>';
+
+    var N=window.RRRNative||{};
+    var _state={ station:'st-any', wallpaperEnabled:false, fpsCap:30, powerSaver:false, openAtLogin:false, displays:[] };
+    function ctl(a,x){ try{ if(N.control) N.control(Object.assign({action:a},x||{})); }catch(e){} }
+    Array.prototype.forEach.call(host.querySelectorAll('.bz-st'), function(b){ b.onclick=function(){ ctl('setStation',{id:b.getAttribute('data-st')}); }; });
+    document.getElementById('bzPrev').onclick=function(){ ctl('transport',{dir:'prev'}); };
+    document.getElementById('bzPlay').onclick=function(){ ctl('transport',{dir:'toggle'}); };
+    document.getElementById('bzNext').onclick=function(){ ctl('transport',{dir:'next'}); };
+
+    function renderDisplays(list){
+      var el=document.getElementById('bzDisplays');
+      if(!list||!list.length){ el.innerHTML='<div class="bz-disp"><div class="di"><div class="dn">No displays detected</div></div></div>'; return; }
+      el.innerHTML=list.map(function(d){
+        var badges=(d.primary?'<span class="bz-badge">Primary</span>':'')+(d.audioOwner?'<span class="bz-badge">Audio</span>':'');
+        return '<div class="bz-disp" data-id="'+esc(d.id)+'"><div class="di"><div class="dn">'+esc(d.label)+badges+'</div><div class="dm">'+d.width+' × '+d.height+'</div></div>'+sw(d.enabled)+'</div>';
+      }).join('');
+      Array.prototype.forEach.call(el.querySelectorAll('.bz-disp'), function(row){ var s=row.querySelector('.bz-sw'); if(!s) return; s.onclick=function(){ ctl('setDisplayEnabled',{id:row.getAttribute('data-id'), value:!s.classList.contains('on')}); }; });
+    }
+    function renderSettings(s){
+      var el=document.getElementById('bzSettings');
+      el.innerHTML=
+        '<div class="bz-set"><div class="sl"><b>Animated wallpaper</b><div class="sd">Run RRR behind your desktop icons</div></div>'+sw(s.wallpaperEnabled)+'</div>'+
+        '<div class="bz-set"><div class="sl"><b>Frame rate</b><div class="sd">Higher = smoother, more power</div></div><div class="bz-seg" id="bzFps">'+[15,30,60].map(function(f){return '<button data-f="'+f+'"'+(s.fpsCap===f?' class="on"':'')+'>'+f+'</button>';}).join('')+'</div></div>'+
+        '<div class="bz-set"><div class="sl"><b>Battery saver</b><div class="sd">Drop to 15fps on battery</div></div>'+sw(s.powerSaver)+'</div>'+
+        '<div class="bz-set"><div class="sl"><b>Launch at login</b><div class="sd">Start the wallpaper when you log in</div></div>'+sw(s.openAtLogin)+'</div>';
+      var rows=el.querySelectorAll('.bz-set');
+      rows[0].querySelector('.bz-sw').onclick=function(){ ctl('setWallpaperEnabled',{value:!s.wallpaperEnabled}); };
+      Array.prototype.forEach.call(el.querySelectorAll('#bzFps button'), function(b){ b.onclick=function(){ ctl('setFps',{value:+b.getAttribute('data-f')}); }; });
+      rows[2].querySelector('.bz-sw').onclick=function(){ ctl('setPowerSaver',{value:!s.powerSaver}); };
+      rows[3].querySelector('.bz-sw').onclick=function(){ ctl('setLogin',{value:!s.openAtLogin}); };
+    }
+
+    var _structKey='';
+    function apply(s){
+      if(!s) return; _state=Object.assign(_state,s);
+      var np=s.nowPlaying||{};
+      document.getElementById('bzNpt').textContent=np.title?np.title:(np.playing?'Playing':'Paused');
+      var nps=document.getElementById('bzNps');
+      if(np.live){ nps.innerHTML='<span class="live">LIVE</span>'+(np.listeners?(' · '+np.listeners+' listening'):''); }
+      else { nps.textContent=np.bpm?(np.bpm+' BPM'):''; }
+      document.getElementById('bzPlay').innerHTML=np.playing?'⏸':'▶';
+      var key=JSON.stringify({st:_state.station,w:_state.wallpaperEnabled,f:_state.fpsCap,p:_state.powerSaver,l:_state.openAtLogin,d:_state.displays});
+      if(key!==_structKey){ _structKey=key;
+        var st=_state.station||'st-any';
+        Array.prototype.forEach.call(host.querySelectorAll('.bz-st'), function(b){ b.classList.toggle('on', b.getAttribute('data-st')===st); });
+        renderDisplays(_state.displays);
+        renderSettings(_state);
+      }
     }
     if(N.onDesktopState) N.onDesktopState(apply);
     else if(N.desktopState) N.desktopState().then(apply)['catch'](function(){});

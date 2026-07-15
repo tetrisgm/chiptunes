@@ -3,7 +3,7 @@
 const SECONDARY_FPS_CAP = 20;   // audio-less secondary displays run cooler than the focal one
 
 class WallpaperManager {
-  constructor({ BrowserWindow, screen, nativeBridge, dist, preload, initialPerformance, station }) {
+  constructor({ BrowserWindow, screen, nativeBridge, dist, preload, initialPerformance, station, disabledDisplays }) {
     this.BrowserWindow = BrowserWindow;
     this.screen = screen;
     this.nativeBridge = nativeBridge;
@@ -12,6 +12,7 @@ class WallpaperManager {
     this.performance = initialPerformance || { paused: false, fpsCap: 30, reason: 'normal' };
     this.station = station || 'st-any';   // the mood the audio-owner display plays (popover-driven)
     this.userMuted = false;               // popover "Audio off" — a deliberate mute, independent of battery/occlusion
+    this.disabledDisplays = new Set((disabledDisplays || []).map(String));   // displays turned OFF in the browse view
     this.windows = new Map();
     this.occluded = false;          // true when EVERY wallpaper window is fully covered (e.g. a fullscreen app)
     this._appliedPaused = false;
@@ -58,11 +59,14 @@ class WallpaperManager {
   }
 
   reconcile() {
-    const displays = this.screen.getAllDisplays();
+    const displays = this.screen.getAllDisplays().filter(d => !this.disabledDisplays.has(String(d.id)));
     const primaryId = String(this.screen.getPrimaryDisplay().id);
-    const expected = new Set(displays.map(display => String(display.id)));
+    const enabledIds = displays.map(d => String(d.id));
+    // Audio owner = the primary display when it is enabled, else the first enabled display.
+    const audioOwnerId = enabledIds.includes(primaryId) ? primaryId : (enabledIds[0] || null);
+    const expected = new Set(enabledIds);
     for (const [id, entry] of this.windows) {
-      const shouldOwnAudio = id === primaryId;
+      const shouldOwnAudio = id === audioOwnerId;
       if (!expected.has(id) || entry.audioOwner !== shouldOwnAudio) {
         this.closeEntry(entry);
         this.windows.delete(id);
@@ -72,7 +76,7 @@ class WallpaperManager {
       const id = String(display.id);
       let entry = this.windows.get(id);
       if (!entry) {
-        entry = this.createEntry(display, id === primaryId);
+        entry = this.createEntry(display, id === audioOwnerId);
         this.windows.set(id, entry);
       } else {
         entry.display = display;
@@ -218,6 +222,12 @@ class WallpaperManager {
   setUserMuted(muted) {
     this.userMuted = !!muted;
     this.applyAll();
+  }
+
+  setDisplayEnabled(id, on) {
+    id = String(id);
+    if (on) this.disabledDisplays.delete(id); else this.disabledDisplays.add(id);
+    if (this.enabled) this.reconcile();
   }
 
   closeEntry(entry) {
