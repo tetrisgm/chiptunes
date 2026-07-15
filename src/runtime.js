@@ -1,7 +1,7 @@
 // AUTO-SPLIT from index.html — classic script, shares global scope (load order matters).
 // Scene loop, home/routes, watch mode, input wiring (must load LAST).
 const _RRR_DESKTOP_MODE=(function(){ try{ return new URLSearchParams(location.search||'').get('mode')||''; }catch(e){ return ''; } })();
-const _WALLPAPER_MODE=_RRR_DESKTOP_MODE==='wallpaper';
+const _WALLPAPER_MODE=_RRR_DESKTOP_MODE==='wallpaper' && !!(window.RRRNative && window.RRRNative.isDesktop);   // Electron-only; a bare ?mode=wallpaper on the web must NOT strip the UI
 const _WALLPAPER_AUDIO=(function(){ try{ return new URLSearchParams(location.search||'').get('audio')!=='0'; }catch(e){ return true; } })();
 // ----- GAME REGISTRY: derived from window.CT_GAMES. The inline fallback pack(s) register at parse time;
 //  the rest arrive through Packs.init() / Packs.onChange (runtime-loaded game packs). No hardcoded roster. -----
@@ -608,10 +608,16 @@ function _applyWallpaperPerformance(state){
   }
   if(_wallpaperPerformancePaused){
     _stopFrameLoop();
+    // Actually SUSPEND the audio DSP (worklet + AudioContext) rather than only muting output, so a
+    // covered/asleep wallpaper stops computing audio too. Only the audio-owner window runs a graph.
+    if(_WALLPAPER_AUDIO){ try{ if(Audio&&Audio.setPlaying) Audio.setPlaying(false); }catch(e){} }
   } else {
     lastFrame=_nowMs();
     _scheduleFrameLoop();
-    if(wasPaused){ try{ if(Audio&&Audio.resume) Audio.resume(false); }catch(e){} }
+    if(wasPaused){
+      if(_WALLPAPER_AUDIO){ try{ if(Audio&&Audio.setPlaying) Audio.setPlaying(true); }catch(e){} }
+      try{ if(Audio&&Audio.resume) Audio.resume(false); }catch(e){}
+    }
   }
 }
 if(_WALLPAPER_MODE && window.RRRNative && window.RRRNative.onWallpaperPerformance){
@@ -2485,7 +2491,7 @@ function enterWatchMode(opts){
   opts=opts||{};
   _watchReturnState=opts.resumeMusic ? _captureWatchReturnState() : null;
   _watchOnly=true; _watchMicActive=false; _station='watch'; _nowSource='watch';
-  _watchAnchorMs=_nowMs();                                   // anchor the 112 BPM wall-clock grid at entry
+  _watchAnchorMs=_WALLPAPER_MODE ? (_nowMs()-Date.now()) : _nowMs();   // wallpaper: shared wall-clock epoch so every display's beat grid is in phase (else per-entry anchor)
   _stopMicStream();
   _stopAudiblePlaybackForWatch();
   if(!opts.noRoute && typeof history!=='undefined' && history.replaceState && (location.pathname||'/')!=='/watch'){

@@ -18,6 +18,14 @@ id screens_wake_observer = nil;
 id low_power_observer = nil;
 bool screens_sleeping = false;
 
+std::unique_ptr<Napi::ThreadSafeFunction> occlusion_callback;
+id occlusion_observer = nil;
+
+struct OcclusionEvent {
+  long window_number;
+  bool visible;
+};
+
 NSView* ViewFromHandle(const Napi::Value& value) {
   if (!value.IsBuffer()) return nil;
   Napi::Buffer<uint8_t> buffer = value.As<Napi::Buffer<uint8_t>>();
@@ -181,6 +189,76 @@ Napi::Value StartPowerMonitor(const Napi::CallbackInfo& info) {
   return PowerStateObject(env, CurrentPowerState());
 }
 
+Napi::Object OcclusionEventObject(Napi::Env env, const OcclusionEvent& event) {
+  Napi::Object result = Napi::Object::New(env);
+  result.Set("windowNumber", Napi::Number::New(env, static_cast<double>(event.window_number)));
+  result.Set("visible", Napi::Boolean::New(env, event.visible));
+  return result;
+}
+
+void EmitOcclusion(long window_number, bool visible) {
+  if (!occlusion_callback) return;
+  OcclusionEvent* event = new OcclusionEvent{window_number, visible};
+  napi_status status = occlusion_callback->NonBlockingCall(
+    event,
+    [](Napi::Env env, Napi::Function callback, OcclusionEvent* value) {
+      callback.Call({OcclusionEventObject(env, *value)});
+      delete value;
+    }
+  );
+  if (status != napi_ok) delete event;
+}
+
+void RemoveOcclusionObserver() {
+  if (occlusion_observer) {
+    [[NSNotificationCenter defaultCenter] removeObserver:occlusion_observer];
+    occlusion_observer = nil;
+  }
+}
+
+// Observe NSWindow occlusion for ALL of this app's windows (object:nil); the JS side maps the
+// windowNumber back to a wallpaper window and ignores any it doesn't own. macOS does NOT auto-throttle
+// WebGL windows on occlusion, so this is how the render loop learns it is fully covered.
+Napi::Value StartOcclusionMonitor(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 1 || !info[0].IsFunction()) {
+    Napi::TypeError::New(env, "Expected an occlusion-state callback").ThrowAsJavaScriptException();
+    return env.Undefined();
+  }
+
+  RemoveOcclusionObserver();
+  if (occlusion_callback) {
+    occlusion_callback->Release();
+    occlusion_callback.reset();
+  }
+  occlusion_callback = std::make_unique<Napi::ThreadSafeFunction>(
+    Napi::ThreadSafeFunction::New(env, info[0].As<Napi::Function>(), "RRR macOS occlusion state", 0, 1)
+  );
+
+  occlusion_observer = [[NSNotificationCenter defaultCenter]
+    addObserverForName:NSWindowDidChangeOcclusionStateNotification
+    object:nil
+    queue:nil
+    usingBlock:^(NSNotification* notification) {
+      id object = notification.object;
+      if (![object isKindOfClass:[NSWindow class]]) return;
+      NSWindow* window = (NSWindow*)object;
+      bool visible = (window.occlusionState & NSWindowOcclusionStateVisible) != 0;
+      EmitOcclusion(static_cast<long>(window.windowNumber), visible);
+    }];
+
+  return env.Undefined();
+}
+
+Napi::Value StopOcclusionMonitor(const Napi::CallbackInfo& info) {
+  RemoveOcclusionObserver();
+  if (occlusion_callback) {
+    occlusion_callback->Release();
+    occlusion_callback.reset();
+  }
+  return info.Env().Undefined();
+}
+
 Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("attachWindow", Napi::Function::New(env, AttachWindow));
   exports.Set("getWindowInfo", Napi::Function::New(env, WindowInfo));
@@ -188,6 +266,8 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("getPowerState", Napi::Function::New(env, GetPowerState));
   exports.Set("startPowerMonitor", Napi::Function::New(env, StartPowerMonitor));
   exports.Set("stopPowerMonitor", Napi::Function::New(env, StopPowerMonitor));
+  exports.Set("startOcclusionMonitor", Napi::Function::New(env, StartOcclusionMonitor));
+  exports.Set("stopOcclusionMonitor", Napi::Function::New(env, StopOcclusionMonitor));
   return exports;
 }
 

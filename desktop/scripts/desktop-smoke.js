@@ -82,6 +82,34 @@ function testWallpaperManager() {
   assert.equal(manager.windows.size, 0);
 }
 
+function testOcclusion() {
+  FakeWindow.instances = [];
+  const a = display(1, 0, 1440), b = display(2, 1440, 1920);
+  const screen = new FakeScreen([a, b], 1);
+  const nativeBridge = { attachWindow: () => ({ level: -2147483623, ignoresMouseEvents: true }) };
+  const manager = new WallpaperManager({
+    BrowserWindow: FakeWindow, screen, nativeBridge, dist: '/web', preload: '/preload.js',
+    initialPerformance: { paused: false, fpsCap: 30, reason: 'normal' },
+  });
+  manager.start();
+  // the real bridge supplies windowNumber via attachWindow; stamp deterministic ones for the fake.
+  let n = 100;
+  for (const entry of manager.windows.values()) entry.attached = { windowNumber: n++ };
+  const nums = [...manager.windows.values()].map(entry => entry.attached.windowNumber);
+  const owner = [...manager.windows.values()].find(entry => entry.audioOwner);
+
+  manager.onOcclusion({ windowNumber: nums[0], visible: false });
+  assert.equal(manager.occluded, false);                       // one covered display is not full occlusion
+  nums.forEach(num => manager.onOcclusion({ windowNumber: num, visible: false }));
+  assert.equal(manager.occluded, true);                        // every display covered -> occluded
+  assert.equal(owner.window.webContents.muted, true);          // occluded wallpaper mutes audio
+  assert.equal(owner.window.webContents.messages.at(-1)[1].paused, true);   // ...and pauses the render loop
+
+  manager.onOcclusion({ windowNumber: nums[0], visible: true });
+  assert.equal(manager.occluded, false);                       // a visible display lifts occlusion
+  manager.stop();
+}
+
 function testPowerController() {
   const monitor = new FakePowerMonitor();
   let nativeCallback = null;
@@ -96,7 +124,11 @@ function testPowerController() {
   controller.start();
   assert.equal(changes.at(-1).fpsCap, 60);
   monitor.emit('on-battery');
-  assert.equal(changes.at(-1).fpsCap, 15);
+  assert.equal(changes.at(-1).fpsCap, 60);            // owner default: battery keeps visuals smooth...
+  assert.equal(changes.at(-1).audioMuted, true);      // ...and mutes audio instead
+  controller.setPowerSaver(true);
+  assert.equal(changes.at(-1).fpsCap, 15);            // the lower-FPS saver is opt-in
+  controller.setPowerSaver(false);
   nativeCallback({ lowPowerMode: true, screensSleeping: false });
   assert.equal(changes.at(-1).fpsCap, 12);
   nativeCallback({ lowPowerMode: true, screensSleeping: true });
@@ -110,11 +142,12 @@ function testSettings() {
   try {
     const store = new SettingsStore(directory);
     store.update({ wallpaperEnabled: true, fpsCap: 60 });
-    assert.deepEqual(new SettingsStore(directory).value, { wallpaperEnabled: true, fpsCap: 60 });
+    assert.deepEqual(new SettingsStore(directory).value, { wallpaperEnabled: true, fpsCap: 60, powerSaver: false });
   } finally { fs.rmSync(directory, { recursive: true, force: true }); }
 }
 
 testWallpaperManager();
+testOcclusion();
 testPowerController();
 testSettings();
-console.log('desktop smoke: per-display lifecycle, audio ownership, power policy, and settings passed');
+console.log('desktop smoke: per-display lifecycle, audio ownership, occlusion pause, power policy, and settings passed');

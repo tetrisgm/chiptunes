@@ -6,6 +6,7 @@ const path = require('path');
 const DEFAULTS = Object.freeze({
   wallpaperEnabled: false,
   fpsCap: 30,
+  powerSaver: false,
 });
 
 function normalize(input) {
@@ -13,6 +14,7 @@ function normalize(input) {
   return {
     wallpaperEnabled: !!(input && input.wallpaperEnabled),
     fpsCap: [15, 30, 60].includes(fps) ? fps : DEFAULTS.fpsCap,
+    powerSaver: !!(input && input.powerSaver),
   };
 }
 

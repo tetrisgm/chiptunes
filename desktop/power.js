@@ -6,6 +6,7 @@ class WallpaperPowerController {
     this.nativeBridge = nativeBridge;
     this.baseFpsCap = fpsCap;
     this.onChange = onChange;
+    this.powerSaver = false;   // opt-in: drop FPS on battery. Off by default (owner: keep visuals smooth).
     this.listeners = [];
     this.state = {
       onBattery: false,
@@ -55,10 +56,20 @@ class WallpaperPowerController {
     this.recompute();
   }
 
+  setPowerSaver(on) {
+    this.powerSaver = !!on;
+    this.recompute();
+  }
+
   recompute() {
     let fpsCap = this.baseFpsCap;
     const reasons = [];
-    if (this.state.onBattery) { fpsCap = Math.min(fpsCap, 15); reasons.push('battery'); }
+    // Owner's decided default: on battery keep visuals SMOOTH and only MUTE audio. The lower-FPS
+    // power-saver is OPT-IN (this.powerSaver), not automatic.
+    if (this.state.onBattery) {
+      reasons.push('battery');
+      if (this.powerSaver) { fpsCap = Math.min(fpsCap, 15); reasons.push('battery-saver'); }
+    }
     if (this.state.lowPowerMode) { fpsCap = Math.min(fpsCap, 12); reasons.push('low-power-mode'); }
     if (this.state.thermalState === 'fair') { fpsCap = Math.min(fpsCap, 24); reasons.push('thermal-fair'); }
     if (this.state.thermalState === 'serious') { fpsCap = Math.min(fpsCap, 15); reasons.push('thermal-serious'); }
@@ -66,7 +77,10 @@ class WallpaperPowerController {
     if (this.state.suspended) reasons.push('system-suspend');
     if (this.state.screensSleeping) reasons.push('display-sleep');
     if (this.state.thermalState === 'critical') reasons.push('thermal-critical');
-    const next = { paused, fpsCap, reason: reasons.join(',') || 'normal', ...this.state };
+    // Audio is muted when paused OR on battery (the owner's "mute on battery" default). Visuals are
+    // unaffected by the mute — only fpsCap (above) governs them.
+    const audioMuted = paused || this.state.onBattery;
+    const next = { paused, fpsCap, audioMuted, powerSaver: this.powerSaver, reason: reasons.join(',') || 'normal', ...this.state };
     if (JSON.stringify(next) === JSON.stringify(this.performance)) return;
     this.performance = next;
     this.onChange(next);

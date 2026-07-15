@@ -1,5 +1,7 @@
 'use strict';
 
+const SECONDARY_FPS_CAP = 20;   // audio-less secondary displays run cooler than the focal one
+
 class WallpaperManager {
   constructor({ BrowserWindow, screen, nativeBridge, dist, preload, initialPerformance }) {
     this.BrowserWindow = BrowserWindow;
@@ -9,6 +11,8 @@ class WallpaperManager {
     this.preload = preload;
     this.performance = initialPerformance || { paused: false, fpsCap: 30, reason: 'normal' };
     this.windows = new Map();
+    this.occluded = false;          // true when EVERY wallpaper window is fully covered (e.g. a fullscreen app)
+    this._appliedPaused = false;
     this.enabled = false;
     this.reconcileTimer = null;
     this.onDisplayChange = () => this.scheduleReconcile();
@@ -20,12 +24,20 @@ class WallpaperManager {
     this.screen.on('display-added', this.onDisplayChange);
     this.screen.on('display-removed', this.onDisplayChange);
     this.screen.on('display-metrics-changed', this.onDisplayChange);
+    // WebGL windows get NO automatic occlusion throttling from macOS, so we watch it ourselves and
+    // pause the render loop + audio when the wallpaper is fully covered (e.g. a fullscreen app).
+    if (this.nativeBridge.startOcclusionMonitor) {
+      try { this.nativeBridge.startOcclusionMonitor(event => this.onOcclusion(event)); } catch (error) {}
+    }
     this.reconcile();
   }
 
   stop() {
     if (!this.enabled) return;
     this.enabled = false;
+    try { if (this.nativeBridge.stopOcclusionMonitor) this.nativeBridge.stopOcclusionMonitor(); } catch (error) {}
+    this.occluded = false;
+    this._appliedPaused = false;
     this.screen.removeListener('display-added', this.onDisplayChange);
     this.screen.removeListener('display-removed', this.onDisplayChange);
     this.screen.removeListener('display-metrics-changed', this.onDisplayChange);
@@ -94,7 +106,7 @@ class WallpaperManager {
         autoplayPolicy: 'no-user-gesture-required',
       },
     });
-    const entry = { window, display, audioOwner, attached: null };
+    const entry = { window, display, audioOwner, attached: null, visible: true };
     window.setIgnoreMouseEvents(true);
     this.attach(entry);
     window.webContents.on('did-finish-load', () => {
@@ -134,17 +146,47 @@ class WallpaperManager {
   }
 
   setPerformance(performance) {
-    const wasPaused = !!this.performance.paused;
     this.performance = performance;
-    for (const entry of this.windows.values()) this.applyPerformanceTo(entry);
-    if (wasPaused && !performance.paused) this.reassertAll();
+    this.applyAll();
   }
 
-  applyPerformanceTo(entry) {
+  // Fold live occlusion into the power controller's performance: when every window is covered we
+  // force paused + audioMuted so the render loop and audio actually stop (macOS won't do it for us).
+  effectivePerformance() {
+    const base = this.performance || {};
+    if (!this.occluded) return base;
+    return { ...base, paused: true, audioMuted: true, reason: (base.reason ? base.reason + ',' : '') + 'occluded' };
+  }
+
+  onOcclusion(event) {
+    if (!event || !this.enabled) return;
+    const number = Number(event.windowNumber);
+    for (const entry of this.windows.values()) {
+      if (entry.attached && Number(entry.attached.windowNumber) === number) { entry.visible = !!event.visible; break; }
+    }
+    const windows = [...this.windows.values()];
+    const occluded = windows.length > 0 && windows.every(entry => entry.visible === false);
+    if (occluded === this.occluded) return;
+    this.occluded = occluded;
+    this.applyAll();
+  }
+
+  applyAll() {
+    const eff = this.effectivePerformance();
+    for (const entry of this.windows.values()) this.applyPerformanceTo(entry, eff);
+    if (this._appliedPaused && !eff.paused) this.reassertAll();
+    this._appliedPaused = !!eff.paused;
+  }
+
+  applyPerformanceTo(entry, eff) {
     if (entry.window.isDestroyed()) return;
-    entry.window.webContents.setAudioMuted(!entry.audioOwner || !!this.performance.paused);
+    eff = eff || this.effectivePerformance();
+    entry.window.webContents.setAudioMuted(!entry.audioOwner || !!eff.audioMuted || !!eff.paused);
+    // Each display is its own renderer (no shared-surface mirroring across Electron windows), so cap
+    // the audio-less secondary displays lower — they're ambient visuals, not the focal screen.
+    const perf = entry.audioOwner ? eff : { ...eff, fpsCap: Math.min(Number(eff.fpsCap) || 30, SECONDARY_FPS_CAP) };
     if (!entry.window.webContents.isLoading()) {
-      entry.window.webContents.send('rrr:wallpaper-performance', this.performance);
+      entry.window.webContents.send('rrr:wallpaper-performance', perf);
     }
   }
 
@@ -162,6 +204,7 @@ class WallpaperManager {
         native: entry.attached,
       })),
       performance: this.performance,
+      occluded: this.occluded,
     };
   }
 }

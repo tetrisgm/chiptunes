@@ -8,7 +8,7 @@ function trayImage(nativeImage) {
   return image;
 }
 
-function createWallpaperTray({ Tray, Menu, nativeImage, getState, onToggle, onOpen, onFps, onLogin, onQuit }) {
+function createWallpaperTray({ Tray, Menu, nativeImage, getState, onToggle, onOpen, onFps, onPowerSaver, onLogin, onQuit }) {
   const tray = new Tray(trayImage(nativeImage), '5bc40445-2e1f-4c0d-b99c-e49189e7eaad');
   tray.setToolTip('Retro Rave Radio');
 
@@ -22,6 +22,8 @@ function createWallpaperTray({ Tray, Menu, nativeImage, getState, onToggle, onOp
       { label: 'Wallpaper FPS', submenu: [15, 30, 60].map(fps => ({
         label: String(fps), type: 'radio', checked: state.fpsCap === fps, click: () => onFps(fps),
       })) },
+      { label: 'Battery Saver (lower FPS on battery)', type: 'checkbox', checked: !!state.powerSaver,
+        click: item => onPowerSaver(item.checked) },
       { label: 'Launch at Login', type: 'checkbox', checked: state.openAtLogin,
         click: item => onLogin(item.checked) },
       { type: 'separator' },

@@ -16,7 +16,9 @@ Implementation home: `desktop/` (existing Electron app reusing `dist/`).
 ## 1. Portal as our comparable — match / beat
 
 **Match (table stakes):** menu-bar control (station/sound/motion-freeze); behind-icons live
-wallpaper + hide-desktop-icons; multi-display **render-once, mirror to all** (3 monitors ≠ 3× cost);
+wallpaper + hide-desktop-icons; multi-display **one renderer per display** (separate Electron windows
+can't share a GL surface, so it is NOT a free "render-once, mirror" — audio-less secondaries are
+FPS-capped lower to hold down cost);
 auto-pause when a display is fully obscured by a fullscreen app; one-tap "freeze to still"; **app
 volume independent of macOS system volume**; "start on launch"; clean OS-wallpaper restore on
 pause/quit.
@@ -173,7 +175,8 @@ so it never ambushes a meeting. *(This overrides the research's mute-by-default 
    collectionBehavior on the `getNativeWindowHandle()` NSView; prove a **visible, behind-icons,
    all-Spaces** window on the owner's *actual* macOS. Kills "is it even visible" + handle-casting.
 2. **Occlusion + battery gating** — `occlusionState` → renderer rAF/audio suspend; `powerMonitor`.
-3. **Multi-monitor** — one window per `NSScreen`, render-once/mirror, reposition on display events.
+3. **Multi-monitor** — one window per `NSScreen` (independent renderer per display; audio-less
+   secondaries FPS-capped), reposition on display events.
 4. **Audio pane + audio-on-by-default + persistent menu-bar toggle + duck/mute-on-battery.**
 5. **Menu-bar controls + click-through/Play-Mode toggle + hotkey + launch-at-login + wallpaper-restore.**
 6. **Station/scene picker absorbing the existing Steam Workshop packs.**

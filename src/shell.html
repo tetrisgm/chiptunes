@@ -31,7 +31,10 @@
 (function(){
   var shellMode='';
   try{ shellMode=new URLSearchParams(location.search||'').get('mode')||''; }catch(e0){}
-  if(shellMode==='wallpaper'){
+  // wallpaper mode is an ELECTRON-only presentation (all chrome + the cursor are hidden). Gate it on
+  // the native bridge so a bare ?mode=wallpaper on the public web can't strip the UI for a visitor.
+  var isDesktopHost=!!(window.RRRNative && window.RRRNative.isDesktop);
+  if(shellMode==='wallpaper' && isDesktopHost){
     document.documentElement.classList.add('wallpaper-mode','boot-player-route');
     window.__RRR_WALLPAPER_MODE=true;
     window.__RRR_BOOT_PLAYER_ROUTE=true;

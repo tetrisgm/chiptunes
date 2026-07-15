@@ -167,6 +167,12 @@ function setFpsCap(fpsCap) {
   refreshTray();
 }
 
+function setPowerSaver(powerSaver) {
+  settings.update({ powerSaver: !!powerSaver });
+  if (power) power.setPowerSaver(settings.value.powerSaver);
+  refreshTray();
+}
+
 function setOpenAtLogin(openAtLogin) {
   app.setLoginItemSettings({ openAtLogin: !!openAtLogin, openAsHidden: !!openAtLogin });
   refreshTray();
@@ -183,6 +189,7 @@ function desktopState() {
     wallpaperAvailable: process.platform === 'darwin' && !!nativeBridge,
     wallpaperEnabled: !!(wallpaper && wallpaper.enabled),
     fpsCap: settings ? settings.value.fpsCap : 30,
+    powerSaver: settings ? settings.value.powerSaver : false,
     openAtLogin: !!login.openAtLogin,
     performance: wallpaperPerformance,
     wallpaper: wallpaper ? wallpaper.state() : null,
@@ -219,6 +226,7 @@ function setupDesktop() {
       },
     });
     power.start();
+    power.setPowerSaver(settings.value.powerSaver);
     if (settings.value.wallpaperEnabled) wallpaper.start();
   }
 
@@ -230,6 +238,7 @@ function setupDesktop() {
     onToggle: setWallpaperEnabled,
     onOpen: createWindow,
     onFps: setFpsCap,
+    onPowerSaver: setPowerSaver,
     onLogin: setOpenAtLogin,
     onQuit: quitApp,
   });
