@@ -8,6 +8,7 @@
 const { spawn } = require('child_process');
 const http = require('http');
 const path = require('path');
+const fs = require('fs');
 
 const ROOT = path.join(__dirname, '..');
 const Live = require(path.join(ROOT, 'src', 'live.js'));
@@ -22,6 +23,23 @@ const SR = 48000;
 const BITRATE = '192k';
 const ICY_METAINT = 16000;
 const BURST_BYTES = 256 * 1024;         // ~10s @192k: instant start for new clients
+
+// STATION metadata — this is how the stream DESCRIBES ITSELF so any radio app (Roon, VLC,
+// hardware) that opens the URL auto-discovers name/genre/site/bitrate/logo/now-playing without
+// the listener typing anything. Exposed three ways: ICY response headers, an Icecast-compatible
+// /status-json.xsl, and a Shoutcast-legacy /7.html. (The richer directory-only fields — tags,
+// keywords, explicit/ad-free badges — still require a real directory listing; see the README.)
+const STATION = {
+  name: 'Retro Rave Radio',
+  description: 'Endless generative chiptune that never plays the same track twice - a shared broadcast, in sync for everyone tuned in.',
+  genre: 'Chiptune Electronic Generative Chillwave',
+  url: 'https://radio.ramine.net',
+  bitrateKbps: 192,
+  logoUrl: 'https://stream.ramine.net/logo.png',
+  contentType: 'audio/mpeg',
+};
+let LOGO = null;   // assets/station-icon.png, loaded at startup, served at /logo.png
+try { LOGO = fs.readFileSync(path.join(ROOT, 'assets', 'station-icon.png')); } catch (e) { /* served 404 if absent */ }
 
 const now = () => Date.now();            // wall clock (Date.now allowed here — this is a daemon, not a workflow script)
 function log(...a) { process.stdout.write('[bcast ' + new Date().toISOString() + '] ' + a.join(' ') + '\n'); }
@@ -95,15 +113,45 @@ function broadcast(chunk) {
   for (const c of clients) { try { writeAudio(c, chunk); } catch (e) { /* drop; 'close' cleans up */ } }
 }
 
+// Icecast-compatible status doc — directory scrapers + apps that speak the Icecast API read this
+// to auto-fill the whole station (name, description, genre, url, bitrate, current track, listeners).
+function statusJson() {
+  return JSON.stringify({ icestats: {
+    server_id: 'Retro Rave Radio', host: 'stream.ramine.net',
+    source: {
+      listenurl: 'https://stream.ramine.net/', server_name: STATION.name,
+      server_description: STATION.description, server_type: STATION.contentType,
+      server_url: STATION.url, genre: STATION.genre, bitrate: STATION.bitrateKbps,
+      samplerate: SR, channels: 2, stream_start_iso8601: null,
+      title: curTitle, listeners: clients.size, 'audio-info': `bitrate=${STATION.bitrateKbps};samplerate=${SR};channels=2`,
+    },
+  } });
+}
+
 const server = http.createServer((req, res) => {
   try {   // a malformed request must NEVER crash the daemon (headers are latin1-only, etc.)
     const url = new URL(req.url, 'http://127.0.0.1');
     if (url.pathname === '/healthz') { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ ok: true, clients: clients.size, title: curTitle })); return; }
-    if (url.pathname !== '/radio.mp3' && url.pathname !== '/') { res.writeHead(404); res.end('not found'); return; }
+    // self-describing endpoints (station logo + Icecast/Shoutcast status APIs)
+    if (url.pathname === '/logo.png' || url.pathname === '/favicon.ico') {
+      if (!LOGO) { res.writeHead(404); res.end(); return; }
+      res.writeHead(200, { 'content-type': 'image/png', 'cache-control': 'public, max-age=86400' }); res.end(LOGO); return;
+    }
+    if (url.pathname === '/status-json.xsl') {
+      res.writeHead(200, { 'content-type': 'application/json', 'access-control-allow-origin': '*', 'cache-control': 'no-store' }); res.end(statusJson()); return;
+    }
+    if (url.pathname === '/7.html') {   // Shoutcast v1 legacy stats line: listeners,status,peak,max,unique,bitrate,song
+      res.writeHead(200, { 'content-type': 'text/html' });
+      res.end(`<html><body>${clients.size},1,${clients.size},1000,${clients.size},${STATION.bitrateKbps},${String(curTitle).replace(/[<>]/g, '')}</body></html>`); return;
+    }
+    if (url.pathname !== '/radio.mp3' && url.pathname !== '/' && url.pathname !== '/;' && url.pathname !== '/stream') { res.writeHead(404); res.end('not found'); return; }
     const wantMeta = String(req.headers['icy-metadata'] || '') === '1';
-    const headers = {   // HTTP header values must be ASCII/latin1 — no em-dashes or other unicode
-      'content-type': 'audio/mpeg', 'cache-control': 'no-cache, no-store', 'connection': 'close',
-      'icy-name': 'Retro Rave Radio', 'icy-description': 'Endless generative chiptune - the live broadcast', 'icy-genre': 'Chiptune',
+    const headers = {   // HTTP header values must be ASCII/latin1 — no em-dashes or other unicode.
+      // ICY headers = how a stream self-describes to any radio app that opens the URL.
+      'content-type': STATION.contentType, 'cache-control': 'no-cache, no-store', 'connection': 'close',
+      'icy-name': STATION.name, 'icy-description': STATION.description, 'icy-genre': STATION.genre,
+      'icy-url': STATION.url, 'icy-br': String(STATION.bitrateKbps), 'icy-sr': String(SR), 'icy-pub': '1',
+      'icy-logo': STATION.logoUrl, 'ice-audio-info': `bitrate=${STATION.bitrateKbps};samplerate=${SR};channels=2`,
     };
     if (wantMeta) headers['icy-metaint'] = String(ICY_METAINT);
     res.writeHead(200, headers);
