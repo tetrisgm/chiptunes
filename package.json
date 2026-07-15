@@ -4,6 +4,7 @@
     "postbuild": "node scripts/health/report-build.mjs",
     "deploy": "node build.js && npx wrangler pages deploy dist --project-name retro-rave-radio --branch main --commit-dirty=true",
     "health": "node scripts/health/run.js",
+    "test:render-parity": "node build.js && node scripts/verify-broadcast-render-parity.js",
     "smoke": "node scripts/smoke-generated-seeds.js && node scripts/smoke-games.js",
     "validate:games": "node scripts/audit-music-driven.js",
     "validate:pack": "node scripts/validate-game-pack.js",
@@ -12,6 +13,9 @@
     "audition:render": "node build.js && node scripts/audition-generated-music.js --render",
     "scaffold:game": "node scripts/scaffold-game-pack.js",
     "pack:tools": "node scripts/pack-tools.js"
+  },
+  "dependencies": {
+    "node-web-audio-api": "2.0.0"
   },
   "devDependencies": {
     "@stack/health-kit": "file:../stack/health-kit",

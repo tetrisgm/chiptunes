@@ -43,5 +43,7 @@ module.exports = [
   // ---- eval-with-metrics: render real audio, score vs thresholds ----
   check('live.seek-fidelity', 'eval', 'verify-live-seek.js', ['5'], { timeoutMs: 300000,
     parse: (o) => { const c = num(o, /corr>=([\d.]+)/); return c != null ? { minCorrGate: c } : {}; } }),
+  check('broadcast.node-render-parity', 'eval', 'verify-broadcast-render-parity.js', ['--tokens', '10'], { timeoutMs: 300000,
+    parse: (o) => { const c = num(o, /min corr ([\d.]+)/); return c != null ? { minCorrelation: c } : {}; } }),
   check('audition.music-metrics', 'eval', 'audition-generated-music.js', ['--seeds', '40'], { timeoutMs: 120000 }),
 ];

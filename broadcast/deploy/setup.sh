@@ -4,22 +4,28 @@
 #
 #   sudo bash broadcast/deploy/setup.sh
 #
-# Installs ffmpeg + Node + Playwright Chromium, builds dist/, and (re)starts the two systemd
-# services. The YouTube service stays inert until you drop a stream key in the env file (below).
+# Installs ffmpeg + Node 22, builds dist/, and (re)starts the two systemd services. Playwright
+# Chromium remains installed only for the YouTube video leg; rrr-stream renders audio in Node.
 set -euo pipefail
 
 REPO_DIR="${REPO_DIR:-/opt/retro-rave-radio}"
 SERVICE_USER="${SERVICE_USER:-rrr}"
 ENV_FILE="/etc/retro-rave-radio.env"
 
-echo "==> apt deps (ffmpeg with libx264/libmp3lame/aac, git, curl)"
+echo "==> apt deps (ffmpeg with libx264/libmp3lame/aac, Node audio runtime, git, curl)"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
-apt-get install -y ffmpeg git curl ca-certificates
+apt-get install -y ffmpeg git curl ca-certificates libjack-jackd2-0
+if apt-cache show libasound2t64 >/dev/null 2>&1; then
+  apt-get install -y libasound2t64       # Ubuntu 24.04+
+else
+  apt-get install -y libasound2          # Ubuntu 22.04
+fi
 
-if ! command -v node >/dev/null 2>&1 || [ "$(node -v | cut -c2 | tr -d .)" -lt 2 ]; then
-  echo "==> Node 20 LTS"
-  curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+NODE_MAJOR="$(node -p "process.versions.node.split('.')[0]" 2>/dev/null || echo 0)"
+if [ "${NODE_MAJOR}" -lt 22 ]; then
+  echo "==> Node 22 LTS"
+  curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
   apt-get install -y nodejs
 fi
 
@@ -35,7 +41,7 @@ fi
 git -C "${REPO_DIR}" pull --ff-only || echo "    (pull skipped — detached/local checkout)"
 chown -R "${SERVICE_USER}:${SERVICE_USER}" "${REPO_DIR}"
 
-echo "==> npm deps + Playwright Chromium (ARM64) + system deps"
+echo "==> npm deps + Playwright Chromium for the optional YouTube leg"
 sudo -u "${SERVICE_USER}" bash -lc "cd ${REPO_DIR} && npm ci || npm install"
 # Playwright needs its browser + OS libs; --with-deps pulls the apt packages Chromium needs headless.
 sudo -u "${SERVICE_USER}" bash -lc "cd ${REPO_DIR} && npx playwright install chromium"
@@ -43,6 +49,9 @@ npx --prefix "${REPO_DIR}" playwright install-deps chromium || sudo -u "${SERVIC
 
 echo "==> build dist/"
 sudo -u "${SERVICE_USER}" bash -lc "cd ${REPO_DIR} && node build.js"
+
+echo "==> pure-Node audio renderer preflight"
+sudo -u "${SERVICE_USER}" bash -lc "cd ${REPO_DIR} && node scripts/smoke-broadcast-renderer.js"
 
 echo "==> env file ${ENV_FILE} (edit to add YT_STREAM_KEY for the YouTube leg)"
 if [ ! -f "${ENV_FILE}" ]; then
@@ -61,9 +70,15 @@ echo "==> systemd units"
 sed "s#@REPO@#${REPO_DIR}#g; s#@USER@#${SERVICE_USER}#g" "${REPO_DIR}/broadcast/deploy/rrr-stream.service" > /etc/systemd/system/rrr-stream.service
 sed "s#@REPO@#${REPO_DIR}#g; s#@USER@#${SERVICE_USER}#g" "${REPO_DIR}/broadcast/deploy/rrr-youtube.service" > /etc/systemd/system/rrr-youtube.service
 systemctl daemon-reload
-systemctl enable --now rrr-stream
+systemctl enable rrr-stream
+systemctl restart rrr-stream
 # youtube leg only starts if a key is present
-if grep -q '^YT_STREAM_KEY=.\+' "${ENV_FILE}"; then systemctl enable --now rrr-youtube; else echo "    (rrr-youtube left stopped — no YT_STREAM_KEY yet)"; fi
+if grep -q '^YT_STREAM_KEY=.\+' "${ENV_FILE}"; then
+  systemctl enable rrr-youtube
+  systemctl restart rrr-youtube
+else
+  echo "    (rrr-youtube left stopped — no YT_STREAM_KEY yet)"
+fi
 
 echo "==> done. MP3 stream on 127.0.0.1:${RRR_STREAM_PORT:-1340}/radio.mp3"
 echo "    Expose it as stream.ramine.net with cloudflared (see broadcast/deploy/README.md)."

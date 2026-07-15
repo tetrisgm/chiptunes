@@ -5,7 +5,7 @@ radios, via `stream.ramine.net`) and a **YouTube RTMP video feed** (game visuals
 completely independent of the website — the site on Cloudflare Pages never depends on this box.
 
 Two long-running services (systemd):
-- **`rrr-stream`** — `broadcast/broadcaster.js`: headless render farm → ffmpeg → MP3 on `127.0.0.1:1340/radio.mp3`
+- **`rrr-stream`** — `broadcast/broadcaster.js`: pure-Node offline render → ffmpeg → MP3 on `127.0.0.1:1340/radio.mp3`
 - **`rrr-youtube`** — `broadcast/video.js`: headless `/radio` page → H.264/AAC → YouTube RTMP (inert until you set a stream key)
 
 Both follow the SAME deterministic clock schedule, so Roon, browsers, and YouTube are all "on air"
@@ -30,11 +30,13 @@ The GitHub repo is **private**, so `git clone` on the box won't work (it prompts
 the working tree up with **rsync** from the dev machine instead (which is how it's actually deployed):
 ```bash
 # from the dev machine (~/dev/mikutap):
-ssh ubuntu@<ip> 'sudo mkdir -p /opt/retro-rave-radio && sudo chown ubuntu:ubuntu /opt/retro-rave-radio'
+ssh ubuntu@<ip> 'sudo mkdir -p /opt/retro-rave-radio /opt/stack/health-kit && sudo chown -R ubuntu:ubuntu /opt/retro-rave-radio /opt/stack'
 rsync -az --exclude node_modules --exclude dist ./ ubuntu@<ip>:/opt/retro-rave-radio/
+rsync -az --exclude node_modules ../stack/health-kit/ ubuntu@<ip>:/opt/stack/health-kit/
 ssh ubuntu@<ip> 'cd /opt/retro-rave-radio && git remote remove origin 2>/dev/null; sudo bash broadcast/deploy/setup.sh'
 ```
-`setup.sh` installs ffmpeg + Node + Playwright Chromium, builds `dist/`, and starts `rrr-stream`.
+`setup.sh` installs ffmpeg + Node 22 + the native ARM64 Web Audio runtime, builds `dist/`, and
+starts `rrr-stream`. It also installs Playwright Chromium for the separate YouTube video service.
 (It removes the origin remote so its `git pull` step safely no-ops on the private repo.)
 
 ### 3. Expose the MP3 stream as `stream.ramine.net` (cloudflared, $0, no open ports)
