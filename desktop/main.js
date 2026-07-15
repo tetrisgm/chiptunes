@@ -1,33 +1,52 @@
-// Retro Rave Radio — desktop app (Electron). PHASE 0-2 foundation: boots Steam, opens the RRR
-// web bundle (../dist) in a window, and bridges Steam WORKSHOP game packs into the renderer's
-// packs.js `workshop` source via a guarded RRRNative IPC. Wallpaper mode + the full settings panes
-// are the next phases (see desktop/PLAN.md). Built on the steam-kit client-web-app Electron pattern.
+// Retro Rave Radio desktop shell: normal Electron window + macOS animated wallpaper mode.
+// The renderer is always the shared ../dist bundle; native code only positions macOS windows at
+// the public desktop level and reports low-power/display-sleep state.
 'use strict';
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
+
+const { app, BrowserWindow, ipcMain, shell, screen, powerMonitor, Tray, Menu, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const fsp = fs.promises;
+const { SettingsStore } = require('./settings');
+const { WallpaperManager } = require('./wallpaper');
+const { WallpaperPowerController } = require('./power');
+const { createWallpaperTray } = require('./tray');
 
 const APP_ID = Number(process.env.RRR_STEAM_APPID || 480);   // 480 = Spacewar (dev; no partner account)
-const DIST = process.env.RRR_WEB_APP_DIST || path.join(__dirname, '..', 'dist');
+const DIST = process.env.RRR_WEB_APP_DIST || (app.isPackaged
+  ? path.join(process.resourcesPath, 'web')
+  : path.join(__dirname, '..', 'dist'));
+const PRELOAD = path.join(__dirname, 'preload.js');
+
+function hasWallpaperArg(argv = process.argv) {
+  return process.env.RRR_MODE === 'wallpaper' || argv.includes('--wallpaper');
+}
+
+function fpsArg(argv = process.argv) {
+  const arg = argv.find(value => /^--fps=/.test(value));
+  const fps = Number(process.env.RRR_WALLPAPER_FPS || (arg && arg.slice(6)));
+  return [15, 30, 60].includes(fps) ? fps : null;
+}
 
 // ---- Steam (best-effort; the app runs fine with no Steam client, just no identity/Workshop) ----
 let steam = null;
+let steamTimer = null;
 function bootSteam() {
   try {
     const steamworks = require('steamworks.js');
-    if (steamworks.restartAppIfNecessary(APP_ID)) { app.quit(); return false; }
+    // Spacewar is the local development fallback, not this app's shipping identity. Asking Steam
+    // to restart AppID 480 would launch Spacewar and make direct/notarized RRR builds exit at boot.
+    if (APP_ID !== 480 && steamworks.restartAppIfNecessary(APP_ID)) { app.quit(); return false; }
     steam = steamworks.init(APP_ID);
-    setInterval(() => { try { steamworks.runCallbacks(); } catch (e) {} }, 34);   // ~30Hz callback pump
+    steamTimer = setInterval(() => { try { steamworks.runCallbacks(); } catch (error) {} }, 34);
     console.log('[steam] init ok, appid', APP_ID);
-  } catch (e) { console.log('[steam] unavailable:', e && e.message); steam = null; }
+  } catch (error) { console.log('[steam] unavailable:', error && error.message); steam = null; }
   return true;
 }
 
 // ---- Workshop -> packs.js bridge -------------------------------------------------------------
 // listWorkshopDirs(): absolute install dirs of subscribed, installed Workshop items.
-// readPackFile(dir, rel): read a file within a Workshop pack dir — GUARDED: dir must be a current
-// subscribed install dir and rel must resolve inside it (no path traversal from the renderer).
+// readPackFile(dir, rel): GUARDED to a current subscribed install dir with no path traversal.
 function subscribedWorkshopDirs() {
   if (!steam || !steam.workshop) return [];
   try {
@@ -35,58 +54,214 @@ function subscribedWorkshopDirs() {
     const dirs = [];
     for (const id of ids) {
       try {
-        const st = steam.workshop.state ? steam.workshop.state(id) : null;   // installed?
+        if (steam.workshop.state) steam.workshop.state(id);   // retained as the installed-state probe
         const info = steam.workshop.installInfo ? steam.workshop.installInfo(id) : null;
         const folder = info && (info.folder || info.installPath);
         if (folder && fs.existsSync(folder)) dirs.push(path.resolve(folder));
-      } catch (e) {}
+      } catch (error) {}
     }
     return dirs;
-  } catch (e) { console.log('[workshop] list failed:', e && e.message); return []; }
+  } catch (error) { console.log('[workshop] list failed:', error && error.message); return []; }
 }
+
 function withinDir(dir, rel) {
   const base = path.resolve(dir);
   const full = path.resolve(base, rel);
   return (full === base || full.startsWith(base + path.sep)) ? full : null;
 }
+
 ipcMain.handle('rrr:workshopDirs', () => subscribedWorkshopDirs());
-ipcMain.handle('rrr:readPackFile', async (_ev, dir, rel) => {
+ipcMain.handle('rrr:readPackFile', async (_event, dir, rel) => {
   if (typeof dir !== 'string' || typeof rel !== 'string') return null;
-  if (!subscribedWorkshopDirs().some(d => path.resolve(d) === path.resolve(dir))) return null;   // only subscribed dirs
+  if (!subscribedWorkshopDirs().some(value => path.resolve(value) === path.resolve(dir))) return null;
   const full = withinDir(dir, rel);
   if (!full) return null;
-  try { const b = await fsp.readFile(full); return new Uint8Array(b.buffer, b.byteOffset, b.byteLength); }
-  catch (e) { return null; }
+  try {
+    const buffer = await fsp.readFile(full);
+    return new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+  } catch (error) { return null; }
 });
 ipcMain.handle('rrr:identity', () => {
   if (!steam || !steam.localplayer) return null;
-  try { return { steamId: String(steam.localplayer.getSteamId().steamId64 || steam.localplayer.getSteamId()), name: steam.localplayer.getName() }; }
-  catch (e) { return null; }
+  try {
+    return {
+      steamId: String(steam.localplayer.getSteamId().steamId64 || steam.localplayer.getSteamId()),
+      name: steam.localplayer.getName(),
+    };
+  } catch (error) { return null; }
 });
-ipcMain.handle('rrr:openWorkshop', () => {   // "get more games" -> the app's Steam Workshop page
+ipcMain.handle('rrr:openWorkshop', () => {
   const url = 'steam://url/SteamWorkshopPage/' + APP_ID;
-  try { if (steam && steam.overlay && steam.overlay.activateToWebPage) steam.overlay.activateToWebPage(url); else shell.openExternal(url); }
-  catch (e) { shell.openExternal(url); }
+  try {
+    if (steam && steam.overlay && steam.overlay.activateToWebPage) steam.overlay.activateToWebPage(url);
+    else shell.openExternal(url);
+  } catch (error) { shell.openExternal(url); }
 });
 
-// ---- window --------------------------------------------------------------------------------
+// ---- desktop lifecycle ----------------------------------------------------------------------
 let win = null;
-function createWindow() {
-  win = new BrowserWindow({
-    width: 1280, height: 800, backgroundColor: '#0a0814', title: 'Retro Rave Radio',
-    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, sandbox: false },
-  });
-  win.loadFile(path.join(DIST, 'index.html'), { query: { mode: 'window' } });
-  win.on('closed', () => { win = null; });
+let nativeBridge = null;
+let nativeBridgeError = null;
+let settings = null;
+let wallpaper = null;
+let power = null;
+let wallpaperPerformance = { paused: false, fpsCap: 30, reason: 'normal' };
+let trayController = null;
+let quitting = false;
+let wallpaperOnlyLaunch = false;
+
+function loadNativeBridge() {
+  if (process.platform !== 'darwin') return;
+  try { nativeBridge = require(path.join(__dirname, 'build', 'Release', 'rrr_wallpaper.node')); }
+  catch (error) {
+    nativeBridgeError = error;
+    console.error('[wallpaper] native bridge unavailable:', error && error.message);
+  }
 }
 
-if (!app.requestSingleInstanceLock()) { app.quit(); }
-else {
-  app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
+function createWindow() {
+  if (win && !win.isDestroyed()) {
+    if (win.isMinimized()) win.restore();
+    win.show();
+    win.focus();
+    return win;
+  }
+  if (process.platform === 'darwin' && app.dock) app.dock.show();
+  win = new BrowserWindow({
+    width: 1280,
+    height: 800,
+    backgroundColor: '#0a0814',
+    title: 'Retro Rave Radio',
+    webPreferences: { preload: PRELOAD, contextIsolation: true, sandbox: false },
+  });
+  win.loadFile(path.join(DIST, 'index.html'), { query: { mode: 'window' } });
+  win.on('closed', () => {
+    win = null;
+    if (!quitting && wallpaper && wallpaper.enabled && process.platform === 'darwin' && app.dock) app.dock.hide();
+  });
+  return win;
+}
+
+function refreshTray() {
+  if (trayController) trayController.refresh();
+}
+
+function setWallpaperEnabled(enabled) {
+  enabled = !!enabled;
+  if (enabled && (!nativeBridge || process.platform !== 'darwin')) {
+    console.error('[wallpaper] cannot enable:', nativeBridgeError && nativeBridgeError.message || 'macOS is required');
+    refreshTray();
+    return false;
+  }
+  settings.update({ wallpaperEnabled: enabled });
+  if (enabled) wallpaper.start();
+  else wallpaper.stop();
+  if (enabled && !win && process.platform === 'darwin' && app.dock) app.dock.hide();
+  refreshTray();
+  return true;
+}
+
+function setFpsCap(fpsCap) {
+  settings.update({ fpsCap });
+  if (power) power.setFpsCap(settings.value.fpsCap);
+  refreshTray();
+}
+
+function setOpenAtLogin(openAtLogin) {
+  app.setLoginItemSettings({ openAtLogin: !!openAtLogin, openAsHidden: !!openAtLogin });
+  refreshTray();
+}
+
+function quitApp() {
+  quitting = true;
+  app.quit();
+}
+
+function desktopState() {
+  const login = app.getLoginItemSettings();
+  return {
+    wallpaperAvailable: process.platform === 'darwin' && !!nativeBridge,
+    wallpaperEnabled: !!(wallpaper && wallpaper.enabled),
+    fpsCap: settings ? settings.value.fpsCap : 30,
+    openAtLogin: !!login.openAtLogin,
+    performance: wallpaperPerformance,
+    wallpaper: wallpaper ? wallpaper.state() : null,
+    nativeError: nativeBridgeError ? nativeBridgeError.message : null,
+  };
+}
+
+ipcMain.handle('rrr:wallpaperState', () => desktopState());
+
+function setupDesktop() {
+  settings = new SettingsStore(app.getPath('userData'));
+  const requestedFps = fpsArg();
+  if (requestedFps) settings.update({ fpsCap: requestedFps });
+  if (hasWallpaperArg()) settings.update({ wallpaperEnabled: true });
+  wallpaperOnlyLaunch = hasWallpaperArg();
+
+  loadNativeBridge();
+  if (nativeBridge) {
+    wallpaper = new WallpaperManager({
+      BrowserWindow,
+      screen,
+      nativeBridge,
+      dist: DIST,
+      preload: PRELOAD,
+      initialPerformance: wallpaperPerformance,
+    });
+    power = new WallpaperPowerController({
+      powerMonitor,
+      nativeBridge,
+      fpsCap: settings.value.fpsCap,
+      onChange: performance => {
+        wallpaperPerformance = performance;
+        wallpaper.setPerformance(performance);
+      },
+    });
+    power.start();
+    if (settings.value.wallpaperEnabled) wallpaper.start();
+  }
+
+  trayController = createWallpaperTray({
+    Tray,
+    Menu,
+    nativeImage,
+    getState: desktopState,
+    onToggle: setWallpaperEnabled,
+    onOpen: createWindow,
+    onFps: setFpsCap,
+    onLogin: setOpenAtLogin,
+    onQuit: quitApp,
+  });
+
+  const login = app.getLoginItemSettings();
+  if (wallpaperOnlyLaunch || login.wasOpenedAtLogin || login.wasOpenedAsHidden) {
+    if (process.platform === 'darwin' && app.dock) app.dock.hide();
+  } else {
+    createWindow();
+  }
+}
+
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on('second-instance', (_event, argv) => {
+    if (hasWallpaperArg(argv)) setWallpaperEnabled(true);
+    else createWindow();
+  });
   app.whenReady().then(() => {
     if (!bootSteam()) return;
-    createWindow();
-    app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
+    setupDesktop();
+    app.on('activate', () => createWindow());
   });
-  app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+  app.on('before-quit', () => {
+    quitting = true;
+    if (power) power.stop();
+    if (wallpaper) wallpaper.stop();
+    if (steamTimer) clearInterval(steamTimer);
+    steamTimer = null;
+  });
+  app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') app.quit();
+  });
 }

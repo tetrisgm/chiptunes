@@ -10,6 +10,17 @@ contextBridge.exposeInMainWorld('RRRNative', {
   readPackFile: (dir, rel) => ipcRenderer.invoke('rrr:readPackFile', dir, rel),
   // "get more games" -> the Steam Workshop page (overlay or browser)
   openWorkshop: () => ipcRenderer.invoke('rrr:openWorkshop'),
+  // Generic wallpaper control surface. The callback returns an unsubscribe function.
+  wallpaperState: () => ipcRenderer.invoke('rrr:wallpaperState'),
+  onWallpaperPerformance: callback => {
+    if (typeof callback !== 'function') return () => {};
+    const listener = (_event, state) => callback(state);
+    ipcRenderer.on('rrr:wallpaper-performance', listener);
+    ipcRenderer.invoke('rrr:wallpaperState').then(state => {
+      if (state && state.performance) callback(state.performance);
+    }).catch(() => {});
+    return () => ipcRenderer.removeListener('rrr:wallpaper-performance', listener);
+  },
   isDesktop: true,
 });
 

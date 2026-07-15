@@ -1,17 +1,70 @@
 {
   "name": "retro-rave-radio-desktop",
-  "version": "0.0.1",
-  "description": "Retro Rave Radio desktop app — Wallpaper-Engine-style Steam app (Win/Mac/Linux). Phase 0-2 foundation.",
+  "version": "0.1.0",
+  "description": "Retro Rave Radio for desktop and macOS animated wallpaper mode.",
   "main": "main.js",
   "private": true,
   "scripts": {
     "start": "electron .",
-    "check": "node --check main.js && node --check preload.js"
-  },
-  "devDependencies": {
-    "electron": "^31.0.0"
+    "wallpaper": "electron . --wallpaper",
+    "build:native": "node scripts/build-native.js",
+    "build:native:arm64": "node scripts/build-native.js arm64",
+    "test:native": "node scripts/native-smoke.js",
+    "test:desktop": "node scripts/desktop-smoke.js",
+    "check": "node --check main.js && node --check preload.js && node --check wallpaper.js && node --check power.js && node --check settings.js && node --check tray.js && node --check scripts/build-native.js && node --check scripts/native-smoke.js && node --check scripts/desktop-smoke.js",
+    "pack:mac": "npm run build:native:arm64 && electron-builder --mac dir --arm64",
+    "dist:mac": "npm run build:native:arm64 && electron-builder --mac dmg zip --arm64",
+    "release:mac": "scripts/release-mac.sh",
+    "install": "npm run build:native"
   },
   "dependencies": {
+    "node-addon-api": "^8.5.0",
     "steamworks.js": "^0.4.0"
+  },
+  "devDependencies": {
+    "electron": "43.1.1",
+    "electron-builder": "^26.0.12",
+    "node-gyp": "^11.4.2"
+  },
+  "build": {
+    "appId": "net.ramine.retroraveradio",
+    "productName": "Retro Rave Radio",
+    "asar": true,
+    "asarUnpack": [
+      "build/Release/*.node",
+      "node_modules/steamworks.js/**/*"
+    ],
+    "files": [
+      "main.js",
+      "preload.js",
+      "wallpaper.js",
+      "power.js",
+      "settings.js",
+      "tray.js",
+      "steam_appid.txt",
+      "package.json",
+      "build/Release/*.node",
+      "node_modules/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "../dist",
+        "to": "web"
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.music",
+      "hardenedRuntime": true,
+      "entitlements": "entitlements.mac.plist",
+      "entitlementsInherit": "entitlements.mac.plist",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "dmg": {
+      "artifactName": "Retro-Rave-Radio-${version}-${arch}.${ext}"
+    },
+    "artifactName": "Retro-Rave-Radio-${version}-${arch}.${ext}"
   }
 }
