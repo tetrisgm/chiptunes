@@ -15,7 +15,7 @@ RestartSec=15
 StartLimitIntervalSec=180
 StartLimitBurst=5
 Environment=HOME=/home/@USER@
-# 720p30 software x264 is ~1 core; keep it from starving the audio broadcaster
+# 1080p30 software x264 is ~2.5 cores on the 4-OCPU box; Nice keeps it from starving the audio broadcaster
 Nice=10
 
 [Install]

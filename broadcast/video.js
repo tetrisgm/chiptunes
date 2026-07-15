@@ -25,8 +25,8 @@ const DRY_FILE = args.includes('--dry-run') ? argVal('--dry-run', '/tmp/rrr-yt-d
 const DRY_SECONDS = +argVal('--seconds', 15);
 const FFMPEG = process.env.FFMPEG || '/opt/homebrew/bin/ffmpeg';
 const VIDEO_ENC = process.env.VIDEO_ENC || 'libx264';
-const W = +(process.env.VIDEO_W || 1280), H = +(process.env.VIDEO_H || 720), FPS = +(process.env.VIDEO_FPS || 30);
-const VBITRATE = process.env.VIDEO_BITRATE || '4500k';
+const W = +(process.env.VIDEO_W || 1920), H = +(process.env.VIDEO_H || 1080), FPS = +(process.env.VIDEO_FPS || 30);
+const VBITRATE = process.env.VIDEO_BITRATE || '8000k';   // 1080p30 @ ~8Mbps (YouTube's rec). 1080p60 does NOT hold realtime even on 4 OCPU.
 
 function log(...a) { process.stdout.write('[video ' + new Date().toISOString() + '] ' + a.join(' ') + '\n'); }
 

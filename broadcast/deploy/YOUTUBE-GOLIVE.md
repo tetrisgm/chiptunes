@@ -3,7 +3,7 @@
 The video leg (`broadcast/video.js` → `rrr-youtube` service) is **built, deployed on the box, and
 inert**. It renders the `/radio` page (game visuals + the shared live audio, inherently in sync
 because it's one page tuned to the same deterministic broadcast as the website + Roon stream) at
-**720p30 H.264 + AAC 192k** and pushes FLV to YouTube RTMP. It stays stopped until a stream key
+**1080p30 H.264 + AAC 192k** and pushes FLV to YouTube RTMP. It stays stopped until a stream key
 exists, so nothing runs (or costs) until you flip it on.
 
 **Already done (verified):** Playwright Chromium installed for the `rrr` service user · ffmpeg 6.1
@@ -51,9 +51,12 @@ sudo sed -i 's#^YT_STREAM_KEY=.*#YT_STREAM_KEY=#' /etc/retro-rave-radio.env
 
 ## Notes / knobs (all in `/etc/retro-rave-radio.env`, then `systemctl restart rrr-youtube`)
 
-- `VIDEO_W` / `VIDEO_H` / `VIDEO_FPS` (default `1280` / `720` / `30`), `VIDEO_BITRATE` (default
-  `4500k`). 720p30 software x264 is ~1 core; the box (2 OCPU) runs it alongside the ~0.12-core audio
-  stream comfortably — no resize needed.
+- `VIDEO_W` / `VIDEO_H` / `VIDEO_FPS` (default `1920` / `1080` / `30`), `VIDEO_BITRATE` (default
+  `8000k`). 1080p30 software x264 is ~2.5 cores; the box was resized to **4 OCPU / 24 GB** (still
+  Always-Free) to run it in realtime alongside the ~0.12-core audio stream. **1080p60 does NOT hold
+  realtime even on 4 OCPU** (the browser VP8 + x264 double-encode is the bottleneck) — measured ~0.75×,
+  so it would stutter/buffer; stay at 30fps on this hardware. For 1080p60 you'd run the leg on a Mac
+  with `VIDEO_ENC=h264_videotoolbox` (hardware encode) instead.
 - The video leg is **independent of the website** and of the MP3 stream — it can be enabled/disabled
   any time without touching `rrr-stream` or Cloudflare.
 - RTMP goes **box → YouTube directly** (not through the cloudflared tunnel; that only carries the
