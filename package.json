@@ -1,7 +1,9 @@
 {
   "scripts": {
     "build": "node build.js",
+    "postbuild": "node scripts/health/report-build.mjs",
     "deploy": "node build.js && npx wrangler pages deploy dist --project-name retro-rave-radio --branch main --commit-dirty=true",
+    "health": "node scripts/health/run.js",
     "smoke": "node scripts/smoke-generated-seeds.js && node scripts/smoke-games.js",
     "validate:games": "node scripts/audit-music-driven.js",
     "validate:pack": "node scripts/validate-game-pack.js",
@@ -12,6 +14,7 @@
     "pack:tools": "node scripts/pack-tools.js"
   },
   "devDependencies": {
+    "@stack/health-kit": "file:../stack/health-kit",
     "playwright": "^1.61.1"
   }
 }

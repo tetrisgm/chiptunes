@@ -2925,3 +2925,59 @@ buildHomeTiles();
     '.tpdislike:hover{background:#622;color:#fbb;border-color:#944;}';
   document.head.appendChild(css);
 })();
+
+// ===== health-kit boot beacon (sampled, OFF by default) ==========================================
+// The postbuild collector (scripts/health/report-build.mjs) is blind to the deployed edge — it runs
+// on the build box. This is the runtime-with-no-server counterpart: on first load it snapshots the
+// standardized document.documentElement.dataset.rrr* + window.__rrrFrame surface into a
+// health-report@1 envelope and BEST-EFFORT POSTs it (trigger=bootBeacon) to a health ingest Worker.
+//
+// OFF unless the host sets window.RRR_HEALTH = { endpoint, sample?, token?, app?, version?, build?,
+// sourceCommit?, channel? } (e.g. an inline <script> in the shell, or an env-stamped build). No
+// endpoint => no-op. Head-sampled so only a fraction of loads report. Content-blind (numeric metrics
+// only) and swallows every error — it must never affect playback.
+(function bootBeacon(){
+  if(typeof window==='undefined'||typeof document==='undefined') return;
+  var fired=false;
+  function fire(){
+    if(fired) return; fired=true;
+    try{
+      var cfg=window.RRR_HEALTH; if(!cfg||!cfg.endpoint) return;                 // off by default
+      var sample=(typeof cfg.sample==='number')?cfg.sample:0.05;
+      if(!(Math.random()<sample)) return;                                        // head sampling
+      var d=(document.documentElement&&document.documentElement.dataset)||{};
+      var fr=window.__rrrFrame||{};
+      var toNum=function(v){ var n=+v; return isFinite(n)?n:0; };
+      var checks=[
+        { id:'boot.frame-active', category:'smoke', status:(fr&&fr.active)?'pass':'warning', durationMs:0,
+          metrics:{ frameSeq:toNum(fr&&fr.seq), audioOnly:(fr&&fr.audioOnly)?1:0, renderCost:toNum(fr&&fr.cost) } },
+        { id:'boot.live-schedule', category:'unit', status:'pass', durationMs:0,
+          metrics:{ live:(d.rrrLive==='true')?1:0, liveOffsetSec:toNum(d.rrrLiveOffset),
+                    liveListeners:toNum(d.rrrLiveListeners), gameCount:toNum(d.rrrGameCount) } },
+        { id:'boot.audio-ready', category:'smoke', status:'pass', durationMs:0,
+          metrics:{ started:(d.rrrStarted==='true')?1:0, running:(d.rrrRunning==='true')?1:0,
+                    bpm:toNum(d.rrrBpm), brokenGames:(d.rrrBrokenGames?String(d.rrrBrokenGames).split(',').filter(Boolean).length:0) } }
+      ];
+      var passed=0,failed=0,warnings=0,status='pass';
+      for(var i=0;i<checks.length;i++){ var s=checks[i].status;
+        if(s==='fail'){ failed++; status='fail'; } else if(s==='warning'){ warnings++; if(status!=='fail') status='warning'; } else passed++; }
+      var report={
+        schemaVersion:'health-report@1', app:cfg.app||'rrr', channel:cfg.channel||'release',
+        version:cfg.version||'0.0.0', build:cfg.build||'dev', sourceCommit:cfg.sourceCommit||'',
+        artifact:'static-web', trigger:'bootBeacon', generatedAt:new Date().toISOString(),
+        status:status, checks:checks,
+        metrics:{ checks:checks.length, passed:passed, failed:failed, warnings:warnings, skipped:0, totalDurationMs:0 }
+      };
+      var headers={ 'content-type':'application/json' };
+      if(cfg.token) headers['authorization']='Bearer '+cfg.token;
+      // fetch keepalive (sendBeacon can't carry an auth header); every error is swallowed.
+      if(window.fetch) window.fetch(cfg.endpoint,{ method:'POST', headers:headers, body:JSON.stringify(report), keepalive:true, mode:'cors' })['catch'](function(){});
+    }catch(e){ /* a beacon must never touch playback */ }
+  }
+  // fire once the diagnostics surface is populated; fall back if 'load' already passed.
+  try{
+    if(document.readyState==='complete') setTimeout(fire, 4000);
+    else window.addEventListener('load', function(){ setTimeout(fire, 4000); });
+    setTimeout(fire, 9000);
+  }catch(e){}
+})();
