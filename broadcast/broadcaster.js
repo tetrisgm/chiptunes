@@ -26,35 +26,19 @@ const BURST_BYTES = 256 * 1024;         // ~10s @192k: instant start for new cli
 const now = () => Date.now();            // wall clock (Date.now allowed here — this is a daemon, not a workflow script)
 function log(...a) { process.stdout.write('[bcast ' + new Date().toISOString() + '] ' + a.join(' ') + '\n'); }
 
-// ---------------- schedule walk (mirrors the site; overlap-add makes tails bleed, no drift) ----------------
-// A "slot" descriptor = which scheduled track + where to start. renderSlot returns the track's
-// interleaved-stereo PCM already sliced to its BODY (beat-grid duration, minus the join offset and
-// minus any hour-boundary truncation) plus its TAIL (the ~1.8s echo ring-out). The feeder overlap-
-// ADDS each track's tail onto the head of the next body — gapless like the site's cold-open segue,
-// and total played time == sum of beat-grid durations, so the stream never drifts off wall clock.
-function startDescriptor() {
-  const r = Live.resolveAt(now());
-  return { blockN: r.blockN, i: r.i, offsetSec: r.offsetSec };
-}
-async function renderSlot(renderer, d) {
-  const pl = Live.blockPlaylist(d.blockN);
-  const slot = pl[d.i];
-  const isStraddler = (d.i === pl.length - 1);
-  const composerId = Live.versionFor(d.blockN).composerId;
-  const r = await renderer.render(slot.token, composerId);
-  if (!r) return null;
-  const sr = r.sampleRate;
-  const all = new Float32Array(r.pcm.buffer, r.pcm.byteOffset, r.pcm.length >> 2);   // interleaved LR
-  const offFrame = Math.max(0, Math.floor((d.offsetSec || 0) * sr));
-  // body ends at the beat-grid duration (or the hour boundary for the straddler); tail is the rest
-  const bodyEndSec = isStraddler ? (Live.BLOCK_SEC - slot.start) : slot.dur;
-  const bodyEndFrame = Math.min(all.length >> 1, Math.floor(bodyEndSec * sr));
-  const body = all.subarray(offFrame * 2, bodyEndFrame * 2);
-  const tail = all.subarray(bodyEndFrame * 2);
-  const next = isStraddler
-    ? { blockN: d.blockN + 1, i: 0, offsetSec: 0 }
-    : { blockN: d.blockN, i: d.i + 1, offsetSec: 0 };
-  return { body: Float32Array.from(body), tail: Float32Array.from(tail), sr, next, token: slot.token, title: Song.title(slot.token) };
+// ---------------- schedule walk (WALL-CLOCK anchored; matches the site listeners exactly) ----------------
+// renderOnAir(nowMs) renders the FULL track the schedule says is on air at nowMs (composer version-
+// pinned, silence-gated). The loop then slices its BODY at the CURRENT wall offset and overlap-ADDs
+// the previous track's ~1.8s echo TAIL onto the head — gapless like the site's cold-open segue. Because
+// every track is re-resolved from the wall clock (not walked sequentially), the stream self-corrects:
+// the ~15s startup render latency and any ffmpeg-rate drift can never accumulate the broadcaster off
+// the schedule — it always plays what a browser listener hears right now.
+async function renderOnAir(nowMs) {
+  const r = Live.resolveAt(nowMs);
+  const composerId = Live.versionFor(r.blockN).composerId;
+  const rendered = await renderer.render(r.token, composerId);
+  if (!rendered) return null;
+  return { token: r.token, blockN: r.blockN, i: r.i, rendered };
 }
 function overlapAdd(body, tail) {   // add previous track's tail onto this body's head, clamped
   if (!tail || !tail.length) return body;
@@ -165,20 +149,41 @@ function feedPcm(f32) {
   });
 }
 
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 async function scheduleLoop() {
-  let desc = startDescriptor();
   let pendingTail = null;
-  // render the first slot, then always render the NEXT while feeding the current (renders beat realtime)
-  let slotP = renderSlot(renderer, desc);
+  let job = renderOnAir(now());
   while (running) {
-    let slot = await slotP;
-    if (!slot) { log('render failed for a slot — retrying from current wall position'); await new Promise(r => setTimeout(r, 1000)); desc = startDescriptor(); slotP = renderSlot(renderer, desc); continue; }
-    slotP = renderSlot(renderer, slot.next);   // prefetch next while we feed this one
-    curTitle = slot.title;
-    log('on air: ' + slot.title + '  (' + slot.token + ')  clients=' + clients.size);
-    const body = overlapAdd(slot.body, pendingTail);
-    pendingTail = slot.tail;
-    await feedPcm(body);
+    const cur = await job;
+    if (!cur) { log('render failed — retrying from current wall position'); await sleep(1000); job = renderOnAir(now()); continue; }
+    // RE-ANCHOR: by the time this finished rendering, is it still the on-air track? If the schedule
+    // advanced during render (the ~15s startup lag, or drift), drop it and render what's live NOW.
+    const t = now();
+    const r = Live.resolveAt(t);
+    if (r.token !== cur.token) {
+      log('re-anchor: schedule advanced past ' + Song.title(cur.token) + ' during render -> ' + Song.title(r.token));
+      job = renderOnAir(t);   // burst buffer covers the brief gap
+      continue;
+    }
+    // aligned: slice the body at the CURRENT wall offset (self-corrects sub-track drift), tail = the rest
+    const sr = cur.rendered.sampleRate;
+    const all = new Float32Array(cur.rendered.pcm.buffer, cur.rendered.pcm.byteOffset, cur.rendered.pcm.length >> 2);
+    const pl = Live.blockPlaylist(r.blockN);
+    const slot = pl[r.i];
+    const isStraddler = (r.i === pl.length - 1);
+    const bodyEndSec = isStraddler ? (Live.BLOCK_SEC - slot.start) : slot.dur;
+    const offFrame = Math.max(0, Math.floor(r.offsetSec * sr));
+    const bodyEndFrame = Math.min(all.length >> 1, Math.floor(bodyEndSec * sr));
+    const body = Float32Array.from(all.subarray(offFrame * 2, bodyEndFrame * 2));
+    const tail = Float32Array.from(all.subarray(bodyEndFrame * 2));
+    curTitle = Song.title(slot.token);
+    log('on air: ' + curTitle + '  (' + slot.token + ')  +' + r.offsetSec.toFixed(0) + 's  clients=' + clients.size);
+    // prefetch the track that will be on air when this body finishes feeding (by wall clock)
+    const bodyMs = Math.max(0, (bodyEndSec - r.offsetSec) * 1000);
+    job = renderOnAir(t + bodyMs + 100);
+    const mixed = overlapAdd(body, pendingTail);
+    pendingTail = tail;
+    await feedPcm(mixed);
   }
 }
 
