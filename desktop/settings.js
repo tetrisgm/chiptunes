@@ -3,10 +3,13 @@
 const fs = require('fs');
 const path = require('path');
 
+const STATIONS = ['st-any', 'st-full', 'st-sparse', 'st-none'];
+
 const DEFAULTS = Object.freeze({
   wallpaperEnabled: false,
   fpsCap: 30,
   powerSaver: false,
+  station: 'st-any',
 });
 
 function normalize(input) {
@@ -15,6 +18,7 @@ function normalize(input) {
     wallpaperEnabled: !!(input && input.wallpaperEnabled),
     fpsCap: [15, 30, 60].includes(fps) ? fps : DEFAULTS.fpsCap,
     powerSaver: !!(input && input.powerSaver),
+    station: STATIONS.includes(input && input.station) ? input.station : DEFAULTS.station,
   };
 }
 

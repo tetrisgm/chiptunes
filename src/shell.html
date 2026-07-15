@@ -38,6 +38,10 @@
     document.documentElement.classList.add('wallpaper-mode','boot-player-route');
     window.__RRR_WALLPAPER_MODE=true;
     window.__RRR_BOOT_PLAYER_ROUTE=true;
+  } else if(shellMode==='popover' && isDesktopHost){
+    document.documentElement.classList.add('popover-mode','boot-player-route');
+    window.__RRR_POPOVER_MODE=true;
+    window.__RRR_BOOT_PLAYER_ROUTE=true;
   }
   // player-route boot: hide the Home overlay pre-paint for direct track/watch/radio links.
   // /track/<slug> (generated; slug may carry a '<composerId>.' prefix)
@@ -83,6 +87,16 @@
   html.wallpaper-mode #pbMenu,
   html.wallpaper-mode #gamepick,
   html.wallpaper-mode #soundhint{ display:none !important; }
+  /* Electron menu-bar popover: hide the whole radio UI, show only the compact control panel. */
+  html.popover-mode #stage, html.popover-mode .crt, html.popover-mode #hearts,
+  html.popover-mode #presets, html.popover-mode #hud, html.popover-mode #playbar,
+  html.popover-mode #intro, html.popover-mode #watchbar, html.popover-mode #radionav,
+  html.popover-mode #rlist, html.popover-mode #rfullscreen, html.popover-mode #mixpanel,
+  html.popover-mode #trackpanel, html.popover-mode #pbMenu, html.popover-mode #gamepick,
+  html.popover-mode #soundhint, html.popover-mode #resumeMusic{ display:none !important; }
+  html.popover-mode, html.popover-mode body{ background:transparent !important; cursor:default; overflow:hidden; }
+  #popover{ display:none; }
+  html.popover-mode #popover{ display:block; }
   body{
     font-family:var(--pixel);
     color:var(--ink);
@@ -719,6 +733,8 @@
     <div id="hometiles"></div>
     <button id="start" hidden></button>
   </div>
+
+  <div id="popover"></div>
 
 __SCRIPTS__
 

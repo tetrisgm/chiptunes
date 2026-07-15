@@ -8,9 +8,11 @@ function trayImage(nativeImage) {
   return image;
 }
 
-function createWallpaperTray({ Tray, Menu, nativeImage, getState, onToggle, onOpen, onFps, onPowerSaver, onLogin, onQuit }) {
+function createWallpaperTray({ Tray, Menu, nativeImage, getState, onToggle, onOpen, onFps, onPowerSaver, onLogin, onQuit, onClick }) {
   const tray = new Tray(trayImage(nativeImage), '5bc40445-2e1f-4c0d-b99c-e49189e7eaad');
   tray.setToolTip('Retro Rave Radio');
+  // Left-click opens the Portal-style popover; the context menu stays on right-click.
+  if (onClick) tray.on('click', () => onClick(tray.getBounds()));
 
   function refresh() {
     const state = getState();

@@ -3,13 +3,15 @@
 const SECONDARY_FPS_CAP = 20;   // audio-less secondary displays run cooler than the focal one
 
 class WallpaperManager {
-  constructor({ BrowserWindow, screen, nativeBridge, dist, preload, initialPerformance }) {
+  constructor({ BrowserWindow, screen, nativeBridge, dist, preload, initialPerformance, station }) {
     this.BrowserWindow = BrowserWindow;
     this.screen = screen;
     this.nativeBridge = nativeBridge;
     this.dist = dist;
     this.preload = preload;
     this.performance = initialPerformance || { paused: false, fpsCap: 30, reason: 'normal' };
+    this.station = station || 'st-any';   // the mood the audio-owner display plays (popover-driven)
+    this.userMuted = false;               // popover "Audio off" — a deliberate mute, independent of battery/occlusion
     this.windows = new Map();
     this.occluded = false;          // true when EVERY wallpaper window is fully covered (e.g. a fullscreen app)
     this._appliedPaused = false;
@@ -124,6 +126,7 @@ class WallpaperManager {
         mode: 'wallpaper',
         display: String(display.id),
         audio: audioOwner ? '1' : '0',
+        station: this.station,
       },
     });
     return entry;
@@ -181,13 +184,40 @@ class WallpaperManager {
   applyPerformanceTo(entry, eff) {
     if (entry.window.isDestroyed()) return;
     eff = eff || this.effectivePerformance();
-    entry.window.webContents.setAudioMuted(!entry.audioOwner || !!eff.audioMuted || !!eff.paused);
+    entry.window.webContents.setAudioMuted(!entry.audioOwner || !!eff.audioMuted || !!eff.paused || this.userMuted);
     // Each display is its own renderer (no shared-surface mirroring across Electron windows), so cap
     // the audio-less secondary displays lower — they're ambient visuals, not the focal screen.
     const perf = entry.audioOwner ? eff : { ...eff, fpsCap: Math.min(Number(eff.fpsCap) || 30, SECONDARY_FPS_CAP) };
     if (!entry.window.webContents.isLoading()) {
       entry.window.webContents.send('rrr:wallpaper-performance', perf);
     }
+  }
+
+  // --- popover-driven station / transport / mute, routed to the audio-owner display ---
+  _audioOwnerWindow() {
+    for (const entry of this.windows.values()) {
+      if (entry.audioOwner && entry.window && !entry.window.isDestroyed()) return entry.window;
+    }
+    return null;
+  }
+
+  _sendToAudioOwner(cmd) {
+    const w = this._audioOwnerWindow();
+    if (w && !w.webContents.isLoading()) w.webContents.send('rrr:command', cmd);
+  }
+
+  setStation(id) {
+    this.station = id || 'st-any';                                        // future windows boot to it via the query param
+    this._sendToAudioOwner({ type: 'enterStation', id: this.station });    // live-switch the current audio owner
+  }
+
+  transport(dir) {
+    this._sendToAudioOwner({ type: 'transport', dir: dir === 'prev' ? 'prev' : dir === 'toggle' ? 'toggle' : 'next' });
+  }
+
+  setUserMuted(muted) {
+    this.userMuted = !!muted;
+    this.applyAll();
   }
 
   closeEntry(entry) {

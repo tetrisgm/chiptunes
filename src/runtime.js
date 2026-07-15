@@ -3,6 +3,7 @@
 const _RRR_DESKTOP_MODE=(function(){ try{ return new URLSearchParams(location.search||'').get('mode')||''; }catch(e){ return ''; } })();
 const _WALLPAPER_MODE=_RRR_DESKTOP_MODE==='wallpaper' && !!(window.RRRNative && window.RRRNative.isDesktop);   // Electron-only; a bare ?mode=wallpaper on the web must NOT strip the UI
 const _WALLPAPER_AUDIO=(function(){ try{ return new URLSearchParams(location.search||'').get('audio')!=='0'; }catch(e){ return true; } })();
+const _POPOVER_MODE=_RRR_DESKTOP_MODE==='popover' && !!(window.RRRNative && window.RRRNative.isDesktop);   // Electron menu-bar popover (a controller, plays no audio itself)
 // ----- GAME REGISTRY: derived from window.CT_GAMES. The inline fallback pack(s) register at parse time;
 //  the rest arrive through Packs.init() / Packs.onChange (runtime-loaded game packs). No hardcoded roster. -----
 let GAMES=[], GAME_BY_KEY={}, POOL=[];
@@ -2709,10 +2710,14 @@ try{
 }catch(e){}
 buildHomeTiles();
 (function(){
+  if(_POPOVER_MODE){ try{ _renderPopover(); }catch(e){} return; }   // controller UI; no audio, no scene loop
   if(_WALLPAPER_MODE){
     if(document.body) document.body.classList.add('wallpaper-visual');
-    if(_WALLPAPER_AUDIO) startAudio(false);
-    else enterWatchMode({noRoute:true});
+    var _wpStation=''; try{ _wpStation=new URLSearchParams(location.search||'').get('station')||''; }catch(e0){}
+    if(_WALLPAPER_AUDIO){
+      if(_wpStation && typeof enterStation==='function') enterStation(_wpStation);   // popover-chosen station on the audio-owner display
+      else startAudio(false);
+    } else { enterWatchMode({noRoute:true}); }
     if(window.__rrrWallpaperPerformance) _applyWallpaperPerformance(window.__rrrWallpaperPerformance);
     return;
   }
@@ -3022,4 +3027,138 @@ buildHomeTiles();
     else window.addEventListener('load', function(){ setTimeout(fire, 4000); });
     setTimeout(fire, 9000);
   }catch(e){}
+})();
+
+/* ============================================================
+   DESKTOP CONTROL BRIDGE (window.RRR) + menu-bar POPOVER UI.
+   Radio/Audio are const (not on window); this is the stable surface the Electron main process +
+   popover window drive playback through. Present in every window; every call is no-op-safe.
+   ============================================================ */
+(function(){
+  var MOOD_TO_ST={ any:'st-any', full:'st-full', sparse:'st-sparse', none:'st-none' };
+  function stId(){ try{ return MOOD_TO_ST[Radio.mood()]||'st-any'; }catch(e){ return 'st-any'; } }
+  function nowPlaying(){
+    try{
+      return {
+        title:(typeof _curName!=='undefined' && _curName) ? String(_curName) : '',
+        station:stId(),
+        live:!!(typeof LiveCtl!=='undefined' && LiveCtl.active && LiveCtl.active()),
+        listeners:(typeof window._presenceCount==='number') ? window._presenceCount : null,
+        playing:!!(typeof Audio!=='undefined' && Audio.running && Audio.running()),
+        bpm:(function(){ try{ return Audio.trackBpm?Audio.trackBpm():null; }catch(e){ return null; } })()
+      };
+    }catch(e){ return { title:'', station:'st-any', live:false, playing:false, listeners:null, bpm:null }; }
+  }
+  window.RRR={
+    isControl:true,
+    enterStation:function(id){ try{ enterStation(id); }catch(e){} },
+    station:stId,
+    transport:function(dir){ try{ if(dir==='prev')_transportPrev(); else if(dir==='toggle')_transportToggle(); else _transportNext(); }catch(e){} },
+    setMasterVol:function(v){ v=Math.max(0,Math.min(2,+v||0)); try{ if(typeof _sessionMixSet==='function')_sessionMixSet('master',v); else if(Audio&&Audio.setMix)Audio.setMix('master',v); }catch(e){} },
+    nowPlaying:nowPlaying
+  };
+
+  // Wallpaper audio-owner window: take live station/transport commands from main (no reload), and
+  // report now-playing up so the popover can show the current track.
+  if(_WALLPAPER_MODE && window.RRRNative){
+    if(window.RRRNative.onCommand){ try{ window.RRRNative.onCommand(function(cmd){
+      if(!cmd||!cmd.type) return;
+      if(cmd.type==='enterStation' && cmd.id) window.RRR.enterStation(cmd.id);
+      else if(cmd.type==='transport') window.RRR.transport(cmd.dir);
+      else if(cmd.type==='masterVol') window.RRR.setMasterVol(cmd.value);
+    }); }catch(e){} }
+    if(_WALLPAPER_AUDIO && window.RRRNative.reportNowPlaying){
+      var _lastNp='';
+      setInterval(function(){ try{ var n=nowPlaying(), k=JSON.stringify(n); if(k!==_lastNp){ _lastNp=k; window.RRRNative.reportNowPlaying(n); } }catch(e){} }, 1500);
+    }
+  }
+
+  // ---- the menu-bar popover control panel (rendered ONLY in the Electron popover window) ----
+  window._renderPopover=function(){
+    var host=document.getElementById('popover'); if(!host) return;
+    var TILES=(typeof HOME_TILES!=='undefined' && HOME_TILES.length) ? HOME_TILES : [{id:'st-any',name:'Everything!'}];
+    var css=document.createElement('style');
+    css.textContent=
+      '#popover{font-family:var(--pixel);color:#f4f2ff;padding:12px;-webkit-user-select:none;user-select:none}'+
+      '.pv-card{background:linear-gradient(180deg,#1a1430,#0d0a1c);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:14px;box-shadow:0 12px 40px rgba(0,0,0,.5)}'+
+      '.pv-head{display:flex;align-items:center;gap:11px;margin-bottom:12px}'+
+      '.pv-thumb{width:46px;height:46px;border-radius:12px;flex:0 0 auto;background:#2a2148;display:flex;align-items:center;justify-content:center;font-size:24px;overflow:hidden}'+
+      '.pv-thumb img{width:100%;height:100%;image-rendering:pixelated}'+
+      '.pv-meta{min-width:0;flex:1}'+
+      '.pv-station{font-size:18px;font-weight:700;letter-spacing:.3px;line-height:1.1}'+
+      '.pv-title{font-size:12px;color:#b9b2d6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}'+
+      '.pv-title .live{color:#58f898;font-weight:700}'+
+      '.pv-transport{display:flex;align-items:center;justify-content:center;gap:16px;margin:6px 0 14px}'+
+      '.pv-tb{width:44px;height:44px;border-radius:50%;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:#f4f2ff;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center}'+
+      '.pv-tb.play{width:56px;height:56px;font-size:22px;background:#f878f8;border-color:#f878f8;color:#160b1f}'+
+      '.pv-tb:active{transform:scale(.94)}'+
+      '.pv-toggles{display:flex;gap:8px;margin-bottom:13px}'+
+      '.pv-tog{flex:1;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);border-radius:12px;padding:9px 4px;text-align:center;cursor:pointer}'+
+      '.pv-tog .i{font-size:18px;line-height:1}'+
+      '.pv-tog .l{font-size:10px;color:#b9b2d6;margin-top:4px;text-transform:uppercase;letter-spacing:.4px}'+
+      '.pv-tog.on{background:rgba(88,136,252,.22);border-color:#6888fc}'+
+      '.pv-tog.on .l{color:#cdd6ff}'+
+      '.pv-moods{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:12px}'+
+      '.pv-mood{border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);border-radius:10px;padding:8px;font-size:12px;cursor:pointer;text-align:left;color:#cfc8ea}'+
+      '.pv-mood.on{background:rgba(248,120,248,.18);border-color:#f878f8;color:#fff}'+
+      '.pv-foot{display:flex;gap:8px}'+
+      '.pv-foot button{flex:1;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:#cfc8ea;border-radius:10px;padding:8px;font-size:12px;cursor:pointer}';
+    document.head.appendChild(css);
+
+    function esc(x){ var d=document.createElement('div'); d.textContent=String(x==null?'':x); return d.innerHTML; }
+    function thumbFor(id){
+      try{ var t=TILES.filter(function(x){return x.id===id})[0]; if(t&&t.sprite&&typeof Sprites!=='undefined'&&Sprites.dataURL) return '<img src="'+Sprites.dataURL(t.sprite,46)+'">'; }catch(e){}
+      return '♪';
+    }
+    var moodBtns=TILES.map(function(t){ return '<button class="pv-mood" data-st="'+esc(t.id)+'">'+esc(t.name||t.id)+'</button>'; }).join('');
+    host.innerHTML=
+      '<div class="pv-card">'+
+      '  <div class="pv-head"><div class="pv-thumb" id="pvThumb">♪</div>'+
+      '    <div class="pv-meta"><div class="pv-station" id="pvStation">Everything!</div>'+
+      '      <div class="pv-title" id="pvTitle">Paused</div></div></div>'+
+      '  <div class="pv-transport">'+
+      '    <button class="pv-tb" id="pvPrev" title="Previous">⏮</button>'+
+      '    <button class="pv-tb play" id="pvPlay" title="Play / Pause">▶</button>'+
+      '    <button class="pv-tb" id="pvNext" title="Skip">⏭</button></div>'+
+      '  <div class="pv-toggles">'+
+      '    <div class="pv-tog" id="pvWall"><div class="i">🖼️</div><div class="l">Wallpaper</div></div>'+
+      '    <div class="pv-tog" id="pvAudio"><div class="i">🔊</div><div class="l">Audio</div></div>'+
+      '    <div class="pv-tog" id="pvFps"><div class="i">30</div><div class="l">FPS</div></div></div>'+
+      '  <div class="pv-moods">'+moodBtns+'</div>'+
+      '  <div class="pv-foot"><button id="pvOpen">Open Window</button><button id="pvQuit">Quit</button></div>'+
+      '</div>';
+
+    var N=window.RRRNative||{};
+    var _state={ wallpaperEnabled:false, audioMuted:false, fpsCap:30, station:'st-any' };
+    function ctl(action, extra){ try{ if(N.control) N.control(Object.assign({action:action}, extra||{})); }catch(e){} }
+    document.getElementById('pvPrev').onclick=function(){ ctl('transport',{dir:'prev'}); };
+    document.getElementById('pvPlay').onclick=function(){ ctl('transport',{dir:'toggle'}); };
+    document.getElementById('pvNext').onclick=function(){ ctl('transport',{dir:'next'}); };
+    document.getElementById('pvWall').onclick=function(){ ctl('setWallpaperEnabled',{value:!_state.wallpaperEnabled}); };
+    document.getElementById('pvAudio').onclick=function(){ ctl('setAudioMuted',{value:!_state.audioMuted}); };
+    document.getElementById('pvFps').onclick=function(){ var order=[30,60,15], i=order.indexOf(_state.fpsCap); ctl('setFps',{value:order[(i+1)%order.length]}); };
+    document.getElementById('pvOpen').onclick=function(){ ctl('openWindow'); };
+    document.getElementById('pvQuit').onclick=function(){ ctl('quit'); };
+    Array.prototype.forEach.call(host.querySelectorAll('.pv-mood'), function(b){ b.onclick=function(){ ctl('setStation',{id:b.getAttribute('data-st')}); }; });
+
+    function apply(s){
+      if(!s) return; _state=Object.assign(_state,s);
+      var st=s.station||_state.station||'st-any';
+      var tile=TILES.filter(function(x){return x.id===st})[0]||TILES[0];
+      document.getElementById('pvStation').textContent=(tile&&tile.name)||'Everything!';
+      document.getElementById('pvThumb').innerHTML=thumbFor(st);
+      var np=s.nowPlaying||{};
+      var t=document.getElementById('pvTitle');
+      if(np.live){ t.innerHTML='<span class="live">LIVE</span>'+(np.listeners?(' · '+np.listeners+' listening'):'')+(np.title?(' · '+esc(np.title)):''); }
+      else if(np.playing && np.title){ t.textContent=np.title; }
+      else { t.textContent=np.title?np.title:'Paused'; }
+      document.getElementById('pvPlay').innerHTML=np.playing?'⏸':'▶';
+      document.getElementById('pvWall').classList.toggle('on', !!s.wallpaperEnabled);
+      document.getElementById('pvAudio').classList.toggle('on', !s.audioMuted && !!s.wallpaperEnabled);
+      document.getElementById('pvFps').querySelector('.i').textContent=String(s.fpsCap||30);
+      Array.prototype.forEach.call(host.querySelectorAll('.pv-mood'), function(b){ b.classList.toggle('on', b.getAttribute('data-st')===st); });
+    }
+    if(N.onDesktopState) N.onDesktopState(apply);
+    else if(N.desktopState) N.desktopState().then(apply)['catch'](function(){});
+  };
 })();

@@ -21,6 +21,23 @@ contextBridge.exposeInMainWorld('RRRNative', {
     }).catch(() => {});
     return () => ipcRenderer.removeListener('rrr:wallpaper-performance', listener);
   },
+  // --- menu-bar popover control surface ---
+  control: cmd => ipcRenderer.invoke('rrr:control', cmd),                 // popover -> main (setStation, transport, toggles, quit)
+  desktopState: () => ipcRenderer.invoke('rrr:wallpaperState'),
+  onDesktopState: callback => {                                          // popover <- main (station, now-playing, toggles)
+    if (typeof callback !== 'function') return () => {};
+    const listener = (_e, s) => callback(s);
+    ipcRenderer.on('rrr:desktop-state', listener);
+    ipcRenderer.invoke('rrr:wallpaperState').then(s => callback(s)).catch(() => {});
+    return () => ipcRenderer.removeListener('rrr:desktop-state', listener);
+  },
+  onCommand: callback => {                                               // wallpaper renderer <- main (enterStation, transport)
+    if (typeof callback !== 'function') return () => {};
+    const listener = (_e, cmd) => callback(cmd);
+    ipcRenderer.on('rrr:command', listener);
+    return () => ipcRenderer.removeListener('rrr:command', listener);
+  },
+  reportNowPlaying: info => ipcRenderer.invoke('rrr:now-playing', info),  // audio-owner renderer -> main
   isDesktop: true,
 });
 

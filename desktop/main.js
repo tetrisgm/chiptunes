@@ -107,6 +107,8 @@ let wallpaper = null;
 let power = null;
 let wallpaperPerformance = { paused: false, fpsCap: 30, reason: 'normal' };
 let trayController = null;
+let popover = null;
+let lastNowPlaying = null;
 let quitting = false;
 let wallpaperOnlyLaunch = false;
 
@@ -144,6 +146,7 @@ function createWindow() {
 
 function refreshTray() {
   if (trayController) trayController.refresh();
+  pushDesktopState();
 }
 
 function setWallpaperEnabled(enabled) {
@@ -173,6 +176,17 @@ function setPowerSaver(powerSaver) {
   refreshTray();
 }
 
+function setStation(id) {
+  settings.update({ station: id });
+  if (wallpaper) wallpaper.setStation(settings.value.station);
+  refreshTray();
+}
+
+function setAudioMuted(muted) {
+  if (wallpaper) wallpaper.setUserMuted(muted);
+  refreshTray();
+}
+
 function setOpenAtLogin(openAtLogin) {
   app.setLoginItemSettings({ openAtLogin: !!openAtLogin, openAsHidden: !!openAtLogin });
   refreshTray();
@@ -190,6 +204,9 @@ function desktopState() {
     wallpaperEnabled: !!(wallpaper && wallpaper.enabled),
     fpsCap: settings ? settings.value.fpsCap : 30,
     powerSaver: settings ? settings.value.powerSaver : false,
+    station: settings ? settings.value.station : 'st-any',
+    audioMuted: !!(wallpaper && wallpaper.userMuted),
+    nowPlaying: lastNowPlaying,
     openAtLogin: !!login.openAtLogin,
     performance: wallpaperPerformance,
     wallpaper: wallpaper ? wallpaper.state() : null,
@@ -198,6 +215,58 @@ function desktopState() {
 }
 
 ipcMain.handle('rrr:wallpaperState', () => desktopState());
+ipcMain.handle('rrr:now-playing', (_event, info) => { lastNowPlaying = info || null; pushDesktopState(); return true; });
+ipcMain.handle('rrr:control', (_event, cmd) => {
+  if (!cmd || typeof cmd.action !== 'string') return false;
+  switch (cmd.action) {
+    case 'setStation': setStation(String(cmd.id || 'st-any')); break;
+    case 'transport': if (wallpaper) wallpaper.transport(cmd.dir); break;
+    case 'setWallpaperEnabled': setWallpaperEnabled(!!cmd.value); break;
+    case 'setFps': setFpsCap(cmd.value); break;
+    case 'setPowerSaver': setPowerSaver(!!cmd.value); break;
+    case 'setAudioMuted': setAudioMuted(!!cmd.value); break;
+    case 'openWindow': createWindow(); break;
+    case 'quit': quitApp(); break;
+    default: return false;
+  }
+  return true;
+});
+
+function pushDesktopState() {
+  if (popover && !popover.isDestroyed() && !popover.webContents.isLoading()) {
+    try { popover.webContents.send('rrr:desktop-state', desktopState()); } catch (error) {}
+  }
+}
+
+// The Portal-style menu-bar popover: a frameless, transparent, all-Spaces window anchored under the
+// tray icon; dismisses on blur. Preloaded hidden so the first tray click is instant.
+function createPopover() {
+  if (popover && !popover.isDestroyed()) return popover;
+  popover = new BrowserWindow({
+    width: 320, height: 448, show: false, frame: false, resizable: false,
+    transparent: true, backgroundColor: '#00000000', hasShadow: true, skipTaskbar: true,
+    fullscreenable: false, minimizable: false, maximizable: false, alwaysOnTop: true,
+    webPreferences: { preload: PRELOAD, contextIsolation: true, sandbox: false },
+  });
+  popover.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  popover.loadFile(path.join(DIST, 'index.html'), { query: { mode: 'popover' } });
+  popover.on('blur', () => { if (popover && !popover.isDestroyed()) popover.hide(); });
+  popover.on('closed', () => { popover = null; });
+  return popover;
+}
+
+function togglePopover(bounds) {
+  const pop = createPopover();
+  if (pop.isVisible()) { pop.hide(); return; }
+  try {
+    if (bounds && bounds.width) {
+      const { width } = pop.getBounds();
+      pop.setPosition(Math.round(bounds.x + bounds.width / 2 - width / 2), Math.round(bounds.y + bounds.height + 4), false);
+    }
+  } catch (error) {}
+  pushDesktopState();
+  pop.show();
+}
 
 function setupDesktop() {
   settings = new SettingsStore(app.getPath('userData'));
@@ -215,6 +284,7 @@ function setupDesktop() {
       dist: DIST,
       preload: PRELOAD,
       initialPerformance: wallpaperPerformance,
+      station: settings.value.station,
     });
     power = new WallpaperPowerController({
       powerMonitor,
@@ -241,7 +311,9 @@ function setupDesktop() {
     onPowerSaver: setPowerSaver,
     onLogin: setOpenAtLogin,
     onQuit: quitApp,
+    onClick: togglePopover,
   });
+  createPopover();   // preload the popover so the first tray click is instant
 
   const login = app.getLoginItemSettings();
   if (wallpaperOnlyLaunch || login.wasOpenedAtLogin || login.wasOpenedAsHidden) {
@@ -267,6 +339,7 @@ if (!app.requestSingleInstanceLock()) {
     quitting = true;
     if (power) power.stop();
     if (wallpaper) wallpaper.stop();
+    if (popover && !popover.isDestroyed()) popover.destroy();
     if (steamTimer) clearInterval(steamTimer);
     steamTimer = null;
   });
