@@ -185,7 +185,11 @@ class Channel {
   }
 }
 
-const channels = CHANNELS.map(c => new Channel(c));
+// RRR_CHANNELS lets one box run a SUBSET of channels (a 2-core box comfortably does ~2), so the
+// four moods can be split across free instances: e.g. box A = "everything,mellow", box B =
+// "instrumental,melodic". Unset = all channels.
+const ONLY = (process.env.RRR_CHANNELS || '').split(',').map(s => s.trim()).filter(Boolean);
+const channels = CHANNELS.filter(c => !ONLY.length || ONLY.includes(c.mood)).map(c => new Channel(c));
 const byPath = {}; for (const ch of channels) for (const p of ch.paths) byPath[p] = ch;
 
 const server = http.createServer((req, res) => {
