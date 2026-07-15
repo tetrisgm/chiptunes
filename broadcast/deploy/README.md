@@ -26,12 +26,16 @@ together. The box must be NTP-synced (Ubuntu is by default) — that's what keep
 4. SSH in: `ssh ubuntu@<public-ip>`.
 
 ### 2. Get the code onto the box + run setup
+The GitHub repo is **private**, so `git clone` on the box won't work (it prompts for auth). Push
+the working tree up with **rsync** from the dev machine instead (which is how it's actually deployed):
 ```bash
-sudo git clone https://github.com/tetrisgm/retro-rave-radio /opt/retro-rave-radio   # or your repo URL
-sudo bash /opt/retro-rave-radio/broadcast/deploy/setup.sh
+# from the dev machine (~/dev/mikutap):
+ssh ubuntu@<ip> 'sudo mkdir -p /opt/retro-rave-radio && sudo chown ubuntu:ubuntu /opt/retro-rave-radio'
+rsync -az --exclude node_modules --exclude dist ./ ubuntu@<ip>:/opt/retro-rave-radio/
+ssh ubuntu@<ip> 'cd /opt/retro-rave-radio && git remote remove origin 2>/dev/null; sudo bash broadcast/deploy/setup.sh'
 ```
 `setup.sh` installs ffmpeg + Node + Playwright Chromium, builds `dist/`, and starts `rrr-stream`.
-Re-run it any time to pull + rebuild + restart.
+(It removes the origin remote so its `git pull` step safely no-ops on the private repo.)
 
 ### 3. Expose the MP3 stream as `stream.ramine.net` (cloudflared, $0, no open ports)
 ```bash
@@ -68,10 +72,17 @@ Now **`https://stream.ramine.net/radio.mp3`** is the URL to paste into **Roon �
 - `/etc/retro-rave-radio.env` — `FFMPEG`, `RRR_STREAM_PORT`, `VIDEO_ENC=libx264`, `YT_STREAM_KEY`.
 
 ## Keeping in sync with the website
-Same repo = same `src/live.js` = same schedule. **When you change `src/composer.js` or `src/live.js`
-and redeploy the site (`npm run deploy`), also `sudo bash …/setup.sh` on the box** so both realize
-the identical schedule. (Composer *version* bumps are handled cleanly by the `LIVE_VERSIONS` table —
-they flip at an hour boundary — but the box still needs the new code.)
+Same code = same `src/live.js`/`src/composer.js` = same schedule + audio. **When you change either and
+redeploy the site (`npm run deploy`), push the same files to the box and rebuild** (private repo → rsync,
+not `git pull`):
+```bash
+# from ~/dev/mikutap, after committing + `npm run deploy`:
+rsync -az --rsync-path="sudo rsync" src/composer.js src/live.js ubuntu@<ip>:/opt/retro-rave-radio/src/
+ssh ubuntu@<ip> 'sudo chown -R rrr:rrr /opt/retro-rave-radio/src && sudo -u rrr bash -lc "cd /opt/retro-rave-radio && node build.js" && sudo systemctl restart rrr-stream'
+```
+The broadcaster serves the built `dist/`, so `src` changes need a `node build.js` on the box before the
+restart. (Composer *version* bumps are handled cleanly by the `LIVE_VERSIONS` table — they flip at an
+hour boundary — but the box still needs the new code.)
 
 ## Ops cheat-sheet
 ```bash
