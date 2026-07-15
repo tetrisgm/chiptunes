@@ -76,7 +76,10 @@ function stPalette(token){
   // 'none' = instrumental groove — the accompaniment IS the track (the owner:
   // "it's better in the background with the lead muted" — now a first-class
   // genre). The radio queue mixes all three; Radio.setMood pins one.
-  var leadMode=wpick(r,[['full',0.38],['sparse',0.32],['none',0.30]]);
+  // Everything-radio mood mix, owner-tuned toward LESS melody (was 38/32/30 — "3x too many"
+  // full-melody tracks). Now most tracks are instrumental or melody-as-garnish: full (hook-driven)
+  // ~13%, sparse (~1/3 the melody at half volume) ~37%, none (no lead at all) ~50%.
+  var leadMode=wpick(r,[['full',0.13],['sparse',0.37],['none',0.50]]);
   var DUTIES=[0.125,0.25,0.5];
   function leadFam(){ return wpick(r,[
     ['pulse',1.0+((era==='nes'||era==='gb')?0.9*eraAmt:0)],
