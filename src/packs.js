@@ -13,7 +13,7 @@ window.CT_COMPOSERS = window.CT_COMPOSERS || {};
   var CAP_CODE=20*1024*1024;            // pack.js / composer.js entry text
   var ID_RE=/^[a-z][a-z0-9_]{1,31}$/;
   var KINDS={game:1,composer:1};   // generative-only: the 'music' pack kind was removed for release
-  var SRC_RANK={inline:0, served:1, fsdir:2, opfs:3};   // duplicate ids: lowest rank wins
+  var SRC_RANK={inline:0, served:1, fsdir:2, opfs:3, workshop:4};   // duplicate ids: lowest rank wins
   var KIND_DIR={game:'games', composer:'composers'};
 
   // ---- state ----------------------------------------------------------------
@@ -144,6 +144,17 @@ window.CT_COMPOSERS = window.CT_COMPOSERS || {};
         return buf;
       });
     }
+    if(row.source==='workshop' && row.nativeDir && window.RRRNative && window.RRRNative.readPackFile){
+      // Steam Workshop pack: the Electron host (window.RRRNative, from the desktop app's preload)
+      // reads the file off disk — the renderer can't touch the FS. Same caps + magic-byte checks.
+      return window.RRRNative.readPackFile(row.nativeDir, rel).then(function(u8){
+        if(!u8) { var e0=new Error(rel+' not found'); e0.notFound=true; throw e0; }
+        var arr=(u8 instanceof Uint8Array)?u8:new Uint8Array(u8);
+        if(arr.byteLength>cap) throw new Error(rel+' exceeds '+Math.round(cap/1048576)+'MB cap');
+        var bad=_magicBad(rel, arr); if(bad) throw new Error(rel+': '+bad);
+        return arr.buffer.slice(arr.byteOffset, arr.byteOffset+arr.byteLength);
+      });
+    }
     if(row.dir) return _fsRead(row.dir, rel, cap);
     return Promise.reject(new Error('pack "'+row.id+'" has no readable files ('+row.source+')'));
   }
@@ -177,7 +188,7 @@ window.CT_COMPOSERS = window.CT_COMPOSERS || {};
   }
 
   // ---- consent + state ---------------------------------------------------------
-  function _sideJS(row){ return (row.source==='fsdir'||row.source==='opfs') && (row.kind==='game'||row.kind==='composer'); }
+  function _sideJS(row){ return (row.source==='fsdir'||row.source==='opfs'||row.source==='workshop') && (row.kind==='game'||row.kind==='composer'); }
   function _ensureConsent(row){
     if(!_sideJS(row) || row.consent) return true;
     var ok=false;
@@ -485,12 +496,39 @@ window.CT_COMPOSERS = window.CT_COMPOSERS || {};
     // cache fsdir manifests so a permission-lost boot can still list them
     rows.forEach(function(row){ if(row.source==='fsdir' && !row.needsPermission && row.manifest && row.kind) _persistRow(row); });
   }
+  // ---- discovery: Steam Workshop (the desktop app's window.RRRNative bridge) ------------------
+  // The Electron host enumerates subscribed Workshop items (getSubscribedItems -> getItemInstallInfo)
+  // and exposes their absolute install dirs via window.RRRNative.listWorkshopDirs(); this reads each
+  // dir's pack.json through the same validate path and loads its code through _readFile's workshop
+  // branch. Absent in a plain browser (RRRNative undefined) => no workshop packs. Consent-gated like fsdir.
+  function _discoverWorkshop(){
+    var N=window.RRRNative;
+    if(!N || typeof N.listWorkshopDirs!=='function' || typeof N.readPackFile!=='function') return Promise.resolve([]);
+    return Promise.resolve().then(function(){ return N.listWorkshopDirs(); }).then(function(dirs){
+      if(!Array.isArray(dirs)) return [];
+      return Promise.all(dirs.map(function(dir){
+        if(!dir || typeof dir!=='string') return null;
+        var name=dir.replace(/[\\/]+$/,'').split(/[\\/]/).pop()||'workshop';
+        return N.readPackFile(dir, 'pack.json').then(function(u8){
+          if(!u8) return null;
+          var arr=(u8 instanceof Uint8Array)?u8:new Uint8Array(u8);
+          if(arr.byteLength>CAP_MANIFEST) return {broken:name, error:'pack.json exceeds 64KB', source:'workshop', sourceId:dir, nativeDir:dir, dirName:name};
+          var t; try{ t=new TextDecoder('utf-8').decode(arr); }catch(e){ return null; }
+          var m; try{ m=JSON.parse(t); }catch(e){ return {broken:name, error:'pack.json is not valid JSON', source:'workshop', sourceId:dir, nativeDir:dir, dirName:name}; }
+          var err=_validate(m);
+          if(err) return {broken:name, brokenManifest:m, error:err, source:'workshop', sourceId:dir, nativeDir:dir, dirName:name};
+          return {manifest:m, source:'workshop', sourceId:dir, nativeDir:dir, dirName:name};
+        }).catch(function(){ return null; });                      // unreadable Workshop dir: skip quietly
+      })).then(function(xs){ return xs.filter(Boolean); });
+    }).catch(function(){ return []; });
+  }
   function _refresh(){
     return Promise.all([
       _timeout(_discoverServed(), 3000).catch(function(){ return []; }),
       _timeout(_discoverOpfs(), 3000).catch(function(){ return []; }),
-      _timeout(_discoverFsdir(), 3000).catch(function(){ return []; })
-    ]).then(function(xs){ _merge(xs[0].concat(xs[1], xs[2])); });
+      _timeout(_discoverFsdir(), 3000).catch(function(){ return []; }),
+      _timeout(_discoverWorkshop(), 4000).catch(function(){ return []; })
+    ]).then(function(xs){ _merge(xs[0].concat(xs[1], xs[2], xs[3])); });
   }
 
   // ---- zip import (unzips off-main in pack-unzip-worker, lands in OPFS) ---------

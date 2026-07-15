@@ -1,0 +1,17 @@
+{
+  "name": "retro-rave-radio-desktop",
+  "version": "0.0.1",
+  "description": "Retro Rave Radio desktop app — Wallpaper-Engine-style Steam app (Win/Mac/Linux). Phase 0-2 foundation.",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "check": "node --check main.js && node --check preload.js"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0"
+  },
+  "dependencies": {
+    "steamworks.js": "^0.4.0"
+  }
+}
