@@ -1,5 +1,8 @@
 // AUTO-SPLIT from index.html — classic script, shares global scope (load order matters).
 // Scene loop, home/routes, watch mode, input wiring (must load LAST).
+const _RRR_DESKTOP_MODE=(function(){ try{ return new URLSearchParams(location.search||'').get('mode')||''; }catch(e){ return ''; } })();
+const _WALLPAPER_MODE=_RRR_DESKTOP_MODE==='wallpaper';
+const _WALLPAPER_AUDIO=(function(){ try{ return new URLSearchParams(location.search||'').get('audio')!=='0'; }catch(e){ return true; } })();
 // ----- GAME REGISTRY: derived from window.CT_GAMES. The inline fallback pack(s) register at parse time;
 //  the rest arrive through Packs.init() / Packs.onChange (runtime-loaded game packs). No hardcoded roster. -----
 let GAMES=[], GAME_BY_KEY={}, POOL=[];
@@ -46,6 +49,7 @@ function _backgroundAudioOnlyActive(){ return !!_bgAudioOnly; }
 function _backgroundUiDormant(){ return (typeof _backgroundAudioOnlyActive==='function' && _backgroundAudioOnlyActive()); }
 function _shouldBackgroundAudioOnly(){
   if(typeof document==='undefined') return false;
+  if(_WALLPAPER_MODE) return !!document.hidden;              // a non-activating desktop window never owns focus
   return !!(document.hidden || (document.hasFocus && !document.hasFocus()));
 }
 function _publishAudioOnlyMode(on, reason){
@@ -516,6 +520,7 @@ function _writeDiagnostics(RX, paused, now){
   }catch(eL){}
 }
 let _frameTarget = 16.7, _renderEMA = 6;        // aim for 60fps; adapt down only when rendering is genuinely heavy
+let _wallpaperFpsCap = _WALLPAPER_MODE ? 30 : 0, _wallpaperPerformancePaused = false;
 let _frameReq = 0, _frameSeq = 0, _frameStoppedAt = 0;
 function _frameDiag(){
   return {
@@ -583,11 +588,35 @@ function frame(now){
   // adaptive: prefer smooth 60fps visuals; back off to ~42/30fps only when drawing cost threatens audio headroom.
   const _cost = (typeof performance!=='undefined'&&performance.now?performance.now():now) - _t0;
   _renderEMA += (_cost - _renderEMA) * 0.1;
-  _frameTarget = (_renderEMA > 24) ? 33 : (_renderEMA > 15 ? 24 : 16.7);
+  var adaptiveTarget = (_renderEMA > 24) ? 33 : (_renderEMA > 15 ? 24 : 16.7);
+  _frameTarget = Math.max(adaptiveTarget, _wallpaperFpsCap ? 1000/_wallpaperFpsCap : 0);
   if(typeof window!=='undefined') window.__rrrFrame = _frameDiag();
   _frameRX = null; _frameSND = null;
 }
 _scheduleFrameLoop();
+function _applyWallpaperPerformance(state){
+  if(!_WALLPAPER_MODE || !state) return;
+  var wasPaused=_wallpaperPerformancePaused;
+  _wallpaperPerformancePaused=!!state.paused;
+  var cap=Number(state.fpsCap);
+  if(isFinite(cap) && cap>0) _wallpaperFpsCap=Math.max(1,Math.min(60,cap));
+  window.__rrrWallpaperPerformance={paused:_wallpaperPerformancePaused,fpsCap:_wallpaperFpsCap,reason:String(state.reason||'')};
+  if(document.documentElement){
+    document.documentElement.dataset.rrrWallpaperPaused=_wallpaperPerformancePaused?'1':'0';
+    document.documentElement.dataset.rrrWallpaperFps=String(_wallpaperFpsCap);
+    document.documentElement.dataset.rrrWallpaperReason=String(state.reason||'');
+  }
+  if(_wallpaperPerformancePaused){
+    _stopFrameLoop();
+  } else {
+    lastFrame=_nowMs();
+    _scheduleFrameLoop();
+    if(wasPaused){ try{ if(Audio&&Audio.resume) Audio.resume(false); }catch(e){} }
+  }
+}
+if(_WALLPAPER_MODE && window.RRRNative && window.RRRNative.onWallpaperPerformance){
+  try{ window.RRRNative.onWallpaperPerformance(_applyWallpaperPerformance); }catch(e){}
+}
 // On return-to-foreground, re-anchor the frame clock so the first frame's dt is normal AND (if we were away long enough that the
 // grid clock ran far ahead) flag the scene to re-seat — otherwise the game replays every missed beat-step in a visible fast-forward.
 document.addEventListener('visibilitychange', ()=>{
@@ -2674,6 +2703,13 @@ try{
 }catch(e){}
 buildHomeTiles();
 (function(){
+  if(_WALLPAPER_MODE){
+    if(document.body) document.body.classList.add('wallpaper-visual');
+    if(_WALLPAPER_AUDIO) startAudio(false);
+    else enterWatchMode({noRoute:true});
+    if(window.__rrrWallpaperPerformance) _applyWallpaperPerformance(window.__rrrWallpaperPerformance);
+    return;
+  }
   var head=String(_pathParts(location.pathname||'/')[0]||'').toLowerCase();
   if(head==='listen'||head==='play'||head==='create'||head==='wip'){
     if(typeof history!=='undefined' && history.replaceState){ try{ history.replaceState(null,'','/'); }catch(e){} }

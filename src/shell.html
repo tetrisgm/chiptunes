@@ -29,6 +29,13 @@
 <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet" />
 <script>
 (function(){
+  var shellMode='';
+  try{ shellMode=new URLSearchParams(location.search||'').get('mode')||''; }catch(e0){}
+  if(shellMode==='wallpaper'){
+    document.documentElement.classList.add('wallpaper-mode','boot-player-route');
+    window.__RRR_WALLPAPER_MODE=true;
+    window.__RRR_BOOT_PLAYER_ROUTE=true;
+  }
   // player-route boot: hide the Home overlay pre-paint for direct track/watch/radio links.
   // /track/<slug> (generated; slug may carry a '<composerId>.' prefix)
   // /watch (silent wallpaper) · /radio (mints a fresh generated track).
@@ -58,6 +65,21 @@
   *{ box-sizing:border-box; margin:0; padding:0; }
   html,body{ height:100%; width:100%; overflow:hidden; background:var(--bg); }
   html.boot-player-route #intro{ display:none !important; }
+  html.wallpaper-mode body, html.wallpaper-mode body *{ cursor:none !important; }
+  html.wallpaper-mode #intro,
+  html.wallpaper-mode #hud,
+  html.wallpaper-mode #presets,
+  html.wallpaper-mode #playbar,
+  html.wallpaper-mode #watchbar,
+  html.wallpaper-mode #radionav,
+  html.wallpaper-mode #rlist,
+  html.wallpaper-mode #rfullscreen,
+  html.wallpaper-mode #resumeMusic,
+  html.wallpaper-mode #mixpanel,
+  html.wallpaper-mode #trackpanel,
+  html.wallpaper-mode #pbMenu,
+  html.wallpaper-mode #gamepick,
+  html.wallpaper-mode #soundhint{ display:none !important; }
   body{
     font-family:var(--pixel);
     color:var(--ink);
