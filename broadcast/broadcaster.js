@@ -44,20 +44,23 @@ try { LOGO = fs.readFileSync(path.join(ROOT, 'assets', 'station-icon.png')); } c
 const now = () => Date.now();            // wall clock (Date.now allowed here — this is a daemon, not a workflow script)
 function log(...a) { process.stdout.write('[bcast ' + new Date().toISOString() + '] ' + a.join(' ') + '\n'); }
 
-// ---------------- schedule walk (WALL-CLOCK anchored; matches the site listeners exactly) ----------------
-// renderOnAir(nowMs) renders the FULL track the schedule says is on air at nowMs (composer version-
-// pinned, silence-gated). The loop then slices its BODY at the CURRENT wall offset and overlap-ADDs
-// the previous track's ~1.8s echo TAIL onto the head — gapless like the site's cold-open segue. Because
-// every track is re-resolved from the wall clock (not walked sequentially), the stream self-corrects:
-// the ~15s startup render latency and any ffmpeg-rate drift can never accumulate the broadcaster off
-// the schedule — it always plays what a browser listener hears right now.
-async function renderOnAir(nowMs) {
-  const r = Live.resolveAt(nowMs);
-  const composerId = Live.versionFor(r.blockN).composerId;
-  const rendered = await renderer.render(r.token, composerId);
+// ---------------- schedule walk (SEQUENTIAL playback + drift-guarded re-anchor) ----------------
+// Play the schedule's tracks in deterministic sequence (stable, gapless: the next track is always
+// prefetched during the current one, so there is never a feed gap). Only when playback has drifted
+// >DRIFT_MAX from the wall clock — the ~15s first-render latency at startup, or slow-box rate jitter
+// — do we RE-ANCHOR to the true on-air position. This is stable where the earlier "re-resolve every
+// track from now()" churned: on a loaded 2-core box that re-rendered near every boundary (audible
+// gaps). Now re-anchor fires ~once at startup and rarely after; steady state is pure sequential play.
+const DRIFT_MAX_MS = 10000;
+async function renderDesc(desc) {
+  const pl = Live.blockPlaylist(desc.blockN);
+  const slot = pl[desc.i];
+  const composerId = Live.versionFor(desc.blockN).composerId;
+  const rendered = await renderer.render(slot.token, composerId);
   if (!rendered) return null;
-  return { token: r.token, blockN: r.blockN, i: r.i, rendered };
+  return { token: slot.token, slot, isStraddler: desc.i === pl.length - 1, blockN: desc.blockN, i: desc.i, rendered };
 }
+function descAt(nowMs) { const r = Live.resolveAt(nowMs); return { blockN: r.blockN, i: r.i, offsetSec: r.offsetSec }; }
 function overlapAdd(body, tail) {   // add previous track's tail onto this body's head, clamped
   if (!tail || !tail.length) return body;
   const n = Math.min(body.length, tail.length);
@@ -200,35 +203,41 @@ function feedPcm(f32) {
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 async function scheduleLoop() {
   let pendingTail = null;
-  let job = renderOnAir(now());
+  let d = descAt(now());
+  let joinOffset = d.offsetSec;              // mid-track only for the first body / after a re-anchor
+  let job = renderDesc(d);
   while (running) {
     const cur = await job;
-    if (!cur) { log('render failed — retrying from current wall position'); await sleep(1000); job = renderOnAir(now()); continue; }
-    // RE-ANCHOR: by the time this finished rendering, is it still the on-air track? If the schedule
-    // advanced during render (the ~15s startup lag, or drift), drop it and render what's live NOW.
-    const t = now();
-    const r = Live.resolveAt(t);
-    if (r.token !== cur.token) {
-      log('re-anchor: schedule advanced past ' + Song.title(cur.token) + ' during render -> ' + Song.title(r.token));
-      job = renderOnAir(t);   // burst buffer covers the brief gap
-      continue;
+    if (!cur) { log('render failed — rejoining at current wall position'); await sleep(1000); d = descAt(now()); joinOffset = d.offsetSec; job = renderDesc(d); continue; }
+    // DRIFT GUARD: compare this body's SCHEDULED wall start to now. Off by >DRIFT_MAX (startup
+    // latency / slow-box jitter) -> re-anchor to the true on-air position. Fires ~once at startup;
+    // steady state is stable sequential play (no per-track re-render, so no audible gaps).
+    const slotWallStart = cur.blockN * Live.BLOCK_MS + cur.slot.start * 1000;
+    const drift = now() - (slotWallStart + joinOffset * 1000);
+    if (Math.abs(drift) > DRIFT_MAX_MS) {
+      const r = Live.resolveAt(now());
+      if (r.token !== cur.token) {
+        log('re-anchor: drift ' + (drift / 1000).toFixed(1) + 's -> ' + Song.title(r.token));
+        d = { blockN: r.blockN, i: r.i }; joinOffset = r.offsetSec; job = renderDesc(d); continue;
+      }
+      joinOffset = r.offsetSec;   // same track still on air — just fix the offset, keep the render
+      log('re-sync: drift ' + (drift / 1000).toFixed(1) + 's within ' + Song.title(cur.token));
     }
-    // aligned: slice the body at the CURRENT wall offset (self-corrects sub-track drift), tail = the rest
+    // slice body from joinOffset to the beat-grid end (or hour boundary for the straddler); tail = rest
     const sr = cur.rendered.sampleRate;
     const all = new Float32Array(cur.rendered.pcm.buffer, cur.rendered.pcm.byteOffset, cur.rendered.pcm.length >> 2);
-    const pl = Live.blockPlaylist(r.blockN);
-    const slot = pl[r.i];
-    const isStraddler = (r.i === pl.length - 1);
-    const bodyEndSec = isStraddler ? (Live.BLOCK_SEC - slot.start) : slot.dur;
-    const offFrame = Math.max(0, Math.floor(r.offsetSec * sr));
+    const bodyEndSec = cur.isStraddler ? (Live.BLOCK_SEC - cur.slot.start) : cur.slot.dur;
+    const offSec = Math.max(0, Math.min(joinOffset, bodyEndSec - 0.1));
+    const offFrame = Math.floor(offSec * sr);
     const bodyEndFrame = Math.min(all.length >> 1, Math.floor(bodyEndSec * sr));
     const body = Float32Array.from(all.subarray(offFrame * 2, bodyEndFrame * 2));
     const tail = Float32Array.from(all.subarray(bodyEndFrame * 2));
-    curTitle = Song.title(slot.token);
-    log('on air: ' + curTitle + '  (' + slot.token + ')  +' + r.offsetSec.toFixed(0) + 's  clients=' + clients.size);
-    // prefetch the track that will be on air when this body finishes feeding (by wall clock)
-    const bodyMs = Math.max(0, (bodyEndSec - r.offsetSec) * 1000);
-    job = renderOnAir(t + bodyMs + 100);
+    curTitle = Song.title(cur.token);
+    log('on air: ' + curTitle + '  (' + cur.token + ')  +' + offSec.toFixed(0) + 's  clients=' + clients.size);
+    // advance to the next scheduled track (deterministic sequential = stable + gapless) and prefetch it
+    const next = cur.isStraddler ? { blockN: cur.blockN + 1, i: 0 } : { blockN: cur.blockN, i: cur.i + 1 };
+    joinOffset = 0;
+    job = renderDesc(next);
     const mixed = overlapAdd(body, pendingTail);
     pendingTail = tail;
     await feedPcm(mixed);
