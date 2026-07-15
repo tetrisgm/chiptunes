@@ -75,7 +75,16 @@ class Renderer {
 
   // Render one live token -> { sampleRate, frames, pcm: Buffer(f32le interleaved LR) }.
   // composerId comes from the live schedule (version-pinned); we compile in-page through it.
+  // SERIALIZED: one page + one _chunks buffer is shared, so concurrent callers (the multi-channel
+  // broadcaster's mood streams) must queue. Renders are ~15s and each channel needs one per ~100s,
+  // so one render farm comfortably serves all channels; this mutex just prevents interleaving.
   async render(token, composerId) {
+    const prev = this._q || Promise.resolve();
+    let done; this._q = new Promise(r => { done = r; });
+    try { await prev; } catch (e) {}
+    try { return await this._render(token, composerId); } finally { done(); }
+  }
+  async _render(token, composerId) {
     composerId = composerId || 'rrr_core';
     for (let attempt = 0; attempt < 2; attempt++) {
       this._chunks.length = 0;

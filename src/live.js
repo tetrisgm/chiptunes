@@ -72,14 +72,43 @@ function blockPlaylist(blockN){
   return out;
 }
 
-// ---- resolve an instant -> what's on air ----
+// ---- MOOD channels: deterministic per-mood schedules (the broadcaster's mood streams). Mood is
+// the composer's leadMode axis — mellow=sparse, instrumental=none, melodic=full; 'everything' is
+// the mixed blockPlaylist above. A mood block mints candidate tokens and keeps only the ones whose
+// leadMode matches (~1/3 of mints), so each mood is its own independent, reproducible clock schedule.
+var MOODS = ['everything', 'mellow', 'instrumental', 'melodic'];
+function moodLead(mood){ return mood==='mellow'?'sparse':mood==='instrumental'?'none':mood==='melodic'?'full':null; }
+function moodMintToken(mood, blockN, c){
+  var e = versionFor(blockN);
+  return Song.mint({ random: Song._mulberry32(Song._hash32('live:' + mood + ':v' + e.v + ':' + blockN + ':' + c)) });
+}
+var _mplCache = {}, _mplOrder = [];
+function moodBlockPlaylist(mood, blockN){
+  if (!moodLead(mood)) return blockPlaylist(blockN);          // 'everything' = the mixed schedule
+  var key = mood + ':' + blockN;
+  if (_mplCache[key]) return _mplCache[key];
+  var comp = composerFor(blockN), want = moodLead(mood), out = [], start = 0, c = 0;
+  while (start < BLOCK_SEC && c < 4000){                      // guard: ~1/3 of mints match a given mood
+    var tok = moodMintToken(mood, blockN, c); c++;
+    var fp; try { fp = comp.fingerprint(tok); } catch (e) { fp = null; }
+    if (!fp || (fp.leadMode || 'full') !== want) continue;
+    var dur = comp.duration(tok);
+    out.push({ token: tok, start: start, dur: dur });
+    start += dur;
+  }
+  _mplCache[key] = out; _mplOrder.push(key);
+  while (_mplOrder.length > 12) delete _mplCache[_mplOrder.shift()];
+  return out;
+}
+
+// ---- resolve an instant -> what's on air (for any playlist function) ----
 // {blockN, i, token, dur, offsetSec, startWallMs, nextToken, nextStartWallMs, boundary}
 // boundary=true means the NEXT transition is the hour cold-open (next starts at the fixed
 // boundary, cutting the straddler's tail) rather than the natural gapless deck chain.
-function resolveAt(nowMs){
+function _resolve(plFn, nowMs){
   var blockN = Math.floor(nowMs / BLOCK_MS);
   var t = (nowMs - blockN * BLOCK_MS) / 1000;
-  var pl = blockPlaylist(blockN), i = pl.length - 1;
+  var pl = plFn(blockN), i = pl.length - 1;
   for (var k = 0; k < pl.length; k++)
     if (t >= pl[k].start && (k === pl.length - 1 || t < pl[k + 1].start)) { i = k; break; }
   var cur = pl[i], last = i === pl.length - 1;
@@ -87,17 +116,20 @@ function resolveAt(nowMs){
     blockN: blockN, i: i, token: cur.token, dur: cur.dur,
     offsetSec: t - cur.start,
     startWallMs: blockN * BLOCK_MS + cur.start * 1000,
-    nextToken: last ? blockPlaylist(blockN + 1)[0].token : pl[i + 1].token,
+    nextToken: last ? plFn(blockN + 1)[0].token : pl[i + 1].token,
     nextStartWallMs: last ? (blockN + 1) * BLOCK_MS : blockN * BLOCK_MS + pl[i + 1].start * 1000,
     boundary: last
   };
 }
+function resolveAt(nowMs){ return _resolve(blockPlaylist, nowMs); }
+function moodResolveAt(mood, nowMs){ return _resolve(function(N){ return moodBlockPlaylist(mood, N); }, nowMs); }
 
 var API = {
   BLOCK_SEC: BLOCK_SEC, BLOCK_MS: BLOCK_MS, RENDER_TAIL_SEC: RENDER_TAIL_SEC,
-  LIVE_VERSIONS: LIVE_VERSIONS,
-  versionFor: versionFor, composerFor: composerFor,
-  mintToken: mintToken, blockPlaylist: blockPlaylist, resolveAt: resolveAt
+  LIVE_VERSIONS: LIVE_VERSIONS, MOODS: MOODS,
+  versionFor: versionFor, composerFor: composerFor, moodLead: moodLead,
+  mintToken: mintToken, blockPlaylist: blockPlaylist, resolveAt: resolveAt,
+  moodMintToken: moodMintToken, moodBlockPlaylist: moodBlockPlaylist, moodResolveAt: moodResolveAt
 };
 if (isNode) module.exports = API;
 return API;
