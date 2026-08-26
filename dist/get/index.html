@@ -489,6 +489,15 @@
     font:600 11px var(--ui); }
   #createscreen .cr-chip:hover{ border-color:var(--mat-edge-hi); color:var(--ink);
     background:rgba(255,255,255,.11); }
+  #createscreen .cr-drawer{ flex:0 0 auto; display:flex; flex-wrap:wrap; align-items:center;
+    justify-content:center; gap:6px; padding:8px 18px; max-height:132px; overflow-y:auto;
+    border-top:1px solid var(--mat-edge); }
+  #createscreen .cr-inst{ width:44px; height:50px; border-radius:10px; cursor:pointer;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
+    background:rgba(255,255,255,.05); border:1px solid var(--mat-edge); position:relative; }
+  #createscreen .cr-inst:hover{ border-color:var(--mat-edge-hi); background:rgba(255,255,255,.1); }
+  #createscreen .cr-inst.on{ background:rgba(120,220,160,.2); border-color:rgba(120,220,160,.65); }
+  #createscreen .cr-inst .cr-name{ font:600 8px/1 var(--ui); color:var(--ink-2); }
   #createscreen .cr-playstamp{ border-color:rgba(123,220,160,.45); }
   #createscreen .cr-playstamp.on{ background:rgba(123,220,160,.22); border-color:rgba(123,220,160,.7); }
   /* instant hover hints: every control names itself */
@@ -3184,15 +3193,59 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     pause: { pal: { g: '#7BDCA0' }, px: [
       '..........', '..gg..gg..', '..gg..gg..', '..gg..gg..', '..gg..gg..',
       '..gg..gg..', '..gg..gg..', '..........', '..........', '..........'] },
+    more: { pal: { m: '#9AA4B8' }, px: [
+      '..........', '.mm.mm.mm.', '.mm.mm.mm.', '..........', '.mm.mm.mm.',
+      '.mm.mm.mm.', '..........', '.mm.mm.mm.', '.mm.mm.mm.', '..........'] },
     eraser: { pal: { p: '#FF9EC4', d: '#D96A9A', b: '#7FD4FF', w: '#FFFFFF' }, px: [
       '..........', '..bbbbbb..', '.bwbbbbb..', '.bbbbbbb..', '.pppppppp.',
       '.pwpppppd.', '.pppppppd.', '.ppppppdd.', '..dddddd..', '..........'] }
   };
 
   var CACHE = {};
+  // 'i<N>' names render a generated waveform icon for bank instrument N:
+  // the pulse's duty as a square trace, the wave's actual table, a speckle
+  // for noise. Honest little pictures of the sound itself.
+  function instIcon(idx, size) {
+    resolveBank();
+    var cv = document.createElement('canvas');
+    cv.__ctpalRaw = true; cv.width = cv.height = size;
+    var c = cv.getContext('2d');
+    var m = null;
+    for (var i = 0; i < BANK.meta.length; i++) if (BANK.meta[i].index === idx) m = BANK.meta[i];
+    var pad = Math.max(1, size * 0.08), w = size - pad * 2, h = size - pad * 2;
+    c.lineWidth = Math.max(1.5, size / 14); c.lineJoin = 'round';
+    if (m && m.type === 'wave') {
+      var t = BANK.waveTables[m.waveSlot] || [];
+      c.strokeStyle = '#E8A75D'; c.beginPath();
+      for (var x = 0; x < 32; x++) {
+        var vx = pad + (x / 31) * w, vy = pad + (1 - (t[x] || 0) / 15) * h;
+        x ? c.lineTo(vx, vy) : c.moveTo(vx, vy);
+      }
+      c.stroke();
+    } else if (m && m.type === 'noise') {
+      c.fillStyle = '#9AA4B8';
+      for (var nx = 0; nx < 7; nx++) {
+        var bh = (((idx * 31 + nx * 17) % 13) / 13) * h * 0.9 + h * 0.1;
+        c.fillRect(pad + nx * (w / 7) + 1, pad + h - bh, w / 7 - 2, bh);
+      }
+    } else {
+      var duty = (m && m.patch && m.patch.duty) || 0.5;
+      c.strokeStyle = '#FFD23F'; c.beginPath();
+      var y0 = pad + h * 0.15, y1 = pad + h * 0.85, half = w / 2;
+      for (var p2 = 0; p2 < 2; p2++) {
+        var x0 = pad + p2 * half, hi = half * duty;
+        c.moveTo(x0, y1); c.lineTo(x0, y0); c.lineTo(x0 + hi, y0);
+        c.lineTo(x0 + hi, y1); c.lineTo(x0 + half, y1);
+      }
+      c.stroke();
+    }
+    return cv;
+  }
   function sprite(name, size) {
     var k = name + ':' + size;
     if (CACHE[k]) return CACHE[k];
+    if (name.charAt(0) === 'i' && +name.slice(1) === +name.slice(1))
+      return (CACHE[k] = instIcon(+name.slice(1), size));
     var def = SPRITES[name], cv = document.createElement('canvas');
     cv.__ctpalRaw = true;                    // UI pixels, not console art: the panel quantizer must not touch them
     cv.width = cv.height = size;
@@ -3307,6 +3360,18 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   }
   // Build the gb song + mark sulking cells. The DMG has 2 pulses, 1 wave and
   // 1 noise; contention is resolved left-to-right by placement order.
+  // What voice does a cell want? Classic stamps say pulse-or-wave; drawer
+  // stamps ('i<N>') and composed cells carry the exact instrument, and the
+  // bank's meta says which channel that instrument belongs to.
+  function cellVoice(x) {
+    if (x.inst != null) {
+      for (var i = 0; i < BANK.meta.length; i++) if (BANK.meta[i].index === x.inst)
+        return BANK.meta[i].type === 'wave' ? 'wave' : BANK.meta[i].type === 'noise' ? 'noise' : 'pulse';
+    }
+    for (var j = 0; j < STAMPS.length; j++) if (STAMPS[j].id === x.st)
+      return STAMPS[j].ch === 'wave' ? 'wave' : 'pulse';
+    return null;
+  }
   function buildSong() {
     resolveBank();
     var notes = [], per = framesPer16();
@@ -3314,30 +3379,38 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     S.cells.forEach(function (x) { delete x.x; (byCol[x.c] = byCol[x.c] || []).push(x); });
     for (var c = 0; c < cols(); c++) {
       var here = byCol[c] || [];
-      var pulses = 0, wave = false, drums = {};
+      var slots = [false, false], wave = false, drum = false;
       here.sort(function (a, b) { return (a.t || 0) - (b.t || 0); });
       here.forEach(function (x) {
         if (x.r >= MEL_ROWS) {                              // drum lane
           var d = DRUMS[x.r - MEL_ROWS];
-          if (drums[3]) { x.x = 1; return; }
-          drums[3] = 1;
-          notes.push({ ch: 3, frame: colFrame(c), frames: Math.max(2, Math.round(per * 0.6)),
-                       midi: null, inst: INSTOF[d.id], vel: d.vel, pri: 9 - d.lane });
+          if (drum) { x.x = 1; return; }
+          drum = true;
+          notes.push({ ch: 3, frame: colFrame(c),
+                       frames: x.len ? Math.max(2, Math.round(per * x.len) - 1) : Math.max(2, Math.round(per * 0.6)),
+                       midi: null, inst: x.inst != null ? x.inst : INSTOF[d.id],
+                       vel: x.vel != null ? x.vel : d.vel, pri: 9 - d.lane });
           return;
         }
-        var st = null;
-        for (var i = 0; i < STAMPS.length; i++) if (STAMPS[i].id === x.st) st = STAMPS[i];
-        if (!st) { x.x = 1; return; }
-        var frames = Math.max(2, Math.round(per * (x.w ? 8 : 0.96)) - 1);
-        var note = { frame: colFrame(c), frames: frames, midi: rowMidi(x.r),
-                     inst: INSTOF[st.id], vel: 0.8, pri: 5 };
-        if (st.ch === 'wave') {
+        var voice = cellVoice(x);
+        if (!voice || voice === 'noise') { x.x = 1; return; }
+        var steps = x.len ? x.len : (x.w ? 8 : 0.96);
+        var note = { frame: colFrame(c), frames: Math.max(2, Math.round(per * steps) - 1),
+                     midi: x.midi != null ? x.midi : rowMidi(x.r),
+                     inst: x.inst != null ? x.inst : INSTOF[x.st],
+                     vel: x.vel != null ? x.vel : 0.8, pri: 5 };
+        if (voice === 'wave') {
           if (wave) { x.x = 1; return; }
           wave = true; note.ch = 2;
         } else {
-          if (pulses >= 2) { x.x = 1; return; }
-          note.ch = pulses; pulses++;
-          if (x.z && note.ch === 0) note.sweep = 0x3E;      // the fall off the note
+          // an exact channel (composed cells) claims its slot first, then the
+          // other pulse; hand cells take the first free slot
+          var wantCh = (x.ch === 0 || x.ch === 1) ? x.ch : (slots[0] ? 1 : 0);
+          var ch = !slots[wantCh] ? wantCh : !slots[1 - wantCh] ? 1 - wantCh : -1;
+          if (ch < 0) { x.x = 1; return; }
+          slots[ch] = true; note.ch = ch;
+          if (x.sweep != null) { if (note.ch === 0) note.sweep = x.sweep; }
+          else if (x.z && note.ch === 0) note.sweep = 0x3E;  // the fall off the note
         }
         notes.push(note);
       });
@@ -3350,14 +3423,26 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
 
   // ---- serialize: the song IS the URL --------------------------------------
   var B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
-  // v2: four chars per cell (two for the column) so a song can run 63 bars.
-  // v1 links (3-char cells, 2/4/8 bars) still decode.
+  // v3: cells may carry an extension with the exact instrument, pitch,
+  // length, velocity, channel and sweep -- what makes a composed song
+  // survive editing losslessly. v1/v2 links still decode.
   function encode() {
     var ids = STAMPS.map(function (s) { return s.id; });
-    var out = [2, S.key, S.minor, S.bars, Math.round(S.bpm / 2), S.swing];
+    var out = [3, S.key, S.minor, S.bars, Math.round(S.bpm / 2), S.swing];
     S.cells.forEach(function (x) {
-      var st = x.r >= MEL_ROWS ? 15 : Math.max(0, ids.indexOf(x.st));
-      out.push(x.c & 63, (x.c >> 6) & 63, x.r | (x.z ? 32 : 0), st | (x.w ? 16 : 0));
+      var st = x.r >= MEL_ROWS ? 15 : (x.st && x.st.charAt(0) === 'i' ? 14 : Math.max(0, ids.indexOf(x.st)));
+      var ext = x.inst != null;
+      out.push(x.c & 63, (x.c >> 6) & 63, x.r | (x.z ? 32 : 0), st | (x.w ? 16 : 0) | (ext ? 32 : 0));
+      if (ext) {
+        var midi = x.midi != null ? (x.midi | 0) : 0;
+        var hasSweep = x.sweep != null;
+        out.push(x.inst & 63,
+                 ((x.inst >> 6) & 3) | (hasSweep ? 4 : 0) | ((x.ch != null ? x.ch + 1 : 0) << 3) | (x.midi != null ? 32 : 0),
+                 ((x.len || 1) - 1) & 63,
+                 Math.round((x.vel != null ? x.vel : 0.8) * 63) & 63,
+                 midi & 63, (midi >> 6) & 1);
+        if (hasSweep) out.push(x.sweep & 63, (x.sweep >> 6) & 3);
+      }
     });
     return out.map(function (v) { return B64[v & 63]; }).join('');
   }
@@ -3382,10 +3467,24 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
           st2.cells.push(cell);
         }
       } else {
-        for (var k = 6; k + 3 < v.length + 1; k += 4) {
+        var k = 6;
+        while (k + 3 < v.length + 1) {
           var c2 = v[k] | (v[k + 1] << 6), r2 = v[k + 2] & 31, b2 = v[k + 3];
           var cell2 = { c: c2, r: r2, t: k };
-          if (r2 < MEL_ROWS) { cell2.st = ids[b2 & 15] || 'piano'; if (v[k + 2] & 32) cell2.z = 1; if (b2 & 16) cell2.w = 1; }
+          var stc = b2 & 15;
+          if (r2 < MEL_ROWS) { if (stc !== 14) cell2.st = ids[stc] || 'piano'; if (v[k + 2] & 32) cell2.z = 1; if (b2 & 16) cell2.w = 1; }
+          k += 4;
+          if (ver >= 3 && (b2 & 32) && k + 5 < v.length + 1) {
+            var e1 = v[k + 1];
+            cell2.inst = v[k] | ((e1 & 3) << 6);
+            var chc = (e1 >> 3) & 7; if (chc) cell2.ch = chc - 1;
+            var ln = (v[k + 2] & 63) + 1; if (ln > 1) cell2.len = ln;
+            cell2.vel = v[k + 3] / 63;
+            if (e1 & 32) cell2.midi = v[k + 4] | ((v[k + 5] & 1) << 6);
+            k += 6;
+            if (e1 & 4 && k + 1 < v.length + 1) { cell2.sweep = v[k] | ((v[k + 1] & 3) << 6); k += 2; }
+            if (stc === 14 && r2 < MEL_ROWS) cell2.st = 'i' + cell2.inst;
+          }
           st2.cells.push(cell2);
         }
       }
@@ -3588,20 +3687,25 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       var bd = budget[c] = budget[c] || { p: 0, w: 0, d: 0 };
       var ch = n.ch | 0;
       var cell = { c: c, t: ++order, a: performance.now() };
+      cell.inst = n.inst; cell.vel = n.vel != null ? n.vel : 0.8;
       if (ch === 3) {
         if (bd.d) return; bd.d = 1;
         cell.r = MEL_ROWS + (LANE[n.pri | 0] != null ? LANE[n.pri | 0] : 0);
-      } else if (ch === 2) {
-        if (bd.w) return; bd.w = 1;
-        cell.r = MEL_ROWS - 1 - degOf(n.midi | 0);
-        cell.st = waveStamp;
-        if (n.frames > 2.5 * per16f) cell.w = 1;
       } else {
-        if (bd.p >= 2) return; bd.p++;
-        cell.r = MEL_ROWS - 1 - degOf(n.midi | 0);
-        cell.st = stampFor[ch] || 'piano';
-        if (n.sweep) cell.z = 1;
-        if (n.frames > 2.5 * per16f) cell.w = 1;
+        cell.midi = n.midi | 0;
+        var ln = Math.max(1, Math.round(n.frames / per16f));
+        if (ln > 1) cell.len = ln;
+        if (ch === 2) {
+          if (bd.w) return; bd.w = 1;
+          cell.r = MEL_ROWS - 1 - degOf(n.midi | 0);
+          cell.st = waveStamp;
+        } else {
+          if (bd.p >= 2) return; bd.p++;
+          cell.ch = ch;
+          cell.r = MEL_ROWS - 1 - degOf(n.midi | 0);
+          cell.st = stampFor[ch] || 'piano';
+          if (n.sweep) { cell.sweep = n.sweep; cell.z = 1; }
+        }
       }
       var key = cell.c + ':' + cell.r;
       if (seen[key]) return; seen[key] = 1;
@@ -3649,7 +3753,9 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   var GHOST_W = 44;
   function layout() {
     var r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
-    if (cv.width !== Math.round(r.width * dpr)) { cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr); }
+    if (cv.width !== Math.round(r.width * dpr) || cv.height !== Math.round(r.height * dpr)) {
+      cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
+    }
     var W = r.width, H = r.height;
     var gap = 12, cw = 26;
     var chm = Math.min(34, Math.max(16, (H - 44) / (ROWS + 0.8)));
@@ -3728,7 +3834,13 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     var now = performance.now();
     S.cells.forEach(function (x) {
       var px = colX(x.c, L), py = L.gy + x.r * L.chh;
-      if (px + L.cw < 0 || px > L.W) return;
+      var lenSteps = x.len || 1;
+      var tailEnd = lenSteps > 1 ? colX(Math.min(x.c + lenSteps - 1, cols() - 1), L) + L.cw : px + L.cw;
+      if (tailEnd < 0 || px > L.W) return;
+      if (lenSteps > 1) {
+        g.fillStyle = 'rgba(255,255,255,0.10)';
+        g.fillRect(px + 2, py + L.chh * 0.3, tailEnd - px - 4, L.chh * 0.4);
+      }
       var size = Math.min(L.cw, L.chh) - 3;
       var pop = x.a ? Math.max(0, 1 - (now - x.a) / 220) : 0;
       var s2 = size * (1 + pop * 0.35);
@@ -3831,33 +3943,75 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     }
     dirty();
   }
-  function applyAt(h, first) {
-    var i = cellAt(h.c, h.r);
-    if (first) dragMode = (S.cur === 'eraser' || i >= 0) ? 'erase' : 'place';
-    if (dragMode === 'erase') { if (i >= 0) S.cells.splice(i, 1); dirty(); return; }
-    if (i >= 0) return;
+  var lenCell = null, lenMoved = false, noteRow = -1;
+  function placeAt(h) {
     var cell = { c: h.c, r: h.r, t: ++order, a: performance.now() };
     if (h.r < MEL_ROWS) {
       cell.st = S.cur;
+      if (S.cur.charAt(0) === 'i' && isFinite(+S.cur.slice(1))) cell.inst = +S.cur.slice(1);
       if (S.zip) cell.z = 1;
       if (S.wob) cell.w = 1;
     }
     S.cells.push(cell);
     dirty();
-    // audition the placed note right now, through the chip
+    auditionCell(cell);
+    return cell;
+  }
+  // hear what was just placed, exactly as buildSong will play it
+  function auditionCell(cell) {
     resolveBank();
+    if (typeof Audio === 'undefined' || !Audio.pokeCreate) return;
     var per = framesPer16();
-    if (typeof Audio !== 'undefined' && Audio.pokeCreate) {
-      if (h.r >= MEL_ROWS) {
-        var d = DRUMS[h.r - MEL_ROWS];
-        Audio.pokeCreate({ ch: 3, frames: Math.round(per), midi: null, inst: INSTOF[d.id], vel: d.vel });
-      } else {
-        var st = STAMPS.filter(function (s) { return s.id === S.cur; })[0] || STAMPS[0];
-        Audio.pokeCreate({ ch: st.ch === 'wave' ? 2 : 1, frames: Math.round(per * 2),
-                             midi: rowMidi(h.r), inst: INSTOF[st.id], vel: 0.8,
-                             sweep: (S.zip && st.ch !== 'wave') ? 0x3E : 0 });
-      }
+    if (cell.r >= MEL_ROWS) {
+      var d = DRUMS[cell.r - MEL_ROWS];
+      Audio.pokeCreate({ ch: 3, frames: Math.round(per), midi: null,
+                         inst: cell.inst != null ? cell.inst : INSTOF[d.id],
+                         vel: cell.vel != null ? cell.vel : d.vel });
+      return;
     }
+    var voice = cellVoice(cell) || 'pulse';
+    Audio.pokeCreate({ ch: voice === 'wave' ? 2 : 1, frames: Math.round(per * (S.wob ? 6 : 2)),
+                       midi: cell.midi != null ? cell.midi : rowMidi(cell.r),
+                       inst: cell.inst != null ? cell.inst : INSTOF[cell.st],
+                       vel: cell.vel != null ? cell.vel : 0.8,
+                       sweep: cell.sweep != null ? cell.sweep : ((S.zip && voice !== 'wave') ? 0x3E : 0) });
+  }
+  function stepCell(h) {
+    var i = cellAt(h.c, h.r);
+    if (dragMode === 'erase') { if (i >= 0) { S.cells.splice(i, 1); dirty(); } return; }
+    if (i < 0) placeAt(h);
+  }
+
+  // The drawer: every melodic instrument in the bank as a waveform icon.
+  // Picking one makes it the stamp in hand; its cells carry the exact index.
+  function toggleDrawer() {
+    var d = root.querySelector('.cr-drawer');
+    if (d) { d.remove(); draw(); return; }
+    resolveBank();
+    d = document.createElement('div');
+    d.className = 'cr-drawer';
+    var html = '';
+    BANK.meta.forEach(function (m) {
+      if (m.type === 'noise') return;                      // drums live on the lanes
+      var tip = m.type === 'wave' ? 'Wave voice #' + m.index
+              : 'Pulse ' + Math.round((m.patch.duty || 0.5) * 100) + '% ' + envClass(BANK.instruments[m.index]) + ' #' + m.index;
+      html += '<button type="button" class="cr-inst" data-inst="' + m.index + '" title="' + tip + '" data-tip="' + tip + '">' +
+              '<span class="cr-name">' + m.index + '</span></button>';
+    });
+    d.innerHTML = html;
+    d.querySelectorAll('.cr-inst').forEach(function (b) {
+      b.insertBefore(sprite('i' + b.dataset.inst, 26), b.firstChild);
+    });
+    root.insertBefore(d, root.querySelector('.cr-bottom'));
+    markDrawer();
+    draw();                                   // the grid canvas just changed height
+  }
+  function markDrawer() {
+    var d = root.querySelector('.cr-drawer');
+    if (!d) return;
+    d.querySelectorAll('.cr-inst').forEach(function (b) {
+      b.classList.toggle('on', S.cur === 'i' + b.dataset.inst);
+    });
   }
 
   // Hear a critter the moment it is picked: tonic of the current key,
@@ -3893,9 +4047,13 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     html += btn(' cr-mod', 'data-mod="wob"', 'Vibrato', 'Vibrato: new notes hold and sing', !!S.wob);
     html += '<span class="cr-palsep"></span>';
     html += btn('', 'data-stamp="eraser"', 'Eraser', 'Eraser: click or sweep to remove notes', S.cur === 'eraser');
+    var pickedInst = S.cur.charAt(0) === 'i' && isFinite(+S.cur.slice(1));
+    html += btn(' cr-more', 'data-cr="drawer"', pickedInst ? '#' + S.cur.slice(1) : 'More',
+                'Every melodic instrument in the bank', pickedInst);
     pal.innerHTML = html;
     pal.querySelectorAll('.cr-stamp').forEach(function (b) {
       var name = b.dataset.cr === 'play' ? (playing ? 'pause' : 'play')
+               : b.dataset.cr === 'drawer' ? (S.cur.charAt(0) === 'i' ? S.cur : 'more')
                : (b.dataset.stamp || (b.dataset.mod === 'zip' ? 'slide' : 'vibrato'));
       b.insertBefore(sprite(name, 30), b.firstChild);
     });
@@ -3998,6 +4156,13 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
           auditionStamp(S.cur === 'eraser' ? 'piano' : S.cur);
         return;
       }
+      var di = ev.target.closest('[data-inst]');
+      if (di) {
+        S.cur = 'i' + di.dataset.inst;
+        renderPalette(); markDrawer();
+        auditionCell({ c: 0, r: 7, st: S.cur, inst: +di.dataset.inst });
+        return;
+      }
       var mc = ev.target.closest('[data-mood]');
       if (mc) {
         var mi = root.querySelector('.cr-mood'); if (mi) mi.value = mc.dataset.mood;
@@ -4014,6 +4179,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       else if (k === 'clear') { snapshot(); S.cells = []; dirty(); }
       else if (k === 'dice') { composeIntoGrid(''); }
       else if (k === 'make') { var mv = root.querySelector('.cr-mood'); composeIntoGrid(mv ? mv.value : ''); }
+      else if (k === 'drawer') { toggleDrawer(); }
       else if (k === 'share') {
         try { navigator.clipboard.writeText(location.origin + '/create#s=' + encode()); if (G._toast) G._toast('Link copied. The link IS the song 🎵'); } catch (e) {}
       }
@@ -4038,7 +4204,19 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
         return;
       }
       var h = hitCell(ev); if (!h) return;
-      snapshot(); lastHit = h; applyAt(h, true);
+      snapshot();
+      var i = cellAt(h.c, h.r);
+      if (S.cur === 'eraser') {
+        dragMode = 'erase'; lastHit = h;
+        if (i >= 0) { S.cells.splice(i, 1); dirty(); }
+        return;
+      }
+      if (i >= 0) {
+        // an existing note: drag right to stretch it, tap to remove it
+        dragMode = 'len'; lenCell = S.cells[i]; lenMoved = false; lastHit = h;
+        return;
+      }
+      lenCell = placeAt(h); noteRow = h.r; dragMode = 'note'; lastHit = h;
     });
     cv.addEventListener('wheel', function (ev) {
       var L = layout();
@@ -4058,18 +4236,37 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       }
       if (!dragMode) return;
       var h = hitCell(ev); if (!h) return;
+      if (dragMode === 'len' || (dragMode === 'note' && h.r === noteRow)) {
+        if (h.c !== lenCell.c || h.r !== lenCell.r) lenMoved = true;
+        if (h.r === lenCell.r) {
+          var L2 = Math.max(1, Math.min(cols() - lenCell.c, h.c - lenCell.c + 1));
+          if (L2 !== (lenCell.len || 1)) {
+            if (L2 > 1) lenCell.len = L2; else delete lenCell.len;
+            dirty();
+          }
+          lastHit = h; return;
+        }
+        if (dragMode === 'len') { lastHit = h; return; }
+      }
+      if (dragMode === 'note') dragMode = 'paint';         // left the row: line painting
       // pointer events arrive sparser than cells: walk the line between the
       // last sample and this one, or a fast sweep skips columns.
       if (lastHit) {
         var dc = h.c - lastHit.c, dr = h.r - lastHit.r;
         var n = Math.max(Math.abs(dc), Math.abs(dr));
         for (var i = 1; i <= n; i++)
-          applyAt({ c: lastHit.c + Math.round(dc * i / n), r: lastHit.r + Math.round(dr * i / n) }, false);
-      } else applyAt(h, false);
+          stepCell({ c: lastHit.c + Math.round(dc * i / n), r: lastHit.r + Math.round(dr * i / n) });
+      } else stepCell(h);
       lastHit = h;
     });
     ['pointerup', 'pointercancel'].forEach(function (t) {
-      cv.addEventListener(t, function () { dragMode = null; lastHit = null; panMode = null; });
+      cv.addEventListener(t, function () {
+        if (dragMode === 'len' && !lenMoved && lenCell) {
+          var i = S.cells.indexOf(lenCell);
+          if (i >= 0) { S.cells.splice(i, 1); dirty(); }
+        }
+        dragMode = null; lastHit = null; panMode = null; lenCell = null;
+      });
     });
     window.addEventListener('resize', draw);
   }
@@ -4085,9 +4282,12 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   function isOpen() { return !!(root && root.classList.contains('show')); }
 
   G.CT_CREATE = { open: open, close: close, isOpen: isOpen, togglePlay: togglePlay,
-    _dbg: function () { return { playing: playing, live: !!liveScore, bars: S ? S.bars : 0,
-                                 camX: Math.round(camX), follow: camFollow,
-                                 cells: S ? S.cells.length : 0, mood: liveMood }; },
+    _dbg: function () {
+      var mx = 0, withInst = 0;
+      if (S) S.cells.forEach(function (x) { if ((x.len || 1) > mx) mx = x.len || 1; if (x.inst != null) withInst++; });
+      return { playing: playing, live: !!liveScore, bars: S ? S.bars : 0,
+               camX: Math.round(camX), follow: camFollow, cur: S ? S.cur : '',
+               cells: S ? S.cells.length : 0, withInst: withInst, maxLen: mx, mood: liveMood }; },
     _skipToEnd: function () { if (playing && liveScore) playT0 = performance.now() - songMs() - 300; } };
   if (typeof module !== 'undefined' && module.exports) module.exports = G.CT_CREATE;
 })(typeof globalThis !== 'undefined' ? globalThis : window);

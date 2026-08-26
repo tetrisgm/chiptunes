@@ -46,8 +46,16 @@ next. Infrastructure and operations live outside this repository.
   it never scores output quality, and Create never feeds the station.
 - A composed roll plays the REAL score verbatim, full length (`liveScore`:
   its own bank, all instruments, no loop; at the end the same mood composes
-  the next song). The first hand edit drops to the grid's 6-stamp
-  vocabulary. WAV/ROM exports follow the same rule.
+  the next song). Editing is LOSSLESS: every projected cell carries the
+  exact inst/midi/len/vel/ch/sweep (URL hash v3 serializes them), and
+  buildSong plays cells from those fields, so a hand edit keeps the whole
+  arrangement. The composer's bank IS buildBank(patches) -- pickBank only
+  selects role indices from it -- which is why bare instrument indices
+  survive the trip. Remaining loss: onsets/lengths step-quantize to 16ths,
+  swing timing flattens, and same-column notes folding to one row drop.
+- Drag right on a note stretches it (len steps); a tap removes it; leaving
+  the row switches to line painting. The More drawer offers every melodic
+  bank instrument as a generated waveform icon ('i<N>' stamps).
 - The grid is a TIMELINE: the whole track as one strip of bar panels with a
   camera (follows the playhead; wheel/header-drag pans and disengages;
   play/resume re-engages). Bars are patterns: header glyphs duplicate and

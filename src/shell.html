@@ -489,6 +489,15 @@
     font:600 11px var(--ui); }
   #createscreen .cr-chip:hover{ border-color:var(--mat-edge-hi); color:var(--ink);
     background:rgba(255,255,255,.11); }
+  #createscreen .cr-drawer{ flex:0 0 auto; display:flex; flex-wrap:wrap; align-items:center;
+    justify-content:center; gap:6px; padding:8px 18px; max-height:132px; overflow-y:auto;
+    border-top:1px solid var(--mat-edge); }
+  #createscreen .cr-inst{ width:44px; height:50px; border-radius:10px; cursor:pointer;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
+    background:rgba(255,255,255,.05); border:1px solid var(--mat-edge); position:relative; }
+  #createscreen .cr-inst:hover{ border-color:var(--mat-edge-hi); background:rgba(255,255,255,.1); }
+  #createscreen .cr-inst.on{ background:rgba(120,220,160,.2); border-color:rgba(120,220,160,.65); }
+  #createscreen .cr-inst .cr-name{ font:600 8px/1 var(--ui); color:var(--ink-2); }
   #createscreen .cr-playstamp{ border-color:rgba(123,220,160,.45); }
   #createscreen .cr-playstamp.on{ background:rgba(123,220,160,.22); border-color:rgba(123,220,160,.7); }
   /* instant hover hints: every control names itself */
