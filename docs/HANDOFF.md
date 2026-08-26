@@ -82,3 +82,23 @@ next. Infrastructure and operations live outside this repository.
 - The chip never rebuilds at a loop seam (`Sequencer.rewind()`) or track
   swap (APU carry + `cutNotes()`): a fresh APU's power-on DAC writes through
   a reset output capacitor are an audible pop.
+
+## Create: the alive posture (Nanoloop wave 1, 2026-08-26)
+
+- The editor is ALWAYS running: open() starts the transport (silent until
+  the first gesture resumes audio), and a first visit with no draft
+  composes a gentle song immediately -- never a blank page.
+- Loop-a-bar: tapping a bar's number loops just that bar (a sliced song,
+  sliceForBar) while editing; tapping again releases to the whole song.
+  currentSong() is the one source for playback/repost; exports still use
+  the full song.
+- Notes: body-drag moves (exact midis shift diatonically; drums adopt the
+  new lane), right-edge drag stretches, tap removes. cellSpanAt hit-tests
+  the whole tail. Cells pulse as the playhead fires them.
+- The hint bar (.cr-hint) narrates: data-tip hover mirrors into it, first
+  placement and the first sulk explain themselves once.
+- Touch: coarse pointers get 32px cells; two-finger pinch zooms the
+  timeline width (cwZoom).
+- URL v5: bpm rides as (bpm-70)/2. Plain bpm/2 overflowed six bits for
+  tempos >= 128 and every such link loaded at ~70 (bug existed since v1).
+

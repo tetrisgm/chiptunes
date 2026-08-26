@@ -347,7 +347,9 @@
   var CODE_CMD = { 1: 'u', 2: 'q', 3: 'g', 4: 'f' };
   function encode() {
     var ids = STAMPS.map(function (s) { return s.id; });
-    var out = [4, S.key, S.minor, S.bars, Math.round(S.bpm / 2), S.swing];
+    // bpm rides as (bpm-70)/2: the 70..180 range in six bits. Plain bpm/2
+    // overflowed for tempos >= 128 and every such link loaded at ~70.
+    var out = [5, S.key, S.minor, S.bars, Math.round((S.bpm - 70) / 2) & 63, S.swing];
     S.cells.forEach(function (x) {
       var st = x.r >= MEL_ROWS ? 15 : (x.st && x.st.charAt(0) === 'i' ? 14 : Math.max(0, ids.indexOf(x.st)));
       var ext = x.inst != null;
@@ -370,12 +372,12 @@
     try {
       var v = []; for (var i = 0; i < str.length; i++) { var ix = B64.indexOf(str[i]); if (ix < 0) return null; v.push(ix); }
       var ver = v[0];
-      if (ver < 1 || ver > 4) return null;
+      if (ver < 1 || ver > 5) return null;
       var st2 = freshState();
       st2.key = v[1] % 12; st2.minor = v[2] & 1;
       st2.bars = ver === 1 ? ([2, 4, 8].indexOf(v[3]) >= 0 ? v[3] : 4)
                            : Math.max(1, Math.min(63, v[3]));
-      st2.bpm = Math.max(70, Math.min(180, v[4] * 2)); st2.swing = v[5] & 1;
+      st2.bpm = Math.max(70, Math.min(180, ver >= 5 ? 70 + v[4] * 2 : v[4] * 2)); st2.swing = v[5] & 1;
       var ids = STAMPS.map(function (s) { return s.id; });
       if (ver === 1) {
         for (var j = 6; j + 2 <= v.length - 1 + 1 && j + 2 < v.length + 1; j += 3) {
@@ -394,7 +396,7 @@
           var stc = b2 & 15;
           if (r2 < MEL_ROWS) { if (stc !== 14) cell2.st = ids[stc] || 'piano'; if (v[k + 2] & 32) cell2.z = 1; if (b2 & 16) cell2.w = 1; }
           k += 4;
-          if (ver >= 4) {
+          if (ver >= 4) {   // v4+: one command char per cell
             var cc = CODE_CMD[v[k] & 7];
             if (cc && r2 < MEL_ROWS + DRUM_LANES) cell2[cc] = 1;
             k += 1;
@@ -451,14 +453,43 @@
   }
   function curBpm() { return liveScore ? liveBpm : S.bpm; }
   function dropLiveScore() { liveScore = null; liveBpm = 0; }
+  // Loop-a-bar: tap a bar's number to live inside just that bar while you
+  // shape it (the Nanoloop room); tap again to hear the whole song.
+  var loopBar = -1;
+  function barFrames() { return 16 * FPS * 60 / (curBpm() * 4); }
   function songMs() {
+    if (loopBar >= 0) return (barFrames() / FPS) * 1000;
     return liveScore ? (liveScore.totalFrames / FPS) * 1000
                      : cols() * (60 / S.bpm / 4) * 1000;
+  }
+  function sliceForBar(song, b) {
+    var bf = barFrames(), f0 = Math.round(b * bf), f1 = Math.round((b + 1) * bf);
+    var notes = [];
+    song.notes.forEach(function (n) {
+      if (n.frame < f0 || n.frame >= f1) return;
+      var m = { ch: n.ch, frame: n.frame - f0, frames: Math.min(n.frames, f1 - n.frame),
+                midi: n.midi, inst: n.inst, vel: n.vel, pri: n.pri };
+      if (n.sweep) m.sweep = n.sweep;
+      notes.push(m);
+    });
+    return { notes: notes, bank: song.bank, totalFrames: f1 - f0, loopFrames: f1 - f0 };
+  }
+  function currentSong() {
+    var song = liveScore || buildSong();
+    return loopBar >= 0 ? sliceForBar(song, loopBar) : song;
+  }
+  function setLoopBar(b) {
+    loopBar = loopBar === b ? -1 : b;
+    camFollow = true;
+    if (loopBar >= 0) hint('Looping bar ' + (loopBar + 1) + '. Tap its number again for the whole song.');
+    else hint('Back to the whole song.');
+    if (playing) startPlayback(0); else { pausedAt = 0; draw(); }
   }
   var repostTimer = 0, saveTimer = 0;
   function dirty() {
     if (!root) return;
     if (!playing) { try { buildSong(); } catch (e) {} }   // refresh sulk + channel marks
+    checkSulk();
     renderPalette(); draw();
     clearTimeout(saveTimer);
     saveTimer = setTimeout(function () {
@@ -476,7 +507,7 @@
   // marching character keeps marching instead of snapping back to bar one.
   function repostAtPosition() {
     if (!playing) return;
-    var song = liveScore || buildSong();
+    var song = currentSong();
     var pos = song.loopFrames > 0
       ? Math.round(((performance.now() - playT0) / 1000) * FPS) % song.loopFrames : 0;
     if (typeof Audio !== 'undefined' && Audio.playCreate) Audio.playCreate(song, song.loopFrames, pos);
@@ -664,7 +695,7 @@
     liveBpm = score.bpm || S.bpm;
     liveMood = String(moodText || '');
     try { buildSong(); } catch (e) {}          // resolve channel marks for lane ticks/dimming
-    camX = 0; camFollow = true;
+    camX = 0; camFollow = true; loopBar = -1;
     pausedAt = 0;
     startPlayback(0);
     dirty();
@@ -673,7 +704,7 @@
   function startPlayback(fromMs) {
     clearTimeout(repostTimer);
     camFollow = true;
-    var song = liveScore || buildSong();
+    var song = currentSong();
     var off = Math.max(0, fromMs || 0) % Math.max(1, songMs());
     if (typeof Audio !== 'undefined' && Audio.playCreate)
       Audio.playCreate(song, song.loopFrames, Math.round(off / 1000 * FPS));
@@ -707,7 +738,8 @@
       cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
     }
     var W = r.width, H = r.height;
-    var gap = 12, cw = 26;
+    var coarse = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
+    var gap = 12, cw = Math.round((coarse ? 32 : 26) * cwZoom);
     var chm = Math.min(34, Math.max(16, (H - 44) / (ROWS + 0.8)));
     var gw = cw * cols() + (S.bars - 1) * gap;
     var fits = gw + GHOST_W + 88 <= W;
@@ -734,6 +766,20 @@
     if (!cv) return;
     var animating = playing;
     var L = layout();
+    // where the playhead is, computed up front so cells can pulse as they fire
+    var phCol = -1;
+    if (playing) {
+      var perMs = (60 / curBpm() / 4) * 1000;
+      var elapsed = performance.now() - playT0;
+      if (liveScore && loopBar < 0 && elapsed >= songMs() + 250) {
+        // the song ended; the mood writes the next one
+        composeIntoGrid(liveMood, true);
+        return;
+      }
+      phCol = loopBar >= 0 ? loopBar * 16 + (elapsed / perMs) % 16
+                           : (elapsed / perMs) % cols();
+    }
+    var flCol = Math.floor(phCol);
     g.setTransform(L.dpr, 0, 0, L.dpr, 0, 0);
     g.clearRect(0, 0, L.W, L.H);
     var barW = 16 * L.cw + L.gap;
@@ -755,10 +801,13 @@
     // ghost "+" bar that grows the song, then the loop mark
     for (var b = b0; b <= b1; b++) {
       var bx = L.gx + b * barW - camX;
-      g.strokeStyle = 'rgba(232,227,250,0.30)'; g.lineWidth = 1;
+      var looped = b === loopBar;
+      g.strokeStyle = looped ? 'rgba(123,220,160,0.8)' : 'rgba(232,227,250,0.30)';
+      g.lineWidth = looped ? 2 : 1;
       g.strokeRect(bx - 3.5, L.gy - 3.5, 16 * L.cw + 7, ROWS * L.chh + 7);
-      g.fillStyle = 'rgba(232,227,250,0.55)'; g.font = '600 11px system-ui'; g.textBaseline = 'bottom';
-      g.fillText(String(b + 1), bx + 2, L.gy - 8);
+      g.fillStyle = looped ? 'rgba(123,220,160,0.95)' : 'rgba(232,227,250,0.55)';
+      g.font = '600 11px system-ui'; g.textBaseline = 'bottom';
+      g.fillText((looped ? '\u21ba ' : '') + (b + 1), bx + 2, L.gy - 8);
       g.fillStyle = 'rgba(232,227,250,0.4)'; g.font = '600 12px system-ui';
       g.fillText('\u29c9', bx + 16 * L.cw - 30, L.gy - 7);
       g.fillText('\u00d7', bx + 16 * L.cw - 12, L.gy - 7);
@@ -794,9 +843,11 @@
       }
       var size = Math.min(L.cw, L.chh) - 3;
       var pop = x.a ? Math.max(0, 1 - (now - x.a) / 220) : 0;
-      var s2 = size * (1 + pop * 0.35);
+      var s2 = size * (1 + pop * 0.35 + (firing ? 0.18 : 0));
       var name = x.r >= MEL_ROWS ? DRUMS[x.r - MEL_ROWS].id : x.st;
-      var laneOff = x.rch != null && em[x.rch];
+      var laneOff = (x.r >= MEL_ROWS ? em[3] : x.rch != null && em[x.rch]);
+      var firing = flCol >= 0 && flCol >= x.c && flCol < x.c + lenSteps && !laneOff && !x.x;
+      if (firing) { g.fillStyle = 'rgba(255,255,255,0.13)'; g.fillRect(px + 1, py + 1, L.cw - 2, L.chh - 2); }
       if (x.rch != null && x.r < MEL_ROWS) {
         g.fillStyle = ['rgba(123,220,160,0.8)', 'rgba(87,196,255,0.8)', 'rgba(232,167,93,0.8)'][x.rch] || 'rgba(255,255,255,0.4)';
         g.fillRect(px + 1, py + 2, 3, L.chh - 4);
@@ -812,17 +863,7 @@
     });
     // playhead: a marker sweeping the whole track; the camera keeps it in view
     if (playing) {
-      var per16ms = (60 / curBpm() / 4) * 1000;
-      if (liveScore) {
-        var elapsed = performance.now() - playT0;
-        if (elapsed >= songMs() + 250) {
-          // the song ended; the mood writes the next one. This is the point:
-          // not a loop, a station of your own.
-          composeIntoGrid(liveMood, true);
-          return;
-        }
-      }
-      var col = ((performance.now() - playT0) / per16ms) % cols();
+      var col = phCol;
       var hb = Math.floor(col / 16);
       var hxAbs = L.gx + hb * barW + (col - hb * 16) * L.cw;
       if (camFollow && L.maxCam > 0) {
@@ -848,10 +889,11 @@
     var b = Math.floor(x / (16 * L.cw + L.gap));
     var off = x - b * (16 * L.cw + L.gap);
     if (off >= 16 * L.cw + 2) return null;                 // in the gutter
-    var c = b * 16 + Math.max(0, Math.min(15, Math.floor(off / L.cw)));
+    var ic = Math.max(0, Math.min(15, Math.floor(off / L.cw)));
+    var c = b * 16 + ic;
     var r = Math.floor((ev.clientY - r0.top - L.gy) / L.chh);
     if (x < 0 || c < 0 || c >= cols() || r < 0 || r >= ROWS) return null;
-    return { c: c, r: r };
+    return { c: c, r: r, fx: Math.max(0, Math.min(1, (off - ic * L.cw) / L.cw)) };
   }
   // header strip and ghost bar: pan, duplicate, remove, add
   function headerHit(ev) {
@@ -865,6 +907,7 @@
     if (vy < L.gy - 2 && vy > L.gy - 26) {
       var b = Math.floor(x / barW), off = x - b * barW;
       if (b >= 0 && b < S.bars && off < 16 * L.cw) {
+        if (off < 30) return { type: 'loop', bar: b };
         if (off > 16 * L.cw - 36 && off < 16 * L.cw - 18) return { type: 'dup', bar: b };
         if (off >= 16 * L.cw - 16) return { type: 'del', bar: b };
       }
@@ -901,6 +944,38 @@
     dirty();
   }
   var lenCell = null, lenMoved = false, noteRow = -1;
+  var grabDC = 0, cwZoom = 1;
+  var hintTimer = 0, hintedPlace = false, hintedSulk = false;
+  var HINT_IDLE = 'Tap the grid to place notes. Drag a note to move it, pull its right edge to stretch, tap to remove.';
+  function hint(t) {
+    var el = root && root.querySelector('.cr-hint');
+    if (!el) return;
+    el.textContent = t || HINT_IDLE;
+    clearTimeout(hintTimer);
+    if (t) hintTimer = setTimeout(function () { if (el) el.textContent = HINT_IDLE; }, 6000);
+  }
+  function checkSulk() {
+    if (hintedSulk || !S) return;
+    for (var i = 0; i < S.cells.length; i++) if (S.cells[i].x) {
+      hintedSulk = true;
+      hint('The chip has two pulse voices, one wave and one noise. Grey notes are waiting for a free voice.');
+      return;
+    }
+  }
+  function cellSpanAt(c, r) {
+    for (var i = 0; i < S.cells.length; i++) {
+      var x = S.cells[i];
+      if (x.r === r && c >= x.c && c < x.c + (x.len || 1)) return i;
+    }
+    return -1;
+  }
+  function cellAtExcept(c, r, self) {
+    for (var i = 0; i < S.cells.length; i++) {
+      var x = S.cells[i];
+      if (x !== self && x.c === c && x.r === r) return i;
+    }
+    return -1;
+  }
   function placeAt(h) {
     var cell = { c: h.c, r: h.r, t: ++order, a: performance.now() };
     if (h.r < MEL_ROWS) {
@@ -1070,7 +1145,7 @@
 
   // ---- open / close --------------------------------------------------------
   function open() {
-    if (root) { root.classList.add('show'); armChip(); return; }
+    if (root) { root.classList.add('show'); armChip(); if (!playing) startPlayback(pausedAt); return; }
     var fromUrl = (location.hash.match(/#s=([A-Za-z0-9\-_]+)/) || [])[1];
     S = (fromUrl && decode(fromUrl)) || null;
     if (!S) { try { var d = localStorage.getItem('ct-create-draft'); if (d) S = decode(d); } catch (e) {} }
@@ -1087,6 +1162,7 @@
         return '<button type="button" class="cr-chip" data-mood="' + c + '">' + c + '</button>';
       }).join('') + '</div>' +
       '<div class="cr-main"><canvas class="cr-cv"></canvas></div>' +
+      '<div class="cr-hint"></div>' +
       '<div class="cr-bottom">' +
         '<div class="cr-pal"></div>' +
         '<div class="cr-bside">' +
@@ -1174,31 +1250,48 @@
       S.bpm = +b.value; b.parentNode.firstChild.textContent = S.bpm + ' BPM';
       dirty();
     });
-    var lastHit = null;
+    var lastHit = null, pointers = {}, pinch = null;
+    function pinchDist() {
+      var ids = Object.keys(pointers);
+      var a = pointers[ids[0]], b = pointers[ids[1]];
+      return Math.max(20, Math.hypot(a.x - b.x, a.y - b.y));
+    }
     cv.addEventListener('pointerdown', function (ev) {
       ev.preventDefault(); cv.setPointerCapture(ev.pointerId);
+      pointers[ev.pointerId] = { x: ev.clientX, y: ev.clientY };
+      if (Object.keys(pointers).length === 2) {
+        // two fingers: zoom the timeline, cancel whatever one finger started
+        pinch = { d0: pinchDist(), z0: cwZoom };
+        dragMode = null; panMode = null; lenCell = null;
+        return;
+      }
       var hh = headerHit(ev);
       if (hh) {
         if (hh.type === 'add') { addBar(); return; }
         if (hh.type === 'dup') { dupBar(hh.bar); return; }
         if (hh.type === 'del') { delBar(hh.bar); return; }
+        if (hh.type === 'loop') { setLoopBar(hh.bar); return; }
         panMode = { x: ev.clientX, cam: camX }; camFollow = false;
         return;
       }
       var h = hitCell(ev); if (!h) return;
       snapshot();
-      var i = cellAt(h.c, h.r);
+      var i = cellSpanAt(h.c, h.r);
       if (S.cur === 'eraser') {
         dragMode = 'erase'; lastHit = h;
         if (i >= 0) { S.cells.splice(i, 1); dirty(); }
         return;
       }
       if (i >= 0) {
-        // an existing note: drag right to stretch it, tap to remove it
-        dragMode = 'len'; lenCell = S.cells[i]; lenMoved = false; lastHit = h;
+        var cell = S.cells[i], cl = cell.len || 1;
+        // the right edge stretches; the body moves; a tap removes
+        var isEdge = h.c === cell.c + cl - 1 && (cl > 1 || h.fx > 0.6);
+        dragMode = isEdge ? 'len' : 'grab';
+        lenCell = cell; lenMoved = false; grabDC = h.c - cell.c; lastHit = h;
         return;
       }
       lenCell = placeAt(h); noteRow = h.r; dragMode = 'note'; lastHit = h;
+      if (!hintedPlace) { hintedPlace = true; hint('Placed. Drag its body to move it, pull its right edge to stretch, tap it to remove.'); }
     });
     cv.addEventListener('wheel', function (ev) {
       var L = layout();
@@ -1210,6 +1303,12 @@
       draw();
     }, { passive: false });
     cv.addEventListener('pointermove', function (ev) {
+      if (pointers[ev.pointerId]) pointers[ev.pointerId] = { x: ev.clientX, y: ev.clientY };
+      if (pinch && Object.keys(pointers).length === 2) {
+        cwZoom = Math.max(0.6, Math.min(1.8, pinch.z0 * (pinchDist() / pinch.d0)));
+        draw();
+        return;
+      }
       if (panMode) {
         var L = layout();
         camX = Math.max(0, Math.min(L.maxCam, panMode.cam - (ev.clientX - panMode.x)));
@@ -1218,6 +1317,22 @@
       }
       if (!dragMode) return;
       var h = hitCell(ev); if (!h) return;
+      if (dragMode === 'grab') {
+        if (h.c !== lastHit.c || h.r !== lastHit.r) lenMoved = true;
+        var nc = Math.max(0, Math.min(cols() - (lenCell.len || 1), h.c - grabDC));
+        var nr = lenCell.r < MEL_ROWS ? Math.max(0, Math.min(MEL_ROWS - 1, h.r))
+                                      : Math.max(MEL_ROWS, Math.min(ROWS - 1, h.r));
+        if ((nc !== lenCell.c || nr !== lenCell.r) && cellAtExcept(nc, nr, lenCell) < 0) {
+          var rowChanged = nr !== lenCell.r;
+          if (rowChanged && lenCell.r < MEL_ROWS && lenCell.midi != null)
+            lenCell.midi += rowMidi(nr) - rowMidi(lenCell.r);   // exact pitches move diatonically
+          if (rowChanged && lenCell.r >= MEL_ROWS) delete lenCell.inst;  // adopt the new lane's drum
+          lenCell.c = nc; lenCell.r = nr;
+          dirty();
+          if (rowChanged) auditionCell(lenCell);
+        }
+        lastHit = h; return;
+      }
       if (dragMode === 'len' || (dragMode === 'note' && h.r === noteRow)) {
         if (h.c !== lenCell.c || h.r !== lenCell.r) lenMoved = true;
         if (h.r === lenCell.r) {
@@ -1242,8 +1357,9 @@
       lastHit = h;
     });
     ['pointerup', 'pointercancel'].forEach(function (t) {
-      cv.addEventListener(t, function () {
-        if (dragMode === 'len' && !lenMoved && lenCell) {
+      cv.addEventListener(t, function (ev) {
+        delete pointers[ev.pointerId]; pinch = null;
+        if ((dragMode === 'len' || dragMode === 'grab') && !lenMoved && lenCell) {
           var i = S.cells.indexOf(lenCell);
           if (i >= 0) { S.cells.splice(i, 1); dirty(); }
         }
@@ -1251,11 +1367,27 @@
       });
     });
     window.addEventListener('resize', draw);
+    root.addEventListener('mouseover', function (ev) {
+      var t = ev.target.closest && ev.target.closest('[data-tip]');
+      if (t) hint(t.dataset.tip);
+    });
+    hint('');
+    // never a blank page, never a dead room: a song is already here, and the
+    // transport is already running
+    if (!S.cells.length && G.CT_COMPOSERS) {
+      var m0 = ['chill', 'happy', 'dreamy', 'funky'][Math.floor(Math.random() * 4)];
+      var mi0 = root.querySelector('.cr-mood'); if (mi0) mi0.value = m0;
+      composeIntoGrid(m0);
+      hint('A ' + m0 + ' song is already rolling. Type a mood, or take the pencil to it.');
+    } else {
+      startPlayback(0);
+    }
   }
   function close() {
     if (playing) pausePlayback(); else armChip();
     pausedAt = 0;
     chMuted = [false, false, false, false]; chSolo = -1;   // playScore() clears the chip mask
+    loopBar = -1;
     if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
     if (root) root.classList.remove('show');
     document.body.classList.remove('create-open');
@@ -1269,7 +1401,7 @@
       var mx = 0, withInst = 0, cmds = 0;
       if (S) S.cells.forEach(function (x) { if ((x.len || 1) > mx) mx = x.len || 1; if (x.inst != null) withInst++;
                                             if (x.z || x.u || x.q || x.g || x.f) cmds++; });
-      return { playing: playing, live: !!liveScore, bars: S ? S.bars : 0,
+      return { playing: playing, live: !!liveScore, bars: S ? S.bars : 0, loopBar: loopBar,
                camX: Math.round(camX), follow: camFollow, cur: S ? S.cur : '', cmd: S ? S.cmd : 0,
                cells: S ? S.cells.length : 0, withInst: withInst, maxLen: mx, cmds: cmds,
                notes: S ? buildSong().notes.length : 0, mood: liveMood }; },

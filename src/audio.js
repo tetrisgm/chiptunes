@@ -1869,7 +1869,8 @@ const Audio = (()=>{
       if(gbNode) gbNode.port.postMessage(msg); else gbPending=msg;
       return true;
     },
-    pokeCreate(note){ if(gbNode && note) gbNode.port.postMessage({type:'poke', note:note}); },
+    pokeCreate(note){ startAudio(true); if(this.resume) this.resume(true);
+      if(gbNode && note) gbNode.port.postMessage({type:'poke', note:note}); },
     setChipMute(mask){ ensureGbChip(); if(gbNode) gbNode.port.postMessage({type:'chmute', mask:mask||null}); },
     stopCreate(){ if(gbNode) gbNode.port.postMessage({type:'stop'}); },  // editor stop: chip quiet, ownership stays; playScore() is the way back
     romMode(){ return gbRomMode; },
