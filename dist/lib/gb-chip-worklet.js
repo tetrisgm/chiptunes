@@ -531,6 +531,16 @@
     this.frame++;
   };
 
+  // Ordinary note-offs on all four voices: instant silence with no DAC
+  // power-cycle (the wave's NR32 goes to level 0; its DAC bit is untouched).
+  Sequencer.prototype.cutNotes = function () {
+    for (var ch = 0; ch < 4; ch++) {
+      var base = 0x11 + ch * 5;
+      this.apu.write(base + 1, 0x00); this.apu.write(base + 3, 0x80);
+    }
+    this.vib[0].on = false; this.vib[1].on = false;
+  };
+
   // Loop wrap, cartridge style: fire the note-offs that were due exactly at
   // the boundary, wrap the counter, and keep the chip breathing. Building a
   // fresh APU here instead re-fires the power-on DAC writes with a reset
@@ -774,7 +784,12 @@ class GbChipProcessor extends AudioWorkletProcessor {
         // capacitor. A fresh APU's power-on DAC writes are a DC step through
         // a reset capacitor -- an audible pop on every live edit and track
         // start. The wave-table cache resets so the next wave note reloads.
-        if (this.seq && prevSeq) { this.seq.apu = prevSeq.apu; this.seq.waveSlot = -1; }
+        if (this.seq && prevSeq) {
+          this.seq.apu = prevSeq.apu; this.seq.waveSlot = -1;
+          // the old song's held notes must not ring into the new one (or into
+          // a pause host); ordinary note-offs, so no DAC pop
+          this.seq.cutNotes();
+        }
         // A live join starts mid-track. Applying the register writes up to that
         // frame without simulating the intervening audio is instant and leaves
         // every channel holding whatever the last note before the join set --

@@ -476,6 +476,8 @@
   #createscreen .cr-stamp canvas{ image-rendering:pixelated; }
   #createscreen .cr-stamp .cr-name{ font:600 9px/1 var(--ui); color:var(--ink-2); letter-spacing:.02em; }
   #createscreen .cr-stamp.on .cr-name{ color:var(--ink); }
+  #createscreen .cr-playstamp{ border-color:rgba(123,220,160,.45); }
+  #createscreen .cr-playstamp.on{ background:rgba(123,220,160,.22); border-color:rgba(123,220,160,.7); }
   /* instant hover hints: every control names itself */
   #createscreen [data-tip]{ position:relative; }
   #createscreen [data-tip]:hover::after{ content:attr(data-tip); position:absolute; left:50%;
@@ -2168,6 +2170,16 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     this.frame++;
   };
 
+  // Ordinary note-offs on all four voices: instant silence with no DAC
+  // power-cycle (the wave's NR32 goes to level 0; its DAC bit is untouched).
+  Sequencer.prototype.cutNotes = function () {
+    for (var ch = 0; ch < 4; ch++) {
+      var base = 0x11 + ch * 5;
+      this.apu.write(base + 1, 0x00); this.apu.write(base + 3, 0x80);
+    }
+    this.vib[0].on = false; this.vib[1].on = false;
+  };
+
   // Loop wrap, cartridge style: fire the note-offs that were due exactly at
   // the boundary, wrap the counter, and keep the chip breathing. Building a
   // fresh APU here instead re-fires the power-on DAC writes with a reset
@@ -3151,6 +3163,12 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     vibrato: { pal: { j: '#C77BFF' }, px: [
       '..........', '..........', '..........', '.jj...jj..', 'j..j.j..j.',
       '....j....j', '..........', '..........', '..........', '..........'] },
+    play: { pal: { g: '#7BDCA0' }, px: [
+      '..........', '..g.......', '..gg......', '..ggg.....', '..gggg....',
+      '..ggg.....', '..gg......', '..g.......', '..........', '..........'] },
+    pause: { pal: { g: '#7BDCA0' }, px: [
+      '..........', '..gg..gg..', '..gg..gg..', '..gg..gg..', '..gg..gg..',
+      '..gg..gg..', '..gg..gg..', '..........', '..........', '..........'] },
     eraser: { pal: { p: '#FF9EC4', d: '#D96A9A', b: '#7FD4FF', w: '#FFFFFF' }, px: [
       '..........', '..bbbbbb..', '.bwbbbbb..', '.bbbbbbb..', '.pppppppp.',
       '.pwpppppd.', '.pppppppd.', '.ppppppdd.', '..dddddd..', '..........'] }
@@ -3204,12 +3222,35 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       for (var i = 1; i < t.length; i++) if (Math.abs(t[i] - t[i - 1]) >= 6) big++;
       return big >= 1;
     }
+    // A wave table can be flat (span 0: pure DC, i.e. silence) -- the bank
+    // holds a few as authored rests. A stamp must never resolve to one.
+    function waveStats(m) {
+      var t = BANK.waveTables[m.waveSlot] || [], mn = 99, mx = -99, big = 0;
+      for (var i = 0; i < t.length; i++) {
+        if (t[i] < mn) mn = t[i]; if (t[i] > mx) mx = t[i];
+        if (i && Math.abs(t[i] - t[i - 1]) >= 6) big++;
+      }
+      return { span: mx - mn, big: big };
+    }
     STAMPS.forEach(function (st) {
-      var pool = meta.filter(function (m) {
-        if (st.ch === 'pulse') return m.type === 'pulse' && m.patch.duty === st.duty && envClass(BANK.instruments[m.index]) === st.env;
-        return m.type === 'wave' && (st.wave === 'buzzy') === waveBig(m);
-      });
-      if (!pool.length) pool = meta.filter(function (m) { return m.type === st.ch; });
+      var pool;
+      if (st.ch === 'pulse') {
+        pool = meta.filter(function (m) {
+          return m.type === 'pulse' && m.patch.duty === st.duty && envClass(BANK.instruments[m.index]) === st.env;
+        });
+        if (!pool.length) pool = meta.filter(function (m) { return m.type === 'pulse'; });
+      } else {
+        var loud = meta.filter(function (m) { return m.type === 'wave' && waveStats(m).span >= 8; });
+        pool = loud.filter(function (m) { return (st.wave === 'buzzy') === (waveStats(m).big >= 1); });
+        if (!pool.length) pool = loud;
+        pool.sort(function (a, b) {
+          var A = waveStats(a), B = waveStats(b);
+          // Bass wants the buzziest table; Cello the smoothest that still sings
+          return st.wave === 'buzzy' ? (B.big - A.big || B.span - A.span)
+                                     : (A.big - B.big || B.span - A.span);
+        });
+        if (!pool.length) pool = meta.filter(function (m) { return m.type === 'wave'; });
+      }
       INSTOF[st.id] = pool.length ? pool[0].index : 0;
     });
     var ns = meta.filter(function (m) { return m.type === 'noise'; })
@@ -3320,7 +3361,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   }
 
   // ---- DOM + canvas --------------------------------------------------------
-  var root = null, cv = null, g = null, playing = false, playT0 = 0, order = 0;
+  var root = null, cv = null, g = null, playing = false, playT0 = 0, order = 0, pausedAt = 0;
   var repostTimer = 0, saveTimer = 0;
   function dirty() {
     if (!root) return;
@@ -3347,68 +3388,122 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     if (typeof Audio !== 'undefined' && Audio.playCreate) Audio.playCreate(song, song.loopFrames, pos);
     draw();
   }
-  // The dice: write a small song into the grid. Ambient randomness is fine
-  // HERE -- this is a hand tool, not the station's musical path; the result
-  // is ordinary cells, undoable and shareable like anything placed by hand.
-  function shuffleFill() {
+  // The dice compose a REAL track: the same composer the radio uses, a
+  // random seed, and the busiest four bars of its Game Boy score projected
+  // into the grid's vocabulary. A view of the songs the station writes.
+  // (Ambient randomness only picks the seed; the composition itself is the
+  // deterministic composer, untouched.)
+  function composeIntoGrid() {
+    var C = (G.CT_COMPOSERS && G.CT_COMPOSERS.rrr_core) || null;
+    if (!C || typeof C.compile !== 'function') return;
     snapshot();
     resolveBank();
+    var score = null;
+    try { score = C.compile('create-' + Math.random().toString(36).slice(2, 10)); } catch (e) {}
+    var gb = score && score.gb;
+    if (!gb || !gb.notes || !gb.notes.length) return;
+    var sInst = (gb.bank && gb.bank.instruments) || gb.instruments || [];
+    var sTables = (gb.bank && gb.bank.waveTables) || [];
+    var per16f = FPS * 60 / ((score.bpm || 120) * 4);
+    var winF = 64 * per16f, stride = 16 * per16f;
+    // the busiest 4-bar window, scanned at bar strides
+    var best = 0, bestN = -1;
+    for (var w0 = 0; w0 + winF <= (gb.totalFrames || 0) + 1; w0 += stride) {
+      var n = 0;
+      for (var i = 0; i < gb.notes.length; i++) { var f = gb.notes[i].frame; if (f >= w0 && f < w0 + winF) n++; }
+      if (n > bestN) { bestN = n; best = w0; }
+    }
+    var inWin = gb.notes.filter(function (n) { return n.frame >= best && n.frame < best + winF; });
+    // each pulse channel keeps ONE instrument face, from its envelope character
+    function pulseStamp(ch) {
+      var counts = {};
+      inWin.forEach(function (n) {
+        if ((n.ch | 0) !== ch) return;
+        var e = envClass(sInst[n.inst] || [0, 240]);
+        counts[e] = (counts[e] || 0) + 1;
+      });
+      var top = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a]; })[0];
+      return { pluck: 'piano', stab: 'trumpet', soft: 'flute', sus: 'flute', swell: 'flute' }[top] || (ch === 1 ? 'bell' : 'piano');
+    }
+    var stampFor = [pulseStamp(0), pulseStamp(1)];
+    var waveStamp = 'bassg';
+    for (var wi = 0; wi < inWin.length; wi++) {
+      var wn = inWin[wi];
+      if ((wn.ch | 0) !== 2) continue;
+      var wt = sTables[(sInst[wn.inst] || [0])[0]] || null;
+      if (wt) { var big = 0; for (var wj = 1; wj < wt.length; wj++) if (Math.abs(wt[wj] - wt[wj - 1]) >= 6) big++; if (!big) waveStamp = 'cello'; }
+      break;
+    }
+    // pitch: the score's own key folds onto the grid's diatonic rows
+    var keyRoot = (score.musical && score.musical.rootMidi) || 60;
+    var scl = (score.musical && score.musical.scale) || MAJOR;
+    function degOf(midi) {
+      var rel = midi - keyRoot;
+      var oct = Math.floor(rel / 12), pc = ((rel % 12) + 12) % 12;
+      var bi = 0, bd = 99;
+      for (var i = 0; i < scl.length; i++) {
+        var d = Math.min(Math.abs(scl[i] - pc), 12 - Math.abs(scl[i] - pc));
+        if (d < bd) { bd = d; bi = i; }
+      }
+      var deg = bi + (oct + 1) * 7;            // the score's root octave sits mid-grid
+      while (deg > MEL_ROWS - 1) deg -= 7;
+      while (deg < 0) deg += 7;
+      return deg;
+    }
     S.cells = []; order = 0;
-    var R = Math.random;
-    function pick(a) { return a[Math.floor(R() * a.length)]; }
-    function put(c, r, st, w) {
-      if (cellAt(c, r) >= 0) return;
-      var cell = { c: c, r: r, t: ++order, a: performance.now() };
-      if (st) cell.st = st;
-      if (w) cell.w = 1;
-      S.cells.push(cell);
-    }
-    var melPool = ['piano', 'trumpet', 'flute', 'bell'];
-    var mel = pick(melPool);
-    var harm = pick(melPool.filter(function (x) { return x !== mel; }));
-    var bass = pick(['bassg', 'cello']);
-    var prog = pick([[0, 5, 3, 4], [0, 3, 4, 4], [5, 3, 0, 4], [0, 4, 5, 3], [0, 2, 5, 4]]);
-    // drums: one lane per column, so nobody ever sulks
-    for (var c = 0; c < cols(); c++) {
-      var g8 = c % 8;
-      if (g8 === 0) put(c, MEL_ROWS + 2);
-      else if (g8 === 4) put(c, MEL_ROWS + 1);
-      else if (c % 2 === 0) put(c, MEL_ROWS);
-      else if (R() < 0.18) put(c, MEL_ROWS);
-    }
-    for (var b = 0; b < S.bars; b++) {
-      var deg = prog[b % prog.length];
-      // bass on the wave: root walking to the fifth, with room to breathe
-      for (var q = 0; q < 4; q++) {
-        if (q === 3 && R() < 0.5) continue;
-        var d = (q === 2) ? (deg + 4) % 7 : deg;
-        put(b * 16 + q * 4, MEL_ROWS - 1 - d, bass);
-      }
-      // melody an octave up: chord tones with rests and the odd passing tone
-      var tones = [deg + 7, deg + 9, deg + 11];
-      for (var e = 0; e < 8; e++) {
-        if (R() < 0.35) continue;
-        var d2 = R() < 0.3 ? deg + 7 + Math.floor(R() * 5) : pick(tones);
-        while (d2 > MEL_ROWS - 1) d2 -= 7;
-        put(b * 16 + e * 2, MEL_ROWS - 1 - d2, mel);
-      }
-      // sometimes a held harmony note answers mid-bar
-      if (R() < 0.6) {
-        var dh = deg + 9; while (dh > MEL_ROWS - 1) dh -= 7;
-        put(b * 16 + 8, MEL_ROWS - 1 - dh, harm, 1);
-      }
-    }
+    S.key = 0; S.minor = (scl[2] === 3) ? 1 : 0; S.bars = 4;
+    S.bpm = Math.max(70, Math.min(180, Math.round((score.bpm || 120) / 2) * 2));
+    var lab = root && root.querySelector('.cr-lab');
+    if (lab) { lab.firstChild.textContent = S.bpm + ' BPM'; var sl = lab.querySelector('input'); if (sl) sl.value = S.bpm; }
+    var budget = {};
+    var LANE = { 9: 2, 7: 1, 3: 0 };           // kick / snare / hat, by note priority
+    inWin.slice().sort(function (a, b) { return a.frame - b.frame || (b.pri || 0) - (a.pri || 0); })
+      .forEach(function (n) {
+        var c = Math.round((n.frame - best) / per16f);
+        if (c < 0 || c >= 64) return;
+        var bd = budget[c] = budget[c] || { p: 0, w: 0, d: 0 };
+        var ch = n.ch | 0;
+        var cell = { c: c, t: ++order, a: performance.now() };
+        if (ch === 3) {
+          if (bd.d) return; bd.d = 1;
+          cell.r = MEL_ROWS + (LANE[n.pri | 0] != null ? LANE[n.pri | 0] : 0);
+        } else if (ch === 2) {
+          if (bd.w) return; bd.w = 1;
+          cell.r = MEL_ROWS - 1 - degOf(n.midi | 0);
+          cell.st = waveStamp;
+          if (n.frames > 2.5 * per16f) cell.w = 1;
+        } else {
+          if (bd.p >= 2) return; bd.p++;
+          cell.r = MEL_ROWS - 1 - degOf(n.midi | 0);
+          cell.st = stampFor[ch] || 'piano';
+          if (n.sweep) cell.z = 1;
+          if (n.frames > 2.5 * per16f) cell.w = 1;
+        }
+        if (cellAt(cell.c, cell.r) >= 0) return;
+        S.cells.push(cell);
+      });
+    pausedAt = 0;
     dirty();
-    if (!playing) startPlayback();
+    if (!playing) startPlayback(0);
   }
 
-  function startPlayback() {
+  function startPlayback(fromMs) {
     var song = buildSong();
-    if (typeof Audio !== 'undefined' && Audio.playCreate) Audio.playCreate(song, song.loopFrames);
-    playing = true; playT0 = performance.now();
-    var pb = root.querySelector('[data-cr="play"]'); if (pb) pb.textContent = '■ Stop';
-    draw();
+    var loopMs = cols() * (60 / S.bpm / 4) * 1000;
+    var off = Math.max(0, fromMs || 0) % Math.max(1, loopMs);
+    if (typeof Audio !== 'undefined' && Audio.playCreate)
+      Audio.playCreate(song, song.loopFrames, Math.round(off / 1000 * FPS));
+    playing = true; playT0 = performance.now() - off;
+    renderPalette(); draw();
   }
+  function pausePlayback() {
+    var loopMs = cols() * (60 / S.bpm / 4) * 1000;
+    pausedAt = (performance.now() - playT0) % Math.max(1, loopMs);
+    armChip();
+    playing = false;
+    renderPalette(); draw();
+  }
+  function togglePlay() { if (!root) return; playing ? pausePlayback() : startPlayback(pausedAt); }
   // A silent host song keeps the chip's sequencer alive while the editor is
   // open, so placement pokes are audible before (and between) plays.
   function armChip() {
@@ -3416,12 +3511,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     if (typeof Audio !== 'undefined' && Audio.playCreate)
       Audio.playCreate({ notes: [], bank: BANK, totalFrames: 0x7fffffff }, 0);
   }
-  function stopPlayback() {
-    armChip();
-    playing = false;
-    var pb = root.querySelector('[data-cr="play"]'); if (pb) pb.textContent = '▶ Play';
-    draw();
-  }
+
 
   // The grid is S.bars phrase panels of 16 steps with a gutter between them:
   // the four boxes you see ARE the loop, in order, and then it comes around.
@@ -3579,7 +3669,9 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       return '<button type="button" class="cr-stamp' + cls + (on ? ' on' : '') + '" ' + attr +
              ' title="' + tip + '" data-tip="' + tip + '"><span class="cr-name">' + name + '</span></button>';
     }
-    var html = '';
+    var html = btn(' cr-playstamp', 'data-cr="play"', playing ? 'Pause' : 'Play',
+                   playing ? 'Pause (Space)' : 'Play your loop (Space)', playing);
+    html += '<span class="cr-palsep"></span>';
     STAMPS.forEach(function (st) {
       html += btn('', 'data-stamp="' + st.id + '"', st.label, st.tip, S.cur === st.id);
     });
@@ -3590,7 +3682,8 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     html += btn('', 'data-stamp="eraser"', 'Eraser', 'Eraser: click or sweep to remove notes', S.cur === 'eraser');
     pal.innerHTML = html;
     pal.querySelectorAll('.cr-stamp').forEach(function (b) {
-      var name = b.dataset.stamp || (b.dataset.mod === 'zip' ? 'slide' : 'vibrato');
+      var name = b.dataset.cr === 'play' ? (playing ? 'pause' : 'play')
+               : (b.dataset.stamp || (b.dataset.mod === 'zip' ? 'slide' : 'vibrato'));
       b.insertBefore(sprite(name, 30), b.firstChild);
     });
   }
@@ -3604,7 +3697,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       '<button type="button" class="cr-btn" data-cr="undo" title="Undo" data-tip="Undo the last change">↩</button>' +
       '<button type="button" class="cr-btn" data-cr="redo" title="Redo" data-tip="Redo what you undid">↪</button>' +
       '<button type="button" class="cr-btn" data-cr="clear" data-tip="Wipe the whole grid clean">Clear</button>' +
-      '<button type="button" class="cr-btn" data-cr="dice" data-tip="Roll a fresh little song into the grid">\ud83c\udfb2 Dice</button>' +
+      '<button type="button" class="cr-btn" data-cr="dice" data-tip="Compose a real track into the grid, the radio\u0027s own way">\ud83c\udfb2 Dice</button>' +
       '<span class="cr-sep"></span>' +
       '<button type="button" class="cr-btn" data-cr="share" data-tip="Copy a link that IS your song">Copy link</button>' +
       '<button type="button" class="cr-btn" data-cr="wav" data-tip="Download your song as audio (WAV)">WAV</button>' +
@@ -3643,9 +3736,6 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     root.innerHTML = '<div class="cr-top">' + toolbarHTML() + '</div>' +
       '<div class="cr-main"><canvas class="cr-cv"></canvas></div>' +
       '<div class="cr-bottom">' +
-        '<div class="cr-bside">' +
-          '<button type="button" class="cr-btn cr-primary" data-cr="play" data-tip="Play the loop from the top (Space)">\u25b6 Play</button>' +
-        '</div>' +
         '<div class="cr-pal"></div>' +
         '<div class="cr-bside">' +
           '<label class="cr-lab" data-tip="Tempo: how fast the loop plays">' + S.bpm + ' BPM<input type="range" min="70" max="180" step="2" value="' + S.bpm + '" data-cr="bpm"></label>' +
@@ -3659,7 +3749,13 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     armChip();
     try { history.replaceState(null, '', '/create' + (S.cells.length ? '#s=' + encode() : '')); } catch (e) {}
 
+    document.addEventListener('keydown', function (ev) {
+      if (ev.code !== 'Space' || !isOpen() || ev.metaKey || ev.altKey || ev.ctrlKey) return;
+      ev.preventDefault(); ev.stopPropagation();
+      togglePlay();
+    }, true);
     root.addEventListener('click', function (ev) {
+      var fb = ev.target.closest('button'); if (fb) fb.blur();
       var st = ev.target.closest('[data-stamp]');
       if (st) { S.cur = st.dataset.stamp; renderPalette(); auditionStamp(S.cur); return; }
       var md = ev.target.closest('[data-mod]');
@@ -3674,12 +3770,12 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       var b = ev.target.closest('[data-cr]');
       if (!b) return;
       var k = b.dataset.cr;
-      if (k === 'play') { playing ? stopPlayback() : startPlayback(); }
+      if (k === 'play') { togglePlay(); }
       else if (k === 'close') { close(); }
       else if (k === 'undo') { undo(); }
       else if (k === 'redo') { redo(); }
       else if (k === 'clear') { snapshot(); S.cells = []; dirty(); }
-      else if (k === 'dice') { shuffleFill(); }
+      else if (k === 'dice') { composeIntoGrid(); }
       else if (k === 'share') {
         try { navigator.clipboard.writeText(location.origin + '/create#s=' + encode()); if (G._toast) G._toast('Link copied. The link IS the song 🎵'); } catch (e) {}
       }
@@ -3716,7 +3812,8 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     window.addEventListener('resize', draw);
   }
   function close() {
-    stopPlayback();
+    if (playing) pausePlayback(); else armChip();
+    pausedAt = 0;
     if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
     if (root) root.classList.remove('show');
     document.body.classList.remove('create-open');
@@ -3724,7 +3821,6 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     if (G._closeCreateReturn) G._closeCreateReturn();
   }
   function isOpen() { return !!(root && root.classList.contains('show')); }
-  function togglePlay() { if (!root) return; playing ? stopPlayback() : startPlayback(); }
 
   G.CT_CREATE = { open: open, close: close, isOpen: isOpen, togglePlay: togglePlay };
   if (typeof module !== 'undefined' && module.exports) module.exports = G.CT_CREATE;
@@ -30050,12 +30146,9 @@ function handleTransportShortcut(ev){
   if(shortcutTargetBlocked(ev) || ev.metaKey || ev.altKey || ev.ctrlKey) return false;
   if(ev.code!=='Space' && ev.code!=='KeyJ' && ev.code!=='KeyK') return false;
   ev.preventDefault();
-  // the Create editor owns the transport keys while it is open: Space plays
-  // the creation, and nothing here may poke the radio underneath it
-  try{ if(typeof CT_CREATE!=='undefined' && CT_CREATE.isOpen()){
-    if(ev.code==='Space' && CT_CREATE.togglePlay) CT_CREATE.togglePlay();
-    return true;
-  } }catch(e){}
+  // the Create editor owns the transport keys while it is open (its own
+  // capture-phase handler runs Space); swallow here so the radio never reacts
+  try{ if(typeof CT_CREATE!=='undefined' && CT_CREATE.isOpen()){ return true; } }catch(e){}
   if(_watchOnly && !_watchMicActive) return true;
   if(ev.code==='KeyJ'){ _transportPrev(); return true; }
   if(ev.code==='KeyK'){ _transportNext(); return true; }

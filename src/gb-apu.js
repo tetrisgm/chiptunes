@@ -335,6 +335,16 @@
     this.frame++;
   };
 
+  // Ordinary note-offs on all four voices: instant silence with no DAC
+  // power-cycle (the wave's NR32 goes to level 0; its DAC bit is untouched).
+  Sequencer.prototype.cutNotes = function () {
+    for (var ch = 0; ch < 4; ch++) {
+      var base = 0x11 + ch * 5;
+      this.apu.write(base + 1, 0x00); this.apu.write(base + 3, 0x80);
+    }
+    this.vib[0].on = false; this.vib[1].on = false;
+  };
+
   // Loop wrap, cartridge style: fire the note-offs that were due exactly at
   // the boundary, wrap the counter, and keep the chip breathing. Building a
   // fresh APU here instead re-fires the power-on DAC writes with a reset
