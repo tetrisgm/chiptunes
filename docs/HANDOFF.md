@@ -44,9 +44,15 @@ next. Infrastructure and operations live outside this repository.
   and `composeIntoGrid` compiles random seeds (~0.4ms each, 140 cap) until
   one's declared parameters match. Owner asked for exactly this (2026-08-26);
   it never scores output quality, and Create never feeds the station.
-- A composed roll plays the REAL score window verbatim (`liveScore`: its own
-  bank, all instruments); the first hand edit drops to the grid's 6-stamp
+- A composed roll plays the REAL score verbatim, full length (`liveScore`:
+  its own bank, all instruments, no loop; at the end the same mood composes
+  the next song). The first hand edit drops to the grid's 6-stamp
   vocabulary. WAV/ROM exports follow the same rule.
+- The grid is a TIMELINE: the whole track as one strip of bar panels with a
+  camera (follows the playhead; wheel/header-drag pans and disengages;
+  play/resume re-engages). Bars are patterns: header glyphs duplicate and
+  delete, the ghost "+" bar extends, up to 63 bars. URL hash v2 is 4 chars
+  per cell (2-char columns); v1 links still decode.
 - The app's `Audio` is a top-level `const`: a global lexical binding, never a
   `window` property. `window.Audio` is the native HTMLAudioElement
   constructor. Always reference the bare name.
