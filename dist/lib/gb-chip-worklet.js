@@ -740,6 +740,11 @@ class GbChipProcessor extends AudioWorkletProcessor {
       const m = ev.data || {};
       if (m.type === 'play') {
         this.gb = m.gb || null;
+        // loopFrames: the Create editor plays a short song forever. At the
+        // boundary the sequencer is rebuilt (its state machine has no rewind)
+        // with the fractional sample accumulator carried over, so the loop
+        // seam stays on the grid.
+        this.loopFrames = m.loopFrames > 0 ? (m.loopFrames | 0) : 0;
         this.seq = this.gb ? new globalThis.CT_GB_APU.Sequencer(this.gb, sampleRate) : null;
         // A live join starts mid-track. Applying the register writes up to that
         // frame without simulating the intervening audio is instant and leaves
@@ -772,6 +777,19 @@ class GbChipProcessor extends AudioWorkletProcessor {
         this.mode = 'score'; this.cpu = null; this.romApu = null;
       } else if (m.type === 'pause') {
         this.paused = !!m.paused;
+      } else if (m.type === 'poke') {
+        // audition one note NOW, through the same chip: write its registers
+        // straight into the running sequencer's APU and schedule the note-off.
+        if (this.seq && m.note && globalThis.CT_GB) {
+          var pn = m.note, pch = pn.ch | 0;
+          var base = 0x11 + pch * 5;
+          if (pch === 2 && this.seq._loadWave) this.seq._loadWave(globalThis.CT_GB.waveSlotOf(this.seq.inst, pn.inst));
+          if (pch === 0) this.seq.apu.write(0x10, pn.sweep || 0);
+          var pr = globalThis.CT_GB.noteRegisters(pn, this.seq.bank);
+          this.seq.apu.write(base, pr[0]); this.seq.apu.write(base + 1, pr[1]);
+          this.seq.apu.write(base + 2, pr[2]); this.seq.apu.write(base + 3, pr[3]);
+          this.pokeOff = { ch: pch, at: this.seq.frame + Math.max(4, pn.frames | 0) };
+        }
       } else if (m.type === 'rate') {
         this.chipRate = Math.max(0.25, Math.min(4, +m.rate || 1));
         if (this.seq) this.seq.setRate(this.chipRate);
@@ -820,6 +838,18 @@ class GbChipProcessor extends AudioWorkletProcessor {
       return true;
     }
     if (!this.seq || this.paused) { L.fill(0); if (R) R.fill(0); return true; }
+    if (this.loopFrames && this.seq.frame >= this.loopFrames) {
+      var acc = this.seq.acc, rt = this.seq.rate, mx = this.seq.mix;
+      this.seq = new globalThis.CT_GB_APU.Sequencer(this.gb, sampleRate);
+      this.seq.acc = acc;
+      if (rt) this.seq.setRate(rt);
+      if (mx) this.seq.setMix(mx);
+    }
+    if (this.pokeOff && this.seq.frame >= this.pokeOff.at) {
+      var ob = 0x11 + this.pokeOff.ch * 5;
+      this.seq.apu.write(ob + 1, 0x00); this.seq.apu.write(ob + 3, 0x80);
+      this.pokeOff = null;
+    }
     let at = 0;
     if (this.lead > 0) {
       const n = Math.min(this.lead, L.length);

@@ -1833,6 +1833,26 @@ const Audio = (()=>{
     // at the position the track has reached.
     playRom(bytes){ return gbPlayRom(bytes); },
     playScore(){ return gbPlayScore(); },
+    // CREATE editor: loop a user-authored gb song on the chip. Shares the
+    // radio's chip node; playScore() hands it back afterwards.
+    playCreate(gb, loopFrames){
+      if(!gb || !gb.notes){ return false; }
+      startAudio(true); if(this.resume) this.resume(true);
+      gbActive=true;
+      if(ctx && gbSynthGain && gbChipGain){
+        var t=ctx.currentTime;
+        gbSynthGain.gain.setTargetAtTime(0.0001, t, 0.01);
+        gbChipGain.gain.setTargetAtTime(1.0, t, 0.01);
+      }
+      var msg={type:'play', gb:{notes:gb.notes, bank:gb.bank, totalFrames:gb.totalFrames},
+               offsetFrames:0, paused:false, loopFrames:loopFrames|0, rate:1,
+               mix:Object.assign({}, MIX), leadSec:0.06};
+      ensureGbChip();
+      if(gbNode) gbNode.port.postMessage(msg); else gbPending=msg;
+      return true;
+    },
+    pokeCreate(note){ if(gbNode && note) gbNode.port.postMessage({type:'poke', note:note}); },
+    stopCreate(){ if(gbNode) gbNode.port.postMessage({type:'stop'}); gbPlayScore(); },
     romMode(){ return gbRomMode; },
     // Quiet, in-key game hooks (over the Engine): the games' melodic support layer.
     gameMelodyNote, reactNote, reactOK, playRecipe,

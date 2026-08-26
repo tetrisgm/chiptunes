@@ -1129,6 +1129,7 @@ function panelVisible(id){
 }
 function handleEscapeShortcut(ev){
   if(!ev || ev.key!=='Escape' || shortcutTargetBlocked(ev) || ev.metaKey || ev.altKey || ev.ctrlKey) return false;
+  if(typeof CT_CREATE!=='undefined' && CT_CREATE.isOpen()){ CT_CREATE.close(); consumeKeyEvent(ev); return true; }
   var hm=document.getElementById('howmodal');
   if(hm && hm.classList.contains('show')){ hm.classList.remove('show'); consumeKeyEvent(ev); return true; }
   if(panelVisible('trackpanel') && window.closeTrackPanel){ window.closeTrackPanel(); consumeKeyEvent(ev); return true; }
@@ -1527,6 +1528,7 @@ function _buildPlayerLinks(){
   // console screens are the point of the project.
   var _os=_homeOS(), _osName=(_os==='win'?'Windows':_os==='linux'?'Linux':_os==='mac'?'Mac':'');
   var items=[
+    {k:'create', ic:_IC_CREATE, t:'Place little characters on a grid; hear them through the chip', l:'Create'},
     // The two downloads sit together: this track as sound, and this track as the
     // cartridge that makes the sound.
     {k:'wav',   ic:_IC_WAVE,  t:'Download this track as an uncompressed WAV', l:'Download WAV',
@@ -1569,6 +1571,7 @@ function _buildPlayerLinks(){
     else if(k==='wav'){ _downloadAudio('wav'); }
     else if(k==='try'){ _toggleGameBoyEmulator(); }
     else if(k==='how'){ _toggleHowModal(); }
+    else if(k==='create'){ _openCreate(); }
     else if(k==='screen'){ _toggleGameBoyScreen(); }
     else if(k==='dl-mac'){ _startDownload(DL_MAC); }
     else if(k==='dl-win'){ _startDownload(DL_WIN); }
@@ -1583,6 +1586,18 @@ function _buildPlayerLinks(){
 // in the rail for a while, which put "install an application" next to five
 // things that act on the track you are hearing -- a different kind of offer
 // wearing the same clothes. The card says what the app is before it asks.
+// CREATE: the Mario-Paint-spirit editor (src/create.js). Entering hands the
+// chip to the user's song; leaving hands it back to the radio.
+function _openCreate(){
+  if(typeof CT_CREATE==='undefined') return;
+  if(document.body) document.body.classList.add('ai-visual');
+  window._closeCreateReturn=function(){
+    try{ if(typeof Audio!=='undefined'&&Audio.playScore) Audio.playScore(); }catch(e){}
+  };
+  CT_CREATE.open();
+}
+window._openCreate=_openCreate;
+
 // HOW IT WORKS. The page's one paragraph of copy earns a visitor's first ten
 // seconds; this modal is for the visitor who gives it a minute. Same story as
 // the README, condensed.
@@ -3654,6 +3669,7 @@ var _IC_GH='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 
 // honest answer to "how does this work", which is most of why anyone asks.
 var GITHUB_URL='https://github.com/tetrisgm/chiptunes';
 var _IC_INFO='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v6" stroke-linecap="round"/><circle cx="12" cy="7.5" r="0.6" fill="currentColor" stroke="none"/></svg>';
+var _IC_CREATE='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/><path d="M17 4v6M14 7h6M4 17h6" stroke-linecap="round"/></svg>';
 var _IC_MON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2.5" y="3.5" width="19" height="13" rx="1.5"/><path d="M9 20.5h6M12 16.5v4" stroke-linecap="round"/></svg>';
 var _IC_YT='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M22.5 7.2a2.8 2.8 0 0 0-2-2C18.8 4.7 12 4.7 12 4.7s-6.8 0-8.5.5a2.8 2.8 0 0 0-2 2A29 29 0 0 0 1 12a29 29 0 0 0 .5 4.8 2.8 2.8 0 0 0 2 2c1.7.5 8.5.5 8.5.5s6.8 0 8.5-.5a2.8 2.8 0 0 0 2-2A29 29 0 0 0 23 12a29 29 0 0 0-.5-4.8zM9.8 15.3V8.7l5.7 3.3z"/></svg>';
 var _IC_RADIO='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="8" cy="14" r="3"/><rect x="2.5" y="8.5" width="19" height="12" rx="1.5"/><path d="M16 4.5l3 4M14 13h4M14 16.5h4"/></svg>';
@@ -3813,7 +3829,8 @@ function _productRouteFromPath(path){
   if(head==='get') return {mode:'home'};
   if(head==='gameboy') return {mode:'gameboy'};
   if(head==='watch') return {mode:'watch'};
-  if(head==='listen'||head==='play'||head==='create'||head==='wip') return {mode:'radio', legacy:true};
+  if(head==='listen'||head==='play'||head==='wip') return {mode:'radio', legacy:true};
+  if(head==='create') return {mode:'create'};
   return null;
 }
 window._productRouteTo=function(path, opts){
@@ -3822,6 +3839,7 @@ window._productRouteTo=function(path, opts){
   opts=Object.assign({replace:true}, opts||{});
   if(r.legacy && typeof history!=='undefined' && history.replaceState){ try{ history.replaceState(null,'','/'); }catch(e){} }
   if(r.mode==='gameboy'){ _startEndlessRadio(); _openGameBoyWhenReady(); return true; }
+  if(r.mode==='create'){ _startEndlessRadio(); setTimeout(function(){ _openCreate(); }, 80); return true; }
   if(r.mode==='radio'){ _startEndlessRadio(); return true; }
   if(r.mode==='watch'){ enterWatchMode({noRoute:true}); return true; }
   openProductHome(Object.assign({noRoute:true}, opts));   // already ON /get; do not push it again
@@ -3926,12 +3944,15 @@ if(String(_pathParts(location.pathname||'/')[0]||'').toLowerCase()==='get') buil
     return;
   }
   var head=String(_pathParts(location.pathname||'/')[0]||'').toLowerCase();
-  if(head==='listen'||head==='play'||head==='create'||head==='wip'){
+  // 'create' left this retired-routes list 2026-08-26: it is the editor now
+  if(head==='listen'||head==='play'||head==='wip'){
     if(typeof history!=='undefined' && history.replaceState){ try{ history.replaceState(null,'','/'); }catch(e){} }
     head='';
   }
   if(head==='gameboy'){ if(document.body) document.body.classList.add('ai-visual');
     startAudio(false); _openGameBoyWhenReady(); return; }
+  if(head==='create'){ if(document.body) document.body.classList.add('ai-visual');
+    startAudio(false); setTimeout(function(){ _openCreate(); }, 60); return; }
   if(head==='get') return;                                       // the platform page; #intro is already up
   if(head==='watch'){ enterWatchMode({noRoute:true}); return; }
   // '' is the ROOT, and the root is the player. A visitor used to land on a

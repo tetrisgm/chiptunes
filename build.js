@@ -43,6 +43,7 @@ const ORDER = [
   'src/gb-rom.js',        // export a song as a real cartridge image
   'src/gb-cpu.js',        // LR35902: runs an exported cartridge in the page
   'src/gb-ppu.js',        // background layer: what the cartridge draws on the LCD
+  'src/create.js',
   'src/style-corpus.js',
   'src/chip-instruments.js',
   'src/composer.js',
@@ -108,7 +109,7 @@ fs.writeFileSync(path.join(DIST, 'index.html'), html);
 // route entrypoints + stale-route cleanup
 // '/' is the player; /get is the platform page; /radio is the player under its own
 // name (kept: it is in links people have shared).
-const ROUTES = ['radio', 'get', 'gameboy'];
+const ROUTES = ['radio', 'get', 'gameboy', 'create'];
 for (const stale of ['create', 'listen', 'play', 'wip', 'watch']) {
   fs.rmSync(path.join(DIST, stale), { recursive: true, force: true });
 }

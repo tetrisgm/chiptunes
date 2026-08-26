@@ -55,7 +55,7 @@
   slug=String(slug||'').toLowerCase();
   var parts=slug.split('/').filter(Boolean);
   var aiTrackRoute=!!(parts[0]==='track' && parts[1] && !parts[2] && /^[a-z0-9][a-z0-9._-]*$/.test(parts[1]));
-  var modeRoute=(parts.length===1 && (parts[0]==='watch' || parts[0]==='radio' || parts[0]==='gameboy'));
+  var modeRoute=(parts.length===1 && (parts[0]==='watch' || parts[0]==='radio' || parts[0]==='gameboy' || parts[0]==='create'));
   // The ROOT is a player route. The station used to open on a page listing the
   // ways to listen, with the game running muted behind it; you had to press
   // Listen now to get to the thing the page was describing. It starts now, and
@@ -429,6 +429,51 @@
   @media (prefers-reduced-motion: reduce){
     #bigplay, #bigplay.show, #bigplay.press{ transform:translate(-50%,-50%); transition:opacity .2s ease; }
     :root{ --fade-out:.25s ease; --fade-in:.12s ease-out; }
+  }
+
+  /* CREATE: the Mario-Paint-spirit editor. A full-screen takeover; the grid
+     canvas owns the middle, the toolbar the top, the critter palette the
+     bottom. Everything sized for fingers. */
+  #createscreen{ position:fixed; inset:0; z-index:76; display:flex; flex-direction:column;
+    background:rgba(8,6,16,.97); opacity:0; pointer-events:none; transition:opacity .2s ease; }
+  #createscreen.show{ opacity:1; pointer-events:auto; }
+  body.create-open #plinks, body.create-open #playbar, body.create-open #dlcard,
+  body.create-open #bigplay{ display:none !important; }
+  #createscreen .cr-top{ flex:0 0 auto; display:flex; align-items:center; gap:14px;
+    padding:12px 18px; flex-wrap:wrap; }
+  #createscreen .cr-title b{ display:block; font:700 20px/1.1 var(--ui); letter-spacing:-.015em; color:var(--ink); }
+  #createscreen .cr-title span{ display:block; font:400 12px/1.3 var(--ui); color:var(--ink-2); }
+  #createscreen .cr-tools{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-left:auto; }
+  #createscreen .cr-btn{ height:38px; padding:0 14px; border-radius:999px; cursor:pointer;
+    border:1px solid var(--mat-edge); background:rgba(255,255,255,.05); color:var(--ink);
+    font:600 13px/1 var(--ui); letter-spacing:.005em; white-space:nowrap; }
+  #createscreen .cr-btn:hover{ border-color:var(--mat-edge-hi); background:rgba(255,255,255,.1); }
+  #createscreen .cr-btn.on{ background:rgba(155,188,15,.18); border-color:rgba(155,188,15,.55); }
+  #createscreen .cr-primary{ background:rgba(120,220,160,.16); border-color:rgba(120,220,160,.5); }
+  #createscreen .cr-close{ width:38px; padding:0; font-size:19px; }
+  #createscreen .cr-sel{ height:38px; padding:0 10px; border-radius:10px;
+    border:1px solid var(--mat-edge); background:rgba(255,255,255,.05); color:var(--ink);
+    font:600 13px var(--ui); }
+  #createscreen .cr-lab{ display:inline-flex; align-items:center; gap:8px;
+    font:600 12px var(--ui); color:var(--ink-2); white-space:nowrap; }
+  #createscreen .cr-lab input{ width:110px; accent-color:#7bdca0; }
+  #createscreen .cr-sep{ width:1px; height:24px; background:var(--mat-edge); }
+  #createscreen .cr-main{ flex:1 1 auto; min-height:0; padding:4px 12px; }
+  #createscreen .cr-cv{ width:100%; height:100%; display:block; touch-action:none; cursor:pointer; }
+  #createscreen .cr-pal{ flex:0 0 auto; display:flex; align-items:center; justify-content:center;
+    gap:10px; padding:10px 14px 16px; flex-wrap:wrap; }
+  #createscreen .cr-stamp{ width:52px; height:52px; border-radius:14px; cursor:pointer;
+    display:inline-flex; align-items:center; justify-content:center;
+    border:1px solid var(--mat-edge); background:rgba(255,255,255,.05); padding:0; }
+  #createscreen .cr-stamp:hover{ border-color:var(--mat-edge-hi); background:rgba(255,255,255,.1); }
+  #createscreen .cr-stamp.on{ background:rgba(120,220,160,.2); border-color:rgba(120,220,160,.65);
+    transform:scale(1.08); }
+  #createscreen .cr-stamp canvas{ image-rendering:pixelated; }
+  #createscreen .cr-palsep{ width:1px; height:34px; background:var(--mat-edge); margin:0 4px; }
+  @media (max-width:760px){
+    #createscreen .cr-top{ padding:8px 10px; gap:8px; }
+    #createscreen .cr-title span{ display:none; }
+    #createscreen .cr-stamp{ width:46px; height:46px; }
   }
 
   /* HOW IT WORKS: the one modal that explains the page. Material card over a
