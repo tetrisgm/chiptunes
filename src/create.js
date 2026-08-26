@@ -258,9 +258,13 @@
   // A mood-composed song plays VERBATIM (its own bank, every instrument)
   // until the first hand edit, when the grid's version takes over. This is
   // what makes Create sound like the radio's generator, not a 6-stamp echo.
-  var liveScore = null, liveBpm = 0;
+  var liveScore = null, liveBpm = 0, liveProject = null, livePage = 0, liveMood = '';
   function curBpm() { return liveScore ? liveBpm : S.bpm; }
-  function dropLiveScore() { liveScore = null; liveBpm = 0; }
+  function dropLiveScore() { liveScore = null; liveBpm = 0; liveProject = null; livePage = 0; }
+  function songMs() {
+    return liveScore ? (liveScore.totalFrames / FPS) * 1000
+                     : cols() * (60 / S.bpm / 4) * 1000;
+  }
   var repostTimer = 0, saveTimer = 0;
   function dirty() {
     if (!root) return;
@@ -362,10 +366,10 @@
   // into the grid's vocabulary. A view of the songs the station writes.
   // (Ambient randomness only picks the seed; the composition itself is the
   // deterministic composer, untouched.)
-  function composeIntoGrid(moodText) {
+  function composeIntoGrid(moodText, auto) {
     var C = (G.CT_COMPOSERS && G.CT_COMPOSERS.rrr_core) || null;
     if (!C || typeof C.compile !== 'function') return;
-    snapshot();
+    if (auto) dropLiveScore(); else snapshot();     // auto-continue leaves the undo stack alone
     resolveBank();
     // seed search: compile random seeds until one satisfies the mood words
     // (a compile is ~0.4ms; a full search is invisible). Parameters only,
@@ -386,19 +390,11 @@
     var sInst = (gb.bank && gb.bank.instruments) || gb.instruments || [];
     var sTables = (gb.bank && gb.bank.waveTables) || [];
     var per16f = FPS * 60 / ((score.bpm || 120) * 4);
-    var winF = 64 * per16f, stride = 16 * per16f;
-    // the busiest 4-bar window, scanned at bar strides
-    var best = 0, bestN = -1;
-    for (var w0 = 0; w0 + winF <= (gb.totalFrames || 0) + 1; w0 += stride) {
-      var n = 0;
-      for (var i = 0; i < gb.notes.length; i++) { var f = gb.notes[i].frame; if (f >= w0 && f < w0 + winF) n++; }
-      if (n > bestN) { bestN = n; best = w0; }
-    }
-    var inWin = gb.notes.filter(function (n) { return n.frame >= best && n.frame < best + winF; });
+    var winF = 64 * per16f;
     // each pulse channel keeps ONE instrument face, from its envelope character
     function pulseStamp(ch) {
       var counts = {};
-      inWin.forEach(function (n) {
+      gb.notes.forEach(function (n) {
         if ((n.ch | 0) !== ch) return;
         var e = envClass(sInst[n.inst] || [0, 240]);
         counts[e] = (counts[e] || 0) + 1;
@@ -408,8 +404,8 @@
     }
     var stampFor = [pulseStamp(0), pulseStamp(1)];
     var waveStamp = 'bassg';
-    for (var wi = 0; wi < inWin.length; wi++) {
-      var wn = inWin[wi];
+    for (var wi = 0; wi < gb.notes.length; wi++) {
+      var wn = gb.notes[wi];
       if ((wn.ch | 0) !== 2) continue;
       var wt = sTables[(sInst[wn.inst] || [0])[0]] || null;
       if (wt) { var big = 0; for (var wj = 1; wj < wt.length; wj++) if (Math.abs(wt[wj] - wt[wj - 1]) >= 6) big++; if (!big) waveStamp = 'cello'; }
@@ -431,16 +427,21 @@
       while (deg < 0) deg += 7;
       return deg;
     }
-    S.cells = []; order = 0;
     S.key = 0; S.minor = scl.indexOf(3) >= 0 ? 1 : 0; S.bars = 4;   // a flat third anywhere (aeolian, dorian, blues) reads as minor
     S.bpm = Math.max(70, Math.min(180, Math.round((score.bpm || 120) / 2) * 2));
     var lab = root && root.querySelector('.cr-lab');
     if (lab) { lab.firstChild.textContent = S.bpm + ' BPM'; var sl = lab.querySelector('input'); if (sl) sl.value = S.bpm; }
-    var budget = {};
+    var sorted = gb.notes.slice().sort(function (a, b) { return a.frame - b.frame || (b.pri || 0) - (a.pri || 0); });
     var LANE = { 9: 2, 7: 1, 3: 0 };           // kick / snare / hat, by note priority
-    inWin.slice().sort(function (a, b) { return a.frame - b.frame || (b.pri || 0) - (a.pri || 0); })
-      .forEach(function (n) {
-        var c = Math.round((n.frame - best) / per16f);
+    // The grid is a WINDOW onto the whole song: four bars at a time,
+    // following the playhead. Each page is the same projection.
+    function projectPage(page) {
+      var w0 = page * winF;
+      S.cells = []; order = 0;
+      var budget = {};
+      sorted.forEach(function (n) {
+        if (n.frame < w0 || n.frame >= w0 + winF) return;
+        var c = Math.round((n.frame - w0) / per16f);
         if (c < 0 || c >= 64) return;
         var bd = budget[c] = budget[c] || { p: 0, w: 0, d: 0 };
         var ch = n.ch | 0;
@@ -463,34 +464,31 @@
         if (cellAt(cell.c, cell.r) >= 0) return;
         S.cells.push(cell);
       });
-    // full fidelity: the window of the REAL score, its own bank, every
-    // instrument. The grid above is the same music in stamp vocabulary.
-    var live = inWin.map(function (n) {
-      var frames = Math.min(n.frames | 0, Math.max(2, Math.round(best + winF - n.frame)));
-      var out = { ch: n.ch, frame: Math.round(n.frame - best), frames: frames,
-                  midi: n.midi, inst: n.inst, vel: n.vel, pri: n.pri };
-      if (n.sweep) out.sweep = n.sweep;
-      return out;
-    }).sort(function (a, b) { return a.frame - b.frame; });
-    liveScore = { notes: live, bank: gb.bank, totalFrames: Math.round(winF), loopFrames: Math.round(winF) };
+    }
+    // full fidelity, full length: the WHOLE score plays -- its own bank,
+    // every instrument, every section. Not a loop; a song.
+    liveScore = { notes: gb.notes, bank: gb.bank, totalFrames: gb.totalFrames, loopFrames: 0 };
     liveBpm = score.bpm || S.bpm;
+    liveMood = String(moodText || '');
+    livePage = 0;
+    liveProject = projectPage;
+    projectPage(0);
     pausedAt = 0;
-    dirty();
     startPlayback(0);
+    dirty();
   }
 
   function startPlayback(fromMs) {
+    clearTimeout(repostTimer);
     var song = liveScore || buildSong();
-    var loopMs = cols() * (60 / curBpm() / 4) * 1000;
-    var off = Math.max(0, fromMs || 0) % Math.max(1, loopMs);
+    var off = Math.max(0, fromMs || 0) % Math.max(1, songMs());
     if (typeof Audio !== 'undefined' && Audio.playCreate)
       Audio.playCreate(song, song.loopFrames, Math.round(off / 1000 * FPS));
     playing = true; playT0 = performance.now() - off;
     renderPalette(); draw();
   }
   function pausePlayback() {
-    var loopMs = cols() * (60 / curBpm() / 4) * 1000;
-    pausedAt = (performance.now() - playT0) % Math.max(1, loopMs);
+    pausedAt = (performance.now() - playT0) % Math.max(1, songMs());
     armChip();
     playing = false;
     renderPalette(); draw();
@@ -554,10 +552,10 @@
       g.strokeStyle = 'rgba(232,227,250,0.30)'; g.lineWidth = 1;
       g.strokeRect(bx - 3.5, L.gy - 3.5, 16 * L.cw + 7, ROWS * L.chh + 7);
       g.fillStyle = 'rgba(232,227,250,0.55)'; g.font = '600 11px system-ui'; g.textBaseline = 'bottom';
-      g.fillText(String(b + 1), bx + 2, L.gy - 8);
+      g.fillText(String((liveScore ? livePage * 4 : 0) + b + 1), bx + 2, L.gy - 8);
     }
     g.fillStyle = 'rgba(232,227,250,0.5)'; g.font = '600 16px system-ui'; g.textBaseline = 'middle';
-    g.fillText('\u21ba', L.gx + L.gw + 10, L.gy + ROWS * L.chh / 2);
+    g.fillText(liveScore ? '\u2192' : '\u21ba', L.gx + L.gw + 10, L.gy + ROWS * L.chh / 2);
     // the drum lanes wear their instruments' faces
     g.globalAlpha = 0.45;
     DRUMS.forEach(function (d, i) {
@@ -584,6 +582,17 @@
     // playhead: a marker sweeping the phrases in order, wrapping at the loop
     if (playing) {
       var per16ms = (60 / curBpm() / 4) * 1000;
+      if (liveScore) {
+        var elapsed = performance.now() - playT0;
+        if (elapsed >= songMs() + 250) {
+          // the song ended; the mood writes the next one. This is the point:
+          // not a loop, a station of your own.
+          composeIntoGrid(liveMood, true);
+          return;
+        }
+        var pg = Math.floor(elapsed / (64 * per16ms));
+        if (pg !== livePage && liveProject) { livePage = pg; liveProject(pg); }
+      }
       var col = ((performance.now() - playT0) / per16ms) % cols();
       var hb = Math.floor(col / 16);
       var hx = L.gx + hb * (16 * L.cw + L.gap) + (col - hb * 16) * L.cw;
@@ -840,6 +849,9 @@
   }
   function isOpen() { return !!(root && root.classList.contains('show')); }
 
-  G.CT_CREATE = { open: open, close: close, isOpen: isOpen, togglePlay: togglePlay };
+  G.CT_CREATE = { open: open, close: close, isOpen: isOpen, togglePlay: togglePlay,
+    _dbg: function () { return { playing: playing, live: !!liveScore, page: livePage,
+                                 cells: S ? S.cells.length : 0, mood: liveMood }; },
+    _skipToEnd: function () { if (playing && liveScore) playT0 = performance.now() - songMs() - 300; } };
   if (typeof module !== 'undefined' && module.exports) module.exports = G.CT_CREATE;
 })(typeof globalThis !== 'undefined' ? globalThis : window);
