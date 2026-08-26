@@ -1,0 +1,24 @@
+[Unit]
+Description=Chiptunes.app - Roon/internet MP3 broadcaster (127.0.0.1:1340/radio.mp3)
+After=network-online.target
+Wants=network-online.target
+# Never park in "failed" from a restart burst. A wedged render + the in-process liveness heartbeat +
+# the external watchdog can legitimately restart several times in a row; on this single-tenant box
+# thrash is far cheaper than dead air, and the watchdog also `reset-failed`s before restarting.
+# (StartLimit* are [Unit] directives — under [Service] they were silently IGNORED, so the intended
+# cap never applied anyway; here we deliberately disable limiting.)
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=@USER@
+WorkingDirectory=@REPO@
+EnvironmentFile=/etc/chiptunes.env
+ExecStart=/usr/bin/node @REPO@/broadcast/broadcaster.js
+Restart=always
+RestartSec=10
+Environment=HOME=/home/@USER@
+Nice=5
+
+[Install]
+WantedBy=multi-user.target

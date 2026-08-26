@@ -1,0 +1,10 @@
+[Unit]
+Description=Run the chiptunes-stream liveness watchdog every ~3 minutes
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=3min
+AccuracySec=15s
+
+[Install]
+WantedBy=timers.target

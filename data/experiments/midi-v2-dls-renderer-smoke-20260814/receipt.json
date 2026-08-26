@@ -1,0 +1,48 @@
+{
+  "schema": "chiptunes-midi-v2-dls-renderer-smoke-v1",
+  "experiment": "midi-v2-dls-renderer-smoke-20260814",
+  "recordedUtc": "2026-08-15T00:24:12Z",
+  "state": {
+    "status": "offline-renderer-smoke-passed",
+    "phase": "A3-listening-infrastructure",
+    "gateA": "not-run"
+  },
+  "renderer": {
+    "source": "tools/gbs_pipeline/render_midi_dls.swift",
+    "sourceSha256": "63b62526591b74752ebbdcfdb0dbb3828c5ca3db69e1f214366200addca801c7",
+    "executableSha256": "a19432533c1e6a4efe385124478ffcd038da0c0bdf394a7647cb2a3f80b5791e",
+    "compiler": "Apple Swift 6.3.3 clang-2100.1.1.101 arm64-apple-macosx28.0",
+    "mode": "AVAudioEngine offline manual rendering through Apple DLSSynth",
+    "sampleRate": 44100,
+    "channels": 2,
+    "sampleFormat": "PCM float32 WAV",
+    "tailSeconds": 2
+  },
+  "soundBank": {
+    "path": "/System/Library/Components/CoreAudio.component/Contents/Resources/gs_instruments.dls",
+    "bytes": 1996068,
+    "sha256": "739d277474bddeb120372625b70c83c653faaee44de26c3191848cc6c64bfb74"
+  },
+  "fixture": {
+    "sample": "sample-000.mid",
+    "source": "A\\Al Quadim (1994)\\Al Quadim (1994) - St25_gr4.mid",
+    "originalMidiSha256": "988f09ab1cefbd63d2a96aa50877dbd1ea690a0883f1e37a44a42629aaaa3047",
+    "roundtripMidiSha256": "08d3d6c1b6b4747984765464b5ce5cc9daae04e4feaa076ee34b024db703ba3b",
+    "canonicalScoreHashesEqual": true,
+    "sourceDurationSeconds": 72.72680412371135,
+    "renderedMusicalSeconds": 10,
+    "renderedTotalSeconds": 12
+  },
+  "result": {
+    "originalAudioSha256": "0de5b3fd96d9f6cd2a19ddfc790a5c43c1d7f159676f3e319aa757fd5f8365e8",
+    "roundtripAudioSha256": "0de5b3fd96d9f6cd2a19ddfc790a5c43c1d7f159676f3e319aa757fd5f8365e8",
+    "repeatOriginalAudioSha256": "0de5b3fd96d9f6cd2a19ddfc790a5c43c1d7f159676f3e319aa757fd5f8365e8",
+    "originalVsRoundtripBitIdentical": true,
+    "repeatDeterministic": true
+  },
+  "conclusion": {
+    "renderer": "passed",
+    "listeningOracle": "not-run",
+    "reason": "The renderer is lossless and deterministic on the first fixture. Gate A still requires 30 stratified pairs, hidden repeats, and owner listening verdicts."
+  }
+}

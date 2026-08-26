@@ -1,0 +1,13 @@
+{
+  "name": "radio-presence",
+  "private": true,
+  "version": "0.0.0",
+  "description": "chiptunes.app/api/* — live listener count (WebSocket presence Durable Object).",
+  "type": "module",
+  "scripts": {
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.106.0"
+  }
+}

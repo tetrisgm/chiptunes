@@ -1,0 +1,28 @@
+{
+  // chiptunes-monitor — off-box uptime monitor for the radio. A separate failure domain from radio-presence
+  // and health-ingest on purpose (a bad deploy of one must not blind the others). Cron every 2 min.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "chiptunes-monitor",
+  "main": "worker.js",
+  "compatibility_date": "2026-07-15",
+  // account_id comes from the CLOUDFLARE_ACCOUNT_ID environment variable so this
+  // repository carries no account identifiers. wrangler reads it automatically.
+  "workers_dev": true,
+  "triggers": { "crons": ["*/2 * * * *"] },
+
+  // Debounce state + outage history. id filled by `wrangler kv namespace create STATE`.
+  "kv_namespaces": [
+    { "binding": "STATE", "id": "c3c2c5ab891149f0b659733d03c2780a" }
+  ],
+
+  // Alert delivery reuses the stack's MXroute SMTP (see stack/runbooks/email-smtp-dns.md), sent from
+  // the Worker via monitor/smtp.js. AUTH_EMAIL_SERVER lives in the ACCOUNT-LEVEL "stack" Secrets Store
+  // so EVERY product binds the SAME secret — set once, reuse everywhere. Populate it (owner, hidden
+  // prompt):
+  //   npx wrangler secrets-store secret create c01d0546d02e45a19f66417800d4039d --name AUTH_EMAIL_SERVER --scopes workers --remote
+  "secrets_store_secrets": [
+    { "binding": "AUTH_EMAIL_SERVER", "store_id": "c01d0546d02e45a19f66417800d4039d", "secret_name": "AUTH_EMAIL_SERVER" }
+  ],
+
+  "observability": { "enabled": true }
+}

@@ -1,0 +1,1160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="theme-color" content="#0a0814" />
+<title>Chiptunes.app: an endless Game Boy radio for your second screen</title>
+<meta name="description" content="An endless Game Boy radio for the background of your day: generated chiptunes with games that play themselves, like a screensaver for your second screen." />
+<link rel="canonical" href="https://chiptunes.app/" />
+<!-- Social share (Open Graph + Twitter). Static site-level card; per-track cards would need SSR. -->
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Chiptunes.app" />
+<meta property="og:title" content="Chiptunes.app" />
+<meta property="og:description" content="An endless Game Boy radio for your second screen. Background music; the games play themselves." />
+<meta property="og:url" content="https://chiptunes.app/" />
+<meta property="og:image" content="https://chiptunes.app/og.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="Chiptunes.app: endless generative chiptune with self-playing arcade games." />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Chiptunes.app" />
+<meta name="twitter:description" content="An endless Game Boy radio for your second screen. Background music; the games play themselves." />
+<meta name="twitter:image" content="https://chiptunes.app/og.png" />
+<!-- static fallback favicon (Safari ignores the JS/canvas reactive favicon; this is what it + any browser shows pre-start) -->
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='rgb(10,8,20)'/><g fill='rgb(150,120,246)'><rect x='7.25' y='5.80' width='2.50' height='2.5'/><rect x='22.25' y='5.80' width='2.50' height='2.5'/><rect x='9.75' y='8.30' width='2.50' height='2.5'/><rect x='19.75' y='8.30' width='2.50' height='2.5'/><rect x='7.25' y='10.80' width='17.50' height='2.5'/><rect x='4.75' y='13.30' width='5.00' height='2.5'/><rect x='12.25' y='13.30' width='7.50' height='2.5'/><rect x='22.25' y='13.30' width='5.00' height='2.5'/><rect x='2.25' y='15.80' width='27.50' height='2.5'/><rect x='2.25' y='18.30' width='2.50' height='2.5'/><rect x='7.25' y='18.30' width='17.50' height='2.5'/><rect x='27.25' y='18.30' width='2.50' height='2.5'/><rect x='2.25' y='20.80' width='2.50' height='2.5'/><rect x='7.25' y='20.80' width='2.50' height='2.5'/><rect x='22.25' y='20.80' width='2.50' height='2.5'/><rect x='27.25' y='20.80' width='2.50' height='2.5'/><rect x='9.75' y='23.30' width='5.00' height='2.5'/><rect x='17.25' y='23.30' width='5.00' height='2.5'/></g></svg>" />
+<link rel="mask-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><g><rect x='7.25' y='5.80' width='2.50' height='2.5'/><rect x='22.25' y='5.80' width='2.50' height='2.5'/><rect x='9.75' y='8.30' width='2.50' height='2.5'/><rect x='19.75' y='8.30' width='2.50' height='2.5'/><rect x='7.25' y='10.80' width='17.50' height='2.5'/><rect x='4.75' y='13.30' width='5.00' height='2.5'/><rect x='12.25' y='13.30' width='7.50' height='2.5'/><rect x='22.25' y='13.30' width='5.00' height='2.5'/><rect x='2.25' y='15.80' width='27.50' height='2.5'/><rect x='2.25' y='18.30' width='2.50' height='2.5'/><rect x='7.25' y='18.30' width='17.50' height='2.5'/><rect x='27.25' y='18.30' width='2.50' height='2.5'/><rect x='2.25' y='20.80' width='2.50' height='2.5'/><rect x='7.25' y='20.80' width='2.50' height='2.5'/><rect x='22.25' y='20.80' width='2.50' height='2.5'/><rect x='27.25' y='20.80' width='2.50' height='2.5'/><rect x='9.75' y='23.30' width='5.00' height='2.5'/><rect x='17.25' y='23.30' width='5.00' height='2.5'/></g></svg>" color="#9678f6" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet" />
+<script>
+(function(){
+  var shellMode='';
+  try{ shellMode=new URLSearchParams(location.search||'').get('mode')||''; }catch(e0){}
+  // wallpaper mode is an ELECTRON-only presentation (all chrome + the cursor are hidden). Gate it on
+  // the native bridge so a bare ?mode=wallpaper on the public web can't strip the UI for a visitor.
+  var isDesktopHost=!!(window.RRRNative && window.RRRNative.isDesktop);
+  if(shellMode==='wallpaper' && isDesktopHost){
+    document.documentElement.classList.add('wallpaper-mode','boot-player-route');
+    window.__RRR_WALLPAPER_MODE=true;
+    window.__RRR_BOOT_PLAYER_ROUTE=true;
+  } else if(shellMode==='popover' && isDesktopHost){
+    document.documentElement.classList.add('popover-mode','boot-player-route');
+    window.__RRR_POPOVER_MODE=true;
+    window.__RRR_BOOT_PLAYER_ROUTE=true;
+  } else if(shellMode==='browse' && isDesktopHost){
+    document.documentElement.classList.add('browse-mode','boot-player-route');
+    window.__RRR_BROWSE_MODE=true;
+    window.__RRR_BOOT_PLAYER_ROUTE=true;
+  }
+  // player-route boot: hide the Home overlay pre-paint for direct track/watch/radio links.
+  // /track/<slug> (generated; slug may carry a '<composerId>.' prefix)
+  // /watch (silent wallpaper) · /radio (mints a fresh generated track).
+  var path=(location.pathname||'/').replace(/^\/+|\/+$/g,''), slug=path;
+  try{ slug=decodeURIComponent(slug); }catch(e){}
+  slug=String(slug||'').toLowerCase();
+  var parts=slug.split('/').filter(Boolean);
+  var aiTrackRoute=!!(parts[0]==='track' && parts[1] && !parts[2] && /^[a-z0-9][a-z0-9._-]*$/.test(parts[1]));
+  var modeRoute=(parts.length===1 && (parts[0]==='watch' || parts[0]==='radio' || parts[0]==='gameboy'));
+  // The ROOT is a player route. The station used to open on a page listing the
+  // ways to listen, with the game running muted behind it; you had to press
+  // Listen now to get to the thing the page was describing. It starts now, and
+  // the platform page moved to /get for the one pill that needs it.
+  var rootRoute=(parts.length===0);
+  if(aiTrackRoute || modeRoute || rootRoute){
+    document.documentElement.classList.add('boot-player-route');
+    window.__RRR_BOOT_PLAYER_ROUTE=true;
+  }
+  // The station's address is chiptunes.app, not chiptunes.app/radio. /radio
+  // still serves it -- the link is in the wild and the stream directories carry
+  // it -- but it rewrites to the root before first paint so the bar agrees.
+  if(parts.length===1 && parts[0]==='radio'){
+    try{ history.replaceState(null,'','/'+(location.search||'')+(location.hash||'')); }catch(e2){}
+  }
+})();
+</script>
+<style>
+  :root{
+    --bg:#0a0814;
+    --ink:#fcfcf8;
+    --accent:#f878f8;
+    --accent2:#58f898;
+    --accent3:#6888fc;
+    --pixel:'VT323',"Courier New",ui-monospace,Menlo,Consolas,monospace;   /* legible pixel/CRT font — brand wordmark + game only */
+    --mono:ui-monospace,Menlo,Consolas,monospace;                          /* aligned data dumps stay plain monospace */
+    --ui:-apple-system,"SF Pro Display","SF Pro Text",system-ui,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;   /* Apple system stack — headings, body, buttons */
+    --navw:300px;
+    /* THE MATERIAL. Every floating surface over the game uses this one recipe.
+       It used to be 52% dark, which is fine over a dark game and falls apart
+       over a light one: on the Game Boy screen (cream) a 52% pill lands at
+       about rgb(112,99,74), and the old #d9d3ee label on that is 3.55:1 --
+       under the 4.5:1 floor, which is exactly why none of it was legible.
+       At 82% the same label is ~12:1 over any screen the station can show. */
+    --mat:rgba(10,8,18,.82);
+    --mat-hi:rgba(30,23,58,.9);
+    --mat-edge:rgba(255,255,255,.16);
+    --mat-edge-hi:rgba(255,255,255,.32);
+    --mat-blur:blur(20px) saturate(180%);
+    --mat-shadow:0 8px 28px rgba(0,0,0,.45);
+    --ink:#f4f1fb;                  /* primary label */
+    --ink-2:rgba(232,227,250,.82);  /* secondary / body */
+    /* The chrome DISSOLVES rather than waiting three seconds and vanishing.
+       Slow out, so the fade itself is the countdown and you can see it coming;
+       near-instant back, because feedback on input must never lag (the return
+       trip is the one a person is waiting on). */
+    --fade-out:2.9s cubic-bezier(.4,0,.85,.4);
+    --fade-in:.13s ease-out;
+  }
+  /* Legibility settings are not decoration: make the material solid rather than
+     thinner, and keep the contrast the user asked for. */
+  @media (prefers-reduced-transparency: reduce){
+    :root{ --mat:rgba(9,7,16,.97); --mat-hi:rgba(30,23,58,.98); --mat-blur:none; }
+  }
+  @media (prefers-contrast: more){
+    :root{ --mat:rgba(5,4,11,.98); --mat-hi:rgba(30,23,58,.99);
+      --mat-edge:rgba(255,255,255,.55); --mat-edge-hi:rgba(255,255,255,.75);
+      --ink:#fff; --ink-2:rgba(255,255,255,.94); }
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html,body{ height:100%; width:100%; overflow:hidden; background:var(--bg); }
+  html.boot-player-route #intro{ display:none !important; }
+  html.wallpaper-mode body, html.wallpaper-mode body *{ cursor:none !important; }
+  html.wallpaper-mode #intro,
+  html.wallpaper-mode #hud,
+  html.wallpaper-mode #presets,
+  html.wallpaper-mode #playbar,
+  html.wallpaper-mode #watchbar,
+  html.wallpaper-mode #radionav,
+  html.wallpaper-mode #rlist,
+  html.wallpaper-mode #rfullscreen,
+  html.wallpaper-mode #resumeMusic,
+  html.wallpaper-mode #mixpanel,
+  html.wallpaper-mode #trackpanel,
+  html.wallpaper-mode #gamepick,
+  html.wallpaper-mode #soundhint{ display:none !important; }
+  /* Electron menu-bar popover: hide the whole radio UI, show only the compact control panel. */
+  html.popover-mode #stage, html.popover-mode .crt, html.popover-mode #hearts,
+  html.popover-mode #presets, html.popover-mode #hud, html.popover-mode #playbar,
+  html.popover-mode #intro, html.popover-mode #watchbar, html.popover-mode #radionav,
+  html.popover-mode #rlist, html.popover-mode #rfullscreen, html.popover-mode #mixpanel,
+  html.popover-mode #trackpanel, html.popover-mode #gamepick,
+  html.popover-mode #soundhint, html.popover-mode #resumeMusic{ display:none !important; }
+  html.popover-mode, html.popover-mode body{ background:transparent !important; cursor:default; overflow:hidden; }
+  #popover{ display:none; }
+  html.popover-mode #popover{ display:block; }
+  /* Electron desktop control-center window (Portal-style browse). */
+  html.browse-mode #stage, html.browse-mode .crt, html.browse-mode #hearts,
+  html.browse-mode #presets, html.browse-mode #hud, html.browse-mode #playbar,
+  html.browse-mode #intro, html.browse-mode #watchbar, html.browse-mode #radionav,
+  html.browse-mode #rlist, html.browse-mode #rfullscreen, html.browse-mode #mixpanel,
+  html.browse-mode #trackpanel, html.browse-mode #gamepick,
+  html.browse-mode #soundhint, html.browse-mode #resumeMusic{ display:none !important; }
+  html.browse-mode, html.browse-mode body{ background:var(--bg) !important; cursor:default; overflow:auto; height:auto; min-height:100%; }
+  #browse{ display:none; }
+  html.browse-mode #browse{ display:block; }
+  body{
+    font-family:var(--pixel);
+    color:var(--ink);
+    touch-action:none;
+    -webkit-user-select:none; user-select:none;
+    -webkit-tap-highlight-color:transparent;
+    cursor:default;
+  }
+  #stage{ position:fixed; inset:0; display:block; }
+  html.audio-background #stage,
+  html.audio-background .crt,
+  html.audio-background #hud,
+  html.audio-background #presets,
+  html.audio-background #now,
+  html.audio-background #playbar,
+  html.audio-background #rlist,
+  html.audio-background #rfullscreen,
+  html.audio-background #mixpanel,
+  html.audio-background #trackpanel,
+  html.audio-background #gamepick{
+    visibility:hidden !important;
+  }
+
+  /* CRT overlays */
+  .crt{ position:fixed; inset:0; pointer-events:none; z-index:5; }
+  /* CRT strength x5 (owner 2026-08-22). The opacity multipliers alone could not
+     deliver it -- both were already near their ceiling and clamp at 1 -- so the
+     source alphas carry most of the increase: the scanline band and the RGB
+     aperture mask here, the falloff and inset shadow below, and the vignette
+     factor in the baked gain compositor. ?scanlines=0..1 still overrides. */
+  .scanlines{
+    background:
+      repeating-linear-gradient( to bottom,
+        rgba(0,0,0,0) 0px, rgba(0,0,0,0) 2px,
+        rgba(0,0,0,0.62) 2px, rgba(0,0,0,0.62) 4px),
+      repeating-linear-gradient( to right,
+        rgba(255,0,0,0.16) 0px, rgba(0,255,0,0.13) 1px, rgba(0,0,255,0.16) 2px);
+    mix-blend-mode:multiply; opacity:.3;   /* owner 2026-07-16: CRT effect halved (was .6) */
+  }
+  .vignette{
+    background:radial-gradient(ellipse at center, rgba(0,0,0,0) 28%, rgba(0,0,0,.88) 100%);
+    box-shadow: inset 0 0 210px 54px rgba(0,0,0,.78);
+    opacity:1;   /* was .5 (halved 2026-07-16); x5 pass restores it to full */
+  }
+
+  /* HUD */
+  #hud{
+    position:fixed; left:0; right:0; bottom:0; z-index:6;
+    display:flex; gap:12px; align-items:center; justify-content:space-between;
+    padding:9px 12px; pointer-events:none;
+    opacity:0; transition:opacity .6s ease;
+  }
+  #hud.show{ opacity:.95; }
+  #trackname{ font-size:12px; letter-spacing:1px; text-transform:uppercase; color:#bdb0e8;
+    text-shadow:0 0 6px rgba(120,100,200,.5); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #trackname b{ color:var(--accent2); font-weight:700; }
+  #trackname .sub{ color:#6f679a; }
+  #transport{ display:flex; gap:6px; pointer-events:auto; flex:0 0 auto; }
+  .btn{
+    pointer-events:auto; cursor:pointer;
+    background:rgba(20,16,40,.7); color:var(--ink);
+    border:2px solid #3a2f66; padding:8px 14px;
+    font:inherit; font-size:17px; letter-spacing:1px; text-transform:uppercase;
+    box-shadow:0 0 0 2px #0a0814, 3px 3px 0 #2a2150;
+    display:inline-flex; align-items:center; gap:8px;
+  }
+  .btn svg{ width:18px; height:18px; }
+  .btn:hover{ border-color:var(--accent); color:var(--accent); }
+  .btn.on{ border-color:var(--accent2); color:var(--accent2); }
+
+  /* Preset selector (top bar) */
+  #presets{
+    position:fixed; top:0; left:0; right:0; z-index:6;
+    display:flex; gap:8px; align-items:center; justify-content:center; flex-wrap:wrap;
+    padding:10px; pointer-events:none;
+    opacity:0; transition:opacity .6s ease;
+  }
+  #presets.show{ opacity:1; }
+  .preset{
+    pointer-events:auto; cursor:pointer;
+    background:rgba(16,12,32,.72); color:#9a90c0;
+    border:2px solid #2f2752; padding:7px 12px;
+    font:inherit; font-size:11px; letter-spacing:2px; text-transform:uppercase;
+    box-shadow:3px 3px 0 #1a1436;
+    transition:color .15s, border-color .15s, transform .1s;
+  }
+  .preset:hover{ color:var(--ink); transform:translateY(-2px); }
+  .preset.sel{ color:#0a0814; background:var(--accent2); border-color:var(--accent2);
+    box-shadow:3px 3px 0 #1a6a48, 0 0 18px rgba(88,248,152,.4); }
+  .preset.random{ color:#fcd86a; border-color:#7a5a1a; }
+  .preset.random.sel{ color:#1a1000; background:#fcd86a; border-color:#fcd86a;
+    box-shadow:3px 3px 0 #6a4a10, 0 0 18px rgba(252,216,106,.5); }
+  #now{
+    position:fixed; top:52px; left:0; right:0; z-index:6; text-align:center;
+    font-size:15px; letter-spacing:2px; text-transform:uppercase; color:#6f679a;
+    pointer-events:none; opacity:0; transition:opacity .6s ease;
+  }
+  #now.show{ opacity:.85; }
+
+  /* Radio player bar (replaces game tabs) */
+  #presets{ flex-wrap:nowrap; gap:6px; padding:8px; overflow-x:auto; }
+  .rbtn{ pointer-events:auto; cursor:pointer; background:rgba(20,16,40,.85); color:var(--ink);
+    border:2px solid #3a2f66; min-width:38px; height:34px; font:inherit; font-size:20px; box-shadow:2px 2px 0 #1a1436;
+    display:inline-flex; align-items:center; justify-content:center; }
+  .rbtn svg{ width:22px; height:22px; display:block; }                  /* SVG icons (no emoji) inherit currentColor */
+  .rbtn:hover{ border-color:var(--accent); color:var(--accent); }
+  .rbtn:disabled{ opacity:.36; cursor:default; color:#726b91; border-color:#2f2752; box-shadow:2px 2px 0 #1a1436; }
+  .rbtn:disabled:hover{ border-color:#2f2752; color:#726b91; }
+  .rbtn.up.act{ border-color:var(--accent2); color:var(--accent2); }
+  .rbtn.down.act{ border-color:#f85858; color:#f85858; }
+  .rbtn.on{ border-color:var(--accent2); color:var(--accent2); box-shadow:2px 2px 0 #1a6a48; }   /* selected tempo preset */
+  #rtempo{ display:flex; align-items:center; gap:4px; pointer-events:auto; }   /* no container box — just the BPM button */
+  /* corner buttons (menu top-left, fullscreen top-right) share the VOLUME
+     button's container language: 54px glass circle, 18px inset, same
+     bg/border/blur/shadow as the playbar's right cluster. */
+  #rlist{ position:fixed; top:18px; left:18px; z-index:24; width:54px; height:54px; min-width:54px; padding:0;
+    display:inline-flex; align-items:center; justify-content:center; border-radius:999px;
+    border:1px solid var(--mat-edge); background:var(--mat); color:var(--ink);
+    box-shadow:var(--mat-shadow); backdrop-filter:var(--mat-blur); -webkit-backdrop-filter:var(--mat-blur);
+    font-size:0; }
+  #rlist:hover{ background:var(--mat-hi); color:#fff; border-color:var(--mat-edge-hi); }
+  #rlist.on{ border-color:var(--accent); color:var(--accent); }
+  /* on the home the hamburger just reopens the home — hide it there */
+  body.home-open #rlist{ opacity:0 !important; pointer-events:none !important; }
+  /* live listener count — pill top-left, right of the menu button; hides on idle with the rest */
+  /* The LIVE badge and the top-centre track name are both gone: the badge
+     duplicated the rail's YouTube row (its red dot moved there) and the name
+     went back to the bottom-left corner, where the transport already is. */
+  #rfullscreen{
+    display:none; position:fixed; top:18px; right:18px; z-index:24; align-items:center; justify-content:center;
+    width:54px; height:54px; min-width:54px; padding:0; border-radius:999px; border:1px solid var(--mat-edge);
+    background:var(--mat); color:var(--ink); cursor:pointer; pointer-events:auto;
+    box-shadow:var(--mat-shadow);
+    backdrop-filter:var(--mat-blur); -webkit-backdrop-filter:var(--mat-blur);
+    opacity:0; transform:translateY(-6px); transition:opacity .22s ease, transform .22s ease, border-color .12s, color .12s, background .12s;
+  }
+  #rfullscreen:hover, #rfullscreen.on{ border-color:var(--mat-edge-hi); color:#fff; background:var(--mat-hi); }
+  #rfullscreen svg{ width:20px; height:20px; flex:0 0 auto; }
+  #rfullscreen.unsupported{ display:none !important; }
+  /* PLAYER PLATFORM LINKS — a row of round glass buttons at the top-right, just left of fullscreen. */
+  /* THE GAME BOY. Its own screen: the cartridge running on the emulator, with
+     the console drawn rather than photographed -- a DMG's proportions, its
+     screen well, and the four shades of its reflector. */
+  #gbscreen{ position:fixed; inset:0; z-index:70; display:none; align-items:center; justify-content:center;
+    gap:clamp(20px,5vw,72px); padding:24px; flex-wrap:wrap;
+    background:radial-gradient(120% 120% at 50% 0%, #241d3d 0%, #0a0814 62%);
+    -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);
+    font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+  #gbscreen.show{ display:flex; }
+  #gbscreen .gb-body{ width:min(340px,86vw); border-radius:14px 14px 58px 14px; padding:18px 18px 26px;
+    background:linear-gradient(#d3d2cd,#b9b8b2); box-shadow:0 26px 70px rgba(0,0,0,.6), inset 0 2px 0 rgba(255,255,255,.6);
+    flex:0 0 auto; }
+  #gbscreen .gb-well{ position:relative; border-radius:10px 10px 34px 10px; padding:16px 22px 24px;
+    background:linear-gradient(#5c5b6b,#43425160); background-color:#4a4956; box-shadow:inset 0 3px 10px rgba(0,0,0,.5); }
+  #gbscreen .gb-wellhead{ display:flex; align-items:center; gap:8px; margin-bottom:9px;
+    color:#c3c0d8; font-size:8.5px; letter-spacing:.09em; }
+  #gbscreen .gb-dot{ width:7px; height:7px; border-radius:50%; background:#e05a6a; box-shadow:0 0 7px #e05a6a; }
+  #gbscreen #gbLcd{ display:block; width:100%; height:auto; aspect-ratio:160/144; border-radius:2px;
+    image-rendering:pixelated; background:#e0e8b0; }
+  #gbscreen .gb-err{ display:none; margin-top:8px; color:#ffb4b4; font-size:11px; line-height:1.35; }
+  #gbscreen .gb-brand{ margin:12px 2px 0; color:#3b3a63; font:800 17px/1 var(--pixel),system-ui;
+    letter-spacing:.02em; }
+  #gbscreen .gb-brand span{ color:#8a2f6d; font-size:11px; }
+  #gbscreen .gb-controls{ display:flex; align-items:center; justify-content:space-between; margin:16px 6px 0; }
+  #gbscreen .gb-dpad{ position:relative; width:52px; height:52px; }
+  #gbscreen .gb-dpad i, #gbscreen .gb-dpad b{ position:absolute; background:#2f2e3a; border-radius:3px; }
+  #gbscreen .gb-dpad i{ left:18px; top:0; width:16px; height:52px; }
+  #gbscreen .gb-dpad b{ left:0; top:18px; width:52px; height:16px; }
+  #gbscreen .gb-ab{ display:flex; gap:12px; transform:rotate(-20deg); }
+  #gbscreen .gb-ab span{ width:30px; height:30px; border-radius:50%; background:#8a2f6d; color:#e8dcea;
+    display:flex; align-items:center; justify-content:center; font:700 11px/1 system-ui;
+    box-shadow:0 2px 0 rgba(0,0,0,.28); }
+  /* the speaker: six short bars in the bottom-right corner. As a full-width row
+     under a rotate() it drew one long diagonal streak across the shell. */
+  #gbscreen .gb-slots{ display:flex; flex-direction:column; gap:4px; width:44px; margin:16px 6px 0 auto;
+    transform:rotate(-20deg); }
+  #gbscreen .gb-slots i{ width:100%; height:4px; border-radius:2px; background:#a9a8a3;
+    box-shadow:inset 0 1px 1px rgba(0,0,0,.25); }
+  #gbscreen .gb-side{ flex:0 1 380px; color:#e6e2f6; }
+  #gbscreen .gb-side h2{ margin:0 0 10px; font-size:24px; letter-spacing:-.01em; }
+  #gbscreen .gb-side p{ margin:0 0 18px; color:#b6afd0; font-size:14.5px; line-height:1.55; }
+  #gbscreen .gb-side code{ background:rgba(255,255,255,.08); padding:1px 5px; border-radius:4px; font-size:13px; }
+  #gbscreen .gb-actions{ display:flex; flex-wrap:wrap; gap:10px; }
+  #gbscreen .gb-btn{ height:44px; padding:0 18px; border-radius:999px; cursor:pointer;
+    border:1px solid rgba(255,255,255,.16); background:rgba(255,255,255,.06); color:#e6e2f6;
+    font:600 14px/1 system-ui; }
+  #gbscreen .gb-btn:hover{ background:rgba(255,255,255,.13); }
+  #gbscreen .gb-primary{ background:#9bbc0f; border-color:#9bbc0f; color:#14200a; }
+  #gbscreen .gb-primary:hover{ background:#b2d418; }
+  body.gb-open #plinks, body.gb-open #playbar{ display:none !important; }
+  @media (max-width:820px){ #gbscreen{ align-content:center; overflow:auto; } #gbscreen .gb-side{ flex-basis:100%; } }
+
+  /* THE RAIL: everything you can do with the track that is playing, down the
+     left edge. Vertically centred rather than pinned to a corner, because the
+     top centre now carries the track name and the bottom carries the transport,
+     and a column that grows from the middle stays clear of both. */
+  #plinks{ position:fixed; left:18px; top:18px; z-index:24;
+    display:none; flex-direction:column; align-items:flex-start; gap:8px;
+    max-height:calc(100vh - 36px); }
+  #plinks .plrow{ display:flex; align-items:center; gap:6px; }
+  /* What the page is, above the first thing it offers you. ONE flowing
+     paragraph: the name starts the sentence and the description continues from
+     it, rather than sitting as a heading with a caption broken underneath. */
+  /* This was the one piece of chrome with NO surface -- bare text drawn straight
+     over whatever the game is showing. Over the Game Boy screen, which is cream,
+     light text on light ground is not text. It gets the same material as
+     everything else, with a softer radius than the pills so it reads as a label
+     rather than something you can press. Hierarchy comes from WEIGHT, not size:
+     two type sizes on one short line is fuss, and weight adds presence without
+     taking more room. */
+  #plinks .plhead{ align-self:flex-start; white-space:nowrap; margin-bottom:4px;
+    padding:13px 16px 14px; border-radius:16px;
+    background:var(--mat); border:1px solid var(--mat-edge); box-shadow:var(--mat-shadow);
+    backdrop-filter:var(--mat-blur); -webkit-backdrop-filter:var(--mat-blur); }
+  /* A title is set as a title: large, tight leading, NEGATIVE tracking, with the
+     description under it at body size. At 13.5px sharing a line with its own
+     explanation it was a label, not the name of the page. */
+  /* Title and description share ONE line, sitting on a common baseline. Two
+     sizes on a line need baseline alignment, not centre: aligned to their boxes
+     the 15px text floats inside the 26px line and reads as a mistake. */
+  #plinks .plhead{ display:flex; align-items:baseline; gap:11px; }
+  #plinks .plhead b{ flex:0 0 auto; font:700 26px/1.15 var(--ui); letter-spacing:-.022em;
+    color:var(--ink); }
+  #plinks .plhead span{ flex:0 1 auto; font:400 15px/1.15 var(--ui);
+    letter-spacing:0; color:var(--ink-2); }
+  .plink{ height:46px; padding:0 18px; border-radius:999px; border:1px solid var(--mat-edge);
+    background:var(--mat); color:var(--ink); cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:9px;
+    box-shadow:var(--mat-shadow); backdrop-filter:var(--mat-blur); -webkit-backdrop-filter:var(--mat-blur);
+    transition:opacity .22s ease, border-color .12s, color .12s, background .12s; }
+  .plink:hover{ border-color:var(--mat-edge-hi); color:#fff; background:var(--mat-hi); }
+  /* Game Boy screen: an on/off control, so it has to look on. The DMG palette's
+     own lightest shade, which is also what the panel it turns on is made of. */
+  .plink.on{ background:rgba(155,188,15,.16); border-color:rgba(155,188,15,.55); color:#dbe89a; }
+  .plink.on:hover{ background:rgba(155,188,15,.24); border-color:rgba(155,188,15,.75); color:#eef5c8; }
+  .plink .plink-ic{ display:inline-flex; flex:0 0 auto; }
+  /* live right now, said where the stream actually is */
+  .plink .plink-dot{ width:8px; height:8px; flex:0 0 auto; margin-right:-1px; border-radius:50%;
+    background:#ff5d5d; box-shadow:0 0 8px #ff5d5d; animation:live-pulse 1.4s ease-in-out infinite; }
+  .plink svg{ width:20px; height:20px; flex:0 0 auto; }
+  .plink-t{ font:600 13.5px/1 var(--ui); letter-spacing:.005em; white-space:nowrap; }
+  @media (max-height:640px){ #plinks .plhead{ display:none; } }
+  /* One line means one line: below this the sentence runs off the right edge,
+     and the name on its own still says what the page is. */
+  @media (max-width:980px){ #plinks .plhead span{ display:none; } }
+  /* FIRST LOAD. Big, centred, and the only thing asking to be pressed. Feedback
+     lands on the press rather than the release, and it materialises -- blur and
+     scale together -- so it arrives as a surface rather than fading in. */
+  #bigplay{ position:fixed; left:50%; top:50%; z-index:32;
+    width:132px; height:132px; padding:0; border-radius:50%; cursor:pointer;
+    display:inline-flex; align-items:center; justify-content:center;
+    background:var(--mat); border:1px solid var(--mat-edge); color:var(--ink);
+    box-shadow:var(--mat-shadow);
+    backdrop-filter:var(--mat-blur); -webkit-backdrop-filter:var(--mat-blur);
+    opacity:0; pointer-events:none; transform:translate(-50%,-50%) scale(.92);
+    transition:opacity .3s ease, transform .3s cubic-bezier(.2,.8,.3,1),
+               background .12s ease, border-color .12s ease; }
+  #bigplay.show{ opacity:1; pointer-events:auto; transform:translate(-50%,-50%) scale(1); }
+  #bigplay:hover{ background:var(--mat-hi); border-color:var(--mat-edge-hi); }
+  #bigplay.press{ transform:translate(-50%,-50%) scale(.965); transition:transform .1s ease-out; }
+  #bigplay svg{ width:54px; height:54px; margin-left:6px; }   /* optical centre of a triangle */
+  /* the one sentence that says what this page IS, attached to the one control
+     a first visit offers */
+  #bigplay .bp-cap{ position:absolute; top:calc(100% + 18px); left:50%; transform:translateX(-50%);
+    width:max-content; max-width:min(76vw,560px); white-space:normal; text-align:center;
+    padding:10px 16px; border-radius:13px;
+    background:var(--mat); border:1px solid var(--mat-edge); box-shadow:var(--mat-shadow);
+    backdrop-filter:var(--mat-blur); -webkit-backdrop-filter:var(--mat-blur);
+    font:500 14px/1.45 var(--ui); letter-spacing:.005em; color:var(--ink-2); }
+  body.gb-open #bigplay{ opacity:0 !important; pointer-events:none !important; }
+  @media (prefers-reduced-motion: reduce){
+    #bigplay, #bigplay.show, #bigplay.press{ transform:translate(-50%,-50%); transition:opacity .2s ease; }
+    :root{ --fade-out:.25s ease; --fade-in:.12s ease-out; }
+  }
+
+  /* HOW IT WORKS: the one modal that explains the page. Material card over a
+     dimmed scrim; Esc, the X and the backdrop all close it. */
+  #howmodal{ position:fixed; inset:0; z-index:80; display:flex; align-items:center; justify-content:center;
+    padding:24px; background:rgba(4,3,9,.55); opacity:0; pointer-events:none;
+    backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+    transition:opacity .18s ease; }
+  #howmodal.show{ opacity:1; pointer-events:auto; }
+  #howmodal .hm-card{ position:relative; width:min(620px,94vw); max-height:min(78vh,720px); overflow:auto;
+    padding:26px 28px 22px; border-radius:18px;
+    background:var(--mat); border:1px solid var(--mat-edge); box-shadow:var(--mat-shadow);
+    backdrop-filter:var(--mat-blur); -webkit-backdrop-filter:var(--mat-blur); }
+  #howmodal h2{ font:700 22px/1.2 var(--ui); letter-spacing:-.015em; color:var(--ink); margin:0 0 10px; }
+  #howmodal h3{ font:650 14.5px/1.3 var(--ui); letter-spacing:.005em; color:var(--ink); margin:18px 0 5px; }
+  #howmodal p{ font:400 13.5px/1.55 var(--ui); letter-spacing:.005em; color:var(--ink-2); margin:0 0 4px; }
+  #howmodal .hm-lede{ font-size:14.5px; color:var(--ink); }
+  #howmodal .hm-foot{ margin-top:18px; }
+  #howmodal .hm-foot a{ color:#9ecbff; text-decoration:none; font-weight:600; }
+  #howmodal .hm-foot a:hover{ text-decoration:underline; }
+  #howmodal .hm-close{ position:absolute; top:12px; right:12px; width:34px; height:34px;
+    border-radius:50%; border:1px solid var(--mat-edge); background:transparent; color:var(--ink-2);
+    font:400 20px/1 var(--ui); cursor:pointer; }
+  #howmodal .hm-close:hover{ color:var(--ink); border-color:var(--mat-edge-hi); }
+
+  body.ai-visual #plinks{ display:flex; opacity:0; pointer-events:none; transition:opacity var(--fade-out); }
+  /* The COLUMN never takes the pointer, only its rows do. A one-line masthead
+     makes the column as wide as the sentence -- 762px -- and an interactive box
+     that size sitting over the game is a dead zone you cannot see. */
+  body.ai-visual.controls-active #plinks{ opacity:1; pointer-events:none; transition:opacity var(--fade-in); }
+  body.ai-visual.controls-active #plinks .plrow{ pointer-events:auto; }
+
+  /* THE DESKTOP CARD: the one offer on this screen that is not about the track
+     you are hearing, so it does not sit in the rail with the ones that are. It
+     stacks above the track name in the bottom-left corner -- the pill is 46px
+     at bottom:18px, so this clears it at 76. */
+  /* Same width, same corner, same padding as the track box it stacks on: two
+     surfaces in one corner that do not agree read as two accidents. */
+  #dlcard{ position:fixed; left:18px; bottom:76px; z-index:22; display:none;
+    width:340px; max-width:calc(50vw - 234px); padding:14px 16px 13px; border-radius:16px;
+    background:var(--mat); border:1px solid var(--mat-edge);
+    box-shadow:var(--mat-shadow);
+    backdrop-filter:var(--mat-blur); -webkit-backdrop-filter:var(--mat-blur); }
+  #dlcard .dlc-h{ font:700 14.5px/1.25 var(--ui); letter-spacing:-.005em; color:var(--ink); }
+  #dlcard .dlc-d{ margin-top:5px; font:500 13.5px/1.45 var(--ui); letter-spacing:.005em; color:var(--ink-2); }
+  #dlcard .dlc-b{ margin-top:11px; display:flex; gap:7px; }
+  #dlcard .dlc-b button{ height:38px; padding:0 15px; border-radius:999px; cursor:pointer;
+    border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.05); color:var(--ink);
+    font:600 13.5px/1 var(--ui); letter-spacing:.005em; white-space:nowrap;
+    transition:border-color .12s, color .12s, background .12s; }
+  #dlcard .dlc-b button:hover{ border-color:var(--mat-edge-hi); color:#fff; background:rgba(255,255,255,.11); }
+  /* the OS you are on leads, and looks like the answer */
+  #dlcard .dlc-b button:first-child{ background:rgba(143,122,224,.22); border-color:rgba(143,122,224,.55); color:#e6e0ff; }
+  #dlcard .dlc-b button:first-child:hover{ background:rgba(143,122,224,.32); border-color:rgba(143,122,224,.75); color:#fff; }
+  body.ai-visual #dlcard{ display:block; opacity:0; pointer-events:none; transition:opacity var(--fade-out); }
+  body.ai-visual.controls-active #dlcard{ opacity:1; pointer-events:auto; transition:opacity var(--fade-in); }
+  body.gb-open #dlcard{ display:none !important; }
+
+  /* MOBILE NAV MENU — the hamburger's standard link menu (a column of big rows). Backdrop click closes. */
+  #navmenu{ position:fixed; inset:0; z-index:60; display:none; padding:74px 16px 20px; justify-content:center; align-items:flex-start;
+    background:rgba(6,4,14,.62); -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px); }
+  #navmenu.show{ display:flex; animation:navmenu-in .18s ease; }
+  @keyframes navmenu-in{ from{ opacity:0; } to{ opacity:1; } }
+  .navmenu-panel{ width:min(420px,92vw); background:rgba(20,16,40,.98); border:1px solid var(--mat-edge); border-radius:22px;
+    box-shadow:0 30px 80px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.06); overflow:hidden; }
+  .navmenu-head{ display:flex; align-items:center; justify-content:space-between; padding:16px 12px 12px 20px; }
+  .navmenu-title{ font:600 16px/1 var(--ui); letter-spacing:-.01em; color:#f4f1fc; }
+  .navmenu-close{ all:unset; cursor:pointer; width:36px; height:36px; display:flex; align-items:center; justify-content:center;
+    border-radius:50%; color:#c9c2e2; font-size:26px; line-height:1; }
+  .navmenu-close:active{ background:rgba(255,255,255,.08); }
+  .navitem{ all:unset; box-sizing:border-box; cursor:pointer; display:flex; align-items:center; gap:15px; width:100%;
+    padding:16px 18px; border-top:1px solid rgba(255,255,255,.07); }
+  .navitem:active{ background:rgba(255,255,255,.07); }
+  .navitem-ic{ flex:0 0 auto; width:26px; height:26px; display:flex; align-items:center; justify-content:center; color:var(--ink); }
+  .navitem-ic svg{ width:100%; height:100%; }
+  .navitem-txt{ display:flex; flex-direction:column; gap:2px; flex:1 1 auto; min-width:0; }
+  .navitem-l{ font:600 16.5px/1.2 var(--ui); letter-spacing:-.012em; color:#f4f1fc; }
+  .navitem-s{ font:400 13px/1.3 var(--ui); color:#9c95b8; }
+  .navitem-chev{ flex:0 0 auto; color:#6b6488; font-size:24px; line-height:1; }
+
+  /* Visualizer picker opened by the G key. This is testing chrome, not game UI. */
+  #gamepick{ position:fixed; inset:0; z-index:10040; display:none; align-items:center; justify-content:center;
+    padding:22px; background:rgba(5,4,12,.52); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); }
+  #gamepick.show{ display:flex; }
+  #gamepick .gp-panel{ width:min(620px,calc(100vw - 28px)); max-height:min(720px,calc(100dvh - 34px)); overflow:hidden;
+    background:rgba(10,8,20,.96); border:1px solid rgba(207,199,240,.18); border-radius:14px;
+    box-shadow:0 24px 80px rgba(0,0,0,.68),0 0 38px rgba(248,120,248,.12); color:#fff; }
+  #gamepick .gp-head{ display:flex; align-items:flex-start; justify-content:space-between; gap:18px; padding:18px 18px 14px;
+    border-bottom:1px solid rgba(207,199,240,.12); }
+  #gamepick .gp-title{ font:800 18px/1.15 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; letter-spacing:0; }
+  #gamepick .gp-sub{ margin-top:4px; color:#a99fc9; font:600 12px/1.35 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; letter-spacing:0; }
+  #gamepick .gp-close{ flex:0 0 auto; width:34px; height:34px; border:0; border-radius:50%; cursor:pointer;
+    background:rgba(255,255,255,.08); color:#e9e4ff; font:700 22px/1 system-ui,-apple-system,sans-serif; }
+  #gamepick .gp-close:hover{ background:rgba(255,255,255,.14); color:#fff; }
+  #gamepick .gp-list{ display:grid; grid-template-columns:repeat(auto-fill,minmax(168px,1fr)); gap:10px; padding:14px 18px 18px;
+    max-height:calc(min(720px,100dvh - 34px) - 82px); overflow:auto; }
+  #gamepick .gp-item{ min-height:58px; display:flex; align-items:center; justify-content:space-between; gap:12px; cursor:pointer;
+    border:1px solid rgba(207,199,240,.14); border-radius:10px; background:rgba(255,255,255,.055); color:#f6f2ff;
+    padding:11px 12px; text-align:left; font:800 15px/1.15 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+  #gamepick .gp-item:hover{ border-color:rgba(248,120,248,.56); background:rgba(248,120,248,.11); }
+  #gamepick .gp-item.active{ border-color:rgba(88,248,152,.74); background:rgba(88,248,152,.12); color:#fff; }
+  #gamepick .gp-key{ display:block; margin-top:3px; color:#8f86b8; font:700 11px/1.2 var(--mono); }
+  #gamepick .gp-dot{ width:10px; height:10px; border-radius:50%; background:transparent; border:1px solid rgba(207,199,240,.34); flex:0 0 auto; }
+  #gamepick .gp-item.active .gp-dot{ background:var(--accent2); border-color:var(--accent2); box-shadow:0 0 12px rgba(88,248,152,.45); }
+
+  /* Intro */
+  #intro{
+    position:fixed; inset:0; z-index:10;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; gap:18px; padding:24px;
+    background:none; isolation:isolate;
+    transition:opacity .5s ease;
+  }
+  #intro::before{
+    /* position:fixed (not absolute) so the scrim stays pinned to the viewport instead of
+       scrolling away with the cards when product-home overflows and scrolls. */
+    content:""; position:fixed; inset:0; z-index:0; pointer-events:none;
+    background:radial-gradient(ellipse at center,#160f2e 0%,#0a0814 70%);
+    opacity:1; transition:opacity .22s ease;
+  }
+  body.song-visual #intro:not(.lib)::before,
+  body.ai-visual #intro:not(.lib)::before{ opacity:.8; }
+  #intro > *{ position:relative; z-index:1; }
+  #intro .intro-hero{
+    display:flex; flex-direction:column; align-items:center; gap:14px;
+    max-width:min(760px,92vw); padding:8px 12px 2px;
+  }
+  #intro h1{
+    font-size:clamp(38px,7.5vw,76px); line-height:1; font-weight:700;
+    letter-spacing:2px;
+    color:var(--ink);
+    text-shadow:
+      4px 4px 0 #a80020,
+      8px 8px 0 #0000fc,
+      0 0 24px rgba(248,120,248,.45);
+  }
+  #intro .sub{ max-width:760px; font:600 clamp(19px,2.4vw,28px)/1.4 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:#e6e1f7; letter-spacing:-.01em; text-transform:none; }
+  #intro .keys{ font-size:12px; color:#6f679a; letter-spacing:1px; max-width:520px; line-height:1.9; }
+  #intro .keys b{ color:var(--accent2); }
+  /* HOME container — holds the platform cards. (The old per-mood station-tile chooser was
+     removed: there is one station now, the shared LIVE broadcast.) */
+  #hometiles{ display:block; width:min(1240px,95vw); max-height:74vh; overflow-y:auto; padding:6px; }
+  /* ===== HOME PLATFORM CARDS — Apple-clean, over the live game. Every way to get Chiptunes:
+     browser · desktop · YouTube · radio. ===== */
+  /* Section heading above the grid — Apple product-page voice. */
+  .platforms-head{ text-align:center; max-width:660px; margin:0 auto 32px; }
+  .platforms-title{ margin:0 0 10px; font:600 clamp(27px,3.4vw,40px)/1.08 var(--ui); letter-spacing:-.024em; color:#f6f4fc; }
+  .platforms-sub{ margin:0; font:400 clamp(15px,1.7vw,18px)/1.5 var(--ui); letter-spacing:-.012em; color:#b3accb; }
+  /* Four equal cards, 2×2 — each a way to reach the one shared station. */
+  .platforms{ width:min(900px,94vw); display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:22px; align-items:stretch; }
+  .pcard{ box-sizing:border-box; height:100%; display:flex; flex-direction:column; gap:14px; text-align:left;
+    padding:28px 28px 26px; border-radius:24px; background:rgba(18,15,34,.6); border:1px solid rgba(255,255,255,.09);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.05), 0 20px 50px rgba(0,0,0,.42);
+    -webkit-backdrop-filter:blur(28px) saturate(1.3); backdrop-filter:blur(28px) saturate(1.3);
+    transition:border-color .22s ease, box-shadow .22s ease, background .22s ease, transform .22s ease; }
+  .pcard:hover{ border-color:rgba(255,255,255,.16); background:rgba(22,18,42,.7); transform:translateY(-2px);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.06), 0 28px 66px rgba(0,0,0,.52); }
+  .pc-title{ margin:0; font:600 21px/1.2 var(--ui); letter-spacing:-.021em; color:#f6f4fc; display:flex; align-items:center; gap:10px; }
+  .pc-desc{ margin:0; font:400 15.5px/1.5 var(--ui); color:#b3accb; letter-spacing:-.012em; }
+  .pc-url{ flex:1 1 auto; min-width:0; font:600 13px/1.4 var(--mono); color:#a6ecc0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    background:rgba(94,224,138,.09); border:1px solid rgba(94,224,138,.22); border-radius:11px; padding:0 13px; height:42px; display:flex; align-items:center; }
+  /* Radio: the stream URL over a Copy + Listen row, pinned to the card bottom (wraps neatly in the
+     narrower three-across column). */
+  .pc-radiorow{ display:flex; flex-wrap:wrap; align-items:center; gap:9px; margin-top:auto; }
+  .pc-radiorow .pc-url{ flex:1 1 100%; }
+  .pc-radiorow .pc-copy, .pc-radiorow .pc-btn{ flex:1 1 auto; }
+  .pc-actions{ display:flex; flex-wrap:wrap; gap:10px; margin-top:auto; padding-top:2px; }
+  /* One button system — Apple-clean filled accent, identical size + shape across every card */
+  .pc-btn{ all:unset; box-sizing:border-box; cursor:pointer; height:44px; min-width:92px; padding:0 20px;
+    display:inline-flex; align-items:center; justify-content:center; border-radius:12px;
+    font:600 15px/1 var(--ui); letter-spacing:-.01em;
+    color:#0c0a16; background:var(--pc); box-shadow:0 2px 10px rgba(0,0,0,.22);
+    transition:filter .15s ease, transform .1s ease, box-shadow .15s ease; }
+  .pc-btn:hover{ filter:brightness(1.05); box-shadow:0 5px 16px rgba(0,0,0,.3); }
+  .pc-btn:active{ transform:scale(.97); }
+  .pc-btn:focus-visible{ outline:2px solid #fff; outline-offset:2px; }
+  /* Desktop download buttons — Apple-landing style: platform glyph + name. The visitor's own OS is
+     the filled primary (.is-primary), the others are glass secondaries. */
+  .pc-btn.pc-dl{ gap:9px; padding:0 18px; color:#ece9f7; background:rgba(255,255,255,.055);
+    border:1px solid rgba(255,255,255,.14); box-shadow:none; }
+  .pc-btn.pc-dl:hover{ filter:none; background:rgba(255,255,255,.11); border-color:var(--mat-edge-hi); box-shadow:0 4px 14px rgba(0,0,0,.24); }
+  .pc-btn.pc-dl .pc-dl-ic{ display:inline-flex; width:17px; height:17px; opacity:.92; }
+  .pc-btn.pc-dl .pc-dl-ic svg{ width:100%; height:100%; }
+  .pc-btn.pc-dl.is-primary{ color:#0c0a16; background:var(--pc); border-color:transparent; box-shadow:0 2px 12px rgba(0,0,0,.26); }
+  .pc-btn.pc-dl.is-primary:hover{ filter:brightness(1.05); background:var(--pc); box-shadow:0 6px 18px rgba(0,0,0,.34); }
+  .pc-btn.pc-dl.is-primary .pc-dl-ic{ opacity:1; }
+  .live-badge{ font:600 10px/1 var(--ui); letter-spacing:.5px; color:#ff6a6a; text-transform:uppercase;
+    background:rgba(255,93,93,.13); border:1px solid rgba(255,93,93,.36); border-radius:999px; padding:4px 9px 4px 8px; display:inline-flex; align-items:center; gap:5px; }
+  .live-badge::before{ content:""; width:6px; height:6px; border-radius:50%; background:#ff5d5d; box-shadow:0 0 8px #ff5d5d; animation:live-pulse 1.4s ease-in-out infinite; }
+  @keyframes live-pulse{ 0%,100%{ opacity:1; } 50%{ opacity:.3; } }
+  /* Ambient YouTube live embed — 16:9 box, minimal margin, non-interactive so the "more videos" overlay never shows. */
+  .pc-embed{ position:relative; width:100%; margin:2px 0; aspect-ratio:16/9;
+    border-radius:14px; overflow:hidden; background:#000; box-shadow:0 12px 34px rgba(0,0,0,.46); }
+  .pc-embed iframe{ position:absolute; inset:0; width:100%; height:100%; border:0; display:block; }
+  .pc-embed-ambient iframe{ pointer-events:none; }   /* always-playing + non-interactive => the pause/hover related-videos grid can't trigger */
+  /* Transparent click-catcher over the non-interactive iframe — click opens the channel (subscribe there). */
+  .pc-embed-open{ position:absolute; inset:0; z-index:2; display:flex; align-items:flex-end; justify-content:flex-start; cursor:pointer;
+    text-decoration:none; opacity:0; transition:opacity .2s ease;
+    background:linear-gradient(0deg, rgba(6,4,14,.66) 0%, rgba(6,4,14,0) 42%); }
+  .pc-embed-open::after{ content:"Watch on YouTube Live \0000a0 ↗"; margin:14px 16px; font:600 13px/1 var(--ui); letter-spacing:-.01em; color:#fff; text-shadow:0 1px 6px rgba(0,0,0,.6); }
+  .pc-embed:hover .pc-embed-open{ opacity:1; }
+  @media (max-width:760px){ .pc-embed{ display:none; } }
+  /* Radio card: the stream URL with a Copy button beside it, plus a paste hint. */
+  .pc-urlrow{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .pc-urlrow .pc-url{ flex:1 1 200px; margin:0; align-self:auto; }
+  .pc-copy{ all:unset; box-sizing:border-box; cursor:pointer; flex:0 0 auto; height:42px; padding:0 15px;
+    display:inline-flex; align-items:center; justify-content:center; border-radius:11px;
+    font:600 13.5px/1 var(--ui); letter-spacing:-.01em; white-space:nowrap;
+    color:#dbd6ee; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.14); transition:filter .15s ease, transform .1s ease, background .15s ease; }
+  .pc-copy:hover{ background:rgba(255,255,255,.12); } .pc-copy:active{ transform:scale(.97); } .pc-copy:focus-visible{ outline:2px solid #fff; outline-offset:2px; }
+  /* Radio-row action button (Listen) — compact, matches the URL/Copy height. */
+  .pc-radiorow .pc-btn{ flex:0 0 auto; height:42px; min-width:0; padding:0 16px; border-radius:11px; font-size:13.5px; }
+  .pc-hint{ margin:0; font:400 13.5px/1.5 var(--ui); color:#948dad; letter-spacing:-.008em; }
+  #intro.product-home{ justify-content:flex-start; align-items:center; gap:20px; overflow-y:auto; overflow-x:hidden; padding:0 22px 72px; }
+  /* Hero owns the top of the viewport so the live game plays in full view before you reach the
+     cards — lofi-radio style. The wordmark sits centred in that band; cards start below it. */
+  #intro.product-home .intro-hero{ min-height:46vh; justify-content:center; gap:12px; padding:24px 12px 8px; }
+  #intro.product-home h1{ font-size:clamp(30px,4.6vw,52px); }
+  #intro.product-home .sub{ font-size:clamp(15px,1.8vw,20px); max-width:640px; }
+  #intro.product-home #hometiles{ max-height:none; overflow:visible; width:auto; padding:0; }
+  /* Reveal the live game brightest through the hero band, then fade to dark behind the cards. */
+  #intro.product-home::before{ opacity:1;
+    background:linear-gradient(180deg, rgba(10,8,20,.46) 0%, rgba(10,8,20,.30) 30%, rgba(10,8,20,.60) 66%, rgba(10,8,20,.86) 100%); }
+  /* ===== MOBILE HOME — Apple-tight: compact cards that fit a phone, a page that actually
+     scrolls, and a headline without the heavy 8px shadow ghosting at small sizes. ===== */
+  @media (max-width:760px){
+    #intro.product-home{ justify-content:flex-start; gap:14px; -webkit-overflow-scrolling:touch; touch-action:pan-y;
+      padding:0 14px calc(env(safe-area-inset-bottom,0px) + 40px); }
+    #intro.product-home .intro-hero{ min-height:34vh; justify-content:center; gap:8px;
+      padding:calc(env(safe-area-inset-top,0px) + 18px) 6px 8px; }
+    #intro.product-home h1{ font-size:clamp(26px,8.4vw,34px); letter-spacing:1px;
+      text-shadow:2px 2px 0 #a80020, 4px 4px 0 #0000fc; }
+    #intro.product-home .sub{ font-size:14.5px; line-height:1.4; max-width:none; }
+    .platforms{ width:100%; grid-template-columns:1fr; gap:14px; }   /* one column on phones */
+    .platforms-head{ margin-bottom:22px; }
+    .pcard{ padding:20px; gap:12px; border-radius:20px; box-shadow:0 14px 34px rgba(0,0,0,.42); }
+    .pcard:hover{ transform:none; }
+    .pc-title{ font-size:18px; }
+    .pc-desc{ font-size:14px; line-height:1.5; }
+    .pc-actions{ gap:8px; }
+    .pc-actions .pc-btn{ height:44px; min-width:0; flex:1 1 auto; padding:0 14px; font-size:14px; }
+    .pc-radiorow{ flex-wrap:wrap; }
+    .pc-radiorow .pc-url{ flex:1 1 100%; }
+    .pc-radiorow .pc-btn{ flex:1 1 auto; }
+  }
+  /* ===== WATCH CHROME: pointer-reveal strip (Home · game picker · mic), auto-hides via controls-active ===== */
+  #watchbar{
+    position:fixed; top:14px; left:50%; transform:translate(-50%,-6px); z-index:24;
+    display:none; align-items:center; gap:8px; padding:6px; border-radius:999px;
+    background:var(--mat); border:1px solid var(--mat-edge);
+    box-shadow:var(--mat-shadow); backdrop-filter:var(--mat-blur); -webkit-backdrop-filter:var(--mat-blur);
+    opacity:0; pointer-events:none; transition:opacity var(--fade-out), transform .22s ease;
+  }
+  #watchbar button{
+    cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:7px;
+    min-height:34px; padding:7px 13px; border:0; border-radius:999px; background:transparent;
+    color:rgba(255,255,255,.92); font:650 13px/1.25 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    letter-spacing:0; text-transform:none; text-shadow:0 1px 8px rgba(0,0,0,.65);
+  }
+  #watchbar button:hover{ background:rgba(255,255,255,.12); color:#fff; }
+  #watchbar button svg{ width:16px; height:16px; flex:0 0 auto; }
+  body.watch-visual #watchbar{ display:inline-flex; }
+  body.watch-visual.controls-active #watchbar{ opacity:1; pointer-events:auto; transform:translate(-50%,0); }
+  body.watch-mic-active #watchbar #wbMic{ color:#60ff9a; background:rgba(11,36,24,.56); box-shadow:0 0 18px rgba(96,255,154,.22); }
+  @media (max-width:760px){
+    #watchbar{ top:10px; max-width:calc(100vw - 16px); }
+    #watchbar button{ padding:7px 10px; font-size:12px; }
+    #watchbar button span{ display:none; }
+  }
+  /* ===== TikTok-style layout: caption bottom-left, action rail bottom-right ===== */
+  #stage{ will-change:transform; }
+  #hud{ align-items:flex-end; padding:0; }            /* children pin to the corners */
+  /* caption (current track name), bottom-left */
+  #trackname{ position:fixed; left:16px; bottom:18px; max-width:64vw;
+    font-size:18px; letter-spacing:.3px; text-transform:none; color:#fff; font-weight:600;
+    text-shadow:0 1px 5px rgba(0,0,0,.85); line-height:1.25; white-space:nowrap;
+    overflow:hidden; text-overflow:ellipsis;
+    display:flex; align-items:center; flex-wrap:nowrap;
+    pointer-events:auto; cursor:pointer; }                       /* click = expand the track details */
+  #trackname .note{ color:var(--accent2); margin-right:8px; display:inline-flex; }
+  #trackname .note svg{ width:20px; height:20px; }
+  #trackname .ttl{ color:#fff; font-weight:700; }
+  #trackname:hover .ttl{ text-decoration:underline; }
+  #trackname .more{ margin-left:11px; font-size:16px; font-weight:700; color:#bdb0e8; opacity:.72; text-transform:uppercase; letter-spacing:.5px; display:inline-flex; align-items:center; gap:3px; }
+  #trackname .more svg{ width:15px; height:15px; }
+  #trackname .sub{ display:none; }                    /* no bpm/game/genre subtitle */
+  /* tempo group hosted inside the mix menu */
+  #mixtemposlot #rtempo{ display:flex; align-items:center; gap:8px; flex-wrap:nowrap; width:100%; }
+  #mixtemposlot #rtemposlider{ flex:1 1 auto; min-width:120px; }
+  #rlist svg{ width:20px; height:20px; }
+  /* vertical action rail, bottom-right */
+  #transport{ position:fixed; right:12px; bottom:20px; flex-direction:column; gap:15px; align-items:center; }
+  #transport .rbtn{ width:54px; height:54px; min-width:54px; border-radius:50%; padding:0;
+    display:flex; align-items:center; justify-content:center; line-height:1;
+    background:rgba(18,14,36,.5); color:#fff; border:2px solid rgba(150,130,220,.28);
+    box-shadow:0 3px 12px rgba(0,0,0,.45); transition:transform .12s, border-color .15s, color .15s; }
+  #transport .rbtn:hover{ border-color:var(--accent); color:var(--accent); transform:translateY(-2px); }
+  #transport .rbtn svg{ width:30px; height:30px; display:block; image-rendering:pixelated; }
+  /* desktop prev/next: a vertically-centred pair on the right edge (TikTok-desktop position) */
+  #radionav{ display:none; position:fixed; right:14px; top:50%; transform:translateY(-50%); z-index:8; flex-direction:column; gap:14px; }
+  #radionav .rbtn{ width:50px; height:50px; min-width:50px; border-radius:50%; padding:0; display:flex; align-items:center; justify-content:center;
+    background:rgba(18,14,36,.5); color:#fff; border:2px solid rgba(150,130,220,.28); box-shadow:0 3px 12px rgba(0,0,0,.45); transition:transform .12s,border-color .15s,color .15s; }
+  #radionav .rbtn:hover{ border-color:var(--accent); color:var(--accent); transform:translateY(-2px); }
+  #radionav .rbtn svg{ width:26px; height:26px; }
+  @media (min-width:760px){ #radionav{ display:flex; } #transport #rskip{ display:none; } }
+  #transport .rbtn.down.act{ border-color:#f85858; color:#f85858; }
+  #transport .rbtn.share.act{ border-color:var(--accent2); color:var(--accent2); transform:scale(1.1); }   /* SHARE -> brief check */
+  #transport .heartbtn.act svg{ animation:heartPunch .42s ease; }
+  @keyframes heartPunch{ 0%{transform:scale(1);} 28%{transform:scale(1.55);} 60%{transform:scale(.82);} 100%{transform:scale(1);} }
+  /* ===== Roon-style bottom transport bar (replaces the bottom-left caption + right up/down rail) ===== */
+  #trackname, #transport, #radionav{ display:none !important; }
+  #playbar{ position:fixed; left:0; right:0; bottom:0; z-index:20; min-height:82px; display:none;
+    grid-template-columns:minmax(0,1fr) auto auto; align-items:center; gap:10px;
+    padding:8px 18px 8px 20px; background:rgba(8,6,16,.96); border-top:1px solid #241c44; backdrop-filter:blur(10px); }
+  #playbar.show{ display:grid; }
+  #playbar .pb-left{ display:flex; align-items:center; gap:14px; min-width:0; overflow:hidden; }
+  #playbar .pb-cover{ width:64px; height:64px; flex:0 0 auto; margin-top:0; border-radius:4px; overflow:hidden; cursor:pointer;
+    background:#0b0a12 center/contain no-repeat; box-shadow:0 10px 26px rgba(0,0,0,.65); display:flex; align-items:center; justify-content:center; }
+  #playbar .pb-cover img{ width:100%; height:100%; object-fit:contain; display:block; background:#0b0a12; }
+  #playbar .pb-cover svg{ width:30px; height:30px; color:var(--accent2); }
+  #playbar .pb-info{ min-width:0; align-self:center; max-width:min(48vw,720px); display:grid; grid-template-columns:minmax(0,1fr) auto auto; grid-template-rows:auto auto; column-gap:8px; align-items:center; }
+  #playbar .pb-titleline{ display:contents; }
+  #playbar .pb-title{ min-width:0; font-size:16px; font-weight:750; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-family:system-ui,-apple-system,sans-serif; line-height:1.18; }
+  #playbar .pb-sub{ grid-column:1; grid-row:2; min-width:0; font-size:13px; color:#a79fc0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:3px; font-family:system-ui,-apple-system,sans-serif; line-height:1.25; }
+  #playbar .pb-sub:empty{ display:none; }
+  #playbar .pb-sub.link{ cursor:pointer; }
+  #playbar .pb-sub.link:hover{ color:#fff; text-decoration:underline; }
+	  #playbar .pb-ctrl{ display:grid; grid-template-columns:1fr auto 1fr; align-items:center; justify-self:center; min-width:220px; }
+	  #playbar .pb-main-ctrl{ grid-column:2; display:flex; align-items:center; justify-content:center; gap:8px; }
+	  #playbar .pb-stop{ grid-column:3; justify-self:start; margin-left:8px; }
+	  #playbar button{ background:none; border:none; color:var(--ink); cursor:pointer; display:inline-flex; align-items:center; justify-content:center; width:38px; height:38px; border-radius:50%; touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
+  #playbar button svg{ pointer-events:none; }
+  #playbar button:hover{ background:rgba(255,255,255,.10); color:#fff; }
+  #playbar .pb-play{ width:44px; height:44px; background:transparent; color:#fff; }
+  #playbar .pb-play:hover{ background:rgba(255,255,255,.10); transform:none; }
+	  #playbar .pb-ctrl svg{ width:19px; height:19px; } #playbar .pb-play svg{ width:28px; height:28px; } #playbar .pb-stop svg{ width:18px; height:18px; }
+  #playbar .pb-right{ justify-self:end; display:flex; align-items:center; gap:4px; }
+  #playbar .pb-right svg{ width:18px; height:18px; } #playbar .pb-right .liked svg{ color:var(--accent); }
+  #playbar .pb-right .disliked svg{ color:#f85858; }
+  /* heart rides the TITLE row only (spanning both rows centered it against
+     title+subtitle together, leaving it visually low vs the title text) */
+  #playbar .pb-heart-inline{ grid-column:2; grid-row:1; align-self:center; width:32px; height:32px; flex:0 0 auto; color:#cfc7f0; border-radius:50%; transition:background .12s,color .12s,box-shadow .12s,transform .12s; }
+  #playbar .pb-heart-inline:hover{ color:#fff; background:rgba(255,255,255,.10); box-shadow:0 0 0 1px rgba(207,199,240,.18) inset; transform:scale(1.04); }
+  #playbar .pb-heart-inline.liked{ color:var(--accent); }
+  #playbar .pb-heart-inline svg{ width:20px; height:20px; }
+  #playbar .pb-heart-inline:not(.liked) svg{ filter:none; opacity:.9; }
+  #playbar .pb-heart-inline.liked svg{ filter:none; opacity:1; }
+  #playbar .pb-volume{ width:40px; min-width:40px; gap:0; padding:0; border-radius:50%; color:#f5f2ff;
+    font:600 13px system-ui,-apple-system,sans-serif; }
+  #playbar .pb-volume #pbVolRead{ display:none; }
+  #playbar .pb-volume:hover{ background:rgba(255,255,255,.12); }
+  #playbar .pb-volume.muted{ color:#f87878; }
+  #playbar .pb-volume .pbv-icon{ display:inline-flex; align-items:center; justify-content:center; }
+  #playbar .pb-volume svg{ width:19px; height:19px; }
+	  #resumeMusic{ position:fixed; left:50%; bottom:22px; z-index:24; display:none; align-items:center; justify-content:center; gap:9px;
+	    min-height:44px; padding:0 18px; border-radius:999px; border:1px solid rgba(255,255,255,.14);
+	    background:rgba(8,6,16,.58); color:#fff; box-shadow:0 12px 34px rgba(0,0,0,.38);
+	    backdrop-filter:var(--mat-blur); -webkit-backdrop-filter:var(--mat-blur); font:800 13px/1 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+	    letter-spacing:.02em; text-transform:lowercase; opacity:0; pointer-events:none; cursor:pointer;
+	    transform:translate(-50%,8px); transition:opacity var(--fade-out), transform .22s ease, background .12s ease; }
+	  #resumeMusic svg{ width:17px; height:17px; }
+	  #resumeMusic:hover{ background:rgba(255,255,255,.14); }
+	  @keyframes btlPulse{ 0%,100%{ opacity:1; } 50%{ opacity:.35; } }
+	  /* LIVE badge in the playbar sub line (pulsing on-air dot) */
+	  #playbar .pb-sub.live{ color:#ff6d6d; font-weight:800; letter-spacing:.06em; }
+	  #playbar .pb-sub.live::before{ content:''; display:inline-block; width:8px; height:8px; border-radius:50%; background:#ff5d5d;
+	    margin-right:7px; box-shadow:0 0 8px rgba(255,93,93,.8); animation:btlPulse 1.6s ease-in-out infinite; }
+	  #hometiles.lib{ padding-bottom:112px; }   /* clear the fixed bar */
+  @media (min-width:980px){
+    #playbar{ left:0; right:0; min-height:82px; padding:8px 20px; }
+    #mixpanel{ right:16px; bottom:96px; }
+  }
+  @media (max-width:760px){
+    #playbar{ min-height:68px; grid-template-columns:minmax(0,1fr) auto auto; gap:6px; padding:7px 10px; }
+    #playbar .pb-cover{ width:54px; height:54px; margin-top:0; border-radius:4px; }
+    #playbar .pb-left{ gap:10px; }
+    #playbar .pb-info{ max-width:calc(100vw - 250px); }
+	    #playbar .pb-title{ font-size:14px; }
+	    #playbar .pb-sub{ font-size:12px; margin-top:2px; }
+	    #playbar .pb-ctrl{ min-width:194px; }
+	    #playbar .pb-heart-inline{ width:28px; height:28px; }
+    #playbar .pb-right{ display:flex; }
+    #playbar .pb-volume{ min-width:38px; width:38px; padding:0; gap:0; }
+    #hometiles.lib{ padding-bottom:88px; }
+    .album-detail{ padding:12px 0 0; }
+    .album-hero{ grid-template-columns:1fr; gap:22px; margin:10px 0 26px; }
+    .album-cover{ width:min(78vw,320px); justify-self:center; }
+    .album-date{ margin-bottom:12px; font-size:15px; }
+    .album-title{ font-size:42px; line-height:1.05; }
+    .album-artist{ font-size:20px; }
+    .album-subline{ font-size:13px; margin-bottom:18px; }
+    .album-meta{ text-align:left; }
+    .album-overview{ max-width:none; }
+    .album-detail .dt-summary{ font-size:16px; line-height:1.55; }
+    .dt-tabs{ gap:22px; justify-content:flex-start; overflow-x:auto; font-size:14px; margin:28px 0 20px; }
+    .album-detail .dt-tracks .album-track{ grid-template-columns:22px 22px 28px minmax(0,1fr) 46px; min-height:52px; padding:8px 4px; gap:7px; }
+    .album-detail .album-track .trsprite{ width:20px; height:20px; }
+    .album-detail .album-track .trsprite img{ width:19px; height:19px; }
+    .album-detail .dt-tracks .album-track .trt{ font-size:15px; }
+    .album-detail .dt-tracks .album-track .trn{ font-size:12px; }
+    .album-detail .dt-tracks .album-track .trl{ font-size:14px; }
+    .dt-overview{ grid-template-columns:1fr; gap:18px; margin:20px 2px 24px; }
+    .dt-facts{ padding:13px; }
+    .dt-fact{ grid-template-columns:82px minmax(0,1fr); }
+    .dt-video-grid{ grid-template-columns:1fr; }
+    .dt-shot-strip img{ flex-basis:78vw; }
+    .dt-pills{ margin-left:2px; margin-right:2px; }
+  }
+  /* Visual mode: no persistent bottom dock, just optional cover art, title chip, and temporary controls. */
+  body.ai-visual #playbar.show{
+    display:block; left:auto; right:auto; bottom:0; width:auto; min-height:0; padding:0;
+    background:transparent; border-top:0; backdrop-filter:none; pointer-events:none;
+  }
+  body.ai-visual #playbar .pb-left{
+    position:fixed; left:18px; right:auto; bottom:18px; z-index:22; display:flex; align-items:center; gap:10px;
+    min-width:0; max-width:calc(100vw - 36px); pointer-events:none;
+  }
+  body.ai-visual #playbar .pb-cover{
+    width:52px; height:52px; border-radius:4px; margin:0; box-shadow:0 10px 26px rgba(0,0,0,.48);
+    pointer-events:auto;
+  }
+  body.ai-visual #playbar .pb-cover.no-cover{ display:none !important; }
+  body.ai-visual #playbar .pb-cover.has-cover{ display:flex; }
+  body.ai-visual #playbar .pb-cover img{ object-fit:contain; }
+  body.ai-visual #playbar .pb-info{
+    display:grid; grid-template-columns:minmax(0,1fr) auto auto; grid-template-rows:auto auto; align-items:center;
+    /* The transport is centred, so the corner the name sits in is only as wide as
+       the gap before it. Capping against the viewport (72vw) let a long title run
+       straight under the play button between 760 and 1100px. */
+    /* align-content, not align-items: the box is a two-ROW grid (title, sub) and
+       the rows were packing to the top of a fixed 46px, so a track with no
+       subtitle sat high in its own pill. */
+    align-content:center;
+    column-gap:8px; min-width:0; width:340px; max-width:calc(50vw - 234px); height:46px; padding:0 16px; border-radius:16px;
+    background:var(--mat); border:1px solid var(--mat-edge);
+    text-shadow:0 1px 8px rgba(0,0,0,.65); box-shadow:var(--mat-shadow);
+    backdrop-filter:var(--mat-blur); -webkit-backdrop-filter:var(--mat-blur);
+    /* idle = GONE: after ~3s without movement every piece of chrome fully
+       disappears (not just dims) so only the game remains; any pointer/key
+       brings it all back via body.controls-active */
+    opacity:0; pointer-events:none; transition:opacity var(--fade-out);
+  }
+  body.ai-visual.controls-active #playbar .pb-info{ opacity:1; pointer-events:auto; transition:opacity var(--fade-in); }
+  /* ONE LINE, not two grid cells: "Now playing" has to sit against the name and
+     stay put while the name ellipsises, which display:contents cannot do. */
+  body.ai-visual #playbar .pb-titleline{ display:flex; align-items:baseline; gap:7px;
+    min-width:0; grid-column:1; grid-row:1; }
+  #playbar .pb-np{ display:none; }
+  body.ai-visual #playbar .pb-np{ display:block; flex:0 0 auto; color:var(--ink-2);
+    font:500 13.5px/1.25 var(--ui); letter-spacing:.005em; }
+  body.ai-visual #playbar .pb-np::after{ content:':'; }
+  body.ai-visual #playbar .pb-title{
+    display:block; width:auto; max-width:100%; min-width:0; padding:0; border-radius:0; background:transparent; border:0;
+    color:var(--ink); font:650 13.5px/1.25 var(--ui); letter-spacing:.005em;
+    box-shadow:none; backdrop-filter:none; -webkit-backdrop-filter:none; pointer-events:auto; cursor:pointer;
+  }
+  body.ai-visual #playbar .pb-sub{
+    display:block; grid-column:1; grid-row:2; min-width:0; margin-top:2px; color:rgba(220,212,245,.72);
+    font:500 12px/1.2 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  }
+  body.ai-visual #playbar .pb-sub:empty{ display:none; }
+  body.ai-visual #playbar .pb-heart-inline,
+  body.ai-visual #playbar .pb-heart-inline{ grid-column:2; }
+  body.ai-visual #playbar .pb-ctrl,
+  body.ai-visual #playbar .pb-right{
+    position:fixed; z-index:23; opacity:0; pointer-events:none;
+    transition:opacity .22s ease, transform .22s ease;
+  }
+  /* the screen control lives with the transport */
+  #playbar .pb-screen{ width:auto !important; height:38px; padding:0 14px; gap:8px; border-radius:999px;
+    display:inline-flex; align-items:center; color:var(--ink); font:600 13px/1 var(--ui); letter-spacing:-.01em; white-space:nowrap; }
+  #playbar .pb-screen svg{ width:18px !important; height:18px !important; flex:0 0 auto; }
+  #playbar .pb-screen:hover{ color:#fff; background:rgba(255,255,255,.10); }
+  #playbar .pb-screen.on{ background:rgba(155,188,15,.16); color:#dbe89a; }
+  #playbar .pb-screen.on:hover{ background:rgba(155,188,15,.24); color:#eef5c8; }
+  #playbar .pb-main-ctrl{ display:flex; align-items:center; gap:6px; }
+  /* CENTRED ON THE PLAY BUTTON, not on the pill. The screen button's label is
+     "CRT", "Game Boy" or "NES", and those are different widths -- with it inside
+     the transport group the whole pill was centred as one lump, so prev, play
+     and next slid sideways every time the label changed. Three columns with an
+     empty spacer opposite the button keeps the pill symmetric about its middle
+     column: `1fr auto 1fr` forces the outer two to be equal, and neither can
+     shrink below its content, so the transport sits dead centre whatever the
+     label says and only the pill's ends move. */
+  /* Every pill over the game is 46px tall with a 13.5px/600 label: the rail
+     rows, the volume, the track name and this one. The transport was 62 -- a
+     46px play button inside 8px of padding -- so it read as a different family
+     of control from everything around it. */
+  body.ai-visual #playbar .pb-ctrl{
+    left:50%; bottom:18px; transform:translate(-50%,8px); height:46px;
+    /* the ordinary bottom bar sets min-width:220px to keep the transport from
+       collapsing in a flex row; over the game the width is the whole point */
+    width:142px; min-width:0;         /* 3 x 38px buttons + 2 x 6px gaps + 2 x 8px padding */
+    display:flex; align-items:center; justify-content:center;
+    padding:0 8px; border-radius:999px; background:var(--mat);
+    border:1px solid var(--mat-edge); box-shadow:var(--mat-shadow);
+    backdrop-filter:var(--mat-blur); -webkit-backdrop-filter:var(--mat-blur);
+  }
+  /* 142/2 = 71 to the transport's right edge, then a 10px gap. The screen pill
+     grows rightwards from there, so "Random" and "Game Boy" cost the play button
+     nothing -- which was the whole point of the spacer this replaces. */
+  #playbar .pb-screendock{ display:contents; }
+  body.ai-visual #playbar .pb-screendock{
+    display:block; position:fixed; left:calc(50% + 81px); bottom:18px; z-index:22;
+    height:46px; padding:4px; border-radius:999px; transform:translateY(8px);
+    background:var(--mat); border:1px solid var(--mat-edge); box-shadow:var(--mat-shadow);
+    backdrop-filter:var(--mat-blur); -webkit-backdrop-filter:var(--mat-blur);
+    opacity:0; pointer-events:none; transition:opacity .22s ease, transform .22s ease; }
+  body.ai-visual.controls-active #playbar .pb-screendock{
+    opacity:1; pointer-events:auto; transform:translateY(0);
+    transition:opacity var(--fade-in), transform .22s ease; }
+  /* Bottom-right: a labeled "Volume Mixer & BPM" pill matching the top-right platform pills. */
+  body.ai-visual #playbar .pb-right{
+    right:18px; bottom:18px; transform:translateY(8px); display:flex; gap:0;
+    width:auto; height:46px; align-items:center; justify-content:center;
+    padding:0; border-radius:999px; background:var(--mat);
+    border:1px solid var(--mat-edge); box-shadow:var(--mat-shadow);
+    backdrop-filter:var(--mat-blur); -webkit-backdrop-filter:var(--mat-blur);
+  }
+  body.ai-visual #playbar .pb-right .pb-volume{
+    width:auto; min-width:0; height:100%; padding:0 18px; gap:9px; border-radius:999px;
+    background:transparent; color:var(--ink); }
+  body.ai-visual #playbar .pb-right .pb-volume:hover{ background:transparent; color:#fff; }
+  body.ai-visual #playbar .pb-right:hover{ border-color:var(--mat-edge-hi); background:var(--mat-hi); }
+  body.ai-visual #playbar .pb-right .pb-volume .pbv-t{
+    font:600 13.5px/1 var(--ui); letter-spacing:-.01em; white-space:nowrap; }
+  body.ai-visual #playbar .pb-right .pb-volume svg{ width:19px; height:19px; }
+  body.ai-visual.controls-active #playbar .pb-ctrl,
+  body.ai-visual.controls-active #playbar .pb-right{
+    opacity:1; pointer-events:auto; transform:translateY(0);
+    transition:opacity var(--fade-in), transform .22s ease;
+  }
+  body.ai-visual.controls-active #playbar .pb-ctrl{ transform:translate(-50%,0); }
+  body.ai-visual.controls-active #playbar .pb-heart-inline,
+  body.ai-visual #playbar .pb-heart-inline.on,
+  body.ai-visual #playbar .pb-play{ width:38px; height:38px; }
+  body.ai-visual #playbar .pb-play svg{ width:24px; height:24px; }
+  body.ai-visual #playbar .pb-screen{ height:38px; }
+  body.ai-visual #playbar .pb-screen .pbs-t,
+  body.ai-visual #playbar .pb-right .pb-volume .pbv-t{
+    font:600 13.5px/1 var(--ui); letter-spacing:.005em; white-space:nowrap; }
+  body.ai-visual #playbar .pb-volume{ min-width:38px; width:38px; }
+  /* idle hides the CURSOR too (TV mode): any movement flips controls-active
+     back on via the pointermove poke, so the cursor reappears instantly */
+  body.ai-visual:not(.controls-active), body.ai-visual:not(.controls-active) *,
+  body.watch-visual:not(.controls-active), body.watch-visual:not(.controls-active) *,
+  body.song-visual:not(.controls-active), body.song-visual:not(.controls-active) *{ cursor:none !important; }
+  body.ai-visual #rlist{ opacity:0; pointer-events:none; transition:opacity .22s ease, transform .22s ease; }
+  body.ai-visual #rfullscreen{ display:inline-flex; opacity:0; pointer-events:none; transform:translateY(0); }
+  body.ai-visual.controls-active #rlist{ opacity:1; pointer-events:auto; }
+  body.ai-visual.controls-active #rfullscreen{ opacity:1; pointer-events:auto; }
+  /* the right-edge prev/next rail must also vanish on idle — everything but the game goes */
+  body.ai-visual #radionav{ opacity:0; pointer-events:none; transition:opacity .22s ease; }
+  body.ai-visual.controls-active #radionav{ opacity:1; pointer-events:auto; }
+  body.ai-visual #mixpanel{ bottom:78px; right:18px; }
+  body.watch-visual #hud,
+  body.watch-visual #presets,
+  body.watch-visual #trackname,
+  body.watch-visual #transport,
+  body.watch-visual #radionav,
+  body.watch-visual #playbar,
+  body.watch-visual #mixpanel,
+  body.watch-visual #trackpanel,
+  body.watch-visual #rlist,
+	  body.watch-visual #rfullscreen{ display:inline-flex; opacity:0; pointer-events:none; transform:translateY(-6px); }
+	  body.watch-visual.controls-active #rfullscreen{ opacity:.6; pointer-events:auto; transform:translateY(0); }
+	  body.watch-visual.watch-can-resume #resumeMusic{ display:inline-flex; }
+	  body.watch-visual.watch-can-resume.controls-active #resumeMusic{ opacity:1; pointer-events:auto; transform:translate(-50%,0); }
+	  body.watch-visual #rfullscreen:hover{ opacity:1; }
+  @media (max-width:760px){
+    body.ai-visual #rfullscreen{ top:12px; right:12px; width:46px; height:46px; min-width:46px; }
+    body.ai-visual #rlist{ top:12px; left:12px; width:46px; height:46px; min-width:46px; }
+    body.watch-visual #rfullscreen{ top:12px; right:12px; width:46px; height:46px; min-width:46px; }
+    /* top AND bottom would stretch the column to the full height of the screen:
+       a mostly-empty 265px-wide box sitting over the game, catching clicks. */
+    #plinks{ top:12px; left:12px; bottom:auto; gap:7px; }
+    #plinks .plhead{ display:none; }
+    /* Icon only. The screen pill hangs off the transport's right edge, and with
+       its label ("Game Boy") it runs past the right edge of a phone and straight
+       into the volume button. */
+    body.ai-visual #playbar .pb-screendock{ left:calc(50% + 79px); padding:4px; }
+    body.ai-visual #playbar .pb-screen .pbs-t{ display:none; }
+    body.ai-visual #playbar .pb-screen{ width:38px !important; padding:0; gap:0; }
+    #bigplay{ width:108px; height:108px; }
+    #bigplay svg{ width:44px; height:44px; }
+    .plink{ height:40px; padding:0 13px; gap:7px; }
+    .plink-t{ font-size:12.5px; }
+    /* Neither of these belongs on a phone. The name spent a while in the
+       top-right corner so the transport could own the bottom-centre, which just
+       moved the clutter; the screen is small enough that the game IS the page. */
+    body.ai-visual #playbar .pb-left{ display:none !important; }
+    #dlcard{ display:none !important; }
+    body.ai-visual #playbar .pb-cover{ width:44px; height:44px; }
+    body.ai-visual #playbar .pb-info{ max-width:min(70vw,300px); padding:7px 9px 7px 10px; border-radius:11px; text-align:right; }
+    body.ai-visual #playbar .pb-title{ font-size:13px; }
+    body.ai-visual #playbar .pb-sub{ font-size:11px; }
+    body.ai-visual.controls-active #playbar .pb-title{ max-width:calc(100vw - 108px); }
+    /* one thumb row: transport owns bottom-CENTRE, volume pinned bottom-RIGHT.
+       Track name lives up top-right now, so nothing pushes the transport off-centre. */
+    body.ai-visual #playbar .pb-ctrl{ bottom:20px; left:50%; transform:translate(-50%,8px); }
+    body.ai-visual.controls-active #playbar .pb-ctrl{ transform:translate(-50%,0); }
+    /* Phones keep the compact icon circle (a full-text pill would collide with the centred transport). */
+    body.ai-visual #playbar .pb-right{ right:12px; bottom:20px; width:44px; height:44px; }
+    body.ai-visual #playbar .pb-right .pb-volume{ width:44px; padding:0; }
+    body.ai-visual #playbar .pb-right .pb-volume .pbv-t{ display:none; }
+    body.ai-visual #mixpanel{ right:8px; bottom:80px; }
+  }
+  .dt-tracks .tr.now{ background:rgba(124,92,255,.14); } .dt-tracks .tr.now .trt{ color:var(--accent2); font-weight:700; }
+  .album-detail .dt-tracks .album-track.now{ background:linear-gradient(90deg,rgba(96,255,154,.16),rgba(124,92,255,.14) 34%,rgba(255,255,255,.035)); box-shadow:inset 3px 0 0 var(--accent2); animation:nowTrackPulse 1.7s ease-in-out infinite; }
+  .album-detail .dt-tracks .album-track.now:hover{ background:linear-gradient(90deg,rgba(96,255,154,.20),rgba(124,92,255,.18) 34%,rgba(255,255,255,.055)); }
+  .album-detail .album-track.now .trplay{ color:#fff; }
+  @keyframes nowTrackPulse{ 0%,100%{ filter:brightness(1); } 50%{ filter:brightness(1.16); } }
+  /* TikTok-style "Link copied" toast */
+  #rtoast{ position:fixed; left:50%; bottom:96px; transform:translate(-50%,8px); z-index:60; pointer-events:none;
+    background:rgba(12,9,26,.96); color:#fff; border:2px solid #2f2752; box-shadow:4px 4px 0 #1a1436;
+    padding:9px 16px; font-family:var(--pixel); font-size:17px; letter-spacing:.5px; opacity:0; transition:opacity .2s, transform .2s; }
+  #rtoast.show{ opacity:1; transform:translate(-50%,0); }
+  /* Big centred variant — the "just watch" hint, shown on any key/click over the game. */
+  #rtoast.big{ bottom:auto; top:50%; transform:translate(-50%,calc(-50% + 8px)); max-width:min(680px,86vw);
+    text-align:center; line-height:1.34; padding:24px 32px; border-radius:16px; font-size:clamp(19px,2.7vw,28px);
+    box-shadow:6px 6px 0 #1a1436, 0 26px 74px rgba(0,0,0,.52); }
+  #rtoast.big.show{ transform:translate(-50%,-50%); }
+  /* "tap to start the music" hint for direct track links (autoplay needs one gesture) */
+  #soundhint{ position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); z-index:30; pointer-events:none;
+    width:min(620px,calc(100vw - 34px)); color:#f8f5ff; font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    opacity:0; transition:opacity .3s; }
+  #soundhint .sh-card{ background:rgba(12,9,26,.90); border:2px solid rgba(214,120,255,.78); border-radius:12px;
+    padding:28px 32px 30px; box-shadow:0 24px 70px rgba(0,0,0,.58),0 0 32px rgba(214,120,255,.22); }
+  #soundhint .sh-brand{ margin:0 0 10px; color:#fff; font-family:var(--pixel); font-size:25px; line-height:1;
+    letter-spacing:1.6px; text-align:center; text-transform:uppercase; text-shadow:0 0 18px rgba(248,120,248,.42); }
+  #soundhint .sh-title{ display:flex; align-items:center; justify-content:center; gap:18px; color:var(--accent);
+    font-family:var(--pixel); font-size:36px; line-height:1; letter-spacing:.5px; text-align:center; }
+  #soundhint svg{ width:44px; height:44px; flex:0 0 auto; }
+  #soundhint .sh-copy{ margin:18px auto 0; max-width:520px; color:#ddd7f4; font-size:18px; line-height:1.45; text-align:center; }
+  #soundhint .sh-keys{ display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; margin:34px 0 14px; }
+  #soundhint .sh-key-row{ display:flex; align-items:center; justify-content:center; gap:8px; }
+  #soundhint .sh-key-row.top{ padding-right:82px; }
+  #soundhint .sh-keys span{ min-width:58px; height:38px; display:inline-flex; align-items:center; justify-content:center;
+    border:1px solid rgba(255,255,255,.28); border-bottom-color:rgba(255,255,255,.12); border-radius:8px;
+    background:linear-gradient(#28223f,#151125); color:#fff; font:700 13px/1 var(--mono); box-shadow:0 4px 0 rgba(0,0,0,.32); }
+  #soundhint .sh-keys .wide{ min-width:74px; color:var(--accent2); }
+  #soundhint .sh-note{ color:#aaa2c8; font-size:14px; line-height:1.4; text-align:center; }
+  #soundhint.show{ opacity:1; animation:hintPulse 1.4s ease-in-out infinite; }
+  @keyframes hintPulse{ 0%,100%{ box-shadow:0 0 16px rgba(214,120,255,.3); } 50%{ box-shadow:0 0 30px rgba(214,120,255,.7); } }
+
+  /* full-screen flying-heart overlay (TikTok double-tap) */
+  #hearts{ position:fixed; inset:0; z-index:8; pointer-events:none; overflow:hidden; }
+  .fheart{ position:absolute; will-change:transform,opacity; }
+  .fheart svg{ display:block; image-rendering:pixelated; filter:drop-shadow(0 2px 6px rgba(0,0,0,.5)); }
+  @keyframes heartRise{
+    0%{ transform:translate(0,0) scale(.4) rotate(var(--rot,0deg)); opacity:0; }
+    14%{ opacity:1; }
+    100%{ transform:translate(var(--dx,0px),-250px) scale(1) rotate(var(--rot,0deg)); opacity:0; } }
+  .fheart.pop{ }
+  @keyframes heartPop{
+    0%{ transform:translate(-50%,-50%) scale(.2) rotate(-8deg); opacity:0; }
+    24%{ transform:translate(-50%,-50%) scale(1.25) rotate(4deg); opacity:1; }
+    68%{ transform:translate(-50%,-50%) scale(1) rotate(0deg); opacity:1; }
+    100%{ transform:translate(-50%,-62%) scale(1.08) rotate(0deg); opacity:0; } }
+
+    /* ---- Browse: packs panel + "no music installed" empty state (library.js) ---- */
+    .lib-empty{ text-align:center; max-width:640px; margin:8vh auto; }
+    .lib-empty h2{ font-size:20px; color:var(--ink); text-transform:none; letter-spacing:0; margin:0 0 12px; }
+    .lib-empty p{ color:#b8b0dc; line-height:1.6; margin:0 0 18px; }
+    .lib-empty code{ background:#1c1730; padding:2px 6px; border-radius:5px; font-size:.92em; color:#f0d8ff; }
+    .lib-empty .dt-actions{ justify-content:center; flex-wrap:wrap; }
+    .lib-link{ display:inline-flex; align-items:center; color:var(--accent); text-decoration:none; font-size:13px; align-self:center; }
+    .lib-link:hover{ text-decoration:underline; }
+    .pk-panel .dt-actions{ flex-wrap:wrap; margin-bottom:22px; }
+    .pk-group{ margin:0 0 26px; }
+    .pk-group > h2{ font-size:13px; letter-spacing:.06em; text-transform:uppercase; color:#9a92c4; margin:0 0 10px; }
+    .pk-row{ display:flex; align-items:center; gap:12px; padding:10px 12px; border-radius:10px; background:#141026;
+      border:1px solid rgba(255,255,255,.06); margin:0 0 8px; flex-wrap:wrap; }
+    .pk-row.pk-disabled{ opacity:.5; }
+    .pk-row.pk-error{ border-color:rgba(239,78,95,.4); }
+    .pk-kind{ flex:0 0 auto; font-size:10px; letter-spacing:.08em; text-transform:uppercase; padding:3px 8px;
+      border-radius:20px; background:#2a2247; color:#c9bffc; }
+    .pk-kind-music{ background:#1d3a2e; color:#7fe6b0; }
+    .pk-kind-game{ background:#3a2140; color:#f5a8e0; }
+    .pk-kind-composer{ background:#2a2650; color:#a8c0ff; }
+    .pk-name{ flex:1 1 200px; display:flex; flex-direction:column; min-width:0; }
+    .pk-name b{ color:var(--ink); font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .pk-sub{ color:#8a82ac; font-size:11px; }
+    .pk-src, .pk-state{ flex:0 0 auto; font-size:11px; color:#9a92c4; }
+    .pk-state{ min-width:64px; }
+    .pk-err{ flex:1 1 100%; color:#ff9aa6; font-size:11px; }
+    .pk-actions{ flex:0 0 auto; display:flex; gap:6px; }
+    .pk-actions button{ background:#26213f; color:var(--ink); border:1px solid rgba(255,255,255,.1);
+      border-radius:16px; padding:5px 13px; font:inherit; font-size:12px; cursor:pointer; }
+    .pk-actions button:hover{ background:#332a55; }
+    .pk-composers{ margin:0 0 26px; padding:14px 16px; background:#141026; border-radius:12px; border:1px solid rgba(255,255,255,.06); }
+    .pk-composers h2{ font-size:13px; letter-spacing:.06em; text-transform:uppercase; color:#9a92c4; margin:0 0 6px; }
+    .pk-composers p{ color:#8a82ac; font-size:12px; margin:0 0 12px; }
+    .pk-composer{ display:flex; align-items:center; gap:9px; padding:7px 0; color:var(--ink); font-size:14px; cursor:pointer; }
+    .pk-composer input{ accent-color:var(--accent); }
+    .pack-card{ cursor:pointer; }
+    /* BROADCAST render (YouTube video leg): show NOTHING but the game. The x11grab captures the whole
+       window, so hide every DOM overlay and keep only the #stage canvas + the CRT overlays. Robust by
+       construction — all chrome is a direct child of <body>, so this needs no per-element enumeration. */
+    body.rrr-broadcast > *:not(#stage):not(.crt){ display:none !important; }
+    body.rrr-broadcast{ cursor:none; background:#000; }
+</style>
+</head>
+<body>
+  <canvas id="stage"></canvas>
+  <div class="crt scanlines"></div>
+  <div class="crt vignette"></div>
+  <div id="hearts"></div>
+
+  <div id="presets"></div>
+
+  <div id="hud">
+    <div id="trackname"></div>
+    <div id="transport"></div>
+  </div>
+
+  <div id="playbar"></div>
+
+  <div id="intro">
+    <div class="intro-hero">
+      <h1>CHIPTUNES<span style="color:var(--accent)">.APP</span></h1>
+      <div class="sub">An endless Game Boy radio for the background of your day. Games that play themselves, like a screensaver for your second screen.</div>
+    </div>
+    <div id="hometiles"></div>
+    <button id="start" hidden></button>
+  </div>
+
+  <div id="popover"></div>
+  <div id="browse"></div>
+
+__SCRIPTS__
+
+</body>
+</html>

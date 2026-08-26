@@ -1,0 +1,16 @@
+[Unit]
+Description=Chiptunes.app - YouTube broadcast guardian (self-healing go-live)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+TimeoutStartSec=7min
+# only guard while the encoder leg is meant to be running — stopping chiptunes-youtube stops the guardian too,
+# so an intentional shutdown is never fought.
+ExecCondition=/usr/bin/systemctl is-active --quiet chiptunes-youtube
+EnvironmentFile=/etc/chiptunes.env
+Environment=YOUTUBE_CREDS=/etc/chiptunes-youtube-oauth.json
+Environment="YT_BOUNCE_CMD=systemctl restart chiptunes-youtube"
+Environment=YT_GUARDIAN_STATE=/var/tmp/chiptunes-yt-guardian.json
+ExecStart=/usr/bin/node @REPO@/broadcast/youtube-live.mjs ensure

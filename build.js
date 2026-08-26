@@ -1,0 +1,166 @@
+// Build the one shared artifact used by web, desktop, and broadcast. The fixed
+// game roster is concatenated directly; there is no runtime pack platform.
+const fs = require('fs');
+const path = require('path');
+const ROOT = __dirname;
+const { GAME_LAYER_ORDER, scanGamePacks } = require('./scripts/game-roster.cjs');
+
+function die(msg) { console.error('build:', msg); process.exit(1); }
+// A small, fixed visual roster is a product choice, not an extension API.
+const BUNDLED_GAMES = [
+  'hover', 'blast', 'bricks', 'trooper', 'climber', 'racer', 'crossing',
+  'squadron', 'vortex', 'platformer', 'maze', 'pyramid', 'blocks', 'dungeon'
+];
+const allGamePacks = scanGamePacks();
+const gamePacks = BUNDLED_GAMES.map(id => {
+  const pack = allGamePacks.find(row => row.id === id);
+  if (!pack) die('bundled game missing: packs/games/' + id + '/');
+  return pack;
+});
+
+// ---- inline bundle: app core + the never-brick fallback game(s) ----
+// Load order (shared global scope): seed/composer/audio first (define Song, CT_COMPOSERS,
+// Audio), then radio/helpers/visualizer/sprites (CT_GAMES + VisualizerGame + MV),
+// game-roster + packs (the loader), the inlined fallback game layers, then runtime
+// LAST (it derives GAMES from CT_GAMES after Packs.init() and wires the UI).
+const inlineGameSources = [];
+for (const key of BUNDLED_GAMES) {
+  for (const f of GAME_LAYER_ORDER) {
+    const rel = 'packs/games/' + key + '/' + f;
+    if (!fs.existsSync(path.join(ROOT, rel))) die('missing inline game layer ' + rel);
+    inlineGameSources.push(rel);
+  }
+}
+const ORDER = [
+  'src/seed.js',
+  // The composer writes onto the machine, so the hardware model, the voice
+  // allocator and the melodic writer must exist before it loads. Under Node
+  // composer.js requires these itself; in the browser they are plain scripts.
+  'src/gb-hardware.js',   // periods, frame grid, instrument bank
+  'src/gb-voices.js',     // four-channel allocation
+  'src/melody.js',        // phrase writer
+  'src/gb-apu.js',        // the chip: shared by the worklet and offline render
+  'src/gb-rom.js',        // export a song as a real cartridge image
+  'src/gb-cpu.js',        // LR35902: runs an exported cartridge in the page
+  'src/gb-ppu.js',        // background layer: what the cartridge draws on the LCD
+  'src/style-corpus.js',
+  'src/chip-instruments.js',
+  'src/composer.js',
+  'src/live.js',        // the shared broadcast schedule (pure fn of wall clock; needs Song + CT_COMPOSERS)
+  'src/audio.js',
+  'src/radio.js',
+  'src/helpers.js',
+  'src/visualizer.js',
+  'src/sprites.js',
+  'src/dmg-palette.js',    // 4-shade quantisation at draw time
+  'src/nes-signal.js',     // the 2C02 composite waveform; the NES palette is derived from it
+  'src/nes-palette.js',    // 25-colour sub-palette restriction at draw time
+  'src/palette.js',        // which console's colour rules are in force (must follow both)
+  'src/slang-webgl.js',   // RetroArch slang -> WebGL2 GLSL ES 300
+  'src/dmg-screen.js',   // WebGL DMG panel post-process (opt-in screen mode)
+  'src/nes-screen.js',   // WebGL NTSC composite + CRT (opt-in screen mode)
+  'src/packs.js',
+  ...inlineGameSources,
+  'src/runtime.js'
+];
+
+const shellPath = path.join(ROOT, 'src', 'shell.html');
+if (!fs.existsSync(shellPath)) die('missing src/shell.html (the HTML template with the __SCRIPTS__ marker)');
+const shell = fs.readFileSync(shellPath, 'utf8');
+if (!shell.includes('__SCRIPTS__')) die('src/shell.html has no __SCRIPTS__ marker');
+
+const js = ORDER.map(f => {
+  const p = path.join(ROOT, f);
+  if (!fs.existsSync(p)) die('missing source ' + f);
+  return '/* ===== ' + f + ' ===== */\n' + fs.readFileSync(p, 'utf8');
+}).join('\n');
+
+// fail loud before writing if the bundle doesn't parse
+try { new Function(js); } catch (e) { die('ABORTED — bundle syntax error: ' + e.message); }
+
+// ---- publish dist/ — the ONLY directory the dev server exposes ----
+const DIST = path.join(ROOT, 'dist');
+fs.mkdirSync(path.join(DIST, 'lib'), { recursive: true });
+// A FUNCTION, not a string. String.replace treats $', $`, $& and $$ in the
+// replacement as special patterns, so any source containing one of them is
+// silently corrupted -- and the corruption is not local: `$'` splices in
+// everything AFTER the match, so a `$'` inside a JS string literal in any
+// bundled file injects `</body></html>` into the middle of that literal and the
+// whole page stops parsing. It first bit when src/gb-cpu.js threw an error
+// message containing "opcode $". A replacer function disables the patterns
+// entirely, which is the only reliable fix.
+const html = shell.replace('__SCRIPTS__', () => '<script>\n' + js + '\n</script>');
+// Prove the page's script survived templating. The corruption above produced a
+// perfectly plausible 1.5MB artifact that simply did not run, and nothing in
+// the build said a word about it.
+{
+  const emitted = /<script>([\s\S]*?)<\/script>/g;
+  let m, n = 0;
+  while ((m = emitted.exec(html))) {
+    n++;
+    try { new Function(m[1]); }
+    catch (e) { die('emitted script block ' + n + ' does not parse: ' + e.message); }
+  }
+  if (!html.includes(js)) die('the bundle was altered while being templated into the shell');
+}
+fs.writeFileSync(path.join(DIST, 'index.html'), html);
+
+// route entrypoints + stale-route cleanup
+// '/' is the player; /get is the platform page; /radio is the player under its own
+// name (kept: it is in links people have shared).
+const ROUTES = ['radio', 'get', 'gameboy'];
+for (const stale of ['create', 'listen', 'play', 'wip', 'watch']) {
+  fs.rmSync(path.join(DIST, stale), { recursive: true, force: true });
+}
+
+// serve docs/ so the Browse empty-state + packs-panel authoring links resolve
+{
+  const docsSrc = path.join(ROOT, 'docs'), docsDst = path.join(DIST, 'docs');
+  fs.rmSync(docsDst, { recursive: true, force: true });
+  fs.mkdirSync(docsDst, { recursive: true });
+  for (const entry of fs.readdirSync(docsSrc, { withFileTypes: true })) {
+    if (entry.isFile()) fs.copyFileSync(path.join(docsSrc, entry.name), path.join(docsDst, entry.name));
+  }
+}
+for (const route of ROUTES) {
+  fs.mkdirSync(path.join(DIST, route), { recursive: true });
+  fs.writeFileSync(path.join(DIST, route, 'index.html'), html);
+}
+
+// worklets + workers (+ anything else under src/lib) → dist/lib/, recursively:
+// lib/shaders/brickboy holds the vendored .slang passes + grain texture, which
+// are fetched at runtime rather than inlined.
+(function copyLib(from, to) {
+  fs.mkdirSync(to, { recursive: true });
+  for (const entry of fs.readdirSync(from, { withFileTypes: true })) {
+    const s = path.join(from, entry.name), d = path.join(to, entry.name);
+    if (entry.isDirectory()) copyLib(s, d);
+    else if (entry.isFile()) fs.copyFileSync(s, d);
+  }
+})(path.join(ROOT, 'src', 'lib'), path.join(DIST, 'lib'));
+// The chip worklet is ASSEMBLED, not copied: an AudioWorklet has its own global
+// scope and cannot import from the page, so the hardware model and the APU are
+// prepended to the processor shell. Doing it here rather than keeping a second
+// copy of the chip is what stops the browser and scripts/gb-emu.js drifting
+// apart -- they are literally the same source.
+{
+  const parts = ['src/gb-hardware.js', 'src/gb-apu.js', 'src/gb-cpu.js', 'src/lib/gb-chip-processor.js']
+    .map(f => fs.readFileSync(path.join(ROOT, f), 'utf8'));
+  fs.writeFileSync(path.join(DIST, 'lib', 'gb-chip-worklet.js'),
+    '// GENERATED by build.js from ' + ['src/gb-hardware.js', 'src/gb-apu.js', 'src/gb-cpu.js', 'src/lib/gb-chip-processor.js'].join(' + ') + '\n' +
+    '// Do not edit: edit those and rebuild.\n' + parts.join('\n'));
+  fs.unlinkSync(path.join(DIST, 'lib', 'gb-chip-processor.js'));   // the shell alone is not loadable
+}
+// static assets (og.png etc., generated by scripts/make-og.js) → dist/ root
+const assetsSrc = path.join(ROOT, 'assets');
+if (fs.existsSync(assetsSrc)) {
+  for (const entry of fs.readdirSync(assetsSrc, { withFileTypes: true })) {
+    if (entry.isFile()) fs.copyFileSync(path.join(assetsSrc, entry.name), path.join(DIST, entry.name));
+  }
+}
+// the shared BPM kernel lives in scripts/lib (used by pack-tools too); serve it so the in-app
+
+fs.rmSync(path.join(DIST, 'packs'), { recursive: true, force: true });
+
+console.log('built dist/index.html:', html.length, 'bytes from', ORDER.length, 'sources (', js.length, 'B JS )',
+  '+ routes ' + ROUTES.join('/') + ' + dist/lib +', gamePacks.length, 'bundled games');

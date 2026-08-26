@@ -1,0 +1,14 @@
+brickboy-dmg-shader
+Copyright the brickboy / brickboy-dmg-shader authors (kathoc)
+https://github.com/kathoc/brickboy-dmg-shader
+
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+The .slang sources, the .slangp preset, inc/bb_panel.inc and grain.png in this
+directory are vendored UNMODIFIED from that project. They implement a DMG-01
+display pipeline derived from measurements of real hardware.
+
+Chiptunes.app runs them through src/slang-webgl.js, which translates the
+RetroArch slang dialect (Vulkan GLSL 450, push constants, UBO blocks, pass
+bindings) into WebGL2 GLSL ES 300 at load time. The translation is mechanical
+and does not alter the pipeline's mathematics, constants or pass order.

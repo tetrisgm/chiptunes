@@ -1,0 +1,40 @@
+{
+  "auditManifestSha256": "a3f536f2e7eedb5698062a19ae9bcc2a47473d2f25c7f2fa32d21a87e09de0ec",
+  "build": "D:\\ChiptunesTraining\\score-v2-vgm90k-20260814",
+  "conditions": {
+    "durationMedianTimingPassed": true,
+    "durationTimingPassed": true,
+    "onsetMedianTimingPassed": true,
+    "onsetTimingPassed": true
+  },
+  "corpusManifestSha256": "d39504d99593f74f4c78238f04eba483b077d9fe3859b4da298b2576e7711eb5",
+  "counts": {
+    "durationAtMost10Ms": 112137171,
+    "durationAtMost40Ms": 112317382,
+    "notes": 112327372,
+    "onsetAtMost20Ms": 112273458,
+    "onsetAtMost5Ms": 111673432
+  },
+  "filesAudited": 42669,
+  "keptFiles": 42669,
+  "limit": null,
+  "maximumErrorMs": {
+    "durationMs": 82.03125,
+    "onsetMs": 62.5
+  },
+  "passed": true,
+  "schema": "chiptunes-midi-score-v2-timing-audit-v1",
+  "shares": {
+    "durationAtMost10Ms": 0.998306726,
+    "durationAtMost40Ms": 0.999911064,
+    "onsetAtMost20Ms": 0.999520028,
+    "onsetAtMost5Ms": 0.994178267
+  },
+  "status": "complete",
+  "thresholdsMs": {
+    "durationMedian": 10,
+    "durationP99": 40,
+    "onsetMedian": 5,
+    "onsetP99": 20
+  }
+}

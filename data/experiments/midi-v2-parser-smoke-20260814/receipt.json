@@ -1,0 +1,91 @@
+{
+  "schema": "chiptunes-midi-v2-parser-smoke-v1",
+  "experiment": "midi-v2-parser-smoke-20260814",
+  "recordedUtc": "2026-08-14T23:56:26Z",
+  "state": {
+    "status": "parser-smoke-passed",
+    "phase": "A1",
+    "gateA": "not-run"
+  },
+  "source": {
+    "hostPath": "D:\\ChiptunesTraining\\Corpus-Midi\\vgm-90k",
+    "inventoryFiles": 74552,
+    "stagingPath": "D:\\ChiptunesTraining\\midi-v2-smoke-20260814",
+    "selection": "25 size-quantile files plus 25 deterministically sampled files",
+    "considered": 50,
+    "minimumBytes": 0,
+    "maximumBytes": 962079,
+    "manifestSha256": "f9ed35123b2175649ce4d384a52905ea45b70fac33163fa09e2c6cb05cc1905f"
+  },
+  "implementation": {
+    "parser": "tools/gbs_pipeline/midi_score_v2.py",
+    "parserSha256": "e6d9b8f49e25ac871b3594a8694ec241783e49266d12859a82855bea5ade7488",
+    "test": "tools/gbs_pipeline/test_midi_score_v2.py",
+    "testSha256": "bde432824391a2430602270558eeeb41ed9d06a80deec6eb50b7c32b5ddbda32",
+    "unitTests": 14,
+    "unitTestFailures": 0
+  },
+  "result": {
+    "syntacticallyParsed": 48,
+    "cleanlyPaired": 45,
+    "formats": {
+      "0": 14,
+      "1": 34
+    },
+    "rawNoteEvents": 444949,
+    "pairedNotes": 222033,
+    "maximumPairedNotesInFile": 118904,
+    "maximumPolyphony": 30,
+    "maximumTracks": 25,
+    "canonicalCompressedBytes": 5510443,
+    "issues": {
+      "orphanNoteOffs": 441,
+      "unterminatedNotes": 442
+    }
+  },
+  "parseRejects": [
+    {
+      "sample": "sample-001.mid",
+      "source": "A\\Arc the Lad II\\Arc The Lad 2 - Danger.MID",
+      "bytes": 0,
+      "reason": "missing MThd"
+    },
+    {
+      "sample": "sample-004.mid",
+      "source": "B\\Bedlam 2 (1997)\\Bedlam 2 (1997) - first_wave.mid",
+      "bytes": 32695,
+      "reason": "invalid program-change data byte 0xfd at track offset 78",
+      "independentCheck": "ffprobe 8.0.1 also rejected the file as invalid data"
+    }
+  ],
+  "pairingIssueFiles": [
+    {
+      "sample": "sample-011.mid",
+      "source": "E\\Extreme-G (1997)\\Extreme-G (1997) - ex-g_level_1.mid",
+      "issues": {
+        "unterminatedNotes": 1
+      }
+    },
+    {
+      "sample": "sample-029.mid",
+      "source": "P\\Pitfall 2\\Pitfall 2 - Theme (3).MID",
+      "issues": {
+        "orphanNoteOffs": 439,
+        "unterminatedNotes": 441
+      },
+      "finding": "drum note-ons use keys 37/76 while note-offs use key 60; raw events are retained but no matching ends are invented"
+    },
+    {
+      "sample": "sample-033.mid",
+      "source": "R\\Resident Evil - Code - Veronica\\Resident Evil - Code - Veronica - Alexia Form 1.MID",
+      "issues": {
+        "orphanNoteOffs": 2
+      }
+    }
+  ],
+  "conclusion": {
+    "parserSlice": "passed",
+    "corpusGate": "not-yet-eligible",
+    "reason": "The parser preserves raw events and reports malformed pairing without repair. Dedupe, compound encode/decode, full-corpus audit, and the 30-pair listening oracle remain before Gate A."
+  }
+}

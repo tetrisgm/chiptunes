@@ -1,0 +1,92 @@
+{
+  "config": {
+    "authorityNote": "Owner-supplied VGM-MIDI pack approved for project training 2026-08-11",
+    "extensions": [
+      ".kar",
+      ".mid",
+      ".midi"
+    ],
+    "limit": null,
+    "minimumDuration96": 384,
+    "minimumNotes": 16,
+    "schema": "chiptunes-midi-score-v2-build-v1",
+    "sourceLabel": "vgm-90k",
+    "sourceRoot": "D:\\ChiptunesTraining\\Corpus-Midi\\vgm-90k"
+  },
+  "familiesAndSplits": {
+    "crossSplitFamilies": {},
+    "duplicateFamilies": 1975,
+    "families": 40341,
+    "familiesManifestSha256": "efaa5d584b0994700fa088e89e0bf8a4b2b5baab9ece1b6711e1e308da088fb7",
+    "largestFamily": 8,
+    "splitFiles": {
+      "test": 2109,
+      "train": 38491,
+      "validation": 2069
+    }
+  },
+  "files": {
+    "considered": 74552,
+    "inventory": 74552,
+    "kept": 42669,
+    "reasonCounts": {
+      "byte-duplicate": 24646,
+      "canonical-duplicate": 119,
+      "parse-error": 3029,
+      "score-issues": 3513,
+      "trivially-short-duration": 240,
+      "trivially-short-notes": 336
+    },
+    "statusCounts": {
+      "dropped": 24765,
+      "kept": 42669,
+      "rejected": 7118
+    }
+  },
+  "machineGate": {
+    "canonicalRoundtripExact": true,
+    "crossSplitLeakagePassed": true,
+    "durationMedianTimingPassed": true,
+    "durationTimingPassed": true,
+    "nonEmptyCorpus": true,
+    "onsetMedianTimingPassed": true,
+    "onsetTimingPassed": true,
+    "passed": true,
+    "representedFieldsExact": true,
+    "timingDistributionAvailable": true
+  },
+  "manifestSha256": "d39504d99593f74f4c78238f04eba483b077d9fe3859b4da298b2576e7711eb5",
+  "music": {
+    "canonicalRoundtripPassed": 42669,
+    "compoundEvents": 172029142,
+    "notes": 112327372,
+    "representedRoundtrip": 157647648
+  },
+  "recordedUtc": "2026-08-15T03:42:33.972898Z",
+  "schema": "chiptunes-midi-score-v2-build-receipt-v1",
+  "status": "complete",
+  "timing": {
+    "distribution": {
+      "durationAtMost10Ms": 112137171,
+      "durationAtMost40Ms": 112317382,
+      "notes": 112327372,
+      "onsetAtMost20Ms": 112273458,
+      "onsetAtMost5Ms": 111673432,
+      "shares": {
+        "durationAtMost10Ms": 0.998306726,
+        "durationAtMost40Ms": 0.999911064,
+        "onsetAtMost20Ms": 0.999520028,
+        "onsetAtMost5Ms": 0.994178267
+      },
+      "source": "timing-audit-receipt"
+    },
+    "durationLimitMs": 40,
+    "durationMedianLimitMs": 10,
+    "onsetLimitMs": 20,
+    "onsetMedianLimitMs": 5,
+    "worstFileDurationMedianMs": 27.777775,
+    "worstFileDurationP99Ms": 55.55555,
+    "worstFileOnsetMedianMs": 26.041667,
+    "worstFileOnsetP99Ms": 27.777775
+  }
+}

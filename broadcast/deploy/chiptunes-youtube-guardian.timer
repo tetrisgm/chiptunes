@@ -1,0 +1,10 @@
+[Unit]
+Description=Chiptunes.app - YouTube broadcast guardian tick (every 3 min)
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=3min
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

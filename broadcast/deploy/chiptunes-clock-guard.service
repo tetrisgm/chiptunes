@@ -1,0 +1,6 @@
+[Unit]
+Description=Chiptunes.app - clock-sync guard (keeps the deterministic schedule aligned with the site)
+
+[Service]
+Type=oneshot
+ExecStart=@REPO@/broadcast/deploy/clock-guard.sh

@@ -1,0 +1,947 @@
+{
+  "audioBitIdenticalPairs": 30,
+  "codec": "FLAC",
+  "hiddenRepeats": 6,
+  "keySha256": "2e361e82c745254b0c59f3f4d2413dd404d8447c9aa37405291188b483dc2869",
+  "pairsSha256": "da8439e758ce6be289f23d8e45b9d28f159327f2a3ecec062bcd56cc92696a45",
+  "rendered": {
+    "song-001": {
+      "audioBitIdentical": true,
+      "original": {
+        "flacBytes": 13138027,
+        "flacSha256": "0f97ed083de4e9926c6589fd9716c8f5e08d3031029cd9de2f98f0a7e9fc2ada",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 167.825852,
+          "tailSeconds": 2
+        },
+        "wavSha256": "6723cbc2704ae401e1aab63b497b2d3b42f2b411329d51e1fd4bdd41f83c0d86",
+        "file": "song-001-original.source.flac"
+      },
+      "roundtrip": {
+        "flacBytes": 13138027,
+        "flacSha256": "0f97ed083de4e9926c6589fd9716c8f5e08d3031029cd9de2f98f0a7e9fc2ada",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 167.825852,
+          "tailSeconds": 2
+        },
+        "wavSha256": "6723cbc2704ae401e1aab63b497b2d3b42f2b411329d51e1fd4bdd41f83c0d86",
+        "file": "song-001-roundtrip.source.flac"
+      }
+    },
+    "song-002": {
+      "audioBitIdentical": true,
+      "original": {
+        "flacBytes": 11286849,
+        "flacSha256": "e5f4010dd51a5ff2d43ce49b122af8f59fad1206ee07b1eaf9858be62a67402d",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 173.87916666666666,
+          "tailSeconds": 2
+        },
+        "wavSha256": "84517cdbcd2d7c2d359a7d6200032237c853e57b66a63fbf13297c799e508a23",
+        "file": "song-002-original.source.flac"
+      },
+      "roundtrip": {
+        "flacBytes": 11286849,
+        "flacSha256": "e5f4010dd51a5ff2d43ce49b122af8f59fad1206ee07b1eaf9858be62a67402d",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 173.87916666666666,
+          "tailSeconds": 2
+        },
+        "wavSha256": "84517cdbcd2d7c2d359a7d6200032237c853e57b66a63fbf13297c799e508a23",
+        "file": "song-002-roundtrip.source.flac"
+      }
+    },
+    "song-003": {
+      "audioBitIdentical": true,
+      "original": {
+        "flacBytes": 12433119,
+        "flacSha256": "20615b2db7a45e62a1a39770f073c62584bdbf45fd0d315063cecaffa0f10765",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 160.41679499999998,
+          "tailSeconds": 2
+        },
+        "wavSha256": "63426219f5b6c5d415aaba87fbfe90d9bf0a9642148ab175879c508acecb2fb4",
+        "file": "song-003-original.source.flac"
+      },
+      "roundtrip": {
+        "flacBytes": 12433119,
+        "flacSha256": "20615b2db7a45e62a1a39770f073c62584bdbf45fd0d315063cecaffa0f10765",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 160.41679499999998,
+          "tailSeconds": 2
+        },
+        "wavSha256": "63426219f5b6c5d415aaba87fbfe90d9bf0a9642148ab175879c508acecb2fb4",
+        "file": "song-003-roundtrip.source.flac"
+      }
+    },
+    "song-004": {
+      "audioBitIdentical": true,
+      "original": {
+        "flacBytes": 10665532,
+        "flacSha256": "8eb210f3fafe93cd50e52921c60e0c79917371483deaa5e1dc24ff176977e81c",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 256.1040482500001,
+          "tailSeconds": 2
+        },
+        "wavSha256": "2ce5ddf0ab011a9050f64c2f59a9ada638e398f26646ca6f349787a8f348b915",
+        "file": "song-004-original.source.flac"
+      },
+      "roundtrip": {
+        "flacBytes": 10665532,
+        "flacSha256": "8eb210f3fafe93cd50e52921c60e0c79917371483deaa5e1dc24ff176977e81c",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 256.1040482500001,
+          "tailSeconds": 2
+        },
+        "wavSha256": "2ce5ddf0ab011a9050f64c2f59a9ada638e398f26646ca6f349787a8f348b915",
+        "file": "song-004-roundtrip.source.flac"
+      }
+    },
+    "song-005": {
+      "audioBitIdentical": true,
+      "original": {
+        "flacBytes": 10684597,
+        "flacSha256": "0d898b944c9f6dabc6414d5bcc6f2d39ee54138b3ad37f94585aa2c8378132e6",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 146.4,
+          "tailSeconds": 2
+        },
+        "wavSha256": "1896a0c341c6081af6dd331e2c3ebcbd87be5444d4bb566e904cd224c4cc40ab",
+        "file": "song-005-original.source.flac"
+      },
+      "roundtrip": {
+        "flacBytes": 10684597,
+        "flacSha256": "0d898b944c9f6dabc6414d5bcc6f2d39ee54138b3ad37f94585aa2c8378132e6",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 146.4,
+          "tailSeconds": 2
+        },
+        "wavSha256": "1896a0c341c6081af6dd331e2c3ebcbd87be5444d4bb566e904cd224c4cc40ab",
+        "file": "song-005-roundtrip.source.flac"
+      }
+    },
+    "song-006": {
+      "audioBitIdentical": true,
+      "original": {
+        "flacBytes": 10883808,
+        "flacSha256": "c1c9f5a629e6df518869867ebc399046dde5f57bbefde0188fac3c4d1c842d13",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 205.71408000000002,
+          "tailSeconds": 2
+        },
+        "wavSha256": "b7ee7bdd06991a68087414a693c7262a19353718d57c2cdb3a662230459f6adc",
+        "file": "song-006-original.source.flac"
+      },
+      "roundtrip": {
+        "flacBytes": 10883808,
+        "flacSha256": "c1c9f5a629e6df518869867ebc399046dde5f57bbefde0188fac3c4d1c842d13",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 205.71408000000002,
+          "tailSeconds": 2
+        },
+        "wavSha256": "b7ee7bdd06991a68087414a693c7262a19353718d57c2cdb3a662230459f6adc",
+        "file": "song-006-roundtrip.source.flac"
+      }
+    },
+    "song-007": {
+      "audioBitIdentical": true,
+      "original": {
+        "flacBytes": 11064652,
+        "flacSha256": "ad951ea696cc135c4ca7ff2db8ffe30df953b586b3b327c0078d54191d85b5c8",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 203.4960000014305,
+          "tailSeconds": 2
+        },
+        "wavSha256": "3abb4c709f283a8bb2b9ee118c795166f9662ebedbeb69f07bcb7274b371d955",
+        "file": "song-007-original.source.flac"
+      },
+      "roundtrip": {
+        "flacBytes": 11064652,
+        "flacSha256": "ad951ea696cc135c4ca7ff2db8ffe30df953b586b3b327c0078d54191d85b5c8",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 203.4960000014305,
+          "tailSeconds": 2
+        },
+        "wavSha256": "3abb4c709f283a8bb2b9ee118c795166f9662ebedbeb69f07bcb7274b371d955",
+        "file": "song-007-roundtrip.source.flac"
+      }
+    },
+    "song-008": {
+      "audioBitIdentical": true,
+      "original": {
+        "flacBytes": 11187961,
+        "flacSha256": "67024b8ede7672b56741e33e9d78b6e86502bd51de6a18b35b74e06882165fd9",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 145.94270833581686,
+          "tailSeconds": 2
+        },
+        "wavSha256": "4f107806baa10a612b40e08ea88cfa98b7732f7978cd7e5855fa52c89cc7a0f4",
+        "file": "song-008-original.source.flac"
+      },
+      "roundtrip": {
+        "flacBytes": 11187961,
+        "flacSha256": "67024b8ede7672b56741e33e9d78b6e86502bd51de6a18b35b74e06882165fd9",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 145.94270833581686,
+          "tailSeconds": 2
+        },
+        "wavSha256": "4f107806baa10a612b40e08ea88cfa98b7732f7978cd7e5855fa52c89cc7a0f4",
+        "file": "song-008-roundtrip.source.flac"
+      }
+    },
+    "song-009": {
+      "audioBitIdentical": true,
+      "original": {
+        "flacBytes": 10981645,
+        "flacSha256": "be9f36477f5b4dd5f9db2dfd00e4483228859624ec3bc950b8326c792424922d",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 191.9333333335817,
+          "tailSeconds": 2
+        },
+        "wavSha256": "5e7927aa62f975ae3ce86ed0feea694e0b4b6955deb226af7a148ebbb3ac7a47",
+        "file": "song-009-original.source.flac"
+      },
+      "roundtrip": {
+        "flacBytes": 10981645,
+        "flacSha256": "be9f36477f5b4dd5f9db2dfd00e4483228859624ec3bc950b8326c792424922d",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 191.9333333335817,
+          "tailSeconds": 2
+        },
+        "wavSha256": "5e7927aa62f975ae3ce86ed0feea694e0b4b6955deb226af7a148ebbb3ac7a47",
+        "file": "song-009-roundtrip.source.flac"
+      }
+    },
+    "song-010": {
+      "audioBitIdentical": true,
+      "original": {
+        "flacBytes": 12856141,
+        "flacSha256": "3094561f6a268876bc33345cce16e2b2ebc84a75c172bb33c92fa2c7e883dd6d",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 70.252161890625,
+          "tailSeconds": 2
+        },
+        "wavSha256": "ba17ae728bc36b19721c14d41c697f39158649d9771cb5981b3ad7fc1c17915a",
+        "file": "song-010-original.source.flac"
+      },
+      "roundtrip": {
+        "flacBytes": 12856141,
+        "flacSha256": "3094561f6a268876bc33345cce16e2b2ebc84a75c172bb33c92fa2c7e883dd6d",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 70.252161890625,
+          "tailSeconds": 2
+        },
+        "wavSha256": "ba17ae728bc36b19721c14d41c697f39158649d9771cb5981b3ad7fc1c17915a",
+        "file": "song-010-roundtrip.source.flac"
+      }
+    },
+    "song-011": {
+      "audioBitIdentical": true,
+      "original": {
+        "flacBytes": 10907967,
+        "flacSha256": "5808bb4e3b1353758d2e0484cb29bcc3d1c68e20a7f935946b54269775ac143b",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 96.00520833333333,
+          "tailSeconds": 2
+        },
+        "wavSha256": "f80b7895d9b7bc57b6e1aede5b293f3c4d73a1aecc84a148b031bbf9168ccbcd",
+        "file": "song-011-original.source.flac"
+      },
+      "roundtrip": {
+        "flacBytes": 10907967,
+        "flacSha256": "5808bb4e3b1353758d2e0484cb29bcc3d1c68e20a7f935946b54269775ac143b",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 96.00520833333333,
+          "tailSeconds": 2
+        },
+        "wavSha256": "f80b7895d9b7bc57b6e1aede5b293f3c4d73a1aecc84a148b031bbf9168ccbcd",
+        "file": "song-011-roundtrip.source.flac"
+      }
+    },
+    "song-012": {
+      "audioBitIdentical": true,
+      "original": {
+        "flacBytes": 12544915,
+        "flacSha256": "629bea19449b7f6572c3154c4d79b460dd1ebe0d4a25df0870583b79cd853069",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 136.99479166666666,
+          "tailSeconds": 2
+        },
+        "wavSha256": "47c1496944bc2477b761894019e80b27495784d1793514534cf191cf74b032fe",
+        "file": "song-012-original.source.flac"
+      },
+      "roundtrip": {
+        "flacBytes": 12544915,
+        "flacSha256": "629bea19449b7f6572c3154c4d79b460dd1ebe0d4a25df0870583b79cd853069",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 136.99479166666666,
+          "tailSeconds": 2
+        },
+        "wavSha256": "47c1496944bc2477b761894019e80b27495784d1793514534cf191cf74b032fe",
+        "file": "song-012-roundtrip.source.flac"
+      }
+    },
+    "song-013": {
+      "audioBitIdentical": true,
+      "original": {
+        "flacBytes": 10095272,
+        "flacSha256": "df7c6b00eeb0e2436aa8e841d1fc8f14af67b29c45f7824909752dbc42e1919c",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 134.34675200000018,
+          "tailSeconds": 2
+        },
+        "wavSha256": "3fdd23437db4a73ed56f1e27f81b7ee02538c85f0908a8fc221b26e805d5d221",
+        "file": "song-013-original.source.flac"
+      },
+      "roundtrip": {
+        "flacBytes": 10095272,
+        "flacSha256": "df7c6b00eeb0e2436aa8e841d1fc8f14af67b29c45f7824909752dbc42e1919c",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 134.34675200000018,
+          "tailSeconds": 2
+        },
+        "wavSha256": "3fdd23437db4a73ed56f1e27f81b7ee02538c85f0908a8fc221b26e805d5d221",
+        "file": "song-013-roundtrip.source.flac"
+      }
+    },
+    "song-014": {
+      "audioBitIdentical": true,
+      "original": {
+        "flacBytes": 11865913,
+        "flacSha256": "aa44ee8eef136dd74fba43239427529f100b0a73fcd08fcfb7bf514ce4a221d9",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 262.9740183105422,
+          "tailSeconds": 2
+        },
+        "wavSha256": "2032a19728f46b569244e048510635f438af440bf29480edba51788abc052ad6",
+        "file": "song-014-original.source.flac"
+      },
+      "roundtrip": {
+        "flacBytes": 11865913,
+        "flacSha256": "aa44ee8eef136dd74fba43239427529f100b0a73fcd08fcfb7bf514ce4a221d9",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 262.9740183105422,
+          "tailSeconds": 2
+        },
+        "wavSha256": "2032a19728f46b569244e048510635f438af440bf29480edba51788abc052ad6",
+        "file": "song-014-roundtrip.source.flac"
+      }
+    },
+    "song-015": {
+      "audioBitIdentical": true,
+      "original": {
+        "flacBytes": 10194435,
+        "flacSha256": "19a1f05f9bf98edae553a72e059c6a3baf9fe8b11bc41a8b81f969e39ba27920",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 134.01541114583304,
+          "tailSeconds": 2
+        },
+        "wavSha256": "a7defb6210d79d1a9e750b7bda3388bf647d6ce8776f2ec8ee03489d92d10ec6",
+        "file": "song-015-original.source.flac"
+      },
+      "roundtrip": {
+        "flacBytes": 10194435,
+        "flacSha256": "19a1f05f9bf98edae553a72e059c6a3baf9fe8b11bc41a8b81f969e39ba27920",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 134.01541114583304,
+          "tailSeconds": 2
+        },
+        "wavSha256": "a7defb6210d79d1a9e750b7bda3388bf647d6ce8776f2ec8ee03489d92d10ec6",
+        "file": "song-015-roundtrip.source.flac"
+      }
+    },
+    "song-016": {
+      "audioBitIdentical": true,
+      "original": {
+        "flacBytes": 11568552,
+        "flacSha256": "0fc478c2a0d4a5acb3c76848506eec1e360ee0f4f03b22d664785dc330595c85",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 121.7131432083332,
+          "tailSeconds": 2
+        },
+        "wavSha256": "0232e55bda197ca27ba54a024d5ba84586041c7722a7ec58febaa2553be8857f",
+        "file": "song-016-original.source.flac"
+      },
+      "roundtrip": {
+        "flacBytes": 11568552,
+        "flacSha256": "0fc478c2a0d4a5acb3c76848506eec1e360ee0f4f03b22d664785dc330595c85",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 121.7131432083332,
+          "tailSeconds": 2
+        },
+        "wavSha256": "0232e55bda197ca27ba54a024d5ba84586041c7722a7ec58febaa2553be8857f",
+        "file": "song-016-roundtrip.source.flac"
+      }
+    },
+    "song-017": {
+      "audioBitIdentical": true,
+      "original": {
+        "flacBytes": 10051943,
+        "flacSha256": "daa1fa53ce462092fb08536f425b89f73938a14adcb2b6f03e09259d5378652c",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 86.24562117499991,
+          "tailSeconds": 2
+        },
+        "wavSha256": "2fe78f68f25c60e0aae26eed879876115f2c46b60165baf31e7f1a369afaef35",
+        "file": "song-017-original.source.flac"
+      },
+      "roundtrip": {
+        "flacBytes": 10051943,
+        "flacSha256": "daa1fa53ce462092fb08536f425b89f73938a14adcb2b6f03e09259d5378652c",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 86.24562117499991,
+          "tailSeconds": 2
+        },
+        "wavSha256": "2fe78f68f25c60e0aae26eed879876115f2c46b60165baf31e7f1a369afaef35",
+        "file": "song-017-roundtrip.source.flac"
+      }
+    },
+    "song-018": {
+      "audioBitIdentical": true,
+      "original": {
+        "flacBytes": 12005587,
+        "flacSha256": "deca5c9c5389d32ca8d08e9e2b43e4bbd75193b5db1c2795624370511e346ebe",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 261.76607800000437,
+          "tailSeconds": 2
+        },
+        "wavSha256": "a2d4c50a9abeffe803de5c6962f83813a65427194626b2f58767d9ddc8886fca",
+        "file": "song-018-original.source.flac"
+      },
+      "roundtrip": {
+        "flacBytes": 12005587,
+        "flacSha256": "deca5c9c5389d32ca8d08e9e2b43e4bbd75193b5db1c2795624370511e346ebe",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 261.76607800000437,
+          "tailSeconds": 2
+        },
+        "wavSha256": "a2d4c50a9abeffe803de5c6962f83813a65427194626b2f58767d9ddc8886fca",
+        "file": "song-018-roundtrip.source.flac"
+      }
+    },
+    "song-019": {
+      "audioBitIdentical": true,
+      "original": {
+        "flacBytes": 9004642,
+        "flacSha256": "e94d9ea8065038c904a9247eaf158667900b71676efe2c377976f7b9a054e822",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 4106.175,
+          "tailSeconds": 2
+        },
+        "wavSha256": "06db93339252de3e8e84b56c3f9d564184b671433cac119be0a2957060a86028",
+        "file": "song-019-original.source.flac"
+      },
+      "roundtrip": {
+        "flacBytes": 9004642,
+        "flacSha256": "e94d9ea8065038c904a9247eaf158667900b71676efe2c377976f7b9a054e822",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 4106.175,
+          "tailSeconds": 2
+        },
+        "wavSha256": "06db93339252de3e8e84b56c3f9d564184b671433cac119be0a2957060a86028",
+        "file": "song-019-roundtrip.source.flac"
+      }
+    },
+    "song-020": {
+      "audioBitIdentical": true,
+      "original": {
+        "flacBytes": 8985649,
+        "flacSha256": "881f9018fcafa6925f10b1d124d4808e17f72bbf0d594300088a3ac1efe5c5fd",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 1458.9273650833338,
+          "tailSeconds": 2
+        },
+        "wavSha256": "b4f7e0dcb37e5f3b14981e8a6d726fc21c662fc96c6af30274a7e3913f543ca4",
+        "file": "song-020-original.source.flac"
+      },
+      "roundtrip": {
+        "flacBytes": 8985649,
+        "flacSha256": "881f9018fcafa6925f10b1d124d4808e17f72bbf0d594300088a3ac1efe5c5fd",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 1458.9273650833338,
+          "tailSeconds": 2
+        },
+        "wavSha256": "b4f7e0dcb37e5f3b14981e8a6d726fc21c662fc96c6af30274a7e3913f543ca4",
+        "file": "song-020-roundtrip.source.flac"
+      }
+    },
+    "song-021": {
+      "audioBitIdentical": true,
+      "original": {
+        "flacBytes": 7160305,
+        "flacSha256": "577c624fa29d12f249398ab2faff422b7c81cc99ce2f06310067b7b4960e5876",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 4449.674999999999,
+          "tailSeconds": 2
+        },
+        "wavSha256": "c3b0991cb80a5ddd3f19a7cf9a67797d089ca478a8113a843aaa8d03416ca144",
+        "file": "song-021-original.source.flac"
+      },
+      "roundtrip": {
+        "flacBytes": 7160305,
+        "flacSha256": "577c624fa29d12f249398ab2faff422b7c81cc99ce2f06310067b7b4960e5876",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 4449.674999999999,
+          "tailSeconds": 2
+        },
+        "wavSha256": "c3b0991cb80a5ddd3f19a7cf9a67797d089ca478a8113a843aaa8d03416ca144",
+        "file": "song-021-roundtrip.source.flac"
+      }
+    },
+    "song-022": {
+      "audioBitIdentical": true,
+      "original": {
+        "flacBytes": 8520860,
+        "flacSha256": "5014d0aa9e2793e0a1a8dfb2dbe75e2b8047b4a7faaefb33c27f3d61eb4a0312",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 7216.8,
+          "tailSeconds": 2
+        },
+        "wavSha256": "59bdc532b8a7729bffed16d3d9437f708c7d39c04be457d2220ba0e041ffb6fe",
+        "file": "song-022-original.source.flac"
+      },
+      "roundtrip": {
+        "flacBytes": 8520860,
+        "flacSha256": "5014d0aa9e2793e0a1a8dfb2dbe75e2b8047b4a7faaefb33c27f3d61eb4a0312",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 7216.8,
+          "tailSeconds": 2
+        },
+        "wavSha256": "59bdc532b8a7729bffed16d3d9437f708c7d39c04be457d2220ba0e041ffb6fe",
+        "file": "song-022-roundtrip.source.flac"
+      }
+    },
+    "song-023": {
+      "audioBitIdentical": true,
+      "original": {
+        "flacBytes": 13062923,
+        "flacSha256": "d8f1c660250583e1b8c5f85373c0c98057dd595bbb765525076c060fb26a5a47",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 819.0416666716337,
+          "tailSeconds": 2
+        },
+        "wavSha256": "161e6d815c01bff3aed5246584c2687df7d566f28c603a09aa726369393450cb",
+        "file": "song-023-original.source.flac"
+      },
+      "roundtrip": {
+        "flacBytes": 13062923,
+        "flacSha256": "d8f1c660250583e1b8c5f85373c0c98057dd595bbb765525076c060fb26a5a47",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 819.0416666716337,
+          "tailSeconds": 2
+        },
+        "wavSha256": "161e6d815c01bff3aed5246584c2687df7d566f28c603a09aa726369393450cb",
+        "file": "song-023-roundtrip.source.flac"
+      }
+    },
+    "song-024": {
+      "audioBitIdentical": true,
+      "original": {
+        "flacBytes": 7609446,
+        "flacSha256": "499de078dd020bac4e277ea198e9e9ad21bc760d8d566aae238a0c9ff6fa058e",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 5685.00250000013,
+          "tailSeconds": 2
+        },
+        "wavSha256": "ac2b0857b0c3752cf93c99d2a3224e0224bba2183819aa14c3e5ad20dd31d57b",
+        "file": "song-024-original.source.flac"
+      },
+      "roundtrip": {
+        "flacBytes": 7609446,
+        "flacSha256": "499de078dd020bac4e277ea198e9e9ad21bc760d8d566aae238a0c9ff6fa058e",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 5685.00250000013,
+          "tailSeconds": 2
+        },
+        "wavSha256": "ac2b0857b0c3752cf93c99d2a3224e0224bba2183819aa14c3e5ad20dd31d57b",
+        "file": "song-024-roundtrip.source.flac"
+      }
+    },
+    "song-025": {
+      "audioBitIdentical": true,
+      "original": {
+        "flacBytes": 12234379,
+        "flacSha256": "b5e23f0856cf10753633640de5fdfe2fe21fde8b12e2bc9c13fc716608e54226",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 68.41348314606742,
+          "tailSeconds": 2
+        },
+        "wavSha256": "7fb572a1186713c406a1a464f74cea4246b4b6a7ca1bbe127664e5f4670b3d24",
+        "file": "song-025-original.source.flac"
+      },
+      "roundtrip": {
+        "flacBytes": 12234379,
+        "flacSha256": "b5e23f0856cf10753633640de5fdfe2fe21fde8b12e2bc9c13fc716608e54226",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 68.41348314606742,
+          "tailSeconds": 2
+        },
+        "wavSha256": "7fb572a1186713c406a1a464f74cea4246b4b6a7ca1bbe127664e5f4670b3d24",
+        "file": "song-025-roundtrip.source.flac"
+      }
+    },
+    "song-026": {
+      "audioBitIdentical": true,
+      "original": {
+        "flacBytes": 8421816,
+        "flacSha256": "b8bbf952b8e52034188d0389ae7edf802d5d6352ee62ec7506fcdbefaf4e23db",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 113.25773195876289,
+          "tailSeconds": 2
+        },
+        "wavSha256": "3a8c6278fb41799f343f471c6d7f6e7ea5fed02e429a5712cefb5465cd41042b",
+        "file": "song-026-original.source.flac"
+      },
+      "roundtrip": {
+        "flacBytes": 8421816,
+        "flacSha256": "b8bbf952b8e52034188d0389ae7edf802d5d6352ee62ec7506fcdbefaf4e23db",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 113.25773195876289,
+          "tailSeconds": 2
+        },
+        "wavSha256": "3a8c6278fb41799f343f471c6d7f6e7ea5fed02e429a5712cefb5465cd41042b",
+        "file": "song-026-roundtrip.source.flac"
+      }
+    },
+    "song-027": {
+      "audioBitIdentical": true,
+      "original": {
+        "flacBytes": 10963130,
+        "flacSha256": "6a645ea3099875ba87058d6f1dd2811bb7f7d45de800fce4af19c10f07168325",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 81.515625,
+          "tailSeconds": 2
+        },
+        "wavSha256": "06739595cfeabd69bc49f5c64e2bf90836f8049edb23544575f6a3154ed401df",
+        "file": "song-027-original.source.flac"
+      },
+      "roundtrip": {
+        "flacBytes": 10963130,
+        "flacSha256": "6a645ea3099875ba87058d6f1dd2811bb7f7d45de800fce4af19c10f07168325",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 81.515625,
+          "tailSeconds": 2
+        },
+        "wavSha256": "06739595cfeabd69bc49f5c64e2bf90836f8049edb23544575f6a3154ed401df",
+        "file": "song-027-roundtrip.source.flac"
+      }
+    },
+    "song-028": {
+      "audioBitIdentical": true,
+      "original": {
+        "flacBytes": 12112161,
+        "flacSha256": "9da4f8c507d7e821f15cb3da0d832a87b25fed824ba7da23927242f7f02153f2",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 89.60000000000001,
+          "tailSeconds": 2
+        },
+        "wavSha256": "ae5e0a0f20bd04e37c587b4fe893490747d805a8079311260e167f48acc6f9c9",
+        "file": "song-028-original.source.flac"
+      },
+      "roundtrip": {
+        "flacBytes": 12112161,
+        "flacSha256": "9da4f8c507d7e821f15cb3da0d832a87b25fed824ba7da23927242f7f02153f2",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 89.60000000000001,
+          "tailSeconds": 2
+        },
+        "wavSha256": "ae5e0a0f20bd04e37c587b4fe893490747d805a8079311260e167f48acc6f9c9",
+        "file": "song-028-roundtrip.source.flac"
+      }
+    },
+    "song-029": {
+      "audioBitIdentical": true,
+      "original": {
+        "flacBytes": 12678063,
+        "flacSha256": "abf9d7c7c77a09c72ac9fd13fa9b37997290261db9ebf0b9ddc4f87021b41790",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 141.29004,
+          "tailSeconds": 2
+        },
+        "wavSha256": "5802b1d314a2f3cb2692d9ad4a76def1420b56e93f3d511a9f69bea3f845b464",
+        "file": "song-029-original.source.flac"
+      },
+      "roundtrip": {
+        "flacBytes": 12678063,
+        "flacSha256": "abf9d7c7c77a09c72ac9fd13fa9b37997290261db9ebf0b9ddc4f87021b41790",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 141.29004,
+          "tailSeconds": 2
+        },
+        "wavSha256": "5802b1d314a2f3cb2692d9ad4a76def1420b56e93f3d511a9f69bea3f845b464",
+        "file": "song-029-roundtrip.source.flac"
+      }
+    },
+    "song-030": {
+      "audioBitIdentical": true,
+      "original": {
+        "flacBytes": 12668539,
+        "flacSha256": "6b4078b015b92974041b3d5c3ce342517a4814312b955766e09fe253ddbb0e7b",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 208,
+          "tailSeconds": 2
+        },
+        "wavSha256": "16627f55877453caba66f22d553d3fffe9946cfe61e751e665b17c30932134b0",
+        "file": "song-030-original.source.flac"
+      },
+      "roundtrip": {
+        "flacBytes": 12668539,
+        "flacSha256": "6b4078b015b92974041b3d5c3ce342517a4814312b955766e09fe253ddbb0e7b",
+        "renderer": {
+          "channels": 2,
+          "frames": 2734200,
+          "renderedMusicalSeconds": 60,
+          "sampleRate": 44100,
+          "sourceSeconds": 208,
+          "tailSeconds": 2
+        },
+        "wavSha256": "16627f55877453caba66f22d553d3fffe9946cfe61e751e665b17c30932134b0",
+        "file": "song-030-roundtrip.source.flac"
+      }
+    }
+  },
+  "rendererSha256": "746c8ec2141b61480e64085f0e5072116cbf68138c28c1ff7376407b133ad1de",
+  "reviewPairs": 36,
+  "schema": "chiptunes-midi-score-v2-oracle-render-v1",
+  "seconds": 60,
+  "selectionSha256": "22c9baf61dd0b78073e4be159f4a99b08146e8b2f74aa458ea9c3a715236de74",
+  "soundBankSha256": "739d277474bddeb120372625b70c83c653faaee44de26c3191848cc6c64bfb74",
+  "tailSeconds": 2,
+  "uniqueSongs": 30
+}

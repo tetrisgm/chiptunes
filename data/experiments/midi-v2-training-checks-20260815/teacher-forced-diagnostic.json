@@ -1,0 +1,124 @@
+{
+  "checkpoint": "D:\\ChiptunesTraining\\midi-v2-checks-20260815\\epoch-0p10.pt",
+  "fields": {
+    "barDelta": {
+      "accuracy": 0.9636550660037716,
+      "correct": 11242,
+      "total": 11666
+    },
+    "beat": {
+      "accuracy": 0.883764786559232,
+      "correct": 10310,
+      "total": 11666
+    },
+    "bend0": {
+      "accuracy": 0.06696428571428571,
+      "correct": 15,
+      "total": 224
+    },
+    "bend1": {
+      "accuracy": 0.05357142857142857,
+      "correct": 12,
+      "total": 224
+    },
+    "controlValue": {
+      "accuracy": 0.1580824088748019,
+      "correct": 399,
+      "total": 2524
+    },
+    "controller": {
+      "accuracy": 0.9294770206022187,
+      "correct": 2346,
+      "total": 2524
+    },
+    "duration0": {
+      "accuracy": 0.25961396787977015,
+      "correct": 1762,
+      "total": 6787
+    },
+    "duration1": {
+      "accuracy": 0.8178871371740092,
+      "correct": 5551,
+      "total": 6787
+    },
+    "duration2": {
+      "accuracy": 1.0,
+      "correct": 6787,
+      "total": 6787
+    },
+    "keyMinor": {
+      "accuracy": 0.4666666666666667,
+      "correct": 7,
+      "total": 15
+    },
+    "keySharps": {
+      "accuracy": 0.4666666666666667,
+      "correct": 7,
+      "total": 15
+    },
+    "kind": {
+      "accuracy": 0.8019029658837648,
+      "correct": 9355,
+      "total": 11666
+    },
+    "meterDenominatorPower": {
+      "accuracy": 1.0,
+      "correct": 26,
+      "total": 26
+    },
+    "meterNumerator": {
+      "accuracy": 0.23076923076923078,
+      "correct": 6,
+      "total": 26
+    },
+    "part": {
+      "accuracy": 0.5593078133193498,
+      "correct": 5333,
+      "total": 9535
+    },
+    "pitch": {
+      "accuracy": 0.11684101959628702,
+      "correct": 793,
+      "total": 6787
+    },
+    "position": {
+      "accuracy": 0.4615120864049374,
+      "correct": 5384,
+      "total": 11666
+    },
+    "pressure": {
+      "accuracy": null,
+      "correct": 0,
+      "total": 0
+    },
+    "programFamily": {
+      "accuracy": 0.6096950051569177,
+      "correct": 4138,
+      "total": 6787
+    },
+    "tempo0": {
+      "accuracy": 0.02702702702702703,
+      "correct": 1,
+      "total": 37
+    },
+    "tempo1": {
+      "accuracy": 0.02702702702702703,
+      "correct": 1,
+      "total": 37
+    },
+    "tempo2": {
+      "accuracy": 0.2702702702702703,
+      "correct": 10,
+      "total": 37
+    },
+    "velocity": {
+      "accuracy": 0.5772800942979225,
+      "correct": 3918,
+      "total": 6787
+    }
+  },
+  "meanLoss": 1.3605635464191437,
+  "schema": "chiptunes-midi-score-v2-teacher-forced-diagnostic-v1",
+  "scores": 8,
+  "split": "validation"
+}

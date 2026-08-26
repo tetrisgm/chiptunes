@@ -1,0 +1,48 @@
+{
+  "schema": "chiptunes-midi-v2-canonical-roundtrip-smoke-v1",
+  "experiment": "midi-v2-canonical-roundtrip-smoke-20260814",
+  "recordedUtc": "2026-08-15T00:19:49Z",
+  "state": {
+    "status": "canonical-roundtrip-smoke-passed",
+    "phase": "A3-machine",
+    "gateA": "not-run"
+  },
+  "source": {
+    "parserReceipt": "data/experiments/midi-v2-parser-smoke-20260814/receipt.json",
+    "considered": 50,
+    "eligibleCleanScores": 45,
+    "rejectedBeforeRoundtrip": 5
+  },
+  "implementation": {
+    "writer": "tools/gbs_pipeline/render_score_v2.py",
+    "writerSha256": "95a92c35d6754854518231ca8ac35744b9ce7e5aa0fed1a9b7d168f1e1adb847",
+    "test": "tools/gbs_pipeline/test_render_score_v2.py",
+    "testSha256": "3072b3e0b0d82fef95ca39e80da012b60feef959420b495cbfae051586bcc89d",
+    "newUnitTests": 4,
+    "repositoryPythonTests": 66,
+    "unitTestFailures": 0
+  },
+  "result": {
+    "canonicalRoundtripAttempted": 45,
+    "canonicalRoundtripPassed": 45,
+    "canonicalRoundtripFailed": 0,
+    "sourceBytes": 1840368,
+    "roundtripBytes": 1901094,
+    "verification": "every reconstructed MIDI reparsed to the source canonicalScoreSha256"
+  },
+  "normalizations": [
+    "running status is expanded",
+    "note-on velocity zero may be written as an equivalent note-off event"
+  ],
+  "listeningOracleCandidate": {
+    "renderer": "Apple DLS synth through a repository-owned offline renderer",
+    "soundBank": "/System/Library/Components/CoreAudio.component/Contents/Resources/gs_instruments.dls",
+    "soundBankBytes": 1996068,
+    "soundBankSha256": "739d277474bddeb120372625b70c83c653faaee44de26c3191848cc6c64bfb74"
+  },
+  "conclusion": {
+    "machineRoundtrip": "passed",
+    "listeningOracle": "not-run",
+    "reason": "Event-level canonical equivalence is necessary but not sufficient. The same pinned synthesizer and sound bank must still render the 30 stratified original-vs-roundtrip pairs for blind listening."
+  }
+}

@@ -1,0 +1,10 @@
+[Unit]
+Description=Chiptunes.app - aggregate live-count reporter tick (every ~45s)
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=45s
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,82 @@
+{
+  "checkpoint": "D:\\ChiptunesTraining\\midi-v2-checks-20260815\\epoch-0p10.pt",
+  "count": 12,
+  "eventsRequested": 256,
+  "schema": "chiptunes-midi-score-v2-generation-v1",
+  "songs": [
+    {
+      "bytes": 299,
+      "events": 52,
+      "seed": 20260815,
+      "song": "generated-01.mid"
+    },
+    {
+      "bytes": 1563,
+      "events": 258,
+      "seed": 20260816,
+      "song": "generated-02.mid"
+    },
+    {
+      "bytes": 754,
+      "events": 258,
+      "seed": 20260817,
+      "song": "generated-03.mid"
+    },
+    {
+      "bytes": 66,
+      "events": 9,
+      "seed": 20260818,
+      "song": "generated-04.mid"
+    },
+    {
+      "bytes": 379,
+      "events": 258,
+      "seed": 20260819,
+      "song": "generated-05.mid"
+    },
+    {
+      "bytes": 635,
+      "events": 258,
+      "seed": 20260820,
+      "song": "generated-06.mid"
+    },
+    {
+      "bytes": 1523,
+      "events": 258,
+      "seed": 20260821,
+      "song": "generated-07.mid"
+    },
+    {
+      "bytes": 1164,
+      "events": 258,
+      "seed": 20260822,
+      "song": "generated-08.mid"
+    },
+    {
+      "bytes": 237,
+      "events": 258,
+      "seed": 20260823,
+      "song": "generated-09.mid"
+    },
+    {
+      "bytes": 747,
+      "events": 187,
+      "seed": 20260824,
+      "song": "generated-10.mid"
+    },
+    {
+      "bytes": 1747,
+      "events": 258,
+      "seed": 20260825,
+      "song": "generated-11.mid"
+    },
+    {
+      "bytes": 732,
+      "events": 258,
+      "seed": 20260826,
+      "song": "generated-12.mid"
+    }
+  ],
+  "temperature": 0.9,
+  "topK": 12
+}

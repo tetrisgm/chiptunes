@@ -1,0 +1,8 @@
+[Unit]
+Description=Chiptunes.app — stream liveness watchdog (restarts chiptunes-stream if the render loop deadlocks)
+After=chiptunes-stream.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/chiptunes.env
+ExecStart=@REPO@/broadcast/deploy/stream-watchdog.sh

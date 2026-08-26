@@ -1,0 +1,28 @@
+{
+  "schema": "chiptunes-midi-v2-neutral-verdict-v1",
+  "batch": "midi-v2-neutral-20260815",
+  "generatedCount": 12,
+  "generatedMean": 1,
+  "generatedMedian": 1,
+  "anchorMean": 8.75,
+  "anchorGrades": [
+    9,
+    8,
+    9,
+    9
+  ],
+  "generatedGrades": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+  ]
+}

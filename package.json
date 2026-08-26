@@ -1,0 +1,38 @@
+{
+  "name": "chiptunes",
+  "scripts": {
+    "build": "node build.js",
+    "postbuild": "node scripts/health/report-build.mjs",
+    "deploy": "npm run deploy:site && npm run deploy:box",
+    "deploy:site": "node build.js && npx wrangler pages deploy dist --project-name retro-rave-radio --branch main --commit-dirty=true && node scripts/purge-cache.mjs",
+    "deploy:box": "node scripts/deploy-box.mjs",
+    "health": "node scripts/health/run.js",
+    "test:render-parity": "node build.js && node scripts/verify-broadcast-render-parity.js",
+    "test:worklet-boundary": "node scripts/verify-worklet-boundary.js",
+    "test:youtube-self-heal": "node scripts/test-youtube-self-heal.js",
+    "smoke": "node scripts/smoke-generated-seeds.js && node scripts/smoke-games.js",
+    "validate:games": "node scripts/audit-music-driven.js",
+    "audition:music": "node build.js && node scripts/audition-generated-music.js --seeds 60",
+    "audition:render": "node build.js && node scripts/audition-generated-music.js --render",
+    "study:chips": "node scripts/analyze-chip-patterns.js",
+    "youtube:auth": "node broadcast/youtube-live.mjs auth",
+    "youtube:golive": "YT_BOUNCE_CMD=\"ssh -o BatchMode=yes $CHIPTUNES_BOX \\\"sudo systemctl restart chiptunes-youtube\\\"\" node broadcast/youtube-live.mjs start",
+    "youtube:stop": "node broadcast/youtube-live.mjs stop",
+    "youtube:status": "node broadcast/youtube-live.mjs status",
+    "ship": "bash scripts/ship.sh",
+    "test:dmg-panel": "node scripts/verify-dmg-panel.js",
+    "test:nes": "node scripts/verify-nes-ntsc.js",
+    "test:rom-audio": "node scripts/verify-rom-audio.js",
+    "panel:test": "node scripts/make-panel-test.js",
+    "panel:test-nes": "node scripts/make-nes-test.js",
+    "test:rom": "node scripts/verify-rom.js"
+  },
+  "dependencies": {
+    "node-web-audio-api": "2.0.0"
+  },
+  "devDependencies": {
+    "pixelmatch": "^7.2.0",
+    "playwright": "^1.61.1",
+    "pngjs": "^7.0.0"
+  }
+}

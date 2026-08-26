@@ -1,0 +1,64 @@
+{
+  "schema": "chiptunes-midi-v2-builder-smoke-v1",
+  "experiment": "midi-v2-builder-smoke-20260814",
+  "recordedUtc": "2026-08-15T00:31:32Z",
+  "state": {
+    "status": "builder-smoke-passed",
+    "phase": "A3-full-audit-infrastructure",
+    "gateA": "not-run"
+  },
+  "implementation": {
+    "builder": "tools/gbs_pipeline/build_midi_score_v2.py",
+    "builderSha256": "2eb9577d0910634e2381ac25f1f16c5bff94230a56a435e3cf5dafd5ecaba439",
+    "status": "tools/gbs_pipeline/get_midi_score_v2_status.py",
+    "statusSha256": "69a7ec811004b29d0ed75b6cecb9c834d8f6b55fc2adaea5d718b7436d8cdc10",
+    "canonicalParserSha256": "9dec61093f6db540490629208bf27274a24d7fb6c3be18af0d788fb091d185c3",
+    "repositoryPythonTests": 72,
+    "unitTestFailures": 0,
+    "productSmoke": "passed"
+  },
+  "durability": {
+    "manifest": "one durable JSONL row per considered source file",
+    "progress": "atomic heartbeat with considered/total, rate, ETA, current file, reason counts, and error",
+    "resume": "verified idempotent in unit test",
+    "staleDetectionSeconds": 300,
+    "states": [
+      "not-started",
+      "healthy",
+      "stalled",
+      "failed",
+      "inconsistent",
+      "complete"
+    ]
+  },
+  "sample": {
+    "considered": 50,
+    "kept": 45,
+    "rejected": 5,
+    "reasons": {
+      "parse-error": 2,
+      "score-issues": 3
+    },
+    "notes": 216767,
+    "compoundEvents": 276431,
+    "representedRoundtrip": 247168,
+    "canonicalRoundtripPassed": 45,
+    "families": 45,
+    "crossSplitFamilies": 0,
+    "worstFileOnsetP99Ms": 16.720172,
+    "worstFileDurationP99Ms": 16.720172,
+    "machineGatePassed": true,
+    "filesPerSecond": 3.750215
+  },
+  "projection": {
+    "sourceInventory": 74552,
+    "macSmokeRateProjectedSeconds": 19879,
+    "macSmokeRateProjectedHours": 5.522,
+    "policy": "The live full run uses its measured heartbeat rate and ETA; this smoke projection is not substituted for live progress."
+  },
+  "conclusion": {
+    "builder": "passed",
+    "fullCorpusAudit": "not-run",
+    "reason": "The bounded smoke proved restart safety, exact gates, and observable progress. A full run must produce its own complete receipt before the 30-pair oracle is selected."
+  }
+}

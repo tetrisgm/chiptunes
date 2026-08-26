@@ -1,0 +1,73 @@
+{
+  "schema": "chiptunes-midi-v2-representation-smoke-v1",
+  "experiment": "midi-v2-representation-smoke-20260814",
+  "recordedUtc": "2026-08-15T00:13:11Z",
+  "state": {
+    "status": "representation-smoke-passed",
+    "phase": "A2-A3-machine-pilot",
+    "gateA": "not-run"
+  },
+  "source": {
+    "parserReceipt": "data/experiments/midi-v2-parser-smoke-20260814/receipt.json",
+    "manifestSha256": "f9ed35123b2175649ce4d384a52905ea45b70fac33163fa09e2c6cb05cc1905f",
+    "considered": 50,
+    "encoded": 45,
+    "rejected": 5,
+    "rejectionPolicy": "two structurally invalid files and three files with unresolved note pairing were not tokenized"
+  },
+  "implementation": {
+    "familyAudit": "tools/gbs_pipeline/audit_score_v2.py",
+    "familyAuditSha256": "667fad69133edd70e1636d885919b24a1c57ac86891a109976e823c1e644048e",
+    "compoundCodec": "tools/gbs_pipeline/tokenize_score_v2.py",
+    "compoundCodecSha256": "874db1a57ca2315c169ff339e07aa4a82e910f9827ecd08c565395bbd3a105a0",
+    "newUnitTests": 16,
+    "repositoryPythonTests": 62,
+    "unitTestFailures": 0,
+    "productSmoke": "passed"
+  },
+  "compoundRepresentation": {
+    "resolutionPpq": 96,
+    "events": 276431,
+    "maximumEventsInFile": 135931,
+    "representedFieldsRoundtrip": "exact",
+    "represented": {
+      "notes": 216767,
+      "controls": 24786,
+      "pitchBends": 5217,
+      "polyPressure": 0,
+      "channelPressure": 1,
+      "tempoChanges": 271,
+      "meterChanges": 58,
+      "keyChanges": 68
+    },
+    "programChangesReducedToNoteProgramFamily": 545,
+    "unrepresentedSysEx": 109
+  },
+  "timing": {
+    "medianOfFileOnsetMedianMs": 0.0,
+    "worstFileOnsetP99Ms": 16.720172,
+    "medianOfFileDurationMedianMs": 0.0,
+    "worstFileDurationP99Ms": 16.720172,
+    "gateAOnsetP99LimitMs": 20,
+    "gateADurationP99LimitMs": 40,
+    "sampleThresholdsPassed": true
+  },
+  "familiesAndSplits": {
+    "byteCanonicalNormalizedAndStructuralFingerprinting": "passed",
+    "files": 45,
+    "families": 45,
+    "duplicateFamilies": 0,
+    "largestFamily": 1,
+    "splitFiles": {
+      "train": 41,
+      "validation": 3,
+      "test": 1
+    },
+    "crossSplitFamilies": 0
+  },
+  "conclusion": {
+    "machinePilot": "passed",
+    "corpusGate": "not-yet-eligible",
+    "reason": "The sample proves exact represented-field decode, bounded timing error, performance-control retention, deterministic family splits, and zero detected leakage. Gate A still requires the complete source audit and the 30-pair original-vs-canonical listening oracle."
+  }
+}

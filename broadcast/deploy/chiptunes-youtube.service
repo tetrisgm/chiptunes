@@ -1,0 +1,24 @@
+[Unit]
+Description=Chiptunes.app - YouTube Live video leg (game visuals + clean-audio mux -> RTMP)
+After=network-online.target
+Wants=network-online.target
+# NEVER lock out on restart — a start-limit lockout is what took the audio box down once (c96fe01).
+# StartLimit* MUST live in [Unit]; in [Service] systemd ignores them. 0 = always self-heal.
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=@USER@
+WorkingDirectory=@REPO@
+EnvironmentFile=/etc/chiptunes.env
+# refuses to start without YT_STREAM_KEY (video.js throws) — so an empty key = harmless no-op
+ExecStart=/usr/bin/node @REPO@/broadcast/video.js
+Restart=always
+RestartSec=15
+Environment=HOME=/home/@USER@
+# Audio is DECOUPLED (muxed from the clean local MP3), and the page render FPS is capped, so this leg
+# is far lighter than the old 1080p30 in-browser-audio path. Nice still keeps it behind the broadcaster.
+Nice=10
+
+[Install]
+WantedBy=multi-user.target

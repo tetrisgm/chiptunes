@@ -1,0 +1,11 @@
+# Serve the radio playlist files with the right MIME so phones/desktop players offer to
+# open them in a media/radio app instead of showing them as plain text. Cloudflare Pages
+# would otherwise auto-detect these as text/plain, which breaks the "open in app" hint.
+/radio.pls
+  Content-Type: audio/x-scpls
+  Content-Disposition: attachment; filename="chiptunes.pls"
+  Cache-Control: public, max-age=3600
+/radio.m3u
+  Content-Type: audio/x-mpegurl
+  Content-Disposition: attachment; filename="chiptunes.m3u"
+  Cache-Control: public, max-age=3600

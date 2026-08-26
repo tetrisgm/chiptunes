@@ -1,0 +1,14 @@
+{
+  "canonicalRoundtripPassed": 30,
+  "categories": {
+    "dense": 6,
+    "drum-heavy": 6,
+    "general": 6,
+    "sustain-heavy": 6,
+    "tempo-changing": 6
+  },
+  "schema": "chiptunes-midi-score-v2-oracle-stage-v1",
+  "selectionSha256": "22c9baf61dd0b78073e4be159f4a99b08146e8b2f74aa458ea9c3a715236de74",
+  "songs": 30,
+  "uniqueFamilies": 30
+}

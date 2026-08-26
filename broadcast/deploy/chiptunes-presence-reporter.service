@@ -1,0 +1,16 @@
+[Unit]
+Description=Chiptunes.app - aggregate live-count reporter (folds YouTube + internet-radio listeners into the site total)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Hard hang cap: every network call inside is already AbortController-bounded (~10s each), so a healthy
+# tick finishes in a few seconds; this is the belt-and-suspenders wall-clock kill for a wedged run.
+TimeoutStartSec=40s
+EnvironmentFile=/etc/chiptunes.env
+# Same OAuth creds the YouTube guardian uses (owner minted the refresh token once via `youtube-live.mjs auth`).
+# Missing/invalid creds just make the YouTube contribution 0 — the reporter still ships the stream count.
+Environment=YOUTUBE_CREDS=/etc/chiptunes-youtube-oauth.json
+# --once: do exactly one report then exit; the timer drives the ~45s cadence (no long-lived process to wedge).
+ExecStart=/usr/bin/node @REPO@/broadcast/presence-reporter.mjs --once

@@ -1,0 +1,119 @@
+// The Game Boy, on the audio thread.
+//
+// This file is only the processor shell: build.js prepends src/gb-hardware.js
+// and src/gb-apu.js to it to produce dist/lib/gb-chip-worklet.js, because an
+// AudioWorklet has its own global scope and cannot import from the page. That
+// concatenation is the point -- the chip making sound in your browser is the
+// same source scripts/gb-emu.js runs the cartridge through, so the two cannot
+// drift apart without the build noticing.
+//
+// It renders mono, because a DMG is mono, and copies it to both outputs.
+class GbChipProcessor extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.seq = null;
+    this.paused = false;
+    this.gb = null;
+    this.lead = 0;
+    // 'score' plays the composition through the chip. 'rom' executes the actual
+    // exported cartridge -- same APU, but the register writes come from 8-bit
+    // code instead of a sequencer, which is what "try it on a Game Boy" means.
+    this.mode = 'score';
+    this.cpu = null; this.romApu = null; this.owed = 0; this.dead = false;
+    this.port.onmessage = (ev) => {
+      const m = ev.data || {};
+      if (m.type === 'play') {
+        this.gb = m.gb || null;
+        this.seq = this.gb ? new globalThis.CT_GB_APU.Sequencer(this.gb, sampleRate) : null;
+        // A live join starts mid-track. Applying the register writes up to that
+        // frame without simulating the intervening audio is instant and leaves
+        // every channel holding whatever the last note before the join set --
+        // which is what a listener tuning in halfway would hear anyway.
+        if (this.seq && m.offsetFrames > 0) this.seq.seek(m.offsetFrames | 0);
+        // The live mixer and a pinned tempo survive a track change: reapply the
+        // last known settings to every new sequencer.
+        if (this.seq && m.rate != null) this.chipRate = +m.rate;
+        if (this.seq && m.mix) this.chipMix = m.mix;
+        if (this.seq && this.chipRate) this.seq.setRate(this.chipRate);
+        if (this.seq && this.chipMix) this.seq.setMix(this.chipMix);
+        // Decks open a fraction of a second in the future so the event scheduler
+        // has lead time; the chip waits the same amount or the games run ahead
+        // of their own music.
+        this.lead = Math.max(0, Math.round((m.leadSec || 0) * sampleRate));
+        this.paused = !!m.paused;
+      } else if (m.type === 'rom') {
+        const G = globalThis;
+        this.mode = 'rom'; this.dead = false; this.owed = 0; this.lead = 0;
+        this.romApu = new G.CT_GB_APU.Apu(sampleRate);
+        this.cps = G.CT_GB_APU.MASTER / sampleRate;
+        const apu = this.romApu;
+        this.cpu = new G.CT_GB_CPU.Cpu(new Uint8Array(m.bytes), {
+          onIo: (reg, val) => { if (reg >= 0x10 && reg <= 0x3F) apu.write(reg, val); },
+          onCycles: (c) => { this.owed += c; }
+        });
+        this.paused = !!m.paused;
+      } else if (m.type === 'score') {
+        this.mode = 'score'; this.cpu = null; this.romApu = null;
+      } else if (m.type === 'pause') {
+        this.paused = !!m.paused;
+      } else if (m.type === 'rate') {
+        this.chipRate = Math.max(0.25, Math.min(4, +m.rate || 1));
+        if (this.seq) this.seq.setRate(this.chipRate);
+      } else if (m.type === 'mix') {
+        this.chipMix = m.mix || null;
+        if (this.seq && this.chipMix) this.seq.setMix(this.chipMix);
+      } else if (m.type === 'stop') {
+        this.seq = null; this.gb = null;
+      }
+    };
+  }
+  // Report the level back about twice a second. Silence that should not be
+  // silent is the failure mode this whole change guards against, and it is
+  // invisible from the page otherwise.
+  report(L, frame) {
+    let peak = 0;
+    for (let i = 0; i < L.length; i++) { const a = L[i] < 0 ? -L[i] : L[i]; if (a > peak) peak = a; }
+    this.peak = Math.max(this.peak || 0, peak);
+    this.blocks = (this.blocks || 0) + 1;
+    if (this.blocks >= 40) {
+      this.port.postMessage({ type: 'stat', peak: this.peak, frame: frame, mode: this.mode });
+      this.peak = 0; this.blocks = 0;
+    }
+  }
+  process(inputs, outputs) {
+    const out = outputs[0];
+    if (!out || !out.length) return true;
+    const L = out[0], R = out.length > 1 ? out[1] : null;
+    if (this.mode === 'rom') {
+      if (!this.cpu || this.paused || this.dead) { L.fill(0); if (R) R.fill(0); return true; }
+      try {
+        for (let i = 0; i < L.length; i++) {
+          while (this.owed < this.cps) this.cpu.step();
+          this.owed -= this.cps;
+          this.romApu._advance(this.cps);
+          L[i] = this.romApu._mix();
+        }
+      } catch (e) {
+        // An exception thrown out of process() destroys the processor and the
+        // page goes silent with no explanation. Stop this cartridge, say why.
+        this.dead = true; L.fill(0);
+        this.port.postMessage({ type: 'romError', message: String((e && e.message) || e) });
+      }
+      if (R) R.set(L);
+      this.report(L, this.cpu ? this.cpu.frame : 0);
+      return true;
+    }
+    if (!this.seq || this.paused) { L.fill(0); if (R) R.fill(0); return true; }
+    let at = 0;
+    if (this.lead > 0) {
+      const n = Math.min(this.lead, L.length);
+      L.fill(0, 0, n); this.lead -= n; at = n;
+      if (at >= L.length) { if (R) R.set(L); return true; }
+    }
+    this.seq.render(L, at, L.length - at);
+    if (R) R.set(L);
+    this.report(L, this.seq.frame);
+    return true;
+  }
+}
+registerProcessor('chiptunes-gb-chip', GbChipProcessor);

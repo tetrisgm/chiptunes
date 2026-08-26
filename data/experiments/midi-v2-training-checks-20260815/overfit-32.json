@@ -1,0 +1,30 @@
+{
+  "batchSize": 2,
+  "context": 512,
+  "cuda": "NVIDIA GeForce RTX 4080 SUPER",
+  "device": "cuda",
+  "elapsedSeconds": 16.255,
+  "eventsPerSecond": 31497.62,
+  "eventsSelected": 123060,
+  "finalLoss": 0.8657186031341553,
+  "initialLoss": 3.6850359439849854,
+  "lossFinite": true,
+  "lossImproved": true,
+  "manifestSha256": "d39504d99593f74f4c78238f04eba483b077d9fe3859b4da298b2576e7711eb5",
+  "minimumLoss": 0.3857249915599823,
+  "mode": "overfit",
+  "model": {
+    "heads": 8,
+    "layers": 4,
+    "parameters": 4047360,
+    "width": 256
+  },
+  "peakGpuBytes": 112844288,
+  "schema": "chiptunes-midi-score-v2-training-check-v1",
+  "scoresEligible": 38491,
+  "scoresSelected": 32,
+  "seed": 20260815,
+  "steps": 500,
+  "stepsPerSecond": 30.759395,
+  "torch": "2.11.0+cu128"
+}
