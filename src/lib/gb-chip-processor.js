@@ -48,6 +48,7 @@ class GbChipProcessor extends AudioWorkletProcessor {
           // a pause host); ordinary note-offs, so no DAC pop
           this.seq.cutNotes();
         }
+        if (this.seq && this.chMuteMask) this.seq.chMute = this.chMuteMask;
         // A live join starts mid-track. Applying the register writes up to that
         // frame without simulating the intervening audio is instant and leaves
         // every channel holding whatever the last note before the join set --
@@ -98,6 +99,19 @@ class GbChipProcessor extends AudioWorkletProcessor {
       } else if (m.type === 'mix') {
         this.chipMix = m.mix || null;
         if (this.seq && this.chipMix) this.seq.setMix(this.chipMix);
+      } else if (m.type === 'chmute') {
+        // mute mask for the editor's lanes; silences a newly muted channel
+        // immediately with an ordinary note-off (wave: level 0, DAC kept)
+        var mask = m.mask || null;
+        if (this.seq) {
+          var prev = this.seq.chMute || [false, false, false, false];
+          for (var mc = 0; mc < 4; mc++) if (mask && mask[mc] && !prev[mc]) {
+            var mb = 0x11 + mc * 5;
+            this.seq.apu.write(mb + 1, 0x00); this.seq.apu.write(mb + 3, 0x80);
+          }
+          this.seq.chMute = mask;
+        }
+        this.chMuteMask = mask;
       } else if (m.type === 'stop') {
         this.seq = null; this.gb = null;
       }

@@ -257,7 +257,7 @@
     resolveBank();
     var notes = [], per = framesPer16();
     var byCol = {};
-    S.cells.forEach(function (x) { delete x.x; (byCol[x.c] = byCol[x.c] || []).push(x); });
+    S.cells.forEach(function (x) { delete x.x; delete x.rch; (byCol[x.c] = byCol[x.c] || []).push(x); });
     for (var c = 0; c < cols(); c++) {
       var here = byCol[c] || [];
       var slots = [false, false], wave = false, drum = false;
@@ -266,7 +266,7 @@
         if (x.r >= MEL_ROWS) {                              // drum lane
           var d = DRUMS[x.r - MEL_ROWS];
           if (drum) { x.x = 1; return; }
-          drum = true;
+          drum = true; x.rch = 3;
           var dInst = x.inst != null ? x.inst : INSTOF[d.id];
           var dVel = x.vel != null ? x.vel : d.vel;
           if (x.g) {                                        // drum ratchet
@@ -296,7 +296,7 @@
                      vel: x.vel != null ? x.vel : 0.8, pri: 5 };
         if (voice === 'wave') {
           if (wave) { x.x = 1; return; }
-          wave = true; note.ch = 2;
+          wave = true; note.ch = 2; x.rch = 2;
         } else {
           // an exact channel (composed cells) claims its slot first, then the
           // other pulse; slides want channel 1's sweep unit; hand cells take
@@ -305,7 +305,7 @@
                      : (x.z || x.u || x.sweep != null) ? 0 : (slots[0] ? 1 : 0);
           var ch = !slots[wantCh] ? wantCh : !slots[1 - wantCh] ? 1 - wantCh : -1;
           if (ch < 0) { x.x = 1; return; }
-          slots[ch] = true; note.ch = ch;
+          slots[ch] = true; note.ch = ch; x.rch = ch;
           if (x.sweep != null) { if (note.ch === 0) note.sweep = x.sweep; }
           else if (note.ch === 0 && x.z) note.sweep = 0x3E;  // the fall off the note
           else if (note.ch === 0 && x.u) note.sweep = 0x36;  // ...and the rise
@@ -426,6 +426,29 @@
   // The timeline camera: the whole track is one horizontal strip; the view
   // scrolls through it and follows the playhead until you pan by hand.
   var camX = 0, camFollow = true, panMode = null;
+  // The four voices as lanes: mute each, or solo one. Chip-side (a 'chmute'
+  // message), so it bites instantly on grid songs AND verbatim compositions.
+  var LANES = [{ n: 'P1', tip: 'Pulse 1 (leads, slides)' }, { n: 'P2', tip: 'Pulse 2 (harmony)' },
+               { n: 'WAV', tip: 'Wave (bass voices)' }, { n: 'NOI', tip: 'Noise (drums)' }];
+  var chMuted = [false, false, false, false], chSolo = -1;
+  function effMask() {
+    if (chSolo >= 0) return [0, 1, 2, 3].map(function (i) { return i !== chSolo; });
+    return chMuted.slice();
+  }
+  function applyLanes() {
+    if (typeof Audio !== 'undefined' && Audio.setChipMute) {
+      var m = effMask();
+      Audio.setChipMute(m[0] || m[1] || m[2] || m[3] ? m : null);
+    }
+    renderLanes(); draw();
+  }
+  function renderLanes() {
+    root.querySelectorAll('.cr-lane').forEach(function (b) {
+      var i = +b.dataset.lane, m = effMask();
+      b.classList.toggle('muted', !!m[i]);
+      b.classList.toggle('solo', chSolo === i);
+    });
+  }
   function curBpm() { return liveScore ? liveBpm : S.bpm; }
   function dropLiveScore() { liveScore = null; liveBpm = 0; }
   function songMs() {
@@ -435,6 +458,7 @@
   var repostTimer = 0, saveTimer = 0;
   function dirty() {
     if (!root) return;
+    if (!playing) { try { buildSong(); } catch (e) {} }   // refresh sulk + channel marks
     renderPalette(); draw();
     clearTimeout(saveTimer);
     saveTimer = setTimeout(function () {
@@ -639,6 +663,7 @@
     liveScore = { notes: gb.notes, bank: gb.bank, totalFrames: gb.totalFrames, loopFrames: 0 };
     liveBpm = score.bpm || S.bpm;
     liveMood = String(moodText || '');
+    try { buildSong(); } catch (e) {}          // resolve channel marks for lane ticks/dimming
     camX = 0; camFollow = true;
     pausedAt = 0;
     startPlayback(0);
@@ -757,6 +782,7 @@
     g.globalAlpha = 1;
     // stamps (only the visible ones)
     var now = performance.now();
+    var em = effMask();
     S.cells.forEach(function (x) {
       var px = colX(x.c, L), py = L.gy + x.r * L.chh;
       var lenSteps = x.len || 1;
@@ -770,7 +796,12 @@
       var pop = x.a ? Math.max(0, 1 - (now - x.a) / 220) : 0;
       var s2 = size * (1 + pop * 0.35);
       var name = x.r >= MEL_ROWS ? DRUMS[x.r - MEL_ROWS].id : x.st;
-      if (x.x) g.globalAlpha = 0.32;
+      var laneOff = x.rch != null && em[x.rch];
+      if (x.rch != null && x.r < MEL_ROWS) {
+        g.fillStyle = ['rgba(123,220,160,0.8)', 'rgba(87,196,255,0.8)', 'rgba(232,167,93,0.8)'][x.rch] || 'rgba(255,255,255,0.4)';
+        g.fillRect(px + 1, py + 2, 3, L.chh - 4);
+      }
+      if (x.x || laneOff) g.globalAlpha = laneOff ? 0.22 : 0.32;
       var wob = x.x ? Math.sin(now / 130 + x.c) * 2 : 0;
       g.drawImage(sprite(name, 40), px + (L.cw - s2) / 2 + wob, py + (L.chh - s2) / 2, s2, s2);
       g.globalAlpha = 1;
@@ -1047,7 +1078,12 @@
     order = S.cells.length;
     root = document.createElement('div'); root.id = 'createscreen';
     root.innerHTML = '<div class="cr-top">' + toolbarHTML() + '</div>' +
-      '<div class="cr-moods">' + CHIPS.map(function (c) {
+      '<div class="cr-moods">' +
+      '<span class="cr-lanes">' + LANES.map(function (l, i) {
+        return '<button type="button" class="cr-lane" data-lane="' + i + '" title="' + l.tip +
+               '" data-tip="' + l.tip + ': click mutes, S solos">' + l.n + '<i>S</i></button>';
+      }).join('') + '</span>' +
+      CHIPS.map(function (c) {
         return '<button type="button" class="cr-chip" data-mood="' + c + '">' + c + '</button>';
       }).join('') + '</div>' +
       '<div class="cr-main"><canvas class="cr-cv"></canvas></div>' +
@@ -1092,6 +1128,14 @@
         renderPalette();
         if ((mo === 'wob' && S.wob) || (mo !== 'wob' && S.cmd === mo))
           auditionStamp(S.cur === 'eraser' || S.cur.charAt(0) === 'i' ? 'piano' : S.cur);
+        return;
+      }
+      var ln = ev.target.closest('.cr-lane');
+      if (ln) {
+        var li = +ln.dataset.lane;
+        if (ev.target.tagName === 'I') { chSolo = chSolo === li ? -1 : li; }
+        else { chMuted[li] = !chMuted[li]; if (chSolo === li) chSolo = -1; }
+        applyLanes();
         return;
       }
       var di = ev.target.closest('[data-inst]');
@@ -1211,6 +1255,7 @@
   function close() {
     if (playing) pausePlayback(); else armChip();
     pausedAt = 0;
+    chMuted = [false, false, false, false]; chSolo = -1;   // playScore() clears the chip mask
     if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
     if (root) root.classList.remove('show');
     document.body.classList.remove('create-open');

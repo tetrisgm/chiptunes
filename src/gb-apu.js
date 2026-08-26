@@ -309,6 +309,9 @@
         continue;
       }
       note = e.n; g = 1;
+      // live channel mute (the Create editor's lanes): skip the trigger, let
+      // note-offs still run. Never set on the radio or offline paths.
+      if (this.chMute && this.chMute[note.ch | 0]) continue;
       if (this.mix) {
         var role = PRI_ROLE[note.pri | 0];
         if (role != null && this.mix[role] != null) g = this.mix[role];

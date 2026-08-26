@@ -484,6 +484,19 @@
   #createscreen .cr-mood::placeholder{ color:var(--ink-2); }
   #createscreen .cr-moods{ flex:0 0 auto; display:flex; align-items:center; justify-content:center;
     gap:8px; padding:0 16px 6px; flex-wrap:wrap; }
+  #createscreen .cr-lanes{ display:inline-flex; gap:5px; margin-right:14px; padding-right:14px;
+    border-right:1px solid var(--mat-edge); }
+  #createscreen .cr-lane{ height:26px; padding:0 6px 0 10px; border-radius:8px; cursor:pointer;
+    display:inline-flex; align-items:center; gap:6px; background:rgba(255,255,255,.06);
+    border:1px solid var(--mat-edge); color:var(--ink); font:700 10px var(--ui); position:relative; }
+  #createscreen .cr-lane i{ font:700 9px var(--ui); font-style:normal; color:var(--ink-2);
+    border:1px solid var(--mat-edge); border-radius:4px; padding:1px 4px; }
+  #createscreen .cr-lane:hover{ border-color:var(--mat-edge-hi); }
+  #createscreen .cr-lane.muted{ color:var(--ink-2); background:rgba(255,255,255,.02); }
+  #createscreen .cr-lane.muted::after{ content:''; position:absolute; left:8px; right:26px; top:50%;
+    height:1px; background:currentColor; }
+  #createscreen .cr-lane.solo{ background:rgba(123,220,160,.2); border-color:rgba(123,220,160,.6); }
+  #createscreen .cr-lane.solo i{ color:#7BDCA0; border-color:rgba(123,220,160,.6); }
   #createscreen .cr-chip{ height:26px; padding:0 12px; border-radius:999px; cursor:pointer;
     background:rgba(255,255,255,.06); border:1px solid var(--mat-edge); color:var(--ink-2);
     font:600 11px var(--ui); }
@@ -2168,6 +2181,9 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
         continue;
       }
       note = e.n; g = 1;
+      // live channel mute (the Create editor's lanes): skip the trigger, let
+      // note-offs still run. Never set on the radio or offline paths.
+      if (this.chMute && this.chMute[note.ch | 0]) continue;
       if (this.mix) {
         var role = PRI_ROLE[note.pri | 0];
         if (role != null && this.mix[role] != null) g = this.mix[role];
@@ -3388,7 +3404,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     resolveBank();
     var notes = [], per = framesPer16();
     var byCol = {};
-    S.cells.forEach(function (x) { delete x.x; (byCol[x.c] = byCol[x.c] || []).push(x); });
+    S.cells.forEach(function (x) { delete x.x; delete x.rch; (byCol[x.c] = byCol[x.c] || []).push(x); });
     for (var c = 0; c < cols(); c++) {
       var here = byCol[c] || [];
       var slots = [false, false], wave = false, drum = false;
@@ -3397,7 +3413,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
         if (x.r >= MEL_ROWS) {                              // drum lane
           var d = DRUMS[x.r - MEL_ROWS];
           if (drum) { x.x = 1; return; }
-          drum = true;
+          drum = true; x.rch = 3;
           var dInst = x.inst != null ? x.inst : INSTOF[d.id];
           var dVel = x.vel != null ? x.vel : d.vel;
           if (x.g) {                                        // drum ratchet
@@ -3427,7 +3443,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
                      vel: x.vel != null ? x.vel : 0.8, pri: 5 };
         if (voice === 'wave') {
           if (wave) { x.x = 1; return; }
-          wave = true; note.ch = 2;
+          wave = true; note.ch = 2; x.rch = 2;
         } else {
           // an exact channel (composed cells) claims its slot first, then the
           // other pulse; slides want channel 1's sweep unit; hand cells take
@@ -3436,7 +3452,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
                      : (x.z || x.u || x.sweep != null) ? 0 : (slots[0] ? 1 : 0);
           var ch = !slots[wantCh] ? wantCh : !slots[1 - wantCh] ? 1 - wantCh : -1;
           if (ch < 0) { x.x = 1; return; }
-          slots[ch] = true; note.ch = ch;
+          slots[ch] = true; note.ch = ch; x.rch = ch;
           if (x.sweep != null) { if (note.ch === 0) note.sweep = x.sweep; }
           else if (note.ch === 0 && x.z) note.sweep = 0x3E;  // the fall off the note
           else if (note.ch === 0 && x.u) note.sweep = 0x36;  // ...and the rise
@@ -3557,6 +3573,29 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   // The timeline camera: the whole track is one horizontal strip; the view
   // scrolls through it and follows the playhead until you pan by hand.
   var camX = 0, camFollow = true, panMode = null;
+  // The four voices as lanes: mute each, or solo one. Chip-side (a 'chmute'
+  // message), so it bites instantly on grid songs AND verbatim compositions.
+  var LANES = [{ n: 'P1', tip: 'Pulse 1 (leads, slides)' }, { n: 'P2', tip: 'Pulse 2 (harmony)' },
+               { n: 'WAV', tip: 'Wave (bass voices)' }, { n: 'NOI', tip: 'Noise (drums)' }];
+  var chMuted = [false, false, false, false], chSolo = -1;
+  function effMask() {
+    if (chSolo >= 0) return [0, 1, 2, 3].map(function (i) { return i !== chSolo; });
+    return chMuted.slice();
+  }
+  function applyLanes() {
+    if (typeof Audio !== 'undefined' && Audio.setChipMute) {
+      var m = effMask();
+      Audio.setChipMute(m[0] || m[1] || m[2] || m[3] ? m : null);
+    }
+    renderLanes(); draw();
+  }
+  function renderLanes() {
+    root.querySelectorAll('.cr-lane').forEach(function (b) {
+      var i = +b.dataset.lane, m = effMask();
+      b.classList.toggle('muted', !!m[i]);
+      b.classList.toggle('solo', chSolo === i);
+    });
+  }
   function curBpm() { return liveScore ? liveBpm : S.bpm; }
   function dropLiveScore() { liveScore = null; liveBpm = 0; }
   function songMs() {
@@ -3566,6 +3605,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   var repostTimer = 0, saveTimer = 0;
   function dirty() {
     if (!root) return;
+    if (!playing) { try { buildSong(); } catch (e) {} }   // refresh sulk + channel marks
     renderPalette(); draw();
     clearTimeout(saveTimer);
     saveTimer = setTimeout(function () {
@@ -3770,6 +3810,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     liveScore = { notes: gb.notes, bank: gb.bank, totalFrames: gb.totalFrames, loopFrames: 0 };
     liveBpm = score.bpm || S.bpm;
     liveMood = String(moodText || '');
+    try { buildSong(); } catch (e) {}          // resolve channel marks for lane ticks/dimming
     camX = 0; camFollow = true;
     pausedAt = 0;
     startPlayback(0);
@@ -3888,6 +3929,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     g.globalAlpha = 1;
     // stamps (only the visible ones)
     var now = performance.now();
+    var em = effMask();
     S.cells.forEach(function (x) {
       var px = colX(x.c, L), py = L.gy + x.r * L.chh;
       var lenSteps = x.len || 1;
@@ -3901,7 +3943,12 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       var pop = x.a ? Math.max(0, 1 - (now - x.a) / 220) : 0;
       var s2 = size * (1 + pop * 0.35);
       var name = x.r >= MEL_ROWS ? DRUMS[x.r - MEL_ROWS].id : x.st;
-      if (x.x) g.globalAlpha = 0.32;
+      var laneOff = x.rch != null && em[x.rch];
+      if (x.rch != null && x.r < MEL_ROWS) {
+        g.fillStyle = ['rgba(123,220,160,0.8)', 'rgba(87,196,255,0.8)', 'rgba(232,167,93,0.8)'][x.rch] || 'rgba(255,255,255,0.4)';
+        g.fillRect(px + 1, py + 2, 3, L.chh - 4);
+      }
+      if (x.x || laneOff) g.globalAlpha = laneOff ? 0.22 : 0.32;
       var wob = x.x ? Math.sin(now / 130 + x.c) * 2 : 0;
       g.drawImage(sprite(name, 40), px + (L.cw - s2) / 2 + wob, py + (L.chh - s2) / 2, s2, s2);
       g.globalAlpha = 1;
@@ -4178,7 +4225,12 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     order = S.cells.length;
     root = document.createElement('div'); root.id = 'createscreen';
     root.innerHTML = '<div class="cr-top">' + toolbarHTML() + '</div>' +
-      '<div class="cr-moods">' + CHIPS.map(function (c) {
+      '<div class="cr-moods">' +
+      '<span class="cr-lanes">' + LANES.map(function (l, i) {
+        return '<button type="button" class="cr-lane" data-lane="' + i + '" title="' + l.tip +
+               '" data-tip="' + l.tip + ': click mutes, S solos">' + l.n + '<i>S</i></button>';
+      }).join('') + '</span>' +
+      CHIPS.map(function (c) {
         return '<button type="button" class="cr-chip" data-mood="' + c + '">' + c + '</button>';
       }).join('') + '</div>' +
       '<div class="cr-main"><canvas class="cr-cv"></canvas></div>' +
@@ -4223,6 +4275,14 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
         renderPalette();
         if ((mo === 'wob' && S.wob) || (mo !== 'wob' && S.cmd === mo))
           auditionStamp(S.cur === 'eraser' || S.cur.charAt(0) === 'i' ? 'piano' : S.cur);
+        return;
+      }
+      var ln = ev.target.closest('.cr-lane');
+      if (ln) {
+        var li = +ln.dataset.lane;
+        if (ev.target.tagName === 'I') { chSolo = chSolo === li ? -1 : li; }
+        else { chMuted[li] = !chMuted[li]; if (chSolo === li) chSolo = -1; }
+        applyLanes();
         return;
       }
       var di = ev.target.closest('[data-inst]');
@@ -4342,6 +4402,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   function close() {
     if (playing) pausePlayback(); else armChip();
     pausedAt = 0;
+    chMuted = [false, false, false, false]; chSolo = -1;   // playScore() clears the chip mask
     if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
     if (root) root.classList.remove('show');
     document.body.classList.remove('create-open');
@@ -6885,7 +6946,7 @@ const Audio = (()=>{
     // on=true runs the exported cartridge; on=false returns to the composition
     // at the position the track has reached.
     playRom(bytes){ return gbPlayRom(bytes); },
-    playScore(){ chipOwner='radio'; return gbPlayScore(); },
+    playScore(){ if(gbNode) gbNode.port.postMessage({type:'chmute', mask:null}); chipOwner='radio'; return gbPlayScore(); },
     // CREATE editor: loop a user-authored gb song on the chip. Shares the
     // radio's chip node; playScore() hands it back afterwards.
     // Entering the editor: the radio goes quiet NOW, not at first play.
@@ -6914,6 +6975,7 @@ const Audio = (()=>{
       return true;
     },
     pokeCreate(note){ if(gbNode && note) gbNode.port.postMessage({type:'poke', note:note}); },
+    setChipMute(mask){ ensureGbChip(); if(gbNode) gbNode.port.postMessage({type:'chmute', mask:mask||null}); },
     stopCreate(){ if(gbNode) gbNode.port.postMessage({type:'stop'}); },  // editor stop: chip quiet, ownership stays; playScore() is the way back
     romMode(){ return gbRomMode; },
     // Quiet, in-key game hooks (over the Engine): the games' melodic support layer.

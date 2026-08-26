@@ -1841,7 +1841,7 @@ const Audio = (()=>{
     // on=true runs the exported cartridge; on=false returns to the composition
     // at the position the track has reached.
     playRom(bytes){ return gbPlayRom(bytes); },
-    playScore(){ chipOwner='radio'; return gbPlayScore(); },
+    playScore(){ if(gbNode) gbNode.port.postMessage({type:'chmute', mask:null}); chipOwner='radio'; return gbPlayScore(); },
     // CREATE editor: loop a user-authored gb song on the chip. Shares the
     // radio's chip node; playScore() hands it back afterwards.
     // Entering the editor: the radio goes quiet NOW, not at first play.
@@ -1870,6 +1870,7 @@ const Audio = (()=>{
       return true;
     },
     pokeCreate(note){ if(gbNode && note) gbNode.port.postMessage({type:'poke', note:note}); },
+    setChipMute(mask){ ensureGbChip(); if(gbNode) gbNode.port.postMessage({type:'chmute', mask:mask||null}); },
     stopCreate(){ if(gbNode) gbNode.port.postMessage({type:'stop'}); },  // editor stop: chip quiet, ownership stays; playScore() is the way back
     romMode(){ return gbRomMode; },
     // Quiet, in-key game hooks (over the Engine): the games' melodic support layer.

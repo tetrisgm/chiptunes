@@ -61,6 +61,13 @@ next. Infrastructure and operations live outside this repository.
   len 4; g/f work on drums). All expand in buildSong into ordinary chip
   notes -- no engine changes, parity untouched. URL hash v4 adds one cmd
   char per cell; v1-v3 links still decode.
+- Channel lanes: P1/P2/WAV/NOI chips (click mutes, S solos) drive a
+  chip-side 'chmute' message -- the Sequencer skips triggers for masked
+  channels and note-offs the newly muted -- so muting bites instantly on
+  grid songs AND verbatim compositions. Session-only, never serialized;
+  playScore() clears the mask so the radio can never come back muted.
+  Cells wear a left-edge tick in their resolved channel's color (rch,
+  computed by buildSong) and dim while their lane is muted.
 - The grid is a TIMELINE: the whole track as one strip of bar panels with a
   camera (follows the playhead; wheel/header-drag pans and disengages;
   play/resume re-engages). Bars are patterns: header glyphs duplicate and

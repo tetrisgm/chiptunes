@@ -484,6 +484,19 @@
   #createscreen .cr-mood::placeholder{ color:var(--ink-2); }
   #createscreen .cr-moods{ flex:0 0 auto; display:flex; align-items:center; justify-content:center;
     gap:8px; padding:0 16px 6px; flex-wrap:wrap; }
+  #createscreen .cr-lanes{ display:inline-flex; gap:5px; margin-right:14px; padding-right:14px;
+    border-right:1px solid var(--mat-edge); }
+  #createscreen .cr-lane{ height:26px; padding:0 6px 0 10px; border-radius:8px; cursor:pointer;
+    display:inline-flex; align-items:center; gap:6px; background:rgba(255,255,255,.06);
+    border:1px solid var(--mat-edge); color:var(--ink); font:700 10px var(--ui); position:relative; }
+  #createscreen .cr-lane i{ font:700 9px var(--ui); font-style:normal; color:var(--ink-2);
+    border:1px solid var(--mat-edge); border-radius:4px; padding:1px 4px; }
+  #createscreen .cr-lane:hover{ border-color:var(--mat-edge-hi); }
+  #createscreen .cr-lane.muted{ color:var(--ink-2); background:rgba(255,255,255,.02); }
+  #createscreen .cr-lane.muted::after{ content:''; position:absolute; left:8px; right:26px; top:50%;
+    height:1px; background:currentColor; }
+  #createscreen .cr-lane.solo{ background:rgba(123,220,160,.2); border-color:rgba(123,220,160,.6); }
+  #createscreen .cr-lane.solo i{ color:#7BDCA0; border-color:rgba(123,220,160,.6); }
   #createscreen .cr-chip{ height:26px; padding:0 12px; border-radius:999px; cursor:pointer;
     background:rgba(255,255,255,.06); border:1px solid var(--mat-edge); color:var(--ink-2);
     font:600 11px var(--ui); }
