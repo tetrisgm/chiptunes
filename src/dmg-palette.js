@@ -170,8 +170,11 @@
         configurable: true, enumerable: desc.enumerable,
         get: desc.get,
         set: function (v) {
-          // gradients and patterns are objects; only strings are colours
-          desc.set.call(this, typeof v === 'string' ? quantize(v) : v);
+          // gradients and patterns are objects; only strings are colours.
+          // __ctpalRaw marks a canvas that is UI, not console art (the Create
+          // editor's grid): its colours pass through, because 1-bit alpha
+          // silently deletes every translucent fill it makes.
+          desc.set.call(this, (typeof v === 'string' && !(this.canvas && this.canvas.__ctpalRaw)) ? quantize(v) : v);
         }
       });
     });

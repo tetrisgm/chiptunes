@@ -531,6 +531,22 @@
     this.frame++;
   };
 
+  // Loop wrap, cartridge style: fire the note-offs that were due exactly at
+  // the boundary, wrap the counter, and keep the chip breathing. Building a
+  // fresh APU here instead re-fires the power-on DAC writes with a reset
+  // output capacitor, and that DC swing is an audible pop at every seam.
+  Sequencer.prototype.rewind = function () {
+    var evs = this.byFrame[this.frame], i, e, base;
+    if (evs) for (i = 0; i < evs.length; i++) {
+      e = evs[i];
+      if (e.t !== 0) continue;
+      base = 0x11 + (e.ch | 0) * 5;
+      this.apu.write(base + 1, 0x00); this.apu.write(base + 3, 0x80);
+      if ((e.ch | 0) < 2) this.vib[e.ch | 0].on = false;
+    }
+    this.frame = 0;
+  };
+
   // Jump to a frame without rendering the audio in between: apply every register
   // write up to it and leave the chip in the state the last note set. Simulating
   // the skipped time would be exact but costs ~100ms for a two-minute offset,
@@ -746,6 +762,7 @@ class GbChipProcessor extends AudioWorkletProcessor {
     this._onmsg = (ev) => {
       const m = ev.data || {};
       if (m.type === 'play') {
+        var prevSeq = this.seq;
         this.gb = m.gb || null;
         // loopFrames: the Create editor plays a short song forever. At the
         // boundary the sequencer is rebuilt (its state machine has no rewind)
@@ -753,6 +770,11 @@ class GbChipProcessor extends AudioWorkletProcessor {
         // seam stays on the grid.
         this.loopFrames = m.loopFrames > 0 ? (m.loopFrames | 0) : 0;
         this.seq = this.gb ? new globalThis.CT_GB_APU.Sequencer(this.gb, sampleRate) : null;
+        // Carry the running chip into the new song: same APU, same output
+        // capacitor. A fresh APU's power-on DAC writes are a DC step through
+        // a reset capacitor -- an audible pop on every live edit and track
+        // start. The wave-table cache resets so the next wave note reloads.
+        if (this.seq && prevSeq) { this.seq.apu = prevSeq.apu; this.seq.waveSlot = -1; }
         // A live join starts mid-track. Applying the register writes up to that
         // frame without simulating the intervening audio is instant and leaves
         // every channel holding whatever the last note before the join set --
@@ -845,13 +867,7 @@ class GbChipProcessor extends AudioWorkletProcessor {
       return true;
     }
     if (!this.seq || this.paused) { L.fill(0); if (R) R.fill(0); return true; }
-    if (this.loopFrames && this.seq.frame >= this.loopFrames) {
-      var acc = this.seq.acc, rt = this.seq.rate, mx = this.seq.mix;
-      this.seq = new globalThis.CT_GB_APU.Sequencer(this.gb, sampleRate);
-      this.seq.acc = acc;
-      if (rt) this.seq.setRate(rt);
-      if (mx) this.seq.setMix(mx);
-    }
+    if (this.loopFrames && this.seq.frame >= this.loopFrames) this.seq.rewind();
     if (this.pokeOff && this.seq.frame >= this.pokeOff.at) {
       var ob = 0x11 + this.pokeOff.ch * 5;
       this.seq.apu.write(ob + 1, 0x00); this.seq.apu.write(ob + 3, 0x80);

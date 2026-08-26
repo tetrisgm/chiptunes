@@ -462,18 +462,28 @@
   #createscreen .cr-cv{ width:100%; height:100%; display:block; touch-action:none; cursor:pointer; }
   #createscreen .cr-pal{ flex:0 0 auto; display:flex; align-items:center; justify-content:center;
     gap:10px; padding:10px 14px 16px; flex-wrap:wrap; }
-  #createscreen .cr-stamp{ width:52px; height:52px; border-radius:14px; cursor:pointer;
+  #createscreen .cr-stamp{ width:58px; height:60px; border-radius:14px; cursor:pointer;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
     display:inline-flex; align-items:center; justify-content:center;
     border:1px solid var(--mat-edge); background:rgba(255,255,255,.05); padding:0; }
   #createscreen .cr-stamp:hover{ border-color:var(--mat-edge-hi); background:rgba(255,255,255,.1); }
   #createscreen .cr-stamp.on{ background:rgba(120,220,160,.2); border-color:rgba(120,220,160,.65);
     transform:scale(1.08); }
   #createscreen .cr-stamp canvas{ image-rendering:pixelated; }
+  #createscreen .cr-stamp .cr-name{ font:600 9px/1 var(--ui); color:var(--ink-2); letter-spacing:.02em; }
+  #createscreen .cr-stamp.on .cr-name{ color:var(--ink); }
+  /* instant hover hints: every control names itself */
+  #createscreen [data-tip]{ position:relative; }
+  #createscreen [data-tip]:hover::after{ content:attr(data-tip); position:absolute; left:50%;
+    transform:translateX(-50%); bottom:calc(100% + 8px); background:rgba(18,20,28,.96);
+    border:1px solid var(--mat-edge-hi); color:var(--ink); font:500 11px/1.35 var(--ui);
+    padding:6px 10px; border-radius:8px; white-space:nowrap; pointer-events:none; z-index:6; }
+  #createscreen .cr-tools [data-tip]:hover::after{ bottom:auto; top:calc(100% + 8px); }
   #createscreen .cr-palsep{ width:1px; height:34px; background:var(--mat-edge); margin:0 4px; }
   @media (max-width:760px){
     #createscreen .cr-top{ padding:8px 10px; gap:8px; }
     #createscreen .cr-title span{ display:none; }
-    #createscreen .cr-stamp{ width:46px; height:46px; }
+    #createscreen .cr-stamp{ width:50px; height:54px; }
   }
 
   /* HOW IT WORKS: the one modal that explains the page. Material card over a

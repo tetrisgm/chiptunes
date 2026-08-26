@@ -21,49 +21,52 @@
 
   // ---- the cast ------------------------------------------------------------
   // 10x10 pixel critters, drawn from strings: '.'=clear, letters=palette.
+  // 10x10 pixel instruments, drawn from strings: '.'=clear, letters=palette.
   var SPRITES = {
-    pip: { pal: { y: '#FFD23F', o: '#FF8C1A', k: '#241A0E', w: '#FFFFFF' }, px: [
-      '...yyyy...', '..yyyyyy..', '.yykyykyy.', '.yyyyyyyy.', 'oyyyyyyyy.',
-      '.yyyyyyy..', '..yyyyyy..', '...oyyo...', '...o..o...', '..........'] },
-    momo: { pal: { p: '#FF7BAE', d: '#D14B85', k: '#241A0E', w: '#FFFFFF' }, px: [
-      '.p......p.', '.pp....pp.', '.pppppppp.', 'ppkppppkpp', 'pppppppppp',
-      'ppp.ww.ppp', '.pppppppp.', '..pppppp..', '..p....p..', '..........'] },
-    bloop: { pal: { g: '#57C4FF', d: '#2B7ECC', k: '#241A0E', w: '#FFFFFF' }, px: [
-      '..g....g..', '.gkg..gkg.', '.ggg..ggg.', '.gggggggg.', 'gggggggggg',
-      'gggggggggg', '.gggggggg.', '..gg..gg..', '..........', '..........'] },
-    twinkle: { pal: { s: '#FFF06A', h: '#FFC93C', k: '#241A0E' }, px: [
-      '....ss....', '....ss....', '.ssssssss.', '..ssssss..', '...ssss...',
-      '..sshhss..', '.ss.hh.ss.', '....hh....', '..........', '..........'] },
-    rumbo: { pal: { b: '#8E7BFF', d: '#5F4BD8', k: '#241A0E', w: '#FFFFFF' }, px: [
-      '..........', '.bbbbbb...', 'bbbbbbbbb.', 'bkbbbbbbbb', 'bbbbbbbbbd',
-      'bbbbbbbbb.', '.bbbbbbd..', '..b..b....', '..........', '..........'] },
-    waffles: { pal: { t: '#E8A75D', d: '#B5763A', k: '#241A0E', w: '#FFFFFF' }, px: [
-      '.t......t.', '.tt....tt.', '.tttttttt.', 'ttkttttktt', 'tttttttttt',
-      'ttttkktttt', '.tttttttt.', '..t.tt.t..', '..........', '..........'] },
-    boom: { pal: { m: '#A8794A', d: '#6E4B27', k: '#241A0E' }, px: [
-      '..........', '..mmmmmm..', '.mmmmmmmm.', 'mmkmmmmkmm', 'mmmmmmmmmm',
-      'mmmddddmmm', '.mmmmmmmm.', '..mm..mm..', '..........', '..........'] },
-    snappy: { pal: { r: '#FF6B57', d: '#C63B2A', k: '#241A0E' }, px: [
-      '.rr....rr.', 'rr.r..r.rr', '..rrrrrr..', '.rrkrrkrr.', '.rrrrrrrr.',
-      'r.rrrrrr.r', '..rrrrrr..', '..r....r..', '..........', '..........'] },
-    tick: { pal: { g: '#7ED957', d: '#4EA32E', k: '#241A0E' }, px: [
-      '....gg....', '..gggggg..', '.ggggggggg'.slice(0,10), '.gggggggg.', '.gkggggkg.',
-      '.gggggggg.', '..g.gg.g..', '..........', '..........', '..........'] },
-    zippy: { pal: { z: '#59E3FF', f: '#FF8C1A', k: '#241A0E' }, px: [
-      '....zz....', '...zzzz...', '...zkzz...', '...zzzz...', '...zzzz...',
-      '..zzzzzz..', '...ffff...', '....ff....', '..........', '..........'] },
-    wobble: { pal: { j: '#C77BFF', d: '#9245D6', k: '#241A0E' }, px: [
-      '..........', '..jjjjjj..', '.jjjjjjjj.', '.jkjjjjkj.', '.jjjjjjjj.',
-      '.jjjjjjjj.', '.j.j.j.j..', '..........', '..........', '..........'] },
+    piano: { pal: { w: '#F2F4F8', k: '#1A1A22', e: '#9AA4B8' }, px: [
+      '..........', 'eeeeeeeeee', 'ewkwwkwkwe', 'ewkwwkwkwe', 'ewkwwkwkwe',
+      'ewwwwwwwwe', 'ewwwwwwwwe', 'eeeeeeeeee', '..........', '..........'] },
+    trumpet: { pal: { y: '#FFD23F', d: '#C99A1E' }, px: [
+      '..........', '...y.y.y..', '.........y', 'yyyyyyyyyy', 'dddddddddd',
+      '.........y', '..........', '..........', '..........', '..........'] },
+    flute: { pal: { s: '#C9D6E8', d: '#8FA0BC', k: '#26303F' }, px: [
+      '..........', '..........', '..........', 'ssssssssss', 'ssksskskss',
+      'dddddddddd', '..........', '..........', '..........', '..........'] },
+    bell: { pal: { g: '#FFC93C', d: '#D99E1B', k: '#241A0E' }, px: [
+      '....gg....', '....gg....', '...gggg...', '..gggggg..', '..gggggg..',
+      '.gggggggg.', 'gggggggggg', '....kk....', '..........', '..........'] },
+    bassg: { pal: { b: '#C0563B', d: '#8A3A26', n: '#B58A4A', k: '#241A0E' }, px: [
+      '........n.', '.......n..', '......n...', '.....n....', '....n.....',
+      '.bbbn.....', 'bbbbbb....', 'bbkbbb....', '.bbbb.....', '..........'] },
+    cello: { pal: { c: '#A8794A', d: '#7A5230', k: '#241A0E', n: '#5C3D1E' }, px: [
+      '....n.....', '....n.....', '..ccccc...', '.ccccccc..', '.ckccckc..',
+      '.ccccccc..', '.ccccccc..', '..ccccc...', '..........', '..........'] },
+    hat: { pal: { y: '#FFD23F', s: '#9AA4B8' }, px: [
+      '..........', 'yyyyyyyyyy', '....s.....', 'yyyyyyyyyy', '....s.....',
+      '....s.....', '....s.....', '...sss....', '..........', '..........'] },
+    snare: { pal: { r: '#FF6B57', w: '#F2F4F8', d: '#C63B2A' }, px: [
+      '..........', '..........', 'rrrrrrrrrr', 'wwwwwwwwww', 'wwwwwwwwww',
+      'rrrrrrrrrr', '.d......d.', '..........', '..........', '..........'] },
+    kick: { pal: { r: '#FF6B57', w: '#F2F4F8' }, px: [
+      '...rrrr...', '..rrwwrr..', '.rwwwwwwr.', '.rwwwwwwr.', '.rwwwwwwr.',
+      '.rwwwwwwr.', '..rrwwrr..', '...rrrr...', '..........', '..........'] },
+    slide: { pal: { z: '#59E3FF' }, px: [
+      'zz........', '.zzz......', '..zzz.....', '...zzz....', '....zzz...',
+      '.....zzz..', '....zzzzzz', '......zzzz', '........zz', '..........'] },
+    vibrato: { pal: { j: '#C77BFF' }, px: [
+      '..........', '..........', '..........', '.jj...jj..', 'j..j.j..j.',
+      '....j....j', '..........', '..........', '..........', '..........'] },
     eraser: { pal: { p: '#FF9EC4', d: '#D96A9A', b: '#7FD4FF', w: '#FFFFFF' }, px: [
       '..........', '..bbbbbb..', '.bwbbbbb..', '.bbbbbbb..', '.pppppppp.',
       '.pwpppppd.', '.pppppppd.', '.ppppppdd.', '..dddddd..', '..........'] }
   };
+
   var CACHE = {};
   function sprite(name, size) {
     var k = name + ':' + size;
     if (CACHE[k]) return CACHE[k];
     var def = SPRITES[name], cv = document.createElement('canvas');
+    cv.__ctpalRaw = true;                    // UI pixels, not console art: the panel quantizer must not touch them
     cv.width = cv.height = size;
     var g = cv.getContext('2d'), cell = size / 10;
     for (var y = 0; y < 10; y++) for (var x = 0; x < 10; x++) {
@@ -77,17 +80,17 @@
 
   // stamps: id, character, how it finds its instrument in the live bank
   var STAMPS = [
-    { id: 'pip',     ch: 'pulse', duty: 0.5,   env: 'pluck', label: 'Pip' },
-    { id: 'momo',    ch: 'pulse', duty: 0.25,  env: 'stab',  label: 'Momo' },
-    { id: 'bloop',   ch: 'pulse', duty: 0.5,   env: 'soft',  label: 'Bloop' },
-    { id: 'twinkle', ch: 'pulse', duty: 0.125, env: 'pluck', label: 'Twinkle' },
-    { id: 'rumbo',   ch: 'wave',  wave: 'buzzy',  label: 'Rumbo' },
-    { id: 'waffles', ch: 'wave',  wave: 'mellow', label: 'Waffles' }
+    { id: 'piano',   ch: 'pulse', duty: 0.5,   env: 'pluck', label: 'Piano',   tip: 'A bright, plucky lead voice' },
+    { id: 'trumpet', ch: 'pulse', duty: 0.25,  env: 'stab',  label: 'Trumpet', tip: 'A punchy, brassy stab' },
+    { id: 'flute',   ch: 'pulse', duty: 0.5,   env: 'soft',  label: 'Flute',   tip: 'A soft, round tone' },
+    { id: 'bell',    ch: 'pulse', duty: 0.125, env: 'pluck', label: 'Bell',    tip: 'A thin, sparkly chime' },
+    { id: 'bassg',   ch: 'wave',  wave: 'buzzy',  label: 'Bass',  tip: 'A big buzzy bass voice' },
+    { id: 'cello',   ch: 'wave',  wave: 'mellow', label: 'Cello', tip: 'A warm, mellow low voice' }
   ];
   var DRUMS = [
-    { id: 'tick',   lane: 0, kind: 'hat',   vel: 0.5,  label: 'Tick' },
-    { id: 'snappy', lane: 1, kind: 'snare', vel: 0.7,  label: 'Snappy' },
-    { id: 'boom',   lane: 2, kind: 'kick',  vel: 0.9,  label: 'Boom' }
+    { id: 'hat',   lane: 0, kind: 'hat',   vel: 0.5,  label: 'Hi-hat', tip: 'Top lane: a ticking hi-hat' },
+    { id: 'snare', lane: 1, kind: 'snare', vel: 0.7,  label: 'Snare',  tip: 'Middle lane: a snappy snare' },
+    { id: 'kick',  lane: 2, kind: 'kick',  vel: 0.9,  label: 'Kick',   tip: 'Bottom lane: a deep kick drum' }
   ];
 
   // ---- resolve stamps against the live bank --------------------------------
@@ -117,9 +120,9 @@
     var ns = meta.filter(function (m) { return m.type === 'noise'; })
                  .sort(function (a, b) { return (a.patch.clockShift || 0) - (b.patch.clockShift || 0); });
     var third = Math.max(1, Math.floor(ns.length / 3));
-    INSTOF.tick = ns[0] ? ns[0].index : 0;
-    INSTOF.snappy = (ns[third] || ns[0]).index;
-    INSTOF.boom = (ns[ns.length - 1] || ns[0]).index;
+    INSTOF.hat = ns[0] ? ns[0].index : 0;
+    INSTOF.snare = (ns[third] || ns[0]).index;
+    INSTOF.kick = (ns[ns.length - 1] || ns[0]).index;
     return BANK;
   }
 
@@ -127,7 +130,7 @@
   var S = null, undoStack = [], redoStack = [];
   function freshState() {
     return { key: 0, minor: 0, bars: 4, bpm: 128, swing: 0,
-             cells: [], cur: 'pip', zip: 0, wob: 0 };
+             cells: [], cur: 'piano', zip: 0, wob: 0 };
   }
   function cols() { return S.bars * 16; }
   function cellAt(c, r) {
@@ -214,7 +217,7 @@
       for (var j = 6; j + 2 < v.length + 1 && j + 2 <= v.length - 0; j += 3) {
         var c = v[j] | ((v[j + 1] >> 5) << 6), r = v[j + 1] & 31, b = v[j + 2];
         var cell = { c: c, r: r, t: j };
-        if (r < MEL_ROWS) { cell.st = ids[b & 15] || 'pip'; if (b & 16) cell.z = 1; if (b & 32) cell.w = 1; }
+        if (r < MEL_ROWS) { cell.st = ids[b & 15] || 'piano'; if (b & 16) cell.z = 1; if (b & 32) cell.w = 1; }
         st2.cells.push(cell);
       }
       return st2;
@@ -265,10 +268,10 @@
       if (w) cell.w = 1;
       S.cells.push(cell);
     }
-    var melPool = ['pip', 'momo', 'bloop', 'twinkle'];
+    var melPool = ['piano', 'trumpet', 'flute', 'bell'];
     var mel = pick(melPool);
     var harm = pick(melPool.filter(function (x) { return x !== mel; }));
-    var bass = pick(['rumbo', 'waffles']);
+    var bass = pick(['bassg', 'cello']);
     var prog = pick([[0, 5, 3, 4], [0, 3, 4, 4], [5, 3, 0, 4], [0, 4, 5, 3], [0, 2, 5, 4]]);
     // drums: one lane per column, so nobody ever sulks
     for (var c = 0; c < cols(); c++) {
@@ -325,14 +328,21 @@
     draw();
   }
 
+  // The grid is S.bars phrase panels of 16 steps with a gutter between them:
+  // the four boxes you see ARE the loop, in order, and then it comes around.
   function layout() {
     var r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
     if (cv.width !== Math.round(r.width * dpr)) { cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr); }
     var W = r.width, H = r.height;
-    var cw = Math.min(46, Math.max(18, (W - 60) / cols()));
-    var chm = Math.min(34, Math.max(16, (H - 30) / (ROWS + 0.8)));
-    return { W: W, H: H, dpr: dpr, cw: cw, chh: chm,
-             gx: (W - cw * cols()) / 2, gy: (H - chm * ROWS) / 2 };
+    var gap = S.bars > 4 ? 6 : 14;
+    var cw = Math.min(46, Math.max(8, (W - 80 - (S.bars - 1) * gap) / cols()));
+    var chm = Math.min(34, Math.max(16, (H - 44) / (ROWS + 0.8)));
+    var gw = cw * cols() + (S.bars - 1) * gap;
+    return { W: W, H: H, dpr: dpr, cw: cw, chh: chm, gap: gap, gw: gw,
+             gx: (W - gw) / 2, gy: (H - chm * ROWS) / 2 + 6 };
+  }
+  function colX(c, L) {
+    return L.gx + Math.floor(c / 16) * (16 * L.cw + L.gap) + (c % 16) * L.cw;
   }
   // One rAF chain, ever. The first version called requestAnimationFrame(draw)
   // once per popping cell AND once per frame while playing, none deduped: every
@@ -351,30 +361,37 @@
     var sc = scaleArr();
     for (var r = 0; r < ROWS; r++) {
       for (var c = 0; c < cols(); c++) {
-        var x = L.gx + c * L.cw, y = L.gy + r * L.chh;
+        var x = colX(c, L), y = L.gy + r * L.chh;
         var drum = r >= MEL_ROWS;
         var deg = drum ? 0 : ((MEL_ROWS - 1 - r) % 7);
-        g.fillStyle = drum ? 'rgba(255,255,255,0.05)'
-          : deg === 0 ? 'rgba(120,220,160,0.13)'
-          : (c % 4 === 0 ? 'rgba(255,255,255,0.065)' : 'rgba(255,255,255,0.035)');
-        if (Math.floor(c / 16) % 2 === 1) g.fillStyle = drum ? 'rgba(255,255,255,0.075)'
-          : deg === 0 ? 'rgba(120,220,160,0.17)' : (c % 4 === 0 ? 'rgba(255,255,255,0.09)' : 'rgba(255,255,255,0.055)');
+        g.fillStyle = drum ? 'rgba(255,255,255,0.10)'
+          : deg === 0 ? 'rgba(120,220,160,0.20)'
+          : (c % 4 === 0 ? 'rgba(255,255,255,0.14)' : 'rgba(255,255,255,0.07)');
         g.fillRect(x + 1, y + 1, L.cw - 2, L.chh - 2);
       }
     }
-    // bar numbers, and each drum lane wears its critter's face instead of a word
-    g.fillStyle = 'rgba(232,227,250,0.5)'; g.font = '600 11px system-ui'; g.textBaseline = 'top';
-    for (var b = 0; b < S.bars; b++) g.fillText(String(b + 1), L.gx + b * 16 * L.cw + 4, L.gy - 15);
+    // panel chrome: each bar is a boxed 16-step phrase, numbered, and the
+    // loop arrow after the last one says the song comes back around
+    for (var b = 0; b < S.bars; b++) {
+      var bx = L.gx + b * (16 * L.cw + L.gap);
+      g.strokeStyle = 'rgba(232,227,250,0.30)'; g.lineWidth = 1;
+      g.strokeRect(bx - 3.5, L.gy - 3.5, 16 * L.cw + 7, ROWS * L.chh + 7);
+      g.fillStyle = 'rgba(232,227,250,0.55)'; g.font = '600 11px system-ui'; g.textBaseline = 'bottom';
+      g.fillText(String(b + 1), bx + 2, L.gy - 8);
+    }
+    g.fillStyle = 'rgba(232,227,250,0.5)'; g.font = '600 16px system-ui'; g.textBaseline = 'middle';
+    g.fillText('\u21ba', L.gx + L.gw + 10, L.gy + ROWS * L.chh / 2);
+    // the drum lanes wear their instruments' faces
     g.globalAlpha = 0.45;
     DRUMS.forEach(function (d, i) {
       var ly = L.gy + (MEL_ROWS + i) * L.chh + (L.chh - 16) / 2;
-      g.drawImage(sprite(d.id, 16), L.gx + cols() * L.cw + 6, ly, 16, 16);
+      g.drawImage(sprite(d.id, 16), L.gx - 24, ly, 16, 16);
     });
     g.globalAlpha = 1;
     // stamps
     var now = performance.now();
     S.cells.forEach(function (x) {
-      var px = L.gx + x.c * L.cw, py = L.gy + x.r * L.chh;
+      var px = colX(x.c, L), py = L.gy + x.r * L.chh;
       var size = Math.min(L.cw, L.chh) - 3;
       var pop = x.a ? Math.max(0, 1 - (now - x.a) / 220) : 0;
       var s2 = size * (1 + pop * 0.35);
@@ -383,19 +400,22 @@
       var wob = x.x ? Math.sin(now / 130 + x.c) * 2 : 0;
       g.drawImage(sprite(name, 40), px + (L.cw - s2) / 2 + wob, py + (L.chh - s2) / 2, s2, s2);
       g.globalAlpha = 1;
-      if (x.z) { g.drawImage(sprite('zippy', 20), px + L.cw - 12, py - 2, 12, 12); }
-      if (x.w) { g.drawImage(sprite('wobble', 20), px - 2, py - 2, 12, 12); }
+      if (x.z) { g.drawImage(sprite('slide', 20), px + L.cw - 12, py - 2, 12, 12); }
+      if (x.w) { g.drawImage(sprite('vibrato', 20), px - 2, py - 2, 12, 12); }
       if (pop > 0) animating = true;
     });
-    // playhead: Tick marches along the top
+    // playhead: a marker sweeping the phrases in order, wrapping at the loop
     if (playing) {
       var per16ms = (60 / S.bpm / 4) * 1000;
       var col = ((performance.now() - playT0) / per16ms) % cols();
-      var hx = L.gx + col * L.cw;
+      var hb = Math.floor(col / 16);
+      var hx = L.gx + hb * (16 * L.cw + L.gap) + (col - hb * 16) * L.cw;
       g.fillStyle = 'rgba(255,255,255,0.16)';
       g.fillRect(hx, L.gy, 2, ROWS * L.chh);
-      var bob = Math.abs(Math.sin(performance.now() / 120)) * 5;
-      g.drawImage(sprite('pip', 26), hx - 13, L.gy - 26 - bob, 26, 26);
+      g.fillStyle = 'rgba(120,220,160,0.9)';
+      g.beginPath();
+      g.moveTo(hx - 6, L.gy - 14); g.lineTo(hx + 7, L.gy - 14); g.lineTo(hx + 0.5, L.gy - 4);
+      g.closePath(); g.fill();
     }
     if (animating) scheduleDraw();
   }
@@ -404,9 +424,13 @@
   var dragMode = null;
   function hitCell(ev) {
     var r0 = cv.getBoundingClientRect(), L = layout();
-    var c = Math.floor((ev.clientX - r0.left - L.gx) / L.cw);
+    var x = ev.clientX - r0.left - L.gx;
+    var b = Math.floor(x / (16 * L.cw + L.gap));
+    var off = x - b * (16 * L.cw + L.gap);
+    if (off >= 16 * L.cw + 2) return null;                 // in the gutter
+    var c = b * 16 + Math.max(0, Math.min(15, Math.floor(off / L.cw)));
     var r = Math.floor((ev.clientY - r0.top - L.gy) / L.chh);
-    if (c < 0 || c >= cols() || r < 0 || r >= ROWS) return null;
+    if (x < 0 || c < 0 || c >= cols() || r < 0 || r >= ROWS) return null;
     return { c: c, r: r };
   }
   function applyAt(h, first) {
@@ -456,19 +480,23 @@
   // ---- palette + toolbar ---------------------------------------------------
   function renderPalette() {
     var pal = root.querySelector('.cr-pal');
+    function btn(cls, attr, name, tip, on) {
+      return '<button type="button" class="cr-stamp' + cls + (on ? ' on' : '') + '" ' + attr +
+             ' title="' + tip + '" data-tip="' + tip + '"><span class="cr-name">' + name + '</span></button>';
+    }
     var html = '';
     STAMPS.forEach(function (st) {
-      html += '<button type="button" class="cr-stamp' + (S.cur === st.id ? ' on' : '') + '" data-stamp="' + st.id + '" title="' + st.label + '"></button>';
+      html += btn('', 'data-stamp="' + st.id + '"', st.label, st.tip, S.cur === st.id);
     });
     html += '<span class="cr-palsep"></span>';
-    html += '<button type="button" class="cr-stamp cr-mod' + (S.zip ? ' on' : '') + '" data-mod="zip" title="Zippy: the note slides off"></button>';
-    html += '<button type="button" class="cr-stamp cr-mod' + (S.wob ? ' on' : '') + '" data-mod="wob" title="Wobble: the note holds and sings"></button>';
+    html += btn(' cr-mod', 'data-mod="zip"', 'Slide', 'Slide: new notes zip off downward', !!S.zip);
+    html += btn(' cr-mod', 'data-mod="wob"', 'Vibrato', 'Vibrato: new notes hold and sing', !!S.wob);
     html += '<span class="cr-palsep"></span>';
-    html += '<button type="button" class="cr-stamp' + (S.cur === 'eraser' ? ' on' : '') + '" data-stamp="eraser" title="Eraser: sweep stamps away"></button>';
+    html += btn('', 'data-stamp="eraser"', 'Eraser', 'Eraser: click or sweep to remove notes', S.cur === 'eraser');
     pal.innerHTML = html;
     pal.querySelectorAll('.cr-stamp').forEach(function (b) {
-      var name = b.dataset.stamp || (b.dataset.mod === 'zip' ? 'zippy' : 'wobble');
-      b.appendChild(sprite(name, 34));
+      var name = b.dataset.stamp || (b.dataset.mod === 'zip' ? 'slide' : 'vibrato');
+      b.insertBefore(sprite(name, 30), b.firstChild);
     });
   }
   // Mario Paint's music screen had no key picker, no scale menu, no swing
@@ -476,19 +504,19 @@
   // the rows ARE the scale (C major stays the house key; old links that
   // carry another key still decode and play), and the toolbar is a toy.
   function toolbarHTML() {
-    return '<div class="cr-title"><b>Create</b><span>place the critters, hear the chip</span></div>' +
+    return '<div class="cr-title"><b>Create</b><span>place instruments, hear the chip</span></div>' +
       '<div class="cr-tools">' +
-      '<button type="button" class="cr-btn cr-primary" data-cr="play">▶ Play</button>' +
-      '<label class="cr-lab">' + S.bpm + ' BPM<input type="range" min="70" max="180" step="2" value="' + S.bpm + '" data-cr="bpm"></label>' +
-      '<button type="button" class="cr-btn" data-cr="undo" title="Undo">↩</button>' +
-      '<button type="button" class="cr-btn" data-cr="redo" title="Redo">↪</button>' +
-      '<button type="button" class="cr-btn" data-cr="clear">Clear</button>' +
-      '<button type="button" class="cr-btn" data-cr="dice" title="Roll a fresh pattern">\ud83c\udfb2</button>' +
+      '<button type="button" class="cr-btn cr-primary" data-cr="play" data-tip="Play the loop from the top (Space)">▶ Play</button>' +
+      '<label class="cr-lab" data-tip="Tempo: how fast the loop plays">' + S.bpm + ' BPM<input type="range" min="70" max="180" step="2" value="' + S.bpm + '" data-cr="bpm"></label>' +
+      '<button type="button" class="cr-btn" data-cr="undo" title="Undo" data-tip="Undo the last change">↩</button>' +
+      '<button type="button" class="cr-btn" data-cr="redo" title="Redo" data-tip="Redo what you undid">↪</button>' +
+      '<button type="button" class="cr-btn" data-cr="clear" data-tip="Wipe the whole grid clean">Clear</button>' +
+      '<button type="button" class="cr-btn" data-cr="dice" data-tip="Roll a fresh little song into the grid">\ud83c\udfb2 Dice</button>' +
       '<span class="cr-sep"></span>' +
-      '<button type="button" class="cr-btn" data-cr="share">Copy link</button>' +
-      '<button type="button" class="cr-btn" data-cr="wav">WAV</button>' +
-      '<button type="button" class="cr-btn" data-cr="rom">ROM</button>' +
-      '<button type="button" class="cr-btn cr-close" data-cr="close">×</button>' +
+      '<button type="button" class="cr-btn" data-cr="share" data-tip="Copy a link that IS your song">Copy link</button>' +
+      '<button type="button" class="cr-btn" data-cr="wav" data-tip="Download your song as audio (WAV)">WAV</button>' +
+      '<button type="button" class="cr-btn" data-cr="rom" data-tip="Download a real Game Boy cartridge file (.gb)">ROM</button>' +
+      '<button type="button" class="cr-btn cr-close" data-cr="close" data-tip="Back to the radio (Esc)">×</button>' +
       '</div>';
   }
 
@@ -523,7 +551,7 @@
       '<div class="cr-main"><canvas class="cr-cv"></canvas></div>' +
       '<div class="cr-pal"></div>';
     document.body.appendChild(root);
-    cv = root.querySelector('.cr-cv'); g = cv.getContext('2d');
+    cv = root.querySelector('.cr-cv'); cv.__ctpalRaw = true; g = cv.getContext('2d');
     renderPalette();
     requestAnimationFrame(function () { root.classList.add('show'); draw(); });
     document.body.classList.add('create-open');
@@ -539,7 +567,7 @@
         renderPalette();
         // demo the modifier the moment it turns on, on whatever critter is in hand
         if ((md.dataset.mod === 'zip' && S.zip) || (md.dataset.mod === 'wob' && S.wob))
-          auditionStamp(S.cur === 'eraser' ? 'pip' : S.cur);
+          auditionStamp(S.cur === 'eraser' ? 'piano' : S.cur);
         return;
       }
       var b = ev.target.closest('[data-cr]');

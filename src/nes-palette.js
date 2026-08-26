@@ -350,7 +350,7 @@
       saved[prop] = desc;
       Object.defineProperty(proto, prop, {
         configurable: true, enumerable: desc.enumerable, get: desc.get,
-        set: function (v) { desc.set.call(this, typeof v === 'string' ? quantize(v) : v); }
+        set: function (v) { desc.set.call(this, (typeof v === 'string' && !(this.canvas && this.canvas.__ctpalRaw)) ? quantize(v) : v); }
       });
     });
     var ga = Object.getOwnPropertyDescriptor(proto, 'globalAlpha');
