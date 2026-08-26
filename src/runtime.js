@@ -64,7 +64,11 @@ function _shouldBackgroundAudioOnly(){
   // so you can park it on the side and watch the games play themselves — desktop app AND browser alike.
   // (Blur was never a reliable "background" signal anyway: touch devices, and any window with a playing
   // media element, report unfocused while fully visible.)
-  return !!document.hidden;
+  if(document.hidden) return true;
+  // The Create editor is an opaque full-screen takeover: simulating and painting the stage
+  // beneath it is pure waste, and it visibly drags the editor's own frame rate down.
+  try{ if(typeof CT_CREATE!=='undefined' && CT_CREATE.isOpen()) return true; }catch(e){}
+  return false;
 }
 function _publishAudioOnlyMode(on, reason){
   try{
@@ -1594,6 +1598,10 @@ function _openCreate(){
   try{ if(typeof Audio!=='undefined'&&Audio.enterCreate) Audio.enterCreate(); }catch(e){}
   window._closeCreateReturn=function(){
     try{ if(typeof Audio!=='undefined'&&Audio.playScore) Audio.playScore(); }catch(e){}
+    // The frame loop parked itself while the editor was open (audio-only mode); nothing
+    // else recalls the sync on close, and the game restarts live rather than mid-stumble.
+    if(sceneKind==='game' && selGame && selState) _reseatScene=true;
+    try{ _syncBackgroundAudioOnly(); }catch(e){}
   };
   CT_CREATE.open();
 }

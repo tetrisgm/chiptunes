@@ -266,8 +266,17 @@
     return { W: W, H: H, dpr: dpr, cw: cw, chh: chm,
              gx: (W - cw * cols()) / 2, gy: (H - chm * ROWS) / 2 };
   }
+  // One rAF chain, ever. The first version called requestAnimationFrame(draw)
+  // once per popping cell AND once per frame while playing, none deduped: every
+  // stamp placed during playback permanently added another full-redraw loop,
+  // and the editor ground down the longer you played.
+  var rafId = 0;
+  function scheduleDraw() {
+    if (!rafId) rafId = requestAnimationFrame(function () { rafId = 0; draw(); });
+  }
   function draw() {
     if (!cv) return;
+    var animating = playing;
     var L = layout();
     g.setTransform(L.dpr, 0, 0, L.dpr, 0, 0);
     g.clearRect(0, 0, L.W, L.H);
@@ -305,7 +314,7 @@
       g.globalAlpha = 1;
       if (x.z) { g.drawImage(sprite('zippy', 20), px + L.cw - 12, py - 2, 12, 12); }
       if (x.w) { g.drawImage(sprite('wobble', 20), px - 2, py - 2, 12, 12); }
-      if (pop > 0) requestAnimationFrame(draw);
+      if (pop > 0) animating = true;
     });
     // playhead: Tick marches along the top
     if (playing) {
@@ -316,8 +325,8 @@
       g.fillRect(hx, L.gy, 2, ROWS * L.chh);
       var bob = Math.abs(Math.sin(performance.now() / 120)) * 5;
       g.drawImage(sprite('pip', 26), hx - 13, L.gy - 26 - bob, 26, 26);
-      requestAnimationFrame(draw);
     }
+    if (animating) scheduleDraw();
   }
 
   // ---- input ---------------------------------------------------------------
@@ -483,6 +492,7 @@
   }
   function close() {
     stopPlayback();
+    if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
     if (root) root.classList.remove('show');
     document.body.classList.remove('create-open');
     try { history.replaceState(null, '', '/'); } catch (e) {}
