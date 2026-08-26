@@ -18,7 +18,6 @@
   var MEL_ROWS = 15;                        // two octaves + the octave top
   var DRUM_LANES = 3;                       // hat / snare / kick, top to bottom
   var ROWS = MEL_ROWS + DRUM_LANES;
-  var KEYS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
   // ---- the cast ------------------------------------------------------------
   // 10x10 pixel critters, drawn from strings: '.'=clear, letters=palette.
@@ -55,7 +54,10 @@
       '..zzzzzz..', '...ffff...', '....ff....', '..........', '..........'] },
     wobble: { pal: { j: '#C77BFF', d: '#9245D6', k: '#241A0E' }, px: [
       '..........', '..jjjjjj..', '.jjjjjjjj.', '.jkjjjjkj.', '.jjjjjjjj.',
-      '.jjjjjjjj.', '.j.j.j.j..', '..........', '..........', '..........'] }
+      '.jjjjjjjj.', '.j.j.j.j..', '..........', '..........', '..........'] },
+    eraser: { pal: { p: '#FF9EC4', d: '#D96A9A', b: '#7FD4FF', w: '#FFFFFF' }, px: [
+      '..........', '..bbbbbb..', '.bwbbbbb..', '.bbbbbbb..', '.pppppppp.',
+      '.pwpppppd.', '.pppppppd.', '.ppppppdd.', '..dddddd..', '..........'] }
   };
   var CACHE = {};
   function sprite(name, size) {
@@ -233,9 +235,75 @@
     }, 400);
     if (playing) {
       clearTimeout(repostTimer);
-      repostTimer = setTimeout(function () { startPlayback(); }, 160);
+      repostTimer = setTimeout(repostAtPosition, 160);
     }
   }
+  // The song changed while it was playing: hand the chip the new version at
+  // the position the playhead is already at. playT0 is untouched, so the
+  // marching character keeps marching instead of snapping back to bar one.
+  function repostAtPosition() {
+    if (!playing) return;
+    var song = buildSong();
+    var pos = song.loopFrames > 0
+      ? Math.round(((performance.now() - playT0) / 1000) * FPS) % song.loopFrames : 0;
+    if (typeof Audio !== 'undefined' && Audio.playCreate) Audio.playCreate(song, song.loopFrames, pos);
+    draw();
+  }
+  // The dice: write a small song into the grid. Ambient randomness is fine
+  // HERE -- this is a hand tool, not the station's musical path; the result
+  // is ordinary cells, undoable and shareable like anything placed by hand.
+  function shuffleFill() {
+    snapshot();
+    resolveBank();
+    S.cells = []; order = 0;
+    var R = Math.random;
+    function pick(a) { return a[Math.floor(R() * a.length)]; }
+    function put(c, r, st, w) {
+      if (cellAt(c, r) >= 0) return;
+      var cell = { c: c, r: r, t: ++order, a: performance.now() };
+      if (st) cell.st = st;
+      if (w) cell.w = 1;
+      S.cells.push(cell);
+    }
+    var melPool = ['pip', 'momo', 'bloop', 'twinkle'];
+    var mel = pick(melPool);
+    var harm = pick(melPool.filter(function (x) { return x !== mel; }));
+    var bass = pick(['rumbo', 'waffles']);
+    var prog = pick([[0, 5, 3, 4], [0, 3, 4, 4], [5, 3, 0, 4], [0, 4, 5, 3], [0, 2, 5, 4]]);
+    // drums: one lane per column, so nobody ever sulks
+    for (var c = 0; c < cols(); c++) {
+      var g8 = c % 8;
+      if (g8 === 0) put(c, MEL_ROWS + 2);
+      else if (g8 === 4) put(c, MEL_ROWS + 1);
+      else if (c % 2 === 0) put(c, MEL_ROWS);
+      else if (R() < 0.18) put(c, MEL_ROWS);
+    }
+    for (var b = 0; b < S.bars; b++) {
+      var deg = prog[b % prog.length];
+      // bass on the wave: root walking to the fifth, with room to breathe
+      for (var q = 0; q < 4; q++) {
+        if (q === 3 && R() < 0.5) continue;
+        var d = (q === 2) ? (deg + 4) % 7 : deg;
+        put(b * 16 + q * 4, MEL_ROWS - 1 - d, bass);
+      }
+      // melody an octave up: chord tones with rests and the odd passing tone
+      var tones = [deg + 7, deg + 9, deg + 11];
+      for (var e = 0; e < 8; e++) {
+        if (R() < 0.35) continue;
+        var d2 = R() < 0.3 ? deg + 7 + Math.floor(R() * 5) : pick(tones);
+        while (d2 > MEL_ROWS - 1) d2 -= 7;
+        put(b * 16 + e * 2, MEL_ROWS - 1 - d2, mel);
+      }
+      // sometimes a held harmony note answers mid-bar
+      if (R() < 0.6) {
+        var dh = deg + 9; while (dh > MEL_ROWS - 1) dh -= 7;
+        put(b * 16 + 8, MEL_ROWS - 1 - dh, harm, 1);
+      }
+    }
+    dirty();
+    if (!playing) startPlayback();
+  }
+
   function startPlayback() {
     var song = buildSong();
     if (typeof Audio !== 'undefined' && Audio.playCreate) Audio.playCreate(song, song.loopFrames);
@@ -294,12 +362,15 @@
         g.fillRect(x + 1, y + 1, L.cw - 2, L.chh - 2);
       }
     }
-    // bar numbers + drum labels
+    // bar numbers, and each drum lane wears its critter's face instead of a word
     g.fillStyle = 'rgba(232,227,250,0.5)'; g.font = '600 11px system-ui'; g.textBaseline = 'top';
     for (var b = 0; b < S.bars; b++) g.fillText(String(b + 1), L.gx + b * 16 * L.cw + 4, L.gy - 15);
+    g.globalAlpha = 0.45;
     DRUMS.forEach(function (d, i) {
-      g.fillText(d.label, L.gx - 0 + cols() * L.cw + 6, L.gy + (MEL_ROWS + i) * L.chh + 4);
+      var ly = L.gy + (MEL_ROWS + i) * L.chh + (L.chh - 16) / 2;
+      g.drawImage(sprite(d.id, 16), L.gx + cols() * L.cw + 6, ly, 16, 16);
     });
+    g.globalAlpha = 1;
     // stamps
     var now = performance.now();
     S.cells.forEach(function (x) {
@@ -340,7 +411,7 @@
   }
   function applyAt(h, first) {
     var i = cellAt(h.c, h.r);
-    if (first) dragMode = i >= 0 ? 'erase' : 'place';
+    if (first) dragMode = (S.cur === 'eraser' || i >= 0) ? 'erase' : 'place';
     if (dragMode === 'erase') { if (i >= 0) S.cells.splice(i, 1); dirty(); return; }
     if (i >= 0) return;
     var cell = { c: h.c, r: h.r, t: ++order, a: performance.now() };
@@ -367,6 +438,21 @@
     }
   }
 
+  // Hear a critter the moment it is picked: tonic of the current key,
+  // through the same chip and the same modifiers a placement would get.
+  function auditionStamp(id) {
+    if (id === 'eraser') return;
+    resolveBank();
+    var st = null;
+    for (var i = 0; i < STAMPS.length; i++) if (STAMPS[i].id === id) st = STAMPS[i];
+    if (!st || typeof Audio === 'undefined' || !Audio.pokeCreate) return;
+    var per = framesPer16();
+    Audio.pokeCreate({ ch: st.ch === 'wave' ? 2 : 1,
+                       frames: Math.round(per * (S.wob ? 6 : 2)),
+                       midi: 60 + S.key, inst: INSTOF[st.id], vel: 0.8,
+                       sweep: (S.zip && st.ch !== 'wave') ? 0x3E : 0 });
+  }
+
   // ---- palette + toolbar ---------------------------------------------------
   function renderPalette() {
     var pal = root.querySelector('.cr-pal');
@@ -377,25 +463,27 @@
     html += '<span class="cr-palsep"></span>';
     html += '<button type="button" class="cr-stamp cr-mod' + (S.zip ? ' on' : '') + '" data-mod="zip" title="Zippy: the note slides off"></button>';
     html += '<button type="button" class="cr-stamp cr-mod' + (S.wob ? ' on' : '') + '" data-mod="wob" title="Wobble: the note holds and sings"></button>';
+    html += '<span class="cr-palsep"></span>';
+    html += '<button type="button" class="cr-stamp' + (S.cur === 'eraser' ? ' on' : '') + '" data-stamp="eraser" title="Eraser: sweep stamps away"></button>';
     pal.innerHTML = html;
     pal.querySelectorAll('.cr-stamp').forEach(function (b) {
       var name = b.dataset.stamp || (b.dataset.mod === 'zip' ? 'zippy' : 'wobble');
       b.appendChild(sprite(name, 34));
     });
   }
+  // Mario Paint's music screen had no key picker, no scale menu, no swing
+  // switch: the staff kept you in key and a slider set the pace. Same here --
+  // the rows ARE the scale (C major stays the house key; old links that
+  // carry another key still decode and play), and the toolbar is a toy.
   function toolbarHTML() {
-    var keys = KEYS.map(function (k, i) { return '<option value="' + i + '"' + (S.key === i ? ' selected' : '') + '>' + k + '</option>'; }).join('');
     return '<div class="cr-title"><b>Create</b><span>place the critters, hear the chip</span></div>' +
       '<div class="cr-tools">' +
       '<button type="button" class="cr-btn cr-primary" data-cr="play">▶ Play</button>' +
-      '<select class="cr-sel" data-cr="key">' + keys + '</select>' +
-      '<select class="cr-sel" data-cr="minor"><option value="0"' + (!S.minor ? ' selected' : '') + '>major</option><option value="1"' + (S.minor ? ' selected' : '') + '>minor</option></select>' +
-      '<select class="cr-sel" data-cr="bars"><option' + (S.bars === 2 ? ' selected' : '') + '>2</option><option' + (S.bars === 4 ? ' selected' : '') + '>4</option><option' + (S.bars === 8 ? ' selected' : '') + '>8</option></select>' +
       '<label class="cr-lab">' + S.bpm + ' BPM<input type="range" min="70" max="180" step="2" value="' + S.bpm + '" data-cr="bpm"></label>' +
-      '<button type="button" class="cr-btn' + (S.swing ? ' on' : '') + '" data-cr="swing">Swing</button>' +
       '<button type="button" class="cr-btn" data-cr="undo" title="Undo">↩</button>' +
       '<button type="button" class="cr-btn" data-cr="redo" title="Redo">↪</button>' +
       '<button type="button" class="cr-btn" data-cr="clear">Clear</button>' +
+      '<button type="button" class="cr-btn" data-cr="dice" title="Roll a fresh pattern">\ud83c\udfb2</button>' +
       '<span class="cr-sep"></span>' +
       '<button type="button" class="cr-btn" data-cr="share">Copy link</button>' +
       '<button type="button" class="cr-btn" data-cr="wav">WAV</button>' +
@@ -444,9 +532,16 @@
 
     root.addEventListener('click', function (ev) {
       var st = ev.target.closest('[data-stamp]');
-      if (st) { S.cur = st.dataset.stamp; renderPalette(); return; }
+      if (st) { S.cur = st.dataset.stamp; renderPalette(); auditionStamp(S.cur); return; }
       var md = ev.target.closest('[data-mod]');
-      if (md) { if (md.dataset.mod === 'zip') S.zip = S.zip ? 0 : 1; else S.wob = S.wob ? 0 : 1; renderPalette(); return; }
+      if (md) {
+        if (md.dataset.mod === 'zip') S.zip = S.zip ? 0 : 1; else S.wob = S.wob ? 0 : 1;
+        renderPalette();
+        // demo the modifier the moment it turns on, on whatever critter is in hand
+        if ((md.dataset.mod === 'zip' && S.zip) || (md.dataset.mod === 'wob' && S.wob))
+          auditionStamp(S.cur === 'eraser' ? 'pip' : S.cur);
+        return;
+      }
       var b = ev.target.closest('[data-cr]');
       if (!b) return;
       var k = b.dataset.cr;
@@ -455,38 +550,39 @@
       else if (k === 'undo') { undo(); }
       else if (k === 'redo') { redo(); }
       else if (k === 'clear') { snapshot(); S.cells = []; dirty(); }
-      else if (k === 'swing') { snapshot(); S.swing = S.swing ? 0 : 1; b.classList.toggle('on', !!S.swing); dirty(); }
+      else if (k === 'dice') { shuffleFill(); }
       else if (k === 'share') {
         try { navigator.clipboard.writeText(location.origin + '/create#s=' + encode()); if (G._toast) G._toast('Link copied. The link IS the song 🎵'); } catch (e) {}
       }
       else if (k === 'wav') { exportWav(); }
       else if (k === 'rom') { exportRom(); }
     });
-    root.addEventListener('change', function (ev) {
-      var b = ev.target.closest('[data-cr]'); if (!b) return;
-      snapshot();
-      if (b.dataset.cr === 'key') S.key = +b.value;
-      else if (b.dataset.cr === 'minor') S.minor = +b.value;
-      else if (b.dataset.cr === 'bars') S.bars = +b.value;
-      S.cells = S.cells.filter(function (x) { return x.c < cols(); });
-      dirty();
-    });
     root.addEventListener('input', function (ev) {
       var b = ev.target.closest('[data-cr="bpm"]'); if (!b) return;
       S.bpm = +b.value; b.parentNode.firstChild.textContent = S.bpm + ' BPM';
       dirty();
     });
+    var lastHit = null;
     cv.addEventListener('pointerdown', function (ev) {
       ev.preventDefault(); cv.setPointerCapture(ev.pointerId);
       var h = hitCell(ev); if (!h) return;
-      snapshot(); applyAt(h, true);
+      snapshot(); lastHit = h; applyAt(h, true);
     });
     cv.addEventListener('pointermove', function (ev) {
       if (!dragMode) return;
-      var h = hitCell(ev); if (h) applyAt(h, false);
+      var h = hitCell(ev); if (!h) return;
+      // pointer events arrive sparser than cells: walk the line between the
+      // last sample and this one, or a fast sweep skips columns.
+      if (lastHit) {
+        var dc = h.c - lastHit.c, dr = h.r - lastHit.r;
+        var n = Math.max(Math.abs(dc), Math.abs(dr));
+        for (var i = 1; i <= n; i++)
+          applyAt({ c: lastHit.c + Math.round(dc * i / n), r: lastHit.r + Math.round(dr * i / n) }, false);
+      } else applyAt(h, false);
+      lastHit = h;
     });
     ['pointerup', 'pointercancel'].forEach(function (t) {
-      cv.addEventListener(t, function () { dragMode = null; });
+      cv.addEventListener(t, function () { dragMode = null; lastHit = null; });
     });
     window.addEventListener('resize', draw);
   }

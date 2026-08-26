@@ -1849,7 +1849,7 @@ const Audio = (()=>{
       chipOwner='create';
       if(gbNode) gbNode.port.postMessage({type:'stop'});
     },
-    playCreate(gb, loopFrames){
+    playCreate(gb, loopFrames, offsetFrames){
       if(!gb || !gb.notes){ return false; }
       startAudio(true); if(this.resume) this.resume(true);
       chipOwner='create';
@@ -1859,9 +1859,12 @@ const Audio = (()=>{
         gbSynthGain.gain.setTargetAtTime(0.0001, t, 0.01);
         gbChipGain.gain.setTargetAtTime(1.0, t, 0.01);
       }
+      // offsetFrames: an edit mid-play swaps the song under the playhead
+      // instead of yanking it back to the start.
+      var off=(offsetFrames|0)||0;
       var msg={type:'play', gb:{notes:gb.notes, bank:gb.bank, totalFrames:gb.totalFrames},
-               offsetFrames:0, paused:false, loopFrames:loopFrames|0, rate:1,
-               mix:Object.assign({}, MIX), leadSec:0.06};
+               offsetFrames:off, paused:false, loopFrames:loopFrames|0, rate:1,
+               mix:Object.assign({}, MIX), leadSec:off>0?0.02:0.06};
       ensureGbChip();
       if(gbNode) gbNode.port.postMessage(msg); else gbPending=msg;
       return true;
