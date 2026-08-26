@@ -1591,6 +1591,7 @@ function _buildPlayerLinks(){
 function _openCreate(){
   if(typeof CT_CREATE==='undefined') return;
   if(document.body) document.body.classList.add('ai-visual');
+  try{ if(typeof Audio!=='undefined'&&Audio.enterCreate) Audio.enterCreate(); }catch(e){}
   window._closeCreateReturn=function(){
     try{ if(typeof Audio!=='undefined'&&Audio.playScore) Audio.playScore(); }catch(e){}
   };

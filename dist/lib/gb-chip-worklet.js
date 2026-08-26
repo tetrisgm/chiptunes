@@ -737,6 +737,13 @@ class GbChipProcessor extends AudioWorkletProcessor {
     this.mode = 'score';
     this.cpu = null; this.romApu = null; this.owed = 0; this.dead = false;
     this.port.onmessage = (ev) => {
+      try { this._onmsg(ev); } catch (e) {
+        // an exception here would otherwise vanish: the handler dies silently
+        // and the chip just never plays. Say what happened.
+        this.port.postMessage({ type: 'msgError', message: String((e && e.message) || e), in: (ev.data || {}).type });
+      }
+    };
+    this._onmsg = (ev) => {
       const m = ev.data || {};
       if (m.type === 'play') {
         this.gb = m.gb || null;

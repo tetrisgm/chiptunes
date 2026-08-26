@@ -329,6 +329,7 @@ const Audio = (()=>{
       gbNode.connect(gbChipGain);
       gbNode.port.onmessage = function(ev){
         if(ev.data && ev.data.type==='stat' && typeof window!=='undefined') window.__rrrChip = ev.data;
+        if(ev.data && ev.data.type==='msgError'){ try{ console.error('[chiptunes] chip message failed:', ev.data.in, ev.data.message); }catch(_){} }
       };
       // A track may have started before the module finished loading; play it now.
       if(gbPending){ gbNode.port.postMessage(gbPending); gbPending=null; }
@@ -345,7 +346,13 @@ const Audio = (()=>{
   // Hand a score to the chip. Everything else about the deck -- sections, energy,
   // the beat events the games read -- keeps running off the event scheduler; only
   // the SOUND moves.
+  // Who owns the chip. The radio's scheduler reposts its score on every track
+  // handover and live-sync seek; while the Create editor (or the ROM page)
+  // holds the chip, those reposts must bounce off or the radio steals the
+  // speaker back mid-composition.
+  var chipOwner='radio';
   function gbPlay(score, offsetFrames, paused, leadSec){
+    if(chipOwner!=='radio') return false;
     var gb = score && score.gb;
     var on = !!(gb && gb.notes && gb.notes.length);
     gbActive = on;
@@ -384,6 +391,7 @@ const Audio = (()=>{
   // either way, which is exactly the claim being demonstrated.
   var gbRomMode = false;
   function gbPlayRom(bytes){
+    chipOwner='rom';
     if(!bytes) return false;
     gbRomMode = true;
     var msg = {type:'rom', bytes:bytes, paused:transportPaused};
@@ -403,6 +411,7 @@ const Audio = (()=>{
   // Back to the composition, from wherever the track has got to, so leaving the
   // cartridge does not restart the song.
   function gbPlayScore(){
+    if(chipOwner!=='radio') return;
     gbRomMode = false;
     if(!gbNode || !deckCur) return false;
     gbNode.port.postMessage({type:'score'});
@@ -1774,7 +1783,7 @@ const Audio = (()=>{
     // has been the answer to that differing from the assumption, and none of it
     // was visible from outside.
     chipDiag(){
-      return { chip: !!gbNode, active: gbActive, pending: !!gbPending,
+      return { chip: !!gbNode, active: gbActive, pending: !!gbPending, owner: chipOwner,
                chipGain: gbChipGain ? +gbChipGain.gain.value.toFixed(4) : null,
                synthGain: gbSynthGain ? +gbSynthGain.gain.value.toFixed(4) : null,
                ctx: ctx ? ctx.state : null, paused: transportPaused };
@@ -1832,12 +1841,18 @@ const Audio = (()=>{
     // on=true runs the exported cartridge; on=false returns to the composition
     // at the position the track has reached.
     playRom(bytes){ return gbPlayRom(bytes); },
-    playScore(){ return gbPlayScore(); },
+    playScore(){ chipOwner='radio'; return gbPlayScore(); },
     // CREATE editor: loop a user-authored gb song on the chip. Shares the
     // radio's chip node; playScore() hands it back afterwards.
+    // Entering the editor: the radio goes quiet NOW, not at first play.
+    enterCreate(){
+      chipOwner='create';
+      if(gbNode) gbNode.port.postMessage({type:'stop'});
+    },
     playCreate(gb, loopFrames){
       if(!gb || !gb.notes){ return false; }
       startAudio(true); if(this.resume) this.resume(true);
+      chipOwner='create';
       gbActive=true;
       if(ctx && gbSynthGain && gbChipGain){
         var t=ctx.currentTime;
@@ -1852,7 +1867,7 @@ const Audio = (()=>{
       return true;
     },
     pokeCreate(note){ if(gbNode && note) gbNode.port.postMessage({type:'poke', note:note}); },
-    stopCreate(){ if(gbNode) gbNode.port.postMessage({type:'stop'}); gbPlayScore(); },
+    stopCreate(){ if(gbNode) gbNode.port.postMessage({type:'stop'}); },  // editor stop: chip quiet, ownership stays; playScore() is the way back
     romMode(){ return gbRomMode; },
     // Quiet, in-key game hooks (over the Engine): the games' melodic support layer.
     gameMelodyNote, reactNote, reactOK, playRecipe,

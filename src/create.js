@@ -238,13 +238,20 @@
   }
   function startPlayback() {
     var song = buildSong();
-    if (G.Audio && G.Audio.playCreate) G.Audio.playCreate(song, song.loopFrames);
+    if (typeof Audio !== 'undefined' && Audio.playCreate) Audio.playCreate(song, song.loopFrames);
     playing = true; playT0 = performance.now();
     var pb = root.querySelector('[data-cr="play"]'); if (pb) pb.textContent = '■ Stop';
     draw();
   }
+  // A silent host song keeps the chip's sequencer alive while the editor is
+  // open, so placement pokes are audible before (and between) plays.
+  function armChip() {
+    resolveBank();
+    if (typeof Audio !== 'undefined' && Audio.playCreate)
+      Audio.playCreate({ notes: [], bank: BANK, totalFrames: 0x7fffffff }, 0);
+  }
   function stopPlayback() {
-    if (G.Audio && G.Audio.stopCreate) G.Audio.stopCreate();
+    armChip();
     playing = false;
     var pb = root.querySelector('[data-cr="play"]'); if (pb) pb.textContent = '▶ Play';
     draw();
@@ -338,13 +345,13 @@
     // audition the placed note right now, through the chip
     resolveBank();
     var per = framesPer16();
-    if (G.Audio && G.Audio.pokeCreate) {
+    if (typeof Audio !== 'undefined' && Audio.pokeCreate) {
       if (h.r >= MEL_ROWS) {
         var d = DRUMS[h.r - MEL_ROWS];
-        G.Audio.pokeCreate({ ch: 3, frames: Math.round(per), midi: null, inst: INSTOF[d.id], vel: d.vel });
+        Audio.pokeCreate({ ch: 3, frames: Math.round(per), midi: null, inst: INSTOF[d.id], vel: d.vel });
       } else {
         var st = STAMPS.filter(function (s) { return s.id === S.cur; })[0] || STAMPS[0];
-        G.Audio.pokeCreate({ ch: st.ch === 'wave' ? 2 : 1, frames: Math.round(per * 2),
+        Audio.pokeCreate({ ch: st.ch === 'wave' ? 2 : 1, frames: Math.round(per * 2),
                              midi: rowMidi(h.r), inst: INSTOF[st.id], vel: 0.8,
                              sweep: (S.zip && st.ch !== 'wave') ? 0x3E : 0 });
       }
@@ -408,7 +415,7 @@
 
   // ---- open / close --------------------------------------------------------
   function open() {
-    if (root) { root.classList.add('show'); return; }
+    if (root) { root.classList.add('show'); armChip(); return; }
     var fromUrl = (location.hash.match(/#s=([A-Za-z0-9\-_]+)/) || [])[1];
     S = (fromUrl && decode(fromUrl)) || null;
     if (!S) { try { var d = localStorage.getItem('ct-create-draft'); if (d) S = decode(d); } catch (e) {} }
@@ -423,6 +430,7 @@
     renderPalette();
     requestAnimationFrame(function () { root.classList.add('show'); draw(); });
     document.body.classList.add('create-open');
+    armChip();
     try { history.replaceState(null, '', '/create' + (S.cells.length ? '#s=' + encode() : '')); } catch (e) {}
 
     root.addEventListener('click', function (ev) {
