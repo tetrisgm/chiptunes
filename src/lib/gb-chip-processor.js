@@ -30,6 +30,7 @@ class GbChipProcessor extends AudioWorkletProcessor {
     this._onmsg = (ev) => {
       const m = ev.data || {};
       if (m.type === 'play') {
+        var prevSeq = this.seq;
         this.gb = m.gb || null;
         // loopFrames: the Create editor plays a short song forever. At the
         // boundary the sequencer is rebuilt (its state machine has no rewind)
@@ -37,6 +38,11 @@ class GbChipProcessor extends AudioWorkletProcessor {
         // seam stays on the grid.
         this.loopFrames = m.loopFrames > 0 ? (m.loopFrames | 0) : 0;
         this.seq = this.gb ? new globalThis.CT_GB_APU.Sequencer(this.gb, sampleRate) : null;
+        // Carry the running chip into the new song: same APU, same output
+        // capacitor. A fresh APU's power-on DAC writes are a DC step through
+        // a reset capacitor -- an audible pop on every live edit and track
+        // start. The wave-table cache resets so the next wave note reloads.
+        if (this.seq && prevSeq) { this.seq.apu = prevSeq.apu; this.seq.waveSlot = -1; }
         // A live join starts mid-track. Applying the register writes up to that
         // frame without simulating the intervening audio is instant and leaves
         // every channel holding whatever the last note before the join set --
@@ -129,13 +135,7 @@ class GbChipProcessor extends AudioWorkletProcessor {
       return true;
     }
     if (!this.seq || this.paused) { L.fill(0); if (R) R.fill(0); return true; }
-    if (this.loopFrames && this.seq.frame >= this.loopFrames) {
-      var acc = this.seq.acc, rt = this.seq.rate, mx = this.seq.mix;
-      this.seq = new globalThis.CT_GB_APU.Sequencer(this.gb, sampleRate);
-      this.seq.acc = acc;
-      if (rt) this.seq.setRate(rt);
-      if (mx) this.seq.setMix(mx);
-    }
+    if (this.loopFrames && this.seq.frame >= this.loopFrames) this.seq.rewind();
     if (this.pokeOff && this.seq.frame >= this.pokeOff.at) {
       var ob = 0x11 + this.pokeOff.ch * 5;
       this.seq.apu.write(ob + 1, 0x00); this.seq.apu.write(ob + 3, 0x80);

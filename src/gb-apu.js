@@ -335,6 +335,22 @@
     this.frame++;
   };
 
+  // Loop wrap, cartridge style: fire the note-offs that were due exactly at
+  // the boundary, wrap the counter, and keep the chip breathing. Building a
+  // fresh APU here instead re-fires the power-on DAC writes with a reset
+  // output capacitor, and that DC swing is an audible pop at every seam.
+  Sequencer.prototype.rewind = function () {
+    var evs = this.byFrame[this.frame], i, e, base;
+    if (evs) for (i = 0; i < evs.length; i++) {
+      e = evs[i];
+      if (e.t !== 0) continue;
+      base = 0x11 + (e.ch | 0) * 5;
+      this.apu.write(base + 1, 0x00); this.apu.write(base + 3, 0x80);
+      if ((e.ch | 0) < 2) this.vib[e.ch | 0].on = false;
+    }
+    this.frame = 0;
+  };
+
   // Jump to a frame without rendering the audio in between: apply every register
   // write up to it and leave the chip in the state the last note set. Simulating
   // the skipped time would be exact but costs ~100ms for a two-minute offset,

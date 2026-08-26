@@ -1864,7 +1864,7 @@ const Audio = (()=>{
       var off=(offsetFrames|0)||0;
       var msg={type:'play', gb:{notes:gb.notes, bank:gb.bank, totalFrames:gb.totalFrames},
                offsetFrames:off, paused:false, loopFrames:loopFrames|0, rate:1,
-               mix:Object.assign({}, MIX), leadSec:off>0?0.02:0.06};
+               mix:Object.assign({}, MIX), leadSec:off>0?0:0.06};
       ensureGbChip();
       if(gbNode) gbNode.port.postMessage(msg); else gbPending=msg;
       return true;
