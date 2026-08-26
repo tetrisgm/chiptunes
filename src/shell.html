@@ -476,6 +476,19 @@
   #createscreen .cr-stamp canvas{ image-rendering:pixelated; }
   #createscreen .cr-stamp .cr-name{ font:600 9px/1 var(--ui); color:var(--ink-2); letter-spacing:.02em; }
   #createscreen .cr-stamp.on .cr-name{ color:var(--ink); }
+  #createscreen .cr-moodbox{ display:flex; align-items:center; gap:8px; margin-left:18px; }
+  #createscreen .cr-mood{ width:220px; height:36px; padding:0 14px; border-radius:999px;
+    background:rgba(255,255,255,.07); border:1px solid var(--mat-edge); color:var(--ink);
+    font:500 13px var(--ui); outline:none; }
+  #createscreen .cr-mood:focus{ border-color:rgba(123,220,160,.6); }
+  #createscreen .cr-mood::placeholder{ color:var(--ink-2); }
+  #createscreen .cr-moods{ flex:0 0 auto; display:flex; align-items:center; justify-content:center;
+    gap:8px; padding:0 16px 6px; flex-wrap:wrap; }
+  #createscreen .cr-chip{ height:26px; padding:0 12px; border-radius:999px; cursor:pointer;
+    background:rgba(255,255,255,.06); border:1px solid var(--mat-edge); color:var(--ink-2);
+    font:600 11px var(--ui); }
+  #createscreen .cr-chip:hover{ border-color:var(--mat-edge-hi); color:var(--ink);
+    background:rgba(255,255,255,.11); }
   #createscreen .cr-playstamp{ border-color:rgba(123,220,160,.45); }
   #createscreen .cr-playstamp.on{ background:rgba(123,220,160,.22); border-color:rgba(123,220,160,.7); }
   /* instant hover hints: every control names itself */
@@ -491,6 +504,8 @@
     #createscreen .cr-title span{ display:none; }
     #createscreen .cr-stamp{ width:50px; height:54px; }
     #createscreen .cr-bottom{ flex-wrap:wrap; justify-content:center; }
+    #createscreen .cr-moodbox{ margin-left:0; }
+    #createscreen .cr-mood{ width:130px; }
   }
 
   /* HOW IT WORKS: the one modal that explains the page. Material card over a

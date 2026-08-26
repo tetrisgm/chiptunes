@@ -36,3 +36,23 @@ next. Infrastructure and operations live outside this repository.
   palette is installed; per-variant scheme hints (`st.nesSchemes`) outrank
   the static table; packs must read the live unit `U` every frame (a pinned
   make()-time unit rendered the climber gigantic after a face switch).
+
+## Create (the editor at /create)
+
+- The mood box and chips do parameter-space seed search, NOT curation: mood
+  words map to the composer's own dials (style id, mode family, tempo band)
+  and `composeIntoGrid` compiles random seeds (~0.4ms each, 140 cap) until
+  one's declared parameters match. Owner asked for exactly this (2026-08-26);
+  it never scores output quality, and Create never feeds the station.
+- A composed roll plays the REAL score window verbatim (`liveScore`: its own
+  bank, all instruments); the first hand edit drops to the grid's 6-stamp
+  vocabulary. WAV/ROM exports follow the same rule.
+- The app's `Audio` is a top-level `const`: a global lexical binding, never a
+  `window` property. `window.Audio` is the native HTMLAudioElement
+  constructor. Always reference the bare name.
+- dmg/nes palette systems quantize fillStyle/strokeStyle on the GLOBAL canvas
+  prototype; UI canvases must set `canvas.__ctpalRaw = true` or translucent
+  fills silently vanish while a panel face is active.
+- The chip never rebuilds at a loop seam (`Sequencer.rewind()`) or track
+  swap (APU carry + `cutNotes()`): a fresh APU's power-on DAC writes through
+  a reset output capacitor are an audible pop.

@@ -476,6 +476,19 @@
   #createscreen .cr-stamp canvas{ image-rendering:pixelated; }
   #createscreen .cr-stamp .cr-name{ font:600 9px/1 var(--ui); color:var(--ink-2); letter-spacing:.02em; }
   #createscreen .cr-stamp.on .cr-name{ color:var(--ink); }
+  #createscreen .cr-moodbox{ display:flex; align-items:center; gap:8px; margin-left:18px; }
+  #createscreen .cr-mood{ width:220px; height:36px; padding:0 14px; border-radius:999px;
+    background:rgba(255,255,255,.07); border:1px solid var(--mat-edge); color:var(--ink);
+    font:500 13px var(--ui); outline:none; }
+  #createscreen .cr-mood:focus{ border-color:rgba(123,220,160,.6); }
+  #createscreen .cr-mood::placeholder{ color:var(--ink-2); }
+  #createscreen .cr-moods{ flex:0 0 auto; display:flex; align-items:center; justify-content:center;
+    gap:8px; padding:0 16px 6px; flex-wrap:wrap; }
+  #createscreen .cr-chip{ height:26px; padding:0 12px; border-radius:999px; cursor:pointer;
+    background:rgba(255,255,255,.06); border:1px solid var(--mat-edge); color:var(--ink-2);
+    font:600 11px var(--ui); }
+  #createscreen .cr-chip:hover{ border-color:var(--mat-edge-hi); color:var(--ink);
+    background:rgba(255,255,255,.11); }
   #createscreen .cr-playstamp{ border-color:rgba(123,220,160,.45); }
   #createscreen .cr-playstamp.on{ background:rgba(123,220,160,.22); border-color:rgba(123,220,160,.7); }
   /* instant hover hints: every control names itself */
@@ -491,6 +504,8 @@
     #createscreen .cr-title span{ display:none; }
     #createscreen .cr-stamp{ width:50px; height:54px; }
     #createscreen .cr-bottom{ flex-wrap:wrap; justify-content:center; }
+    #createscreen .cr-moodbox{ margin-left:0; }
+    #createscreen .cr-mood{ width:130px; }
   }
 
   /* HOW IT WORKS: the one modal that explains the page. Material card over a
@@ -3274,9 +3289,9 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       if (S.cells[i].c === c && S.cells[i].r === r) return i;
     return -1;
   }
-  function snapshot() { undoStack.push(JSON.stringify(S)); if (undoStack.length > 80) undoStack.shift(); redoStack.length = 0; }
-  function undo() { if (!undoStack.length) return; redoStack.push(JSON.stringify(S)); S = JSON.parse(undoStack.pop()); dirty(); }
-  function redo() { if (!redoStack.length) return; undoStack.push(JSON.stringify(S)); S = JSON.parse(redoStack.pop()); dirty(); }
+  function snapshot() { dropLiveScore(); undoStack.push(JSON.stringify(S)); if (undoStack.length > 80) undoStack.shift(); redoStack.length = 0; }
+  function undo() { if (!undoStack.length) return; dropLiveScore(); redoStack.push(JSON.stringify(S)); S = JSON.parse(undoStack.pop()); dirty(); }
+  function redo() { if (!redoStack.length) return; dropLiveScore(); undoStack.push(JSON.stringify(S)); S = JSON.parse(redoStack.pop()); dirty(); }
 
   // ---- music ---------------------------------------------------------------
   function scaleArr() { return S.minor ? MINOR : MAJOR; }
@@ -3362,6 +3377,12 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
 
   // ---- DOM + canvas --------------------------------------------------------
   var root = null, cv = null, g = null, playing = false, playT0 = 0, order = 0, pausedAt = 0;
+  // A mood-composed song plays VERBATIM (its own bank, every instrument)
+  // until the first hand edit, when the grid's version takes over. This is
+  // what makes Create sound like the radio's generator, not a 6-stamp echo.
+  var liveScore = null, liveBpm = 0;
+  function curBpm() { return liveScore ? liveBpm : S.bpm; }
+  function dropLiveScore() { liveScore = null; liveBpm = 0; }
   var repostTimer = 0, saveTimer = 0;
   function dirty() {
     if (!root) return;
@@ -3382,24 +3403,106 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   // marching character keeps marching instead of snapping back to bar one.
   function repostAtPosition() {
     if (!playing) return;
-    var song = buildSong();
+    var song = liveScore || buildSong();
     var pos = song.loopFrames > 0
       ? Math.round(((performance.now() - playT0) / 1000) * FPS) % song.loopFrames : 0;
     if (typeof Audio !== 'undefined' && Audio.playCreate) Audio.playCreate(song, song.loopFrames, pos);
     draw();
   }
+  // MOOD WORDS -> composer parameters. No AI anywhere: each word names the
+  // deterministic composer's own dials (style, mode family, tempo band), and
+  // a seed search finds a token whose compiled song satisfies them. The
+  // composer itself is untouched and single-path; only the seed is chosen.
+  var MAJ_MODES = { ionian: 1, mixolydian: 1, lydian: 1, 'pent-major': 1 };
+  var MOOD = {
+    happy: { mode: 'maj', bpmMin: 110 }, cheerful: { mode: 'maj', bpmMin: 110 }, joyful: { mode: 'maj', bpmMin: 110 },
+    sunny: { mode: 'maj', bpmMin: 104 }, bright: { mode: 'maj', bpmMin: 104 }, fun: { mode: 'maj', bpmMin: 110 },
+    sad: { mode: 'min' }, melancholy: { mode: 'min' }, blue: { mode: 'min' },
+    gloomy: { mode: 'min' }, lonely: { mode: 'min' }, moody: { mode: 'min' },
+    dark: { mode: 'min', styles: ['techno', 'dnb', 'funk', 'boombap'] },
+    spooky: { mode: 'min', styles: ['techno', 'funk', 'boombap', 'ballad'] },
+    creepy: { mode: 'min', styles: ['techno', 'funk', 'boombap', 'ballad'] },
+    scary: { mode: 'min', styles: ['techno', 'dnb', 'punk'] },
+    haunted: { mode: 'min', styles: ['ballad', 'drone', 'techno'] },
+    fast: { bpmMin: 145 }, quick: { bpmMin: 145 }, hyper: { bpmMin: 155 },
+    frantic: { bpmMin: 155 }, racing: { bpmMin: 150 }, speedy: { bpmMin: 150 },
+    slow: { bpmMax: 100 }, lazy: { bpmMax: 100 }, sleepy: { bpmMax: 92 },
+    upbeat: { bpmMin: 124, mode: 'maj' }, energetic: { bpmMin: 132 },
+    party: { styles: ['house', 'trance', 'anthem'] },
+    dance: { styles: ['house', 'trance', 'anthem', 'techno'] },
+    bouncy: { styles: ['house', 'breaks', 'funk'] },
+    chill: { styles: ['chill', 'ballad'] }, calm: { styles: ['chill', 'ballad', 'drone'] },
+    relaxed: { styles: ['chill', 'ballad'] }, mellow: { styles: ['chill', 'ballad'] },
+    peaceful: { styles: ['chill', 'ballad', 'drone'] }, cozy: { styles: ['chill', 'boombap'] },
+    dreamy: { styles: ['drone', 'ballad', 'trance'] }, ambient: { styles: ['drone'] },
+    floaty: { styles: ['drone', 'trance'] },
+    epic: { styles: ['anthem'] }, heroic: { styles: ['anthem'], mode: 'maj' },
+    triumphant: { styles: ['anthem'], mode: 'maj' },
+    retro: { styles: ['arcade'] }, arcade: { styles: ['arcade'] }, game: { styles: ['arcade'] },
+    rock: { styles: ['rock', 'punk'] }, punk: { styles: ['punk'] }, metal: { styles: ['punk', 'rock'] },
+    funky: { styles: ['funk', 'boombap'] }, groovy: { styles: ['funk', 'house', 'boombap'] },
+    swing: { styles: ['funk', 'boombap', 'house', 'breaks'] },
+    jazzy: { styles: ['funk', 'boombap', 'chill'], mode: 'min' },
+    battle: { styles: ['dnb', 'punk', 'techno'], mode: 'min' },
+    boss: { styles: ['dnb', 'techno', 'punk'], mode: 'min' },
+    intense: { bpmMin: 140, mode: 'min' },
+    house: { styles: ['house'] }, trance: { styles: ['trance'] }, techno: { styles: ['techno'] },
+    dnb: { styles: ['dnb'] }, drum: { styles: ['dnb'] }, breaks: { styles: ['breaks'] },
+    anthem: { styles: ['anthem'] }, boombap: { styles: ['boombap'] }, hiphop: { styles: ['boombap'] },
+    ballad: { styles: ['ballad'] }, drone: { styles: ['drone'] }, funk: { styles: ['funk'] }
+  };
+  function parseMood(text) {
+    var want = { styles: null, mode: null, bpmMin: 0, bpmMax: 999 };
+    String(text || '').toLowerCase().split(/[^a-z]+/).forEach(function (w) {
+      var m = MOOD[w]; if (!m) return;
+      if (m.mode) want.mode = m.mode;
+      if (m.bpmMin) want.bpmMin = Math.max(want.bpmMin, m.bpmMin);
+      if (m.bpmMax) want.bpmMax = Math.min(want.bpmMax, m.bpmMax);
+      if (m.styles) {
+        if (!want.styles) want.styles = m.styles.slice();
+        else {
+          var both = want.styles.filter(function (x) { return m.styles.indexOf(x) >= 0; });
+          want.styles = both.length ? both : want.styles.concat(m.styles);
+        }
+      }
+    });
+    return want;
+  }
+  function scoreMatches(sc, want) {
+    var n = 0, total = 0;
+    if (want.styles) { total++; if (want.styles.indexOf(sc.style) >= 0) n++; }
+    if (want.mode) { total++;
+      var mn = (sc.tracker && sc.tracker.mode) || '';
+      if ((want.mode === 'maj') === !!MAJ_MODES[mn]) n++; }
+    if (want.bpmMin > 0 || want.bpmMax < 999) { total++;
+      if (sc.bpm >= want.bpmMin && sc.bpm <= want.bpmMax) n++; }
+    return { hit: n, total: total };
+  }
+
   // The dice compose a REAL track: the same composer the radio uses, a
   // random seed, and the busiest four bars of its Game Boy score projected
   // into the grid's vocabulary. A view of the songs the station writes.
   // (Ambient randomness only picks the seed; the composition itself is the
   // deterministic composer, untouched.)
-  function composeIntoGrid() {
+  function composeIntoGrid(moodText) {
     var C = (G.CT_COMPOSERS && G.CT_COMPOSERS.rrr_core) || null;
     if (!C || typeof C.compile !== 'function') return;
     snapshot();
     resolveBank();
-    var score = null;
-    try { score = C.compile('create-' + Math.random().toString(36).slice(2, 10)); } catch (e) {}
+    // seed search: compile random seeds until one satisfies the mood words
+    // (a compile is ~0.4ms; a full search is invisible). Parameters only,
+    // never output-quality scoring.
+    var want = parseMood(moodText);
+    var score = null, bestScore = null, bestHit = -1;
+    for (var trial = 0; trial < 140; trial++) {
+      var cand = null;
+      try { cand = C.compile('create-' + Math.random().toString(36).slice(2, 10)); } catch (e) { break; }
+      if (!cand || !cand.gb || !cand.gb.notes || !cand.gb.notes.length) continue;
+      var m = scoreMatches(cand, want);
+      if (m.hit > bestHit) { bestHit = m.hit; bestScore = cand; }
+      if (m.hit >= m.total) { score = cand; break; }
+    }
+    if (!score) score = bestScore;
     var gb = score && score.gb;
     if (!gb || !gb.notes || !gb.notes.length) return;
     var sInst = (gb.bank && gb.bank.instruments) || gb.instruments || [];
@@ -3451,7 +3554,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       return deg;
     }
     S.cells = []; order = 0;
-    S.key = 0; S.minor = (scl[2] === 3) ? 1 : 0; S.bars = 4;
+    S.key = 0; S.minor = scl.indexOf(3) >= 0 ? 1 : 0; S.bars = 4;   // a flat third anywhere (aeolian, dorian, blues) reads as minor
     S.bpm = Math.max(70, Math.min(180, Math.round((score.bpm || 120) / 2) * 2));
     var lab = root && root.querySelector('.cr-lab');
     if (lab) { lab.firstChild.textContent = S.bpm + ' BPM'; var sl = lab.querySelector('input'); if (sl) sl.value = S.bpm; }
@@ -3482,14 +3585,25 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
         if (cellAt(cell.c, cell.r) >= 0) return;
         S.cells.push(cell);
       });
+    // full fidelity: the window of the REAL score, its own bank, every
+    // instrument. The grid above is the same music in stamp vocabulary.
+    var live = inWin.map(function (n) {
+      var frames = Math.min(n.frames | 0, Math.max(2, Math.round(best + winF - n.frame)));
+      var out = { ch: n.ch, frame: Math.round(n.frame - best), frames: frames,
+                  midi: n.midi, inst: n.inst, vel: n.vel, pri: n.pri };
+      if (n.sweep) out.sweep = n.sweep;
+      return out;
+    }).sort(function (a, b) { return a.frame - b.frame; });
+    liveScore = { notes: live, bank: gb.bank, totalFrames: Math.round(winF), loopFrames: Math.round(winF) };
+    liveBpm = score.bpm || S.bpm;
     pausedAt = 0;
     dirty();
-    if (!playing) startPlayback(0);
+    startPlayback(0);
   }
 
   function startPlayback(fromMs) {
-    var song = buildSong();
-    var loopMs = cols() * (60 / S.bpm / 4) * 1000;
+    var song = liveScore || buildSong();
+    var loopMs = cols() * (60 / curBpm() / 4) * 1000;
     var off = Math.max(0, fromMs || 0) % Math.max(1, loopMs);
     if (typeof Audio !== 'undefined' && Audio.playCreate)
       Audio.playCreate(song, song.loopFrames, Math.round(off / 1000 * FPS));
@@ -3497,7 +3611,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     renderPalette(); draw();
   }
   function pausePlayback() {
-    var loopMs = cols() * (60 / S.bpm / 4) * 1000;
+    var loopMs = cols() * (60 / curBpm() / 4) * 1000;
     pausedAt = (performance.now() - playT0) % Math.max(1, loopMs);
     armChip();
     playing = false;
@@ -3591,7 +3705,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     });
     // playhead: a marker sweeping the phrases in order, wrapping at the loop
     if (playing) {
-      var per16ms = (60 / S.bpm / 4) * 1000;
+      var per16ms = (60 / curBpm() / 4) * 1000;
       var col = ((performance.now() - playT0) / per16ms) % cols();
       var hb = Math.floor(col / 16);
       var hx = L.gx + hb * (16 * L.cw + L.gap) + (col - hb * 16) * L.cw;
@@ -3691,8 +3805,13 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   // switch: the staff kept you in key and a slider set the pace. Same here --
   // the rows ARE the scale (C major stays the house key; old links that
   // carry another key still decode and play), and the toolbar is a toy.
+  var CHIPS = ['happy', 'sad', 'upbeat', 'chill', 'spooky', 'epic', 'retro', 'funky', 'dreamy', 'battle'];
   function toolbarHTML() {
     return '<div class="cr-title"><b>Create:</b> <span>place instruments, hear the music</span></div>' +
+      '<div class="cr-moodbox">' +
+        '<input type="text" class="cr-mood" data-cr="mood" placeholder="a mood: happy, spooky, fast..." maxlength="60">' +
+        '<button type="button" class="cr-btn cr-primary" data-cr="make" data-tip="Compose a song with this mood, the radio\u0027s own way">Make</button>' +
+      '</div>' +
       '<div class="cr-tools">' +
       '<button type="button" class="cr-btn" data-cr="undo" title="Undo" data-tip="Undo the last change">↩</button>' +
       '<button type="button" class="cr-btn" data-cr="redo" title="Redo" data-tip="Redo what you undid">↪</button>' +
@@ -3707,7 +3826,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   }
 
   function exportRom() {
-    var song = buildSong();
+    var song = liveScore || buildSong();
     var score = { gb: { notes: song.notes, bank: song.bank, totalFrames: song.totalFrames, fps: FPS } };
     try {
       var rom = G.CT_GB_ROM.buildRom(score, { title: 'MY CREATION' });
@@ -3716,7 +3835,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     } catch (e) { if (G._toast) G._toast('ROM export failed: ' + (e && e.message || e)); }
   }
   function exportWav() {
-    var song = buildSong(), sr = 44100;
+    var song = liveScore || buildSong(), sr = 44100;
     try {
       var pcm = G.CT_GB_APU.render({ notes: song.notes, bank: song.bank, totalFrames: song.totalFrames }, sr);
       _saveBlob(_pcmToWav(pcm, sr), 'my-creation.wav');
@@ -3734,6 +3853,9 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     order = S.cells.length;
     root = document.createElement('div'); root.id = 'createscreen';
     root.innerHTML = '<div class="cr-top">' + toolbarHTML() + '</div>' +
+      '<div class="cr-moods">' + CHIPS.map(function (c) {
+        return '<button type="button" class="cr-chip" data-mood="' + c + '">' + c + '</button>';
+      }).join('') + '</div>' +
       '<div class="cr-main"><canvas class="cr-cv"></canvas></div>' +
       '<div class="cr-bottom">' +
         '<div class="cr-pal"></div>' +
@@ -3751,9 +3873,19 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
 
     document.addEventListener('keydown', function (ev) {
       if (ev.code !== 'Space' || !isOpen() || ev.metaKey || ev.altKey || ev.ctrlKey) return;
+      var tag = (ev.target && ev.target.tagName) || '';
+      if (/^(INPUT|TEXTAREA|SELECT)$/.test(tag)) return;      // typing a mood, not pausing
       ev.preventDefault(); ev.stopPropagation();
       togglePlay();
     }, true);
+    root.addEventListener('keydown', function (ev) {
+      if (ev.key !== 'Enter') return;
+      var mi = ev.target.closest && ev.target.closest('.cr-mood');
+      if (!mi) return;
+      ev.preventDefault(); ev.stopPropagation();
+      mi.blur();
+      composeIntoGrid(mi.value);
+    });
     root.addEventListener('click', function (ev) {
       var fb = ev.target.closest('button'); if (fb) fb.blur();
       var st = ev.target.closest('[data-stamp]');
@@ -3767,6 +3899,12 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
           auditionStamp(S.cur === 'eraser' ? 'piano' : S.cur);
         return;
       }
+      var mc = ev.target.closest('[data-mood]');
+      if (mc) {
+        var mi = root.querySelector('.cr-mood'); if (mi) mi.value = mc.dataset.mood;
+        composeIntoGrid(mc.dataset.mood);
+        return;
+      }
       var b = ev.target.closest('[data-cr]');
       if (!b) return;
       var k = b.dataset.cr;
@@ -3775,7 +3913,8 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       else if (k === 'undo') { undo(); }
       else if (k === 'redo') { redo(); }
       else if (k === 'clear') { snapshot(); S.cells = []; dirty(); }
-      else if (k === 'dice') { composeIntoGrid(); }
+      else if (k === 'dice') { composeIntoGrid(''); }
+      else if (k === 'make') { var mv = root.querySelector('.cr-mood'); composeIntoGrid(mv ? mv.value : ''); }
       else if (k === 'share') {
         try { navigator.clipboard.writeText(location.origin + '/create#s=' + encode()); if (G._toast) G._toast('Link copied. The link IS the song 🎵'); } catch (e) {}
       }
@@ -3784,6 +3923,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     });
     root.addEventListener('input', function (ev) {
       var b = ev.target.closest('[data-cr="bpm"]'); if (!b) return;
+      dropLiveScore();
       S.bpm = +b.value; b.parentNode.firstChild.textContent = S.bpm + ' BPM';
       dirty();
     });
