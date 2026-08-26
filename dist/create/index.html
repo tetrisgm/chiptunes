@@ -3187,6 +3187,18 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     vibrato: { pal: { j: '#C77BFF' }, px: [
       '..........', '..........', '..........', '.jj...jj..', 'j..j.j..j.',
       '....j....j', '..........', '..........', '..........', '..........'] },
+    rise: { pal: { z: '#59FFB0' }, px: [
+      '.......zz.', '......zzzz', '....zzzzzz', '.....zzz..', '....zzz...',
+      '...zzz....', '..zzz.....', '.zzz......', 'zz........', '..........'] },
+    arp: { pal: { y: '#FFD23F' }, px: [
+      '..........', '.......yy.', '.......yy.', '....yy.yy.', '....yy.yy.',
+      '.yy.yy.yy.', '.yy.yy.yy.', '.yy.yy.yy.', '..........', '..........'] },
+    retrig: { pal: { r: '#FF8C57' }, px: [
+      '..........', '.r...r....', '.rr..rr...', '.rrr.rrr..', '.rrrr.rrrr',
+      '.rrr.rrr..', '.rr..rr...', '.r...r....', '..........', '..........'] },
+    echo: { pal: { e: '#8E9BFF', d: '#5F6BC9' }, px: [
+      '..........', '.ee.......', '.ee..dd...', '.ee..dd..d', '.ee..dd..d',
+      '.ee..dd..d', '.ee..dd...', '.ee.......', '..........', '..........'] },
     play: { pal: { g: '#7BDCA0' }, px: [
       '..........', '..g.......', '..gg......', '..ggg.....', '..gggg....',
       '..ggg.....', '..gg......', '..g.......', '..........', '..........'] },
@@ -3334,7 +3346,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   var S = null, undoStack = [], redoStack = [];
   function freshState() {
     return { key: 0, minor: 0, bars: 4, bpm: 128, swing: 0,
-             cells: [], cur: 'piano', zip: 0, wob: 0 };
+             cells: [], cur: 'piano', cmd: 0, wob: 0 };
   }
   function cols() { return S.bars * 16; }
   function cellAt(c, r) {
@@ -3386,16 +3398,30 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
           var d = DRUMS[x.r - MEL_ROWS];
           if (drum) { x.x = 1; return; }
           drum = true;
-          notes.push({ ch: 3, frame: colFrame(c),
-                       frames: x.len ? Math.max(2, Math.round(per * x.len) - 1) : Math.max(2, Math.round(per * 0.6)),
-                       midi: null, inst: x.inst != null ? x.inst : INSTOF[d.id],
-                       vel: x.vel != null ? x.vel : d.vel, pri: 9 - d.lane });
+          var dInst = x.inst != null ? x.inst : INSTOF[d.id];
+          var dVel = x.vel != null ? x.vel : d.vel;
+          if (x.g) {                                        // drum ratchet
+            var dHit = Math.max(2, Math.round(per / 2));
+            for (var df = 0; df < per * (x.len || 1) - 1; df += dHit)
+              notes.push({ ch: 3, frame: colFrame(c) + df, frames: Math.max(2, dHit - 1),
+                           midi: null, inst: dInst, vel: dVel, pri: 9 - d.lane });
+          } else if (x.f) {                                 // drum echo
+            var dv = dVel;
+            for (var ds = 0; ds < Math.max(2, x.len || 4) && c + ds < cols(); ds++, dv *= 0.55)
+              notes.push({ ch: 3, frame: colFrame(c + ds), frames: Math.max(2, Math.round(per * 0.5)),
+                           midi: null, inst: dInst, vel: dv, pri: 9 - d.lane });
+          } else {
+            notes.push({ ch: 3, frame: colFrame(c),
+                         frames: x.len ? Math.max(2, Math.round(per * x.len) - 1) : Math.max(2, Math.round(per * 0.6)),
+                         midi: null, inst: dInst, vel: dVel, pri: 9 - d.lane });
+          }
           return;
         }
         var voice = cellVoice(x);
         if (!voice || voice === 'noise') { x.x = 1; return; }
         var steps = x.len ? x.len : (x.w ? 8 : 0.96);
-        var note = { frame: colFrame(c), frames: Math.max(2, Math.round(per * steps) - 1),
+        var totalF = Math.max(2, Math.round(per * steps) - 1);
+        var note = { frame: colFrame(c), frames: totalF,
                      midi: x.midi != null ? x.midi : rowMidi(x.r),
                      inst: x.inst != null ? x.inst : INSTOF[x.st],
                      vel: x.vel != null ? x.vel : 0.8, pri: 5 };
@@ -3404,15 +3430,37 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
           wave = true; note.ch = 2;
         } else {
           // an exact channel (composed cells) claims its slot first, then the
-          // other pulse; hand cells take the first free slot
-          var wantCh = (x.ch === 0 || x.ch === 1) ? x.ch : (slots[0] ? 1 : 0);
+          // other pulse; slides want channel 1's sweep unit; hand cells take
+          // the first free slot
+          var wantCh = (x.ch === 0 || x.ch === 1) ? x.ch
+                     : (x.z || x.u || x.sweep != null) ? 0 : (slots[0] ? 1 : 0);
           var ch = !slots[wantCh] ? wantCh : !slots[1 - wantCh] ? 1 - wantCh : -1;
           if (ch < 0) { x.x = 1; return; }
           slots[ch] = true; note.ch = ch;
           if (x.sweep != null) { if (note.ch === 0) note.sweep = x.sweep; }
-          else if (x.z && note.ch === 0) note.sweep = 0x3E;  // the fall off the note
+          else if (note.ch === 0 && x.z) note.sweep = 0x3E;  // the fall off the note
+          else if (note.ch === 0 && x.u) note.sweep = 0x36;  // ...and the rise
         }
-        notes.push(note);
+        // COMMANDS expand into ordinary chip notes: nothing new in the
+        // engine, everything stays parity-clean. The DMG never had an "arp
+        // command" either; trackers just wrote fast notes.
+        if (x.q) {                                          // arp: strum the chord
+          var iv = S.minor ? [0, 3, 7] : [0, 4, 7];
+          var sub = Math.max(2, Math.round(per / 3));
+          for (var f = 0, k = 0; f < totalF - 1; f += sub, k++)
+            notes.push({ ch: note.ch, frame: note.frame + f, frames: Math.min(sub, totalF - f),
+                         midi: note.midi + iv[k % 3], inst: note.inst, vel: note.vel, pri: 5, sweep: note.sweep });
+        } else if (x.g) {                                   // retrig: half-step ratchet
+          var hitF = Math.max(2, Math.round(per / 2));
+          for (var f2 = 0; f2 < totalF - 1; f2 += hitF)
+            notes.push({ ch: note.ch, frame: note.frame + f2, frames: Math.max(2, hitF - 1),
+                         midi: note.midi, inst: note.inst, vel: note.vel, pri: 5, sweep: note.sweep });
+        } else if (x.f) {                                   // echo: repeat and fade
+          var st = 0, v2 = note.vel;
+          for (st = 0; st < Math.max(2, Math.round(steps)) && c + st < cols(); st++, v2 *= 0.6)
+            notes.push({ ch: note.ch, frame: colFrame(c + st), frames: Math.max(2, Math.round(per * 0.9)),
+                         midi: note.midi, inst: note.inst, vel: v2, pri: 5, sweep: note.sweep });
+        } else notes.push(note);
       });
     }
     notes.sort(function (a, b) { return a.frame - b.frame; });
@@ -3426,13 +3474,16 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   // v3: cells may carry an extension with the exact instrument, pitch,
   // length, velocity, channel and sweep -- what makes a composed song
   // survive editing losslessly. v1/v2 links still decode.
+  var CMD_CODE = { u: 1, q: 2, g: 3, f: 4 };
+  var CODE_CMD = { 1: 'u', 2: 'q', 3: 'g', 4: 'f' };
   function encode() {
     var ids = STAMPS.map(function (s) { return s.id; });
-    var out = [3, S.key, S.minor, S.bars, Math.round(S.bpm / 2), S.swing];
+    var out = [4, S.key, S.minor, S.bars, Math.round(S.bpm / 2), S.swing];
     S.cells.forEach(function (x) {
       var st = x.r >= MEL_ROWS ? 15 : (x.st && x.st.charAt(0) === 'i' ? 14 : Math.max(0, ids.indexOf(x.st)));
       var ext = x.inst != null;
-      out.push(x.c & 63, (x.c >> 6) & 63, x.r | (x.z ? 32 : 0), st | (x.w ? 16 : 0) | (ext ? 32 : 0));
+      var cmd = x.u ? 1 : x.q ? 2 : x.g ? 3 : x.f ? 4 : 0;
+      out.push(x.c & 63, (x.c >> 6) & 63, x.r | (x.z ? 32 : 0), st | (x.w ? 16 : 0) | (ext ? 32 : 0), cmd);
       if (ext) {
         var midi = x.midi != null ? (x.midi | 0) : 0;
         var hasSweep = x.sweep != null;
@@ -3450,7 +3501,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     try {
       var v = []; for (var i = 0; i < str.length; i++) { var ix = B64.indexOf(str[i]); if (ix < 0) return null; v.push(ix); }
       var ver = v[0];
-      if (ver !== 1 && ver !== 2) return null;
+      if (ver < 1 || ver > 4) return null;
       var st2 = freshState();
       st2.key = v[1] % 12; st2.minor = v[2] & 1;
       st2.bars = ver === 1 ? ([2, 4, 8].indexOf(v[3]) >= 0 ? v[3] : 4)
@@ -3474,6 +3525,11 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
           var stc = b2 & 15;
           if (r2 < MEL_ROWS) { if (stc !== 14) cell2.st = ids[stc] || 'piano'; if (v[k + 2] & 32) cell2.z = 1; if (b2 & 16) cell2.w = 1; }
           k += 4;
+          if (ver >= 4) {
+            var cc = CODE_CMD[v[k] & 7];
+            if (cc && r2 < MEL_ROWS + DRUM_LANES) cell2[cc] = 1;
+            k += 1;
+          }
           if (ver >= 3 && (b2 & 32) && k + 5 < v.length + 1) {
             var e1 = v[k + 1];
             cell2.inst = v[k] | ((e1 & 3) << 6);
@@ -3849,7 +3905,8 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       var wob = x.x ? Math.sin(now / 130 + x.c) * 2 : 0;
       g.drawImage(sprite(name, 40), px + (L.cw - s2) / 2 + wob, py + (L.chh - s2) / 2, s2, s2);
       g.globalAlpha = 1;
-      if (x.z) { g.drawImage(sprite('slide', 20), px + L.cw - 12, py - 2, 12, 12); }
+      var badge = x.z ? 'slide' : x.u ? 'rise' : x.q ? 'arp' : x.g ? 'retrig' : x.f ? 'echo' : null;
+      if (badge) { g.drawImage(sprite(badge, 20), px + L.cw - 12, py - 2, 12, 12); }
       if (x.w) { g.drawImage(sprite('vibrato', 20), px - 2, py - 2, 12, 12); }
       if (pop > 0) animating = true;
     });
@@ -3949,8 +4006,12 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     if (h.r < MEL_ROWS) {
       cell.st = S.cur;
       if (S.cur.charAt(0) === 'i' && isFinite(+S.cur.slice(1))) cell.inst = +S.cur.slice(1);
-      if (S.zip) cell.z = 1;
+      if (S.cmd) cell[S.cmd] = 1;
+      if (S.cmd === 'f' && !cell.len) cell.len = 4;   // an echo needs room to fade
       if (S.wob) cell.w = 1;
+    } else if (S.cmd === 'g' || S.cmd === 'f') {
+      cell[S.cmd] = 1;                                // drums ratchet and echo too
+      if (S.cmd === 'f' && !cell.len) cell.len = 4;
     }
     S.cells.push(cell);
     dirty();
@@ -3974,7 +4035,9 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
                        midi: cell.midi != null ? cell.midi : rowMidi(cell.r),
                        inst: cell.inst != null ? cell.inst : INSTOF[cell.st],
                        vel: cell.vel != null ? cell.vel : 0.8,
-                       sweep: cell.sweep != null ? cell.sweep : ((S.zip && voice !== 'wave') ? 0x3E : 0) });
+                       sweep: cell.sweep != null ? cell.sweep
+                            : (voice !== 'wave' && (cell.z || S.cmd === 'z')) ? 0x3E
+                            : (voice !== 'wave' && (cell.u || S.cmd === 'u')) ? 0x36 : 0 });
   }
   function stepCell(h) {
     var i = cellAt(h.c, h.r);
@@ -4026,7 +4089,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     Audio.pokeCreate({ ch: st.ch === 'wave' ? 2 : 1,
                        frames: Math.round(per * (S.wob ? 6 : 2)),
                        midi: 60 + S.key, inst: INSTOF[st.id], vel: 0.8,
-                       sweep: (S.zip && st.ch !== 'wave') ? 0x3E : 0 });
+                       sweep: st.ch !== 'wave' ? (S.cmd === 'z' ? 0x3E : S.cmd === 'u' ? 0x36 : 0) : 0 });
   }
 
   // ---- palette + toolbar ---------------------------------------------------
@@ -4043,7 +4106,11 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       html += btn('', 'data-stamp="' + st.id + '"', st.label, st.tip, S.cur === st.id);
     });
     html += '<span class="cr-palsep"></span>';
-    html += btn(' cr-mod', 'data-mod="zip"', 'Slide', 'Slide: new notes zip off downward', !!S.zip);
+    html += btn(' cr-mod', 'data-mod="z"', 'Fall', 'Fall: new notes slide off downward', S.cmd === 'z');
+    html += btn(' cr-mod', 'data-mod="u"', 'Rise', 'Rise: new notes sweep upward', S.cmd === 'u');
+    html += btn(' cr-mod', 'data-mod="q"', 'Arp', 'Arp: new notes strum their chord, fast', S.cmd === 'q');
+    html += btn(' cr-mod', 'data-mod="g"', 'Retrig', 'Retrig: new notes ratchet in half-steps', S.cmd === 'g');
+    html += btn(' cr-mod', 'data-mod="f"', 'Echo', 'Echo: new notes repeat and fade', S.cmd === 'f');
     html += btn(' cr-mod', 'data-mod="wob"', 'Vibrato', 'Vibrato: new notes hold and sing', !!S.wob);
     html += '<span class="cr-palsep"></span>';
     html += btn('', 'data-stamp="eraser"', 'Eraser', 'Eraser: click or sweep to remove notes', S.cur === 'eraser');
@@ -4052,9 +4119,10 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
                 'Every melodic instrument in the bank', pickedInst);
     pal.innerHTML = html;
     pal.querySelectorAll('.cr-stamp').forEach(function (b) {
+      var MODICON = { z: 'slide', u: 'rise', q: 'arp', g: 'retrig', f: 'echo', wob: 'vibrato' };
       var name = b.dataset.cr === 'play' ? (playing ? 'pause' : 'play')
                : b.dataset.cr === 'drawer' ? (S.cur.charAt(0) === 'i' ? S.cur : 'more')
-               : (b.dataset.stamp || (b.dataset.mod === 'zip' ? 'slide' : 'vibrato'));
+               : (b.dataset.stamp || MODICON[b.dataset.mod] || 'slide');
       b.insertBefore(sprite(name, 30), b.firstChild);
     });
   }
@@ -4149,11 +4217,12 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       if (st) { S.cur = st.dataset.stamp; renderPalette(); auditionStamp(S.cur); return; }
       var md = ev.target.closest('[data-mod]');
       if (md) {
-        if (md.dataset.mod === 'zip') S.zip = S.zip ? 0 : 1; else S.wob = S.wob ? 0 : 1;
+        var mo = md.dataset.mod;
+        if (mo === 'wob') S.wob = S.wob ? 0 : 1;
+        else S.cmd = S.cmd === mo ? 0 : mo;                // one command in hand at a time
         renderPalette();
-        // demo the modifier the moment it turns on, on whatever critter is in hand
-        if ((md.dataset.mod === 'zip' && S.zip) || (md.dataset.mod === 'wob' && S.wob))
-          auditionStamp(S.cur === 'eraser' ? 'piano' : S.cur);
+        if ((mo === 'wob' && S.wob) || (mo !== 'wob' && S.cmd === mo))
+          auditionStamp(S.cur === 'eraser' || S.cur.charAt(0) === 'i' ? 'piano' : S.cur);
         return;
       }
       var di = ev.target.closest('[data-inst]');
@@ -4283,11 +4352,13 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
 
   G.CT_CREATE = { open: open, close: close, isOpen: isOpen, togglePlay: togglePlay,
     _dbg: function () {
-      var mx = 0, withInst = 0;
-      if (S) S.cells.forEach(function (x) { if ((x.len || 1) > mx) mx = x.len || 1; if (x.inst != null) withInst++; });
+      var mx = 0, withInst = 0, cmds = 0;
+      if (S) S.cells.forEach(function (x) { if ((x.len || 1) > mx) mx = x.len || 1; if (x.inst != null) withInst++;
+                                            if (x.z || x.u || x.q || x.g || x.f) cmds++; });
       return { playing: playing, live: !!liveScore, bars: S ? S.bars : 0,
-               camX: Math.round(camX), follow: camFollow, cur: S ? S.cur : '',
-               cells: S ? S.cells.length : 0, withInst: withInst, maxLen: mx, mood: liveMood }; },
+               camX: Math.round(camX), follow: camFollow, cur: S ? S.cur : '', cmd: S ? S.cmd : 0,
+               cells: S ? S.cells.length : 0, withInst: withInst, maxLen: mx, cmds: cmds,
+               notes: S ? buildSong().notes.length : 0, mood: liveMood }; },
     _skipToEnd: function () { if (playing && liveScore) playT0 = performance.now() - songMs() - 300; } };
   if (typeof module !== 'undefined' && module.exports) module.exports = G.CT_CREATE;
 })(typeof globalThis !== 'undefined' ? globalThis : window);

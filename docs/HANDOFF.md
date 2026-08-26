@@ -56,6 +56,11 @@ next. Infrastructure and operations live outside this repository.
 - Drag right on a note stretches it (len steps); a tap removes it; leaving
   the row switches to line painting. The More drawer offers every melodic
   bank instrument as a generated waveform icon ('i<N>' stamps).
+- Command stamps (one in hand at a time; cell flags): z Fall / u Rise
+  (hardware sweep, claims pulse 1), q Arp, g Retrig, f Echo (echo defaults
+  len 4; g/f work on drums). All expand in buildSong into ordinary chip
+  notes -- no engine changes, parity untouched. URL hash v4 adds one cmd
+  char per cell; v1-v3 links still decode.
 - The grid is a TIMELINE: the whole track as one strip of bar panels with a
   camera (follows the playhead; wheel/header-drag pans and disengages;
   play/resume re-engages). Bars are patterns: header glyphs duplicate and
