@@ -1635,6 +1635,10 @@ function _toggleHowModal(){
     'lines and chord movements mined from 74,552 video game MIDI files.</li>'+
     '<li><b>The games play themselves.</b> They react to the beat; they never '+
     'compose.</li>'+
+    '<li><b>You can write your own.</b> The Create button opens a full editor '+
+    'on the same chip: type a mood and the composer writes a real song onto '+
+    'an editable timeline, or place every note yourself. Share it as a link, '+
+    'a WAV, or a cartridge.</li>'+
     '<li><b>The screens are simulations.</b> Four real shades for the Game '+
     'Boy face; a modulated-and-decoded NTSC signal for the NES one.</li>'+
     '</ul>'+
