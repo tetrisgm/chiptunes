@@ -441,8 +441,9 @@
   body.create-open #bigplay{ display:none !important; }
   #createscreen .cr-top{ flex:0 0 auto; display:flex; align-items:center; gap:14px;
     padding:12px 18px; flex-wrap:wrap; }
-  #createscreen .cr-title b{ display:block; font:700 20px/1.1 var(--ui); letter-spacing:-.015em; color:var(--ink); }
-  #createscreen .cr-title span{ display:block; font:400 12px/1.3 var(--ui); color:var(--ink-2); }
+  #createscreen .cr-title{ display:flex; align-items:baseline; gap:7px; white-space:nowrap; }
+  #createscreen .cr-title b{ font:700 20px/1.1 var(--ui); letter-spacing:-.015em; color:var(--ink); }
+  #createscreen .cr-title span{ font:400 14px/1.3 var(--ui); color:var(--ink-2); }
   #createscreen .cr-tools{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-left:auto; }
   #createscreen .cr-btn{ height:38px; padding:0 14px; border-radius:999px; cursor:pointer;
     border:1px solid var(--mat-edge); background:rgba(255,255,255,.05); color:var(--ink);
@@ -460,8 +461,11 @@
   #createscreen .cr-sep{ width:1px; height:24px; background:var(--mat-edge); }
   #createscreen .cr-main{ flex:1 1 auto; min-height:0; padding:4px 12px; }
   #createscreen .cr-cv{ width:100%; height:100%; display:block; touch-action:none; cursor:pointer; }
-  #createscreen .cr-pal{ flex:0 0 auto; display:flex; align-items:center; justify-content:center;
-    gap:10px; padding:10px 14px 16px; flex-wrap:wrap; }
+  #createscreen .cr-bottom{ flex:0 0 auto; display:flex; align-items:center; gap:12px;
+    padding:10px 18px 16px; }
+  #createscreen .cr-bside{ flex:0 0 auto; }
+  #createscreen .cr-pal{ flex:1 1 auto; display:flex; align-items:center; justify-content:center;
+    gap:10px; flex-wrap:wrap; }
   #createscreen .cr-stamp{ width:58px; height:60px; border-radius:14px; cursor:pointer;
     display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
     display:inline-flex; align-items:center; justify-content:center;
@@ -484,6 +488,7 @@
     #createscreen .cr-top{ padding:8px 10px; gap:8px; }
     #createscreen .cr-title span{ display:none; }
     #createscreen .cr-stamp{ width:50px; height:54px; }
+    #createscreen .cr-bottom{ flex-wrap:wrap; justify-content:center; }
   }
 
   /* HOW IT WORKS: the one modal that explains the page. Material card over a

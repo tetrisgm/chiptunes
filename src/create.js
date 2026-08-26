@@ -504,10 +504,8 @@
   // the rows ARE the scale (C major stays the house key; old links that
   // carry another key still decode and play), and the toolbar is a toy.
   function toolbarHTML() {
-    return '<div class="cr-title"><b>Create</b><span>place instruments, hear the chip</span></div>' +
+    return '<div class="cr-title"><b>Create:</b> <span>place instruments, hear the music</span></div>' +
       '<div class="cr-tools">' +
-      '<button type="button" class="cr-btn cr-primary" data-cr="play" data-tip="Play the loop from the top (Space)">▶ Play</button>' +
-      '<label class="cr-lab" data-tip="Tempo: how fast the loop plays">' + S.bpm + ' BPM<input type="range" min="70" max="180" step="2" value="' + S.bpm + '" data-cr="bpm"></label>' +
       '<button type="button" class="cr-btn" data-cr="undo" title="Undo" data-tip="Undo the last change">↩</button>' +
       '<button type="button" class="cr-btn" data-cr="redo" title="Redo" data-tip="Redo what you undid">↪</button>' +
       '<button type="button" class="cr-btn" data-cr="clear" data-tip="Wipe the whole grid clean">Clear</button>' +
@@ -549,7 +547,15 @@
     root = document.createElement('div'); root.id = 'createscreen';
     root.innerHTML = '<div class="cr-top">' + toolbarHTML() + '</div>' +
       '<div class="cr-main"><canvas class="cr-cv"></canvas></div>' +
-      '<div class="cr-pal"></div>';
+      '<div class="cr-bottom">' +
+        '<div class="cr-bside">' +
+          '<button type="button" class="cr-btn cr-primary" data-cr="play" data-tip="Play the loop from the top (Space)">\u25b6 Play</button>' +
+        '</div>' +
+        '<div class="cr-pal"></div>' +
+        '<div class="cr-bside">' +
+          '<label class="cr-lab" data-tip="Tempo: how fast the loop plays">' + S.bpm + ' BPM<input type="range" min="70" max="180" step="2" value="' + S.bpm + '" data-cr="bpm"></label>' +
+        '</div>' +
+      '</div>';
     document.body.appendChild(root);
     cv = root.querySelector('.cr-cv'); cv.__ctpalRaw = true; g = cv.getContext('2d');
     renderPalette();
@@ -623,7 +629,8 @@
     if (G._closeCreateReturn) G._closeCreateReturn();
   }
   function isOpen() { return !!(root && root.classList.contains('show')); }
+  function togglePlay() { if (!root) return; playing ? stopPlayback() : startPlayback(); }
 
-  G.CT_CREATE = { open: open, close: close, isOpen: isOpen };
+  G.CT_CREATE = { open: open, close: close, isOpen: isOpen, togglePlay: togglePlay };
   if (typeof module !== 'undefined' && module.exports) module.exports = G.CT_CREATE;
 })(typeof globalThis !== 'undefined' ? globalThis : window);

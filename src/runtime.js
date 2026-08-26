@@ -1120,6 +1120,12 @@ function handleTransportShortcut(ev){
   if(shortcutTargetBlocked(ev) || ev.metaKey || ev.altKey || ev.ctrlKey) return false;
   if(ev.code!=='Space' && ev.code!=='KeyJ' && ev.code!=='KeyK') return false;
   ev.preventDefault();
+  // the Create editor owns the transport keys while it is open: Space plays
+  // the creation, and nothing here may poke the radio underneath it
+  try{ if(typeof CT_CREATE!=='undefined' && CT_CREATE.isOpen()){
+    if(ev.code==='Space' && CT_CREATE.togglePlay) CT_CREATE.togglePlay();
+    return true;
+  } }catch(e){}
   if(_watchOnly && !_watchMicActive) return true;
   if(ev.code==='KeyJ'){ _transportPrev(); return true; }
   if(ev.code==='KeyK'){ _transportNext(); return true; }
