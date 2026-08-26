@@ -1527,7 +1527,6 @@ function _buildPlayerLinks(){
   // console screens are the point of the project.
   var _os=_homeOS(), _osName=(_os==='win'?'Windows':_os==='linux'?'Linux':_os==='mac'?'Mac':'');
   var items=[
-    {k:'how',   ic:_IC_INFO,  t:'What this is and how it works', l:'How it works'},
     // The two downloads sit together: this track as sound, and this track as the
     // cartridge that makes the sound.
     {k:'wav',   ic:_IC_WAVE,  t:'Download this track as an uncompressed WAV', l:'Download WAV',
@@ -1547,7 +1546,9 @@ function _buildPlayerLinks(){
   // as an offer once you know what the page is -- and with the home page gone
   // there is nowhere else left that says so. Name, then one line of what it does.
   var head='<div class="plhead"><b>Chiptunes.app</b>'+
-    '<span>An endless Game Boy radio for your second screen: background music, games that play themselves.</span></div>';
+    '<span>An endless Game Boy radio for your second screen: background music, games that play themselves.</span>'+
+    '<button type="button" class="plink plhow" data-k="how" title="What this is and how it works">'+
+    '<span class="plink-ic">'+_IC_INFO+'</span><span class="plink-t">How it works</span></button></div>';
   wrap.innerHTML=head+items.map(function(it){
     var extra='';
     if(it.subs) extra=it.subs.map(function(sb){
@@ -1593,30 +1594,23 @@ function _toggleHowModal(){
     '<button type="button" class="hm-close" aria-label="Close">\u00d7</button>'+
     '<h2>How this works</h2>'+
     '<p class="hm-lede">An endless Game Boy radio for your second screen. '+
-    'Press play, leave it in the background, and every song you hear is being '+
-    'written right now, in your browser, for a real Game Boy sound chip.</p>'+
-    '<h3>The chip is real</h3>'+
-    '<p>The audio is not a synth that sounds retro. It is an emulation of the '+
-    'DMG sound chip at the register level: two pulse channels, one wave, one '+
-    'noise, with the hardware sweep unit and per-frame vibrato tables. What '+
-    'you hear is what the silicon would do.</p>'+
-    '<h3>Every song is a cartridge</h3>'+
-    '<p>Download ROM hands you a 32 KB .gb file of the track you are hearing. '+
-    'It boots on real hardware. The browser chip and the cartridge are '+
-    'spectrally verified against each other in the test suite, so they cannot '+
-    'drift apart.</p>'+
-    '<h3>Every song is a URL</h3>'+
-    '<p>The composer is deterministic: the token in the address bar seeds '+
-    'every choice, so a link plays the same song forever, on any machine. '+
-    'Copy the link and you have shared the song itself.</p>'+
-    '<h3>The music is measured</h3>'+
-    '<p>Songs draw one of fourteen styles (house, dnb, rock, chill and '+
-    'friends), and the patterns inside them are mined from 74,552 video game '+
-    'MIDI files: real kit bars, real bass lines, real chord movements.</p>'+
-    '<h3>The screens are simulated</h3>'+
-    '<p>The games play themselves to the beat, and the Game Boy and NES looks '+
-    'are not filters. Colours are quantised to what the console could show '+
-    'before a hardware-derived display model draws them.</p>'+
+    'Press play, leave it in the background, and get on with your day.</p>'+
+    '<ul class="hm-list">'+
+    '<li><b>Every song is written live, in your browser.</b> No server and no '+
+    'playlist: a deterministic composer generates each track from the URL, so '+
+    'a link plays the same song forever.</li>'+
+    '<li><b>The sound chip is real.</b> A register-level emulation of the '+
+    'Game Boy APU, hardware sweep and vibrato included.</li>'+
+    '<li><b>Every song is a cartridge.</b> Download ROM gives you the track '+
+    'as a 32 KB .gb file that boots on real hardware, verified to sound '+
+    'identical to what you are hearing.</li>'+
+    '<li><b>The music is measured.</b> Fourteen styles, with kit bars, bass '+
+    'lines and chord movements mined from 74,552 video game MIDI files.</li>'+
+    '<li><b>The games play themselves.</b> They react to the beat; they never '+
+    'compose.</li>'+
+    '<li><b>The screens are simulations.</b> Four real shades for the Game '+
+    'Boy face; a modulated-and-decoded NTSC signal for the NES one.</li>'+
+    '</ul>'+
     '<p class="hm-foot"><a href="'+GITHUB_URL+'" target="_blank" rel="noopener">'+
     'The code is open. Read the full story on GitHub.</a></p>'+
     '</div>';
@@ -1729,6 +1723,7 @@ function _ensureNavMenu(){
     if(k==='gb'){ _toggleGameBoyScreen(); }
     else if(k==='rom'){ _downloadRom(); }
     else if(k==='home'){ if(window.openProductHome) openProductHome(); }
+    else if(k==='how'){ _toggleHowModal(); }
     else if(k==='yt'){ window.open(YT_HANDLE+'/live','_blank','noopener'); }
     else if(k==='radio-open'){ _openRadioInApp(); }
     else if(k==='radio-listen'){ window.open(RADIO_STREAM_URL,'_blank','noopener'); }
@@ -1758,6 +1753,7 @@ function openNavMenu(){
     // landing page. Same destination, named for what is actually there: the
     // desktop app and the wallpaper. On mobile the pills are hidden, so without
     // this row /get has no way in at all.
+    _navRow('how',_IC_INFO,'How it works','What this is, in a minute')+
     _navRow('home',_IC_MON,'Get the desktop app','Mac, Windows or Linux, plus the wallpaper')+
     '</div>';
   el.classList.add('show');

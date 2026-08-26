@@ -377,6 +377,11 @@
     color:var(--ink); }
   #plinks .plhead span{ flex:0 1 auto; font:400 15px/1.15 var(--ui);
     letter-spacing:0; color:var(--ink-2); }
+  /* the how-it-works pill rides the masthead line, compact against 26px type */
+  #plinks .plhead .plhow{ flex:0 0 auto; align-self:center; height:32px; padding:0 13px;
+    margin-left:14px; gap:7px; }
+  #plinks .plhead .plhow .plink-t{ font-size:12.5px; }
+  #plinks .plhead .plhow svg{ width:15px; height:15px; }
   .plink{ height:46px; padding:0 18px; border-radius:999px; border:1px solid var(--mat-edge);
     background:var(--mat); color:var(--ink); cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:9px;
     box-shadow:var(--mat-shadow); backdrop-filter:var(--mat-blur); -webkit-backdrop-filter:var(--mat-blur);
@@ -441,6 +446,10 @@
   #howmodal h3{ font:650 14.5px/1.3 var(--ui); letter-spacing:.005em; color:var(--ink); margin:18px 0 5px; }
   #howmodal p{ font:400 13.5px/1.55 var(--ui); letter-spacing:.005em; color:var(--ink-2); margin:0 0 4px; }
   #howmodal .hm-lede{ font-size:14.5px; color:var(--ink); }
+  #howmodal .hm-list{ margin:12px 0 0; padding-left:20px; }
+  #howmodal .hm-list li{ font:400 13.5px/1.5 var(--ui); letter-spacing:.005em;
+    color:var(--ink-2); margin:0 0 9px; }
+  #howmodal .hm-list li b{ color:var(--ink); font-weight:650; }
   #howmodal .hm-foot{ margin-top:18px; }
   #howmodal .hm-foot a{ color:#9ecbff; text-decoration:none; font-weight:600; }
   #howmodal .hm-foot a:hover{ text-decoration:underline; }
@@ -454,7 +463,8 @@
      makes the column as wide as the sentence -- 762px -- and an interactive box
      that size sitting over the game is a dead zone you cannot see. */
   body.ai-visual.controls-active #plinks{ opacity:1; pointer-events:none; transition:opacity var(--fade-in); }
-  body.ai-visual.controls-active #plinks .plrow{ pointer-events:auto; }
+  body.ai-visual.controls-active #plinks .plrow,
+  body.ai-visual.controls-active #plinks .plhead .plhow{ pointer-events:auto; }
 
   /* THE DESKTOP CARD: the one offer on this screen that is not about the track
      you are hearing, so it does not sit in the rail with the ones that are. It
