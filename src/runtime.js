@@ -1611,6 +1611,11 @@ function _openCreate(){
     if(_createStandalone){                       // the station has not played yet: start it now
       _createStandalone=false;
       try{ _startEndlessRadio(); }catch(e){}
+      // ...and take the chip back off the editor. This branch returned before
+      // the playScore() below, so closing a cold-booted /create left the
+      // worklet holding the editor's song and the station came back SILENT --
+      // pause and play could not rescue it, because neither reposts a score.
+      try{ if(typeof Audio!=='undefined'&&Audio.playScore) Audio.playScore(); }catch(e){}
       try{ _syncBackgroundAudioOnly(); }catch(e){}
       return;
     }

@@ -702,3 +702,17 @@ pass.
   shaders cap DPR at 2. Frames measured 8.2ms median in Chromium and 17ms in
   WebKit with only 317 DOM nodes. If the radio feels heavy, look at pixels and
   at boot, not at the frame loop.
+
+- CLOSING A COLD-BOOTED /create LEFT THE STATION SILENT, and that was the bug
+  reported from the wild. _closeCreateReturn has two branches: the ordinary one
+  calls Audio.playScore() to take the chip back off the editor, and the
+  _createStandalone one -- /create opened directly, station never started --
+  returned BEFORE it. So the worklet kept holding the editor's song and nothing
+  reposted a score; pause and play could not rescue it because neither reposts
+  either. It calls playScore() now.
+
+- npm run test:handover stands over it: it drives a real browser out of the
+  editor four ways (after an edit, with every lane muted, with a sample left in
+  wave RAM, and mid-playback) plus the cold /create route, and asserts the
+  station is audible after Close AND after pause/play. It caught this on the
+  first run, having failed to reproduce by hand all afternoon.
