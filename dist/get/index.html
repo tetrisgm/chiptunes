@@ -552,7 +552,10 @@
   #createscreen .n-mid{ flex:1 1 auto; min-height:0; overflow:hidden; position:relative; padding:2px 0; }
   #createscreen .n-track{ position:absolute; left:0; top:0; bottom:0; display:flex; align-items:center;
     gap:var(--bbgap,18px); padding:0 8px; will-change:transform; }
-  #createscreen .n-bb{ flex:0 0 auto; width:var(--bbw,360px); display:flex; flex-direction:column; gap:5px; }
+  #createscreen .n-bb{ flex:0 0 auto; width:var(--bbw,360px); display:flex; flex-direction:column; gap:5px;
+    position:relative; }
+  #createscreen .n-bb + .n-bb::before{ content:''; position:absolute; top:12%; bottom:12%;
+    left:calc(var(--bbgap,52px) / -2); width:1px; background:rgba(232,227,250,.13); }
   #createscreen .n-bbhead{ display:flex; align-items:center; gap:8px; height:22px; cursor:grab;
     padding:0 4px; border-radius:8px; }
   #createscreen .n-bbhead:active{ cursor:grabbing; }
@@ -4537,7 +4540,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     if (!mid) return;
     var r = mid.getBoundingClientRect();
     if (!r.width || !r.height) return;
-    bbGap = r.width < 520 ? 12 : 18;
+    bbGap = r.width < 520 ? 26 : 52;           // bars need air between them to read as separate
     bbW = Math.max(150, Math.min(r.width * (r.width < 520 ? 0.86 : 0.46), r.height - 30, 430));
     root.style.setProperty('--bbw', bbW + 'px');
     root.style.setProperty('--bbgap', bbGap + 'px');

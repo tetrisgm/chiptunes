@@ -1217,7 +1217,7 @@
     if (!mid) return;
     var r = mid.getBoundingClientRect();
     if (!r.width || !r.height) return;
-    bbGap = r.width < 520 ? 12 : 18;
+    bbGap = r.width < 520 ? 26 : 52;           // bars need air between them to read as separate
     bbW = Math.max(150, Math.min(r.width * (r.width < 520 ? 0.86 : 0.46), r.height - 30, 430));
     root.style.setProperty('--bbw', bbW + 'px');
     root.style.setProperty('--bbgap', bbGap + 'px');
