@@ -1732,16 +1732,16 @@
         return;
       }
       var h = hitAt(ev); if (!h) return;
-      viewBar = Math.floor(h.col / 16);
-      var hit = cellIndexAt(h.ch, h.col);
-      if (hit < 0) hit = tailIndexAt(h.ch, h.col);
-      if (hit >= 0) {
-        selectNote(h.ch, S.cells[hit].c);
-        auditionCell(S.cells[hit]);
-        openPick(S.cells[hit].c, h.ch);
-        return;
-      }
+      // Below here the click was on EMPTY lane space -- the note block above
+      // catches every click on a note, tail included, because the block is as
+      // wide as the note is long. This used to look up whatever cell shared
+      // the column and open its panel, so clicking high above a note opened
+      // that note: the panel belongs to the note you actually hit.
       if (pickCol >= 0) { selCol = -1; selCh = -1; closePick(); renderGrid(); return; }
+      var taken = cellIndexAt(h.ch, h.col);
+      if (taken < 0) taken = tailIndexAt(h.ch, h.col);
+      if (taken >= 0) return;                 // one note per step in a lane
+      viewBar = Math.floor(h.col / 16);
       // place a note right where you clicked: this lane, and this height
       snapshot();
       pen.ch = h.ch;
