@@ -233,3 +233,23 @@ Studied the reference tutorial in depth and adopted its editing model:
   Clicking a note (or any square inside its tail) selects and auditions it
   for its real length (capped at 600 frames).
 
+## Create layout, owner pass (2026-08-27)
+
+Screen order is now: utility row (undo/redo/copy link/WAV/cartridge/close),
+the mood band (the star: large label + big chips), voice tabs sitting
+directly on the track, the bars, the note panel, and a player-style
+transport bar at the foot (Start / Play / Speed). Gone: the hint line, the
+caption line, every tooltip.
+
+Per bar: the tools row moved BELOW the grid with a 16px gap and carries
+worded buttons (Earlier / Later / Loop / Copy / Delete, no bar number);
+under it sits the bar's name ("bar 3 of 48", plus "looping"), shown for
+the bar you are on. Panning is a drag anywhere on a bar that is not a
+step or a button.
+
+The note panel is columned and worded: This/Next note, Voice, Pitch
+(Octave down / Lower / value / Higher / Octave up), Volume (Softer /
+Louder), Length (Shorter / Longer), Sound (Choose...), Remove note.
+sizeTrack() reserves room for the tools row and the label, and the tools
+row scrolls rather than wraps on phones.
+

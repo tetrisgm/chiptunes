@@ -529,8 +529,8 @@
     }
     S.key = 0; S.minor = scl.indexOf(3) >= 0 ? 1 : 0; S.bars = Math.max(1, Math.min(48, Math.ceil((gb.totalFrames || winF) / (16 * per16f))));
     S.bpm = Math.max(70, Math.min(180, Math.round((score.bpm || 120) / 2) * 2));
-    var lab = root && root.querySelector('.cr-lab');
-    if (lab) { lab.firstChild.textContent = S.bpm + ' BPM'; var sl = lab.querySelector('input'); if (sl) sl.value = S.bpm; }
+    var bv0 = root && root.querySelector('.n-bpmval');
+    if (bv0) { bv0.textContent = S.bpm; var sl0 = root.querySelector('[data-cr="bpm"]'); if (sl0) sl0.value = S.bpm; }
     S.cells = []; order = 0;
     var sorted = gb.notes.slice().sort(function (a, b) { return a.frame - b.frame || (b.pri || 0) - (a.pri || 0); });
     var LANE = { 9: 2, 7: 1, 3: 0 };           // kick / snare / hat, by note priority
@@ -685,13 +685,7 @@
   // ---- hints + tour --------------------------------------------------------
   var hintTimer = 0, hintedSulk = false;
   var HINT_IDLE = 'Tap an empty square to place the note shown below; tap a note to hear it and change it.';
-  function hint(t) {
-    var el = root && root.querySelector('.cr-hint');
-    if (!el) return;
-    el.textContent = t || HINT_IDLE;
-    clearTimeout(hintTimer);
-    if (t) hintTimer = setTimeout(function () { if (el) el.textContent = HINT_IDLE; }, 6000);
-  }
+  function hint(t) { if (t && G._toast && /(muted|limit|Nothing)/.test(t)) G._toast(t); }
   function checkSulk() {
     if (hintedSulk || !S) return;
     for (var i = 0; i < S.cells.length; i++) if (S.cells[i].x) {
@@ -852,7 +846,7 @@
   var camX = 0, camFollow = true;
   function renderTransport() {
     var b = root.querySelector('[data-cr="play"]');
-    if (b) b.textContent = playing ? '\u275a\u275a' : '\u25b6';
+    if (b) b.textContent = playing ? '\u275a\u275a Pause' : '\u25b6 Play';
   }
   function renderChans() {
     root.querySelectorAll('.n-tab').forEach(function (b) {
@@ -883,9 +877,11 @@
       el.classList.toggle('queued', b === queuedBar);
       el.classList.toggle('play', b === pb);
     });
-    var cap = root.querySelector('.n-cap');
-    if (cap) cap.textContent = (viewCh < 0 ? 'All voices' : CH[viewCh].n) + ' \u00b7 bar ' + (viewBar + 1) + ' of ' + S.bars +
-                               (loopBar >= 0 ? ' \u00b7 looping bar ' + (loopBar + 1) : '');
+    root.querySelectorAll('.n-bblabel').forEach(function (el) {
+      var lb = +el.parentNode.dataset.bar;
+      el.textContent = lb === viewBar ? ('bar ' + (lb + 1) + ' of ' + S.bars + (lb === loopBar ? ' \u00b7 looping' : ''))
+                     : (lb === loopBar ? 'looping' : '');
+    });
     applyCam();
   }
   function renderGrid() {
@@ -991,43 +987,48 @@
     var vsteps = Math.round((x ? (x.vel != null ? x.vel : 0.8) : pen.vel) * 8);
     var len = x ? (x.len || 1) : pen.len;
 
-    var html = '<div class="n-edtitle">' +
-      (x ? '<em style="color:' + CH[selCh].color + '">' + CH[selCh].n + '</em> \u00b7 bar ' +
-           (Math.floor(selCol / 16) + 1) + ' \u00b7 step ' + (selCol % 16 + 1)
-         : '<em>New note</em> \u00b7 tap a square to place it') + '</div>';
+    var html = '<div class="n-edcol n-edwho">' +
+      '<span class="n-edlab">' + (x ? 'This note' : 'Next note') + '</span>' +
+      '<b>' + (x ? CH[selCh].n + ' \u00b7 bar ' + (Math.floor(selCol / 16) + 1) + ' \u00b7 step ' + (selCol % 16 + 1)
+                 : 'tap a square to place it') + '</b></div>';
 
     if (!x) {
-      html += '<div class="n-edrow"><label>Voice</label><div class="n-edbtns">' +
+      html += '<div class="n-edcol"><span class="n-edlab">Voice</span><div class="n-edbtns">' +
         CH.map(function (c, i) {
-          return '<button type="button" class="n-edb' + (pen.ch === i ? ' on' : '') + '" data-pen="v' + i +
-                 '" style="' + (pen.ch === i ? 'color:' + c.color : '') + '">' + c.n + '</button>';
+          return '<button type="button" class="n-edb n-edvoice' + (pen.ch === i ? ' on' : '') + '" data-pen="v' + i + '">' +
+                 '<em style="color:' + c.color + '">' + c.n + '</em></button>';
         }).join('') + '</div></div>';
     }
     if (isDrum) {
-      html += '<div class="n-edrow"><label>Sound</label><div class="n-edbtns">' +
+      html += '<div class="n-edcol"><span class="n-edlab">Drum</span><div class="n-edbtns">' +
         DRUM_NAMES.map(function (dn, di) {
           return '<button type="button" class="n-edb' + (drum === di ? ' on' : '') + '" data-ed="d' + di + '">' + dn + '</button>';
         }).join('') + '</div></div>';
     } else {
-      html += '<div class="n-edrow"><label>Note</label><div class="n-edbtns">' +
-        '<button type="button" class="n-edb" data-ed="oct-" title="An octave down">\u2212oct</button>' +
-        '<button type="button" class="n-edb" data-ed="pitch-">\u2212</button>' +
+      html += '<div class="n-edcol"><span class="n-edlab">Pitch</span><div class="n-edbtns">' +
+        '<button type="button" class="n-edb" data-ed="oct-">Octave down</button>' +
+        '<button type="button" class="n-edb" data-ed="pitch-">Lower</button>' +
         '<b class="n-edval">' + noteName(midi) + '</b>' +
-        '<button type="button" class="n-edb" data-ed="pitch+">+</button>' +
-        '<button type="button" class="n-edb" data-ed="oct+" title="An octave up">+oct</button>' +
+        '<button type="button" class="n-edb" data-ed="pitch+">Higher</button>' +
+        '<button type="button" class="n-edb" data-ed="oct+">Octave up</button>' +
         '</div></div>';
     }
-    html += '<div class="n-edrow"><label>Volume</label><div class="n-edbtns">' +
-      '<button type="button" class="n-edb" data-ed="vol-">\u2212</button>' +
+    html += '<div class="n-edcol"><span class="n-edlab">Volume</span><div class="n-edbtns">' +
+      '<button type="button" class="n-edb" data-ed="vol-">Softer</button>' +
       '<b class="n-edval">' + (vsteps === 0 ? 'silent' : vsteps + ' / 8') + '</b>' +
-      '<button type="button" class="n-edb" data-ed="vol+">+</button>' +
+      '<button type="button" class="n-edb" data-ed="vol+">Louder</button>' +
       '</div></div>';
-    html += '<div class="n-edrow"><label>Length</label><div class="n-edbtns">' +
-      '<button type="button" class="n-edb" data-ed="len-">\u2212</button>' +
+    html += '<div class="n-edcol"><span class="n-edlab">Length</span><div class="n-edbtns">' +
+      '<button type="button" class="n-edb" data-ed="len-">Shorter</button>' +
       '<b class="n-edval">' + len + ' step' + (len > 1 ? 's' : '') + '</b>' +
-      '<button type="button" class="n-edb" data-ed="len+">+</button>' +
+      '<button type="button" class="n-edb" data-ed="len+">Longer</button>' +
       '</div></div>';
-    if (x) html += '<button type="button" class="n-eddel" data-ed="del">Remove this note</button>';
+    if (ch !== 3) {
+      html += '<div class="n-edcol"><span class="n-edlab">Sound</span><div class="n-edbtns">' +
+        '<button type="button" class="n-edb" data-ed="sound">Choose\u2026</button></div></div>';
+    }
+    if (x) html += '<div class="n-edcol"><span class="n-edlab">&nbsp;</span>' +
+      '<button type="button" class="n-eddel" data-ed="del">Remove note</button></div>';
     ed.innerHTML = html;
   }
   // one handler for both: the selected note if there is one, the pen if not
@@ -1039,6 +1040,7 @@
       renderEdit();
       return;
     }
+    if (what === 'sound') { openPad(x ? selCh : pen.ch); return; }
     if (!x) {
       if (what === 'pitch+' || what === 'pitch-') pen.midi = Math.max(24, Math.min(96, pen.midi + (what === 'pitch+' ? 1 : -1)));
       else if (what === 'oct+' || what === 'oct-') pen.midi = Math.max(24, Math.min(96, pen.midi + (what === 'oct+' ? 12 : -12)));
@@ -1196,61 +1198,60 @@
   var CHIPS = ['happy', 'sad', 'upbeat', 'chill', 'spooky', 'epic', 'retro', 'funky', 'dreamy', 'battle'];
   function buildUI() {
     root.innerHTML =
-      '<div class="cr-top">' +
-        '<button type="button" class="cr-btn n-play" data-cr="play" data-tip="Play or pause (Space)">\u25b6</button>' +
-        '<button type="button" class="cr-btn" data-cr="rewind" data-tip="Back to the start">\u23ee</button>' +
-        '<label class="cr-lab" data-tip="Speed">' + S.bpm + ' BPM<input type="range" min="70" max="180" step="2" value="' + S.bpm + '" data-cr="bpm"></label>' +
-        '<span class="cr-sep"></span>' +
-        '<button type="button" class="cr-btn" data-cr="undo" data-tip="Undo">\u21a9 Undo</button>' +
-        '<button type="button" class="cr-btn" data-cr="redo" data-tip="Redo">\u21aa Redo</button>' +
-        '<span class="cr-sep"></span>' +
-        '<button type="button" class="cr-btn" data-cr="share" data-tip="Copy a link that IS this song">Copy link</button>' +
-        '<button type="button" class="cr-btn" data-cr="wav" data-tip="Download the audio">WAV</button>' +
-        '<button type="button" class="cr-btn" data-cr="rom" data-tip="Download a real Game Boy cartridge">ROM</button>' +
-        '<button type="button" class="cr-btn cr-close" data-cr="close" data-tip="Back to the radio (Esc)">\u00d7</button>' +
+      '<div class="n-utils">' +
+        '<button type="button" class="cr-btn" data-cr="undo">\u21a9 Undo</button>' +
+        '<button type="button" class="cr-btn" data-cr="redo">\u21aa Redo</button>' +
+        '<button type="button" class="cr-btn" data-cr="share">Copy link</button>' +
+        '<button type="button" class="cr-btn" data-cr="wav">Save WAV</button>' +
+        '<button type="button" class="cr-btn" data-cr="rom">Save cartridge</button>' +
+        '<button type="button" class="cr-btn cr-close" data-cr="close">Close</button>' +
       '</div>' +
-      '<div class="n-moodrow"><span class="n-moodlab">Write me something</span>' +
+      '<div class="n-moodrow"><span class="n-moodlab">Write me a song that is\u2026</span>' +
+        '<span class="n-moodchips">' +
         CHIPS.map(function (c) { return '<button type="button" class="cr-chip" data-mood="' + c + '">' + c + '</button>'; }).join('') +
-      '</div>' +
+        '</span></div>' +
       '<div class="n-tabs">' +
-        '<button type="button" class="n-tab n-all" data-ch="-1" data-tip="Every voice at once">All</button>' +
+        '<button type="button" class="n-tab n-all" data-ch="-1">All voices</button>' +
         CH.map(function (c, i) {
-          return '<button type="button" class="n-tab" data-ch="' + i + '" data-tip="' + c.tip + '">' +
+          return '<button type="button" class="n-tab" data-ch="' + i + '">' +
                  '<span>' + c.n + '</span>' +
-                 '<i class="n-spk" data-mute="' + i + '" title="Mute this voice"></i></button>';
+                 '<i class="n-spk" data-mute="' + i + '"></i></button>';
         }).join('') + '</div>' +
-      '<div class="n-cap"></div>' +
       '<div class="n-mid"><div class="n-track"></div></div>' +
       '<div class="n-edit"></div>' +
-      '<div class="cr-hint"></div>';
+      '<div class="n-transport">' +
+        '<button type="button" class="cr-btn" data-cr="rewind">\u23ee Start</button>' +
+        '<button type="button" class="cr-btn cr-primary n-play" data-cr="play">\u25b6 Play</button>' +
+        '<label class="cr-lab">Speed <b class="n-bpmval">' + S.bpm + '</b> BPM' +
+        '<input type="range" min="70" max="180" step="2" value="' + S.bpm + '" data-cr="bpm"></label>' +
+      '</div>';
     buildTrack();
   }
-  // one 4x4 block per bar, laid end to end, then the block that adds a bar
+  // one 4x4 block per bar; its own tools sit UNDER it, then its name
   function buildTrack() {
     var track = root.querySelector('.n-track');
     var html = '';
     for (var b = 0; b < S.bars; b++) {
-      html += '<div class="n-bb" data-bar="' + b + '"><div class="n-bbhead">' +
-              '<b>' + (b + 1) + '</b>' +
-              '<button type="button" class="n-hb" data-barshift="-1" data-bar="' + b + '" title="Nudge earlier">\u25c0</button>' +
-              '<button type="button" class="n-hb" data-barshift="1" data-bar="' + b + '" title="Nudge later">\u25b6</button>' +
-              '<span class="n-hgap"></span>' +
-              '<button type="button" class="n-hb n-lp" data-loopbar="' + b + '" title="Loop this bar">\u21ba</button>' +
-              '<button type="button" class="n-hb" data-dupbar="' + b + '" title="Duplicate this bar">\u29c9</button>' +
-              '<button type="button" class="n-hb" data-delbar="' + b + '" title="Remove this bar">\u2212</button>' +
-              '</div><div class="n-bbgrid">';
+      html += '<div class="n-bb" data-bar="' + b + '"><div class="n-bbgrid">';
       for (var s2 = 0; s2 < 16; s2++) {
         html += '<div class="n-step' + (s2 % 4 === 0 ? ' beat' : '') + '" data-col="' + (b * 16 + s2) + '">' +
                 '<u>' + (s2 + 1) + '</u><i class="pb"></i><span class="nn"></span><b class="ln"></b>' +
                 '<div class="allpills"></div></div>';
       }
-      html += '</div></div>';
+      html += '</div><div class="n-bbtools">' +
+              '<button type="button" class="n-hb" data-barshift="-1" data-bar="' + b + '">\u25c0 Earlier</button>' +
+              '<button type="button" class="n-hb" data-barshift="1" data-bar="' + b + '">Later \u25b6</button>' +
+              '<button type="button" class="n-hb n-lp" data-loopbar="' + b + '">\u21ba Loop</button>' +
+              '<button type="button" class="n-hb" data-dupbar="' + b + '">\u29c9 Copy</button>' +
+              '<button type="button" class="n-hb" data-delbar="' + b + '">\u2212 Delete</button>' +
+              '</div><div class="n-bblabel"></div></div>';
     }
     html += '<button type="button" class="n-addbar" data-cr="baradd"><b>+</b><span>add a bar</span></button>';
     track.innerHTML = html;
     stepEls = [].slice.call(track.querySelectorAll('.n-step'));
     sizeTrack();
   }
+
   var bbW = 0, bbGap = 18;
   function sizeTrack() {
     var mid = root.querySelector('.n-mid');
@@ -1258,7 +1259,8 @@
     var r = mid.getBoundingClientRect();
     if (!r.width || !r.height) return;
     bbGap = r.width < 520 ? 26 : 52;           // bars need air between them to read as separate
-    bbW = Math.max(150, Math.min(r.width * (r.width < 520 ? 0.86 : 0.46), r.height - 30, 430));
+    // the block is the grid PLUS its tools row and its name line
+    bbW = Math.max(140, Math.min(r.width * (r.width < 520 ? 0.86 : 0.46), r.height - (r.width < 520 ? 96 : 108), 430));
     root.style.setProperty('--bbw', bbW + 'px');
     root.style.setProperty('--bbgap', bbGap + 'px');
   }
@@ -1294,10 +1296,6 @@
       ev.preventDefault(); ev.stopPropagation();
       togglePlay();
     }, true);
-    root.addEventListener('mouseover', function (ev) {
-      var t = ev.target.closest && ev.target.closest('[data-tip]');
-      if (t) hint(t.dataset.tip);
-    });
 
     var mid = root.querySelector('.n-mid'), pan = null;
 
@@ -1337,8 +1335,7 @@
 
     // the bar heads: pan by dragging, and carry the bar's own tools
     mid.addEventListener('pointerdown', function (ev) {
-      var hd = ev.target.closest('.n-bbhead');
-      if (!hd || ev.target.closest('.n-hb')) return;
+      if (ev.target.closest('.n-step') || ev.target.closest('button')) return;
       ev.preventDefault(); mid.setPointerCapture(ev.pointerId);
       pan = { x: ev.clientX, cam: camX };
       camFollow = false;
@@ -1438,7 +1435,8 @@
     root.addEventListener('input', function (ev) {
       var b = ev.target.closest('[data-cr="bpm"]'); if (!b) return;
       dropLiveScore();
-      S.bpm = +b.value; b.parentNode.firstChild.textContent = S.bpm + ' BPM';
+      S.bpm = +b.value;
+      var bv2 = root.querySelector('.n-bpmval'); if (bv2) bv2.textContent = S.bpm;
       dirty();
     });
     window.addEventListener('resize', function () {

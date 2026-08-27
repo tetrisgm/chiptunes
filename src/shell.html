@@ -551,6 +551,7 @@
   #createscreen .n-moodrow .cr-mood{ flex:0 0 auto; width:210px; }
   #createscreen .n-mid{ flex:1 1 auto; min-height:0; overflow:hidden; position:relative; padding:2px 0; }
   #createscreen .n-track{ position:absolute; left:0; top:0; bottom:0; display:flex; align-items:center;
+    padding-top:6px;
     gap:var(--bbgap,18px); padding:0 8px; will-change:transform; }
   #createscreen .n-bb{ flex:0 0 auto; width:var(--bbw,360px); display:flex; flex-direction:column; gap:5px;
     position:relative; }
@@ -612,29 +613,43 @@
   #createscreen .n-param.on{ background:rgba(232,227,250,.14); border-color:var(--mat-edge-hi); color:var(--ink); }
   #createscreen .n-tool{ height:32px; padding:0 10px; font-size:11px; }
   #createscreen .n-tool.on{ background:rgba(123,220,160,.2); border-color:rgba(123,220,160,.6); }
-  #createscreen .n-tabs{ flex:0 0 auto; display:flex; align-items:flex-end; gap:3px; padding:2px 14px 0;
-    border-bottom:1px solid var(--mat-edge); overflow-x:auto; scrollbar-width:none; }
+  #createscreen .n-utils{ flex:0 0 auto; display:flex; justify-content:flex-end; gap:6px;
+    padding:8px 14px 0; flex-wrap:wrap; }
+  #createscreen .n-utils .cr-btn{ height:30px; padding:0 11px; font-size:11px; }
+  #createscreen .n-moodrow{ flex:0 0 auto; display:flex; align-items:center; gap:10px;
+    padding:10px 18px 14px; overflow-x:auto; scrollbar-width:none; }
+  #createscreen .n-moodrow::-webkit-scrollbar{ display:none; }
+  #createscreen .n-moodlab{ flex:0 0 auto; font:700 17px/1.2 var(--ui); color:var(--ink);
+    letter-spacing:-.01em; }
+  #createscreen .n-moodchips{ display:flex; gap:7px; }
+  #createscreen .cr-chip{ height:36px; padding:0 16px; border-radius:999px; cursor:pointer; flex:0 0 auto;
+    background:rgba(255,255,255,.08); border:1px solid var(--mat-edge-hi); color:var(--ink);
+    font:700 13px var(--ui); }
+  #createscreen .cr-chip:hover{ background:rgba(123,220,160,.2); border-color:rgba(123,220,160,.6); }
+  #createscreen .n-tabs{ flex:0 0 auto; display:flex; align-items:flex-end; gap:3px; padding:0 16px;
+    overflow-x:auto; scrollbar-width:none; }
   #createscreen .n-tabs::-webkit-scrollbar{ display:none; }
   #createscreen .n-tab{ flex:0 0 auto; height:34px; padding:0 14px; cursor:pointer; position:relative;
     display:inline-flex; align-items:center; gap:7px; color:var(--ink-2); font:700 12px var(--ui);
-    background:rgba(255,255,255,.035); border:1px solid var(--mat-edge); border-bottom:none;
-    border-radius:9px 9px 0 0; top:1px; }
-  #createscreen .n-tab.sel{ background:rgba(255,255,255,.11); border-color:var(--mat-edge-hi);
-    color:var(--ink); box-shadow:0 1px 0 0 rgba(255,255,255,.11); }
+    background:rgba(255,255,255,.04); border:1px solid var(--mat-edge); border-bottom:none;
+    border-radius:9px 9px 0 0; }
+  #createscreen .n-tab.sel{ background:rgba(255,255,255,.12); border-color:var(--mat-edge-hi); color:var(--ink); }
   #createscreen .n-tab.muted span{ opacity:.45; text-decoration:line-through; }
   #createscreen .n-tab canvas{ display:block; opacity:.9; }
   #createscreen .n-spk{ width:20px; height:20px; border-radius:5px; display:flex; align-items:center;
     justify-content:center; font-size:12px; font-style:normal; opacity:.85; }
   #createscreen .n-spk:hover{ background:rgba(255,255,255,.16); opacity:1; }
-  #createscreen .n-moodlab{ font:600 11px var(--ui); color:var(--ink-2); margin-right:2px; }
-  #createscreen .n-bbhead{ display:flex; align-items:center; gap:3px; height:26px; cursor:grab;
-    padding:0 5px; border-radius:8px; }
-  #createscreen .n-hgap{ flex:1 1 auto; }
-  #createscreen .n-hb{ width:24px; height:22px; border-radius:6px; cursor:pointer; padding:0;
-    background:rgba(255,255,255,.05); border:1px solid var(--mat-edge); color:var(--ink-2); font:600 11px var(--ui); }
+  #createscreen .n-mid{ flex:1 1 auto; min-height:0; overflow:hidden; position:relative;
+    border-top:1px solid var(--mat-edge-hi); }
+  #createscreen .n-bbtools{ display:flex; gap:5px; justify-content:center; flex-wrap:wrap; margin-top:16px; }
+  #createscreen .n-hb{ height:28px; padding:0 10px; border-radius:8px; cursor:pointer; white-space:nowrap;
+    background:rgba(255,255,255,.05); border:1px solid var(--mat-edge); color:var(--ink-2); font:700 10px var(--ui); }
   #createscreen .n-hb:hover{ border-color:var(--mat-edge-hi); color:var(--ink); }
   #createscreen .n-bb.loop .n-lp{ background:rgba(123,220,160,.25); border-color:rgba(123,220,160,.7); color:#7BDCA0; }
   #createscreen .n-bb.queued .n-lp{ border-color:rgba(255,201,60,.8); color:#FFC93C; }
+  #createscreen .n-bblabel{ height:16px; text-align:center; margin-top:8px;
+    font:700 11px var(--ui); color:var(--ink-2); letter-spacing:.03em; }
+  #createscreen .n-bb.view .n-bblabel{ color:var(--ink); }
   #createscreen .n-addbar{ flex:0 0 auto; width:120px; height:var(--bbw,360px); border-radius:14px; cursor:pointer;
     display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;
     background:rgba(255,255,255,.03); border:1px dashed var(--mat-edge-hi); color:var(--ink-2); }
@@ -643,22 +658,30 @@
   #createscreen .n-addbar:hover{ background:rgba(255,255,255,.07); color:var(--ink); }
   #createscreen .n-step.sel{ box-shadow:0 0 0 2px rgba(255,255,255,.55); }
   #createscreen .allpills em.sel{ box-shadow:0 0 0 2px rgba(255,255,255,.6); }
-  #createscreen .n-edit{ flex:0 0 auto; display:flex; align-items:center; justify-content:center; gap:14px;
-    flex-wrap:wrap; min-height:52px; padding:8px 14px; border-top:1px solid var(--mat-edge); }
-  #createscreen .n-edhint{ font:500 11px var(--ui); color:var(--ink-2); }
-  #createscreen .n-edtitle{ font:700 11px var(--ui); color:var(--ink-2); }
-  #createscreen .n-edtitle em{ font-style:normal; font-weight:800; }
-  #createscreen .n-edrow{ display:flex; align-items:center; gap:8px; }
-  #createscreen .n-edrow label{ font:600 10px var(--ui); color:var(--ink-2); text-transform:uppercase;
-    letter-spacing:.08em; }
-  #createscreen .n-edbtns{ display:flex; align-items:center; gap:4px; }
-  #createscreen .n-edb{ height:30px; min-width:30px; padding:0 8px; border-radius:8px; cursor:pointer;
-    background:rgba(255,255,255,.07); border:1px solid var(--mat-edge); color:var(--ink); font:700 12px var(--ui); }
-  #createscreen .n-edb:hover{ background:rgba(255,255,255,.13); border-color:var(--mat-edge-hi); }
-  #createscreen .n-edb.on{ background:rgba(123,220,160,.2); border-color:rgba(123,220,160,.6); }
-  #createscreen .n-edval{ min-width:56px; text-align:center; font:800 13px var(--ui); color:var(--ink); }
-  #createscreen .n-eddel{ height:30px; padding:0 12px; border-radius:8px; cursor:pointer;
+  #createscreen .n-edit{ flex:0 0 auto; display:flex; align-items:flex-start; justify-content:center;
+    gap:18px; flex-wrap:wrap; padding:12px 14px; border-top:1px solid var(--mat-edge); }
+  #createscreen .n-edcol{ display:flex; flex-direction:column; align-items:center; gap:5px; }
+  #createscreen .n-edlab{ font:700 9px var(--ui); color:var(--ink-2); text-transform:uppercase;
+    letter-spacing:.1em; }
+  #createscreen .n-edwho b{ font:700 12px var(--ui); color:var(--ink); }
+  #createscreen .n-edbtns{ display:flex; align-items:center; gap:5px; }
+  #createscreen .n-edb{ height:32px; padding:0 11px; border-radius:8px; cursor:pointer;
+    background:rgba(255,255,255,.07); border:1px solid var(--mat-edge); color:var(--ink); font:700 11px var(--ui); }
+  #createscreen .n-edb:hover{ background:rgba(255,255,255,.14); border-color:var(--mat-edge-hi); }
+  #createscreen .n-edb.on{ background:rgba(255,255,255,.16); border-color:var(--mat-edge-hi); }
+  #createscreen .n-edvoice em{ font-style:normal; font-weight:800; }
+  #createscreen .n-edval{ min-width:62px; text-align:center; font:800 14px var(--ui); color:var(--ink); }
+  #createscreen .n-eddel{ height:32px; padding:0 12px; border-radius:8px; cursor:pointer;
     background:rgba(255,107,87,.14); border:1px solid rgba(255,107,87,.45); color:#FF9E90; font:700 11px var(--ui); }
+  #createscreen .n-transport{ flex:0 0 auto; display:flex; align-items:center; justify-content:center;
+    gap:14px; padding:10px 14px 14px; border-top:1px solid var(--mat-edge-hi);
+    background:rgba(255,255,255,.03); }
+  #createscreen .n-transport .cr-btn{ height:40px; padding:0 18px; font-size:13px; }
+  #createscreen .n-transport .n-play{ min-width:120px; }
+  #createscreen .n-transport .cr-lab{ display:inline-flex; align-items:center; gap:8px;
+    font:600 12px var(--ui); color:var(--ink-2); }
+  #createscreen .n-transport .cr-lab b{ color:var(--ink); font-weight:800; }
+  #createscreen .n-transport input[type=range]{ width:160px; accent-color:#7bdca0; }
   #createscreen .cr-padover{ position:fixed; inset:0; z-index:60; display:flex; align-items:center;
     justify-content:center; background:rgba(4,6,10,.55); }
   #createscreen .cr-padcard{ display:flex; flex-direction:column; align-items:center; gap:10px;
@@ -699,6 +722,16 @@
     #createscreen .cr-lab input{ width:64px; }
     #createscreen .cr-tour{ width:220px; }
     #createscreen .n-step .nn{ font-size:14px; }
+    #createscreen .n-moodlab{ font-size:14px; }
+    #createscreen .n-edit{ gap:10px; padding:8px 8px; }
+    #createscreen .n-edb{ height:30px; padding:0 9px; font-size:10px; }
+    #createscreen .n-transport{ gap:8px; padding:8px; }
+    #createscreen .n-transport .cr-btn{ height:38px; padding:0 12px; }
+    #createscreen .n-transport input[type=range]{ width:96px; }
+    #createscreen .n-bbtools{ flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none;
+      justify-content:flex-start; margin-top:12px; }
+    #createscreen .n-bbtools::-webkit-scrollbar{ display:none; }
+    #createscreen .n-hb{ font-size:9px; padding:0 8px; }
     #createscreen .allpills em{ font-size:8px; }
     #createscreen .n-edit{ gap:10px; padding:6px 10px; }
     #createscreen .n-edrow label{ display:none; }
