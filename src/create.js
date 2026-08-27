@@ -1215,15 +1215,22 @@
   }
 
   // ---- build the screen ----------------------------------------------------
+  // the same two downloads the player offers, with the player's own icons
+  function _ic(which) {
+    try {
+      if (which === 'wave' && typeof _IC_WAVE !== 'undefined') return _IC_WAVE;
+      if (which === 'rom' && typeof _IC_ROM !== 'undefined') return _IC_ROM;
+    } catch (e) {}
+    return '';
+  }
   var CHIPS = ['happy', 'sad', 'upbeat', 'chill', 'spooky', 'epic', 'retro', 'funky', 'dreamy', 'battle'];
   function buildUI() {
     root.innerHTML =
       '<div class="n-utils">' +
         '<button type="button" class="cr-btn" data-cr="undo">↩ Undo</button>' +
         '<button type="button" class="cr-btn" data-cr="redo">↪ Redo</button>' +
-        '<button type="button" class="cr-btn" data-cr="share">Copy link</button>' +
-        '<button type="button" class="cr-btn" data-cr="wav">Save WAV</button>' +
-        '<button type="button" class="cr-btn" data-cr="rom">Save cartridge</button>' +
+        '<button type="button" class="cr-btn cr-dl" data-cr="wav">' + _ic('wave') + 'Download WAV</button>' +
+        '<button type="button" class="cr-btn cr-dl" data-cr="rom">' + _ic('rom') + 'Download ROM</button>' +
         '<button type="button" class="cr-btn cr-close" data-cr="close">Close</button>' +
       '</div>' +
       '<div class="n-moodrow"><span class="n-moodlab">Write me a song that is…</span>' +
@@ -1581,9 +1588,6 @@
       else if (k === 'undo') { undo(); }
       else if (k === 'redo') { redo(); }
       else if (k === 'baradd') { addBar(); }
-      else if (k === 'share') {
-        try { navigator.clipboard.writeText(location.origin + '/create#s=' + encode()); if (G._toast) G._toast('Link copied. The link IS the song \ud83c\udfb5'); } catch (e) {}
-      }
       else if (k === 'wav') { exportWav(); }
       else if (k === 'rom') { exportRom(); }
     });
