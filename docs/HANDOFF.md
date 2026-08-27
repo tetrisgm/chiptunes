@@ -203,3 +203,20 @@ Studied the reference tutorial in depth and adopted its editing model:
 - Composed notes with no pitch are dropped at projection (they showed as
   bogus 'C-1' squares and played subsonic).
 
+## Create simplified to buttons (2026-08-27)
+
+- Default tab is All. Tabs are real tabs above the track, each with a
+  speaker icon that mutes that voice; holding a tab still opens its sound
+  map. Empty slots in All draw nothing (sustained notes get a hairline).
+- Tapping a square selects it: an empty square on a voice tab adds a note,
+  a note (or a pill in All) opens the note editor under the track. All
+  editing is labelled buttons -- Note -/+ and -/+ octave (real semitones on
+  the note's own midi, so the two-octave display never traps a pitch),
+  Volume -/+ (0 = a silent step, dropped from the song), Length -/+, drum
+  Sound as Hat/Snare/Kick, and Remove this note. No drag-to-edit.
+- Each bar head carries nudge left/right, loop, duplicate, remove; a dashed
+  block after the last bar adds one (capped at 48 with a hint).
+- Removed: the mood text field, the dice, the Songs shelf, the Share menu
+  (Copy link / WAV / ROM sit in the top bar), the parameter row, multi-tap
+  randomize, and the instrument drawer list.
+

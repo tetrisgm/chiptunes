@@ -20,9 +20,9 @@ on with your day: <https://chiptunes.app>
 - **Make your own.** Create is a pocket tracker on the same chip: a 4x4
   grid holds one bar of one voice, tap for notes, drag up and down for
   pitch and sideways for length, and the four channel buttons are the
-  DMG's own voices. Type a mood ("slow spooky", "upbeat", "battle") and
-  the radio's composer writes a whole track onto the grid, no AI involved,
-  yours to edit. Share it as a link, a WAV, or a real cartridge.
+  DMG's own voices. Tap a mood (happy, spooky, battle) and the
+  radio's composer writes a whole track onto the grid, no AI involved,
+  yours to edit note by note. Share it as a link, a WAV, or a real cartridge.
 - **The music is measured, not guessed.** Songs draw one of fourteen styles
   (house, dnb, trance, rock, chill, and friends). The patterns inside them
   are mined from 74,552 video-game MIDI files: real kit bars, real bass

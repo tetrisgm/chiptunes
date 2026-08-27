@@ -345,7 +345,7 @@
     if (!root) return;
     if (!playing) { try { buildSong(); } catch (e) {} }   // refresh sulk + channel marks
     checkSulk();
-    renderGrid(); renderBars();
+    renderGrid(); renderBars(); renderEdit();
     clearTimeout(saveTimer);
     saveTimer = setTimeout(function () {
       var enc = encode();
@@ -566,7 +566,7 @@
     liveMood = String(moodText || '');
     try { buildSong(); } catch (e) {}          // resolve channel marks
     loopBar = -1; queuedBar = null;
-    viewBar = 0; camX = 0; camFollow = true;
+    viewBar = 0; camX = 0; camFollow = true; selCol = -1; selCh = -1;
     if (root.querySelector('.n-track')) { buildTrack(); }
     pausedAt = 0;
     dirty();
@@ -656,39 +656,6 @@
   function closePad() { var ov = root.querySelector('.cr-padover'); if (ov) ov.remove(); }
 
   // ---- the songs shelf: this browser's saved songs -------------------------
-  function loadShelf() {
-    try { return JSON.parse(localStorage.getItem('ct-create-shelf') || '[]') || []; } catch (e) { return []; }
-  }
-  function saveShelf(list) {
-    try { localStorage.setItem('ct-create-shelf', JSON.stringify(list.slice(0, 30))); } catch (e) {}
-  }
-  function renderShelf() {
-    var sh = root.querySelector('.cr-shelf');
-    if (!sh) return;
-    var list = loadShelf();
-    var html = '<div class="cr-shelfrow cr-shelfsave">' +
-      '<input type="text" class="cr-shelfname" placeholder="name this song" maxlength="40">' +
-      '<button type="button" class="cr-btn" data-shelf="save">Save current</button></div>';
-    list.forEach(function (it, i) {
-      var d = decode(it.enc);
-      var meta = d ? d.cells.length + ' notes · ' + d.bars + ' bars · ' + d.bpm + ' BPM' : '?';
-      html += '<div class="cr-shelfrow"><b>' + String(it.name).replace(/[<>&]/g, '') + '</b>' +
-              '<span>' + meta + '</span>' +
-              '<button type="button" class="cr-btn" data-shelf-load="' + i + '">Load</button>' +
-              '<button type="button" class="cr-btn" data-shelf-del="' + i + '" title="Delete">×</button></div>';
-    });
-    if (!list.length) html += '<div class="cr-shelfempty">Nothing saved yet. Songs you save live in this browser.</div>';
-    sh.innerHTML = html;
-  }
-  function toggleShelf() {
-    var sh = root.querySelector('.cr-shelf');
-    if (sh) { sh.remove(); return; }
-    sh = document.createElement('div');
-    sh.className = 'cr-shelf';
-    root.insertBefore(sh, root.querySelector('.cr-hint'));
-    renderShelf();
-  }
-
   // ---- exports -------------------------------------------------------------
   function exportRom() {
     var song = liveScore || buildSong();
@@ -710,7 +677,7 @@
 
   // ---- hints + tour --------------------------------------------------------
   var hintTimer = 0, hintedSulk = false;
-  var HINT_IDLE = 'Each square is a moment in the bar, left to right. Tap for a note, drag up for higher, sideways for longer, tap again to remove.';
+  var HINT_IDLE = 'Tap a note to edit it below. Pick a voice tab to add notes; tap a mood to write a whole song.';
   function hint(t) {
     var el = root && root.querySelector('.cr-hint');
     if (!el) return;
@@ -738,10 +705,10 @@
     var t = root.querySelector('.cr-tour');
     if (!t) { t = document.createElement('div'); t.className = 'cr-tour'; root.appendChild(t); }
     var msgs = [
-      ['This song was just written for you.', 'Each square is one moment of this bar, left to right, top to bottom. Tap for a note, tap again to remove. Drag up and down for pitch, sideways to stretch.'],
-      ['Four voices, like a tiny band.', 'All shows every voice at once. Melody, Harmony, Bass and Drums are the Game Boy\u2019s four sounds: tap one to work on it, tap its speaker to mute it, hold it to pick its instrument.'],
-      ['The song scrolls sideways.', 'Every bar sits next to the last. Drag a bar\u2019s title strip to slide along, or let it follow the music. The \u21ba on a bar loops just that one.'],
-      ['Moods write songs.', 'Type a feeling and press Make, or roll the dice. Everything it writes is yours to edit.']
+      ['This song was just written for you.', 'Each square is one moment of a bar. Tap a note to edit it below; tap an empty square (with a voice picked) to add one.'],
+      ['Four voices, like a tiny band.', 'All shows everything at once. Melody, Harmony, Bass and Drums are the Game Boy\u2019s four sounds: pick one to add notes, tap its speaker to mute it.'],
+      ['The song scrolls sideways.', 'Bars sit next to each other. Drag a bar\u2019s strip to travel; its little buttons nudge, loop, duplicate or remove it. The dashed block at the end adds a bar.'],
+      ['Moods write songs.', 'Tap a mood up top and the radio\u2019s composer writes a whole song here, yours to edit.'],
     ];
     t.innerHTML = '<b>' + msgs[step][0] + '</b><span>' + msgs[step][1] + '</span>' +
       '<div class="cr-tourbtns"><button type="button" data-tour="skip">Skip</button>' +
@@ -832,14 +799,8 @@
     chanIconCache[key] = cv;
     return cv;
   }
-  var viewCh = 0, viewBar = 0, lastDeg = [7, 9, 3, 2];
-  // the parameter in hand: what a vertical drag on a step edits
-  var param = 'note';
-  var PARAMS = [
-    { id: 'note', n: 'Note', tip: 'Drag a note up and down to change its pitch. Tap Note again and again to shuffle the pitches.' },
-    { id: 'vol',  n: 'Vol',  tip: 'Drag a note up and down to change its loudness. All the way down silences that step (=). Multi-tap to randomize.' },
-    { id: 'len',  n: 'Len',  tip: 'Drag a note up to make it longer. Multi-tap to randomize the lengths.' }
-  ];
+  var viewCh = -1, viewBar = 0, lastDeg = [7, 9, 3, 2];
+  var selCol = -1, selCh = -1;                 // the note being edited
   function chOfCell(x) {
     if (x.r >= MEL_ROWS) return 3;
     var v = cellVoice(x);
@@ -896,7 +857,7 @@
     if (b) b.textContent = playing ? '\u275a\u275a' : '\u25b6';
   }
   function renderChans() {
-    root.querySelectorAll('.n-chan').forEach(function (b) {
+    root.querySelectorAll('.n-tab').forEach(function (b) {
       var i = +b.dataset.ch;
       b.classList.toggle('sel', viewCh === i);
       if (i < 0) return;
@@ -945,6 +906,7 @@
       el.classList.toggle('on', !!x);
       el.classList.toggle('tail', tail >= 0);
       el.classList.toggle('sulk', !!(x && x.x));
+      el.classList.toggle('sel', selCh === viewCh && selCol === col);
       var pbEl = el.querySelector('.pb'), nnEl = el.querySelector('.nn'), lnEl = el.querySelector('.ln');
       if (x) {
         var deg = degOfCell(x);
@@ -966,87 +928,139 @@
     }
   }
   // All: every voice in one grid, a labelled pill per voice per step
+  // All: only what is actually sounding. Empty squares stay empty.
   function renderGridAll(track) {
     track.classList.remove('chmuted');
     track.style.color = 'rgba(232,227,250,0.9)';
     var em = effMask();
     for (var i = 0; i < stepEls.length; i++) {
       var el = stepEls[i], col = +el.dataset.col;
-      var pills = '';
-      var any = false;
+      var pills = '', any = false;
       for (var ch = 0; ch < 4; ch++) {
         var ci = cellIndexAt(ch, col);
         var x = ci >= 0 ? S.cells[ci] : null;
-        if (!x) { var ti = tailIndexAt(ch, col); pills += '<em class="' + (ti >= 0 ? 'tl' : 'no') + '" style="background:' + CH[ch].color + '"></em>'; continue; }
+        if (!x) {
+          // an empty slot draws nothing; a still-ringing note gets a hairline
+          pills += tailIndexAt(ch, col) >= 0
+            ? '<em class="tl"><s style="background:' + CH[ch].color + '"></s></em>'
+            : '<em class="sp"></em>';
+          continue;
+        }
         any = true;
         var vel = x.vel != null ? x.vel : 0.8;
-        var label = vel === 0 ? '=' : (x.r >= MEL_ROWS ? DRUM_NAMES[x.r - MEL_ROWS]
+        var label = vel === 0 ? '\u2013' : (x.r >= MEL_ROWS ? DRUM_NAMES[x.r - MEL_ROWS]
                                      : noteName(x.midi != null ? x.midi : rowMidi(x.r)));
-        pills += '<em class="pl' + (x.x ? ' sulk' : '') + (em[ch] ? ' off' : '') + '" style="color:' + CH[ch].color +
+        pills += '<em class="pl' + (x.x ? ' sulk' : '') + (em[ch] ? ' off' : '') +
+                 (selCh === ch && selCol === col ? ' sel' : '') + '" data-pill="' + ch + '" style="color:' + CH[ch].color +
                  ';border-color:' + CH[ch].color + '">' + label + '</em>';
       }
       el.classList.toggle('on', any);
+      el.classList.toggle('sel', selCol === col && selCh >= 0);
       el.classList.remove('tail', 'rest', 'sulk');
-      var ov = el.querySelector('.allpills');
-      if (!ov) { ov = document.createElement('div'); ov.className = 'allpills'; el.appendChild(ov); }
-      ov.innerHTML = pills;
+      el.querySelector('.allpills').innerHTML = pills;
     }
   }
-  function renderParams() {
-    root.querySelectorAll('.n-param').forEach(function (b) {
-      b.classList.toggle('on', param === b.dataset.param);
-    });
-    var sw = root.querySelector('[data-cr="swing"]');
-    if (sw) sw.classList.toggle('on', !!(S && S.swing));
+  // The note editor: what a selected square holds, in words and buttons.
+  function selCell() {
+    if (selCol < 0 || selCh < 0) return null;
+    var i = cellIndexAt(selCh, selCol);
+    return i >= 0 ? S.cells[i] : null;
   }
-  function renderAll() { renderTransport(); renderChans(); renderBars(); renderGrid(); renderParams(); }
+  function renderEdit() {
+    var ed = root.querySelector('.n-edit');
+    if (!ed) return;
+    var x = selCell();
+    if (!x) {
+      ed.innerHTML = '<span class="n-edhint">' +
+        (viewCh < 0 ? 'Tap any note above to edit it, or pick a voice to add notes.'
+                    : 'Tap a square above to add a note, or tap a note to edit it.') + '</span>';
+      return;
+    }
+    var isDrum = x.r >= MEL_ROWS;
+    var vel = x.vel != null ? x.vel : 0.8;
+    var vsteps = Math.round(vel * 8);
+    var rows = '<div class="n-edtitle"><em style="color:' + CH[selCh].color + '">' + CH[selCh].n + '</em>' +
+               ' \u00b7 bar ' + (Math.floor(selCol / 16) + 1) + ' \u00b7 step ' + (selCol % 16 + 1) + '</div>';
+    if (isDrum) {
+      rows += '<div class="n-edrow"><label>Sound</label><div class="n-edbtns">' +
+        DRUM_NAMES.map(function (dn, di) {
+          return '<button type="button" class="n-edb' + (x.r - MEL_ROWS === di ? ' on' : '') + '" data-drum="' + di + '">' + dn + '</button>';
+        }).join('') + '</div></div>';
+    } else {
+      rows += '<div class="n-edrow"><label>Note</label><div class="n-edbtns">' +
+        '<button type="button" class="n-edb" data-ed="oct-" title="An octave down">\u2212 oct</button>' +
+        '<button type="button" class="n-edb" data-ed="pitch-">\u2212</button>' +
+        '<b class="n-edval">' + noteName(x.midi != null ? x.midi : rowMidi(x.r)) + '</b>' +
+        '<button type="button" class="n-edb" data-ed="pitch+">+</button>' +
+        '<button type="button" class="n-edb" data-ed="oct+" title="An octave up">+ oct</button>' +
+        '</div></div>';
+    }
+    rows += '<div class="n-edrow"><label>Volume</label><div class="n-edbtns">' +
+      '<button type="button" class="n-edb" data-ed="vol-">\u2212</button>' +
+      '<b class="n-edval">' + (vsteps === 0 ? 'silent' : vsteps + ' / 8') + '</b>' +
+      '<button type="button" class="n-edb" data-ed="vol+">+</button>' +
+      '</div></div>';
+    rows += '<div class="n-edrow"><label>Length</label><div class="n-edbtns">' +
+      '<button type="button" class="n-edb" data-ed="len-">\u2212</button>' +
+      '<b class="n-edval">' + (x.len || 1) + ' step' + ((x.len || 1) > 1 ? 's' : '') + '</b>' +
+      '<button type="button" class="n-edb" data-ed="len+">+</button>' +
+      '</div></div>';
+    rows += '<button type="button" class="n-eddel" data-ed="del">Remove this note</button>';
+    ed.innerHTML = rows;
+  }
+  // Pitch edits work in real semitones on the note's own midi, so a note is
+  // never trapped by the grid's two-octave display range; the row it sits on
+  // is only where we draw it.
+  function rowForMidi(m) {
+    var best = 0, bd = 999;
+    for (var r = 0; r < MEL_ROWS; r++) {
+      var d = Math.abs(rowMidi(r) - m);
+      if (d < bd) { bd = d; best = r; }
+    }
+    return best;
+  }
+  function movePitch(x, delta) {
+    var m = x.midi != null ? x.midi : rowMidi(x.r);
+    m = Math.max(24, Math.min(96, m + delta));
+    x.midi = m;
+    x.r = rowForMidi(m);
+  }
+  function editNote(what) {
+    var x = selCell();
+    if (!x) return;
+    snapshot();
+    if (what === 'pitch+' || what === 'pitch-') movePitch(x, what === 'pitch+' ? 1 : -1);
+    else if (what === 'oct+' || what === 'oct-') movePitch(x, what === 'oct+' ? 12 : -12);
+    else if (what === 'vol+' || what === 'vol-') {
+      var v = Math.round((x.vel != null ? x.vel : 0.8) * 8) + (what === 'vol+' ? 1 : -1);
+      x.vel = Math.max(0, Math.min(8, v)) / 8;
+    } else if (what === 'len+' || what === 'len-') {
+      var l = (x.len || 1) + (what === 'len+' ? 1 : -1);
+      l = Math.max(1, Math.min(16, l));
+      if (l > 1) x.len = l; else delete x.len;
+    } else if (what === 'del') {
+      var i = S.cells.indexOf(x);
+      if (i >= 0) S.cells.splice(i, 1);
+      selCol = -1; selCh = -1;
+      dirty(); renderEdit();
+      return;
+    } else if (what.charAt(0) === 'd') {                 // a drum lane
+      x.r = MEL_ROWS + (+what.slice(1));
+      delete x.inst;
+    }
+    dirty(); renderEdit();
+    if (!(what === 'vol-' && x.vel === 0)) auditionCell(x);
+  }
+  function selectNote(ch, col) {
+    selCh = ch; selCol = col;
+    renderGrid(); renderEdit();
+  }
+  function renderAll() { renderTransport(); renderChans(); renderBars(); renderGrid(); renderEdit(); }
   function updatePh(col) {
     if (col === lastPh) return;
     if (lastPh >= 0 && stepEls[lastPh]) stepEls[lastPh].classList.remove('ph');
     if (col >= 0 && stepEls[col]) stepEls[col].classList.add('ph');
     lastPh = col;
-  }
-
-  // Multi-tapping a parameter button randomizes that parameter across the
-  // bar's notes on this voice (or every voice while All is selected); each
-  // further tap within the window randomizes harder.
-  var randTaps = 0, randTimer = 0, randSnapped = false;
-  function barCells() {
-    var out = [];
-    for (var s2 = 0; s2 < 16; s2++) {
-      var col = viewBar * 16 + s2;
-      if (viewCh < 0) {
-        for (var c2 = 0; c2 < 4; c2++) { var j = cellIndexAt(c2, col); if (j >= 0) out.push(S.cells[j]); }
-      } else {
-        var i = cellIndexAt(viewCh, col);
-        if (i >= 0) out.push(S.cells[i]);
-      }
-    }
-    return out;
-  }
-  function randomizeParam(which) {
-    clearTimeout(randTimer);
-    randTaps++;
-    randTimer = setTimeout(function () { randTaps = 0; randSnapped = false; }, 700);
-    if (randTaps < 2) return;                  // the first tap only selects
-    var cellsHere = barCells();
-    if (!cellsHere.length) { hint('No notes in this bar yet.'); return; }
-    if (!randSnapped) { snapshot(); randSnapped = true; }
-    var amt = Math.min(6, randTaps - 1);
-    cellsHere.forEach(function (x) {
-      if (which === 'note') {
-        var span = x.r >= MEL_ROWS ? 2 : MEL_ROWS - 1;
-        var nd = Math.max(0, Math.min(span, degOfCell(x) + Math.round((Math.random() * 2 - 1) * amt)));
-        applyDeg(x, nd);
-      } else if (which === 'vol') {
-        x.vel = Math.max(1, Math.round(Math.random() * 8)) / 8;
-      } else if (which === 'len') {
-        var nl = Math.max(1, Math.min(8, 1 + Math.floor(Math.random() * amt)));
-        if (nl > 1) x.len = nl; else delete x.len;
-      }
-    });
-    dirty();
-    hint('Shuffled the ' + (which === 'note' ? 'pitches' : which === 'vol' ? 'volumes' : 'lengths') + '. Keep tapping for wilder, undo to take it back.');
   }
 
   // the playhead ticker: follow, loop wraps, queued switches, next songs
@@ -1083,38 +1097,30 @@
   }
 
   // nudge this voice's bar left/right (wrapping), or move it an octave
-  function shiftBar(dir) {
-    var cellsHere = barCells();
-    if (!cellsHere.length) return;
+  function shiftBar(dir, bar) {
+    var b = bar == null ? viewBar : bar;
+    var cellsHere = [];
+    for (var s2 = 0; s2 < 16; s2++) {
+      var col = b * 16 + s2;
+      if (viewCh < 0) { for (var c2 = 0; c2 < 4; c2++) { var j = cellIndexAt(c2, col); if (j >= 0) cellsHere.push(S.cells[j]); } }
+      else { var i = cellIndexAt(viewCh, col); if (i >= 0) cellsHere.push(S.cells[i]); }
+    }
+    if (!cellsHere.length) { hint('Nothing to nudge in bar ' + (b + 1) + '.'); return; }
     snapshot();
-    cellsHere.forEach(function (x) {
-      var s2 = (x.c - viewBar * 16 + dir + 16) % 16;
-      x.c = viewBar * 16 + s2;
-    });
+    cellsHere.forEach(function (x) { x.c = b * 16 + ((x.c - b * 16 + dir + 16) % 16); });
+    selCol = -1; selCh = -1;
     dirty();
   }
-  function octaveBar(delta) {
-    var cellsHere = barCells().filter(function (x) { return x.r < MEL_ROWS; });
-    if (!cellsHere.length) return;
-    snapshot();
-    cellsHere.forEach(function (x) {
-      var nd = Math.max(0, Math.min(MEL_ROWS - 1, degOfCell(x) + delta));
-      applyDeg(x, nd);
-    });
-    dirty();
-    auditionCell(cellsHere[0]);
-  }
-
   // ---- bar operations ------------------------------------------------------
   function addBar() {
-    if (S.bars >= 48) return;
+    if (S.bars >= 48) { hint('48 bars is the limit \u2014 that is about a minute and a half.'); return; }
     snapshot(); S.bars++; viewBar = S.bars - 1;
     if (loopBar >= 0) loopBar = viewBar;
     buildTrack(); centerOn(viewBar, true);
     dirty(); renderAll();
   }
   function dupBar(b) {
-    if (S.bars >= 48) return;
+    if (S.bars >= 48) { hint('48 bars is the limit \u2014 remove one to make room.'); return; }
     snapshot();
     var copies = [];
     S.cells.forEach(function (x) {
@@ -1152,64 +1158,55 @@
     root.innerHTML =
       '<div class="cr-top">' +
         '<button type="button" class="cr-btn n-play" data-cr="play" data-tip="Play or pause (Space)">\u25b6</button>' +
-        '<button type="button" class="cr-btn" data-cr="rewind" data-tip="Back to the top">\u23ee</button>' +
-        '<label class="cr-lab" data-tip="Tempo">' + S.bpm + ' BPM<input type="range" min="70" max="180" step="2" value="' + S.bpm + '" data-cr="bpm"></label>' +
+        '<button type="button" class="cr-btn" data-cr="rewind" data-tip="Back to the start">\u23ee</button>' +
+        '<label class="cr-lab" data-tip="Speed">' + S.bpm + ' BPM<input type="range" min="70" max="180" step="2" value="' + S.bpm + '" data-cr="bpm"></label>' +
         '<span class="cr-sep"></span>' +
-        '<button type="button" class="cr-btn" data-cr="undo" data-tip="Undo">\u21a9</button>' +
-        '<button type="button" class="cr-btn" data-cr="redo" data-tip="Redo">\u21aa</button>' +
-        '<button type="button" class="cr-btn" data-cr="dice" data-tip="Compose a surprise track">\ud83c\udfb2</button>' +
-        '<button type="button" class="cr-btn" data-cr="shelf" data-tip="Your saved songs">Songs</button>' +
-        '<button type="button" class="cr-btn" data-cr="sharemenu" data-tip="Link, WAV, or a real cartridge">Share</button>' +
+        '<button type="button" class="cr-btn" data-cr="undo" data-tip="Undo">\u21a9 Undo</button>' +
+        '<button type="button" class="cr-btn" data-cr="redo" data-tip="Redo">\u21aa Redo</button>' +
+        '<span class="cr-sep"></span>' +
+        '<button type="button" class="cr-btn" data-cr="share" data-tip="Copy a link that IS this song">Copy link</button>' +
+        '<button type="button" class="cr-btn" data-cr="wav" data-tip="Download the audio">WAV</button>' +
+        '<button type="button" class="cr-btn" data-cr="rom" data-tip="Download a real Game Boy cartridge">ROM</button>' +
         '<button type="button" class="cr-btn cr-close" data-cr="close" data-tip="Back to the radio (Esc)">\u00d7</button>' +
       '</div>' +
-      '<div class="n-moodrow">' +
-        '<input type="text" class="cr-mood" data-cr="mood" placeholder="a mood: happy, spooky, fast..." maxlength="60">' +
-        '<button type="button" class="cr-btn cr-primary" data-cr="make">Make</button>' +
+      '<div class="n-moodrow"><span class="n-moodlab">Write me something</span>' +
         CHIPS.map(function (c) { return '<button type="button" class="cr-chip" data-mood="' + c + '">' + c + '</button>'; }).join('') +
       '</div>' +
-      '<div class="n-cap"></div>' +
-      '<div class="n-mid"><div class="n-track"></div></div>' +
-      '<div class="n-params">' +
-        PARAMS.map(function (pp) {
-          return '<button type="button" class="n-param" data-param="' + pp.id + '" title="' + pp.n + '" data-tip="' + pp.tip + '">' + pp.n + '</button>';
-        }).join('') +
-        '<span class="cr-sep"></span>' +
-        '<button type="button" class="cr-btn n-tool" data-cr="shiftl" data-tip="Nudge this bar\u2019s notes one step earlier">\u25c0</button>' +
-        '<button type="button" class="cr-btn n-tool" data-cr="shiftr" data-tip="Nudge this bar\u2019s notes one step later">\u25b6</button>' +
-        '<button type="button" class="cr-btn n-tool" data-cr="octdn" data-tip="This voice\u2019s bar an octave down">Oct\u2212</button>' +
-        '<button type="button" class="cr-btn n-tool" data-cr="octup" data-tip="This voice\u2019s bar an octave up">Oct+</button>' +
-        '<button type="button" class="cr-btn n-tool" data-cr="swing" data-tip="Swing: the offbeats lean late">Swing</button>' +
-        '<span class="cr-sep"></span>' +
-        '<button type="button" class="cr-btn n-tool" data-cr="baradd" data-tip="Add a bar to the end">+ Bar</button>' +
-        '<button type="button" class="cr-btn n-tool" data-cr="bardup" data-tip="Duplicate this bar">\u29c9</button>' +
-        '<button type="button" class="cr-btn n-tool" data-cr="bardel" data-tip="Remove this bar">\u2212</button>' +
-      '</div>' +
-      '<div class="n-chans">' +
-        '<button type="button" class="n-chan n-all" data-ch="-1" data-tip="All: every voice at once. Tap a note to jump to its voice."><span>All</span></button>' +
+      '<div class="n-tabs">' +
+        '<button type="button" class="n-tab n-all" data-ch="-1" data-tip="Every voice at once">All</button>' +
         CH.map(function (c, i) {
-          return '<button type="button" class="n-chan" data-ch="' + i + '" data-tip="' + c.tip + '">' +
+          return '<button type="button" class="n-tab" data-ch="' + i + '" data-tip="' + c.tip + '">' +
                  '<span>' + c.n + '</span>' +
                  '<i class="n-spk" data-mute="' + i + '" title="Mute this voice"></i></button>';
         }).join('') + '</div>' +
+      '<div class="n-cap"></div>' +
+      '<div class="n-mid"><div class="n-track"></div></div>' +
+      '<div class="n-edit"></div>' +
       '<div class="cr-hint"></div>';
     buildTrack();
   }
-  // one 4x4 block per bar, laid end to end; the camera slides along them
+  // one 4x4 block per bar, laid end to end, then the block that adds a bar
   function buildTrack() {
     var track = root.querySelector('.n-track');
-    stepEls = [];
     var html = '';
     for (var b = 0; b < S.bars; b++) {
       html += '<div class="n-bb" data-bar="' + b + '"><div class="n-bbhead">' +
               '<b>' + (b + 1) + '</b>' +
-              '<button type="button" class="n-lp" data-loopbar="' + b + '" title="Loop this bar">\u21ba</button>' +
+              '<button type="button" class="n-hb" data-barshift="-1" data-bar="' + b + '" title="Nudge earlier">\u25c0</button>' +
+              '<button type="button" class="n-hb" data-barshift="1" data-bar="' + b + '" title="Nudge later">\u25b6</button>' +
+              '<span class="n-hgap"></span>' +
+              '<button type="button" class="n-hb n-lp" data-loopbar="' + b + '" title="Loop this bar">\u21ba</button>' +
+              '<button type="button" class="n-hb" data-dupbar="' + b + '" title="Duplicate this bar">\u29c9</button>' +
+              '<button type="button" class="n-hb" data-delbar="' + b + '" title="Remove this bar">\u2212</button>' +
               '</div><div class="n-bbgrid">';
       for (var s2 = 0; s2 < 16; s2++) {
         html += '<div class="n-step' + (s2 % 4 === 0 ? ' beat' : '') + '" data-col="' + (b * 16 + s2) + '">' +
-                '<u>' + (s2 + 1) + '</u><i class="pb"></i><span class="nn"></span><b class="ln"></b></div>';
+                '<u>' + (s2 + 1) + '</u><i class="pb"></i><span class="nn"></span><b class="ln"></b>' +
+                '<div class="allpills"></div></div>';
       }
       html += '</div></div>';
     }
+    html += '<button type="button" class="n-addbar" data-cr="baradd"><b>+</b><span>add a bar</span></button>';
     track.innerHTML = html;
     stepEls = [].slice.call(track.querySelectorAll('.n-step'));
     sizeTrack();
@@ -1249,7 +1246,7 @@
 
   // ---- input ---------------------------------------------------------------
   function wireEvents() {
-    // Space plays/pauses (typing in an input keeps its spaces)
+    // Space plays/pauses
     document.addEventListener('keydown', function (ev) {
       if (ev.code !== 'Space' || !isOpen() || ev.metaKey || ev.altKey || ev.ctrlKey) return;
       var tag = (ev.target && ev.target.tagName) || '';
@@ -1257,140 +1254,47 @@
       ev.preventDefault(); ev.stopPropagation();
       togglePlay();
     }, true);
-    root.addEventListener('keydown', function (ev) {
-      if (ev.key !== 'Enter') return;
-      var mi = ev.target.closest && ev.target.closest('.cr-mood');
-      if (!mi) return;
-      ev.preventDefault(); ev.stopPropagation();
-      mi.blur();
-      composeIntoGrid(mi.value);
-    });
     root.addEventListener('mouseover', function (ev) {
       var t = ev.target.closest && ev.target.closest('[data-tip]');
       if (t) hint(t.dataset.tip);
     });
 
-    // the step grid: tap toggles, vertical drag edits the chosen parameter,
-    // horizontal drag stretches; in All view a tap dives into that voice
-    var grid = root.querySelector('.n-mid'), sdrag = null;
-    grid.addEventListener('pointerdown', function (ev) {
-      if (ev.target.closest('.n-bbhead')) return;              // the head strip pans
-      var el = ev.target.closest('.n-step'); if (!el) return;
-      ev.preventDefault(); grid.setPointerCapture(ev.pointerId);
-      var col = +el.dataset.col;
-      if (viewCh < 0) {                                        // All: pick the voice you touched
-        var pick = -1;
-        for (var c2 = 0; c2 < 4; c2++) if (cellIndexAt(c2, col) >= 0) { pick = c2; break; }
-        viewCh = pick < 0 ? 0 : pick;
-        renderChans(); renderGrid(); renderBars();
-        hint('Now editing ' + CH[viewCh].n + '. Tap All to see every voice again.');
-        return;
-      }
-      snapshot();
-      viewBar = Math.floor(col / 16);
-      var i = cellIndexAt(viewCh, col), created = false, cell;
-      if (i < 0) {
-        cell = makeCell(viewCh, col, lastDeg[viewCh]);
-        created = true;
-        dirty(); auditionCell(cell); tourAdvance(0);
-      } else cell = S.cells[i];
-      sdrag = { cell: cell, created: created, sx: ev.clientX, sy: ev.clientY,
-                deg: degOfCell(cell), len: cell.len || 1,
-                vol: Math.round((cell.vel != null ? cell.vel : 0.8) * 8), axis: 0, pokeAt: 0 };
-    });
-    grid.addEventListener('pointermove', function (ev) {
-      if (!sdrag) return;
-      var dx = ev.clientX - sdrag.sx, dy = ev.clientY - sdrag.sy;
-      if (!sdrag.axis) {
-        if (Math.abs(dy) > 9) sdrag.axis = 'y';
-        else if (Math.abs(dx) > 12) sdrag.axis = 'x';
-        else return;
-      }
-      if (sdrag.axis === 'y') {
-        if (param === 'vol') {
-          var nv = Math.max(0, Math.min(8, sdrag.vol + Math.round(-dy / 22)));
-          if (nv / 8 !== (sdrag.cell.vel != null ? sdrag.cell.vel : 0.8)) {
-            sdrag.cell.vel = nv / 8;
-            dirty();
-            var tv = performance.now();
-            if (nv > 0 && tv - sdrag.pokeAt > 110) { sdrag.pokeAt = tv; auditionCell(sdrag.cell); }
-          }
-          return;
-        }
-        if (param === 'len') {
-          var nl2 = Math.max(1, Math.min(16, sdrag.len + Math.round(-dy / 24)));
-          if (nl2 !== (sdrag.cell.len || 1)) {
-            if (nl2 > 1) sdrag.cell.len = nl2; else delete sdrag.cell.len;
-            dirty();
-          }
-          return;
-        }
-        var span = viewCh === 3 ? 2 : MEL_ROWS - 1;
-        var per = viewCh === 3 ? 30 : 16;
-        var nd = Math.max(0, Math.min(span, sdrag.deg + Math.round(-dy / per)));
-        if (nd !== degOfCell(sdrag.cell)) {
-          applyDeg(sdrag.cell, nd);
-          lastDeg[viewCh] = nd;
-          dirty();
-          var t = performance.now();
-          if (t - sdrag.pokeAt > 90) { sdrag.pokeAt = t; auditionCell(sdrag.cell); }
-        }
-      } else {
-        var nl = Math.max(1, Math.min(16, sdrag.len + Math.round(dx / 30)));
-        if (nl !== (sdrag.cell.len || 1)) {
-          if (nl > 1) sdrag.cell.len = nl; else delete sdrag.cell.len;
-          dirty();
-        }
-      }
-    });
-    ['pointerup', 'pointercancel'].forEach(function (t) {
-      grid.addEventListener(t, function () {
-        if (sdrag && !sdrag.axis && !sdrag.created) {
-          var i = S.cells.indexOf(sdrag.cell);
-          if (i >= 0) { S.cells.splice(i, 1); dirty(); }
-        }
-        sdrag = null;
-      });
-    });
-
-    // channels: tap switches, tap the lit one mutes, hold opens its sound
-    var chans = root.querySelector('.n-chans'), holdTimer = 0, holdFired = false;
-    chans.addEventListener('pointerdown', function (ev) {
-      var b = ev.target.closest('.n-chan'); if (!b || ev.target.closest('[data-mute]')) return;
-      holdFired = false;
-      var ch = +b.dataset.ch;
-      if (ch < 0) return;
-      holdTimer = setTimeout(function () {
-        holdFired = true;
-        if (ch !== 3) { viewCh = ch; renderChans(); renderGrid(); openPad(ch); }
-      }, 480);
-    });
-    ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (t) {
-      chans.addEventListener(t, function () { clearTimeout(holdTimer); });
-    });
-    chans.addEventListener('click', function (ev) {
-      var mb = ev.target.closest('[data-mute]');
-      if (mb) {                                     // the speaker: mute, like a browser tab
-        ev.stopPropagation();
-        var mi = +mb.dataset.mute;
-        chMuted[mi] = !chMuted[mi];
-        applyMute();
-        hint(CH[mi].n + (chMuted[mi] ? ' is muted. Tap the speaker again to bring it back.' : ' is back.'));
-        return;
-      }
-      var b = ev.target.closest('.n-chan'); if (!b || holdFired) return;
-      var ch = +b.dataset.ch;
-      viewCh = ch;
-      renderChans(); renderGrid(); renderBars();
-      hint(ch < 0 ? 'All voices at once. Tap any note to jump to its voice.' : CH[ch].tip);
-      tourAdvance(1);
-    });
-
-    // the bar heads pan the camera; wheel scrolls the song sideways
     var mid = root.querySelector('.n-mid'), pan = null;
+
+    // a square: tap an empty one to add a note, tap a note to edit it below
+    mid.addEventListener('click', function (ev) {
+      if (ev.target.closest('.n-bbhead') || ev.target.closest('.n-addbar')) return;
+      var el = ev.target.closest('.n-step'); if (!el) return;
+      var col = +el.dataset.col;
+      viewBar = Math.floor(col / 16);
+      var pill = ev.target.closest('[data-pill]');
+      if (pill) {                                   // All view: edit that voice's note
+        selectNote(+pill.dataset.pill, col);
+        hint('Editing the ' + CH[+pill.dataset.pill].n + ' note. Use the buttons below.');
+        return;
+      }
+      if (viewCh < 0) {
+        for (var c2 = 0; c2 < 4; c2++) if (cellIndexAt(c2, col) >= 0) { selectNote(c2, col); return; }
+        hint('Pick a voice tab above to add notes here.');
+        return;
+      }
+      var i = cellIndexAt(viewCh, col);
+      if (i < 0) {
+        snapshot();
+        var cell = makeCell(viewCh, col, lastDeg[viewCh]);
+        dirty(); auditionCell(cell); tourAdvance(0);
+        selectNote(viewCh, col);
+        hint('Note added. Change it with the buttons below.');
+      } else {
+        selectNote(viewCh, col);
+        auditionCell(S.cells[i]);
+      }
+    });
+
+    // the bar heads: pan by dragging, and carry the bar's own tools
     mid.addEventListener('pointerdown', function (ev) {
       var hd = ev.target.closest('.n-bbhead');
-      if (!hd || ev.target.closest('.n-lp')) return;
+      if (!hd || ev.target.closest('.n-hb')) return;
       ev.preventDefault(); mid.setPointerCapture(ev.pointerId);
       pan = { x: ev.clientX, cam: camX };
       camFollow = false;
@@ -1414,16 +1318,40 @@
       var nb2 = barUnderCamera();
       if (nb2 !== viewBar) { viewBar = nb2; renderBars(); }
     }, { passive: false });
-    mid.addEventListener('click', function (ev) {
-      var lp = ev.target.closest('.n-lp');
-      if (!lp) return;
-      ev.stopPropagation();
-      setLoopBar(+lp.dataset.loopbar);
-      renderAll();
+
+    // voice tabs: tap to work on a voice, tap the speaker to mute it
+    var tabs = root.querySelector('.n-tabs'), holdTimer = 0, holdFired = false;
+    tabs.addEventListener('pointerdown', function (ev) {
+      var b = ev.target.closest('.n-tab');
+      if (!b || ev.target.closest('[data-mute]')) return;
+      holdFired = false;
+      var ch = +b.dataset.ch;
+      if (ch < 0) return;
+      holdTimer = setTimeout(function () {
+        holdFired = true;
+        viewCh = ch; renderChans(); renderGrid(); renderBars(); openPad(ch);
+      }, 480);
     });
-    window.addEventListener('resize', function () {
-      if (!isOpen()) return;
-      sizeTrack(); centerOn(viewBar, true); renderBars();
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (t) {
+      tabs.addEventListener(t, function () { clearTimeout(holdTimer); });
+    });
+    tabs.addEventListener('click', function (ev) {
+      var mb = ev.target.closest('[data-mute]');
+      if (mb) {
+        ev.stopPropagation();
+        var mi = +mb.dataset.mute;
+        chMuted[mi] = !chMuted[mi];
+        applyMute();
+        hint(CH[mi].n + (chMuted[mi] ? ' is muted. Tap the speaker again to bring it back.' : ' is back.'));
+        return;
+      }
+      var b = ev.target.closest('.n-tab'); if (!b || holdFired) return;
+      var ch = +b.dataset.ch;
+      viewCh = ch;
+      if (ch >= 0 && selCh !== ch) { selCol = -1; selCh = -1; }
+      renderChans(); renderGrid(); renderBars(); renderEdit();
+      hint(ch < 0 ? 'Every voice at once. Tap a note to edit it.' : CH[ch].tip);
+      tourAdvance(1);
     });
 
     root.addEventListener('click', function (ev) {
@@ -1433,74 +1361,34 @@
         if (tb.dataset.tour === 'skip') tourDone(); else tourAdvance(tourStep);
         return;
       }
-      var shb = ev.target.closest('[data-shelf],[data-shelf-load],[data-shelf-del]');
-      if (shb) {
-        var list = loadShelf();
-        if (shb.dataset.shelf === 'save') {
-          var ni = root.querySelector('.cr-shelfname');
-          var name = (ni && ni.value.trim()) || 'Song ' + (list.length + 1);
-          list.unshift({ name: name, enc: encode(), ts: 0 });
-          saveShelf(list); renderShelf();
-          hint('Saved "' + name + '" to this browser.');
-        } else if (shb.dataset.shelfLoad != null) {
-          var it = list[+shb.dataset.shelfLoad];
-          var st = it && decode(it.enc);
-          if (st) {
-            snapshot(); dropLiveScore();
-            S = st; order = S.cells.length;
-            loopBar = -1; queuedBar = null; viewBar = 0; camX = 0; camFollow = true; pausedAt = 0;
-            buildTrack();
-            var lab = root.querySelector('.cr-lab');
-            if (lab) { lab.firstChild.textContent = S.bpm + ' BPM'; var sl = lab.querySelector('input'); if (sl) sl.value = S.bpm; }
-            dirty(); startPlayback(0);
-            hint('Loaded "' + it.name + '".');
-          }
-        } else if (shb.dataset.shelfDel != null) {
-          list.splice(+shb.dataset.shelfDel, 1);
-          saveShelf(list); renderShelf();
-        }
-        return;
-      }
-      var pp = ev.target.closest('.n-param');
-      if (pp) {
-        var pid = pp.dataset.param;
-        if (param === pid) randomizeParam(pid);
-        else { param = pid; randTaps = 1; clearTimeout(randTimer); randTimer = setTimeout(function () { randTaps = 0; randSnapped = false; }, 700); }
-        renderParams();
-        hint(PARAMS.filter(function (q) { return q.id === pid; })[0].tip);
-        return;
-      }
+      var edb = ev.target.closest('[data-ed]');
+      if (edb) { editNote(edb.dataset.ed); return; }
+      var drb = ev.target.closest('[data-drum]');
+      if (drb) { editNote('d' + drb.dataset.drum); return; }
+      var sh = ev.target.closest('[data-barshift]');
+      if (sh) { shiftBar(+sh.dataset.barshift, +sh.dataset.bar); return; }
+      var lp = ev.target.closest('[data-loopbar]');
+      if (lp) { setLoopBar(+lp.dataset.loopbar); renderAll(); return; }
+      var du = ev.target.closest('[data-dupbar]');
+      if (du) { dupBar(+du.dataset.dupbar); return; }
+      var de = ev.target.closest('[data-delbar]');
+      if (de) { delBar(+de.dataset.delbar); return; }
       var mc = ev.target.closest('[data-mood]');
-      if (mc) {
-        var mi = root.querySelector('.cr-mood'); if (mi) mi.value = mc.dataset.mood;
-        composeIntoGrid(mc.dataset.mood);
-        return;
-      }
+      if (mc) { composeIntoGrid(mc.dataset.mood); tourAdvance(3); return; }
       var b = ev.target.closest('[data-cr]');
       if (!b) return;
       var k = b.dataset.cr;
       if (k === 'play') { togglePlay(); }
-      else if (k === 'rewind') { pausedAt = 0; if (playing) startPlayback(0); else renderBars(); hint('Back to the top.'); }
-      else if (k === 'shiftl' || k === 'shiftr') { shiftBar(k === 'shiftr' ? 1 : -1); }
-      else if (k === 'octdn' || k === 'octup') { octaveBar(k === 'octup' ? 7 : -7); }
-      else if (k === 'swing') { snapshot(); S.swing = S.swing ? 0 : 1; b.classList.toggle('on', !!S.swing); dirty(); hint(S.swing ? 'Swinging.' : 'Straight time.'); }
+      else if (k === 'rewind') { pausedAt = 0; if (playing) startPlayback(0); else { camFollow = true; centerOn(0, true); viewBar = 0; renderBars(); } hint('Back to the start.'); }
       else if (k === 'close') { close(); }
       else if (k === 'undo') { undo(); }
       else if (k === 'redo') { redo(); }
-      else if (k === 'dice') { composeIntoGrid(''); }
-      else if (k === 'make') { var mv = root.querySelector('.cr-mood'); composeIntoGrid(mv ? mv.value : ''); }
-      else if (k === 'shelf') { toggleShelf(); }
-      else if (k === 'loop') { setLoopBar(viewBar); renderAll(); }
       else if (k === 'baradd') { addBar(); }
-      else if (k === 'bardup') { dupBar(viewBar); }
-      else if (k === 'bardel') { delBar(viewBar); }
-      else if (k === 'sharemenu') { toggleShare(); }
       else if (k === 'share') {
-        try { navigator.clipboard.writeText(location.origin + '/create#s=' + encode()); if (G._toast) G._toast('Link copied. The link IS the song 🎵'); } catch (e) {}
-        toggleShare();
+        try { navigator.clipboard.writeText(location.origin + '/create#s=' + encode()); if (G._toast) G._toast('Link copied. The link IS the song \ud83c\udfb5'); } catch (e) {}
       }
-      else if (k === 'wav') { exportWav(); toggleShare(); }
-      else if (k === 'rom') { exportRom(); toggleShare(); }
+      else if (k === 'wav') { exportWav(); }
+      else if (k === 'rom') { exportRom(); }
     });
     root.addEventListener('input', function (ev) {
       var b = ev.target.closest('[data-cr="bpm"]'); if (!b) return;
@@ -1508,18 +1396,11 @@
       S.bpm = +b.value; b.parentNode.firstChild.textContent = S.bpm + ' BPM';
       dirty();
     });
+    window.addEventListener('resize', function () {
+      if (!isOpen()) return;
+      sizeTrack(); centerOn(viewBar, true); renderBars();
+    });
   }
-  function toggleShare() {
-    var sp = root.querySelector('.cr-sharepop');
-    if (sp) { sp.remove(); return; }
-    sp = document.createElement('div');
-    sp.className = 'cr-sharepop';
-    sp.innerHTML = '<button type="button" class="cr-btn" data-cr="share">Copy link</button>' +
-      '<button type="button" class="cr-btn" data-cr="wav">WAV</button>' +
-      '<button type="button" class="cr-btn" data-cr="rom">Game Boy ROM</button>';
-    root.appendChild(sp);
-  }
-
   // ---- open / close --------------------------------------------------------
   function open() {
     if (root) { root.classList.add('show'); armChip(); if (!playing) startPlayback(pausedAt); return; }
@@ -1547,7 +1428,7 @@
       var m0 = ['chill', 'happy', 'dreamy', 'funky'][Math.floor(Math.random() * 4)];
       var mi0 = root.querySelector('.cr-mood'); if (mi0) mi0.value = m0;
       composeIntoGrid(m0);
-      hint('A ' + m0 + ' song is already rolling. Type a mood, or take the pencil to it.');
+      hint('A ' + m0 + ' song is already rolling. Tap a mood for another, or take the pencil to this one.');
       var toured = false;
       try { toured = !!localStorage.getItem('ct-create-tour'); } catch (e) {}
       if (!toured) setTimeout(function () { if (isOpen()) tourShow(0); }, 1400);
