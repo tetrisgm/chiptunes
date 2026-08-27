@@ -968,7 +968,7 @@
         }
         html += '<i class="n-note' + (x.x ? ' sulk' : '') + (vel === 0 ? ' rest' : '') +
                 (selCol === x.c && selCh === ch ? ' sel' : '') + '"' +
-                ' data-col="' + x.c + '" data-ch="' + ch + '"' +
+                ' data-col="' + x.c + '" data-ch="' + ch + '" data-inst="' + (x.inst != null ? x.inst : -1) + '"' +
                 ' style="left:' + (x.c * stepW + 1) + 'px;width:' + (len * stepW - 2) + 'px;' +
                 'bottom:' + Math.round(6 + deg * (laneH - 30)) + 'px;' +
                 'opacity:' + (vel === 0 ? 0.35 : 0.5 + vel * 0.5) + '">' +
@@ -1096,12 +1096,12 @@
   // a throwaway cell that describes the pen, for auditioning and placing
   function penCell(col) {
     var c = { c: col, t: ++order };
-    if (pen.ch === 3) { c.r = MEL_ROWS + pen.drum; }
+    if (pen.ch === 3) { c.r = MEL_ROWS + pen.drum; c.inst = laneInstAt(3, col); }
     else {
       c.r = rowForMidi(pen.midi); c.midi = pen.midi;
       c.st = CH[pen.ch].stamp;
       if (pen.ch < 2) c.ch = pen.ch;
-      if (chInst[pen.ch] != null) c.inst = chInst[pen.ch];
+      c.inst = laneInstAt(pen.ch, col);
     }
     c.vel = pen.vel;
     if (pen.len > 1) c.len = pen.len;
@@ -1327,16 +1327,34 @@
     var r = sc.getBoundingClientRect();
     return Math.max(0, Math.min(cols() - 1, Math.floor((clientX - r.left + camX - sidePad) / stepW)));
   }
+  // What does this lane SOUND like around here? A composed song changes
+  // patches from section to section, so a note joining a lane takes the
+  // instrument its new neighbours are using -- otherwise the same written
+  // note lands on a different sound than the ones beside it.
+  function laneInstAt(ch, col) {
+    var best = null, bd = 1e9;
+    for (var i = 0; i < S.cells.length; i++) {
+      var x = S.cells[i];
+      if (x.inst == null || chOfCell(x) !== ch) continue;
+      var d = Math.abs(x.c - col);
+      if (d < bd) { bd = d; best = x.inst; }
+    }
+    if (best != null) return best;
+    if (chInst[ch] != null) return chInst[ch];
+    resolveBank();
+    return ch === 3 ? INSTOF[DRUMS[pen.drum].id] : INSTOF[CH[ch].stamp];
+  }
   // move a note to another voice in place, keeping what it was
   function setCellVoice(x, v) {
     if (v === 3) {
       x.r = MEL_ROWS + pen.drum;
-      delete x.midi; delete x.ch; delete x.st; delete x.inst; delete x.z; delete x.sweep;
+      delete x.midi; delete x.ch; delete x.st; delete x.z; delete x.sweep;
+      x.inst = laneInstAt(3, x.c);
     } else {
       if (x.r >= MEL_ROWS) { x.r = rowForMidi(pen.midi); x.midi = pen.midi; }
       x.st = CH[v].stamp;
       if (v < 2) x.ch = v; else delete x.ch;
-      if (chInst[v] != null) x.inst = chInst[v]; else delete x.inst;
+      x.inst = laneInstAt(v, x.c);
     }
   }
   // which lane and step a point falls on

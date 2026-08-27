@@ -370,3 +370,11 @@ pass.
   and opens that panel. The bar row is just Delete bar / Insert bar (no bar
   number; the banded bar says which), and Insert opens a bar where you are.
 
+- A note joining a lane (dragged there, or placed there) takes the
+  instrument its NEIGHBOURS in that lane use (laneInstAt: nearest cell by
+  column, then chInst, then the stamp default). Composed songs change patch
+  from section to section, so falling back to Create's default made the same
+  written note sound unlike the notes beside it -- the owner heard a dragged
+  D2 differ from the D2 next to it. Notes also carry data-inst now, which
+  makes this checkable from a test.
+
