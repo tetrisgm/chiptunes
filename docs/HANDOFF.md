@@ -226,3 +226,10 @@ Studied the reference tutorial in depth and adopted its editing model:
   ticker if anything else moves the URL. A refresh lands back in the editor
   with the same song (hash first, localStorage draft as the fallback).
 
+- The panel under the track is always live. With nothing selected it is the
+  PEN (voice / note / volume / length) and tapping any empty square places
+  exactly that, in any view including All; with a note selected it edits
+  that note and the pen follows it, so the next note matches the last.
+  Clicking a note (or any square inside its tail) selects and auditions it
+  for its real length (capped at 600 frames).
+
