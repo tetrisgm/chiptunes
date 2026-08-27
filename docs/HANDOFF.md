@@ -149,3 +149,11 @@ next. Infrastructure and operations live outside this repository.
   explicit channels (playback survived via the budget fallback). The
   encoder always wrote correct bits, so old links heal on load.
 
+## Create legibility pass (2026-08-26)
+
+- Channels wear plain words (Melody / Harmony / Bass / Drums) plus a small
+  waveform icon of their current sound (chanIcon, cached per inst); the
+  hardware names live in the tips. Active squares print their note name
+  (C3, E2...) or drum name (Kick/Snare/Hat); corners carry step numbers
+  1-16; a caption above the grid says "<voice> - bar N of M (looping)".
+

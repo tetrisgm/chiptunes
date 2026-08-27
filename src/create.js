@@ -616,6 +616,7 @@
     if (!best || chInst[ch] === best.idx) return;
     chInst[ch] = best.idx;
     drawPad(pc, ch);
+    renderChans();
     var t = performance.now();
     if (t - padPokeAt > 110) {
       padPokeAt = t;
@@ -700,7 +701,7 @@
 
   // ---- hints + tour --------------------------------------------------------
   var hintTimer = 0, hintedSulk = false;
-  var HINT_IDLE = 'Tap a square for a note. Drag up and down for pitch, sideways for length. Tap again to remove.';
+  var HINT_IDLE = 'Each square is a moment in the bar, left to right. Tap for a note, drag up for higher, sideways for longer, tap again to remove.';
   function hint(t) {
     var el = root && root.querySelector('.cr-hint');
     if (!el) return;
@@ -712,7 +713,7 @@
     if (hintedSulk || !S) return;
     for (var i = 0; i < S.cells.length; i++) if (S.cells[i].x) {
       hintedSulk = true;
-      hint('The chip has two pulse voices, one wave and one noise. Faded notes are waiting for a free voice.');
+      hint('The Game Boy can only play four sounds at once. Faded notes are waiting for a free voice.');
       return;
     }
   }
@@ -728,8 +729,8 @@
     var t = root.querySelector('.cr-tour');
     if (!t) { t = document.createElement('div'); t.className = 'cr-tour'; root.appendChild(t); }
     var msgs = [
-      ['This song was just written for you.', 'Each square is one step of this bar. Tap for a note, tap again to remove. Drag up and down for pitch, sideways to stretch.'],
-      ['Four voices.', 'P1 and P2 are the melodies, WAV the bass, NOI the drums. Tap to switch, tap the lit one to mute it, hold one for its sound.'],
+      ['This song was just written for you.', 'Each square is one moment of this bar, left to right, top to bottom. Tap for a note, tap again to remove. Drag up and down for pitch, sideways to stretch.'],
+      ['Four voices, like a tiny band.', 'Melody, Harmony, Bass and Drums are the Game Boy\u2019s four sounds. Tap one to work on it, tap the lit one to silence it, hold one to pick its instrument.'],
       ['The bars walk the song.', 'Tap a number to look at that bar; ↺ loops the one you are on while you shape it.'],
       ['Moods write songs.', 'Type a feeling and press Make, or roll the dice. Everything it writes is yours to edit.']
     ];
@@ -772,11 +773,56 @@
 
   // ---- the view: one bar of one channel ------------------------------------
   var CH = [
-    { n: 'P1',  color: '#7BDCA0', stamp: 'piano', tip: 'Pulse 1: the lead voice. Hold for its sound.' },
-    { n: 'P2',  color: '#57C4FF', stamp: 'bell',  tip: 'Pulse 2: the second voice. Hold for its sound.' },
-    { n: 'WAV', color: '#E8A75D', stamp: 'bassg', tip: 'Wave: the bass. Hold for its sound.' },
-    { n: 'NOI', color: '#C9A4E8', stamp: null,    tip: 'Noise: the drums. Drag up for hat, down for kick.' }
+    { n: 'Melody',  color: '#7BDCA0', stamp: 'piano', tip: 'Melody: the Game Boy\u2019s first pulse voice. Hold the button to choose its sound.' },
+    { n: 'Harmony', color: '#57C4FF', stamp: 'bell',  tip: 'Harmony: the second pulse voice, for counter-lines and chords. Hold to choose its sound.' },
+    { n: 'Bass',    color: '#E8A75D', stamp: 'bassg', tip: 'Bass: the wave voice, deep and warm. Hold to choose its sound.' },
+    { n: 'Drums',   color: '#C9A4E8', stamp: null,    tip: 'Drums: the noise voice. Drag a note up for hat, middle for snare, down for kick.' }
   ];
+  var NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  function noteName(midi) { return NOTE_NAMES[midi % 12] + (Math.floor(midi / 12) - 1); }
+  var DRUM_NAMES = ['Hat', 'Snare', 'Kick'];
+  // a tiny picture of the channel's current sound: the pulse's duty as a
+  // square trace, the wave's actual table, sticks for the drums
+  var chanIconCache = {};
+  function chanIcon(ch) {
+    resolveBank();
+    var inst = ch === 3 ? -1 : (chInst[ch] != null ? chInst[ch] : INSTOF[CH[ch].stamp]);
+    var key = ch + ':' + inst;
+    if (chanIconCache[key]) return chanIconCache[key];
+    var cv = document.createElement('canvas');
+    cv.__ctpalRaw = true; cv.width = 30; cv.height = 14;
+    var c = cv.getContext('2d');
+    c.strokeStyle = c.fillStyle = CH[ch].color;
+    c.lineWidth = 1.6; c.lineJoin = 'round';
+    var m = null;
+    for (var i = 0; i < BANK.meta.length; i++) if (BANK.meta[i].index === inst) m = BANK.meta[i];
+    if (ch === 3) {
+      for (var nx = 0; nx < 5; nx++) {
+        var bh = (((nx * 17 + 5) % 9) / 9) * 9 + 3;
+        c.fillRect(2 + nx * 6, 13 - bh, 3, bh);
+      }
+    } else if (m && m.type === 'wave') {
+      var t = BANK.waveTables[m.waveSlot] || [];
+      c.beginPath();
+      for (var x = 0; x < 32; x++) {
+        var vx = 1 + (x / 31) * 28, vy = 1 + (1 - (t[x] || 0) / 15) * 12;
+        x ? c.lineTo(vx, vy) : c.moveTo(vx, vy);
+      }
+      c.stroke();
+    } else {
+      var duty = (m && m.patch && m.patch.duty) || 0.5;
+      c.beginPath();
+      var half = 14;
+      for (var p2 = 0; p2 < 2; p2++) {
+        var x0 = 1 + p2 * half, hi = half * duty;
+        c.moveTo(x0, 12); c.lineTo(x0, 2); c.lineTo(x0 + hi, 2);
+        c.lineTo(x0 + hi, 12); c.lineTo(x0 + half, 12);
+      }
+      c.stroke();
+    }
+    chanIconCache[key] = cv;
+    return cv;
+  }
   var viewCh = 0, viewBar = 0, viewPinned = false, lastDeg = [7, 9, 3, 2];
   function chOfCell(x) {
     if (x.r >= MEL_ROWS) return 3;
@@ -838,6 +884,9 @@
       b.classList.toggle('sel', viewCh === i);
       b.classList.toggle('muted', !!chMuted[i]);
       b.style.color = CH[i].color;
+      var ic = chanIcon(i);
+      var old = b.querySelector('canvas');
+      if (old !== ic) { if (old) old.remove(); b.insertBefore(ic, b.firstChild); }
     });
   }
   function renderBars() {
@@ -871,6 +920,9 @@
     if (!stepEls.length) return;
     var grid = root.querySelector('.n-grid');
     grid.style.color = CH[viewCh].color;
+    var cap = root.querySelector('.n-cap');
+    if (cap) cap.textContent = CH[viewCh].n + ' · bar ' + (viewBar + 1) + ' of ' + S.bars +
+                               (loopBar === viewBar && loopBar >= 0 ? ' · looping' : '');
     var mutedCh = !!effMask()[viewCh];
     for (var s = 0; s < 16; s++) {
       var col = viewBar * 16 + s, el = stepEls[s];
@@ -881,13 +933,15 @@
       el.classList.toggle('tail', tail >= 0);
       el.classList.toggle('sulk', !!(x && x.x));
       el.classList.toggle('mutedch', mutedCh);
-      var pbEl = el.firstChild, lnEl = el.lastChild;
+      var pbEl = el.querySelector('.pb'), nnEl = el.querySelector('.nn'), lnEl = el.querySelector('.ln');
       if (x) {
         var deg = degOfCell(x);
         var top = viewCh === 3 ? [64, 40, 16][2 - (x.r - MEL_ROWS)] : Math.round((1 - deg / (MEL_ROWS - 1)) * 74 + 8);
         pbEl.style.top = top + '%';
+        nnEl.textContent = x.r >= MEL_ROWS ? DRUM_NAMES[x.r - MEL_ROWS]
+                                           : noteName(x.midi != null ? x.midi : rowMidi(x.r));
         lnEl.textContent = (x.len || 1) > 1 ? '×' + x.len : '';
-      } else lnEl.textContent = '';
+      } else { nnEl.textContent = ''; lnEl.textContent = ''; }
     }
   }
   function renderAll() { renderTransport(); renderChans(); renderBars(); renderGrid(); }
@@ -989,9 +1043,9 @@
         '<button type="button" class="cr-btn cr-primary" data-cr="make">Make</button>' +
         CHIPS.map(function (c) { return '<button type="button" class="cr-chip" data-mood="' + c + '">' + c + '</button>'; }).join('') +
       '</div>' +
-      '<div class="n-mid"><div class="n-grid"></div></div>' +
+      '<div class="n-mid"><div class="n-gridwrap"><div class="n-cap"></div><div class="n-grid"></div></div></div>' +
       '<div class="n-chans">' + CH.map(function (c, i) {
-        return '<button type="button" class="n-chan" data-ch="' + i + '" title="' + c.tip + '">' + c.n + '</button>';
+        return '<button type="button" class="n-chan" data-ch="' + i + '" title="' + c.tip + '" data-tip="' + c.tip + '"><span>' + c.n + '</span></button>';
       }).join('') + '</div>' +
       '<div class="n-bars">' +
         '<button type="button" class="cr-btn n-loopbtn" data-cr="loop" data-tip="Loop this bar">↺</button>' +
@@ -1007,7 +1061,7 @@
       var el = document.createElement('div');
       el.className = 'n-step' + (s % 4 === 0 ? ' beat' : '');
       el.dataset.i = s;
-      el.innerHTML = '<i class="pb"></i><b class="ln"></b>';
+      el.innerHTML = '<u>' + (s + 1) + '</u><i class="pb"></i><span class="nn"></span><b class="ln"></b>';
       grid.appendChild(el);
       stepEls.push(el);
     }
@@ -1109,7 +1163,7 @@
       if (viewCh === ch) {
         chMuted[ch] = !chMuted[ch];
         applyMute();
-        hint(CH[ch].n + (chMuted[ch] ? ' muted.' : ' back on.'));
+        hint(CH[ch].n + (chMuted[ch] ? ' is silenced. Tap again to bring it back.' : ' is back.'));
       } else {
         viewCh = ch;
         renderChans(); renderGrid();

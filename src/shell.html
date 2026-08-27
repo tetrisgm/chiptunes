@@ -565,9 +565,17 @@
   #createscreen .n-step.sulk{ opacity:.35; }
   #createscreen .n-step.mutedch{ opacity:.35; }
   #createscreen .n-step .ln{ position:absolute; top:6px; right:8px; font:700 10px var(--ui); color:var(--ink-2); }
+  #createscreen .n-step u{ position:absolute; top:5px; left:8px; text-decoration:none;
+    font:600 9px var(--ui); color:rgba(232,227,250,.28); }
+  #createscreen .n-step .nn{ position:absolute; left:0; right:0; top:50%; transform:translateY(-50%);
+    text-align:center; font:800 17px var(--ui); color:var(--ink); text-shadow:0 1px 3px rgba(0,0,0,.6); }
+  #createscreen .n-gridwrap{ display:flex; flex-direction:column; align-items:center; gap:6px; min-height:0; }
+  #createscreen .n-cap{ font:600 11px var(--ui); color:var(--ink-2); letter-spacing:.04em; }
   #createscreen .n-chans{ flex:0 0 auto; display:flex; justify-content:center; gap:10px; padding:6px 12px; }
-  #createscreen .n-chan{ height:42px; min-width:70px; border-radius:12px; cursor:pointer; position:relative;
-    background:rgba(255,255,255,.05); border:1px solid var(--mat-edge); font:800 13px var(--ui); }
+  #createscreen .n-chan{ height:52px; min-width:84px; border-radius:12px; cursor:pointer; position:relative;
+    display:inline-flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
+    background:rgba(255,255,255,.05); border:1px solid var(--mat-edge); font:800 12px var(--ui); }
+  #createscreen .n-chan canvas{ display:block; }
   #createscreen .n-chan.sel{ background:rgba(255,255,255,.12); border-color:currentColor; }
   #createscreen .n-chan.muted{ opacity:.4; text-decoration:line-through; }
   #createscreen .n-bars{ flex:0 0 auto; display:flex; align-items:center; gap:6px; padding:2px 12px 4px; }
@@ -621,7 +629,8 @@
     #createscreen .cr-lab input{ width:64px; }
     #createscreen .cr-tour{ width:220px; }
     #createscreen .n-grid{ width:min(94vw,46vh,470px); height:min(94vw,46vh,470px); gap:8px; }
-    #createscreen .n-chan{ min-width:58px; height:44px; }
+    #createscreen .n-chan{ min-width:72px; height:50px; font-size:11px; }
+    #createscreen .n-step .nn{ font-size:14px; }
     #createscreen .n-moodrow .cr-mood{ width:150px; }
   }
 
