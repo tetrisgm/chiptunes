@@ -564,38 +564,45 @@
     var sorted = gb.notes.slice().sort(function (a, b) { return a.frame - b.frame || (b.pri || 0) - (a.pri || 0); });
     var LANE = { 9: 2, 7: 1, 3: 0 };           // kick / snare / hat, by note priority
     var budget = {}, seen = {};
+    // A crowded 16th used to throw its extra notes away. Now an overflow note
+    // slides to the next free step for its voice (a chord becomes a quick
+    // strum, two drums become a flam) and only vanishes if there is no room
+    // within a step or two.
     sorted.forEach(function (n) {
-      var c = Math.round(n.frame / per16f);
-      if (c < 0 || c >= cols()) return;
-      var bd = budget[c] = budget[c] || { p: 0, w: 0, d: 0 };
+      var c0 = Math.round(n.frame / per16f);
+      if (c0 < 0 || c0 >= cols()) return;
       var ch = n.ch | 0;
-      if (ch !== 3 && !(n.midi > 0)) return;    // a melodic note with no pitch is not a note
-      var cell = { c: c, t: ++order };
-      cell.inst = n.inst; cell.vel = n.vel != null ? n.vel : 0.8;
-      if (ch === 3) {
-        if (bd.d) return; bd.d = 1;
-        cell.r = MEL_ROWS + (LANE[n.pri | 0] != null ? LANE[n.pri | 0] : 0);
-      } else {
+      if (ch !== 3 && !(n.midi > 0)) return;   // a melodic note with no pitch is not a note
+      var row = ch === 3 ? MEL_ROWS + (LANE[n.pri | 0] != null ? LANE[n.pri | 0] : 0)
+                         : MEL_ROWS - 1 - degOf(n.midi | 0);
+      var maxPush = ch === 3 ? 1 : 2;
+      var c = -1;
+      for (var k = 0; k <= maxPush; k++) {
+        var cc = c0 + k;
+        if (cc >= cols()) break;
+        var bd = budget[cc] = budget[cc] || { p: 0, w: 0, d: 0 };
+        var room = ch === 3 ? !bd.d : ch === 2 ? !bd.w : bd.p < 2;
+        if (room && !seen[cc + ':' + row]) { c = cc; break; }
+      }
+      if (c < 0) return;                        // genuinely nowhere to put it
+      var bd2 = budget[c];
+      if (ch === 3) bd2.d = 1; else if (ch === 2) bd2.w = 1; else bd2.p++;
+      seen[c + ':' + row] = 1;
+      var cell = { c: c, r: row, t: ++order, inst: n.inst, vel: n.vel != null ? n.vel : 0.8 };
+      if (ch !== 3) {
         cell.midi = n.midi | 0;
         var ln = Math.max(1, Math.round(n.frames / per16f));
         if (ln > 1) cell.len = ln;
-        if (ch === 2) {
-          if (bd.w) return; bd.w = 1;
-          cell.r = MEL_ROWS - 1 - degOf(n.midi | 0);
-          cell.st = waveStamp;
-        } else {
-          if (bd.p >= 2) return; bd.p++;
+        if (ch === 2) cell.st = waveStamp;
+        else {
           cell.ch = ch;
-          cell.r = MEL_ROWS - 1 - degOf(n.midi | 0);
           cell.st = stampFor[ch] || 'piano';
           if (n.sweep) { cell.sweep = n.sweep; cell.z = 1; }
         }
       }
-      var key = cell.c + ':' + cell.r;
-      if (seen[key]) return; seen[key] = 1;
       S.cells.push(cell);
     });
-    var capF = Math.round(S.bars * 16 * per16f);
+    var capF = Math.round(S.bars * 16 * per16f);      // the verbatim score clips to the same 48 bars
     liveScore = { notes: gb.notes.filter(function (n) { return n.frame < capF; }),
                   bank: gb.bank, totalFrames: Math.min(gb.totalFrames, capF), loopFrames: 0 };
     liveBpm = score.bpm || S.bpm;

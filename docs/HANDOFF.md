@@ -267,3 +267,10 @@ row scrolls rather than wraps on phones.
   icons are gone so the names fit; on phones the strip widens to the
   viewport since the bar nearly fills it anyway.
 
+- Projection keeps nearly everything now: an overflow note (a third pulse, a
+  second wave, a second drum in one 16th) slides to the next free step for
+  its voice instead of being dropped -- up to 2 steps for melodic voices,
+  1 for drums, never past the song end. Measured over six seeds, notes kept
+  went from 96.7% to 99.1%; chords land as quick strums, stacked drums as
+  flams.
+
