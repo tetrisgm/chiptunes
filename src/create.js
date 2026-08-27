@@ -242,7 +242,7 @@
       var st2 = freshState();
       st2.key = v[1] % 12; st2.minor = v[2] & 1;
       st2.bars = ver === 1 ? ([2, 4, 8].indexOf(v[3]) >= 0 ? v[3] : 4)
-                           : Math.max(1, Math.min(63, v[3]));
+                           : Math.max(1, Math.min(48, v[3]));
       st2.bpm = Math.max(70, Math.min(180, ver >= 5 ? 70 + v[4] * 2 : v[4] * 2)); st2.swing = v[5] & 1;
       var ids = STAMPS.map(function (s) { return s.id; });
       if (ver === 1) {
@@ -282,6 +282,7 @@
           st2.cells.push(cell2);
         }
       }
+      st2.cells = st2.cells.filter(function (x) { return x.c < st2.bars * 16; });
       return st2;
     } catch (e) { return null; }
   }
@@ -365,7 +366,7 @@
   }
   function startPlayback(fromMs) {
     clearTimeout(repostTimer);
-    viewPinned = false;
+    viewPinned = false; tlFollow = true;
     var song = currentSong();
     var off = Math.max(0, fromMs || 0) % Math.max(1, songMs());
     if (typeof Audio !== 'undefined' && Audio.playCreate)
@@ -519,7 +520,7 @@
       while (deg < 0) deg += 7;
       return deg;
     }
-    S.key = 0; S.minor = scl.indexOf(3) >= 0 ? 1 : 0; S.bars = Math.max(1, Math.min(63, Math.ceil((gb.totalFrames || winF) / (16 * per16f))));
+    S.key = 0; S.minor = scl.indexOf(3) >= 0 ? 1 : 0; S.bars = Math.max(1, Math.min(48, Math.ceil((gb.totalFrames || winF) / (16 * per16f))));
     S.bpm = Math.max(70, Math.min(180, Math.round((score.bpm || 120) / 2) * 2));
     var lab = root && root.querySelector('.cr-lab');
     if (lab) { lab.firstChild.textContent = S.bpm + ' BPM'; var sl = lab.querySelector('input'); if (sl) sl.value = S.bpm; }
@@ -557,7 +558,9 @@
       if (seen[key]) return; seen[key] = 1;
       S.cells.push(cell);
     });
-    liveScore = { notes: gb.notes, bank: gb.bank, totalFrames: gb.totalFrames, loopFrames: 0 };
+    var capF = Math.round(S.bars * 16 * per16f);
+    liveScore = { notes: gb.notes.filter(function (n) { return n.frame < capF; }),
+                  bank: gb.bank, totalFrames: Math.min(gb.totalFrames, capF), loopFrames: 0 };
     liveBpm = score.bpm || S.bpm;
     liveMood = String(moodText || '');
     try { buildSong(); } catch (e) {}          // resolve channel marks
@@ -900,32 +903,87 @@
       if (old !== ic) { if (old) old.remove(); b.insertBefore(ic, b.firstChild); }
     });
   }
+  // The song laid out end to end: one small panel per bar showing its notes
+  // as ticks in the four voices' colours, with a camera that follows the
+  // playhead (and lets go while you pan by hand).
+  var BARW = 74, BARGAP = 6, tlCam = 0, tlFollow = true, tlPan = null;
+  function tlWidth() { return S.bars * (BARW + BARGAP); }
+  function tlMaxCam(cw) { return Math.max(0, tlWidth() - cw + 4); }
   function renderBars() {
-    var strip = root.querySelector('.n-barstrip');
-    if (!strip) return;
-    var pb = -1;
+    var cv = root.querySelector('.n-timeline');
+    if (!cv) return;
+    cv.__ctpalRaw = true;                       // UI pixels: the panel quantizer must not touch them
+    var dpr = window.devicePixelRatio || 1;
+    var r = cv.getBoundingClientRect();
+    if (!r.width) return;
+    if (cv.width !== Math.round(r.width * dpr) || cv.height !== Math.round(54 * dpr)) {
+      cv.width = Math.round(r.width * dpr); cv.height = Math.round(54 * dpr);
+    }
+    var g2 = cv.getContext('2d');
+    g2.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g2.clearRect(0, 0, r.width, 54);
+
+    var pb = -1, phx = -1;
     if (playing) {
       var perMs = (60 / curBpm() / 4) * 1000;
-      var col = loopBar >= 0 ? loopBar * 16 : ((performance.now() - playT0) / perMs) % cols();
-      pb = loopBar >= 0 ? loopBar : Math.floor(col / 16);
+      var col = loopBar >= 0 ? loopBar * 16 + ((performance.now() - playT0) / perMs) % 16
+                             : ((performance.now() - playT0) / perMs) % cols();
+      pb = Math.floor(col / 16);
+      phx = pb * (BARW + BARGAP) + (col - pb * 16) / 16 * BARW;
     }
     lastPlayBar = pb;
-    if (strip.childElementCount !== S.bars) {
-      var html = '';
-      for (var b = 0; b < S.bars; b++) html += '<button type="button" class="n-bar" data-bar="' + b + '">' + (b + 1) + '</button>';
-      strip.innerHTML = html;
+    // the camera rides the playhead unless you have panned by hand
+    var maxCam = tlMaxCam(r.width);
+    if (tlFollow) {
+      var targetBar = playing ? pb : viewBar;
+      var want = Math.max(0, Math.min(maxCam, targetBar * (BARW + BARGAP) - r.width * 0.4 + BARW / 2));
+      tlCam += (want - tlCam) * (Math.abs(want - tlCam) > r.width ? 1 : 0.16);
     }
-    strip.querySelectorAll('.n-bar').forEach(function (el) {
-      var b = +el.dataset.bar;
-      el.classList.toggle('view', b === viewBar);
-      el.classList.toggle('loop', b === loopBar);
-      el.classList.toggle('queued', b === queuedBar);
-      el.classList.toggle('play', b === pb);
-    });
+    tlCam = Math.max(0, Math.min(maxCam, tlCam));
+
+    for (var b = 0; b < S.bars; b++) {
+      var bx = b * (BARW + BARGAP) - tlCam;
+      if (bx + BARW < 0 || bx > r.width) continue;
+      var isView = b === viewBar, isLoop = b === loopBar, isQ = b === queuedBar;
+      g2.fillStyle = isView ? 'rgba(255,255,255,0.09)' : 'rgba(255,255,255,0.045)';
+      g2.fillRect(bx, 6, BARW, 42);
+      if (isLoop || isQ || isView) {
+        g2.strokeStyle = isLoop ? 'rgba(123,220,160,0.9)' : isQ ? 'rgba(255,201,60,0.9)' : 'rgba(232,227,250,0.5)';
+        g2.lineWidth = isLoop || isQ ? 2 : 1;
+        g2.strokeRect(bx + 0.5, 6.5, BARW - 1, 41);
+      }
+      // the bar's notes: one thin row per voice, a tick per step
+      var f0 = b * 16;
+      S.cells.forEach(function (x) {
+        if (x.c < f0 || x.c >= f0 + 16) return;
+        var ch = chOfCell(x);
+        var tx = bx + ((x.c - f0) / 16) * BARW;
+        var tw = Math.max(2, (BARW / 16) * Math.min(x.len || 1, 16 - (x.c - f0)) - 1);
+        g2.fillStyle = CH[ch].color;
+        g2.globalAlpha = (x.vel === 0 ? 0.18 : effMask()[ch] ? 0.22 : 0.85);
+        g2.fillRect(tx + 1, 10 + ch * 9, tw, 6);
+        g2.globalAlpha = 1;
+      });
+      g2.fillStyle = isView ? 'rgba(232,227,250,0.9)' : 'rgba(232,227,250,0.4)';
+      g2.font = '600 9px system-ui'; g2.textBaseline = 'bottom';
+      g2.fillText(String(b + 1), bx + 3, 46);
+    }
+    if (phx >= 0) {
+      var px2 = phx - tlCam;
+      if (px2 >= -2 && px2 <= r.width) {
+        g2.fillStyle = 'rgba(255,255,255,0.85)';
+        g2.fillRect(px2, 4, 2, 46);
+      }
+    }
     var lp = root.querySelector('[data-cr="loop"]');
     if (lp) lp.classList.toggle('on', loopBar >= 0);
-    var cur = strip.querySelector('.n-bar.view');
-    if (cur && cur.scrollIntoView) cur.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+  function tlBarAt(ev) {
+    var cv = root.querySelector('.n-timeline');
+    var r = cv.getBoundingClientRect();
+    var x = ev.clientX - r.left + tlCam;
+    var b = Math.floor(x / (BARW + BARGAP));
+    return (b >= 0 && b < S.bars && (x - b * (BARW + BARGAP)) <= BARW) ? b : -1;
   }
   function renderGrid() {
     if (!stepEls.length) return;
@@ -1043,8 +1101,9 @@
     var pb = Math.floor(col / 16);
     if (loopBar < 0 && !viewPinned && pb !== viewBar) {
       viewBar = pb;
-      renderBars(); renderGrid();
-    } else if (pb !== lastPlayBar) renderBars();
+      renderGrid();
+    }
+    renderBars();                               // the camera and playhead move every frame
     updatePh(pb === viewBar ? Math.floor(col) % 16 : -1);
     scheduleTick();
   }
@@ -1074,13 +1133,13 @@
 
   // ---- bar operations ------------------------------------------------------
   function addBar() {
-    if (S.bars >= 63) return;
+    if (S.bars >= 48) return;
     snapshot(); S.bars++; viewBar = S.bars - 1; viewPinned = true;
     if (loopBar >= 0) loopBar = viewBar;
     dirty(); renderBars();
   }
   function dupBar(b) {
-    if (S.bars >= 63) return;
+    if (S.bars >= 48) return;
     snapshot();
     var copies = [];
     S.cells.forEach(function (x) {
@@ -1148,7 +1207,7 @@
       }).join('') + '</div>' +
       '<div class="n-bars">' +
         '<button type="button" class="cr-btn n-loopbtn" data-cr="loop" data-tip="Loop this bar">↺</button>' +
-        '<div class="n-barstrip"></div>' +
+        '<canvas class="n-timeline" height="54"></canvas>' +
         '<button type="button" class="cr-btn" data-cr="baradd" data-tip="Add a bar">+</button>' +
         '<button type="button" class="cr-btn" data-cr="bardup" data-tip="Duplicate this bar">⧉</button>' +
         '<button type="button" class="cr-btn" data-cr="bardel" data-tip="Remove this bar">−</button>' +
@@ -1290,21 +1349,43 @@
       }
     });
 
-    // bars
-    root.querySelector('.n-bars').addEventListener('click', function (ev) {
-      var bb = ev.target.closest('.n-bar');
-      if (bb) {
-        var b = +bb.dataset.bar;
-        if (loopBar >= 0) {
-          setLoopBar(b);
-          if (loopBar >= 0) viewBar = loopBar;
-        } else {
-          viewBar = b; viewPinned = true;
-        }
-        renderBars(); renderGrid();
-        return;
+    // the timeline: tap a bar to work on it, drag to pan the camera
+    var tl = root.querySelector('.n-timeline');
+    tl.addEventListener('pointerdown', function (ev) {
+      ev.preventDefault(); tl.setPointerCapture(ev.pointerId);
+      tlPan = { x: ev.clientX, cam: tlCam, moved: false, bar: tlBarAt(ev) };
+    });
+    tl.addEventListener('pointermove', function (ev) {
+      if (!tlPan) return;
+      var dx = ev.clientX - tlPan.x;
+      if (Math.abs(dx) > 5) {
+        tlPan.moved = true; tlFollow = false;
+        var cw = tl.getBoundingClientRect().width;
+        tlCam = Math.max(0, Math.min(tlMaxCam(cw), tlPan.cam - dx));
+        renderBars();
       }
     });
+    ['pointerup', 'pointercancel'].forEach(function (t) {
+      tl.addEventListener(t, function () {
+        if (tlPan && !tlPan.moved && tlPan.bar >= 0) {
+          var b = tlPan.bar;
+          if (loopBar >= 0) { setLoopBar(b); if (loopBar >= 0) viewBar = loopBar; }
+          else { viewBar = b; viewPinned = true; }
+          tlFollow = true;
+          renderBars(); renderGrid();
+        }
+        tlPan = null;
+      });
+    });
+    tl.addEventListener('wheel', function (ev) {
+      var cw = tl.getBoundingClientRect().width;
+      if (tlMaxCam(cw) <= 0) return;
+      ev.preventDefault();
+      tlFollow = false;
+      tlCam = Math.max(0, Math.min(tlMaxCam(cw), tlCam + (Math.abs(ev.deltaX) > Math.abs(ev.deltaY) ? ev.deltaX : ev.deltaY)));
+      renderBars();
+    }, { passive: false });
+    window.addEventListener('resize', function () { if (isOpen()) renderBars(); });
 
     root.addEventListener('click', function (ev) {
       var fb = ev.target.closest('button'); if (fb) fb.blur();

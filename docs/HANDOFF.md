@@ -173,3 +173,15 @@ Studied the reference tutorial in depth and adopted its editing model:
   screen (our linear bars + mood compose stay), and their visual identity
   (ours is note names, waveform icons, plain words).
 
+## Create: 48-bar cap and the scrolling timeline (2026-08-27)
+
+- Songs cap at 48 bars everywhere (decode clamps and drops out-of-range
+  cells, compose clips S.bars AND the verbatim liveScore to the same
+  frame count, add/duplicate stop at 48).
+- The numbered bar buttons are a canvas timeline: every bar side by side
+  as a small panel with its notes drawn as ticks in the four voices'
+  colours, a white playhead line, and a camera that eases to follow the
+  playing bar. Drag or wheel pans (dropping the follow); play re-engages
+  it; a tap picks the bar (or queues it while looping). The canvas needs
+  __ctpalRaw or a DMG face greys its colours.
+

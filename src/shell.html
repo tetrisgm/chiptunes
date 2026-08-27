@@ -586,15 +586,9 @@
   #createscreen .n-chan.sel{ background:rgba(255,255,255,.12); border-color:currentColor; }
   #createscreen .n-chan.muted{ opacity:.4; text-decoration:line-through; }
   #createscreen .n-bars{ flex:0 0 auto; display:flex; align-items:center; gap:6px; padding:2px 12px 4px; }
-  #createscreen .n-barstrip{ flex:1 1 auto; display:flex; gap:5px; overflow-x:auto; scrollbar-width:none; }
-  #createscreen .n-barstrip::-webkit-scrollbar{ display:none; }
-  #createscreen .n-bar{ flex:0 0 auto; min-width:36px; height:34px; border-radius:9px; cursor:pointer;
-    background:rgba(255,255,255,.05); border:1px solid var(--mat-edge); color:var(--ink-2); font:700 12px var(--ui); position:relative; }
-  #createscreen .n-bar.view{ border-color:rgba(232,227,250,.7); color:var(--ink); }
-  #createscreen .n-bar.loop{ background:rgba(123,220,160,.2); border-color:rgba(123,220,160,.7); color:var(--ink); }
-  #createscreen .n-bar.queued{ border-color:rgba(255,201,60,.8); color:#FFC93C; }
-  #createscreen .n-bar.play::after{ content:''; position:absolute; left:50%; bottom:3px; width:5px; height:5px;
-    border-radius:50%; background:#7BDCA0; transform:translateX(-50%); }
+  #createscreen .n-timeline{ flex:1 1 auto; min-width:0; height:54px; cursor:grab; touch-action:none;
+    border-radius:10px; background:rgba(255,255,255,.03); border:1px solid var(--mat-edge); }
+  #createscreen .n-timeline:active{ cursor:grabbing; }
   #createscreen .n-loopbtn.on{ background:rgba(123,220,160,.22); border-color:rgba(123,220,160,.7); }
   #createscreen .cr-padover{ position:fixed; inset:0; z-index:60; display:flex; align-items:center;
     justify-content:center; background:rgba(4,6,10,.55); }
