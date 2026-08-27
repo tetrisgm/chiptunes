@@ -404,3 +404,36 @@ pass.
   D2 differ from the D2 next to it. Notes also carry data-inst now, which
   makes this checkable from a test.
 
+
+- SOUNDS ARE NAMED AND VISIBLE. The chip's timbres used to live behind a
+  long-press on the lane name, which opened a scatter pad of unlabelled dots:
+  the owner never found it and read the editor as having no instruments at
+  all. Each lane now carries the name of the sound it is holding (Square,
+  Reed, Soft, Bell, Swell, Hold on the pulse lanes; Bass, Growl, Cello, Organ
+  on the wave lane; the drum lane picks by height). Clicking that name sets
+  what the NEXT note there will use; the note panel sets the note in front of
+  you and the lane together. SOUNDS resolves against the live bank the same
+  way STAMPS does, and DEDUPES -- two names for one instrument is a lie the
+  ear catches at once.
+
+- laneInstAt now answers chInst FIRST. It used to prefer the nearest
+  neighbour's instrument (that fix stops a dragged note sounding unlike the
+  notes beside it), but a sound you picked by hand has to win, or choosing one
+  does nothing you can hear.
+
+- THE PANEL CLOSES: an x on its header, Escape (CT_CREATE.escape() runs before
+  runtime closes the whole editor), and a click anywhere off it. That last one
+  listens on the DOCUMENT, not on the editor -- a click on the lane column or
+  the transport is still a click away. Two traps live here: (1) a handler that
+  re-renders leaves the clicked node DETACHED, so closest('.n-pick') finds
+  nothing and the click reads as "outside" -- hence the isConnected guard, and
+  hence the lane popover marks its buttons instead of rebuilding them; (2)
+  renderEdit() must preserve pickOpenedAt, or every refresh looks like a fresh
+  open and the click-away guard never expires.
+
+- FOLLOW IS A BUTTON, in the transport, lit while the camera is riding the
+  music. Anything that scrolls turns it off; pressing it (or Play, Start, a new
+  mood) turns it back on and glides to the playhead. An earlier version re-armed
+  the follow by itself whenever the playhead came into view, and it fought the
+  hand: dragging the scrollbar left to reach bar 1 snapped the view away before
+  you got there.

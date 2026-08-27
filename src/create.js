@@ -28,6 +28,26 @@
     { id: 'bassg',   ch: 'wave',  wave: 'buzzy' },
     { id: 'cello',   ch: 'wave',  wave: 'mellow' }
   ];
+  // The sounds a note can be given, by name. The chip has three musical
+  // voices and each one can hold a range of timbres; a scatter pad of unnamed
+  // dots told nobody that, so these are the ones worth having, named.
+  var SOUNDS = {
+    pulse: [
+      { n: 'Square', duty: 0.5,   env: 'pluck' },
+      { n: 'Reed',   duty: 0.25,  env: 'stab'  },
+      { n: 'Soft',   duty: 0.5,   env: 'soft'  },
+      { n: 'Bell',   duty: 0.125, env: 'pluck' },
+      { n: 'Swell',  duty: 0.5,   env: 'swell' },
+      { n: 'Hold',   duty: 0.25,  env: 'sus'   }
+    ],
+    wave: [
+      { n: 'Bass',  wave: 'buzzy',  rank: 0 },
+      { n: 'Growl', wave: 'buzzy',  rank: 1 },
+      { n: 'Cello', wave: 'mellow', rank: 0 },
+      { n: 'Organ', wave: 'mellow', rank: 1 }
+    ]
+  };
+  var SNDS = null;                          // resolved against the live bank
   var DRUMS = [
     { id: 'hat',   lane: 0, kind: 'hat',   vel: 0.5 },
     { id: 'snare', lane: 1, kind: 'snare', vel: 0.7 },
@@ -81,6 +101,30 @@
     INSTOF.hat = ns[0] ? ns[0].index : 0;
     INSTOF.snare = (ns[third] || ns[0]).index;
     INSTOF.kick = (ns[ns.length - 1] || ns[0]).index;
+    // the named sounds, resolved the same way -- and deduped, because two
+    // names for one instrument is a lie the ear catches straight away
+    SNDS = { pulse: [], wave: [] };
+    var taken = {};
+    SOUNDS.pulse.forEach(function (sd) {
+      var pool = meta.filter(function (m) {
+        return m.type === 'pulse' && m.patch.duty === sd.duty && envClass(BANK.instruments[m.index]) === sd.env;
+      });
+      if (!pool.length) pool = meta.filter(function (m) { return m.type === 'pulse' && m.patch.duty === sd.duty; });
+      if (!pool.length) pool = meta.filter(function (m) { return m.type === 'pulse'; });
+      var pick = pool.length ? pool[0].index : 0;
+      if (pool.length && !taken['p' + pick]) { taken['p' + pick] = 1; SNDS.pulse.push({ n: sd.n, inst: pick }); }
+    });
+    var loudw = meta.filter(function (m) { return m.type === 'wave' && waveStats(m).span >= 8; });
+    SOUNDS.wave.forEach(function (sd) {
+      var pool = loudw.filter(function (m) { return (sd.wave === 'buzzy') === (waveStats(m).big >= 1); });
+      if (!pool.length) pool = loudw;
+      pool = pool.slice().sort(function (a, b) {
+        var A = waveStats(a), B = waveStats(b);
+        return sd.wave === 'buzzy' ? (B.big - A.big || B.span - A.span) : (A.big - B.big || B.span - A.span);
+      });
+      var m2 = pool[sd.rank] || pool[0];
+      if (m2 && !taken['w' + m2.index]) { taken['w' + m2.index] = 1; SNDS.wave.push({ n: sd.n, inst: m2.index }); }
+    });
     return BANK;
   }
 
@@ -617,85 +661,34 @@
   }
 
   // ---- the sound map: pick a channel's instrument by dragging --------------
-  var PADPTS = null, chInst = [null, null, null, null];
-  function padPoints() {
-    if (PADPTS) return PADPTS;
-    resolveBank();
-    PADPTS = [];
-    BANK.meta.forEach(function (m) {
-      if (m.type === 'noise') return;
-      var j = ((m.index * 37) % 13) / 13 * 0.07;
-      var x, y;
-      if (m.type === 'wave') {
-        var t = BANK.waveTables[m.waveSlot] || [], big = 0;
-        for (var i = 1; i < t.length; i++) if (Math.abs(t[i] - t[i - 1]) >= 6) big++;
-        x = 0.15 + Math.min(1, big / 3) * 0.66 + j;
-        y = 0.2 + ((m.index * 53) % 17) / 17 * 0.6;
-      } else {
-        var duty = (m.patch && m.patch.duty) || 0.5;
-        x = (duty === 0.5 ? 0.2 : duty === 0.25 ? 0.48 : 0.74) + j;
-        y = ({ pluck: 0.14, stab: 0.34, soft: 0.54, sus: 0.72, swell: 0.82 })[envClass(BANK.instruments[m.index])] + j;
-      }
-      PADPTS.push({ idx: m.index, x: Math.min(0.95, x), y: Math.min(0.92, y), wave: m.type === 'wave' });
-    });
-    return PADPTS;
-  }
-  function padFor(ch) { return padPoints().filter(function (p) { return p.wave === (ch === 2); }); }
-  function drawPad(pc, ch) {
-    var c = pc.getContext('2d');
-    c.clearRect(0, 0, pc.width, pc.height);
-    padFor(ch).forEach(function (pt) {
-      var sel = chInst[ch] === pt.idx;
-      c.beginPath();
-      c.arc(pt.x * pc.width, pt.y * pc.height, sel ? 8 : 5, 0, Math.PI * 2);
-      c.fillStyle = CH[ch].color;
-      c.globalAlpha = sel ? 1 : 0.55;
-      c.fill();
-      if (sel) { c.strokeStyle = '#fff'; c.lineWidth = 2; c.stroke(); }
-      c.globalAlpha = 1;
-    });
-  }
-  var padPokeAt = 0;
-  function padPick(ev, pc, ch) {
-    var r = pc.getBoundingClientRect();
-    var nx = (ev.clientX - r.left) / r.width, ny = (ev.clientY - r.top) / r.height;
-    var best = null, bd = 9;
-    padFor(ch).forEach(function (pt) {
-      var d2 = (pt.x - nx) * (pt.x - nx) + (pt.y - ny) * (pt.y - ny) * 1.4;
-      if (d2 < bd) { bd = d2; best = pt; }
-    });
-    if (!best || chInst[ch] === best.idx) return;
-    chInst[ch] = best.idx;
-    drawPad(pc, ch);
+  var chInst = [null, null, null, null], sndCh = -1;
+  // The lane's own sound: what the NEXT note placed there will use. This used
+  // to be a long-press on the lane name opening a scatter pad of unnamed dots
+  // -- nobody found it, and nobody could read it when they did.
+  function openSnd(ch) {
+    closeSnd(); closePick();
+    selCol = -1; selCh = -1; pen.ch = ch;
+    if (ch === 3) { hint('Drums pick their sound by height: high for hat, middle for snare, low for kick.'); return; }
+    var el = document.createElement('div');
+    el.className = 'n-pick n-sndpop';
+    el.innerHTML = '<div class="n-pickhead"><span>' + CH[ch].n + ' sound</span>' +
+      '<button type="button" class="n-pclose" data-sndclose="1" title="Close">\u00d7</button></div>' +
+      '<div class="n-pickrow n-pisnd" style="--vc:' + CH[ch].color + '">' + soundBtns(ch, null) + '</div>' +
+      '<span class="n-pickfoot">the next note you place here</span>';
+    root.appendChild(el);
+    sndCh = ch;
+    var ln = root.querySelector('.n-lane[data-ch="' + ch + '"]');
+    var r = ln.getBoundingClientRect(), bx = el.getBoundingClientRect();
+    el.style.left = Math.round(r.right + 8) + 'px';
+    el.style.top = Math.round(Math.max(8, Math.min(window.innerHeight - bx.height - 8,
+                                                   r.top + r.height / 2 - bx.height / 2))) + 'px';
     renderChans();
-    var t = performance.now();
-    if (t - padPokeAt > 110) {
-      padPokeAt = t;
-      auditionCell({ c: 0, r: MEL_ROWS - 1 - lastDeg[ch], st: CH[ch].stamp, inst: best.idx });
-    }
   }
-  function openPad(ch) {
-    if (ch === 3) return;
-    closePad();
-    var ov = document.createElement('div');
-    ov.className = 'cr-padover';
-    ov.innerHTML = '<div class="cr-padcard"><b>' + CH[ch].n + ' sound</b>' +
-      '<canvas class="cr-pad" width="280" height="170"></canvas>' +
-      '<span class="cr-padlab">drag to find a sound · bright → · longer ↓</span>' +
-      '<button type="button" class="cr-btn" data-padclose="1">Done</button></div>';
-    root.appendChild(ov);
-    var pc = ov.querySelector('.cr-pad');
-    pc.__ctpalRaw = true;
-    drawPad(pc, ch);
-    var down = false;
-    pc.addEventListener('pointerdown', function (ev) { ev.preventDefault(); pc.setPointerCapture(ev.pointerId); down = true; padPick(ev, pc, ch); });
-    pc.addEventListener('pointermove', function (ev) { if (down) padPick(ev, pc, ch); });
-    ['pointerup', 'pointercancel'].forEach(function (t) { pc.addEventListener(t, function () { down = false; }); });
-    ov.addEventListener('click', function (ev) {
-      if (ev.target === ov || ev.target.closest('[data-padclose]')) closePad();
-    });
+  function closeSnd() {
+    var e = root && root.querySelector('.n-sndpop');
+    if (e) e.remove();
+    sndCh = -1;
   }
-  function closePad() { var ov = root.querySelector('.cr-padover'); if (ov) ov.remove(); }
 
   // ---- the songs shelf: this browser's saved songs -------------------------
   // ---- exports -------------------------------------------------------------
@@ -909,6 +902,7 @@
   }
   // the four lanes name themselves down the left edge and carry their mute
   function renderChans() {
+    renderFollow();
     root.querySelectorAll('.n-lane').forEach(function (el) {
       var i = +el.dataset.ch;
       el.classList.toggle('muted', !!chMuted[i]);
@@ -916,6 +910,8 @@
       el.style.setProperty('--vc', CH[i].color);
       var spk = el.querySelector('.n-spk');
       if (spk) spk.innerHTML = speakerSvg(!chMuted[i]);
+      var sn = el.querySelector('.n-lsnd');
+      if (sn) sn.textContent = soundName(i);
     });
   }
   // the ruler: one number per bar, and the tools for the bar you are on
@@ -1013,6 +1009,32 @@
   // coloured buttons, the pitches as a row of note names you can simply read,
   // and the loudness and length as levels. No hidden mode, nothing to learn.
   var pickCol = -1, pickCh = -1, pickOpenedAt = 0;
+  // what a lane offers, and what a note is using
+  function soundsFor(ch) {
+    resolveBank();
+    if (ch === 3) return [{ n: 'Kick', ed: 'd2' }, { n: 'Snare', ed: 'd1' }, { n: 'Hat', ed: 'd0' }];
+    return (ch === 2 ? SNDS.wave : SNDS.pulse).map(function (sd) {
+      return { n: sd.n, ed: 'snd' + sd.inst, inst: sd.inst };
+    });
+  }
+  function laneInst(ch) {
+    resolveBank();
+    return chInst[ch] != null ? chInst[ch] : INSTOF[CH[ch].stamp];
+  }
+  function soundName(ch) {
+    if (ch === 3) return 'Kit';
+    var want = laneInst(ch), hit = null;
+    soundsFor(ch).forEach(function (sd) { if (sd.inst === want) hit = sd.n; });
+    return hit || 'Sound';
+  }
+  function soundBtns(ch, x) {
+    var cur = x && x.inst != null ? x.inst : laneInst(ch);
+    var drumLane = x && x.r >= MEL_ROWS ? x.r - MEL_ROWS : -1;
+    return soundsFor(ch).map(function (sd) {
+      var on = ch === 3 ? ('d' + drumLane) === sd.ed : sd.inst === cur;
+      return '<button type="button" class="n-pv' + (on ? ' on' : '') + '" data-ed="' + sd.ed + '">' + sd.n + '</button>';
+    }).join('');
+  }
   function closePick() {
     var el = root && root.querySelector('.n-pick');
     if (el) el.remove();
@@ -1029,6 +1051,9 @@
     var el = document.createElement('div');
     el.className = 'n-pick';
     el.innerHTML =
+      '<div class="n-pickhead"><span>' + (ch === 3 ? 'Drum' : 'Sound') + '</span>' +
+        '<button type="button" class="n-pclose" data-ed="close" title="Close">\u00d7</button></div>' +
+      '<div class="n-pickrow n-pisnd" style="--vc:' + CH[ch].color + '">' + soundBtns(ch, x) + '</div>' +
       '<div class="n-pickrow n-picklevels">' +
         '<span>Volume</span>' +
         '<button type="button" class="n-po" data-ed="vol-">\u2212</button>' +
@@ -1049,7 +1074,10 @@
 
   // the picker IS the editor now: refreshing it is all "render the editor" means
   function renderEdit() {
-    if (pickCol >= 0) openPick(pickCol, pickCh >= 0 ? pickCh : selCh);
+    if (pickCol < 0) return;
+    var was = pickOpenedAt;                   // a refresh is not a fresh open --
+    openPick(pickCol, pickCh >= 0 ? pickCh : selCh);
+    pickOpenedAt = was;                       // else the click-away guard never expires
   }
   // one handler for both: the selected note if there is one, the pen if not
   function editValue(what) {
@@ -1060,7 +1088,20 @@
       renderEdit();
       return;
     }
-    if (what === 'sound') { openPad(x ? selCh : pen.ch); return; }
+    if (what === 'close') { closePick(); selCol = -1; selCh = -1; renderGrid(); return; }
+    if (what.slice(0, 3) === 'snd') {         // a named sound, for this note and the next
+      var sch = x ? chOfCell(x) : pen.ch;
+      var si = +what.slice(3);
+      chInst[sch] = si;
+      if (x) { snapshot(); x.inst = si; dirty(); renderEdit(); auditionCell(x); }
+      else auditionCell(penCell(0));
+      renderChans();
+      var pop = root.querySelector('.n-sndpop');      // mark it, do not rebuild it:
+      if (pop) pop.querySelectorAll('.n-pv').forEach(function (bt) {   // a rebuilt button is
+        bt.classList.toggle('on', bt.dataset.ed === what);             // detached, and a detached
+      });                                                              // target reads as "outside"
+      return;
+    }
     if (!x) {
       if (what === 'pitch+' || what === 'pitch-') pen.midi = Math.max(24, Math.min(96, pen.midi + (what === 'pitch+' ? 1 : -1)));
       else if (what === 'oct+' || what === 'oct-') pen.midi = Math.max(24, Math.min(96, pen.midi + (what === 'oct+' ? 12 : -12)));
@@ -1264,6 +1305,7 @@
           '<div class="n-sidehead"></div>' +
           CH.map(function (c, i) {
             return '<div class="n-lane" data-ch="' + i + '"><b>' + c.n + '</b>' +
+                   '<button type="button" class="n-lsnd" data-snd="' + i + '"></button>' +
                    '<i class="n-spk" data-mute="' + i + '"></i></div>';
           }).join('') +
         '</div>' +
@@ -1280,6 +1322,8 @@
           '<button type="button" class="n-tbtn" data-cr="rewind" title="Back to the start">' + _pb('prev') + '</button>' +
           '<button type="button" class="n-tbtn n-play" data-cr="play" title="Play / Pause">' + _pb('play') + '</button>' +
         '</div>' +
+        '<button type="button" class="n-tfollow' + (camFollow ? ' on' : '') + '" data-cr="follow" ' +
+          'title="Keep the view on the music">Follow</button>' +
         '<label class="cr-lab">Speed <b class="n-bpmval">' + S.bpm + '</b> BPM' +
         '<input type="range" min="70" max="180" step="2" value="' + S.bpm + '" data-cr="bpm"></label>' +
       '</div>';
@@ -1333,21 +1377,26 @@
     }
     camX = Math.max(0, Math.min(camMax(), want + camCatch));
   }
-  // A hand scroll KEEPS the camera -- no timer takes it back, because a view
-  // that yanks itself away mid-edit is the worst of both. Play, Start and a
-  // new mood all hand it back, and so does scrolling to where the music is:
-  // once the playhead is close to where the follow would sit, the camera
-  // takes over again and glides the rest of the way.
+  // A hand scroll KEEPS the camera. Nothing guesses it back: an earlier rule
+  // re-armed the follow as soon as the playhead came into view, which fought
+  // the hand mid-drag -- drag the scrollbar left and the view snapped away
+  // before you could reach bar 1. Play, Start, a new mood and the Follow
+  // button hand it back, and nothing else does.
   function handScrolled() {
     camFollow = false;
+    renderFollow();
+  }
+  // Follow: jump to the music and ride along again
+  function followNow() {
+    camFollow = true;
     var col = playCol();
-    if (col < 0) return;
-    var w = viewW();
-    var x = sidePad + (col + 0.5) * stepW - camX;    // the playhead, in screen pixels
-    if (x > w * 0.08 && x < w * 0.92) {              // you scrolled back to the music
-      camCatch = camX - camForCol(col);              // keep this view, then glide it centre
-      camFollow = true;
-    }
+    if (col >= 0) camCatch = camX - camForCol(col);   // glide, do not snap
+    else { camCatch = 0; centerOn(lastPlayBar > 0 ? lastPlayBar : 0, true); applyCam(); viewBar = Math.max(0, lastPlayBar); renderBars(); }
+    renderFollow();
+  }
+  function renderFollow() {
+    var b = root && root.querySelector('[data-cr="follow"]');
+    if (b) b.classList.toggle('on', camFollow);
   }
   function applyCam() {
     var track = root.querySelector('.n-track');
@@ -1406,6 +1455,9 @@
   // instrument its new neighbours are using -- otherwise the same written
   // note lands on a different sound than the ones beside it.
   function laneInstAt(ch, col) {
+    // a sound you PICKED for this lane wins: it is the one thing here that was
+    // said out loud. Only an unspoken lane copies its neighbours.
+    if (chInst[ch] != null) return chInst[ch];
     var best = null, bd = 1e9;
     for (var i = 0; i < S.cells.length; i++) {
       var x = S.cells[i];
@@ -1414,7 +1466,6 @@
       if (d < bd) { bd = d; best = x.inst; }
     }
     if (best != null) return best;
-    if (chInst[ch] != null) return chInst[ch];
     resolveBank();
     return ch === 3 ? INSTOF[DRUMS[pen.drum].id] : INSTOF[CH[ch].stamp];
   }
@@ -1613,6 +1664,23 @@
       bar.addEventListener(t, function () { sdrag = null; });
     });
 
+    // Anything open closes when you click off it. This listens on the
+    // document, not on the editor: a click on the lane column, the transport
+    // or the page around them is still a click away from the panel.
+    document.addEventListener('click', function (ev) {
+      if (!isOpen()) return;
+      // A handler that re-renders leaves the clicked element detached, and
+      // closest() then finds nothing above it -- which reads as a click on the
+      // page. It was ours: leave what is open alone.
+      if (!ev.target.isConnected) return;
+      // a grid re-render detaches the element that was clicked, so closest()
+      // stops finding its square: never treat the click that just opened the
+      // panel as a click outside it
+      if (pickCol >= 0 && performance.now() - pickOpenedAt > 60 &&
+          !ev.target.closest('.n-pick') && !ev.target.closest('.n-note')) { closePick(); renderGrid(); }
+      if (sndCh >= 0 && !ev.target.closest('.n-pick') && !ev.target.closest('[data-snd]')) closeSnd();
+    });
+
     // the lane names: tap the speaker to mute, the name to aim the next note
     root.querySelector('.n-side').addEventListener('click', function (ev) {
       var mb = ev.target.closest('[data-mute]');
@@ -1622,6 +1690,8 @@
         applyMute();
         return;
       }
+      var sb = ev.target.closest('[data-snd]');
+      if (sb) { openSnd(+sb.dataset.snd); return; }
       var ln = ev.target.closest('.n-lane');
       if (!ln) return;
       pen.ch = +ln.dataset.ch;
@@ -1636,11 +1706,8 @@
 
     root.addEventListener('click', function (ev) {
       var fb = ev.target.closest('button'); if (fb) fb.blur();
-      // a grid re-render detaches the element that was clicked, so closest()
-      // stops finding its square: never treat the click that just opened the
-      // picker as a click outside it
-      if (pickCol >= 0 && performance.now() - pickOpenedAt > 60 &&
-          !ev.target.closest('.n-pick') && !ev.target.closest('.n-note')) { closePick(); renderGrid(); }
+      var sx = ev.target.closest('[data-sndclose]');
+      if (sx) { closeSnd(); return; }
       var tb = ev.target.closest('[data-tour]');
       if (tb) {
         if (tb.dataset.tour === 'skip') tourDone(); else tourAdvance(tourStep);
@@ -1677,6 +1744,7 @@
       if (!b) return;
       var k = b.dataset.cr;
       if (k === 'play') { gestured = true; togglePlay(); }
+      else if (k === 'follow') { followNow(); }
       else if (k === 'rewind') { pausedAt = 0; if (playing) startPlayback(0); else { camFollow = true; centerOn(0, true); viewBar = 0; renderBars(); } hint('Back to the start.'); }
       else if (k === 'close') { close(); }
       else if (k === 'undo') { undo(); }
@@ -1741,7 +1809,7 @@
     pausedAt = 0;
     chMuted = [false, false, false, false];    // playScore() clears the chip mask
     loopBar = -1; queuedBar = null;
-    closePad();
+    closeSnd();
     if (root) root.classList.remove('show');
     document.body.classList.remove('create-open');
     try { history.replaceState(null, '', '/'); } catch (e) {}
@@ -1749,7 +1817,14 @@
   }
   function isOpen() { return !!(root && root.classList.contains('show')); }
 
-  G.CT_CREATE = { open: open, close: close, isOpen: isOpen, togglePlay: togglePlay,
+  // Escape closes the innermost thing first -- runtime asks before it closes
+  // the whole editor
+  function escape() {
+    if (root && root.querySelector('.n-sndpop')) { closeSnd(); return true; }
+    if (pickCol >= 0) { closePick(); selCol = -1; selCh = -1; renderGrid(); return true; }
+    return false;
+  }
+  G.CT_CREATE = { open: open, close: close, isOpen: isOpen, togglePlay: togglePlay, escape: escape,
     _dbg: function () {
       var mx = 0, withInst = 0, hist = [0, 0, 0, 0];
       if (S) S.cells.forEach(function (x) { if ((x.len || 1) > mx) mx = x.len || 1; if (x.inst != null) withInst++;

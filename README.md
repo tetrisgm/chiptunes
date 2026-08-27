@@ -17,12 +17,15 @@ on with your day: <https://chiptunes.app>
   hearing as a 32 KB `.gb` file that boots on real hardware. The browser chip
   and the cartridge are spectrally verified against each other in CI-grade
   tests (`npm run test:rom-audio`), so they cannot drift apart.
-- **Make your own.** Create is a pocket tracker on the same chip: a 4x4
-  grid holds one bar of one voice, tap for notes, drag up and down for
-  pitch and sideways for length, and the four channel buttons are the
-  DMG's own voices. Tap a mood (happy, spooky, battle) and the
-  radio's composer writes a whole track onto the grid, no AI involved,
-  yours to edit note by note. Share it as a link, a WAV, or a real cartridge.
+- **Make your own.** Create is a pocket tracker on the same chip: the song
+  runs left to right as four lanes -- Melody, Harmony, Bass, Drums, the DMG's
+  own voices -- and a note is a block you drag anywhere. Up and down for
+  pitch, sideways in time, into another lane to change voice, by its right
+  edge to make it longer, and it sounds as it moves. Each lane names the sound
+  it is holding (Square, Reed, Bell, Cello, Organ, and the rest) and any note
+  can be given another. Tap a mood (happy, spooky, battle) and the radio's
+  composer writes a whole track into the lanes, no AI involved, yours to edit
+  note by note. Share it as a link, a WAV, or a real cartridge.
 - **The music is measured, not guessed.** Songs draw one of fourteen styles
   (house, dnb, trance, rock, chill, and friends). The patterns inside them
   are mined from 74,552 video-game MIDI files: real kit bars, real bass

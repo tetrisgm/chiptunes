@@ -1136,7 +1136,10 @@ function panelVisible(id){
 }
 function handleEscapeShortcut(ev){
   if(!ev || ev.key!=='Escape' || shortcutTargetBlocked(ev) || ev.metaKey || ev.altKey || ev.ctrlKey) return false;
-  if(typeof CT_CREATE!=='undefined' && CT_CREATE.isOpen()){ CT_CREATE.close(); consumeKeyEvent(ev); return true; }
+  if(typeof CT_CREATE!=='undefined' && CT_CREATE.isOpen()){
+    // the editor's own panels close first; Escape only leaves once nothing is open
+    if(CT_CREATE.escape && CT_CREATE.escape()){ consumeKeyEvent(ev); return true; }
+    CT_CREATE.close(); consumeKeyEvent(ev); return true; }
   var hm=document.getElementById('howmodal');
   if(hm && hm.classList.contains('show')){ hm.classList.remove('show'); consumeKeyEvent(ev); return true; }
   if(panelVisible('trackpanel') && window.closeTrackPanel){ window.closeTrackPanel(); consumeKeyEvent(ev); return true; }
