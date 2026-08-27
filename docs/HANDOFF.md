@@ -364,3 +364,9 @@ pass.
   (the button arms for 4 seconds); Add bar inserts an empty bar AT the
   current position and pushes the rest right.
 
+- The note panel is Volume and Remove only: instrument, pitch and length are
+  all set by dragging (lane, height, right edge), so listing them twice was
+  clutter. Clicking empty lane space places a note AT the height you clicked
+  and opens that panel. The bar row is just Delete bar / Insert bar (no bar
+  number; the banded bar says which), and Insert opens a bar where you are.
+

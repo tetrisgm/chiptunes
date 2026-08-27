@@ -4273,8 +4273,6 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     if (ruler) ruler.querySelectorAll('.n-rbar').forEach(function (el) {
       el.classList.toggle('on', +el.dataset.bar === viewBar);
     });
-    var lab = root.querySelector('.n-barnow');
-    if (lab) lab.textContent = '#' + (viewBar + 1);
     var hl = root.querySelector('.n-barhl');
     if (hl) {
       hl.style.left = (viewBar * 16 * stepW) + 'px';
@@ -4283,7 +4281,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     var db = root.querySelector('[data-delbar]');
     if (db) {
       var armed = delArm === viewBar;
-      db.textContent = armed ? '\u2212 Delete #' + (viewBar + 1) + '? Tap again' : '\u2212 Delete bar';
+      db.textContent = armed ? '\u2212 Delete this bar? Tap again' : '\u2212 Delete bar';
       db.classList.toggle('arm', armed);
     }
     applyCam();
@@ -4352,115 +4350,44 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   // The note picker opens ON the square you touched: the instruments as
   // coloured buttons, the pitches as a row of note names you can simply read,
   // and the loudness and length as levels. No hidden mode, nothing to learn.
-  var pickCol = -1, pickOpenedAt = 0;
+  var pickCol = -1, pickCh = -1, pickOpenedAt = 0;
   function closePick() {
     var el = root && root.querySelector('.n-pick');
     if (el) el.remove();
-    pickCol = -1;
-  }
-  function scaleRow(midi) {
-    // one octave of the song's own scale around the note, so everything you
-    // can tap is in key; the arrows move an octave at a time
-    var sc = scaleArr(), base = Math.floor((midi - 12) / 12) * 12 + 12;
-    var out = [];
-    for (var i = 0; i < sc.length; i++) out.push(base + S.key + sc[i]);
-    out.push(base + 12 + S.key + sc[0]);
-    return out;
+    pickCol = -1; pickCh = -1;
   }
   function openPick(col, ch) {
     closePick();
-    pickCol = col;
+    var i = cellIndexAt(ch, col);
+    if (i < 0) return;                        // the picker belongs to a note
+    pickCol = col; pickCh = ch;
     pickOpenedAt = performance.now();
-    var x = ch != null && cellIndexAt(ch, col) >= 0 ? S.cells[cellIndexAt(ch, col)] : null;
-    var voice = x ? ch : (ch != null ? ch : pen.ch);
-    var isDrum = voice === 3;
-    var midi = x ? (x.midi != null ? x.midi : rowMidi(x.r)) : pen.midi;
-    var vel = x ? (x.vel != null ? x.vel : 0.8) : pen.vel;
-    var len = x ? (x.len || 1) : pen.len;
-    var drum = x && x.r >= MEL_ROWS ? x.r - MEL_ROWS : pen.drum;
-
-    var html = '<div class="n-pickrow n-pickvoices">' +
-      CH.map(function (c, i) {
-        return '<button type="button" class="n-pv' + (voice === i ? ' on' : '') + '" data-pv="' + i + '"' +
-               ' style="--vc:' + c.color + '">' + c.n + '</button>';
-      }).join('') + '</div>';
-    if (isDrum) {
-      html += '<div class="n-pickrow">' + DRUM_NAMES.map(function (dn, di) {
-        return '<button type="button" class="n-pn' + (drum === di ? ' on' : '') + '" data-pd="' + di + '">' + dn + '</button>';
-      }).join('') + '</div>';
-    } else {
-      html += '<div class="n-pickrow n-picknotes">' +
-        '<button type="button" class="n-po" data-poct="-1">\u25c0</button>' +
-        scaleRow(midi).map(function (m) {
-          return '<button type="button" class="n-pn' + (m === midi ? ' on' : '') + '" data-pm="' + m + '">' + noteName(m) + '</button>';
-        }).join('') +
-        '<button type="button" class="n-po" data-poct="1">\u25b6</button>' +
-        '</div>';
-    }
-    html += '<div class="n-pickrow n-picklevels">' +
-      '<span>Volume</span><button type="button" class="n-po" data-ed="vol-">\u2212</button>' +
-      '<b class="n-meter">' + meterBlocks(Math.round(vel * 8)) + '</b>' +
-      '<button type="button" class="n-po" data-ed="vol+">+</button>' +
-      '</div>' +
-      '<div class="n-pickrow n-picklevels">' +
-      '<span>Length</span><button type="button" class="n-po" data-ed="len-">\u2212</button>' +
-      '<b class="n-meter">' + meterBlocks(Math.min(8, len), len > 8 ? len : 0) + '</b>' +
-      '<button type="button" class="n-po" data-ed="len+">+</button>' +
-      '</div>';
-    if (x) html += '<button type="button" class="n-pdel" data-ed="del">Remove this note</button>';
-
+    var x = S.cells[i];
+    var vel = x.vel != null ? x.vel : 0.8;
     var el = document.createElement('div');
     el.className = 'n-pick';
-    el.innerHTML = html;
+    el.innerHTML =
+      '<div class="n-pickrow n-picklevels">' +
+        '<span>Volume</span>' +
+        '<button type="button" class="n-po" data-ed="vol-">\u2212</button>' +
+        '<b class="n-meter">' + meterBlocks(Math.round(vel * 8)) + '</b>' +
+        '<button type="button" class="n-po" data-ed="vol+">+</button>' +
+      '</div>' +
+      '<button type="button" class="n-pdel" data-ed="del">Remove this note</button>';
     root.appendChild(el);
-    // sit it over the square, kept on screen
-    var sq = root.querySelector('.n-step[data-col="' + col + '"]');
-    var r = sq ? sq.getBoundingClientRect() : { left: 0, top: 0, width: 0, bottom: 0 };
-    var w = el.getBoundingClientRect().width;
+    // sit it over the note, kept on screen
+    var note = root.querySelector('.n-note[data-col="' + col + '"][data-ch="' + ch + '"]');
+    var r = note ? note.getBoundingClientRect() : { left: 0, top: 0, width: 0, bottom: 0 };
+    var w = el.getBoundingClientRect().width, hgt = el.getBoundingClientRect().height;
     el.style.left = Math.round(Math.max(10, Math.min(window.innerWidth - w - 10, r.left + r.width / 2 - w / 2))) + 'px';
-    var hgt = el.getBoundingClientRect().height;
-    var top = r.top - hgt - 8;
-    if (top < 8) top = Math.min(window.innerHeight - hgt - 8, r.bottom + 8);
+    var top = r.top - hgt - 10;
+    if (top < 8) top = Math.min(window.innerHeight - hgt - 8, r.bottom + 10);
     el.style.top = Math.round(top) + 'px';
   }
-  function pickPitch(midi) {
-    var x = selCell();
-    if (x) { snapshot(); x.midi = midi; x.r = rowForMidi(midi); dirty(); auditionCell(x); }
-    else {
-      pen.midi = midi;
-      snapshot();
-      var made = penCell(pickCol);
-      S.cells.push(made);
-      selCh = pen.ch; selCol = pickCol;
-      dirty(); auditionCell(made);
-    }
-    openPick(pickCol, selCh);
-  }
-  function pickVoice(v) {
-    var x = selCell();
-    if (x) {                                   // move this note to another voice
-      snapshot();
-      // Remember everything the note WAS first: a trip through Drums and back
-      // used to lose the pitch, because the drum lane it landed on has no
-      // pitch to read back.
-      if (x.r >= MEL_ROWS) pen.drum = x.r - MEL_ROWS;
-      else pen.midi = x.midi != null ? x.midi : rowMidi(x.r);
-      pen.vel = x.vel != null ? x.vel : pen.vel;
-      pen.len = x.len || 1;
-      var i = S.cells.indexOf(x);
-      if (i >= 0) S.cells.splice(i, 1);
-      pen.ch = v;
-      var made = penCell(pickCol);
-      S.cells.push(made);
-      selCh = v; selCol = pickCol;
-      dirty(); auditionCell(made);
-    } else { pen.ch = v; }
-    if (viewCh >= 0) { viewCh = v; renderChans(); renderGrid(); renderBars(); }
-    openPick(pickCol, selCell() ? v : v);
-  }
+
   // the picker IS the editor now: refreshing it is all "render the editor" means
   function renderEdit() {
-    if (pickCol >= 0) openPick(pickCol, selCell() ? selCh : pen.ch);
+    if (pickCol >= 0) openPick(pickCol, pickCh >= 0 ? pickCh : selCh);
   }
   // one handler for both: the selected note if there is one, the pen if not
   function editValue(what) {
@@ -4662,9 +4589,9 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
         '</div></div>' +
       '</div>' +
       '<div class="n-barbar">' +
-        '<span class="n-barnow">#1</span>' +
+
         '<button type="button" class="n-hb" data-delbar="">− Delete bar</button>' +
-        '<button type="button" class="n-hb" data-cr="baradd">+ Add bar</button>' +
+        '<button type="button" class="n-hb" data-cr="baradd">+ Insert bar</button>' +
       '</div>' +
       '<div class="n-transport">' +
         '<button type="button" class="cr-btn" data-cr="rewind">⏮ Start</button>' +
@@ -4809,10 +4736,17 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
         openPick(S.cells[hit].c, h.ch);
         return;
       }
-      selCol = -1; selCh = -1;
-      if (pickCol >= 0) { closePick(); renderGrid(); return; }   // click away = put it away
-      pen.ch = h.ch;                                  // the lane you touched IS the instrument
-      renderChans(); renderGrid(); renderBars();
+      if (pickCol >= 0) { selCol = -1; selCh = -1; closePick(); renderGrid(); return; }
+      // place a note right where you clicked: this lane, and this height
+      snapshot();
+      pen.ch = h.ch;
+      var pAt = pitchAt(h.ch, ev.clientY);
+      if (pAt && pAt.midi != null) pen.midi = pAt.midi;
+      if (pAt && pAt.drum != null) pen.drum = pAt.drum;
+      var made = penCell(h.col);
+      S.cells.push(made);
+      selCh = h.ch; selCol = h.col;
+      renderChans(); dirty(); auditionCell(made);
       openPick(h.col, h.ch);
       tourAdvance(0);
     });
@@ -4939,25 +4873,11 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
         if (tb.dataset.tour === 'skip') tourDone(); else tourAdvance(tourStep);
         return;
       }
-      var pm = ev.target.closest('[data-pm]');
-      if (pm) { pickPitch(+pm.dataset.pm); return; }
-      var pd = ev.target.closest('[data-pd]');
-      if (pd) { if (selCell()) editValue('d' + pd.dataset.pd); else { pen.drum = +pd.dataset.pd; pickPitch(pen.midi); } openPick(pickCol, 3); return; }
-      var po = ev.target.closest('[data-poct]');
-      if (po) {
-        var d = +po.dataset.poct * 12, xx = selCell();
-        if (xx) { snapshot(); movePitch(xx, d); dirty(); auditionCell(xx); }
-        else pen.midi = Math.max(24, Math.min(96, pen.midi + d));
-        openPick(pickCol, selCell() ? selCh : pen.ch);
-        return;
-      }
-      var pv = ev.target.closest('[data-pv]');
-      if (pv) { pickVoice(+pv.dataset.pv); return; }
       var edb = ev.target.closest('[data-ed]');
       if (edb) {
         var wasDel = edb.dataset.ed === 'del';
         editValue(edb.dataset.ed);
-        if (wasDel) closePick(); else if (pickCol >= 0) openPick(pickCol, selCell() ? selCh : pen.ch);
+        if (wasDel) closePick(); else if (pickCol >= 0) openPick(pickCol, pickCh);
         return;
       }
       var sh = ev.target.closest('[data-barshift]');
