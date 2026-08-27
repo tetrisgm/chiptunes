@@ -414,15 +414,18 @@ pass.
   bright hiss to low boom, and it carries the lane row it belongs at, so
   height and sound stay in step.
 
-- THE NULLS IN THOSE NAME TABLES ARE MEASURED. Every candidate was rendered
-  through this repo's own APU (a Node harness: gb-hardware + chip-instruments
-  + gb-apu, one note each) and compared to the ones already kept on two axes
-  -- a 64-band spectrum of the sustain, and 24-point RMS over the note. Any
-  candidate within 0.10 of a kept one was dropped: Horn (Reed), Chirp and
-  Glass (Bell), Snap (Hat). The shipped 31 have a closest pair of 0.103, and
-  none is silent. Redo that measurement before adding names -- a name you
-  cannot hear the difference of is clutter, and the sustain spectrum ALONE
-  will not catch it (Bell and Chirp differ only in their envelope).
+- THE NULLS IN THOSE NAME TABLES ARE MEASURED. Every candidate is rendered
+  through this repo's own APU (a ~60 line Node harness: gb-hardware +
+  chip-instruments + gb-apu, one note each) and compared to the ones already
+  kept on two axes -- a 64-band spectrum of the sustain (mean subtracted) and a
+  24-point AMPLITUDE envelope. Anything within 0.10 of a keeper is dropped: the
+  Ghost character (identical to Hold but quieter, and level is what Volume is
+  for), Sine (Round), Hiss (Snare), Clank (Bleep). Sort the names you want to
+  keep -- Snare, Kick, Hat -- to the front, or a keeper loses to a lookalike
+  that happened to sort earlier. The shipped 64 are all audible and their
+  closest pair is 0.104 apart. Redo the measurement before adding names: a name
+  you cannot hear the difference of is clutter, and a sustain spectrum ALONE
+  will not catch it, because two of these differ only in their envelope.
 
 - SOUNDS ARE NAMED AND VISIBLE. The chip's timbres used to live behind a
   long-press on the lane name, which opened a scatter pad of unlabelled dots:
