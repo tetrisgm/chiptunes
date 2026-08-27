@@ -1290,7 +1290,7 @@
     sizeTrack();
   }
 
-  var bbW = 0, bbGap = 18;
+  var bbW = 0, bbGap = 18, trackPad = 8;
   function sizeTrack() {
     var mid = root.querySelector('.n-mid');
     if (!mid) return;
@@ -1302,17 +1302,21 @@
     bbW = Math.max(140, Math.min(r.width * (r.width < 520 ? 0.9 : 0.52), r.height - reserve, 560));
     root.style.setProperty('--bbw', bbW + 'px');
     root.style.setProperty('--bbgap', bbGap + 'px');
+    // half a screen of air at each end, so the FIRST and LAST bars can sit
+    // in the middle exactly like every bar between them
+    trackPad = Math.max(8, Math.round((r.width - bbW) / 2));
+    root.style.setProperty('--trackpad', trackPad + 'px');
   }
   function trackStride() { return bbW + bbGap; }
   function camMax() {
-    var mid = root.querySelector('.n-mid');
+    var mid = root.querySelector('.n-mid'), track = root.querySelector('.n-track');
     var w = mid ? mid.getBoundingClientRect().width : 0;
-    return Math.max(0, S.bars * trackStride() - bbGap - w);
+    return Math.max(0, (track ? track.scrollWidth : 0) - w);
   }
   function centerOn(bar, snap) {
     var mid = root.querySelector('.n-mid');
     var w = mid ? mid.getBoundingClientRect().width : 0;
-    var want = Math.max(0, Math.min(camMax(), bar * trackStride() - (w - bbW) / 2));
+    var want = Math.max(0, Math.min(camMax(), trackPad + bar * trackStride() - (w - bbW) / 2));
     camX = snap ? want : camX + (want - camX) * (Math.abs(want - camX) > w ? 1 : 0.18);
   }
   function applyCam() {
@@ -1320,12 +1324,12 @@
     if (track) track.style.transform = 'translateX(' + (-Math.round(camX)) + 'px)';
     // the voice tabs ride directly above the bar you are on
     var tabs = root.querySelector('.n-tabs');
-    if (tabs) tabs.style.transform = 'translateX(' + Math.round(8 + viewBar * trackStride() - camX) + 'px)';
+    if (tabs) tabs.style.transform = 'translateX(' + Math.round(trackPad + viewBar * trackStride() - camX) + 'px)';
   }
   function barUnderCamera() {
     var mid = root.querySelector('.n-mid');
     var w = mid ? mid.getBoundingClientRect().width : 0;
-    return Math.max(0, Math.min(S.bars - 1, Math.round((camX + w / 2 - bbW / 2) / trackStride())));
+    return Math.max(0, Math.min(S.bars - 1, Math.round((camX + w / 2 - bbW / 2 - trackPad) / trackStride())));
   }
 
   // ---- input ---------------------------------------------------------------

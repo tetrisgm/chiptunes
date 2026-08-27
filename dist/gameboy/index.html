@@ -551,7 +551,7 @@
   #createscreen .n-moodrow .cr-mood{ flex:0 0 auto; width:210px; }
   #createscreen .n-mid{ flex:1 1 auto; min-height:0; overflow:hidden; position:relative; padding:2px 0; }
   #createscreen .n-track{ position:absolute; left:0; top:0; bottom:0; display:flex; align-items:center;
-    gap:var(--bbgap,18px); padding:0 8px; will-change:transform; }
+    gap:var(--bbgap,18px); padding:0 var(--trackpad,8px); will-change:transform; }
   #createscreen .n-bb{ flex:0 0 auto; width:var(--bbw,360px); display:flex; flex-direction:column; gap:5px;
     position:relative; }
   #createscreen .n-bb + .n-bb::before{ content:''; position:absolute; top:12%; bottom:12%;
@@ -4654,7 +4654,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     sizeTrack();
   }
 
-  var bbW = 0, bbGap = 18;
+  var bbW = 0, bbGap = 18, trackPad = 8;
   function sizeTrack() {
     var mid = root.querySelector('.n-mid');
     if (!mid) return;
@@ -4666,17 +4666,21 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     bbW = Math.max(140, Math.min(r.width * (r.width < 520 ? 0.9 : 0.52), r.height - reserve, 560));
     root.style.setProperty('--bbw', bbW + 'px');
     root.style.setProperty('--bbgap', bbGap + 'px');
+    // half a screen of air at each end, so the FIRST and LAST bars can sit
+    // in the middle exactly like every bar between them
+    trackPad = Math.max(8, Math.round((r.width - bbW) / 2));
+    root.style.setProperty('--trackpad', trackPad + 'px');
   }
   function trackStride() { return bbW + bbGap; }
   function camMax() {
-    var mid = root.querySelector('.n-mid');
+    var mid = root.querySelector('.n-mid'), track = root.querySelector('.n-track');
     var w = mid ? mid.getBoundingClientRect().width : 0;
-    return Math.max(0, S.bars * trackStride() - bbGap - w);
+    return Math.max(0, (track ? track.scrollWidth : 0) - w);
   }
   function centerOn(bar, snap) {
     var mid = root.querySelector('.n-mid');
     var w = mid ? mid.getBoundingClientRect().width : 0;
-    var want = Math.max(0, Math.min(camMax(), bar * trackStride() - (w - bbW) / 2));
+    var want = Math.max(0, Math.min(camMax(), trackPad + bar * trackStride() - (w - bbW) / 2));
     camX = snap ? want : camX + (want - camX) * (Math.abs(want - camX) > w ? 1 : 0.18);
   }
   function applyCam() {
@@ -4684,12 +4688,12 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     if (track) track.style.transform = 'translateX(' + (-Math.round(camX)) + 'px)';
     // the voice tabs ride directly above the bar you are on
     var tabs = root.querySelector('.n-tabs');
-    if (tabs) tabs.style.transform = 'translateX(' + Math.round(8 + viewBar * trackStride() - camX) + 'px)';
+    if (tabs) tabs.style.transform = 'translateX(' + Math.round(trackPad + viewBar * trackStride() - camX) + 'px)';
   }
   function barUnderCamera() {
     var mid = root.querySelector('.n-mid');
     var w = mid ? mid.getBoundingClientRect().width : 0;
-    return Math.max(0, Math.min(S.bars - 1, Math.round((camX + w / 2 - bbW / 2) / trackStride())));
+    return Math.max(0, Math.min(S.bars - 1, Math.round((camX + w / 2 - bbW / 2 - trackPad) / trackStride())));
   }
 
   // ---- input ---------------------------------------------------------------
@@ -31711,11 +31715,22 @@ function _buildPlayerLinks(){
 // wearing the same clothes. The card says what the app is before it asks.
 // CREATE: the Mario-Paint-spirit editor (src/create.js). Entering hands the
 // chip to the user's song; leaving hands it back to the radio.
+var _createStandalone=false;      // true when /create booted without the radio behind it
 function _openCreate(){
   if(typeof CT_CREATE==='undefined') return;
   if(document.body) document.body.classList.add('ai-visual');
+  if(_createStandalone){
+    if(typeof _stopHomeBackdrop==='function') _stopHomeBackdrop();
+    if(typeof hideHome==='function') hideHome();
+  }
   try{ if(typeof Audio!=='undefined'&&Audio.enterCreate) Audio.enterCreate(); }catch(e){}
   window._closeCreateReturn=function(){
+    if(_createStandalone){                       // the station has not played yet: start it now
+      _createStandalone=false;
+      try{ _startEndlessRadio(); }catch(e){}
+      try{ _syncBackgroundAudioOnly(); }catch(e){}
+      return;
+    }
     try{ if(typeof Audio!=='undefined'&&Audio.playScore) Audio.playScore(); }catch(e){}
     // The frame loop parked itself while the editor was open (audio-only mode); nothing
     // else recalls the sync on close, and the game restarts live rather than mid-stumble.
@@ -33972,7 +33987,7 @@ window._productRouteTo=function(path, opts){
   opts=Object.assign({replace:true}, opts||{});
   if(r.legacy && typeof history!=='undefined' && history.replaceState){ try{ history.replaceState(null,'','/'); }catch(e){} }
   if(r.mode==='gameboy'){ _startEndlessRadio(); _openGameBoyWhenReady(); return true; }
-  if(r.mode==='create'){ _startEndlessRadio(); setTimeout(function(){ _openCreate(); }, 80); return true; }
+  if(r.mode==='create'){ _createStandalone=true; _openCreate(); return true; }
   if(r.mode==='radio'){ _startEndlessRadio(); return true; }
   if(r.mode==='watch'){ enterWatchMode({noRoute:true}); return true; }
   openProductHome(Object.assign({noRoute:true}, opts));   // already ON /get; do not push it again
@@ -34084,8 +34099,11 @@ if(String(_pathParts(location.pathname||'/')[0]||'').toLowerCase()==='get') buil
   }
   if(head==='gameboy'){ if(document.body) document.body.classList.add('ai-visual');
     startAudio(false); _openGameBoyWhenReady(); return; }
+  // The editor is the page here, not an overlay: open it straight away.
+  // Booting the radio first flashed a game behind it for a moment, and the
+  // station is not needed until Create hands back on close.
   if(head==='create'){ if(document.body) document.body.classList.add('ai-visual');
-    startAudio(false); setTimeout(function(){ _openCreate(); }, 60); return; }
+    _createStandalone=true; _openCreate(); return; }
   if(head==='get') return;                                       // the platform page; #intro is already up
   if(head==='watch'){ enterWatchMode({noRoute:true}); return; }
   // '' is the ROOT, and the root is the player. A visitor used to land on a

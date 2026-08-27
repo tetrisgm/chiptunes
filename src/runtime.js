@@ -1595,11 +1595,22 @@ function _buildPlayerLinks(){
 // wearing the same clothes. The card says what the app is before it asks.
 // CREATE: the Mario-Paint-spirit editor (src/create.js). Entering hands the
 // chip to the user's song; leaving hands it back to the radio.
+var _createStandalone=false;      // true when /create booted without the radio behind it
 function _openCreate(){
   if(typeof CT_CREATE==='undefined') return;
   if(document.body) document.body.classList.add('ai-visual');
+  if(_createStandalone){
+    if(typeof _stopHomeBackdrop==='function') _stopHomeBackdrop();
+    if(typeof hideHome==='function') hideHome();
+  }
   try{ if(typeof Audio!=='undefined'&&Audio.enterCreate) Audio.enterCreate(); }catch(e){}
   window._closeCreateReturn=function(){
+    if(_createStandalone){                       // the station has not played yet: start it now
+      _createStandalone=false;
+      try{ _startEndlessRadio(); }catch(e){}
+      try{ _syncBackgroundAudioOnly(); }catch(e){}
+      return;
+    }
     try{ if(typeof Audio!=='undefined'&&Audio.playScore) Audio.playScore(); }catch(e){}
     // The frame loop parked itself while the editor was open (audio-only mode); nothing
     // else recalls the sync on close, and the game restarts live rather than mid-stumble.
@@ -3856,7 +3867,7 @@ window._productRouteTo=function(path, opts){
   opts=Object.assign({replace:true}, opts||{});
   if(r.legacy && typeof history!=='undefined' && history.replaceState){ try{ history.replaceState(null,'','/'); }catch(e){} }
   if(r.mode==='gameboy'){ _startEndlessRadio(); _openGameBoyWhenReady(); return true; }
-  if(r.mode==='create'){ _startEndlessRadio(); setTimeout(function(){ _openCreate(); }, 80); return true; }
+  if(r.mode==='create'){ _createStandalone=true; _openCreate(); return true; }
   if(r.mode==='radio'){ _startEndlessRadio(); return true; }
   if(r.mode==='watch'){ enterWatchMode({noRoute:true}); return true; }
   openProductHome(Object.assign({noRoute:true}, opts));   // already ON /get; do not push it again
@@ -3968,8 +3979,11 @@ if(String(_pathParts(location.pathname||'/')[0]||'').toLowerCase()==='get') buil
   }
   if(head==='gameboy'){ if(document.body) document.body.classList.add('ai-visual');
     startAudio(false); _openGameBoyWhenReady(); return; }
+  // The editor is the page here, not an overlay: open it straight away.
+  // Booting the radio first flashed a game behind it for a moment, and the
+  // station is not needed until Create hands back on close.
   if(head==='create'){ if(document.body) document.body.classList.add('ai-visual');
-    startAudio(false); setTimeout(function(){ _openCreate(); }, 60); return; }
+    _createStandalone=true; _openCreate(); return; }
   if(head==='get') return;                                       // the platform page; #intro is already up
   if(head==='watch'){ enterWatchMode({noRoute:true}); return; }
   // '' is the ROOT, and the root is the player. A visitor used to land on a

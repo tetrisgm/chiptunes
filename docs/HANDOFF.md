@@ -274,3 +274,13 @@ row scrolls rather than wraps on phones.
   went from 96.7% to 99.1%; chords land as quick strums, stacked drums as
   flams.
 
+- /create boots straight into the editor: the boot route and the product
+  route both set _createStandalone and call _openCreate() with no
+  _startEndlessRadio(), so no game frame is ever drawn behind it. The
+  station starts on close instead (_closeCreateReturn), which is also when
+  the URL hands back to /.
+- The track carries half a screen of padding at each end (--trackpad), so
+  the first and last bars centre exactly like the ones between them; camMax
+  reads the track's scrollWidth, and the tab strip and barUnderCamera both
+  offset by trackPad.
+
