@@ -9,3 +9,9 @@
   Content-Type: audio/x-mpegurl
   Content-Disposition: attachment; filename="chiptunes.m3u"
   Cache-Control: public, max-age=3600
+
+# The app bundle carries a content hash in its name, so it can be cached for
+# good: a new build is a new filename. This is what stops every visit paying to
+# download and re-parse 1.7MB of JavaScript.
+/app.*.js
+  Cache-Control: public, max-age=31536000, immutable

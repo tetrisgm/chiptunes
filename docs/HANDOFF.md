@@ -682,3 +682,23 @@ pass.
   WebKit the peak went 0.09 -> 0.19. Note that while the SONG is playing, an
   audition on a busy channel is cut by the next note there -- four voices is
   four voices, and that part is not a bug.
+
+- THE PAGE NO LONGER CARRIES ITS OWN JAVASCRIPT. build.js used to inline the
+  whole bundle into index.html: 1.8MB that no browser can cache on its own, so
+  every visit re-downloaded and re-compiled it, blocking the first paint
+  (measured on localhost with no network: 231ms of parse in WebKit, 638ms in
+  Chromium). It is now dist/app.<hash>.js, referenced with defer, cached
+  immutable via assets/_headers. index.html is 109KB. Interactive went 251->143ms
+  in WebKit and 645->160ms in Chromium, and a repeat visit pays nothing at all.
+
+- THE TAG IS RELATIVE, AND THE ROUTE COPIES REWRITE IT to '../app.<hash>.js'.
+  The desktop app's offline fallback does win.loadFile(dist/index.html) -- over
+  file:// an absolute '/app.js' is the filesystem root. Keep it relative.
+
+- WHAT THE RADIO IS ACTUALLY SPENDING TIME ON: not JavaScript. A CPU profile of
+  three seconds of playback is 99.2% '(program)' -- the main thread is idle and
+  the work is the WebGL screen shader, the canvas and the audio worklet thread.
+  The stage canvas is already capped (DPR <= 2, 3.2 megapixels) and the screen
+  shaders cap DPR at 2. Frames measured 8.2ms median in Chromium and 17ms in
+  WebKit with only 317 DOM nodes. If the radio feels heavy, look at pixels and
+  at boot, not at the frame loop.

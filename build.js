@@ -2,6 +2,7 @@
 // game roster is concatenated directly; there is no runtime pack platform.
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const ROOT = __dirname;
 const { GAME_LAYER_ORDER, scanGamePacks } = require('./scripts/game-roster.cjs');
 
@@ -91,20 +92,30 @@ fs.mkdirSync(path.join(DIST, 'lib'), { recursive: true });
 // whole page stops parsing. It first bit when src/gb-cpu.js threw an error
 // message containing "opcode $". A replacer function disables the patterns
 // entirely, which is the only reliable fix.
-const html = shell.replace('__SCRIPTS__', () => '<script>\n' + js + '\n</script>');
-// Prove the page's script survived templating. The corruption above produced a
-// perfectly plausible 1.5MB artifact that simply did not run, and nothing in
-// the build said a word about it.
+// THE BUNDLE IS A FILE, NOT A STRING IN THE PAGE. Inlined, it was 1.8MB of
+// script the browser had to re-download and re-parse on every visit, because
+// nothing in an HTML document can be cached on its own -- and it blocked the
+// first paint while it compiled (231ms in WebKit, 638ms in Chromium, on
+// localhost with no network at all). As a hashed file it is cached forever,
+// compiled once, and `defer` lets the page draw first.
+const bundleHash = crypto.createHash('sha256').update(js).digest('hex').slice(0, 12);
+const bundleName = 'app.' + bundleHash + '.js';
+const html = shell.replace('__SCRIPTS__', () => '<script src="' + bundleName + '" defer></script>');
+// Prove the page's script survived templating -- the corruption this guards
+// against produced a perfectly plausible artifact that simply did not run.
 {
-  const emitted = /<script>([\s\S]*?)<\/script>/g;
+  const emitted = /<script(?![^>]*\ssrc=)[^>]*>([\s\S]*?)<\/script>/g;
   let m, n = 0;
   while ((m = emitted.exec(html))) {
     n++;
     try { new Function(m[1]); }
-    catch (e) { die('emitted script block ' + n + ' does not parse: ' + e.message); }
+    catch (e) { die('emitted inline script block ' + n + ' does not parse: ' + e.message); }
   }
-  if (!html.includes(js)) die('the bundle was altered while being templated into the shell');
+  if (!html.includes('src="' + bundleName + '"')) die('the bundle tag was altered while being templated into the shell');
 }
+// clear yesterday's bundles so dist/ never accumulates them
+for (const f of fs.readdirSync(DIST)) if (/^app\.[0-9a-f]+\.js$/.test(f) && f !== bundleName) fs.unlinkSync(path.join(DIST, f));
+fs.writeFileSync(path.join(DIST, bundleName), js);
 fs.writeFileSync(path.join(DIST, 'index.html'), html);
 
 // route entrypoints + stale-route cleanup
@@ -126,7 +137,11 @@ for (const stale of ['create', 'listen', 'play', 'wip', 'watch']) {
 }
 for (const route of ROUTES) {
   fs.mkdirSync(path.join(DIST, route), { recursive: true });
-  fs.writeFileSync(path.join(DIST, route, 'index.html'), html);
+  // one level down, so the bundle is one level up. Relative on purpose: the
+  // desktop app's offline fallback loads these over file://, where an absolute
+  // path means the filesystem root.
+  fs.writeFileSync(path.join(DIST, route, 'index.html'),
+                   html.replace('src="' + bundleName + '"', 'src="../' + bundleName + '"'));
 }
 
 // worklets + workers (+ anything else under src/lib) → dist/lib/, recursively:
