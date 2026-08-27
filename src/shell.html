@@ -570,6 +570,13 @@
   #createscreen .n-step .nn{ position:absolute; left:0; right:0; top:50%; transform:translateY(-50%);
     text-align:center; font:800 17px var(--ui); color:var(--ink); text-shadow:0 1px 3px rgba(0,0,0,.6); }
   #createscreen .n-gridwrap{ display:flex; flex-direction:column; align-items:center; gap:6px; min-height:0; }
+  #createscreen .n-params{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; justify-content:center; }
+  #createscreen .n-param{ height:32px; min-width:52px; padding:0 12px; border-radius:999px; cursor:pointer;
+    background:rgba(255,255,255,.05); border:1px solid var(--mat-edge); color:var(--ink-2); font:700 11px var(--ui); }
+  #createscreen .n-param.on{ background:rgba(232,227,250,.14); border-color:var(--mat-edge-hi); color:var(--ink); }
+  #createscreen .n-tool{ height:32px; padding:0 10px; font-size:11px; }
+  #createscreen .n-tool.on{ background:rgba(123,220,160,.2); border-color:rgba(123,220,160,.6); }
+  #createscreen .n-step.rest{ border-style:dotted; }
   #createscreen .n-cap{ font:600 11px var(--ui); color:var(--ink-2); letter-spacing:.04em; }
   #createscreen .n-chans{ flex:0 0 auto; display:flex; justify-content:center; gap:10px; padding:6px 12px; }
   #createscreen .n-chan{ height:52px; min-width:84px; border-radius:12px; cursor:pointer; position:relative;

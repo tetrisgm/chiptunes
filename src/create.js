@@ -133,6 +133,7 @@
       var slots = [false, false], wave = false, drum = false;
       here.sort(function (a, b) { return (a.t || 0) - (b.t || 0); });
       here.forEach(function (x) {
+        if (x.vel === 0) { x.rch = x.r >= MEL_ROWS ? 3 : x.rch; return; }   // volume zero: a rest that keeps its place
         if (x.r >= MEL_ROWS) {                              // drum lane
           var d = DRUMS[x.r - MEL_ROWS];
           if (drum) { x.x = 1; return; }
@@ -824,6 +825,13 @@
     return cv;
   }
   var viewCh = 0, viewBar = 0, viewPinned = false, lastDeg = [7, 9, 3, 2];
+  // the parameter in hand: what a vertical drag on a step edits
+  var param = 'note';
+  var PARAMS = [
+    { id: 'note', n: 'Note', tip: 'Drag a note up and down to change its pitch. Tap Note again and again to shuffle the pitches.' },
+    { id: 'vol',  n: 'Vol',  tip: 'Drag a note up and down to change its loudness. All the way down silences that step (=). Multi-tap to randomize.' },
+    { id: 'len',  n: 'Len',  tip: 'Drag a note up to make it longer. Multi-tap to randomize the lengths.' }
+  ];
   function chOfCell(x) {
     if (x.r >= MEL_ROWS) return 3;
     var v = cellVoice(x);
@@ -938,17 +946,70 @@
         var deg = degOfCell(x);
         var top = viewCh === 3 ? [64, 40, 16][2 - (x.r - MEL_ROWS)] : Math.round((1 - deg / (MEL_ROWS - 1)) * 74 + 8);
         pbEl.style.top = top + '%';
-        nnEl.textContent = x.r >= MEL_ROWS ? DRUM_NAMES[x.r - MEL_ROWS]
-                                           : noteName(x.midi != null ? x.midi : rowMidi(x.r));
+        var vel = x.vel != null ? x.vel : 0.8;
+        el.classList.toggle('rest', vel === 0);
+        pbEl.style.opacity = vel === 0 ? 0.15 : 0.35 + vel * 0.6;
+        nnEl.textContent = vel === 0 ? '=' :
+          (x.r >= MEL_ROWS ? DRUM_NAMES[x.r - MEL_ROWS]
+                           : noteName(x.midi != null ? x.midi : rowMidi(x.r)));
+        nnEl.style.opacity = vel === 0 ? 0.5 : 0.55 + vel * 0.45;
         lnEl.textContent = (x.len || 1) > 1 ? '×' + x.len : '';
-      } else { nnEl.textContent = ''; lnEl.textContent = ''; }
+      } else {
+        el.classList.remove('rest');
+        pbEl.style.opacity = '';                 // inline opacity would ghost into empty squares
+        nnEl.textContent = ''; lnEl.textContent = '';
+      }
     }
   }
-  function renderAll() { renderTransport(); renderChans(); renderBars(); renderGrid(); }
+  function renderParams() {
+    root.querySelectorAll('.n-param').forEach(function (b) {
+      b.classList.toggle('on', param === b.dataset.param);
+    });
+    var sw = root.querySelector('[data-cr="swing"]');
+    if (sw) sw.classList.toggle('on', !!(S && S.swing));
+  }
+  function renderAll() { renderTransport(); renderChans(); renderBars(); renderGrid(); renderParams(); }
   function updatePh(stepIdx) {
     if (stepIdx === lastPh) return;
     lastPh = stepIdx;
     for (var s = 0; s < 16; s++) stepEls[s].classList.toggle('ph', s === stepIdx);
+  }
+
+  // Multi-tapping a parameter button randomizes that parameter across the
+  // bar's notes on this voice; each further tap within the window randomizes
+  // harder. In-key, undoable, and only ever touches notes that exist.
+  var randTaps = 0, randTimer = 0, randSnapped = false;
+  function barCells() {
+    var out = [];
+    for (var s2 = 0; s2 < 16; s2++) {
+      var i = cellIndexAt(viewCh, viewBar * 16 + s2);
+      if (i >= 0) out.push(S.cells[i]);
+    }
+    return out;
+  }
+  function randomizeParam(which) {
+    clearTimeout(randTimer);
+    randTaps++;
+    randTimer = setTimeout(function () { randTaps = 0; randSnapped = false; }, 700);
+    if (randTaps < 2) return;                  // the first tap only selects
+    var cellsHere = barCells();
+    if (!cellsHere.length) { hint('No notes on this voice in this bar yet.'); return; }
+    if (!randSnapped) { snapshot(); randSnapped = true; }
+    var amt = Math.min(6, randTaps - 1);
+    cellsHere.forEach(function (x) {
+      if (which === 'note') {
+        var span = x.r >= MEL_ROWS ? 2 : MEL_ROWS - 1;
+        var nd = Math.max(0, Math.min(span, degOfCell(x) + Math.round((Math.random() * 2 - 1) * amt)));
+        applyDeg(x, nd);
+      } else if (which === 'vol') {
+        x.vel = Math.max(1, Math.round(Math.random() * 8)) / 8;
+      } else if (which === 'len') {
+        var nl = Math.max(1, Math.min(8, 1 + Math.floor(Math.random() * amt)));
+        if (nl > 1) x.len = nl; else delete x.len;
+      }
+    });
+    dirty();
+    hint('Shuffled the ' + (which === 'note' ? 'pitches' : which === 'vol' ? 'volumes' : 'lengths') + '. Keep tapping for wilder, undo to take it back.');
   }
 
   // the playhead ticker: follow, loop wraps, queued switches, next songs
@@ -983,6 +1044,29 @@
     } else if (pb !== lastPlayBar) renderBars();
     updatePh(pb === viewBar ? Math.floor(col) % 16 : -1);
     scheduleTick();
+  }
+
+  // nudge this voice's bar left/right (wrapping), or move it an octave
+  function shiftBar(dir) {
+    var cellsHere = barCells();
+    if (!cellsHere.length) return;
+    snapshot();
+    cellsHere.forEach(function (x) {
+      var s2 = (x.c - viewBar * 16 + dir + 16) % 16;
+      x.c = viewBar * 16 + s2;
+    });
+    dirty();
+  }
+  function octaveBar(delta) {
+    var cellsHere = barCells().filter(function (x) { return x.r < MEL_ROWS; });
+    if (!cellsHere.length) return;
+    snapshot();
+    cellsHere.forEach(function (x) {
+      var nd = Math.max(0, Math.min(MEL_ROWS - 1, degOfCell(x) + delta));
+      applyDeg(x, nd);
+    });
+    dirty();
+    auditionCell(cellsHere[0]);
   }
 
   // ---- bar operations ------------------------------------------------------
@@ -1029,6 +1113,7 @@
     root.innerHTML =
       '<div class="cr-top">' +
         '<button type="button" class="cr-btn n-play" data-cr="play" data-tip="Play or pause (Space)">▶</button>' +
+        '<button type="button" class="cr-btn" data-cr="rewind" data-tip="Back to the top">\u23ee</button>' +
         '<label class="cr-lab" data-tip="Tempo">' + S.bpm + ' BPM<input type="range" min="70" max="180" step="2" value="' + S.bpm + '" data-cr="bpm"></label>' +
         '<span class="cr-sep"></span>' +
         '<button type="button" class="cr-btn" data-cr="undo" data-tip="Undo">↩</button>' +
@@ -1043,7 +1128,18 @@
         '<button type="button" class="cr-btn cr-primary" data-cr="make">Make</button>' +
         CHIPS.map(function (c) { return '<button type="button" class="cr-chip" data-mood="' + c + '">' + c + '</button>'; }).join('') +
       '</div>' +
-      '<div class="n-mid"><div class="n-gridwrap"><div class="n-cap"></div><div class="n-grid"></div></div></div>' +
+      '<div class="n-mid"><div class="n-gridwrap"><div class="n-cap"></div><div class="n-grid"></div>' +
+      '<div class="n-params">' +
+        PARAMS.map(function (pp) {
+          return '<button type="button" class="n-param" data-param="' + pp.id + '" title="' + pp.n + '" data-tip="' + pp.tip + '">' + pp.n + '</button>';
+        }).join('') +
+        '<span class="cr-sep"></span>' +
+        '<button type="button" class="cr-btn n-tool" data-cr="shiftl" data-tip="Nudge this bar\u2019s notes one step earlier">\u25c0</button>' +
+        '<button type="button" class="cr-btn n-tool" data-cr="shiftr" data-tip="Nudge this bar\u2019s notes one step later">\u25b6</button>' +
+        '<button type="button" class="cr-btn n-tool" data-cr="octdn" data-tip="This voice\u2019s bar an octave down">Oct\u2212</button>' +
+        '<button type="button" class="cr-btn n-tool" data-cr="octup" data-tip="This voice\u2019s bar an octave up">Oct+</button>' +
+        '<button type="button" class="cr-btn n-tool" data-cr="swing" data-tip="Swing: the offbeats lean late">Swing</button>' +
+      '</div></div></div>' +
       '<div class="n-chans">' + CH.map(function (c, i) {
         return '<button type="button" class="n-chan" data-ch="' + i + '" title="' + c.tip + '" data-tip="' + c.tip + '"><span>' + c.n + '</span></button>';
       }).join('') + '</div>' +
@@ -1104,7 +1200,8 @@
         dirty(); auditionCell(cell); tourAdvance(0);
       } else cell = S.cells[i];
       sdrag = { cell: cell, created: created, sx: ev.clientX, sy: ev.clientY,
-                deg: degOfCell(cell), len: cell.len || 1, axis: 0, pokeAt: 0 };
+                deg: degOfCell(cell), len: cell.len || 1,
+                vol: Math.round((cell.vel != null ? cell.vel : 0.8) * 8), axis: 0, pokeAt: 0 };
     });
     grid.addEventListener('pointermove', function (ev) {
       if (!sdrag) return;
@@ -1115,6 +1212,24 @@
         else return;
       }
       if (sdrag.axis === 'y') {
+        if (param === 'vol') {
+          var nv = Math.max(0, Math.min(8, sdrag.vol + Math.round(-dy / 22)));
+          if (nv / 8 !== (sdrag.cell.vel != null ? sdrag.cell.vel : 0.8)) {
+            sdrag.cell.vel = nv / 8;
+            dirty();
+            var tv = performance.now();
+            if (nv > 0 && tv - sdrag.pokeAt > 110) { sdrag.pokeAt = tv; auditionCell(sdrag.cell); }
+          }
+          return;
+        }
+        if (param === 'len') {
+          var nl2 = Math.max(1, Math.min(16, sdrag.len + Math.round(-dy / 24)));
+          if (nl2 !== (sdrag.cell.len || 1)) {
+            if (nl2 > 1) sdrag.cell.len = nl2; else delete sdrag.cell.len;
+            dirty();
+          }
+          return;
+        }
         var span = viewCh === 3 ? 2 : MEL_ROWS - 1;
         var per = viewCh === 3 ? 30 : 16;
         var nd = Math.max(0, Math.min(span, sdrag.deg + Math.round(-dy / per)));
@@ -1222,6 +1337,15 @@
         }
         return;
       }
+      var pp = ev.target.closest('.n-param');
+      if (pp) {
+        var pid = pp.dataset.param;
+        if (param === pid) randomizeParam(pid);
+        else { param = pid; randTaps = 1; clearTimeout(randTimer); randTimer = setTimeout(function () { randTaps = 0; randSnapped = false; }, 700); }
+        renderParams();
+        hint(PARAMS.filter(function (q) { return q.id === pid; })[0].tip);
+        return;
+      }
       var mc = ev.target.closest('[data-mood]');
       if (mc) {
         var mi = root.querySelector('.cr-mood'); if (mi) mi.value = mc.dataset.mood;
@@ -1232,6 +1356,10 @@
       if (!b) return;
       var k = b.dataset.cr;
       if (k === 'play') { togglePlay(); }
+      else if (k === 'rewind') { pausedAt = 0; if (playing) startPlayback(0); else renderBars(); hint('Back to the top.'); }
+      else if (k === 'shiftl' || k === 'shiftr') { shiftBar(k === 'shiftr' ? 1 : -1); }
+      else if (k === 'octdn' || k === 'octup') { octaveBar(k === 'octup' ? 7 : -7); }
+      else if (k === 'swing') { snapshot(); S.swing = S.swing ? 0 : 1; b.classList.toggle('on', !!S.swing); dirty(); hint(S.swing ? 'Swinging.' : 'Straight time.'); }
       else if (k === 'close') { close(); }
       else if (k === 'undo') { undo(); }
       else if (k === 'redo') { redo(); }

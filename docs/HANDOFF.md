@@ -157,3 +157,19 @@ next. Infrastructure and operations live outside this repository.
   (C3, E2...) or drum name (Kick/Snare/Hat); corners carry step numbers
   1-16; a caption above the grid says "<voice> - bar N of M (looping)".
 
+## Create pattern-mode parity pass (2026-08-26)
+
+Studied the reference tutorial in depth and adopted its editing model:
+- A parameter row under the grid (Note / Vol / Len): vertical drag on a
+  step edits the SELECTED parameter. Volume to zero is a rest: the square
+  shows '=', dotted border, and buildSong skips vel===0 notes on every
+  channel.
+- Multi-tapping the selected parameter randomizes it across this voice's
+  bar (more taps, more random; one snapshot per burst, in-key for pitch).
+- Pattern tools: shift left/right (wrapping nudge), octave up/down for the
+  voice's bar, a Swing toggle (S.swing), and a return-to-top transport
+  button.
+- Not adopted: meta steps (flick gestures), their pattern-number song
+  screen (our linear bars + mood compose stay), and their visual identity
+  (ours is note names, waveform icons, plain words).
+
