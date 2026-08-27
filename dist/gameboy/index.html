@@ -3664,6 +3664,13 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     if (playing) startPlayback(0); else { pausedAt = 0; renderAll(); }
   }
   var repostTimer = 0, saveTimer = 0;
+  // The editor owns the address bar while it is open: a refresh has to land
+  // back here, with the song intact.
+  function ownRoute(enc) {
+    var want = '/create' + (enc ? '#s=' + enc : (location.hash || ''));
+    if (location.pathname + location.hash === want) return;
+    try { history.replaceState(null, '', want); } catch (e) {}
+  }
   function dirty() {
     if (!root) return;
     if (!playing) { try { buildSong(); } catch (e) {} }   // refresh sulk + channel marks
@@ -3672,7 +3679,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     clearTimeout(saveTimer);
     saveTimer = setTimeout(function () {
       var enc = encode();
-      try { history.replaceState(null, '', '/create#s=' + enc); } catch (e) {}
+      ownRoute(enc);
       try { localStorage.setItem('ct-create-draft', enc); } catch (e) {}
     }, 400);
     if (playing) {
@@ -4410,6 +4417,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       }
       loopPhase = ph;
     }
+    if (location.pathname !== '/create') ownRoute(encode());   // something else moved the URL; take it back, song and all
     var col = loopBar >= 0 ? loopBar * 16 + (elapsed / perMs) % 16 : (elapsed / perMs) % cols();
     var pb = Math.floor(col / 16);
     if (camFollow) { centerOn(pb, false); applyCam(); }
@@ -4743,7 +4751,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     });
     document.body.classList.add('create-open');
     armChip();
-    try { history.replaceState(null, '', '/create' + (S.cells.length ? '#s=' + encode() : '')); } catch (e) {}
+    ownRoute(S.cells.length ? encode() : '');
     hint('');
     // never a blank page, never a dead room: a song is already here, and the
     // transport is already running
@@ -33191,6 +33199,7 @@ function syncRoute(slug){
   if(!slug || typeof history==='undefined' || !history.replaceState) return;
   if(typeof LiveCtl!=='undefined' && LiveCtl.active()) return;   // LIVE owns the /radio route: reload rejoins the broadcast, not a /track replay
   if(Audio.extActive && Audio.extActive()) return;   // an external source (mic/file) owns the URL — don't overwrite it with the generated slug
+  try{ if(typeof CT_CREATE!=='undefined' && CT_CREATE.isOpen()) return; }catch(eC){}  // the editor owns /create; a refresh must land back in it
   var intro=document.getElementById('intro');
   if(intro && !intro.classList.contains('hidden') && getComputedStyle(intro).display!=='none') return;  // Home owns the root route while it is visible
   var want = _generatedRoute(slug) + _routeQueryExtras();

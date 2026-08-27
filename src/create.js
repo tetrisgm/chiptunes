@@ -341,6 +341,13 @@
     if (playing) startPlayback(0); else { pausedAt = 0; renderAll(); }
   }
   var repostTimer = 0, saveTimer = 0;
+  // The editor owns the address bar while it is open: a refresh has to land
+  // back here, with the song intact.
+  function ownRoute(enc) {
+    var want = '/create' + (enc ? '#s=' + enc : (location.hash || ''));
+    if (location.pathname + location.hash === want) return;
+    try { history.replaceState(null, '', want); } catch (e) {}
+  }
   function dirty() {
     if (!root) return;
     if (!playing) { try { buildSong(); } catch (e) {} }   // refresh sulk + channel marks
@@ -349,7 +356,7 @@
     clearTimeout(saveTimer);
     saveTimer = setTimeout(function () {
       var enc = encode();
-      try { history.replaceState(null, '', '/create#s=' + enc); } catch (e) {}
+      ownRoute(enc);
       try { localStorage.setItem('ct-create-draft', enc); } catch (e) {}
     }, 400);
     if (playing) {
@@ -1087,6 +1094,7 @@
       }
       loopPhase = ph;
     }
+    if (location.pathname !== '/create') ownRoute(encode());   // something else moved the URL; take it back, song and all
     var col = loopBar >= 0 ? loopBar * 16 + (elapsed / perMs) % 16 : (elapsed / perMs) % cols();
     var pb = Math.floor(col / 16);
     if (camFollow) { centerOn(pb, false); applyCam(); }
@@ -1420,7 +1428,7 @@
     });
     document.body.classList.add('create-open');
     armChip();
-    try { history.replaceState(null, '', '/create' + (S.cells.length ? '#s=' + encode() : '')); } catch (e) {}
+    ownRoute(S.cells.length ? encode() : '');
     hint('');
     // never a blank page, never a dead room: a song is already here, and the
     // transport is already running

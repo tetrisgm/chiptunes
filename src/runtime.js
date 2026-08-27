@@ -3202,6 +3202,7 @@ function syncRoute(slug){
   if(!slug || typeof history==='undefined' || !history.replaceState) return;
   if(typeof LiveCtl!=='undefined' && LiveCtl.active()) return;   // LIVE owns the /radio route: reload rejoins the broadcast, not a /track replay
   if(Audio.extActive && Audio.extActive()) return;   // an external source (mic/file) owns the URL — don't overwrite it with the generated slug
+  try{ if(typeof CT_CREATE!=='undefined' && CT_CREATE.isOpen()) return; }catch(eC){}  // the editor owns /create; a refresh must land back in it
   var intro=document.getElementById('intro');
   if(intro && !intro.classList.contains('hidden') && getComputedStyle(intro).display!=='none') return;  // Home owns the root route while it is visible
   var want = _generatedRoute(slug) + _routeQueryExtras();

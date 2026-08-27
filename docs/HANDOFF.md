@@ -220,3 +220,9 @@ Studied the reference tutorial in depth and adopted its editing model:
   (Copy link / WAV / ROM sit in the top bar), the parameter row, multi-tap
   randomize, and the instrument drawer list.
 
+- Create owns /create while it is open. syncRoute() (which replaceStates
+  /track/<slug> on every radio track change) now returns early when
+  CT_CREATE.isOpen(), and the editor re-asserts '/create#s=<song>' from its
+  ticker if anything else moves the URL. A refresh lands back in the editor
+  with the same song (hash first, localStorage draft as the fallback).
+
