@@ -282,7 +282,12 @@ var BLIT_FS = '#version 300 es\nprecision highp float;in vec2 v;out vec4 o;unifo
     // Output size comes from the VIEWPORT, not from the source. The source is
     // the Game Boy framebuffer and is deliberately tiny; sizing the panel to it
     // would render a 320x180 screen.
-    var dpr = Math.min(2, (G.devicePixelRatio || 1));
+    // THE PANEL IS A SIMULATION OF A LOW-RESOLUTION SCREEN, so it does not
+    // need a full Retina backing store: at DPR 2 a 1440p window is five
+    // megapixels through the shader chain every frame, and this is the most
+    // expensive thing the page does. 1.5 keeps the LCD grid and the scanlines
+    // crisp and costs 44% fewer fragments than 2.
+    var dpr = Math.min(1.5, (G.devicePixelRatio || 1));
     var w = Math.max(1, Math.round((this.canvas.clientWidth || G.innerWidth || 1) * dpr));
     var h = Math.max(1, Math.round((this.canvas.clientHeight || G.innerHeight || 1) * dpr));
     if (this.vw === w && this.vh === h) return;

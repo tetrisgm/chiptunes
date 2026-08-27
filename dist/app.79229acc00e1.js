@@ -9956,7 +9956,12 @@ var BLIT_FS = '#version 300 es\nprecision highp float;in vec2 v;out vec4 o;unifo
     // Output size comes from the VIEWPORT, not from the source. The source is
     // the Game Boy framebuffer and is deliberately tiny; sizing the panel to it
     // would render a 320x180 screen.
-    var dpr = Math.min(2, (G.devicePixelRatio || 1));
+    // THE PANEL IS A SIMULATION OF A LOW-RESOLUTION SCREEN, so it does not
+    // need a full Retina backing store: at DPR 2 a 1440p window is five
+    // megapixels through the shader chain every frame, and this is the most
+    // expensive thing the page does. 1.5 keeps the LCD grid and the scanlines
+    // crisp and costs 44% fewer fragments than 2.
+    var dpr = Math.min(1.5, (G.devicePixelRatio || 1));
     var w = Math.max(1, Math.round((this.canvas.clientWidth || G.innerWidth || 1) * dpr));
     var h = Math.max(1, Math.round((this.canvas.clientHeight || G.innerHeight || 1) * dpr));
     if (this.vw === w && this.vh === h) return;
@@ -10420,7 +10425,12 @@ var BLIT_FS = '#version 300 es\nprecision highp float;in vec2 v;out vec4 o;unifo
 
   NesScreen.prototype.resize = function () {
     var gl = this.gl;
-    var dpr = Math.min(2, (G.devicePixelRatio || 1));
+    // THE PANEL IS A SIMULATION OF A LOW-RESOLUTION SCREEN, so it does not
+    // need a full Retina backing store: at DPR 2 a 1440p window is five
+    // megapixels through the shader chain every frame, and this is the most
+    // expensive thing the page does. 1.5 keeps the LCD grid and the scanlines
+    // crisp and costs 44% fewer fragments than 2.
+    var dpr = Math.min(1.5, (G.devicePixelRatio || 1));
     var w = Math.max(1, Math.round((this.canvas.clientWidth || G.innerWidth || 1) * dpr));
     var h = Math.max(1, Math.round((this.canvas.clientHeight || G.innerHeight || 1) * dpr));
     if (this.vw === w && this.vh === h) return;
@@ -31698,10 +31708,12 @@ function _toggleHowModal(){
     'lines and chord movements mined from 74,552 video game MIDI files.</li>'+
     '<li><b>The games play themselves.</b> They react to the beat; they never '+
     'compose.</li>'+
-    '<li><b>You can write your own.</b> The Create button opens a pocket '+
-    'tracker on the same chip: tap the grid for notes, or type a mood and '+
-    'the composer writes a whole song, yours to edit. Share it as a link, '+
-    'a WAV, or a cartridge.</li>'+
+    '<li><b>You can write your own.</b> Create opens a tracker on the same '+
+    'chip: four lanes of notes you drag around, every instrument the hardware '+
+    'has, movement under each note \u2014 vibrato, duty sweeps, arpeggios, '+
+    'pitch slides \u2014 and four-bit sampled drums streamed into the wave '+
+    'channel. Tap a mood and the composer writes a whole song for you to '+
+    'edit. Share it as a link, a WAV, or a cartridge.</li>'+
     '<li><b>The screens are simulations.</b> Four real shades for the Game '+
     'Boy face; a modulated-and-decoded NTSC signal for the NES one.</li>'+
     '</ul>'+
@@ -33163,7 +33175,12 @@ function setMediaMeta(){
   }
   function apply(){
     var buildSeq=++_gainBuildSeq;
-    var w=window.innerWidth, h=window.innerHeight, dpr=window.devicePixelRatio||1;
+    var w=window.innerWidth, h=window.innerHeight;
+    // The gain layer is a soft multiply mask over the whole window, composited
+    // every frame -- at DPR 2 on a 1440p display that is five megapixels of
+    // blending for a texture whose finest detail is a scanline. Capped at 1.5
+    // it is indistinguishable and costs 44% fewer pixels.
+    var dpr=Math.min(1.5, window.devicePixelRatio||1);
     var key=w+'x'+h+'@'+dpr+'#'+_RRR_SCANLINE_STRENGTH;
     if(key===_gainKey){ setMode(_mode==='legacy'?'legacy':'gain'); window.__rrrCrtReady=true; return; }
     window.__rrrCrtReady=false;
