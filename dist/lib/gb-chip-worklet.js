@@ -925,9 +925,19 @@ class GbChipProcessor extends AudioWorkletProcessor {
         if (this.seq && m.note && globalThis.CT_GB) {
           var pn = m.note, pch = pn.ch | 0;
           var base = 0x11 + pch * 5;
-          if (pch === 2 && this.seq._loadWave) this.seq._loadWave(globalThis.CT_GB.waveSlotOf(this.seq.inst, pn.inst));
+          // A hand-set sound may not be in the chip's bank yet -- the editor
+          // auditions while you drag, long before the song is reposted -- so
+          // the note may carry its own four bytes.
+          var pbank = this.seq.bank, pidx = pn.inst;
+          if (pn.rec) {
+            pbank = { instruments: [pn.rec], waveTables: this.seq.bank && this.seq.bank.waveTables };
+            pidx = 0;
+            pn = { ch: pn.ch, midi: pn.midi, inst: 0, vel: pn.vel, sweep: pn.sweep, frames: pn.frames };
+          }
+          if (pch === 2 && this.seq._loadWave)
+            this.seq._loadWave(globalThis.CT_GB.waveSlotOf(pbank.instruments, pidx));
           if (pch === 0) this.seq.apu.write(0x10, pn.sweep || 0);
-          var pr = globalThis.CT_GB.noteRegisters(pn, this.seq.bank);
+          var pr = globalThis.CT_GB.noteRegisters(pn, pbank);
           this.seq.apu.write(base, pr[0]); this.seq.apu.write(base + 1, pr[1]);
           this.seq.apu.write(base + 2, pr[2]); this.seq.apu.write(base + 3, pr[3]);
           // one pending note-off PER CHANNEL: a single slot meant that

@@ -660,6 +660,11 @@
   #createscreen .n-pclose:hover{ background:rgba(255,255,255,.16); }
   /* the palette reads as a grid: a family down the left, its characters across */
   #createscreen .n-pisnd{ flex-direction:column; align-items:stretch; gap:6px; width:600px; max-width:92vw; }
+  #createscreen .n-prow{ display:grid; grid-template-columns:44px 1fr; align-items:center; column-gap:6px;
+    margin-bottom:5px; }
+  #createscreen .n-prow i{ font:800 10px var(--ui); font-style:normal; color:var(--ink-2); text-align:right; }
+  #createscreen .n-prow span{ display:flex; flex-wrap:wrap; align-items:center; gap:5px; }
+  #createscreen .n-pval{ min-width:74px; text-align:center; font:800 11px var(--ui); color:var(--ink); }
   #createscreen .n-pgrp{ display:grid; grid-template-columns:44px 1fr; align-items:start; column-gap:6px; }
   #createscreen .n-pgrp i{ font:800 10px var(--ui); font-style:normal; color:var(--ink-2);
     text-align:right; line-height:26px; }

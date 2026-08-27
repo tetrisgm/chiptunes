@@ -21,13 +21,11 @@ on with your day: <https://chiptunes.app>
   runs left to right as four lanes -- Melody, Harmony, Bass, Drums, the DMG's
   own voices -- and a note is a block you drag anywhere. Up and down for
   pitch, sideways in time, into another lane to change voice, by its right
-  edge to make it longer, and it sounds as it moves. Each lane names the sound
-  it is holding -- 64 of them, read off the chip's own bank. A pulse voice is a
-  family crossed with a character (Square, Reed or Bell, each as Pluck, Stab,
-  Decay, Fade, Long, Hold, Tap, Quiet, Swell or Bloom), the wave voice offers
-  twelve tables from Round to Metal, and the noise voice runs from Tick to Boom
-  plus the chip's metallic mode. Any note can be given another, along with a
-  motion -- Arp strums the chord, Roll ratchets it,
+  edge to make it longer, and it sounds as it moves. A note's sound is the chip's own
+  settings, the way LSDJ shows an instrument: a pulse note has a shape (12.5%,
+  25%, 50%, 75%) and a fade, a bass note picks one of the cartridge's wave
+  tables, a drum has a noise mode, a pitch and a fade. Any note can also be
+  given a motion -- Arp strums the chord, Roll ratchets it,
   Echo repeats and fades, Fall and Rise slide the pitch -- which expands into
   ordinary chip notes the way trackers have always done it. Tap a mood (happy, spooky, battle) and the radio's
   composer writes a whole track into the lanes, no AI involved, yours to edit

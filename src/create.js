@@ -38,28 +38,24 @@
   // characters across. 75% duty is 25% inverted -- the same timbre -- so it
   // only fills a character 25% does not have.
   var ENV_ORDER = ['pluck', 'stab', 'soft', 'sus', 'swell'];
-  var PULSE_FAM = { '0.5': 'Square', '0.25': 'Reed', '0.125': 'Bell', '0.75': 'Reed' };
-  var FAM_ORDER = ['Square', 'Reed', 'Bell'];
-  // 'Ghost' (a quiet flat tone) is missing on purpose: it measured identical
-  // to Hold, differing only in level, which the Volume control already does.
-  var CHAR_ORDER = ['Pluck', 'Stab', 'Decay', 'Fade', 'Long', 'Hold', 'Tap', 'Quiet', 'Swell', 'Bloom'];
-  function pulseChar(rec) {
-    var v0 = (rec[1] >> 4) & 15, pace = rec[1] & 7, dir = (rec[1] >> 3) & 1;
-    if (dir) return pace <= 2 ? 'Swell' : 'Bloom';
-    if (pace === 0) return v0 >= 12 ? 'Hold' : 'Ghost';
-    if (pace === 1) return v0 >= 12 ? 'Pluck' : 'Tap';
-    if (pace === 2) return v0 >= 12 ? 'Stab' : 'Quiet';
-    if (pace === 3) return 'Decay';
-    return pace <= 5 ? 'Fade' : 'Long';
+  // A NOTE'S SOUND IS THE CHIP'S OWN SETTINGS, named the way LSDJ names them.
+  // A pulse instrument is a duty and an envelope. A wave instrument is a
+  // table. A noise instrument is a shape, a pitch and an envelope. That is the
+  // whole model -- there is nothing else in one, on this hardware or in LSDJ,
+  // and a list of invented timbre names only hid it.
+  var DUTY_PC = ['12.5%', '25%', '50%', '75%'];
+  // LSDJ's ENV: 0 holds, 1..7 fades out (1 fastest), 9..F fades in (9 fastest)
+  function fadeLabel(fd) {
+    if (!fd || fd === 8) return 'hold';
+    return (fd < 8 ? 'out ' : 'in ') + (fd < 8 ? fd : fd - 8);
   }
+  // ordered by what the envelope DOES, so the stepper walks a straight line:
+  // fastest fade out .. slowest .. hold .. slowest swell .. fastest
+  var FADE_STEPS = [1, 2, 3, 4, 5, 6, 7, 0, 15, 14, 13, 12, 11, 10, 9];
   // the wave tables, roundest first, and the noise patches, brightest first.
   // A null is a MEASURED duplicate: see docs/HANDOFF.md.
   var WAVE_NAMES = ['Round', null, 'Cello', 'Vox', 'Wood', 'Reed', 'Thin', 'Saw',
                     'Growl', 'Ring', 'Chime', 'Glass', 'Metal', 'Buzz', 'Edge', 'Grit'];
-  var NOISE_NAMES = ['Tick', 'Hat', null, 'Shaker', 'Wash', 'Snap', 'Snare', 'Sizzle', 'Tom', 'Rumble', 'Kick',
-                     'Brush', 'Clap', 'Rim', 'Crash', 'Thud', 'Boom', 'Drop', 'Roar', 'Wind'];
-  var METAL_NAMES = ['Ping', 'Zap', 'Bleep', null, 'Clonk'];
-  var LANE_SOUND = ['Square Pluck', 'Bell Pluck', 'Wood', null];   // what each lane starts on
   // MOTION: what the note DOES while it sounds. All of this already existed
   // in the build path (it is how trackers really did it -- one command
   // expanding into ordinary chip notes) and in the link format; the editor
@@ -131,12 +127,6 @@
     INSTOF.snare = (ns[third] || ns[0]).index;
     INSTOF.kick = (ns[ns.length - 1] || ns[0]).index;
     buildSounds(meta);
-    // the row defaults are the named ones, so height and sound agree
-    SNDS.noise.forEach(function (sd) {
-      if (sd.n === 'Hat') INSTOF.hat = sd.inst;
-      if (sd.n === 'Snare') INSTOF.snare = sd.inst;
-      if (sd.n === 'Kick') INSTOF.kick = sd.inst;
-    });
     return BANK;
   }
   // ---- the named palette, read off the bank --------------------------------
@@ -161,25 +151,7 @@
     return out;
   }
   function buildSounds(meta) {
-    SNDS = { pulse: [], wave: [], noise: [] };
-    // pulse: family x character, in a fixed order so the panel is a grid
-    var seenName = {}, byFam = {};
-    meta.forEach(function (m) {
-      if (m.type !== 'pulse') return;
-      var fam = PULSE_FAM[String(m.patch.duty)];
-      if (!fam) return;
-      var ch2 = pulseChar(BANK.instruments[m.index]);
-      var key = fam + ' ' + ch2;
-      if (seenName[key]) return;              // first patch wins the name
-      seenName[key] = 1;
-      (byFam[fam] = byFam[fam] || {})[ch2] = m.index;
-    });
-    FAM_ORDER.forEach(function (fam) {
-      CHAR_ORDER.forEach(function (ch2) {
-        var ix = byFam[fam] && byFam[fam][ch2];
-        if (ix != null) SNDS.pulse.push({ n: ch2, fam: fam, full: fam + ' ' + ch2, inst: ix });
-      });
-    });
+    SNDS = { wave: [] };
     // wave: one name per timbre, roundest first. Two tables that differ only
     // in loudness are ONE timbre: divide out level and phase and compare the
     // shape of the harmonic series.
@@ -207,26 +179,6 @@
     kept.forEach(function (w, i) {
       if (WAVE_NAMES[i]) SNDS.wave.push({ n: WAVE_NAMES[i], fam: null, full: WAVE_NAMES[i], inst: w.inst });
     });
-    // noise: the chip has two noise modes. 15-bit is the drum family, ordered
-    // bright hiss to low boom; 7-bit is the metallic one, which the corpus
-    // never asked for at all.
-    function order(list, names, fam) {
-      list.slice().sort(function (a, b) {
-        var d = (a.patch.clockShift || 0) - (b.patch.clockShift || 0);
-        if (d) return d;
-        d = (a.patch.period || 0) - (b.patch.period || 0);
-        if (d) return d;
-        return ENV_ORDER.indexOf(envClass(BANK.instruments[a.index])) -
-               ENV_ORDER.indexOf(envClass(BANK.instruments[b.index]));
-      }).forEach(function (m, i) {
-        if (!names[i]) return;
-        var sh = m.patch.clockShift || 0;
-        SNDS.noise.push({ n: names[i], fam: fam, full: names[i], inst: m.index, row: sh <= 1 ? 0 : sh <= 4 ? 1 : 2 });
-      });
-    }
-    var ns = meta.filter(function (m) { return m.type === 'noise'; });
-    order(ns.filter(function (m) { return m.patch.mode !== 7; }), NOISE_NAMES, 'Drums');
-    order(ns.filter(function (m) { return m.patch.mode === 7; }), METAL_NAMES, 'Metal');
   }
   // ---- state ---------------------------------------------------------------
   var S = null, undoStack = [], redoStack = [];
@@ -269,6 +221,7 @@
   }
   function buildSong() {
     resolveBank();
+    freshSongBank();
     var notes = [], per = framesPer16();
     var byCol = {};
     S.cells.forEach(function (x) { delete x.x; delete x.rch; (byCol[x.c] = byCol[x.c] || []).push(x); });
@@ -282,7 +235,8 @@
           var d = DRUMS[x.r - MEL_ROWS];
           if (drum) { x.x = 1; return; }
           drum = true; x.rch = 3;
-          var dInst = x.inst != null ? x.inst : INSTOF[d.id];
+          var dInst = instOf(x, 3);
+          if (dInst == null) dInst = x.inst != null ? x.inst : INSTOF[d.id];
           var dVel = x.vel != null ? x.vel : d.vel;
           if (x.g) {                                        // drum ratchet
             var dHit = Math.max(2, Math.round(per / 2));
@@ -305,9 +259,10 @@
         if (!voice || voice === 'noise') { x.x = 1; return; }
         var steps = x.len ? x.len : (x.w ? 8 : 0.96);
         var totalF = Math.max(2, Math.round(per * steps) - 1);
+        var mInst = instOf(x, voice === 'wave' ? 2 : (x.ch === 1 ? 1 : 0));
         var note = { frame: colFrame(c), frames: totalF,
                      midi: x.midi != null ? x.midi : rowMidi(x.r),
-                     inst: x.inst != null ? x.inst : INSTOF[x.st],
+                     inst: mInst != null ? mInst : (x.inst != null ? x.inst : INSTOF[x.st]),
                      vel: x.vel != null ? x.vel : 0.8, pri: 5 };
         if (voice === 'wave') {
           if (wave) { x.x = 1; return; }
@@ -346,7 +301,7 @@
     }
     notes.sort(function (a, b) { return a.frame - b.frame; });
     var total = Math.round(cols() * per);
-    return { notes: notes, bank: BANK, totalFrames: total,
+    return { notes: notes, bank: songBank || BANK, totalFrames: total,
              loopFrames: total };
   }
 
@@ -358,11 +313,12 @@
   // (bpm-70)/2. All older versions still decode.
   function encode() {
     var ids = STAMPS.map(function (s) { return s.id; });
-    var out = [6, S.key, S.minor, S.bars, Math.round((S.bpm - 70) / 2) & 63, S.swing];
+    var out = [7, S.key, S.minor, S.bars, Math.round((S.bpm - 70) / 2) & 63, S.swing];
     S.cells.forEach(function (x) {
       var st = x.r >= MEL_ROWS ? 15 : (x.st && x.st.charAt(0) === 'i' ? 14 : Math.max(0, ids.indexOf(x.st)));
       var ext = x.inst != null || x.vel != null || x.midi != null || (x.len || 1) > 1 || x.sweep != null || x.ch != null;
-      var cmd = x.u ? 1 : x.q ? 2 : x.g ? 3 : x.f ? 4 : 0;
+      var snd = x.dy != null || x.fd != null || x.wv != null || x.nz != null || x.ns != null;
+      var cmd = (x.u ? 1 : x.q ? 2 : x.g ? 3 : x.f ? 4 : 0) | (snd ? 8 : 0);
       out.push(x.c & 63, (x.c >> 6) & 63, x.r | (x.z ? 32 : 0), st | (x.w ? 16 : 0) | (ext ? 32 : 0), cmd);
       if (ext) {
         var ip1 = x.inst != null ? x.inst + 1 : 0;           // 0 = no exact instrument
@@ -375,6 +331,13 @@
                  midi & 63, (midi >> 6) & 1);
         if (hasSweep) out.push(x.sweep & 63, (x.sweep >> 6) & 3);
       }
+      if (snd) {                              // the chip settings, four chars
+        out.push(((x.fd | 0) & 15) | (x.fd != null ? 16 : 0) | (x.ns != null ? 32 : 0),
+                 ((x.dy | 0) & 3) | (x.dy != null ? 4 : 0) | (((x.ns | 0) & 1) << 3) |
+                   (x.wv != null ? 16 : 0) | (x.nz != null ? 32 : 0),
+                 (x.wv | 0) & 31,
+                 (x.nz | 0) & 15);
+      }
     });
     return out.map(function (v) { return B64[v & 63]; }).join('');
   }
@@ -382,7 +345,7 @@
     try {
       var v = []; for (var i = 0; i < str.length; i++) { var ix = B64.indexOf(str[i]); if (ix < 0) return null; v.push(ix); }
       var ver = v[0];
-      if (ver < 1 || ver > 6) return null;
+      if (ver < 1 || ver > 7) return null;
       var st2 = freshState();
       st2.key = v[1] % 12; st2.minor = v[2] & 1;
       st2.bars = ver === 1 ? ([2, 4, 8].indexOf(v[3]) >= 0 ? v[3] : 4)
@@ -405,7 +368,9 @@
           var stc = b2 & 15;
           if (r2 < MEL_ROWS) { if (stc !== 14) cell2.st = ids[stc] || 'piano'; if (v[k + 2] & 32) cell2.z = 1; if (b2 & 16) cell2.w = 1; }
           k += 4;
+          var cmdRaw = 0;
           if (ver >= 4) {   // v4+: one command char per cell
+            cmdRaw = v[k];
             var cc = CODE_CMD[v[k] & 7];
             if (cc && r2 < MEL_ROWS + DRUM_LANES) cell2[cc] = 1;
             k += 1;
@@ -422,6 +387,15 @@
             k += 6;
             if (e1 & 4 && k + 1 < v.length + 1) { cell2.sweep = v[k] | ((v[k + 1] & 3) << 6); k += 2; }
             if (stc === 14 && r2 < MEL_ROWS && cell2.inst != null) cell2.st = 'i' + cell2.inst;
+          }
+          if (ver >= 7 && (cmdRaw & 8) && k + 3 < v.length + 1) {
+            var s1 = v[k], s2 = v[k + 1];
+            if (s1 & 16) cell2.fd = s1 & 15;
+            if (s1 & 32) cell2.ns = (s2 >> 3) & 1;
+            if (s2 & 4) cell2.dy = s2 & 3;
+            if (s2 & 16) cell2.wv = v[k + 2] & 31;
+            if (s2 & 32) cell2.nz = v[k + 3] & 15;
+            k += 4;
           }
           st2.cells.push(cell2);
         }
@@ -761,19 +735,31 @@
   }
 
   // ---- the sound map: pick a channel's instrument by dragging --------------
-  var chInst = [null, null, null, null], sndCh = -1;
+  var sndCh = -1;
+  // What the NEXT note in each lane will use, in the chip's own terms
+  var chDuty = [2, 1, 0, 0];              // Melody 50%, Harmony 25%
+  var chFade = [2, 2, 0, 1];              // a gentle fade out
+  var chWave = null;                      // Bass: which table
+  var DRUM_SHIFT = [0, 2, 6];             // hat bright, snare mid, kick low
+  function laneWave() {
+    if (chWave != null) return chWave;
+    resolveBank();
+    var want = null;
+    (SNDS && SNDS.wave || []).forEach(function (sd) { if (sd.n === 'Wood' && want == null) want = sd.inst; });
+    if (want == null && SNDS && SNDS.wave && SNDS.wave.length) want = SNDS.wave[0].inst;
+    return want == null ? 0 : (BANK.instruments[want][0] & 0xFF);
+  }
   // The lane's own sound: what the NEXT note placed there will use. This used
   // to be a long-press on the lane name opening a scatter pad of unnamed dots
   // -- nobody found it, and nobody could read it when they did.
   function openSnd(ch) {
     closeSnd(); closePick();
     selCol = -1; selCh = -1; pen.ch = ch;
-    if (ch === 3) { hint('Drums pick their sound by height: high for hat, middle for snare, low for kick.'); return; }
     var el = document.createElement('div');
     el.className = 'n-pick n-sndpop';
     el.innerHTML = '<div class="n-pickhead"><span>' + CH[ch].n + ' sound</span>' +
       '<button type="button" class="n-pclose" data-sndclose="1" title="Close">\u00d7</button></div>' +
-      '<div class="n-pickrow n-pisnd" style="--vc:' + CH[ch].color + '">' + soundBtns(ch, null) + '</div>' +
+      '<div class="n-pickrow n-pisnd" style="--vc:' + CH[ch].color + '">' + soundPanel(ch, null) + '</div>' +
       '<span class="n-pickfoot">the next note you place here</span>';
     root.appendChild(el);
     sndCh = ch;
@@ -886,10 +872,14 @@
     hits.forEach(function (h) {
       fxTimers.push(setTimeout(function () {
         Audio.pokeCreate({ ch: drum ? 3 : (cellVoice(cell) === 'wave' ? 2 : 1),
-                           frames: h.f, midi: drum ? null : h.midi, inst: inst, vel: h.vel });
+                           frames: h.f, midi: drum ? null : h.midi, inst: inst,
+                           rec: recOf(cell, drum ? 3 : (cellVoice(cell) === 'wave' ? 2 : 1)), vel: h.vel });
       }, Math.round(h.at * ms)));
     });
     return true;
+  }
+  function recOf(cell, ch) {
+    return hasSound(cell) ? recordFor(paramsOf(cell, ch), ch) : null;
   }
   function auditionCell(cell, maxFrames) {
     resolveBank();
@@ -902,6 +892,7 @@
       var d = DRUMS[cell.r - MEL_ROWS];
       Audio.pokeCreate({ ch: 3, frames: Math.round(per), midi: null,
                          inst: cell.inst != null ? cell.inst : INSTOF[d.id],
+                         rec: recOf(cell, 3),
                          vel: cell.vel != null ? cell.vel : d.vel });
       return 3;
     }
@@ -911,6 +902,7 @@
     Audio.pokeCreate({ ch: voice === 'wave' ? 2 : 1, frames: frames,
                        midi: cell.midi != null ? cell.midi : rowMidi(cell.r),
                        inst: cell.inst != null ? cell.inst : INSTOF[cell.st],
+                       rec: recOf(cell, voice === 'wave' ? 2 : (cell.ch === 1 ? 1 : 0)),
                        vel: cell.vel != null ? cell.vel : 0.8,
                        sweep: cell.sweep != null ? cell.sweep : (voice !== 'wave' && cell.z) ? 0x3E : (voice !== 'wave' && cell.u) ? 0x36 : 0 });
     return voice === 'wave' ? 2 : 1;
@@ -941,45 +933,6 @@
   // a tiny picture of the channel's current sound: the pulse's duty as a
   // square trace, the wave's actual table, sticks for the drums
   var chanIconCache = {};
-  function chanIcon(ch) {
-    resolveBank();
-    var inst = ch === 3 ? -1 : (chInst[ch] != null ? chInst[ch] : INSTOF[CH[ch].stamp]);
-    var key = ch + ':' + inst;
-    if (chanIconCache[key]) return chanIconCache[key];
-    var cv = document.createElement('canvas');
-    cv.__ctpalRaw = true; cv.width = 30; cv.height = 14;
-    var c = cv.getContext('2d');
-    c.strokeStyle = c.fillStyle = CH[ch].color;
-    c.lineWidth = 1.6; c.lineJoin = 'round';
-    var m = null;
-    for (var i = 0; i < BANK.meta.length; i++) if (BANK.meta[i].index === inst) m = BANK.meta[i];
-    if (ch === 3) {
-      for (var nx = 0; nx < 5; nx++) {
-        var bh = (((nx * 17 + 5) % 9) / 9) * 9 + 3;
-        c.fillRect(2 + nx * 6, 13 - bh, 3, bh);
-      }
-    } else if (m && m.type === 'wave') {
-      var t = BANK.waveTables[m.waveSlot] || [];
-      c.beginPath();
-      for (var x = 0; x < 32; x++) {
-        var vx = 1 + (x / 31) * 28, vy = 1 + (1 - (t[x] || 0) / 15) * 12;
-        x ? c.lineTo(vx, vy) : c.moveTo(vx, vy);
-      }
-      c.stroke();
-    } else {
-      var duty = (m && m.patch && m.patch.duty) || 0.5;
-      c.beginPath();
-      var half = 14;
-      for (var p2 = 0; p2 < 2; p2++) {
-        var x0 = 1 + p2 * half, hi = half * duty;
-        c.moveTo(x0, 12); c.lineTo(x0, 2); c.lineTo(x0 + hi, 2);
-        c.lineTo(x0 + hi, 12); c.lineTo(x0 + half, 12);
-      }
-      c.stroke();
-    }
-    chanIconCache[key] = cv;
-    return cv;
-  }
   var viewCh = -1, viewBar = 0, lastDeg = [7, 9, 3, 2];
   var selCol = -1, selCh = -1;                 // the note being edited
   // The pen: the settings the next note gets. The panel below the track
@@ -1149,28 +1102,73 @@
   // and the loudness and length as levels. No hidden mode, nothing to learn.
   var pickCol = -1, pickCh = -1, pickOpenedAt = 0;
   // what a lane offers, and what a note is using
-  function soundsFor(ch) {
+  // What a note's sound actually IS. A hand-set note says so; a composed note
+  // says it through the bank record it points at, and the panel has to show
+  // the same thing either way.
+  function paramsOf(x, ch) {
     resolveBank();
-    if (ch === 3) return SNDS.noise.map(function (sd) {
-      return { n: sd.n, fam: sd.fam, full: sd.full, ed: 'nz' + sd.inst, inst: sd.inst, row: sd.row };
-    });
-    return (ch === 2 ? SNDS.wave : SNDS.pulse).map(function (sd) {
-      return { n: sd.n, fam: sd.fam, full: sd.full, ed: 'snd' + sd.inst, inst: sd.inst };
-    });
+    var rec = x && x.inst != null ? BANK.instruments[x.inst] : null;
+    var p = {};
+    if (ch === 2) {
+      p.wv = x && x.wv != null ? x.wv : rec && (rec[3] & 1) ? (rec[0] & 0xFF) : laneWave();
+      return p;
+    }
+    if (ch === 3) {
+      var band = x && x.r >= MEL_ROWS ? x.r - MEL_ROWS : pen.drum;
+      p.nz = x && x.nz != null ? x.nz : rec ? (rec[0] >> 4) & 15 : DRUM_SHIFT[band];
+      p.ns = x && x.ns != null ? x.ns : rec ? (rec[0] >> 3) & 1 : 0;
+      p.fd = x && x.fd != null ? x.fd : rec ? envNibble(rec[1]) : 1;
+      return p;
+    }
+    p.dy = x && x.dy != null ? x.dy : rec ? (rec[0] >> 6) & 3 : chDuty[ch];
+    p.fd = x && x.fd != null ? x.fd : rec ? envNibble(rec[1]) : chFade[ch];
+    return p;
   }
-  function laneInst(ch) {
+  function envNibble(nrx2) {
+    var dir = (nrx2 >> 3) & 1, pace = nrx2 & 7;
+    if (!pace) return 0;
+    return dir ? 8 + pace : pace;
+  }
+  // ...and the four bytes those settings mean. Velocity scales byte 1 later,
+  // exactly as it does for a composed note, so full volume lives here.
+  function recordFor(p, ch) {
+    var fd = p.fd || 0;
+    var nrx2 = (15 << 4) | ((fd >= 8 ? 1 : 0) << 3) | ((fd >= 8 ? fd - 8 : fd) & 7);
+    if (ch === 2) return [(p.wv | 0) & 0xFF, (15 << 4), 0xFF, 1];
+    if (ch === 3) return [(((p.nz | 0) & 15) << 4) | (((p.ns | 0) & 1) << 3) | 0, nrx2, 0xFF, 0];
+    return [((p.dy | 0) & 3) << 6, nrx2, 0xFF, 0];
+  }
+  // The bank a song is played through: the shared one, plus a record for every
+  // hand-set sound in it. The cartridge stores register bytes per note, not an
+  // instrument table, so materialising here costs the ROM nothing.
+  var songBank = null;
+  function freshSongBank() {
     resolveBank();
-    if (chInst[ch] != null) return chInst[ch];
-    if (ch === 3) return INSTOF[DRUMS[pen.drum] ? DRUMS[pen.drum].id : 'kick'];
-    var want = LANE_SOUND[ch], hit = null;   // the lane starts on a named sound
-    (ch === 2 ? SNDS.wave : SNDS.pulse).forEach(function (sd) { if (sd.full === want) hit = sd.inst; });
-    return hit != null ? hit : INSTOF[CH[ch].stamp];
+    songBank = { instruments: BANK.instruments.slice(), waveTables: BANK.waveTables,
+                 arpTables: BANK.arpTables, meta: BANK.meta, _by: {} };
+    return songBank;
+  }
+  function instOf(x, ch) {
+    if (!hasSound(x)) return null;            // nothing hand-set: keep the note's own
+    var rec = recordFor(paramsOf(x, ch), ch);
+    var key = rec.join(',');
+    var b = songBank || freshSongBank();
+    if (b._by[key] != null) return b._by[key];
+    for (var i = 0; i < b.instruments.length; i++) {
+      var r = b.instruments[i];
+      if (r && r[0] === rec[0] && r[1] === rec[1] && r[3] === rec[3]) { b._by[key] = i; return i; }
+    }
+    b.instruments.push(rec);
+    b._by[key] = b.instruments.length - 1;
+    return b._by[key];
+  }
+  function hasSound(x) {
+    return !!x && (x.dy != null || x.fd != null || x.wv != null || x.nz != null || x.ns != null);
   }
   function soundName(ch) {
     if (ch === 3) return 'Kit';
-    var want = laneInst(ch), hit = null;
-    soundsFor(ch).forEach(function (sd) { if (sd.inst === want) hit = sd.full; });
-    return hit || 'Sound';
+    if (ch === 2) return waveName(laneWave());
+    return DUTY_PC[chDuty[ch]] + ' \u00b7 ' + fadeLabel(chFade[ch]);
   }
   function motionsFor(ch) { return MOTIONS.filter(function (m) { return m.ch[ch]; }); }
   function motionOf(x) {
@@ -1189,23 +1187,57 @@
              '" data-ed="fx' + (m.k || '-') + '">' + m.n + '</button>';
     }).join('');
   }
-  function soundBtns(ch, x) {
-    var cur = x && x.inst != null ? x.inst
-            : ch === 3 && x ? INSTOF[DRUMS[Math.max(0, x.r - MEL_ROWS)].id]
-            : laneInst(ch);
-    var list = soundsFor(ch), fams = [], byFam = {};
-    list.forEach(function (sd) {
-      var f = sd.fam || '';
-      if (!byFam[f]) { byFam[f] = []; fams.push(f); }
-      byFam[f].push(sd);
+  function waveName(slot) {
+    resolveBank();
+    var hit = null;
+    (SNDS && SNDS.wave || []).forEach(function (sd) {
+      if ((BANK.instruments[sd.inst][0] & 0xFF) === slot) hit = sd.n;
     });
-    return fams.map(function (f) {
-      return '<div class="n-pgrp"><i>' + f + '</i><span>' +
-        byFam[f].map(function (sd) {
-          return '<button type="button" class="n-pv' + (sd.inst === cur ? ' on' : '') +
-                 '" data-ed="' + sd.ed + '" data-full="' + sd.full + '">' + sd.n + '</button>';
-        }).join('') + '</span></div>';
-    }).join('');
+    return hit || ('wave ' + slot);
+  }
+  function row(label, inner) {
+    return '<div class="n-prow"><i>' + label + '</i><span>' + inner + '</span></div>';
+  }
+  function step(minus, val, plus) {
+    return '<button type="button" class="n-po" data-ed="' + minus + '">\u2212</button>' +
+           '<b class="n-pval">' + val + '</b>' +
+           '<button type="button" class="n-po" data-ed="' + plus + '">+</button>';
+  }
+  // The whole of a note's sound, in the chip's own terms.
+  function soundPanel(ch, x) {
+    var p = paramsOf(x, ch), out = '';
+    if (ch === 2) {
+      var slots = (SNDS.wave || []).map(function (sd) {
+        return { slot: BANK.instruments[sd.inst][0] & 0xFF, n: sd.n };
+      });
+      // a note can hold a table this list does not name (a composed song, or a
+      // link from a build with different names): show it rather than marking
+      // nothing at all
+      var known = slots.some(function (w) { return w.slot === p.wv; });
+      if (!known && p.wv != null) slots.unshift({ slot: p.wv, n: waveName(p.wv) });
+      out += row('Wave', slots.map(function (w) {
+        return '<button type="button" class="n-pv' + (w.slot === p.wv ? ' on' : '') +
+               '" data-ed="wv' + w.slot + '" data-full="' + w.n + '">' + w.n + '</button>';
+      }).join(''));
+      return out;
+    }
+    if (ch === 3) {
+      out += row('Noise', ['Free', 'Metal'].map(function (n2, i) {
+        return '<button type="button" class="n-pv' + (i === (p.ns | 0) ? ' on' : '') +
+               '" data-ed="ns' + i + '" data-full="' + n2 + '">' + n2 + '</button>';
+      }).join(''));
+      // the chip counts DOWN in pitch (a bigger shift is a lower sound); the
+      // control counts up, because nobody thinks in clock shifts
+      out += row('Pitch', step('nz-', 'pitch ' + (13 - p.nz), 'nz+'));
+      out += row('Fade', step('fd-', fadeLabel(p.fd), 'fd+'));
+      return out;
+    }
+    out += row('Shape', DUTY_PC.map(function (d, i) {
+      return '<button type="button" class="n-pv' + (i === (p.dy | 0) ? ' on' : '') +
+             '" data-ed="dy' + i + '" data-full="' + d + '">' + d + '</button>';
+    }).join(''));
+    out += row('Fade', step('fd-', fadeLabel(p.fd), 'fd+'));
+    return out;
   }
   function closePick() {
     var el = root && root.querySelector('.n-pick');
@@ -1223,9 +1255,9 @@
     var el = document.createElement('div');
     el.className = 'n-pick';
     el.innerHTML =
-      '<div class="n-pickhead"><span>' + (ch === 3 ? 'Drum' : 'Sound') + '</span>' +
+      '<div class="n-pickhead"><span>Sound</span>' +
         '<button type="button" class="n-pclose" data-ed="close" title="Close">\u00d7</button></div>' +
-      '<div class="n-pickrow n-pisnd" style="--vc:' + CH[ch].color + '">' + soundBtns(ch, x) + '</div>' +
+      '<div class="n-pickrow n-pisnd" style="--vc:' + CH[ch].color + '">' + soundPanel(ch, x) + '</div>' +
       '<div class="n-pickhead"><span>Motion</span></div>' +
       '<div class="n-pickrow n-pifx" style="--vc:' + CH[ch].color + '">' + motionBtns(ch, x) + '</div>' +
       '<div class="n-pickrow n-picklevels">' +
@@ -1263,6 +1295,42 @@
       return;
     }
     if (what === 'close') { closePick(); selCol = -1; selCh = -1; renderGrid(); return; }
+    var sch = x ? chOfCell(x) : pen.ch;
+    var sp = what.slice(0, 2);
+    if (sp === 'dy' || sp === 'wv' || sp === 'ns' || sp === 'fd' || sp === 'nz') {
+      var pr = paramsOf(x, sch);
+      if (x) snapshot();
+      if (sp === 'dy') { pr.dy = +what.slice(2); chDuty[sch] = pr.dy; }
+      else if (sp === 'wv') { pr.wv = +what.slice(2); chWave = pr.wv; }
+      else if (sp === 'ns') { pr.ns = +what.slice(2); }
+      else if (sp === 'fd') {
+        var at = FADE_STEPS.indexOf(pr.fd == null ? 0 : pr.fd);
+        if (at < 0) at = FADE_STEPS.indexOf(0);
+        at = Math.max(0, Math.min(FADE_STEPS.length - 1, at + (what === 'fd+' ? 1 : -1)));
+        pr.fd = FADE_STEPS[at];
+        if (!x) chFade[sch] = pr.fd;
+      } else {
+        pr.nz = Math.max(0, Math.min(13, (pr.nz | 0) + (what === 'nz+' ? -1 : 1)));
+      }
+      if (x) {
+        if (sch !== 2) x.fd = pr.fd;
+        if (sch === 0 || sch === 1) x.dy = pr.dy;
+        if (sch === 2) x.wv = pr.wv;
+        if (sch === 3) {
+          x.nz = pr.nz; x.ns = pr.ns;
+          var band = pr.nz <= 1 ? 0 : pr.nz <= 4 ? 1 : 2;   // height still means pitch
+          x.r = MEL_ROWS + band; pen.drum = band;
+        }
+        dirty(); renderEdit(); auditionCell(x);
+      } else {
+        if (sch === 3) { pen.drum = pr.nz <= 1 ? 0 : pr.nz <= 4 ? 1 : 2; }
+        renderChans();
+        var pop2 = root.querySelector('.n-sndpop .n-pisnd');
+        if (pop2) pop2.innerHTML = soundPanel(sch, null);
+        auditionCell(penCell(0));
+      }
+      return;
+    }
     if (what.slice(0, 2) === 'fx') {          // what the note does while it sounds
       var mk = what.slice(2);
       if (!x) { hint('Pick a note first, then give it a motion.'); return; }
@@ -1270,35 +1338,6 @@
       MOTION_KEYS.forEach(function (k2) { delete x[k2]; });   // one at a time
       if (mk !== '-') x[mk] = 1;
       dirty(); renderEdit(); auditionCell(x);
-      return;
-    }
-    if (what.slice(0, 2) === 'nz') {          // a drum: sound and height together
-      var ni = +what.slice(2), row = 2;
-      soundsFor(3).forEach(function (sd) { if (sd.inst === ni && sd.row != null) row = sd.row; });
-      pen.drum = row;
-      if (x) {
-        snapshot();
-        x.r = MEL_ROWS + row; x.inst = ni; delete x.midi;
-        dirty(); renderEdit(); auditionCell(x);
-      } else auditionCell(penCell(0));
-      renderChans();
-      var npop = root.querySelector('.n-sndpop');
-      if (npop) npop.querySelectorAll('.n-pv').forEach(function (bt) {
-        bt.classList.toggle('on', bt.dataset.ed === what);
-      });
-      return;
-    }
-    if (what.slice(0, 3) === 'snd') {         // a named sound, for this note and the next
-      var sch = x ? chOfCell(x) : pen.ch;
-      var si = +what.slice(3);
-      chInst[sch] = si;
-      if (x) { snapshot(); x.inst = si; dirty(); renderEdit(); auditionCell(x); }
-      else auditionCell(penCell(0));
-      renderChans();
-      var pop = root.querySelector('.n-sndpop');      // mark it, do not rebuild it:
-      if (pop) pop.querySelectorAll('.n-pv').forEach(function (bt) {   // a rebuilt button is
-        bt.classList.toggle('on', bt.dataset.ed === what);             // detached, and a detached
-      });                                                              // target reads as "outside"
       return;
     }
     if (!x) {
@@ -1341,12 +1380,15 @@
   // a throwaway cell that describes the pen, for auditioning and placing
   function penCell(col) {
     var c = { c: col, t: ++order };
-    if (pen.ch === 3) { c.r = MEL_ROWS + pen.drum; c.inst = INSTOF[DRUMS[pen.drum].id]; }
-    else {
+    if (pen.ch === 3) {
+      c.r = MEL_ROWS + pen.drum;
+      c.nz = DRUM_SHIFT[pen.drum]; c.ns = 0; c.fd = chFade[3];
+    } else {
       c.r = rowForMidi(pen.midi); c.midi = pen.midi;
       c.st = CH[pen.ch].stamp;
       if (pen.ch < 2) c.ch = pen.ch;
-      c.inst = laneInstAt(pen.ch, col);
+      if (pen.ch === 2) c.wv = laneWave();
+      else { c.dy = chDuty[pen.ch]; c.fd = chFade[pen.ch]; }
     }
     c.vel = pen.vel;
     if (pen.len > 1) c.len = pen.len;
@@ -1653,23 +1695,12 @@
   // patches from section to section, so a note joining a lane takes the
   // instrument its new neighbours are using -- otherwise the same written
   // note lands on a different sound than the ones beside it.
-  function laneInstAt(ch, col) {
-    // a sound you PICKED for this lane wins: it is the one thing here that was
-    // said out loud. Only an unspoken lane copies its neighbours.
-    if (chInst[ch] != null) return chInst[ch];
-    var best = null, bd = 1e9;
-    for (var i = 0; i < S.cells.length; i++) {
-      var x = S.cells[i];
-      if (x.inst == null || chOfCell(x) !== ch) continue;
-      var d = Math.abs(x.c - col);
-      if (d < bd) { bd = d; best = x.inst; }
-    }
-    if (best != null) return best;
-    resolveBank();
-    return ch === 3 ? INSTOF[DRUMS[pen.drum].id] : INSTOF[CH[ch].stamp];
-  }
   // move a note to another voice in place, keeping what it was
   function setCellVoice(x, v) {
+    delete x.inst;                            // the settings below are the sound now
+    if (v === 3) { delete x.dy; delete x.wv; x.nz = DRUM_SHIFT[pen.drum]; x.ns = 0; x.fd = chFade[3]; }
+    else if (v === 2) { delete x.dy; delete x.nz; delete x.ns; delete x.fd; x.wv = laneWave(); }
+    else { delete x.wv; delete x.nz; delete x.ns; x.dy = chDuty[v]; x.fd = chFade[v]; }
     MOTION_KEYS.forEach(function (k) {        // do not carry a motion into a lane that cannot play it
       if (!x[k]) return;
       var ok = false;
@@ -1679,12 +1710,10 @@
     if (v === 3) {
       x.r = MEL_ROWS + pen.drum;
       delete x.midi; delete x.ch; delete x.st; delete x.z; delete x.sweep;
-      x.inst = laneInstAt(3, x.c);
     } else {
       if (x.r >= MEL_ROWS) { x.r = rowForMidi(pen.midi); x.midi = pen.midi; }
       x.st = CH[v].stamp;
       if (v < 2) x.ch = v; else delete x.ch;
-      x.inst = laneInstAt(v, x.c);
     }
   }
   // which lane and step a point falls on
@@ -2038,6 +2067,10 @@
                viewBar: viewBar, viewCh: viewCh, loopBar: loopBar, queued: queuedBar,
                follow: camFollow, camX: Math.round(camX), cells: S ? S.cells.length : 0, withInst: withInst, maxLen: mx,
                notes: S ? buildSong().notes.length : 0, chHist: hist, mood: liveMood }; },
+    _rec: function () {                     // what the selected note tells the chip
+      var x = selCell(); if (!x) return null;
+      var ch = chOfCell(x);
+      return { ch: ch, params: paramsOf(x, ch), rec: recordFor(paramsOf(x, ch), ch), inst: instOf(x, ch) }; },
     _skipToEnd: function () { if (playing && liveScore) playT0 = performance.now() - songMs() - 300; } };
   if (typeof module !== 'undefined' && module.exports) module.exports = G.CT_CREATE;
 })(typeof globalThis !== 'undefined' ? globalThis : window);

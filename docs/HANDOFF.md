@@ -504,3 +504,36 @@ pass.
   composer picked one wave instrument per song -- but the editor lets you give
   every note its own, and the cartridge would have played the first one
   throughout. The browser's Sequencer reloads per note; the two must match.
+
+- A NOTE'S SOUND IS NOW THE CHIP'S OWN SETTINGS, not a name off a list. Sixty
+  four invented timbre names read as harder to understand than LSDJ, whose
+  instrument is two or three fields, so the panel is those fields: a pulse note
+  has Shape (12.5/25/50/75% duty) and Fade (LSDJ's ENV nibble: 0 holds, 1-7
+  fades out fastest-first, 9-F swells); a bass note has Wave (one of the
+  cartridge's tables); a drum has Noise (Free = 15-bit, Metal = 7-bit), Pitch
+  and Fade. Cells carry dy / fd / wv / nz / ns, and paramsOf() answers for a
+  COMPOSED note by reading its bank record back, so the panel always shows what
+  the note actually is.
+
+- THOSE SETTINGS ARE MATERIALISED INTO A PER-SONG BANK. instOf() appends a
+  record for each distinct setting to a copy of the shared bank (reusing an
+  existing record when the bytes already match) and buildSong hands that bank
+  out. This is free: the cartridge stores four register bytes PER NOTE and no
+  instrument table at all, so the only real limit is the 32 wave tables. The
+  128-instrument pad in buildBank is a browser-side convention, not hardware.
+
+- AUDITION CARRIES THE RECORD, NOT THE INDEX. A drag auditions long before the
+  song is reposted, so a hand-set sound would not be in the chip's bank yet.
+  pokeCreate notes may carry rec: [4 bytes] and the worklet builds a one-entry
+  bank from it. Without that, every edit sounded like the note's OLD instrument
+  until you released the mouse.
+
+- LINK FORMAT v7 adds those settings: bit 3 of the per-cell command char says
+  "four more chars follow" -- fade+present flags, duty+shape+present flags,
+  wave slot, noise pitch. v1-v6 still decode.
+
+- REMOVED WITH THE PALETTE: chanIcon, soundBtns, soundsFor, laneInst,
+  laneInstAt, chInst, PULSE_FAM / FAM_ORDER / CHAR_ORDER / pulseChar /
+  NOISE_NAMES / METAL_NAMES / LANE_SOUND, and the editValue branches they fed.
+  buildSounds now only names the WAVE tables, which the Bass picker still
+  needs; a table it cannot name shows as "wave N" rather than marking nothing.
