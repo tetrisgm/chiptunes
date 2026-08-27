@@ -405,12 +405,33 @@ pass.
   makes this checkable from a test.
 
 
+- THE PALETTE IS READ OFF THE BANK, NOT TYPED OUT: 31 named sounds (11 pulse,
+  10 wave, 10 noise) built at resolveBank() time. A pulse sound is a duty x
+  envelope-class cell of the bank's own grid (75% duty is 25% inverted -- the
+  same timbre -- so it only fills an envelope 25% lacks). A wave sound is one
+  table, deduped by the SHAPE of its harmonic series with loudness and phase
+  divided out, then named roundest-first. A noise sound is one patch, ordered
+  bright hiss to low boom, and it carries the lane row it belongs at, so
+  height and sound stay in step.
+
+- THE NULLS IN THOSE NAME TABLES ARE MEASURED. Every candidate was rendered
+  through this repo's own APU (a Node harness: gb-hardware + chip-instruments
+  + gb-apu, one note each) and compared to the ones already kept on two axes
+  -- a 64-band spectrum of the sustain, and 24-point RMS over the note. Any
+  candidate within 0.10 of a kept one was dropped: Horn (Reed), Chirp and
+  Glass (Bell), Snap (Hat). The shipped 31 have a closest pair of 0.103, and
+  none is silent. Redo that measurement before adding names -- a name you
+  cannot hear the difference of is clutter, and the sustain spectrum ALONE
+  will not catch it (Bell and Chirp differ only in their envelope).
+
 - SOUNDS ARE NAMED AND VISIBLE. The chip's timbres used to live behind a
   long-press on the lane name, which opened a scatter pad of unlabelled dots:
   the owner never found it and read the editor as having no instruments at
-  all. Each lane now carries the name of the sound it is holding (Square,
-  Reed, Soft, Bell, Swell, Hold on the pulse lanes; Bass, Growl, Cello, Organ
-  on the wave lane; the drum lane picks by height). Clicking that name sets
+  all. Each lane now carries the name of the sound it is holding (Square, Punch,
+  Soft, Hold, Swell, Reed, Airy, Drone, Rise, Bell, Thin on the pulse lanes;
+  Round, Sine, Cello, Vox, Wood, Reed, Thin, Saw, Growl, Ring on the wave
+  lane; Tick, Hat, Hiss, Shaker, Wash, Snare, Sizzle, Tom, Rumble, Kick on the
+  drum lane, which also moves the note to the height that sound belongs at). Clicking that name sets
   what the NEXT note there will use; the note panel sets the note in front of
   you and the lane together. SOUNDS resolves against the live bank the same
   way STAMPS does, and DEDUPES -- two names for one instrument is a lie the

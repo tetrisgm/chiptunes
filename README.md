@@ -22,8 +22,10 @@ on with your day: <https://chiptunes.app>
   own voices -- and a note is a block you drag anywhere. Up and down for
   pitch, sideways in time, into another lane to change voice, by its right
   edge to make it longer, and it sounds as it moves. Each lane names the sound
-  it is holding (Square, Reed, Bell, Cello, Organ, and the rest) and any note
-  can be given another. Tap a mood (happy, spooky, battle) and the radio's
+  it is holding -- 31 of them, read off the chip's own bank: Square, Punch,
+  Reed, Bell and Thin on the pulse voices, Round, Cello, Vox, Saw and Growl on
+  the wave voice, Tick through Kick on the noise voice -- and any note can be
+  given another. Tap a mood (happy, spooky, battle) and the radio's
   composer writes a whole track into the lanes, no AI involved, yours to edit
   note by note. Share it as a link, a WAV, or a real cartridge.
 - **The music is measured, not guessed.** Songs draw one of fourteen styles

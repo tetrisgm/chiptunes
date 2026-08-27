@@ -658,8 +658,8 @@
     display:flex; align-items:center; justify-content:center; line-height:1;
     background:rgba(255,255,255,.06); border:1px solid var(--mat-edge); color:var(--ink); font:800 13px var(--ui); }
   #createscreen .n-pclose:hover{ background:rgba(255,255,255,.16); }
-  #createscreen .n-pisnd{ flex-wrap:wrap; gap:6px; max-width:322px; justify-content:flex-start; }
-  #createscreen .n-pisnd .n-pv{ flex:0 0 auto; min-width:68px; height:30px; padding:0 10px; }
+  #createscreen .n-pisnd{ flex-wrap:wrap; gap:6px; width:352px; max-width:88vw; justify-content:flex-start; }
+  #createscreen .n-pisnd .n-pv{ flex:0 0 auto; min-width:64px; height:28px; padding:0 9px; font:800 10.5px var(--ui); }
   #createscreen .n-tfollow{ height:32px; padding:0 14px; border-radius:9px; cursor:pointer;
     background:rgba(255,255,255,.05); border:1px solid var(--mat-edge); color:var(--ink-2);
     font:800 11px var(--ui); }
@@ -3401,25 +3401,26 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     { id: 'bassg',   ch: 'wave',  wave: 'buzzy' },
     { id: 'cello',   ch: 'wave',  wave: 'mellow' }
   ];
-  // The sounds a note can be given, by name. The chip has three musical
-  // voices and each one can hold a range of timbres; a scatter pad of unnamed
-  // dots told nobody that, so these are the ones worth having, named.
-  var SOUNDS = {
-    pulse: [
-      { n: 'Square', duty: 0.5,   env: 'pluck' },
-      { n: 'Reed',   duty: 0.25,  env: 'stab'  },
-      { n: 'Soft',   duty: 0.5,   env: 'soft'  },
-      { n: 'Bell',   duty: 0.125, env: 'pluck' },
-      { n: 'Swell',  duty: 0.5,   env: 'swell' },
-      { n: 'Hold',   duty: 0.25,  env: 'sus'   }
-    ],
-    wave: [
-      { n: 'Bass',  wave: 'buzzy',  rank: 0 },
-      { n: 'Growl', wave: 'buzzy',  rank: 1 },
-      { n: 'Cello', wave: 'mellow', rank: 0 },
-      { n: 'Organ', wave: 'mellow', rank: 1 }
-    ]
+  // The sounds a note can be given, by name -- the whole bank, not a token
+  // handful. A pulse voice's timbre is its duty and its shape is its
+  // envelope, so the pulse names are that grid; 75% duty is the same timbre
+  // as 25% on this chip, so it only fills in a shape 25% does not have.
+  // The nulls are measured, not guessed: each candidate was rendered through
+  // this chip and any that landed within 0.10 of one already in the list --
+  // tone AND loudness-over-time -- was dropped. A name you cannot hear the
+  // difference of is clutter. (scripts do this offline; see docs/HANDOFF.md)
+  var PULSE_NAMES = {
+    '0.5':   { pluck: 'Square', stab: 'Punch', soft: 'Soft', sus: 'Hold',  swell: 'Swell' },
+    '0.25':  { pluck: 'Reed',   stab: null,    soft: 'Airy', sus: 'Drone', swell: 'Rise' },
+    '0.125': { pluck: 'Bell',   stab: null,    soft: null,   sus: 'Thin',  swell: 'Bloom' }
   };
+  var DUTY_ORDER = ['0.5', '0.25', '0.125'];
+  var ENV_ORDER = ['pluck', 'stab', 'soft', 'sus', 'swell'];
+  // the wave tables, roundest first -- named in the order the ear meets them
+  var WAVE_NAMES = ['Round', 'Sine', 'Cello', 'Vox', 'Wood', 'Reed', 'Thin', 'Saw', 'Growl', 'Ring'];
+  // the noise patches, brightest first: a hiss at the top, a boom at the end
+  var NOISE_NAMES = ['Tick', 'Hat', 'Hiss', 'Shaker', 'Wash', null, 'Snare', 'Sizzle', 'Tom', 'Rumble', 'Kick'];
+  var LANE_SOUND = ['Square', 'Bell', 'Wood', null];   // what each lane starts on
   var SNDS = null;                          // resolved against the live bank
   var DRUMS = [
     { id: 'hat',   lane: 0, kind: 'hat',   vel: 0.5 },
@@ -3474,31 +3475,91 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     INSTOF.hat = ns[0] ? ns[0].index : 0;
     INSTOF.snare = (ns[third] || ns[0]).index;
     INSTOF.kick = (ns[ns.length - 1] || ns[0]).index;
-    // the named sounds, resolved the same way -- and deduped, because two
-    // names for one instrument is a lie the ear catches straight away
-    SNDS = { pulse: [], wave: [] };
-    var taken = {};
-    SOUNDS.pulse.forEach(function (sd) {
-      var pool = meta.filter(function (m) {
-        return m.type === 'pulse' && m.patch.duty === sd.duty && envClass(BANK.instruments[m.index]) === sd.env;
-      });
-      if (!pool.length) pool = meta.filter(function (m) { return m.type === 'pulse' && m.patch.duty === sd.duty; });
-      if (!pool.length) pool = meta.filter(function (m) { return m.type === 'pulse'; });
-      var pick = pool.length ? pool[0].index : 0;
-      if (pool.length && !taken['p' + pick]) { taken['p' + pick] = 1; SNDS.pulse.push({ n: sd.n, inst: pick }); }
-    });
-    var loudw = meta.filter(function (m) { return m.type === 'wave' && waveStats(m).span >= 8; });
-    SOUNDS.wave.forEach(function (sd) {
-      var pool = loudw.filter(function (m) { return (sd.wave === 'buzzy') === (waveStats(m).big >= 1); });
-      if (!pool.length) pool = loudw;
-      pool = pool.slice().sort(function (a, b) {
-        var A = waveStats(a), B = waveStats(b);
-        return sd.wave === 'buzzy' ? (B.big - A.big || B.span - A.span) : (A.big - B.big || B.span - A.span);
-      });
-      var m2 = pool[sd.rank] || pool[0];
-      if (m2 && !taken['w' + m2.index]) { taken['w' + m2.index] = 1; SNDS.wave.push({ n: sd.n, inst: m2.index }); }
+    buildSounds(meta);
+    // the row defaults are the named ones, so height and sound agree
+    SNDS.noise.forEach(function (sd) {
+      if (sd.n === 'Hat') INSTOF.hat = sd.inst;
+      if (sd.n === 'Snare') INSTOF.snare = sd.inst;
+      if (sd.n === 'Kick') INSTOF.kick = sd.inst;
     });
     return BANK;
+  }
+  // ---- the named palette, read off the bank --------------------------------
+  // A timbre is the SHAPE of its harmonic series: divide out loudness and
+  // phase and two tables that sound alike look alike. That is how the wave
+  // list stays honest -- ten names for ten timbres, not sixteen for twelve.
+  function spectrum(t) {
+    var N = t.length, mean = 0, i, k, n, out = [], sum = 0;
+    for (i = 0; i < N; i++) mean += t[i];
+    mean /= N || 1;
+    for (k = 1; k <= N / 2; k++) {
+      var re = 0, im = 0;
+      for (n = 0; n < N; n++) {
+        var a = -2 * Math.PI * k * n / N;
+        re += (t[n] - mean) * Math.cos(a); im += (t[n] - mean) * Math.sin(a);
+      }
+      var mg = Math.sqrt(re * re + im * im);
+      out.push(mg); sum += mg;
+    }
+    if (sum <= 0) return null;
+    for (i = 0; i < out.length; i++) out[i] /= sum;
+    return out;
+  }
+  function buildSounds(meta) {
+    SNDS = { pulse: [], wave: [], noise: [] };
+    // pulse: every duty x envelope the bank actually holds
+    DUTY_ORDER.forEach(function (dk) {
+      var duty = +dk;
+      ENV_ORDER.forEach(function (env) {
+        var nm = PULSE_NAMES[dk][env];
+        if (!nm) return;
+        var pool = meta.filter(function (m) {
+          return m.type === 'pulse' && m.patch.duty === duty && envClass(BANK.instruments[m.index]) === env;
+        });
+        // 75% duty is 25% inverted: the same timbre, so it only fills a gap
+        if (!pool.length && dk === '0.25') pool = meta.filter(function (m) {
+          return m.type === 'pulse' && m.patch.duty === 0.75 && envClass(BANK.instruments[m.index]) === env;
+        });
+        if (pool.length) SNDS.pulse.push({ n: nm, inst: pool[0].index });
+      });
+    });
+    // wave: one name per timbre, roundest first
+    var seen = {}, shapes = [];
+    meta.forEach(function (m) {
+      if (m.type !== 'wave' || seen[m.waveSlot] != null) return;
+      seen[m.waveSlot] = 1;
+      var t = BANK.waveTables[m.waveSlot] || [];
+      var sp = spectrum(t);
+      if (!sp) return;                       // a flat table is an authored rest
+      var cen = 0;
+      for (var i = 0; i < sp.length; i++) cen += sp[i] * (i + 1);
+      shapes.push({ inst: m.index, sp: sp, cen: cen });
+    });
+    shapes.sort(function (a, b) { return a.cen - b.cen; });
+    var kept = [];
+    shapes.forEach(function (w) {
+      for (var i = 0; i < kept.length; i++) {
+        var d = 0;
+        for (var k = 0; k < w.sp.length; k++) d += Math.abs(w.sp[k] - kept[i].sp[k]);
+        if (d < 0.16) return;                // the same timbre, louder or softer
+      }
+      kept.push(w);
+    });
+    kept.forEach(function (w, i) {
+      if (WAVE_NAMES[i]) SNDS.wave.push({ n: WAVE_NAMES[i], inst: w.inst });
+    });
+    // noise: bright hiss down to a low boom, and where each one sits in the lane
+    var ns = meta.filter(function (m) { return m.type === 'noise'; }).slice().sort(function (a, b) {
+      var d = (a.patch.clockShift || 0) - (b.patch.clockShift || 0);
+      if (d) return d;
+      return ENV_ORDER.indexOf(envClass(BANK.instruments[a.index])) -
+             ENV_ORDER.indexOf(envClass(BANK.instruments[b.index]));
+    });
+    ns.forEach(function (m, i) {
+      if (!NOISE_NAMES[i]) return;
+      var sh = m.patch.clockShift || 0;
+      SNDS.noise.push({ n: NOISE_NAMES[i], inst: m.index, row: sh <= 1 ? 0 : sh <= 4 ? 1 : 2 });
+    });
   }
 
   // ---- state ---------------------------------------------------------------
@@ -4385,14 +4446,20 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   // what a lane offers, and what a note is using
   function soundsFor(ch) {
     resolveBank();
-    if (ch === 3) return [{ n: 'Kick', ed: 'd2' }, { n: 'Snare', ed: 'd1' }, { n: 'Hat', ed: 'd0' }];
+    if (ch === 3) return SNDS.noise.map(function (sd) {
+      return { n: sd.n, ed: 'nz' + sd.inst, inst: sd.inst, row: sd.row };
+    });
     return (ch === 2 ? SNDS.wave : SNDS.pulse).map(function (sd) {
       return { n: sd.n, ed: 'snd' + sd.inst, inst: sd.inst };
     });
   }
   function laneInst(ch) {
     resolveBank();
-    return chInst[ch] != null ? chInst[ch] : INSTOF[CH[ch].stamp];
+    if (chInst[ch] != null) return chInst[ch];
+    if (ch === 3) return INSTOF[DRUMS[pen.drum] ? DRUMS[pen.drum].id : 'kick'];
+    var want = LANE_SOUND[ch], hit = null;   // the lane starts on a named sound
+    (ch === 2 ? SNDS.wave : SNDS.pulse).forEach(function (sd) { if (sd.n === want) hit = sd.inst; });
+    return hit != null ? hit : INSTOF[CH[ch].stamp];
   }
   function soundName(ch) {
     if (ch === 3) return 'Kit';
@@ -4401,10 +4468,11 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     return hit || 'Sound';
   }
   function soundBtns(ch, x) {
-    var cur = x && x.inst != null ? x.inst : laneInst(ch);
-    var drumLane = x && x.r >= MEL_ROWS ? x.r - MEL_ROWS : -1;
+    var cur = x && x.inst != null ? x.inst
+            : ch === 3 && x ? INSTOF[DRUMS[Math.max(0, x.r - MEL_ROWS)].id]
+            : laneInst(ch);
     return soundsFor(ch).map(function (sd) {
-      var on = ch === 3 ? ('d' + drumLane) === sd.ed : sd.inst === cur;
+      var on = sd.inst === cur;
       return '<button type="button" class="n-pv' + (on ? ' on' : '') + '" data-ed="' + sd.ed + '">' + sd.n + '</button>';
     }).join('');
   }
@@ -4462,6 +4530,22 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       return;
     }
     if (what === 'close') { closePick(); selCol = -1; selCh = -1; renderGrid(); return; }
+    if (what.slice(0, 2) === 'nz') {          // a drum: sound and height together
+      var ni = +what.slice(2), row = 2;
+      soundsFor(3).forEach(function (sd) { if (sd.inst === ni && sd.row != null) row = sd.row; });
+      pen.drum = row;
+      if (x) {
+        snapshot();
+        x.r = MEL_ROWS + row; x.inst = ni; delete x.midi;
+        dirty(); renderEdit(); auditionCell(x);
+      } else auditionCell(penCell(0));
+      renderChans();
+      var npop = root.querySelector('.n-sndpop');
+      if (npop) npop.querySelectorAll('.n-pv').forEach(function (bt) {
+        bt.classList.toggle('on', bt.dataset.ed === what);
+      });
+      return;
+    }
     if (what.slice(0, 3) === 'snd') {         // a named sound, for this note and the next
       var sch = x ? chOfCell(x) : pen.ch;
       var si = +what.slice(3);
@@ -4515,7 +4599,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   // a throwaway cell that describes the pen, for auditioning and placing
   function penCell(col) {
     var c = { c: col, t: ++order };
-    if (pen.ch === 3) { c.r = MEL_ROWS + pen.drum; c.inst = laneInstAt(3, col); }
+    if (pen.ch === 3) { c.r = MEL_ROWS + pen.drum; c.inst = INSTOF[DRUMS[pen.drum].id]; }
     else {
       c.r = rowForMidi(pen.midi); c.midi = pen.midi;
       c.st = CH[pen.ch].stamp;
