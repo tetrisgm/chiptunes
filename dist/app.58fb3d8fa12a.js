@@ -4760,7 +4760,12 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   function close() {
     if (playing) pausePlayback(); else armChip();
     pausedAt = 0;
-    chMuted = [false, false, false, false];    // playScore() clears the chip mask
+    // Hand the chip back UNMUTED. This used to reset the editor's own array and
+    // trust playScore() to clear the chip's mask; if anything returns to the
+    // radio without going through playScore, a lane muted in here stays muted
+    // out there, and the station plays with voices missing.
+    chMuted = [false, false, false, false];
+    if (typeof Audio !== 'undefined' && Audio.setChipMute) Audio.setChipMute(null);
     loopBar = -1; queuedBar = null;
     closeSnd();
     if (root) root.classList.remove('show');
