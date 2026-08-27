@@ -1242,7 +1242,7 @@
         CHIPS.map(function (c) { return '<button type="button" class="cr-chip" data-mood="' + c + '">' + c + '</button>'; }).join('') +
         '</span></div>' +
       '<div class="n-tabs">' +
-        '<button type="button" class="n-tab n-all" data-ch="-1">All voices</button>' +
+        '<button type="button" class="n-tab n-all" data-ch="-1">All</button>' +
         CH.map(function (c, i) {
           return '<button type="button" class="n-tab" data-ch="' + i + '">' +
                  '<span>' + c.n + '</span>' +
@@ -1311,6 +1311,9 @@
   function applyCam() {
     var track = root.querySelector('.n-track');
     if (track) track.style.transform = 'translateX(' + (-Math.round(camX)) + 'px)';
+    // the voice tabs ride directly above the bar you are on
+    var tabs = root.querySelector('.n-tabs');
+    if (tabs) tabs.style.transform = 'translateX(' + Math.round(8 + viewBar * trackStride() - camX) + 'px)';
   }
   function barUnderCamera() {
     var mid = root.querySelector('.n-mid');

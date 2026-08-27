@@ -261,3 +261,9 @@ row scrolls rather than wraps on phones.
   listener skips auto-starting when the gesture IS the Play button, or the
   button's own handler would immediately pause it again.
 
+- The voice tabs are attached to the bar you are on: the strip is the bar's
+  width and applyCam() slides it with the camera every frame (it must live
+  there, not in renderBars, which only fires on bar changes). Tab waveform
+  icons are gone so the names fit; on phones the strip widens to the
+  viewport since the bar nearly fills it anyway.
+
