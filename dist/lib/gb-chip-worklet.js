@@ -540,6 +540,21 @@
     this.frame = 0; this.acc = 0;
     this.waveSlot = -1;
     this.bank = gb && gb.bank;
+    // AUTOMATION: register writes on their own frames, and the flag that hands
+    // a note's pitch over from the driver's vibrato. An instrument on this chip
+    // is what gets written every frame, not just what a note-on says, so these
+    // ride in the score and BOTH players read the same array.
+    var auto = this.auto = {}, vibOff = this.vibOffAt = {};
+    (gb && gb.auto || []).forEach(function (w) {
+      (auto[w.f | 0] = auto[w.f | 0] || []).push({ r: w.r & 0xFF, v: w.v & 0xFF });
+    });
+    (gb && gb.vibOff || []).forEach(function (w) {
+      (vibOff[w.f | 0] = vibOff[w.f | 0] || []).push(w.ch | 0);
+    });
+    // a wave table can be swapped under a sounding note: that is wavetable
+    // synthesis, and it is the wave channel's only way to change timbre
+    var wl = this.waveAt = {};
+    (gb && gb.waveLoads || []).forEach(function (w) { wl[w.f | 0] = w.slot | 0; });
     var byFrame = this.byFrame = {};
     var inst = (this.bank && this.bank.instruments) || [];
     (gb && gb.notes || []).forEach(function (n) {
@@ -625,6 +640,13 @@
         vst.on = !((note.ch | 0) === 0 && note.sweep);
       }
     }
+    // ...then this frame's automation, after the note-ons it belongs to
+    var vo = this.vibOffAt[this.frame];
+    if (vo) for (i = 0; i < vo.length; i++) if (vo[i] < 2) this.vib[vo[i]].on = false;
+    var wls = this.waveAt[this.frame];
+    if (wls != null) this._loadWave(wls);
+    var aw = this.auto[this.frame];
+    if (aw) for (i = 0; i < aw.length; i++) this.apu.write(aw[i].r, aw[i].v);
     this.frame++;
   };
 

@@ -245,9 +245,67 @@
       return STAMPS[j].ch === 'wave' ? 'wave' : 'pulse';
     return null;
   }
+  // MOVES: what happens to a note WHILE it sounds. On this chip that is the
+  // whole difference between a tone and an instrument -- the driver writes
+  // registers every frame, and these say which ones.
+  var VIBTAB = [0, 3, 4, 3, 0, -3, -4, -3];
+  function automate(x, note, out) {
+    var ch = note.ch | 0, f0 = note.frame | 0, len = Math.max(2, note.frames | 0);
+    var i, k;
+    if (x.vb && ch !== 3 && note.midi != null && len > 8) {   // wobble: its own vibrato
+      var preg = ch === 0 ? 0x13 : ch === 1 ? 0x18 : 0x1D;
+      var per0 = G.CT_GB.midiToPeriod(note.midi, ch === 2 ? 'wave' : 'pulse').period;
+      if (ch < 2) out.vibOff.push({ f: f0, ch: ch });        // the driver lets go
+      for (i = 4, k = 0; i < len - 1; i += 3, k++) {
+        var p2 = Math.max(0, Math.min(2047, per0 + VIBTAB[k & 7]));
+        out.auto.push({ f: f0 + i, r: preg, v: p2 & 0xFF });
+        if (((p2 >> 8) & 7) !== ((per0 >> 8) & 7))
+          out.auto.push({ f: f0 + i, r: preg + 1, v: (p2 >> 8) & 7 });
+      }
+    }
+    if (x.sq && ch < 2 && len > 6) {                          // sweep: the duty walks
+      var nrx1 = 0x11 + ch * 5;
+      var rec0 = (songBank || BANK).instruments[note.inst] || [0];
+      var d0 = (rec0[0] >> 6) & 3;
+      for (i = 4, k = 1; i < len - 1; i += 5, k++)
+        out.auto.push({ f: f0 + i, r: nrx1, v: (((d0 + k) & 3) << 6) });
+    }
+    if (x.mp && ch === 2 && len > 8) {                        // morph: the table changes
+      var slot0 = G.CT_GB.waveSlotOf((songBank || BANK).instruments, note.inst);
+      var tables = (songBank || BANK).waveTables.length;
+      for (i = 6, k = 1; i < len - 1; i += 6, k++)
+        out.waveLoads.push({ f: f0 + i, slot: (slot0 + k) % tables });
+    }
+    if (x.pn) out.pan.push({ f: f0, ch: ch, mode: x.pn, off: f0 + len });
+  }
+  // NR51 is one byte for the whole machine, so panning is a running value:
+  // collect what each note wants and write the byte only where it changes.
+  function panWrites(pan, auto) {
+    if (!pan.length) return;
+    var edges = [];
+    pan.forEach(function (p) {
+      edges.push({ f: p.f, ch: p.ch, mode: p.mode });
+      edges.push({ f: p.off, ch: p.ch, mode: 0 });
+    });
+    edges.sort(function (a, b) { return a.f - b.f; });
+    var cur = 0xFF, want = [0, 0, 0, 0];
+    edges.forEach(function (e) {
+      want[e.ch] = e.mode;
+      var v = 0;
+      for (var c = 0; c < 4; c++) {
+        var m = want[c];
+        if (m !== 2) v |= (1 << (c + 4));    // left speaker
+        if (m !== 1) v |= (1 << c);          // right speaker
+      }
+      if (v === cur) return;
+      cur = v;
+      auto.push({ f: e.f, r: 0x25, v: v });
+    });
+  }
   function buildSong() {
     resolveBank();
     freshSongBank();
+    var moves = { auto: [], vibOff: [], waveLoads: [], pan: [] };
     var notes = [], per = framesPer16();
     var byCol = {};
     S.cells.forEach(function (x) { delete x.x; delete x.rch; (byCol[x.c] = byCol[x.c] || []).push(x); });
@@ -279,6 +337,7 @@
                          frames: x.len ? Math.max(2, Math.round(per * x.len) - 1) : Math.max(2, Math.round(per * 0.6)),
                          midi: null, inst: dInst, vel: dVel, pri: 9 - d.lane });
           }
+          if (hasMoves(x)) automate(x, notes[notes.length - 1], moves);
           return;
         }
         var voice = cellVoice(x);
@@ -323,11 +382,18 @@
             notes.push({ ch: note.ch, frame: colFrame(c + st2), frames: Math.max(2, Math.round(per * 0.9)),
                          midi: note.midi, inst: note.inst, vel: v2, pri: 5, sweep: note.sweep });
         } else notes.push(note);
+        if (hasMoves(x)) {
+          var mine = notes.slice(-4).filter(function (n2) { return n2.frame === note.frame || n2.ch === note.ch; });
+          automate(x, mine.length ? mine[mine.length - 1] : note, moves);
+        }
       });
     }
     notes.sort(function (a, b) { return a.frame - b.frame; });
+    panWrites(moves.pan, moves.auto);
+    moves.auto.sort(function (a, b) { return a.f - b.f; });
     var total = Math.round(cols() * per);
     return { notes: notes, bank: songBank || BANK, totalFrames: total,
+             auto: moves.auto, vibOff: moves.vibOff, waveLoads: moves.waveLoads,
              loopFrames: total };
   }
 
@@ -339,12 +405,13 @@
   // (bpm-70)/2. All older versions still decode.
   function encode() {
     var ids = STAMPS.map(function (s) { return s.id; });
-    var out = [7, S.key, S.minor, S.bars, Math.round((S.bpm - 70) / 2) & 63, S.swing];
+    var out = [8, S.key, S.minor, S.bars, Math.round((S.bpm - 70) / 2) & 63, S.swing];
     S.cells.forEach(function (x) {
       var st = x.r >= MEL_ROWS ? 15 : (x.st && x.st.charAt(0) === 'i' ? 14 : Math.max(0, ids.indexOf(x.st)));
       var ext = x.inst != null || x.vel != null || x.midi != null || (x.len || 1) > 1 || x.sweep != null || x.ch != null;
       var snd = x.dy != null || x.fd != null || x.wv != null || x.nz != null || x.ns != null;
-      var cmd = (x.u ? 1 : x.q ? 2 : x.g ? 3 : x.f ? 4 : 0) | (snd ? 8 : 0);
+      var mov = !!(x.vb || x.sq || x.mp || x.pn);
+      var cmd = (x.u ? 1 : x.q ? 2 : x.g ? 3 : x.f ? 4 : 0) | (snd ? 8 : 0) | (mov ? 16 : 0);
       out.push(x.c & 63, (x.c >> 6) & 63, x.r | (x.z ? 32 : 0), st | (x.w ? 16 : 0) | (ext ? 32 : 0), cmd);
       if (ext) {
         var ip1 = x.inst != null ? x.inst + 1 : 0;           // 0 = no exact instrument
@@ -364,6 +431,7 @@
                  (x.wv | 0) & 31,
                  (x.nz | 0) & 15);
       }
+      if (mov) out.push((x.vb ? 1 : 0) | (x.sq ? 2 : 0) | (x.mp ? 4 : 0) | (((x.pn | 0) & 3) << 3));
     });
     return out.map(function (v) { return B64[v & 63]; }).join('');
   }
@@ -371,7 +439,7 @@
     try {
       var v = []; for (var i = 0; i < str.length; i++) { var ix = B64.indexOf(str[i]); if (ix < 0) return null; v.push(ix); }
       var ver = v[0];
-      if (ver < 1 || ver > 7) return null;
+      if (ver < 1 || ver > 8) return null;
       var st2 = freshState();
       st2.key = v[1] % 12; st2.minor = v[2] & 1;
       st2.bars = ver === 1 ? ([2, 4, 8].indexOf(v[3]) >= 0 ? v[3] : 4)
@@ -422,6 +490,14 @@
             if (s2 & 16) cell2.wv = v[k + 2] & 31;
             if (s2 & 32) cell2.nz = v[k + 3] & 15;
             k += 4;
+          }
+          if (ver >= 8 && (cmdRaw & 16) && k < v.length) {
+            var mvb = v[k];
+            if (mvb & 1) cell2.vb = 1;
+            if (mvb & 2) cell2.sq = 1;
+            if (mvb & 4) cell2.mp = 1;
+            if ((mvb >> 3) & 3) cell2.pn = (mvb >> 3) & 3;
+            k += 1;
           }
           st2.cells.push(cell2);
         }
@@ -1188,6 +1264,7 @@
     b._by[key] = b.instruments.length - 1;
     return b._by[key];
   }
+  function hasMoves(x) { return !!x && (x.vb || x.sq || x.mp || x.pn); }
   function hasSound(x) {
     return !!x && (x.dy != null || x.fd != null || x.wv != null || x.nz != null || x.ns != null);
   }
@@ -1205,6 +1282,22 @@
     var k = motionOf(x), hit = '';
     MOTIONS.forEach(function (m) { if (m.k === k) hit = m.n; });
     return k ? hit : '';
+  }
+  // the automation lane, as four plain switches. They combine with each other
+  // and with a motion: a note can wobble AND arpeggiate.
+  var MOVES = [
+    { n: 'Wobble', k: 'vb', ch: [1, 1, 1, 0] },   // its own vibrato
+    { n: 'Sweep',  k: 'sq', ch: [1, 1, 0, 0] },   // the duty walks
+    { n: 'Morph',  k: 'mp', ch: [0, 0, 1, 0] },   // the wave table changes
+    { n: 'Pan L',  k: 'pn', v: 1, ch: [1, 1, 1, 1] },
+    { n: 'Pan R',  k: 'pn', v: 2, ch: [1, 1, 1, 1] }
+  ];
+  function moveBtns(ch, x) {
+    return MOVES.filter(function (m) { return m.ch[ch]; }).map(function (m) {
+      var on = m.v != null ? (x && x[m.k] === m.v) : !!(x && x[m.k]);
+      return '<button type="button" class="n-pv' + (on ? ' on' : '') +
+             '" data-ed="mv' + m.k + (m.v || '') + '" data-full="' + m.n + '">' + m.n + '</button>';
+    }).join('');
   }
   function motionBtns(ch, x) {
     var cur = motionOf(x);
@@ -1298,6 +1391,8 @@
       '<div class="n-pickrow n-pisnd" style="--vc:' + CH[ch].color + '">' + soundPanel(ch, x) + '</div>' +
       '<div class="n-pickhead"><span>Motion</span></div>' +
       '<div class="n-pickrow n-pifx" style="--vc:' + CH[ch].color + '">' + motionBtns(ch, x) + '</div>' +
+      '<div class="n-pickhead"><span>While it sounds</span></div>' +
+      '<div class="n-pickrow n-pifx" style="--vc:' + CH[ch].color + '">' + moveBtns(ch, x) + '</div>' +
       '<div class="n-pickrow n-picklevels">' +
         '<span>Volume</span>' +
         '<button type="button" class="n-po" data-ed="vol-">\u2212</button>' +
@@ -1390,6 +1485,16 @@
         if (pop2) pop2.innerHTML = soundPanel(sch, null);
         auditionCell(penCell(0));
       }
+      return;
+    }
+    if (what.slice(0, 2) === 'mv') {          // what moves while the note sounds
+      if (!x) { hint('Pick a note first, then give it a move.'); return; }
+      var mk = what.slice(2, 4), mv = what.length > 4 ? +what.slice(4) : null;
+      snapshot();
+      if (mv != null) x[mk] = x[mk] === mv ? 0 : mv;
+      else x[mk] = x[mk] ? 0 : 1;
+      if (!x[mk]) delete x[mk];
+      dirty(); renderEdit(); auditionCell(x);
       return;
     }
     if (what.slice(0, 2) === 'fx') {          // what the note does while it sounds
@@ -2127,7 +2232,14 @@
       return { playing: playing, catch: Math.round(camCatch), live: !!liveScore, bars: S ? S.bars : 0,
                viewBar: viewBar, viewCh: viewCh, loopBar: loopBar, queued: queuedBar,
                follow: camFollow, camX: Math.round(camX), cells: S ? S.cells.length : 0, withInst: withInst, maxLen: mx,
-               notes: S ? buildSong().notes.length : 0, chHist: hist, mood: liveMood }; },
+               notes: S ? buildSong().notes.length : 0, chHist: hist, mood: liveMood,
+               auto: S ? buildSong().auto.length : 0,
+               waveLoads: S ? buildSong().waveLoads.length : 0 }; },
+    _score: function () {                   // the exact song the chip is given
+      var g = buildSong();
+      return { notes: g.notes, auto: g.auto, vibOff: g.vibOff, waveLoads: g.waveLoads,
+               totalFrames: g.totalFrames, loopFrames: g.loopFrames,
+               instruments: g.bank.instruments, waveTables: g.bank.waveTables }; },
     _rec: function () {                     // what the selected note tells the chip
       var x = selCell(); if (!x) return null;
       var ch = chOfCell(x);

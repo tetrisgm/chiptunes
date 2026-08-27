@@ -211,7 +211,10 @@
 
   // ------------------------------------------------------------------- driver
   // Command byte: (channel << 6) | type.  type 0 = note off, 1 = note on,
-  // 2 = load wave RAM, 3 = NR10 sweep byte (channel 1 slides/zips).
+  // 2 = load wave RAM, 3 = NR10 sweep byte (channel 1 slides/zips),
+  // 4 = write one sound register (the automation lane: duty, panning, period,
+  // anything the hardware has), 5 = hand this channel's pitch over from the
+  // driver's vibrato, because the note is steering it itself.
   // $FF ends the song and loops it.
   //
   //   [initialDelay] then, repeating: [cmd][payload...][delayToNextEvent]
@@ -309,9 +312,13 @@
 
     a.and_n(0x3F);                        // type
     a.cp_n(0x02);
-    a.jr_z('doWave');
+    a.jr_nz('notWave'); a.jp('doWave'); a.label('notWave');
     a.cp_n(0x03);
     a.jr_z('doSweep');
+    a.cp_n(0x04);
+    a.jr_z('doWrite');
+    a.cp_n(0x05);
+    a.jr_z('doVibOff');
     a.or_a();
     a.jr_z('doOff');
 
@@ -364,6 +371,25 @@
     a.add_a_n(H_VON); a.ld_c_a();
     a.ld_a_n(0x00); a.ldh_c_a();
     a.label('offNoVib');
+    a.jr('afterEvent');
+
+    // automation: one register, one value. The channel bits are unused -- the
+    // register says which channel it belongs to.
+    a.label('doWrite');
+    a.ld_a_hli();                         // register, low byte of $FF00
+    a.ld_c_a();
+    a.ld_a_hli();                         // value
+    a.ldh_c_a();
+    a.jr('afterEvent');
+
+    // the note is steering its own pitch: stop the driver's vibrato on it
+    a.label('doVibOff');
+    a.ldh_a_n(H_CH);
+    a.cp_n(2);
+    a.jr_nc('vibOffDone');
+    a.add_a_n(H_VON); a.ld_c_a();
+    a.ld_a_n(0x00); a.ldh_c_a();
+    a.label('vibOffDone');
     a.jr('afterEvent');
 
     // wave: copy 16 bytes (32 nibbles) into wave RAM
@@ -567,9 +593,21 @@
     }
     evs.push({ f: 0, ch: 2, type: 2, d: [firstWave === null ? 0 : firstWave] });
 
-    // At one frame: offs first, wave loads, then sweep, then note-ons -- the
-    // sweep byte must be in NR10 before the trigger that latches it.
-    var TYPEW = { 0: 0, 2: 1, 3: 2, 1: 3 };
+    // the automation lane: raw register writes, and vibrato hand-offs
+    (gb.auto || []).forEach(function (w) {
+      evs.push({ f: w.f | 0, ch: 0, type: 4, d: [w.r & 0xFF, w.v & 0xFF] });
+    });
+    (gb.vibOff || []).forEach(function (w) {
+      evs.push({ f: w.f | 0, ch: w.ch & 3, type: 5, d: [] });
+    });
+    (gb.waveLoads || []).forEach(function (w) {
+      evs.push({ f: w.f | 0, ch: 2, type: 2, d: [w.slot & 0xFF] });
+    });
+
+    // At one frame: offs first, wave loads, then sweep, then note-ons, and
+    // automation last -- a duty change on a note's own frame has to land AFTER
+    // the note-on that would otherwise overwrite it.
+    var TYPEW = { 0: 0, 2: 1, 3: 2, 1: 3, 5: 4, 4: 5 };
     evs.sort(function (a, b) { return a.f - b.f || TYPEW[a.type] - TYPEW[b.type]; });
 
     var out = [], i;

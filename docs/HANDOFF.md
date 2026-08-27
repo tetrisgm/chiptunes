@@ -549,3 +549,37 @@ pass.
   presets: its Wave row is already a list of names. presetOn() marks the name
   whose settings the note currently matches, so a composed note shows as
   "Organ" when that is what it is.
+
+- THE AUTOMATION LANE. A Game Boy instrument is not a note-on, it is what the
+  driver writes on every frame after it, so a score can now carry three arrays
+  beside its notes: gb.auto ([{f, r, v}] raw register writes), gb.waveLoads
+  ([{f, slot}] a table swapped under a sounding note) and gb.vibOff ([{f, ch}]
+  the note taking its own pitch over from the driver's vibrato). BOTH players
+  read the same arrays -- the Sequencer applies them at the end of _runFrame,
+  after that frame's note-ons -- so they cannot drift by construction.
+
+- THE CARTRIDGE GREW TWO OPCODES for it: event type 4 is [reg, val] straight to
+  $FF00+reg, type 5 clears this channel's vibrato flag. Ordering matters and is
+  encoded in TYPEW: offs, wave loads, sweep, note-ons, vibrato hand-offs, then
+  raw writes LAST -- a duty change on a note's own frame has to land after the
+  note-on that would otherwise overwrite it.
+
+- npm run test:automation is the gate. It builds a score using every kind of
+  automation, runs the browser chip and the real ROM on the emulated CPU, and
+  compares: each write lands on its frame in both, and each register gets the
+  same values in the SAME ORDER. Ignore each player's power-on writes (frame <
+  5) -- the browser's happen inside the Sequencer's constructor. An editor song
+  was also checked end to end this way: 45 writes, 9 wave swaps, 164 period
+  writes, identical order on both sides.
+
+- WHAT THE EDITOR EMITS: Wobble writes the period every 3 frames from a small
+  table (and hands vibrato off, or the driver's own vibrato fights it); Sweep
+  walks NRx1's duty bits every 5 frames from the note's own duty; Morph swaps
+  wave tables every 6 frames; Pan is a RUNNING NR51 -- one byte for the whole
+  machine, so panWrites() collects every note's wish, sorts by frame and writes
+  the byte only where it changes. Moves need room: they are skipped on notes
+  shorter than 6-8 frames, because there is nothing to move through.
+
+- A jr COULDN'T REACH doWave once the two new handlers landed. The assembler
+  throws on that (gb-rom: jr out of range), which is why it is a guard and not
+  a silent wrap; the dispatch now uses jp for that one branch.
