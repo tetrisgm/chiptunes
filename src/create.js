@@ -918,7 +918,7 @@
     });
     root.querySelectorAll('.n-bblabel').forEach(function (el) {
       var lb = +el.parentNode.dataset.bar;
-      el.textContent = 'bar ' + (lb + 1) + (lb === loopBar ? ' \u00b7 looping' : '');
+      el.textContent = '#' + (lb + 1) + (lb === loopBar ? ' \u00b7 looping' : '');
     });
     applyCam();
   }

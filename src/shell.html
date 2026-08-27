@@ -551,7 +551,6 @@
   #createscreen .n-moodrow .cr-mood{ flex:0 0 auto; width:210px; }
   #createscreen .n-mid{ flex:1 1 auto; min-height:0; overflow:hidden; position:relative; padding:2px 0; }
   #createscreen .n-track{ position:absolute; left:0; top:0; bottom:0; display:flex; align-items:center;
-    padding-top:6px;
     gap:var(--bbgap,18px); padding:0 8px; will-change:transform; }
   #createscreen .n-bb{ flex:0 0 auto; width:var(--bbw,360px); display:flex; flex-direction:column; gap:5px;
     position:relative; }
@@ -629,8 +628,8 @@
   #createscreen .n-tabs{ flex:0 0 auto; display:flex; align-items:flex-end; gap:3px; padding:0;
     width:var(--bbw,360px); will-change:transform; }
   #createscreen .n-tabs::-webkit-scrollbar{ display:none; }
-  #createscreen .n-tab{ flex:1 1 0; min-width:0; height:34px; padding:0 8px; cursor:pointer; position:relative;
-    justify-content:center;
+  #createscreen .n-tab{ flex:1 1 0; min-width:0; height:32px; padding:0 8px; cursor:pointer; position:relative;
+    justify-content:center; bottom:-1px;
     display:inline-flex; align-items:center; gap:7px; color:var(--ink-2); font:700 12px var(--ui);
     background:rgba(255,255,255,.04); border:1px solid var(--mat-edge); border-bottom:none;
     border-radius:9px 9px 0 0; }
@@ -641,16 +640,16 @@
   #createscreen .n-spk{ width:20px; height:20px; border-radius:5px; display:flex; align-items:center;
     justify-content:center; font-size:12px; font-style:normal; opacity:.85; }
   #createscreen .n-spk:hover{ background:rgba(255,255,255,.16); opacity:1; }
-  #createscreen .n-mid{ flex:1 1 auto; min-height:0; overflow:hidden; position:relative;
-    border-top:1px solid var(--mat-edge-hi); }
-  #createscreen .n-bbtools{ display:flex; gap:7px; width:100%; margin-top:14px; }
+  #createscreen .n-mid{ flex:1 1 auto; min-height:0; overflow:hidden; position:relative; }
+  #createscreen .n-bbtools{ display:flex; gap:7px; width:100%; margin-top:14px; visibility:hidden; }
+  #createscreen .n-bb.view .n-bbtools{ visibility:visible; }
   #createscreen .n-hb{ flex:1 1 0; min-width:0; height:36px; padding:0 6px; border-radius:9px; cursor:pointer;
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
     background:rgba(255,255,255,.06); border:1px solid var(--mat-edge); color:var(--ink-2); font:700 11px var(--ui); }
   #createscreen .n-hb:hover{ border-color:var(--mat-edge-hi); color:var(--ink); }
   #createscreen .n-bb.loop .n-lp{ background:rgba(123,220,160,.25); border-color:rgba(123,220,160,.7); color:#7BDCA0; }
   #createscreen .n-bb.queued .n-lp{ border-color:rgba(255,201,60,.8); color:#FFC93C; }
-  #createscreen .n-bblabel{ height:20px; text-align:center; margin-bottom:6px;
+  #createscreen .n-bblabel{ height:18px; text-align:center; margin-bottom:4px;
     font:800 12px var(--ui); color:var(--ink-2); letter-spacing:.04em; }
   #createscreen .n-bb.view .n-bblabel{ color:var(--ink); }
   #createscreen .n-bb.loop .n-bblabel{ color:#7BDCA0; }
