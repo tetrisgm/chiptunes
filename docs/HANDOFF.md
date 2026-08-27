@@ -716,3 +716,21 @@ pass.
   wave RAM, and mid-playback) plus the cold /create route, and asserts the
   station is audible after Close AND after pause/play. It caught this on the
   first run, having failed to reproduce by hand all afternoon.
+
+- MOVES SCALE WITH THE NOTE. Wobble, Sweep and Morph used to need 6-8 frames,
+  and a sixteenth at 150bpm is about six -- so switching one on for an ordinary
+  note did nothing at all. The step is now len/6, len/4 and len/4, floored at
+  two or three frames: a one-step note gets two or three writes. Only something
+  under three frames is genuinely too short to move through.
+
+- EVERY WAVE SLOT HAS A NAME. The picker lists one table per timbre, but a
+  composed note can hold one of the near-duplicates the dedupe dropped, and the
+  panel used to label those "wave 7". SLOTNAME names them after the timbre they
+  are a variant of ("Cello 2").
+
+- THE CARTRIDGE BUDGET IS ESTIMATED WHILE YOU EDIT (romBytes, in buildSong) and
+  hinted at 30000 of 32768, because learning that a song will not fit from a
+  failed download is learning it too late. For scale: 48 bars, 1045 chip notes
+  and all eight sampled drums came to 13054 bytes, so this only bites at the
+  extremes. hint() only surfaces messages carrying consequence -- the filter now
+  includes 'cartridge' and 'share a step', which were being swallowed.

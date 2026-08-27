@@ -2476,6 +2476,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   // (no sound is called Fall or Rise, and no motion is called Bloom: a word
   //  that means two things in one panel means neither)
   var SNDS = null;                          // resolved against the live bank
+  var SLOTNAME = {};                        // every wave slot's name, listed or not
   var DRUMS = [
     { id: 'hat',   lane: 0, kind: 'hat',   vel: 0.5 },
     { id: 'snare', lane: 1, kind: 'snare', vel: 0.7 },
@@ -2582,6 +2583,27 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     kept.forEach(function (w, i) {
       if (WAVE_NAMES[i]) SNDS.wave.push({ n: WAVE_NAMES[i], fam: null, full: WAVE_NAMES[i], inst: w.inst });
     });
+    // A composed note can point at a table the picker does not list -- the
+    // dedupe keeps one of each timbre, and a song may hold one of the others.
+    // Name those after the timbre they are a variant of, so the panel never
+    // has to say "wave 7" at somebody.
+    SLOTNAME = {};
+    SNDS.wave.forEach(function (sd) { SLOTNAME[BANK.instruments[sd.inst][0] & 0xFF] = sd.n; });
+    var seen2 = {};
+    shapes.forEach(function (w) {
+      var slot = BANK.instruments[w.inst][0] & 0xFF;
+      if (SLOTNAME[slot] != null) return;
+      var near = null, nd = 1e9;
+      kept.forEach(function (k, i) {
+        if (!WAVE_NAMES[i]) return;
+        var d = 0;
+        for (var j = 0; j < w.sp.length; j++) d += Math.abs(w.sp[j] - k.sp[j]);
+        if (d < nd) { nd = d; near = WAVE_NAMES[i]; }
+      });
+      if (!near) near = 'Wave';
+      seen2[near] = (seen2[near] || 1) + 1;
+      SLOTNAME[slot] = near + ' ' + seen2[near];       // "Cello 2", not "wave 7"
+    });
   }
   // ---- state ---------------------------------------------------------------
   var S = null, undoStack = [], redoStack = [];
@@ -2636,28 +2658,35 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   function automate(x, note, out) {
     var ch = note.ch | 0, f0 = note.frame | 0, len = Math.max(2, note.frames | 0);
     var i, k;
-    if (x.vb && ch !== 3 && note.midi != null && len > 8) {   // wobble: its own vibrato
+    // A sixteenth at 150bpm is about six frames. These used to need eight or
+    // more, so switching a move on for an ordinary note did nothing at all --
+    // the step scales with the note now, and only something under three frames
+    // is genuinely too short to move through.
+    if (x.vb && ch !== 3 && note.midi != null && len > 3) {   // wobble: its own vibrato
       var preg = ch === 0 ? 0x13 : ch === 1 ? 0x18 : 0x1D;
       var per0 = G.CT_GB.midiToPeriod(note.midi, ch === 2 ? 'wave' : 'pulse').period;
       if (ch < 2) out.vibOff.push({ f: f0, ch: ch });        // the driver lets go
-      for (i = 4, k = 0; i < len - 1; i += 3, k++) {
+      var vstep = Math.max(2, Math.round(len / 6));
+      for (i = Math.min(3, vstep), k = 0; i < len - 1; i += vstep, k++) {
         var p2 = Math.max(0, Math.min(2047, per0 + VIBTAB[k & 7]));
         out.auto.push({ f: f0 + i, r: preg, v: p2 & 0xFF });
         if (((p2 >> 8) & 7) !== ((per0 >> 8) & 7))
           out.auto.push({ f: f0 + i, r: preg + 1, v: (p2 >> 8) & 7 });
       }
     }
-    if (x.sq && ch < 2 && len > 6) {                          // sweep: the duty walks
+    if (x.sq && ch < 2 && len > 3) {                          // sweep: the duty walks
       var nrx1 = 0x11 + ch * 5;
       var rec0 = (songBank || BANK).instruments[note.inst] || [0];
       var d0 = (rec0[0] >> 6) & 3;
-      for (i = 4, k = 1; i < len - 1; i += 5, k++)
+      var sstep = Math.max(2, Math.round(len / 4));
+      for (i = sstep, k = 1; i < len - 1; i += sstep, k++)
         out.auto.push({ f: f0 + i, r: nrx1, v: (((d0 + k) & 3) << 6) });
     }
-    if (x.mp && ch === 2 && len > 8) {                        // morph: the table changes
+    if (x.mp && ch === 2 && len > 5) {                        // morph: the table changes
       var slot0 = G.CT_GB.waveSlotOf((songBank || BANK).instruments, note.inst);
       var tables = (songBank || BANK).waveTables.length;
-      for (i = 6, k = 1; i < len - 1; i += 6, k++)
+      var mstep = Math.max(3, Math.round(len / 4));
+      for (i = mstep, k = 1; i < len - 1; i += mstep, k++)
         out.waveLoads.push({ f: f0 + i, slot: (slot0 + k) % tables });
     }
     if (x.pn) out.pan.push({ f: f0, ch: ch, mode: x.pn, off: f0 + len });
@@ -2804,6 +2833,15 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     }
     notes.sort(function (a, b) { return a.frame - b.frame; });
     panWrites(moves.pan, moves.auto);
+    // What this song would cost a 32KB cartridge. The export throws when it
+    // does not fit, and a toast after the click is a poor way to learn.
+    romBytes = 4200                                   // driver, tiles, screen, wave tables
+             + notes.length * 8                       // note on + off + the delay bytes
+             + moves.auto.length * 4 + moves.waveLoads.length * 3 + moves.kit.length * 3
+             + moves.kit.reduce(function (a, k) {
+                 var kk = G.CT_GB_KITS && G.CT_GB_KITS.byId(k.id);
+                 return a + (kk ? kk.data.length / 2 : 0);
+               }, 0);
     moves.auto.sort(function (a, b) { return a.f - b.f; });
     var total = Math.round(cols() * per);
     return { notes: notes, bank: songBank || BANK, totalFrames: total,
@@ -2996,6 +3034,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     if (!root) return;
     if (!playing) { try { buildSong(); } catch (e) {} }   // refresh sulk + channel marks
     checkSulk();
+    checkRoom();
     renderGrid(); renderBars(); renderEdit();
     clearTimeout(saveTimer);
     saveTimer = setTimeout(function () {
@@ -3325,7 +3364,22 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   // ---- hints + tour --------------------------------------------------------
   var hintTimer = 0, hintedSulk = false;
   var HINT_IDLE = 'Click empty space in a lane to place a note at that height; hover or click a note to hear it.';
-  function hint(t) { if (t && G._toast && /(muted|limit|Nothing)/.test(t)) G._toast(t); }
+  // Only the hints that carry consequence reach the screen -- the rest would be
+  // chatter. A cartridge that will not fit and notes that lost their own step
+  // both count: they are things the editor did that you cannot otherwise see.
+  function hint(t) {
+    if (t && G._toast && /(muted|limit|Nothing|cartridge|share a step)/.test(t)) G._toast(t);
+  }
+  // 32KB is the cartridge, and a song can outgrow it -- long ones, or many
+  // notes carrying movement, or several sampled drums. Say so while there is
+  // still something to do about it.
+  function checkRoom() {
+    if (!romBytes) return;
+    if (romBytes > 30000 && !romWarned) {
+      romWarned = true;
+      hint('This song is nearly too big for a cartridge \u2014 Download ROM may not fit. WAV and links have no limit.');
+    } else if (romBytes < 26000) romWarned = false;
+  }
   function checkSulk() {
     if (hintedSulk || !S) return;
     for (var i = 0; i < S.cells.length; i++) if (S.cells[i].x) {
@@ -3712,7 +3766,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   // The bank a song is played through: the shared one, plus a record for every
   // hand-set sound in it. The cartridge stores register bytes per note, not an
   // instrument table, so materialising here costs the ROM nothing.
-  var songBank = null;
+  var songBank = null, romBytes = 0, romWarned = false;
   function freshSongBank() {
     resolveBank();
     songBank = { instruments: BANK.instruments.slice(), waveTables: BANK.waveTables,
@@ -3778,11 +3832,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   }
   function waveName(slot) {
     resolveBank();
-    var hit = null;
-    (SNDS && SNDS.wave || []).forEach(function (sd) {
-      if ((BANK.instruments[sd.inst][0] & 0xFF) === slot) hit = sd.n;
-    });
-    return hit || ('wave ' + slot);
+    return SLOTNAME[slot] || ('Wave ' + slot);
   }
   function row(label, inner) {
     return '<div class="n-prow"><i>' + label + '</i><span>' + inner + '</span></div>';
@@ -4809,6 +4859,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
                viewBar: viewBar, viewCh: viewCh, loopBar: loopBar, queued: queuedBar,
                follow: camFollow, camX: Math.round(camX), cells: S ? S.cells.length : 0, withInst: withInst, maxLen: mx,
                notes: S ? buildSong().notes.length : 0, chHist: hist, mood: liveMood,
+               romBytes: romBytes,
                auto: S ? buildSong().auto.length : 0,
                waveLoads: S ? buildSong().waveLoads.length : 0 }; },
     _score: function () {                   // the exact song the chip is given
