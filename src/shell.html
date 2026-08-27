@@ -435,10 +435,14 @@
      canvas owns the middle, the toolbar the top, the critter palette the
      bottom. Everything sized for fingers. */
   #createscreen{ position:fixed; inset:0; z-index:76; display:flex; flex-direction:column;
-    background:rgba(8,6,16,.97); opacity:0; pointer-events:none; transition:opacity .2s ease; }
+    background:#080610; opacity:0; pointer-events:none; transition:opacity .2s ease; }
   #createscreen.show{ opacity:1; pointer-events:auto; }
   body.create-open #plinks, body.create-open #playbar, body.create-open #dlcard,
   body.create-open #bigplay{ display:none !important; }
+  /* the editor is the page while it is open: no game underneath it, ever */
+  body.create-open #stage, body.create-open .crt, body.create-open #hud,
+  body.create-open #now, body.create-open #presets{ display:none !important; }
+  #createscreen.instant{ transition:none; }
   #createscreen .cr-top{ flex:0 0 auto; display:flex; align-items:center; gap:14px;
     padding:12px 18px; flex-wrap:wrap; }
   #createscreen .cr-title{ display:flex; align-items:baseline; gap:7px; white-space:nowrap; }
@@ -592,16 +596,19 @@
   #createscreen .n-rbar{ position:absolute; top:6px; font:800 11px var(--ui); color:var(--ink-2);
     padding-left:6px; border-left:1px solid rgba(232,227,250,.18); }
   #createscreen .n-rbar.on{ color:var(--ink); }
-  #createscreen .n-row{ position:relative; height:var(--laneh,62px); width:var(--songw,4000px);
-    border-top:1px solid rgba(255,255,255,.10);
+  /* One viewport-sized layer carries every gridline, and it is TRANSLATED by
+     one bar's worth at most (the pattern repeats), so scrolling never repaints
+     it. Painting these across the whole song was a 26,000px-wide surface and
+     made the scroll stutter. */
+  #createscreen .n-bg{ position:absolute; left:0; top:26px; bottom:0; pointer-events:none;
+    width:calc(100% + var(--barw,480px) * 2); will-change:transform;
     background-image:
       repeating-linear-gradient(to right, rgba(232,227,250,.16) 0 1px, transparent 1px var(--barw,480px)),
       repeating-linear-gradient(to right, rgba(255,255,255,.07) 0 1px, transparent 1px calc(var(--stepw,30px) * 4)),
       repeating-linear-gradient(to right, rgba(255,255,255,.03) 0 1px, transparent 1px var(--stepw,30px)),
-      /* height in the lane IS pitch: faint rules to read it against */
-      repeating-linear-gradient(to top, rgba(255,255,255,.05) 0 1px, transparent 1px calc((var(--laneh,62px) - 26px) / 4));
-    background-size:100000px 100%; }
-  #createscreen .n-row:nth-child(odd){ background-color:rgba(255,255,255,.018); }
+      repeating-linear-gradient(to bottom, rgba(255,255,255,.10) 0 1px, transparent 1px var(--laneh,62px)),
+      repeating-linear-gradient(to bottom, rgba(255,255,255,.022) 0 var(--laneh,62px), transparent var(--laneh,62px) calc(var(--laneh,62px) * 2)); }
+  #createscreen .n-row{ position:relative; height:var(--laneh,62px); width:1px; }
   #createscreen .n-row.off{ opacity:.32; }
   #createscreen .n-lane{ border-top:1px solid rgba(255,255,255,.10); }
   #createscreen .n-lane:nth-child(odd){ background-color:rgba(255,255,255,.018); }

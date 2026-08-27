@@ -3983,6 +3983,7 @@ if(String(_pathParts(location.pathname||'/')[0]||'').toLowerCase()==='get') buil
   // Booting the radio first flashed a game behind it for a moment, and the
   // station is not needed until Create hands back on close.
   if(head==='create'){ if(document.body) document.body.classList.add('ai-visual');
+    document.body.classList.add('create-open');   // hide the stage before anything can paint
     _createStandalone=true; _openCreate(); return; }
   if(head==='get') return;                                       // the platform page; #intro is already up
   if(head==='watch'){ enterWatchMode({noRoute:true}); return; }

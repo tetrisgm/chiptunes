@@ -1281,7 +1281,7 @@
                    '<i class="n-spk" data-mute="' + i + '"></i></div>';
           }).join('') +
         '</div>' +
-        '<div class="n-scroll"><div class="n-track">' +
+        '<div class="n-scroll"><div class="n-bg"></div><div class="n-track">' +
           '<div class="n-ruler"></div>' +
           CH.map(function (c, i) { return '<div class="n-row" data-ch="' + i + '" style="--vc:' + c.color + '"></div>'; }).join('') +
           '<div class="n-ph"></div>' +
@@ -1334,6 +1334,14 @@
   function applyCam() {
     var track = root.querySelector('.n-track');
     if (track) track.style.transform = 'translateX(' + (-Math.round(camX)) + 'px)';
+    // the gridlines repeat every bar, so the backdrop only ever needs to move
+    // within one bar: a composited nudge instead of a full repaint
+    var bg = root.querySelector('.n-bg');
+    if (bg) {
+      var barPx = 16 * stepW;
+      var t = ((sidePad - camX) % barPx + barPx) % barPx;   // keep the bar lines on the bars
+      bg.style.transform = 'translateX(' + Math.round(t - barPx) + 'px)';
+    }
   }
   function barUnderCamera() {
     var sc = root.querySelector('.n-scroll');
@@ -1418,7 +1426,8 @@
       if (camMax() <= 0) return;
       ev.preventDefault();
       camFollow = false;
-      camX = Math.max(0, Math.min(camMax(), camX + (Math.abs(ev.deltaX) > Math.abs(ev.deltaY) ? ev.deltaX : ev.deltaY)));
+      var d = (Math.abs(ev.deltaX) > Math.abs(ev.deltaY) ? ev.deltaX : ev.deltaY) * (ev.deltaMode === 1 ? 30 : 2.2);
+      camX = Math.max(0, Math.min(camMax(), camX + d));
       applyCam();
       var nb2 = barUnderCamera();
       if (nb2 !== viewBar) { viewBar = nb2; renderBars(); }
@@ -1521,6 +1530,8 @@
     order = S.cells.length;
     root = document.createElement('div');
     root.id = 'createscreen';
+    // arriving straight at /create: no fade, or the page behind shows through it
+    if (location.pathname === '/create') root.classList.add('instant');
     document.body.appendChild(root);
     buildUI();
     wireEvents();

@@ -322,3 +322,15 @@ rewrite and stacked all four lanes on top of each other -- when
 replacing a view wholesale, delete its stylesheet rules in the same
 pass.
 
+- Performance: the lane gridlines must NOT be painted across the song. Rows
+  were var(--songw) wide (26,000px at 48 bars) with four repeating gradients,
+  which made scrolling stutter badly. They now live on one viewport-sized
+  .n-bg layer translated by (sidePad - camX) mod barW (the pattern repeats
+  every bar), so scrolling is a composited nudge; rows are 1px wide and only
+  host their absolutely positioned notes. Measured: flat 8.3ms frames while
+  playing and while dragging, zero long frames.
+- body.create-open now hides #stage/.crt/#hud/#now/#presets, the editor
+  background is fully opaque, and arriving directly at /create skips the
+  fade (class 'instant'). Before this the game showed through Create's
+  200ms fade-in on every refresh.
+
