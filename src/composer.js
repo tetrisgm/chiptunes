@@ -396,7 +396,12 @@ function compile(token){
   function add(t,dur,ch,note,vel,artic,extra,instOv,sweep){t=sw8(t);var e={tBeat:round(t),dur:round(dur),ch:ch,vel:round(vel),seed:hash(token+':event:'+ordinal++)};
     if(note!=null)e.midi=Math.round(note);if(artic)e.artic=artic;if(extra)Object.assign(e,extra);events.push(e);
     if(V){var c=CH[ch];if(c!=null&&c>=0){var f=V.frameOf(t),fr=Math.max(1,V.frameOf(t+dur)-f);
-      V.place(c,f,fr,e.midi!=null?e.midi:null,instOv!=null?instOv:INS[ch],e.vel,PRI[ch]||1,sweep);}}}
+      var ins=instOv!=null?instOv:INS[ch];
+      // A plan can route harmony to the WAVE channel, and that role carries a
+      // pulse instrument -- whose byte0 is a duty, not a wave slot. It played
+      // whatever table happened to be loaded. Channel 3 gets a wave instrument.
+      if(c===2&&GBB){var rec=GBB.bank.instruments[ins];if(!rec||!(rec[3]&1))ins=GBB.inst.bass;}
+      V.place(c,f,fr,e.midi!=null?e.midi:null,ins,e.vel,PRI[ch]||1,sweep);}}}
   // ACCOMPANIMENT VOCABULARY. The old pad was one idiom -- a frame-rate chord
   // arpeggio, tones rotating 10-60 times a second -- on nearly every track.
   // That is a tracker STAB effect, not a bed; as a bed it reads as a machine
