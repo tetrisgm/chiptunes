@@ -531,6 +531,7 @@
   #createscreen .cr-shelfempty{ text-align:center; font:400 11px var(--ui); color:var(--ink-2); }
   #createscreen .cr-cv{ touch-action:none; }
   #createscreen .cr-tour{ position:fixed; z-index:40; width:250px; padding:12px 14px 10px;
+    pointer-events:none;
     background:rgba(16,19,26,.97); border:1px solid rgba(123,220,160,.55); border-radius:14px;
     box-shadow:0 10px 30px rgba(0,0,0,.5); }
   #createscreen .cr-tour b{ display:block; font:700 13px/1.3 var(--ui); color:var(--ink); margin-bottom:4px; }
@@ -539,9 +540,57 @@
     font-style:normal; color:var(--ink-2); }
   #createscreen .cr-tourbtns{ display:flex; justify-content:flex-end; gap:8px; margin-top:10px; }
   #createscreen .cr-tourbtns button{ height:28px; padding:0 12px; border-radius:999px; cursor:pointer;
+    pointer-events:auto;
     font:600 11px var(--ui); background:rgba(255,255,255,.07); border:1px solid var(--mat-edge); color:var(--ink-2); }
   #createscreen .cr-tourbtns button[data-tour="next"]{ background:rgba(123,220,160,.18);
     border-color:rgba(123,220,160,.55); color:var(--ink); }
+  /* --- the pocket-tracker screen: 4x4 grid, channels, bars --- */
+  #createscreen .n-moodrow{ flex:0 0 auto; display:flex; align-items:center; gap:8px;
+    padding:0 14px 8px; overflow-x:auto; scrollbar-width:none; }
+  #createscreen .n-moodrow::-webkit-scrollbar{ display:none; }
+  #createscreen .n-moodrow .cr-mood{ flex:0 0 auto; width:210px; }
+  #createscreen .n-mid{ flex:1 1 auto; min-height:0; display:flex; align-items:center; justify-content:center; padding:4px 12px; }
+  #createscreen .n-grid{ display:grid; grid-template-columns:repeat(4,1fr); grid-template-rows:repeat(4,1fr);
+    gap:10px; width:min(94vw, 58vh, 470px); height:min(94vw, 58vh, 470px); touch-action:none; }
+  #createscreen .n-step{ position:relative; border-radius:14px; overflow:hidden; cursor:pointer;
+    background:rgba(255,255,255,.055); border:1px solid var(--mat-edge); }
+  #createscreen .n-step.beat{ background:rgba(255,255,255,.085); }
+  #createscreen .n-step .pb{ position:absolute; left:12%; right:12%; height:9%; min-height:5px;
+    border-radius:5px; background:currentColor; opacity:0; transition:top .07s; }
+  #createscreen .n-step.on{ border-color:currentColor; background:rgba(255,255,255,.10); }
+  #createscreen .n-step.on .pb{ opacity:.95; }
+  #createscreen .n-step.tail{ background:rgba(255,255,255,.13); border-style:dashed; }
+  #createscreen .n-step.ph{ box-shadow:inset 0 0 0 2px rgba(255,255,255,.4); }
+  #createscreen .n-step.on.ph{ box-shadow:inset 0 0 0 2px currentColor; }
+  #createscreen .n-step.sulk{ opacity:.35; }
+  #createscreen .n-step.mutedch{ opacity:.35; }
+  #createscreen .n-step .ln{ position:absolute; top:6px; right:8px; font:700 10px var(--ui); color:var(--ink-2); }
+  #createscreen .n-chans{ flex:0 0 auto; display:flex; justify-content:center; gap:10px; padding:6px 12px; }
+  #createscreen .n-chan{ height:42px; min-width:70px; border-radius:12px; cursor:pointer; position:relative;
+    background:rgba(255,255,255,.05); border:1px solid var(--mat-edge); font:800 13px var(--ui); }
+  #createscreen .n-chan.sel{ background:rgba(255,255,255,.12); border-color:currentColor; }
+  #createscreen .n-chan.muted{ opacity:.4; text-decoration:line-through; }
+  #createscreen .n-bars{ flex:0 0 auto; display:flex; align-items:center; gap:6px; padding:2px 12px 4px; }
+  #createscreen .n-barstrip{ flex:1 1 auto; display:flex; gap:5px; overflow-x:auto; scrollbar-width:none; }
+  #createscreen .n-barstrip::-webkit-scrollbar{ display:none; }
+  #createscreen .n-bar{ flex:0 0 auto; min-width:36px; height:34px; border-radius:9px; cursor:pointer;
+    background:rgba(255,255,255,.05); border:1px solid var(--mat-edge); color:var(--ink-2); font:700 12px var(--ui); position:relative; }
+  #createscreen .n-bar.view{ border-color:rgba(232,227,250,.7); color:var(--ink); }
+  #createscreen .n-bar.loop{ background:rgba(123,220,160,.2); border-color:rgba(123,220,160,.7); color:var(--ink); }
+  #createscreen .n-bar.queued{ border-color:rgba(255,201,60,.8); color:#FFC93C; }
+  #createscreen .n-bar.play::after{ content:''; position:absolute; left:50%; bottom:3px; width:5px; height:5px;
+    border-radius:50%; background:#7BDCA0; transform:translateX(-50%); }
+  #createscreen .n-loopbtn.on{ background:rgba(123,220,160,.22); border-color:rgba(123,220,160,.7); }
+  #createscreen .cr-padover{ position:fixed; inset:0; z-index:60; display:flex; align-items:center;
+    justify-content:center; background:rgba(4,6,10,.55); }
+  #createscreen .cr-padcard{ display:flex; flex-direction:column; align-items:center; gap:10px;
+    padding:16px 18px; background:rgba(16,19,26,.98); border:1px solid var(--mat-edge-hi); border-radius:16px; }
+  #createscreen .cr-padcard b{ font:700 13px var(--ui); color:var(--ink); }
+  #createscreen .cr-padcard .cr-pad{ width:280px; height:170px; }
+  #createscreen .cr-sharepop{ position:fixed; top:54px; right:14px; z-index:55; display:flex;
+    flex-direction:column; gap:6px; padding:10px; background:rgba(16,19,26,.98);
+    border:1px solid var(--mat-edge-hi); border-radius:12px; }
+  #createscreen .n-play{ min-width:46px; font-size:14px; }
   #createscreen .cr-playstamp{ border-color:rgba(123,220,160,.45); }
   #createscreen .cr-playstamp.on{ background:rgba(123,220,160,.22); border-color:rgba(123,220,160,.7); }
   /* instant hover hints: every control names itself */
@@ -571,6 +620,9 @@
     #createscreen .cr-bottom{ flex-wrap:nowrap; gap:6px; padding:8px 10px 12px; }
     #createscreen .cr-lab input{ width:64px; }
     #createscreen .cr-tour{ width:220px; }
+    #createscreen .n-grid{ width:min(94vw,46vh,470px); height:min(94vw,46vh,470px); gap:8px; }
+    #createscreen .n-chan{ min-width:58px; height:44px; }
+    #createscreen .n-moodrow .cr-mood{ width:150px; }
   }
 
   /* HOW IT WORKS: the one modal that explains the page. Material card over a

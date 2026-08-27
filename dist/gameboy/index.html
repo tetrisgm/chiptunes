@@ -531,6 +531,7 @@
   #createscreen .cr-shelfempty{ text-align:center; font:400 11px var(--ui); color:var(--ink-2); }
   #createscreen .cr-cv{ touch-action:none; }
   #createscreen .cr-tour{ position:fixed; z-index:40; width:250px; padding:12px 14px 10px;
+    pointer-events:none;
     background:rgba(16,19,26,.97); border:1px solid rgba(123,220,160,.55); border-radius:14px;
     box-shadow:0 10px 30px rgba(0,0,0,.5); }
   #createscreen .cr-tour b{ display:block; font:700 13px/1.3 var(--ui); color:var(--ink); margin-bottom:4px; }
@@ -539,9 +540,57 @@
     font-style:normal; color:var(--ink-2); }
   #createscreen .cr-tourbtns{ display:flex; justify-content:flex-end; gap:8px; margin-top:10px; }
   #createscreen .cr-tourbtns button{ height:28px; padding:0 12px; border-radius:999px; cursor:pointer;
+    pointer-events:auto;
     font:600 11px var(--ui); background:rgba(255,255,255,.07); border:1px solid var(--mat-edge); color:var(--ink-2); }
   #createscreen .cr-tourbtns button[data-tour="next"]{ background:rgba(123,220,160,.18);
     border-color:rgba(123,220,160,.55); color:var(--ink); }
+  /* --- the pocket-tracker screen: 4x4 grid, channels, bars --- */
+  #createscreen .n-moodrow{ flex:0 0 auto; display:flex; align-items:center; gap:8px;
+    padding:0 14px 8px; overflow-x:auto; scrollbar-width:none; }
+  #createscreen .n-moodrow::-webkit-scrollbar{ display:none; }
+  #createscreen .n-moodrow .cr-mood{ flex:0 0 auto; width:210px; }
+  #createscreen .n-mid{ flex:1 1 auto; min-height:0; display:flex; align-items:center; justify-content:center; padding:4px 12px; }
+  #createscreen .n-grid{ display:grid; grid-template-columns:repeat(4,1fr); grid-template-rows:repeat(4,1fr);
+    gap:10px; width:min(94vw, 58vh, 470px); height:min(94vw, 58vh, 470px); touch-action:none; }
+  #createscreen .n-step{ position:relative; border-radius:14px; overflow:hidden; cursor:pointer;
+    background:rgba(255,255,255,.055); border:1px solid var(--mat-edge); }
+  #createscreen .n-step.beat{ background:rgba(255,255,255,.085); }
+  #createscreen .n-step .pb{ position:absolute; left:12%; right:12%; height:9%; min-height:5px;
+    border-radius:5px; background:currentColor; opacity:0; transition:top .07s; }
+  #createscreen .n-step.on{ border-color:currentColor; background:rgba(255,255,255,.10); }
+  #createscreen .n-step.on .pb{ opacity:.95; }
+  #createscreen .n-step.tail{ background:rgba(255,255,255,.13); border-style:dashed; }
+  #createscreen .n-step.ph{ box-shadow:inset 0 0 0 2px rgba(255,255,255,.4); }
+  #createscreen .n-step.on.ph{ box-shadow:inset 0 0 0 2px currentColor; }
+  #createscreen .n-step.sulk{ opacity:.35; }
+  #createscreen .n-step.mutedch{ opacity:.35; }
+  #createscreen .n-step .ln{ position:absolute; top:6px; right:8px; font:700 10px var(--ui); color:var(--ink-2); }
+  #createscreen .n-chans{ flex:0 0 auto; display:flex; justify-content:center; gap:10px; padding:6px 12px; }
+  #createscreen .n-chan{ height:42px; min-width:70px; border-radius:12px; cursor:pointer; position:relative;
+    background:rgba(255,255,255,.05); border:1px solid var(--mat-edge); font:800 13px var(--ui); }
+  #createscreen .n-chan.sel{ background:rgba(255,255,255,.12); border-color:currentColor; }
+  #createscreen .n-chan.muted{ opacity:.4; text-decoration:line-through; }
+  #createscreen .n-bars{ flex:0 0 auto; display:flex; align-items:center; gap:6px; padding:2px 12px 4px; }
+  #createscreen .n-barstrip{ flex:1 1 auto; display:flex; gap:5px; overflow-x:auto; scrollbar-width:none; }
+  #createscreen .n-barstrip::-webkit-scrollbar{ display:none; }
+  #createscreen .n-bar{ flex:0 0 auto; min-width:36px; height:34px; border-radius:9px; cursor:pointer;
+    background:rgba(255,255,255,.05); border:1px solid var(--mat-edge); color:var(--ink-2); font:700 12px var(--ui); position:relative; }
+  #createscreen .n-bar.view{ border-color:rgba(232,227,250,.7); color:var(--ink); }
+  #createscreen .n-bar.loop{ background:rgba(123,220,160,.2); border-color:rgba(123,220,160,.7); color:var(--ink); }
+  #createscreen .n-bar.queued{ border-color:rgba(255,201,60,.8); color:#FFC93C; }
+  #createscreen .n-bar.play::after{ content:''; position:absolute; left:50%; bottom:3px; width:5px; height:5px;
+    border-radius:50%; background:#7BDCA0; transform:translateX(-50%); }
+  #createscreen .n-loopbtn.on{ background:rgba(123,220,160,.22); border-color:rgba(123,220,160,.7); }
+  #createscreen .cr-padover{ position:fixed; inset:0; z-index:60; display:flex; align-items:center;
+    justify-content:center; background:rgba(4,6,10,.55); }
+  #createscreen .cr-padcard{ display:flex; flex-direction:column; align-items:center; gap:10px;
+    padding:16px 18px; background:rgba(16,19,26,.98); border:1px solid var(--mat-edge-hi); border-radius:16px; }
+  #createscreen .cr-padcard b{ font:700 13px var(--ui); color:var(--ink); }
+  #createscreen .cr-padcard .cr-pad{ width:280px; height:170px; }
+  #createscreen .cr-sharepop{ position:fixed; top:54px; right:14px; z-index:55; display:flex;
+    flex-direction:column; gap:6px; padding:10px; background:rgba(16,19,26,.98);
+    border:1px solid var(--mat-edge-hi); border-radius:12px; }
+  #createscreen .n-play{ min-width:46px; font-size:14px; }
   #createscreen .cr-playstamp{ border-color:rgba(123,220,160,.45); }
   #createscreen .cr-playstamp.on{ background:rgba(123,220,160,.22); border-color:rgba(123,220,160,.7); }
   /* instant hover hints: every control names itself */
@@ -571,6 +620,9 @@
     #createscreen .cr-bottom{ flex-wrap:nowrap; gap:6px; padding:8px 10px 12px; }
     #createscreen .cr-lab input{ width:64px; }
     #createscreen .cr-tour{ width:220px; }
+    #createscreen .n-grid{ width:min(94vw,46vh,470px); height:min(94vw,46vh,470px); gap:8px; }
+    #createscreen .n-chan{ min-width:58px; height:44px; }
+    #createscreen .n-moodrow .cr-mood{ width:150px; }
   }
 
   /* HOW IT WORKS: the one modal that explains the page. Material card over a
@@ -3188,16 +3240,16 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
 })(typeof globalThis !== 'undefined' ? globalThis : window);
 
 /* ===== src/create.js ===== */
-// CREATE: place little characters on a grid, hear them through the real chip.
+// CREATE: a pocket tracker on the real chip, one screen, four voices.
 //
-// Not an LSDJ clone and never trying to be one: this is the Mario-Paint idea
-// rebuilt for the DMG. Rows are scale degrees so everything placed is in key,
-// stamps are original pixel critters, and the four hardware voices are a
-// visible budget rather than a hidden failure: when a column asks for a third
-// pulse, the loser sulks in grey and stays silent.
+// The interaction model is the classic mobile step-sequencer shape: a 4x4
+// grid holds one bar of one voice; tap a square for a note, drag up and
+// down for pitch, drag sideways for length. Four channel buttons (the DMG's
+// two pulses, wave, noise) switch voices; a bar row walks the song; a mood
+// box asks the radio's own composer to write a whole track onto the grid.
 //
-// Everything downstream is the radio's own machinery: the same emulated APU,
-// the same 53-instrument bank, the same ROM and WAV exporters. Songs live in
+// Everything downstream is the radio's machinery: the same emulated APU,
+// the same instrument bank, the same ROM and WAV exporters. Songs live in
 // the URL fragment; nothing here ever feeds the station.
 (function (G) {
   'use strict';
@@ -3209,140 +3261,19 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   var DRUM_LANES = 3;                       // hat / snare / kick, top to bottom
   var ROWS = MEL_ROWS + DRUM_LANES;
 
-  // ---- the cast ------------------------------------------------------------
-  // 10x10 pixel critters, drawn from strings: '.'=clear, letters=palette.
-  // 10x10 pixel instruments, drawn from strings: '.'=clear, letters=palette.
-  var SPRITES = {
-    piano: { pal: { w: '#F2F4F8', k: '#1A1A22', e: '#9AA4B8' }, px: [
-      '..........', 'eeeeeeeeee', 'ewkwwkwkwe', 'ewkwwkwkwe', 'ewkwwkwkwe',
-      'ewwwwwwwwe', 'ewwwwwwwwe', 'eeeeeeeeee', '..........', '..........'] },
-    trumpet: { pal: { y: '#FFD23F', d: '#C99A1E' }, px: [
-      '..........', '...y.y.y..', '.........y', 'yyyyyyyyyy', 'dddddddddd',
-      '.........y', '..........', '..........', '..........', '..........'] },
-    flute: { pal: { s: '#C9D6E8', d: '#8FA0BC', k: '#26303F' }, px: [
-      '..........', '..........', '..........', 'ssssssssss', 'ssksskskss',
-      'dddddddddd', '..........', '..........', '..........', '..........'] },
-    bell: { pal: { g: '#FFC93C', d: '#D99E1B', k: '#241A0E' }, px: [
-      '....gg....', '....gg....', '...gggg...', '..gggggg..', '..gggggg..',
-      '.gggggggg.', 'gggggggggg', '....kk....', '..........', '..........'] },
-    bassg: { pal: { b: '#C0563B', d: '#8A3A26', n: '#B58A4A', k: '#241A0E' }, px: [
-      '........n.', '.......n..', '......n...', '.....n....', '....n.....',
-      '.bbbn.....', 'bbbbbb....', 'bbkbbb....', '.bbbb.....', '..........'] },
-    cello: { pal: { c: '#A8794A', d: '#7A5230', k: '#241A0E', n: '#5C3D1E' }, px: [
-      '....n.....', '....n.....', '..ccccc...', '.ccccccc..', '.ckccckc..',
-      '.ccccccc..', '.ccccccc..', '..ccccc...', '..........', '..........'] },
-    hat: { pal: { y: '#FFD23F', s: '#9AA4B8' }, px: [
-      '..........', 'yyyyyyyyyy', '....s.....', 'yyyyyyyyyy', '....s.....',
-      '....s.....', '....s.....', '...sss....', '..........', '..........'] },
-    snare: { pal: { r: '#FF6B57', w: '#F2F4F8', d: '#C63B2A' }, px: [
-      '..........', '..........', 'rrrrrrrrrr', 'wwwwwwwwww', 'wwwwwwwwww',
-      'rrrrrrrrrr', '.d......d.', '..........', '..........', '..........'] },
-    kick: { pal: { r: '#FF6B57', w: '#F2F4F8' }, px: [
-      '...rrrr...', '..rrwwrr..', '.rwwwwwwr.', '.rwwwwwwr.', '.rwwwwwwr.',
-      '.rwwwwwwr.', '..rrwwrr..', '...rrrr...', '..........', '..........'] },
-    slide: { pal: { z: '#59E3FF' }, px: [
-      'zz........', '.zzz......', '..zzz.....', '...zzz....', '....zzz...',
-      '.....zzz..', '....zzzzzz', '......zzzz', '........zz', '..........'] },
-    vibrato: { pal: { j: '#C77BFF' }, px: [
-      '..........', '..........', '..........', '.jj...jj..', 'j..j.j..j.',
-      '....j....j', '..........', '..........', '..........', '..........'] },
-    rise: { pal: { z: '#59FFB0' }, px: [
-      '.......zz.', '......zzzz', '....zzzzzz', '.....zzz..', '....zzz...',
-      '...zzz....', '..zzz.....', '.zzz......', 'zz........', '..........'] },
-    arp: { pal: { y: '#FFD23F' }, px: [
-      '..........', '.......yy.', '.......yy.', '....yy.yy.', '....yy.yy.',
-      '.yy.yy.yy.', '.yy.yy.yy.', '.yy.yy.yy.', '..........', '..........'] },
-    retrig: { pal: { r: '#FF8C57' }, px: [
-      '..........', '.r...r....', '.rr..rr...', '.rrr.rrr..', '.rrrr.rrrr',
-      '.rrr.rrr..', '.rr..rr...', '.r...r....', '..........', '..........'] },
-    echo: { pal: { e: '#8E9BFF', d: '#5F6BC9' }, px: [
-      '..........', '.ee.......', '.ee..dd...', '.ee..dd..d', '.ee..dd..d',
-      '.ee..dd..d', '.ee..dd...', '.ee.......', '..........', '..........'] },
-    play: { pal: { g: '#7BDCA0' }, px: [
-      '..........', '..g.......', '..gg......', '..ggg.....', '..gggg....',
-      '..ggg.....', '..gg......', '..g.......', '..........', '..........'] },
-    pause: { pal: { g: '#7BDCA0' }, px: [
-      '..........', '..gg..gg..', '..gg..gg..', '..gg..gg..', '..gg..gg..',
-      '..gg..gg..', '..gg..gg..', '..........', '..........', '..........'] },
-    more: { pal: { m: '#9AA4B8' }, px: [
-      '..........', '.mm.mm.mm.', '.mm.mm.mm.', '..........', '.mm.mm.mm.',
-      '.mm.mm.mm.', '..........', '.mm.mm.mm.', '.mm.mm.mm.', '..........'] },
-    eraser: { pal: { p: '#FF9EC4', d: '#D96A9A', b: '#7FD4FF', w: '#FFFFFF' }, px: [
-      '..........', '..bbbbbb..', '.bwbbbbb..', '.bbbbbbb..', '.pppppppp.',
-      '.pwpppppd.', '.pppppppd.', '.ppppppdd.', '..dddddd..', '..........'] }
-  };
-
-  var CACHE = {};
-  // 'i<N>' names render a generated waveform icon for bank instrument N:
-  // the pulse's duty as a square trace, the wave's actual table, a speckle
-  // for noise. Honest little pictures of the sound itself.
-  function instIcon(idx, size) {
-    resolveBank();
-    var cv = document.createElement('canvas');
-    cv.__ctpalRaw = true; cv.width = cv.height = size;
-    var c = cv.getContext('2d');
-    var m = null;
-    for (var i = 0; i < BANK.meta.length; i++) if (BANK.meta[i].index === idx) m = BANK.meta[i];
-    var pad = Math.max(1, size * 0.08), w = size - pad * 2, h = size - pad * 2;
-    c.lineWidth = Math.max(1.5, size / 14); c.lineJoin = 'round';
-    if (m && m.type === 'wave') {
-      var t = BANK.waveTables[m.waveSlot] || [];
-      c.strokeStyle = '#E8A75D'; c.beginPath();
-      for (var x = 0; x < 32; x++) {
-        var vx = pad + (x / 31) * w, vy = pad + (1 - (t[x] || 0) / 15) * h;
-        x ? c.lineTo(vx, vy) : c.moveTo(vx, vy);
-      }
-      c.stroke();
-    } else if (m && m.type === 'noise') {
-      c.fillStyle = '#9AA4B8';
-      for (var nx = 0; nx < 7; nx++) {
-        var bh = (((idx * 31 + nx * 17) % 13) / 13) * h * 0.9 + h * 0.1;
-        c.fillRect(pad + nx * (w / 7) + 1, pad + h - bh, w / 7 - 2, bh);
-      }
-    } else {
-      var duty = (m && m.patch && m.patch.duty) || 0.5;
-      c.strokeStyle = '#FFD23F'; c.beginPath();
-      var y0 = pad + h * 0.15, y1 = pad + h * 0.85, half = w / 2;
-      for (var p2 = 0; p2 < 2; p2++) {
-        var x0 = pad + p2 * half, hi = half * duty;
-        c.moveTo(x0, y1); c.lineTo(x0, y0); c.lineTo(x0 + hi, y0);
-        c.lineTo(x0 + hi, y1); c.lineTo(x0 + half, y1);
-      }
-      c.stroke();
-    }
-    return cv;
-  }
-  function sprite(name, size) {
-    var k = name + ':' + size;
-    if (CACHE[k]) return CACHE[k];
-    if (name.charAt(0) === 'i' && +name.slice(1) === +name.slice(1))
-      return (CACHE[k] = instIcon(+name.slice(1), size));
-    var def = SPRITES[name], cv = document.createElement('canvas');
-    cv.__ctpalRaw = true;                    // UI pixels, not console art: the panel quantizer must not touch them
-    cv.width = cv.height = size;
-    var g = cv.getContext('2d'), cell = size / 10;
-    for (var y = 0; y < 10; y++) for (var x = 0; x < 10; x++) {
-      var ch = def.px[y][x];
-      if (ch === '.' || !def.pal[ch]) continue;
-      g.fillStyle = def.pal[ch];
-      g.fillRect(Math.floor(x * cell), Math.floor(y * cell), Math.ceil(cell), Math.ceil(cell));
-    }
-    CACHE[k] = cv; return cv;
-  }
-
-  // stamps: id, character, how it finds its instrument in the live bank
+  // stamps: legacy ids kept for links and instrument defaults
   var STAMPS = [
-    { id: 'piano',   ch: 'pulse', duty: 0.5,   env: 'pluck', label: 'Piano',   tip: 'A bright, plucky lead voice' },
-    { id: 'trumpet', ch: 'pulse', duty: 0.25,  env: 'stab',  label: 'Trumpet', tip: 'A punchy, brassy stab' },
-    { id: 'flute',   ch: 'pulse', duty: 0.5,   env: 'soft',  label: 'Flute',   tip: 'A soft, round tone' },
-    { id: 'bell',    ch: 'pulse', duty: 0.125, env: 'pluck', label: 'Bell',    tip: 'A thin, sparkly chime' },
-    { id: 'bassg',   ch: 'wave',  wave: 'buzzy',  label: 'Bass',  tip: 'A big buzzy bass voice' },
-    { id: 'cello',   ch: 'wave',  wave: 'mellow', label: 'Cello', tip: 'A warm, mellow low voice' }
+    { id: 'piano',   ch: 'pulse', duty: 0.5,   env: 'pluck' },
+    { id: 'trumpet', ch: 'pulse', duty: 0.25,  env: 'stab' },
+    { id: 'flute',   ch: 'pulse', duty: 0.5,   env: 'soft' },
+    { id: 'bell',    ch: 'pulse', duty: 0.125, env: 'pluck' },
+    { id: 'bassg',   ch: 'wave',  wave: 'buzzy' },
+    { id: 'cello',   ch: 'wave',  wave: 'mellow' }
   ];
   var DRUMS = [
-    { id: 'hat',   lane: 0, kind: 'hat',   vel: 0.5,  label: 'Hi-hat', tip: 'Top lane: a ticking hi-hat' },
-    { id: 'snare', lane: 1, kind: 'snare', vel: 0.7,  label: 'Snare',  tip: 'Middle lane: a snappy snare' },
-    { id: 'kick',  lane: 2, kind: 'kick',  vel: 0.9,  label: 'Kick',   tip: 'Bottom lane: a deep kick drum' }
+    { id: 'hat',   lane: 0, kind: 'hat',   vel: 0.5 },
+    { id: 'snare', lane: 1, kind: 'snare', vel: 0.7 },
+    { id: 'kick',  lane: 2, kind: 'kick',  vel: 0.9 }
   ];
 
   // ---- resolve stamps against the live bank --------------------------------
@@ -3356,11 +3287,6 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     if (BANK) return BANK;
     BANK = G.CT_GB.buildBank(G.CT_CHIP_INSTRUMENTS.patches);
     var meta = BANK.meta;
-    function waveBig(m) {
-      var t = BANK.waveTables[m.waveSlot] || [], big = 0;
-      for (var i = 1; i < t.length; i++) if (Math.abs(t[i] - t[i - 1]) >= 6) big++;
-      return big >= 1;
-    }
     // A wave table can be flat (span 0: pure DC, i.e. silence) -- the bank
     // holds a few as authored rests. A stamp must never resolve to one.
     function waveStats(m) {
@@ -3384,7 +3310,6 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
         if (!pool.length) pool = loud;
         pool.sort(function (a, b) {
           var A = waveStats(a), B = waveStats(b);
-          // Bass wants the buzziest table; Cello the smoothest that still sings
           return st.wave === 'buzzy' ? (B.big - A.big || B.span - A.span)
                                      : (A.big - B.big || B.span - A.span);
         });
@@ -3413,7 +3338,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       if (S.cells[i].c === c && S.cells[i].r === r) return i;
     return -1;
   }
-  function snapshot() { dropLiveScore(); undoStack.push(JSON.stringify(S)); if (undoStack.length > 80) undoStack.shift(); redoStack.length = 0; }
+  function snapshot() { dropLiveScore(); undoStack.push(JSON.stringify(S)); if (undoStack.length > 60) undoStack.shift(); redoStack.length = 0; }
   function undo() { if (!undoStack.length) return; dropLiveScore(); redoStack.push(JSON.stringify(S)); S = JSON.parse(undoStack.pop()); dirty(); }
   function redo() { if (!redoStack.length) return; dropLiveScore(); undoStack.push(JSON.stringify(S)); S = JSON.parse(redoStack.pop()); dirty(); }
 
@@ -3429,11 +3354,8 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     if (S.swing && (c % 4) >= 2) f += 0.28 * framesPer16();   // swung eighth pair
     return Math.round(f);
   }
-  // Build the gb song + mark sulking cells. The DMG has 2 pulses, 1 wave and
-  // 1 noise; contention is resolved left-to-right by placement order.
-  // What voice does a cell want? Classic stamps say pulse-or-wave; drawer
-  // stamps ('i<N>') and composed cells carry the exact instrument, and the
-  // bank's meta says which channel that instrument belongs to.
+  // What voice does a cell want? Legacy stamps say pulse-or-wave; composed
+  // cells carry the exact instrument, and the bank's meta says its channel.
   function cellVoice(x) {
     if (x.inst != null) {
       for (var i = 0; i < BANK.meta.length; i++) if (BANK.meta[i].index === x.inst)
@@ -3488,9 +3410,8 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
           if (wave) { x.x = 1; return; }
           wave = true; note.ch = 2; x.rch = 2;
         } else {
-          // an exact channel (composed cells) claims its slot first, then the
-          // other pulse; slides want channel 1's sweep unit; hand cells take
-          // the first free slot
+          // an exact channel claims its slot first, then the other pulse;
+          // slides want channel 1's sweep unit; the rest take what is free
           var wantCh = (x.ch === 0 || x.ch === 1) ? x.ch
                      : (x.z || x.u || x.sweep != null) ? 0 : (slots[0] ? 1 : 0);
           var ch = !slots[wantCh] ? wantCh : !slots[1 - wantCh] ? 1 - wantCh : -1;
@@ -3500,9 +3421,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
           else if (note.ch === 0 && x.z) note.sweep = 0x3E;  // the fall off the note
           else if (note.ch === 0 && x.u) note.sweep = 0x36;  // ...and the rise
         }
-        // COMMANDS expand into ordinary chip notes: nothing new in the
-        // engine, everything stays parity-clean. The DMG never had an "arp
-        // command" either; trackers just wrote fast notes.
+        // COMMANDS expand into ordinary chip notes (how trackers really did it)
         if (x.q) {                                          // arp: strum the chord
           var iv = S.minor ? [0, 3, 7] : [0, 4, 7];
           var sub = Math.max(2, Math.round(per / 3));
@@ -3515,9 +3434,9 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
             notes.push({ ch: note.ch, frame: note.frame + f2, frames: Math.max(2, hitF - 1),
                          midi: note.midi, inst: note.inst, vel: note.vel, pri: 5, sweep: note.sweep });
         } else if (x.f) {                                   // echo: repeat and fade
-          var st = 0, v2 = note.vel;
-          for (st = 0; st < Math.max(2, Math.round(steps)) && c + st < cols(); st++, v2 *= 0.6)
-            notes.push({ ch: note.ch, frame: colFrame(c + st), frames: Math.max(2, Math.round(per * 0.9)),
+          var st2 = 0, v2 = note.vel;
+          for (st2 = 0; st2 < Math.max(2, Math.round(steps)) && c + st2 < cols(); st2++, v2 *= 0.6)
+            notes.push({ ch: note.ch, frame: colFrame(c + st2), frames: Math.max(2, Math.round(per * 0.9)),
                          midi: note.midi, inst: note.inst, vel: v2, pri: 5, sweep: note.sweep });
         } else notes.push(note);
       });
@@ -3530,20 +3449,15 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
 
   // ---- serialize: the song IS the URL --------------------------------------
   var B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
-  // v3: cells may carry an extension with the exact instrument, pitch,
-  // length, velocity, channel and sweep -- what makes a composed song
-  // survive editing losslessly. v1/v2 links still decode.
-  var CMD_CODE = { u: 1, q: 2, g: 3, f: 4 };
   var CODE_CMD = { 1: 'u', 2: 'q', 3: 'g', 4: 'f' };
+  // v6: cells carry an extension with the exact instrument, pitch, length,
+  // velocity, channel and sweep whenever any of them exists. bpm rides as
+  // (bpm-70)/2. All older versions still decode.
   function encode() {
     var ids = STAMPS.map(function (s) { return s.id; });
-    // bpm rides as (bpm-70)/2: the 70..180 range in six bits. Plain bpm/2
-    // overflowed for tempos >= 128 and every such link loaded at ~70.
     var out = [6, S.key, S.minor, S.bars, Math.round((S.bpm - 70) / 2) & 63, S.swing];
     S.cells.forEach(function (x) {
       var st = x.r >= MEL_ROWS ? 15 : (x.st && x.st.charAt(0) === 'i' ? 14 : Math.max(0, ids.indexOf(x.st)));
-      // the extension rides whenever ANY exact field exists; v5 gated it on
-      // inst alone, which silently dropped hand-placed stretches and accents
       var ext = x.inst != null || x.vel != null || x.midi != null || (x.len || 1) > 1 || x.sweep != null || x.ch != null;
       var cmd = x.u ? 1 : x.q ? 2 : x.g ? 3 : x.f ? 4 : 0;
       out.push(x.c & 63, (x.c >> 6) & 63, x.r | (x.z ? 32 : 0), st | (x.w ? 16 : 0) | (ext ? 32 : 0), cmd);
@@ -3573,8 +3487,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       st2.bpm = Math.max(70, Math.min(180, ver >= 5 ? 70 + v[4] * 2 : v[4] * 2)); st2.swing = v[5] & 1;
       var ids = STAMPS.map(function (s) { return s.id; });
       if (ver === 1) {
-        for (var j = 6; j + 2 <= v.length - 1 + 1 && j + 2 < v.length + 1; j += 3) {
-          if (j + 2 >= v.length + 1) break;
+        for (var j = 6; j + 2 < v.length + 1; j += 3) {
           var c = v[j] | ((v[j + 1] >> 5) << 6), r = v[j + 1] & 31, b = v[j + 2];
           if (b == null) break;
           var cell = { c: c, r: r, t: j };
@@ -3599,7 +3512,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
             var rawInst = v[k] | ((e1 & 3) << 6);
             if (ver >= 6) { if (rawInst > 0) cell2.inst = rawInst - 1; }
             else cell2.inst = rawInst;
-            var chc = (e1 >> 3) & 7; if (chc) cell2.ch = chc - 1;
+            var chc = (e1 >> 3) & 3; if (chc) cell2.ch = chc - 1;   // & 7 used to swallow the midi flag into the channel
             var ln = (v[k + 2] & 63) + 1; if (ln > 1) cell2.len = ln;
             cell2.vel = v[k + 3] / 63;
             if (e1 & 32) cell2.midi = v[k + 4] | ((v[k + 5] & 1) << 6);
@@ -3614,43 +3527,21 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     } catch (e) { return null; }
   }
 
-  // ---- DOM + canvas --------------------------------------------------------
-  var root = null, cv = null, g = null, playing = false, playT0 = 0, order = 0, pausedAt = 0;
-  // A mood-composed song plays VERBATIM (its own bank, every instrument)
-  // until the first hand edit, when the grid's version takes over. This is
-  // what makes Create sound like the radio's generator, not a 6-stamp echo.
+  // ---- playback: live score, loop-a-bar, transport --------------------------
+  var root = null, playing = false, playT0 = 0, order = 0, pausedAt = 0;
   var liveScore = null, liveBpm = 0, liveMood = '';
-  // The timeline camera: the whole track is one horizontal strip; the view
-  // scrolls through it and follows the playhead until you pan by hand.
-  var camX = 0, camFollow = true, panMode = null;
-  // The four voices as lanes: mute each, or solo one. Chip-side (a 'chmute'
-  // message), so it bites instantly on grid songs AND verbatim compositions.
-  var LANES = [{ n: 'P1', tip: 'Pulse 1 (leads, slides)' }, { n: 'P2', tip: 'Pulse 2 (harmony)' },
-               { n: 'WAV', tip: 'Wave (bass voices)' }, { n: 'NOI', tip: 'Noise (drums)' }];
-  var chMuted = [false, false, false, false], chSolo = -1;
-  function effMask() {
-    if (chSolo >= 0) return [0, 1, 2, 3].map(function (i) { return i !== chSolo; });
-    return chMuted.slice();
-  }
-  function applyLanes() {
+  function curBpm() { return liveScore ? liveBpm : S.bpm; }
+  function dropLiveScore() { liveScore = null; liveBpm = 0; }
+  var chMuted = [false, false, false, false];
+  function effMask() { return chMuted.slice(); }
+  function applyMute() {
     if (typeof Audio !== 'undefined' && Audio.setChipMute) {
       var m = effMask();
       Audio.setChipMute(m[0] || m[1] || m[2] || m[3] ? m : null);
     }
-    renderLanes(); draw();
+    renderChans(); renderGrid();
   }
-  function renderLanes() {
-    root.querySelectorAll('.cr-lane').forEach(function (b) {
-      var i = +b.dataset.lane, m = effMask();
-      b.classList.toggle('muted', !!m[i]);
-      b.classList.toggle('solo', chSolo === i);
-    });
-  }
-  function curBpm() { return liveScore ? liveBpm : S.bpm; }
-  function dropLiveScore() { liveScore = null; liveBpm = 0; }
-  // Loop-a-bar: tap a bar's number to live inside just that bar while you
-  // shape it (the Nanoloop room); tap again to hear the whole song.
-  var loopBar = -1;
+  var loopBar = -1, queuedBar = null, loopPhase = 0;
   function barFrames() { return 16 * FPS * 60 / (curBpm() * 4); }
   function songMs() {
     if (loopBar >= 0) return (barFrames() / FPS) * 1000;
@@ -3673,30 +3564,28 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     var song = liveScore || buildSong();
     return loopBar >= 0 ? sliceForBar(song, loopBar) : song;
   }
-  var queuedBar = null, loopPhase = 0;
   function setLoopBar(b) {
-    // live mode: while a bar loops, tapping ANOTHER bar queues it for the
+    // live mode: while a bar loops, choosing ANOTHER bar queues it for the
     // loop point instead of jumping mid-phrase
-    if (playing && loopBar >= 0 && b !== loopBar) {
+    if (playing && loopBar >= 0 && b !== loopBar && b >= 0) {
       queuedBar = queuedBar === b ? null : b;
       hint(queuedBar != null ? 'Bar ' + (b + 1) + ' queued: it takes over at the loop point.' : 'Queue cleared.');
-      draw();
+      renderBars();
       return;
     }
     loopBar = loopBar === b ? -1 : b;
     queuedBar = null; loopPhase = 0;
-    camFollow = true;
-    tourAdvance(1);
-    if (loopBar >= 0) hint('Looping bar ' + (loopBar + 1) + '. Tap another number to queue it, this one for the whole song.');
+    if (loopBar >= 0) { viewBar = loopBar; hint('Looping bar ' + (loopBar + 1) + '. Tap another bar to queue it; tap ↺ again for the whole song.'); }
     else hint('Back to the whole song.');
-    if (playing) startPlayback(0); else { pausedAt = 0; draw(); }
+    tourAdvance(2);
+    if (playing) startPlayback(0); else { pausedAt = 0; renderAll(); }
   }
   var repostTimer = 0, saveTimer = 0;
   function dirty() {
     if (!root) return;
     if (!playing) { try { buildSong(); } catch (e) {} }   // refresh sulk + channel marks
     checkSulk();
-    renderPalette(); draw();
+    renderGrid(); renderBars();
     clearTimeout(saveTimer);
     saveTimer = setTimeout(function () {
       var enc = encode();
@@ -3708,21 +3597,40 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       repostTimer = setTimeout(repostAtPosition, 160);
     }
   }
-  // The song changed while it was playing: hand the chip the new version at
-  // the position the playhead is already at. playT0 is untouched, so the
-  // marching character keeps marching instead of snapping back to bar one.
   function repostAtPosition() {
     if (!playing) return;
     var song = currentSong();
     var pos = song.loopFrames > 0
       ? Math.round(((performance.now() - playT0) / 1000) * FPS) % song.loopFrames : 0;
     if (typeof Audio !== 'undefined' && Audio.playCreate) Audio.playCreate(song, song.loopFrames, pos);
-    draw();
   }
-  // MOOD WORDS -> composer parameters. No AI anywhere: each word names the
-  // deterministic composer's own dials (style, mode family, tempo band), and
-  // a seed search finds a token whose compiled song satisfies them. The
-  // composer itself is untouched and single-path; only the seed is chosen.
+  function startPlayback(fromMs) {
+    clearTimeout(repostTimer);
+    viewPinned = false;
+    var song = currentSong();
+    var off = Math.max(0, fromMs || 0) % Math.max(1, songMs());
+    if (typeof Audio !== 'undefined' && Audio.playCreate)
+      Audio.playCreate(song, song.loopFrames, Math.round(off / 1000 * FPS));
+    playing = true; playT0 = performance.now() - off;
+    renderTransport(); renderBars(); scheduleTick();
+  }
+  function pausePlayback() {
+    queuedBar = null;
+    pausedAt = (performance.now() - playT0) % Math.max(1, songMs());
+    armChip();
+    playing = false;
+    renderTransport(); renderBars(); updatePh(-1);
+  }
+  function togglePlay() { if (!root) return; playing ? pausePlayback() : startPlayback(pausedAt); }
+  // A silent host song keeps the chip's sequencer alive while the editor is
+  // open, so placement pokes are audible before (and between) plays.
+  function armChip() {
+    resolveBank();
+    if (typeof Audio !== 'undefined' && Audio.playCreate)
+      Audio.playCreate({ notes: [], bank: BANK, totalFrames: 0x7fffffff }, 0);
+  }
+
+  // ---- moods: words -> the composer's own dials ----------------------------
   var MAJ_MODES = { ionian: 1, mixolydian: 1, lydian: 1, 'pent-major': 1 };
   var MOOD = {
     happy: { mode: 'maj', bpmMin: 110 }, cheerful: { mode: 'maj', bpmMin: 110 }, joyful: { mode: 'maj', bpmMin: 110 },
@@ -3789,20 +3697,16 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     return { hit: n, total: total };
   }
 
-  // The dice compose a REAL track: the same composer the radio uses, a
-  // random seed, and the busiest four bars of its Game Boy score projected
-  // into the grid's vocabulary. A view of the songs the station writes.
-  // (Ambient randomness only picks the seed; the composition itself is the
-  // deterministic composer, untouched.)
+  // The dice and the mood box compose a REAL track: the same composer the
+  // radio uses, a seed search over its declared parameters, and the whole
+  // score projected onto the grid as exact, editable notes. It plays
+  // verbatim (its own bank, every instrument) until the first hand edit.
   function composeIntoGrid(moodText, auto) {
     var C = (G.CT_COMPOSERS && G.CT_COMPOSERS.rrr_core) || null;
     if (!C || typeof C.compile !== 'function') return;
-    if (!auto) tourAdvance(2);
-    if (auto) dropLiveScore(); else snapshot();     // auto-continue leaves the undo stack alone
+    if (!auto) tourAdvance(3);
+    if (auto) dropLiveScore(); else snapshot();
     resolveBank();
-    // seed search: compile random seeds until one satisfies the mood words
-    // (a compile is ~0.4ms; a full search is invisible). Parameters only,
-    // never output-quality scoring.
     var want = parseMood(moodText);
     var score = null, bestScore = null, bestHit = -1;
     for (var trial = 0; trial < 140; trial++) {
@@ -3820,7 +3724,6 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     var sTables = (gb.bank && gb.bank.waveTables) || [];
     var per16f = FPS * 60 / ((score.bpm || 120) * 4);
     var winF = 64 * per16f;
-    // each pulse channel keeps ONE instrument face, from its envelope character
     function pulseStamp(ch) {
       var counts = {};
       gb.notes.forEach(function (n) {
@@ -3840,7 +3743,6 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       if (wt) { var big = 0; for (var wj = 1; wj < wt.length; wj++) if (Math.abs(wt[wj] - wt[wj - 1]) >= 6) big++; if (!big) waveStamp = 'cello'; }
       break;
     }
-    // pitch: the score's own key folds onto the grid's diatonic rows
     var keyRoot = (score.musical && score.musical.rootMidi) || 60;
     var scl = (score.musical && score.musical.scale) || MAJOR;
     function degOf(midi) {
@@ -3856,24 +3758,20 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       while (deg < 0) deg += 7;
       return deg;
     }
-    S.key = 0; S.minor = scl.indexOf(3) >= 0 ? 1 : 0; S.bars = 4;   // a flat third anywhere (aeolian, dorian, blues) reads as minor
+    S.key = 0; S.minor = scl.indexOf(3) >= 0 ? 1 : 0; S.bars = Math.max(1, Math.min(63, Math.ceil((gb.totalFrames || winF) / (16 * per16f))));
     S.bpm = Math.max(70, Math.min(180, Math.round((score.bpm || 120) / 2) * 2));
     var lab = root && root.querySelector('.cr-lab');
     if (lab) { lab.firstChild.textContent = S.bpm + ' BPM'; var sl = lab.querySelector('input'); if (sl) sl.value = S.bpm; }
+    S.cells = []; order = 0;
     var sorted = gb.notes.slice().sort(function (a, b) { return a.frame - b.frame || (b.pri || 0) - (a.pri || 0); });
     var LANE = { 9: 2, 7: 1, 3: 0 };           // kick / snare / hat, by note priority
-    // The WHOLE song lands on the timeline as editable cells, and plays at
-    // full fidelity (its own bank, every instrument) until the first hand
-    // edit takes over with the grid's version.
-    S.bars = Math.max(1, Math.min(63, Math.ceil((gb.totalFrames || winF) / (16 * per16f))));
-    S.cells = []; order = 0;
     var budget = {}, seen = {};
     sorted.forEach(function (n) {
       var c = Math.round(n.frame / per16f);
       if (c < 0 || c >= cols()) return;
       var bd = budget[c] = budget[c] || { p: 0, w: 0, d: 0 };
       var ch = n.ch | 0;
-      var cell = { c: c, t: ++order, a: performance.now() };
+      var cell = { c: c, t: ++order };
       cell.inst = n.inst; cell.vel = n.vel != null ? n.vel : 0.8;
       if (ch === 3) {
         if (bd.d) return; bd.d = 1;
@@ -3901,391 +3799,16 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     liveScore = { notes: gb.notes, bank: gb.bank, totalFrames: gb.totalFrames, loopFrames: 0 };
     liveBpm = score.bpm || S.bpm;
     liveMood = String(moodText || '');
-    try { buildSong(); } catch (e) {}          // resolve channel marks for lane ticks/dimming
-    camX = 0; camFollow = true; loopBar = -1; queuedBar = null;
+    try { buildSong(); } catch (e) {}          // resolve channel marks
+    loopBar = -1; queuedBar = null;
+    viewBar = 0; viewPinned = false;
     pausedAt = 0;
     startPlayback(0);
     dirty();
   }
 
-  function startPlayback(fromMs) {
-    clearTimeout(repostTimer);
-    camFollow = true;
-    var song = currentSong();
-    var off = Math.max(0, fromMs || 0) % Math.max(1, songMs());
-    if (typeof Audio !== 'undefined' && Audio.playCreate)
-      Audio.playCreate(song, song.loopFrames, Math.round(off / 1000 * FPS));
-    playing = true; playT0 = performance.now() - off;
-    renderPalette(); draw();
-  }
-  function pausePlayback() {
-    queuedBar = null;
-    pausedAt = (performance.now() - playT0) % Math.max(1, songMs());
-    armChip();
-    playing = false;
-    renderPalette(); draw();
-  }
-  function togglePlay() { if (!root) return; playing ? pausePlayback() : startPlayback(pausedAt); }
-  // A silent host song keeps the chip's sequencer alive while the editor is
-  // open, so placement pokes are audible before (and between) plays.
-  function armChip() {
-    resolveBank();
-    if (typeof Audio !== 'undefined' && Audio.playCreate)
-      Audio.playCreate({ notes: [], bank: BANK, totalFrames: 0x7fffffff }, 0);
-  }
-
-
-  // The grid is a TIMELINE: the whole track as one horizontal strip of
-  // 16-step bar panels, fixed cell size, with a camera that scrolls through
-  // it (following the playhead until you pan by hand). Small songs sit
-  // centered; long ones extend right, ending in a ghost "+" bar.
-  var GHOST_W = 44;
-  function layout() {
-    var r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
-    if (cv.width !== Math.round(r.width * dpr) || cv.height !== Math.round(r.height * dpr)) {
-      cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
-    }
-    var W = r.width, H = r.height;
-    var coarse = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
-    var gap = 12, cw = Math.round((coarse ? 32 : 26) * cwZoom);
-    var chm = Math.min(34, Math.max(16, (H - 44) / (ROWS + 0.8)));
-    var gw = cw * cols() + (S.bars - 1) * gap;
-    var fits = gw + GHOST_W + 88 <= W;
-    var gx = fits ? (W - gw - GHOST_W) / 2 : 44;
-    var maxCam = fits ? 0 : Math.max(0, gw + GHOST_W + 88 - W);
-    if (camX > maxCam) camX = maxCam; if (camX < 0) camX = 0;
-    return { W: W, H: H, dpr: dpr, cw: cw, chh: chm, gap: gap, gw: gw,
-             gx: gx, gy: (H - chm * ROWS) / 2 + 6, maxCam: maxCam };
-  }
-  // absolute timeline x (camera-independent); the renderer subtracts camX
-  function colXAbs(c, L) {
-    return L.gx + Math.floor(c / 16) * (16 * L.cw + L.gap) + (c % 16) * L.cw;
-  }
-  function colX(c, L) { return colXAbs(c, L) - camX; }
-  // One rAF chain, ever. The first version called requestAnimationFrame(draw)
-  // once per popping cell AND once per frame while playing, none deduped: every
-  // stamp placed during playback permanently added another full-redraw loop,
-  // and the editor ground down the longer you played.
-  var rafId = 0;
-  function scheduleDraw() {
-    if (!rafId) rafId = requestAnimationFrame(function () { rafId = 0; draw(); });
-  }
-  function draw() {
-    if (!cv) return;
-    var animating = playing;
-    var L = layout();
-    // where the playhead is, computed up front so cells can pulse as they fire
-    var phCol = -1;
-    if (playing) {
-      var perMs = (60 / curBpm() / 4) * 1000;
-      var elapsed = performance.now() - playT0;
-      if (liveScore && loopBar < 0 && elapsed >= songMs() + 250) {
-        // the song ended; the mood writes the next one
-        composeIntoGrid(liveMood, true);
-        return;
-      }
-      if (loopBar >= 0 && queuedBar != null) {
-        var ph = (elapsed / perMs) % 16;
-        if (ph < loopPhase) {                          // the loop wrapped: switch bars
-          loopBar = queuedBar; queuedBar = null; loopPhase = 0;
-          startPlayback(0);
-          return;
-        }
-        loopPhase = ph;
-      }
-      phCol = loopBar >= 0 ? loopBar * 16 + (elapsed / perMs) % 16
-                           : (elapsed / perMs) % cols();
-    }
-    var flCol = Math.floor(phCol);
-    g.setTransform(L.dpr, 0, 0, L.dpr, 0, 0);
-    g.clearRect(0, 0, L.W, L.H);
-    var barW = 16 * L.cw + L.gap;
-    var b0 = Math.max(0, Math.floor((camX - L.gx) / barW));
-    var b1 = Math.min(S.bars - 1, Math.ceil((camX + L.W) / barW));
-    for (var r = 0; r < ROWS; r++) {
-      for (var c = b0 * 16; c < (b1 + 1) * 16; c++) {
-        var x = colX(c, L), y = L.gy + r * L.chh;
-        if (x + L.cw < 0 || x > L.W) continue;
-        var drum = r >= MEL_ROWS;
-        var deg = drum ? 0 : ((MEL_ROWS - 1 - r) % 7);
-        g.fillStyle = drum ? 'rgba(255,255,255,0.10)'
-          : deg === 0 ? 'rgba(120,220,160,0.20)'
-          : (c % 4 === 0 ? 'rgba(255,255,255,0.14)' : 'rgba(255,255,255,0.07)');
-        g.fillRect(x + 1, y + 1, L.cw - 2, L.chh - 2);
-      }
-    }
-    // panel chrome: numbered bars with duplicate/remove controls, then the
-    // ghost "+" bar that grows the song, then the loop mark
-    for (var b = b0; b <= b1; b++) {
-      var bx = L.gx + b * barW - camX;
-      var looped = b === loopBar, queued = b === queuedBar;
-      g.strokeStyle = looped ? 'rgba(123,220,160,0.8)' : queued ? 'rgba(255,201,60,0.7)' : 'rgba(232,227,250,0.30)';
-      g.lineWidth = looped || queued ? 2 : 1;
-      g.strokeRect(bx - 3.5, L.gy - 3.5, 16 * L.cw + 7, ROWS * L.chh + 7);
-      g.fillStyle = looped ? 'rgba(123,220,160,0.95)' : queued ? 'rgba(255,201,60,0.95)' : 'rgba(232,227,250,0.55)';
-      g.font = '600 11px system-ui'; g.textBaseline = 'bottom';
-      g.fillText((looped ? '\u21ba ' : queued ? '\u2192 ' : '') + (b + 1), bx + 2, L.gy - 8);
-      g.fillStyle = 'rgba(232,227,250,0.4)'; g.font = '600 12px system-ui';
-      g.fillText('\u29c9', bx + 16 * L.cw - 30, L.gy - 7);
-      g.fillText('\u00d7', bx + 16 * L.cw - 12, L.gy - 7);
-    }
-    var endX = L.gx + S.bars * barW - L.gap + 10 - camX;
-    if (endX < L.W + GHOST_W) {
-      g.strokeStyle = 'rgba(232,227,250,0.22)'; g.setLineDash([4, 4]);
-      g.strokeRect(endX, L.gy - 3.5, GHOST_W - 14, ROWS * L.chh + 7);
-      g.setLineDash([]);
-      g.fillStyle = 'rgba(232,227,250,0.5)'; g.font = '600 20px system-ui'; g.textBaseline = 'middle';
-      g.fillText('+', endX + (GHOST_W - 14) / 2 - 6, L.gy + ROWS * L.chh / 2);
-      g.font = '600 14px system-ui';
-      g.fillText(liveScore ? '\u2192' : '\u21ba', endX + GHOST_W - 6, L.gy + ROWS * L.chh / 2);
-    }
-    // the drum lanes wear their instruments' faces, pinned to the left edge
-    g.globalAlpha = 0.45;
-    DRUMS.forEach(function (d, i) {
-      var ly = L.gy + (MEL_ROWS + i) * L.chh + (L.chh - 16) / 2;
-      g.drawImage(sprite(d.id, 16), 12, ly, 16, 16);
-    });
-    g.globalAlpha = 1;
-    // stamps (only the visible ones)
-    var now = performance.now();
-    var em = effMask();
-    S.cells.forEach(function (x) {
-      var px = colX(x.c, L), py = L.gy + x.r * L.chh;
-      var lenSteps = x.len || 1;
-      var tailEnd = lenSteps > 1 ? colX(Math.min(x.c + lenSteps - 1, cols() - 1), L) + L.cw : px + L.cw;
-      if (tailEnd < 0 || px > L.W) return;
-      if (lenSteps > 1) {
-        g.fillStyle = 'rgba(255,255,255,0.10)';
-        g.fillRect(px + 2, py + L.chh * 0.3, tailEnd - px - 4, L.chh * 0.4);
-      }
-      var size = Math.min(L.cw, L.chh) - 3;
-      var pop = x.a ? Math.max(0, 1 - (now - x.a) / 220) : 0;
-      var acc = x.vel != null ? (x.vel - 0.8) * 0.45 : 0;     // soft notes small, loud notes big
-      var s2 = size * (1 + acc + pop * 0.35 + (firing ? 0.18 : 0));
-      var name = x.r >= MEL_ROWS ? DRUMS[x.r - MEL_ROWS].id : x.st;
-      var laneOff = (x.r >= MEL_ROWS ? em[3] : x.rch != null && em[x.rch]);
-      var firing = flCol >= 0 && flCol >= x.c && flCol < x.c + lenSteps && !laneOff && !x.x;
-      if (firing) { g.fillStyle = 'rgba(255,255,255,0.13)'; g.fillRect(px + 1, py + 1, L.cw - 2, L.chh - 2); }
-      if (x.rch != null && x.r < MEL_ROWS) {
-        g.fillStyle = ['rgba(123,220,160,0.8)', 'rgba(87,196,255,0.8)', 'rgba(232,167,93,0.8)'][x.rch] || 'rgba(255,255,255,0.4)';
-        g.fillRect(px + 1, py + 2, 3, L.chh - 4);
-      }
-      if (x.x || laneOff) g.globalAlpha = laneOff ? 0.22 : 0.32;
-      var wob = x.x ? Math.sin(now / 130 + x.c) * 2 : 0;
-      g.drawImage(sprite(name, 40), px + (L.cw - s2) / 2 + wob, py + (L.chh - s2) / 2, s2, s2);
-      g.globalAlpha = 1;
-      var badge = x.z ? 'slide' : x.u ? 'rise' : x.q ? 'arp' : x.g ? 'retrig' : x.f ? 'echo' : null;
-      if (badge) { g.drawImage(sprite(badge, 20), px + L.cw - 12, py - 2, 12, 12); }
-      if (x.w) { g.drawImage(sprite('vibrato', 20), px - 2, py - 2, 12, 12); }
-      if (pop > 0) animating = true;
-    });
-    // playhead: a marker sweeping the whole track; the camera keeps it in view
-    if (playing) {
-      var col = phCol;
-      var hb = Math.floor(col / 16);
-      var hxAbs = L.gx + hb * barW + (col - hb * 16) * L.cw;
-      if (camFollow && L.maxCam > 0) {
-        var target = Math.max(0, Math.min(L.maxCam, hxAbs - L.gx - L.W * 0.35));
-        camX = Math.abs(target - camX) > L.W * 1.5 ? target : camX + (target - camX) * 0.12;
-      }
-      var hx = hxAbs - camX;
-      g.fillStyle = 'rgba(255,255,255,0.16)';
-      g.fillRect(hx, L.gy, 2, ROWS * L.chh);
-      g.fillStyle = 'rgba(120,220,160,0.9)';
-      g.beginPath();
-      g.moveTo(hx - 6, L.gy - 14); g.lineTo(hx + 7, L.gy - 14); g.lineTo(hx + 0.5, L.gy - 4);
-      g.closePath(); g.fill();
-    }
-    if (animating) scheduleDraw();
-  }
-
-  // ---- input ---------------------------------------------------------------
-  var dragMode = null;
-  function hitCell(ev) {
-    var r0 = cv.getBoundingClientRect(), L = layout();
-    var x = ev.clientX - r0.left - L.gx + camX;
-    var b = Math.floor(x / (16 * L.cw + L.gap));
-    var off = x - b * (16 * L.cw + L.gap);
-    if (off >= 16 * L.cw + 2) return null;                 // in the gutter
-    var ic = Math.max(0, Math.min(15, Math.floor(off / L.cw)));
-    var c = b * 16 + ic;
-    var r = Math.floor((ev.clientY - r0.top - L.gy) / L.chh);
-    if (x < 0 || c < 0 || c >= cols() || r < 0 || r >= ROWS) return null;
-    return { c: c, r: r, fx: Math.max(0, Math.min(1, (off - ic * L.cw) / L.cw)) };
-  }
-  // header strip and ghost bar: pan, duplicate, remove, add
-  function headerHit(ev) {
-    var r0 = cv.getBoundingClientRect(), L = layout();
-    var vx = ev.clientX - r0.left, vy = ev.clientY - r0.top;
-    var x = vx - L.gx + camX;
-    var barW = 16 * L.cw + L.gap;
-    var endAbs = S.bars * barW - L.gap + 10;
-    if (x >= endAbs && x <= endAbs + GHOST_W - 14 && vy >= L.gy - 26 && vy <= L.gy + ROWS * L.chh)
-      return { type: 'add' };
-    if (vy < L.gy - 2 && vy > L.gy - 26) {
-      var b = Math.floor(x / barW), off = x - b * barW;
-      if (b >= 0 && b < S.bars && off < 16 * L.cw) {
-        if (off < 30) return { type: 'loop', bar: b };
-        if (off > 16 * L.cw - 36 && off < 16 * L.cw - 18) return { type: 'dup', bar: b };
-        if (off >= 16 * L.cw - 16) return { type: 'del', bar: b };
-      }
-      return { type: 'pan' };
-    }
-    return null;
-  }
-  function addBar() {
-    if (S.bars >= 63) return;
-    snapshot(); S.bars++; dirty();
-  }
-  function dupBar(b) {
-    if (S.bars >= 63) return;
-    snapshot();
-    var copies = [];
-    S.cells.forEach(function (x) {
-      if (x.c >= (b + 1) * 16) x.c += 16;
-      else if (x.c >= b * 16) {
-        var cp = { c: x.c + 16, r: x.r, t: ++order };
-        if (x.st) cp.st = x.st; if (x.z) cp.z = 1; if (x.w) cp.w = 1;
-        copies.push(cp);
-      }
-    });
-    S.cells = S.cells.concat(copies);
-    S.bars++; dirty();
-  }
-  function delBar(b) {
-    snapshot();
-    S.cells = S.cells.filter(function (x) { return x.c < b * 16 || x.c >= (b + 1) * 16; });
-    if (S.bars > 1) {
-      S.cells.forEach(function (x) { if (x.c >= (b + 1) * 16) x.c -= 16; });
-      S.bars--;
-    }
-    dirty();
-  }
-  var lenCell = null, lenMoved = false, noteRow = -1;
-  var grabDC = 0, cwZoom = 1, tapTimer = 0, tapCell = null, hintedAccent = false;
-  var hintTimer = 0, hintedPlace = false, hintedSulk = false;
-  // The first-run tour: three small cards anchored to the real UI, each
-  // advancing on the real action (or Next). Never shown twice.
-  var tourStep = -1;
-  function tourDone() {
-    tourStep = -1;
-    try { localStorage.setItem('ct-create-tour', '1'); } catch (e) {}
-    var t = root && root.querySelector('.cr-tour'); if (t) t.remove();
-  }
-  function tourShow(step) {
-    if (!root) return;
-    tourStep = step;
-    var t = root.querySelector('.cr-tour');
-    if (!t) { t = document.createElement('div'); t.className = 'cr-tour'; root.appendChild(t); }
-    var msgs = [
-      ['This song was just written for you.', 'Tap an empty cell to add a note. Tap a note to remove it, or drag it somewhere better.'],
-      ['Loop one bar while you shape it.', 'Tap a bar\u2019s number up top to loop just that bar. Tap it again for the whole song.'],
-      ['Moods write songs.', 'Type a feeling and press Make, or roll the dice. Everything it writes is yours to edit.']
-    ];
-    t.innerHTML = '<b>' + msgs[step][0] + '</b><span>' + msgs[step][1] + '</span>' +
-      '<div class="cr-tourbtns"><button type="button" data-tour="skip">Skip</button>' +
-      '<button type="button" data-tour="next">' + (step === 2 ? 'Done' : 'Next') + '</button></div>' +
-      '<i>' + (step + 1) + ' / 3</i>';
-    var main = root.querySelector('.cr-main').getBoundingClientRect();
-    var mood = root.querySelector('.cr-moodbox');
-    t.style.transform = 'none';
-    if (step === 0) {
-      t.style.left = '50%'; t.style.top = Math.round(main.top + main.height * 0.32) + 'px';
-      t.style.transform = 'translateX(-50%)';
-    } else if (step === 1) {
-      t.style.left = Math.max(12, main.left + 30) + 'px';
-      t.style.top = Math.round(main.top + 6) + 'px';
-    } else {
-      var mr = (mood || root.querySelector('.cr-top')).getBoundingClientRect();
-      t.style.left = Math.max(12, Math.min(window.innerWidth - 270, mr.left)) + 'px';
-      t.style.top = Math.round(mr.bottom + 10) + 'px';
-    }
-  }
-  function tourAdvance(from) {
-    if (tourStep !== from) return;
-    if (from >= 2) tourDone(); else tourShow(from + 1);
-  }
-  var HINT_IDLE = 'Tap the grid to place notes. Drag a note to move it, pull its right edge to stretch, tap to remove.';
-  function hint(t) {
-    var el = root && root.querySelector('.cr-hint');
-    if (!el) return;
-    el.textContent = t || HINT_IDLE;
-    clearTimeout(hintTimer);
-    if (t) hintTimer = setTimeout(function () { if (el) el.textContent = HINT_IDLE; }, 6000);
-  }
-  function checkSulk() {
-    if (hintedSulk || !S) return;
-    for (var i = 0; i < S.cells.length; i++) if (S.cells[i].x) {
-      hintedSulk = true;
-      hint('The chip has two pulse voices, one wave and one noise. Grey notes are waiting for a free voice.');
-      return;
-    }
-  }
-  function cellSpanAt(c, r) {
-    for (var i = 0; i < S.cells.length; i++) {
-      var x = S.cells[i];
-      if (x.r === r && c >= x.c && c < x.c + (x.len || 1)) return i;
-    }
-    return -1;
-  }
-  function cellAtExcept(c, r, self) {
-    for (var i = 0; i < S.cells.length; i++) {
-      var x = S.cells[i];
-      if (x !== self && x.c === c && x.r === r) return i;
-    }
-    return -1;
-  }
-  function placeAt(h) {
-    var cell = { c: h.c, r: h.r, t: ++order, a: performance.now() };
-    if (h.r < MEL_ROWS) {
-      cell.st = S.cur;
-      if (S.cur.charAt(0) === 'i' && isFinite(+S.cur.slice(1))) cell.inst = +S.cur.slice(1);
-      if (S.cmd) cell[S.cmd] = 1;
-      if (S.cmd === 'f' && !cell.len) cell.len = 4;   // an echo needs room to fade
-      if (S.wob) cell.w = 1;
-    } else if (S.cmd === 'g' || S.cmd === 'f') {
-      cell[S.cmd] = 1;                                // drums ratchet and echo too
-      if (S.cmd === 'f' && !cell.len) cell.len = 4;
-    }
-    S.cells.push(cell);
-    dirty();
-    auditionCell(cell);
-    tourAdvance(0);
-    return cell;
-  }
-  // hear what was just placed, exactly as buildSong will play it
-  function auditionCell(cell) {
-    resolveBank();
-    if (typeof Audio === 'undefined' || !Audio.pokeCreate) return;
-    var per = framesPer16();
-    if (cell.r >= MEL_ROWS) {
-      var d = DRUMS[cell.r - MEL_ROWS];
-      Audio.pokeCreate({ ch: 3, frames: Math.round(per), midi: null,
-                         inst: cell.inst != null ? cell.inst : INSTOF[d.id],
-                         vel: cell.vel != null ? cell.vel : d.vel });
-      return;
-    }
-    var voice = cellVoice(cell) || 'pulse';
-    Audio.pokeCreate({ ch: voice === 'wave' ? 2 : 1, frames: Math.round(per * (S.wob ? 6 : 2)),
-                       midi: cell.midi != null ? cell.midi : rowMidi(cell.r),
-                       inst: cell.inst != null ? cell.inst : INSTOF[cell.st],
-                       vel: cell.vel != null ? cell.vel : 0.8,
-                       sweep: cell.sweep != null ? cell.sweep
-                            : (voice !== 'wave' && (cell.z || S.cmd === 'z')) ? 0x3E
-                            : (voice !== 'wave' && (cell.u || S.cmd === 'u')) ? 0x36 : 0 });
-  }
-  function stepCell(h) {
-    var i = cellAt(h.c, h.r);
-    if (dragMode === 'erase') { if (i >= 0) { S.cells.splice(i, 1); dirty(); } return; }
-    if (i < 0) placeAt(h);
-  }
-
-  // The drawer: every melodic instrument in the bank as a waveform icon.
-  // Picking one makes it the stamp in hand; its cells carry the exact index.
-  // Every melodic instrument placed on a 2D sound map: brightness across,
-  // sustain down. Drag and the nearest sound snaps into your hand, auditioning
-  // as you go. Wiggle to find a sound; the list below is the same bank.
-  var PADPTS = null;
+  // ---- the sound map: pick a channel's instrument by dragging --------------
+  var PADPTS = null, chInst = [null, null, null, null];
   function padPoints() {
     if (PADPTS) return PADPTS;
     resolveBank();
@@ -4297,92 +3820,74 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       if (m.type === 'wave') {
         var t = BANK.waveTables[m.waveSlot] || [], big = 0;
         for (var i = 1; i < t.length; i++) if (Math.abs(t[i] - t[i - 1]) >= 6) big++;
-        x = 0.18 + Math.min(1, big / 3) * 0.62 + j;
-        y = 0.78 + j * 1.5;
+        x = 0.15 + Math.min(1, big / 3) * 0.66 + j;
+        y = 0.2 + ((m.index * 53) % 17) / 17 * 0.6;
       } else {
         var duty = (m.patch && m.patch.duty) || 0.5;
-        x = (duty === 0.5 ? 0.24 : duty === 0.25 ? 0.5 : 0.76) + j;
-        y = ({ pluck: 0.16, stab: 0.34, soft: 0.5, sus: 0.62, swell: 0.68 })[envClass(BANK.instruments[m.index])] + j;
+        x = (duty === 0.5 ? 0.2 : duty === 0.25 ? 0.48 : 0.74) + j;
+        y = ({ pluck: 0.14, stab: 0.34, soft: 0.54, sus: 0.72, swell: 0.82 })[envClass(BANK.instruments[m.index])] + j;
       }
-      PADPTS.push({ idx: m.index, x: Math.min(0.97, x), y: Math.min(0.97, y), wave: m.type === 'wave' });
+      PADPTS.push({ idx: m.index, x: Math.min(0.95, x), y: Math.min(0.92, y), wave: m.type === 'wave' });
     });
     return PADPTS;
   }
-  function drawPad() {
-    var pc = root.querySelector('.cr-pad');
-    if (!pc) return;
+  function padFor(ch) { return padPoints().filter(function (p) { return p.wave === (ch === 2); }); }
+  function drawPad(pc, ch) {
     var c = pc.getContext('2d');
     c.clearRect(0, 0, pc.width, pc.height);
-    padPoints().forEach(function (pt) {
-      var sel = S.cur === 'i' + pt.idx;
+    padFor(ch).forEach(function (pt) {
+      var sel = chInst[ch] === pt.idx;
       c.beginPath();
-      c.arc(pt.x * pc.width, pt.y * pc.height, sel ? 6 : 3.5, 0, Math.PI * 2);
-      c.fillStyle = pt.wave ? '#E8A75D' : '#FFD23F';
-      c.globalAlpha = sel ? 1 : 0.7;
+      c.arc(pt.x * pc.width, pt.y * pc.height, sel ? 8 : 5, 0, Math.PI * 2);
+      c.fillStyle = CH[ch].color;
+      c.globalAlpha = sel ? 1 : 0.55;
       c.fill();
-      if (sel) { c.strokeStyle = '#7BDCA0'; c.lineWidth = 2; c.stroke(); }
+      if (sel) { c.strokeStyle = '#fff'; c.lineWidth = 2; c.stroke(); }
       c.globalAlpha = 1;
     });
   }
   var padPokeAt = 0;
-  function padPick(ev, pc) {
+  function padPick(ev, pc, ch) {
     var r = pc.getBoundingClientRect();
     var nx = (ev.clientX - r.left) / r.width, ny = (ev.clientY - r.top) / r.height;
     var best = null, bd = 9;
-    padPoints().forEach(function (pt) {
-      var d2 = (pt.x - nx) * (pt.x - nx) + (pt.y - ny) * (pt.y - ny) * 1.6;
+    padFor(ch).forEach(function (pt) {
+      var d2 = (pt.x - nx) * (pt.x - nx) + (pt.y - ny) * (pt.y - ny) * 1.4;
       if (d2 < bd) { bd = d2; best = pt; }
     });
-    if (!best || S.cur === 'i' + best.idx) return;
-    S.cur = 'i' + best.idx;
-    renderPalette(); markDrawer(); drawPad();
+    if (!best || chInst[ch] === best.idx) return;
+    chInst[ch] = best.idx;
+    drawPad(pc, ch);
     var t = performance.now();
     if (t - padPokeAt > 110) {
       padPokeAt = t;
-      auditionCell({ c: 0, r: 7, st: S.cur, inst: best.idx });
+      auditionCell({ c: 0, r: MEL_ROWS - 1 - lastDeg[ch], st: CH[ch].stamp, inst: best.idx });
     }
   }
-  function toggleDrawer() {
-    var d = root.querySelector('.cr-drawer');
-    if (d) { d.remove(); draw(); return; }
-    var sh = root.querySelector('.cr-shelf'); if (sh) sh.remove();
-    resolveBank();
-    d = document.createElement('div');
-    d.className = 'cr-drawer';
-    var html = '<div class="cr-padwrap"><canvas class="cr-pad" width="230" height="120"></canvas>' +
-               '<span class="cr-padlab">drag to find a sound</span></div>';
-    BANK.meta.forEach(function (m) {
-      if (m.type === 'noise') return;                      // drums live on the lanes
-      var tip = m.type === 'wave' ? 'Wave voice #' + m.index
-              : 'Pulse ' + Math.round((m.patch.duty || 0.5) * 100) + '% ' + envClass(BANK.instruments[m.index]) + ' #' + m.index;
-      html += '<button type="button" class="cr-inst" data-inst="' + m.index + '" title="' + tip + '" data-tip="' + tip + '">' +
-              '<span class="cr-name">' + m.index + '</span></button>';
-    });
-    d.innerHTML = html;
-    d.querySelectorAll('.cr-inst').forEach(function (b) {
-      b.insertBefore(sprite('i' + b.dataset.inst, 26), b.firstChild);
-    });
-    root.insertBefore(d, root.querySelector('.cr-bottom'));
-    var pc = d.querySelector('.cr-pad');
+  function openPad(ch) {
+    if (ch === 3) return;
+    closePad();
+    var ov = document.createElement('div');
+    ov.className = 'cr-padover';
+    ov.innerHTML = '<div class="cr-padcard"><b>' + CH[ch].n + ' sound</b>' +
+      '<canvas class="cr-pad" width="280" height="170"></canvas>' +
+      '<span class="cr-padlab">drag to find a sound · bright → · longer ↓</span>' +
+      '<button type="button" class="cr-btn" data-padclose="1">Done</button></div>';
+    root.appendChild(ov);
+    var pc = ov.querySelector('.cr-pad');
     pc.__ctpalRaw = true;
-    var padDown = false;
-    pc.addEventListener('pointerdown', function (ev) { ev.preventDefault(); pc.setPointerCapture(ev.pointerId); padDown = true; padPick(ev, pc); });
-    pc.addEventListener('pointermove', function (ev) { if (padDown) padPick(ev, pc); });
-    ['pointerup', 'pointercancel'].forEach(function (t) { pc.addEventListener(t, function () { padDown = false; }); });
-    markDrawer();
-    drawPad();
-    draw();                                   // the grid canvas just changed height
-  }
-  function markDrawer() {
-    var d = root.querySelector('.cr-drawer');
-    if (!d) return;
-    d.querySelectorAll('.cr-inst').forEach(function (b) {
-      b.classList.toggle('on', S.cur === 'i' + b.dataset.inst);
+    drawPad(pc, ch);
+    var down = false;
+    pc.addEventListener('pointerdown', function (ev) { ev.preventDefault(); pc.setPointerCapture(ev.pointerId); down = true; padPick(ev, pc, ch); });
+    pc.addEventListener('pointermove', function (ev) { if (down) padPick(ev, pc, ch); });
+    ['pointerup', 'pointercancel'].forEach(function (t) { pc.addEventListener(t, function () { down = false; }); });
+    ov.addEventListener('click', function (ev) {
+      if (ev.target === ov || ev.target.closest('[data-padclose]')) closePad();
     });
-    drawPad();
   }
+  function closePad() { var ov = root.querySelector('.cr-padover'); if (ov) ov.remove(); }
 
-  // ---- the songs shelf: this browser's saved songs -----------------------
+  // ---- the songs shelf: this browser's saved songs -------------------------
   function loadShelf() {
     try { return JSON.parse(localStorage.getItem('ct-create-shelf') || '[]') || []; } catch (e) { return []; }
   }
@@ -4398,100 +3903,25 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       '<button type="button" class="cr-btn" data-shelf="save">Save current</button></div>';
     list.forEach(function (it, i) {
       var d = decode(it.enc);
-      var meta = d ? d.cells.length + ' notes \u00b7 ' + d.bars + ' bars \u00b7 ' + d.bpm + ' BPM' : '?';
+      var meta = d ? d.cells.length + ' notes · ' + d.bars + ' bars · ' + d.bpm + ' BPM' : '?';
       html += '<div class="cr-shelfrow"><b>' + String(it.name).replace(/[<>&]/g, '') + '</b>' +
               '<span>' + meta + '</span>' +
               '<button type="button" class="cr-btn" data-shelf-load="' + i + '">Load</button>' +
-              '<button type="button" class="cr-btn" data-shelf-del="' + i + '" title="Delete">\u00d7</button></div>';
+              '<button type="button" class="cr-btn" data-shelf-del="' + i + '" title="Delete">×</button></div>';
     });
     if (!list.length) html += '<div class="cr-shelfempty">Nothing saved yet. Songs you save live in this browser.</div>';
     sh.innerHTML = html;
   }
   function toggleShelf() {
     var sh = root.querySelector('.cr-shelf');
-    if (sh) { sh.remove(); draw(); return; }
-    var d = root.querySelector('.cr-drawer'); if (d) d.remove();
+    if (sh) { sh.remove(); return; }
     sh = document.createElement('div');
     sh.className = 'cr-shelf';
-    root.insertBefore(sh, root.querySelector('.cr-bottom'));
+    root.insertBefore(sh, root.querySelector('.cr-hint'));
     renderShelf();
-    draw();
   }
 
-  // Hear a critter the moment it is picked: tonic of the current key,
-  // through the same chip and the same modifiers a placement would get.
-  function auditionStamp(id) {
-    if (id === 'eraser') return;
-    resolveBank();
-    var st = null;
-    for (var i = 0; i < STAMPS.length; i++) if (STAMPS[i].id === id) st = STAMPS[i];
-    if (!st || typeof Audio === 'undefined' || !Audio.pokeCreate) return;
-    var per = framesPer16();
-    Audio.pokeCreate({ ch: st.ch === 'wave' ? 2 : 1,
-                       frames: Math.round(per * (S.wob ? 6 : 2)),
-                       midi: 60 + S.key, inst: INSTOF[st.id], vel: 0.8,
-                       sweep: st.ch !== 'wave' ? (S.cmd === 'z' ? 0x3E : S.cmd === 'u' ? 0x36 : 0) : 0 });
-  }
-
-  // ---- palette + toolbar ---------------------------------------------------
-  function renderPalette() {
-    var pal = root.querySelector('.cr-pal');
-    function btn(cls, attr, name, tip, on) {
-      return '<button type="button" class="cr-stamp' + cls + (on ? ' on' : '') + '" ' + attr +
-             ' title="' + tip + '" data-tip="' + tip + '"><span class="cr-name">' + name + '</span></button>';
-    }
-    var html = btn(' cr-playstamp', 'data-cr="play"', playing ? 'Pause' : 'Play',
-                   playing ? 'Pause (Space)' : 'Play your loop (Space)', playing);
-    html += '<span class="cr-palsep"></span>';
-    STAMPS.forEach(function (st) {
-      html += btn('', 'data-stamp="' + st.id + '"', st.label, st.tip, S.cur === st.id);
-    });
-    html += '<span class="cr-palsep"></span>';
-    html += btn(' cr-mod', 'data-mod="z"', 'Fall', 'Fall: new notes slide off downward', S.cmd === 'z');
-    html += btn(' cr-mod', 'data-mod="u"', 'Rise', 'Rise: new notes sweep upward', S.cmd === 'u');
-    html += btn(' cr-mod', 'data-mod="q"', 'Arp', 'Arp: new notes strum their chord, fast', S.cmd === 'q');
-    html += btn(' cr-mod', 'data-mod="g"', 'Retrig', 'Retrig: new notes ratchet in half-steps', S.cmd === 'g');
-    html += btn(' cr-mod', 'data-mod="f"', 'Echo', 'Echo: new notes repeat and fade', S.cmd === 'f');
-    html += btn(' cr-mod', 'data-mod="wob"', 'Vibrato', 'Vibrato: new notes hold and sing', !!S.wob);
-    html += '<span class="cr-palsep"></span>';
-    html += btn('', 'data-stamp="eraser"', 'Eraser', 'Eraser: click or sweep to remove notes', S.cur === 'eraser');
-    var pickedInst = S.cur.charAt(0) === 'i' && isFinite(+S.cur.slice(1));
-    html += btn(' cr-more', 'data-cr="drawer"', pickedInst ? '#' + S.cur.slice(1) : 'More',
-                'Every melodic instrument in the bank', pickedInst);
-    pal.innerHTML = html;
-    pal.querySelectorAll('.cr-stamp').forEach(function (b) {
-      var MODICON = { z: 'slide', u: 'rise', q: 'arp', g: 'retrig', f: 'echo', wob: 'vibrato' };
-      var name = b.dataset.cr === 'play' ? (playing ? 'pause' : 'play')
-               : b.dataset.cr === 'drawer' ? (S.cur.charAt(0) === 'i' ? S.cur : 'more')
-               : (b.dataset.stamp || MODICON[b.dataset.mod] || 'slide');
-      b.insertBefore(sprite(name, 30), b.firstChild);
-    });
-  }
-  // Mario Paint's music screen had no key picker, no scale menu, no swing
-  // switch: the staff kept you in key and a slider set the pace. Same here --
-  // the rows ARE the scale (C major stays the house key; old links that
-  // carry another key still decode and play), and the toolbar is a toy.
-  var CHIPS = ['happy', 'sad', 'upbeat', 'chill', 'spooky', 'epic', 'retro', 'funky', 'dreamy', 'battle'];
-  function toolbarHTML() {
-    return '<div class="cr-title"><b>Create:</b> <span>place instruments, hear the music</span></div>' +
-      '<div class="cr-moodbox">' +
-        '<input type="text" class="cr-mood" data-cr="mood" placeholder="a mood: happy, spooky, fast..." maxlength="60">' +
-        '<button type="button" class="cr-btn cr-primary" data-cr="make" data-tip="Compose a song with this mood, the radio\u0027s own way">Make</button>' +
-      '</div>' +
-      '<div class="cr-tools">' +
-      '<button type="button" class="cr-btn" data-cr="undo" title="Undo" data-tip="Undo the last change">↩</button>' +
-      '<button type="button" class="cr-btn" data-cr="redo" title="Redo" data-tip="Redo what you undid">↪</button>' +
-      '<button type="button" class="cr-btn" data-cr="clear" data-tip="Wipe the whole grid clean">Clear</button>' +
-      '<button type="button" class="cr-btn" data-cr="dice" data-tip="Compose a real track into the grid, the radio\u0027s own way">\ud83c\udfb2 Dice</button>' +
-      '<span class="cr-sep"></span>' +
-      '<button type="button" class="cr-btn" data-cr="shelf" data-tip="Your saved songs, kept in this browser">Songs</button>' +
-      '<button type="button" class="cr-btn" data-cr="share" data-tip="Copy a link that IS your song">Copy link</button>' +
-      '<button type="button" class="cr-btn" data-cr="wav" data-tip="Download your song as audio (WAV)">WAV</button>' +
-      '<button type="button" class="cr-btn" data-cr="rom" data-tip="Download a real Game Boy cartridge file (.gb)">ROM</button>' +
-      '<button type="button" class="cr-btn cr-close" data-cr="close" data-tip="Back to the radio (Esc)">×</button>' +
-      '</div>';
-  }
-
+  // ---- exports -------------------------------------------------------------
   function exportRom() {
     var song = liveScore || buildSong();
     var score = { gb: { notes: song.notes, bank: song.bank, totalFrames: song.totalFrames, fps: FPS } };
@@ -4510,44 +3940,328 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     } catch (e) { if (G._toast) G._toast('WAV export failed: ' + (e && e.message || e)); }
   }
 
-  // ---- open / close --------------------------------------------------------
-  function open() {
-    if (root) { root.classList.add('show'); armChip(); if (!playing) startPlayback(pausedAt); return; }
-    var fromUrl = (location.hash.match(/#s=([A-Za-z0-9\-_]+)/) || [])[1];
-    S = (fromUrl && decode(fromUrl)) || null;
-    if (!S) { try { var d = localStorage.getItem('ct-create-draft'); if (d) S = decode(d); } catch (e) {} }
-    if (!S) S = freshState();
-    order = S.cells.length;
-    root = document.createElement('div'); root.id = 'createscreen';
-    root.innerHTML = '<div class="cr-top">' + toolbarHTML() + '</div>' +
-      '<div class="cr-moods">' +
-      '<span class="cr-lanes">' + LANES.map(function (l, i) {
-        return '<button type="button" class="cr-lane" data-lane="' + i + '" title="' + l.tip +
-               '" data-tip="' + l.tip + ': click mutes, S solos">' + l.n + '<i>S</i></button>';
-      }).join('') + '</span>' +
-      CHIPS.map(function (c) {
-        return '<button type="button" class="cr-chip" data-mood="' + c + '">' + c + '</button>';
-      }).join('') + '</div>' +
-      '<div class="cr-main"><canvas class="cr-cv"></canvas></div>' +
-      '<div class="cr-hint"></div>' +
-      '<div class="cr-bottom">' +
-        '<div class="cr-pal"></div>' +
-        '<div class="cr-bside">' +
-          '<label class="cr-lab" data-tip="Tempo: how fast the loop plays">' + S.bpm + ' BPM<input type="range" min="70" max="180" step="2" value="' + S.bpm + '" data-cr="bpm"></label>' +
-        '</div>' +
-      '</div>';
-    document.body.appendChild(root);
-    cv = root.querySelector('.cr-cv'); cv.__ctpalRaw = true; g = cv.getContext('2d');
-    renderPalette();
-    requestAnimationFrame(function () { root.classList.add('show'); draw(); });
-    document.body.classList.add('create-open');
-    armChip();
-    try { history.replaceState(null, '', '/create' + (S.cells.length ? '#s=' + encode() : '')); } catch (e) {}
+  // ---- hints + tour --------------------------------------------------------
+  var hintTimer = 0, hintedSulk = false;
+  var HINT_IDLE = 'Tap a square for a note. Drag up and down for pitch, sideways for length. Tap again to remove.';
+  function hint(t) {
+    var el = root && root.querySelector('.cr-hint');
+    if (!el) return;
+    el.textContent = t || HINT_IDLE;
+    clearTimeout(hintTimer);
+    if (t) hintTimer = setTimeout(function () { if (el) el.textContent = HINT_IDLE; }, 6000);
+  }
+  function checkSulk() {
+    if (hintedSulk || !S) return;
+    for (var i = 0; i < S.cells.length; i++) if (S.cells[i].x) {
+      hintedSulk = true;
+      hint('The chip has two pulse voices, one wave and one noise. Faded notes are waiting for a free voice.');
+      return;
+    }
+  }
+  var tourStep = -1;
+  function tourDone() {
+    tourStep = -1;
+    try { localStorage.setItem('ct-create-tour', '2'); } catch (e) {}
+    var t = root && root.querySelector('.cr-tour'); if (t) t.remove();
+  }
+  function tourShow(step) {
+    if (!root) return;
+    tourStep = step;
+    var t = root.querySelector('.cr-tour');
+    if (!t) { t = document.createElement('div'); t.className = 'cr-tour'; root.appendChild(t); }
+    var msgs = [
+      ['This song was just written for you.', 'Each square is one step of this bar. Tap for a note, tap again to remove. Drag up and down for pitch, sideways to stretch.'],
+      ['Four voices.', 'P1 and P2 are the melodies, WAV the bass, NOI the drums. Tap to switch, tap the lit one to mute it, hold one for its sound.'],
+      ['The bars walk the song.', 'Tap a number to look at that bar; ↺ loops the one you are on while you shape it.'],
+      ['Moods write songs.', 'Type a feeling and press Make, or roll the dice. Everything it writes is yours to edit.']
+    ];
+    t.innerHTML = '<b>' + msgs[step][0] + '</b><span>' + msgs[step][1] + '</span>' +
+      '<div class="cr-tourbtns"><button type="button" data-tour="skip">Skip</button>' +
+      '<button type="button" data-tour="next">' + (step === 3 ? 'Done' : 'Next') + '</button></div>' +
+      '<i>' + (step + 1) + ' / 4</i>';
+    var anchor = [root.querySelector('.n-grid'), root.querySelector('.n-chans'),
+                  root.querySelector('.n-bars'), root.querySelector('.n-moodrow')][step];
+    var ar = (anchor || root).getBoundingClientRect();
+    t.style.transform = 'translateX(-50%)';
+    t.style.left = '50%';
+    if (step === 0) t.style.top = Math.round(ar.top + ar.height * 0.3) + 'px';
+    else t.style.top = Math.round(Math.max(10, ar.top - 130)) + 'px';
+  }
+  function tourAdvance(from) {
+    if (tourStep !== from) return;
+    if (from >= 3) tourDone(); else tourShow(from + 1);
+  }
 
+  // hear a cell exactly as buildSong will play it
+  function auditionCell(cell) {
+    resolveBank();
+    if (typeof Audio === 'undefined' || !Audio.pokeCreate) return;
+    var per = framesPer16();
+    if (cell.r >= MEL_ROWS) {
+      var d = DRUMS[cell.r - MEL_ROWS];
+      Audio.pokeCreate({ ch: 3, frames: Math.round(per), midi: null,
+                         inst: cell.inst != null ? cell.inst : INSTOF[d.id],
+                         vel: cell.vel != null ? cell.vel : d.vel });
+      return;
+    }
+    var voice = cellVoice(cell) || 'pulse';
+    Audio.pokeCreate({ ch: voice === 'wave' ? 2 : 1, frames: Math.round(per * 2),
+                       midi: cell.midi != null ? cell.midi : rowMidi(cell.r),
+                       inst: cell.inst != null ? cell.inst : INSTOF[cell.st],
+                       vel: cell.vel != null ? cell.vel : 0.8,
+                       sweep: cell.sweep != null ? cell.sweep : (voice !== 'wave' && cell.z) ? 0x3E : (voice !== 'wave' && cell.u) ? 0x36 : 0 });
+  }
+
+  // ---- the view: one bar of one channel ------------------------------------
+  var CH = [
+    { n: 'P1',  color: '#7BDCA0', stamp: 'piano', tip: 'Pulse 1: the lead voice. Hold for its sound.' },
+    { n: 'P2',  color: '#57C4FF', stamp: 'bell',  tip: 'Pulse 2: the second voice. Hold for its sound.' },
+    { n: 'WAV', color: '#E8A75D', stamp: 'bassg', tip: 'Wave: the bass. Hold for its sound.' },
+    { n: 'NOI', color: '#C9A4E8', stamp: null,    tip: 'Noise: the drums. Drag up for hat, down for kick.' }
+  ];
+  var viewCh = 0, viewBar = 0, viewPinned = false, lastDeg = [7, 9, 3, 2];
+  function chOfCell(x) {
+    if (x.r >= MEL_ROWS) return 3;
+    var v = cellVoice(x);
+    if (v === 'wave') return 2;
+    if (x.ch === 0 || x.ch === 1) return x.ch;
+    if (x.rch === 0 || x.rch === 1) return x.rch;
+    return 0;
+  }
+  function cellIndexAt(ch, col) {
+    for (var i = 0; i < S.cells.length; i++) {
+      var x = S.cells[i];
+      if (x.c === col && chOfCell(x) === ch) return i;
+    }
+    return -1;
+  }
+  function tailIndexAt(ch, col) {
+    for (var i = 0; i < S.cells.length; i++) {
+      var x = S.cells[i];
+      if (x.c < col && col < x.c + (x.len || 1) && chOfCell(x) === ch) return i;
+    }
+    return -1;
+  }
+  function degOfCell(x) {
+    return x.r >= MEL_ROWS ? 2 - (x.r - MEL_ROWS) : (MEL_ROWS - 1) - x.r;
+  }
+  function applyDeg(x, deg) {
+    if (x.r >= MEL_ROWS || (x.r < MEL_ROWS && viewCh === 3)) {
+      x.r = MEL_ROWS + (2 - deg);
+      delete x.inst;                           // a moved drum adopts its lane's sound
+    } else {
+      x.r = MEL_ROWS - 1 - deg;
+      delete x.midi;                           // hand pitches stay in key
+    }
+  }
+  function makeCell(ch, col, deg) {
+    var cell = { c: col, t: ++order };
+    if (ch === 3) {
+      cell.r = MEL_ROWS + (2 - deg);
+    } else {
+      cell.r = MEL_ROWS - 1 - deg;
+      cell.st = CH[ch].stamp;
+      if (ch < 2) cell.ch = ch;
+      if (chInst[ch] != null) cell.inst = chInst[ch];
+    }
+    S.cells.push(cell);
+    return cell;
+  }
+
+  // ---- render --------------------------------------------------------------
+  var stepEls = [], lastPh = -1, lastPlayBar = -1;
+  function renderTransport() {
+    var b = root.querySelector('[data-cr="play"]');
+    if (b) b.textContent = playing ? '❚❚' : '▶';
+  }
+  function renderChans() {
+    root.querySelectorAll('.n-chan').forEach(function (b) {
+      var i = +b.dataset.ch;
+      b.classList.toggle('sel', viewCh === i);
+      b.classList.toggle('muted', !!chMuted[i]);
+      b.style.color = CH[i].color;
+    });
+  }
+  function renderBars() {
+    var strip = root.querySelector('.n-barstrip');
+    if (!strip) return;
+    var pb = -1;
+    if (playing) {
+      var perMs = (60 / curBpm() / 4) * 1000;
+      var col = loopBar >= 0 ? loopBar * 16 : ((performance.now() - playT0) / perMs) % cols();
+      pb = loopBar >= 0 ? loopBar : Math.floor(col / 16);
+    }
+    lastPlayBar = pb;
+    if (strip.childElementCount !== S.bars) {
+      var html = '';
+      for (var b = 0; b < S.bars; b++) html += '<button type="button" class="n-bar" data-bar="' + b + '">' + (b + 1) + '</button>';
+      strip.innerHTML = html;
+    }
+    strip.querySelectorAll('.n-bar').forEach(function (el) {
+      var b = +el.dataset.bar;
+      el.classList.toggle('view', b === viewBar);
+      el.classList.toggle('loop', b === loopBar);
+      el.classList.toggle('queued', b === queuedBar);
+      el.classList.toggle('play', b === pb);
+    });
+    var lp = root.querySelector('[data-cr="loop"]');
+    if (lp) lp.classList.toggle('on', loopBar >= 0);
+    var cur = strip.querySelector('.n-bar.view');
+    if (cur && cur.scrollIntoView) cur.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+  function renderGrid() {
+    if (!stepEls.length) return;
+    var grid = root.querySelector('.n-grid');
+    grid.style.color = CH[viewCh].color;
+    var mutedCh = !!effMask()[viewCh];
+    for (var s = 0; s < 16; s++) {
+      var col = viewBar * 16 + s, el = stepEls[s];
+      var i = cellIndexAt(viewCh, col);
+      var tail = i < 0 ? tailIndexAt(viewCh, col) : -1;
+      var x = i >= 0 ? S.cells[i] : null;
+      el.classList.toggle('on', !!x);
+      el.classList.toggle('tail', tail >= 0);
+      el.classList.toggle('sulk', !!(x && x.x));
+      el.classList.toggle('mutedch', mutedCh);
+      var pbEl = el.firstChild, lnEl = el.lastChild;
+      if (x) {
+        var deg = degOfCell(x);
+        var top = viewCh === 3 ? [64, 40, 16][2 - (x.r - MEL_ROWS)] : Math.round((1 - deg / (MEL_ROWS - 1)) * 74 + 8);
+        pbEl.style.top = top + '%';
+        lnEl.textContent = (x.len || 1) > 1 ? '×' + x.len : '';
+      } else lnEl.textContent = '';
+    }
+  }
+  function renderAll() { renderTransport(); renderChans(); renderBars(); renderGrid(); }
+  function updatePh(stepIdx) {
+    if (stepIdx === lastPh) return;
+    lastPh = stepIdx;
+    for (var s = 0; s < 16; s++) stepEls[s].classList.toggle('ph', s === stepIdx);
+  }
+
+  // the playhead ticker: follow, loop wraps, queued switches, next songs
+  var tickId = 0;
+  function scheduleTick() {
+    if (!tickId) tickId = requestAnimationFrame(function () { tickId = 0; tick(); });
+  }
+  function tick() {
+    if (!playing || !root) return;
+    var perMs = (60 / curBpm() / 4) * 1000;
+    var elapsed = performance.now() - playT0;
+    if (liveScore && loopBar < 0 && elapsed >= songMs() + 250) {
+      composeIntoGrid(liveMood, true);          // the song ended; the mood writes the next
+      return;
+    }
+    if (loopBar >= 0 && queuedBar != null) {
+      var ph = (elapsed / perMs) % 16;
+      if (ph < loopPhase) {                     // the loop wrapped: switch bars
+        loopBar = queuedBar; queuedBar = null; loopPhase = 0;
+        viewBar = loopBar;
+        startPlayback(0);
+        renderAll();
+        return;
+      }
+      loopPhase = ph;
+    }
+    var col = loopBar >= 0 ? loopBar * 16 + (elapsed / perMs) % 16 : (elapsed / perMs) % cols();
+    var pb = Math.floor(col / 16);
+    if (loopBar < 0 && !viewPinned && pb !== viewBar) {
+      viewBar = pb;
+      renderBars(); renderGrid();
+    } else if (pb !== lastPlayBar) renderBars();
+    updatePh(pb === viewBar ? Math.floor(col) % 16 : -1);
+    scheduleTick();
+  }
+
+  // ---- bar operations ------------------------------------------------------
+  function addBar() {
+    if (S.bars >= 63) return;
+    snapshot(); S.bars++; viewBar = S.bars - 1; viewPinned = true;
+    if (loopBar >= 0) loopBar = viewBar;
+    dirty(); renderBars();
+  }
+  function dupBar(b) {
+    if (S.bars >= 63) return;
+    snapshot();
+    var copies = [];
+    S.cells.forEach(function (x) {
+      if (x.c >= (b + 1) * 16) x.c += 16;
+      else if (x.c >= b * 16) {
+        var cp = { c: x.c + 16, r: x.r, t: ++order };
+        ['st', 'z', 'u', 'q', 'g', 'f', 'w', 'inst', 'midi', 'len', 'vel', 'ch', 'sweep'].forEach(function (k) {
+          if (x[k] != null) cp[k] = x[k];
+        });
+        copies.push(cp);
+      }
+    });
+    S.cells = S.cells.concat(copies);
+    S.bars++; viewBar = b + 1; viewPinned = true;
+    if (loopBar >= 0) loopBar = viewBar;
+    dirty();
+  }
+  function delBar(b) {
+    snapshot();
+    S.cells = S.cells.filter(function (x) { return x.c < b * 16 || x.c >= (b + 1) * 16; });
+    if (S.bars > 1) {
+      S.cells.forEach(function (x) { if (x.c >= (b + 1) * 16) x.c -= 16; });
+      S.bars--;
+    }
+    if (viewBar >= S.bars) viewBar = S.bars - 1;
+    if (loopBar >= S.bars) loopBar = S.bars - 1;
+    dirty();
+  }
+
+  // ---- build the screen ----------------------------------------------------
+  var CHIPS = ['happy', 'sad', 'upbeat', 'chill', 'spooky', 'epic', 'retro', 'funky', 'dreamy', 'battle'];
+  function buildUI() {
+    root.innerHTML =
+      '<div class="cr-top">' +
+        '<button type="button" class="cr-btn n-play" data-cr="play" data-tip="Play or pause (Space)">▶</button>' +
+        '<label class="cr-lab" data-tip="Tempo">' + S.bpm + ' BPM<input type="range" min="70" max="180" step="2" value="' + S.bpm + '" data-cr="bpm"></label>' +
+        '<span class="cr-sep"></span>' +
+        '<button type="button" class="cr-btn" data-cr="undo" data-tip="Undo">↩</button>' +
+        '<button type="button" class="cr-btn" data-cr="redo" data-tip="Redo">↪</button>' +
+        '<button type="button" class="cr-btn" data-cr="dice" data-tip="Compose a surprise track">🎲</button>' +
+        '<button type="button" class="cr-btn" data-cr="shelf" data-tip="Your saved songs">Songs</button>' +
+        '<button type="button" class="cr-btn" data-cr="sharemenu" data-tip="Link, WAV, or a real cartridge">Share</button>' +
+        '<button type="button" class="cr-btn cr-close" data-cr="close" data-tip="Back to the radio (Esc)">×</button>' +
+      '</div>' +
+      '<div class="n-moodrow">' +
+        '<input type="text" class="cr-mood" data-cr="mood" placeholder="a mood: happy, spooky, fast..." maxlength="60">' +
+        '<button type="button" class="cr-btn cr-primary" data-cr="make">Make</button>' +
+        CHIPS.map(function (c) { return '<button type="button" class="cr-chip" data-mood="' + c + '">' + c + '</button>'; }).join('') +
+      '</div>' +
+      '<div class="n-mid"><div class="n-grid"></div></div>' +
+      '<div class="n-chans">' + CH.map(function (c, i) {
+        return '<button type="button" class="n-chan" data-ch="' + i + '" title="' + c.tip + '">' + c.n + '</button>';
+      }).join('') + '</div>' +
+      '<div class="n-bars">' +
+        '<button type="button" class="cr-btn n-loopbtn" data-cr="loop" data-tip="Loop this bar">↺</button>' +
+        '<div class="n-barstrip"></div>' +
+        '<button type="button" class="cr-btn" data-cr="baradd" data-tip="Add a bar">+</button>' +
+        '<button type="button" class="cr-btn" data-cr="bardup" data-tip="Duplicate this bar">⧉</button>' +
+        '<button type="button" class="cr-btn" data-cr="bardel" data-tip="Remove this bar">−</button>' +
+      '</div>' +
+      '<div class="cr-hint"></div>';
+    var grid = root.querySelector('.n-grid');
+    stepEls = [];
+    for (var s = 0; s < 16; s++) {
+      var el = document.createElement('div');
+      el.className = 'n-step' + (s % 4 === 0 ? ' beat' : '');
+      el.dataset.i = s;
+      el.innerHTML = '<i class="pb"></i><b class="ln"></b>';
+      grid.appendChild(el);
+      stepEls.push(el);
+    }
+  }
+
+  // ---- input ---------------------------------------------------------------
+  function wireEvents() {
+    // Space plays/pauses (typing in an input keeps its spaces)
     document.addEventListener('keydown', function (ev) {
       if (ev.code !== 'Space' || !isOpen() || ev.metaKey || ev.altKey || ev.ctrlKey) return;
       var tag = (ev.target && ev.target.tagName) || '';
-      if (/^(INPUT|TEXTAREA|SELECT)$/.test(tag)) return;      // typing a mood, not pausing
+      if (/^(INPUT|TEXTAREA|SELECT)$/.test(tag)) return;
       ev.preventDefault(); ev.stopPropagation();
       togglePlay();
     }, true);
@@ -4559,31 +4273,114 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       mi.blur();
       composeIntoGrid(mi.value);
     });
-    root.addEventListener('click', function (ev) {
-      var fb = ev.target.closest('button'); if (fb) fb.blur();
-      var st = ev.target.closest('[data-stamp]');
-      if (st) { S.cur = st.dataset.stamp; renderPalette(); auditionStamp(S.cur); return; }
-      var md = ev.target.closest('[data-mod]');
-      if (md) {
-        var mo = md.dataset.mod;
-        if (mo === 'wob') S.wob = S.wob ? 0 : 1;
-        else S.cmd = S.cmd === mo ? 0 : mo;                // one command in hand at a time
-        renderPalette();
-        if ((mo === 'wob' && S.wob) || (mo !== 'wob' && S.cmd === mo))
-          auditionStamp(S.cur === 'eraser' || S.cur.charAt(0) === 'i' ? 'piano' : S.cur);
+    root.addEventListener('mouseover', function (ev) {
+      var t = ev.target.closest && ev.target.closest('[data-tip]');
+      if (t) hint(t.dataset.tip);
+    });
+
+    // the step grid: tap toggles, vertical drag pitches, horizontal stretches
+    var grid = root.querySelector('.n-grid'), sdrag = null;
+    grid.addEventListener('pointerdown', function (ev) {
+      var el = ev.target.closest('.n-step'); if (!el) return;
+      ev.preventDefault(); grid.setPointerCapture(ev.pointerId);
+      var step = +el.dataset.i, col = viewBar * 16 + step;
+      snapshot();
+      var i = cellIndexAt(viewCh, col), created = false, cell;
+      if (i < 0) {
+        cell = makeCell(viewCh, col, lastDeg[viewCh]);
+        created = true;
+        dirty(); auditionCell(cell); tourAdvance(0);
+      } else cell = S.cells[i];
+      sdrag = { cell: cell, created: created, sx: ev.clientX, sy: ev.clientY,
+                deg: degOfCell(cell), len: cell.len || 1, axis: 0, pokeAt: 0 };
+    });
+    grid.addEventListener('pointermove', function (ev) {
+      if (!sdrag) return;
+      var dx = ev.clientX - sdrag.sx, dy = ev.clientY - sdrag.sy;
+      if (!sdrag.axis) {
+        if (Math.abs(dy) > 9) sdrag.axis = 'y';
+        else if (Math.abs(dx) > 12) sdrag.axis = 'x';
+        else return;
+      }
+      if (sdrag.axis === 'y') {
+        var span = viewCh === 3 ? 2 : MEL_ROWS - 1;
+        var per = viewCh === 3 ? 30 : 16;
+        var nd = Math.max(0, Math.min(span, sdrag.deg + Math.round(-dy / per)));
+        if (nd !== degOfCell(sdrag.cell)) {
+          applyDeg(sdrag.cell, nd);
+          lastDeg[viewCh] = nd;
+          dirty();
+          var t = performance.now();
+          if (t - sdrag.pokeAt > 90) { sdrag.pokeAt = t; auditionCell(sdrag.cell); }
+        }
+      } else {
+        var nl = Math.max(1, Math.min(16, sdrag.len + Math.round(dx / 30)));
+        if (nl !== (sdrag.cell.len || 1)) {
+          if (nl > 1) sdrag.cell.len = nl; else delete sdrag.cell.len;
+          dirty();
+        }
+      }
+    });
+    ['pointerup', 'pointercancel'].forEach(function (t) {
+      grid.addEventListener(t, function () {
+        if (sdrag && !sdrag.axis && !sdrag.created) {
+          var i = S.cells.indexOf(sdrag.cell);
+          if (i >= 0) { S.cells.splice(i, 1); dirty(); }
+        }
+        sdrag = null;
+      });
+    });
+
+    // channels: tap switches, tap the lit one mutes, hold opens its sound
+    var chans = root.querySelector('.n-chans'), holdTimer = 0, holdFired = false;
+    chans.addEventListener('pointerdown', function (ev) {
+      var b = ev.target.closest('.n-chan'); if (!b) return;
+      holdFired = false;
+      var ch = +b.dataset.ch;
+      holdTimer = setTimeout(function () {
+        holdFired = true;
+        if (ch !== 3) { viewCh = ch; renderChans(); renderGrid(); openPad(ch); }
+      }, 480);
+    });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (t) {
+      chans.addEventListener(t, function () { clearTimeout(holdTimer); });
+    });
+    chans.addEventListener('click', function (ev) {
+      var b = ev.target.closest('.n-chan'); if (!b || holdFired) return;
+      var ch = +b.dataset.ch;
+      if (viewCh === ch) {
+        chMuted[ch] = !chMuted[ch];
+        applyMute();
+        hint(CH[ch].n + (chMuted[ch] ? ' muted.' : ' back on.'));
+      } else {
+        viewCh = ch;
+        renderChans(); renderGrid();
+        hint(CH[ch].tip);
+        tourAdvance(1);
+      }
+    });
+
+    // bars
+    root.querySelector('.n-bars').addEventListener('click', function (ev) {
+      var bb = ev.target.closest('.n-bar');
+      if (bb) {
+        var b = +bb.dataset.bar;
+        if (loopBar >= 0) {
+          setLoopBar(b);
+          if (loopBar >= 0) viewBar = loopBar;
+        } else {
+          viewBar = b; viewPinned = true;
+        }
+        renderBars(); renderGrid();
         return;
       }
+    });
+
+    root.addEventListener('click', function (ev) {
+      var fb = ev.target.closest('button'); if (fb) fb.blur();
       var tb = ev.target.closest('[data-tour]');
       if (tb) {
         if (tb.dataset.tour === 'skip') tourDone(); else tourAdvance(tourStep);
-        return;
-      }
-      var ln = ev.target.closest('.cr-lane');
-      if (ln) {
-        var li = +ln.dataset.lane;
-        if (ev.target.tagName === 'I') { chSolo = chSolo === li ? -1 : li; }
-        else { chMuted[li] = !chMuted[li]; if (chSolo === li) chSolo = -1; }
-        applyLanes();
         return;
       }
       var shb = ev.target.closest('[data-shelf],[data-shelf-load],[data-shelf-del]');
@@ -4601,7 +4398,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
           if (st) {
             snapshot(); dropLiveScore();
             S = st; order = S.cells.length;
-            loopBar = -1; queuedBar = null; camX = 0; camFollow = true; pausedAt = 0;
+            loopBar = -1; queuedBar = null; viewBar = 0; viewPinned = false; pausedAt = 0;
             var lab = root.querySelector('.cr-lab');
             if (lab) { lab.firstChild.textContent = S.bpm + ' BPM'; var sl = lab.querySelector('input'); if (sl) sl.value = S.bpm; }
             dirty(); startPlayback(0);
@@ -4611,13 +4408,6 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
           list.splice(+shb.dataset.shelfDel, 1);
           saveShelf(list); renderShelf();
         }
-        return;
-      }
-      var di = ev.target.closest('[data-inst]');
-      if (di) {
-        S.cur = 'i' + di.dataset.inst;
-        renderPalette(); markDrawer();
-        auditionCell({ c: 0, r: 7, st: S.cur, inst: +di.dataset.inst });
         return;
       }
       var mc = ev.target.closest('[data-mood]');
@@ -4633,16 +4423,20 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       else if (k === 'close') { close(); }
       else if (k === 'undo') { undo(); }
       else if (k === 'redo') { redo(); }
-      else if (k === 'clear') { snapshot(); S.cells = []; dirty(); }
       else if (k === 'dice') { composeIntoGrid(''); }
       else if (k === 'make') { var mv = root.querySelector('.cr-mood'); composeIntoGrid(mv ? mv.value : ''); }
-      else if (k === 'drawer') { toggleDrawer(); }
       else if (k === 'shelf') { toggleShelf(); }
+      else if (k === 'loop') { setLoopBar(viewBar); renderAll(); }
+      else if (k === 'baradd') { addBar(); }
+      else if (k === 'bardup') { dupBar(viewBar); }
+      else if (k === 'bardel') { delBar(viewBar); }
+      else if (k === 'sharemenu') { toggleShare(); }
       else if (k === 'share') {
         try { navigator.clipboard.writeText(location.origin + '/create#s=' + encode()); if (G._toast) G._toast('Link copied. The link IS the song 🎵'); } catch (e) {}
+        toggleShare();
       }
-      else if (k === 'wav') { exportWav(); }
-      else if (k === 'rom') { exportRom(); }
+      else if (k === 'wav') { exportWav(); toggleShare(); }
+      else if (k === 'rom') { exportRom(); toggleShare(); }
     });
     root.addEventListener('input', function (ev) {
       var b = ev.target.closest('[data-cr="bpm"]'); if (!b) return;
@@ -4650,142 +4444,35 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       S.bpm = +b.value; b.parentNode.firstChild.textContent = S.bpm + ' BPM';
       dirty();
     });
-    var lastHit = null, pointers = {}, pinch = null;
-    function pinchDist() {
-      var ids = Object.keys(pointers);
-      var a = pointers[ids[0]], b = pointers[ids[1]];
-      return Math.max(20, Math.hypot(a.x - b.x, a.y - b.y));
-    }
-    cv.addEventListener('pointerdown', function (ev) {
-      ev.preventDefault(); cv.setPointerCapture(ev.pointerId);
-      pointers[ev.pointerId] = { x: ev.clientX, y: ev.clientY };
-      if (Object.keys(pointers).length === 2) {
-        // two fingers: zoom the timeline, cancel whatever one finger started
-        pinch = { d0: pinchDist(), z0: cwZoom };
-        dragMode = null; panMode = null; lenCell = null;
-        return;
-      }
-      var hh = headerHit(ev);
-      if (hh) {
-        if (hh.type === 'add') { addBar(); return; }
-        if (hh.type === 'dup') { dupBar(hh.bar); return; }
-        if (hh.type === 'del') { delBar(hh.bar); return; }
-        if (hh.type === 'loop') { setLoopBar(hh.bar); return; }
-        panMode = { x: ev.clientX, cam: camX }; camFollow = false;
-        return;
-      }
-      var h = hitCell(ev); if (!h) return;
-      snapshot();
-      var i = cellSpanAt(h.c, h.r);
-      if (S.cur === 'eraser') {
-        dragMode = 'erase'; lastHit = h;
-        if (i >= 0) { S.cells.splice(i, 1); dirty(); }
-        return;
-      }
-      if (i >= 0) {
-        var cell = S.cells[i], cl = cell.len || 1;
-        // the right edge stretches; the body moves; a tap removes
-        var isEdge = h.c === cell.c + cl - 1 && (cl > 1 || h.fx > 0.6);
-        dragMode = isEdge ? 'len' : 'grab';
-        lenCell = cell; lenMoved = false; grabDC = h.c - cell.c; lastHit = h;
-        return;
-      }
-      lenCell = placeAt(h); noteRow = h.r; dragMode = 'note'; lastHit = h;
-      if (!hintedPlace) { hintedPlace = true; hint('Placed. Drag its body to move it, pull its right edge to stretch, tap it to remove.'); }
-    });
-    cv.addEventListener('wheel', function (ev) {
-      var L = layout();
-      if (L.maxCam <= 0) return;
-      ev.preventDefault();
-      var d = Math.abs(ev.deltaX) > Math.abs(ev.deltaY) ? ev.deltaX : ev.deltaY;
-      camX = Math.max(0, Math.min(L.maxCam, camX + d));
-      camFollow = false;
-      draw();
-    }, { passive: false });
-    cv.addEventListener('pointermove', function (ev) {
-      if (pointers[ev.pointerId]) pointers[ev.pointerId] = { x: ev.clientX, y: ev.clientY };
-      if (pinch && Object.keys(pointers).length === 2) {
-        cwZoom = Math.max(0.6, Math.min(1.8, pinch.z0 * (pinchDist() / pinch.d0)));
-        draw();
-        return;
-      }
-      if (panMode) {
-        var L = layout();
-        camX = Math.max(0, Math.min(L.maxCam, panMode.cam - (ev.clientX - panMode.x)));
-        draw();
-        return;
-      }
-      if (!dragMode) return;
-      var h = hitCell(ev); if (!h) return;
-      if (dragMode === 'grab') {
-        if (h.c !== lastHit.c || h.r !== lastHit.r) lenMoved = true;
-        var nc = Math.max(0, Math.min(cols() - (lenCell.len || 1), h.c - grabDC));
-        var nr = lenCell.r < MEL_ROWS ? Math.max(0, Math.min(MEL_ROWS - 1, h.r))
-                                      : Math.max(MEL_ROWS, Math.min(ROWS - 1, h.r));
-        if ((nc !== lenCell.c || nr !== lenCell.r) && cellAtExcept(nc, nr, lenCell) < 0) {
-          var rowChanged = nr !== lenCell.r;
-          if (rowChanged && lenCell.r < MEL_ROWS && lenCell.midi != null)
-            lenCell.midi += rowMidi(nr) - rowMidi(lenCell.r);   // exact pitches move diatonically
-          if (rowChanged && lenCell.r >= MEL_ROWS) delete lenCell.inst;  // adopt the new lane's drum
-          lenCell.c = nc; lenCell.r = nr;
-          dirty();
-          if (rowChanged) auditionCell(lenCell);
-        }
-        lastHit = h; return;
-      }
-      if (dragMode === 'len' || (dragMode === 'note' && h.r === noteRow)) {
-        if (h.c !== lenCell.c || h.r !== lenCell.r) lenMoved = true;
-        if (h.r === lenCell.r) {
-          var L2 = Math.max(1, Math.min(cols() - lenCell.c, h.c - lenCell.c + 1));
-          if (L2 !== (lenCell.len || 1)) {
-            if (L2 > 1) lenCell.len = L2; else delete lenCell.len;
-            dirty();
-          }
-          lastHit = h; return;
-        }
-        if (dragMode === 'len') { lastHit = h; return; }
-      }
-      if (dragMode === 'note') dragMode = 'paint';         // left the row: line painting
-      // pointer events arrive sparser than cells: walk the line between the
-      // last sample and this one, or a fast sweep skips columns.
-      if (lastHit) {
-        var dc = h.c - lastHit.c, dr = h.r - lastHit.r;
-        var n = Math.max(Math.abs(dc), Math.abs(dr));
-        for (var i = 1; i <= n; i++)
-          stepCell({ c: lastHit.c + Math.round(dc * i / n), r: lastHit.r + Math.round(dr * i / n) });
-      } else stepCell(h);
-      lastHit = h;
-    });
-    ['pointerup', 'pointercancel'].forEach(function (t) {
-      cv.addEventListener(t, function (ev) {
-        delete pointers[ev.pointerId]; pinch = null;
-        if ((dragMode === 'len' || dragMode === 'grab') && !lenMoved && lenCell) {
-          var cell = lenCell;
-          if (tapCell === cell && tapTimer) {
-            // second tap inside the window: an accent, not a removal
-            clearTimeout(tapTimer); tapTimer = 0; tapCell = null;
-            var v = cell.vel != null ? cell.vel : 0.8;
-            cell.vel = v < 0.6 ? 0.8 : v < 0.9 ? 1.0 : 0.5;
-            if (!hintedAccent) { hintedAccent = true; hint('Accent: double-tap cycles soft, normal, loud.'); }
-            dirty();
-            auditionCell(cell);
-          } else {
-            clearTimeout(tapTimer); tapCell = cell;
-            tapTimer = setTimeout(function () {
-              tapTimer = 0; tapCell = null;
-              var i = S.cells.indexOf(cell);
-              if (i >= 0) { S.cells.splice(i, 1); dirty(); }
-            }, 260);
-          }
-        }
-        dragMode = null; lastHit = null; panMode = null; lenCell = null;
-      });
-    });
-    window.addEventListener('resize', draw);
-    root.addEventListener('mouseover', function (ev) {
-      var t = ev.target.closest && ev.target.closest('[data-tip]');
-      if (t) hint(t.dataset.tip);
-    });
+  }
+  function toggleShare() {
+    var sp = root.querySelector('.cr-sharepop');
+    if (sp) { sp.remove(); return; }
+    sp = document.createElement('div');
+    sp.className = 'cr-sharepop';
+    sp.innerHTML = '<button type="button" class="cr-btn" data-cr="share">Copy link</button>' +
+      '<button type="button" class="cr-btn" data-cr="wav">WAV</button>' +
+      '<button type="button" class="cr-btn" data-cr="rom">Game Boy ROM</button>';
+    root.appendChild(sp);
+  }
+
+  // ---- open / close --------------------------------------------------------
+  function open() {
+    if (root) { root.classList.add('show'); armChip(); if (!playing) startPlayback(pausedAt); return; }
+    var fromUrl = (location.hash.match(/#s=([A-Za-z0-9\-_]+)/) || [])[1];
+    S = (fromUrl && decode(fromUrl)) || null;
+    if (!S) { try { var d = localStorage.getItem('ct-create-draft'); if (d) S = decode(d); } catch (e) {} }
+    if (!S) S = freshState();
+    order = S.cells.length;
+    root = document.createElement('div');
+    root.id = 'createscreen';
+    document.body.appendChild(root);
+    buildUI();
+    wireEvents();
+    requestAnimationFrame(function () { root.classList.add('show'); renderAll(); });
+    document.body.classList.add('create-open');
+    armChip();
+    try { history.replaceState(null, '', '/create' + (S.cells.length ? '#s=' + encode() : '')); } catch (e) {}
     hint('');
     // never a blank page, never a dead room: a song is already here, and the
     // transport is already running
@@ -4798,15 +4485,17 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       try { toured = !!localStorage.getItem('ct-create-tour'); } catch (e) {}
       if (!toured) setTimeout(function () { if (isOpen()) tourShow(0); }, 1400);
     } else {
+      try { buildSong(); } catch (e) {}
       startPlayback(0);
+      renderAll();
     }
   }
   function close() {
     if (playing) pausePlayback(); else armChip();
     pausedAt = 0;
-    chMuted = [false, false, false, false]; chSolo = -1;   // playScore() clears the chip mask
+    chMuted = [false, false, false, false];    // playScore() clears the chip mask
     loopBar = -1; queuedBar = null;
-    if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
+    closePad();
     if (root) root.classList.remove('show');
     document.body.classList.remove('create-open');
     try { history.replaceState(null, '', '/'); } catch (e) {}
@@ -4816,13 +4505,13 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
 
   G.CT_CREATE = { open: open, close: close, isOpen: isOpen, togglePlay: togglePlay,
     _dbg: function () {
-      var mx = 0, withInst = 0, cmds = 0;
+      var mx = 0, withInst = 0, hist = [0, 0, 0, 0];
       if (S) S.cells.forEach(function (x) { if ((x.len || 1) > mx) mx = x.len || 1; if (x.inst != null) withInst++;
-                                            if (x.z || x.u || x.q || x.g || x.f) cmds++; });
-      return { playing: playing, live: !!liveScore, bars: S ? S.bars : 0, loopBar: loopBar, queued: queuedBar,
-               camX: Math.round(camX), follow: camFollow, cur: S ? S.cur : '', cmd: S ? S.cmd : 0,
-               cells: S ? S.cells.length : 0, withInst: withInst, maxLen: mx, cmds: cmds,
-               notes: S ? buildSong().notes.length : 0, mood: liveMood }; },
+                                            try { hist[chOfCell(x)]++; } catch (e) {} });
+      return { playing: playing, live: !!liveScore, bars: S ? S.bars : 0,
+               viewBar: viewBar, viewCh: viewCh, loopBar: loopBar, queued: queuedBar,
+               cells: S ? S.cells.length : 0, withInst: withInst, maxLen: mx,
+               notes: S ? buildSong().notes.length : 0, chHist: hist, mood: liveMood }; },
     _skipToEnd: function () { if (playing && liveScore) playT0 = performance.now() - songMs() - 300; } };
   if (typeof module !== 'undefined' && module.exports) module.exports = G.CT_CREATE;
 })(typeof globalThis !== 'undefined' ? globalThis : window);
@@ -31664,9 +31353,9 @@ function _toggleHowModal(){
     'lines and chord movements mined from 74,552 video game MIDI files.</li>'+
     '<li><b>The games play themselves.</b> They react to the beat; they never '+
     'compose.</li>'+
-    '<li><b>You can write your own.</b> The Create button opens a full editor '+
-    'on the same chip: type a mood and the composer writes a real song onto '+
-    'an editable timeline, or place every note yourself. Share it as a link, '+
+    '<li><b>You can write your own.</b> The Create button opens a pocket '+
+    'tracker on the same chip: tap the grid for notes, or type a mood and '+
+    'the composer writes a whole song, yours to edit. Share it as a link, '+
     'a WAV, or a cartridge.</li>'+
     '<li><b>The screens are simulations.</b> Four real shades for the Game '+
     'Boy face; a modulated-and-decoded NTSC signal for the NES one.</li>'+

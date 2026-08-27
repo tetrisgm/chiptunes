@@ -129,3 +129,23 @@ next. Infrastructure and operations live outside this repository.
   kills double-tap zoom, and the grid canvas owns its gestures
   (touch-action:none).
 
+## Create rebuilt as a pocket tracker (2026-08-26)
+
+- The timeline/palette UI is gone. One screen: a 4x4 step grid shows one
+  bar of one voice (tap toggles, vertical drag pitches diatonically,
+  horizontal drag stretches, drums drag between kick/snare/hat); four
+  channel buttons (tap switches, tap the lit one mutes, hold opens the
+  sound map scoped to that voice, picked per channel in chInst[]); a bar
+  strip walks the song (tap views, the ring button loops the current bar,
+  tapping another bar while looping queues it for the wrap); mood row and
+  Share (link/WAV/ROM) on top. The whole engine (cells, buildSong,
+  liveScore, encode v1-6, shelf, chip glue) is unchanged.
+- Command stamps, eraser, accents, and solo lost their UI; cells carrying
+  those flags still play. Channel view mapping: explicit ch, else rch from
+  buildSong, else P1; the composer assigns pulse channels per seed, so a
+  seed may use only one of P1/P2 -- the views report what is real.
+- Decode bug fixed: the cell extension's channel read (e1>>3)&7, swallowing
+  the midi flag into the channel since v3, so decoded links corrupted
+  explicit channels (playback survived via the budget fallback). The
+  encoder always wrote correct bits, so old links heal on load.
+

@@ -17,12 +17,12 @@ on with your day: <https://chiptunes.app>
   hearing as a 32 KB `.gb` file that boots on real hardware. The browser chip
   and the cartridge are spectrally verified against each other in CI-grade
   tests (`npm run test:rom-audio`), so they cannot drift apart.
-- **Make your own.** Create is a full song editor on the same chip. Type a
-  mood ("slow spooky", "upbeat", "battle") and the radio's own composer
-  writes a real track onto an editable timeline, no AI involved, or place
-  every note yourself. Stretch notes, add arps, echoes and slides, mute and
-  solo the four voices, pull from all 42 instruments, then share the song as
-  a link, a WAV, or a real cartridge.
+- **Make your own.** Create is a pocket tracker on the same chip: a 4x4
+  grid holds one bar of one voice, tap for notes, drag up and down for
+  pitch and sideways for length, and the four channel buttons are the
+  DMG's own voices. Type a mood ("slow spooky", "upbeat", "battle") and
+  the radio's composer writes a whole track onto the grid, no AI involved,
+  yours to edit. Share it as a link, a WAV, or a real cartridge.
 - **The music is measured, not guessed.** Songs draw one of fourteen styles
   (house, dnb, trance, rock, chill, and friends). The patterns inside them
   are mined from 74,552 video-game MIDI files: real kit bars, real bass
