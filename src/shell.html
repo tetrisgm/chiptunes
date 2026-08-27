@@ -513,6 +513,22 @@
   #createscreen .cr-inst:hover{ border-color:var(--mat-edge-hi); background:rgba(255,255,255,.1); }
   #createscreen .cr-inst.on{ background:rgba(120,220,160,.2); border-color:rgba(120,220,160,.65); }
   #createscreen .cr-inst .cr-name{ font:600 8px/1 var(--ui); color:var(--ink-2); }
+  #createscreen .cr-padwrap{ display:flex; flex-direction:column; align-items:center; gap:2px;
+    margin-right:12px; }
+  #createscreen .cr-pad{ width:230px; height:120px; border-radius:12px; cursor:crosshair;
+    background:rgba(255,255,255,.04); border:1px solid var(--mat-edge); touch-action:none; }
+  #createscreen .cr-padlab{ font:500 9px var(--ui); color:var(--ink-2); }
+  #createscreen .cr-shelf{ flex:0 0 auto; display:flex; flex-direction:column; gap:6px;
+    padding:10px 18px; max-height:150px; overflow-y:auto; border-top:1px solid var(--mat-edge); }
+  #createscreen .cr-shelfrow{ display:flex; align-items:center; gap:10px; justify-content:center; }
+  #createscreen .cr-shelfrow b{ font:600 12px var(--ui); color:var(--ink); min-width:140px;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:right; }
+  #createscreen .cr-shelfrow span{ font:400 11px var(--ui); color:var(--ink-2); min-width:170px; }
+  #createscreen .cr-shelfrow .cr-btn{ height:28px; padding:0 12px; font-size:11px; }
+  #createscreen .cr-shelfname{ width:180px; height:30px; padding:0 12px; border-radius:999px;
+    background:rgba(255,255,255,.07); border:1px solid var(--mat-edge); color:var(--ink);
+    font:500 12px var(--ui); outline:none; }
+  #createscreen .cr-shelfempty{ text-align:center; font:400 11px var(--ui); color:var(--ink-2); }
   #createscreen .cr-playstamp{ border-color:rgba(123,220,160,.45); }
   #createscreen .cr-playstamp.on{ background:rgba(123,220,160,.22); border-color:rgba(123,220,160,.7); }
   /* instant hover hints: every control names itself */

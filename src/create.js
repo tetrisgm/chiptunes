@@ -349,17 +349,20 @@
     var ids = STAMPS.map(function (s) { return s.id; });
     // bpm rides as (bpm-70)/2: the 70..180 range in six bits. Plain bpm/2
     // overflowed for tempos >= 128 and every such link loaded at ~70.
-    var out = [5, S.key, S.minor, S.bars, Math.round((S.bpm - 70) / 2) & 63, S.swing];
+    var out = [6, S.key, S.minor, S.bars, Math.round((S.bpm - 70) / 2) & 63, S.swing];
     S.cells.forEach(function (x) {
       var st = x.r >= MEL_ROWS ? 15 : (x.st && x.st.charAt(0) === 'i' ? 14 : Math.max(0, ids.indexOf(x.st)));
-      var ext = x.inst != null;
+      // the extension rides whenever ANY exact field exists; v5 gated it on
+      // inst alone, which silently dropped hand-placed stretches and accents
+      var ext = x.inst != null || x.vel != null || x.midi != null || (x.len || 1) > 1 || x.sweep != null || x.ch != null;
       var cmd = x.u ? 1 : x.q ? 2 : x.g ? 3 : x.f ? 4 : 0;
       out.push(x.c & 63, (x.c >> 6) & 63, x.r | (x.z ? 32 : 0), st | (x.w ? 16 : 0) | (ext ? 32 : 0), cmd);
       if (ext) {
+        var ip1 = x.inst != null ? x.inst + 1 : 0;           // 0 = no exact instrument
         var midi = x.midi != null ? (x.midi | 0) : 0;
         var hasSweep = x.sweep != null;
-        out.push(x.inst & 63,
-                 ((x.inst >> 6) & 3) | (hasSweep ? 4 : 0) | ((x.ch != null ? x.ch + 1 : 0) << 3) | (x.midi != null ? 32 : 0),
+        out.push(ip1 & 63,
+                 ((ip1 >> 6) & 3) | (hasSweep ? 4 : 0) | ((x.ch != null ? x.ch + 1 : 0) << 3) | (x.midi != null ? 32 : 0),
                  ((x.len || 1) - 1) & 63,
                  Math.round((x.vel != null ? x.vel : 0.8) * 63) & 63,
                  midi & 63, (midi >> 6) & 1);
@@ -372,7 +375,7 @@
     try {
       var v = []; for (var i = 0; i < str.length; i++) { var ix = B64.indexOf(str[i]); if (ix < 0) return null; v.push(ix); }
       var ver = v[0];
-      if (ver < 1 || ver > 5) return null;
+      if (ver < 1 || ver > 6) return null;
       var st2 = freshState();
       st2.key = v[1] % 12; st2.minor = v[2] & 1;
       st2.bars = ver === 1 ? ([2, 4, 8].indexOf(v[3]) >= 0 ? v[3] : 4)
@@ -403,14 +406,16 @@
           }
           if (ver >= 3 && (b2 & 32) && k + 5 < v.length + 1) {
             var e1 = v[k + 1];
-            cell2.inst = v[k] | ((e1 & 3) << 6);
+            var rawInst = v[k] | ((e1 & 3) << 6);
+            if (ver >= 6) { if (rawInst > 0) cell2.inst = rawInst - 1; }
+            else cell2.inst = rawInst;
             var chc = (e1 >> 3) & 7; if (chc) cell2.ch = chc - 1;
             var ln = (v[k + 2] & 63) + 1; if (ln > 1) cell2.len = ln;
             cell2.vel = v[k + 3] / 63;
             if (e1 & 32) cell2.midi = v[k + 4] | ((v[k + 5] & 1) << 6);
             k += 6;
             if (e1 & 4 && k + 1 < v.length + 1) { cell2.sweep = v[k] | ((v[k + 1] & 3) << 6); k += 2; }
-            if (stc === 14 && r2 < MEL_ROWS) cell2.st = 'i' + cell2.inst;
+            if (stc === 14 && r2 < MEL_ROWS && cell2.inst != null) cell2.st = 'i' + cell2.inst;
           }
           st2.cells.push(cell2);
         }
@@ -478,10 +483,20 @@
     var song = liveScore || buildSong();
     return loopBar >= 0 ? sliceForBar(song, loopBar) : song;
   }
+  var queuedBar = null, loopPhase = 0;
   function setLoopBar(b) {
+    // live mode: while a bar loops, tapping ANOTHER bar queues it for the
+    // loop point instead of jumping mid-phrase
+    if (playing && loopBar >= 0 && b !== loopBar) {
+      queuedBar = queuedBar === b ? null : b;
+      hint(queuedBar != null ? 'Bar ' + (b + 1) + ' queued: it takes over at the loop point.' : 'Queue cleared.');
+      draw();
+      return;
+    }
     loopBar = loopBar === b ? -1 : b;
+    queuedBar = null; loopPhase = 0;
     camFollow = true;
-    if (loopBar >= 0) hint('Looping bar ' + (loopBar + 1) + '. Tap its number again for the whole song.');
+    if (loopBar >= 0) hint('Looping bar ' + (loopBar + 1) + '. Tap another number to queue it, this one for the whole song.');
     else hint('Back to the whole song.');
     if (playing) startPlayback(0); else { pausedAt = 0; draw(); }
   }
@@ -695,7 +710,7 @@
     liveBpm = score.bpm || S.bpm;
     liveMood = String(moodText || '');
     try { buildSong(); } catch (e) {}          // resolve channel marks for lane ticks/dimming
-    camX = 0; camFollow = true; loopBar = -1;
+    camX = 0; camFollow = true; loopBar = -1; queuedBar = null;
     pausedAt = 0;
     startPlayback(0);
     dirty();
@@ -712,6 +727,7 @@
     renderPalette(); draw();
   }
   function pausePlayback() {
+    queuedBar = null;
     pausedAt = (performance.now() - playT0) % Math.max(1, songMs());
     armChip();
     playing = false;
@@ -776,6 +792,15 @@
         composeIntoGrid(liveMood, true);
         return;
       }
+      if (loopBar >= 0 && queuedBar != null) {
+        var ph = (elapsed / perMs) % 16;
+        if (ph < loopPhase) {                          // the loop wrapped: switch bars
+          loopBar = queuedBar; queuedBar = null; loopPhase = 0;
+          startPlayback(0);
+          return;
+        }
+        loopPhase = ph;
+      }
       phCol = loopBar >= 0 ? loopBar * 16 + (elapsed / perMs) % 16
                            : (elapsed / perMs) % cols();
     }
@@ -801,13 +826,13 @@
     // ghost "+" bar that grows the song, then the loop mark
     for (var b = b0; b <= b1; b++) {
       var bx = L.gx + b * barW - camX;
-      var looped = b === loopBar;
-      g.strokeStyle = looped ? 'rgba(123,220,160,0.8)' : 'rgba(232,227,250,0.30)';
-      g.lineWidth = looped ? 2 : 1;
+      var looped = b === loopBar, queued = b === queuedBar;
+      g.strokeStyle = looped ? 'rgba(123,220,160,0.8)' : queued ? 'rgba(255,201,60,0.7)' : 'rgba(232,227,250,0.30)';
+      g.lineWidth = looped || queued ? 2 : 1;
       g.strokeRect(bx - 3.5, L.gy - 3.5, 16 * L.cw + 7, ROWS * L.chh + 7);
-      g.fillStyle = looped ? 'rgba(123,220,160,0.95)' : 'rgba(232,227,250,0.55)';
+      g.fillStyle = looped ? 'rgba(123,220,160,0.95)' : queued ? 'rgba(255,201,60,0.95)' : 'rgba(232,227,250,0.55)';
       g.font = '600 11px system-ui'; g.textBaseline = 'bottom';
-      g.fillText((looped ? '\u21ba ' : '') + (b + 1), bx + 2, L.gy - 8);
+      g.fillText((looped ? '\u21ba ' : queued ? '\u2192 ' : '') + (b + 1), bx + 2, L.gy - 8);
       g.fillStyle = 'rgba(232,227,250,0.4)'; g.font = '600 12px system-ui';
       g.fillText('\u29c9', bx + 16 * L.cw - 30, L.gy - 7);
       g.fillText('\u00d7', bx + 16 * L.cw - 12, L.gy - 7);
@@ -843,7 +868,8 @@
       }
       var size = Math.min(L.cw, L.chh) - 3;
       var pop = x.a ? Math.max(0, 1 - (now - x.a) / 220) : 0;
-      var s2 = size * (1 + pop * 0.35 + (firing ? 0.18 : 0));
+      var acc = x.vel != null ? (x.vel - 0.8) * 0.45 : 0;     // soft notes small, loud notes big
+      var s2 = size * (1 + acc + pop * 0.35 + (firing ? 0.18 : 0));
       var name = x.r >= MEL_ROWS ? DRUMS[x.r - MEL_ROWS].id : x.st;
       var laneOff = (x.r >= MEL_ROWS ? em[3] : x.rch != null && em[x.rch]);
       var firing = flCol >= 0 && flCol >= x.c && flCol < x.c + lenSteps && !laneOff && !x.x;
@@ -944,7 +970,7 @@
     dirty();
   }
   var lenCell = null, lenMoved = false, noteRow = -1;
-  var grabDC = 0, cwZoom = 1;
+  var grabDC = 0, cwZoom = 1, tapTimer = 0, tapCell = null, hintedAccent = false;
   var hintTimer = 0, hintedPlace = false, hintedSulk = false;
   var HINT_IDLE = 'Tap the grid to place notes. Drag a note to move it, pull its right edge to stretch, tap to remove.';
   function hint(t) {
@@ -1022,13 +1048,75 @@
 
   // The drawer: every melodic instrument in the bank as a waveform icon.
   // Picking one makes it the stamp in hand; its cells carry the exact index.
+  // Every melodic instrument placed on a 2D sound map: brightness across,
+  // sustain down. Drag and the nearest sound snaps into your hand, auditioning
+  // as you go. Wiggle to find a sound; the list below is the same bank.
+  var PADPTS = null;
+  function padPoints() {
+    if (PADPTS) return PADPTS;
+    resolveBank();
+    PADPTS = [];
+    BANK.meta.forEach(function (m) {
+      if (m.type === 'noise') return;
+      var j = ((m.index * 37) % 13) / 13 * 0.07;
+      var x, y;
+      if (m.type === 'wave') {
+        var t = BANK.waveTables[m.waveSlot] || [], big = 0;
+        for (var i = 1; i < t.length; i++) if (Math.abs(t[i] - t[i - 1]) >= 6) big++;
+        x = 0.18 + Math.min(1, big / 3) * 0.62 + j;
+        y = 0.78 + j * 1.5;
+      } else {
+        var duty = (m.patch && m.patch.duty) || 0.5;
+        x = (duty === 0.5 ? 0.24 : duty === 0.25 ? 0.5 : 0.76) + j;
+        y = ({ pluck: 0.16, stab: 0.34, soft: 0.5, sus: 0.62, swell: 0.68 })[envClass(BANK.instruments[m.index])] + j;
+      }
+      PADPTS.push({ idx: m.index, x: Math.min(0.97, x), y: Math.min(0.97, y), wave: m.type === 'wave' });
+    });
+    return PADPTS;
+  }
+  function drawPad() {
+    var pc = root.querySelector('.cr-pad');
+    if (!pc) return;
+    var c = pc.getContext('2d');
+    c.clearRect(0, 0, pc.width, pc.height);
+    padPoints().forEach(function (pt) {
+      var sel = S.cur === 'i' + pt.idx;
+      c.beginPath();
+      c.arc(pt.x * pc.width, pt.y * pc.height, sel ? 6 : 3.5, 0, Math.PI * 2);
+      c.fillStyle = pt.wave ? '#E8A75D' : '#FFD23F';
+      c.globalAlpha = sel ? 1 : 0.7;
+      c.fill();
+      if (sel) { c.strokeStyle = '#7BDCA0'; c.lineWidth = 2; c.stroke(); }
+      c.globalAlpha = 1;
+    });
+  }
+  var padPokeAt = 0;
+  function padPick(ev, pc) {
+    var r = pc.getBoundingClientRect();
+    var nx = (ev.clientX - r.left) / r.width, ny = (ev.clientY - r.top) / r.height;
+    var best = null, bd = 9;
+    padPoints().forEach(function (pt) {
+      var d2 = (pt.x - nx) * (pt.x - nx) + (pt.y - ny) * (pt.y - ny) * 1.6;
+      if (d2 < bd) { bd = d2; best = pt; }
+    });
+    if (!best || S.cur === 'i' + best.idx) return;
+    S.cur = 'i' + best.idx;
+    renderPalette(); markDrawer(); drawPad();
+    var t = performance.now();
+    if (t - padPokeAt > 110) {
+      padPokeAt = t;
+      auditionCell({ c: 0, r: 7, st: S.cur, inst: best.idx });
+    }
+  }
   function toggleDrawer() {
     var d = root.querySelector('.cr-drawer');
     if (d) { d.remove(); draw(); return; }
+    var sh = root.querySelector('.cr-shelf'); if (sh) sh.remove();
     resolveBank();
     d = document.createElement('div');
     d.className = 'cr-drawer';
-    var html = '';
+    var html = '<div class="cr-padwrap"><canvas class="cr-pad" width="230" height="120"></canvas>' +
+               '<span class="cr-padlab">drag to find a sound</span></div>';
     BANK.meta.forEach(function (m) {
       if (m.type === 'noise') return;                      // drums live on the lanes
       var tip = m.type === 'wave' ? 'Wave voice #' + m.index
@@ -1041,7 +1129,14 @@
       b.insertBefore(sprite('i' + b.dataset.inst, 26), b.firstChild);
     });
     root.insertBefore(d, root.querySelector('.cr-bottom'));
+    var pc = d.querySelector('.cr-pad');
+    pc.__ctpalRaw = true;
+    var padDown = false;
+    pc.addEventListener('pointerdown', function (ev) { ev.preventDefault(); pc.setPointerCapture(ev.pointerId); padDown = true; padPick(ev, pc); });
+    pc.addEventListener('pointermove', function (ev) { if (padDown) padPick(ev, pc); });
+    ['pointerup', 'pointercancel'].forEach(function (t) { pc.addEventListener(t, function () { padDown = false; }); });
     markDrawer();
+    drawPad();
     draw();                                   // the grid canvas just changed height
   }
   function markDrawer() {
@@ -1050,6 +1145,43 @@
     d.querySelectorAll('.cr-inst').forEach(function (b) {
       b.classList.toggle('on', S.cur === 'i' + b.dataset.inst);
     });
+    drawPad();
+  }
+
+  // ---- the songs shelf: this browser's saved songs -----------------------
+  function loadShelf() {
+    try { return JSON.parse(localStorage.getItem('ct-create-shelf') || '[]') || []; } catch (e) { return []; }
+  }
+  function saveShelf(list) {
+    try { localStorage.setItem('ct-create-shelf', JSON.stringify(list.slice(0, 30))); } catch (e) {}
+  }
+  function renderShelf() {
+    var sh = root.querySelector('.cr-shelf');
+    if (!sh) return;
+    var list = loadShelf();
+    var html = '<div class="cr-shelfrow cr-shelfsave">' +
+      '<input type="text" class="cr-shelfname" placeholder="name this song" maxlength="40">' +
+      '<button type="button" class="cr-btn" data-shelf="save">Save current</button></div>';
+    list.forEach(function (it, i) {
+      var d = decode(it.enc);
+      var meta = d ? d.cells.length + ' notes \u00b7 ' + d.bars + ' bars \u00b7 ' + d.bpm + ' BPM' : '?';
+      html += '<div class="cr-shelfrow"><b>' + String(it.name).replace(/[<>&]/g, '') + '</b>' +
+              '<span>' + meta + '</span>' +
+              '<button type="button" class="cr-btn" data-shelf-load="' + i + '">Load</button>' +
+              '<button type="button" class="cr-btn" data-shelf-del="' + i + '" title="Delete">\u00d7</button></div>';
+    });
+    if (!list.length) html += '<div class="cr-shelfempty">Nothing saved yet. Songs you save live in this browser.</div>';
+    sh.innerHTML = html;
+  }
+  function toggleShelf() {
+    var sh = root.querySelector('.cr-shelf');
+    if (sh) { sh.remove(); draw(); return; }
+    var d = root.querySelector('.cr-drawer'); if (d) d.remove();
+    sh = document.createElement('div');
+    sh.className = 'cr-shelf';
+    root.insertBefore(sh, root.querySelector('.cr-bottom'));
+    renderShelf();
+    draw();
   }
 
   // Hear a critter the moment it is picked: tonic of the current key,
@@ -1118,6 +1250,7 @@
       '<button type="button" class="cr-btn" data-cr="clear" data-tip="Wipe the whole grid clean">Clear</button>' +
       '<button type="button" class="cr-btn" data-cr="dice" data-tip="Compose a real track into the grid, the radio\u0027s own way">\ud83c\udfb2 Dice</button>' +
       '<span class="cr-sep"></span>' +
+      '<button type="button" class="cr-btn" data-cr="shelf" data-tip="Your saved songs, kept in this browser">Songs</button>' +
       '<button type="button" class="cr-btn" data-cr="share" data-tip="Copy a link that IS your song">Copy link</button>' +
       '<button type="button" class="cr-btn" data-cr="wav" data-tip="Download your song as audio (WAV)">WAV</button>' +
       '<button type="button" class="cr-btn" data-cr="rom" data-tip="Download a real Game Boy cartridge file (.gb)">ROM</button>' +
@@ -1214,6 +1347,33 @@
         applyLanes();
         return;
       }
+      var shb = ev.target.closest('[data-shelf],[data-shelf-load],[data-shelf-del]');
+      if (shb) {
+        var list = loadShelf();
+        if (shb.dataset.shelf === 'save') {
+          var ni = root.querySelector('.cr-shelfname');
+          var name = (ni && ni.value.trim()) || 'Song ' + (list.length + 1);
+          list.unshift({ name: name, enc: encode(), ts: 0 });
+          saveShelf(list); renderShelf();
+          hint('Saved "' + name + '" to this browser.');
+        } else if (shb.dataset.shelfLoad != null) {
+          var it = list[+shb.dataset.shelfLoad];
+          var st = it && decode(it.enc);
+          if (st) {
+            snapshot(); dropLiveScore();
+            S = st; order = S.cells.length;
+            loopBar = -1; queuedBar = null; camX = 0; camFollow = true; pausedAt = 0;
+            var lab = root.querySelector('.cr-lab');
+            if (lab) { lab.firstChild.textContent = S.bpm + ' BPM'; var sl = lab.querySelector('input'); if (sl) sl.value = S.bpm; }
+            dirty(); startPlayback(0);
+            hint('Loaded "' + it.name + '".');
+          }
+        } else if (shb.dataset.shelfDel != null) {
+          list.splice(+shb.dataset.shelfDel, 1);
+          saveShelf(list); renderShelf();
+        }
+        return;
+      }
       var di = ev.target.closest('[data-inst]');
       if (di) {
         S.cur = 'i' + di.dataset.inst;
@@ -1238,6 +1398,7 @@
       else if (k === 'dice') { composeIntoGrid(''); }
       else if (k === 'make') { var mv = root.querySelector('.cr-mood'); composeIntoGrid(mv ? mv.value : ''); }
       else if (k === 'drawer') { toggleDrawer(); }
+      else if (k === 'shelf') { toggleShelf(); }
       else if (k === 'share') {
         try { navigator.clipboard.writeText(location.origin + '/create#s=' + encode()); if (G._toast) G._toast('Link copied. The link IS the song 🎵'); } catch (e) {}
       }
@@ -1360,8 +1521,23 @@
       cv.addEventListener(t, function (ev) {
         delete pointers[ev.pointerId]; pinch = null;
         if ((dragMode === 'len' || dragMode === 'grab') && !lenMoved && lenCell) {
-          var i = S.cells.indexOf(lenCell);
-          if (i >= 0) { S.cells.splice(i, 1); dirty(); }
+          var cell = lenCell;
+          if (tapCell === cell && tapTimer) {
+            // second tap inside the window: an accent, not a removal
+            clearTimeout(tapTimer); tapTimer = 0; tapCell = null;
+            var v = cell.vel != null ? cell.vel : 0.8;
+            cell.vel = v < 0.6 ? 0.8 : v < 0.9 ? 1.0 : 0.5;
+            if (!hintedAccent) { hintedAccent = true; hint('Accent: double-tap cycles soft, normal, loud.'); }
+            dirty();
+            auditionCell(cell);
+          } else {
+            clearTimeout(tapTimer); tapCell = cell;
+            tapTimer = setTimeout(function () {
+              tapTimer = 0; tapCell = null;
+              var i = S.cells.indexOf(cell);
+              if (i >= 0) { S.cells.splice(i, 1); dirty(); }
+            }, 260);
+          }
         }
         dragMode = null; lastHit = null; panMode = null; lenCell = null;
       });
@@ -1387,7 +1563,7 @@
     if (playing) pausePlayback(); else armChip();
     pausedAt = 0;
     chMuted = [false, false, false, false]; chSolo = -1;   // playScore() clears the chip mask
-    loopBar = -1;
+    loopBar = -1; queuedBar = null;
     if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
     if (root) root.classList.remove('show');
     document.body.classList.remove('create-open');
@@ -1401,7 +1577,7 @@
       var mx = 0, withInst = 0, cmds = 0;
       if (S) S.cells.forEach(function (x) { if ((x.len || 1) > mx) mx = x.len || 1; if (x.inst != null) withInst++;
                                             if (x.z || x.u || x.q || x.g || x.f) cmds++; });
-      return { playing: playing, live: !!liveScore, bars: S ? S.bars : 0, loopBar: loopBar,
+      return { playing: playing, live: !!liveScore, bars: S ? S.bars : 0, loopBar: loopBar, queued: queuedBar,
                camX: Math.round(camX), follow: camFollow, cur: S ? S.cur : '', cmd: S ? S.cmd : 0,
                cells: S ? S.cells.length : 0, withInst: withInst, maxLen: mx, cmds: cmds,
                notes: S ? buildSong().notes.length : 0, mood: liveMood }; },

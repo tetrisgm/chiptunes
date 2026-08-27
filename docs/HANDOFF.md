@@ -102,3 +102,20 @@ next. Infrastructure and operations live outside this repository.
 - URL v5: bpm rides as (bpm-70)/2. Plain bpm/2 overflowed six bits for
   tempos >= 128 and every such link loaded at ~70 (bug existed since v1).
 
+## Create wave 2 (2026-08-26)
+
+- Queue-next-bar: while a bar loops, tapping another bar's number queues it
+  (amber outline) and it takes over exactly at the loop wrap. Tapping the
+  looping bar still releases to the whole song.
+- Accents: double-tap a note to cycle soft/normal/loud (vel 0.5/0.8/1.0);
+  a single tap still removes, deferred 260ms to leave room for the second
+  tap. Icon size follows velocity.
+- The sound pad: every melodic instrument plotted on a brightness-by-
+  sustain map inside the More drawer (padPoints/drawPad/padPick); dragging
+  snaps to the nearest sound and auditions as you go.
+- The Songs shelf ('Songs' in the toolbar): save/load/delete named songs in
+  localStorage ('ct-create-shelf', encode strings, cap 30).
+- URL v6: the cell extension rides whenever ANY exact field exists
+  (v5 gated it on inst alone and silently dropped hand-placed stretches
+  and accents from links); inst encodes as inst+1 so 0 means none.
+
