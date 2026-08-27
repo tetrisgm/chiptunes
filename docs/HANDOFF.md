@@ -458,3 +458,23 @@ pass.
   the follow by itself whenever the playhead came into view, and it fought the
   hand: dragging the scrollbar left to reach bar 1 snapped the view away before
   you got there.
+
+- MOTION IS THE OTHER HALF OF AN INSTRUMENT, and it already existed: the build
+  path has expanded x.q (arp), x.g (retrig), x.f (echo) and x.z / x.u (sweep
+  down / up on channel 1) into ordinary chip notes since the command-stamp
+  work, and the link format has carried them since v4. The panel-slimming pass
+  removed every way to reach them, which is why 31 static timbres still felt
+  minimal -- nothing moved. The note panel now has a Motion row beside Sound:
+  Plain, Arp, Roll, Echo, Fall, Rise.
+
+- WHAT EACH LANE CAN DO IS NOT THE SAME. A pitch slide needs channel 1's sweep
+  unit, and compileCells only writes note.sweep when the note lands on channel
+  0 -- so Fall and Rise are Melody's alone (a Harmony cell carries x.ch = 1 and
+  would silently ignore them). Drums have no arp. MOTIONS carries a per-lane
+  mask, and setCellVoice drops a motion the new lane cannot play rather than
+  leaving invisible state on the cell.
+
+- A MOTION PREVIEW HAS TO BE A SEQUENCE. auditionCell pokes the chip once,
+  which makes Arp, Roll and Echo all sound like a plain note; previewMotion
+  schedules the real hits instead. It is skipped while dragging (auditionCell's
+  maxFrames argument marks a drag), or a drag would fire a timer storm.

@@ -665,6 +665,10 @@
     font:800 11px var(--ui); }
   #createscreen .n-tfollow:hover{ border-color:var(--mat-edge-hi); color:var(--ink); }
   #createscreen .n-tfollow.on{ background:rgba(123,220,160,.2); border-color:rgba(123,220,160,.7); color:#B6EFC9; }
+  /* a note that moves says so, on the block and in the panel */
+  #createscreen .n-note.fx{ border-style:dashed; }
+  #createscreen .n-note b em{ font-style:normal; opacity:.7; font-size:9px; margin-left:3px; }
+  #createscreen .n-pifx .n-pv{ min-width:58px; }
   #createscreen .n-pickfoot{ font:500 10px var(--ui); color:var(--ink-2); text-align:center; }
   #createscreen .n-pv{ flex:1 1 0; height:34px; padding:0 12px; border-radius:9px; cursor:pointer;
     background:rgba(255,255,255,.05); border:1px solid var(--mat-edge); color:var(--vc,#fff);
@@ -3411,8 +3415,8 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   // difference of is clutter. (scripts do this offline; see docs/HANDOFF.md)
   var PULSE_NAMES = {
     '0.5':   { pluck: 'Square', stab: 'Punch', soft: 'Soft', sus: 'Hold',  swell: 'Swell' },
-    '0.25':  { pluck: 'Reed',   stab: null,    soft: 'Airy', sus: 'Drone', swell: 'Rise' },
-    '0.125': { pluck: 'Bell',   stab: null,    soft: null,   sus: 'Thin',  swell: 'Bloom' }
+    '0.25':  { pluck: 'Reed',   stab: null,    soft: 'Airy', sus: 'Drone', swell: 'Bloom' },
+    '0.125': { pluck: 'Bell',   stab: null,    soft: null,   sus: 'Thin',  swell: null }
   };
   var DUTY_ORDER = ['0.5', '0.25', '0.125'];
   var ENV_ORDER = ['pluck', 'stab', 'soft', 'sus', 'swell'];
@@ -3421,6 +3425,22 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   // the noise patches, brightest first: a hiss at the top, a boom at the end
   var NOISE_NAMES = ['Tick', 'Hat', 'Hiss', 'Shaker', 'Wash', null, 'Snare', 'Sizzle', 'Tom', 'Rumble', 'Kick'];
   var LANE_SOUND = ['Square', 'Bell', 'Wood', null];   // what each lane starts on
+  // MOTION: what the note DOES while it sounds. All of this already existed
+  // in the build path (it is how trackers really did it -- one command
+  // expanding into ordinary chip notes) and in the link format; the editor
+  // simply had no way to reach it, which left every sound standing still.
+  // Pitch slides need channel 1's sweep unit, so they are Melody's alone.
+  var MOTIONS = [
+    { n: 'Plain', k: '',  ch: [1, 1, 1, 1] },
+    { n: 'Arp',   k: 'q', ch: [1, 1, 1, 0] },
+    { n: 'Roll',  k: 'g', ch: [1, 1, 1, 1] },
+    { n: 'Echo',  k: 'f', ch: [1, 1, 1, 1] },
+    { n: 'Fall',  k: 'z', ch: [1, 0, 0, 0] },
+    { n: 'Rise',  k: 'u', ch: [1, 0, 0, 0] }
+  ];
+  var MOTION_KEYS = ['q', 'g', 'f', 'z', 'u'];
+  // (no sound is called Fall or Rise, and no motion is called Bloom: a word
+  //  that means two things in one panel means neither)
   var SNDS = null;                          // resolved against the live bank
   var DRUMS = [
     { id: 'hat',   lane: 0, kind: 'hat',   vel: 0.5 },
@@ -4191,10 +4211,47 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   }
 
   // hear a cell exactly as buildSong will play it
+  var fxTimers = [];
+  function clearFxPreview() { fxTimers.forEach(clearTimeout); fxTimers = []; }
+  // a motion is a SEQUENCE, so the preview has to be one too -- a single poke
+  // would make Arp, Roll and Echo all sound like a plain note
+  function previewMotion(cell, ch, per) {
+    var k = motionOf(cell), ms = 1000 / FPS;
+    if (!k || k === 'z' || k === 'u') return false;
+    var midi = cell.midi != null ? cell.midi : rowMidi(cell.r);
+    var inst = cell.inst != null ? cell.inst
+             : cell.r >= MEL_ROWS ? INSTOF[DRUMS[cell.r - MEL_ROWS].id] : INSTOF[cell.st];
+    var vel = cell.vel != null ? cell.vel : (cell.r >= MEL_ROWS ? DRUMS[cell.r - MEL_ROWS].vel : 0.8);
+    var drum = cell.r >= MEL_ROWS;
+    var steps = Math.max(1, cell.len || 1), hits = [], i;
+    if (k === 'q') {                          // the chord, strummed
+      var iv = S.minor ? [0, 3, 7] : [0, 4, 7];
+      var sub = Math.max(2, Math.round(per / 3));
+      for (i = 0; i < 3; i++) hits.push({ at: i * sub, f: sub, midi: midi + iv[i], vel: vel });
+    } else if (k === 'g') {                   // the same note, ratcheted
+      var hitF = Math.max(2, Math.round(per / 2));
+      for (i = 0; i < Math.min(6, Math.max(2, Math.round(steps * 2))); i++)
+        hits.push({ at: i * hitF, f: Math.max(2, hitF - 1), midi: midi, vel: vel });
+    } else {                                  // echo: repeat and fade
+      var v = vel;
+      for (i = 0; i < 4; i++, v *= 0.6) hits.push({ at: i * per, f: Math.round(per * 0.9), midi: midi, vel: v });
+    }
+    clearFxPreview();
+    hits.forEach(function (h) {
+      fxTimers.push(setTimeout(function () {
+        Audio.pokeCreate({ ch: drum ? 3 : (cellVoice(cell) === 'wave' ? 2 : 1),
+                           frames: h.f, midi: drum ? null : h.midi, inst: inst, vel: h.vel });
+      }, Math.round(h.at * ms)));
+    });
+    return true;
+  }
   function auditionCell(cell, maxFrames) {
     resolveBank();
     if (typeof Audio === 'undefined' || !Audio.pokeCreate) return 1;
     var per = framesPer16();
+    // a drag auditions many times a second: no sequences there
+    if (maxFrames == null && previewMotion(cell, null, per))
+      return cell.r >= MEL_ROWS ? 3 : (cellVoice(cell) === 'wave' ? 2 : 1);
     if (cell.r >= MEL_ROWS) {
       var d = DRUMS[cell.r - MEL_ROWS];
       Audio.pokeCreate({ ch: 3, frames: Math.round(per), midi: null,
@@ -4401,13 +4458,15 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
           var mp = x.midi != null ? x.midi : rowMidi(x.r);
           deg = Math.max(0, Math.min(1, (mp - 36) / 60));
         }
+        var mn = motionName(x);
         html += '<i class="n-note' + (x.x ? ' sulk' : '') + (vel === 0 ? ' rest' : '') +
-                (selCol === x.c && selCh === ch ? ' sel' : '') + '"' +
+                (mn ? ' fx' : '') + (selCol === x.c && selCh === ch ? ' sel' : '') + '"' +
                 ' data-col="' + x.c + '" data-ch="' + ch + '" data-inst="' + (x.inst != null ? x.inst : -1) + '"' +
+                (mn ? ' data-fx="' + mn + '"' : '') +
                 ' style="left:' + (x.c * stepW + 1) + 'px;width:' + (len * stepW - 2) + 'px;' +
                 'bottom:' + Math.round(6 + deg * (laneH - 30)) + 'px;' +
                 'opacity:' + (vel === 0 ? 0.35 : 0.5 + vel * 0.5) + '">' +
-                '<b>' + label + '</b><u class="rz"></u></i>';
+                '<b>' + label + (mn && len * stepW > 74 ? ' <em>' + mn + '</em>' : '') + '</b><u class="rz"></u></i>';
       });
       row.innerHTML = html;
     }
@@ -4467,6 +4526,23 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     soundsFor(ch).forEach(function (sd) { if (sd.inst === want) hit = sd.n; });
     return hit || 'Sound';
   }
+  function motionsFor(ch) { return MOTIONS.filter(function (m) { return m.ch[ch]; }); }
+  function motionOf(x) {
+    for (var i = 0; i < MOTION_KEYS.length; i++) if (x && x[MOTION_KEYS[i]]) return MOTION_KEYS[i];
+    return '';
+  }
+  function motionName(x) {
+    var k = motionOf(x), hit = '';
+    MOTIONS.forEach(function (m) { if (m.k === k) hit = m.n; });
+    return k ? hit : '';
+  }
+  function motionBtns(ch, x) {
+    var cur = motionOf(x);
+    return motionsFor(ch).map(function (m) {
+      return '<button type="button" class="n-pv' + (m.k === cur ? ' on' : '') +
+             '" data-ed="fx' + (m.k || '-') + '">' + m.n + '</button>';
+    }).join('');
+  }
   function soundBtns(ch, x) {
     var cur = x && x.inst != null ? x.inst
             : ch === 3 && x ? INSTOF[DRUMS[Math.max(0, x.r - MEL_ROWS)].id]
@@ -4495,6 +4571,8 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       '<div class="n-pickhead"><span>' + (ch === 3 ? 'Drum' : 'Sound') + '</span>' +
         '<button type="button" class="n-pclose" data-ed="close" title="Close">\u00d7</button></div>' +
       '<div class="n-pickrow n-pisnd" style="--vc:' + CH[ch].color + '">' + soundBtns(ch, x) + '</div>' +
+      '<div class="n-pickhead"><span>Motion</span></div>' +
+      '<div class="n-pickrow n-pisnd n-pifx" style="--vc:' + CH[ch].color + '">' + motionBtns(ch, x) + '</div>' +
       '<div class="n-pickrow n-picklevels">' +
         '<span>Volume</span>' +
         '<button type="button" class="n-po" data-ed="vol-">\u2212</button>' +
@@ -4530,6 +4608,15 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       return;
     }
     if (what === 'close') { closePick(); selCol = -1; selCh = -1; renderGrid(); return; }
+    if (what.slice(0, 2) === 'fx') {          // what the note does while it sounds
+      var mk = what.slice(2);
+      if (!x) { hint('Pick a note first, then give it a motion.'); return; }
+      snapshot();
+      MOTION_KEYS.forEach(function (k2) { delete x[k2]; });   // one at a time
+      if (mk !== '-') x[mk] = 1;
+      dirty(); renderEdit(); auditionCell(x);
+      return;
+    }
     if (what.slice(0, 2) === 'nz') {          // a drum: sound and height together
       var ni = +what.slice(2), row = 2;
       soundsFor(3).forEach(function (sd) { if (sd.inst === ni && sd.row != null) row = sd.row; });
@@ -4928,6 +5015,12 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   }
   // move a note to another voice in place, keeping what it was
   function setCellVoice(x, v) {
+    MOTION_KEYS.forEach(function (k) {        // do not carry a motion into a lane that cannot play it
+      if (!x[k]) return;
+      var ok = false;
+      MOTIONS.forEach(function (m) { if (m.k === k && m.ch[v]) ok = true; });
+      if (!ok) delete x[k];
+    });
     if (v === 3) {
       x.r = MEL_ROWS + pen.drum;
       delete x.midi; delete x.ch; delete x.st; delete x.z; delete x.sweep;

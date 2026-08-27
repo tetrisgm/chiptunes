@@ -25,7 +25,9 @@ on with your day: <https://chiptunes.app>
   it is holding -- 31 of them, read off the chip's own bank: Square, Punch,
   Reed, Bell and Thin on the pulse voices, Round, Cello, Vox, Saw and Growl on
   the wave voice, Tick through Kick on the noise voice -- and any note can be
-  given another. Tap a mood (happy, spooky, battle) and the radio's
+  given another, along with a motion -- Arp strums the chord, Roll ratchets it,
+  Echo repeats and fades, Fall and Rise slide the pitch -- which expands into
+  ordinary chip notes the way trackers have always done it. Tap a mood (happy, spooky, battle) and the radio's
   composer writes a whole track into the lanes, no AI involved, yours to edit
   note by note. Share it as a link, a WAV, or a real cartridge.
 - **The music is measured, not guessed.** Songs draw one of fourteen styles
