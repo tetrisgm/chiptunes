@@ -537,6 +537,12 @@ const Audio = (()=>{
       if(typeof window!=='undefined') window.__rrrAudioResume = o;
       if(typeof document!=='undefined' && document.documentElement) document.documentElement.dataset.rrrResume = JSON.stringify(o);
     }
+    // The context is already running almost every time this is called -- the
+    // editor calls it before every audition, and auditions happen on hover.
+    // Leave EARLY and silently: the diagnostic below stringifies and writes a
+    // dataset attribute, which invalidates style on the document element, and
+    // paying that dozens of times a second is what "sluggish" is made of.
+    if(ctx && ctx.state==='running') return null;
     rdiag({ state:ctx&&ctx.state, force:!!force, paused:!!transportPaused, t:Date.now(), attempt:true });
     if(!ctx || transportPaused || ctx.state==='running' || !ctx.resume){
       rdiag({ state:ctx&&ctx.state, force:!!force, paused:!!transportPaused, t:Date.now(), skipped:!ctx?'no-context':transportPaused?'paused':(ctx.state==='running')?'running':'no-resume' });
@@ -1862,16 +1868,22 @@ const Audio = (()=>{
       // offsetFrames: an edit mid-play swaps the song under the playhead
       // instead of yanking it back to the start.
       var off=(offsetFrames|0)||0;
-      var msg={type:'play', gb:{notes:gb.notes, bank:gb.bank, totalFrames:gb.totalFrames},
+      // The whole song, not just its notes: automation, wave swaps, vibrato
+      // hand-offs and kit hits are as much the music as the note-ons, and
+      // leaving them out here meant the cartridge played things the browser
+      // never did.
+      var msg={type:'play', gb:{notes:gb.notes, bank:gb.bank, totalFrames:gb.totalFrames,
+                                auto:gb.auto||null, vibOff:gb.vibOff||null,
+                                waveLoads:gb.waveLoads||null, kit:gb.kit||null},
                offsetFrames:off, paused:false, loopFrames:loopFrames|0, rate:1,
                mix:Object.assign({}, MIX), leadSec:off>0?0:0.06};
       ensureGbChip();
       if(gbNode) gbNode.port.postMessage(msg); else gbPending=msg;
       return true;
     },
-    pokeCreate(note){ startAudio(true); if(this.resume) this.resume(true);
+    pokeCreate(note){ if(!gbNode) startAudio(true); if(this.resume) this.resume(true);
       if(gbNode && note) gbNode.port.postMessage({type:'poke', note:note}); },
-    pokeKit(id){ startAudio(true); if(this.resume) this.resume(true);
+    pokeKit(id){ if(!gbNode) startAudio(true); if(this.resume) this.resume(true);
       if(gbNode) gbNode.port.postMessage({type:'kit', id:id|0}); },
     stopPoke(ch){ if(gbNode) gbNode.port.postMessage({type:'pokeoff', ch:(ch==null?null:ch|0)}); },
     setChipMute(mask){ ensureGbChip(); if(gbNode) gbNode.port.postMessage({type:'chmute', mask:mask||null}); },

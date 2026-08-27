@@ -643,3 +643,34 @@ pass.
 - The dispatch in the driver now uses jp for every handler: the event section
   outgrew a relative jump's reach twice in one day. If you add a handler and see
   'gb-rom: jr out of range', that is the assembler's guard doing its job.
+
+- THE GRID DRAWS ONLY WHAT IS ON SCREEN. Forty-eight bars is 26,000 pixels of
+  track and the pane shows about 1,200, so renderGrid was building a thousand
+  elements to show forty -- and every edit re-ran it. Measured in WebKit on a
+  48-bar song: opening the note panel 56ms, changing a setting 77ms, worst
+  frame 75ms. With a visible-range filter (visRange(), one bar of margin, and
+  applyCam re-rendering when the window no longer covers the pane): 62 elements
+  drawn, panel 8ms, setting 13ms, worst frame 33ms. Chromium went 33/37ms to
+  4/2ms. If you add anything that renders per cell, keep it inside that filter.
+
+- SELECTING A NOTE IS A CLASS, not a rebuild. selectNote used to call
+  renderGrid for the sake of one '.sel'.
+
+- CLICKING A NOTE OPENED NOTHING, and pointer capture is why: the drag handler
+  takes setPointerCapture on the scroller, so the CLICK that follows is
+  delivered with the scroller as its target and closest('.n-note') finds
+  nothing. Synthetic .click() in a test still worked, which is how it survived
+  a whole session of tests -- use a real mouse (page.mouse.click) when checking
+  this path. The press now remembers its note (pressedNote) and the click uses
+  that.
+
+- resumeCtx WROTE TO THE DOM ON EVERY CALL. Its diagnostic stringifies an
+  object into documentElement.dataset, which invalidates style on the document
+  element -- and pokeCreate calls resume before every audition, which now
+  happens on hover. It leaves early and silently when the context is already
+  running.
+
+- playCreate WAS DROPPING HALF THE SONG. It built its message from
+  {notes, bank, totalFrames} only, so automation, wave swaps, vibrato hand-offs
+  and kit hits never reached the browser chip -- they only ever played on the
+  cartridge. Anything added to a score has to be added there too.

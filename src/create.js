@@ -1192,9 +1192,23 @@
     }
     applyCam();
   }
+  // WHAT IS ON SCREEN. A song is up to 48 bars -- 26,000 pixels of track --
+  // and the pane shows about 1,200 of them, so drawing every note built a
+  // thousand elements to show forty. Everything downstream (layout, paint, and
+  // every re-render an edit causes) paid for that, which is what made a click
+  // cost 56ms in Safari.
+  var visFrom = 0, visTo = 0;
+  function visRange() {
+    var pad = 24;                           // a bar or so of margin either side
+    var w = viewW() || 1200;
+    return [Math.max(0, Math.floor((camX - sidePad) / stepW) - pad),
+            Math.min(cols(), Math.ceil((camX + w - sidePad) / stepW) + pad)];
+  }
   // notes are drawn as blocks on their lane: as wide as they are long
   function renderGrid() {
     if (!root) return;
+    var vis = visRange();
+    visFrom = vis[0]; visTo = vis[1];
     var em = effMask();
     for (var ch = 0; ch < 4; ch++) {
       var row = root.querySelector('.n-row[data-ch="' + ch + '"]');
@@ -1204,6 +1218,7 @@
       S.cells.forEach(function (x) {
         if (chOfCell(x) !== ch) return;
         var len = Math.max(1, x.len || 1);
+        if (x.c + len < visFrom || x.c > visTo) return;      // off screen: not drawn
         var vel = x.vel != null ? x.vel : 0.8;
         var label = vel === 0 ? '–'
           : (x.r >= MEL_ROWS ? DRUM_NAMES[x.r - MEL_ROWS] : noteName(x.midi != null ? x.midi : rowMidi(x.r)));
@@ -1649,7 +1664,11 @@
   }
   function selectNote(ch, col) {
     selCh = ch; selCol = col;
-    renderGrid(); renderEdit();
+    // marking one note does not need a thousand elements rebuilt
+    root.querySelectorAll('.n-note.sel').forEach(function (el) { el.classList.remove('sel'); });
+    var el2 = root.querySelector('.n-note[data-ch="' + ch + '"][data-col="' + col + '"]');
+    if (el2) el2.classList.add('sel');
+    renderEdit();
   }
 
   function renderAll() { renderTransport(); renderChans(); renderBars(); renderGrid(); renderEdit(); }
@@ -1896,6 +1915,9 @@
     if (b) b.classList.toggle('on', camFollow);
   }
   function applyCam() {
+    // scrolled far enough that the drawn window no longer covers the pane?
+    var vis = visRange();
+    if (vis[0] < visFrom || vis[1] > visTo) renderGrid();
     var track = root.querySelector('.n-track');
     if (track) track.style.transform = 'translate3d(' + (-camX).toFixed(2) + 'px,0,0)';
     // the scrollbar says where in the song you are, and how much of it you see
@@ -2025,14 +2047,17 @@
     // a lane cell: tap a note to open it, tap empty space to add one there
     var dragged = false;
     sc.addEventListener('click', function (ev) {
-      if (dragged || (pan && pan.moved)) return;
+      if (dragged || (pan && pan.moved)) { pressedNote = null; return; }
       var noteEl = ev.target.closest('.n-note');
-      if (noteEl) {
-        var nc = +noteEl.dataset.col, nch = +noteEl.dataset.ch;
+      var hit = noteEl ? { ch: +noteEl.dataset.ch, col: +noteEl.dataset.col } : pressedNote;
+      pressedNote = null;
+      if (hit) {
+        var nc = hit.col, nch = hit.ch;
         viewBar = Math.floor(nc / spb());
         selectNote(nch, nc);
         var i = cellIndexAt(nch, nc);
-        if (i >= 0) auditionCell(S.cells[i]);
+        if (i < 0) return;
+        auditionCell(S.cells[i]);
         openPick(nc, nch);
         return;
       }
@@ -2063,7 +2088,11 @@
 
     // drag a NOTE to move it: up and down for pitch (or drum), sideways in
     // time, into another lane to change voice. It sounds as it goes.
-    var nd = null;
+    // The drag handler takes POINTER CAPTURE on the scroller, so the click
+    // that follows is delivered with the SCROLLER as its target, not the note
+    // -- closest('.n-note') finds nothing and the panel never opens. So the
+    // press remembers which note it was on, and the click uses that.
+    var nd = null, pressedNote = null;
     sc.addEventListener('pointerdown', function (ev) {
       var el = ev.target.closest('.n-note');
       if (el) {
@@ -2078,6 +2107,30 @@
         }
       }
       pan = { x: ev.clientX, cam: camX, moved: false };
+    });
+    // HOVER: passing over a note plays it. It fires once when the pointer
+    // ENTERS a note, never while it rests there, and never during a drag or a
+    // pan -- those do their own auditioning. Touch has no hover, so this is
+    // for a mouse or a trackpad only.
+    var hoverKey = '', hoverCh = -1, hoverAt = 0;
+    sc.addEventListener('pointermove', function (ev) {
+      if (nd || (pan && pan.moved) || ev.pointerType === 'touch') return;
+      var el = ev.target.closest('.n-note');
+      if (!el) { hoverKey = ''; return; }
+      var key = el.dataset.ch + ':' + el.dataset.col;
+      if (key === hoverKey) return;
+      hoverKey = key;
+      var now = performance.now();
+      if (now - hoverAt < 70) return;         // sweeping across the grid is not a solo
+      hoverAt = now;
+      var i = cellIndexAt(+el.dataset.ch, +el.dataset.col);
+      if (i < 0) return;
+      if (hoverCh >= 0) stopAudition(hoverCh);
+      hoverCh = auditionCell(S.cells[i], Math.round(FPS * 0.35));
+    });
+    sc.addEventListener('pointerleave', function () {
+      hoverKey = '';
+      if (hoverCh >= 0) { stopAudition(hoverCh); hoverCh = -1; }
     });
     sc.addEventListener('pointermove', function (ev) {
       if (nd) {
@@ -2135,6 +2188,7 @@
         if (nd) {
           stopAudition(null);                              // let go = silence, on every voice
           if (nd.moved) { dragged = true; renderEdit(); }  // a drag is not a click
+          else pressedNote = { ch: nd.ch, col: nd.cell.c };
         }
         nd = null;
         setTimeout(function () { pan = null; dragged = false; }, 0);
