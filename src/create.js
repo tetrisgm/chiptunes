@@ -865,6 +865,13 @@
     }
     return -1;
   }
+  function cellAtExcept(c, r, self) {
+    for (var i = 0; i < S.cells.length; i++) {
+      var x = S.cells[i];
+      if (x !== self && x.c === c && x.r === r) return i;
+    }
+    return -1;
+  }
   function tailIndexAt(ch, col) {
     for (var i = 0; i < S.cells.length; i++) {
       var x = S.cells[i];
@@ -1074,10 +1081,16 @@
     var x = selCell();
     if (x) {                                   // move this note to another voice
       snapshot();
+      // Remember everything the note WAS first: a trip through Drums and back
+      // used to lose the pitch, because the drum lane it landed on has no
+      // pitch to read back.
+      if (x.r >= MEL_ROWS) pen.drum = x.r - MEL_ROWS;
+      else pen.midi = x.midi != null ? x.midi : rowMidi(x.r);
+      pen.vel = x.vel != null ? x.vel : pen.vel;
+      pen.len = x.len || 1;
       var i = S.cells.indexOf(x);
       if (i >= 0) S.cells.splice(i, 1);
       pen.ch = v;
-      if (v !== 3) pen.midi = x.midi != null ? x.midi : rowMidi(x.r);
       var made = penCell(pickCol);
       S.cells.push(made);
       selCh = v; selCol = pickCol;
@@ -1288,8 +1301,6 @@
       '</div>' +
       '<div class="n-barbar">' +
         '<span class="n-barnow">#1</span>' +
-        '<button type="button" class="n-hb" data-barshift="-1">◀ Earlier</button>' +
-        '<button type="button" class="n-hb" data-barshift="1">Later ▶</button>' +
         '<button type="button" class="n-hb" data-delbar="">− Delete bar</button>' +
         '<button type="button" class="n-hb" data-cr="baradd">+ Add bar</button>' +
       '</div>' +
@@ -1347,6 +1358,41 @@
     var w = sc ? sc.getBoundingClientRect().width : 0;
     return Math.max(0, Math.min(S.bars - 1, Math.floor((camX + w / 2 - sidePad) / (16 * stepW))));
   }
+  // a note can be dragged: these turn a pointer position into lane and pitch
+  function laneAt(clientY) {
+    var rows = root.querySelectorAll('.n-row');
+    for (var i = 0; i < rows.length; i++) {
+      var rr = rows[i].getBoundingClientRect();
+      if (clientY >= rr.top && clientY <= rr.bottom) return +rows[i].dataset.ch;
+    }
+    return -1;
+  }
+  function pitchAt(ch, clientY) {
+    var row = root.querySelector('.n-row[data-ch="' + ch + '"]');
+    if (!row) return null;
+    var rr = row.getBoundingClientRect();
+    var f = Math.max(0, Math.min(1, (rr.bottom - clientY) / Math.max(1, rr.height)));
+    if (ch === 3) return { drum: f > 0.66 ? 0 : f > 0.33 ? 1 : 2 };   // hat / snare / kick
+    return { midi: Math.max(24, Math.min(96, Math.round(36 + f * 60))) };
+  }
+  function colAt(clientX) {
+    var sc = root.querySelector('.n-scroll');
+    if (!sc) return 0;
+    var r = sc.getBoundingClientRect();
+    return Math.max(0, Math.min(cols() - 1, Math.floor((clientX - r.left + camX - sidePad) / stepW)));
+  }
+  // move a note to another voice in place, keeping what it was
+  function setCellVoice(x, v) {
+    if (v === 3) {
+      x.r = MEL_ROWS + pen.drum;
+      delete x.midi; delete x.ch; delete x.st; delete x.inst; delete x.z; delete x.sweep;
+    } else {
+      if (x.r >= MEL_ROWS) { x.r = rowForMidi(pen.midi); x.midi = pen.midi; }
+      x.st = CH[v].stamp;
+      if (v < 2) x.ch = v; else delete x.ch;
+      if (chInst[v] != null) x.inst = chInst[v]; else delete x.inst;
+    }
+  }
   // which lane and step a point falls on
   function hitAt(ev) {
     var sc = root.querySelector('.n-scroll');
@@ -1378,8 +1424,9 @@
     var sc = root.querySelector('.n-scroll'), pan = null;
 
     // a lane cell: tap a note to open it, tap empty space to add one there
+    var dragged = false;
     sc.addEventListener('click', function (ev) {
-      if (pan && pan.moved) return;
+      if (dragged || (pan && pan.moved)) return;
       var noteEl = ev.target.closest('.n-note');
       if (noteEl) {
         var nc = +noteEl.dataset.col, nch = +noteEl.dataset.ch;
@@ -1401,17 +1448,57 @@
         return;
       }
       selCol = -1; selCh = -1;
+      if (pickCol >= 0) { closePick(); renderGrid(); return; }   // click away = put it away
       pen.ch = h.ch;                                  // the lane you touched IS the instrument
       renderChans(); renderGrid(); renderBars();
       openPick(h.col, h.ch);
       tourAdvance(0);
     });
 
-    // drag anywhere in the lanes to travel; the wheel does too
+    // drag a NOTE to move it: up and down for pitch (or drum), sideways in
+    // time, into another lane to change voice. It sounds as it goes.
+    var nd = null;
     sc.addEventListener('pointerdown', function (ev) {
+      var el = ev.target.closest('.n-note');
+      if (el) {
+        var col = +el.dataset.col, ch = +el.dataset.ch, i = cellIndexAt(ch, col);
+        if (i >= 0) {
+          try { sc.setPointerCapture(ev.pointerId); } catch (e) {}
+          nd = { cell: S.cells[i], ch: ch, sx: ev.clientX, sy: ev.clientY,
+                 grab: colAt(ev.clientX) - col, moved: false, pokeAt: 0 };
+          return;
+        }
+      }
       pan = { x: ev.clientX, cam: camX, moved: false };
     });
     sc.addEventListener('pointermove', function (ev) {
+      if (nd) {
+        if (!nd.moved) {
+          if (Math.abs(ev.clientX - nd.sx) < 4 && Math.abs(ev.clientY - nd.sy) < 4) return;
+          nd.moved = true; snapshot();
+        }
+        var x = nd.cell;
+        var lane = laneAt(ev.clientY);
+        if (lane >= 0 && lane !== nd.ch) {                 // dropped onto another voice
+          if (x.r < MEL_ROWS) pen.midi = x.midi != null ? x.midi : rowMidi(x.r);
+          else pen.drum = x.r - MEL_ROWS;
+          setCellVoice(x, lane);
+          nd.ch = lane;
+        }
+        var p2 = pitchAt(nd.ch, ev.clientY);
+        if (p2 && p2.midi != null && x.r < MEL_ROWS) {
+          if (p2.midi !== x.midi) { x.midi = p2.midi; x.r = rowForMidi(p2.midi); }
+        } else if (p2 && p2.drum != null && x.r >= MEL_ROWS) {
+          x.r = MEL_ROWS + p2.drum; pen.drum = p2.drum;
+        }
+        var nc = Math.max(0, Math.min(cols() - (x.len || 1), colAt(ev.clientX) - nd.grab));
+        if (nc !== x.c && cellAtExcept(nc, x.r, x) < 0) x.c = nc;
+        selCh = nd.ch; selCol = x.c;
+        dirty();
+        var t = performance.now();
+        if (t - nd.pokeAt > 110) { nd.pokeAt = t; auditionCell(x); }
+        return;
+      }
       if (!pan) return;
       if (Math.abs(ev.clientX - pan.x) > 4) { pan.moved = true; camFollow = false; }
       if (!pan.moved) return;
@@ -1421,7 +1508,11 @@
       if (nb !== viewBar) { viewBar = nb; renderBars(); }
     });
     ['pointerup', 'pointercancel'].forEach(function (t) {
-      sc.addEventListener(t, function () { setTimeout(function () { pan = null; }, 0); });
+      sc.addEventListener(t, function () {
+        if (nd && nd.moved) { dragged = true; renderEdit(); }   // a drag is not a click
+        nd = null;
+        setTimeout(function () { pan = null; dragged = false; }, 0);
+      });
     });
     sc.addEventListener('wheel', function (ev) {
       if (camMax() <= 0) return;
@@ -1461,7 +1552,7 @@
       // stops finding its square: never treat the click that just opened the
       // picker as a click outside it
       if (pickCol >= 0 && performance.now() - pickOpenedAt > 60 &&
-          !ev.target.closest('.n-pick') && !ev.target.closest('.n-step')) closePick();
+          !ev.target.closest('.n-pick') && !ev.target.closest('.n-note')) { closePick(); renderGrid(); }
       var tb = ev.target.closest('[data-tour]');
       if (tb) {
         if (tb.dataset.tour === 'skip') tourDone(); else tourAdvance(tourStep);

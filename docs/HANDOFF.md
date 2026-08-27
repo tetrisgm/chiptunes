@@ -340,3 +340,17 @@ pass.
   user asks: Play, the spacebar, or a mood chip (which composes and plays).
   A stray click or keypress never starts playback.
 
+- Notes are draggable: pointerdown on a .n-note starts a note drag (pan is
+  suppressed), vertical position sets the pitch straight from the lane
+  geometry (or the drum lane), horizontal sets the step, and crossing into
+  another lane changes the voice, keeping pitch/drum/volume/length. It
+  auditions as it moves (throttled 110ms), and the drag suppresses the click
+  that would otherwise open the picker.
+- pickVoice() now remembers pitch, drum lane, volume and length BEFORE
+  deleting the old cell -- a trip through Drums and back used to lose the
+  pitch, because a drum row has no pitch to read back.
+- Clicking empty lane space with the picker open dismisses it (a second
+  click there opens a fresh one); the outside-click guard tests .n-note now
+  that .n-step is gone.
+- Earlier/Later bar shifting is gone: dragging a note moves it in time.
+
