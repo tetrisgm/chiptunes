@@ -4894,7 +4894,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     var midi = cell.midi != null ? cell.midi : rowMidi(cell.r);
     var inst = cell.inst != null ? cell.inst
              : cell.r >= MEL_ROWS ? INSTOF[DRUMS[cell.r - MEL_ROWS].id] : INSTOF[cell.st];
-    var vel = cell.vel != null ? cell.vel : (cell.r >= MEL_ROWS ? DRUMS[cell.r - MEL_ROWS].vel : 0.8);
+    var vel = Math.max(HEARD_VEL, cell.vel != null ? cell.vel : (cell.r >= MEL_ROWS ? DRUMS[cell.r - MEL_ROWS].vel : 0.8));
     var drum = cell.r >= MEL_ROWS;
     var steps = Math.max(1, cell.len || 1), hits = [], i;
     if (k === 'q') {                          // the chord, strummed
@@ -4922,6 +4922,11 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   function recOf(cell, ch) {
     return hasSound(cell) ? recordFor(paramsOf(cell, ch), ch) : null;
   }
+  // AN AUDITION IS MEANT TO BE HEARD. It used to play at the note's own
+  // velocity for the note's own length -- a composed note at vel 0.2 lasting a
+  // sixteenth is a blip you can miss entirely, which is exactly what hovering
+  // and clicking felt like. Previews get a floor on both.
+  var HEARD_VEL = 0.75, HEARD_FRAMES = 17;      // about 0.28s
   function auditionCell(cell, maxFrames) {
     resolveBank();
     if (typeof Audio === 'undefined' || !Audio.pokeCreate) return 1;
@@ -4935,20 +4940,21 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     }
     if (cell.r >= MEL_ROWS) {
       var d = DRUMS[cell.r - MEL_ROWS];
-      Audio.pokeCreate({ ch: 3, frames: Math.round(per), midi: null,
+      Audio.pokeCreate({ ch: 3, frames: Math.max(HEARD_FRAMES, Math.round(per)), midi: null,
                          inst: cell.inst != null ? cell.inst : INSTOF[d.id],
                          rec: recOf(cell, 3),
-                         vel: cell.vel != null ? cell.vel : d.vel });
+                         vel: Math.max(HEARD_VEL, cell.vel != null ? cell.vel : d.vel) });
       return 3;
     }
     var voice = cellVoice(cell) || 'pulse';
-    var heldSteps = Math.max(1, cell.len || 1);            // hear it for as long as it lasts
-    var frames = Math.min(maxFrames || 600, Math.round(per * heldSteps));
+    var heldSteps = Math.max(1, cell.len || 1);            // hear it for as long as it lasts,
+    var frames = Math.max(HEARD_FRAMES,                    // but never for less than a listen
+                          Math.min(maxFrames || 600, Math.round(per * heldSteps)));
     Audio.pokeCreate({ ch: voice === 'wave' ? 2 : 1, frames: frames, det: cell.dt | 0,
                        midi: cell.midi != null ? cell.midi : rowMidi(cell.r),
                        inst: cell.inst != null ? cell.inst : INSTOF[cell.st],
                        rec: recOf(cell, voice === 'wave' ? 2 : (cell.ch === 1 ? 1 : 0)),
-                       vel: cell.vel != null ? cell.vel : 0.8,
+                       vel: Math.max(HEARD_VEL, cell.vel != null ? cell.vel : 0.8),
                        sweep: cell.sweep != null ? cell.sweep : (voice !== 'wave' && cell.z) ? 0x3E : (voice !== 'wave' && cell.u) ? 0x36 : 0 });
     return voice === 'wave' ? 2 : 1;
   }

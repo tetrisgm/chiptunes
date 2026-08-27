@@ -674,3 +674,11 @@ pass.
   {notes, bank, totalFrames} only, so automation, wave swaps, vibrato hand-offs
   and kit hits never reached the browser chip -- they only ever played on the
   cartridge. Anything added to a score has to be added there too.
+
+- AN AUDITION HAS A FLOOR. Previews used to play at the note's own velocity for
+  the note's own length: a composed note at vel 0.2 lasting a sixteenth is a
+  blip, and the owner reported hearing nothing at all on hover or click.
+  HEARD_VEL (0.75) and HEARD_FRAMES (about 0.28s) are the floor; measured in
+  WebKit the peak went 0.09 -> 0.19. Note that while the SONG is playing, an
+  audition on a busy channel is cut by the next note there -- four voices is
+  four voices, and that part is not a bug.
