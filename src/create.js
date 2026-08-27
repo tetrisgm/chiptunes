@@ -366,7 +366,7 @@
   }
   function startPlayback(fromMs) {
     clearTimeout(repostTimer);
-    viewPinned = false; tlFollow = true;
+    camFollow = true;
     var song = currentSong();
     var off = Math.max(0, fromMs || 0) % Math.max(1, songMs());
     if (typeof Audio !== 'undefined' && Audio.playCreate)
@@ -533,6 +533,7 @@
       if (c < 0 || c >= cols()) return;
       var bd = budget[c] = budget[c] || { p: 0, w: 0, d: 0 };
       var ch = n.ch | 0;
+      if (ch !== 3 && !(n.midi > 0)) return;    // a melodic note with no pitch is not a note
       var cell = { c: c, t: ++order };
       cell.inst = n.inst; cell.vel = n.vel != null ? n.vel : 0.8;
       if (ch === 3) {
@@ -565,7 +566,8 @@
     liveMood = String(moodText || '');
     try { buildSong(); } catch (e) {}          // resolve channel marks
     loopBar = -1; queuedBar = null;
-    viewBar = 0; viewPinned = false;
+    viewBar = 0; camX = 0; camFollow = true;
+    if (root.querySelector('.n-track')) { buildTrack(); }
     pausedAt = 0;
     dirty();
     startPlayback(0);   // after dirty: its clearTimeout cancels the queued repost,
@@ -737,8 +739,8 @@
     if (!t) { t = document.createElement('div'); t.className = 'cr-tour'; root.appendChild(t); }
     var msgs = [
       ['This song was just written for you.', 'Each square is one moment of this bar, left to right, top to bottom. Tap for a note, tap again to remove. Drag up and down for pitch, sideways to stretch.'],
-      ['Four voices, like a tiny band.', 'Melody, Harmony, Bass and Drums are the Game Boy\u2019s four sounds. Tap one to work on it, tap the lit one to silence it, hold one to pick its instrument.'],
-      ['The bars walk the song.', 'Tap a number to look at that bar; ↺ loops the one you are on while you shape it.'],
+      ['Four voices, like a tiny band.', 'All shows every voice at once. Melody, Harmony, Bass and Drums are the Game Boy\u2019s four sounds: tap one to work on it, tap its speaker to mute it, hold it to pick its instrument.'],
+      ['The song scrolls sideways.', 'Every bar sits next to the last. Drag a bar\u2019s title strip to slide along, or let it follow the music. The \u21ba on a bar loops just that one.'],
       ['Moods write songs.', 'Type a feeling and press Make, or roll the dice. Everything it writes is yours to edit.']
     ];
     t.innerHTML = '<b>' + msgs[step][0] + '</b><span>' + msgs[step][1] + '</span>' +
@@ -830,7 +832,7 @@
     chanIconCache[key] = cv;
     return cv;
   }
-  var viewCh = 0, viewBar = 0, viewPinned = false, lastDeg = [7, 9, 3, 2];
+  var viewCh = 0, viewBar = 0, lastDeg = [7, 9, 3, 2];
   // the parameter in hand: what a vertical drag on a step edits
   var param = 'note';
   var PARAMS = [
@@ -864,7 +866,7 @@
     return x.r >= MEL_ROWS ? 2 - (x.r - MEL_ROWS) : (MEL_ROWS - 1) - x.r;
   }
   function applyDeg(x, deg) {
-    if (x.r >= MEL_ROWS || (x.r < MEL_ROWS && viewCh === 3)) {
+    if (x.r >= MEL_ROWS) {
       x.r = MEL_ROWS + (2 - deg);
       delete x.inst;                           // a moved drum adopts its lane's sound
     } else {
@@ -888,120 +890,61 @@
 
   // ---- render --------------------------------------------------------------
   var stepEls = [], lastPh = -1, lastPlayBar = -1;
+  var camX = 0, camFollow = true;
   function renderTransport() {
     var b = root.querySelector('[data-cr="play"]');
-    if (b) b.textContent = playing ? '❚❚' : '▶';
+    if (b) b.textContent = playing ? '\u275a\u275a' : '\u25b6';
   }
   function renderChans() {
     root.querySelectorAll('.n-chan').forEach(function (b) {
       var i = +b.dataset.ch;
       b.classList.toggle('sel', viewCh === i);
+      if (i < 0) return;
       b.classList.toggle('muted', !!chMuted[i]);
       b.style.color = CH[i].color;
+      var spk = b.querySelector('.n-spk');
+      if (spk) spk.textContent = chMuted[i] ? '\ud83d\udd07' : '\ud83d\udd08';
       var ic = chanIcon(i);
       var old = b.querySelector('canvas');
       if (old !== ic) { if (old) old.remove(); b.insertBefore(ic, b.firstChild); }
     });
   }
-  // The song laid out end to end: one small panel per bar showing its notes
-  // as ticks in the four voices' colours, with a camera that follows the
-  // playhead (and lets go while you pan by hand).
-  var BARW = 74, BARGAP = 6, tlCam = 0, tlFollow = true, tlPan = null;
-  function tlWidth() { return S.bars * (BARW + BARGAP); }
-  function tlMaxCam(cw) { return Math.max(0, tlWidth() - cw + 4); }
   function renderBars() {
-    var cv = root.querySelector('.n-timeline');
-    if (!cv) return;
-    cv.__ctpalRaw = true;                       // UI pixels: the panel quantizer must not touch them
-    var dpr = window.devicePixelRatio || 1;
-    var r = cv.getBoundingClientRect();
-    if (!r.width) return;
-    if (cv.width !== Math.round(r.width * dpr) || cv.height !== Math.round(54 * dpr)) {
-      cv.width = Math.round(r.width * dpr); cv.height = Math.round(54 * dpr);
-    }
-    var g2 = cv.getContext('2d');
-    g2.setTransform(dpr, 0, 0, dpr, 0, 0);
-    g2.clearRect(0, 0, r.width, 54);
-
-    var pb = -1, phx = -1;
+    var pb = -1;
     if (playing) {
       var perMs = (60 / curBpm() / 4) * 1000;
-      var col = loopBar >= 0 ? loopBar * 16 + ((performance.now() - playT0) / perMs) % 16
-                             : ((performance.now() - playT0) / perMs) % cols();
-      pb = Math.floor(col / 16);
-      phx = pb * (BARW + BARGAP) + (col - pb * 16) / 16 * BARW;
+      var col = loopBar >= 0 ? loopBar * 16 : ((performance.now() - playT0) / perMs) % cols();
+      pb = loopBar >= 0 ? loopBar : Math.floor(col / 16);
     }
     lastPlayBar = pb;
-    // the camera rides the playhead unless you have panned by hand
-    var maxCam = tlMaxCam(r.width);
-    if (tlFollow) {
-      var targetBar = playing ? pb : viewBar;
-      var want = Math.max(0, Math.min(maxCam, targetBar * (BARW + BARGAP) - r.width * 0.4 + BARW / 2));
-      tlCam += (want - tlCam) * (Math.abs(want - tlCam) > r.width ? 1 : 0.16);
-    }
-    tlCam = Math.max(0, Math.min(maxCam, tlCam));
-
-    for (var b = 0; b < S.bars; b++) {
-      var bx = b * (BARW + BARGAP) - tlCam;
-      if (bx + BARW < 0 || bx > r.width) continue;
-      var isView = b === viewBar, isLoop = b === loopBar, isQ = b === queuedBar;
-      g2.fillStyle = isView ? 'rgba(255,255,255,0.09)' : 'rgba(255,255,255,0.045)';
-      g2.fillRect(bx, 6, BARW, 42);
-      if (isLoop || isQ || isView) {
-        g2.strokeStyle = isLoop ? 'rgba(123,220,160,0.9)' : isQ ? 'rgba(255,201,60,0.9)' : 'rgba(232,227,250,0.5)';
-        g2.lineWidth = isLoop || isQ ? 2 : 1;
-        g2.strokeRect(bx + 0.5, 6.5, BARW - 1, 41);
-      }
-      // the bar's notes: one thin row per voice, a tick per step
-      var f0 = b * 16;
-      S.cells.forEach(function (x) {
-        if (x.c < f0 || x.c >= f0 + 16) return;
-        var ch = chOfCell(x);
-        var tx = bx + ((x.c - f0) / 16) * BARW;
-        var tw = Math.max(2, (BARW / 16) * Math.min(x.len || 1, 16 - (x.c - f0)) - 1);
-        g2.fillStyle = CH[ch].color;
-        g2.globalAlpha = (x.vel === 0 ? 0.18 : effMask()[ch] ? 0.22 : 0.85);
-        g2.fillRect(tx + 1, 10 + ch * 9, tw, 6);
-        g2.globalAlpha = 1;
-      });
-      g2.fillStyle = isView ? 'rgba(232,227,250,0.9)' : 'rgba(232,227,250,0.4)';
-      g2.font = '600 9px system-ui'; g2.textBaseline = 'bottom';
-      g2.fillText(String(b + 1), bx + 3, 46);
-    }
-    if (phx >= 0) {
-      var px2 = phx - tlCam;
-      if (px2 >= -2 && px2 <= r.width) {
-        g2.fillStyle = 'rgba(255,255,255,0.85)';
-        g2.fillRect(px2, 4, 2, 46);
-      }
-    }
-    var lp = root.querySelector('[data-cr="loop"]');
-    if (lp) lp.classList.toggle('on', loopBar >= 0);
-  }
-  function tlBarAt(ev) {
-    var cv = root.querySelector('.n-timeline');
-    var r = cv.getBoundingClientRect();
-    var x = ev.clientX - r.left + tlCam;
-    var b = Math.floor(x / (BARW + BARGAP));
-    return (b >= 0 && b < S.bars && (x - b * (BARW + BARGAP)) <= BARW) ? b : -1;
+    root.querySelectorAll('.n-bb').forEach(function (el) {
+      var b = +el.dataset.bar;
+      el.classList.toggle('view', b === viewBar);
+      el.classList.toggle('loop', b === loopBar);
+      el.classList.toggle('queued', b === queuedBar);
+      el.classList.toggle('play', b === pb);
+    });
+    var cap = root.querySelector('.n-cap');
+    if (cap) cap.textContent = (viewCh < 0 ? 'All voices' : CH[viewCh].n) + ' \u00b7 bar ' + (viewBar + 1) + ' of ' + S.bars +
+                               (loopBar >= 0 ? ' \u00b7 looping bar ' + (loopBar + 1) : '');
+    applyCam();
   }
   function renderGrid() {
     if (!stepEls.length) return;
-    var grid = root.querySelector('.n-grid');
-    grid.style.color = CH[viewCh].color;
-    var cap = root.querySelector('.n-cap');
-    if (cap) cap.textContent = CH[viewCh].n + ' · bar ' + (viewBar + 1) + ' of ' + S.bars +
-                               (loopBar === viewBar && loopBar >= 0 ? ' · looping' : '');
+    var track = root.querySelector('.n-track');
+    track.classList.toggle('allview', viewCh < 0);
+    if (viewCh < 0) { renderGridAll(track); return; }
+    track.style.color = CH[viewCh].color;
     var mutedCh = !!effMask()[viewCh];
-    for (var s = 0; s < 16; s++) {
-      var col = viewBar * 16 + s, el = stepEls[s];
-      var i = cellIndexAt(viewCh, col);
-      var tail = i < 0 ? tailIndexAt(viewCh, col) : -1;
-      var x = i >= 0 ? S.cells[i] : null;
+    track.classList.toggle('chmuted', mutedCh);
+    for (var i = 0; i < stepEls.length; i++) {
+      var el = stepEls[i], col = +el.dataset.col;
+      var ci = cellIndexAt(viewCh, col);
+      var tail = ci < 0 ? tailIndexAt(viewCh, col) : -1;
+      var x = ci >= 0 ? S.cells[ci] : null;
       el.classList.toggle('on', !!x);
       el.classList.toggle('tail', tail >= 0);
       el.classList.toggle('sulk', !!(x && x.x));
-      el.classList.toggle('mutedch', mutedCh);
       var pbEl = el.querySelector('.pb'), nnEl = el.querySelector('.nn'), lnEl = el.querySelector('.ln');
       if (x) {
         var deg = degOfCell(x);
@@ -1014,12 +957,39 @@
           (x.r >= MEL_ROWS ? DRUM_NAMES[x.r - MEL_ROWS]
                            : noteName(x.midi != null ? x.midi : rowMidi(x.r)));
         nnEl.style.opacity = vel === 0 ? 0.5 : 0.55 + vel * 0.45;
-        lnEl.textContent = (x.len || 1) > 1 ? '×' + x.len : '';
+        lnEl.textContent = (x.len || 1) > 1 ? '\u00d7' + x.len : '';
       } else {
         el.classList.remove('rest');
-        pbEl.style.opacity = '';                 // inline opacity would ghost into empty squares
+        pbEl.style.opacity = '';
         nnEl.textContent = ''; lnEl.textContent = '';
       }
+    }
+  }
+  // All: every voice in one grid, a labelled pill per voice per step
+  function renderGridAll(track) {
+    track.classList.remove('chmuted');
+    track.style.color = 'rgba(232,227,250,0.9)';
+    var em = effMask();
+    for (var i = 0; i < stepEls.length; i++) {
+      var el = stepEls[i], col = +el.dataset.col;
+      var pills = '';
+      var any = false;
+      for (var ch = 0; ch < 4; ch++) {
+        var ci = cellIndexAt(ch, col);
+        var x = ci >= 0 ? S.cells[ci] : null;
+        if (!x) { var ti = tailIndexAt(ch, col); pills += '<em class="' + (ti >= 0 ? 'tl' : 'no') + '" style="background:' + CH[ch].color + '"></em>'; continue; }
+        any = true;
+        var vel = x.vel != null ? x.vel : 0.8;
+        var label = vel === 0 ? '=' : (x.r >= MEL_ROWS ? DRUM_NAMES[x.r - MEL_ROWS]
+                                     : noteName(x.midi != null ? x.midi : rowMidi(x.r)));
+        pills += '<em class="pl' + (x.x ? ' sulk' : '') + (em[ch] ? ' off' : '') + '" style="color:' + CH[ch].color +
+                 ';border-color:' + CH[ch].color + '">' + label + '</em>';
+      }
+      el.classList.toggle('on', any);
+      el.classList.remove('tail', 'rest', 'sulk');
+      var ov = el.querySelector('.allpills');
+      if (!ov) { ov = document.createElement('div'); ov.className = 'allpills'; el.appendChild(ov); }
+      ov.innerHTML = pills;
     }
   }
   function renderParams() {
@@ -1030,21 +1000,27 @@
     if (sw) sw.classList.toggle('on', !!(S && S.swing));
   }
   function renderAll() { renderTransport(); renderChans(); renderBars(); renderGrid(); renderParams(); }
-  function updatePh(stepIdx) {
-    if (stepIdx === lastPh) return;
-    lastPh = stepIdx;
-    for (var s = 0; s < 16; s++) stepEls[s].classList.toggle('ph', s === stepIdx);
+  function updatePh(col) {
+    if (col === lastPh) return;
+    if (lastPh >= 0 && stepEls[lastPh]) stepEls[lastPh].classList.remove('ph');
+    if (col >= 0 && stepEls[col]) stepEls[col].classList.add('ph');
+    lastPh = col;
   }
 
   // Multi-tapping a parameter button randomizes that parameter across the
-  // bar's notes on this voice; each further tap within the window randomizes
-  // harder. In-key, undoable, and only ever touches notes that exist.
+  // bar's notes on this voice (or every voice while All is selected); each
+  // further tap within the window randomizes harder.
   var randTaps = 0, randTimer = 0, randSnapped = false;
   function barCells() {
     var out = [];
     for (var s2 = 0; s2 < 16; s2++) {
-      var i = cellIndexAt(viewCh, viewBar * 16 + s2);
-      if (i >= 0) out.push(S.cells[i]);
+      var col = viewBar * 16 + s2;
+      if (viewCh < 0) {
+        for (var c2 = 0; c2 < 4; c2++) { var j = cellIndexAt(c2, col); if (j >= 0) out.push(S.cells[j]); }
+      } else {
+        var i = cellIndexAt(viewCh, col);
+        if (i >= 0) out.push(S.cells[i]);
+      }
     }
     return out;
   }
@@ -1054,7 +1030,7 @@
     randTimer = setTimeout(function () { randTaps = 0; randSnapped = false; }, 700);
     if (randTaps < 2) return;                  // the first tap only selects
     var cellsHere = barCells();
-    if (!cellsHere.length) { hint('No notes on this voice in this bar yet.'); return; }
+    if (!cellsHere.length) { hint('No notes in this bar yet.'); return; }
     if (!randSnapped) { snapshot(); randSnapped = true; }
     var amt = Math.min(6, randTaps - 1);
     cellsHere.forEach(function (x) {
@@ -1099,12 +1075,10 @@
     }
     var col = loopBar >= 0 ? loopBar * 16 + (elapsed / perMs) % 16 : (elapsed / perMs) % cols();
     var pb = Math.floor(col / 16);
-    if (loopBar < 0 && !viewPinned && pb !== viewBar) {
-      viewBar = pb;
-      renderGrid();
-    }
-    renderBars();                               // the camera and playhead move every frame
-    updatePh(pb === viewBar ? Math.floor(col) % 16 : -1);
+    if (camFollow) { centerOn(pb, false); applyCam(); }
+    if (pb !== viewBar) { viewBar = pb; renderBars(); }
+    else if (pb !== lastPlayBar) renderBars();
+    updatePh(Math.floor(col));
     scheduleTick();
   }
 
@@ -1134,9 +1108,10 @@
   // ---- bar operations ------------------------------------------------------
   function addBar() {
     if (S.bars >= 48) return;
-    snapshot(); S.bars++; viewBar = S.bars - 1; viewPinned = true;
+    snapshot(); S.bars++; viewBar = S.bars - 1;
     if (loopBar >= 0) loopBar = viewBar;
-    dirty(); renderBars();
+    buildTrack(); centerOn(viewBar, true);
+    dirty(); renderAll();
   }
   function dupBar(b) {
     if (S.bars >= 48) return;
@@ -1153,9 +1128,10 @@
       }
     });
     S.cells = S.cells.concat(copies);
-    S.bars++; viewBar = b + 1; viewPinned = true;
+    S.bars++; viewBar = b + 1;
     if (loopBar >= 0) loopBar = viewBar;
-    dirty();
+    buildTrack(); centerOn(viewBar, true);
+    dirty(); renderAll();
   }
   function delBar(b) {
     snapshot();
@@ -1166,7 +1142,8 @@
     }
     if (viewBar >= S.bars) viewBar = S.bars - 1;
     if (loopBar >= S.bars) loopBar = S.bars - 1;
-    dirty();
+    buildTrack(); centerOn(viewBar, true);
+    dirty(); renderAll();
   }
 
   // ---- build the screen ----------------------------------------------------
@@ -1174,23 +1151,24 @@
   function buildUI() {
     root.innerHTML =
       '<div class="cr-top">' +
-        '<button type="button" class="cr-btn n-play" data-cr="play" data-tip="Play or pause (Space)">▶</button>' +
+        '<button type="button" class="cr-btn n-play" data-cr="play" data-tip="Play or pause (Space)">\u25b6</button>' +
         '<button type="button" class="cr-btn" data-cr="rewind" data-tip="Back to the top">\u23ee</button>' +
         '<label class="cr-lab" data-tip="Tempo">' + S.bpm + ' BPM<input type="range" min="70" max="180" step="2" value="' + S.bpm + '" data-cr="bpm"></label>' +
         '<span class="cr-sep"></span>' +
-        '<button type="button" class="cr-btn" data-cr="undo" data-tip="Undo">↩</button>' +
-        '<button type="button" class="cr-btn" data-cr="redo" data-tip="Redo">↪</button>' +
-        '<button type="button" class="cr-btn" data-cr="dice" data-tip="Compose a surprise track">🎲</button>' +
+        '<button type="button" class="cr-btn" data-cr="undo" data-tip="Undo">\u21a9</button>' +
+        '<button type="button" class="cr-btn" data-cr="redo" data-tip="Redo">\u21aa</button>' +
+        '<button type="button" class="cr-btn" data-cr="dice" data-tip="Compose a surprise track">\ud83c\udfb2</button>' +
         '<button type="button" class="cr-btn" data-cr="shelf" data-tip="Your saved songs">Songs</button>' +
         '<button type="button" class="cr-btn" data-cr="sharemenu" data-tip="Link, WAV, or a real cartridge">Share</button>' +
-        '<button type="button" class="cr-btn cr-close" data-cr="close" data-tip="Back to the radio (Esc)">×</button>' +
+        '<button type="button" class="cr-btn cr-close" data-cr="close" data-tip="Back to the radio (Esc)">\u00d7</button>' +
       '</div>' +
       '<div class="n-moodrow">' +
         '<input type="text" class="cr-mood" data-cr="mood" placeholder="a mood: happy, spooky, fast..." maxlength="60">' +
         '<button type="button" class="cr-btn cr-primary" data-cr="make">Make</button>' +
         CHIPS.map(function (c) { return '<button type="button" class="cr-chip" data-mood="' + c + '">' + c + '</button>'; }).join('') +
       '</div>' +
-      '<div class="n-mid"><div class="n-gridwrap"><div class="n-cap"></div><div class="n-grid"></div>' +
+      '<div class="n-cap"></div>' +
+      '<div class="n-mid"><div class="n-track"></div></div>' +
       '<div class="n-params">' +
         PARAMS.map(function (pp) {
           return '<button type="button" class="n-param" data-param="' + pp.id + '" title="' + pp.n + '" data-tip="' + pp.tip + '">' + pp.n + '</button>';
@@ -1201,28 +1179,72 @@
         '<button type="button" class="cr-btn n-tool" data-cr="octdn" data-tip="This voice\u2019s bar an octave down">Oct\u2212</button>' +
         '<button type="button" class="cr-btn n-tool" data-cr="octup" data-tip="This voice\u2019s bar an octave up">Oct+</button>' +
         '<button type="button" class="cr-btn n-tool" data-cr="swing" data-tip="Swing: the offbeats lean late">Swing</button>' +
-      '</div></div></div>' +
-      '<div class="n-chans">' + CH.map(function (c, i) {
-        return '<button type="button" class="n-chan" data-ch="' + i + '" title="' + c.tip + '" data-tip="' + c.tip + '"><span>' + c.n + '</span></button>';
-      }).join('') + '</div>' +
-      '<div class="n-bars">' +
-        '<button type="button" class="cr-btn n-loopbtn" data-cr="loop" data-tip="Loop this bar">↺</button>' +
-        '<canvas class="n-timeline" height="54"></canvas>' +
-        '<button type="button" class="cr-btn" data-cr="baradd" data-tip="Add a bar">+</button>' +
-        '<button type="button" class="cr-btn" data-cr="bardup" data-tip="Duplicate this bar">⧉</button>' +
-        '<button type="button" class="cr-btn" data-cr="bardel" data-tip="Remove this bar">−</button>' +
+        '<span class="cr-sep"></span>' +
+        '<button type="button" class="cr-btn n-tool" data-cr="baradd" data-tip="Add a bar to the end">+ Bar</button>' +
+        '<button type="button" class="cr-btn n-tool" data-cr="bardup" data-tip="Duplicate this bar">\u29c9</button>' +
+        '<button type="button" class="cr-btn n-tool" data-cr="bardel" data-tip="Remove this bar">\u2212</button>' +
       '</div>' +
+      '<div class="n-chans">' +
+        '<button type="button" class="n-chan n-all" data-ch="-1" data-tip="All: every voice at once. Tap a note to jump to its voice."><span>All</span></button>' +
+        CH.map(function (c, i) {
+          return '<button type="button" class="n-chan" data-ch="' + i + '" data-tip="' + c.tip + '">' +
+                 '<span>' + c.n + '</span>' +
+                 '<i class="n-spk" data-mute="' + i + '" title="Mute this voice"></i></button>';
+        }).join('') + '</div>' +
       '<div class="cr-hint"></div>';
-    var grid = root.querySelector('.n-grid');
+    buildTrack();
+  }
+  // one 4x4 block per bar, laid end to end; the camera slides along them
+  function buildTrack() {
+    var track = root.querySelector('.n-track');
     stepEls = [];
-    for (var s = 0; s < 16; s++) {
-      var el = document.createElement('div');
-      el.className = 'n-step' + (s % 4 === 0 ? ' beat' : '');
-      el.dataset.i = s;
-      el.innerHTML = '<u>' + (s + 1) + '</u><i class="pb"></i><span class="nn"></span><b class="ln"></b>';
-      grid.appendChild(el);
-      stepEls.push(el);
+    var html = '';
+    for (var b = 0; b < S.bars; b++) {
+      html += '<div class="n-bb" data-bar="' + b + '"><div class="n-bbhead">' +
+              '<b>' + (b + 1) + '</b>' +
+              '<button type="button" class="n-lp" data-loopbar="' + b + '" title="Loop this bar">\u21ba</button>' +
+              '</div><div class="n-bbgrid">';
+      for (var s2 = 0; s2 < 16; s2++) {
+        html += '<div class="n-step' + (s2 % 4 === 0 ? ' beat' : '') + '" data-col="' + (b * 16 + s2) + '">' +
+                '<u>' + (s2 + 1) + '</u><i class="pb"></i><span class="nn"></span><b class="ln"></b></div>';
+      }
+      html += '</div></div>';
     }
+    track.innerHTML = html;
+    stepEls = [].slice.call(track.querySelectorAll('.n-step'));
+    sizeTrack();
+  }
+  var bbW = 0, bbGap = 18;
+  function sizeTrack() {
+    var mid = root.querySelector('.n-mid');
+    if (!mid) return;
+    var r = mid.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    bbGap = r.width < 520 ? 12 : 18;
+    bbW = Math.max(150, Math.min(r.width * (r.width < 520 ? 0.86 : 0.46), r.height - 30, 430));
+    root.style.setProperty('--bbw', bbW + 'px');
+    root.style.setProperty('--bbgap', bbGap + 'px');
+  }
+  function trackStride() { return bbW + bbGap; }
+  function camMax() {
+    var mid = root.querySelector('.n-mid');
+    var w = mid ? mid.getBoundingClientRect().width : 0;
+    return Math.max(0, S.bars * trackStride() - bbGap - w);
+  }
+  function centerOn(bar, snap) {
+    var mid = root.querySelector('.n-mid');
+    var w = mid ? mid.getBoundingClientRect().width : 0;
+    var want = Math.max(0, Math.min(camMax(), bar * trackStride() - (w - bbW) / 2));
+    camX = snap ? want : camX + (want - camX) * (Math.abs(want - camX) > w ? 1 : 0.18);
+  }
+  function applyCam() {
+    var track = root.querySelector('.n-track');
+    if (track) track.style.transform = 'translateX(' + (-Math.round(camX)) + 'px)';
+  }
+  function barUnderCamera() {
+    var mid = root.querySelector('.n-mid');
+    var w = mid ? mid.getBoundingClientRect().width : 0;
+    return Math.max(0, Math.min(S.bars - 1, Math.round((camX + w / 2 - bbW / 2) / trackStride())));
   }
 
   // ---- input ---------------------------------------------------------------
@@ -1248,13 +1270,24 @@
       if (t) hint(t.dataset.tip);
     });
 
-    // the step grid: tap toggles, vertical drag pitches, horizontal stretches
-    var grid = root.querySelector('.n-grid'), sdrag = null;
+    // the step grid: tap toggles, vertical drag edits the chosen parameter,
+    // horizontal drag stretches; in All view a tap dives into that voice
+    var grid = root.querySelector('.n-mid'), sdrag = null;
     grid.addEventListener('pointerdown', function (ev) {
+      if (ev.target.closest('.n-bbhead')) return;              // the head strip pans
       var el = ev.target.closest('.n-step'); if (!el) return;
       ev.preventDefault(); grid.setPointerCapture(ev.pointerId);
-      var step = +el.dataset.i, col = viewBar * 16 + step;
+      var col = +el.dataset.col;
+      if (viewCh < 0) {                                        // All: pick the voice you touched
+        var pick = -1;
+        for (var c2 = 0; c2 < 4; c2++) if (cellIndexAt(c2, col) >= 0) { pick = c2; break; }
+        viewCh = pick < 0 ? 0 : pick;
+        renderChans(); renderGrid(); renderBars();
+        hint('Now editing ' + CH[viewCh].n + '. Tap All to see every voice again.');
+        return;
+      }
       snapshot();
+      viewBar = Math.floor(col / 16);
       var i = cellIndexAt(viewCh, col), created = false, cell;
       if (i < 0) {
         cell = makeCell(viewCh, col, lastDeg[viewCh]);
@@ -1323,9 +1356,10 @@
     // channels: tap switches, tap the lit one mutes, hold opens its sound
     var chans = root.querySelector('.n-chans'), holdTimer = 0, holdFired = false;
     chans.addEventListener('pointerdown', function (ev) {
-      var b = ev.target.closest('.n-chan'); if (!b) return;
+      var b = ev.target.closest('.n-chan'); if (!b || ev.target.closest('[data-mute]')) return;
       holdFired = false;
       var ch = +b.dataset.ch;
+      if (ch < 0) return;
       holdTimer = setTimeout(function () {
         holdFired = true;
         if (ch !== 3) { viewCh = ch; renderChans(); renderGrid(); openPad(ch); }
@@ -1335,57 +1369,62 @@
       chans.addEventListener(t, function () { clearTimeout(holdTimer); });
     });
     chans.addEventListener('click', function (ev) {
+      var mb = ev.target.closest('[data-mute]');
+      if (mb) {                                     // the speaker: mute, like a browser tab
+        ev.stopPropagation();
+        var mi = +mb.dataset.mute;
+        chMuted[mi] = !chMuted[mi];
+        applyMute();
+        hint(CH[mi].n + (chMuted[mi] ? ' is muted. Tap the speaker again to bring it back.' : ' is back.'));
+        return;
+      }
       var b = ev.target.closest('.n-chan'); if (!b || holdFired) return;
       var ch = +b.dataset.ch;
-      if (viewCh === ch) {
-        chMuted[ch] = !chMuted[ch];
-        applyMute();
-        hint(CH[ch].n + (chMuted[ch] ? ' is silenced. Tap again to bring it back.' : ' is back.'));
-      } else {
-        viewCh = ch;
-        renderChans(); renderGrid();
-        hint(CH[ch].tip);
-        tourAdvance(1);
-      }
+      viewCh = ch;
+      renderChans(); renderGrid(); renderBars();
+      hint(ch < 0 ? 'All voices at once. Tap any note to jump to its voice.' : CH[ch].tip);
+      tourAdvance(1);
     });
 
-    // the timeline: tap a bar to work on it, drag to pan the camera
-    var tl = root.querySelector('.n-timeline');
-    tl.addEventListener('pointerdown', function (ev) {
-      ev.preventDefault(); tl.setPointerCapture(ev.pointerId);
-      tlPan = { x: ev.clientX, cam: tlCam, moved: false, bar: tlBarAt(ev) };
+    // the bar heads pan the camera; wheel scrolls the song sideways
+    var mid = root.querySelector('.n-mid'), pan = null;
+    mid.addEventListener('pointerdown', function (ev) {
+      var hd = ev.target.closest('.n-bbhead');
+      if (!hd || ev.target.closest('.n-lp')) return;
+      ev.preventDefault(); mid.setPointerCapture(ev.pointerId);
+      pan = { x: ev.clientX, cam: camX };
+      camFollow = false;
     });
-    tl.addEventListener('pointermove', function (ev) {
-      if (!tlPan) return;
-      var dx = ev.clientX - tlPan.x;
-      if (Math.abs(dx) > 5) {
-        tlPan.moved = true; tlFollow = false;
-        var cw = tl.getBoundingClientRect().width;
-        tlCam = Math.max(0, Math.min(tlMaxCam(cw), tlPan.cam - dx));
-        renderBars();
-      }
+    mid.addEventListener('pointermove', function (ev) {
+      if (!pan) return;
+      camX = Math.max(0, Math.min(camMax(), pan.cam - (ev.clientX - pan.x)));
+      applyCam();
+      var nb = barUnderCamera();
+      if (nb !== viewBar) { viewBar = nb; renderBars(); }
     });
     ['pointerup', 'pointercancel'].forEach(function (t) {
-      tl.addEventListener(t, function () {
-        if (tlPan && !tlPan.moved && tlPan.bar >= 0) {
-          var b = tlPan.bar;
-          if (loopBar >= 0) { setLoopBar(b); if (loopBar >= 0) viewBar = loopBar; }
-          else { viewBar = b; viewPinned = true; }
-          tlFollow = true;
-          renderBars(); renderGrid();
-        }
-        tlPan = null;
-      });
+      mid.addEventListener(t, function () { pan = null; });
     });
-    tl.addEventListener('wheel', function (ev) {
-      var cw = tl.getBoundingClientRect().width;
-      if (tlMaxCam(cw) <= 0) return;
+    mid.addEventListener('wheel', function (ev) {
+      if (camMax() <= 0) return;
       ev.preventDefault();
-      tlFollow = false;
-      tlCam = Math.max(0, Math.min(tlMaxCam(cw), tlCam + (Math.abs(ev.deltaX) > Math.abs(ev.deltaY) ? ev.deltaX : ev.deltaY)));
-      renderBars();
+      camFollow = false;
+      camX = Math.max(0, Math.min(camMax(), camX + (Math.abs(ev.deltaX) > Math.abs(ev.deltaY) ? ev.deltaX : ev.deltaY)));
+      applyCam();
+      var nb2 = barUnderCamera();
+      if (nb2 !== viewBar) { viewBar = nb2; renderBars(); }
     }, { passive: false });
-    window.addEventListener('resize', function () { if (isOpen()) renderBars(); });
+    mid.addEventListener('click', function (ev) {
+      var lp = ev.target.closest('.n-lp');
+      if (!lp) return;
+      ev.stopPropagation();
+      setLoopBar(+lp.dataset.loopbar);
+      renderAll();
+    });
+    window.addEventListener('resize', function () {
+      if (!isOpen()) return;
+      sizeTrack(); centerOn(viewBar, true); renderBars();
+    });
 
     root.addEventListener('click', function (ev) {
       var fb = ev.target.closest('button'); if (fb) fb.blur();
@@ -1409,7 +1448,8 @@
           if (st) {
             snapshot(); dropLiveScore();
             S = st; order = S.cells.length;
-            loopBar = -1; queuedBar = null; viewBar = 0; viewPinned = false; pausedAt = 0;
+            loopBar = -1; queuedBar = null; viewBar = 0; camX = 0; camFollow = true; pausedAt = 0;
+            buildTrack();
             var lab = root.querySelector('.cr-lab');
             if (lab) { lab.firstChild.textContent = S.bpm + ' BPM'; var sl = lab.querySelector('input'); if (sl) sl.value = S.bpm; }
             dirty(); startPlayback(0);
@@ -1493,7 +1533,10 @@
     document.body.appendChild(root);
     buildUI();
     wireEvents();
-    requestAnimationFrame(function () { root.classList.add('show'); renderAll(); });
+    requestAnimationFrame(function () {
+      root.classList.add('show');
+      sizeTrack(); buildTrack(); centerOn(viewBar, true); renderAll();
+    });
     document.body.classList.add('create-open');
     armChip();
     try { history.replaceState(null, '', '/create' + (S.cells.length ? '#s=' + encode() : '')); } catch (e) {}

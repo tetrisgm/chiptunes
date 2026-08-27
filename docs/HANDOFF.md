@@ -185,3 +185,21 @@ Studied the reference tutorial in depth and adopted its editing model:
   it; a tap picks the bar (or queues it while looping). The canvas needs
   __ctpalRaw or a DMG face greys its colours.
 
+## Create: the song scrolls in the main area (2026-08-27)
+
+- The centre of the screen IS the song now: one 4x4 block per bar laid
+  end to end in .n-track (translateX camera), neighbours dimmed, the
+  playing/looping/queued bar marked on its head strip. Drag a bar's head
+  or wheel to pan (drops the follow); play re-engages it. The bottom
+  timeline canvas and the numbered strip are gone. Steps carry data-col
+  (absolute), so every bar is editable in place without a "current bar".
+- An All tab (viewCh -1) draws every voice in each step as labelled pills
+  (Melody/Harmony/Bass/Drums, colour-coded, tails faint); tapping a note
+  dives into that voice. Tools and multi-tap randomize act on all four
+  voices while All is selected.
+- Channel tabs carry a speaker icon: tap the tab to select, tap the
+  speaker to mute (browser-tab style). The old select-then-tap-again
+  muting is gone.
+- Composed notes with no pitch are dropped at projection (they showed as
+  bogus 'C-1' squares and played subsonic).
+
