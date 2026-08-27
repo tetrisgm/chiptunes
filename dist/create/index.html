@@ -680,6 +680,9 @@
     background:rgba(255,255,255,.03); }
   #createscreen .n-transport .cr-btn{ height:40px; padding:0 18px; font-size:13px; }
   #createscreen .n-transport .n-play{ min-width:120px; }
+  #createscreen .n-transport .n-play.waiting{ animation:crpulse 1.6s ease-in-out infinite; }
+  @keyframes crpulse{ 0%,100%{ box-shadow:0 0 0 0 rgba(123,220,160,.45); }
+                      50%{ box-shadow:0 0 0 8px rgba(123,220,160,0); } }
   #createscreen .n-transport .cr-lab{ display:inline-flex; align-items:center; gap:8px;
     font:600 12px var(--ui); color:var(--ink-2); }
   #createscreen .n-transport .cr-lab b{ color:var(--ink); font-weight:800; }
@@ -3727,15 +3730,44 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       ? Math.round(((performance.now() - playT0) / 1000) * FPS) % song.loopFrames : 0;
     if (typeof Audio !== 'undefined' && Audio.playCreate) Audio.playCreate(song, song.loopFrames, pos);
   }
+  // A page that just loaded has no user gesture yet, so the browser keeps the
+  // audio context suspended. Claiming to play then would be a lie: the
+  // playhead would sweep in silence. Wait for the first touch instead.
+  var gestured = false, wantStart = false;
+  function armGesture() {
+    if (armGesture.done) return;
+    armGesture.done = true;
+    var go = function (ev) {
+      gestured = true;
+      try { if (typeof Audio !== 'undefined' && Audio.resume) Audio.resume(true); } catch (e) {}
+      // if the gesture WAS the transport button, let its own handler decide,
+      // or we would start here and it would immediately pause again
+      var onPlay = ev && ev.target && ev.target.closest && ev.target.closest('[data-cr="play"]');
+      if (!onPlay && wantStart && isOpen()) { wantStart = false; startPlayback(pausedAt); }
+      document.removeEventListener('pointerdown', go, true);
+      document.removeEventListener('keydown', go, true);
+      armGesture.done = false;
+    };
+    document.addEventListener('pointerdown', go, true);
+    document.addEventListener('keydown', go, true);
+  }
   function startPlayback(fromMs) {
     clearTimeout(repostTimer);
     camFollow = true;
+    if (!gestured) {                       // nothing can sound yet: stay honest
+      wantStart = true; pausedAt = Math.max(0, fromMs || 0);
+      playing = false;
+      armGesture();
+      renderTransport(); renderBars();
+      return;
+    }
     var song = currentSong();
     var off = Math.max(0, fromMs || 0) % Math.max(1, songMs());
     if (typeof Audio !== 'undefined' && Audio.playCreate)
       Audio.playCreate(song, song.loopFrames, Math.round(off / 1000 * FPS));
     // a fresh start ships with 60ms of scheduling lead before frame 0 sounds;
     // fold it into the clock or every repost seeks past the opening notes
+    wantStart = false;
     playing = true; playT0 = performance.now() - off + (off > 0 ? 0 : 60);
     renderTransport(); renderBars(); scheduleTick();
   }
@@ -4202,7 +4234,10 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   var camX = 0, camFollow = true;
   function renderTransport() {
     var b = root.querySelector('[data-cr="play"]');
-    if (b) b.textContent = playing ? '\u275a\u275a Pause' : '\u25b6 Play';
+    if (b) {
+      b.textContent = playing ? '\u275a\u275a Pause' : '\u25b6 Play';
+      b.classList.toggle('waiting', !playing && wantStart);
+    }
   }
   function renderChans() {
     root.querySelectorAll('.n-tab').forEach(function (b) {
@@ -4776,7 +4811,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       var b = ev.target.closest('[data-cr]');
       if (!b) return;
       var k = b.dataset.cr;
-      if (k === 'play') { togglePlay(); }
+      if (k === 'play') { gestured = true; togglePlay(); }
       else if (k === 'rewind') { pausedAt = 0; if (playing) startPlayback(0); else { camFollow = true; centerOn(0, true); viewBar = 0; renderBars(); } hint('Back to the start.'); }
       else if (k === 'close') { close(); }
       else if (k === 'undo') { undo(); }

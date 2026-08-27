@@ -253,3 +253,11 @@ Louder), Length (Shorter / Longer), Sound (Choose...), Remove note.
 sizeTrack() reserves room for the tools row and the label, and the tools
 row scrolls rather than wraps on phones.
 
+- Autoplay honesty: a freshly loaded /create (a shared link, a refresh) has
+  no user gesture, so the audio context is suspended. startPlayback() now
+  refuses to claim it is playing in that state -- it parks as paused with a
+  pulsing Play button and arms a one-shot capture-phase gesture listener
+  that resumes audio and starts the song on the first touch anywhere. The
+  listener skips auto-starting when the gesture IS the Play button, or the
+  button's own handler would immediately pause it again.
+

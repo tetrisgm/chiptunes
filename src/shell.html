@@ -680,6 +680,9 @@
     background:rgba(255,255,255,.03); }
   #createscreen .n-transport .cr-btn{ height:40px; padding:0 18px; font-size:13px; }
   #createscreen .n-transport .n-play{ min-width:120px; }
+  #createscreen .n-transport .n-play.waiting{ animation:crpulse 1.6s ease-in-out infinite; }
+  @keyframes crpulse{ 0%,100%{ box-shadow:0 0 0 0 rgba(123,220,160,.45); }
+                      50%{ box-shadow:0 0 0 8px rgba(123,220,160,0); } }
   #createscreen .n-transport .cr-lab{ display:inline-flex; align-items:center; gap:8px;
     font:600 12px var(--ui); color:var(--ink-2); }
   #createscreen .n-transport .cr-lab b{ color:var(--ink); font-weight:800; }
