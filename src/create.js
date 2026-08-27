@@ -393,7 +393,7 @@
   }
   function startPlayback(fromMs) {
     clearTimeout(repostTimer);
-    camFollow = true;
+    camFollow = true; camCatch = 0;
     if (!gestured) {                       // nothing can sound yet: stay honest
       wantStart = true; pausedAt = Math.max(0, fromMs || 0);
       playing = false;
@@ -608,7 +608,7 @@
     liveMood = String(moodText || '');
     try { buildSong(); } catch (e) {}          // resolve channel marks
     loopBar = -1; queuedBar = null;
-    viewBar = 0; camX = 0; camFollow = true; selCol = -1; selCh = -1;
+    viewBar = 0; camX = 0; camFollow = true; camCatch = 0; selCol = -1; selCh = -1;
     if (root.querySelector('.n-track')) { buildTrack(); }
     pausedAt = 0;
     dirty();
@@ -899,7 +899,7 @@
 
   // ---- render --------------------------------------------------------------
   var lastPh = -1, lastPlayBar = -1, delArm = -1, delTimer = 0;
-  var camX = 0, camFollow = true, camTouchedAt = 0;
+  var camX = 0, camFollow = true, camCatch = 0;
   function renderTransport() {
     var b = root.querySelector('[data-cr="play"]');
     if (b) {
@@ -1121,6 +1121,12 @@
   // the playhead carries a FRACTION of a step, not a whole one: quantising it
   // made the line hop once per sixteenth (nine times a second) instead of
   // sweeping. Transform, so the move stays on the compositor.
+  function playCol() {
+    if (!playing) return -1;
+    var perMs = (60 / curBpm() / 4) * 1000;
+    var elapsed = performance.now() - playT0;
+    return loopBar >= 0 ? loopBar * 16 + (elapsed / perMs) % 16 : (elapsed / perMs) % cols();
+  }
   function updatePh(col) {
     if (Math.abs(col - lastPh) < 0.01) return;
     lastPh = col;
@@ -1155,10 +1161,8 @@
       loopPhase = ph;
     }
     if (location.pathname !== '/create') ownRoute(encode());   // something else moved the URL; take it back, song and all
-    var col = loopBar >= 0 ? loopBar * 16 + (elapsed / perMs) % 16 : (elapsed / perMs) % cols();
+    var col = playCol();
     var pb = Math.floor(col / 16);
-    // a hand scroll pauses the follow; the music takes it back a moment later
-    if (!camFollow && performance.now() - camTouchedAt > 3000) camFollow = true;
     if (camFollow) { followCol(col); applyCam(); }
     if (pb !== viewBar) { viewBar = pb; renderBars(); }
     lastPlayBar = pb;
@@ -1309,14 +1313,41 @@
     var w = sc ? sc.getBoundingClientRect().width : 0;
     var want = Math.max(0, Math.min(camMax(), sidePad + (bar * 16 + 8) * stepW - w / 2));
     camX = snap ? want : camX + (want - camX) * (Math.abs(want - camX) > w ? 1 : 0.18);
+    if (snap) camCatch = 0;
   }
   // the camera rides the playhead itself, not the bar it sits in. A target
   // that only moves once a bar makes the track lurch and then stand still for
   // the rest of the bar -- smooth frames, stuttering motion.
-  function followCol(col) {
+  function viewW() {
     var sc = root.querySelector('.n-scroll');
-    var w = sc ? sc.getBoundingClientRect().width : 0;
-    camX = Math.max(0, Math.min(camMax(), sidePad + (col + 0.5) * stepW - w / 2));
+    return sc ? sc.getBoundingClientRect().width : 0;
+  }
+  function camForCol(col) {
+    return Math.max(0, Math.min(camMax(), sidePad + (col + 0.5) * stepW - viewW() / 2));
+  }
+  function followCol(col) {
+    var want = camForCol(col);
+    if (camCatch) {                         // glide the last hand position home
+      camCatch *= 0.86;
+      if (Math.abs(camCatch) < 0.5) camCatch = 0;
+    }
+    camX = Math.max(0, Math.min(camMax(), want + camCatch));
+  }
+  // A hand scroll KEEPS the camera -- no timer takes it back, because a view
+  // that yanks itself away mid-edit is the worst of both. Play, Start and a
+  // new mood all hand it back, and so does scrolling to where the music is:
+  // once the playhead is close to where the follow would sit, the camera
+  // takes over again and glides the rest of the way.
+  function handScrolled() {
+    camFollow = false;
+    var col = playCol();
+    if (col < 0) return;
+    var w = viewW();
+    var x = sidePad + (col + 0.5) * stepW - camX;    // the playhead, in screen pixels
+    if (x > w * 0.08 && x < w * 0.92) {              // you scrolled back to the music
+      camCatch = camX - camForCol(col);              // keep this view, then glide it centre
+      camFollow = true;
+    }
   }
   function applyCam() {
     var track = root.querySelector('.n-track');
@@ -1530,10 +1561,10 @@
         return;
       }
       if (!pan) return;
-      if (Math.abs(ev.clientX - pan.x) > 4) { pan.moved = true; camFollow = false; camTouchedAt = performance.now(); }
+      if (Math.abs(ev.clientX - pan.x) > 4) pan.moved = true;
       if (!pan.moved) return;
       camX = Math.max(0, Math.min(camMax(), pan.cam - (ev.clientX - pan.x)));
-      camTouchedAt = performance.now();
+      handScrolled();
       applyCam();
       var nb = barUnderCamera();
       if (nb !== viewBar) { viewBar = nb; delArm = -1; renderBars(); }
@@ -1551,9 +1582,9 @@
     sc.addEventListener('wheel', function (ev) {
       if (camMax() <= 0) return;
       ev.preventDefault();
-      camFollow = false; camTouchedAt = performance.now();
       var d = (Math.abs(ev.deltaX) > Math.abs(ev.deltaY) ? ev.deltaX : ev.deltaY) * (ev.deltaMode === 1 ? 30 : 2.2);
       camX = Math.max(0, Math.min(camMax(), camX + d));
+      handScrolled();
       applyCam();
       var nb2 = barUnderCamera();
       if (nb2 !== viewBar) { viewBar = nb2; renderBars(); }
@@ -1567,7 +1598,7 @@
       var tw = thumb ? thumb.getBoundingClientRect().width : 30;
       var f = (clientX - br.left - tw / 2) / Math.max(1, br.width - tw);
       camX = Math.max(0, Math.min(camMax(), f * camMax()));
-      camFollow = false; camTouchedAt = performance.now();
+      handScrolled();
       applyCam();
       var nb = barUnderCamera();
       if (nb !== viewBar) { viewBar = nb; delArm = -1; renderBars(); }
@@ -1723,7 +1754,7 @@
       var mx = 0, withInst = 0, hist = [0, 0, 0, 0];
       if (S) S.cells.forEach(function (x) { if ((x.len || 1) > mx) mx = x.len || 1; if (x.inst != null) withInst++;
                                             try { hist[chOfCell(x)]++; } catch (e) {} });
-      return { playing: playing, live: !!liveScore, bars: S ? S.bars : 0,
+      return { playing: playing, catch: Math.round(camCatch), live: !!liveScore, bars: S ? S.bars : 0,
                viewBar: viewBar, viewCh: viewCh, loopBar: loopBar, queued: queuedBar,
                follow: camFollow, camX: Math.round(camX), cells: S ? S.cells.length : 0, withInst: withInst, maxLen: mx,
                notes: S ? buildSong().notes.length : 0, chHist: hist, mood: liveMood }; },

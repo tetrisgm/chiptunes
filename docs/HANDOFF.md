@@ -387,11 +387,14 @@ pass.
   2.38px +/- 0.099, zero stalls in 480 frames. Never round a position that a
   frame loop writes -- rounding is what puts the steps back.
 
-- The camera FOLLOWS THE MUSIC, and a hand scroll only borrows it: wheel,
-  drag and scrollbar all stamp camTouchedAt, and the follow resumes 3 seconds
-  after the last touch. Stamp every gesture that sets camFollow = false -- an
-  unstamped one leaves camTouchedAt at 0, and the follow takes over on the
-  very next frame, which reads as the scroll not working at all.
+- The camera FOLLOWS THE MUSIC, and a hand scroll KEEPS it. There is no timer
+  (an earlier 3-second auto-resume was wrong: it yanks the view away mid-edit,
+  and no DAW does it -- Ableton, Logic, Reaper and Renoise all disengage on a
+  hand scroll and re-engage only on an explicit event). Every gesture goes
+  through handScrolled(), which hands the camera back when the playhead is on
+  screen (8%..92% of the pane); camCatch then holds the view where your hand
+  left it and decays 0.86 a frame so the centring is a glide, not a snap.
+  Play, Start and a new mood also hand it back.
 
 - A note joining a lane (dragged there, or placed there) takes the
   instrument its NEIGHBOURS in that lane use (laneInstAt: nearest cell by
