@@ -32,22 +32,34 @@
   // handful. A pulse voice's timbre is its duty and its shape is its
   // envelope, so the pulse names are that grid; 75% duty is the same timbre
   // as 25% on this chip, so it only fills in a shape 25% does not have.
-  // The nulls are measured, not guessed: each candidate was rendered through
-  // this chip and any that landed within 0.10 of one already in the list --
-  // tone AND loudness-over-time -- was dropped. A name you cannot hear the
-  // difference of is clutter. (scripts do this offline; see docs/HANDOFF.md)
-  var PULSE_NAMES = {
-    '0.5':   { pluck: 'Square', stab: 'Punch', soft: 'Soft', sus: 'Hold',  swell: 'Swell' },
-    '0.25':  { pluck: 'Reed',   stab: null,    soft: 'Airy', sus: 'Drone', swell: 'Bloom' },
-    '0.125': { pluck: 'Bell',   stab: null,    soft: null,   sus: 'Thin',  swell: null }
-  };
-  var DUTY_ORDER = ['0.5', '0.25', '0.125'];
+  // The chip's whole voice, named. A pulse instrument is a DUTY (its timbre)
+  // crossed with an ENVELOPE (its shape), which is how a tracker player thinks
+  // of one, so that is how the palette reads: a family down the left, its
+  // characters across. 75% duty is 25% inverted -- the same timbre -- so it
+  // only fills a character 25% does not have.
   var ENV_ORDER = ['pluck', 'stab', 'soft', 'sus', 'swell'];
-  // the wave tables, roundest first -- named in the order the ear meets them
-  var WAVE_NAMES = ['Round', 'Sine', 'Cello', 'Vox', 'Wood', 'Reed', 'Thin', 'Saw', 'Growl', 'Ring'];
-  // the noise patches, brightest first: a hiss at the top, a boom at the end
-  var NOISE_NAMES = ['Tick', 'Hat', 'Hiss', 'Shaker', 'Wash', null, 'Snare', 'Sizzle', 'Tom', 'Rumble', 'Kick'];
-  var LANE_SOUND = ['Square', 'Bell', 'Wood', null];   // what each lane starts on
+  var PULSE_FAM = { '0.5': 'Square', '0.25': 'Reed', '0.125': 'Bell', '0.75': 'Reed' };
+  var FAM_ORDER = ['Square', 'Reed', 'Bell'];
+  // 'Ghost' (a quiet flat tone) is missing on purpose: it measured identical
+  // to Hold, differing only in level, which the Volume control already does.
+  var CHAR_ORDER = ['Pluck', 'Stab', 'Decay', 'Fade', 'Long', 'Hold', 'Tap', 'Quiet', 'Swell', 'Bloom'];
+  function pulseChar(rec) {
+    var v0 = (rec[1] >> 4) & 15, pace = rec[1] & 7, dir = (rec[1] >> 3) & 1;
+    if (dir) return pace <= 2 ? 'Swell' : 'Bloom';
+    if (pace === 0) return v0 >= 12 ? 'Hold' : 'Ghost';
+    if (pace === 1) return v0 >= 12 ? 'Pluck' : 'Tap';
+    if (pace === 2) return v0 >= 12 ? 'Stab' : 'Quiet';
+    if (pace === 3) return 'Decay';
+    return pace <= 5 ? 'Fade' : 'Long';
+  }
+  // the wave tables, roundest first, and the noise patches, brightest first.
+  // A null is a MEASURED duplicate: see docs/HANDOFF.md.
+  var WAVE_NAMES = ['Round', null, 'Cello', 'Vox', 'Wood', 'Reed', 'Thin', 'Saw',
+                    'Growl', 'Ring', 'Chime', 'Glass', 'Metal', 'Buzz', 'Edge', 'Grit'];
+  var NOISE_NAMES = ['Tick', 'Hat', null, 'Shaker', 'Wash', 'Snap', 'Snare', 'Sizzle', 'Tom', 'Rumble', 'Kick',
+                     'Brush', 'Clap', 'Rim', 'Crash', 'Thud', 'Boom', 'Drop', 'Roar', 'Wind'];
+  var METAL_NAMES = ['Ping', 'Zap', 'Bleep', null, 'Clonk'];
+  var LANE_SOUND = ['Square Pluck', 'Bell Pluck', 'Wood', null];   // what each lane starts on
   // MOTION: what the note DOES while it sounds. All of this already existed
   // in the build path (it is how trackers really did it -- one command
   // expanding into ordinary chip notes) and in the link format; the editor
@@ -150,23 +162,27 @@
   }
   function buildSounds(meta) {
     SNDS = { pulse: [], wave: [], noise: [] };
-    // pulse: every duty x envelope the bank actually holds
-    DUTY_ORDER.forEach(function (dk) {
-      var duty = +dk;
-      ENV_ORDER.forEach(function (env) {
-        var nm = PULSE_NAMES[dk][env];
-        if (!nm) return;
-        var pool = meta.filter(function (m) {
-          return m.type === 'pulse' && m.patch.duty === duty && envClass(BANK.instruments[m.index]) === env;
-        });
-        // 75% duty is 25% inverted: the same timbre, so it only fills a gap
-        if (!pool.length && dk === '0.25') pool = meta.filter(function (m) {
-          return m.type === 'pulse' && m.patch.duty === 0.75 && envClass(BANK.instruments[m.index]) === env;
-        });
-        if (pool.length) SNDS.pulse.push({ n: nm, inst: pool[0].index });
+    // pulse: family x character, in a fixed order so the panel is a grid
+    var seenName = {}, byFam = {};
+    meta.forEach(function (m) {
+      if (m.type !== 'pulse') return;
+      var fam = PULSE_FAM[String(m.patch.duty)];
+      if (!fam) return;
+      var ch2 = pulseChar(BANK.instruments[m.index]);
+      var key = fam + ' ' + ch2;
+      if (seenName[key]) return;              // first patch wins the name
+      seenName[key] = 1;
+      (byFam[fam] = byFam[fam] || {})[ch2] = m.index;
+    });
+    FAM_ORDER.forEach(function (fam) {
+      CHAR_ORDER.forEach(function (ch2) {
+        var ix = byFam[fam] && byFam[fam][ch2];
+        if (ix != null) SNDS.pulse.push({ n: ch2, fam: fam, full: fam + ' ' + ch2, inst: ix });
       });
     });
-    // wave: one name per timbre, roundest first
+    // wave: one name per timbre, roundest first. Two tables that differ only
+    // in loudness are ONE timbre: divide out level and phase and compare the
+    // shape of the harmonic series.
     var seen = {}, shapes = [];
     meta.forEach(function (m) {
       if (m.type !== 'wave' || seen[m.waveSlot] != null) return;
@@ -189,22 +205,29 @@
       kept.push(w);
     });
     kept.forEach(function (w, i) {
-      if (WAVE_NAMES[i]) SNDS.wave.push({ n: WAVE_NAMES[i], inst: w.inst });
+      if (WAVE_NAMES[i]) SNDS.wave.push({ n: WAVE_NAMES[i], fam: null, full: WAVE_NAMES[i], inst: w.inst });
     });
-    // noise: bright hiss down to a low boom, and where each one sits in the lane
-    var ns = meta.filter(function (m) { return m.type === 'noise'; }).slice().sort(function (a, b) {
-      var d = (a.patch.clockShift || 0) - (b.patch.clockShift || 0);
-      if (d) return d;
-      return ENV_ORDER.indexOf(envClass(BANK.instruments[a.index])) -
-             ENV_ORDER.indexOf(envClass(BANK.instruments[b.index]));
-    });
-    ns.forEach(function (m, i) {
-      if (!NOISE_NAMES[i]) return;
-      var sh = m.patch.clockShift || 0;
-      SNDS.noise.push({ n: NOISE_NAMES[i], inst: m.index, row: sh <= 1 ? 0 : sh <= 4 ? 1 : 2 });
-    });
+    // noise: the chip has two noise modes. 15-bit is the drum family, ordered
+    // bright hiss to low boom; 7-bit is the metallic one, which the corpus
+    // never asked for at all.
+    function order(list, names, fam) {
+      list.slice().sort(function (a, b) {
+        var d = (a.patch.clockShift || 0) - (b.patch.clockShift || 0);
+        if (d) return d;
+        d = (a.patch.period || 0) - (b.patch.period || 0);
+        if (d) return d;
+        return ENV_ORDER.indexOf(envClass(BANK.instruments[a.index])) -
+               ENV_ORDER.indexOf(envClass(BANK.instruments[b.index]));
+      }).forEach(function (m, i) {
+        if (!names[i]) return;
+        var sh = m.patch.clockShift || 0;
+        SNDS.noise.push({ n: names[i], fam: fam, full: names[i], inst: m.index, row: sh <= 1 ? 0 : sh <= 4 ? 1 : 2 });
+      });
+    }
+    var ns = meta.filter(function (m) { return m.type === 'noise'; });
+    order(ns.filter(function (m) { return m.patch.mode !== 7; }), NOISE_NAMES, 'Drums');
+    order(ns.filter(function (m) { return m.patch.mode === 7; }), METAL_NAMES, 'Metal');
   }
-
   // ---- state ---------------------------------------------------------------
   var S = null, undoStack = [], redoStack = [];
   function freshState() {
@@ -1129,10 +1152,10 @@
   function soundsFor(ch) {
     resolveBank();
     if (ch === 3) return SNDS.noise.map(function (sd) {
-      return { n: sd.n, ed: 'nz' + sd.inst, inst: sd.inst, row: sd.row };
+      return { n: sd.n, fam: sd.fam, full: sd.full, ed: 'nz' + sd.inst, inst: sd.inst, row: sd.row };
     });
     return (ch === 2 ? SNDS.wave : SNDS.pulse).map(function (sd) {
-      return { n: sd.n, ed: 'snd' + sd.inst, inst: sd.inst };
+      return { n: sd.n, fam: sd.fam, full: sd.full, ed: 'snd' + sd.inst, inst: sd.inst };
     });
   }
   function laneInst(ch) {
@@ -1140,13 +1163,13 @@
     if (chInst[ch] != null) return chInst[ch];
     if (ch === 3) return INSTOF[DRUMS[pen.drum] ? DRUMS[pen.drum].id : 'kick'];
     var want = LANE_SOUND[ch], hit = null;   // the lane starts on a named sound
-    (ch === 2 ? SNDS.wave : SNDS.pulse).forEach(function (sd) { if (sd.n === want) hit = sd.inst; });
+    (ch === 2 ? SNDS.wave : SNDS.pulse).forEach(function (sd) { if (sd.full === want) hit = sd.inst; });
     return hit != null ? hit : INSTOF[CH[ch].stamp];
   }
   function soundName(ch) {
     if (ch === 3) return 'Kit';
     var want = laneInst(ch), hit = null;
-    soundsFor(ch).forEach(function (sd) { if (sd.inst === want) hit = sd.n; });
+    soundsFor(ch).forEach(function (sd) { if (sd.inst === want) hit = sd.full; });
     return hit || 'Sound';
   }
   function motionsFor(ch) { return MOTIONS.filter(function (m) { return m.ch[ch]; }); }
@@ -1170,9 +1193,18 @@
     var cur = x && x.inst != null ? x.inst
             : ch === 3 && x ? INSTOF[DRUMS[Math.max(0, x.r - MEL_ROWS)].id]
             : laneInst(ch);
-    return soundsFor(ch).map(function (sd) {
-      var on = sd.inst === cur;
-      return '<button type="button" class="n-pv' + (on ? ' on' : '') + '" data-ed="' + sd.ed + '">' + sd.n + '</button>';
+    var list = soundsFor(ch), fams = [], byFam = {};
+    list.forEach(function (sd) {
+      var f = sd.fam || '';
+      if (!byFam[f]) { byFam[f] = []; fams.push(f); }
+      byFam[f].push(sd);
+    });
+    return fams.map(function (f) {
+      return '<div class="n-pgrp"><i>' + f + '</i><span>' +
+        byFam[f].map(function (sd) {
+          return '<button type="button" class="n-pv' + (sd.inst === cur ? ' on' : '') +
+                 '" data-ed="' + sd.ed + '" data-full="' + sd.full + '">' + sd.n + '</button>';
+        }).join('') + '</span></div>';
     }).join('');
   }
   function closePick() {
@@ -1195,7 +1227,7 @@
         '<button type="button" class="n-pclose" data-ed="close" title="Close">\u00d7</button></div>' +
       '<div class="n-pickrow n-pisnd" style="--vc:' + CH[ch].color + '">' + soundBtns(ch, x) + '</div>' +
       '<div class="n-pickhead"><span>Motion</span></div>' +
-      '<div class="n-pickrow n-pisnd n-pifx" style="--vc:' + CH[ch].color + '">' + motionBtns(ch, x) + '</div>' +
+      '<div class="n-pickrow n-pifx" style="--vc:' + CH[ch].color + '">' + motionBtns(ch, x) + '</div>' +
       '<div class="n-pickrow n-picklevels">' +
         '<span>Volume</span>' +
         '<button type="button" class="n-po" data-ed="vol-">\u2212</button>' +

@@ -658,8 +658,15 @@
     display:flex; align-items:center; justify-content:center; line-height:1;
     background:rgba(255,255,255,.06); border:1px solid var(--mat-edge); color:var(--ink); font:800 13px var(--ui); }
   #createscreen .n-pclose:hover{ background:rgba(255,255,255,.16); }
-  #createscreen .n-pisnd{ flex-wrap:wrap; gap:6px; width:352px; max-width:88vw; justify-content:flex-start; }
-  #createscreen .n-pisnd .n-pv{ flex:0 0 auto; min-width:64px; height:28px; padding:0 9px; font:800 10.5px var(--ui); }
+  /* the palette reads as a grid: a family down the left, its characters across */
+  #createscreen .n-pisnd{ flex-direction:column; align-items:stretch; gap:6px; width:600px; max-width:92vw; }
+  #createscreen .n-pgrp{ display:grid; grid-template-columns:44px 1fr; align-items:start; column-gap:6px; }
+  #createscreen .n-pgrp i{ font:800 10px var(--ui); font-style:normal; color:var(--ink-2);
+    text-align:right; line-height:26px; }
+  #createscreen .n-pgrp span{ display:flex; flex-wrap:wrap; gap:5px; }
+  #createscreen .n-pisnd .n-pv{ flex:0 0 auto; min-width:48px; height:26px; padding:0 8px; font:800 10px var(--ui); }
+  #createscreen .n-pifx{ flex-wrap:wrap; gap:5px; justify-content:flex-start; padding-left:50px; }
+  #createscreen .n-pifx .n-pv{ flex:0 0 auto; min-width:56px; height:26px; padding:0 9px; font:800 10px var(--ui); }
   #createscreen .n-tfollow{ height:32px; padding:0 14px; border-radius:9px; cursor:pointer;
     background:rgba(255,255,255,.05); border:1px solid var(--mat-edge); color:var(--ink-2);
     font:800 11px var(--ui); }
@@ -668,7 +675,6 @@
   /* a note that moves says so, on the block and in the panel */
   #createscreen .n-note.fx{ border-style:dashed; }
   #createscreen .n-note b em{ font-style:normal; opacity:.7; font-size:9px; margin-left:3px; }
-  #createscreen .n-pifx .n-pv{ min-width:58px; }
   #createscreen .n-pickfoot{ font:500 10px var(--ui); color:var(--ink-2); text-align:center; }
   #createscreen .n-pv{ flex:1 1 0; height:34px; padding:0 12px; border-radius:9px; cursor:pointer;
     background:rgba(255,255,255,.05); border:1px solid var(--mat-edge); color:var(--vc,#fff);
@@ -1685,6 +1691,59 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     out.push({ weight: 0.5, patch: { system: 'gameboy', type: 'noise', clockShift: 2, period: 2, mode: 7,  envelope: _env(0.8, 1),  authored: 'n-hat' } });
     out.push({ weight: 0.5, patch: { system: 'gameboy', type: 'noise', clockShift: 4, period: 3, mode: 15, envelope: _env(0.87, 2), authored: 'n-snap' } });
     out.push({ weight: 0.5, patch: { system: 'gameboy', type: 'noise', clockShift: 6, period: 5, mode: 15, envelope: _env(1, 1),    authored: 'n-punch' } });
+
+    // EDITOR TIMBRES. Everything above is what the composer draws from, and
+    // its pools are indexed by hash(seed) % pool.length -- so adding one patch
+    // there would re-instrument every song ever shared. These carry
+    // editorOnly, the composer filters them out, and they sort last (a lower
+    // weight) so no existing instrument index moves. They exist because the
+    // editor's palette was thin: the chip has far more to say than the corpus
+    // happened to use.
+    function ed(patch) {
+      patch.system = 'gameboy'; patch.editorOnly = true;
+      out.push({ weight: 0.25, patch: patch });
+    }
+    // pulse: the three real duties (75% is 25% inverted) across the envelope
+    // shapes the corpus never reached -- slower decays, quiet sustains, swells
+    var ED_ENV = {
+      decay: _env(1, 3), fade: _env(1, 5), long: _env(1, 7),
+      tap: _env(0.53, 1), ghost: _env(0.4, 0), quiet: _env(0.53, 2),
+      bloom: _env(0.13, 6, 'up'), rise: _env(0.2, 1, 'up')
+    };
+    [0.125, 0.25, 0.5].forEach(function (d) {
+      Object.keys(ED_ENV).forEach(function (k) { ed({ type: 'pulse', duty: d, envelope: ED_ENV[k], authored: 'ed-p-' + d + '-' + k }); });
+    });
+    // wave: the last three free slots in the cartridge's table of sixteen
+    var ED_WAVES = {
+      pwm:  _wt(function (i) { return i < 8 ? 15 : 0; }),                       // a 25% pulse, thinner than square
+      bell: _wt(function (i) { var a = i / 32 * 2 * Math.PI;
+              return 7.5 + 4 * Math.sin(a) + 2.5 * Math.sin(3 * a) + 1.5 * Math.sin(5 * a); }),
+      reso: _wt(function (i) { var a = i / 32 * 2 * Math.PI;
+              return 7.5 + 5 * Math.sin(a) + 3 * Math.sin(7 * a); })
+    };
+    Object.keys(ED_WAVES).forEach(function (k) {
+      ed({ type: 'wave', table4bit: ED_WAVES[k], envelope: _env(1, 0), authored: 'ed-w-' + k });
+    });
+    // noise: the corpus only ever asked for 15-bit noise at the top of the
+    // range. 7-bit width is the chip's metallic mode, and the low shifts are
+    // where the big drums live.
+    [{ s: 0, p: 0, m: 7,  e: _env(1, 1),    n: 'ring' },
+     { s: 2, p: 0, m: 7,  e: _env(1, 2),    n: 'zap' },
+     { s: 4, p: 0, m: 7,  e: _env(0.87, 1), n: 'bleep' },
+     { s: 6, p: 2, m: 7,  e: _env(1, 3),    n: 'clank' },
+     { s: 8, p: 0, m: 7,  e: _env(1, 1),    n: 'clonk' },
+     { s: 1, p: 4, m: 15, e: _env(1, 2),    n: 'clap' },
+     { s: 3, p: 0, m: 15, e: _env(1, 1),    n: 'rim' },
+     { s: 3, p: 6, m: 15, e: _env(1, 4),    n: 'crash' },
+     { s: 5, p: 2, m: 15, e: _env(1, 2),    n: 'thud' },
+     { s: 7, p: 0, m: 15, e: _env(1, 1),    n: 'boom' },
+     { s: 8, p: 4, m: 15, e: _env(1, 2),    n: 'drop' },
+     { s: 9, p: 0, m: 15, e: _env(1, 0),    n: 'roar' },
+     { s: 2, p: 7, m: 15, e: _env(0.6, 0),  n: 'wind' },
+     { s: 0, p: 5, m: 15, e: _env(0.53, 3), n: 'brush' }
+    ].forEach(function (d) {
+      ed({ type: 'noise', clockShift: d.s, period: d.p, mode: d.m, envelope: d.e, authored: 'ed-n-' + d.n });
+    });
     return out;
   })();
 
@@ -3409,22 +3468,34 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   // handful. A pulse voice's timbre is its duty and its shape is its
   // envelope, so the pulse names are that grid; 75% duty is the same timbre
   // as 25% on this chip, so it only fills in a shape 25% does not have.
-  // The nulls are measured, not guessed: each candidate was rendered through
-  // this chip and any that landed within 0.10 of one already in the list --
-  // tone AND loudness-over-time -- was dropped. A name you cannot hear the
-  // difference of is clutter. (scripts do this offline; see docs/HANDOFF.md)
-  var PULSE_NAMES = {
-    '0.5':   { pluck: 'Square', stab: 'Punch', soft: 'Soft', sus: 'Hold',  swell: 'Swell' },
-    '0.25':  { pluck: 'Reed',   stab: null,    soft: 'Airy', sus: 'Drone', swell: 'Bloom' },
-    '0.125': { pluck: 'Bell',   stab: null,    soft: null,   sus: 'Thin',  swell: null }
-  };
-  var DUTY_ORDER = ['0.5', '0.25', '0.125'];
+  // The chip's whole voice, named. A pulse instrument is a DUTY (its timbre)
+  // crossed with an ENVELOPE (its shape), which is how a tracker player thinks
+  // of one, so that is how the palette reads: a family down the left, its
+  // characters across. 75% duty is 25% inverted -- the same timbre -- so it
+  // only fills a character 25% does not have.
   var ENV_ORDER = ['pluck', 'stab', 'soft', 'sus', 'swell'];
-  // the wave tables, roundest first -- named in the order the ear meets them
-  var WAVE_NAMES = ['Round', 'Sine', 'Cello', 'Vox', 'Wood', 'Reed', 'Thin', 'Saw', 'Growl', 'Ring'];
-  // the noise patches, brightest first: a hiss at the top, a boom at the end
-  var NOISE_NAMES = ['Tick', 'Hat', 'Hiss', 'Shaker', 'Wash', null, 'Snare', 'Sizzle', 'Tom', 'Rumble', 'Kick'];
-  var LANE_SOUND = ['Square', 'Bell', 'Wood', null];   // what each lane starts on
+  var PULSE_FAM = { '0.5': 'Square', '0.25': 'Reed', '0.125': 'Bell', '0.75': 'Reed' };
+  var FAM_ORDER = ['Square', 'Reed', 'Bell'];
+  // 'Ghost' (a quiet flat tone) is missing on purpose: it measured identical
+  // to Hold, differing only in level, which the Volume control already does.
+  var CHAR_ORDER = ['Pluck', 'Stab', 'Decay', 'Fade', 'Long', 'Hold', 'Tap', 'Quiet', 'Swell', 'Bloom'];
+  function pulseChar(rec) {
+    var v0 = (rec[1] >> 4) & 15, pace = rec[1] & 7, dir = (rec[1] >> 3) & 1;
+    if (dir) return pace <= 2 ? 'Swell' : 'Bloom';
+    if (pace === 0) return v0 >= 12 ? 'Hold' : 'Ghost';
+    if (pace === 1) return v0 >= 12 ? 'Pluck' : 'Tap';
+    if (pace === 2) return v0 >= 12 ? 'Stab' : 'Quiet';
+    if (pace === 3) return 'Decay';
+    return pace <= 5 ? 'Fade' : 'Long';
+  }
+  // the wave tables, roundest first, and the noise patches, brightest first.
+  // A null is a MEASURED duplicate: see docs/HANDOFF.md.
+  var WAVE_NAMES = ['Round', null, 'Cello', 'Vox', 'Wood', 'Reed', 'Thin', 'Saw',
+                    'Growl', 'Ring', 'Chime', 'Glass', 'Metal', 'Buzz', 'Edge', 'Grit'];
+  var NOISE_NAMES = ['Tick', 'Hat', null, 'Shaker', 'Wash', 'Snap', 'Snare', 'Sizzle', 'Tom', 'Rumble', 'Kick',
+                     'Brush', 'Clap', 'Rim', 'Crash', 'Thud', 'Boom', 'Drop', 'Roar', 'Wind'];
+  var METAL_NAMES = ['Ping', 'Zap', 'Bleep', null, 'Clonk'];
+  var LANE_SOUND = ['Square Pluck', 'Bell Pluck', 'Wood', null];   // what each lane starts on
   // MOTION: what the note DOES while it sounds. All of this already existed
   // in the build path (it is how trackers really did it -- one command
   // expanding into ordinary chip notes) and in the link format; the editor
@@ -3527,23 +3598,27 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   }
   function buildSounds(meta) {
     SNDS = { pulse: [], wave: [], noise: [] };
-    // pulse: every duty x envelope the bank actually holds
-    DUTY_ORDER.forEach(function (dk) {
-      var duty = +dk;
-      ENV_ORDER.forEach(function (env) {
-        var nm = PULSE_NAMES[dk][env];
-        if (!nm) return;
-        var pool = meta.filter(function (m) {
-          return m.type === 'pulse' && m.patch.duty === duty && envClass(BANK.instruments[m.index]) === env;
-        });
-        // 75% duty is 25% inverted: the same timbre, so it only fills a gap
-        if (!pool.length && dk === '0.25') pool = meta.filter(function (m) {
-          return m.type === 'pulse' && m.patch.duty === 0.75 && envClass(BANK.instruments[m.index]) === env;
-        });
-        if (pool.length) SNDS.pulse.push({ n: nm, inst: pool[0].index });
+    // pulse: family x character, in a fixed order so the panel is a grid
+    var seenName = {}, byFam = {};
+    meta.forEach(function (m) {
+      if (m.type !== 'pulse') return;
+      var fam = PULSE_FAM[String(m.patch.duty)];
+      if (!fam) return;
+      var ch2 = pulseChar(BANK.instruments[m.index]);
+      var key = fam + ' ' + ch2;
+      if (seenName[key]) return;              // first patch wins the name
+      seenName[key] = 1;
+      (byFam[fam] = byFam[fam] || {})[ch2] = m.index;
+    });
+    FAM_ORDER.forEach(function (fam) {
+      CHAR_ORDER.forEach(function (ch2) {
+        var ix = byFam[fam] && byFam[fam][ch2];
+        if (ix != null) SNDS.pulse.push({ n: ch2, fam: fam, full: fam + ' ' + ch2, inst: ix });
       });
     });
-    // wave: one name per timbre, roundest first
+    // wave: one name per timbre, roundest first. Two tables that differ only
+    // in loudness are ONE timbre: divide out level and phase and compare the
+    // shape of the harmonic series.
     var seen = {}, shapes = [];
     meta.forEach(function (m) {
       if (m.type !== 'wave' || seen[m.waveSlot] != null) return;
@@ -3566,22 +3641,29 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       kept.push(w);
     });
     kept.forEach(function (w, i) {
-      if (WAVE_NAMES[i]) SNDS.wave.push({ n: WAVE_NAMES[i], inst: w.inst });
+      if (WAVE_NAMES[i]) SNDS.wave.push({ n: WAVE_NAMES[i], fam: null, full: WAVE_NAMES[i], inst: w.inst });
     });
-    // noise: bright hiss down to a low boom, and where each one sits in the lane
-    var ns = meta.filter(function (m) { return m.type === 'noise'; }).slice().sort(function (a, b) {
-      var d = (a.patch.clockShift || 0) - (b.patch.clockShift || 0);
-      if (d) return d;
-      return ENV_ORDER.indexOf(envClass(BANK.instruments[a.index])) -
-             ENV_ORDER.indexOf(envClass(BANK.instruments[b.index]));
-    });
-    ns.forEach(function (m, i) {
-      if (!NOISE_NAMES[i]) return;
-      var sh = m.patch.clockShift || 0;
-      SNDS.noise.push({ n: NOISE_NAMES[i], inst: m.index, row: sh <= 1 ? 0 : sh <= 4 ? 1 : 2 });
-    });
+    // noise: the chip has two noise modes. 15-bit is the drum family, ordered
+    // bright hiss to low boom; 7-bit is the metallic one, which the corpus
+    // never asked for at all.
+    function order(list, names, fam) {
+      list.slice().sort(function (a, b) {
+        var d = (a.patch.clockShift || 0) - (b.patch.clockShift || 0);
+        if (d) return d;
+        d = (a.patch.period || 0) - (b.patch.period || 0);
+        if (d) return d;
+        return ENV_ORDER.indexOf(envClass(BANK.instruments[a.index])) -
+               ENV_ORDER.indexOf(envClass(BANK.instruments[b.index]));
+      }).forEach(function (m, i) {
+        if (!names[i]) return;
+        var sh = m.patch.clockShift || 0;
+        SNDS.noise.push({ n: names[i], fam: fam, full: names[i], inst: m.index, row: sh <= 1 ? 0 : sh <= 4 ? 1 : 2 });
+      });
+    }
+    var ns = meta.filter(function (m) { return m.type === 'noise'; });
+    order(ns.filter(function (m) { return m.patch.mode !== 7; }), NOISE_NAMES, 'Drums');
+    order(ns.filter(function (m) { return m.patch.mode === 7; }), METAL_NAMES, 'Metal');
   }
-
   // ---- state ---------------------------------------------------------------
   var S = null, undoStack = [], redoStack = [];
   function freshState() {
@@ -4506,10 +4588,10 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   function soundsFor(ch) {
     resolveBank();
     if (ch === 3) return SNDS.noise.map(function (sd) {
-      return { n: sd.n, ed: 'nz' + sd.inst, inst: sd.inst, row: sd.row };
+      return { n: sd.n, fam: sd.fam, full: sd.full, ed: 'nz' + sd.inst, inst: sd.inst, row: sd.row };
     });
     return (ch === 2 ? SNDS.wave : SNDS.pulse).map(function (sd) {
-      return { n: sd.n, ed: 'snd' + sd.inst, inst: sd.inst };
+      return { n: sd.n, fam: sd.fam, full: sd.full, ed: 'snd' + sd.inst, inst: sd.inst };
     });
   }
   function laneInst(ch) {
@@ -4517,13 +4599,13 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     if (chInst[ch] != null) return chInst[ch];
     if (ch === 3) return INSTOF[DRUMS[pen.drum] ? DRUMS[pen.drum].id : 'kick'];
     var want = LANE_SOUND[ch], hit = null;   // the lane starts on a named sound
-    (ch === 2 ? SNDS.wave : SNDS.pulse).forEach(function (sd) { if (sd.n === want) hit = sd.inst; });
+    (ch === 2 ? SNDS.wave : SNDS.pulse).forEach(function (sd) { if (sd.full === want) hit = sd.inst; });
     return hit != null ? hit : INSTOF[CH[ch].stamp];
   }
   function soundName(ch) {
     if (ch === 3) return 'Kit';
     var want = laneInst(ch), hit = null;
-    soundsFor(ch).forEach(function (sd) { if (sd.inst === want) hit = sd.n; });
+    soundsFor(ch).forEach(function (sd) { if (sd.inst === want) hit = sd.full; });
     return hit || 'Sound';
   }
   function motionsFor(ch) { return MOTIONS.filter(function (m) { return m.ch[ch]; }); }
@@ -4547,9 +4629,18 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     var cur = x && x.inst != null ? x.inst
             : ch === 3 && x ? INSTOF[DRUMS[Math.max(0, x.r - MEL_ROWS)].id]
             : laneInst(ch);
-    return soundsFor(ch).map(function (sd) {
-      var on = sd.inst === cur;
-      return '<button type="button" class="n-pv' + (on ? ' on' : '') + '" data-ed="' + sd.ed + '">' + sd.n + '</button>';
+    var list = soundsFor(ch), fams = [], byFam = {};
+    list.forEach(function (sd) {
+      var f = sd.fam || '';
+      if (!byFam[f]) { byFam[f] = []; fams.push(f); }
+      byFam[f].push(sd);
+    });
+    return fams.map(function (f) {
+      return '<div class="n-pgrp"><i>' + f + '</i><span>' +
+        byFam[f].map(function (sd) {
+          return '<button type="button" class="n-pv' + (sd.inst === cur ? ' on' : '') +
+                 '" data-ed="' + sd.ed + '" data-full="' + sd.full + '">' + sd.n + '</button>';
+        }).join('') + '</span></div>';
     }).join('');
   }
   function closePick() {
@@ -4572,7 +4663,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
         '<button type="button" class="n-pclose" data-ed="close" title="Close">\u00d7</button></div>' +
       '<div class="n-pickrow n-pisnd" style="--vc:' + CH[ch].color + '">' + soundBtns(ch, x) + '</div>' +
       '<div class="n-pickhead"><span>Motion</span></div>' +
-      '<div class="n-pickrow n-pisnd n-pifx" style="--vc:' + CH[ch].color + '">' + motionBtns(ch, x) + '</div>' +
+      '<div class="n-pickrow n-pifx" style="--vc:' + CH[ch].color + '">' + motionBtns(ch, x) + '</div>' +
       '<div class="n-pickrow n-picklevels">' +
         '<span>Volume</span>' +
         '<button type="button" class="n-po" data-ed="vol-">\u2212</button>' +
@@ -5733,7 +5824,10 @@ var MELLOW_KIT={boombap:1,chill:1,ballad:1,drone:1};
 function pickBank(token,style){
   var B=G.CT_GB&&G.CT_CHIP_INSTRUMENTS?G.CT_GB.buildBank(G.CT_CHIP_INSTRUMENTS.patches):null;
   if(!B)return null;
-  var by=function(t){return B.meta.filter(function(m){return m.type===t;});};
+  // editorOnly patches exist for the Create palette alone. The pools below are
+  // indexed by hash(token) % pool.length, so letting one in would re-instrument
+  // every song that was ever shared.
+  var by=function(t){return B.meta.filter(function(m){return m.type===t&&!(m.patch&&m.patch.editorOnly);});};
   var pulses=by('pulse'),waves=by('wave'),noises=by('noise');
   function envClass(m){var rec=B.instruments[m.index],v0=(rec[1]>>4)&15,pace=rec[1]&7,dir=(rec[1]>>3)&1;
     if(dir)return 'swell'; if(pace===0)return 'sus'; if(v0<=8)return 'soft';

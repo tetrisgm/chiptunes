@@ -109,6 +109,59 @@
     out.push({ weight: 0.5, patch: { system: 'gameboy', type: 'noise', clockShift: 2, period: 2, mode: 7,  envelope: _env(0.8, 1),  authored: 'n-hat' } });
     out.push({ weight: 0.5, patch: { system: 'gameboy', type: 'noise', clockShift: 4, period: 3, mode: 15, envelope: _env(0.87, 2), authored: 'n-snap' } });
     out.push({ weight: 0.5, patch: { system: 'gameboy', type: 'noise', clockShift: 6, period: 5, mode: 15, envelope: _env(1, 1),    authored: 'n-punch' } });
+
+    // EDITOR TIMBRES. Everything above is what the composer draws from, and
+    // its pools are indexed by hash(seed) % pool.length -- so adding one patch
+    // there would re-instrument every song ever shared. These carry
+    // editorOnly, the composer filters them out, and they sort last (a lower
+    // weight) so no existing instrument index moves. They exist because the
+    // editor's palette was thin: the chip has far more to say than the corpus
+    // happened to use.
+    function ed(patch) {
+      patch.system = 'gameboy'; patch.editorOnly = true;
+      out.push({ weight: 0.25, patch: patch });
+    }
+    // pulse: the three real duties (75% is 25% inverted) across the envelope
+    // shapes the corpus never reached -- slower decays, quiet sustains, swells
+    var ED_ENV = {
+      decay: _env(1, 3), fade: _env(1, 5), long: _env(1, 7),
+      tap: _env(0.53, 1), ghost: _env(0.4, 0), quiet: _env(0.53, 2),
+      bloom: _env(0.13, 6, 'up'), rise: _env(0.2, 1, 'up')
+    };
+    [0.125, 0.25, 0.5].forEach(function (d) {
+      Object.keys(ED_ENV).forEach(function (k) { ed({ type: 'pulse', duty: d, envelope: ED_ENV[k], authored: 'ed-p-' + d + '-' + k }); });
+    });
+    // wave: the last three free slots in the cartridge's table of sixteen
+    var ED_WAVES = {
+      pwm:  _wt(function (i) { return i < 8 ? 15 : 0; }),                       // a 25% pulse, thinner than square
+      bell: _wt(function (i) { var a = i / 32 * 2 * Math.PI;
+              return 7.5 + 4 * Math.sin(a) + 2.5 * Math.sin(3 * a) + 1.5 * Math.sin(5 * a); }),
+      reso: _wt(function (i) { var a = i / 32 * 2 * Math.PI;
+              return 7.5 + 5 * Math.sin(a) + 3 * Math.sin(7 * a); })
+    };
+    Object.keys(ED_WAVES).forEach(function (k) {
+      ed({ type: 'wave', table4bit: ED_WAVES[k], envelope: _env(1, 0), authored: 'ed-w-' + k });
+    });
+    // noise: the corpus only ever asked for 15-bit noise at the top of the
+    // range. 7-bit width is the chip's metallic mode, and the low shifts are
+    // where the big drums live.
+    [{ s: 0, p: 0, m: 7,  e: _env(1, 1),    n: 'ring' },
+     { s: 2, p: 0, m: 7,  e: _env(1, 2),    n: 'zap' },
+     { s: 4, p: 0, m: 7,  e: _env(0.87, 1), n: 'bleep' },
+     { s: 6, p: 2, m: 7,  e: _env(1, 3),    n: 'clank' },
+     { s: 8, p: 0, m: 7,  e: _env(1, 1),    n: 'clonk' },
+     { s: 1, p: 4, m: 15, e: _env(1, 2),    n: 'clap' },
+     { s: 3, p: 0, m: 15, e: _env(1, 1),    n: 'rim' },
+     { s: 3, p: 6, m: 15, e: _env(1, 4),    n: 'crash' },
+     { s: 5, p: 2, m: 15, e: _env(1, 2),    n: 'thud' },
+     { s: 7, p: 0, m: 15, e: _env(1, 1),    n: 'boom' },
+     { s: 8, p: 4, m: 15, e: _env(1, 2),    n: 'drop' },
+     { s: 9, p: 0, m: 15, e: _env(1, 0),    n: 'roar' },
+     { s: 2, p: 7, m: 15, e: _env(0.6, 0),  n: 'wind' },
+     { s: 0, p: 5, m: 15, e: _env(0.53, 3), n: 'brush' }
+    ].forEach(function (d) {
+      ed({ type: 'noise', clockShift: d.s, period: d.p, mode: d.m, envelope: d.e, authored: 'ed-n-' + d.n });
+    });
     return out;
   })();
 

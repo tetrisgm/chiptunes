@@ -330,7 +330,10 @@ var MELLOW_KIT={boombap:1,chill:1,ballad:1,drone:1};
 function pickBank(token,style){
   var B=G.CT_GB&&G.CT_CHIP_INSTRUMENTS?G.CT_GB.buildBank(G.CT_CHIP_INSTRUMENTS.patches):null;
   if(!B)return null;
-  var by=function(t){return B.meta.filter(function(m){return m.type===t;});};
+  // editorOnly patches exist for the Create palette alone. The pools below are
+  // indexed by hash(token) % pool.length, so letting one in would re-instrument
+  // every song that was ever shared.
+  var by=function(t){return B.meta.filter(function(m){return m.type===t&&!(m.patch&&m.patch.editorOnly);});};
   var pulses=by('pulse'),waves=by('wave'),noises=by('noise');
   function envClass(m){var rec=B.instruments[m.index],v0=(rec[1]>>4)&15,pace=rec[1]&7,dir=(rec[1]>>3)&1;
     if(dir)return 'swell'; if(pace===0)return 'sus'; if(v0<=8)return 'soft';

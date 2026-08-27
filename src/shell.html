@@ -658,8 +658,15 @@
     display:flex; align-items:center; justify-content:center; line-height:1;
     background:rgba(255,255,255,.06); border:1px solid var(--mat-edge); color:var(--ink); font:800 13px var(--ui); }
   #createscreen .n-pclose:hover{ background:rgba(255,255,255,.16); }
-  #createscreen .n-pisnd{ flex-wrap:wrap; gap:6px; width:352px; max-width:88vw; justify-content:flex-start; }
-  #createscreen .n-pisnd .n-pv{ flex:0 0 auto; min-width:64px; height:28px; padding:0 9px; font:800 10.5px var(--ui); }
+  /* the palette reads as a grid: a family down the left, its characters across */
+  #createscreen .n-pisnd{ flex-direction:column; align-items:stretch; gap:6px; width:600px; max-width:92vw; }
+  #createscreen .n-pgrp{ display:grid; grid-template-columns:44px 1fr; align-items:start; column-gap:6px; }
+  #createscreen .n-pgrp i{ font:800 10px var(--ui); font-style:normal; color:var(--ink-2);
+    text-align:right; line-height:26px; }
+  #createscreen .n-pgrp span{ display:flex; flex-wrap:wrap; gap:5px; }
+  #createscreen .n-pisnd .n-pv{ flex:0 0 auto; min-width:48px; height:26px; padding:0 8px; font:800 10px var(--ui); }
+  #createscreen .n-pifx{ flex-wrap:wrap; gap:5px; justify-content:flex-start; padding-left:50px; }
+  #createscreen .n-pifx .n-pv{ flex:0 0 auto; min-width:56px; height:26px; padding:0 9px; font:800 10px var(--ui); }
   #createscreen .n-tfollow{ height:32px; padding:0 14px; border-radius:9px; cursor:pointer;
     background:rgba(255,255,255,.05); border:1px solid var(--mat-edge); color:var(--ink-2);
     font:800 11px var(--ui); }
@@ -668,7 +675,6 @@
   /* a note that moves says so, on the block and in the panel */
   #createscreen .n-note.fx{ border-style:dashed; }
   #createscreen .n-note b em{ font-style:normal; opacity:.7; font-size:9px; margin-left:3px; }
-  #createscreen .n-pifx .n-pv{ min-width:58px; }
   #createscreen .n-pickfoot{ font:500 10px var(--ui); color:var(--ink-2); text-align:center; }
   #createscreen .n-pv{ flex:1 1 0; height:34px; padding:0 12px; border-radius:9px; cursor:pointer;
     background:rgba(255,255,255,.05); border:1px solid var(--mat-edge); color:var(--vc,#fff);
