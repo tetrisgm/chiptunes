@@ -554,8 +554,7 @@
     gap:var(--bbgap,18px); padding:0 var(--trackpad,8px); will-change:transform; }
   #createscreen .n-bb{ flex:0 0 auto; width:var(--bbw,360px); display:flex; flex-direction:column; gap:5px;
     position:relative; }
-  #createscreen .n-bb + .n-bb::before{ content:''; position:absolute; top:12%; bottom:12%;
-    left:calc(var(--bbgap,52px) / -2); width:1px; background:rgba(232,227,250,.13); }
+
   #createscreen .n-bbhead{ display:flex; align-items:center; gap:8px; height:22px; cursor:grab;
     padding:0 4px; border-radius:8px; }
   #createscreen .n-bbhead:active{ cursor:grabbing; }
@@ -626,7 +625,7 @@
     font:700 13px var(--ui); }
   #createscreen .cr-chip:hover{ background:rgba(123,220,160,.2); border-color:rgba(123,220,160,.6); }
   #createscreen .n-tabs{ flex:0 0 auto; display:flex; align-items:flex-end; gap:3px; padding:0;
-    width:var(--bbw,360px); will-change:transform; }
+    width:var(--bbw,360px); margin:0 auto; }
   #createscreen .n-tabs::-webkit-scrollbar{ display:none; }
   #createscreen .n-tab{ flex:1 1 0; min-width:0; height:32px; padding:0 8px; cursor:pointer; position:relative;
     justify-content:center; bottom:-1px;
@@ -637,9 +636,11 @@
   #createscreen .n-tab span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   #createscreen .n-tab.muted span{ opacity:.45; text-decoration:line-through; }
   #createscreen .n-tab canvas{ display:none; }   /* the colour and the name carry it; Sound lives in the panel */
-  #createscreen .n-spk{ width:20px; height:20px; border-radius:5px; display:flex; align-items:center;
-    justify-content:center; font-size:12px; font-style:normal; opacity:.85; }
-  #createscreen .n-spk:hover{ background:rgba(255,255,255,.16); opacity:1; }
+  #createscreen .n-spk{ width:22px; height:22px; border-radius:5px; display:flex; align-items:center;
+    justify-content:center; font-style:normal; color:#5AA9FF; }
+  #createscreen .n-spk svg{ display:block; }
+  #createscreen .n-tab.muted .n-spk{ color:var(--ink-2); opacity:.7; }
+  #createscreen .n-spk:hover{ background:rgba(255,255,255,.16); }
   #createscreen .n-mid{ flex:1 1 auto; min-height:0; overflow:hidden; position:relative; }
   #createscreen .n-bbtools{ display:flex; gap:7px; width:100%; margin-top:14px; visibility:hidden; }
   #createscreen .n-bb.view .n-bbtools{ visibility:visible; }
@@ -649,7 +650,7 @@
   #createscreen .n-hb:hover{ border-color:var(--mat-edge-hi); color:var(--ink); }
   #createscreen .n-bb.loop .n-lp{ background:rgba(123,220,160,.25); border-color:rgba(123,220,160,.7); color:#7BDCA0; }
   #createscreen .n-bb.queued .n-lp{ border-color:rgba(255,201,60,.8); color:#FFC93C; }
-  #createscreen .n-bblabel{ height:18px; text-align:center; margin-bottom:4px;
+  #createscreen .n-bblabel{ height:18px; text-align:center; margin-top:10px;
     font:800 12px var(--ui); color:var(--ink-2); letter-spacing:.04em; }
   #createscreen .n-bb.view .n-bblabel{ color:var(--ink); }
   #createscreen .n-bb.loop .n-bblabel{ color:#7BDCA0; }
@@ -674,6 +675,14 @@
   #createscreen .n-edb.on{ background:rgba(255,255,255,.16); border-color:var(--mat-edge-hi); }
   #createscreen .n-edvoice em{ font-style:normal; font-weight:800; }
   #createscreen .n-edval{ min-width:62px; text-align:center; font:800 14px var(--ui); color:var(--ink); }
+  #createscreen .n-meter{ display:inline-flex; align-items:center; gap:2px; min-width:76px; justify-content:center; }
+  #createscreen .n-meter i{ width:6px; height:14px; border-radius:2px; background:rgba(255,255,255,.14); }
+  #createscreen .n-meter i.f{ background:#7BDCA0; }
+  #createscreen .n-meter u{ text-decoration:none; font:800 11px var(--ui); color:var(--ink-2); margin-left:4px; }
+  /* a note's own loudness, drawn along the bottom of its square */
+  #createscreen .n-step.on::after{ content:''; position:absolute; left:8%; bottom:5px; height:3px;
+    width:calc(var(--vol,80%) * 0.84); border-radius:2px; background:currentColor; opacity:.5; }
+  #createscreen .n-track.allview .n-step.on::after{ display:none; }
   #createscreen .n-eddel{ height:32px; padding:0 12px; border-radius:8px; cursor:pointer;
     background:rgba(255,107,87,.14); border:1px solid rgba(255,107,87,.45); color:#FF9E90; font:700 11px var(--ui); }
   #createscreen .n-transport{ flex:0 0 auto; display:flex; align-items:center; justify-content:center;

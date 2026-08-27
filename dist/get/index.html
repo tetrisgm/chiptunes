@@ -554,8 +554,7 @@
     gap:var(--bbgap,18px); padding:0 var(--trackpad,8px); will-change:transform; }
   #createscreen .n-bb{ flex:0 0 auto; width:var(--bbw,360px); display:flex; flex-direction:column; gap:5px;
     position:relative; }
-  #createscreen .n-bb + .n-bb::before{ content:''; position:absolute; top:12%; bottom:12%;
-    left:calc(var(--bbgap,52px) / -2); width:1px; background:rgba(232,227,250,.13); }
+
   #createscreen .n-bbhead{ display:flex; align-items:center; gap:8px; height:22px; cursor:grab;
     padding:0 4px; border-radius:8px; }
   #createscreen .n-bbhead:active{ cursor:grabbing; }
@@ -626,7 +625,7 @@
     font:700 13px var(--ui); }
   #createscreen .cr-chip:hover{ background:rgba(123,220,160,.2); border-color:rgba(123,220,160,.6); }
   #createscreen .n-tabs{ flex:0 0 auto; display:flex; align-items:flex-end; gap:3px; padding:0;
-    width:var(--bbw,360px); will-change:transform; }
+    width:var(--bbw,360px); margin:0 auto; }
   #createscreen .n-tabs::-webkit-scrollbar{ display:none; }
   #createscreen .n-tab{ flex:1 1 0; min-width:0; height:32px; padding:0 8px; cursor:pointer; position:relative;
     justify-content:center; bottom:-1px;
@@ -637,9 +636,11 @@
   #createscreen .n-tab span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   #createscreen .n-tab.muted span{ opacity:.45; text-decoration:line-through; }
   #createscreen .n-tab canvas{ display:none; }   /* the colour and the name carry it; Sound lives in the panel */
-  #createscreen .n-spk{ width:20px; height:20px; border-radius:5px; display:flex; align-items:center;
-    justify-content:center; font-size:12px; font-style:normal; opacity:.85; }
-  #createscreen .n-spk:hover{ background:rgba(255,255,255,.16); opacity:1; }
+  #createscreen .n-spk{ width:22px; height:22px; border-radius:5px; display:flex; align-items:center;
+    justify-content:center; font-style:normal; color:#5AA9FF; }
+  #createscreen .n-spk svg{ display:block; }
+  #createscreen .n-tab.muted .n-spk{ color:var(--ink-2); opacity:.7; }
+  #createscreen .n-spk:hover{ background:rgba(255,255,255,.16); }
   #createscreen .n-mid{ flex:1 1 auto; min-height:0; overflow:hidden; position:relative; }
   #createscreen .n-bbtools{ display:flex; gap:7px; width:100%; margin-top:14px; visibility:hidden; }
   #createscreen .n-bb.view .n-bbtools{ visibility:visible; }
@@ -649,7 +650,7 @@
   #createscreen .n-hb:hover{ border-color:var(--mat-edge-hi); color:var(--ink); }
   #createscreen .n-bb.loop .n-lp{ background:rgba(123,220,160,.25); border-color:rgba(123,220,160,.7); color:#7BDCA0; }
   #createscreen .n-bb.queued .n-lp{ border-color:rgba(255,201,60,.8); color:#FFC93C; }
-  #createscreen .n-bblabel{ height:18px; text-align:center; margin-bottom:4px;
+  #createscreen .n-bblabel{ height:18px; text-align:center; margin-top:10px;
     font:800 12px var(--ui); color:var(--ink-2); letter-spacing:.04em; }
   #createscreen .n-bb.view .n-bblabel{ color:var(--ink); }
   #createscreen .n-bb.loop .n-bblabel{ color:#7BDCA0; }
@@ -674,6 +675,14 @@
   #createscreen .n-edb.on{ background:rgba(255,255,255,.16); border-color:var(--mat-edge-hi); }
   #createscreen .n-edvoice em{ font-style:normal; font-weight:800; }
   #createscreen .n-edval{ min-width:62px; text-align:center; font:800 14px var(--ui); color:var(--ink); }
+  #createscreen .n-meter{ display:inline-flex; align-items:center; gap:2px; min-width:76px; justify-content:center; }
+  #createscreen .n-meter i{ width:6px; height:14px; border-radius:2px; background:rgba(255,255,255,.14); }
+  #createscreen .n-meter i.f{ background:#7BDCA0; }
+  #createscreen .n-meter u{ text-decoration:none; font:800 11px var(--ui); color:var(--ink-2); margin-left:4px; }
+  /* a note's own loudness, drawn along the bottom of its square */
+  #createscreen .n-step.on::after{ content:''; position:absolute; left:8%; bottom:5px; height:3px;
+    width:calc(var(--vol,80%) * 0.84); border-radius:2px; background:currentColor; opacity:.5; }
+  #createscreen .n-track.allview .n-step.on::after{ display:none; }
   #createscreen .n-eddel{ height:32px; padding:0 12px; border-radius:8px; cursor:pointer;
     background:rgba(255,107,87,.14); border:1px solid rgba(255,107,87,.45); color:#FF9E90; font:700 11px var(--ui); }
   #createscreen .n-transport{ flex:0 0 auto; display:flex; align-items:center; justify-content:center;
@@ -4157,6 +4166,15 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     { n: 'Drums',   color: '#C9A4E8', stamp: null,    tip: 'Drums: the noise voice. Drag a note up for hat, middle for snare, down for kick.' }
   ];
   var NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  // a proper little speaker, on and off
+  function speakerSvg(on) {
+    return '<svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">' +
+      '<path d="M4 9.5h3.2L12 5.4v13.2L7.2 14.5H4z" fill="currentColor"/>' +
+      (on ? '<path d="M15.2 9.1a4 4 0 0 1 0 5.8" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/>' +
+            '<path d="M17.6 6.6a7.4 7.4 0 0 1 0 10.8" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/>'
+          : '<path d="M15.6 9.6l4.8 4.8M20.4 9.6l-4.8 4.8" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/>') +
+      '</svg>';
+  }
   function noteName(midi) { return NOTE_NAMES[midi % 12] + (Math.floor(midi / 12) - 1); }
   var DRUM_NAMES = ['Hat', 'Snare', 'Kick'];
   // a tiny picture of the channel's current sound: the pulse's duty as a
@@ -4259,7 +4277,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       b.classList.toggle('muted', !!chMuted[i]);
       b.style.color = CH[i].color;
       var spk = b.querySelector('.n-spk');
-      if (spk) spk.textContent = chMuted[i] ? '\ud83d\udd07' : '\ud83d\udd08';
+      if (spk) spk.innerHTML = speakerSvg(!chMuted[i]);
       var ic = chanIcon(i);
       var old = b.querySelector('canvas');
       if (old !== ic) { if (old) old.remove(); b.insertBefore(ic, b.firstChild); }
@@ -4311,6 +4329,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
         var vel = x.vel != null ? x.vel : 0.8;
         el.classList.toggle('rest', vel === 0);
         pbEl.style.opacity = vel === 0 ? 0.15 : 0.35 + vel * 0.6;
+        el.style.setProperty('--vol', Math.round(vel * 100) + '%');
         nnEl.textContent = vel === 0 ? '=' :
           (x.r >= MEL_ROWS ? DRUM_NAMES[x.r - MEL_ROWS]
                            : noteName(x.midi != null ? x.midi : rowMidi(x.r)));
@@ -4378,6 +4397,12 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     x.midi = m;
     x.r = rowForMidi(m);
   }
+  // a level anyone can read at a glance
+  function meterBlocks(n, over) {
+    var out = '';
+    for (var i = 0; i < 8; i++) out += '<i class="' + (i < n ? 'f' : '') + '"></i>';
+    return out + (over ? '<u>' + over + '</u>' : '');
+  }
   function renderEdit() {
     var ed = root.querySelector('.n-edit');
     if (!ed) return;
@@ -4395,7 +4420,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
                  : 'tap a square to place it') + '</b></div>';
 
     if (!x) {
-      html += '<div class="n-edcol"><span class="n-edlab">Voice</span><div class="n-edbtns">' +
+      html += '<div class="n-edcol"><span class="n-edlab">Instrument</span><div class="n-edbtns">' +
         CH.map(function (c, i) {
           return '<button type="button" class="n-edb n-edvoice' + (pen.ch === i ? ' on' : '') + '" data-pen="v' + i + '">' +
                  '<em style="color:' + c.color + '">' + c.n + '</em></button>';
@@ -4417,12 +4442,12 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     }
     html += '<div class="n-edcol"><span class="n-edlab">Volume</span><div class="n-edbtns">' +
       '<button type="button" class="n-edb" data-ed="vol-">Softer</button>' +
-      '<b class="n-edval">' + (vsteps === 0 ? 'silent' : vsteps + ' / 8') + '</b>' +
+      '<b class="n-edval n-meter">' + meterBlocks(vsteps) + '</b>' +
       '<button type="button" class="n-edb" data-ed="vol+">Louder</button>' +
       '</div></div>';
     html += '<div class="n-edcol"><span class="n-edlab">Length</span><div class="n-edbtns">' +
       '<button type="button" class="n-edb" data-ed="len-">Shorter</button>' +
-      '<b class="n-edval">' + len + ' step' + (len > 1 ? 's' : '') + '</b>' +
+      '<b class="n-edval n-meter">' + meterBlocks(Math.min(8, len), len > 8 ? len : 0) + '</b>' +
       '<button type="button" class="n-edb" data-ed="len+">Longer</button>' +
       '</div></div>';
     if (ch !== 3) {
@@ -4634,7 +4659,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     var track = root.querySelector('.n-track');
     var html = '';
     for (var b = 0; b < S.bars; b++) {
-      html += '<div class="n-bb" data-bar="' + b + '"><div class="n-bblabel"></div><div class="n-bbgrid">';
+      html += '<div class="n-bb" data-bar="' + b + '"><div class="n-bbgrid">';
       for (var s2 = 0; s2 < 16; s2++) {
         html += '<div class="n-step' + (s2 % 4 === 0 ? ' beat' : '') + '" data-col="' + (b * 16 + s2) + '">' +
                 '<u>' + (s2 + 1) + '</u><i class="pb"></i><span class="nn"></span><b class="ln"></b>' +
@@ -4643,10 +4668,8 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       html += '</div><div class="n-bbtools">' +
               '<button type="button" class="n-hb" data-barshift="-1" data-bar="' + b + '">\u25c0 Earlier</button>' +
               '<button type="button" class="n-hb" data-barshift="1" data-bar="' + b + '">Later \u25b6</button>' +
-              '<button type="button" class="n-hb n-lp" data-loopbar="' + b + '">\u21ba Loop</button>' +
-              '<button type="button" class="n-hb" data-dupbar="' + b + '">\u29c9 Copy</button>' +
               '<button type="button" class="n-hb" data-delbar="' + b + '">\u2212 Delete</button>' +
-              '</div></div>';
+              '</div><div class="n-bblabel"></div></div>';
     }
     html += '<button type="button" class="n-addbar" data-cr="baradd"><b>+</b><span>add a bar</span></button>';
     track.innerHTML = html;
@@ -4686,9 +4709,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   function applyCam() {
     var track = root.querySelector('.n-track');
     if (track) track.style.transform = 'translateX(' + (-Math.round(camX)) + 'px)';
-    // the voice tabs ride directly above the bar you are on
-    var tabs = root.querySelector('.n-tabs');
-    if (tabs) tabs.style.transform = 'translateX(' + Math.round(trackPad + viewBar * trackStride() - camX) + 'px)';
+
   }
   function barUnderCamera() {
     var mid = root.querySelector('.n-mid');

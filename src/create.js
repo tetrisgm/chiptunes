@@ -793,6 +793,15 @@
     { n: 'Drums',   color: '#C9A4E8', stamp: null,    tip: 'Drums: the noise voice. Drag a note up for hat, middle for snare, down for kick.' }
   ];
   var NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  // a proper little speaker, on and off
+  function speakerSvg(on) {
+    return '<svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">' +
+      '<path d="M4 9.5h3.2L12 5.4v13.2L7.2 14.5H4z" fill="currentColor"/>' +
+      (on ? '<path d="M15.2 9.1a4 4 0 0 1 0 5.8" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/>' +
+            '<path d="M17.6 6.6a7.4 7.4 0 0 1 0 10.8" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/>'
+          : '<path d="M15.6 9.6l4.8 4.8M20.4 9.6l-4.8 4.8" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/>') +
+      '</svg>';
+  }
   function noteName(midi) { return NOTE_NAMES[midi % 12] + (Math.floor(midi / 12) - 1); }
   var DRUM_NAMES = ['Hat', 'Snare', 'Kick'];
   // a tiny picture of the channel's current sound: the pulse's duty as a
@@ -895,7 +904,7 @@
       b.classList.toggle('muted', !!chMuted[i]);
       b.style.color = CH[i].color;
       var spk = b.querySelector('.n-spk');
-      if (spk) spk.textContent = chMuted[i] ? '\ud83d\udd07' : '\ud83d\udd08';
+      if (spk) spk.innerHTML = speakerSvg(!chMuted[i]);
       var ic = chanIcon(i);
       var old = b.querySelector('canvas');
       if (old !== ic) { if (old) old.remove(); b.insertBefore(ic, b.firstChild); }
@@ -947,6 +956,7 @@
         var vel = x.vel != null ? x.vel : 0.8;
         el.classList.toggle('rest', vel === 0);
         pbEl.style.opacity = vel === 0 ? 0.15 : 0.35 + vel * 0.6;
+        el.style.setProperty('--vol', Math.round(vel * 100) + '%');
         nnEl.textContent = vel === 0 ? '=' :
           (x.r >= MEL_ROWS ? DRUM_NAMES[x.r - MEL_ROWS]
                            : noteName(x.midi != null ? x.midi : rowMidi(x.r)));
@@ -1014,6 +1024,12 @@
     x.midi = m;
     x.r = rowForMidi(m);
   }
+  // a level anyone can read at a glance
+  function meterBlocks(n, over) {
+    var out = '';
+    for (var i = 0; i < 8; i++) out += '<i class="' + (i < n ? 'f' : '') + '"></i>';
+    return out + (over ? '<u>' + over + '</u>' : '');
+  }
   function renderEdit() {
     var ed = root.querySelector('.n-edit');
     if (!ed) return;
@@ -1031,7 +1047,7 @@
                  : 'tap a square to place it') + '</b></div>';
 
     if (!x) {
-      html += '<div class="n-edcol"><span class="n-edlab">Voice</span><div class="n-edbtns">' +
+      html += '<div class="n-edcol"><span class="n-edlab">Instrument</span><div class="n-edbtns">' +
         CH.map(function (c, i) {
           return '<button type="button" class="n-edb n-edvoice' + (pen.ch === i ? ' on' : '') + '" data-pen="v' + i + '">' +
                  '<em style="color:' + c.color + '">' + c.n + '</em></button>';
@@ -1053,12 +1069,12 @@
     }
     html += '<div class="n-edcol"><span class="n-edlab">Volume</span><div class="n-edbtns">' +
       '<button type="button" class="n-edb" data-ed="vol-">Softer</button>' +
-      '<b class="n-edval">' + (vsteps === 0 ? 'silent' : vsteps + ' / 8') + '</b>' +
+      '<b class="n-edval n-meter">' + meterBlocks(vsteps) + '</b>' +
       '<button type="button" class="n-edb" data-ed="vol+">Louder</button>' +
       '</div></div>';
     html += '<div class="n-edcol"><span class="n-edlab">Length</span><div class="n-edbtns">' +
       '<button type="button" class="n-edb" data-ed="len-">Shorter</button>' +
-      '<b class="n-edval">' + len + ' step' + (len > 1 ? 's' : '') + '</b>' +
+      '<b class="n-edval n-meter">' + meterBlocks(Math.min(8, len), len > 8 ? len : 0) + '</b>' +
       '<button type="button" class="n-edb" data-ed="len+">Longer</button>' +
       '</div></div>';
     if (ch !== 3) {
@@ -1270,7 +1286,7 @@
     var track = root.querySelector('.n-track');
     var html = '';
     for (var b = 0; b < S.bars; b++) {
-      html += '<div class="n-bb" data-bar="' + b + '"><div class="n-bblabel"></div><div class="n-bbgrid">';
+      html += '<div class="n-bb" data-bar="' + b + '"><div class="n-bbgrid">';
       for (var s2 = 0; s2 < 16; s2++) {
         html += '<div class="n-step' + (s2 % 4 === 0 ? ' beat' : '') + '" data-col="' + (b * 16 + s2) + '">' +
                 '<u>' + (s2 + 1) + '</u><i class="pb"></i><span class="nn"></span><b class="ln"></b>' +
@@ -1279,10 +1295,8 @@
       html += '</div><div class="n-bbtools">' +
               '<button type="button" class="n-hb" data-barshift="-1" data-bar="' + b + '">\u25c0 Earlier</button>' +
               '<button type="button" class="n-hb" data-barshift="1" data-bar="' + b + '">Later \u25b6</button>' +
-              '<button type="button" class="n-hb n-lp" data-loopbar="' + b + '">\u21ba Loop</button>' +
-              '<button type="button" class="n-hb" data-dupbar="' + b + '">\u29c9 Copy</button>' +
               '<button type="button" class="n-hb" data-delbar="' + b + '">\u2212 Delete</button>' +
-              '</div></div>';
+              '</div><div class="n-bblabel"></div></div>';
     }
     html += '<button type="button" class="n-addbar" data-cr="baradd"><b>+</b><span>add a bar</span></button>';
     track.innerHTML = html;
@@ -1322,9 +1336,7 @@
   function applyCam() {
     var track = root.querySelector('.n-track');
     if (track) track.style.transform = 'translateX(' + (-Math.round(camX)) + 'px)';
-    // the voice tabs ride directly above the bar you are on
-    var tabs = root.querySelector('.n-tabs');
-    if (tabs) tabs.style.transform = 'translateX(' + Math.round(trackPad + viewBar * trackStride() - camX) + 'px)';
+
   }
   function barUnderCamera() {
     var mid = root.querySelector('.n-mid');
