@@ -299,3 +299,26 @@ row scrolls rather than wraps on phones.
   actions as "#3", and the voice tabs no longer travel -- they stay above
   the middle of the screen. The mute control is a drawn speaker.
 
+## Create as four lanes (2026-08-27)
+
+The 4x4 bar blocks and the voice tabs are gone. The song is four
+horizontal lanes -- Melody, Harmony, Bass, Drums -- named down a fixed
+left gutter (each with its speaker), running left to right through the
+whole song under one camera. Notes are absolutely positioned blocks in
+their lane: left = step, width = length, HEIGHT = pitch (mapped from the
+note's own midi over C2..C7, not the old fifteen-row grid, or a flat
+scale would pin everything above C5 to the ceiling), label = note or drum
+name. Rows carry the step/beat/bar gridlines and faint horizontal rules
+as a background gradient, so the DOM holds one node per note rather than
+per step. The ruler numbers the bars; the bar strip under the lanes names
+the bar you are on and carries Earlier / Later / Delete / Add.
+
+Tapping empty lane space opens the note picker there with THAT lane's
+instrument preselected; tapping a note opens it for editing. Dragging
+anywhere in the lanes travels; the wheel does too.
+
+Watch out: old bar-block CSS (.n-track display:flex) survived the
+rewrite and stacked all four lanes on top of each other -- when
+replacing a view wholesale, delete its stylesheet rules in the same
+pass.
+

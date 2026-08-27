@@ -742,9 +742,9 @@
     var t = root.querySelector('.cr-tour');
     if (!t) { t = document.createElement('div'); t.className = 'cr-tour'; root.appendChild(t); }
     var msgs = [
-      ['This song was just written for you.', 'Each square is one moment of a bar. Tap any square and a little picker opens right there: choose the instrument, then the note.'],
-      ['Four voices, like a tiny band.', 'All shows everything at once. Melody, Harmony, Bass and Drums are the Game Boy\u2019s four sounds; tap a speaker to mute one.'],
-      ['The song scrolls sideways.', 'Bars sit next to each other. Drag a bar\u2019s strip to travel; its little buttons nudge, loop, duplicate or remove it. The dashed block at the end adds a bar.'],
+      ['This song was just written for you.', 'Notes are blocks on their line: further right is later, higher is a higher note, wider is longer. Tap one to change it, or tap empty space to add one.'],
+      ['Four voices, like a tiny band.', 'Melody, Harmony, Bass and Drums each get their own line, running left to right. Tap a line\u2019s speaker to mute it.'],
+      ['The song scrolls sideways.', 'Drag the lines to travel through the song, or let them follow the music. The bar you are on is named at the bottom, with its own buttons.'],
       ['Moods write songs.', 'Tap a mood up top and the radio\u2019s composer writes a whole song here, yours to edit.'],
     ];
     t.innerHTML = '<b>' + msgs[step][0] + '</b><span>' + msgs[step][1] + '</span>' +
@@ -887,122 +887,76 @@
   }
 
   // ---- render --------------------------------------------------------------
-  var stepEls = [], lastPh = -1, lastPlayBar = -1;
+  var lastPh = -1, lastPlayBar = -1;
   var camX = 0, camFollow = true;
   function renderTransport() {
     var b = root.querySelector('[data-cr="play"]');
     if (b) {
-      b.textContent = playing ? '\u275a\u275a Pause' : '\u25b6 Play';
+      b.textContent = playing ? '❚❚ Pause' : '▶ Play';
       b.classList.toggle('waiting', !playing && wantStart);
     }
   }
+  // the four lanes name themselves down the left edge and carry their mute
   function renderChans() {
-    root.querySelectorAll('.n-tab').forEach(function (b) {
-      var i = +b.dataset.ch;
-      b.classList.toggle('sel', viewCh === i);
-      if (i < 0) return;
-      b.classList.toggle('muted', !!chMuted[i]);
-      b.style.color = CH[i].color;
-      var spk = b.querySelector('.n-spk');
+    root.querySelectorAll('.n-lane').forEach(function (el) {
+      var i = +el.dataset.ch;
+      el.classList.toggle('muted', !!chMuted[i]);
+      el.classList.toggle('pen', pen.ch === i);
+      el.style.setProperty('--vc', CH[i].color);
+      var spk = el.querySelector('.n-spk');
       if (spk) spk.innerHTML = speakerSvg(!chMuted[i]);
-      var ic = chanIcon(i);
-      var old = b.querySelector('canvas');
-      if (old !== ic) { if (old) old.remove(); b.insertBefore(ic, b.firstChild); }
     });
   }
+  // the ruler: one number per bar, and the tools for the bar you are on
   function renderBars() {
-    var pb = -1;
-    if (playing) {
-      var perMs = (60 / curBpm() / 4) * 1000;
-      var col = loopBar >= 0 ? loopBar * 16 : ((performance.now() - playT0) / perMs) % cols();
-      pb = loopBar >= 0 ? loopBar : Math.floor(col / 16);
+    var ruler = root.querySelector('.n-ruler');
+    if (ruler && ruler.childElementCount !== S.bars) {
+      var html = '';
+      for (var b2 = 0; b2 < S.bars; b2++)
+        html += '<span class="n-rbar" data-bar="' + b2 + '" style="left:' + (b2 * 16 * stepW) + 'px;width:' + (16 * stepW) + 'px">#' + (b2 + 1) + '</span>';
+      ruler.innerHTML = html;
     }
-    lastPlayBar = pb;
-    root.querySelectorAll('.n-bb').forEach(function (el) {
-      var b = +el.dataset.bar;
-      el.classList.toggle('view', b === viewBar);
-      el.classList.toggle('loop', b === loopBar);
-      el.classList.toggle('queued', b === queuedBar);
-      el.classList.toggle('play', b === pb);
+    if (ruler) ruler.querySelectorAll('.n-rbar').forEach(function (el) {
+      el.classList.toggle('on', +el.dataset.bar === viewBar);
     });
-    root.querySelectorAll('.n-bblabel').forEach(function (el) {
-      var lb = +el.parentNode.dataset.bar;
-      el.textContent = '#' + (lb + 1) + (lb === loopBar ? ' \u00b7 looping' : '');
-    });
+    var lab = root.querySelector('.n-barnow');
+    if (lab) lab.textContent = '#' + (viewBar + 1);
     applyCam();
   }
+  // notes are drawn as blocks on their lane: as wide as they are long
   function renderGrid() {
-    if (!stepEls.length) return;
-    var track = root.querySelector('.n-track');
-    track.classList.toggle('allview', viewCh < 0);
-    if (viewCh < 0) { renderGridAll(track); return; }
-    track.style.color = CH[viewCh].color;
-    var mutedCh = !!effMask()[viewCh];
-    track.classList.toggle('chmuted', mutedCh);
-    for (var i = 0; i < stepEls.length; i++) {
-      var el = stepEls[i], col = +el.dataset.col;
-      var ci = cellIndexAt(viewCh, col);
-      var tail = ci < 0 ? tailIndexAt(viewCh, col) : -1;
-      var x = ci >= 0 ? S.cells[ci] : null;
-      el.classList.toggle('on', !!x);
-      el.classList.toggle('tail', tail >= 0);
-      el.classList.toggle('sulk', !!(x && x.x));
-      el.classList.toggle('sel', selCh === viewCh && selCol === col);
-      var pbEl = el.querySelector('.pb'), nnEl = el.querySelector('.nn'), lnEl = el.querySelector('.ln');
-      if (x) {
-        var deg = degOfCell(x);
-        var top = viewCh === 3 ? [64, 40, 16][2 - (x.r - MEL_ROWS)] : Math.round((1 - deg / (MEL_ROWS - 1)) * 74 + 8);
-        pbEl.style.top = top + '%';
-        var vel = x.vel != null ? x.vel : 0.8;
-        el.classList.toggle('rest', vel === 0);
-        pbEl.style.opacity = vel === 0 ? 0.15 : 0.35 + vel * 0.6;
-        el.style.setProperty('--vol', Math.round(vel * 100) + '%');
-        nnEl.textContent = vel === 0 ? '=' :
-          (x.r >= MEL_ROWS ? DRUM_NAMES[x.r - MEL_ROWS]
-                           : noteName(x.midi != null ? x.midi : rowMidi(x.r)));
-        nnEl.style.opacity = vel === 0 ? 0.5 : 0.55 + vel * 0.45;
-        lnEl.textContent = (x.len || 1) > 1 ? '\u00d7' + x.len : '';
-      } else {
-        el.classList.remove('rest');
-        pbEl.style.opacity = '';
-        nnEl.textContent = ''; lnEl.textContent = '';
-      }
-    }
-  }
-  // All: every voice in one grid, a labelled pill per voice per step
-  // All: only what is actually sounding. Empty squares stay empty.
-  function renderGridAll(track) {
-    track.classList.remove('chmuted');
-    track.style.color = 'rgba(232,227,250,0.9)';
+    if (!root) return;
     var em = effMask();
-    for (var i = 0; i < stepEls.length; i++) {
-      var el = stepEls[i], col = +el.dataset.col;
-      var pills = '', any = false;
-      for (var ch = 0; ch < 4; ch++) {
-        var ci = cellIndexAt(ch, col);
-        var x = ci >= 0 ? S.cells[ci] : null;
-        if (!x) {
-          // an empty slot draws nothing; a still-ringing note gets a hairline
-          pills += tailIndexAt(ch, col) >= 0
-            ? '<em class="tl"><s style="background:' + CH[ch].color + '"></s></em>'
-            : '<em class="sp"></em>';
-          continue;
-        }
-        any = true;
+    for (var ch = 0; ch < 4; ch++) {
+      var row = root.querySelector('.n-row[data-ch="' + ch + '"]');
+      if (!row) continue;
+      row.classList.toggle('off', !!em[ch]);
+      var html = '';
+      S.cells.forEach(function (x) {
+        if (chOfCell(x) !== ch) return;
+        var len = Math.max(1, x.len || 1);
         var vel = x.vel != null ? x.vel : 0.8;
-        var label = vel === 0 ? '\u2013' : (x.r >= MEL_ROWS ? DRUM_NAMES[x.r - MEL_ROWS]
-                                     : noteName(x.midi != null ? x.midi : rowMidi(x.r)));
-        pills += '<em class="pl' + (x.x ? ' sulk' : '') + (em[ch] ? ' off' : '') +
-                 (selCh === ch && selCol === col ? ' sel' : '') + '" data-pill="' + ch + '" style="color:' + CH[ch].color +
-                 ';border-color:' + CH[ch].color + '">' + label + '</em>';
-      }
-      el.classList.toggle('on', any);
-      el.classList.toggle('sel', selCol === col && selCh >= 0);
-      el.classList.remove('tail', 'rest', 'sulk');
-      el.querySelector('.allpills').innerHTML = pills;
+        var label = vel === 0 ? '–'
+          : (x.r >= MEL_ROWS ? DRUM_NAMES[x.r - MEL_ROWS] : noteName(x.midi != null ? x.midi : rowMidi(x.r)));
+        // height in the lane IS pitch, read from the note itself (C2..C7) so
+        // nothing flattens against the top of the old fifteen-row grid
+        var deg;
+        if (x.r >= MEL_ROWS) deg = (2 - (x.r - MEL_ROWS)) / 2;
+        else {
+          var mp = x.midi != null ? x.midi : rowMidi(x.r);
+          deg = Math.max(0, Math.min(1, (mp - 36) / 60));
+        }
+        html += '<i class="n-note' + (x.x ? ' sulk' : '') + (vel === 0 ? ' rest' : '') +
+                (selCol === x.c && selCh === ch ? ' sel' : '') + '"' +
+                ' data-col="' + x.c + '" data-ch="' + ch + '"' +
+                ' style="left:' + (x.c * stepW + 1) + 'px;width:' + (len * stepW - 2) + 'px;' +
+                'bottom:' + Math.round(6 + deg * (laneH - 30)) + 'px;' +
+                'opacity:' + (vel === 0 ? 0.35 : 0.5 + vel * 0.5) + '">' +
+                '<b>' + label + '</b></i>';
+      });
+      row.innerHTML = html;
     }
   }
-  // The note editor: what a selected square holds, in words and buttons.
   function selCell() {
     if (selCol < 0 || selCh < 0) return null;
     var i = cellIndexAt(selCh, selCol);
@@ -1202,15 +1156,18 @@
     selCh = ch; selCol = col;
     renderGrid(); renderEdit();
   }
+
   function renderAll() { renderTransport(); renderChans(); renderBars(); renderGrid(); renderEdit(); }
   function updatePh(col) {
     if (col === lastPh) return;
-    if (lastPh >= 0 && stepEls[lastPh]) stepEls[lastPh].classList.remove('ph');
-    if (col >= 0 && stepEls[col]) stepEls[col].classList.add('ph');
     lastPh = col;
+    var ph = root.querySelector('.n-ph');
+    if (ph) {
+      ph.style.display = col < 0 ? 'none' : 'block';
+      if (col >= 0) ph.style.left = Math.round(col * stepW) + 'px';
+    }
   }
 
-  // the playhead ticker: follow, loop wraps, queued switches, next songs
   var tickId = 0;
   function scheduleTick() {
     if (!tickId) tickId = requestAnimationFrame(function () { tickId = 0; tick(); });
@@ -1239,7 +1196,7 @@
     var pb = Math.floor(col / 16);
     if (camFollow) { centerOn(pb, false); applyCam(); }
     if (pb !== viewBar) { viewBar = pb; renderBars(); }
-    else if (pb !== lastPlayBar) renderBars();
+    lastPlayBar = pb;
     updatePh(Math.floor(col));
     scheduleTick();
   }
@@ -1305,97 +1262,100 @@
   function buildUI() {
     root.innerHTML =
       '<div class="n-utils">' +
-        '<button type="button" class="cr-btn" data-cr="undo">\u21a9 Undo</button>' +
-        '<button type="button" class="cr-btn" data-cr="redo">\u21aa Redo</button>' +
+        '<button type="button" class="cr-btn" data-cr="undo">↩ Undo</button>' +
+        '<button type="button" class="cr-btn" data-cr="redo">↪ Redo</button>' +
         '<button type="button" class="cr-btn" data-cr="share">Copy link</button>' +
         '<button type="button" class="cr-btn" data-cr="wav">Save WAV</button>' +
         '<button type="button" class="cr-btn" data-cr="rom">Save cartridge</button>' +
         '<button type="button" class="cr-btn cr-close" data-cr="close">Close</button>' +
       '</div>' +
-      '<div class="n-moodrow"><span class="n-moodlab">Write me a song that is\u2026</span>' +
+      '<div class="n-moodrow"><span class="n-moodlab">Write me a song that is…</span>' +
         '<span class="n-moodchips">' +
         CHIPS.map(function (c) { return '<button type="button" class="cr-chip" data-mood="' + c + '">' + c + '</button>'; }).join('') +
         '</span></div>' +
-      '<div class="n-tabs">' +
-        '<button type="button" class="n-tab n-all" data-ch="-1">All</button>' +
-        CH.map(function (c, i) {
-          return '<button type="button" class="n-tab" data-ch="' + i + '">' +
-                 '<span>' + c.n + '</span>' +
-                 '<i class="n-spk" data-mute="' + i + '"></i></button>';
-        }).join('') + '</div>' +
-      '<div class="n-mid"><div class="n-track"></div></div>' +
+      '<div class="n-mid">' +
+        '<div class="n-side">' +
+          '<div class="n-sidehead"></div>' +
+          CH.map(function (c, i) {
+            return '<div class="n-lane" data-ch="' + i + '"><b>' + c.n + '</b>' +
+                   '<i class="n-spk" data-mute="' + i + '"></i></div>';
+          }).join('') +
+        '</div>' +
+        '<div class="n-scroll"><div class="n-track">' +
+          '<div class="n-ruler"></div>' +
+          CH.map(function (c, i) { return '<div class="n-row" data-ch="' + i + '" style="--vc:' + c.color + '"></div>'; }).join('') +
+          '<div class="n-ph"></div>' +
+        '</div></div>' +
+      '</div>' +
+      '<div class="n-barbar">' +
+        '<span class="n-barnow">#1</span>' +
+        '<button type="button" class="n-hb" data-barshift="-1">◀ Earlier</button>' +
+        '<button type="button" class="n-hb" data-barshift="1">Later ▶</button>' +
+        '<button type="button" class="n-hb" data-delbar="">− Delete bar</button>' +
+        '<button type="button" class="n-hb" data-cr="baradd">+ Add bar</button>' +
+      '</div>' +
       '<div class="n-transport">' +
-        '<button type="button" class="cr-btn" data-cr="rewind">\u23ee Start</button>' +
-        '<button type="button" class="cr-btn cr-primary n-play" data-cr="play">\u25b6 Play</button>' +
+        '<button type="button" class="cr-btn" data-cr="rewind">⏮ Start</button>' +
+        '<button type="button" class="cr-btn cr-primary n-play" data-cr="play">▶ Play</button>' +
         '<label class="cr-lab">Speed <b class="n-bpmval">' + S.bpm + '</b> BPM' +
         '<input type="range" min="70" max="180" step="2" value="' + S.bpm + '" data-cr="bpm"></label>' +
       '</div>';
-    buildTrack();
-  }
-  // one 4x4 block per bar; its own tools sit UNDER it, then its name
-  function buildTrack() {
-    var track = root.querySelector('.n-track');
-    var html = '';
-    for (var b = 0; b < S.bars; b++) {
-      html += '<div class="n-bb" data-bar="' + b + '"><div class="n-bbgrid">';
-      for (var s2 = 0; s2 < 16; s2++) {
-        html += '<div class="n-step' + (s2 % 4 === 0 ? ' beat' : '') + '" data-col="' + (b * 16 + s2) + '">' +
-                '<u>' + (s2 + 1) + '</u><i class="pb"></i><span class="nn"></span><b class="ln"></b>' +
-                '<div class="allpills"></div></div>';
-      }
-      html += '</div><div class="n-bbtools">' +
-              '<button type="button" class="n-hb" data-barshift="-1" data-bar="' + b + '">\u25c0 Earlier</button>' +
-              '<button type="button" class="n-hb" data-barshift="1" data-bar="' + b + '">Later \u25b6</button>' +
-              '<button type="button" class="n-hb" data-delbar="' + b + '">\u2212 Delete</button>' +
-              '</div><div class="n-bblabel"></div></div>';
-    }
-    html += '<button type="button" class="n-addbar" data-cr="baradd"><b>+</b><span>add a bar</span></button>';
-    track.innerHTML = html;
-    stepEls = [].slice.call(track.querySelectorAll('.n-step'));
     sizeTrack();
   }
-
-  var bbW = 0, bbGap = 18, trackPad = 8;
+  function buildTrack() { sizeTrack(); renderBars(); renderGrid(); renderChans(); }
+  var stepW = 30, laneH = 62, sidePad = 0;
   function sizeTrack() {
-    var mid = root.querySelector('.n-mid');
-    if (!mid) return;
-    var r = mid.getBoundingClientRect();
+    var sc = root.querySelector('.n-scroll');
+    if (!sc) return;
+    var r = sc.getBoundingClientRect();
     if (!r.width || !r.height) return;
-    bbGap = r.width < 520 ? 26 : 52;           // bars need air between them to read as separate
-    // the block is the grid PLUS its tools row and its name line
-    var reserve = r.width < 520 ? 84 : 92;     // the name line above, the tools row below
-    bbW = Math.max(140, Math.min(r.width * (r.width < 520 ? 0.9 : 0.52), r.height - reserve, 560));
-    root.style.setProperty('--bbw', bbW + 'px');
-    root.style.setProperty('--bbgap', bbGap + 'px');
-    // half a screen of air at each end, so the FIRST and LAST bars can sit
-    // in the middle exactly like every bar between them
-    trackPad = Math.max(8, Math.round((r.width - bbW) / 2));
-    root.style.setProperty('--trackpad', trackPad + 'px');
+    var narrow = r.width < 520;
+    stepW = narrow ? 26 : 34;
+    laneH = Math.max(48, Math.floor((r.height - 28) / 4));   // the four lanes fill the room
+    sidePad = Math.max(0, Math.round(r.width / 2 - 8 * stepW));
+    root.style.setProperty('--stepw', stepW + 'px');
+    root.style.setProperty('--laneh', laneH + 'px');
+    root.style.setProperty('--sidepad', sidePad + 'px');
+    root.style.setProperty('--barw', (16 * stepW) + 'px');
+    root.style.setProperty('--songw', (cols() * stepW) + 'px');
   }
-  function trackStride() { return bbW + bbGap; }
+  function songW() { return cols() * stepW; }
   function camMax() {
-    var mid = root.querySelector('.n-mid'), track = root.querySelector('.n-track');
-    var w = mid ? mid.getBoundingClientRect().width : 0;
-    return Math.max(0, (track ? track.scrollWidth : 0) - w);
+    var sc = root.querySelector('.n-scroll');
+    var w = sc ? sc.getBoundingClientRect().width : 0;
+    return Math.max(0, songW() + sidePad * 2 - w);
   }
   function centerOn(bar, snap) {
-    var mid = root.querySelector('.n-mid');
-    var w = mid ? mid.getBoundingClientRect().width : 0;
-    var want = Math.max(0, Math.min(camMax(), trackPad + bar * trackStride() - (w - bbW) / 2));
+    var sc = root.querySelector('.n-scroll');
+    var w = sc ? sc.getBoundingClientRect().width : 0;
+    var want = Math.max(0, Math.min(camMax(), sidePad + (bar * 16 + 8) * stepW - w / 2));
     camX = snap ? want : camX + (want - camX) * (Math.abs(want - camX) > w ? 1 : 0.18);
   }
   function applyCam() {
     var track = root.querySelector('.n-track');
     if (track) track.style.transform = 'translateX(' + (-Math.round(camX)) + 'px)';
-
   }
   function barUnderCamera() {
-    var mid = root.querySelector('.n-mid');
-    var w = mid ? mid.getBoundingClientRect().width : 0;
-    return Math.max(0, Math.min(S.bars - 1, Math.round((camX + w / 2 - bbW / 2 - trackPad) / trackStride())));
+    var sc = root.querySelector('.n-scroll');
+    var w = sc ? sc.getBoundingClientRect().width : 0;
+    return Math.max(0, Math.min(S.bars - 1, Math.floor((camX + w / 2 - sidePad) / (16 * stepW))));
+  }
+  // which lane and step a point falls on
+  function hitAt(ev) {
+    var sc = root.querySelector('.n-scroll');
+    if (!sc) return null;
+    var r = sc.getBoundingClientRect();
+    var x = ev.clientX - r.left + camX - sidePad;
+    var col = Math.floor(x / stepW);
+    if (col < 0 || col >= cols()) return null;
+    var rows = root.querySelectorAll('.n-row');
+    for (var i = 0; i < rows.length; i++) {
+      var rr = rows[i].getBoundingClientRect();
+      if (ev.clientY >= rr.top && ev.clientY <= rr.bottom) return { col: col, ch: +rows[i].dataset.ch };
+    }
+    return null;
   }
 
-  // ---- input ---------------------------------------------------------------
   function wireEvents() {
     // Space plays/pauses
     document.addEventListener('keydown', function (ev) {
@@ -1406,60 +1366,55 @@
       togglePlay();
     }, true);
 
-    var mid = root.querySelector('.n-mid'), pan = null;
+    var sc = root.querySelector('.n-scroll'), pan = null;
 
-    // a square: tap an empty one to add a note, tap a note to edit it below
-    mid.addEventListener('click', function (ev) {
-      if (ev.target.closest('.n-bbhead') || ev.target.closest('.n-addbar')) return;
-      var el = ev.target.closest('.n-step'); if (!el) return;
-      var col = +el.dataset.col;
-      viewBar = Math.floor(col / 16);
-      var pill = ev.target.closest('[data-pill]');
-      if (pill) {                                   // All view: that voice's note
-        var pc = +pill.dataset.pill;
-        selectNote(pc, col);
-        auditionCell(S.cells[cellIndexAt(pc, col)]);
-        openPick(col, pc);
+    // a lane cell: tap a note to open it, tap empty space to add one there
+    sc.addEventListener('click', function (ev) {
+      if (pan && pan.moved) return;
+      var noteEl = ev.target.closest('.n-note');
+      if (noteEl) {
+        var nc = +noteEl.dataset.col, nch = +noteEl.dataset.ch;
+        viewBar = Math.floor(nc / 16);
+        selectNote(nch, nc);
+        var i = cellIndexAt(nch, nc);
+        if (i >= 0) auditionCell(S.cells[i]);
+        openPick(nc, nch);
         return;
       }
-      // a square that already holds (or is inside) a note: open it
-      var order2 = viewCh < 0 ? [0, 1, 2, 3] : [viewCh];
-      for (var oi = 0; oi < order2.length; oi++) {
-        var ch2 = order2[oi], hit = cellIndexAt(ch2, col);
-        if (hit < 0 && viewCh >= 0) hit = tailIndexAt(ch2, col);
-        if (hit >= 0) {
-          var cellHit = S.cells[hit];
-          selectNote(ch2, cellHit.c);
-          auditionCell(cellHit);
-          openPick(cellHit.c, ch2);
-          return;
-        }
+      var h = hitAt(ev); if (!h) return;
+      viewBar = Math.floor(h.col / 16);
+      var hit = cellIndexAt(h.ch, h.col);
+      if (hit < 0) hit = tailIndexAt(h.ch, h.col);
+      if (hit >= 0) {
+        selectNote(h.ch, S.cells[hit].c);
+        auditionCell(S.cells[hit]);
+        openPick(S.cells[hit].c, h.ch);
+        return;
       }
-      // empty: open the picker here so the note can be chosen in place
       selCol = -1; selCh = -1;
-      renderGrid();
-      openPick(col, viewCh < 0 ? pen.ch : viewCh);
+      pen.ch = h.ch;                                  // the lane you touched IS the instrument
+      renderChans(); renderGrid(); renderBars();
+      openPick(h.col, h.ch);
       tourAdvance(0);
     });
 
-    // the bar heads: pan by dragging, and carry the bar's own tools
-    mid.addEventListener('pointerdown', function (ev) {
-      if (ev.target.closest('.n-step') || ev.target.closest('button')) return;
-      ev.preventDefault(); mid.setPointerCapture(ev.pointerId);
-      pan = { x: ev.clientX, cam: camX };
-      camFollow = false;
+    // drag anywhere in the lanes to travel; the wheel does too
+    sc.addEventListener('pointerdown', function (ev) {
+      pan = { x: ev.clientX, cam: camX, moved: false };
     });
-    mid.addEventListener('pointermove', function (ev) {
+    sc.addEventListener('pointermove', function (ev) {
       if (!pan) return;
+      if (Math.abs(ev.clientX - pan.x) > 4) { pan.moved = true; camFollow = false; }
+      if (!pan.moved) return;
       camX = Math.max(0, Math.min(camMax(), pan.cam - (ev.clientX - pan.x)));
       applyCam();
       var nb = barUnderCamera();
       if (nb !== viewBar) { viewBar = nb; renderBars(); }
     });
     ['pointerup', 'pointercancel'].forEach(function (t) {
-      mid.addEventListener(t, function () { pan = null; });
+      sc.addEventListener(t, function () { setTimeout(function () { pan = null; }, 0); });
     });
-    mid.addEventListener('wheel', function (ev) {
+    sc.addEventListener('wheel', function (ev) {
       if (camMax() <= 0) return;
       ev.preventDefault();
       camFollow = false;
@@ -1469,40 +1424,25 @@
       if (nb2 !== viewBar) { viewBar = nb2; renderBars(); }
     }, { passive: false });
 
-    // voice tabs: tap to work on a voice, tap the speaker to mute it
-    var tabs = root.querySelector('.n-tabs'), holdTimer = 0, holdFired = false;
-    tabs.addEventListener('pointerdown', function (ev) {
-      var b = ev.target.closest('.n-tab');
-      if (!b || ev.target.closest('[data-mute]')) return;
-      holdFired = false;
-      var ch = +b.dataset.ch;
-      if (ch < 0) return;
-      holdTimer = setTimeout(function () {
-        holdFired = true;
-        viewCh = ch; renderChans(); renderGrid(); renderBars(); openPad(ch);
-      }, 480);
-    });
-    ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (t) {
-      tabs.addEventListener(t, function () { clearTimeout(holdTimer); });
-    });
-    tabs.addEventListener('click', function (ev) {
+    // the lane names: tap the speaker to mute, the name to aim the next note
+    root.querySelector('.n-side').addEventListener('click', function (ev) {
       var mb = ev.target.closest('[data-mute]');
       if (mb) {
-        ev.stopPropagation();
         var mi = +mb.dataset.mute;
         chMuted[mi] = !chMuted[mi];
         applyMute();
-        hint(CH[mi].n + (chMuted[mi] ? ' is muted. Tap the speaker again to bring it back.' : ' is back.'));
         return;
       }
-      var b = ev.target.closest('.n-tab'); if (!b || holdFired) return;
-      var ch = +b.dataset.ch;
-      viewCh = ch;
-      if (ch >= 0) { pen.ch = ch; if (selCh !== ch) { selCol = -1; selCh = -1; } }
-      renderChans(); renderGrid(); renderBars(); renderEdit();
-      hint(ch < 0 ? 'Every voice at once. Tap a note to hear and edit it; tap an empty square to place the note shown below.'
-                  : CH[ch].tip);
+      var ln = ev.target.closest('.n-lane');
+      if (!ln) return;
+      pen.ch = +ln.dataset.ch;
+      renderChans(); renderEdit();
       tourAdvance(1);
+    });
+
+    window.addEventListener('resize', function () {
+      if (!isOpen()) return;
+      sizeTrack(); renderBars(); renderGrid(); centerOn(viewBar, true); applyCam();
     });
 
     root.addEventListener('click', function (ev) {
@@ -1539,13 +1479,9 @@
         return;
       }
       var sh = ev.target.closest('[data-barshift]');
-      if (sh) { shiftBar(+sh.dataset.barshift, +sh.dataset.bar); return; }
-      var lp = ev.target.closest('[data-loopbar]');
-      if (lp) { setLoopBar(+lp.dataset.loopbar); renderAll(); return; }
-      var du = ev.target.closest('[data-dupbar]');
-      if (du) { dupBar(+du.dataset.dupbar); return; }
+      if (sh) { shiftBar(+sh.dataset.barshift, viewBar); return; }
       var de = ev.target.closest('[data-delbar]');
-      if (de) { delBar(+de.dataset.delbar); return; }
+      if (de) { delBar(viewBar); return; }
       var mc = ev.target.closest('[data-mood]');
       if (mc) { composeIntoGrid(mc.dataset.mood); tourAdvance(3); return; }
       var b = ev.target.closest('[data-cr]');
