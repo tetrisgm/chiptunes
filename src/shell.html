@@ -595,9 +595,16 @@
   #createscreen .n-scroll:active{ cursor:grabbing; }
   #createscreen .n-track{ position:absolute; left:var(--sidepad,0); top:0; will-change:transform; }
   #createscreen .n-ruler{ position:relative; height:26px; }
-  #createscreen .n-rbar{ position:absolute; top:6px; font:800 11px var(--ui); color:var(--ink-2);
-    padding-left:6px; border-left:1px solid rgba(232,227,250,.18); }
+  #createscreen .n-rbar{ position:absolute; top:3px; display:flex; align-items:center; gap:6px; height:22px;
+    font:800 11px var(--ui); color:var(--ink-2); padding-left:6px;
+    border-left:1px solid rgba(232,227,250,.18); }
   #createscreen .n-rbar.on{ color:var(--ink); }
+  #createscreen .n-rins, #createscreen .n-rdel{ display:none; height:18px; padding:0 6px; border-radius:5px;
+    cursor:pointer; background:rgba(255,255,255,.07); border:1px solid var(--mat-edge);
+    color:var(--ink-2); font:700 9px var(--ui); }
+  #createscreen .n-rbar.on .n-rins, #createscreen .n-rbar.on .n-rdel{ display:inline-flex; align-items:center; }
+  #createscreen .n-rins:hover, #createscreen .n-rdel:hover{ border-color:var(--mat-edge-hi); color:var(--ink); }
+  #createscreen .n-rdel.arm{ background:rgba(255,107,87,.2); border-color:rgba(255,107,87,.6); color:#FF9E90; }
   /* One viewport-sized layer carries every gridline, and it is TRANSLATED by
      one bar's worth at most (the pattern repeats), so scrolling never repaints
      it. Painting these across the whole song was a 26,000px-wide surface and
@@ -629,9 +636,12 @@
     border-right:1px solid rgba(232,227,250,.4); pointer-events:none; }
   #createscreen .n-ph{ position:absolute; top:26px; bottom:0; width:2px; background:rgba(255,255,255,.75);
     pointer-events:none; display:none; }
-  #createscreen .n-barbar{ flex:0 0 auto; display:flex; align-items:center; justify-content:center; gap:8px;
-    padding:8px 12px; border-top:1px solid var(--mat-edge); }
-  #createscreen .n-barnow{ font:800 13px var(--ui); color:var(--ink); min-width:44px; text-align:right; }
+  #createscreen .n-sbarrow{ flex:0 0 auto; display:flex; padding:6px 12px 2px 118px; }
+  #createscreen .n-sbar{ position:relative; flex:1 1 auto; height:12px; border-radius:6px;
+    background:rgba(255,255,255,.05); border:1px solid var(--mat-edge); cursor:pointer; touch-action:none; }
+  #createscreen .n-sthumb{ position:absolute; top:1px; bottom:1px; border-radius:5px;
+    background:rgba(232,227,250,.35); }
+  #createscreen .n-sbar:hover .n-sthumb{ background:rgba(232,227,250,.55); }
   #createscreen .n-hb{ height:32px; padding:0 12px; border-radius:9px; cursor:pointer; white-space:nowrap;
     background:rgba(255,255,255,.06); border:1px solid var(--mat-edge); color:var(--ink-2); font:700 11px var(--ui); }
   #createscreen .n-hb:hover{ border-color:var(--mat-edge-hi); color:var(--ink); }
@@ -663,8 +673,15 @@
   #createscreen .n-transport{ flex:0 0 auto; display:flex; align-items:center; justify-content:center;
     gap:14px; padding:10px 14px 14px; border-top:1px solid var(--mat-edge-hi);
     background:rgba(255,255,255,.03); }
-  #createscreen .n-transport .cr-btn{ height:40px; padding:0 18px; font-size:13px; }
-  #createscreen .n-transport .n-play{ min-width:120px; }
+  /* the same transport the player uses at the bottom of the screen */
+  #createscreen .n-tctrl{ display:flex; align-items:center; gap:8px; }
+  #createscreen .n-tbtn{ background:none; border:none; color:var(--ink); cursor:pointer;
+    display:inline-flex; align-items:center; justify-content:center; width:38px; height:38px;
+    border-radius:50%; touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
+  #createscreen .n-tbtn svg{ width:19px; height:19px; pointer-events:none; }
+  #createscreen .n-tbtn:hover{ background:rgba(255,255,255,.10); color:#fff; }
+  #createscreen .n-tbtn.n-play{ width:44px; height:44px; color:#fff; }
+  #createscreen .n-tbtn.n-play svg{ width:28px; height:28px; }
   #createscreen .n-transport .n-play.waiting{ animation:crpulse 1.6s ease-in-out infinite; }
   @keyframes crpulse{ 0%,100%{ box-shadow:0 0 0 0 rgba(123,220,160,.45); }
                       50%{ box-shadow:0 0 0 8px rgba(123,220,160,0); } }
@@ -712,6 +729,7 @@
     #createscreen .cr-lab input{ width:64px; }
     #createscreen .cr-tour{ width:220px; }
     #createscreen .n-side{ width:88px; }
+    #createscreen .n-sbarrow{ padding-left:88px; }
     #createscreen .n-lane b{ font-size:11px; }
     #createscreen .n-note b{ font-size:9px; }
     #createscreen .n-moodlab{ font-size:14px; }
@@ -719,7 +737,7 @@
     #createscreen .n-pn{ min-width:38px; height:34px; font-size:11px; padding:0 5px; }
     #createscreen .n-pv{ font-size:10px; padding:0 6px; }
     #createscreen .n-transport{ gap:8px; padding:8px; }
-    #createscreen .n-transport .cr-btn{ height:38px; padding:0 12px; }
+
     #createscreen .n-transport input[type=range]{ width:96px; }
     #createscreen .n-spk{ width:16px; height:16px; font-size:10px; }
     #createscreen .n-hb{ font-size:9px; padding:0 3px; height:32px; }

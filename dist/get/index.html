@@ -595,9 +595,16 @@
   #createscreen .n-scroll:active{ cursor:grabbing; }
   #createscreen .n-track{ position:absolute; left:var(--sidepad,0); top:0; will-change:transform; }
   #createscreen .n-ruler{ position:relative; height:26px; }
-  #createscreen .n-rbar{ position:absolute; top:6px; font:800 11px var(--ui); color:var(--ink-2);
-    padding-left:6px; border-left:1px solid rgba(232,227,250,.18); }
+  #createscreen .n-rbar{ position:absolute; top:3px; display:flex; align-items:center; gap:6px; height:22px;
+    font:800 11px var(--ui); color:var(--ink-2); padding-left:6px;
+    border-left:1px solid rgba(232,227,250,.18); }
   #createscreen .n-rbar.on{ color:var(--ink); }
+  #createscreen .n-rins, #createscreen .n-rdel{ display:none; height:18px; padding:0 6px; border-radius:5px;
+    cursor:pointer; background:rgba(255,255,255,.07); border:1px solid var(--mat-edge);
+    color:var(--ink-2); font:700 9px var(--ui); }
+  #createscreen .n-rbar.on .n-rins, #createscreen .n-rbar.on .n-rdel{ display:inline-flex; align-items:center; }
+  #createscreen .n-rins:hover, #createscreen .n-rdel:hover{ border-color:var(--mat-edge-hi); color:var(--ink); }
+  #createscreen .n-rdel.arm{ background:rgba(255,107,87,.2); border-color:rgba(255,107,87,.6); color:#FF9E90; }
   /* One viewport-sized layer carries every gridline, and it is TRANSLATED by
      one bar's worth at most (the pattern repeats), so scrolling never repaints
      it. Painting these across the whole song was a 26,000px-wide surface and
@@ -629,9 +636,12 @@
     border-right:1px solid rgba(232,227,250,.4); pointer-events:none; }
   #createscreen .n-ph{ position:absolute; top:26px; bottom:0; width:2px; background:rgba(255,255,255,.75);
     pointer-events:none; display:none; }
-  #createscreen .n-barbar{ flex:0 0 auto; display:flex; align-items:center; justify-content:center; gap:8px;
-    padding:8px 12px; border-top:1px solid var(--mat-edge); }
-  #createscreen .n-barnow{ font:800 13px var(--ui); color:var(--ink); min-width:44px; text-align:right; }
+  #createscreen .n-sbarrow{ flex:0 0 auto; display:flex; padding:6px 12px 2px 118px; }
+  #createscreen .n-sbar{ position:relative; flex:1 1 auto; height:12px; border-radius:6px;
+    background:rgba(255,255,255,.05); border:1px solid var(--mat-edge); cursor:pointer; touch-action:none; }
+  #createscreen .n-sthumb{ position:absolute; top:1px; bottom:1px; border-radius:5px;
+    background:rgba(232,227,250,.35); }
+  #createscreen .n-sbar:hover .n-sthumb{ background:rgba(232,227,250,.55); }
   #createscreen .n-hb{ height:32px; padding:0 12px; border-radius:9px; cursor:pointer; white-space:nowrap;
     background:rgba(255,255,255,.06); border:1px solid var(--mat-edge); color:var(--ink-2); font:700 11px var(--ui); }
   #createscreen .n-hb:hover{ border-color:var(--mat-edge-hi); color:var(--ink); }
@@ -663,8 +673,15 @@
   #createscreen .n-transport{ flex:0 0 auto; display:flex; align-items:center; justify-content:center;
     gap:14px; padding:10px 14px 14px; border-top:1px solid var(--mat-edge-hi);
     background:rgba(255,255,255,.03); }
-  #createscreen .n-transport .cr-btn{ height:40px; padding:0 18px; font-size:13px; }
-  #createscreen .n-transport .n-play{ min-width:120px; }
+  /* the same transport the player uses at the bottom of the screen */
+  #createscreen .n-tctrl{ display:flex; align-items:center; gap:8px; }
+  #createscreen .n-tbtn{ background:none; border:none; color:var(--ink); cursor:pointer;
+    display:inline-flex; align-items:center; justify-content:center; width:38px; height:38px;
+    border-radius:50%; touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
+  #createscreen .n-tbtn svg{ width:19px; height:19px; pointer-events:none; }
+  #createscreen .n-tbtn:hover{ background:rgba(255,255,255,.10); color:#fff; }
+  #createscreen .n-tbtn.n-play{ width:44px; height:44px; color:#fff; }
+  #createscreen .n-tbtn.n-play svg{ width:28px; height:28px; }
   #createscreen .n-transport .n-play.waiting{ animation:crpulse 1.6s ease-in-out infinite; }
   @keyframes crpulse{ 0%,100%{ box-shadow:0 0 0 0 rgba(123,220,160,.45); }
                       50%{ box-shadow:0 0 0 8px rgba(123,220,160,0); } }
@@ -712,6 +729,7 @@
     #createscreen .cr-lab input{ width:64px; }
     #createscreen .cr-tour{ width:220px; }
     #createscreen .n-side{ width:88px; }
+    #createscreen .n-sbarrow{ padding-left:88px; }
     #createscreen .n-lane b{ font-size:11px; }
     #createscreen .n-note b{ font-size:9px; }
     #createscreen .n-moodlab{ font-size:14px; }
@@ -719,7 +737,7 @@
     #createscreen .n-pn{ min-width:38px; height:34px; font-size:11px; padding:0 5px; }
     #createscreen .n-pv{ font-size:10px; padding:0 6px; }
     #createscreen .n-transport{ gap:8px; padding:8px; }
-    #createscreen .n-transport .cr-btn{ height:38px; padding:0 12px; }
+
     #createscreen .n-transport input[type=range]{ width:96px; }
     #createscreen .n-spk{ width:16px; height:16px; font-size:10px; }
     #createscreen .n-hb{ font-size:9px; padding:0 3px; height:32px; }
@@ -4244,11 +4262,11 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
 
   // ---- render --------------------------------------------------------------
   var lastPh = -1, lastPlayBar = -1, delArm = -1, delTimer = 0;
-  var camX = 0, camFollow = true;
+  var camX = 0, camFollow = true, camTouchedAt = 0;
   function renderTransport() {
     var b = root.querySelector('[data-cr="play"]');
     if (b) {
-      b.textContent = playing ? '❚❚ Pause' : '▶ Play';
+      b.innerHTML = _pb(playing ? 'pause' : 'play');
       b.classList.toggle('waiting', !playing && wantStart);
     }
   }
@@ -4269,22 +4287,27 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     if (ruler && ruler.childElementCount !== S.bars) {
       var html = '';
       for (var b2 = 0; b2 < S.bars; b2++)
-        html += '<span class="n-rbar" data-bar="' + b2 + '" style="left:' + (b2 * 16 * stepW) + 'px;width:' + (16 * stepW) + 'px">#' + (b2 + 1) + '</span>';
+        html += '<span class="n-rbar" data-bar="' + b2 + '" style="left:' + (b2 * 16 * stepW) + 'px;width:' + (16 * stepW) + 'px">' +
+                '<b>#' + (b2 + 1) + '</b>' +
+                '<button type="button" class="n-rins" data-insbar="' + b2 + '" title="Insert an empty bar here">+ insert</button>' +
+                '<button type="button" class="n-rdel" data-delbar="' + b2 + '" title="Delete this bar">\u00d7</button>' +
+                '</span>';
       ruler.innerHTML = html;
     }
     if (ruler) ruler.querySelectorAll('.n-rbar').forEach(function (el) {
-      el.classList.toggle('on', +el.dataset.bar === viewBar);
+      var bi = +el.dataset.bar;
+      el.classList.toggle('on', bi === viewBar);
+      var del = el.querySelector('.n-rdel');
+      if (del) {
+        var armed = delArm === bi;
+        del.textContent = armed ? '\u00d7 sure?' : '\u00d7';
+        del.classList.toggle('arm', armed);
+      }
     });
     var hl = root.querySelector('.n-barhl');
     if (hl) {
       hl.style.left = (viewBar * 16 * stepW) + 'px';
       hl.style.width = (16 * stepW) + 'px';
-    }
-    var db = root.querySelector('[data-delbar]');
-    if (db) {
-      var armed = delArm === viewBar;
-      db.textContent = armed ? '\u2212 Delete this bar? Tap again' : '\u2212 Delete bar';
-      db.classList.toggle('arm', armed);
     }
     applyCam();
   }
@@ -4494,6 +4517,8 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     if (location.pathname !== '/create') ownRoute(encode());   // something else moved the URL; take it back, song and all
     var col = loopBar >= 0 ? loopBar * 16 + (elapsed / perMs) % 16 : (elapsed / perMs) % cols();
     var pb = Math.floor(col / 16);
+    // a hand scroll pauses the follow; the music takes it back a moment later
+    if (!camFollow && performance.now() - camTouchedAt > 3000) camFollow = true;
     if (camFollow) { centerOn(pb, false); applyCam(); }
     if (pb !== viewBar) { viewBar = pb; renderBars(); }
     lastPlayBar = pb;
@@ -4517,9 +4542,10 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     dirty();
   }
   // ---- bar operations ------------------------------------------------------
-  function addBar() {
+  function addBar(bar) {
     if (S.bars >= 48) { hint('48 bars is the limit \u2014 that is about a minute and a half.'); return; }
     snapshot();
+    if (bar != null) viewBar = bar;
     var at = viewBar * 16;                      // an empty bar opens HERE
     S.cells.forEach(function (x) { if (x.c >= at) x.c += 16; });
     S.bars++;
@@ -4560,6 +4586,13 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   }
 
   // ---- build the screen ----------------------------------------------------
+  // the player's own transport icons, so both screens look like one product
+  function _pb(n) {
+    try { if (typeof _pbIcon === 'function') return _pbIcon(n); } catch (e) {}
+    return ({ prev: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2.2v12H6z"/><path d="M20 6 L9.5 12 L20 18 Z"/></svg>',
+              play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5 L19 12 L7 19 Z"/></svg>',
+              pause: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6.5" y="5" width="3.5" height="14" rx="1"/><rect x="14" y="5" width="3.5" height="14" rx="1"/></svg>' })[n] || '';
+  }
   // the same two downloads the player offers, with the player's own icons
   function _ic(which) {
     try {
@@ -4597,14 +4630,12 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
           '<div class="n-ph"></div>' +
         '</div></div>' +
       '</div>' +
-      '<div class="n-barbar">' +
-
-        '<button type="button" class="n-hb" data-delbar="">− Delete bar</button>' +
-        '<button type="button" class="n-hb" data-cr="baradd">+ Insert bar</button>' +
-      '</div>' +
+      '<div class="n-sbarrow"><div class="n-sbar"><div class="n-sthumb"></div></div></div>' +
       '<div class="n-transport">' +
-        '<button type="button" class="cr-btn" data-cr="rewind">⏮ Start</button>' +
-        '<button type="button" class="cr-btn cr-primary n-play" data-cr="play">▶ Play</button>' +
+        '<div class="n-tctrl">' +
+          '<button type="button" class="n-tbtn" data-cr="rewind" title="Back to the start">' + _pb('prev') + '</button>' +
+          '<button type="button" class="n-tbtn n-play" data-cr="play" title="Play / Pause">' + _pb('play') + '</button>' +
+        '</div>' +
         '<label class="cr-lab">Speed <b class="n-bpmval">' + S.bpm + '</b> BPM' +
         '<input type="range" min="70" max="180" step="2" value="' + S.bpm + '" data-cr="bpm"></label>' +
       '</div>';
@@ -4642,6 +4673,18 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   function applyCam() {
     var track = root.querySelector('.n-track');
     if (track) track.style.transform = 'translateX(' + (-Math.round(camX)) + 'px)';
+    // the scrollbar says where in the song you are, and how much of it you see
+    var bar = root.querySelector('.n-sbar'), thumb = root.querySelector('.n-sthumb');
+    if (bar && thumb) {
+      var sc2 = root.querySelector('.n-scroll');
+      var view = sc2 ? sc2.getBoundingClientRect().width : 0;
+      var total = Math.max(view, songW());
+      var bw = bar.getBoundingClientRect().width;
+      var tw = Math.max(28, Math.round(bw * view / total));
+      var span = Math.max(1, camMax());
+      thumb.style.width = tw + 'px';
+      thumb.style.left = Math.round((bw - tw) * (camX / span)) + 'px';
+    }
     // the gridlines repeat every bar, so the backdrop only ever needs to move
     // within one bar: a composited nudge instead of a full repaint
     var bg = root.querySelector('.n-bg');
@@ -4839,9 +4882,10 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
         return;
       }
       if (!pan) return;
-      if (Math.abs(ev.clientX - pan.x) > 4) { pan.moved = true; camFollow = false; }
+      if (Math.abs(ev.clientX - pan.x) > 4) { pan.moved = true; camFollow = false; camTouchedAt = performance.now(); }
       if (!pan.moved) return;
       camX = Math.max(0, Math.min(camMax(), pan.cam - (ev.clientX - pan.x)));
+      camTouchedAt = performance.now();
       applyCam();
       var nb = barUnderCamera();
       if (nb !== viewBar) { viewBar = nb; delArm = -1; renderBars(); }
@@ -4859,13 +4903,36 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     sc.addEventListener('wheel', function (ev) {
       if (camMax() <= 0) return;
       ev.preventDefault();
-      camFollow = false;
+      camFollow = false; camTouchedAt = performance.now();
       var d = (Math.abs(ev.deltaX) > Math.abs(ev.deltaY) ? ev.deltaX : ev.deltaY) * (ev.deltaMode === 1 ? 30 : 2.2);
       camX = Math.max(0, Math.min(camMax(), camX + d));
       applyCam();
       var nb2 = barUnderCamera();
       if (nb2 !== viewBar) { viewBar = nb2; renderBars(); }
     }, { passive: false });
+
+    // the scrollbar: drag the thumb, or click anywhere on the track to jump
+    var bar = root.querySelector('.n-sbar'), sdrag = null;
+    function camFromBar(clientX) {
+      var br = bar.getBoundingClientRect();
+      var thumb = root.querySelector('.n-sthumb');
+      var tw = thumb ? thumb.getBoundingClientRect().width : 30;
+      var f = (clientX - br.left - tw / 2) / Math.max(1, br.width - tw);
+      camX = Math.max(0, Math.min(camMax(), f * camMax()));
+      camFollow = false; camTouchedAt = performance.now();
+      applyCam();
+      var nb = barUnderCamera();
+      if (nb !== viewBar) { viewBar = nb; delArm = -1; renderBars(); }
+    }
+    bar.addEventListener('pointerdown', function (ev) {
+      ev.preventDefault();
+      try { bar.setPointerCapture(ev.pointerId); } catch (e) {}
+      sdrag = true; camFromBar(ev.clientX);
+    });
+    bar.addEventListener('pointermove', function (ev) { if (sdrag) camFromBar(ev.clientX); });
+    ['pointerup', 'pointercancel'].forEach(function (t) {
+      bar.addEventListener(t, function () { sdrag = null; });
+    });
 
     // the lane names: tap the speaker to mute, the name to aim the next note
     root.querySelector('.n-side').addEventListener('click', function (ev) {
@@ -4909,17 +4976,20 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       }
       var sh = ev.target.closest('[data-barshift]');
       if (sh) { shiftBar(+sh.dataset.barshift, viewBar); return; }
+      var ins = ev.target.closest('[data-insbar]');
+      if (ins) { addBar(+ins.dataset.insbar); return; }
       var de = ev.target.closest('[data-delbar]');
       if (de) {
-        if (delArm !== viewBar) {               // ask before throwing a bar away
-          delArm = viewBar;
+        var bi2 = +de.dataset.delbar;
+        if (delArm !== bi2) {                   // ask before throwing a bar away
+          delArm = bi2;
           clearTimeout(delTimer);
           delTimer = setTimeout(function () { delArm = -1; renderBars(); }, 4000);
           renderBars();
           return;
         }
         clearTimeout(delTimer); delArm = -1;
-        delBar(viewBar);
+        delBar(bi2);
         return;
       }
       var mc = ev.target.closest('[data-mood]');
@@ -4932,7 +5002,6 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       else if (k === 'close') { close(); }
       else if (k === 'undo') { undo(); }
       else if (k === 'redo') { redo(); }
-      else if (k === 'baradd') { addBar(); }
       else if (k === 'wav') { exportWav(); }
       else if (k === 'rom') { exportRom(); }
     });
@@ -5008,7 +5077,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
                                             try { hist[chOfCell(x)]++; } catch (e) {} });
       return { playing: playing, live: !!liveScore, bars: S ? S.bars : 0,
                viewBar: viewBar, viewCh: viewCh, loopBar: loopBar, queued: queuedBar,
-               cells: S ? S.cells.length : 0, withInst: withInst, maxLen: mx,
+               follow: camFollow, camX: Math.round(camX), cells: S ? S.cells.length : 0, withInst: withInst, maxLen: mx,
                notes: S ? buildSong().notes.length : 0, chHist: hist, mood: liveMood }; },
     _skipToEnd: function () { if (playing && liveScore) playT0 = performance.now() - songMs() - 300; } };
   if (typeof module !== 'undefined' && module.exports) module.exports = G.CT_CREATE;

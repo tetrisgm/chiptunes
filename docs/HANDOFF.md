@@ -367,8 +367,19 @@ pass.
 - The note panel is Volume and Remove only: instrument, pitch and length are
   all set by dragging (lane, height, right edge), so listing them twice was
   clutter. Clicking empty lane space places a note AT the height you clicked
-  and opens that panel. The bar row is just Delete bar / Insert bar (no bar
-  number; the banded bar says which), and Insert opens a bar where you are.
+  and opens that panel.
+
+- BAR CONTROLS LIVE ON THE RULER, not in a row underneath. The current bar's
+  label carries them -- "#4  + insert  x" -- and only the current bar shows
+  them; every other bar is just its number. The x arms for 4 seconds
+  ("x sure?") before it deletes, and + insert opens an empty bar at that bar
+  and pushes the rest right. The old .n-barbar row is gone.
+
+- The camera FOLLOWS THE MUSIC, and a hand scroll only borrows it: wheel,
+  drag and scrollbar all stamp camTouchedAt, and the follow resumes 3 seconds
+  after the last touch. Stamp every gesture that sets camFollow = false -- an
+  unstamped one leaves camTouchedAt at 0, and the follow takes over on the
+  very next frame, which reads as the scroll not working at all.
 
 - A note joining a lane (dragged there, or placed there) takes the
   instrument its NEIGHBOURS in that lane use (laneInstAt: nearest cell by

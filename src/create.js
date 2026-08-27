@@ -899,11 +899,11 @@
 
   // ---- render --------------------------------------------------------------
   var lastPh = -1, lastPlayBar = -1, delArm = -1, delTimer = 0;
-  var camX = 0, camFollow = true;
+  var camX = 0, camFollow = true, camTouchedAt = 0;
   function renderTransport() {
     var b = root.querySelector('[data-cr="play"]');
     if (b) {
-      b.textContent = playing ? '❚❚ Pause' : '▶ Play';
+      b.innerHTML = _pb(playing ? 'pause' : 'play');
       b.classList.toggle('waiting', !playing && wantStart);
     }
   }
@@ -924,22 +924,27 @@
     if (ruler && ruler.childElementCount !== S.bars) {
       var html = '';
       for (var b2 = 0; b2 < S.bars; b2++)
-        html += '<span class="n-rbar" data-bar="' + b2 + '" style="left:' + (b2 * 16 * stepW) + 'px;width:' + (16 * stepW) + 'px">#' + (b2 + 1) + '</span>';
+        html += '<span class="n-rbar" data-bar="' + b2 + '" style="left:' + (b2 * 16 * stepW) + 'px;width:' + (16 * stepW) + 'px">' +
+                '<b>#' + (b2 + 1) + '</b>' +
+                '<button type="button" class="n-rins" data-insbar="' + b2 + '" title="Insert an empty bar here">+ insert</button>' +
+                '<button type="button" class="n-rdel" data-delbar="' + b2 + '" title="Delete this bar">\u00d7</button>' +
+                '</span>';
       ruler.innerHTML = html;
     }
     if (ruler) ruler.querySelectorAll('.n-rbar').forEach(function (el) {
-      el.classList.toggle('on', +el.dataset.bar === viewBar);
+      var bi = +el.dataset.bar;
+      el.classList.toggle('on', bi === viewBar);
+      var del = el.querySelector('.n-rdel');
+      if (del) {
+        var armed = delArm === bi;
+        del.textContent = armed ? '\u00d7 sure?' : '\u00d7';
+        del.classList.toggle('arm', armed);
+      }
     });
     var hl = root.querySelector('.n-barhl');
     if (hl) {
       hl.style.left = (viewBar * 16 * stepW) + 'px';
       hl.style.width = (16 * stepW) + 'px';
-    }
-    var db = root.querySelector('[data-delbar]');
-    if (db) {
-      var armed = delArm === viewBar;
-      db.textContent = armed ? '\u2212 Delete this bar? Tap again' : '\u2212 Delete bar';
-      db.classList.toggle('arm', armed);
     }
     applyCam();
   }
@@ -1149,6 +1154,8 @@
     if (location.pathname !== '/create') ownRoute(encode());   // something else moved the URL; take it back, song and all
     var col = loopBar >= 0 ? loopBar * 16 + (elapsed / perMs) % 16 : (elapsed / perMs) % cols();
     var pb = Math.floor(col / 16);
+    // a hand scroll pauses the follow; the music takes it back a moment later
+    if (!camFollow && performance.now() - camTouchedAt > 3000) camFollow = true;
     if (camFollow) { centerOn(pb, false); applyCam(); }
     if (pb !== viewBar) { viewBar = pb; renderBars(); }
     lastPlayBar = pb;
@@ -1172,9 +1179,10 @@
     dirty();
   }
   // ---- bar operations ------------------------------------------------------
-  function addBar() {
+  function addBar(bar) {
     if (S.bars >= 48) { hint('48 bars is the limit \u2014 that is about a minute and a half.'); return; }
     snapshot();
+    if (bar != null) viewBar = bar;
     var at = viewBar * 16;                      // an empty bar opens HERE
     S.cells.forEach(function (x) { if (x.c >= at) x.c += 16; });
     S.bars++;
@@ -1215,6 +1223,13 @@
   }
 
   // ---- build the screen ----------------------------------------------------
+  // the player's own transport icons, so both screens look like one product
+  function _pb(n) {
+    try { if (typeof _pbIcon === 'function') return _pbIcon(n); } catch (e) {}
+    return ({ prev: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2.2v12H6z"/><path d="M20 6 L9.5 12 L20 18 Z"/></svg>',
+              play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5 L19 12 L7 19 Z"/></svg>',
+              pause: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6.5" y="5" width="3.5" height="14" rx="1"/><rect x="14" y="5" width="3.5" height="14" rx="1"/></svg>' })[n] || '';
+  }
   // the same two downloads the player offers, with the player's own icons
   function _ic(which) {
     try {
@@ -1252,14 +1267,12 @@
           '<div class="n-ph"></div>' +
         '</div></div>' +
       '</div>' +
-      '<div class="n-barbar">' +
-
-        '<button type="button" class="n-hb" data-delbar="">− Delete bar</button>' +
-        '<button type="button" class="n-hb" data-cr="baradd">+ Insert bar</button>' +
-      '</div>' +
+      '<div class="n-sbarrow"><div class="n-sbar"><div class="n-sthumb"></div></div></div>' +
       '<div class="n-transport">' +
-        '<button type="button" class="cr-btn" data-cr="rewind">⏮ Start</button>' +
-        '<button type="button" class="cr-btn cr-primary n-play" data-cr="play">▶ Play</button>' +
+        '<div class="n-tctrl">' +
+          '<button type="button" class="n-tbtn" data-cr="rewind" title="Back to the start">' + _pb('prev') + '</button>' +
+          '<button type="button" class="n-tbtn n-play" data-cr="play" title="Play / Pause">' + _pb('play') + '</button>' +
+        '</div>' +
         '<label class="cr-lab">Speed <b class="n-bpmval">' + S.bpm + '</b> BPM' +
         '<input type="range" min="70" max="180" step="2" value="' + S.bpm + '" data-cr="bpm"></label>' +
       '</div>';
@@ -1297,6 +1310,18 @@
   function applyCam() {
     var track = root.querySelector('.n-track');
     if (track) track.style.transform = 'translateX(' + (-Math.round(camX)) + 'px)';
+    // the scrollbar says where in the song you are, and how much of it you see
+    var bar = root.querySelector('.n-sbar'), thumb = root.querySelector('.n-sthumb');
+    if (bar && thumb) {
+      var sc2 = root.querySelector('.n-scroll');
+      var view = sc2 ? sc2.getBoundingClientRect().width : 0;
+      var total = Math.max(view, songW());
+      var bw = bar.getBoundingClientRect().width;
+      var tw = Math.max(28, Math.round(bw * view / total));
+      var span = Math.max(1, camMax());
+      thumb.style.width = tw + 'px';
+      thumb.style.left = Math.round((bw - tw) * (camX / span)) + 'px';
+    }
     // the gridlines repeat every bar, so the backdrop only ever needs to move
     // within one bar: a composited nudge instead of a full repaint
     var bg = root.querySelector('.n-bg');
@@ -1494,9 +1519,10 @@
         return;
       }
       if (!pan) return;
-      if (Math.abs(ev.clientX - pan.x) > 4) { pan.moved = true; camFollow = false; }
+      if (Math.abs(ev.clientX - pan.x) > 4) { pan.moved = true; camFollow = false; camTouchedAt = performance.now(); }
       if (!pan.moved) return;
       camX = Math.max(0, Math.min(camMax(), pan.cam - (ev.clientX - pan.x)));
+      camTouchedAt = performance.now();
       applyCam();
       var nb = barUnderCamera();
       if (nb !== viewBar) { viewBar = nb; delArm = -1; renderBars(); }
@@ -1514,13 +1540,36 @@
     sc.addEventListener('wheel', function (ev) {
       if (camMax() <= 0) return;
       ev.preventDefault();
-      camFollow = false;
+      camFollow = false; camTouchedAt = performance.now();
       var d = (Math.abs(ev.deltaX) > Math.abs(ev.deltaY) ? ev.deltaX : ev.deltaY) * (ev.deltaMode === 1 ? 30 : 2.2);
       camX = Math.max(0, Math.min(camMax(), camX + d));
       applyCam();
       var nb2 = barUnderCamera();
       if (nb2 !== viewBar) { viewBar = nb2; renderBars(); }
     }, { passive: false });
+
+    // the scrollbar: drag the thumb, or click anywhere on the track to jump
+    var bar = root.querySelector('.n-sbar'), sdrag = null;
+    function camFromBar(clientX) {
+      var br = bar.getBoundingClientRect();
+      var thumb = root.querySelector('.n-sthumb');
+      var tw = thumb ? thumb.getBoundingClientRect().width : 30;
+      var f = (clientX - br.left - tw / 2) / Math.max(1, br.width - tw);
+      camX = Math.max(0, Math.min(camMax(), f * camMax()));
+      camFollow = false; camTouchedAt = performance.now();
+      applyCam();
+      var nb = barUnderCamera();
+      if (nb !== viewBar) { viewBar = nb; delArm = -1; renderBars(); }
+    }
+    bar.addEventListener('pointerdown', function (ev) {
+      ev.preventDefault();
+      try { bar.setPointerCapture(ev.pointerId); } catch (e) {}
+      sdrag = true; camFromBar(ev.clientX);
+    });
+    bar.addEventListener('pointermove', function (ev) { if (sdrag) camFromBar(ev.clientX); });
+    ['pointerup', 'pointercancel'].forEach(function (t) {
+      bar.addEventListener(t, function () { sdrag = null; });
+    });
 
     // the lane names: tap the speaker to mute, the name to aim the next note
     root.querySelector('.n-side').addEventListener('click', function (ev) {
@@ -1564,17 +1613,20 @@
       }
       var sh = ev.target.closest('[data-barshift]');
       if (sh) { shiftBar(+sh.dataset.barshift, viewBar); return; }
+      var ins = ev.target.closest('[data-insbar]');
+      if (ins) { addBar(+ins.dataset.insbar); return; }
       var de = ev.target.closest('[data-delbar]');
       if (de) {
-        if (delArm !== viewBar) {               // ask before throwing a bar away
-          delArm = viewBar;
+        var bi2 = +de.dataset.delbar;
+        if (delArm !== bi2) {                   // ask before throwing a bar away
+          delArm = bi2;
           clearTimeout(delTimer);
           delTimer = setTimeout(function () { delArm = -1; renderBars(); }, 4000);
           renderBars();
           return;
         }
         clearTimeout(delTimer); delArm = -1;
-        delBar(viewBar);
+        delBar(bi2);
         return;
       }
       var mc = ev.target.closest('[data-mood]');
@@ -1587,7 +1639,6 @@
       else if (k === 'close') { close(); }
       else if (k === 'undo') { undo(); }
       else if (k === 'redo') { redo(); }
-      else if (k === 'baradd') { addBar(); }
       else if (k === 'wav') { exportWav(); }
       else if (k === 'rom') { exportRom(); }
     });
@@ -1663,7 +1714,7 @@
                                             try { hist[chOfCell(x)]++; } catch (e) {} });
       return { playing: playing, live: !!liveScore, bars: S ? S.bars : 0,
                viewBar: viewBar, viewCh: viewCh, loopBar: loopBar, queued: queuedBar,
-               cells: S ? S.cells.length : 0, withInst: withInst, maxLen: mx,
+               follow: camFollow, camX: Math.round(camX), cells: S ? S.cells.length : 0, withInst: withInst, maxLen: mx,
                notes: S ? buildSong().notes.length : 0, chHist: hist, mood: liveMood }; },
     _skipToEnd: function () { if (playing && liveScore) playT0 = performance.now() - songMs() - 300; } };
   if (typeof module !== 'undefined' && module.exports) module.exports = G.CT_CREATE;
