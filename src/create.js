@@ -370,7 +370,9 @@
     var off = Math.max(0, fromMs || 0) % Math.max(1, songMs());
     if (typeof Audio !== 'undefined' && Audio.playCreate)
       Audio.playCreate(song, song.loopFrames, Math.round(off / 1000 * FPS));
-    playing = true; playT0 = performance.now() - off;
+    // a fresh start ships with 60ms of scheduling lead before frame 0 sounds;
+    // fold it into the clock or every repost seeks past the opening notes
+    playing = true; playT0 = performance.now() - off + (off > 0 ? 0 : 60);
     renderTransport(); renderBars(); scheduleTick();
   }
   function pausePlayback() {
@@ -562,8 +564,9 @@
     loopBar = -1; queuedBar = null;
     viewBar = 0; viewPinned = false;
     pausedAt = 0;
-    startPlayback(0);
     dirty();
+    startPlayback(0);   // after dirty: its clearTimeout cancels the queued repost,
+                        // which used to seek past the song's first notes
   }
 
   // ---- the sound map: pick a channel's instrument by dragging --------------
