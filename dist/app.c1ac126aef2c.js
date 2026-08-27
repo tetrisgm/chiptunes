@@ -2982,7 +2982,6 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     queuedBar = null; loopPhase = 0;
     if (loopBar >= 0) { viewBar = loopBar; hint('Looping bar ' + (loopBar + 1) + '. Tap another bar to queue it; tap ↺ again for the whole song.'); }
     else hint('Back to the whole song.');
-    tourAdvance(2);
     if (playing) startPlayback(0); else { pausedAt = 0; renderAll(); }
   }
   var repostTimer = 0, saveTimer = 0;
@@ -3325,7 +3324,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
 
   // ---- hints + tour --------------------------------------------------------
   var hintTimer = 0, hintedSulk = false;
-  var HINT_IDLE = 'Tap an empty square to place the note shown below; tap a note to hear it and change it.';
+  var HINT_IDLE = 'Click empty space in a lane to place a note at that height; hover or click a note to hear it.';
   function hint(t) { if (t && G._toast && /(muted|limit|Nothing)/.test(t)) G._toast(t); }
   function checkSulk() {
     if (hintedSulk || !S) return;
@@ -3347,22 +3346,39 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     var t = root.querySelector('.cr-tour');
     if (!t) { t = document.createElement('div'); t.className = 'cr-tour'; root.appendChild(t); }
     var msgs = [
-      ['This song was just written for you.', 'Notes are blocks on their line: further right is later, higher is a higher note, wider is longer. Tap one to change it, or tap empty space to add one.'],
-      ['Four voices, like a tiny band.', 'Melody, Harmony, Bass and Drums each get their own line, running left to right. Tap a line\u2019s speaker to mute it.'],
-      ['The song scrolls sideways.', 'Drag the lines to travel through the song, or let them follow the music. The bar you are on is named at the bottom, with its own buttons.'],
-      ['Moods write songs.', 'Tap a mood up top and the radio\u2019s composer writes a whole song here, yours to edit.'],
+      ['This song was just written for you.',
+       'Notes are blocks on their lane: further right is later, higher is a higher note, wider is longer. Hover one to hear it, click it to open its sound, drag it anywhere.'],
+      ['Four voices, like a tiny band.',
+       'Melody, Harmony, Bass and Drums each keep a lane. Under each name is the sound it is holding \u2014 click that to change what the next note there will use, or the speaker to mute the lane.'],
+      ['The song runs left to right.',
+       'Drag the lanes to travel through it, or press Follow to ride along with the music. Above the bar you are on: its number, + insert, and \u00d7 to delete it.'],
+      ['Moods write songs.',
+       'Tap a mood up top and the radio\u2019s composer writes a whole song here, yours to edit.'],
     ];
     t.innerHTML = '<b>' + msgs[step][0] + '</b><span>' + msgs[step][1] + '</span>' +
       '<div class="cr-tourbtns"><button type="button" data-tour="skip">Skip</button>' +
       '<button type="button" data-tour="next">' + (step === 3 ? 'Done' : 'Next') + '</button></div>' +
       '<i>' + (step + 1) + ' / 4</i>';
-    var anchor = [root.querySelector('.n-grid'), root.querySelector('.n-chans'),
-                  root.querySelector('.n-bars'), root.querySelector('.n-moodrow')][step];
-    var ar = (anchor || root).getBoundingClientRect();
-    t.style.transform = 'translateX(-50%)';
-    t.style.left = '50%';
-    if (step === 0) t.style.top = Math.round(ar.top + ar.height * 0.3) + 'px';
-    else t.style.top = Math.round(Math.max(10, ar.top - 130)) + 'px';
+    // Point at the thing being described. These used to name .n-grid, .n-chans
+    // and .n-bars -- all removed in the lane rewrite -- so three of four cards
+    // fell back to the whole editor and floated in the middle of nothing.
+    var anchor = [root.querySelector('.n-scroll'),    // the lanes themselves
+                  root.querySelector('.n-side'),      // their names and sounds
+                  // the CURRENT bar's label, not the whole ruler: the ruler is
+                  // as wide as the song, so its centre is somewhere off screen
+                  root.querySelector('.n-rbar.on') || root.querySelector('.n-ruler'),
+                  root.querySelector('.n-moodrow')][step] || root;
+    var ar = anchor.getBoundingClientRect();
+    var tw = t.getBoundingClientRect().width || 250, th = t.getBoundingClientRect().height || 150;
+    var cx = ar.left + ar.width / 2;
+    if (step === 1) cx = ar.right + tw / 2 + 14;      // beside the lane names, not over them
+    t.style.transform = 'none';
+    t.style.left = Math.round(Math.max(10, Math.min(window.innerWidth - tw - 10, cx - tw / 2))) + 'px';
+    var top = step === 0 ? ar.top + ar.height * 0.28
+            : step === 1 ? ar.top + 20
+            : ar.bottom + 14;
+    if (top + th > window.innerHeight - 10) top = ar.top - th - 14;
+    t.style.top = Math.round(Math.max(10, top)) + 'px';
   }
   function tourAdvance(from) {
     if (tourStep !== from) return;
@@ -4283,9 +4299,11 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   function handScrolled() {
     camFollow = false;
     renderFollow();
+    tourAdvance(2);                          // "the song runs left to right"
   }
   // Follow: jump to the music and ride along again
   function followNow() {
+    tourAdvance(2);
     camFollow = true;
     var col = playCol();
     if (col >= 0) camCatch = camX - camForCol(col);   // glide, do not snap
