@@ -537,3 +537,15 @@ pass.
   NOISE_NAMES / METAL_NAMES / LANE_SOUND, and the editValue branches they fed.
   buildSounds now only names the WAVE tables, which the Bass picker still
   needs; a table it cannot name shows as "wave N" rather than marking nothing.
+
+- NAMES SIT ON TOP OF THE SETTINGS, and pressing one MOVES them. LSDJ has no
+  presets -- you learn the chip -- but "Shape 75%, Fade out 6" means nothing
+  until you have heard it, and the owner read the parameter panel as having
+  fewer sounds than the name list it replaced (it has far more: 4 shapes x 15
+  fades against 30 names). So each panel opens with a Sounds row -- Pluck,
+  Bell, Stab, Reed, Organ, Thin, Soft, Swell for the pulse lanes; Kick, Snare,
+  Hat, Clap, Tom, Rumble, Ping, Zap for drums -- and picking one writes the
+  settings underneath, which is what teaches them. The Bass lane needs no
+  presets: its Wave row is already a list of names. presetOn() marks the name
+  whose settings the note currently matches, so a composed note shows as
+  "Organ" when that is what it is.

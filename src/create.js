@@ -44,6 +44,32 @@
   // whole model -- there is nothing else in one, on this hardware or in LSDJ,
   // and a list of invented timbre names only hid it.
   var DUTY_PC = ['12.5%', '25%', '50%', '75%'];
+  // Named starting points. LSDJ has none -- you learn the chip -- but a name
+  // you can hear teaches the two settings under it faster than a manual does:
+  // pick one and watch Shape and Fade move to what it is made of.
+  var PRESETS = {
+    pulse: [
+      { n: 'Pluck', dy: 2, fd: 2 }, { n: 'Bell',  dy: 0, fd: 3 },
+      { n: 'Stab',  dy: 1, fd: 1 }, { n: 'Reed',  dy: 1, fd: 4 },
+      { n: 'Organ', dy: 2, fd: 0 }, { n: 'Thin',  dy: 0, fd: 0 },
+      { n: 'Soft',  dy: 3, fd: 5 }, { n: 'Swell', dy: 2, fd: 12 }
+    ],
+    noise: [
+      { n: 'Kick',  nz: 12, ns: 0, fd: 1 }, { n: 'Snare', nz: 6, ns: 0, fd: 2 },
+      { n: 'Hat',   nz: 1,  ns: 0, fd: 1 }, { n: 'Clap',  nz: 4, ns: 0, fd: 2 },
+      { n: 'Tom',   nz: 9,  ns: 0, fd: 2 }, { n: 'Rumble', nz: 13, ns: 0, fd: 5 },
+      { n: 'Ping',  nz: 2,  ns: 1, fd: 1 }, { n: 'Zap',   nz: 7, ns: 1, fd: 2 }
+    ]
+  };
+  function presetOn(list, p) {
+    var hit = -1;
+    list.forEach(function (ps, i) {
+      var same = true;
+      for (var k in ps) if (k !== 'n' && ps[k] !== p[k]) same = false;
+      if (same) hit = i;
+    });
+    return hit;
+  }
   // LSDJ's ENV: 0 holds, 1..7 fades out (1 fastest), 9..F fades in (9 fastest)
   function fadeLabel(fd) {
     if (!fd || fd === 8) return 'hold';
@@ -1222,6 +1248,11 @@
       return out;
     }
     if (ch === 3) {
+      var don = presetOn(PRESETS.noise, p);
+      out += row('Sounds', PRESETS.noise.map(function (ps, i) {
+        return '<button type="button" class="n-pv' + (i === don ? ' on' : '') +
+               '" data-ed="ps3.' + i + '" data-full="' + ps.n + '">' + ps.n + '</button>';
+      }).join(''));
       out += row('Noise', ['Free', 'Metal'].map(function (n2, i) {
         return '<button type="button" class="n-pv' + (i === (p.ns | 0) ? ' on' : '') +
                '" data-ed="ns' + i + '" data-full="' + n2 + '">' + n2 + '</button>';
@@ -1229,14 +1260,21 @@
       // the chip counts DOWN in pitch (a bigger shift is a lower sound); the
       // control counts up, because nobody thinks in clock shifts
       out += row('Pitch', step('nz-', 'pitch ' + (13 - p.nz), 'nz+'));
-      out += row('Fade', step('fd-', fadeLabel(p.fd), 'fd+'));
+      out += row('Fade', step('fd-', fadeLabel(p.fd), 'fd+') +
+                         '<em class="n-phint">out 1 is quickest \u00b7 in swells</em>');
       return out;
     }
+    var pon = presetOn(PRESETS.pulse, p);
+    out += row('Sounds', PRESETS.pulse.map(function (ps, i) {
+      return '<button type="button" class="n-pv' + (i === pon ? ' on' : '') +
+             '" data-ed="ps' + ch + '.' + i + '" data-full="' + ps.n + '">' + ps.n + '</button>';
+    }).join(''));
     out += row('Shape', DUTY_PC.map(function (d, i) {
       return '<button type="button" class="n-pv' + (i === (p.dy | 0) ? ' on' : '') +
              '" data-ed="dy' + i + '" data-full="' + d + '">' + d + '</button>';
     }).join(''));
-    out += row('Fade', step('fd-', fadeLabel(p.fd), 'fd+'));
+    out += row('Fade', step('fd-', fadeLabel(p.fd), 'fd+') +
+                       '<em class="n-phint">out 1 is quickest \u00b7 in swells</em>');
     return out;
   }
   function closePick() {
@@ -1296,6 +1334,29 @@
     }
     if (what === 'close') { closePick(); selCol = -1; selCh = -1; renderGrid(); return; }
     var sch = x ? chOfCell(x) : pen.ch;
+    if (what.slice(0, 2) === 'ps') {          // a named starting point
+      var pdot = what.indexOf('.');
+      var pch = +what.slice(2, pdot), pix = +what.slice(pdot + 1);
+      var ps = (pch === 3 ? PRESETS.noise : PRESETS.pulse)[pix];
+      if (!ps) return;
+      if (x) snapshot();
+      ['dy', 'fd', 'nz', 'ns'].forEach(function (k) {
+        if (ps[k] == null) return;
+        if (x) x[k] = ps[k];
+        else if (k === 'dy') chDuty[pch] = ps[k];
+        else if (k === 'fd') chFade[pch] = ps[k];
+        else if (k === 'nz') pen.drum = ps[k] <= 4 ? 0 : ps[k] <= 9 ? 1 : 2;
+      });
+      if (x && pch === 3) x.r = MEL_ROWS + (ps.nz <= 4 ? 0 : ps.nz <= 9 ? 1 : 2);
+      if (x) { dirty(); renderEdit(); auditionCell(x); }
+      else {
+        renderChans();
+        var pop3 = root.querySelector('.n-sndpop .n-pisnd');
+        if (pop3) pop3.innerHTML = soundPanel(pch, null);
+        auditionCell(penCell(0));
+      }
+      return;
+    }
     var sp = what.slice(0, 2);
     if (sp === 'dy' || sp === 'wv' || sp === 'ns' || sp === 'fd' || sp === 'nz') {
       var pr = paramsOf(x, sch);
