@@ -1871,6 +1871,7 @@ const Audio = (()=>{
     },
     pokeCreate(note){ startAudio(true); if(this.resume) this.resume(true);
       if(gbNode && note) gbNode.port.postMessage({type:'poke', note:note}); },
+    stopPoke(ch){ if(gbNode) gbNode.port.postMessage({type:'pokeoff', ch:(ch==null?null:ch|0)}); },
     setChipMute(mask){ ensureGbChip(); if(gbNode) gbNode.port.postMessage({type:'chmute', mask:mask||null}); },
     stopCreate(){ if(gbNode) gbNode.port.postMessage({type:'stop'}); },  // editor stop: chip quiet, ownership stays; playScore() is the way back
     romMode(){ return gbRomMode; },

@@ -836,7 +836,23 @@ class GbChipProcessor extends AudioWorkletProcessor {
           var pr = globalThis.CT_GB.noteRegisters(pn, this.seq.bank);
           this.seq.apu.write(base, pr[0]); this.seq.apu.write(base + 1, pr[1]);
           this.seq.apu.write(base + 2, pr[2]); this.seq.apu.write(base + 3, pr[3]);
-          this.pokeOff = { ch: pch, at: this.seq.frame + Math.max(4, pn.frames | 0) };
+          // one pending note-off PER CHANNEL: a single slot meant that
+          // auditioning a note on another channel orphaned the previous one,
+          // and it sang on forever underneath the song
+          this.pokeOffs = this.pokeOffs || [null, null, null, null];
+          this.pokeOffs[pch] = this.seq.frame + Math.max(4, pn.frames | 0);
+        }
+      } else if (m.type === 'pokeoff') {
+        // stop an audition now (the pointer let go, or moved to another voice)
+        if (this.seq) {
+          var offCh = m.ch == null ? -1 : (m.ch | 0);
+          for (var oc = 0; oc < 4; oc++) {
+            if (offCh >= 0 && oc !== offCh) continue;
+            if (this.pokeOffs && this.pokeOffs[oc] == null) continue;
+            var ob2 = 0x11 + oc * 5;
+            this.seq.apu.write(ob2 + 1, 0x00); this.seq.apu.write(ob2 + 3, 0x80);
+            if (this.pokeOffs) this.pokeOffs[oc] = null;
+          }
         }
       } else if (m.type === 'rate') {
         this.chipRate = Math.max(0.25, Math.min(4, +m.rate || 1));
@@ -900,10 +916,13 @@ class GbChipProcessor extends AudioWorkletProcessor {
     }
     if (!this.seq || this.paused) { L.fill(0); if (R) R.fill(0); return true; }
     if (this.loopFrames && this.seq.frame >= this.loopFrames) this.seq.rewind();
-    if (this.pokeOff && this.seq.frame >= this.pokeOff.at) {
-      var ob = 0x11 + this.pokeOff.ch * 5;
-      this.seq.apu.write(ob + 1, 0x00); this.seq.apu.write(ob + 3, 0x80);
-      this.pokeOff = null;
+    if (this.pokeOffs) {
+      for (var pc = 0; pc < 4; pc++) {
+        if (this.pokeOffs[pc] == null || this.seq.frame < this.pokeOffs[pc]) continue;
+        var ob = 0x11 + pc * 5;
+        this.seq.apu.write(ob + 1, 0x00); this.seq.apu.write(ob + 3, 0x80);
+        this.pokeOffs[pc] = null;
+      }
     }
     let at = 0;
     if (this.lead > 0) {

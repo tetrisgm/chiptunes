@@ -616,9 +616,15 @@
     background:color-mix(in srgb, var(--vc) 26%, transparent); border:1px solid var(--vc);
     display:flex; align-items:center; justify-content:center; overflow:hidden; }
   #createscreen .n-note b{ font:800 10px var(--ui); color:#fff; white-space:nowrap; }
+  #createscreen .n-note .rz{ position:absolute; right:0; top:0; bottom:0; width:12px; cursor:ew-resize;
+    border-right:2px solid rgba(255,255,255,.35); border-radius:0 6px 6px 0; }
+  #createscreen .n-note:hover .rz{ border-right-color:rgba(255,255,255,.8); }
   #createscreen .n-note.sel{ box-shadow:0 0 0 2px rgba(255,255,255,.7); }
   #createscreen .n-note.sulk{ opacity:.35 !important; }
   #createscreen .n-note.rest{ border-style:dashed; }
+  #createscreen .n-barhl{ position:absolute; top:26px; height:calc(var(--laneh,62px) * 4);
+    background:rgba(255,255,255,.05); border-left:1px solid rgba(232,227,250,.4);
+    border-right:1px solid rgba(232,227,250,.4); pointer-events:none; }
   #createscreen .n-ph{ position:absolute; top:26px; bottom:0; width:2px; background:rgba(255,255,255,.75);
     pointer-events:none; display:none; }
   #createscreen .n-barbar{ flex:0 0 auto; display:flex; align-items:center; justify-content:center; gap:8px;
@@ -627,6 +633,7 @@
   #createscreen .n-hb{ height:32px; padding:0 12px; border-radius:9px; cursor:pointer; white-space:nowrap;
     background:rgba(255,255,255,.06); border:1px solid var(--mat-edge); color:var(--ink-2); font:700 11px var(--ui); }
   #createscreen .n-hb:hover{ border-color:var(--mat-edge-hi); color:var(--ink); }
+  #createscreen .n-hb.arm{ background:rgba(255,107,87,.18); border-color:rgba(255,107,87,.6); color:#FF9E90; }
   #createscreen .n-pick{ position:fixed; z-index:50; display:flex; flex-direction:column; gap:7px;
     padding:12px; border-radius:16px; background:rgba(14,17,24,.985);
     border:1px solid var(--mat-edge-hi); box-shadow:0 18px 50px rgba(0,0,0,.6); }

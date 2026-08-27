@@ -764,24 +764,29 @@
   }
 
   // hear a cell exactly as buildSong will play it
-  function auditionCell(cell) {
+  function auditionCell(cell, maxFrames) {
     resolveBank();
-    if (typeof Audio === 'undefined' || !Audio.pokeCreate) return;
+    if (typeof Audio === 'undefined' || !Audio.pokeCreate) return 1;
     var per = framesPer16();
     if (cell.r >= MEL_ROWS) {
       var d = DRUMS[cell.r - MEL_ROWS];
       Audio.pokeCreate({ ch: 3, frames: Math.round(per), midi: null,
                          inst: cell.inst != null ? cell.inst : INSTOF[d.id],
                          vel: cell.vel != null ? cell.vel : d.vel });
-      return;
+      return 3;
     }
     var voice = cellVoice(cell) || 'pulse';
     var heldSteps = Math.max(1, cell.len || 1);            // hear it for as long as it lasts
-    Audio.pokeCreate({ ch: voice === 'wave' ? 2 : 1, frames: Math.min(600, Math.round(per * heldSteps)),
+    var frames = Math.min(maxFrames || 600, Math.round(per * heldSteps));
+    Audio.pokeCreate({ ch: voice === 'wave' ? 2 : 1, frames: frames,
                        midi: cell.midi != null ? cell.midi : rowMidi(cell.r),
                        inst: cell.inst != null ? cell.inst : INSTOF[cell.st],
                        vel: cell.vel != null ? cell.vel : 0.8,
                        sweep: cell.sweep != null ? cell.sweep : (voice !== 'wave' && cell.z) ? 0x3E : (voice !== 'wave' && cell.u) ? 0x36 : 0 });
+    return voice === 'wave' ? 2 : 1;
+  }
+  function stopAudition(ch) {
+    if (typeof Audio !== 'undefined' && Audio.stopPoke) Audio.stopPoke(ch == null ? null : ch);
   }
 
   // ---- the view: one bar of one channel ------------------------------------
@@ -893,7 +898,7 @@
   }
 
   // ---- render --------------------------------------------------------------
-  var lastPh = -1, lastPlayBar = -1;
+  var lastPh = -1, lastPlayBar = -1, delArm = -1, delTimer = 0;
   var camX = 0, camFollow = true;
   function renderTransport() {
     var b = root.querySelector('[data-cr="play"]');
@@ -927,6 +932,17 @@
     });
     var lab = root.querySelector('.n-barnow');
     if (lab) lab.textContent = '#' + (viewBar + 1);
+    var hl = root.querySelector('.n-barhl');
+    if (hl) {
+      hl.style.left = (viewBar * 16 * stepW) + 'px';
+      hl.style.width = (16 * stepW) + 'px';
+    }
+    var db = root.querySelector('[data-delbar]');
+    if (db) {
+      var armed = delArm === viewBar;
+      db.textContent = armed ? '\u2212 Delete #' + (viewBar + 1) + '? Tap again' : '\u2212 Delete bar';
+      db.classList.toggle('arm', armed);
+    }
     applyCam();
   }
   // notes are drawn as blocks on their lane: as wide as they are long
@@ -958,7 +974,7 @@
                 ' style="left:' + (x.c * stepW + 1) + 'px;width:' + (len * stepW - 2) + 'px;' +
                 'bottom:' + Math.round(6 + deg * (laneH - 30)) + 'px;' +
                 'opacity:' + (vel === 0 ? 0.35 : 0.5 + vel * 0.5) + '">' +
-                '<b>' + label + '</b></i>';
+                '<b>' + label + '</b><u class="rz"></u></i>';
       });
       row.innerHTML = html;
     }
@@ -1231,8 +1247,10 @@
   // ---- bar operations ------------------------------------------------------
   function addBar() {
     if (S.bars >= 48) { hint('48 bars is the limit \u2014 that is about a minute and a half.'); return; }
-    snapshot(); S.bars++; viewBar = S.bars - 1;
-    if (loopBar >= 0) loopBar = viewBar;
+    snapshot();
+    var at = viewBar * 16;                      // an empty bar opens HERE
+    S.cells.forEach(function (x) { if (x.c >= at) x.c += 16; });
+    S.bars++;
     buildTrack(); centerOn(viewBar, true);
     dirty(); renderAll();
   }
@@ -1295,6 +1313,7 @@
         '</div>' +
         '<div class="n-scroll"><div class="n-bg"></div><div class="n-track">' +
           '<div class="n-ruler"></div>' +
+          '<div class="n-barhl"></div>' +
           CH.map(function (c, i) { return '<div class="n-row" data-ch="' + i + '" style="--vc:' + c.color + '"></div>'; }).join('') +
           '<div class="n-ph"></div>' +
         '</div></div>' +
@@ -1464,8 +1483,10 @@
         var col = +el.dataset.col, ch = +el.dataset.ch, i = cellIndexAt(ch, col);
         if (i >= 0) {
           try { sc.setPointerCapture(ev.pointerId); } catch (e) {}
+          var nb = el.getBoundingClientRect();
           nd = { cell: S.cells[i], ch: ch, sx: ev.clientX, sy: ev.clientY,
-                 grab: colAt(ev.clientX) - col, moved: false, pokeAt: 0 };
+                 grab: colAt(ev.clientX) - col, moved: false, pokeAt: 0, poked: -1,
+                 mode: (ev.clientX > nb.right - 14) ? 'len' : 'move' };
           return;
         }
       }
@@ -1478,8 +1499,19 @@
           nd.moved = true; snapshot();
         }
         var x = nd.cell;
+        if (nd.mode === 'len') {                           // pulling the right edge
+          var nl = Math.max(1, Math.min(cols() - x.c, colAt(ev.clientX) - x.c + 1));
+          if (nl !== (x.len || 1)) {
+            if (nl > 1) x.len = nl; else delete x.len;
+            selCh = nd.ch; selCol = x.c;
+            dirty();
+          }
+          return;
+        }
         var lane = laneAt(ev.clientY);
         if (lane >= 0 && lane !== nd.ch) {                 // dropped onto another voice
+          stopAudition(nd.poked >= 0 ? nd.poked : null);   // never leave the old voice ringing
+          nd.poked = -1;
           if (x.r < MEL_ROWS) pen.midi = x.midi != null ? x.midi : rowMidi(x.r);
           else pen.drum = x.r - MEL_ROWS;
           setCellVoice(x, lane);
@@ -1496,7 +1528,10 @@
         selCh = nd.ch; selCol = x.c;
         dirty();
         var t = performance.now();
-        if (t - nd.pokeAt > 110) { nd.pokeAt = t; auditionCell(x); }
+        if (t - nd.pokeAt > 110) {                         // short, so nothing rings on
+          nd.pokeAt = t;
+          nd.poked = auditionCell(x, Math.round(FPS * 0.35));
+        }
         return;
       }
       if (!pan) return;
@@ -1505,11 +1540,14 @@
       camX = Math.max(0, Math.min(camMax(), pan.cam - (ev.clientX - pan.x)));
       applyCam();
       var nb = barUnderCamera();
-      if (nb !== viewBar) { viewBar = nb; renderBars(); }
+      if (nb !== viewBar) { viewBar = nb; delArm = -1; renderBars(); }
     });
     ['pointerup', 'pointercancel'].forEach(function (t) {
       sc.addEventListener(t, function () {
-        if (nd && nd.moved) { dragged = true; renderEdit(); }   // a drag is not a click
+        if (nd) {
+          stopAudition(null);                              // let go = silence, on every voice
+          if (nd.moved) { dragged = true; renderEdit(); }  // a drag is not a click
+        }
         nd = null;
         setTimeout(function () { pan = null; dragged = false; }, 0);
       });
@@ -1582,7 +1620,18 @@
       var sh = ev.target.closest('[data-barshift]');
       if (sh) { shiftBar(+sh.dataset.barshift, viewBar); return; }
       var de = ev.target.closest('[data-delbar]');
-      if (de) { delBar(viewBar); return; }
+      if (de) {
+        if (delArm !== viewBar) {               // ask before throwing a bar away
+          delArm = viewBar;
+          clearTimeout(delTimer);
+          delTimer = setTimeout(function () { delArm = -1; renderBars(); }, 4000);
+          renderBars();
+          return;
+        }
+        clearTimeout(delTimer); delArm = -1;
+        delBar(viewBar);
+        return;
+      }
       var mc = ev.target.closest('[data-mood]');
       if (mc) { composeIntoGrid(mc.dataset.mood); tourAdvance(3); return; }
       var b = ev.target.closest('[data-cr]');

@@ -354,3 +354,13 @@ pass.
   that .n-step is gone.
 - Earlier/Later bar shifting is gone: dragging a note moves it in time.
 
+- The chip keeps ONE PENDING NOTE-OFF PER CHANNEL (pokeOffs[4]) and accepts a
+  'pokeoff' message. The single-slot version meant auditioning on a second
+  channel orphaned the first one's note-off, so a note dragged between lanes
+  sang on forever and fought the song. Drags now audition briefly (0.35s),
+  silence the old voice when crossing lanes, and stop everything on release.
+- A note's right 14px is a resize handle: dragging it sets the length.
+- The bar you are on is banded across all four lanes; Delete bar asks once
+  (the button arms for 4 seconds); Add bar inserts an empty bar AT the
+  current position and pushes the rest right.
+
