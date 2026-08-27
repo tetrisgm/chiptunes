@@ -496,6 +496,7 @@
     loopBar = loopBar === b ? -1 : b;
     queuedBar = null; loopPhase = 0;
     camFollow = true;
+    tourAdvance(1);
     if (loopBar >= 0) hint('Looping bar ' + (loopBar + 1) + '. Tap another number to queue it, this one for the whole song.');
     else hint('Back to the whole song.');
     if (playing) startPlayback(0); else { pausedAt = 0; draw(); }
@@ -606,6 +607,7 @@
   function composeIntoGrid(moodText, auto) {
     var C = (G.CT_COMPOSERS && G.CT_COMPOSERS.rrr_core) || null;
     if (!C || typeof C.compile !== 'function') return;
+    if (!auto) tourAdvance(2);
     if (auto) dropLiveScore(); else snapshot();     // auto-continue leaves the undo stack alone
     resolveBank();
     // seed search: compile random seeds until one satisfies the mood words
@@ -972,6 +974,47 @@
   var lenCell = null, lenMoved = false, noteRow = -1;
   var grabDC = 0, cwZoom = 1, tapTimer = 0, tapCell = null, hintedAccent = false;
   var hintTimer = 0, hintedPlace = false, hintedSulk = false;
+  // The first-run tour: three small cards anchored to the real UI, each
+  // advancing on the real action (or Next). Never shown twice.
+  var tourStep = -1;
+  function tourDone() {
+    tourStep = -1;
+    try { localStorage.setItem('ct-create-tour', '1'); } catch (e) {}
+    var t = root && root.querySelector('.cr-tour'); if (t) t.remove();
+  }
+  function tourShow(step) {
+    if (!root) return;
+    tourStep = step;
+    var t = root.querySelector('.cr-tour');
+    if (!t) { t = document.createElement('div'); t.className = 'cr-tour'; root.appendChild(t); }
+    var msgs = [
+      ['This song was just written for you.', 'Tap an empty cell to add a note. Tap a note to remove it, or drag it somewhere better.'],
+      ['Loop one bar while you shape it.', 'Tap a bar\u2019s number up top to loop just that bar. Tap it again for the whole song.'],
+      ['Moods write songs.', 'Type a feeling and press Make, or roll the dice. Everything it writes is yours to edit.']
+    ];
+    t.innerHTML = '<b>' + msgs[step][0] + '</b><span>' + msgs[step][1] + '</span>' +
+      '<div class="cr-tourbtns"><button type="button" data-tour="skip">Skip</button>' +
+      '<button type="button" data-tour="next">' + (step === 2 ? 'Done' : 'Next') + '</button></div>' +
+      '<i>' + (step + 1) + ' / 3</i>';
+    var main = root.querySelector('.cr-main').getBoundingClientRect();
+    var mood = root.querySelector('.cr-moodbox');
+    t.style.transform = 'none';
+    if (step === 0) {
+      t.style.left = '50%'; t.style.top = Math.round(main.top + main.height * 0.32) + 'px';
+      t.style.transform = 'translateX(-50%)';
+    } else if (step === 1) {
+      t.style.left = Math.max(12, main.left + 30) + 'px';
+      t.style.top = Math.round(main.top + 6) + 'px';
+    } else {
+      var mr = (mood || root.querySelector('.cr-top')).getBoundingClientRect();
+      t.style.left = Math.max(12, Math.min(window.innerWidth - 270, mr.left)) + 'px';
+      t.style.top = Math.round(mr.bottom + 10) + 'px';
+    }
+  }
+  function tourAdvance(from) {
+    if (tourStep !== from) return;
+    if (from >= 2) tourDone(); else tourShow(from + 1);
+  }
   var HINT_IDLE = 'Tap the grid to place notes. Drag a note to move it, pull its right edge to stretch, tap to remove.';
   function hint(t) {
     var el = root && root.querySelector('.cr-hint');
@@ -1017,6 +1060,7 @@
     S.cells.push(cell);
     dirty();
     auditionCell(cell);
+    tourAdvance(0);
     return cell;
   }
   // hear what was just placed, exactly as buildSong will play it
@@ -1339,6 +1383,11 @@
           auditionStamp(S.cur === 'eraser' || S.cur.charAt(0) === 'i' ? 'piano' : S.cur);
         return;
       }
+      var tb = ev.target.closest('[data-tour]');
+      if (tb) {
+        if (tb.dataset.tour === 'skip') tourDone(); else tourAdvance(tourStep);
+        return;
+      }
       var ln = ev.target.closest('.cr-lane');
       if (ln) {
         var li = +ln.dataset.lane;
@@ -1555,6 +1604,9 @@
       var mi0 = root.querySelector('.cr-mood'); if (mi0) mi0.value = m0;
       composeIntoGrid(m0);
       hint('A ' + m0 + ' song is already rolling. Type a mood, or take the pencil to it.');
+      var toured = false;
+      try { toured = !!localStorage.getItem('ct-create-tour'); } catch (e) {}
+      if (!toured) setTimeout(function () { if (isOpen()) tourShow(0); }, 1400);
     } else {
       startPlayback(0);
     }

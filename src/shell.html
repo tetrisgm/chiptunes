@@ -529,6 +529,19 @@
     background:rgba(255,255,255,.07); border:1px solid var(--mat-edge); color:var(--ink);
     font:500 12px var(--ui); outline:none; }
   #createscreen .cr-shelfempty{ text-align:center; font:400 11px var(--ui); color:var(--ink-2); }
+  #createscreen .cr-cv{ touch-action:none; }
+  #createscreen .cr-tour{ position:fixed; z-index:40; width:250px; padding:12px 14px 10px;
+    background:rgba(16,19,26,.97); border:1px solid rgba(123,220,160,.55); border-radius:14px;
+    box-shadow:0 10px 30px rgba(0,0,0,.5); }
+  #createscreen .cr-tour b{ display:block; font:700 13px/1.3 var(--ui); color:var(--ink); margin-bottom:4px; }
+  #createscreen .cr-tour span{ display:block; font:400 11.5px/1.45 var(--ui); color:var(--ink-2); }
+  #createscreen .cr-tour i{ position:absolute; top:10px; right:12px; font:600 9px var(--ui);
+    font-style:normal; color:var(--ink-2); }
+  #createscreen .cr-tourbtns{ display:flex; justify-content:flex-end; gap:8px; margin-top:10px; }
+  #createscreen .cr-tourbtns button{ height:28px; padding:0 12px; border-radius:999px; cursor:pointer;
+    font:600 11px var(--ui); background:rgba(255,255,255,.07); border:1px solid var(--mat-edge); color:var(--ink-2); }
+  #createscreen .cr-tourbtns button[data-tour="next"]{ background:rgba(123,220,160,.18);
+    border-color:rgba(123,220,160,.55); color:var(--ink); }
   #createscreen .cr-playstamp{ border-color:rgba(123,220,160,.45); }
   #createscreen .cr-playstamp.on{ background:rgba(123,220,160,.22); border-color:rgba(123,220,160,.7); }
   /* instant hover hints: every control names itself */
@@ -540,12 +553,24 @@
   #createscreen .cr-tools [data-tip]:hover::after{ bottom:auto; top:calc(100% + 8px); }
   #createscreen .cr-palsep{ width:1px; height:34px; background:var(--mat-edge); margin:0 4px; }
   @media (max-width:760px){
-    #createscreen .cr-top{ padding:8px 10px; gap:8px; }
-    #createscreen .cr-title span{ display:none; }
-    #createscreen .cr-stamp{ width:50px; height:54px; }
-    #createscreen .cr-bottom{ flex-wrap:wrap; justify-content:center; }
-    #createscreen .cr-moodbox{ margin-left:0; }
-    #createscreen .cr-mood{ width:130px; }
+    #createscreen{ touch-action:manipulation; }
+    #createscreen .cr-top{ padding:6px 8px; gap:6px; }
+    #createscreen .cr-title{ display:none; }
+    #createscreen .cr-btn{ height:34px; padding:0 10px; font-size:12px; }
+    #createscreen .cr-stamp{ width:50px; height:54px; flex:0 0 auto; }
+    #createscreen .cr-moodbox{ margin-left:0; flex:1 1 auto; }
+    #createscreen .cr-mood{ width:auto; flex:1 1 auto; min-width:70px; }
+    #createscreen .cr-moods{ flex-wrap:nowrap; overflow-x:auto; justify-content:flex-start;
+      padding:0 10px 6px; scrollbar-width:none; }
+    #createscreen .cr-moods::-webkit-scrollbar{ display:none; }
+    #createscreen .cr-chip{ height:30px; flex:0 0 auto; }
+    #createscreen .cr-lane{ height:30px; }
+    #createscreen .cr-pal{ flex-wrap:nowrap; overflow-x:auto; justify-content:flex-start;
+      scrollbar-width:none; }
+    #createscreen .cr-pal::-webkit-scrollbar{ display:none; }
+    #createscreen .cr-bottom{ flex-wrap:nowrap; gap:6px; padding:8px 10px 12px; }
+    #createscreen .cr-lab input{ width:64px; }
+    #createscreen .cr-tour{ width:220px; }
   }
 
   /* HOW IT WORKS: the one modal that explains the page. Material card over a

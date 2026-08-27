@@ -119,3 +119,13 @@ next. Infrastructure and operations live outside this repository.
   (v5 gated it on inst alone and silently dropped hand-placed stretches
   and accents from links); inst encodes as inst+1 so 0 means none.
 
+## Create wave 3 (2026-08-26)
+
+- First-run tour: three anchored cards (grid / bar loop / moods), each
+  advancing on the real action or Next; 'ct-create-tour' in localStorage
+  gates it forever after. Shown only on the fresh-visit path.
+- Phone: the mood chips and palette are single scrolling rows (hidden
+  scrollbars), chrome tightens, the title hides, touch-action:manipulation
+  kills double-tap zoom, and the grid canvas owns its gestures
+  (touch-action:none).
+
