@@ -334,3 +334,9 @@ pass.
   fade (class 'instant'). Before this the game showed through Create's
   200ms fade-in on every refresh.
 
+- The song starts at the left edge (sidePad 0); centring only happens when
+  the camera follows a bar mid-song.
+- The first gesture ONLY unlocks the audio device. Music starts when the
+  user asks: Play, the spacebar, or a mood chip (which composes and plays).
+  A stray click or keypress never starts playback.
+

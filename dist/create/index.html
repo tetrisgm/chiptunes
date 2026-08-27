@@ -3714,13 +3714,12 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   function armGesture() {
     if (armGesture.done) return;
     armGesture.done = true;
-    var go = function (ev) {
+    var go = function () {
+      // the first touch only unlocks the audio device. Nothing plays until you
+      // ask: Play, the spacebar, or asking for a new song.
       gestured = true;
+      wantStart = false;
       try { if (typeof Audio !== 'undefined' && Audio.resume) Audio.resume(true); } catch (e) {}
-      // if the gesture WAS the transport button, let its own handler decide,
-      // or we would start here and it would immediately pause again
-      var onPlay = ev && ev.target && ev.target.closest && ev.target.closest('[data-cr="play"]');
-      if (!onPlay && wantStart && isOpen()) { wantStart = false; startPlayback(pausedAt); }
       document.removeEventListener('pointerdown', go, true);
       document.removeEventListener('keydown', go, true);
       armGesture.done = false;
@@ -4648,7 +4647,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     var narrow = r.width < 520;
     stepW = narrow ? 26 : 34;
     laneH = Math.max(48, Math.floor((r.height - 28) / 4));   // the four lanes fill the room
-    sidePad = Math.max(0, Math.round(r.width / 2 - 8 * stepW));
+    sidePad = 0;                               // the song starts at the left edge
     root.style.setProperty('--stepw', stepW + 'px');
     root.style.setProperty('--laneh', laneH + 'px');
     root.style.setProperty('--sidepad', sidePad + 'px');
@@ -4707,6 +4706,8 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       var tag = (ev.target && ev.target.tagName) || '';
       if (/^(INPUT|TEXTAREA|SELECT)$/.test(tag)) return;
       ev.preventDefault(); ev.stopPropagation();
+      gestured = true;
+      try { if (typeof Audio !== 'undefined' && Audio.resume) Audio.resume(true); } catch (e) {}
       togglePlay();
     }, true);
 
