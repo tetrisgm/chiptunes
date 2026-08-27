@@ -26,7 +26,8 @@
     "panel:test": "node scripts/make-panel-test.js",
     "panel:test-nes": "node scripts/make-nes-test.js",
     "test:rom": "node scripts/verify-rom.js",
-    "test:automation": "node scripts/verify-automation.js"
+    "test:automation": "node scripts/verify-automation.js",
+    "test:kit": "node scripts/verify-kit.js"
   },
   "dependencies": {
     "node-web-audio-api": "2.0.0"

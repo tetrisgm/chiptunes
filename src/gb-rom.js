@@ -30,6 +30,16 @@
     label: function (n) { this.labels[n] = this.b.length; return this; },
 
     di:        function () { return this.byte(0xF3); },
+    ei:        function () { return this.byte(0xFB); },
+    reti:      function () { return this.byte(0xD9); },
+    push_de:   function () { return this.byte(0xD5); },
+    pop_de:    function () { return this.byte(0xD1); },
+    ld_l_a:    function () { return this.byte(0x6F); },
+    ld_h_a:    function () { return this.byte(0x67); },
+    ld_a_l:    function () { return this.byte(0x7D); },
+    ld_a_h:    function () { return this.byte(0x7C); },
+    add_hl_bc: function () { return this.byte(0x09); },
+    dec_a:     function () { return this.byte(0x3D); },
     halt:      function () { return this.byte(0x76); },
     ret:       function () { return this.byte(0xC9); },
     rlca:      function () { return this.byte(0x07); },
@@ -122,6 +132,7 @@
           this.b[f.at] = abs & 0xFF; this.b[f.at + 1] = (abs >> 8) & 0xFF;
         }
       }
+      this.b.labels = this.labels;
       return this.b;
     }
   };
@@ -142,6 +153,10 @@
   // note-on, an age counter, an active flag, and the channel-1 sweep latch
   // that suppresses vibrato on a sliding note.
   var H_VLO = 0x90, H_VHI = 0x92, H_VAGE = 0x94, H_VON = 0x96, H_SWP = 0x98;
+  // the kit streamer's state: where the sample is, and how many 32-nibble
+  // buffers of it are left
+  var H_KITLO = 0x9A, H_KITHI = 0x9B, H_KITN = 0x9C;
+  var KIT_PERIOD = 1792, KIT_TMA = 240;   // 8192 samples a second, 256 buffers
   var BAR_COL = [2, 7, 12, 17];              // 4 bars, 3 tiles wide, on a 20-tile screen
   var BAR_TOP = 2;                           // row 0 is the title, row 17 the labels
 
@@ -226,7 +241,7 @@
   // driver has to execute before it can honour it, which applied each event's
   // delay after the event instead of before it and slid the whole song one
   // event out of step -- the emulator caught it as noise notes landing late.
-  function driver(dataAddr, waveAddr, tileAddr, screenAddr) {
+  function driver(dataAddr, waveAddr, tileAddr, screenAddr, kitAddr) {
     var a = new Asm();
 
     a.di();
@@ -315,10 +330,13 @@
     a.jr_nz('notWave'); a.jp('doWave'); a.label('notWave');
     a.cp_n(0x03);
     a.jr_z('doSweep');
+    // absolute jumps: the handlers below have outgrown a relative jump's reach
     a.cp_n(0x04);
-    a.jr_z('doWrite');
+    a.jr_nz('notWrite'); a.jp('doWrite'); a.label('notWrite');
     a.cp_n(0x05);
-    a.jr_z('doVibOff');
+    a.jr_nz('notVibOff'); a.jp('doVibOff'); a.label('notVibOff');
+    a.cp_n(0x06);
+    a.jr_nz('notKit'); a.jp('doKit'); a.label('notKit');
     a.or_a();
     a.jr_z('doOff');
 
@@ -348,7 +366,7 @@
     a.ld_a_n(BAR_H).ldh_c_a();
     a.ldh_a_n(H_CH).add_a_n(H_BLANK).ld_c_a();
     a.ld_a_n(0x00).ldh_c_a();
-    a.jr('afterEvent');
+    a.jp('afterEvent');
 
     // sweep: one byte straight into NR10, ahead of the note-on it belongs to
     a.label('doSweep');
@@ -357,7 +375,7 @@
     a.or_a(); a.jr_z('swpStore');
     a.ld_a_n(0x01);
     a.label('swpStore'); a.ldh_n_a(H_SWP);
-    a.jr('afterEvent');
+    a.jp('afterEvent');
 
     // note off: silence the DAC, then retrigger so the channel actually stops.
     // Writing $08 leaves the DAC powered and the channel audible -- that cost a
@@ -371,7 +389,7 @@
     a.add_a_n(H_VON); a.ld_c_a();
     a.ld_a_n(0x00); a.ldh_c_a();
     a.label('offNoVib');
-    a.jr('afterEvent');
+    a.jp('afterEvent');
 
     // automation: one register, one value. The channel bits are unused -- the
     // register says which channel it belongs to.
@@ -380,7 +398,7 @@
     a.ld_c_a();
     a.ld_a_hli();                         // value
     a.ldh_c_a();
-    a.jr('afterEvent');
+    a.jp('afterEvent');
 
     // the note is steering its own pitch: stop the driver's vibrato on it
     a.label('doVibOff');
@@ -390,7 +408,62 @@
     a.add_a_n(H_VON); a.ld_c_a();
     a.ld_a_n(0x00); a.ldh_c_a();
     a.label('vibOffDone');
-    a.jr('afterEvent');
+    a.jp('afterEvent');
+
+    // KIT: start a sample. The four-bit data streams into wave RAM from the
+    // timer interrupt, 32 nibbles at a time, 256 times a second -- which is
+    // exactly 8192 samples a second at channel 3's period 1792, so the sample
+    // clock and the refill clock never drift apart.
+    a.label('doKit');
+    a.di();                               // no interrupt while we set this up
+    a.ld_a_hli();                         // sample id
+    a.push_hl();
+    a.ld_c_a(); a.add_a_a(); a.add_a_c(); // id*3: the table is lo, hi, buffers
+    a.ld_c_a(); a.ld_b_n(0);
+    a.ld_hl_nn(kitAddr);
+    a.add_hl_bc();
+    a.ld_a_hli(); a.ldh_n_a(H_KITLO);
+    a.ld_a_hli(); a.ldh_n_a(H_KITHI);
+    a.ld_a_hli(); a.ldh_n_a(H_KITN);
+    a.ld_a_n(0x20); a.ldh_n_a(0x1C);      // NR32: full output
+    a.ld_a_n(KIT_PERIOD & 0xFF); a.ldh_n_a(0x1D);   // NR33: the rate
+    a.call('kitFill');                    // buffer zero now...
+    a.ld_a_n(KIT_TMA); a.ldh_n_a(0x06);   // TMA
+    a.ld_a_n(KIT_TMA); a.ldh_n_a(0x05);   // TIMA: the next one lands a buffer later
+    a.ld_a_n(0x04); a.ldh_n_a(0x07);      // TAC: on, 4096 Hz
+    a.ld_a_n(0x04); a.ldh_n_a(0xFF);      // IE: timer only
+    a.ei();
+    a.pop_hl();
+    a.jp('afterEvent');
+
+    // one buffer into wave RAM. The DAC goes off around the writes: on a DMG
+    // wave RAM is not reliably writable while the channel is running.
+    a.label('kitFill');
+    a.ldh_a_n(H_KITN); a.or_a();
+    a.jr_z('kitStop');
+    a.ldh_a_n(H_KITLO); a.ld_l_a();
+    a.ldh_a_n(H_KITHI); a.ld_h_a();
+    a.ld_a_n(0x00); a.ldh_n_a(0x1A);      // NR30: DAC off
+    a.ld_c_n(0x30);
+    for (var kb = 0; kb < 16; kb++) { a.ld_a_hli(); a.ldh_c_a(); a.inc_c(); }
+    a.ld_a_n(0x80); a.ldh_n_a(0x1A);      // NR30: DAC on
+    a.ld_a_n(0x80 | ((KIT_PERIOD >> 8) & 7)); a.ldh_n_a(0x1E);   // NR34: trigger
+    a.ld_a_l(); a.ldh_n_a(H_KITLO);
+    a.ld_a_h(); a.ldh_n_a(H_KITHI);
+    a.ldh_a_n(H_KITN); a.dec_a(); a.ldh_n_a(H_KITN);
+    a.ret();
+    a.label('kitStop');
+    a.ld_a_n(0x00);
+    a.ldh_n_a(0x07);                      // timer off
+    a.ldh_n_a(0x1C);                      // and channel 3 quiet until the song wants it
+    a.ret();
+
+    // the timer interrupt itself, reached from the vector at $0050
+    a.label('kitIsr');
+    a.push_af(); a.push_hl(); a.push_bc();
+    a.call('kitFill');
+    a.pop_bc(); a.pop_hl(); a.pop_af();
+    a.reti();
 
     // wave: copy 16 bytes (32 nibbles) into wave RAM
     a.label('doWave');
@@ -525,7 +598,10 @@
   // A note-on becomes the four bytes the hardware wants, computed here.
   function encode(score) {
     var gb = score && score.gb;
-    if (!gb || !gb.notes || !gb.notes.length) throw new Error('gb-rom: score has no gb data');
+    // a song may be nothing but kit hits -- that is a drum machine, and a
+    // perfectly good cartridge
+    if (!gb || !gb.notes || (!gb.notes.length && !(gb.kit && gb.kit.length)))
+      throw new Error('gb-rom: score has no gb data');
     var HW = G.CT_GB_HARDWARE || G.CT_GB;
     if (!HW || !HW.midiToPeriod) throw new Error('gb-rom: gb-hardware.js not loaded');
 
@@ -603,11 +679,14 @@
     (gb.waveLoads || []).forEach(function (w) {
       evs.push({ f: w.f | 0, ch: 2, type: 2, d: [w.slot & 0xFF] });
     });
+    (gb.kit || []).forEach(function (k) {
+      evs.push({ f: k.f | 0, ch: 2, type: 6, d: [k.id & 7] });
+    });
 
     // At one frame: offs first, wave loads, then sweep, then note-ons, and
     // automation last -- a duty change on a note's own frame has to land AFTER
     // the note-on that would otherwise overwrite it.
-    var TYPEW = { 0: 0, 2: 1, 3: 2, 1: 3, 5: 4, 4: 5 };
+    var TYPEW = { 0: 0, 2: 1, 3: 2, 1: 3, 5: 4, 4: 5, 6: 6 };
     evs.sort(function (a, b) { return a.f - b.f || TYPEW[a.type] - TYPEW[b.type]; });
 
     var out = [], i;
@@ -645,6 +724,31 @@
     return out;
   }
 
+  // The kit table is eight entries of [lo, hi, buffers] followed by the packed
+  // samples the song actually uses; an unused id points at zero buffers, which
+  // kitFill treats as "already finished".
+  function kitBytes(score, base) {
+    var K = G.CT_GB_KITS;
+    var used = {}, order = [];
+    ((score.gb && score.gb.kit) || []).forEach(function (k) {
+      var id = k.id | 0;
+      if (used[id] == null) { used[id] = true; order.push(id); }
+    });
+    var table = [], data = [], at = base + 24;    // 8 entries x 3 bytes
+    var addrOf = {}, lenOf = {};
+    order.forEach(function (id) {
+      var bytes = K ? K.packed(id) : new Uint8Array(0);
+      addrOf[id] = at; lenOf[id] = bytes.length / 16;   // buffers of 16 bytes
+      for (var i = 0; i < bytes.length; i++) data.push(bytes[i]);
+      at += bytes.length;
+    });
+    for (var id2 = 0; id2 < 8; id2++) {
+      var ad = addrOf[id2] || 0, ln = lenOf[id2] || 0;
+      table.push(ad & 0xFF, (ad >> 8) & 0xFF, ln & 0xFF);
+    }
+    return table.concat(data);
+  }
+
   // -------------------------------------------------------------------- build
   function buildRom(score, opts) {
     opts = opts || {};
@@ -668,23 +772,27 @@
 
     var data = encode(score);
     var waves = waveBytes(score);
+    var kits = kitBytes(score, 0);          // length is stable; addresses come below
     var tiles = tileBytes();
     var screen = screenBytes();
     // The driver's length depends on the addresses it is given (16-bit operands
     // do not change size, but the label fixups do), so it is linked twice and
     // the second pass is a fixed point.
-    var code = driver(0, 0, 0, 0), dataAddr, waveAddr, tileAddr, screenAddr;
+    var code = driver(0, 0, 0, 0, 0), dataAddr, waveAddr, kitAddr, tileAddr, screenAddr;
     for (var pass = 0; pass < 2; pass++) {
       dataAddr = ORG_CODE + code.length;
       waveAddr = dataAddr + data.length;
-      tileAddr = waveAddr + waves.length;
+      kitAddr = waveAddr + waves.length;
+      tileAddr = kitAddr + kits.length;
       screenAddr = tileAddr + tiles.length;
-      code = driver(dataAddr, waveAddr, tileAddr, screenAddr);
+      code = driver(dataAddr, waveAddr, tileAddr, screenAddr, kitAddr);
     }
     dataAddr = ORG_CODE + code.length;
     waveAddr = dataAddr + data.length;
-    tileAddr = waveAddr + waves.length;
+    kitAddr = waveAddr + waves.length;
+    tileAddr = kitAddr + kits.length;
     screenAddr = tileAddr + tiles.length;
+    kits = kitBytes(score, kitAddr);        // now the pointers can be real
 
     var end = screenAddr + screen.length;
     if (end > ROM_SIZE) {
@@ -693,6 +801,12 @@
     for (i = 0; i < code.length; i++)   rom[ORG_CODE + i] = code[i];
     for (i = 0; i < data.length; i++)   rom[dataAddr + i] = data[i];
     for (i = 0; i < waves.length; i++)  rom[waveAddr + i] = waves[i];
+    for (i = 0; i < kits.length; i++)   rom[kitAddr + i] = kits[i];
+    // the timer interrupt vector: the streamer lives inside the driver
+    if (code.labels && code.labels.kitIsr != null) {
+      var isr = ORG_CODE + code.labels.kitIsr;
+      rom[0x0050] = 0xC3; rom[0x0051] = isr & 0xFF; rom[0x0052] = (isr >> 8) & 0xFF;
+    }
     for (i = 0; i < tiles.length; i++)  rom[tileAddr + i] = tiles[i];
     for (i = 0; i < screen.length; i++) rom[screenAddr + i] = screen[i];
 

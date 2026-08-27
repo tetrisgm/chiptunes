@@ -265,6 +265,12 @@
     // synthesis, and it is the wave channel's only way to change timbre
     var wl = this.waveAt = {};
     (gb && gb.waveLoads || []).forEach(function (w) { wl[w.f | 0] = w.slot | 0; });
+    // KIT SAMPLES: four-bit PCM streamed into wave RAM, buffer by buffer. The
+    // cartridge does this from its timer interrupt; here the same writes are
+    // made at the same cycle counts, which is what makes the two agree.
+    var ka = this.kitAt = {};
+    (gb && gb.kit || []).forEach(function (k) { ka[k.f | 0] = k.id | 0; });
+    this.kit = null; this.kitPos = 0; this.kitLeft = 0; this.kitCyc = 0;
     var byFrame = this.byFrame = {};
     var inst = (this.bank && this.bank.instruments) || [];
     (gb && gb.notes || []).forEach(function (n) {
@@ -292,6 +298,34 @@
       this.apu.write(0x30 + i, (((w[i * 2] || 0) & 15) << 4) | ((w[i * 2 + 1] || 0) & 15));
   };
 
+  // one 32-nibble buffer, exactly as the cartridge's kitFill writes it
+  Sequencer.prototype._kitFill = function () {
+    var K = G.CT_GB_KITS;
+    if (!this.kit || this.kitLeft <= 0) {
+      this.kit = null;
+      this.apu.write(0x1C, 0x00);            // channel 3 quiet again
+      return;
+    }
+    var d = this.kit, p = this.kitPos;
+    this.apu.write(0x1A, 0x00);              // DAC off while wave RAM changes
+    for (var i = 0; i < 16; i++)
+      this.apu.write(0x30 + i, ((d[p + i * 2] & 15) << 4) | (d[p + i * 2 + 1] & 15));
+    this.apu.write(0x1A, 0x80);
+    this.apu.write(0x1E, 0x80 | ((K.PERIOD >> 8) & 7));   // trigger
+    this.kitPos += 32;
+    this.kitLeft--;
+    this.waveSlot = -1;                      // wave RAM is a sample now, not a table
+  };
+  Sequencer.prototype._kitStart = function (id) {
+    var K = G.CT_GB_KITS;
+    if (!K) return;
+    var k = K.byId(id);
+    this.kit = k.data; this.kitPos = 0; this.kitLeft = k.buffers;
+    this.apu.write(0x1C, 0x20);              // NR32: full output
+    this.apu.write(0x1D, K.PERIOD & 0xFF);   // NR33: 8192 samples a second
+    this._kitFill();
+    this.kitCyc = K.BUF * (2048 - K.PERIOD) * 2;   // one buffer, in cycles
+  };
   Sequencer.prototype.setRate = function (rate) {
     this.rate = Math.max(0.25, Math.min(4, +rate || 1));
   };
@@ -355,6 +389,8 @@
     if (vo) for (i = 0; i < vo.length; i++) if (vo[i] < 2) this.vib[vo[i]].on = false;
     var wls = this.waveAt[this.frame];
     if (wls != null) this._loadWave(wls);
+    var kid = this.kitAt[this.frame];
+    if (kid != null) this._kitStart(kid);
     var aw = this.auto[this.frame];
     if (aw) for (i = 0; i < aw.length; i++) this.apu.write(aw[i].r, aw[i].v);
     this.frame++;
@@ -399,10 +435,21 @@
     // rate scales the FRAME clock only: a pinned tempo plays the score faster
     // or slower without touching pitch, exactly like a tracker's speed setting.
     // Envelopes and sweeps stay in real time, which is what the hardware does.
+    var K = G.CT_GB_KITS;
     for (var i = 0; i < count; i++) {
       if (this.acc <= 0) { this._runFrame(); this.acc += this.samplesPerFrame / this.rate; }
       this.acc -= 1;
-      this.apu._advance(this.apu.cps);
+      // a sample refill lands mid-sample, so the advance is SPLIT at it: the
+      // cartridge's interrupt is exact and this has to be too
+      var cy = this.apu.cps;
+      while (this.kit && this.kitCyc <= cy) {
+        this.apu._advance(this.kitCyc);
+        cy -= this.kitCyc;
+        this._kitFill();
+        this.kitCyc = K.BUF * (2048 - K.PERIOD) * 2;
+      }
+      if (this.kit) this.kitCyc -= cy;
+      this.apu._advance(cy);
       out[from + i] = this.apu._mix();
     }
   };

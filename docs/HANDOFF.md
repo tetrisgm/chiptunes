@@ -612,3 +612,34 @@ pass.
   inside the handler, which is what browsers allow and what every player does.
   The rule that a stray key must not start music still holds -- nothing else
   sets it.
+
+- KIT SAMPLES: FOUR-BIT PCM ON CHANNEL 3, the last thing the editor could not
+  say. The DMG has one DAC -- 32 nibbles of wave RAM -- and every Game Boy game
+  that plays a sample plays it there, by rewriting that buffer while the channel
+  runs. src/gb-kits.js SYNTHESISES the drums (oscillators and a seeded LFSR, so
+  the same kit everywhere and nothing lifted); 8 samples, 3.5 KB packed.
+
+- THE RATE IS CHOSEN, NOT ROUNDED, and that is the whole design. Channel 3
+  steps its 32 nibbles at 4194304/((2048-period)*2), so period 1792 is exactly
+  8192 samples a second and one buffer is exactly 1/256 s. The cartridge
+  refills from the TIMER interrupt: the 4096 Hz clock with TMA=240 fires
+  exactly 256 times a second. Sample clock and refill clock are the same clock,
+  so nothing drifts. The alternative -- refilling once a frame, no interrupts --
+  is 1911 Hz and 955 Hz of bandwidth: muffled thuds, no click, no sizzle.
+
+- WHAT IT COST, all of it deliberate: the CPU emulator learned interrupts, the
+  timer and six opcodes (it throws on anything the driver did not emit, so the
+  additions are exactly what is used); the driver gained doKit, kitFill and an
+  ISR at the $0050 vector; and a kit hit STEALS THE BASS VOICE for its length,
+  exactly as on hardware and in LSDJ. Create emits a waveLoads entry after each
+  hit to give the bass its table back, since wave RAM now holds a sample.
+
+- npm run test:kit is the gate, and it is the strongest one here: the two sides
+  reach the sound by completely different routes (a cycle counter versus a real
+  interrupt on an emulated CPU), so it plays every drum through both and
+  compares spectrograms -- 0.9918 correlation, 1.34 dB a band -- and asserts the
+  two clocks are exactly in step.
+
+- The dispatch in the driver now uses jp for every handler: the event section
+  outgrew a relative jump's reach twice in one day. If you add a handler and see
+  'gb-rom: jr out of range', that is the assembler's guard doing its job.

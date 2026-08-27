@@ -108,6 +108,9 @@ class GbChipProcessor extends AudioWorkletProcessor {
           this.pokeOffs = this.pokeOffs || [null, null, null, null];
           this.pokeOffs[pch] = this.seq.frame + Math.max(4, pn.frames | 0);
         }
+      } else if (m.type === 'kit') {
+        // audition a sampled drum: the same streamer the song uses
+        if (this.seq && this.seq._kitStart) this.seq._kitStart(m.id | 0);
       } else if (m.type === 'pokeoff') {
         // stop an audition now (the pointer let go, or moved to another voice)
         if (this.seq) {

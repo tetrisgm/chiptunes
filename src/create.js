@@ -13,6 +13,7 @@
   'use strict';
 
   var FPS = 59.7275;
+  var FRAME_CYCLES = 70224;               // master cycles in one LCD frame
   var MAJOR = [0, 2, 4, 5, 7, 9, 11];
   var MINOR = [0, 2, 3, 5, 7, 8, 10];
   var MEL_ROWS = 15;                        // two octaves + the octave top
@@ -330,7 +331,7 @@
   function buildSong() {
     resolveBank();
     freshSongBank();
-    var moves = { auto: [], vibOff: [], waveLoads: [], pan: [], last: [null, null, null, null] };
+    var moves = { auto: [], vibOff: [], waveLoads: [], pan: [], kit: [], last: [null, null, null, null] };
     var notes = [], per = framesPer16();
     var byCol = {};
     S.cells.forEach(function (x) { delete x.x; delete x.rch; (byCol[x.c] = byCol[x.c] || []).push(x); });
@@ -344,6 +345,16 @@
           var d = DRUMS[x.r - MEL_ROWS];
           if (drum) { x.x = 1; return; }
           drum = true; x.rch = 3;
+          if (x.kt) {                                       // a KIT hit: four-bit
+            var kid = (x.kt - 1) & 7;                       // sample on channel 3
+            moves.kit.push({ f: colFrame(c), id: kid });
+            var kk = G.CT_GB_KITS && G.CT_GB_KITS.byId(kid);
+            // the sample leaves a waveform in wave RAM that is not a table, so
+            // the bass voice needs its own back when the hit is over
+            if (kk) moves.waveLoads.push({ f: colFrame(c) + Math.ceil(kk.data.length / 32) * 32 * 512 / FRAME_CYCLES + 1,
+                                           slot: laneWave() });
+            return;
+          }
           var dInst = instOf(x, 3);
           if (dInst == null) dInst = x.inst != null ? x.inst : INSTOF[d.id];
           var dVel = x.vel != null ? x.vel : d.vel;
@@ -421,7 +432,7 @@
     var total = Math.round(cols() * per);
     return { notes: notes, bank: songBank || BANK, totalFrames: total,
              auto: moves.auto, vibOff: moves.vibOff, waveLoads: moves.waveLoads,
-             loopFrames: total };
+             kit: moves.kit, loopFrames: total };
   }
 
   // ---- serialize: the song IS the URL --------------------------------------
@@ -432,13 +443,13 @@
   // (bpm-70)/2. All older versions still decode.
   function encode() {
     var ids = STAMPS.map(function (s) { return s.id; });
-    var out = [9, S.key, S.minor, S.bars, Math.round((S.bpm - 70) / 2) & 63, S.swing,
+    var out = [10, S.key, S.minor, S.bars, Math.round((S.bpm - 70) / 2) & 63, S.swing,
                Math.max(0, GRIDS.indexOf(spb()))];
     S.cells.forEach(function (x) {
       var st = x.r >= MEL_ROWS ? 15 : (x.st && x.st.charAt(0) === 'i' ? 14 : Math.max(0, ids.indexOf(x.st)));
       var ext = x.inst != null || x.vel != null || x.midi != null || (x.len || 1) > 1 || x.sweep != null || x.ch != null;
       var snd = x.dy != null || x.fd != null || x.wv != null || x.nz != null || x.ns != null;
-      var mov = !!(x.vb || x.sq || x.mp || x.pn);
+      var mov = !!(x.vb || x.sq || x.mp || x.pn || x.gl || x.kt || x.dt);
       var cmd = (x.u ? 1 : x.q ? 2 : x.g ? 3 : x.f ? 4 : 0) | (snd ? 8 : 0) | (mov ? 16 : 0);
       out.push(x.c & 63, (x.c >> 6) & 63, x.r | (x.z ? 32 : 0), st | (x.w ? 16 : 0) | (ext ? 32 : 0), cmd);
       if (ext) {
@@ -459,7 +470,9 @@
                  (x.wv | 0) & 31,
                  (x.nz | 0) & 15);
       }
-      if (mov) out.push((x.vb ? 1 : 0) | (x.sq ? 2 : 0) | (x.mp ? 4 : 0) | (((x.pn | 0) & 3) << 3));
+      if (mov) out.push((x.vb ? 1 : 0) | (x.sq ? 2 : 0) | (x.mp ? 4 : 0) | (((x.pn | 0) & 3) << 3) | (x.gl ? 32 : 0),
+                        (x.kt | 0) & 15,                       // which sample, if any
+                        ((x.dt | 0) + 16) & 63);               // detune, offset so it fits
     });
     return out.map(function (v) { return B64[v & 63]; }).join('');
   }
@@ -467,7 +480,7 @@
     try {
       var v = []; for (var i = 0; i < str.length; i++) { var ix = B64.indexOf(str[i]); if (ix < 0) return null; v.push(ix); }
       var ver = v[0];
-      if (ver < 1 || ver > 9) return null;
+      if (ver < 1 || ver > 10) return null;
       var st2 = freshState();
       st2.key = v[1] % 12; st2.minor = v[2] & 1;
       st2.bars = ver === 1 ? ([2, 4, 8].indexOf(v[3]) >= 0 ? v[3] : 4)
@@ -526,7 +539,14 @@
             if (mvb & 2) cell2.sq = 1;
             if (mvb & 4) cell2.mp = 1;
             if ((mvb >> 3) & 3) cell2.pn = (mvb >> 3) & 3;
+            if (mvb & 32) cell2.gl = 1;
             k += 1;
+            if (ver >= 10 && k + 1 < v.length + 1) {
+              if (v[k] & 15) cell2.kt = v[k] & 15;
+              var dtv = v[k + 1] & 63;
+              if (dtv !== 16) cell2.dt = dtv - 16;
+              k += 2;
+            }
           }
           st2.cells.push(cell2);
         }
@@ -1019,6 +1039,10 @@
     // a drag auditions many times a second: no sequences there
     if (maxFrames == null && previewMotion(cell, null, per))
       return cell.r >= MEL_ROWS ? 3 : (cellVoice(cell) === 'wave' ? 2 : 1);
+    if (cell.r >= MEL_ROWS && cell.kt) {     // a sample auditions through the chip too
+      if (Audio.pokeKit) Audio.pokeKit((cell.kt - 1) & 7);
+      return 2;
+    }
     if (cell.r >= MEL_ROWS) {
       var d = DRUMS[cell.r - MEL_ROWS];
       Audio.pokeCreate({ ch: 3, frames: Math.round(per), midi: null,
@@ -1374,6 +1398,14 @@
       return out;
     }
     if (ch === 3) {
+      var kits = (G.CT_GB_KITS && G.CT_GB_KITS.kits()) || [];
+      out += row('Kit', '<button type="button" class="n-pv' + (!(x && x.kt) ? ' on' : '') +
+                        '" data-ed="kt0" data-full="Chip">Chip</button>' +
+        kits.map(function (kk) {
+          return '<button type="button" class="n-pv' + (x && x.kt === kk.id + 1 ? ' on' : '') +
+                 '" data-ed="kt' + (kk.id + 1) + '" data-full="' + kk.name + '">' + kk.name + '</button>';
+        }).join('') + '<em class="n-phint">a sample borrows the Bass voice while it plays</em>');
+      if (x && x.kt) return out;              // a sample has no noise settings
       var don = presetOn(PRESETS.noise, p);
       out += row('Sounds', PRESETS.noise.map(function (ps, i) {
         return '<button type="button" class="n-pv' + (i === don ? ' on' : '') +
@@ -1524,6 +1556,14 @@
         if (pop2) pop2.innerHTML = soundPanel(sch, null);
         auditionCell(penCell(0));
       }
+      return;
+    }
+    if (what.slice(0, 2) === 'kt') {          // a sampled drum, or back to the chip
+      if (!x) { hint('Pick a drum first, then give it a sample.'); return; }
+      snapshot();
+      var kv = +what.slice(2);
+      if (kv) x.kt = kv; else delete x.kt;
+      dirty(); renderEdit(); auditionCell(x);
       return;
     }
     if (what.slice(0, 2) === 'dt') {          // fine tuning, in period units
@@ -2314,7 +2354,7 @@
                waveLoads: S ? buildSong().waveLoads.length : 0 }; },
     _score: function () {                   // the exact song the chip is given
       var g = buildSong();
-      return { notes: g.notes, auto: g.auto, vibOff: g.vibOff, waveLoads: g.waveLoads,
+      return { notes: g.notes, auto: g.auto, vibOff: g.vibOff, waveLoads: g.waveLoads, kit: g.kit,
                totalFrames: g.totalFrames, loopFrames: g.loopFrames,
                instruments: g.bank.instruments, waveTables: g.bank.waveTables }; },
     _rec: function () {                     // what the selected note tells the chip

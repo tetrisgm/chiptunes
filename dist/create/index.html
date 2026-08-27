@@ -2217,6 +2217,119 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
 })(typeof globalThis !== 'undefined' ? globalThis : window);
 
+/* ===== src/gb-kits.js ===== */
+// KIT SAMPLES: four-bit drums for channel 3.
+//
+// The DMG has one DAC -- 32 nibbles of wave RAM on channel 3 -- and every Game
+// Boy game that plays a sample plays it here, by rewriting that buffer while
+// the channel runs. LSDJ's kits are this. It is the last thing the editor could
+// not say, and it is the reason a real drum sounds like a drum instead of a
+// filtered noise burst.
+//
+// THE RATE IS CHOSEN, NOT ROUNDED. Channel 3 steps through its 32 nibbles at
+// 4194304 / ((2048 - period) * 2) samples a second, so period 1792 gives
+// exactly 8192 Hz and a 32-nibble buffer lasts exactly 1/256 s. The cartridge
+// refills it from the timer interrupt, which with the 4096 Hz clock and
+// TMA = 240 fires exactly 256 times a second: the sample clock and the refill
+// clock are the same clock, so nothing drifts. Four kilohertz of bandwidth is
+// enough for a kick's body and click, a snare's rasp, a hat's sizzle.
+//
+// The samples are SYNTHESISED here, deterministically, from oscillators and a
+// seeded LFSR -- nothing is recorded and nothing is lifted, which keeps the
+// repository the same kind of thing it has always been.
+(function (G) {
+  'use strict';
+
+  var RATE = 8192;                       // samples a second, exact (period 1792)
+  var PERIOD = 1792;                     // channel 3's frequency for that rate
+  var BUF = 32;                          // nibbles in wave RAM
+  var TMA = 240;                         // timer reload: 4096 / (256 - 240) = 256 Hz
+
+  // a small deterministic noise source: the same kit every time, everywhere
+  function lfsr(seed) {
+    var s = seed >>> 0 || 1;
+    return function () {
+      s ^= s << 13; s >>>= 0;
+      s ^= s >> 17;
+      s ^= s << 5; s >>>= 0;
+      return (s / 4294967296) * 2 - 1;
+    };
+  }
+  function env(t, decay) { return Math.exp(-t / decay); }
+
+  // Each recipe returns a float in -1..1 for time t (seconds); the sample is
+  // then quantised to a nibble with 8 at the centre, because a DC step is what
+  // clicks when the channel restarts between buffers.
+  var RECIPES = [
+    { id: 0, n: 'Kick', len: 0.11, f: function (t, rnd) {
+        var f0 = 145 * Math.exp(-t / 0.028) + 48;          // the pitch drop IS the kick
+        return Math.sin(2 * Math.PI * f0 * t) * env(t, 0.05) +
+               (t < 0.004 ? rnd() * 0.5 * env(t, 0.0015) : 0);
+      } },
+    { id: 1, n: 'Snare', len: 0.13, f: function (t, rnd) {
+        return rnd() * 0.75 * env(t, 0.045) +
+               Math.sin(2 * Math.PI * 190 * t) * 0.5 * env(t, 0.055);
+      } },
+    { id: 2, n: 'Hat', len: 0.04, f: function (t, rnd) {
+        return rnd() * env(t, 0.011);
+      } },
+    { id: 3, n: 'Open', len: 0.17, f: function (t, rnd) {
+        return rnd() * env(t, 0.07);
+      } },
+    { id: 4, n: 'Clap', len: 0.14, f: function (t, rnd) {
+        var burst = (t < 0.006 || (t > 0.009 && t < 0.014) || (t > 0.018 && t < 0.023)) ? 1
+                  : env(Math.max(0, t - 0.023), 0.035) * 0.7;
+        return rnd() * burst;
+      } },
+    { id: 5, n: 'Tom', len: 0.12, f: function (t, rnd) {
+        var f0 = 210 * Math.exp(-t / 0.06) + 110;
+        return Math.sin(2 * Math.PI * f0 * t) * env(t, 0.06);
+      } },
+    { id: 6, n: 'Rim', len: 0.03, f: function (t, rnd) {
+        return (Math.sin(2 * Math.PI * 820 * t) * 0.6 + rnd() * 0.4) * env(t, 0.006);
+      } },
+    { id: 7, n: 'Bell', len: 0.10, f: function (t, rnd) {
+        return (Math.sign(Math.sin(2 * Math.PI * 540 * t)) * 0.45 +
+                Math.sign(Math.sin(2 * Math.PI * 800 * t)) * 0.35) * env(t, 0.045);
+      } }
+  ];
+
+  var CACHE = null;
+  function kits() {
+    if (CACHE) return CACHE;
+    CACHE = RECIPES.map(function (r) {
+      var n = Math.round(r.len * RATE);
+      n = Math.ceil(n / BUF) * BUF;                 // whole buffers: the last one
+      var rnd = lfsr(0x9E3779B9 ^ (r.id * 2654435761));   // must not be half fed
+      var data = new Uint8Array(n);
+      for (var i = 0; i < n; i++) {
+        var t = i / RATE;
+        var v = i < r.len * RATE ? r.f(t, rnd) : 0;
+        // a gentle fade over the last buffer, so a sample never ends on a step
+        var left = n - i;
+        if (left < BUF) v *= left / BUF;
+        data[i] = Math.max(0, Math.min(15, Math.round(8 + v * 7)));
+      }
+      return { id: r.id, name: r.n, rate: RATE, period: PERIOD, data: data,
+               buffers: n / BUF, seconds: n / RATE };
+    });
+    return CACHE;
+  }
+  function byId(id) { var k = kits(); return k[(id | 0) % k.length]; }
+  // two nibbles to a byte, high first, exactly as wave RAM reads them
+  function packed(id) {
+    var d = byId(id).data, out = new Uint8Array(d.length / 2);
+    for (var i = 0; i < out.length; i++) out[i] = ((d[i * 2] & 15) << 4) | (d[i * 2 + 1] & 15);
+    return out;
+  }
+
+  var API = { RATE: RATE, PERIOD: PERIOD, BUF: BUF, TMA: TMA,
+              kits: kits, byId: byId, packed: packed, names: function () {
+                return kits().map(function (k) { return k.name; }); } };
+  G.CT_GB_KITS = API;
+  if (typeof module !== 'undefined' && module.exports) module.exports = API;
+})(typeof globalThis !== 'undefined' ? globalThis : window);
+
 /* ===== src/gb-apu.js ===== */
 // A DMG APU, at the register level.
 //
@@ -2485,6 +2598,12 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     // synthesis, and it is the wave channel's only way to change timbre
     var wl = this.waveAt = {};
     (gb && gb.waveLoads || []).forEach(function (w) { wl[w.f | 0] = w.slot | 0; });
+    // KIT SAMPLES: four-bit PCM streamed into wave RAM, buffer by buffer. The
+    // cartridge does this from its timer interrupt; here the same writes are
+    // made at the same cycle counts, which is what makes the two agree.
+    var ka = this.kitAt = {};
+    (gb && gb.kit || []).forEach(function (k) { ka[k.f | 0] = k.id | 0; });
+    this.kit = null; this.kitPos = 0; this.kitLeft = 0; this.kitCyc = 0;
     var byFrame = this.byFrame = {};
     var inst = (this.bank && this.bank.instruments) || [];
     (gb && gb.notes || []).forEach(function (n) {
@@ -2512,6 +2631,34 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       this.apu.write(0x30 + i, (((w[i * 2] || 0) & 15) << 4) | ((w[i * 2 + 1] || 0) & 15));
   };
 
+  // one 32-nibble buffer, exactly as the cartridge's kitFill writes it
+  Sequencer.prototype._kitFill = function () {
+    var K = G.CT_GB_KITS;
+    if (!this.kit || this.kitLeft <= 0) {
+      this.kit = null;
+      this.apu.write(0x1C, 0x00);            // channel 3 quiet again
+      return;
+    }
+    var d = this.kit, p = this.kitPos;
+    this.apu.write(0x1A, 0x00);              // DAC off while wave RAM changes
+    for (var i = 0; i < 16; i++)
+      this.apu.write(0x30 + i, ((d[p + i * 2] & 15) << 4) | (d[p + i * 2 + 1] & 15));
+    this.apu.write(0x1A, 0x80);
+    this.apu.write(0x1E, 0x80 | ((K.PERIOD >> 8) & 7));   // trigger
+    this.kitPos += 32;
+    this.kitLeft--;
+    this.waveSlot = -1;                      // wave RAM is a sample now, not a table
+  };
+  Sequencer.prototype._kitStart = function (id) {
+    var K = G.CT_GB_KITS;
+    if (!K) return;
+    var k = K.byId(id);
+    this.kit = k.data; this.kitPos = 0; this.kitLeft = k.buffers;
+    this.apu.write(0x1C, 0x20);              // NR32: full output
+    this.apu.write(0x1D, K.PERIOD & 0xFF);   // NR33: 8192 samples a second
+    this._kitFill();
+    this.kitCyc = K.BUF * (2048 - K.PERIOD) * 2;   // one buffer, in cycles
+  };
   Sequencer.prototype.setRate = function (rate) {
     this.rate = Math.max(0.25, Math.min(4, +rate || 1));
   };
@@ -2575,6 +2722,8 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     if (vo) for (i = 0; i < vo.length; i++) if (vo[i] < 2) this.vib[vo[i]].on = false;
     var wls = this.waveAt[this.frame];
     if (wls != null) this._loadWave(wls);
+    var kid = this.kitAt[this.frame];
+    if (kid != null) this._kitStart(kid);
     var aw = this.auto[this.frame];
     if (aw) for (i = 0; i < aw.length; i++) this.apu.write(aw[i].r, aw[i].v);
     this.frame++;
@@ -2619,10 +2768,21 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     // rate scales the FRAME clock only: a pinned tempo plays the score faster
     // or slower without touching pitch, exactly like a tracker's speed setting.
     // Envelopes and sweeps stay in real time, which is what the hardware does.
+    var K = G.CT_GB_KITS;
     for (var i = 0; i < count; i++) {
       if (this.acc <= 0) { this._runFrame(); this.acc += this.samplesPerFrame / this.rate; }
       this.acc -= 1;
-      this.apu._advance(this.apu.cps);
+      // a sample refill lands mid-sample, so the advance is SPLIT at it: the
+      // cartridge's interrupt is exact and this has to be too
+      var cy = this.apu.cps;
+      while (this.kit && this.kitCyc <= cy) {
+        this.apu._advance(this.kitCyc);
+        cy -= this.kitCyc;
+        this._kitFill();
+        this.kitCyc = K.BUF * (2048 - K.PERIOD) * 2;
+      }
+      if (this.kit) this.kitCyc -= cy;
+      this.apu._advance(cy);
       out[from + i] = this.apu._mix();
     }
   };
@@ -2676,6 +2836,16 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     label: function (n) { this.labels[n] = this.b.length; return this; },
 
     di:        function () { return this.byte(0xF3); },
+    ei:        function () { return this.byte(0xFB); },
+    reti:      function () { return this.byte(0xD9); },
+    push_de:   function () { return this.byte(0xD5); },
+    pop_de:    function () { return this.byte(0xD1); },
+    ld_l_a:    function () { return this.byte(0x6F); },
+    ld_h_a:    function () { return this.byte(0x67); },
+    ld_a_l:    function () { return this.byte(0x7D); },
+    ld_a_h:    function () { return this.byte(0x7C); },
+    add_hl_bc: function () { return this.byte(0x09); },
+    dec_a:     function () { return this.byte(0x3D); },
     halt:      function () { return this.byte(0x76); },
     ret:       function () { return this.byte(0xC9); },
     rlca:      function () { return this.byte(0x07); },
@@ -2768,6 +2938,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
           this.b[f.at] = abs & 0xFF; this.b[f.at + 1] = (abs >> 8) & 0xFF;
         }
       }
+      this.b.labels = this.labels;
       return this.b;
     }
   };
@@ -2788,6 +2959,10 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   // note-on, an age counter, an active flag, and the channel-1 sweep latch
   // that suppresses vibrato on a sliding note.
   var H_VLO = 0x90, H_VHI = 0x92, H_VAGE = 0x94, H_VON = 0x96, H_SWP = 0x98;
+  // the kit streamer's state: where the sample is, and how many 32-nibble
+  // buffers of it are left
+  var H_KITLO = 0x9A, H_KITHI = 0x9B, H_KITN = 0x9C;
+  var KIT_PERIOD = 1792, KIT_TMA = 240;   // 8192 samples a second, 256 buffers
   var BAR_COL = [2, 7, 12, 17];              // 4 bars, 3 tiles wide, on a 20-tile screen
   var BAR_TOP = 2;                           // row 0 is the title, row 17 the labels
 
@@ -2872,7 +3047,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   // driver has to execute before it can honour it, which applied each event's
   // delay after the event instead of before it and slid the whole song one
   // event out of step -- the emulator caught it as noise notes landing late.
-  function driver(dataAddr, waveAddr, tileAddr, screenAddr) {
+  function driver(dataAddr, waveAddr, tileAddr, screenAddr, kitAddr) {
     var a = new Asm();
 
     a.di();
@@ -2961,10 +3136,13 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     a.jr_nz('notWave'); a.jp('doWave'); a.label('notWave');
     a.cp_n(0x03);
     a.jr_z('doSweep');
+    // absolute jumps: the handlers below have outgrown a relative jump's reach
     a.cp_n(0x04);
-    a.jr_z('doWrite');
+    a.jr_nz('notWrite'); a.jp('doWrite'); a.label('notWrite');
     a.cp_n(0x05);
-    a.jr_z('doVibOff');
+    a.jr_nz('notVibOff'); a.jp('doVibOff'); a.label('notVibOff');
+    a.cp_n(0x06);
+    a.jr_nz('notKit'); a.jp('doKit'); a.label('notKit');
     a.or_a();
     a.jr_z('doOff');
 
@@ -2994,7 +3172,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     a.ld_a_n(BAR_H).ldh_c_a();
     a.ldh_a_n(H_CH).add_a_n(H_BLANK).ld_c_a();
     a.ld_a_n(0x00).ldh_c_a();
-    a.jr('afterEvent');
+    a.jp('afterEvent');
 
     // sweep: one byte straight into NR10, ahead of the note-on it belongs to
     a.label('doSweep');
@@ -3003,7 +3181,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     a.or_a(); a.jr_z('swpStore');
     a.ld_a_n(0x01);
     a.label('swpStore'); a.ldh_n_a(H_SWP);
-    a.jr('afterEvent');
+    a.jp('afterEvent');
 
     // note off: silence the DAC, then retrigger so the channel actually stops.
     // Writing $08 leaves the DAC powered and the channel audible -- that cost a
@@ -3017,7 +3195,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     a.add_a_n(H_VON); a.ld_c_a();
     a.ld_a_n(0x00); a.ldh_c_a();
     a.label('offNoVib');
-    a.jr('afterEvent');
+    a.jp('afterEvent');
 
     // automation: one register, one value. The channel bits are unused -- the
     // register says which channel it belongs to.
@@ -3026,7 +3204,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     a.ld_c_a();
     a.ld_a_hli();                         // value
     a.ldh_c_a();
-    a.jr('afterEvent');
+    a.jp('afterEvent');
 
     // the note is steering its own pitch: stop the driver's vibrato on it
     a.label('doVibOff');
@@ -3036,7 +3214,62 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     a.add_a_n(H_VON); a.ld_c_a();
     a.ld_a_n(0x00); a.ldh_c_a();
     a.label('vibOffDone');
-    a.jr('afterEvent');
+    a.jp('afterEvent');
+
+    // KIT: start a sample. The four-bit data streams into wave RAM from the
+    // timer interrupt, 32 nibbles at a time, 256 times a second -- which is
+    // exactly 8192 samples a second at channel 3's period 1792, so the sample
+    // clock and the refill clock never drift apart.
+    a.label('doKit');
+    a.di();                               // no interrupt while we set this up
+    a.ld_a_hli();                         // sample id
+    a.push_hl();
+    a.ld_c_a(); a.add_a_a(); a.add_a_c(); // id*3: the table is lo, hi, buffers
+    a.ld_c_a(); a.ld_b_n(0);
+    a.ld_hl_nn(kitAddr);
+    a.add_hl_bc();
+    a.ld_a_hli(); a.ldh_n_a(H_KITLO);
+    a.ld_a_hli(); a.ldh_n_a(H_KITHI);
+    a.ld_a_hli(); a.ldh_n_a(H_KITN);
+    a.ld_a_n(0x20); a.ldh_n_a(0x1C);      // NR32: full output
+    a.ld_a_n(KIT_PERIOD & 0xFF); a.ldh_n_a(0x1D);   // NR33: the rate
+    a.call('kitFill');                    // buffer zero now...
+    a.ld_a_n(KIT_TMA); a.ldh_n_a(0x06);   // TMA
+    a.ld_a_n(KIT_TMA); a.ldh_n_a(0x05);   // TIMA: the next one lands a buffer later
+    a.ld_a_n(0x04); a.ldh_n_a(0x07);      // TAC: on, 4096 Hz
+    a.ld_a_n(0x04); a.ldh_n_a(0xFF);      // IE: timer only
+    a.ei();
+    a.pop_hl();
+    a.jp('afterEvent');
+
+    // one buffer into wave RAM. The DAC goes off around the writes: on a DMG
+    // wave RAM is not reliably writable while the channel is running.
+    a.label('kitFill');
+    a.ldh_a_n(H_KITN); a.or_a();
+    a.jr_z('kitStop');
+    a.ldh_a_n(H_KITLO); a.ld_l_a();
+    a.ldh_a_n(H_KITHI); a.ld_h_a();
+    a.ld_a_n(0x00); a.ldh_n_a(0x1A);      // NR30: DAC off
+    a.ld_c_n(0x30);
+    for (var kb = 0; kb < 16; kb++) { a.ld_a_hli(); a.ldh_c_a(); a.inc_c(); }
+    a.ld_a_n(0x80); a.ldh_n_a(0x1A);      // NR30: DAC on
+    a.ld_a_n(0x80 | ((KIT_PERIOD >> 8) & 7)); a.ldh_n_a(0x1E);   // NR34: trigger
+    a.ld_a_l(); a.ldh_n_a(H_KITLO);
+    a.ld_a_h(); a.ldh_n_a(H_KITHI);
+    a.ldh_a_n(H_KITN); a.dec_a(); a.ldh_n_a(H_KITN);
+    a.ret();
+    a.label('kitStop');
+    a.ld_a_n(0x00);
+    a.ldh_n_a(0x07);                      // timer off
+    a.ldh_n_a(0x1C);                      // and channel 3 quiet until the song wants it
+    a.ret();
+
+    // the timer interrupt itself, reached from the vector at $0050
+    a.label('kitIsr');
+    a.push_af(); a.push_hl(); a.push_bc();
+    a.call('kitFill');
+    a.pop_bc(); a.pop_hl(); a.pop_af();
+    a.reti();
 
     // wave: copy 16 bytes (32 nibbles) into wave RAM
     a.label('doWave');
@@ -3171,7 +3404,10 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   // A note-on becomes the four bytes the hardware wants, computed here.
   function encode(score) {
     var gb = score && score.gb;
-    if (!gb || !gb.notes || !gb.notes.length) throw new Error('gb-rom: score has no gb data');
+    // a song may be nothing but kit hits -- that is a drum machine, and a
+    // perfectly good cartridge
+    if (!gb || !gb.notes || (!gb.notes.length && !(gb.kit && gb.kit.length)))
+      throw new Error('gb-rom: score has no gb data');
     var HW = G.CT_GB_HARDWARE || G.CT_GB;
     if (!HW || !HW.midiToPeriod) throw new Error('gb-rom: gb-hardware.js not loaded');
 
@@ -3249,11 +3485,14 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     (gb.waveLoads || []).forEach(function (w) {
       evs.push({ f: w.f | 0, ch: 2, type: 2, d: [w.slot & 0xFF] });
     });
+    (gb.kit || []).forEach(function (k) {
+      evs.push({ f: k.f | 0, ch: 2, type: 6, d: [k.id & 7] });
+    });
 
     // At one frame: offs first, wave loads, then sweep, then note-ons, and
     // automation last -- a duty change on a note's own frame has to land AFTER
     // the note-on that would otherwise overwrite it.
-    var TYPEW = { 0: 0, 2: 1, 3: 2, 1: 3, 5: 4, 4: 5 };
+    var TYPEW = { 0: 0, 2: 1, 3: 2, 1: 3, 5: 4, 4: 5, 6: 6 };
     evs.sort(function (a, b) { return a.f - b.f || TYPEW[a.type] - TYPEW[b.type]; });
 
     var out = [], i;
@@ -3291,6 +3530,31 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     return out;
   }
 
+  // The kit table is eight entries of [lo, hi, buffers] followed by the packed
+  // samples the song actually uses; an unused id points at zero buffers, which
+  // kitFill treats as "already finished".
+  function kitBytes(score, base) {
+    var K = G.CT_GB_KITS;
+    var used = {}, order = [];
+    ((score.gb && score.gb.kit) || []).forEach(function (k) {
+      var id = k.id | 0;
+      if (used[id] == null) { used[id] = true; order.push(id); }
+    });
+    var table = [], data = [], at = base + 24;    // 8 entries x 3 bytes
+    var addrOf = {}, lenOf = {};
+    order.forEach(function (id) {
+      var bytes = K ? K.packed(id) : new Uint8Array(0);
+      addrOf[id] = at; lenOf[id] = bytes.length / 16;   // buffers of 16 bytes
+      for (var i = 0; i < bytes.length; i++) data.push(bytes[i]);
+      at += bytes.length;
+    });
+    for (var id2 = 0; id2 < 8; id2++) {
+      var ad = addrOf[id2] || 0, ln = lenOf[id2] || 0;
+      table.push(ad & 0xFF, (ad >> 8) & 0xFF, ln & 0xFF);
+    }
+    return table.concat(data);
+  }
+
   // -------------------------------------------------------------------- build
   function buildRom(score, opts) {
     opts = opts || {};
@@ -3314,23 +3578,27 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
 
     var data = encode(score);
     var waves = waveBytes(score);
+    var kits = kitBytes(score, 0);          // length is stable; addresses come below
     var tiles = tileBytes();
     var screen = screenBytes();
     // The driver's length depends on the addresses it is given (16-bit operands
     // do not change size, but the label fixups do), so it is linked twice and
     // the second pass is a fixed point.
-    var code = driver(0, 0, 0, 0), dataAddr, waveAddr, tileAddr, screenAddr;
+    var code = driver(0, 0, 0, 0, 0), dataAddr, waveAddr, kitAddr, tileAddr, screenAddr;
     for (var pass = 0; pass < 2; pass++) {
       dataAddr = ORG_CODE + code.length;
       waveAddr = dataAddr + data.length;
-      tileAddr = waveAddr + waves.length;
+      kitAddr = waveAddr + waves.length;
+      tileAddr = kitAddr + kits.length;
       screenAddr = tileAddr + tiles.length;
-      code = driver(dataAddr, waveAddr, tileAddr, screenAddr);
+      code = driver(dataAddr, waveAddr, tileAddr, screenAddr, kitAddr);
     }
     dataAddr = ORG_CODE + code.length;
     waveAddr = dataAddr + data.length;
-    tileAddr = waveAddr + waves.length;
+    kitAddr = waveAddr + waves.length;
+    tileAddr = kitAddr + kits.length;
     screenAddr = tileAddr + tiles.length;
+    kits = kitBytes(score, kitAddr);        // now the pointers can be real
 
     var end = screenAddr + screen.length;
     if (end > ROM_SIZE) {
@@ -3339,6 +3607,12 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     for (i = 0; i < code.length; i++)   rom[ORG_CODE + i] = code[i];
     for (i = 0; i < data.length; i++)   rom[dataAddr + i] = data[i];
     for (i = 0; i < waves.length; i++)  rom[waveAddr + i] = waves[i];
+    for (i = 0; i < kits.length; i++)   rom[kitAddr + i] = kits[i];
+    // the timer interrupt vector: the streamer lives inside the driver
+    if (code.labels && code.labels.kitIsr != null) {
+      var isr = ORG_CODE + code.labels.kitIsr;
+      rom[0x0050] = 0xC3; rom[0x0051] = isr & 0xFF; rom[0x0052] = (isr >> 8) & 0xFF;
+    }
     for (i = 0; i < tiles.length; i++)  rom[tileAddr + i] = tiles[i];
     for (i = 0; i < screen.length; i++) rom[screenAddr + i] = screen[i];
 
@@ -3373,9 +3647,11 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
 // It implements exactly the opcodes src/gb-rom.js emits and THROWS on anything
 // else, deliberately: an unimplemented opcode means the assembler produced
 // something the driver was not supposed to contain. This is not a general Game
-// Boy emulator and does not pretend to be one -- there is no PPU, no MBC, no
-// interrupts, and the only hardware it models besides the CPU is the LY counter
-// the driver polls for vblank.
+// Boy emulator and does not pretend to be one -- there is no PPU and no MBC.
+// It does model the LY counter the driver polls for vblank, and the TIMER and
+// its interrupt, because kit samples are streamed into wave RAM from the timer
+// ISR: 256 refills a second, which is the only way to feed channel 3 at a rate
+// worth listening to.
 (function (G) {
   'use strict';
 
@@ -3398,6 +3674,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     this.SP = 0; this.PC = 0x100; this.Z = false; this.CY = false;
     this.ly = 0; this.dot = 0; this.frame = 0; this.cycles = 0;
     this.steps = 0;
+    this.ime = false; this.divCyc = 0; this.timCyc = 0;
   }
 
   Cpu.prototype.rd = function (a) {
@@ -3422,16 +3699,60 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       if (this.ly > 153) { this.ly = 0; this.frame++; }
     }
     this.io[0x44] = this.ly;
+    // DIV counts at 16384 Hz; the timer at whichever of the four rates TAC
+    // selects, raising bit 2 of IF when TIMA wraps through TMA.
+    this.divCyc += n;
+    while (this.divCyc >= 256) { this.divCyc -= 256; this.io[0x04] = (this.io[0x04] + 1) & 0xFF; }
+    var tac = this.io[0x07];
+    if (tac & 4) {
+      var sel = [1024, 16, 64, 256][tac & 3];
+      this.timCyc += n;
+      while (this.timCyc >= sel) {
+        this.timCyc -= sel;
+        var tv = (this.io[0x05] + 1) & 0xFF;
+        if (tv === 0) { tv = this.io[0x06]; this.io[0x0F] |= 0x04; }
+        this.io[0x05] = tv;
+      }
+    }
   };
 
   Cpu.prototype.step = function () {
     if (++this.steps > 2e9) throw new Error('gb-emu: CPU ran away (no progress)');
+    // an enabled, requested interrupt takes the CPU before the next opcode
+    var pend = this.ime ? (this.io[0xFF] & this.io[0x0F] & 0x1F) : 0;
+    if (pend) {
+      for (var ib = 0; ib < 5; ib++) {
+        if (!(pend & (1 << ib))) continue;
+        this.io[0x0F] &= ~(1 << ib);
+        this.ime = false;
+        this.SP = (this.SP - 2) & 0xFFFF;
+        this.wr(this.SP, this.PC & 0xFF); this.wr(this.SP + 1, (this.PC >> 8) & 0xFF);
+        this.PC = 0x40 + ib * 8;
+        this.tick(20);
+        return;
+      }
+    }
     const rd = a => this.rd(a), wr = (a, v) => this.wr(a, v), t = n => this.tick(n);
     const hl = () => (this.H << 8) | this.L, setHL = v => { this.H = (v >> 8) & 0xFF; this.L = v & 0xFF; };
     const op = rd(this.PC++);
     switch (op) {
       case 0x00: t(4); break;                                          // nop
-      case 0xF3: t(4); break;                                          // di
+      case 0xF3: this.ime = false; t(4); break;                        // di
+      case 0xFB: this.ime = true; t(4); break;                         // ei
+      case 0xD9: this.PC = rd(this.SP) | (rd(this.SP + 1) << 8); this.SP = (this.SP + 2) & 0xFFFF;
+                 this.ime = true; t(16); break;                        // reti
+      case 0xD5: this.SP = (this.SP - 2) & 0xFFFF; wr(this.SP, this.E); wr(this.SP + 1, this.D); t(16); break;
+      case 0xD1: this.E = rd(this.SP); this.D = rd(this.SP + 1); this.SP = (this.SP + 2) & 0xFFFF; t(12); break;
+      case 0x2B: setHL((hl() - 1) & 0xFFFF); t(8); break;              // dec hl
+      case 0x09: setHL((hl() + ((this.B << 8) | this.C)) & 0xFFFF); t(8); break;   // add hl,bc
+      case 0x6F: this.L = this.A; t(4); break;
+      case 0x67: this.H = this.A; t(4); break;
+      case 0x7D: this.A = this.L; t(4); break;
+      case 0x7C: this.A = this.H; t(4); break;
+      case 0x5D: this.E = this.L; t(4); break;
+      case 0x54: this.D = this.H; t(4); break;
+      case 0x6B: this.L = this.E; t(4); break;
+      case 0x62: this.H = this.D; t(4); break;
       case 0x76: t(4); this.PC--; break;                               // halt: spin
       case 0x31: this.SP = rd(this.PC) | (rd(this.PC + 1) << 8); this.PC += 2; t(12); break;
       case 0x21: setHL(rd(this.PC) | (rd(this.PC + 1) << 8)); this.PC += 2; t(12); break;
@@ -3582,6 +3903,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   'use strict';
 
   var FPS = 59.7275;
+  var FRAME_CYCLES = 70224;               // master cycles in one LCD frame
   var MAJOR = [0, 2, 4, 5, 7, 9, 11];
   var MINOR = [0, 2, 3, 5, 7, 8, 10];
   var MEL_ROWS = 15;                        // two octaves + the octave top
@@ -3899,7 +4221,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   function buildSong() {
     resolveBank();
     freshSongBank();
-    var moves = { auto: [], vibOff: [], waveLoads: [], pan: [], last: [null, null, null, null] };
+    var moves = { auto: [], vibOff: [], waveLoads: [], pan: [], kit: [], last: [null, null, null, null] };
     var notes = [], per = framesPer16();
     var byCol = {};
     S.cells.forEach(function (x) { delete x.x; delete x.rch; (byCol[x.c] = byCol[x.c] || []).push(x); });
@@ -3913,6 +4235,16 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
           var d = DRUMS[x.r - MEL_ROWS];
           if (drum) { x.x = 1; return; }
           drum = true; x.rch = 3;
+          if (x.kt) {                                       // a KIT hit: four-bit
+            var kid = (x.kt - 1) & 7;                       // sample on channel 3
+            moves.kit.push({ f: colFrame(c), id: kid });
+            var kk = G.CT_GB_KITS && G.CT_GB_KITS.byId(kid);
+            // the sample leaves a waveform in wave RAM that is not a table, so
+            // the bass voice needs its own back when the hit is over
+            if (kk) moves.waveLoads.push({ f: colFrame(c) + Math.ceil(kk.data.length / 32) * 32 * 512 / FRAME_CYCLES + 1,
+                                           slot: laneWave() });
+            return;
+          }
           var dInst = instOf(x, 3);
           if (dInst == null) dInst = x.inst != null ? x.inst : INSTOF[d.id];
           var dVel = x.vel != null ? x.vel : d.vel;
@@ -3990,7 +4322,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     var total = Math.round(cols() * per);
     return { notes: notes, bank: songBank || BANK, totalFrames: total,
              auto: moves.auto, vibOff: moves.vibOff, waveLoads: moves.waveLoads,
-             loopFrames: total };
+             kit: moves.kit, loopFrames: total };
   }
 
   // ---- serialize: the song IS the URL --------------------------------------
@@ -4001,13 +4333,13 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   // (bpm-70)/2. All older versions still decode.
   function encode() {
     var ids = STAMPS.map(function (s) { return s.id; });
-    var out = [9, S.key, S.minor, S.bars, Math.round((S.bpm - 70) / 2) & 63, S.swing,
+    var out = [10, S.key, S.minor, S.bars, Math.round((S.bpm - 70) / 2) & 63, S.swing,
                Math.max(0, GRIDS.indexOf(spb()))];
     S.cells.forEach(function (x) {
       var st = x.r >= MEL_ROWS ? 15 : (x.st && x.st.charAt(0) === 'i' ? 14 : Math.max(0, ids.indexOf(x.st)));
       var ext = x.inst != null || x.vel != null || x.midi != null || (x.len || 1) > 1 || x.sweep != null || x.ch != null;
       var snd = x.dy != null || x.fd != null || x.wv != null || x.nz != null || x.ns != null;
-      var mov = !!(x.vb || x.sq || x.mp || x.pn);
+      var mov = !!(x.vb || x.sq || x.mp || x.pn || x.gl || x.kt || x.dt);
       var cmd = (x.u ? 1 : x.q ? 2 : x.g ? 3 : x.f ? 4 : 0) | (snd ? 8 : 0) | (mov ? 16 : 0);
       out.push(x.c & 63, (x.c >> 6) & 63, x.r | (x.z ? 32 : 0), st | (x.w ? 16 : 0) | (ext ? 32 : 0), cmd);
       if (ext) {
@@ -4028,7 +4360,9 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
                  (x.wv | 0) & 31,
                  (x.nz | 0) & 15);
       }
-      if (mov) out.push((x.vb ? 1 : 0) | (x.sq ? 2 : 0) | (x.mp ? 4 : 0) | (((x.pn | 0) & 3) << 3));
+      if (mov) out.push((x.vb ? 1 : 0) | (x.sq ? 2 : 0) | (x.mp ? 4 : 0) | (((x.pn | 0) & 3) << 3) | (x.gl ? 32 : 0),
+                        (x.kt | 0) & 15,                       // which sample, if any
+                        ((x.dt | 0) + 16) & 63);               // detune, offset so it fits
     });
     return out.map(function (v) { return B64[v & 63]; }).join('');
   }
@@ -4036,7 +4370,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     try {
       var v = []; for (var i = 0; i < str.length; i++) { var ix = B64.indexOf(str[i]); if (ix < 0) return null; v.push(ix); }
       var ver = v[0];
-      if (ver < 1 || ver > 9) return null;
+      if (ver < 1 || ver > 10) return null;
       var st2 = freshState();
       st2.key = v[1] % 12; st2.minor = v[2] & 1;
       st2.bars = ver === 1 ? ([2, 4, 8].indexOf(v[3]) >= 0 ? v[3] : 4)
@@ -4095,7 +4429,14 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
             if (mvb & 2) cell2.sq = 1;
             if (mvb & 4) cell2.mp = 1;
             if ((mvb >> 3) & 3) cell2.pn = (mvb >> 3) & 3;
+            if (mvb & 32) cell2.gl = 1;
             k += 1;
+            if (ver >= 10 && k + 1 < v.length + 1) {
+              if (v[k] & 15) cell2.kt = v[k] & 15;
+              var dtv = v[k + 1] & 63;
+              if (dtv !== 16) cell2.dt = dtv - 16;
+              k += 2;
+            }
           }
           st2.cells.push(cell2);
         }
@@ -4588,6 +4929,10 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     // a drag auditions many times a second: no sequences there
     if (maxFrames == null && previewMotion(cell, null, per))
       return cell.r >= MEL_ROWS ? 3 : (cellVoice(cell) === 'wave' ? 2 : 1);
+    if (cell.r >= MEL_ROWS && cell.kt) {     // a sample auditions through the chip too
+      if (Audio.pokeKit) Audio.pokeKit((cell.kt - 1) & 7);
+      return 2;
+    }
     if (cell.r >= MEL_ROWS) {
       var d = DRUMS[cell.r - MEL_ROWS];
       Audio.pokeCreate({ ch: 3, frames: Math.round(per), midi: null,
@@ -4943,6 +5288,14 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       return out;
     }
     if (ch === 3) {
+      var kits = (G.CT_GB_KITS && G.CT_GB_KITS.kits()) || [];
+      out += row('Kit', '<button type="button" class="n-pv' + (!(x && x.kt) ? ' on' : '') +
+                        '" data-ed="kt0" data-full="Chip">Chip</button>' +
+        kits.map(function (kk) {
+          return '<button type="button" class="n-pv' + (x && x.kt === kk.id + 1 ? ' on' : '') +
+                 '" data-ed="kt' + (kk.id + 1) + '" data-full="' + kk.name + '">' + kk.name + '</button>';
+        }).join('') + '<em class="n-phint">a sample borrows the Bass voice while it plays</em>');
+      if (x && x.kt) return out;              // a sample has no noise settings
       var don = presetOn(PRESETS.noise, p);
       out += row('Sounds', PRESETS.noise.map(function (ps, i) {
         return '<button type="button" class="n-pv' + (i === don ? ' on' : '') +
@@ -5093,6 +5446,14 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
         if (pop2) pop2.innerHTML = soundPanel(sch, null);
         auditionCell(penCell(0));
       }
+      return;
+    }
+    if (what.slice(0, 2) === 'kt') {          // a sampled drum, or back to the chip
+      if (!x) { hint('Pick a drum first, then give it a sample.'); return; }
+      snapshot();
+      var kv = +what.slice(2);
+      if (kv) x.kt = kv; else delete x.kt;
+      dirty(); renderEdit(); auditionCell(x);
       return;
     }
     if (what.slice(0, 2) === 'dt') {          // fine tuning, in period units
@@ -5883,7 +6244,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
                waveLoads: S ? buildSong().waveLoads.length : 0 }; },
     _score: function () {                   // the exact song the chip is given
       var g = buildSong();
-      return { notes: g.notes, auto: g.auto, vibOff: g.vibOff, waveLoads: g.waveLoads,
+      return { notes: g.notes, auto: g.auto, vibOff: g.vibOff, waveLoads: g.waveLoads, kit: g.kit,
                totalFrames: g.totalFrames, loopFrames: g.loopFrames,
                instruments: g.bank.instruments, waveTables: g.bank.waveTables }; },
     _rec: function () {                     // what the selected note tells the chip
@@ -8454,6 +8815,8 @@ const Audio = (()=>{
     },
     pokeCreate(note){ startAudio(true); if(this.resume) this.resume(true);
       if(gbNode && note) gbNode.port.postMessage({type:'poke', note:note}); },
+    pokeKit(id){ startAudio(true); if(this.resume) this.resume(true);
+      if(gbNode) gbNode.port.postMessage({type:'kit', id:id|0}); },
     stopPoke(ch){ if(gbNode) gbNode.port.postMessage({type:'pokeoff', ch:(ch==null?null:ch|0)}); },
     setChipMute(mask){ ensureGbChip(); if(gbNode) gbNode.port.postMessage({type:'chmute', mask:mask||null}); },
     stopCreate(){ if(gbNode) gbNode.port.postMessage({type:'stop'}); },  // editor stop: chip quiet, ownership stays; playScore() is the way back

@@ -10,9 +10,11 @@
 // It implements exactly the opcodes src/gb-rom.js emits and THROWS on anything
 // else, deliberately: an unimplemented opcode means the assembler produced
 // something the driver was not supposed to contain. This is not a general Game
-// Boy emulator and does not pretend to be one -- there is no PPU, no MBC, no
-// interrupts, and the only hardware it models besides the CPU is the LY counter
-// the driver polls for vblank.
+// Boy emulator and does not pretend to be one -- there is no PPU and no MBC.
+// It does model the LY counter the driver polls for vblank, and the TIMER and
+// its interrupt, because kit samples are streamed into wave RAM from the timer
+// ISR: 256 refills a second, which is the only way to feed channel 3 at a rate
+// worth listening to.
 (function (G) {
   'use strict';
 
@@ -35,6 +37,7 @@
     this.SP = 0; this.PC = 0x100; this.Z = false; this.CY = false;
     this.ly = 0; this.dot = 0; this.frame = 0; this.cycles = 0;
     this.steps = 0;
+    this.ime = false; this.divCyc = 0; this.timCyc = 0;
   }
 
   Cpu.prototype.rd = function (a) {
@@ -59,16 +62,60 @@
       if (this.ly > 153) { this.ly = 0; this.frame++; }
     }
     this.io[0x44] = this.ly;
+    // DIV counts at 16384 Hz; the timer at whichever of the four rates TAC
+    // selects, raising bit 2 of IF when TIMA wraps through TMA.
+    this.divCyc += n;
+    while (this.divCyc >= 256) { this.divCyc -= 256; this.io[0x04] = (this.io[0x04] + 1) & 0xFF; }
+    var tac = this.io[0x07];
+    if (tac & 4) {
+      var sel = [1024, 16, 64, 256][tac & 3];
+      this.timCyc += n;
+      while (this.timCyc >= sel) {
+        this.timCyc -= sel;
+        var tv = (this.io[0x05] + 1) & 0xFF;
+        if (tv === 0) { tv = this.io[0x06]; this.io[0x0F] |= 0x04; }
+        this.io[0x05] = tv;
+      }
+    }
   };
 
   Cpu.prototype.step = function () {
     if (++this.steps > 2e9) throw new Error('gb-emu: CPU ran away (no progress)');
+    // an enabled, requested interrupt takes the CPU before the next opcode
+    var pend = this.ime ? (this.io[0xFF] & this.io[0x0F] & 0x1F) : 0;
+    if (pend) {
+      for (var ib = 0; ib < 5; ib++) {
+        if (!(pend & (1 << ib))) continue;
+        this.io[0x0F] &= ~(1 << ib);
+        this.ime = false;
+        this.SP = (this.SP - 2) & 0xFFFF;
+        this.wr(this.SP, this.PC & 0xFF); this.wr(this.SP + 1, (this.PC >> 8) & 0xFF);
+        this.PC = 0x40 + ib * 8;
+        this.tick(20);
+        return;
+      }
+    }
     const rd = a => this.rd(a), wr = (a, v) => this.wr(a, v), t = n => this.tick(n);
     const hl = () => (this.H << 8) | this.L, setHL = v => { this.H = (v >> 8) & 0xFF; this.L = v & 0xFF; };
     const op = rd(this.PC++);
     switch (op) {
       case 0x00: t(4); break;                                          // nop
-      case 0xF3: t(4); break;                                          // di
+      case 0xF3: this.ime = false; t(4); break;                        // di
+      case 0xFB: this.ime = true; t(4); break;                         // ei
+      case 0xD9: this.PC = rd(this.SP) | (rd(this.SP + 1) << 8); this.SP = (this.SP + 2) & 0xFFFF;
+                 this.ime = true; t(16); break;                        // reti
+      case 0xD5: this.SP = (this.SP - 2) & 0xFFFF; wr(this.SP, this.E); wr(this.SP + 1, this.D); t(16); break;
+      case 0xD1: this.E = rd(this.SP); this.D = rd(this.SP + 1); this.SP = (this.SP + 2) & 0xFFFF; t(12); break;
+      case 0x2B: setHL((hl() - 1) & 0xFFFF); t(8); break;              // dec hl
+      case 0x09: setHL((hl() + ((this.B << 8) | this.C)) & 0xFFFF); t(8); break;   // add hl,bc
+      case 0x6F: this.L = this.A; t(4); break;
+      case 0x67: this.H = this.A; t(4); break;
+      case 0x7D: this.A = this.L; t(4); break;
+      case 0x7C: this.A = this.H; t(4); break;
+      case 0x5D: this.E = this.L; t(4); break;
+      case 0x54: this.D = this.H; t(4); break;
+      case 0x6B: this.L = this.E; t(4); break;
+      case 0x62: this.H = this.D; t(4); break;
       case 0x76: t(4); this.PC--; break;                               // halt: spin
       case 0x31: this.SP = rd(this.PC) | (rd(this.PC + 1) << 8); this.PC += 2; t(12); break;
       case 0x21: setHL(rd(this.PC) | (rd(this.PC + 1) << 8)); this.PC += 2; t(12); break;
