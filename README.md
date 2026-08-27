@@ -28,7 +28,9 @@ on with your day: <https://chiptunes.app>
   movement -- Wobble puts its own vibrato on it, Sweep walks the duty while it
   holds, Morph swaps the bass waveform under it, Pan sends it to one speaker --
   all of which become register writes on their own frames, the way a real
-  driver makes an instrument. And a motion -- Arp strums the chord, Roll ratchets it,
+  driver makes an instrument. Glide slides it in from the note before, Detune
+  puts it between the twelve tones, and the grid cuts a bar into 16, 24 or 32
+  steps, so a note can sit where a sixteenth cannot reach. And a motion -- Arp strums the chord, Roll ratchets it,
   Echo repeats and fades, Fall and Rise slide the pitch -- which expands into
   ordinary chip notes the way trackers have always done it. Tap a mood (happy, spooky, battle) and the radio's
   composer writes a whole track into the lanes, no AI involved, yours to edit

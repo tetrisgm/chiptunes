@@ -93,7 +93,8 @@ class GbChipProcessor extends AudioWorkletProcessor {
           if (pn.rec) {
             pbank = { instruments: [pn.rec], waveTables: this.seq.bank && this.seq.bank.waveTables };
             pidx = 0;
-            pn = { ch: pn.ch, midi: pn.midi, inst: 0, vel: pn.vel, sweep: pn.sweep, frames: pn.frames };
+            pn = { ch: pn.ch, midi: pn.midi, inst: 0, vel: pn.vel, sweep: pn.sweep,
+                   det: pn.det, frames: pn.frames };
           }
           if (pch === 2 && this.seq._loadWave)
             this.seq._loadWave(globalThis.CT_GB.waveSlotOf(pbank.instruments, pidx));

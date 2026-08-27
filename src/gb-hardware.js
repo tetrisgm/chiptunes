@@ -238,13 +238,19 @@
     var v0 = (rec[1] >> 4) & 15;
     var vol = Math.max(0, Math.min(15, Math.round(v0 * (0.35 + 0.65 * (n.vel == null ? 1 : n.vel)))));
     var nrx1, nrx2 = (vol << 4) | (rec[1] & 0x0F), nrx3, nrx4, p;
+    // A note may ask for a period the twelve-tone table has no name for: det
+    // shifts it by whole period units. That is what detuning two channels
+    // against each other is, and there is no other way to say it.
+    var det = n.det | 0;
     if (ch === 0 || ch === 1) {
-      p = midiToPeriod(n.midi, 'pulse').period;
+      p = midiToPeriod(n.midi, 'pulse').period + det;
+      p = Math.max(0, Math.min(2047, p));
       nrx1 = rec[0] & 0xC0;                         // duty, zero length
       nrx3 = p & 0xFF;
       nrx4 = 0x80 | ((p >> 8) & 7);                 // trigger, length disabled
     } else if (ch === 2) {
-      p = midiToPeriod(n.midi, 'wave').period;
+      p = midiToPeriod(n.midi, 'wave').period + det;
+      p = Math.max(0, Math.min(2047, p));
       // Channel 3 has no envelope -- it has four output levels. Map the
       // envelope's starting volume onto the closest one.
       nrx1 = 0;

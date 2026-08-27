@@ -208,11 +208,17 @@
   }
   // ---- state ---------------------------------------------------------------
   var S = null, undoStack = [], redoStack = [];
+  // HOW FINE THE GRID IS: steps in a bar. Sixteen is a sixteenth-note grid,
+  // which is where most tracker music lives; twenty-four gives triplets and
+  // thirty-two gives thirty-second notes. Everything that used to say "16"
+  // asks spb() now, because a bar is not a fixed number of columns any more.
+  var GRIDS = [16, 24, 32];
   function freshState() {
-    return { key: 0, minor: 0, bars: 4, bpm: 128, swing: 0,
+    return { key: 0, minor: 0, bars: 4, bpm: 128, swing: 0, grid: 16,
              cells: [], cur: 'piano', cmd: 0, wob: 0 };
   }
-  function cols() { return S.bars * 16; }
+  function spb() { return (S && S.grid) || 16; }
+  function cols() { return S.bars * spb(); }
   function cellAt(c, r) {
     for (var i = 0; i < S.cells.length; i++)
       if (S.cells[i].c === c && S.cells[i].r === r) return i;
@@ -228,7 +234,8 @@
     var d = (MEL_ROWS - 1) - r;              // degree from the bottom
     return 48 + S.key + scaleArr()[d % 7] + 12 * Math.floor(d / 7);
   }
-  function framesPer16() { return (60 / S.bpm / 4) * FPS; }
+  // frames in ONE STEP -- a bar is four beats however many steps it is cut into
+  function framesPer16() { return (60 / S.bpm) * 4 / spb() * FPS; }
   function colFrame(c) {
     var f = c * framesPer16();
     if (S.swing && (c % 4) >= 2) f += 0.28 * framesPer16();   // swung eighth pair
@@ -277,6 +284,24 @@
         out.waveLoads.push({ f: f0 + i, slot: (slot0 + k) % tables });
     }
     if (x.pn) out.pan.push({ f: f0, ch: ch, mode: x.pn, off: f0 + len });
+    if (x.gl && ch !== 3 && note.midi != null && out.last[ch] != null) {
+      // GLIDE: the pitch walks from the note before it to this one, in period
+      // units, which is the only kind of slide the chip understands off
+      // channel 1's sweep unit
+      var greg = ch === 0 ? 0x13 : ch === 1 ? 0x18 : 0x1D;
+      var kind = ch === 2 ? 'wave' : 'pulse';
+      var from = out.last[ch], to = G.CT_GB.midiToPeriod(note.midi, kind).period + (note.det | 0);
+      var steps = Math.min(12, Math.max(3, Math.round(len / 3)));
+      for (var gi = 1; gi <= steps; gi++) {
+        var gp = Math.round(from + (to - from) * (gi / steps));
+        gp = Math.max(0, Math.min(2047, gp));
+        out.auto.push({ f: f0 + gi, r: greg, v: gp & 0xFF });
+        out.auto.push({ f: f0 + gi, r: greg + 1, v: (gp >> 8) & 7 });
+      }
+      if (ch < 2) out.vibOff.push({ f: f0, ch: ch });
+    }
+    if (ch !== 3 && note.midi != null)
+      out.last[ch] = G.CT_GB.midiToPeriod(note.midi, ch === 2 ? 'wave' : 'pulse').period + (note.det | 0);
   }
   // NR51 is one byte for the whole machine, so panning is a running value:
   // collect what each note wants and write the byte only where it changes.
@@ -305,7 +330,7 @@
   function buildSong() {
     resolveBank();
     freshSongBank();
-    var moves = { auto: [], vibOff: [], waveLoads: [], pan: [] };
+    var moves = { auto: [], vibOff: [], waveLoads: [], pan: [], last: [null, null, null, null] };
     var notes = [], per = framesPer16();
     var byCol = {};
     S.cells.forEach(function (x) { delete x.x; delete x.rch; (byCol[x.c] = byCol[x.c] || []).push(x); });
@@ -345,7 +370,7 @@
         var steps = x.len ? x.len : (x.w ? 8 : 0.96);
         var totalF = Math.max(2, Math.round(per * steps) - 1);
         var mInst = instOf(x, voice === 'wave' ? 2 : (x.ch === 1 ? 1 : 0));
-        var note = { frame: colFrame(c), frames: totalF,
+        var note = { frame: colFrame(c), frames: totalF, det: x.dt | 0,
                      midi: x.midi != null ? x.midi : rowMidi(x.r),
                      inst: mInst != null ? mInst : (x.inst != null ? x.inst : INSTOF[x.st]),
                      vel: x.vel != null ? x.vel : 0.8, pri: 5 };
@@ -382,6 +407,8 @@
             notes.push({ ch: note.ch, frame: colFrame(c + st2), frames: Math.max(2, Math.round(per * 0.9)),
                          midi: note.midi, inst: note.inst, vel: v2, pri: 5, sweep: note.sweep });
         } else notes.push(note);
+        if (!hasMoves(x) && note.midi != null && note.ch !== 3)
+          moves.last[note.ch] = G.CT_GB.midiToPeriod(note.midi, note.ch === 2 ? 'wave' : 'pulse').period + (note.det | 0);
         if (hasMoves(x)) {
           var mine = notes.slice(-4).filter(function (n2) { return n2.frame === note.frame || n2.ch === note.ch; });
           automate(x, mine.length ? mine[mine.length - 1] : note, moves);
@@ -405,7 +432,8 @@
   // (bpm-70)/2. All older versions still decode.
   function encode() {
     var ids = STAMPS.map(function (s) { return s.id; });
-    var out = [8, S.key, S.minor, S.bars, Math.round((S.bpm - 70) / 2) & 63, S.swing];
+    var out = [9, S.key, S.minor, S.bars, Math.round((S.bpm - 70) / 2) & 63, S.swing,
+               Math.max(0, GRIDS.indexOf(spb()))];
     S.cells.forEach(function (x) {
       var st = x.r >= MEL_ROWS ? 15 : (x.st && x.st.charAt(0) === 'i' ? 14 : Math.max(0, ids.indexOf(x.st)));
       var ext = x.inst != null || x.vel != null || x.midi != null || (x.len || 1) > 1 || x.sweep != null || x.ch != null;
@@ -439,12 +467,13 @@
     try {
       var v = []; for (var i = 0; i < str.length; i++) { var ix = B64.indexOf(str[i]); if (ix < 0) return null; v.push(ix); }
       var ver = v[0];
-      if (ver < 1 || ver > 8) return null;
+      if (ver < 1 || ver > 9) return null;
       var st2 = freshState();
       st2.key = v[1] % 12; st2.minor = v[2] & 1;
       st2.bars = ver === 1 ? ([2, 4, 8].indexOf(v[3]) >= 0 ? v[3] : 4)
                            : Math.max(1, Math.min(48, v[3]));
       st2.bpm = Math.max(70, Math.min(180, ver >= 5 ? 70 + v[4] * 2 : v[4] * 2)); st2.swing = v[5] & 1;
+      st2.grid = ver >= 9 ? (GRIDS[v[6]] || 16) : 16;
       var ids = STAMPS.map(function (s) { return s.id; });
       if (ver === 1) {
         for (var j = 6; j + 2 < v.length + 1; j += 3) {
@@ -455,7 +484,7 @@
           st2.cells.push(cell);
         }
       } else {
-        var k = 6;
+        var k = ver >= 9 ? 7 : 6;
         while (k + 3 < v.length + 1) {
           var c2 = v[k] | (v[k + 1] << 6), r2 = v[k + 2] & 31, b2 = v[k + 3];
           var cell2 = { c: c2, r: r2, t: k };
@@ -502,7 +531,7 @@
           st2.cells.push(cell2);
         }
       }
-      st2.cells = st2.cells.filter(function (x) { return x.c < st2.bars * 16; });
+      st2.cells = st2.cells.filter(function (x) { return x.c < st2.bars * (st2.grid || 16); });
       return st2;
     } catch (e) { return null; }
   }
@@ -522,11 +551,11 @@
     renderChans(); renderGrid();
   }
   var loopBar = -1, queuedBar = null, loopPhase = 0;
-  function barFrames() { return 16 * FPS * 60 / (curBpm() * 4); }
+  function barFrames() { return FPS * 60 * 4 / curBpm(); }
   function songMs() {
     if (loopBar >= 0) return (barFrames() / FPS) * 1000;
     return liveScore ? (liveScore.totalFrames / FPS) * 1000
-                     : cols() * (60 / S.bpm / 4) * 1000;
+                     : cols() * ((60 / S.bpm) * 4 / spb()) * 1000;
   }
   function sliceForBar(song, b) {
     var bf = barFrames(), f0 = Math.round(b * bf), f1 = Math.round((b + 1) * bf);
@@ -775,7 +804,7 @@
       while (deg < 0) deg += 7;
       return deg;
     }
-    S.key = 0; S.minor = scl.indexOf(3) >= 0 ? 1 : 0; S.bars = Math.max(1, Math.min(48, Math.ceil((gb.totalFrames || winF) / (16 * per16f))));
+    S.key = 0; S.minor = scl.indexOf(3) >= 0 ? 1 : 0; S.bars = Math.max(1, Math.min(48, Math.ceil((gb.totalFrames || winF) / (spb() * per16f))));
     S.bpm = Math.max(70, Math.min(180, Math.round((score.bpm || 120) / 2) * 2));
     var bv0 = root && root.querySelector('.n-bpmval');
     if (bv0) { bv0.textContent = S.bpm; var sl0 = root.querySelector('[data-cr="bpm"]'); if (sl0) sl0.value = S.bpm; }
@@ -1001,7 +1030,7 @@
     var voice = cellVoice(cell) || 'pulse';
     var heldSteps = Math.max(1, cell.len || 1);            // hear it for as long as it lasts
     var frames = Math.min(maxFrames || 600, Math.round(per * heldSteps));
-    Audio.pokeCreate({ ch: voice === 'wave' ? 2 : 1, frames: frames,
+    Audio.pokeCreate({ ch: voice === 'wave' ? 2 : 1, frames: frames, det: cell.dt | 0,
                        midi: cell.midi != null ? cell.midi : rowMidi(cell.r),
                        inst: cell.inst != null ? cell.inst : INSTOF[cell.st],
                        rec: recOf(cell, voice === 'wave' ? 2 : (cell.ch === 1 ? 1 : 0)),
@@ -1095,6 +1124,9 @@
   // the four lanes name themselves down the left edge and carry their mute
   function renderChans() {
     renderFollow();
+    root.querySelectorAll('.n-gbtn').forEach(function (b2) {
+      b2.classList.toggle('on', +b2.dataset.cr.slice(4) === spb());
+    });
     root.querySelectorAll('.n-lane').forEach(function (el) {
       var i = +el.dataset.ch;
       el.classList.toggle('muted', !!chMuted[i]);
@@ -1112,7 +1144,7 @@
     if (ruler && ruler.childElementCount !== S.bars) {
       var html = '';
       for (var b2 = 0; b2 < S.bars; b2++)
-        html += '<span class="n-rbar" data-bar="' + b2 + '" style="left:' + (b2 * 16 * stepW) + 'px;width:' + (16 * stepW) + 'px">' +
+        html += '<span class="n-rbar" data-bar="' + b2 + '" style="left:' + (b2 * spb() * stepW) + 'px;width:' + (spb() * stepW) + 'px">' +
                 '<b>#' + (b2 + 1) + '</b>' +
                 '<button type="button" class="n-rins" data-insbar="' + b2 + '" title="Insert an empty bar here">+ insert</button>' +
                 '<button type="button" class="n-rdel" data-delbar="' + b2 + '" title="Delete this bar">\u00d7</button>' +
@@ -1131,8 +1163,8 @@
     });
     var hl = root.querySelector('.n-barhl');
     if (hl) {
-      hl.style.left = (viewBar * 16 * stepW) + 'px';
-      hl.style.width = (16 * stepW) + 'px';
+      hl.style.left = (viewBar * spb() * stepW) + 'px';
+      hl.style.width = (spb() * stepW) + 'px';
     }
     applyCam();
   }
@@ -1264,7 +1296,7 @@
     b._by[key] = b.instruments.length - 1;
     return b._by[key];
   }
-  function hasMoves(x) { return !!x && (x.vb || x.sq || x.mp || x.pn); }
+  function hasMoves(x) { return !!x && (x.vb || x.sq || x.mp || x.pn || x.gl); }
   function hasSound(x) {
     return !!x && (x.dy != null || x.fd != null || x.wv != null || x.nz != null || x.ns != null);
   }
@@ -1289,6 +1321,7 @@
     { n: 'Wobble', k: 'vb', ch: [1, 1, 1, 0] },   // its own vibrato
     { n: 'Sweep',  k: 'sq', ch: [1, 1, 0, 0] },   // the duty walks
     { n: 'Morph',  k: 'mp', ch: [0, 0, 1, 0] },   // the wave table changes
+    { n: 'Glide',  k: 'gl', ch: [1, 1, 1, 0] },   // slides from the note before it
     { n: 'Pan L',  k: 'pn', v: 1, ch: [1, 1, 1, 1] },
     { n: 'Pan R',  k: 'pn', v: 2, ch: [1, 1, 1, 1] }
   ];
@@ -1368,7 +1401,13 @@
     }).join(''));
     out += row('Fade', step('fd-', fadeLabel(p.fd), 'fd+') +
                        '<em class="n-phint">out 1 is quickest \u00b7 in swells</em>');
+    out += row('Detune', step('dt-', detLabel(x), 'dt+') +
+                         '<em class="n-phint">off the note, for beating and unison</em>');
     return out;
+  }
+  function detLabel(x) {
+    var d = (x && x.dt) | 0;
+    return d === 0 ? 'in tune' : (d > 0 ? '+' : '') + d;
   }
   function closePick() {
     var el = root && root.querySelector('.n-pick');
@@ -1487,6 +1526,14 @@
       }
       return;
     }
+    if (what.slice(0, 2) === 'dt') {          // fine tuning, in period units
+      if (!x) { hint('Pick a note first, then detune it.'); return; }
+      snapshot();
+      x.dt = Math.max(-16, Math.min(16, (x.dt | 0) + (what === 'dt+' ? 1 : -1)));
+      if (!x.dt) delete x.dt;
+      dirty(); renderEdit(); auditionCell(x);
+      return;
+    }
     if (what.slice(0, 2) === 'mv') {          // what moves while the note sounds
       if (!x) { hint('Pick a note first, then give it a move.'); return; }
       var mk = what.slice(2, 4), mv = what.length > 4 ? +what.slice(4) : null;
@@ -1573,7 +1620,7 @@
     if (!playing) return -1;
     var perMs = (60 / curBpm() / 4) * 1000;
     var elapsed = performance.now() - playT0;
-    return loopBar >= 0 ? loopBar * 16 + (elapsed / perMs) % 16 : (elapsed / perMs) % cols();
+    return loopBar >= 0 ? loopBar * spb() + (elapsed / perMs) % spb() : (elapsed / perMs) % cols();
   }
   function updatePh(col) {
     if (Math.abs(col - lastPh) < 0.01) return;
@@ -1598,7 +1645,7 @@
       return;
     }
     if (loopBar >= 0 && queuedBar != null) {
-      var ph = (elapsed / perMs) % 16;
+      var ph = (elapsed / perMs) % spb();
       if (ph < loopPhase) {                     // the loop wrapped: switch bars
         loopBar = queuedBar; queuedBar = null; loopPhase = 0;
         viewBar = loopBar;
@@ -1610,7 +1657,7 @@
     }
     if (location.pathname !== '/create') ownRoute(encode());   // something else moved the URL; take it back, song and all
     var col = playCol();
-    var pb = Math.floor(col / 16);
+    var pb = Math.floor(col / spb());
     if (camFollow) { followCol(col); applyCam(); }
     if (pb !== viewBar) { viewBar = pb; renderBars(); }
     lastPlayBar = pb;
@@ -1622,14 +1669,14 @@
   function shiftBar(dir, bar) {
     var b = bar == null ? viewBar : bar;
     var cellsHere = [];
-    for (var s2 = 0; s2 < 16; s2++) {
-      var col = b * 16 + s2;
+    for (var s2 = 0; s2 < spb(); s2++) {
+      var col = b * spb() + s2;
       if (viewCh < 0) { for (var c2 = 0; c2 < 4; c2++) { var j = cellIndexAt(c2, col); if (j >= 0) cellsHere.push(S.cells[j]); } }
       else { var i = cellIndexAt(viewCh, col); if (i >= 0) cellsHere.push(S.cells[i]); }
     }
     if (!cellsHere.length) { hint('Nothing to nudge in bar ' + (b + 1) + '.'); return; }
     snapshot();
-    cellsHere.forEach(function (x) { x.c = b * 16 + ((x.c - b * 16 + dir + 16) % 16); });
+    cellsHere.forEach(function (x) { x.c = b * spb() + ((x.c - b * spb() + dir + spb()) % spb()); });
     selCol = -1; selCh = -1;
     dirty();
   }
@@ -1649,8 +1696,8 @@
     snapshot();
     var copies = [];
     S.cells.forEach(function (x) {
-      if (x.c >= (b + 1) * 16) x.c += 16;
-      else if (x.c >= b * 16) {
+      if (x.c >= (b + 1) * spb()) x.c += spb();
+      else if (x.c >= b * spb()) {
         var cp = { c: x.c + 16, r: x.r, t: ++order };
         ['st', 'z', 'u', 'q', 'g', 'f', 'w', 'inst', 'midi', 'len', 'vel', 'ch', 'sweep'].forEach(function (k) {
           if (x[k] != null) cp[k] = x[k];
@@ -1666,9 +1713,9 @@
   }
   function delBar(b) {
     snapshot();
-    S.cells = S.cells.filter(function (x) { return x.c < b * 16 || x.c >= (b + 1) * 16; });
+    S.cells = S.cells.filter(function (x) { return x.c < b * spb() || x.c >= (b + 1) * spb(); });
     if (S.bars > 1) {
-      S.cells.forEach(function (x) { if (x.c >= (b + 1) * 16) x.c -= 16; });
+      S.cells.forEach(function (x) { if (x.c >= (b + 1) * spb()) x.c -= spb(); });
       S.bars--;
     }
     if (viewBar >= S.bars) viewBar = S.bars - 1;
@@ -1733,6 +1780,9 @@
           'title="Keep the view on the music">Follow</button>' +
         '<label class="cr-lab">Speed <b class="n-bpmval">' + S.bpm + '</b> BPM' +
         '<input type="range" min="70" max="180" step="2" value="' + S.bpm + '" data-cr="bpm"></label>' +
+        '<span class="cr-lab n-gridpick">Grid' + GRIDS.map(function (g) {
+          return '<button type="button" class="n-gbtn" data-cr="grid' + g + '">' + g + '</button>';
+        }).join('') + '</span>' +
       '</div>';
     sizeTrack();
   }
@@ -1750,7 +1800,7 @@
     root.style.setProperty('--stepw', stepW + 'px');
     root.style.setProperty('--laneh', laneH + 'px');
     root.style.setProperty('--sidepad', sidePad + 'px');
-    root.style.setProperty('--barw', (16 * stepW) + 'px');
+    root.style.setProperty('--barw', (spb() * stepW) + 'px');
     root.style.setProperty('--songw', (cols() * stepW) + 'px');
   }
   function songW() { return cols() * stepW; }
@@ -1762,7 +1812,7 @@
   function centerOn(bar, snap) {
     var sc = root.querySelector('.n-scroll');
     var w = sc ? sc.getBoundingClientRect().width : 0;
-    var want = Math.max(0, Math.min(camMax(), sidePad + (bar * 16 + 8) * stepW - w / 2));
+    var want = Math.max(0, Math.min(camMax(), sidePad + (bar * spb() + spb() / 2) * stepW - w / 2));
     camX = snap ? want : camX + (want - camX) * (Math.abs(want - camX) > w ? 1 : 0.18);
     if (snap) camCatch = 0;
   }
@@ -1824,7 +1874,7 @@
     // within one bar: a composited nudge instead of a full repaint
     var bg = root.querySelector('.n-bg');
     if (bg) {
-      var barPx = 16 * stepW;
+      var barPx = spb() * stepW;
       var t = ((sidePad - camX) % barPx + barPx) % barPx;   // keep the bar lines on the bars
       bg.style.transform = 'translate3d(' + (t - barPx).toFixed(2) + 'px,0,0)';
     }
@@ -1832,7 +1882,7 @@
   function barUnderCamera() {
     var sc = root.querySelector('.n-scroll');
     var w = sc ? sc.getBoundingClientRect().width : 0;
-    return Math.max(0, Math.min(S.bars - 1, Math.floor((camX + w / 2 - sidePad) / (16 * stepW))));
+    return Math.max(0, Math.min(S.bars - 1, Math.floor((camX + w / 2 - sidePad) / (spb() * stepW))));
   }
   // a note can be dragged: these turn a pointer position into lane and pitch
   function laneAt(clientY) {
@@ -1862,6 +1912,26 @@
   // instrument its new neighbours are using -- otherwise the same written
   // note lands on a different sound than the ones beside it.
   // move a note to another voice in place, keeping what it was
+  // Changing the grid keeps the music where it is in TIME and moves the
+  // columns under it. Coarsening can land two notes on one step of a lane --
+  // the chip only has one voice there, so say so rather than losing one quietly.
+  function setGrid(g) {
+    if (!S || g === spb()) return;
+    snapshot();
+    var from = spb(), seen = {}, clash = 0;
+    S.cells.forEach(function (x) {
+      x.c = Math.max(0, Math.round(x.c * g / from));
+      if (x.len) x.len = Math.max(1, Math.round(x.len * g / from));
+    });
+    S.grid = g;
+    S.cells.forEach(function (x) {
+      var key = chOfCell(x) + ':' + x.c;
+      if (seen[key]) clash++; else seen[key] = 1;
+    });
+    closePick(); closeSnd();
+    sizeTrack(); buildTrack(); renderTransport(); dirty();
+    hint(g + ' steps to the bar' + (clash ? ' \u2014 ' + clash + ' notes now share a step' : '') + '.');
+  }
   function setCellVoice(x, v) {
     delete x.inst;                            // the settings below are the sound now
     if (v === 3) { delete x.dy; delete x.wv; x.nz = DRUM_SHIFT[pen.drum]; x.ns = 0; x.fd = chFade[3]; }
@@ -1919,7 +1989,7 @@
       var noteEl = ev.target.closest('.n-note');
       if (noteEl) {
         var nc = +noteEl.dataset.col, nch = +noteEl.dataset.ch;
-        viewBar = Math.floor(nc / 16);
+        viewBar = Math.floor(nc / spb());
         selectNote(nch, nc);
         var i = cellIndexAt(nch, nc);
         if (i >= 0) auditionCell(S.cells[i]);
@@ -1936,7 +2006,7 @@
       var taken = cellIndexAt(h.ch, h.col);
       if (taken < 0) taken = tailIndexAt(h.ch, h.col);
       if (taken >= 0) return;                 // one note per step in a lane
-      viewBar = Math.floor(h.col / 16);
+      viewBar = Math.floor(h.col / spb());
       // place a note right where you clicked: this lane, and this height
       snapshot();
       pen.ch = h.ch;
@@ -2139,11 +2209,18 @@
         return;
       }
       var mc = ev.target.closest('[data-mood]');
-      if (mc) { composeIntoGrid(mc.dataset.mood); tourAdvance(3); return; }
+      if (mc) {                               // asking for a song is asking for sound
+        if (!gestured) {
+          gestured = true; wantStart = false;
+          try { if (typeof Audio !== 'undefined' && Audio.resume) Audio.resume(true); } catch (e) {}
+        }
+        composeIntoGrid(mc.dataset.mood); tourAdvance(3); return;
+      }
       var b = ev.target.closest('[data-cr]');
       if (!b) return;
       var k = b.dataset.cr;
       if (k === 'play') { gestured = true; togglePlay(); }
+      else if (k.slice(0, 4) === 'grid') { setGrid(+k.slice(4)); }
       else if (k === 'follow') { followNow(); }
       else if (k === 'rewind') { pausedAt = 0; if (playing) startPlayback(0); else { camFollow = true; centerOn(0, true); viewBar = 0; renderBars(); } hint('Back to the start.'); }
       else if (k === 'close') { close(); }

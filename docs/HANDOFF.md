@@ -583,3 +583,32 @@ pass.
 - A jr COULDN'T REACH doWave once the two new handlers landed. The assembler
   throws on that (gb-rom: jr out of range), which is why it is a guard and not
   a silent wrap; the dispatch now uses jp for that one branch.
+
+- THE GRID IS A NUMBER NOW, not the constant 16. S.grid is steps in a bar (16,
+  24 or 32) and spb() answers it; framesPer16() returns frames in ONE STEP,
+  which is (60/bpm)*4/spb()*FPS, so a bar is four beats however finely it is
+  cut. Everything that used to multiply or divide by 16 -- cols, the ruler, the
+  bar highlight, addBar/delBar/shiftBar, camera maths, the gridline layer's
+  modulo -- asks spb(). Changing it RESCALES the cells (c and len by the ratio)
+  so the music stays where it is in time; coarsening can land two notes on one
+  step of a lane and setGrid says how many, because the chip has one voice
+  there and dropping one quietly would be a lie.
+
+- FREE PITCH: a note may carry dt (detune, +/-16 period units) and gl (glide).
+  noteRegisters adds det to the period for channels 1-3 and clamps to 11 bits,
+  so BOTH players and the ROM builder get it from the one place that decides
+  registers. Glide is automation: the period walks from the previous note in
+  that lane to this one over the first frames, which is the only slide the chip
+  has away from channel 1's sweep unit. moves.last[ch] tracks the lane's last
+  period -- every melodic note updates it, move or no move, or a glide would
+  start from whatever note last happened to have one.
+
+- LINK v9 puts the grid in the header (index into GRIDS), so cells start at
+  char 7 rather than 6; dt and gl ride in the v8 blocks.
+
+- PRESSING PLAY IS THE GESTURE. startPlayback used to only ARM the audio unlock
+  when nothing had been touched yet and return silent, so a first press could
+  do nothing; togglePlay (and a mood tap) now set gestured and resume audio
+  inside the handler, which is what browsers allow and what every player does.
+  The rule that a stray key must not start music still holds -- nothing else
+  sets it.

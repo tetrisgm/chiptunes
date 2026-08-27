@@ -48,10 +48,10 @@ function expected(score) {
     const vol = Math.max(0, Math.min(15, Math.round(v0 * (0.35 + 0.65 * (n.vel == null ? 1 : n.vel)))));
     let d;
     if (ch === 0 || ch === 1) {
-      const p = HW.midiToPeriod(n.midi, 'pulse').period;
+      const p = Math.max(0, Math.min(2047, HW.midiToPeriod(n.midi, 'pulse').period + (n.det | 0)));
       d = [rec[0] & 0xC0, (vol << 4) | (rec[1] & 15), p & 0xFF, 0x80 | ((p >> 8) & 7)];
     } else if (ch === 2) {
-      const p = HW.midiToPeriod(n.midi, 'wave').period;
+      const p = Math.max(0, Math.min(2047, HW.midiToPeriod(n.midi, 'wave').period + (n.det | 0)));
       const lvl = vol >= 12 ? 1 : vol >= 6 ? 2 : vol >= 1 ? 3 : 0;
       d = [0, lvl << 5, p & 0xFF, 0x80 | ((p >> 8) & 7)];
     } else {
