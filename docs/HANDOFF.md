@@ -284,3 +284,18 @@ row scrolls rather than wraps on phones.
   reads the track's scrollWidth, and the tab strip and barUnderCamera both
   offset by trackPad.
 
+## Create: the note picker (2026-08-27)
+
+- Tapping a square opens a picker ON that square: the four instruments as
+  coloured buttons, one octave of the song's own scale as note names (with
+  octave arrows), Volume and Length as eight-block meters, and Remove.
+  Tapping a note name places (or repitches) the note; tapping another
+  instrument moves the note to that voice. The old bottom panel and the
+  "pen" idea are gone: there is no mode to remember.
+- Guard worth keeping: a grid re-render detaches the element that was
+  clicked, so the outside-click check must not fire for the click that
+  opened the picker (pickOpenedAt, 60ms).
+- Bars: no separators, no Loop/Copy actions, the number sits under the
+  actions as "#3", and the voice tabs no longer travel -- they stay above
+  the middle of the screen. The mute control is a drawn speaker.
+

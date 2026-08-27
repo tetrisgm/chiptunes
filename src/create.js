@@ -742,8 +742,8 @@
     var t = root.querySelector('.cr-tour');
     if (!t) { t = document.createElement('div'); t.className = 'cr-tour'; root.appendChild(t); }
     var msgs = [
-      ['This song was just written for you.', 'Each square is one moment of a bar. Tap a note to edit it below; tap an empty square (with a voice picked) to add one.'],
-      ['Four voices, like a tiny band.', 'All shows everything at once. Melody, Harmony, Bass and Drums are the Game Boy\u2019s four sounds: pick one to add notes, tap its speaker to mute it.'],
+      ['This song was just written for you.', 'Each square is one moment of a bar. Tap any square and a little picker opens right there: choose the instrument, then the note.'],
+      ['Four voices, like a tiny band.', 'All shows everything at once. Melody, Harmony, Bass and Drums are the Game Boy\u2019s four sounds; tap a speaker to mute one.'],
       ['The song scrolls sideways.', 'Bars sit next to each other. Drag a bar\u2019s strip to travel; its little buttons nudge, loop, duplicate or remove it. The dashed block at the end adds a bar.'],
       ['Moods write songs.', 'Tap a mood up top and the radio\u2019s composer writes a whole song here, yours to edit.'],
     ];
@@ -1030,60 +1030,112 @@
     for (var i = 0; i < 8; i++) out += '<i class="' + (i < n ? 'f' : '') + '"></i>';
     return out + (over ? '<u>' + over + '</u>' : '');
   }
-  function renderEdit() {
-    var ed = root.querySelector('.n-edit');
-    if (!ed) return;
-    var x = selCell();
-    var ch = x ? selCh : pen.ch;
-    var isDrum = x ? x.r >= MEL_ROWS : ch === 3;
+  // The note picker opens ON the square you touched: the instruments as
+  // coloured buttons, the pitches as a row of note names you can simply read,
+  // and the loudness and length as levels. No hidden mode, nothing to learn.
+  var pickCol = -1, pickOpenedAt = 0;
+  function closePick() {
+    var el = root && root.querySelector('.n-pick');
+    if (el) el.remove();
+    pickCol = -1;
+  }
+  function scaleRow(midi) {
+    // one octave of the song's own scale around the note, so everything you
+    // can tap is in key; the arrows move an octave at a time
+    var sc = scaleArr(), base = Math.floor((midi - 12) / 12) * 12 + 12;
+    var out = [];
+    for (var i = 0; i < sc.length; i++) out.push(base + S.key + sc[i]);
+    out.push(base + 12 + S.key + sc[0]);
+    return out;
+  }
+  function openPick(col, ch) {
+    closePick();
+    pickCol = col;
+    pickOpenedAt = performance.now();
+    var x = ch != null && cellIndexAt(ch, col) >= 0 ? S.cells[cellIndexAt(ch, col)] : null;
+    var voice = x ? ch : (ch != null ? ch : pen.ch);
+    var isDrum = voice === 3;
     var midi = x ? (x.midi != null ? x.midi : rowMidi(x.r)) : pen.midi;
-    var drum = x ? (x.r - MEL_ROWS) : pen.drum;
-    var vsteps = Math.round((x ? (x.vel != null ? x.vel : 0.8) : pen.vel) * 8);
+    var vel = x ? (x.vel != null ? x.vel : 0.8) : pen.vel;
     var len = x ? (x.len || 1) : pen.len;
+    var drum = x && x.r >= MEL_ROWS ? x.r - MEL_ROWS : pen.drum;
 
-    var html = '<div class="n-edcol n-edwho">' +
-      '<span class="n-edlab">' + (x ? 'This note' : 'Next note') + '</span>' +
-      '<b>' + (x ? CH[selCh].n + ' \u00b7 bar ' + (Math.floor(selCol / 16) + 1) + ' \u00b7 step ' + (selCol % 16 + 1)
-                 : 'tap a square to place it') + '</b></div>';
-
-    if (!x) {
-      html += '<div class="n-edcol"><span class="n-edlab">Instrument</span><div class="n-edbtns">' +
-        CH.map(function (c, i) {
-          return '<button type="button" class="n-edb n-edvoice' + (pen.ch === i ? ' on' : '') + '" data-pen="v' + i + '">' +
-                 '<em style="color:' + c.color + '">' + c.n + '</em></button>';
-        }).join('') + '</div></div>';
-    }
+    var html = '<div class="n-pickrow n-pickvoices">' +
+      CH.map(function (c, i) {
+        return '<button type="button" class="n-pv' + (voice === i ? ' on' : '') + '" data-pv="' + i + '"' +
+               ' style="--vc:' + c.color + '">' + c.n + '</button>';
+      }).join('') + '</div>';
     if (isDrum) {
-      html += '<div class="n-edcol"><span class="n-edlab">Drum</span><div class="n-edbtns">' +
-        DRUM_NAMES.map(function (dn, di) {
-          return '<button type="button" class="n-edb' + (drum === di ? ' on' : '') + '" data-ed="d' + di + '">' + dn + '</button>';
-        }).join('') + '</div></div>';
+      html += '<div class="n-pickrow">' + DRUM_NAMES.map(function (dn, di) {
+        return '<button type="button" class="n-pn' + (drum === di ? ' on' : '') + '" data-pd="' + di + '">' + dn + '</button>';
+      }).join('') + '</div>';
     } else {
-      html += '<div class="n-edcol"><span class="n-edlab">Pitch</span><div class="n-edbtns">' +
-        '<button type="button" class="n-edb" data-ed="oct-">Octave down</button>' +
-        '<button type="button" class="n-edb" data-ed="pitch-">Lower</button>' +
-        '<b class="n-edval">' + noteName(midi) + '</b>' +
-        '<button type="button" class="n-edb" data-ed="pitch+">Higher</button>' +
-        '<button type="button" class="n-edb" data-ed="oct+">Octave up</button>' +
-        '</div></div>';
+      html += '<div class="n-pickrow n-picknotes">' +
+        '<button type="button" class="n-po" data-poct="-1">\u25c0</button>' +
+        scaleRow(midi).map(function (m) {
+          return '<button type="button" class="n-pn' + (m === midi ? ' on' : '') + '" data-pm="' + m + '">' + noteName(m) + '</button>';
+        }).join('') +
+        '<button type="button" class="n-po" data-poct="1">\u25b6</button>' +
+        '</div>';
     }
-    html += '<div class="n-edcol"><span class="n-edlab">Volume</span><div class="n-edbtns">' +
-      '<button type="button" class="n-edb" data-ed="vol-">Softer</button>' +
-      '<b class="n-edval n-meter">' + meterBlocks(vsteps) + '</b>' +
-      '<button type="button" class="n-edb" data-ed="vol+">Louder</button>' +
-      '</div></div>';
-    html += '<div class="n-edcol"><span class="n-edlab">Length</span><div class="n-edbtns">' +
-      '<button type="button" class="n-edb" data-ed="len-">Shorter</button>' +
-      '<b class="n-edval n-meter">' + meterBlocks(Math.min(8, len), len > 8 ? len : 0) + '</b>' +
-      '<button type="button" class="n-edb" data-ed="len+">Longer</button>' +
-      '</div></div>';
-    if (ch !== 3) {
-      html += '<div class="n-edcol"><span class="n-edlab">Sound</span><div class="n-edbtns">' +
-        '<button type="button" class="n-edb" data-ed="sound">Choose\u2026</button></div></div>';
+    html += '<div class="n-pickrow n-picklevels">' +
+      '<span>Volume</span><button type="button" class="n-po" data-ed="vol-">\u2212</button>' +
+      '<b class="n-meter">' + meterBlocks(Math.round(vel * 8)) + '</b>' +
+      '<button type="button" class="n-po" data-ed="vol+">+</button>' +
+      '</div>' +
+      '<div class="n-pickrow n-picklevels">' +
+      '<span>Length</span><button type="button" class="n-po" data-ed="len-">\u2212</button>' +
+      '<b class="n-meter">' + meterBlocks(Math.min(8, len), len > 8 ? len : 0) + '</b>' +
+      '<button type="button" class="n-po" data-ed="len+">+</button>' +
+      '</div>';
+    if (x) html += '<button type="button" class="n-pdel" data-ed="del">Remove this note</button>';
+
+    var el = document.createElement('div');
+    el.className = 'n-pick';
+    el.innerHTML = html;
+    root.appendChild(el);
+    // sit it over the square, kept on screen
+    var sq = root.querySelector('.n-step[data-col="' + col + '"]');
+    var r = sq ? sq.getBoundingClientRect() : { left: 0, top: 0, width: 0, bottom: 0 };
+    var w = el.getBoundingClientRect().width;
+    el.style.left = Math.round(Math.max(10, Math.min(window.innerWidth - w - 10, r.left + r.width / 2 - w / 2))) + 'px';
+    var hgt = el.getBoundingClientRect().height;
+    var top = r.top - hgt - 8;
+    if (top < 8) top = Math.min(window.innerHeight - hgt - 8, r.bottom + 8);
+    el.style.top = Math.round(top) + 'px';
+  }
+  function pickPitch(midi) {
+    var x = selCell();
+    if (x) { snapshot(); x.midi = midi; x.r = rowForMidi(midi); dirty(); auditionCell(x); }
+    else {
+      pen.midi = midi;
+      snapshot();
+      var made = penCell(pickCol);
+      S.cells.push(made);
+      selCh = pen.ch; selCol = pickCol;
+      dirty(); auditionCell(made);
     }
-    if (x) html += '<div class="n-edcol"><span class="n-edlab">&nbsp;</span>' +
-      '<button type="button" class="n-eddel" data-ed="del">Remove note</button></div>';
-    ed.innerHTML = html;
+    openPick(pickCol, selCh);
+  }
+  function pickVoice(v) {
+    var x = selCell();
+    if (x) {                                   // move this note to another voice
+      snapshot();
+      var i = S.cells.indexOf(x);
+      if (i >= 0) S.cells.splice(i, 1);
+      pen.ch = v;
+      if (v !== 3) pen.midi = x.midi != null ? x.midi : rowMidi(x.r);
+      var made = penCell(pickCol);
+      S.cells.push(made);
+      selCh = v; selCol = pickCol;
+      dirty(); auditionCell(made);
+    } else { pen.ch = v; }
+    if (viewCh >= 0) { viewCh = v; renderChans(); renderGrid(); renderBars(); }
+    openPick(pickCol, selCell() ? v : v);
+  }
+  // the picker IS the editor now: refreshing it is all "render the editor" means
+  function renderEdit() {
+    if (pickCol >= 0) openPick(pickCol, selCell() ? selCh : pen.ch);
   }
   // one handler for both: the selected note if there is one, the pen if not
   function editValue(what) {
@@ -1272,7 +1324,6 @@
                  '<i class="n-spk" data-mute="' + i + '"></i></button>';
         }).join('') + '</div>' +
       '<div class="n-mid"><div class="n-track"></div></div>' +
-      '<div class="n-edit"></div>' +
       '<div class="n-transport">' +
         '<button type="button" class="cr-btn" data-cr="rewind">\u23ee Start</button>' +
         '<button type="button" class="cr-btn cr-primary n-play" data-cr="play">\u25b6 Play</button>' +
@@ -1368,9 +1419,10 @@
         var pc = +pill.dataset.pill;
         selectNote(pc, col);
         auditionCell(S.cells[cellIndexAt(pc, col)]);
+        openPick(col, pc);
         return;
       }
-      // a square that already holds (or is inside) a note: select and hear it
+      // a square that already holds (or is inside) a note: open it
       var order2 = viewCh < 0 ? [0, 1, 2, 3] : [viewCh];
       for (var oi = 0; oi < order2.length; oi++) {
         var ch2 = order2[oi], hit = cellIndexAt(ch2, col);
@@ -1379,16 +1431,15 @@
           var cellHit = S.cells[hit];
           selectNote(ch2, cellHit.c);
           auditionCell(cellHit);
+          openPick(cellHit.c, ch2);
           return;
         }
       }
-      // empty: place the note the panel below is describing
-      snapshot();
-      var made = penCell(col);
-      S.cells.push(made);
-      selCh = pen.ch; selCol = col;
-      dirty(); renderEdit(); auditionCell(made); tourAdvance(0);
-      hint('Placed a ' + (pen.ch === 3 ? DRUM_NAMES[pen.drum] : noteName(pen.midi)) + '. Change it below, or tap elsewhere to place another.');
+      // empty: open the picker here so the note can be chosen in place
+      selCol = -1; selCh = -1;
+      renderGrid();
+      openPick(col, viewCh < 0 ? pen.ch : viewCh);
+      tourAdvance(0);
     });
 
     // the bar heads: pan by dragging, and carry the bar's own tools
@@ -1456,15 +1507,37 @@
 
     root.addEventListener('click', function (ev) {
       var fb = ev.target.closest('button'); if (fb) fb.blur();
+      // a grid re-render detaches the element that was clicked, so closest()
+      // stops finding its square: never treat the click that just opened the
+      // picker as a click outside it
+      if (pickCol >= 0 && performance.now() - pickOpenedAt > 60 &&
+          !ev.target.closest('.n-pick') && !ev.target.closest('.n-step')) closePick();
       var tb = ev.target.closest('[data-tour]');
       if (tb) {
         if (tb.dataset.tour === 'skip') tourDone(); else tourAdvance(tourStep);
         return;
       }
+      var pm = ev.target.closest('[data-pm]');
+      if (pm) { pickPitch(+pm.dataset.pm); return; }
+      var pd = ev.target.closest('[data-pd]');
+      if (pd) { if (selCell()) editValue('d' + pd.dataset.pd); else { pen.drum = +pd.dataset.pd; pickPitch(pen.midi); } openPick(pickCol, 3); return; }
+      var po = ev.target.closest('[data-poct]');
+      if (po) {
+        var d = +po.dataset.poct * 12, xx = selCell();
+        if (xx) { snapshot(); movePitch(xx, d); dirty(); auditionCell(xx); }
+        else pen.midi = Math.max(24, Math.min(96, pen.midi + d));
+        openPick(pickCol, selCell() ? selCh : pen.ch);
+        return;
+      }
+      var pv = ev.target.closest('[data-pv]');
+      if (pv) { pickVoice(+pv.dataset.pv); return; }
       var edb = ev.target.closest('[data-ed]');
-      if (edb) { editValue(edb.dataset.ed); return; }
-      var pnb = ev.target.closest('[data-pen]');
-      if (pnb) { editValue(pnb.dataset.pen); return; }
+      if (edb) {
+        var wasDel = edb.dataset.ed === 'del';
+        editValue(edb.dataset.ed);
+        if (wasDel) closePick(); else if (pickCol >= 0) openPick(pickCol, selCell() ? selCh : pen.ch);
+        return;
+      }
       var sh = ev.target.closest('[data-barshift]');
       if (sh) { shiftBar(+sh.dataset.barshift, +sh.dataset.bar); return; }
       var lp = ev.target.closest('[data-loopbar]');
