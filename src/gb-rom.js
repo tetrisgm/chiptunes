@@ -550,9 +550,21 @@
 
     // Channel 3 needs a table in wave RAM before it can make a sound. Pick the
     // slot the first wave note actually asks for.
-    var firstWave = null;
-    for (var i = 0; i < gb.notes.length && firstWave === null; i++)
-      if ((gb.notes[i].ch | 0) === 2) firstWave = (inst[gb.notes[i].inst] || [0])[0] & 0x0F;
+    // The slot comes from HW.waveSlotOf, never from byte0 directly: the two
+    // sides have to answer this question the same way or the cartridge loads a
+    // different table than the browser does.
+    var firstWave = null, lastWave = null;
+    for (var wi = 0; wi < gb.notes.length; wi++) {
+      var wn = gb.notes[wi];
+      if ((wn.ch | 0) !== 2) continue;
+      var wslot = HW.waveSlotOf(inst, wn.inst);
+      if (firstWave === null) { firstWave = wslot; lastWave = wslot; continue; }
+      if (wslot === lastWave) continue;
+      lastWave = wslot;
+      // a song that changes bass sound mid-way needs the table reloaded, which
+      // is exactly what the browser's Sequencer does
+      evs.push({ f: wn.frame | 0, ch: 2, type: 2, d: [wslot] });
+    }
     evs.push({ f: 0, ch: 2, type: 2, d: [firstWave === null ? 0 : firstWave] });
 
     // At one frame: offs first, wave loads, then sweep, then note-ons -- the
@@ -582,8 +594,10 @@
 
   function waveBytes(score) {
     var gb = score.gb, tables = (gb.bank && gb.bank.waveTables) || [];
+    var HW2 = G.CT_GB_HARDWARE || G.CT_GB || {};
+    var slots = Math.max(16, HW2.WAVE_SLOTS || 16);
     var out = [];
-    for (var t = 0; t < 16; t++) {
+    for (var t = 0; t < slots; t++) {
       var w = tables[t] || [];
       for (var i = 0; i < 16; i++) {
         var hi = (w[i * 2] || 0) & 15, lo = (w[i * 2 + 1] || 0) & 15;

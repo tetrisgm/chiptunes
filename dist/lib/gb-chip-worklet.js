@@ -68,7 +68,10 @@
     var pace = Math.max(0, Math.min(7, Math.round(env.rate || 0)));
     var nrx2 = (vol << 4) | (dir << 3) | pace;
     if (p.type === 'pulse') return [quantDuty(p.duty) << 6, nrx2, 0xFF, 0];
-    if (p.type === 'wave')  return [waveSlot & 0x0F, nrx2, 0xFF, 0];
+    // flags bit 0 says "byte0 is a wave slot". Without it a wave slot cannot
+    // be told from a pulse's duty byte, and the composer does sometimes put a
+    // pulse instrument on channel 3 -- see waveSlotOf.
+    if (p.type === 'wave')  return [waveSlot & 0xFF, nrx2, 0xFF, 1];
     // noise: NR43 = clockShift<<4 | width<<3 | divisor
     var width = p.mode === 7 ? 1 : 0;
     var shift = Math.max(0, Math.min(13, Math.round(p.clockShift || 0)));
@@ -83,6 +86,7 @@
   // soft, swell), six wave shapes from buzzy to mellow for the bass channel,
   // and four extra noises. They join the corpus patches in the same bank and
   // ride into the browser chip and the cartridge identically.
+  var WAVE_SLOTS = 32;                   // tables the cartridge carries (16 bytes each)
   function _env(initial, rate, dir) { return { initial: initial, rate: rate, direction: dir || 'down' }; }
   function _wt(fn) { var t = []; for (var i = 0; i < 32; i++) t.push(Math.max(0, Math.min(15, Math.round(fn(i))))); return t; }
   var AUTHORED = (function () {
@@ -144,6 +148,33 @@
     Object.keys(ED_WAVES).forEach(function (k) {
       ed({ type: 'wave', table4bit: ED_WAVES[k], envelope: _env(1, 0), authored: 'ed-w-' + k });
     });
+    // wave: the cartridge now carries 32 tables, so the bass voice gets the
+    // rest of the classic single-cycle shapes instead of the six it had
+    var TAU = Math.PI * 2;
+    var ED_WAVES2 = {
+      sqr75:  function (i) { return i < 24 ? 15 : 0; },
+      ramp:   function (i) { return 15 - i / 2; },
+      tri2:   function (i) { var j = i % 16; return j < 8 ? j * 2 : (15 - j) * 2; },
+      sine2:  function (i) { return 7.5 + 7.5 * Math.sin(i / 32 * TAU * 2); },
+      half:   function (i) { return 15 * Math.abs(Math.sin(i / 32 * Math.PI)); },
+      expo:   function (i) { return 15 * Math.exp(-i / 10); },
+      stair:  function (i) { return (i >> 3) * 5; },
+      stair8: function (i) { return (i >> 2) * 2.1; },
+      vox:    function (i) { var a = i / 32 * TAU;
+                return 7.5 + 4 * Math.sin(a) + 2 * Math.sin(3 * a) + 2 * Math.sin(7 * a); },
+      organ2: function (i) { var a = i / 32 * TAU;
+                return 7.5 + 4 * Math.sin(a) + 3 * Math.sin(2 * a) + 1.5 * Math.sin(4 * a); },
+      nasal:  function (i) { var a = i / 32 * TAU;
+                return 7.5 + 3 * Math.sin(a) + 3 * Math.sin(5 * a) + 2 * Math.sin(9 * a); },
+      notch:  function (i) { return i < 12 ? 15 : i < 16 ? 8 : 0; },
+      spike:  function (i) { return i < 3 ? i * 5 : i < 6 ? 15 - (i - 3) * 5 : 0; },
+      clip:   function (i) { return Math.max(0, Math.min(15, 7.5 + 12 * Math.sin(i / 32 * TAU))); },
+      chirp:  function (i) { return 7.5 + 7.5 * Math.sin(i * i / 90); },
+      wobble: function (i) { var a = i / 32 * TAU; return 7.5 + 6 * Math.sin(a + 1.4 * Math.sin(2 * a)); }
+    };
+    Object.keys(ED_WAVES2).forEach(function (k) {
+      ed({ type: 'wave', table4bit: _wt(ED_WAVES2[k]), envelope: _env(1, 0), authored: 'ed-w2-' + k });
+    });
     // noise: the corpus only ever asked for 15-bit noise at the top of the
     // range. 7-bit width is the chip's metallic mode, and the low shifts are
     // where the big drums live.
@@ -177,7 +208,7 @@
       var p = row.patch, slot = 0;
       if (p.type === 'wave') {
         var key = (p.table4bit || []).join(',');
-        if (waveOf[key] == null && waves.length < 16) {
+        if (waveOf[key] == null && waves.length < WAVE_SLOTS) {
           waveOf[key] = waves.length;
           waves.push((p.table4bit || []).slice(0, 32));
         }
@@ -187,7 +218,7 @@
       meta.push({ index: inst.length, type: p.type, patch: p, waveSlot: slot, weight: row.weight || 1 });
       inst.push(patchToInstrument(p, slot));
     });
-    while (waves.length < 16) waves.push(new Array(32).fill(0));
+    while (waves.length < WAVE_SLOTS) waves.push(new Array(32).fill(0));
     while (inst.length < 128) inst.push([0, 0, 0xFF, 0]);
     return { instruments: inst, waveTables: waves, arpTables: [], meta: meta };
   }
@@ -231,14 +262,24 @@
   }
 
   // Which wave slot an instrument asks for (channel 3 only).
+  // The cartridge driver walks waveAddr forward index*16 bytes with an 8-bit
+  // counter, so a wave index was never limited to a nibble -- only our own
+  // record was. WAVE_SLOTS is the one number both sides read.
+  //
+  // A note on channel 3 does not have to carry a WAVE instrument: the composer
+  // can land a pulse patch there, and then byte0 is a duty (0x80, say), not a
+  // slot. The old nibble mask hid that by turning it into slot 0; the flag bit
+  // keeps that behaviour honestly, and it is what makes >16 slots safe.
   function waveSlotOf(inst, index) {
-    var rec = (inst || [])[index]; return rec ? (rec[0] & 0x0F) : 0;
+    var rec = (inst || [])[index];
+    if (!rec || !(rec[3] & 1)) return 0;
+    return Math.min(WAVE_SLOTS - 1, rec[0] & 0xFF);
   }
 
   var API = {
     FPS: FPS, CH: CH, DUTIES: DUTIES, WAVE_LEVELS: WAVE_LEVELS,
     noteRegisters: noteRegisters, waveSlotOf: waveSlotOf,
-    NOISE_DIVISORS: NOISE_DIVISORS, RANGE: RANGE,
+    NOISE_DIVISORS: NOISE_DIVISORS, RANGE: RANGE, WAVE_SLOTS: WAVE_SLOTS,
     midiToHz: midiToHz, midiToPeriod: midiToPeriod, inRange: inRange,
     beatToFrame: beatToFrame, frameToSec: frameToSec,
     quantDuty: quantDuty, patchToInstrument: patchToInstrument, buildBank: buildBank

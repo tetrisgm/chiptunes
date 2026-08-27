@@ -481,3 +481,26 @@ pass.
   which makes Arp, Roll and Echo all sound like a plain note; previewMotion
   schedules the real hits instead. It is skipped while dragging (auditionCell's
   maxFrames argument marks a drag), or a drag would fire a timer storm.
+
+- THE CARTRIDGE NOW CARRIES 32 WAVE TABLES, not 16. The driver never had the
+  limit -- doWave walks waveAddr forward index*16 with an 8-bit counter -- it
+  was our instrument record masking byte0 to a nibble. WAVE_SLOTS in
+  gb-hardware.js is the one number both sides read; waveBytes() writes that
+  many tables (16 bytes each, so 32 costs 512 bytes of a 32 KiB cart, and a
+  1000-note song still leaves ~22 KB free).
+
+- WIDENING THAT MASK EXPOSED A REAL BUG, and the fix is the flag bit. The
+  composer sometimes lands a PULSE instrument on channel 3 (velvet-engines-
+  melt-tide-1a2b3c4d does), and a pulse record's byte0 is its duty -- 0x80.
+  Masked to a nibble that read as slot 0 and nobody noticed; as a full byte it
+  read as slot 128, and the cartridge walked 2 KB into ROM for a wave table.
+  patchToInstrument now sets flags bit 0 on wave records and waveSlotOf returns
+  0 unless that bit is set, which keeps the old behaviour exactly. The composer
+  bug itself is left alone ON PURPOSE: those songs are published, and changing
+  which instrument a seed uses would rewrite them.
+
+- gb-rom now RELOADS the wave table when a song changes bass sound mid-way.
+  It used to load only the first wave note's table, which was fine when the
+  composer picked one wave instrument per song -- but the editor lets you give
+  every note its own, and the cartridge would have played the first one
+  throughout. The browser's Sequencer reloads per note; the two must match.
