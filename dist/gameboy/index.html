@@ -641,15 +641,17 @@
   #createscreen .n-spk:hover{ background:rgba(255,255,255,.16); opacity:1; }
   #createscreen .n-mid{ flex:1 1 auto; min-height:0; overflow:hidden; position:relative;
     border-top:1px solid var(--mat-edge-hi); }
-  #createscreen .n-bbtools{ display:flex; gap:5px; justify-content:center; flex-wrap:wrap; margin-top:16px; }
-  #createscreen .n-hb{ height:28px; padding:0 10px; border-radius:8px; cursor:pointer; white-space:nowrap;
-    background:rgba(255,255,255,.05); border:1px solid var(--mat-edge); color:var(--ink-2); font:700 10px var(--ui); }
+  #createscreen .n-bbtools{ display:flex; gap:7px; width:100%; margin-top:14px; }
+  #createscreen .n-hb{ flex:1 1 0; min-width:0; height:36px; padding:0 6px; border-radius:9px; cursor:pointer;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    background:rgba(255,255,255,.06); border:1px solid var(--mat-edge); color:var(--ink-2); font:700 11px var(--ui); }
   #createscreen .n-hb:hover{ border-color:var(--mat-edge-hi); color:var(--ink); }
   #createscreen .n-bb.loop .n-lp{ background:rgba(123,220,160,.25); border-color:rgba(123,220,160,.7); color:#7BDCA0; }
   #createscreen .n-bb.queued .n-lp{ border-color:rgba(255,201,60,.8); color:#FFC93C; }
-  #createscreen .n-bblabel{ height:16px; text-align:center; margin-top:8px;
-    font:700 11px var(--ui); color:var(--ink-2); letter-spacing:.03em; }
+  #createscreen .n-bblabel{ height:20px; text-align:center; margin-bottom:6px;
+    font:800 12px var(--ui); color:var(--ink-2); letter-spacing:.04em; }
   #createscreen .n-bb.view .n-bblabel{ color:var(--ink); }
+  #createscreen .n-bb.loop .n-bblabel{ color:#7BDCA0; }
   #createscreen .n-addbar{ flex:0 0 auto; width:120px; height:var(--bbw,360px); border-radius:14px; cursor:pointer;
     display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;
     background:rgba(255,255,255,.03); border:1px dashed var(--mat-edge-hi); color:var(--ink-2); }
@@ -728,10 +730,8 @@
     #createscreen .n-transport{ gap:8px; padding:8px; }
     #createscreen .n-transport .cr-btn{ height:38px; padding:0 12px; }
     #createscreen .n-transport input[type=range]{ width:96px; }
-    #createscreen .n-bbtools{ flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none;
-      justify-content:flex-start; margin-top:12px; }
-    #createscreen .n-bbtools::-webkit-scrollbar{ display:none; }
-    #createscreen .n-hb{ font-size:9px; padding:0 8px; }
+    #createscreen .n-bbtools{ gap:4px; margin-top:10px; }
+    #createscreen .n-hb{ font-size:9px; padding:0 3px; height:32px; }
     #createscreen .allpills em{ font-size:8px; }
     #createscreen .n-edit{ gap:10px; padding:6px 10px; }
     #createscreen .n-edrow label{ display:none; }
@@ -4235,8 +4235,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     });
     root.querySelectorAll('.n-bblabel').forEach(function (el) {
       var lb = +el.parentNode.dataset.bar;
-      el.textContent = lb === viewBar ? ('bar ' + (lb + 1) + ' of ' + S.bars + (lb === loopBar ? ' \u00b7 looping' : ''))
-                     : (lb === loopBar ? 'looping' : '');
+      el.textContent = 'bar ' + (lb + 1) + (lb === loopBar ? ' \u00b7 looping' : '');
     });
     applyCam();
   }
@@ -4588,7 +4587,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     var track = root.querySelector('.n-track');
     var html = '';
     for (var b = 0; b < S.bars; b++) {
-      html += '<div class="n-bb" data-bar="' + b + '"><div class="n-bbgrid">';
+      html += '<div class="n-bb" data-bar="' + b + '"><div class="n-bblabel"></div><div class="n-bbgrid">';
       for (var s2 = 0; s2 < 16; s2++) {
         html += '<div class="n-step' + (s2 % 4 === 0 ? ' beat' : '') + '" data-col="' + (b * 16 + s2) + '">' +
                 '<u>' + (s2 + 1) + '</u><i class="pb"></i><span class="nn"></span><b class="ln"></b>' +
@@ -4600,7 +4599,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
               '<button type="button" class="n-hb n-lp" data-loopbar="' + b + '">\u21ba Loop</button>' +
               '<button type="button" class="n-hb" data-dupbar="' + b + '">\u29c9 Copy</button>' +
               '<button type="button" class="n-hb" data-delbar="' + b + '">\u2212 Delete</button>' +
-              '</div><div class="n-bblabel"></div></div>';
+              '</div></div>';
     }
     html += '<button type="button" class="n-addbar" data-cr="baradd"><b>+</b><span>add a bar</span></button>';
     track.innerHTML = html;
@@ -4616,7 +4615,8 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     if (!r.width || !r.height) return;
     bbGap = r.width < 520 ? 26 : 52;           // bars need air between them to read as separate
     // the block is the grid PLUS its tools row and its name line
-    bbW = Math.max(140, Math.min(r.width * (r.width < 520 ? 0.86 : 0.46), r.height - (r.width < 520 ? 96 : 108), 430));
+    var reserve = r.width < 520 ? 84 : 92;     // the name line above, the tools row below
+    bbW = Math.max(140, Math.min(r.width * (r.width < 520 ? 0.9 : 0.52), r.height - reserve, 560));
     root.style.setProperty('--bbw', bbW + 'px');
     root.style.setProperty('--bbgap', bbGap + 'px');
   }

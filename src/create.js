@@ -879,8 +879,7 @@
     });
     root.querySelectorAll('.n-bblabel').forEach(function (el) {
       var lb = +el.parentNode.dataset.bar;
-      el.textContent = lb === viewBar ? ('bar ' + (lb + 1) + ' of ' + S.bars + (lb === loopBar ? ' \u00b7 looping' : ''))
-                     : (lb === loopBar ? 'looping' : '');
+      el.textContent = 'bar ' + (lb + 1) + (lb === loopBar ? ' \u00b7 looping' : '');
     });
     applyCam();
   }
@@ -1232,7 +1231,7 @@
     var track = root.querySelector('.n-track');
     var html = '';
     for (var b = 0; b < S.bars; b++) {
-      html += '<div class="n-bb" data-bar="' + b + '"><div class="n-bbgrid">';
+      html += '<div class="n-bb" data-bar="' + b + '"><div class="n-bblabel"></div><div class="n-bbgrid">';
       for (var s2 = 0; s2 < 16; s2++) {
         html += '<div class="n-step' + (s2 % 4 === 0 ? ' beat' : '') + '" data-col="' + (b * 16 + s2) + '">' +
                 '<u>' + (s2 + 1) + '</u><i class="pb"></i><span class="nn"></span><b class="ln"></b>' +
@@ -1244,7 +1243,7 @@
               '<button type="button" class="n-hb n-lp" data-loopbar="' + b + '">\u21ba Loop</button>' +
               '<button type="button" class="n-hb" data-dupbar="' + b + '">\u29c9 Copy</button>' +
               '<button type="button" class="n-hb" data-delbar="' + b + '">\u2212 Delete</button>' +
-              '</div><div class="n-bblabel"></div></div>';
+              '</div></div>';
     }
     html += '<button type="button" class="n-addbar" data-cr="baradd"><b>+</b><span>add a bar</span></button>';
     track.innerHTML = html;
@@ -1260,7 +1259,8 @@
     if (!r.width || !r.height) return;
     bbGap = r.width < 520 ? 26 : 52;           // bars need air between them to read as separate
     // the block is the grid PLUS its tools row and its name line
-    bbW = Math.max(140, Math.min(r.width * (r.width < 520 ? 0.86 : 0.46), r.height - (r.width < 520 ? 96 : 108), 430));
+    var reserve = r.width < 520 ? 84 : 92;     // the name line above, the tools row below
+    bbW = Math.max(140, Math.min(r.width * (r.width < 520 ? 0.9 : 0.52), r.height - reserve, 560));
     root.style.setProperty('--bbw', bbW + 'px');
     root.style.setProperty('--bbgap', bbGap + 'px');
   }
