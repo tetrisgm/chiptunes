@@ -1118,13 +1118,16 @@
   }
 
   function renderAll() { renderTransport(); renderChans(); renderBars(); renderGrid(); renderEdit(); }
+  // the playhead carries a FRACTION of a step, not a whole one: quantising it
+  // made the line hop once per sixteenth (nine times a second) instead of
+  // sweeping. Transform, so the move stays on the compositor.
   function updatePh(col) {
-    if (col === lastPh) return;
+    if (Math.abs(col - lastPh) < 0.01) return;
     lastPh = col;
     var ph = root.querySelector('.n-ph');
     if (ph) {
       ph.style.display = col < 0 ? 'none' : 'block';
-      if (col >= 0) ph.style.left = Math.round(col * stepW) + 'px';
+      if (col >= 0) ph.style.transform = 'translate3d(' + (col * stepW).toFixed(2) + 'px,0,0)';
     }
   }
 
@@ -1156,10 +1159,10 @@
     var pb = Math.floor(col / 16);
     // a hand scroll pauses the follow; the music takes it back a moment later
     if (!camFollow && performance.now() - camTouchedAt > 3000) camFollow = true;
-    if (camFollow) { centerOn(pb, false); applyCam(); }
+    if (camFollow) { followCol(col); applyCam(); }
     if (pb !== viewBar) { viewBar = pb; renderBars(); }
     lastPlayBar = pb;
-    updatePh(Math.floor(col));
+    updatePh(col);
     scheduleTick();
   }
 
@@ -1287,7 +1290,7 @@
     if (!r.width || !r.height) return;
     var narrow = r.width < 520;
     stepW = narrow ? 26 : 34;
-    laneH = Math.max(48, Math.floor((r.height - 28) / 4));   // the four lanes fill the room
+    laneH = Math.max(48, Math.floor((r.height - 32) / 4));   // the four lanes fill the room
     sidePad = 0;                               // the song starts at the left edge
     root.style.setProperty('--stepw', stepW + 'px');
     root.style.setProperty('--laneh', laneH + 'px');
@@ -1307,9 +1310,17 @@
     var want = Math.max(0, Math.min(camMax(), sidePad + (bar * 16 + 8) * stepW - w / 2));
     camX = snap ? want : camX + (want - camX) * (Math.abs(want - camX) > w ? 1 : 0.18);
   }
+  // the camera rides the playhead itself, not the bar it sits in. A target
+  // that only moves once a bar makes the track lurch and then stand still for
+  // the rest of the bar -- smooth frames, stuttering motion.
+  function followCol(col) {
+    var sc = root.querySelector('.n-scroll');
+    var w = sc ? sc.getBoundingClientRect().width : 0;
+    camX = Math.max(0, Math.min(camMax(), sidePad + (col + 0.5) * stepW - w / 2));
+  }
   function applyCam() {
     var track = root.querySelector('.n-track');
-    if (track) track.style.transform = 'translateX(' + (-Math.round(camX)) + 'px)';
+    if (track) track.style.transform = 'translate3d(' + (-camX).toFixed(2) + 'px,0,0)';
     // the scrollbar says where in the song you are, and how much of it you see
     var bar = root.querySelector('.n-sbar'), thumb = root.querySelector('.n-sthumb');
     if (bar && thumb) {
@@ -1320,7 +1331,7 @@
       var tw = Math.max(28, Math.round(bw * view / total));
       var span = Math.max(1, camMax());
       thumb.style.width = tw + 'px';
-      thumb.style.left = Math.round((bw - tw) * (camX / span)) + 'px';
+      thumb.style.left = ((bw - tw) * (camX / span)).toFixed(2) + 'px';
     }
     // the gridlines repeat every bar, so the backdrop only ever needs to move
     // within one bar: a composited nudge instead of a full repaint
@@ -1328,7 +1339,7 @@
     if (bg) {
       var barPx = 16 * stepW;
       var t = ((sidePad - camX) % barPx + barPx) % barPx;   // keep the bar lines on the bars
-      bg.style.transform = 'translateX(' + Math.round(t - barPx) + 'px)';
+      bg.style.transform = 'translate3d(' + (t - barPx).toFixed(2) + 'px,0,0)';
     }
   }
   function barUnderCamera() {

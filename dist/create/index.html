@@ -594,14 +594,14 @@
     touch-action:none; cursor:grab; }
   #createscreen .n-scroll:active{ cursor:grabbing; }
   #createscreen .n-track{ position:absolute; left:var(--sidepad,0); top:0; will-change:transform; }
-  #createscreen .n-ruler{ position:relative; height:26px; }
-  #createscreen .n-rbar{ position:absolute; top:3px; display:flex; align-items:center; gap:6px; height:22px;
+  #createscreen .n-ruler{ position:relative; height:30px; }
+  #createscreen .n-rbar{ position:absolute; top:3px; display:flex; align-items:center; gap:6px; height:24px;
     font:800 11px var(--ui); color:var(--ink-2); padding-left:6px;
     border-left:1px solid rgba(232,227,250,.18); }
   #createscreen .n-rbar.on{ color:var(--ink); }
-  #createscreen .n-rins, #createscreen .n-rdel{ display:none; height:18px; padding:0 6px; border-radius:5px;
+  #createscreen .n-rins, #createscreen .n-rdel{ display:none; height:22px; padding:0 9px; border-radius:6px;
     cursor:pointer; background:rgba(255,255,255,.07); border:1px solid var(--mat-edge);
-    color:var(--ink-2); font:700 9px var(--ui); }
+    color:var(--ink-2); font:800 11px var(--ui); }
   #createscreen .n-rbar.on .n-rins, #createscreen .n-rbar.on .n-rdel{ display:inline-flex; align-items:center; }
   #createscreen .n-rins:hover, #createscreen .n-rdel:hover{ border-color:var(--mat-edge-hi); color:var(--ink); }
   #createscreen .n-rdel.arm{ background:rgba(255,107,87,.2); border-color:rgba(255,107,87,.6); color:#FF9E90; }
@@ -609,7 +609,7 @@
      one bar's worth at most (the pattern repeats), so scrolling never repaints
      it. Painting these across the whole song was a 26,000px-wide surface and
      made the scroll stutter. */
-  #createscreen .n-bg{ position:absolute; left:0; top:26px; bottom:0; pointer-events:none;
+  #createscreen .n-bg{ position:absolute; left:0; top:30px; bottom:0; pointer-events:none;
     width:calc(100% + var(--barw,480px) * 2); will-change:transform;
     background-image:
       repeating-linear-gradient(to right, rgba(232,227,250,.16) 0 1px, transparent 1px var(--barw,480px)),
@@ -631,11 +631,11 @@
   #createscreen .n-note.sel{ box-shadow:0 0 0 2px rgba(255,255,255,.7); }
   #createscreen .n-note.sulk{ opacity:.35 !important; }
   #createscreen .n-note.rest{ border-style:dashed; }
-  #createscreen .n-barhl{ position:absolute; top:26px; height:calc(var(--laneh,62px) * 4);
+  #createscreen .n-barhl{ position:absolute; top:30px; height:calc(var(--laneh,62px) * 4);
     background:rgba(255,255,255,.05); border-left:1px solid rgba(232,227,250,.4);
     border-right:1px solid rgba(232,227,250,.4); pointer-events:none; }
-  #createscreen .n-ph{ position:absolute; top:26px; bottom:0; width:2px; background:rgba(255,255,255,.75);
-    pointer-events:none; display:none; }
+  #createscreen .n-ph{ position:absolute; left:0; top:30px; bottom:0; width:2px; background:rgba(255,255,255,.75);
+    pointer-events:none; display:none; will-change:transform; }
   #createscreen .n-sbarrow{ flex:0 0 auto; display:flex; padding:6px 12px 2px 118px; }
   #createscreen .n-sbar{ position:relative; flex:1 1 auto; height:12px; border-radius:6px;
     background:rgba(255,255,255,.05); border:1px solid var(--mat-edge); cursor:pointer; touch-action:none; }
@@ -4481,13 +4481,16 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   }
 
   function renderAll() { renderTransport(); renderChans(); renderBars(); renderGrid(); renderEdit(); }
+  // the playhead carries a FRACTION of a step, not a whole one: quantising it
+  // made the line hop once per sixteenth (nine times a second) instead of
+  // sweeping. Transform, so the move stays on the compositor.
   function updatePh(col) {
-    if (col === lastPh) return;
+    if (Math.abs(col - lastPh) < 0.01) return;
     lastPh = col;
     var ph = root.querySelector('.n-ph');
     if (ph) {
       ph.style.display = col < 0 ? 'none' : 'block';
-      if (col >= 0) ph.style.left = Math.round(col * stepW) + 'px';
+      if (col >= 0) ph.style.transform = 'translate3d(' + (col * stepW).toFixed(2) + 'px,0,0)';
     }
   }
 
@@ -4519,10 +4522,10 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     var pb = Math.floor(col / 16);
     // a hand scroll pauses the follow; the music takes it back a moment later
     if (!camFollow && performance.now() - camTouchedAt > 3000) camFollow = true;
-    if (camFollow) { centerOn(pb, false); applyCam(); }
+    if (camFollow) { followCol(col); applyCam(); }
     if (pb !== viewBar) { viewBar = pb; renderBars(); }
     lastPlayBar = pb;
-    updatePh(Math.floor(col));
+    updatePh(col);
     scheduleTick();
   }
 
@@ -4650,7 +4653,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     if (!r.width || !r.height) return;
     var narrow = r.width < 520;
     stepW = narrow ? 26 : 34;
-    laneH = Math.max(48, Math.floor((r.height - 28) / 4));   // the four lanes fill the room
+    laneH = Math.max(48, Math.floor((r.height - 32) / 4));   // the four lanes fill the room
     sidePad = 0;                               // the song starts at the left edge
     root.style.setProperty('--stepw', stepW + 'px');
     root.style.setProperty('--laneh', laneH + 'px');
@@ -4670,9 +4673,17 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     var want = Math.max(0, Math.min(camMax(), sidePad + (bar * 16 + 8) * stepW - w / 2));
     camX = snap ? want : camX + (want - camX) * (Math.abs(want - camX) > w ? 1 : 0.18);
   }
+  // the camera rides the playhead itself, not the bar it sits in. A target
+  // that only moves once a bar makes the track lurch and then stand still for
+  // the rest of the bar -- smooth frames, stuttering motion.
+  function followCol(col) {
+    var sc = root.querySelector('.n-scroll');
+    var w = sc ? sc.getBoundingClientRect().width : 0;
+    camX = Math.max(0, Math.min(camMax(), sidePad + (col + 0.5) * stepW - w / 2));
+  }
   function applyCam() {
     var track = root.querySelector('.n-track');
-    if (track) track.style.transform = 'translateX(' + (-Math.round(camX)) + 'px)';
+    if (track) track.style.transform = 'translate3d(' + (-camX).toFixed(2) + 'px,0,0)';
     // the scrollbar says where in the song you are, and how much of it you see
     var bar = root.querySelector('.n-sbar'), thumb = root.querySelector('.n-sthumb');
     if (bar && thumb) {
@@ -4683,7 +4694,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       var tw = Math.max(28, Math.round(bw * view / total));
       var span = Math.max(1, camMax());
       thumb.style.width = tw + 'px';
-      thumb.style.left = Math.round((bw - tw) * (camX / span)) + 'px';
+      thumb.style.left = ((bw - tw) * (camX / span)).toFixed(2) + 'px';
     }
     // the gridlines repeat every bar, so the backdrop only ever needs to move
     // within one bar: a composited nudge instead of a full repaint
@@ -4691,7 +4702,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     if (bg) {
       var barPx = 16 * stepW;
       var t = ((sidePad - camX) % barPx + barPx) % barPx;   // keep the bar lines on the bars
-      bg.style.transform = 'translateX(' + Math.round(t - barPx) + 'px)';
+      bg.style.transform = 'translate3d(' + (t - barPx).toFixed(2) + 'px,0,0)';
     }
   }
   function barUnderCamera() {

@@ -371,9 +371,21 @@ pass.
 
 - BAR CONTROLS LIVE ON THE RULER, not in a row underneath. The current bar's
   label carries them -- "#4  + insert  x" -- and only the current bar shows
-  them; every other bar is just its number. The x arms for 4 seconds
+  them, at the same 11px as the number itself; every other bar is just its
+  number. The ruler is 30px tall to hold them -- .n-bg, .n-barhl and .n-ph all
+  hang off that height, and sizeTrack subtracts it from the lane maths. The x arms for 4 seconds
   ("x sure?") before it deletes, and + insert opens an empty bar at that bar
   and pushes the rest right. The old .n-barbar row is gone.
+
+- THE PLAYHEAD AND THE CAMERA BOTH CARRY FRACTIONS. updatePh took a floored
+  column and centerOn took a bar index, so the line hopped once per sixteenth
+  and the camera lurched then stood still for the rest of each bar -- 60fps
+  frames, stuttering motion. The playhead now takes the fractional column and
+  moves by transform; the follow uses followCol(col), which keeps the playhead
+  centred; the track, the gridline layer and the scrollbar thumb are all
+  positioned sub-pixel. Measured while following: every frame moves, camera
+  2.38px +/- 0.099, zero stalls in 480 frames. Never round a position that a
+  frame loop writes -- rounding is what puts the steps back.
 
 - The camera FOLLOWS THE MUSIC, and a hand scroll only borrows it: wheel,
   drag and scrollbar all stamp camTouchedAt, and the follow resumes 3 seconds

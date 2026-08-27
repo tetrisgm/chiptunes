@@ -594,14 +594,14 @@
     touch-action:none; cursor:grab; }
   #createscreen .n-scroll:active{ cursor:grabbing; }
   #createscreen .n-track{ position:absolute; left:var(--sidepad,0); top:0; will-change:transform; }
-  #createscreen .n-ruler{ position:relative; height:26px; }
-  #createscreen .n-rbar{ position:absolute; top:3px; display:flex; align-items:center; gap:6px; height:22px;
+  #createscreen .n-ruler{ position:relative; height:30px; }
+  #createscreen .n-rbar{ position:absolute; top:3px; display:flex; align-items:center; gap:6px; height:24px;
     font:800 11px var(--ui); color:var(--ink-2); padding-left:6px;
     border-left:1px solid rgba(232,227,250,.18); }
   #createscreen .n-rbar.on{ color:var(--ink); }
-  #createscreen .n-rins, #createscreen .n-rdel{ display:none; height:18px; padding:0 6px; border-radius:5px;
+  #createscreen .n-rins, #createscreen .n-rdel{ display:none; height:22px; padding:0 9px; border-radius:6px;
     cursor:pointer; background:rgba(255,255,255,.07); border:1px solid var(--mat-edge);
-    color:var(--ink-2); font:700 9px var(--ui); }
+    color:var(--ink-2); font:800 11px var(--ui); }
   #createscreen .n-rbar.on .n-rins, #createscreen .n-rbar.on .n-rdel{ display:inline-flex; align-items:center; }
   #createscreen .n-rins:hover, #createscreen .n-rdel:hover{ border-color:var(--mat-edge-hi); color:var(--ink); }
   #createscreen .n-rdel.arm{ background:rgba(255,107,87,.2); border-color:rgba(255,107,87,.6); color:#FF9E90; }
@@ -609,7 +609,7 @@
      one bar's worth at most (the pattern repeats), so scrolling never repaints
      it. Painting these across the whole song was a 26,000px-wide surface and
      made the scroll stutter. */
-  #createscreen .n-bg{ position:absolute; left:0; top:26px; bottom:0; pointer-events:none;
+  #createscreen .n-bg{ position:absolute; left:0; top:30px; bottom:0; pointer-events:none;
     width:calc(100% + var(--barw,480px) * 2); will-change:transform;
     background-image:
       repeating-linear-gradient(to right, rgba(232,227,250,.16) 0 1px, transparent 1px var(--barw,480px)),
@@ -631,11 +631,11 @@
   #createscreen .n-note.sel{ box-shadow:0 0 0 2px rgba(255,255,255,.7); }
   #createscreen .n-note.sulk{ opacity:.35 !important; }
   #createscreen .n-note.rest{ border-style:dashed; }
-  #createscreen .n-barhl{ position:absolute; top:26px; height:calc(var(--laneh,62px) * 4);
+  #createscreen .n-barhl{ position:absolute; top:30px; height:calc(var(--laneh,62px) * 4);
     background:rgba(255,255,255,.05); border-left:1px solid rgba(232,227,250,.4);
     border-right:1px solid rgba(232,227,250,.4); pointer-events:none; }
-  #createscreen .n-ph{ position:absolute; top:26px; bottom:0; width:2px; background:rgba(255,255,255,.75);
-    pointer-events:none; display:none; }
+  #createscreen .n-ph{ position:absolute; left:0; top:30px; bottom:0; width:2px; background:rgba(255,255,255,.75);
+    pointer-events:none; display:none; will-change:transform; }
   #createscreen .n-sbarrow{ flex:0 0 auto; display:flex; padding:6px 12px 2px 118px; }
   #createscreen .n-sbar{ position:relative; flex:1 1 auto; height:12px; border-radius:6px;
     background:rgba(255,255,255,.05); border:1px solid var(--mat-edge); cursor:pointer; touch-action:none; }
