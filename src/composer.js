@@ -2,7 +2,7 @@
 // selection, critics, candidates, templates, and taste models do not.
 (function(){
 'use strict';
-var G=typeof globalThis!=='undefined'?globalThis:window,REV='musician-11';
+var G=typeof globalThis!=='undefined'?globalThis:window,REV='musician-12';
 if(typeof module!=='undefined'&&!G.CT_STYLE_CORPUS){try{require('./style-corpus.js');}catch(e){}}
 if(typeof module!=='undefined'&&module.exports&&!G.CT_CHIP_INSTRUMENTS)require('./chip-instruments.js');
 if(typeof module!=='undefined'&&module.exports&&!G.CT_MELODY)require('./melody.js');
@@ -247,8 +247,13 @@ function makeMotif(token,label,min,max,model,role){
   var r=rng(token,label),n=ri(r,min,max),steps=[ri(r,0,3)],degrees=[ri(r,-2,3)],gaps=[];
   var rhythm=roleCell(r,model,role,'rhythmCells'),intervals=roleCell(r,model,role,'intervalCells');
   var rg=rhythm?rhythm.id.split('-').map(Number):[1,2,2,3,4,5],iv=intervals?intervals.id.split(',').map(Number).map(semiDegree):[-2,-1,1,1,2];
-  for(var i=1;i<n;i++){var gap=pick(r,[1,2,2,3,4,5]);gaps.push(gap);steps.push(steps[i-1]+gap);
-    gap=clamp(rg[(i-1)%rg.length]||gap,1,8);steps[i]=steps[i-1]+gap;
+  // The drawn gap used to be computed, pushed, used -- and then immediately
+  // overwritten by the cell on the next line, so the randomness was dead code
+  // and the cell cycled from index 0 forever. Rotate the cell instead, and let
+  // the drawn gap actually stand in where the cell has nothing to say.
+  var rot=ri(r,0,Math.max(0,rg.length-1));
+  for(var i=1;i<n;i++){var gap=pick(r,[1,2,2,3,4,5]);
+    gap=clamp(rg[(rot+i-1)%rg.length]||gap,1,8);gaps.push(gap);steps.push(steps[i-1]+gap);
     var leap=iv[(i-1)%iv.length];degrees.push(clamp(degrees[i-1]+leap,-7,11));}
   return{steps:steps,degrees:degrees,gaps:gaps};
 }

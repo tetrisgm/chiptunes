@@ -880,3 +880,53 @@ pass.
 
 - npm run test:share is the gate, and it checks BOTH directions, because "the
   same from either side" is the actual requirement.
+
+- THE STATION HAD A FAVOURITE RHYTHM, and the report was exact: "it plays one
+  two three four and the fourth is longer, and it reuses that pattern in the
+  same structure, and it is in so many songs." Measured before touching
+  anything: 17.7% of every four-note run in the lead was short-short-short-LONG,
+  56.8% of songs contained it, half of all bar rhythms were 14 patterns out of
+  531, and the exact figure `0/1 1/1 2/1 3/10` was 4.2% of all bars on its own.
+  FOUR structural causes, all of them found in the code rather than guessed at:
+
+  1. THE CORPUS COUNTS WINDOWS, NOT DECISIONS. rhythmCells were mined by sliding
+     a window over real GB leads, so a 32-note run of straight sixteenths emits
+     29 overlapping '1-1-1-1' cells. Weighting by raw count measures how LONG a
+     figure ran, not how often anyone chose it: '1-1-1-1' took 69% of the draw
+     and the effective vocabulary of a 96-cell corpus was 5.7 CELLS. Compressed
+     by sqrt (what chipPatch already does to instrument weights) -> 58.4, with
+     the straight run still the most common single figure at 16%, which is true
+     of the genre. This was the single biggest lever.
+  2. A HARD FOUR-NOTE CAP. `i < shape.length + 1`, and every contour in
+     MOTIF_SHAPE is three long, so every bar of every song was truncated to four
+     notes however much rhythm the cell carried. Literally one, two, three,
+     four. The contour cycles now instead of severing the figure.
+  3. ONE RHYTHM STAMPED ON BARS 0-2 of every phrase. Bar 1 is a varied
+     restatement now (head literal, tail moved) and bar 2 develops the rhythm
+     as well as the pitch -- displacement, fragmentation, augmentation,
+     truncation, which are the standard ways of restating a figure.
+  4. THE CADENCE BAR WAS HARDCODED [0,4,8] in every phrase of every song ever
+     generated -- a quarter of all melodic bars, three notes then a held one,
+     which IS the reported shape. Ten cadence rhythms now; the run still walks
+     stepwise onto the goal tone, because that is what makes it a cadence.
+
+  Also: figures are sometimes stated at the eighth rather than the sixteenth
+  (the corpus is mined at the sixteenth, so every gap in every song was a 1 or a
+  2); the fallback pool went from 8 figures, 6 of them on the 0/4/8/12 grid, to
+  20 including anacrusis and syncopation; long even runs get thinned; and
+  makeMotif drew a random gap, pushed it, then overwrote it on the next line --
+  dead code that made the cell cycle from index 0 forever.
+
+  Result, same measurements: short-short-short-LONG 17.7% -> 7.9%, songs
+  containing it 56.8% -> 41.6%, consecutive bars repeating their rhythm
+  16.3% -> 11.1%, bar-rhythm effective vocabulary 54.2 -> 167.6, four-run
+  vocabulary 26.8 -> 62.3, distinct bar rhythms 299 -> 941.
+
+  NOT flattened into randomness: note spacing is still peaked on 1, 2 and 4
+  sixteenths, because that is what the genre is made of, and phrases still
+  repeat 10.8% of the time -- repetition is what turns a phrase into a tune, and
+  the gate asserts BOTH directions so nobody 'fixes' this into noodling.
+
+- npm run test:rhythm measures the ENSEMBLE, not one song. A single song may
+  repeat a figure as much as it likes; the station must not keep reaching for
+  the same handful. REV is musician-12.

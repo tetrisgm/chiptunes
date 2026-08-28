@@ -603,21 +603,43 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       [0, 2, 4, scaleLen].forEach(function (c) { var d = Math.abs(c - r); if (d < bd) { bd = d; best = c; } });
       return base + best;
     }
-    var MOTIF_RH = [[0,4,8,12],[0,4,8],[0,6,8,12],[0,4,10],[0,8,12],[0,3,8,11],[0,4,8,11],[0,2,4,8]];
+    // The fallback pool was eight figures and six of them sat on the 0/4/8/12
+    // grid, so when the corpus was not used the bar came out square. These add
+    // anacrusis (entering off the downbeat), syncopation across the half-bar,
+    // and dotted groupings, which is most of what the old pool could not say.
+    var MOTIF_RH = [[0,4,8,12],[0,4,8],[0,6,8,12],[0,4,10],[0,8,12],[0,3,8,11],[0,4,8,11],[0,2,4,8],
+                    [0,3,6,9],[0,6,12],[2,6,10,14],[0,2,6,8,14],[0,5,10],[3,7,11,15],
+                    [0,1,4,8,9,12],[0,4,7,10,14],[2,4,8,12],[0,6,10,12],[0,3,4,8,11,12],[6,8,12,14]];
     // The corpus carries 96 rhythm cells from real GB music and the hard pool
     // above is eight. Over half of motifs now draw their rhythm from the
     // corpus (a cell is note gaps in 16ths: '1-1-2-1' becomes positions), so
     // the phrase vocabulary is measured, not invented.
+    // THE CORPUS COUNTS WINDOWS, NOT DECISIONS, and that had collapsed the
+    // whole station onto one rhythm. The cells were mined by sliding a window
+    // over real Game Boy leads, so a 32-note run of straight sixteenths emits
+    // 29 overlapping '1-1-1-1's. Weighting by raw count therefore measures HOW
+    // LONG a figure ran, not how often anyone chose it: '1-1-1-1' took 69% of
+    // the draw and the effective vocabulary of a 96-cell corpus was 5.7 cells.
+    // Compressing by sqrt -- the same thing chipPatch already does to
+    // instrument weights -- leaves the ordering intact and the straight run
+    // still the single most common figure at 16%, while the effective
+    // vocabulary goes to 58. Measured both ways in verify-rhythm.
+    function cellWeight(c) { return Math.sqrt(c.count || c.tracks || 1); }
     function corpusRhythm() {
       var cells = rcells; if (!cells || !cells.length) return null;
-      var total = 0, i; for (i = 0; i < cells.length; i++) total += (cells[i].count || cells[i].tracks || 1);
+      var total = 0, i; for (i = 0; i < cells.length; i++) total += cellWeight(cells[i]);
       var at = r() * total, cell = null;
-      for (i = 0; i < cells.length; i++) { at -= (cells[i].count || cells[i].tracks || 1); if (at <= 0) { cell = cells[i]; break; } }
+      for (i = 0; i < cells.length; i++) { at -= cellWeight(cells[i]); if (at <= 0) { cell = cells[i]; break; } }
       if (!cell) return null;
       var gaps = String(cell.id).split('-').map(Number).filter(function (n) { return n > 0; });
       if (!gaps.length) return null;
+      // ROTATE rather than always entering at gaps[0]. Reading one cell from a
+      // different starting gap is a different figure built of the same
+      // material, which is what a composer does with one; strict cycling from
+      // index 0 is what made every bar the same shape.
+      var rot = Math.floor(r() * gaps.length);
       var pos = [], p = 0, gi = 0;
-      while (p < 16 && pos.length < 6) { pos.push(p); p += Math.max(1, gaps[gi++ % gaps.length]); }
+      while (p < 16 && pos.length < 8) { pos.push(p); p += Math.max(1, gaps[(rot + gi++) % gaps.length]); }
       return pos.length >= 2 ? pos : null;
     }
     var MOTIF_SHAPE = [[0,1,2],[0,2,1],[0,-1,-2],[0,2,4],[0,-1,1],[0,1,-1],[0,2,0],[0,-2,-1],[0,1,3],[0,3,2]];
@@ -625,6 +647,35 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     function materialize(letter, bar, role) {
       var rh = (hash(opts.token + ':mtf-src:' + letter) % 100 < 55 ? corpusRhythm() : null)
              || MOTIF_RH[hash(opts.token + ':mtf-rh:' + letter) % MOTIF_RH.length];
+      // AT WHAT SPEED IS THE FIGURE STATED? Everything was written at the
+      // sixteenth, and the corpus cells are mined at the sixteenth too, so
+      // essentially every gap in every song was a 1 or a 2 -- an effective
+      // vocabulary of five spacings across the whole station. Stating the same
+      // figure at the eighth is not a different figure, it is the ordinary
+      // thing a composer does with one, and it moves the gaps to 2 and 4.
+      var aug = [1, 1, 1, 2, 2][hash(opts.token + ':mtf-aug:' + letter) % 5];
+      if (aug > 1) {
+        var wide = [];
+        for (var ai = 0; ai < rh.length; ai++) {
+          var q = rh[0] + (rh[ai] - rh[0]) * aug;
+          if (q < 16) wide.push(q);
+        }
+        if (wide.length >= 2) rh = wide;
+      }
+      // A straight run is a real chip figure, but a cell of all-ones now fills
+      // the whole bar (the four-note cap used to hide that), and eight even
+      // sixteenths every time it comes up is its own kind of sameness. Thin the
+      // long even ones into something with a shape.
+      if (rh.length >= 6) {
+        var even = true;
+        for (var ei = 2; ei < rh.length; ei++) if (rh[ei] - rh[ei-1] !== rh[1] - rh[0]) { even = false; break; }
+        if (even) {
+          var keep = [], drop = hash(opts.token + ':mtf-thin:' + letter) % 3;
+          for (var ki = 0; ki < rh.length; ki++)
+            if (ki === 0 || ki % 3 !== drop) keep.push(rh[ki]);
+          if (keep.length >= 3) rh = keep;
+        }
+      }
       // style density: sparse styles state their motif with fewer notes
       var md = opts.melDensity == null ? 1 : opts.melDensity;
       if (md < 1 && rh.length > 2) rh = rh.slice(0, Math.max(2, Math.ceil(rh.length * md)));
@@ -638,29 +689,81 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       // holds is the most chipzel move there is
       var anchorOff = [2, 4, scaleLen][hash(opts.token + ':mtf-a0:' + letter) % 3];
       var notes = [];
-      function state(rb, anchor, inv, segRoot) {
-        for (var i = 0; i < rh.length && i < shape.length + 1; i++) {
-          var off = shape[Math.min(i, shape.length - 1)];
+      // A MOTIF IS RESTATED, NOT PHOTOCOPIED. One rhythm used to stamp every bar
+      // of the phrase unchanged, which is the '1234 1234 1234' the station kept
+      // playing. These are the standard ways of restating a figure so it stays
+      // recognisably itself: displace it, thin it, halve its speed, or drop its
+      // tail. The statement bars keep it literal -- that is what makes it
+      // register as a motif -- and the development bar is where it moves.
+      function varyRh(src, kind) {
+        var out = src.slice(), i;
+        if (kind === 1) {                                   // displacement
+          var by = 2; out = [];
+          for (i = 0; i < src.length; i++) if (src[i] + by < 16) out.push(src[i] + by);
+        } else if (kind === 2) {                            // fragmentation
+          out = src.slice(0, Math.max(2, Math.ceil(src.length / 2)));
+        } else if (kind === 3) {                            // augmentation
+          out = []; for (i = 0; i < src.length; i++) { var q = src[0] + (src[i] - src[0]) * 2; if (q < 16) out.push(q); }
+        } else if (kind === 4 && src.length > 2) {          // truncation
+          out = src.slice(0, src.length - 1);
+        }
+        return out.length >= 2 ? out : src;
+      }
+      function state(rb, anchor, inv, segRoot, rhOv) {
+        var use = rhOv || rh;
+        // NO 4-NOTE CAP. It read `i < shape.length + 1` and every contour in
+        // MOTIF_SHAPE is three long, so every bar of every song was truncated
+        // to four notes no matter how much rhythm the cell actually carried --
+        // which is why the station only ever played one, two, three, four.
+        // The contour cycles instead, which turns a longer rhythm into a
+        // sequence of the same figure rather than a severed one.
+        for (var i = 0; i < use.length; i++) {
+          var off = shape[i % shape.length];
           if (inv) off = -off;
           var d = anchor + off;
           // the mid-bar strong beat is a chord tone too, not just the downbeat:
           // round its distance from the chord root onto the triad (even degrees)
-          if (rh[i] % 8 === 0) d = segRoot + snapChord(d - segRoot);
-          notes.push({ rb: rb, pos16: rh[i], deg: d, accent: rb === 0 && i === 0 });
+          if (use[i] % 8 === 0 || i === 0) d = segRoot + snapChord(d - segRoot);
+          notes.push({ rb: rb, pos16: use[i], deg: d, accent: rb === 0 && i === 0 });
         }
       }
       state(0, homeRoot + anchorOff, false, homeRoot);
-      state(1, rootAt(bar + 1) + anchorOff, false, rootAt(bar + 1));
+      // A VARIED RESTATEMENT, not a photocopy. Bars 0 and 1 used the identical
+      // figure, which is half of what "it plays 1234 1234" was. The head stays
+      // literal so the ear still hears the same idea; the tail moves. That is
+      // the difference between a motif being restated and a bar being repeated.
+      var reKind = hash(opts.token + ':mtf-re:' + letter) % 5;
+      var rh1 = rh;
+      if (reKind < 3 && rh.length >= 3) {
+        var head = Math.max(2, Math.floor(rh.length / 2));
+        rh1 = rh.slice(0, head);
+        var tail = rh.slice(head), shift = reKind === 0 ? 1 : reKind === 1 ? -1 : 2;
+        for (var ti = 0; ti < tail.length; ti++) {
+          var q = tail[ti] + shift;
+          if (q < 16 && q > rh1[rh1.length - 1]) rh1.push(q);
+        }
+        if (rh1.length < 2) rh1 = rh;
+      }
+      state(1, rootAt(bar + 1) + anchorOff, false, rootAt(bar + 1), rh1);
       // development leans UPWARD (2 of 3): rising restatements lift, inverted
-      // ones brood.
+      // ones brood. And it is where the RHYTHM moves too, not only the pitch.
       var dev = hash(opts.token + ':mtf-dev:' + letter) % 3 < 2;
-      state(2, rootAt(bar + 2) + anchorOff + (dev ? 2 : 0), !dev, rootAt(bar + 2));
+      var devKind = hash(opts.token + ':mtf-vary:' + letter) % 5;
+      state(2, rootAt(bar + 2) + anchorOff + (dev ? 2 : 0), !dev, rootAt(bar + 2),
+            varyRh(rh, devKind));
       // cadence: a stepwise 3-2-1 run that LANDS ON THE ROOT. The old goal was
       // the 2nd degree -- the unresolved tone, which is the sound of longing.
       // Phrases that resolve are what "fun" is made of; the per-return re-aim
       // still steers the final note onto whatever chord comes next.
       var goal = rootAt(bar + 3);
-      [0, 4, 8].forEach(function (p, i) {
+      // The cadence used to be [0,4,8] -- literally the same three positions in
+      // every phrase of every song, which is a quarter of all the melodic bars
+      // the station has ever played, and it is where the "three then a long
+      // one" came from. The run still walks stepwise down onto the goal tone,
+      // because that is what makes it a cadence; only its rhythm varies.
+      var CAD = [[0,4,8],[0,2,4],[0,4,10],[0,6,12],[4,8,12],[0,3,6],[2,6,10],[0,4,12],[0,8,12],[6,10,12]];
+      var cad = CAD[hash(opts.token + ':mtf-cad:' + letter) % CAD.length];
+      cad.forEach(function (p, i) {
         notes.push({ rb: 3, pos16: p, deg: goal + (2 - i), accent: false, answer: i === 2 });
       });
       return { notes: notes, homeRoot: homeRoot };
@@ -5075,7 +5178,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
 // selection, critics, candidates, templates, and taste models do not.
 (function(){
 'use strict';
-var G=typeof globalThis!=='undefined'?globalThis:window,REV='musician-11';
+var G=typeof globalThis!=='undefined'?globalThis:window,REV='musician-12';
 if(typeof module!=='undefined'&&!G.CT_STYLE_CORPUS){try{require('./style-corpus.js');}catch(e){}}
 if(typeof module!=='undefined'&&module.exports&&!G.CT_CHIP_INSTRUMENTS)require('./chip-instruments.js');
 if(typeof module!=='undefined'&&module.exports&&!G.CT_MELODY)require('./melody.js');
@@ -5320,8 +5423,13 @@ function makeMotif(token,label,min,max,model,role){
   var r=rng(token,label),n=ri(r,min,max),steps=[ri(r,0,3)],degrees=[ri(r,-2,3)],gaps=[];
   var rhythm=roleCell(r,model,role,'rhythmCells'),intervals=roleCell(r,model,role,'intervalCells');
   var rg=rhythm?rhythm.id.split('-').map(Number):[1,2,2,3,4,5],iv=intervals?intervals.id.split(',').map(Number).map(semiDegree):[-2,-1,1,1,2];
-  for(var i=1;i<n;i++){var gap=pick(r,[1,2,2,3,4,5]);gaps.push(gap);steps.push(steps[i-1]+gap);
-    gap=clamp(rg[(i-1)%rg.length]||gap,1,8);steps[i]=steps[i-1]+gap;
+  // The drawn gap used to be computed, pushed, used -- and then immediately
+  // overwritten by the cell on the next line, so the randomness was dead code
+  // and the cell cycled from index 0 forever. Rotate the cell instead, and let
+  // the drawn gap actually stand in where the cell has nothing to say.
+  var rot=ri(r,0,Math.max(0,rg.length-1));
+  for(var i=1;i<n;i++){var gap=pick(r,[1,2,2,3,4,5]);
+    gap=clamp(rg[(rot+i-1)%rg.length]||gap,1,8);gaps.push(gap);steps.push(steps[i-1]+gap);
     var leap=iv[(i-1)%iv.length];degrees.push(clamp(degrees[i-1]+leap,-7,11));}
   return{steps:steps,degrees:degrees,gaps:gaps};
 }
