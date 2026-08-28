@@ -30,7 +30,8 @@
     "test:kit": "node scripts/verify-kit.js",
     "test:handover": "node scripts/verify-create-handover.js",
     "test:song-document": "node scripts/verify-song-document.js",
-    "test:pacing": "node scripts/verify-frame-pacing.js"
+    "test:pacing": "node scripts/verify-frame-pacing.js",
+    "test:share": "node scripts/verify-share.js"
   },
   "dependencies": {
     "node-web-audio-api": "2.0.0"

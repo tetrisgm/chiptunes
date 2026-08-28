@@ -238,7 +238,7 @@
   var GRIDS = [16, 24, 32];
   function freshState() {
     return { key: 0, minor: 0, bars: 4, bpm: 128, swing: 0, grid: 16,
-             cells: [], cur: 'piano', cmd: 0, wob: 0 };
+             cells: [], cur: 'piano', cmd: 0, wob: 0, title: '' };
   }
   function spb() { return (S && S.grid) || 16; }
   function cols() { return S.bars * spb(); }
@@ -487,18 +487,50 @@
              kit: moves.kit, loopFrames: total };
   }
 
+  // SHARING IS THE SAME ACT IN BOTH PLACES. The station's share button and this
+  // one produce the same kind of link -- the document, packed, in the fragment
+  // -- because after the merge there is only one kind of song. A song made here
+  // and a song heard there are the same object, so handing one to somebody
+  // cannot be two different gestures with two different results.
+  function shareSong(btn) {
+    var code = encode();
+    var done = function (url) {
+      var say = function (ok) {
+        if (btn) { var t0 = btn.textContent; btn.textContent = ok ? 'Copied' : 'Press Cmd-C';
+                   setTimeout(function () { btn.textContent = t0; }, 1300); }
+      };
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText)
+          navigator.clipboard.writeText(url).then(function () { say(true); }, function () { say(false); });
+        else say(false);
+      } catch (e) { say(false); }
+    };
+    var pack = (typeof G._packDoc === 'function') ? G._packDoc(code) : null;
+    if (pack && pack.then) pack.then(function (p) { done(G.location.origin + '/#s=' + p); },
+                                     function () { done(G.location.origin + '/#s=r' + code); });
+    else done(G.location.origin + '/#s=r' + code);
+  }
+
   // ---- serialize: the song IS the URL --------------------------------------
   var B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
   var CODE_CMD = { 1: 'u', 2: 'q', 3: 'g', 4: 'f' };
+  // 0 is "not in the set", so an unexpected character survives as a space
+  var TITLE_A = " abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'.";
   // v6: cells carry an extension with the exact instrument, pitch, length,
   // velocity, channel and sweep whenever any of them exists. bpm rides as
   // (bpm-70)/2. All older versions still decode.
   function encode() {
     var ids = STAMPS.map(function (s) { return s.id; });
     // v12: bars need more than six bits now that nothing caps them
-    var out = [12, S.key, S.minor, S.bars & 63, (S.bpm - 70) & 63,
+    // v13: the TITLE rides inside the document. Names are derived from a token
+    // and a document has no token, so without this a song opens under a
+    // different name than the one the sender was looking at when they shared it.
+    var out = [13, S.key, S.minor, S.bars & 63, (S.bpm - 70) & 63,
                S.swing | (((S.bpm - 70) >> 6) << 1), (S.bars >> 6) & 63,
                Math.max(0, GRIDS.indexOf(spb()))];
+    var t = String(S.title || '').slice(0, 48);
+    out.push(t.length & 63);
+    for (var ti = 0; ti < t.length; ti++) out.push(TITLE_A.indexOf(t.charAt(ti)) + 1 & 63);
     S.cells.forEach(function (x) {
       var st = x.r >= MEL_ROWS ? 15 : (x.st && x.st.charAt(0) === 'i' ? 14 : Math.max(0, ids.indexOf(x.st)));
       var ext = x.inst != null || x.vel != null || x.midi != null || (x.len || 1) > 1 || x.sweep != null || x.ch != null;
@@ -536,7 +568,7 @@
     try {
       var v = []; for (var i = 0; i < str.length; i++) { var ix = B64.indexOf(str[i]); if (ix < 0) return null; v.push(ix); }
       var ver = v[0];
-      if (ver < 1 || ver > 12) return null;
+      if (ver < 1 || ver > 13) return null;
       var st2 = freshState();
       st2.key = v[1] % 12; st2.minor = v[2] & 1;
       st2.bars = ver === 1 ? ([2, 4, 8].indexOf(v[3]) >= 0 ? v[3] : 4)
@@ -546,6 +578,16 @@
                           : Math.max(70, Math.min(180, ver >= 5 ? 70 + v[4] * 2 : v[4] * 2));
       st2.swing = v[5] & 1;
       st2.grid = ver >= 12 ? (GRIDS[v[7]] || 16) : ver >= 9 ? (GRIDS[v[6]] || 16) : 16;
+      var head = ver >= 12 ? 8 : ver >= 9 ? 7 : 6;
+      if (ver >= 13) {                       // the title block, then the cells
+        var tn = v[head] | 0, tt = '';
+        for (var tq = 0; tq < tn; tq++) {
+          var tc = v[head + 1 + tq] | 0;
+          tt += tc > 0 ? TITLE_A.charAt(tc - 1) : ' ';
+        }
+        st2.title = tt.trim();
+        head += 1 + tn;
+      }
       var ids = STAMPS.map(function (s) { return s.id; });
       if (ver === 1) {
         for (var j = 6; j + 2 < v.length + 1; j += 3) {
@@ -556,7 +598,7 @@
           st2.cells.push(cell);
         }
       } else {
-        var k = ver >= 12 ? 8 : ver >= 9 ? 7 : 6;
+        var k = head;
         while (k + 3 < v.length + 1) {
           var c2 = v[k] | (v[k + 1] << 6), r2 = v[k + 2] & 31, b2 = v[k + 3];
           var cell2 = { c: c2, r: r2, t: k };
@@ -985,14 +1027,31 @@
     S = st; order = 0;
     try { return fn(); } finally { S = prev; order = prevOrder; }
   }
-  function songFrom(score) {
+  // ...and the other direction: a document straight to a playable song, with no
+  // editor involved. This is how the station plays a song somebody shared --
+  // the link carries the document, and the document IS the song.
+  function songOf(code) {
+    resolveBank();
+    var st = decode(String(code || ''));
+    if (!st) return null;
+    var out = null;
+    withState(st, function () {
+      try {
+        out = { code: String(code), gb: buildSong(), bars: S.bars, bpm: S.bpm,
+                title: S.title || '', cells: S.cells.length };
+      } catch (e) { out = null; }
+    });
+    return (out && out.gb && out.gb.notes && out.gb.notes.length) ? out : null;
+  }
+  function songFrom(score, title) {
     resolveBank();
     var st = freshState(), out = null;
     withState(st, function () {
       try {
         importScore(score, '');
+        S.title = String(title || '');
         out = { code: encode(), gb: buildSong(), bars: S.bars, bpm: S.bpm,
-                cells: S.cells.length };
+                cells: S.cells.length, title: S.title };
       } catch (e) { out = null; }
     });
     return out;
@@ -1956,6 +2015,7 @@
       '<div class="n-utils">' +
         '<button type="button" class="cr-btn" data-cr="undo">↩ Undo</button>' +
         '<button type="button" class="cr-btn" data-cr="redo">↪ Redo</button>' +
+        '<button type="button" class="cr-btn" data-cr="share">' + _ic('wave') + 'Copy link</button>' +
         '<button type="button" class="cr-btn cr-dl" data-cr="wav">' + _ic('wave') + 'Download WAV</button>' +
         '<button type="button" class="cr-btn cr-dl" data-cr="rom">' + _ic('rom') + 'Download ROM</button>' +
         '<button type="button" class="cr-btn cr-close" data-cr="close">Close</button>' +
@@ -2473,6 +2533,7 @@
       else if (k === 'close') { close(); }
       else if (k === 'undo') { undo(); }
       else if (k === 'redo') { redo(); }
+      else if (k === 'share') { shareSong(b); }
       else if (k === 'wav') { exportWav(); }
       else if (k === 'rom') { exportRom(); }
     });
@@ -2566,6 +2627,7 @@
     // editor -- without the editor being open, so the radio can play documents
     // and "edit this" is the same song rather than an approximation of it.
     songFrom: songFrom,
+    songOf: songOf,
     _dbg: function () {
       var mx = 0, withInst = 0, hist = [0, 0, 0, 0];
       if (S) S.cells.forEach(function (x) { if ((x.len || 1) > mx) mx = x.len || 1; if (x.inst != null) withInst++;

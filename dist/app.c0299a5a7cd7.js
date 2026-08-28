@@ -2641,7 +2641,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   var GRIDS = [16, 24, 32];
   function freshState() {
     return { key: 0, minor: 0, bars: 4, bpm: 128, swing: 0, grid: 16,
-             cells: [], cur: 'piano', cmd: 0, wob: 0 };
+             cells: [], cur: 'piano', cmd: 0, wob: 0, title: '' };
   }
   function spb() { return (S && S.grid) || 16; }
   function cols() { return S.bars * spb(); }
@@ -2890,18 +2890,50 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
              kit: moves.kit, loopFrames: total };
   }
 
+  // SHARING IS THE SAME ACT IN BOTH PLACES. The station's share button and this
+  // one produce the same kind of link -- the document, packed, in the fragment
+  // -- because after the merge there is only one kind of song. A song made here
+  // and a song heard there are the same object, so handing one to somebody
+  // cannot be two different gestures with two different results.
+  function shareSong(btn) {
+    var code = encode();
+    var done = function (url) {
+      var say = function (ok) {
+        if (btn) { var t0 = btn.textContent; btn.textContent = ok ? 'Copied' : 'Press Cmd-C';
+                   setTimeout(function () { btn.textContent = t0; }, 1300); }
+      };
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText)
+          navigator.clipboard.writeText(url).then(function () { say(true); }, function () { say(false); });
+        else say(false);
+      } catch (e) { say(false); }
+    };
+    var pack = (typeof G._packDoc === 'function') ? G._packDoc(code) : null;
+    if (pack && pack.then) pack.then(function (p) { done(G.location.origin + '/#s=' + p); },
+                                     function () { done(G.location.origin + '/#s=r' + code); });
+    else done(G.location.origin + '/#s=r' + code);
+  }
+
   // ---- serialize: the song IS the URL --------------------------------------
   var B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
   var CODE_CMD = { 1: 'u', 2: 'q', 3: 'g', 4: 'f' };
+  // 0 is "not in the set", so an unexpected character survives as a space
+  var TITLE_A = " abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'.";
   // v6: cells carry an extension with the exact instrument, pitch, length,
   // velocity, channel and sweep whenever any of them exists. bpm rides as
   // (bpm-70)/2. All older versions still decode.
   function encode() {
     var ids = STAMPS.map(function (s) { return s.id; });
     // v12: bars need more than six bits now that nothing caps them
-    var out = [12, S.key, S.minor, S.bars & 63, (S.bpm - 70) & 63,
+    // v13: the TITLE rides inside the document. Names are derived from a token
+    // and a document has no token, so without this a song opens under a
+    // different name than the one the sender was looking at when they shared it.
+    var out = [13, S.key, S.minor, S.bars & 63, (S.bpm - 70) & 63,
                S.swing | (((S.bpm - 70) >> 6) << 1), (S.bars >> 6) & 63,
                Math.max(0, GRIDS.indexOf(spb()))];
+    var t = String(S.title || '').slice(0, 48);
+    out.push(t.length & 63);
+    for (var ti = 0; ti < t.length; ti++) out.push(TITLE_A.indexOf(t.charAt(ti)) + 1 & 63);
     S.cells.forEach(function (x) {
       var st = x.r >= MEL_ROWS ? 15 : (x.st && x.st.charAt(0) === 'i' ? 14 : Math.max(0, ids.indexOf(x.st)));
       var ext = x.inst != null || x.vel != null || x.midi != null || (x.len || 1) > 1 || x.sweep != null || x.ch != null;
@@ -2939,7 +2971,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     try {
       var v = []; for (var i = 0; i < str.length; i++) { var ix = B64.indexOf(str[i]); if (ix < 0) return null; v.push(ix); }
       var ver = v[0];
-      if (ver < 1 || ver > 12) return null;
+      if (ver < 1 || ver > 13) return null;
       var st2 = freshState();
       st2.key = v[1] % 12; st2.minor = v[2] & 1;
       st2.bars = ver === 1 ? ([2, 4, 8].indexOf(v[3]) >= 0 ? v[3] : 4)
@@ -2949,6 +2981,16 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
                           : Math.max(70, Math.min(180, ver >= 5 ? 70 + v[4] * 2 : v[4] * 2));
       st2.swing = v[5] & 1;
       st2.grid = ver >= 12 ? (GRIDS[v[7]] || 16) : ver >= 9 ? (GRIDS[v[6]] || 16) : 16;
+      var head = ver >= 12 ? 8 : ver >= 9 ? 7 : 6;
+      if (ver >= 13) {                       // the title block, then the cells
+        var tn = v[head] | 0, tt = '';
+        for (var tq = 0; tq < tn; tq++) {
+          var tc = v[head + 1 + tq] | 0;
+          tt += tc > 0 ? TITLE_A.charAt(tc - 1) : ' ';
+        }
+        st2.title = tt.trim();
+        head += 1 + tn;
+      }
       var ids = STAMPS.map(function (s) { return s.id; });
       if (ver === 1) {
         for (var j = 6; j + 2 < v.length + 1; j += 3) {
@@ -2959,7 +3001,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
           st2.cells.push(cell);
         }
       } else {
-        var k = ver >= 12 ? 8 : ver >= 9 ? 7 : 6;
+        var k = head;
         while (k + 3 < v.length + 1) {
           var c2 = v[k] | (v[k + 1] << 6), r2 = v[k + 2] & 31, b2 = v[k + 3];
           var cell2 = { c: c2, r: r2, t: k };
@@ -3388,14 +3430,31 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     S = st; order = 0;
     try { return fn(); } finally { S = prev; order = prevOrder; }
   }
-  function songFrom(score) {
+  // ...and the other direction: a document straight to a playable song, with no
+  // editor involved. This is how the station plays a song somebody shared --
+  // the link carries the document, and the document IS the song.
+  function songOf(code) {
+    resolveBank();
+    var st = decode(String(code || ''));
+    if (!st) return null;
+    var out = null;
+    withState(st, function () {
+      try {
+        out = { code: String(code), gb: buildSong(), bars: S.bars, bpm: S.bpm,
+                title: S.title || '', cells: S.cells.length };
+      } catch (e) { out = null; }
+    });
+    return (out && out.gb && out.gb.notes && out.gb.notes.length) ? out : null;
+  }
+  function songFrom(score, title) {
     resolveBank();
     var st = freshState(), out = null;
     withState(st, function () {
       try {
         importScore(score, '');
+        S.title = String(title || '');
         out = { code: encode(), gb: buildSong(), bars: S.bars, bpm: S.bpm,
-                cells: S.cells.length };
+                cells: S.cells.length, title: S.title };
       } catch (e) { out = null; }
     });
     return out;
@@ -4359,6 +4418,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       '<div class="n-utils">' +
         '<button type="button" class="cr-btn" data-cr="undo">↩ Undo</button>' +
         '<button type="button" class="cr-btn" data-cr="redo">↪ Redo</button>' +
+        '<button type="button" class="cr-btn" data-cr="share">' + _ic('wave') + 'Copy link</button>' +
         '<button type="button" class="cr-btn cr-dl" data-cr="wav">' + _ic('wave') + 'Download WAV</button>' +
         '<button type="button" class="cr-btn cr-dl" data-cr="rom">' + _ic('rom') + 'Download ROM</button>' +
         '<button type="button" class="cr-btn cr-close" data-cr="close">Close</button>' +
@@ -4876,6 +4936,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       else if (k === 'close') { close(); }
       else if (k === 'undo') { undo(); }
       else if (k === 'redo') { redo(); }
+      else if (k === 'share') { shareSong(b); }
       else if (k === 'wav') { exportWav(); }
       else if (k === 'rom') { exportRom(); }
     });
@@ -4969,6 +5030,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     // editor -- without the editor being open, so the radio can play documents
     // and "edit this" is the same song rather than an approximation of it.
     songFrom: songFrom,
+    songOf: songOf,
     _dbg: function () {
       var mx = 0, withInst = 0, hist = [0, 0, 0, 0];
       if (S) S.cells.forEach(function (x) { if ((x.len || 1) > mx) mx = x.len || 1; if (x.inst != null) withInst++;
@@ -6469,7 +6531,9 @@ const Audio = (()=>{
       // visuals, the sections and the games, which read events, not notes.
       try{
         if(typeof CT_CREATE!=='undefined' && CT_CREATE.songFrom){
-          var doc=CT_CREATE.songFrom(score);
+          // the name goes IN, so a shared song keeps the name it was shared under
+          var nm=''; try{ nm=(typeof Song!=='undefined'&&Song.title)?Song.title(tok):''; }catch(eN){}
+          var doc=CT_CREATE.songFrom(score, nm);
           if(doc && doc.gb && doc.gb.notes && doc.gb.notes.length){ score.gb=doc.gb; score.doc=doc.code; }
         }
       }catch(docErr){ diag('compile', {tok:tok, doc:String(docErr&&docErr.message||docErr)}); }
@@ -6637,6 +6701,14 @@ const Audio = (()=>{
     var cs=compileScore(tok);
     if(!cs && explicit) cs=compileScore(mintTok());   // a broken deep-link token still yields music
     if(!cs){ _autoRetryAt=(ctx?ctx.currentTime:0)+5; return null; }
+    return startCompiled(cs, opts);
+  }
+  // Everything startTrack does once it HAS a compiled track. Split out so a
+  // shared document can enter by the same door: it is a real track on the deck
+  // -- visuals, games, sections, transport -- not a special case played beside
+  // the station.
+  function startCompiled(cs, opts){
+    opts=opts||{};
     if(ctx && started){
       Engine.killAll(opts.fade!=null?opts.fade:0.12);     // manual skip = 120ms fade...
       Engine.clearFuture(ctx.currentTime+0.02);
@@ -6656,6 +6728,38 @@ const Audio = (()=>{
     if(started && !extMode) scheduler();
     return deckCur.tok;
   }
+  // A DOCUMENT IS A TRACK. A shared link carries the song itself rather than a
+  // seed, because once a note has been moved no seed reproduces it -- so the
+  // station has to be able to play one straight. The events the visuals and the
+  // games read are rebuilt from the notes, which is where they came from.
+  function scoreFromDoc(doc){
+    var FPS=(typeof CT_GB_HARDWARE!=='undefined')?CT_GB_HARDWARE.FPS:59.7275;
+    var bpm=doc.bpm||128, spb=60/bpm, evs=[];
+    (doc.gb.notes||[]).forEach(function(n){
+      evs.push({ kind:(n.ch===3?'perc':n.ch===2?'bass':'lead'),
+                 tBeat:(n.frame/FPS)/spb, ch:n.ch,
+                 midi:(n.midi==null?undefined:n.midi),
+                 vel:(n.vel==null?0.8:n.vel),
+                 dur:Math.max(1,n.frames||1)/FPS/spb });
+    });
+    var beats=Math.max(4,(doc.gb.totalFrames/FPS)/spb);
+    return { bpm:bpm, events:evs, totalBars:Math.max(1,Math.round(beats/4)), totalBeats:beats,
+             gb:doc.gb, doc:doc.code, title:doc.title||'', sharedDoc:true };
+  }
+  function playDoc(code){
+    if(typeof CT_CREATE==='undefined' || !CT_CREATE.songOf) return null;
+    _liveMode=false;                       // a document is nobody's broadcast but yours
+    var doc=null;
+    try{ doc=CT_CREATE.songOf(code); }catch(e){ doc=null; }
+    if(!doc) return null;
+    _sharedTitle=doc.title||'';
+    // NOT the deck token: a document has none, and returning '' made every
+    // successful call read as a failure to the caller that had to decide
+    // whether to fall back to a random track.
+    startCompiled({ tok:'', score:scoreFromDoc(doc), fp:null }, {fade:0.12});
+    return (deckCur && deckCur.score === undefined) ? false : true;
+  }
+  var _sharedTitle='';
   // LIVE join: start a token AT an offset (seconds) — the mid-track seek for the shared
   // clock schedule. Same cold-open as startTrack (kill/clear/new generation), but the deck
   // origin is BACK-DATED so (now - origin) already equals the offset: every downstream
@@ -7598,6 +7702,8 @@ const Audio = (()=>{
     // the song on air, as a Create document -- this is what makes "edit what I
     // am hearing" the same song rather than a near-enough copy of it
     currentDoc(){ return (deckCur && deckCur.score && deckCur.score.doc) || null; },
+    playDoc(code){ return playDoc(code); },
+    sharedTitle(){ return _sharedTitle; },
     // Quiet, in-key game hooks (over the Engine): the games' melodic support layer.
     gameMelodyNote, reactNote, reactOK, playRecipe,
     // ENGINE facade — worklet v2 protocol + offline render for the audition harness.
@@ -31720,7 +31826,10 @@ function _setGeneratedNowPlaying(slug){
   _nowSource='generated';
   var changed = !!slug && slug !== _curSlug;
   _curSlug = slug || _curSlug;
-  _curName = _deslug(_curSlug);
+  // a shared document has no token to read a name off; it brought its own
+  var shared=''; try{ shared=(Audio.sharedTitle && Audio.sharedTitle()) || ''; }catch(e){}
+  _curName = (!slug && shared) ? shared : _deslug(_curSlug);
+  _refreshShareLink();
   // A fresh toss per track when the screen is on 'mix' -- skipping re-rolls it
   // even when the same game comes back up.
   if(changed){
@@ -32135,8 +32244,68 @@ function buildTransport(){
 function _toast(msg, opts){ opts=opts||{}; var t=document.getElementById('rtoast'); if(!t){ t=document.createElement('div'); t.id='rtoast'; document.body.appendChild(t); }
   t.textContent=msg; t.classList.toggle('big', !!opts.big); t.classList.add('show'); clearTimeout(_toast._t);
   _toast._t=setTimeout(function(){ t.classList.remove('show'); }, opts.ms||1500); }
+// SHARING A SONG MEANS SHARING THE SONG.
+//
+// It used to copy location.href, which worked only because the generated name
+// was in the path and the name was the seed. Both of those are gone: a name is
+// a label now, and once a note has been moved no seed reproduces the song at
+// all. So the link carries the DOCUMENT -- the same one the editor opens and
+// the chip plays -- and it carries it the same way whether the song came off
+// the station or out of Create. One format, one path, no invisible switch
+// between a short link and a long one depending on whether you touched a note.
+//
+// It rides in the FRAGMENT, which no browser sends to a server: no request
+// limit, no edge configuration, nothing to store and nothing to moderate.
+// Documents run 4-14 KB and deflate takes about 70% off, so a shared song is
+// 1.5-4 KB of URL. Long, but it works everywhere and it cannot rot.
+function _b64u(bytes){ var s=''; for(var i=0;i<bytes.length;i++) s+=String.fromCharCode(bytes[i]);
+  return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+function _unb64u(str){ var t=String(str).replace(/-/g,'+').replace(/_/g,'/');
+  while(t.length%4) t+='=';
+  var b=atob(t), out=new Uint8Array(b.length);
+  for(var i=0;i<b.length;i++) out[i]=b.charCodeAt(i); return out; }
+function _packDoc(code){                       // -> Promise<string>, 'z'=deflated 'r'=raw
+  if(typeof CompressionStream==='undefined') return Promise.resolve('r'+code);
+  try{
+    var cs=new CompressionStream('deflate-raw'), w=cs.writable.getWriter();
+    w.write(new TextEncoder().encode(code)); w.close();
+    return new Response(cs.readable).arrayBuffer().then(function(buf){
+      return 'z'+_b64u(new Uint8Array(buf)); }, function(){ return 'r'+code; });
+  }catch(e){ return Promise.resolve('r'+code); }
+}
+function _unpackDoc(str){                      // -> Promise<string|null>
+  if(!str) return Promise.resolve(null);
+  var c=str.charAt(0);
+  if(c==='r') return Promise.resolve(str.slice(1));
+  if(c!=='z') return Promise.resolve(str);     // a bare document: /create#s= wrote these
+  if(typeof DecompressionStream==='undefined') return Promise.resolve(null);
+  try{
+    var ds=new DecompressionStream('deflate-raw'), w=ds.writable.getWriter();
+    w.write(_unb64u(str.slice(1))); w.close();
+    return new Response(ds.readable).arrayBuffer().then(function(buf){
+      return new TextDecoder().decode(new Uint8Array(buf)); }, function(){ return null; });
+  }catch(e){ return Promise.resolve(null); }
+}
+// Packed ahead of the click: Safari will not accept a clipboard write that
+// happens after an await, so the link has to be ready before the button is hit.
+var _shareDoc='', _shareUrl='';
+function _refreshShareLink(){
+  var doc=''; try{ doc=(Audio.currentDoc && Audio.currentDoc()) || ''; }catch(e){}
+  if(doc===_shareDoc) return;
+  _shareDoc=doc; _shareUrl='';
+  if(!doc) return;
+  _packDoc(doc).then(function(packed){
+    if(_shareDoc===doc) _shareUrl=location.origin+'/#s='+packed; });
+}
+window._refreshShareLink=_refreshShareLink;
+window._packDoc=_packDoc;   // Create shares by the same route
+function _shareLinkNow(){
+  if(_shareUrl) return _shareUrl;
+  var doc=''; try{ doc=(Audio.currentDoc && Audio.currentDoc()) || ''; }catch(e){}
+  return doc ? location.origin+'/#s=r'+doc : location.href;   // uncompressed, but correct
+}
 function shareTrackLink(btn){
-  var url=location.href;
+  var url=_shareLinkNow();
   var done=function(ok){ if(btn){ btn.classList.add('act'); btn.innerHTML=svgIcon('check'); setTimeout(function(){ btn.classList.remove('act'); btn.innerHTML=svgIcon('share'); }, 1300); }
     _toast(ok ? 'Link copied' : 'Press Ctrl/Cmd-C'); };
   function fallback(){ try{ var ta=document.createElement('textarea'); ta.value=url; ta.style.cssText='position:fixed;opacity:0;'; document.body.appendChild(ta); ta.focus(); ta.select(); var ok=false; try{ ok=document.execCommand('copy'); }catch(e){} document.body.removeChild(ta); done(ok); }catch(e){ done(false); } }
@@ -32667,6 +32836,10 @@ var LiveCtl = (function(){
   }
   function tick(){
     if(!active) return;
+    // Somebody sent you a song. The schedule does not get to seek off the top
+    // of it, which is exactly what this did: the shared document played for
+    // half a second and the broadcast pulled the station back to its own track.
+    if(window._sharedSongPlaying) return;
     // Hidden tab: the scheduler runs on a deep background horizon and wall-anchors each boundary
     // (prepareNextDeck) — the deck pointer legitimately LAGS the schedule by seconds, so a token/drift
     // re-seek here would falsely cold-open (killAll) a correctly-playing track. Skip; the first
@@ -33530,6 +33703,11 @@ function _queryFlag(name){
     return q.has(name) && v!=='0' && v!=='false' && v!=='no';
   }catch(e){ return false; }
 }
+// A shared song rides in the fragment: /#s=<packed document>
+function _readSharedDoc(){
+  try{ var m=/[#&]s=([^&]+)/.exec(location.hash||''); return (m && m[1]) ? m[1] : null; }
+  catch(e){ return null; }
+}
 function _readSlug(){
   var p = (location.pathname||'/').replace(/^\/+|\/+$/g,'');
   var parts=p ? p.split('/').map(function(x){ try{ return decodeURIComponent(x); }catch(e){ return x; } }) : [];
@@ -33569,6 +33747,7 @@ function _maybeRecordGen(){ if(_genPlayTimer) clearTimeout(_genPlayTimer); var s
   _genPlayTimer=setTimeout(function(){ if(_curSlug===slug && slug && !(Audio.extActive&&Audio.extActive()) && window._recordGenPlay){ _recordGenPlay(slug,name); } }, 4000); }
 function _onTrack(slug){
   if(_nowSource==='external' || (Audio.extActive&&Audio.extActive())) return;   // stale generated callbacks must not overwrite chip/mic/file titles
+  if(slug) window._sharedSongPlaying=false;      // a real token means the station has moved on
   _setGeneratedNowPlaying(slug);
   _noteGeneratedPlaying(slug);                                    // fp history (queue novelty) + Radio.setCurrent (learning)
   syncRoute(_curSlug);                                            // address bar -> /track/slug (updates every song)
@@ -33621,6 +33800,7 @@ function startAudio(viaGesture, opts){
   if(!bootDone){
     bootDone = true;
     var _wantSlug = _readSlug();               // capture any shared generated-track slug before booting audio
+    var _wantDoc  = _readSharedDoc();          // ...or a whole shared SONG, which is the modern form
     if(typeof Radio!=='undefined'){
       Radio.init();
       // PREV/NEXT walk a session HISTORY of slugs; a NEW skip mints a fresh random name (no deterministic ordering — but
@@ -33638,7 +33818,27 @@ function startAudio(viaGesture, opts){
         // START at the shared slug from the URL (reproduces that exact song — always a PRIVATE
         // replay), else: live intent set (fresh default) -> tune the shared broadcast mid-track;
         // otherwise MINT a fresh random-named track for a private endless session.
-        if(!_wantSlug && typeof LiveCtl!=='undefined' && typeof Radio!=='undefined' && Radio.live && Radio.live() && LiveCtl.join()){
+        if(_wantDoc){
+          // A SHARED SONG OPENS PLAYING. The document is the song, so there is
+          // nothing to look up and nothing to regenerate -- and the station
+          // carries on normally afterwards, which is what makes a shared link
+          // a way into the product rather than a dead end.
+          _trkHist = []; _trkI = 0;
+          // A shared song is a PRIVATE replay, like a shared slug always was.
+          // The live schedule's tick re-seeks the station every few seconds and
+          // will happily seek straight off the top of the song somebody sent
+          // you -- which is exactly what it did.
+          _unpackDoc(_wantDoc).then(function(code){
+            var ok=false;
+            try{
+              window._sharedSongPlaying=true;      // before the leave, so no tick can race in
+              _forkFromLive();
+              ok = !!(code && Audio.playDoc && Audio.playDoc(code));
+            }catch(e){ ok=false; }
+            if(!ok){ window._sharedSongPlaying=false;
+                     if(Audio.gotoTrack) Audio.gotoTrack(_mintToken()); }   // unreadable link: still play something
+          });
+        } else if(!_wantSlug && typeof LiveCtl!=='undefined' && typeof Radio!=='undefined' && Radio.live && Radio.live() && LiveCtl.join()){
           _station='generated';
         } else {
           var _startSlug = _wantSlug || _mintToken();

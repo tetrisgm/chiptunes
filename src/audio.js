@@ -778,7 +778,9 @@ const Audio = (()=>{
       // visuals, the sections and the games, which read events, not notes.
       try{
         if(typeof CT_CREATE!=='undefined' && CT_CREATE.songFrom){
-          var doc=CT_CREATE.songFrom(score);
+          // the name goes IN, so a shared song keeps the name it was shared under
+          var nm=''; try{ nm=(typeof Song!=='undefined'&&Song.title)?Song.title(tok):''; }catch(eN){}
+          var doc=CT_CREATE.songFrom(score, nm);
           if(doc && doc.gb && doc.gb.notes && doc.gb.notes.length){ score.gb=doc.gb; score.doc=doc.code; }
         }
       }catch(docErr){ diag('compile', {tok:tok, doc:String(docErr&&docErr.message||docErr)}); }
@@ -946,6 +948,14 @@ const Audio = (()=>{
     var cs=compileScore(tok);
     if(!cs && explicit) cs=compileScore(mintTok());   // a broken deep-link token still yields music
     if(!cs){ _autoRetryAt=(ctx?ctx.currentTime:0)+5; return null; }
+    return startCompiled(cs, opts);
+  }
+  // Everything startTrack does once it HAS a compiled track. Split out so a
+  // shared document can enter by the same door: it is a real track on the deck
+  // -- visuals, games, sections, transport -- not a special case played beside
+  // the station.
+  function startCompiled(cs, opts){
+    opts=opts||{};
     if(ctx && started){
       Engine.killAll(opts.fade!=null?opts.fade:0.12);     // manual skip = 120ms fade...
       Engine.clearFuture(ctx.currentTime+0.02);
@@ -965,6 +975,38 @@ const Audio = (()=>{
     if(started && !extMode) scheduler();
     return deckCur.tok;
   }
+  // A DOCUMENT IS A TRACK. A shared link carries the song itself rather than a
+  // seed, because once a note has been moved no seed reproduces it -- so the
+  // station has to be able to play one straight. The events the visuals and the
+  // games read are rebuilt from the notes, which is where they came from.
+  function scoreFromDoc(doc){
+    var FPS=(typeof CT_GB_HARDWARE!=='undefined')?CT_GB_HARDWARE.FPS:59.7275;
+    var bpm=doc.bpm||128, spb=60/bpm, evs=[];
+    (doc.gb.notes||[]).forEach(function(n){
+      evs.push({ kind:(n.ch===3?'perc':n.ch===2?'bass':'lead'),
+                 tBeat:(n.frame/FPS)/spb, ch:n.ch,
+                 midi:(n.midi==null?undefined:n.midi),
+                 vel:(n.vel==null?0.8:n.vel),
+                 dur:Math.max(1,n.frames||1)/FPS/spb });
+    });
+    var beats=Math.max(4,(doc.gb.totalFrames/FPS)/spb);
+    return { bpm:bpm, events:evs, totalBars:Math.max(1,Math.round(beats/4)), totalBeats:beats,
+             gb:doc.gb, doc:doc.code, title:doc.title||'', sharedDoc:true };
+  }
+  function playDoc(code){
+    if(typeof CT_CREATE==='undefined' || !CT_CREATE.songOf) return null;
+    _liveMode=false;                       // a document is nobody's broadcast but yours
+    var doc=null;
+    try{ doc=CT_CREATE.songOf(code); }catch(e){ doc=null; }
+    if(!doc) return null;
+    _sharedTitle=doc.title||'';
+    // NOT the deck token: a document has none, and returning '' made every
+    // successful call read as a failure to the caller that had to decide
+    // whether to fall back to a random track.
+    startCompiled({ tok:'', score:scoreFromDoc(doc), fp:null }, {fade:0.12});
+    return (deckCur && deckCur.score === undefined) ? false : true;
+  }
+  var _sharedTitle='';
   // LIVE join: start a token AT an offset (seconds) — the mid-track seek for the shared
   // clock schedule. Same cold-open as startTrack (kill/clear/new generation), but the deck
   // origin is BACK-DATED so (now - origin) already equals the offset: every downstream
@@ -1907,6 +1949,8 @@ const Audio = (()=>{
     // the song on air, as a Create document -- this is what makes "edit what I
     // am hearing" the same song rather than a near-enough copy of it
     currentDoc(){ return (deckCur && deckCur.score && deckCur.score.doc) || null; },
+    playDoc(code){ return playDoc(code); },
+    sharedTitle(){ return _sharedTitle; },
     // Quiet, in-key game hooks (over the Engine): the games' melodic support layer.
     gameMelodyNote, reactNote, reactOK, playRecipe,
     // ENGINE facade — worklet v2 protocol + offline render for the audition harness.

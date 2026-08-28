@@ -847,3 +847,36 @@ pass.
   chrome starts dimming while you are still looking at it, and it reads as being
   yanked away the moment you stop moving. 3000ms then a 0.42s fade. The wait has
   to be a wait.
+
+- SHARING IS ONE ACT WITH ONE RESULT. The share button copied location.href,
+  which only ever worked because the generated name was in the path and the name
+  was the seed. Both are gone, so it was copying the bare station. A link
+  carries the DOCUMENT now -- packed and in the FRAGMENT, which no browser sends
+  to a server, so there is no request limit, no edge config, nothing stored and
+  nothing to moderate. 9.5 KB of document deflates to about 2.9 KB, so a shared
+  song is a 1600-4400 character URL. Long, but it works everywhere and cannot
+  rot.
+  Deliberately NOT token-when-unedited/document-when-edited: that is two
+  behaviours switched invisibly, where the same button gives a 40-character link
+  or a 4000-character one depending on whether you nudged a note.
+  Short links (/s/ab12cd + OG preview cards) were designed and declined for now
+  -- they need a KV store, which gives the product a backend, persistence and a
+  moderation surface it does not currently have. The fragment format stays the
+  fallback underneath if that is ever added.
+
+- v13 documents carry the TITLE. Names derive from the token and a document has
+  no token, so without this a shared song opened under a different name than the
+  sender saw. CT_CREATE.songOf(code) is the inverse of songFrom: a document
+  straight to a playable song with no editor. Audio.playDoc() puts it on the
+  deck as a real track -- visuals, games, sections, transport -- with the events
+  the visuals read rebuilt from the notes.
+
+- Two traps on the way in, both of which produced "it played SOMETHING, just not
+  the right song": (1) playDoc returned deckCur.tok, which is '' for a document,
+  so every success read as a failure and the caller fell back to a random mint;
+  (2) LiveCtl's broadcast tick re-seeks the station every few seconds and seeked
+  straight off the top of the shared song half a second in. window.
+  _sharedSongPlaying holds it off until the station moves on by itself.
+
+- npm run test:share is the gate, and it checks BOTH directions, because "the
+  same from either side" is the actual requirement.

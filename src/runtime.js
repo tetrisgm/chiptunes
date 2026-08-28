@@ -1450,7 +1450,10 @@ function _setGeneratedNowPlaying(slug){
   _nowSource='generated';
   var changed = !!slug && slug !== _curSlug;
   _curSlug = slug || _curSlug;
-  _curName = _deslug(_curSlug);
+  // a shared document has no token to read a name off; it brought its own
+  var shared=''; try{ shared=(Audio.sharedTitle && Audio.sharedTitle()) || ''; }catch(e){}
+  _curName = (!slug && shared) ? shared : _deslug(_curSlug);
+  _refreshShareLink();
   // A fresh toss per track when the screen is on 'mix' -- skipping re-rolls it
   // even when the same game comes back up.
   if(changed){
@@ -1865,8 +1868,68 @@ function buildTransport(){
 function _toast(msg, opts){ opts=opts||{}; var t=document.getElementById('rtoast'); if(!t){ t=document.createElement('div'); t.id='rtoast'; document.body.appendChild(t); }
   t.textContent=msg; t.classList.toggle('big', !!opts.big); t.classList.add('show'); clearTimeout(_toast._t);
   _toast._t=setTimeout(function(){ t.classList.remove('show'); }, opts.ms||1500); }
+// SHARING A SONG MEANS SHARING THE SONG.
+//
+// It used to copy location.href, which worked only because the generated name
+// was in the path and the name was the seed. Both of those are gone: a name is
+// a label now, and once a note has been moved no seed reproduces the song at
+// all. So the link carries the DOCUMENT -- the same one the editor opens and
+// the chip plays -- and it carries it the same way whether the song came off
+// the station or out of Create. One format, one path, no invisible switch
+// between a short link and a long one depending on whether you touched a note.
+//
+// It rides in the FRAGMENT, which no browser sends to a server: no request
+// limit, no edge configuration, nothing to store and nothing to moderate.
+// Documents run 4-14 KB and deflate takes about 70% off, so a shared song is
+// 1.5-4 KB of URL. Long, but it works everywhere and it cannot rot.
+function _b64u(bytes){ var s=''; for(var i=0;i<bytes.length;i++) s+=String.fromCharCode(bytes[i]);
+  return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+function _unb64u(str){ var t=String(str).replace(/-/g,'+').replace(/_/g,'/');
+  while(t.length%4) t+='=';
+  var b=atob(t), out=new Uint8Array(b.length);
+  for(var i=0;i<b.length;i++) out[i]=b.charCodeAt(i); return out; }
+function _packDoc(code){                       // -> Promise<string>, 'z'=deflated 'r'=raw
+  if(typeof CompressionStream==='undefined') return Promise.resolve('r'+code);
+  try{
+    var cs=new CompressionStream('deflate-raw'), w=cs.writable.getWriter();
+    w.write(new TextEncoder().encode(code)); w.close();
+    return new Response(cs.readable).arrayBuffer().then(function(buf){
+      return 'z'+_b64u(new Uint8Array(buf)); }, function(){ return 'r'+code; });
+  }catch(e){ return Promise.resolve('r'+code); }
+}
+function _unpackDoc(str){                      // -> Promise<string|null>
+  if(!str) return Promise.resolve(null);
+  var c=str.charAt(0);
+  if(c==='r') return Promise.resolve(str.slice(1));
+  if(c!=='z') return Promise.resolve(str);     // a bare document: /create#s= wrote these
+  if(typeof DecompressionStream==='undefined') return Promise.resolve(null);
+  try{
+    var ds=new DecompressionStream('deflate-raw'), w=ds.writable.getWriter();
+    w.write(_unb64u(str.slice(1))); w.close();
+    return new Response(ds.readable).arrayBuffer().then(function(buf){
+      return new TextDecoder().decode(new Uint8Array(buf)); }, function(){ return null; });
+  }catch(e){ return Promise.resolve(null); }
+}
+// Packed ahead of the click: Safari will not accept a clipboard write that
+// happens after an await, so the link has to be ready before the button is hit.
+var _shareDoc='', _shareUrl='';
+function _refreshShareLink(){
+  var doc=''; try{ doc=(Audio.currentDoc && Audio.currentDoc()) || ''; }catch(e){}
+  if(doc===_shareDoc) return;
+  _shareDoc=doc; _shareUrl='';
+  if(!doc) return;
+  _packDoc(doc).then(function(packed){
+    if(_shareDoc===doc) _shareUrl=location.origin+'/#s='+packed; });
+}
+window._refreshShareLink=_refreshShareLink;
+window._packDoc=_packDoc;   // Create shares by the same route
+function _shareLinkNow(){
+  if(_shareUrl) return _shareUrl;
+  var doc=''; try{ doc=(Audio.currentDoc && Audio.currentDoc()) || ''; }catch(e){}
+  return doc ? location.origin+'/#s=r'+doc : location.href;   // uncompressed, but correct
+}
 function shareTrackLink(btn){
-  var url=location.href;
+  var url=_shareLinkNow();
   var done=function(ok){ if(btn){ btn.classList.add('act'); btn.innerHTML=svgIcon('check'); setTimeout(function(){ btn.classList.remove('act'); btn.innerHTML=svgIcon('share'); }, 1300); }
     _toast(ok ? 'Link copied' : 'Press Ctrl/Cmd-C'); };
   function fallback(){ try{ var ta=document.createElement('textarea'); ta.value=url; ta.style.cssText='position:fixed;opacity:0;'; document.body.appendChild(ta); ta.focus(); ta.select(); var ok=false; try{ ok=document.execCommand('copy'); }catch(e){} document.body.removeChild(ta); done(ok); }catch(e){ done(false); } }
@@ -2397,6 +2460,10 @@ var LiveCtl = (function(){
   }
   function tick(){
     if(!active) return;
+    // Somebody sent you a song. The schedule does not get to seek off the top
+    // of it, which is exactly what this did: the shared document played for
+    // half a second and the broadcast pulled the station back to its own track.
+    if(window._sharedSongPlaying) return;
     // Hidden tab: the scheduler runs on a deep background horizon and wall-anchors each boundary
     // (prepareNextDeck) — the deck pointer legitimately LAGS the schedule by seconds, so a token/drift
     // re-seek here would falsely cold-open (killAll) a correctly-playing track. Skip; the first
@@ -3260,6 +3327,11 @@ function _queryFlag(name){
     return q.has(name) && v!=='0' && v!=='false' && v!=='no';
   }catch(e){ return false; }
 }
+// A shared song rides in the fragment: /#s=<packed document>
+function _readSharedDoc(){
+  try{ var m=/[#&]s=([^&]+)/.exec(location.hash||''); return (m && m[1]) ? m[1] : null; }
+  catch(e){ return null; }
+}
 function _readSlug(){
   var p = (location.pathname||'/').replace(/^\/+|\/+$/g,'');
   var parts=p ? p.split('/').map(function(x){ try{ return decodeURIComponent(x); }catch(e){ return x; } }) : [];
@@ -3299,6 +3371,7 @@ function _maybeRecordGen(){ if(_genPlayTimer) clearTimeout(_genPlayTimer); var s
   _genPlayTimer=setTimeout(function(){ if(_curSlug===slug && slug && !(Audio.extActive&&Audio.extActive()) && window._recordGenPlay){ _recordGenPlay(slug,name); } }, 4000); }
 function _onTrack(slug){
   if(_nowSource==='external' || (Audio.extActive&&Audio.extActive())) return;   // stale generated callbacks must not overwrite chip/mic/file titles
+  if(slug) window._sharedSongPlaying=false;      // a real token means the station has moved on
   _setGeneratedNowPlaying(slug);
   _noteGeneratedPlaying(slug);                                    // fp history (queue novelty) + Radio.setCurrent (learning)
   syncRoute(_curSlug);                                            // address bar -> /track/slug (updates every song)
@@ -3351,6 +3424,7 @@ function startAudio(viaGesture, opts){
   if(!bootDone){
     bootDone = true;
     var _wantSlug = _readSlug();               // capture any shared generated-track slug before booting audio
+    var _wantDoc  = _readSharedDoc();          // ...or a whole shared SONG, which is the modern form
     if(typeof Radio!=='undefined'){
       Radio.init();
       // PREV/NEXT walk a session HISTORY of slugs; a NEW skip mints a fresh random name (no deterministic ordering — but
@@ -3368,7 +3442,27 @@ function startAudio(viaGesture, opts){
         // START at the shared slug from the URL (reproduces that exact song — always a PRIVATE
         // replay), else: live intent set (fresh default) -> tune the shared broadcast mid-track;
         // otherwise MINT a fresh random-named track for a private endless session.
-        if(!_wantSlug && typeof LiveCtl!=='undefined' && typeof Radio!=='undefined' && Radio.live && Radio.live() && LiveCtl.join()){
+        if(_wantDoc){
+          // A SHARED SONG OPENS PLAYING. The document is the song, so there is
+          // nothing to look up and nothing to regenerate -- and the station
+          // carries on normally afterwards, which is what makes a shared link
+          // a way into the product rather than a dead end.
+          _trkHist = []; _trkI = 0;
+          // A shared song is a PRIVATE replay, like a shared slug always was.
+          // The live schedule's tick re-seeks the station every few seconds and
+          // will happily seek straight off the top of the song somebody sent
+          // you -- which is exactly what it did.
+          _unpackDoc(_wantDoc).then(function(code){
+            var ok=false;
+            try{
+              window._sharedSongPlaying=true;      // before the leave, so no tick can race in
+              _forkFromLive();
+              ok = !!(code && Audio.playDoc && Audio.playDoc(code));
+            }catch(e){ ok=false; }
+            if(!ok){ window._sharedSongPlaying=false;
+                     if(Audio.gotoTrack) Audio.gotoTrack(_mintToken()); }   // unreadable link: still play something
+          });
+        } else if(!_wantSlug && typeof LiveCtl!=='undefined' && typeof Radio!=='undefined' && Radio.live && Radio.live() && LiveCtl.join()){
           _station='generated';
         } else {
           var _startSlug = _wantSlug || _mintToken();
