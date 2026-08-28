@@ -93,11 +93,14 @@ const pixels = p => p.evaluate(() => {
   // cut mapped every voice into one pitch band and came out 69% drum-purple
   const voices = await p.evaluate(async () => {
     const c = document.getElementById('noteribbon');
-    // wait for the bake: sampling the frame before it lands reads an empty canvas
-    for (let t = 0; t < 40; t++) {
+    // Wait for a REAL bake. 200 painted pixels is satisfied by the empty strip
+    // -- the bar is up from the first paint now, so there is a legitimate state
+    // with almost nothing in it, and sampling colours then reads one voice or
+    // none. A whole track paints tens of thousands.
+    for (let t = 0; t < 60; t++) {
       const q = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
-      let n = 0; for (let i = 3; i < q.length; i += 4) if (q[i] > 40) { n++; if (n > 200) break; }
-      if (n > 200) break;
+      let n = 0; for (let i = 3; i < q.length; i += 4) if (q[i] > 40) { n++; if (n > 4000) break; }
+      if (n > 4000) break;
       await new Promise(r => setTimeout(r, 100));
     }
     const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;

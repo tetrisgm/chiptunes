@@ -254,7 +254,9 @@
      chrome at that moment -- they are the only thing to do, and they sit in the
      middle of the screen and do not fade. Once a song is on they shrink back to
      the top strip and behave like everything else. */
+  /* the bar is always there now, so the hero centres in what is left above it */
   body.awaiting-mood #presets{ top:0; bottom:0; align-items:center;
+    padding-bottom:calc(var(--ribh,44px) + 96px);
     opacity:1 !important; transition:opacity .35s ease; }
   body.awaiting-mood #presets .rbtn{ pointer-events:auto; }
   body.awaiting-mood #rmoods{ margin-top:0; flex-direction:column; gap:16px; max-width:min(760px,88vw); }
@@ -441,10 +443,10 @@
   #plinks .plhead span{ flex:0 1 auto; font:400 15px/1.15 var(--ui);
     letter-spacing:0; color:var(--ink-2); }
   /* the how-it-works pill rides the masthead line, compact against 26px type */
-  #plinks .plhead .plhow{ flex:0 0 auto; align-self:center; height:32px; padding:0 13px;
-    margin-left:14px; gap:7px; }
-  #plinks .plhead .plhow .plink-t{ font-size:12.5px; }
-  #plinks .plhead .plhow svg{ width:15px; height:15px; }
+  /* the same pill as every other offer in the rail: it was 32px with a smaller
+     label, which made the one button in the masthead read as a different
+     family of control from the five under it */
+  #plinks .plhead .plhow{ flex:0 0 auto; align-self:center; margin-left:14px; }
   .plink{ height:46px; padding:0 18px; border-radius:999px; border:1px solid var(--mat-edge);
     background:var(--mat); color:var(--ink); cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:9px;
     box-shadow:var(--mat-shadow); backdrop-filter:var(--mat-blur); -webkit-backdrop-filter:var(--mat-blur);
@@ -1263,6 +1265,11 @@
   #playbar .pb-scrub{ grid-column:1 / -1; grid-row:2; display:none;
     align-items:center; gap:10px; width:min(720px,52vw); min-width:0; }
   body.ribbon-on #playbar .pb-scrub{ display:flex; }
+  /* THE PLAYER BAR IS ALWAYS THE PLAYER BAR. It used to appear only once a
+     track was on, so the first thing a visitor saw was a page with no
+     transport, and the bar arrived under them the moment they picked a mood.
+     It is the same bar in the same place from the first paint. */
+  body.awaiting-mood #playbar.show{ display:block; }
   /* flex-basis 0, not auto: a canvas reports its BUFFER width as its intrinsic
      size, so `auto` let the buffer decide the layout that decides the buffer --
      the measured size changed every frame, the bake key with it, and the strip

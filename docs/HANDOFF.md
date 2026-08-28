@@ -1074,3 +1074,26 @@ pass.
   found the editor by looking for a button whose text says "create". Both
   assumptions are gone: they pick a mood to start, and they open the editor by
   clicking the strip, which is what a person now does.
+
+- THE PLAYER BAR IS FURNITURE. It used to appear only once a track was on, so
+  the first thing a visitor saw was a page with no transport and the bar arrived
+  under them the moment they picked a mood. _updatePlaybar shows it from the
+  first paint; the strip has a real EMPTY state (the lanes, no notes, 0:00 /
+  0:00) rather than being absent, and the hero centres in what is left above it.
+  With nothing loaded the play button means "surprise me" -- it clicks one of
+  the moods, because that is the only way anything starts now. Clicking the
+  empty strip opens an empty editor.
+  "How it works" is a plain .plink again: it had been overridden to 32px with a
+  smaller label, so the one button in the masthead read as a different family of
+  control from the five under it.
+
+- THE STRIP WAS BEING REPAINTED BY THE CONSOLE PALETTE. CT_PAL hooks fillStyle
+  on CanvasRenderingContext2D.prototype and quantises EVERY canvas to the Game
+  Boy's four shades or the NES palette while one of those screens is on. The
+  screen face is random per track, so the lane colours were correct on the CRT
+  and snapped to something else on the other two -- reported as "no colour
+  coding", fixed, and then still wrong on two thirds of tracks without anyone
+  seeing it. canvas.__ctpalRaw is the existing opt-out (Create's grid already
+  used it); the strip and its two offscreen bakes set it now.
+  This is why verify-ribbon checks rendered PIXELS against the four colours
+  rather than trusting the fillStyle it asked for.

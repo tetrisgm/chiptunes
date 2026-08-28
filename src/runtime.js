@@ -672,23 +672,16 @@ function _ribbonVisible(){
     if(_WALLPAPER_MODE||_POPOVER_MODE||_BROWSE_MODE) return false;
     if(document.body && document.body.classList.contains('create-open')) return false;
     if(document.body && document.body.classList.contains('gb-open')) return false;
-    if(!(typeof Audio!=='undefined' && Audio.started)) return false;
-    // The deck compiles a track before anyone has pressed anything, so
-    // Audio.started is not the same question as "is the player up". The
-    // playbar's own show class is.
     var pb=document.getElementById('playbar');
-    if(!pb || !pb.classList.contains('show')) return false;
-    // and only once there is actually a song to show: an empty strip sitting
-    // there before the first track has compiled is just a bar of furniture
-    var sc=Audio.currentScore && Audio.currentScore();
-    return !!(sc && sc.gb && sc.gb.notes && sc.gb.notes.length);
+    return !!(pb && pb.classList.contains('show'));
   }catch(e){ return false; }
 }
 function _ribbonBake(){
   var sc=null; try{ sc=(Audio.currentScore && Audio.currentScore())||null; }catch(e){}
   var notes=(sc && sc.gb && sc.gb.notes)||null;
-  if(!notes || !notes.length) return false;
-  var total=(sc.gb.totalFrames|0) || 1;
+  var empty=!notes || !notes.length;
+  if(empty) notes=[];
+  var total=empty ? 1 : ((sc.gb.totalFrames|0) || 1);
   // MEASURE RARELY. getBoundingClientRect inside the frame loop forces a style
   // and layout pass every frame -- with the playbar's flex row behind it that
   // alone cost 13ms a frame, which is most of a frame's budget spent asking how
@@ -701,9 +694,9 @@ function _ribbonBake(){
   // rounded to 4 device pixels: a layout that settles a third of a pixel
   // differently must not count as a new size and re-bake the song
   var w=Math.max(4,Math.round(r.width*dpr/4)*4), h=Math.max(4,Math.round(r.height*dpr/4)*4);
-  var key=(sc.doc? sc.doc.length : notes.length)+':'+total+':'+notes.length+':'+w+'x'+h;
+  var key=(empty?'-':(sc.doc? sc.doc.length : notes.length))+':'+total+':'+notes.length+':'+w+'x'+h;
   if(key===_ribKey && _ribLit) return true;
-  _ribKey=key; _ribW=w; _ribH=h; _ribFrames=total;
+  _ribKey=key; _ribW=w; _ribH=h; _ribFrames=empty?0:total;
   if(_ribCv.width!==w) _ribCv.width=w;
   if(_ribCv.height!==h) _ribCv.height=h;
   // FOUR LANES, THE WAY THE EDITOR STACKS THEM. Mapping every melodic voice
@@ -755,14 +748,24 @@ function _ribbonBake(){
     }
     ctx.globalAlpha=1;
   }
-  if(!_ribLit){ _ribLit=document.createElement('canvas'); _ribDim=document.createElement('canvas'); }
+  if(!_ribLit){ _ribLit=document.createElement('canvas'); _ribDim=document.createElement('canvas');
+    _ribLit.__ctpalRaw=true; _ribDim.__ctpalRaw=true; }   // baked offscreen, same rule
   _ribLit.width=w; _ribLit.height=h; _ribDim.width=w; _ribDim.height=h;
   paint(_ribLit.getContext('2d'), 1);
   paint(_ribDim.getContext('2d'), 0.38);   // low enough to read as 'not yet', high enough to keep its hue
   return true;
 }
 function _ribbonFrame(){
-  if(!_ribCv){ _ribCv=document.getElementById('noteribbon'); if(!_ribCv) return; }
+  if(!_ribCv){
+    _ribCv=document.getElementById('noteribbon'); if(!_ribCv) return;
+    // The strip is UI, not console art. CT_PAL hooks fillStyle on the 2D
+    // prototype and quantises every canvas to the Game Boy's four shades or the
+    // NES palette while one of those screens is on -- which snapped the lane
+    // colours to whatever was nearest and made the strip a different set of
+    // colours on every other track. __ctpalRaw is the existing opt-out; the
+    // editor's own grid uses it for the same reason.
+    _ribCv.__ctpalRaw=true;
+  }
   var on=_ribbonVisible();
   if(document.body) document.body.classList.toggle('ribbon-on', on);
   if(!on) return;
@@ -771,6 +774,7 @@ function _ribbonFrame(){
   g2.clearRect(0,0,_ribW,_ribH);
   g2.drawImage(_ribDim,0,0);                                   // the track ahead
   var pos=0;
+  if(!_ribFrames){ _ribbonClock(0); return; }        // nothing loaded: the lanes, empty
   try{ var d=Audio.deckPosition && Audio.deckPosition();
        if(d && d.sec>0) pos=(d.sec*(typeof CT_GB_HARDWARE!=='undefined'?CT_GB_HARDWARE.FPS:59.7275))/_ribFrames; }catch(e){}
   pos=Math.max(0,Math.min(1,pos));
@@ -785,7 +789,7 @@ function _ribbonFrame(){
 var _ribClockA='', _ribClockB='';
 function _ribbonClock(pos){
   var fps=(typeof CT_GB_HARDWARE!=='undefined'?CT_GB_HARDWARE.FPS:59.7275);
-  var total=_ribFrames/fps, at=pos*total;
+  var total=_ribFrames?_ribFrames/fps:0, at=pos*total;
   var a=_mmss(at), b=_mmss(total);
   if(a!==_ribClockA){ var e1=document.getElementById('pbElapsed'); if(e1) e1.textContent=a; _ribClockA=a; }
   if(b!==_ribClockB){ var e2=document.getElementById('pbTotal'); if(e2) e2.textContent=b; _ribClockB=b; }
@@ -2448,7 +2452,9 @@ function buildPlaybar(){ _pbEl=document.getElementById('playbar'); if(!_pbEl||_p
     cv.addEventListener('click', function(ev){
       ev.preventDefault(); ev.stopPropagation();
       if(typeof _pokeVisualControls==='function') _pokeVisualControls();
-      if(typeof _openCreate==='function') _openCreate();
+      var has=false;
+      try{ var s2=Audio.currentScore&&Audio.currentScore(); has=!!(s2&&s2.gb&&s2.gb.notes&&s2.gb.notes.length); }catch(e){}
+      if(typeof _openCreate==='function') _openCreate(!has);
     });
   })();
   _wirePlaybarButton('pbPrev', _transportPrev);
@@ -2625,6 +2631,15 @@ function _ensureGeneratedTransport(){
   }
 }
 function _transportToggle(){
+  // Nothing loaded yet: the bar is up from the first paint, so its play button
+  // has to mean something. It means "surprise me" -- one of the same moods,
+  // which is the only way anything starts now.
+  try{
+    if(Audio.isHolding && Audio.isHolding()){
+      var all=document.querySelectorAll('#rmoods .rmood:not(.rmood-scratch)');
+      if(all.length){ all[(Math.random()*all.length)|0].click(); return; }
+    }
+  }catch(e){}
   if(_transportNeedsResume()){
     _markTransportDiag('resume-gated');
     startAudio(true); if(Audio.resume) Audio.resume(true); if(typeof unlockAudioSession==='function') unlockAudioSession();
@@ -3178,7 +3193,11 @@ function _updateLivePill(liveOn, n){
 }
 function _updatePlaybar(){ if(!_pbEl) buildPlaybar(); if(!_pbEl) return;
   if(typeof _syncVisualChrome==='function') _syncVisualChrome();
-  if(!Audio.started){ _listenStatsAt=0; _pbEl.classList.remove('show'); if(typeof _syncVisualChrome==='function') _syncVisualChrome(); return; }
+  // The bar is furniture, not a consequence of playback: show it whether or not
+  // anything is on, so it does not appear under the visitor the moment they
+  // pick a mood. With nothing loaded it is a transport and an empty strip.
+  _pbEl.classList.add('show');
+  if(!Audio.started){ _listenStatsAt=0; if(typeof _syncVisualChrome==='function') _syncVisualChrome(); return; }
   _listenStatsTick();
   _pbEl.classList.add('show');
   var title=_curName||'···';
