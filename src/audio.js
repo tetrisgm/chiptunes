@@ -1895,6 +1895,9 @@ const Audio = (()=>{
     // destination so there is NEVER silence — we lose background survival but keep foreground audio.
     useDestinationOutput(){ try{ if(masterOut && ctx){ masterOut.connect(ctx.destination); return true; } }catch(e){} return false; },
     setLiveMode,
+    // the editor asks: is a manual tempo pinned? If so its clock and the
+    // deck's would drift and it must not try to follow one from the other.
+    tempoPinned(){ try{ return pinnedTempo()!=null; }catch(e){ return true; } },
     deckPosition(){ var d=deckCur; if(!d||!ctx) return null;
       return { tok:d.tok, sec:ctx.currentTime-d.origin, durSec:d.totalBeats*d.spb, next:deckNext?deckNext.tok:null }; },
     // The score the synth is reading right now. The cartridge exporter uses this

@@ -1639,7 +1639,11 @@ function _openCreate(){
     if(typeof _stopHomeBackdrop==='function') _stopHomeBackdrop();
     if(typeof hideHome==='function') hideHome();
   }
-  try{ if(typeof Audio!=='undefined'&&Audio.enterCreate) Audio.enterCreate(); }catch(e){}
+  // NOT enterCreate() here. That posts {type:'stop'} to the worklet, so merely
+  // OPENING the editor killed the chip dead -- before the editor had decided
+  // whether it wanted it. Since the station is already playing this document,
+  // opening the notes view usually needs to take nothing at all. The editor
+  // calls enterCreate itself at the moment it actually takes the chip.
   window._closeCreateReturn=function(){
     if(_createStandalone){                       // the station has not played yet: start it now
       _createStandalone=false;
@@ -1655,6 +1659,14 @@ function _openCreate(){
     try{ if(typeof Audio!=='undefined'&&Audio.playScore) Audio.playScore(); }catch(e){}
     // The frame loop parked itself while the editor was open (audio-only mode); nothing
     // else recalls the sync on close, and the game restarts live rather than mid-stumble.
+    if(sceneKind==='game' && selGame && selState) _reseatScene=true;
+    try{ _syncBackgroundAudioOnly(); }catch(e){}
+  };
+  // CLOSING A VIEW IS NOT A HANDOVER. When the editor never took the chip --
+  // it was showing the song the station was already playing -- there is nothing
+  // to give back, and calling playScore() here would stop and restart music
+  // that never stopped. All that is left is bringing the visuals back.
+  window._closeCreateView=function(){
     if(sceneKind==='game' && selGame && selState) _reseatScene=true;
     try{ _syncBackgroundAudioOnly(); }catch(e){}
   };

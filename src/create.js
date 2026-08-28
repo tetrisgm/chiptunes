@@ -743,15 +743,72 @@
   }
   function repostAtPosition() {
     if (!playing) return;
+    owning = true; following = false;          // an edit is where the editor takes over
     var song = currentSong();
     var pos = song.loopFrames > 0
       ? Math.round(((performance.now() - playT0) / 1000) * FPS) % song.loopFrames : 0;
     if (typeof Audio !== 'undefined' && Audio.playCreate) Audio.playCreate(song, song.loopFrames, pos);
   }
+  // TWO VIEWS OF ONE THING, NOT TWO PLAYERS.
+  //
+  // The station and the editor used to be separate players that swapped a chip
+  // between them: opening the editor stopped the station, armed the chip with a
+  // silent host song and started its own transport from the top; closing it
+  // stopped that and restarted the station. Every silence anyone has reported
+  // lived in that swap, and it also meant pressing Create dropped you at the
+  // beginning of a song you were in the middle of.
+  //
+  // Since the merge the station is ALREADY playing this exact document, so
+  // there is nothing to hand over: the editor opens FOLLOWING what is sounding
+  // -- same song, same position, no gap and no restart -- and only takes the
+  // chip when you actually change something. `owning` is that line. While it is
+  // false the station is the player and this is a view of it.
+  var owning = false, following = false;
+  function stationPos() {
+    try {
+      if (typeof Audio === 'undefined' || !Audio.deckPosition) return null;
+      var d = Audio.deckPosition();
+      return (d && isFinite(d.sec) && d.sec >= -1) ? d : null;
+    } catch (e) { return null; }
+  }
+  function stationPlaying() {
+    try { return !!(Audio.started && !(Audio.isPaused && Audio.isPaused())); } catch (e) { return false; }
+  }
+  // Follow only when the chip is genuinely playing THIS song: same document,
+  // and no manual tempo override, or the two clocks would drift apart.
+  function canFollow(code) {
+    var why = null, live = '';
+    try { live = (Audio.currentDoc && Audio.currentDoc()) || ''; } catch (e) { why = 'currentDoc threw'; }
+    if (!code) why = why || 'no code passed';
+    else if (!live) why = why || 'station has no document';
+    else if (live !== code) why = why || ('document differs (' + live.length + ' vs ' + code.length + ')');
+    try { if (!why && Audio.tempoPinned && Audio.tempoPinned()) why = 'tempo pinned'; } catch (e) {}
+    if (!why && !stationPos()) why = 'no deck position';
+    if (!why && !stationPlaying()) why = 'station not playing';
+    try { G.__followWhy = why || 'ok'; } catch (e) {}
+    return !why;
+  }
+  function followStation() {
+    var d = stationPos(); if (!d) return false;
+    following = true; owning = false; gestured = true;
+    playing = true;
+    playT0 = performance.now() - Math.max(0, d.sec) * 1000;
+    renderTransport(); renderBars(); scheduleTick();
+    return true;
+  }
   // A page that just loaded has no user gesture yet, so the browser keeps the
   // audio context suspended. Claiming to play then would be a lie: the
   // playhead would sweep in silence. Wait for the first touch instead.
   var gestured = false, wantStart = false;
+  // If the station is already making noise then the browser's gesture gate was
+  // cleared long ago -- by whatever click started the radio. This flag is
+  // module-local and knew nothing about that, so opening the editor from a
+  // playing station left it convinced nothing was allowed to sound: it armed
+  // the chip (which stops the station) and then refused to start, and you got
+  // an editor showing a song, with a play button, in silence.
+  function audioLive() {
+    try { return !!(Audio.started && Audio.running && Audio.running()); } catch (e) { return false; }
+  }
   function armGesture() {
     if (armGesture.done) return;
     armGesture.done = true;
@@ -771,6 +828,7 @@
   function startPlayback(fromMs) {
     clearTimeout(repostTimer);
     camFollow = true; camCatch = 0;
+    if (!gestured && audioLive()) gestured = true;
     if (!gestured) {                       // nothing can sound yet: stay honest
       wantStart = true; pausedAt = Math.max(0, fromMs || 0);
       playing = false;
@@ -780,6 +838,8 @@
     }
     var song = currentSong();
     var off = Math.max(0, fromMs || 0) % Math.max(1, songMs());
+    if (!owning) { try { if (Audio.enterCreate) Audio.enterCreate(); } catch (e) {} }
+    owning = true; following = false;
     if (typeof Audio !== 'undefined' && Audio.playCreate)
       Audio.playCreate(song, song.loopFrames, Math.round(off / 1000 * FPS));
     // a fresh start ships with 60ms of scheduling lead before frame 0 sounds;
@@ -791,15 +851,38 @@
   function pausePlayback() {
     queuedBar = null;
     pausedAt = (performance.now() - playT0) % Math.max(1, songMs());
-    armChip();
+    // While following, this view does not own a transport to stop -- pausing
+    // here is pausing the station, because they are the same playback.
+    if (following) { try { if (Audio.setPlaying) Audio.setPlaying(false); } catch (e) {} }
+    else armChip();
     playing = false;
     renderTransport(); renderBars(); updatePh(-1);
   }
-  function togglePlay() { if (!root) return; playing ? pausePlayback() : startPlayback(pausedAt); }
+  function togglePlay() {
+    if (!root) return;
+    if (playing) { pausePlayback(); return; }
+    // ...and pressing play while still following resumes the station rather
+    // than seizing the chip and starting a second copy of the same song.
+    if (following && canFollowResume()) {
+      try { if (Audio.setPlaying) Audio.setPlaying(true); } catch (e) {}
+      if (followStation()) return;
+    }
+    startPlayback(pausedAt);
+  }
+  // the station is paused but still holds this song: resuming is a resume
+  function canFollowResume() {
+    try {
+      var live = (Audio.currentDoc && Audio.currentDoc()) || '';
+      return !!live && live === encode() && !!stationPos() &&
+             !(Audio.tempoPinned && Audio.tempoPinned());
+    } catch (e) { return false; }
+  }
   // A silent host song keeps the chip's sequencer alive while the editor is
   // open, so placement pokes are audible before (and between) plays.
   function armChip() {
     resolveBank();
+    owning = true; following = false;          // the silent host song IS taking the chip
+    try { if (Audio.enterCreate) Audio.enterCreate(); } catch (e) {}
     if (typeof Audio !== 'undefined' && Audio.playCreate)
       Audio.playCreate({ notes: [], bank: BANK, totalFrames: 0x7fffffff }, 0);
   }
@@ -1925,6 +2008,14 @@
       loopPhase = ph;
     }
     if (location.pathname !== '/create') ownRoute(encode());   // something else moved the URL; take it back, song and all
+    if (following) {
+      // re-anchor to the station every frame: two clocks that merely started
+      // together are two clocks, and this playhead has to sit on the note you
+      // can hear rather than near it.
+      var dp = stationPos();
+      if (!dp || !stationPlaying()) { following = false; playing = false; renderTransport(); updatePh(-1); return; }
+      playT0 = performance.now() - Math.max(0, dp.sec) * 1000;
+    }
     var col = playCol();
     var pb = Math.floor(col / spb());
     if (camFollow) { followCol(col); applyCam(); }
@@ -2557,7 +2648,12 @@
       if (code) { var st = decode(code); if (st) { S = st; order = S.cells.length;
         loopBar = -1; queuedBar = null; viewBar = 0; camX = 0; selCol = -1; selCh = -1;
         dropLiveScore(); sizeTrack(); buildTrack(); renderAll(); } }
-      root.classList.add('show'); armChip(); if (!playing) startPlayback(pausedAt); return;
+      root.classList.add('show');
+      // The station is already playing this document. Show it, follow it, and
+      // touch nothing -- no re-arm, no restart, no gap, and you land where the
+      // song actually is rather than back at bar one.
+      if (canFollow(code) && followStation()) return;
+      armChip(); if (!playing) startPlayback(pausedAt); return;
     }
     var fromUrl = code || (location.hash.match(/#s=([A-Za-z0-9\-_]+)/) || [])[1];
     S = (fromUrl && decode(fromUrl)) || null;
@@ -2576,7 +2672,11 @@
       sizeTrack(); buildTrack(); centerOn(viewBar, true); renderAll();
     });
     document.body.classList.add('create-open');
-    armChip();
+    if (audioLive()) gestured = true;
+    // Do NOT arm the chip when the station is already playing this song: that
+    // is what silenced it. Decide before anything is posted.
+    var follow0 = canFollow(code);
+    if (!follow0) armChip();
     ownRoute(S.cells.length ? encode() : '');
     pen.midi = rowMidi(lastDeg[0] != null ? MEL_ROWS - 1 - lastDeg[0] : 7);
     hint('');
@@ -2590,6 +2690,9 @@
       var toured = false;
       try { toured = !!localStorage.getItem('ct-create-tour'); } catch (e) {}
       if (!toured) setTimeout(function () { if (isOpen()) tourShow(0); }, 1400);
+    } else if (follow0 && followStation()) {
+      try { buildSong(); } catch (e) {}
+      renderAll();
     } else {
       try { buildSong(); } catch (e) {}
       startPlayback(0);
@@ -2597,7 +2700,11 @@
     }
   }
   function close() {
-    if (playing) pausePlayback(); else armChip();
+    // Never took the chip: the station has been playing the whole time and
+    // closing this is closing a VIEW. Stopping and restarting it here is what
+    // used to drop the radio into silence.
+    var justAView = following && !owning;
+    if (!justAView) { if (playing) pausePlayback(); else armChip(); }
     pausedAt = 0;
     // Hand the chip back UNMUTED. This used to reset the editor's own array and
     // trust playScore() to clear the chip's mask; if anything returns to the
@@ -2610,6 +2717,8 @@
     if (root) root.classList.remove('show');
     document.body.classList.remove('create-open');
     try { history.replaceState(null, '', '/'); } catch (e) {}
+    following = false; owning = false;
+    if (justAView) { if (G._closeCreateView) G._closeCreateView(); return; }
     if (G._closeCreateReturn) G._closeCreateReturn();
   }
   function isOpen() { return !!(root && root.classList.contains('show')); }

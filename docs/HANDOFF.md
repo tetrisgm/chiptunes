@@ -949,3 +949,34 @@ pass.
   channel diff 103 BEFORE this change, and it is not in the npm gate list, so
   nothing was watching. Editing one and not the other took it to 184. Both are
   scaled together now and crt-diff reports 0. If you touch either, run it.
+
+- CREATE IS A VIEW OF THE STATION, NOT A SECOND PLAYER. Owner, 2026-08-28: "make
+  it that create and the radio are the same mode -- we are enabling the view of
+  the notes or focusing on the visualizer. Two tabs of the same thing." That is
+  now literally what it is, and it removed a whole class of bug.
+  What it used to do: _openCreate called Audio.enterCreate(), which posts
+  {type:'stop'} to the worklet -- so merely OPENING the editor killed the chip
+  before the editor had decided anything -- then Create armed the chip with a
+  silent host song and started its OWN transport from bar one. Closing reversed
+  it. Every silence anyone has reported lived in that swap, and it also meant
+  pressing Create dropped you at the start of a song you were in the middle of.
+  Since the merge the station is ALREADY playing this exact document, so there
+  is nothing to hand over. `owning` is the line: while it is false the station
+  is the player and this is a view of it. open() follows what is sounding (same
+  song, same position, no gap), pause/play drive the SHARED transport, and the
+  chip is taken only when you actually change something. close() on a view that
+  never owned calls _closeCreateView() -- visuals only -- instead of
+  _closeCreateReturn(), because there is nothing to give back.
+  Measured: chip owner stays 'radio' with the editor open, the deck runs
+  continuously across the open, the editor lands on bar 34 of 53 rather than
+  bar 1, and it SOUNDS without pressing play.
+
+- Second cause of the same silence: Create's `gestured` flag is module-local and
+  knew nothing about the click that had already started the radio, so
+  startPlayback refused to start ("nothing can sound yet: stay honest") while
+  armChip had already stopped the station. audioLive() seeds it.
+
+- scripts/crt-diff.mjs IS FLAKY -- the same build gives different verdicts run
+  to run (seen passing at 0 and failing at 101 on the same code, DPR 2). It is
+  not in the npm gate list and nothing watches it. Do not read a single run as
+  a regression, in either direction, and do not claim a fix from one pass.
