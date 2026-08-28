@@ -33,7 +33,8 @@
     "test:pacing": "node scripts/verify-frame-pacing.js",
     "test:share": "node scripts/verify-share.js",
     "test:rhythm": "node scripts/verify-rhythm.js",
-    "test:ribbon": "node scripts/verify-ribbon.js"
+    "test:ribbon": "node scripts/verify-ribbon.js",
+    "test:entry": "node scripts/verify-entry.js"
   },
   "dependencies": {
     "node-web-audio-api": "2.0.0"

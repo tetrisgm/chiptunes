@@ -1135,3 +1135,15 @@ pass.
   says "Display: CRT/Game Boy/NES/Random" now.
   Sliders drop first on a narrow window, then BPM, then the Display label -- the
   numbers survive longest.
+
+- "TAP ANYWHERE TO START" WAS STILL WIRED, and it undid the hold from a
+  distance. _gestureShouldResumePaused fires on any pointerdown when the
+  transport is paused; holding correctly reports as paused (nothing IS
+  playing), so every stray click on the background read as "resume", reached
+  _transportToggle, and took its surprise-me branch -- a random mood, started by
+  someone who had clicked nothing in particular. Reported from the wild as "I
+  went to the page and it just started playing music".
+  That handler stands down while holding. The play button keeps the surprise-me
+  branch, because pressing play is a deliberate act; a click on the page is not.
+  npm run test:entry is the gate: four clicks that mean nothing must start
+  nothing, and the two that mean something must still work.

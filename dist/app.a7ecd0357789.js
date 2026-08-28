@@ -34545,6 +34545,13 @@ function _gestureWantsExternal(el){ return false; }   // every station is the ge
 function _gestureShouldResumePaused(ev){
   if(!ev || !/^(pointerdown|mousedown|click|touchstart)$/.test(ev.type)) return false;
   if(shortcutTargetBlocked(ev)) return false;
+  // "TAP ANYWHERE TO START" IS NOT TRUE ANY MORE. A station that is waiting to
+  // be asked for a mood has to keep waiting: this handler resumes whatever is
+  // paused, holding now reads as paused (rightly -- nothing is playing), and
+  // the result was that a click anywhere on the page picked a mood at random
+  // and started it. The moods and the play button are the entry; a stray click
+  // is not.
+  try{ if(Audio.isHolding && Audio.isHolding()) return false; }catch(e){}
   return !!(typeof _transportIsPaused==='function' && _transportIsPaused());
 }
 function _resumePausedFromGesture(ev){
