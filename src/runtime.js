@@ -1625,7 +1625,10 @@ function _openCreate(){
     if(sceneKind==='game' && selGame && selState) _reseatScene=true;
     try{ _syncBackgroundAudioOnly(); }catch(e){}
   };
-  CT_CREATE.open();
+  // hand the editor the song that is playing, if there is one
+  var _doc=null;
+  try{ if(typeof Audio!=='undefined'&&Audio.currentDoc) _doc=Audio.currentDoc(); }catch(e){}
+  CT_CREATE.open(_doc||undefined);
 }
 window._openCreate=_openCreate;
 
@@ -3201,7 +3204,15 @@ function _pathParts(path){
   if(!p) return [];
   return p.split('/').map(function(x){ try{ return decodeURIComponent(x); }catch(e){ return x; } });
 }
-function _generatedRoute(slug){ return '/track/'+encodeURIComponent(String(slug||'').toLowerCase()); }
+// A SONG IS NOT ITS NAME ANY MORE. The address bar used to carry the slug that
+// generated the track, which made the name the seed and the URL the song. Songs
+// are made now, not named into being: the station keeps the plain route and a
+// song you want to keep is shared as a Create document, which is the song
+// itself rather than an instruction for rebuilding it.
+function _generatedRoute(){
+  var p=(location.pathname||'/');
+  return (p==='/radio'||p==='/watch') ? p : '/';
+}
 function _queryFlag(name){
   try{
     var q=new URLSearchParams(location.search||'');
@@ -3231,7 +3242,7 @@ function syncRoute(slug){
   try{ if(typeof CT_CREATE!=='undefined' && CT_CREATE.isOpen()) return; }catch(eC){}  // the editor owns /create; a refresh must land back in it
   var intro=document.getElementById('intro');
   if(intro && !intro.classList.contains('hidden') && getComputedStyle(intro).display!=='none') return;  // Home owns the root route while it is visible
-  var want = _generatedRoute(slug) + _routeQueryExtras();
+  var want = _generatedRoute() + _routeQueryExtras();
   if((location.pathname + (location.search||'')) !== want){ try{ history.replaceState(null,'',want); }catch(e){} }
 }
 window.addEventListener('popstate', ()=>{ if(!bootDone) return;

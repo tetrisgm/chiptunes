@@ -28,6 +28,11 @@
   // contested frame: a kick beats a hat, a melody note beats an arpeggio step.
   Voices.prototype.place = function (ch, frame, frames, midi, inst, vel, pri, sweep) {
     if (ch == null || ch < 0 || ch > 3) return false;
+    // A MELODIC NOTE WITHOUT A PITCH IS NOT A NOTE. The composer emits a few
+    // per song (an echo whose source had none), and on the hardware they
+    // become a period-0 note -- a click at the bottom of the range. Only the
+    // noise channel has no pitch to speak of.
+    if (ch !== 3 && midi == null) return false;
     frame = Math.max(0, Math.round(frame));
     frames = Math.max(1, Math.round(frames));
     if (midi != null) {

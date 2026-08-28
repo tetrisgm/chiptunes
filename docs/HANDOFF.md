@@ -757,3 +757,32 @@ pass.
 
 - The 48-bar cap is now the largest single source of loss on import. If the
   station's songs are to come out of Create, that cap has to rise or go.
+
+- THE STATION AND THE EDITOR PLAY THE SAME SONGS. compileScore() now hands every
+  composed Score to CT_CREATE.songFrom(), which runs the editor's own import on
+  a scratch state and returns a playable gb plus the document code; score.gb is
+  replaced with it and score.doc carries the code. The chip plays the DOCUMENT.
+  The Score stays for the visuals, the sections and the games, which read
+  events rather than notes. Cost: 1-3ms a track.
+
+- Consequences, all deliberate: pressing Create hands the editor the song on
+  air (Audio.currentDoc() -> CT_CREATE.open(code)), so "edit what I am hearing"
+  is that song note for note. The address bar no longer carries the generated
+  name -- _generatedRoute() returns the product route -- because a name is a
+  label now, not a seed. A song worth keeping is shared as a document.
+
+- THE LAST QUANTISERS ARE GONE, and two composer bugs came out with them:
+    * the 48-bar cap (import kept 48 bars of a 57-bar song),
+    * per-COLUMN voice allocation in buildSong -- notes carry frame offsets now,
+      so two notes in one column may not overlap at all and two in different
+      columns may. Voices are claimed by time, like the import does it.
+    * the composer put a WAVE instrument on a pulse channel when a plan routed
+      bass there (the mirror of the channel-3 bug fixed earlier). Both
+      directions are guarded now: the instrument has to belong to the channel.
+    * Voices.place() refuses a melodic note with no pitch. The composer emitted
+      a few per song; on the hardware they are a period-0 click.
+  Measured after: twelve songs, 100% of notes on the exact frame, every one.
+
+- npm run test:song-document is the gate. It materialises twelve songs and
+  compares note for note, round-trips a document through the URL into the
+  editor, and checks the song on air has a document behind it.

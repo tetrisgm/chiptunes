@@ -363,7 +363,11 @@ const Audio = (()=>{
       gbChipGain.gain.setTargetAtTime(on?1.0:0.0001, t, 0.01);
     }
     if(!on){ if(gbNode) gbNode.port.postMessage({type:'stop'}); return false; }
-    var msg = {type:'play', gb:{notes:gb.notes, bank:gb.bank, totalFrames:gb.totalFrames},
+    // the WHOLE song: automation, wave swaps, vibrato hand-offs and kit hits are
+    // as much the music as the note-ons (playCreate had the same omission)
+    var msg = {type:'play', gb:{notes:gb.notes, bank:gb.bank, totalFrames:gb.totalFrames,
+                                auto:gb.auto||null, vibOff:gb.vibOff||null,
+                                waveLoads:gb.waveLoads||null, kit:gb.kit||null},
                offsetFrames:Math.max(0, offsetFrames|0), paused:!!paused,
                rate:chipRate(), mix:Object.assign({}, MIX),
                // Decks open 0.18s in the future so the scheduler has lead time.
@@ -767,6 +771,17 @@ const Audio = (()=>{
     try{
       var score=C.compile(tok);
       if(!score || !score.events || !score.events.length) throw new Error('empty score');
+      // THE STATION PLAYS CREATE'S SONGS. The composer writes a Score; Create
+      // turns it into a document -- the same import the editor does -- and the
+      // chip plays THAT. So what you hear is exactly what opens in the editor,
+      // note for note, rather than something near it. The Score stays for the
+      // visuals, the sections and the games, which read events, not notes.
+      try{
+        if(typeof CT_CREATE!=='undefined' && CT_CREATE.songFrom){
+          var doc=CT_CREATE.songFrom(score);
+          if(doc && doc.gb && doc.gb.notes && doc.gb.notes.length){ score.gb=doc.gb; score.doc=doc.code; }
+        }
+      }catch(docErr){ diag('compile', {tok:tok, doc:String(docErr&&docErr.message||docErr)}); }
       var fp=null; try{ fp=C.fingerprint ? C.fingerprint(tok) : null; }catch(e2){ fp=null; }
       return { tok:tok, score:score, fp:fp };
     }catch(e){
@@ -1889,6 +1904,9 @@ const Audio = (()=>{
     setChipMute(mask){ ensureGbChip(); if(gbNode) gbNode.port.postMessage({type:'chmute', mask:mask||null}); },
     stopCreate(){ if(gbNode) gbNode.port.postMessage({type:'stop'}); },  // editor stop: chip quiet, ownership stays; playScore() is the way back
     romMode(){ return gbRomMode; },
+    // the song on air, as a Create document -- this is what makes "edit what I
+    // am hearing" the same song rather than a near-enough copy of it
+    currentDoc(){ return (deckCur && deckCur.score && deckCur.score.doc) || null; },
     // Quiet, in-key game hooks (over the Engine): the games' melodic support layer.
     gameMelodyNote, reactNote, reactOK, playRecipe,
     // ENGINE facade — worklet v2 protocol + offline render for the audition harness.

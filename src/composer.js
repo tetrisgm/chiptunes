@@ -400,7 +400,14 @@ function compile(token){
       // A plan can route harmony to the WAVE channel, and that role carries a
       // pulse instrument -- whose byte0 is a duty, not a wave slot. It played
       // whatever table happened to be loaded. Channel 3 gets a wave instrument.
-      if(c===2&&GBB){var rec=GBB.bank.instruments[ins];if(!rec||!(rec[3]&1))ins=GBB.inst.bass;}
+      if(GBB){var rec=GBB.bank.instruments[ins];
+        // The instrument has to belong to the channel it lands on. A wave
+        // record's byte0 is a table index and a pulse record's is a duty, so
+        // the wrong one there is not a different sound -- it is a misread byte.
+        // Both directions happen: a plan can route harmony to channel 3, and it
+        // can route bass to a pulse channel while keeping its wave patch.
+        if(c===2&&(!rec||!(rec[3]&1))) ins=GBB.inst.bass;
+        else if(c<2&&rec&&(rec[3]&1)) ins=GBB.inst.lead;}
       V.place(c,f,fr,e.midi!=null?e.midi:null,ins,e.vel,PRI[ch]||1,sweep);}}}
   // ACCOMPANIMENT VOCABULARY. The old pad was one idiom -- a frame-rate chord
   // arpeggio, tones rotating 10-60 times a second -- on nearly every track.

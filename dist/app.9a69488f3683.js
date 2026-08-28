@@ -403,6 +403,11 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   // contested frame: a kick beats a hat, a melody note beats an arpeggio step.
   Voices.prototype.place = function (ch, frame, frames, midi, inst, vel, pri, sweep) {
     if (ch == null || ch < 0 || ch > 3) return false;
+    // A MELODIC NOTE WITHOUT A PITCH IS NOT A NOTE. The composer emits a few
+    // per song (an echo whose source had none), and on the hardware they
+    // become a period-0 note -- a click at the bottom of the range. Only the
+    // noise channel has no pitch to speak of.
+    if (ch !== 3 && midi == null) return false;
     frame = Math.max(0, Math.round(frame));
     frames = Math.max(1, Math.round(frames));
     if (midi != null) {
@@ -2745,16 +2750,23 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     var notes = [], per = framesPer16();
     var byCol = {};
     S.cells.forEach(function (x) { delete x.x; delete x.rch; (byCol[x.c] = byCol[x.c] || []).push(x); });
+    var held = [[], [], [], []];              // what each voice is busy with, in frames
+    function voiceFree(ch, from, to) {
+      var l = held[ch];
+      for (var i = 0; i < l.length; i++) if (from < l[i][1] && to > l[i][0]) return false;
+      return true;
+    }
+    function claim(ch, from, to) { held[ch].push([from, to]); }
     for (var c = 0; c < cols(); c++) {
       var here = byCol[c] || [];
-      var slots = [false, false], wave = false, drum = false;
       here.sort(function (a, b) { return (a.t || 0) - (b.t || 0); });
       here.forEach(function (x) {
         if (x.vel === 0) { x.rch = x.r >= MEL_ROWS ? 3 : x.rch; return; }   // volume zero: a rest that keeps its place
         if (x.r >= MEL_ROWS) {                              // drum lane
           var d = DRUMS[x.r - MEL_ROWS];
-          if (drum) { x.x = 1; return; }
-          drum = true; x.rch = 3;
+          var dF = cellFrame(x), dLen = Math.max(2, Math.round(per * (x.len || 0.6)));
+          if (!voiceFree(3, dF, dF + dLen)) { x.x = 1; return; }
+          claim(3, dF, dF + dLen); x.rch = 3;
           if (x.kt) {                                       // a KIT hit: four-bit
             var kid = (x.kt - 1) & 7;                       // sample on channel 3
             moves.kit.push({ f: cellFrame(x), id: kid });
@@ -2796,16 +2808,18 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
                      inst: mInst != null ? mInst : (x.inst != null ? x.inst : INSTOF[x.st]),
                      vel: x.vel != null ? x.vel : 0.8, pri: 5 };
         if (voice === 'wave') {
-          if (wave) { x.x = 1; return; }
-          wave = true; note.ch = 2; x.rch = 2;
+          if (!voiceFree(2, note.frame, note.frame + totalF)) { x.x = 1; return; }
+          claim(2, note.frame, note.frame + totalF); note.ch = 2; x.rch = 2;
         } else {
           // an exact channel claims its slot first, then the other pulse;
           // slides want channel 1's sweep unit; the rest take what is free
           var wantCh = (x.ch === 0 || x.ch === 1) ? x.ch
-                     : (x.z || x.u || x.sweep != null) ? 0 : (slots[0] ? 1 : 0);
-          var ch = !slots[wantCh] ? wantCh : !slots[1 - wantCh] ? 1 - wantCh : -1;
+                     : (x.z || x.u || x.sweep != null) ? 0
+                     : (voiceFree(0, note.frame, note.frame + totalF) ? 0 : 1);
+          var ch = voiceFree(wantCh, note.frame, note.frame + totalF) ? wantCh
+                 : voiceFree(1 - wantCh, note.frame, note.frame + totalF) ? 1 - wantCh : -1;
           if (ch < 0) { x.x = 1; return; }
-          slots[ch] = true; note.ch = ch; x.rch = ch;
+          claim(ch, note.frame, note.frame + totalF); note.ch = ch; x.rch = ch;
           if (x.sweep != null) { if (note.ch === 0) note.sweep = x.sweep; }
           else if (note.ch === 0 && x.z) note.sweep = 0x3E;  // the fall off the note
           else if (note.ch === 0 && x.u) note.sweep = 0x36;  // ...and the rise
@@ -2862,7 +2876,9 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   // (bpm-70)/2. All older versions still decode.
   function encode() {
     var ids = STAMPS.map(function (s) { return s.id; });
-    var out = [11, S.key, S.minor, S.bars, (S.bpm - 70) & 63, S.swing | (((S.bpm - 70) >> 6) << 1),
+    // v12: bars need more than six bits now that nothing caps them
+    var out = [12, S.key, S.minor, S.bars & 63, (S.bpm - 70) & 63,
+               S.swing | (((S.bpm - 70) >> 6) << 1), (S.bars >> 6) & 63,
                Math.max(0, GRIDS.indexOf(spb()))];
     S.cells.forEach(function (x) {
       var st = x.r >= MEL_ROWS ? 15 : (x.st && x.st.charAt(0) === 'i' ? 14 : Math.max(0, ids.indexOf(x.st)));
@@ -2901,15 +2917,16 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     try {
       var v = []; for (var i = 0; i < str.length; i++) { var ix = B64.indexOf(str[i]); if (ix < 0) return null; v.push(ix); }
       var ver = v[0];
-      if (ver < 1 || ver > 11) return null;
+      if (ver < 1 || ver > 12) return null;
       var st2 = freshState();
       st2.key = v[1] % 12; st2.minor = v[2] & 1;
       st2.bars = ver === 1 ? ([2, 4, 8].indexOf(v[3]) >= 0 ? v[3] : 4)
+               : ver >= 12 ? Math.max(1, Math.min(4095, v[3] | ((v[6] & 63) << 6)))
                            : Math.max(1, Math.min(48, v[3]));
       st2.bpm = ver >= 11 ? Math.max(70, Math.min(180, 70 + (v[4] & 63) + (((v[5] >> 1) & 3) << 6)))
                           : Math.max(70, Math.min(180, ver >= 5 ? 70 + v[4] * 2 : v[4] * 2));
       st2.swing = v[5] & 1;
-      st2.grid = ver >= 9 ? (GRIDS[v[6]] || 16) : 16;
+      st2.grid = ver >= 12 ? (GRIDS[v[7]] || 16) : ver >= 9 ? (GRIDS[v[6]] || 16) : 16;
       var ids = STAMPS.map(function (s) { return s.id; });
       if (ver === 1) {
         for (var j = 6; j + 2 < v.length + 1; j += 3) {
@@ -2920,7 +2937,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
           st2.cells.push(cell);
         }
       } else {
-        var k = ver >= 9 ? 7 : 6;
+        var k = ver >= 12 ? 8 : ver >= 9 ? 7 : 6;
         while (k + 3 < v.length + 1) {
           var c2 = v[k] | (v[k + 1] << 6), r2 = v[k + 2] & 31, b2 = v[k + 3];
           var cell2 = { c: c2, r: r2, t: k };
@@ -3197,6 +3214,9 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   // radio uses, a seed search over its declared parameters, and the whole
   // score projected onto the grid as exact, editable notes. It plays
   // verbatim (its own bank, every instrument) until the first hand edit.
+  // Choosing a song and IMPORTING one are different jobs. The search below
+  // stays with the editor; importScore fills whatever state is current, so the
+  // radio can materialise a song without the editor being open at all.
   function composeIntoGrid(moodText, auto) {
     var C = (G.CT_COMPOSERS && G.CT_COMPOSERS.rrr_core) || null;
     if (!C || typeof C.compile !== 'function') return;
@@ -3216,7 +3236,26 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     if (!score) score = bestScore;
     var gb = score && score.gb;
     if (!gb || !gb.notes || !gb.notes.length) return;
-    lastComposed = score;                     // kept for the fidelity measurement
+    importScore(score, moodText);
+    var capF = Math.round(S.bars * spb() * framesPer16());   // the verbatim score, same length
+    liveScore = { notes: gb.notes.filter(function (n) { return n.frame < capF; }),
+                  bank: gb.bank, totalFrames: Math.min(gb.totalFrames, capF), loopFrames: 0 };
+    liveBpm = score.bpm || S.bpm;
+    liveMood = String(moodText || '');
+    try { buildSong(); } catch (e) {}          // resolve channel marks
+    loopBar = -1; queuedBar = null;
+    viewBar = 0; camX = 0; camFollow = true; camCatch = 0; selCol = -1; selCh = -1;
+    if (root.querySelector('.n-track')) { buildTrack(); }
+    pausedAt = 0;
+    dirty();
+    startPlayback(0);   // after dirty: its clearTimeout cancels the queued repost,
+                        // which used to seek past the song's first notes
+  }
+  // Fill the CURRENT state from a composed Score. Everything here reads S, so
+  // withState() is how it is pointed at a scratch song instead of the editor's.
+  function importScore(score, moodText) {
+    lastComposed = score;
+    var gb = score.gb;
     var sInst = (gb.bank && gb.bank.instruments) || gb.instruments || [];
     var sTables = (gb.bank && gb.bank.waveTables) || [];
     var per16f = FPS * 60 / ((score.bpm || 120) * 4);
@@ -3255,7 +3294,12 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       while (deg < 0) deg += 7;
       return deg;
     }
-    S.key = 0; S.minor = scl.indexOf(3) >= 0 ? 1 : 0; S.bars = Math.max(1, Math.min(48, Math.ceil((gb.totalFrames || winF) / (spb() * per16f))));
+    // NO BAR CAP. It used to clip at 48 and that was the largest single source
+    // of loss when a composed song came in -- a hundred notes of a long song
+    // simply gone. Playback has no reason to stop at a bar count; only the
+    // cartridge does, and checkRoom() says so while there is time to act.
+    S.key = 0; S.minor = scl.indexOf(3) >= 0 ? 1 : 0;
+    S.bars = Math.max(1, Math.ceil((gb.totalFrames || winF) / (spb() * per16f)));
     // the EXACT tempo, not the nearest even one: rounding it moved every note
     // in the song, which is most of why an imported song stopped matching
     S.bpm = Math.max(70, Math.min(180, Math.round(score.bpm || 120)));
@@ -3312,20 +3356,29 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       }
       S.cells.push(cell);
     });
-    var capF = Math.round(S.bars * spb() * per16f);      // the verbatim score clips to the same 48 bars
-    liveScore = { notes: gb.notes.filter(function (n) { return n.frame < capF; }),
-                  bank: gb.bank, totalFrames: Math.min(gb.totalFrames, capF), loopFrames: 0 };
-    liveBpm = score.bpm || S.bpm;
-    liveMood = String(moodText || '');
-    try { buildSong(); } catch (e) {}          // resolve channel marks
-    loopBar = -1; queuedBar = null;
-    viewBar = 0; camX = 0; camFollow = true; camCatch = 0; selCol = -1; selCh = -1;
-    if (root.querySelector('.n-track')) { buildTrack(); }
-    pausedAt = 0;
-    dirty();
-    startPlayback(0);   // after dirty: its clearTimeout cancels the queued repost,
-                        // which used to seek past the song's first notes
   }
+
+  // A Score becomes a Create document: the same import the editor does, run on
+  // a scratch state, handed back as a playable song and a shareable code. This
+  // is what makes the station's songs and the editor's songs the same thing.
+  function withState(st, fn) {
+    var prev = S, prevOrder = order;
+    S = st; order = 0;
+    try { return fn(); } finally { S = prev; order = prevOrder; }
+  }
+  function songFrom(score) {
+    resolveBank();
+    var st = freshState(), out = null;
+    withState(st, function () {
+      try {
+        importScore(score, '');
+        out = { code: encode(), gb: buildSong(), bars: S.bars, bpm: S.bpm,
+                cells: S.cells.length };
+      } catch (e) { out = null; }
+    });
+    return out;
+  }
+
 
   // ---- the sound map: pick a channel's instrument by dragging --------------
   var sndCh = -1;
@@ -4220,7 +4273,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   }
   // ---- bar operations ------------------------------------------------------
   function addBar(bar) {
-    if (S.bars >= 48) { hint('48 bars is the limit \u2014 that is about a minute and a half.'); return; }
+    if (S.bars >= 512) { hint('512 bars is the limit \u2014 about twenty minutes.'); return; }
     snapshot();
     if (bar != null) viewBar = bar;
     var at = viewBar * 16;                      // an empty bar opens HERE
@@ -4817,9 +4870,16 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     });
   }
   // ---- open / close --------------------------------------------------------
-  function open() {
-    if (root) { root.classList.add('show'); armChip(); if (!playing) startPlayback(pausedAt); return; }
-    var fromUrl = (location.hash.match(/#s=([A-Za-z0-9\-_]+)/) || [])[1];
+  function open(code) {
+    // open(code): the station hands over the song it is playing, so the editor
+    // starts on exactly that -- the whole point of the two being one thing.
+    if (root) {
+      if (code) { var st = decode(code); if (st) { S = st; order = S.cells.length;
+        loopBar = -1; queuedBar = null; viewBar = 0; camX = 0; selCol = -1; selCh = -1;
+        dropLiveScore(); sizeTrack(); buildTrack(); renderAll(); } }
+      root.classList.add('show'); armChip(); if (!playing) startPlayback(pausedAt); return;
+    }
+    var fromUrl = code || (location.hash.match(/#s=([A-Za-z0-9\-_]+)/) || [])[1];
     S = (fromUrl && decode(fromUrl)) || null;
     if (!S) { try { var d = localStorage.getItem('ct-create-draft'); if (d) S = decode(d); } catch (e) {} }
     if (!S) S = freshState();
@@ -4882,6 +4942,11 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     return false;
   }
   G.CT_CREATE = { open: open, close: close, isOpen: isOpen, togglePlay: togglePlay, escape: escape,
+    // THE STATION'S SONGS ARE CREATE'S SONGS. songFrom() turns a composed Score
+    // into a Create document -- a playable gb and the code that opens it in the
+    // editor -- without the editor being open, so the radio can play documents
+    // and "edit this" is the same song rather than an approximation of it.
+    songFrom: songFrom,
     _dbg: function () {
       var mx = 0, withInst = 0, hist = [0, 0, 0, 0];
       if (S) S.cells.forEach(function (x) { if ((x.len || 1) > mx) mx = x.len || 1; if (x.inst != null) withInst++;
@@ -5324,7 +5389,14 @@ function compile(token){
       // A plan can route harmony to the WAVE channel, and that role carries a
       // pulse instrument -- whose byte0 is a duty, not a wave slot. It played
       // whatever table happened to be loaded. Channel 3 gets a wave instrument.
-      if(c===2&&GBB){var rec=GBB.bank.instruments[ins];if(!rec||!(rec[3]&1))ins=GBB.inst.bass;}
+      if(GBB){var rec=GBB.bank.instruments[ins];
+        // The instrument has to belong to the channel it lands on. A wave
+        // record's byte0 is a table index and a pulse record's is a duty, so
+        // the wrong one there is not a different sound -- it is a misread byte.
+        // Both directions happen: a plan can route harmony to channel 3, and it
+        // can route bass to a pulse channel while keeping its wave patch.
+        if(c===2&&(!rec||!(rec[3]&1))) ins=GBB.inst.bass;
+        else if(c<2&&rec&&(rec[3]&1)) ins=GBB.inst.lead;}
       V.place(c,f,fr,e.midi!=null?e.midi:null,ins,e.vel,PRI[ch]||1,sweep);}}}
   // ACCOMPANIMENT VOCABULARY. The old pad was one idiom -- a frame-rate chord
   // arpeggio, tones rotating 10-60 times a second -- on nearly every track.
@@ -5960,7 +6032,11 @@ const Audio = (()=>{
       gbChipGain.gain.setTargetAtTime(on?1.0:0.0001, t, 0.01);
     }
     if(!on){ if(gbNode) gbNode.port.postMessage({type:'stop'}); return false; }
-    var msg = {type:'play', gb:{notes:gb.notes, bank:gb.bank, totalFrames:gb.totalFrames},
+    // the WHOLE song: automation, wave swaps, vibrato hand-offs and kit hits are
+    // as much the music as the note-ons (playCreate had the same omission)
+    var msg = {type:'play', gb:{notes:gb.notes, bank:gb.bank, totalFrames:gb.totalFrames,
+                                auto:gb.auto||null, vibOff:gb.vibOff||null,
+                                waveLoads:gb.waveLoads||null, kit:gb.kit||null},
                offsetFrames:Math.max(0, offsetFrames|0), paused:!!paused,
                rate:chipRate(), mix:Object.assign({}, MIX),
                // Decks open 0.18s in the future so the scheduler has lead time.
@@ -6364,6 +6440,17 @@ const Audio = (()=>{
     try{
       var score=C.compile(tok);
       if(!score || !score.events || !score.events.length) throw new Error('empty score');
+      // THE STATION PLAYS CREATE'S SONGS. The composer writes a Score; Create
+      // turns it into a document -- the same import the editor does -- and the
+      // chip plays THAT. So what you hear is exactly what opens in the editor,
+      // note for note, rather than something near it. The Score stays for the
+      // visuals, the sections and the games, which read events, not notes.
+      try{
+        if(typeof CT_CREATE!=='undefined' && CT_CREATE.songFrom){
+          var doc=CT_CREATE.songFrom(score);
+          if(doc && doc.gb && doc.gb.notes && doc.gb.notes.length){ score.gb=doc.gb; score.doc=doc.code; }
+        }
+      }catch(docErr){ diag('compile', {tok:tok, doc:String(docErr&&docErr.message||docErr)}); }
       var fp=null; try{ fp=C.fingerprint ? C.fingerprint(tok) : null; }catch(e2){ fp=null; }
       return { tok:tok, score:score, fp:fp };
     }catch(e){
@@ -7486,6 +7573,9 @@ const Audio = (()=>{
     setChipMute(mask){ ensureGbChip(); if(gbNode) gbNode.port.postMessage({type:'chmute', mask:mask||null}); },
     stopCreate(){ if(gbNode) gbNode.port.postMessage({type:'stop'}); },  // editor stop: chip quiet, ownership stays; playScore() is the way back
     romMode(){ return gbRomMode; },
+    // the song on air, as a Create document -- this is what makes "edit what I
+    // am hearing" the same song rather than a near-enough copy of it
+    currentDoc(){ return (deckCur && deckCur.score && deckCur.score.doc) || null; },
     // Quiet, in-key game hooks (over the Engine): the games' melodic support layer.
     gameMelodyNote, reactNote, reactOK, playRecipe,
     // ENGINE facade — worklet v2 protocol + offline render for the audition harness.
@@ -31768,7 +31858,10 @@ function _openCreate(){
     if(sceneKind==='game' && selGame && selState) _reseatScene=true;
     try{ _syncBackgroundAudioOnly(); }catch(e){}
   };
-  CT_CREATE.open();
+  // hand the editor the song that is playing, if there is one
+  var _doc=null;
+  try{ if(typeof Audio!=='undefined'&&Audio.currentDoc) _doc=Audio.currentDoc(); }catch(e){}
+  CT_CREATE.open(_doc||undefined);
 }
 window._openCreate=_openCreate;
 
@@ -33344,7 +33437,15 @@ function _pathParts(path){
   if(!p) return [];
   return p.split('/').map(function(x){ try{ return decodeURIComponent(x); }catch(e){ return x; } });
 }
-function _generatedRoute(slug){ return '/track/'+encodeURIComponent(String(slug||'').toLowerCase()); }
+// A SONG IS NOT ITS NAME ANY MORE. The address bar used to carry the slug that
+// generated the track, which made the name the seed and the URL the song. Songs
+// are made now, not named into being: the station keeps the plain route and a
+// song you want to keep is shared as a Create document, which is the song
+// itself rather than an instruction for rebuilding it.
+function _generatedRoute(){
+  var p=(location.pathname||'/');
+  return (p==='/radio'||p==='/watch') ? p : '/';
+}
 function _queryFlag(name){
   try{
     var q=new URLSearchParams(location.search||'');
@@ -33374,7 +33475,7 @@ function syncRoute(slug){
   try{ if(typeof CT_CREATE!=='undefined' && CT_CREATE.isOpen()) return; }catch(eC){}  // the editor owns /create; a refresh must land back in it
   var intro=document.getElementById('intro');
   if(intro && !intro.classList.contains('hidden') && getComputedStyle(intro).display!=='none') return;  // Home owns the root route while it is visible
-  var want = _generatedRoute(slug) + _routeQueryExtras();
+  var want = _generatedRoute() + _routeQueryExtras();
   if((location.pathname + (location.search||'')) !== want){ try{ history.replaceState(null,'',want); }catch(e){} }
 }
 window.addEventListener('popstate', ()=>{ if(!bootDone) return;
