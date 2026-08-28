@@ -734,3 +734,26 @@ pass.
   and all eight sampled drums came to 13054 bytes, so this only bites at the
   extremes. hint() only surfaces messages carrying consequence -- the filter now
   includes 'cartridge' and 'share a step', which were being swallowed.
+
+- THE EDITOR CAN NOW HOLD WHAT THE COMPOSER WRITES, which is the precondition
+  for making Create the source of the station's songs rather than a side door.
+  Three things were quantising the music away on import:
+    * S.bpm was rounded to the nearest EVEN value, which moves every frame in
+      the song. It keeps the exact tempo now (link v11 carries 7 bits).
+    * note starts were snapped to the sixteenth grid. A cell carries `of`, an
+      offset in frames (+/-32), and cellFrame() is colFrame + of. The note is
+      DRAWN at the offset too, so what you see is where it sounds.
+    * note lengths were whole steps. A cell carries `lf`, an exact length in
+      frames, whenever the grid cannot say it.
+  Clashes are judged by whether two notes on a lane overlap IN TIME, not by
+  counting notes per column -- the old rule threw away notes that never
+  collided on the hardware.
+
+- MEASURED, one 803-note song: 102 notes fall past the 48-bar cap, 10 are
+  emitted by the composer with midi null (a melodic note with no pitch -- the
+  composer should probably not do that), and of the 691 that can be placed,
+  685 land on the exact frame. 99.1%. Before this work, four moods measured
+  98.2 / 73.0 / 85.1 / 25.1% surviving; 'chill' was losing three notes in four.
+
+- The 48-bar cap is now the largest single source of loss on import. If the
+  station's songs are to come out of Create, that cap has to rise or go.

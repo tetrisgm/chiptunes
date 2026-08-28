@@ -264,6 +264,11 @@
     if (S.swing && (c % 4) >= 2) f += 0.28 * framesPer16();   // swung eighth pair
     return Math.round(f);
   }
+  // WHERE A NOTE ACTUALLY STARTS. The grid is where you place notes by hand;
+  // a note may also carry an offset in frames, which is how a composed song
+  // survives being imported -- the composer writes at frame resolution and
+  // rounding every note to the nearest sixteenth is a different piece of music.
+  function cellFrame(x) { return colFrame(x.c) + (x.of | 0); }
   // What voice does a cell want? Legacy stamps say pulse-or-wave; composed
   // cells carry the exact instrument, and the bank's meta says its channel.
   function cellVoice(x) {
@@ -376,7 +381,7 @@
           drum = true; x.rch = 3;
           if (x.kt) {                                       // a KIT hit: four-bit
             var kid = (x.kt - 1) & 7;                       // sample on channel 3
-            moves.kit.push({ f: colFrame(c), id: kid });
+            moves.kit.push({ f: cellFrame(x), id: kid });
             var kk = G.CT_GB_KITS && G.CT_GB_KITS.byId(kid);
             // the sample leaves a waveform in wave RAM that is not a table, so
             // the bass voice needs its own back when the hit is over
@@ -390,7 +395,7 @@
           if (x.g) {                                        // drum ratchet
             var dHit = Math.max(2, Math.round(per / 2));
             for (var df = 0; df < per * (x.len || 1) - 1; df += dHit)
-              notes.push({ ch: 3, frame: colFrame(c) + df, frames: Math.max(2, dHit - 1),
+              notes.push({ ch: 3, frame: cellFrame(x) + df, frames: Math.max(2, dHit - 1),
                            midi: null, inst: dInst, vel: dVel, pri: 9 - d.lane });
           } else if (x.f) {                                 // drum echo
             var dv = dVel;
@@ -398,7 +403,7 @@
               notes.push({ ch: 3, frame: colFrame(c + ds), frames: Math.max(2, Math.round(per * 0.5)),
                            midi: null, inst: dInst, vel: dv, pri: 9 - d.lane });
           } else {
-            notes.push({ ch: 3, frame: colFrame(c),
+            notes.push({ ch: 3, frame: cellFrame(x),
                          frames: x.len ? Math.max(2, Math.round(per * x.len) - 1) : Math.max(2, Math.round(per * 0.6)),
                          midi: null, inst: dInst, vel: dVel, pri: 9 - d.lane });
           }
@@ -408,9 +413,9 @@
         var voice = cellVoice(x);
         if (!voice || voice === 'noise') { x.x = 1; return; }
         var steps = x.len ? x.len : (x.w ? 8 : 0.96);
-        var totalF = Math.max(2, Math.round(per * steps) - 1);
+        var totalF = x.lf ? Math.max(1, x.lf | 0) : Math.max(2, Math.round(per * steps) - 1);
         var mInst = instOf(x, voice === 'wave' ? 2 : (x.ch === 1 ? 1 : 0));
-        var note = { frame: colFrame(c), frames: totalF, det: x.dt | 0,
+        var note = { frame: cellFrame(x), frames: totalF, det: x.dt | 0,
                      midi: x.midi != null ? x.midi : rowMidi(x.r),
                      inst: mInst != null ? mInst : (x.inst != null ? x.inst : INSTOF[x.st]),
                      vel: x.vel != null ? x.vel : 0.8, pri: 5 };
@@ -481,13 +486,13 @@
   // (bpm-70)/2. All older versions still decode.
   function encode() {
     var ids = STAMPS.map(function (s) { return s.id; });
-    var out = [10, S.key, S.minor, S.bars, Math.round((S.bpm - 70) / 2) & 63, S.swing,
+    var out = [11, S.key, S.minor, S.bars, (S.bpm - 70) & 63, S.swing | (((S.bpm - 70) >> 6) << 1),
                Math.max(0, GRIDS.indexOf(spb()))];
     S.cells.forEach(function (x) {
       var st = x.r >= MEL_ROWS ? 15 : (x.st && x.st.charAt(0) === 'i' ? 14 : Math.max(0, ids.indexOf(x.st)));
       var ext = x.inst != null || x.vel != null || x.midi != null || (x.len || 1) > 1 || x.sweep != null || x.ch != null;
       var snd = x.dy != null || x.fd != null || x.wv != null || x.nz != null || x.ns != null;
-      var mov = !!(x.vb || x.sq || x.mp || x.pn || x.gl || x.kt || x.dt);
+      var mov = !!(x.vb || x.sq || x.mp || x.pn || x.gl || x.kt || x.dt || x.of || x.lf);
       var cmd = (x.u ? 1 : x.q ? 2 : x.g ? 3 : x.f ? 4 : 0) | (snd ? 8 : 0) | (mov ? 16 : 0);
       out.push(x.c & 63, (x.c >> 6) & 63, x.r | (x.z ? 32 : 0), st | (x.w ? 16 : 0) | (ext ? 32 : 0), cmd);
       if (ext) {
@@ -510,7 +515,9 @@
       }
       if (mov) out.push((x.vb ? 1 : 0) | (x.sq ? 2 : 0) | (x.mp ? 4 : 0) | (((x.pn | 0) & 3) << 3) | (x.gl ? 32 : 0),
                         (x.kt | 0) & 15,                       // which sample, if any
-                        ((x.dt | 0) + 16) & 63);               // detune, offset so it fits
+                        ((x.dt | 0) + 16) & 63,                // detune, offset so it fits
+                        ((x.of | 0) + 32) & 63,                // frames off the grid
+                        (x.lf | 0) & 63, ((x.lf | 0) >> 6) & 63);   // exact length, when it has one
     });
     return out.map(function (v) { return B64[v & 63]; }).join('');
   }
@@ -518,12 +525,14 @@
     try {
       var v = []; for (var i = 0; i < str.length; i++) { var ix = B64.indexOf(str[i]); if (ix < 0) return null; v.push(ix); }
       var ver = v[0];
-      if (ver < 1 || ver > 10) return null;
+      if (ver < 1 || ver > 11) return null;
       var st2 = freshState();
       st2.key = v[1] % 12; st2.minor = v[2] & 1;
       st2.bars = ver === 1 ? ([2, 4, 8].indexOf(v[3]) >= 0 ? v[3] : 4)
                            : Math.max(1, Math.min(48, v[3]));
-      st2.bpm = Math.max(70, Math.min(180, ver >= 5 ? 70 + v[4] * 2 : v[4] * 2)); st2.swing = v[5] & 1;
+      st2.bpm = ver >= 11 ? Math.max(70, Math.min(180, 70 + (v[4] & 63) + (((v[5] >> 1) & 3) << 6)))
+                          : Math.max(70, Math.min(180, ver >= 5 ? 70 + v[4] * 2 : v[4] * 2));
+      st2.swing = v[5] & 1;
       st2.grid = ver >= 9 ? (GRIDS[v[6]] || 16) : 16;
       var ids = STAMPS.map(function (s) { return s.id; });
       if (ver === 1) {
@@ -584,6 +593,13 @@
               var dtv = v[k + 1] & 63;
               if (dtv !== 16) cell2.dt = dtv - 16;
               k += 2;
+              if (ver >= 11 && k + 2 < v.length + 1) {
+                var ofv = (v[k] & 63) - 32;
+                if (ofv) cell2.of = ofv;
+                var lfv = (v[k + 1] & 63) | ((v[k + 2] & 63) << 6);
+                if (lfv) cell2.lf = lfv;
+                k += 3;
+              }
             }
           }
           st2.cells.push(cell2);
@@ -824,6 +840,7 @@
     if (!score) score = bestScore;
     var gb = score && score.gb;
     if (!gb || !gb.notes || !gb.notes.length) return;
+    lastComposed = score;                     // kept for the fidelity measurement
     var sInst = (gb.bank && gb.bank.instruments) || gb.instruments || [];
     var sTables = (gb.bank && gb.bank.waveTables) || [];
     var per16f = FPS * 60 / ((score.bpm || 120) * 4);
@@ -863,42 +880,53 @@
       return deg;
     }
     S.key = 0; S.minor = scl.indexOf(3) >= 0 ? 1 : 0; S.bars = Math.max(1, Math.min(48, Math.ceil((gb.totalFrames || winF) / (spb() * per16f))));
-    S.bpm = Math.max(70, Math.min(180, Math.round((score.bpm || 120) / 2) * 2));
+    // the EXACT tempo, not the nearest even one: rounding it moved every note
+    // in the song, which is most of why an imported song stopped matching
+    S.bpm = Math.max(70, Math.min(180, Math.round(score.bpm || 120)));
     var bv0 = root && root.querySelector('.n-bpmval');
     if (bv0) { bv0.textContent = S.bpm; var sl0 = root.querySelector('[data-cr="bpm"]'); if (sl0) sl0.value = S.bpm; }
     S.cells = []; order = 0;
     var sorted = gb.notes.slice().sort(function (a, b) { return a.frame - b.frame || (b.pri || 0) - (a.pri || 0); });
     var LANE = { 9: 2, 7: 1, 3: 0 };           // kick / snare / hat, by note priority
-    var budget = {}, seen = {};
-    // A crowded 16th used to throw its extra notes away. Now an overflow note
-    // slides to the next free step for its voice (a chord becomes a quick
-    // strum, two drums become a flam) and only vanishes if there is no room
-    // within a step or two.
+    // A note lands on the frame the composer chose. The column is only where it
+    // is DRAWN; the offset carries the rest, so nothing is quantised away.
+    // Clashes are judged by whether two notes on a lane actually overlap IN
+    // TIME -- the old rule counted notes per column, which threw away notes
+    // that never collided on the hardware at all.
+    importDrop = { past: 0, clash: 0, noPitch: 0 };
+    var busy = [[], [], [], []];
+    function freeAt(ch, from, to) {
+      var l = busy[ch];
+      for (var i = 0; i < l.length; i++) if (from < l[i][1] && to > l[i][0]) return false;
+      return true;
+    }
     sorted.forEach(function (n) {
-      var c0 = Math.round(n.frame / per16f);
-      if (c0 < 0 || c0 >= cols()) return;
       var ch = n.ch | 0;
-      if (ch !== 3 && !(n.midi > 0)) return;   // a melodic note with no pitch is not a note
+      if (ch !== 3 && !(n.midi > 0)) { importDrop.noPitch++; return; }   // not a note
+      var f0 = n.frame | 0;
+      var c0 = Math.round(f0 / per16f);
+      if (c0 < 0 || c0 >= cols()) { importDrop.past++; return; }
+      var off = f0 - colFrame(c0);
+      // the offset field is six bits; a step longer than that only happens at
+      // very slow tempos, and then the column is close enough
+      while (off > 31 && c0 + 1 < cols()) { c0++; off = f0 - colFrame(c0); }
+      while (off < -32 && c0 > 0) { c0--; off = f0 - colFrame(c0); }
+      off = Math.max(-32, Math.min(31, off));
+      var f1 = f0 + Math.max(1, n.frames | 0);
+      if (!freeAt(ch, f0, f1)) { importDrop.clash++; return; }   // on top of another note
+      busy[ch].push([f0, f1]);
       var row = ch === 3 ? MEL_ROWS + (LANE[n.pri | 0] != null ? LANE[n.pri | 0] : 0)
                          : MEL_ROWS - 1 - degOf(n.midi | 0);
-      var maxPush = ch === 3 ? 1 : 2;
-      var c = -1;
-      for (var k = 0; k <= maxPush; k++) {
-        var cc = c0 + k;
-        if (cc >= cols()) break;
-        var bd = budget[cc] = budget[cc] || { p: 0, w: 0, d: 0 };
-        var room = ch === 3 ? !bd.d : ch === 2 ? !bd.w : bd.p < 2;
-        if (room && !seen[cc + ':' + row]) { c = cc; break; }
-      }
-      if (c < 0) return;                        // genuinely nowhere to put it
-      var bd2 = budget[c];
-      if (ch === 3) bd2.d = 1; else if (ch === 2) bd2.w = 1; else bd2.p++;
-      seen[c + ':' + row] = 1;
+      var c = c0;
       var cell = { c: c, r: row, t: ++order, inst: n.inst, vel: n.vel != null ? n.vel : 0.8 };
+      if (off) cell.of = off;
       if (ch !== 3) {
         cell.midi = n.midi | 0;
         var ln = Math.max(1, Math.round(n.frames / per16f));
         if (ln > 1) cell.len = ln;
+        var exactLen = Math.max(1, n.frames | 0);
+        if (exactLen !== Math.max(2, Math.round(per16f * (ln > 1 ? ln : 0.96)) - 1))
+          cell.lf = Math.min(4095, exactLen);           // ...whenever the grid cannot say it
         if (ch === 2) cell.st = waveStamp;
         else {
           cell.ch = ch;
@@ -908,7 +936,7 @@
       }
       S.cells.push(cell);
     });
-    var capF = Math.round(S.bars * 16 * per16f);      // the verbatim score clips to the same 48 bars
+    var capF = Math.round(S.bars * spb() * per16f);      // the verbatim score clips to the same 48 bars
     liveScore = { notes: gb.notes.filter(function (n) { return n.frame < capF; }),
                   bank: gb.bank, totalFrames: Math.min(gb.totalFrames, capF), loopFrames: 0 };
     liveBpm = score.bpm || S.bpm;
@@ -1307,11 +1335,13 @@
           deg = Math.max(0, Math.min(1, (mp - 36) / 60));
         }
         var mn = motionName(x);
+        // a note that sits off the grid is DRAWN off the grid
+        var offPx = x.of ? (x.of / framesPer16()) * stepW : 0;
         html += '<i class="n-note' + (x.x ? ' sulk' : '') + (vel === 0 ? ' rest' : '') +
                 (mn ? ' fx' : '') + (selCol === x.c && selCh === ch ? ' sel' : '') + '"' +
                 ' data-col="' + x.c + '" data-ch="' + ch + '" data-inst="' + (x.inst != null ? x.inst : -1) + '"' +
                 (mn ? ' data-fx="' + mn + '"' : '') +
-                ' style="left:' + (x.c * stepW + 1) + 'px;width:' + (len * stepW - 2) + 'px;' +
+                ' style="left:' + (x.c * stepW + 1 + offPx) + 'px;width:' + (len * stepW - 2) + 'px;' +
                 'bottom:' + Math.round(6 + deg * (laneH - 30)) + 'px;' +
                 'opacity:' + (vel === 0 ? 0.35 : 0.5 + vel * 0.5) + '">' +
                 '<b>' + label + (mn && len * stepW > 74 ? ' <em>' + mn + '</em>' : '') + '</b><u class="rz"></u></i>';
@@ -1390,7 +1420,8 @@
   // The bank a song is played through: the shared one, plus a record for every
   // hand-set sound in it. The cartridge stores register bytes per note, not an
   // instrument table, so materialising here costs the ROM nothing.
-  var songBank = null, romBytes = 0, romWarned = false;
+  var songBank = null, romBytes = 0, romWarned = false, lastComposed = null;
+  var importDrop = { past: 0, clash: 0, noPitch: 0 };
   function freshSongBank() {
     resolveBank();
     songBank = { instruments: BANK.instruments.slice(), waveTables: BANK.waveTables,
@@ -2495,6 +2526,8 @@
       var x = selCell(); if (!x) return null;
       var ch = chOfCell(x);
       return { ch: ch, params: paramsOf(x, ch), rec: recordFor(paramsOf(x, ch), ch), inst: instOf(x, ch) }; },
+    _source: function () { return lastComposed; },
+    _importDrop: function () { return importDrop; },
     _skipToEnd: function () { if (playing && liveScore) playT0 = performance.now() - songMs() - 300; } };
   if (typeof module !== 'undefined' && module.exports) module.exports = G.CT_CREATE;
 })(typeof globalThis !== 'undefined' ? globalThis : window);
