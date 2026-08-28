@@ -1097,3 +1097,26 @@ pass.
   used it); the strip and its two offscreen bakes set it now.
   This is why verify-ribbon checks rendered PIXELS against the four colours
   rather than trusting the fillStyle it asked for.
+
+- Four reports, four causes, 2026-08-28:
+  * The transport read as PLAYING on a cold load. _transportIsPaused() knew
+    about gating and about Audio.isPaused but not about the new hold, so a
+    station that was waiting to be asked showed a pause button and ran the game.
+    Holding is paused.
+  * "Start from scratch" opened a page full of notes. open('') falls through the
+    URL to the saved localStorage draft, so it opened whatever you were last
+    working on -- in answer to a request for nothing. wantBlank skips the draft.
+  * A note sounded for no reason on opening the editor. The editor opens UNDER a
+    cursor that has not moved; the first pointermove is the browser reporting
+    where the pointer already was, and if a note arrived beneath it, it played.
+    Hover audition arms on real movement (3px) now.
+  * "Pausing the music should pause the gameplay" -- and the sim WAS frozen
+    (2.2% of pixels still moving on the CRT, which is the decay tail). The
+    console panels quantise a ~500px framebuffer up to the whole window, so that
+    2% flipped whole blocks and the picture read as alive: 22.9% on the NES face.
+    The panel holds its last frame two frames after a pause now: 1.9-2.3%,
+    the same as the CRT.
+
+- The masthead ("Chiptunes.app ... How it works") collapses to just its button
+  once music is playing. Saying what the page is answers a question only an
+  arriving visitor has; with a song on it is a panel of prose over the game.

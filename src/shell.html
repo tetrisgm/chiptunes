@@ -287,6 +287,17 @@
   /* ...and the rail stops repeating the title while the hero is showing it */
   body.awaiting-mood #plinks .plhead b,
   body.awaiting-mood #plinks .plhead > span{ display:none; }
+  /* ONCE MUSIC IS PLAYING THE MASTHEAD GOES. Its job is to say what this page
+     is, which is a question only an arriving visitor has; with a song on it is
+     a panel of prose sitting over the game. The How-it-works button stays --
+     it is a rail control like the five under it now -- so the panel simply
+     collapses to that one pill. */
+  body:not(.awaiting-mood) #plinks .plhead{
+    display:block; padding:0; margin-bottom:0; border:0; background:none;
+    box-shadow:none; backdrop-filter:none; -webkit-backdrop-filter:none; }
+  body:not(.awaiting-mood) #plinks .plhead b,
+  body:not(.awaiting-mood) #plinks .plhead > span{ display:none; }
+  body:not(.awaiting-mood) #plinks .plhead .plhow{ margin-left:0; }
   #rmoods .rmood-pills{ display:contents; }
   #presets .rbtn.rmood-scratch{ border-color:rgba(123,220,160,.45); color:#bfe9cf; }
   .preset{

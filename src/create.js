@@ -2445,6 +2445,15 @@
     var hoverKey = '', hoverCh = -1, hoverAt = 0;
     sc.addEventListener('pointermove', function (ev) {
       if (nd || (pan && pan.moved) || ev.pointerType === 'touch') return;
+      // The editor opens UNDER a cursor that has not moved. The first
+      // pointermove after that is the browser telling us where the pointer
+      // already was, and if a note happened to arrive beneath it, it sounded --
+      // a note played for no reason anyone could see. Arm on real movement.
+      if (!hoverArmed) {
+        if (hoverPx < 0) { hoverPx = ev.clientX; hoverPy = ev.clientY; return; }
+        if (Math.abs(ev.clientX - hoverPx) < 3 && Math.abs(ev.clientY - hoverPy) < 3) return;
+        hoverArmed = true;
+      }
       var el = ev.target.closest('.n-note');
       if (!el) { hoverKey = ''; return; }
       var key = el.dataset.ch + ':' + el.dataset.col;
@@ -2672,8 +2681,10 @@
   // right when the editor is somewhere you land and wrong when emptiness is the
   // thing you asked for.
   var wantBlank = false;
+  var hoverArmed = false, hoverPx = -1, hoverPy = -1;   // see the hover audition
   function openBlank() {
     wantBlank = true;
+    hoverArmed = false; hoverPx = -1;
     if (root) {
       S = freshState(); order = 0;
       dropLiveScore(); loopBar = -1; queuedBar = null; viewBar = 0; camX = 0;
@@ -2691,6 +2702,7 @@
   function open(code) {
     // open(code): the station hands over the song it is playing, so the editor
     // starts on exactly that -- the whole point of the two being one thing.
+    hoverArmed = false; hoverPx = -1;
     if (root) {
       if (code) { var st = decode(code); if (st) { S = st; order = S.cells.length;
         loopBar = -1; queuedBar = null; viewBar = 0; camX = 0; selCol = -1; selCh = -1;
@@ -2704,7 +2716,10 @@
     }
     var fromUrl = code || (location.hash.match(/#s=([A-Za-z0-9\-_]+)/) || [])[1];
     S = (fromUrl && decode(fromUrl)) || null;
-    if (!S) { try { var d = localStorage.getItem('ct-create-draft'); if (d) S = decode(d); } catch (e) {} }
+    // "Start from scratch" means an empty grid. It used to fall through to the
+    // URL and then to the saved draft, so it opened whatever you were last
+    // working on -- a page full of notes, in answer to a request for none.
+    if (!S && !wantBlank) { try { var d = localStorage.getItem('ct-create-draft'); if (d) S = decode(d); } catch (e) {} }
     if (!S) S = freshState();
     order = S.cells.length;
     root = document.createElement('div');

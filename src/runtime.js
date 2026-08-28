@@ -649,7 +649,7 @@ let _frameTarget = 16.7, _renderEMA = 6;        // aim for 60fps; adapt down onl
 // 60.0fps, 0% hitches, at every refresh rate and jitter tested. It also gets
 // 120Hz right for free -- N becomes 2 -- where the clock gate quietly returned
 // 55fps.
-let _tickMs = 0, _tickAcc = 0, _tickPrev = 0, _drawSeq = 0;
+let _tickMs = 0, _tickAcc = 0, _tickPrev = 0, _drawSeq = 0, _pnlHold = 2;
 let _wallpaperFpsCap = _WALLPAPER_MODE ? 30 : 0, _wallpaperPerformancePaused = false, _wallpaperMotionFrozen = false;
 let _frameReq = 0, _frameSeq = 0, _frameStoppedAt = 0;
 // ---- THE TRACK RIBBON ------------------------------------------------------
@@ -905,7 +905,16 @@ function frame(now){
     // the panel decides the framebuffer size; the stage follows it
     var _N = _screenMode==='dmg' ? window.CT_DMG_NATIVE : window.CT_NES_NATIVE;
     if(_N && (cv.width!==_N.w || cv.height!==_N.h)) resize();
-    try{ _pnl.frame(); }catch(e){ _screenMode='crt'; _applyScreenMode(); }
+    // PAUSED MEANS PAUSED, INCLUDING THE SCREEN. The panel is deterministic
+    // from its source, but it quantises a 500px framebuffer up to the window,
+    // so the little that still moves while paused -- a decaying particle, a
+    // flash tailing off -- flips whole blocks of output and the picture reads
+    // as alive. Two more frames after the pause settle the tail, then hold.
+    if(!paused) _pnlHold = 2;
+    else if(_pnlHold > 0) _pnlHold--;
+    if(!paused || _pnlHold > 0){
+      try{ _pnl.frame(); }catch(e){ _screenMode='crt'; _applyScreenMode(); }
+    }
   }
   // timed separately from _renderEMA, which covers the whole frame: the strip
   // has to be provably cheap on its own, not lost inside the game's cost
@@ -1695,7 +1704,9 @@ function _moodOnAir(m, btn){
       Audio.playDoc(doc.code);
     }catch(e){ if(window._toast) _toast('Could not play it'); return; }
     if(document.body) document.body.classList.remove('awaiting-mood');
-    if(window._toast) _toast('A ' + m + ' one' + (doc.title ? ': ' + doc.title : ''));
+    // No toast on success: the music starting IS the confirmation, and the name
+    // is already on the playbar. A box announcing what you just asked for is
+    // one more thing to read and then wait to go away.
     if(typeof _pokeVisualControls==='function') _pokeVisualControls();
   }); });
 }
@@ -2474,7 +2485,11 @@ function buildPlaybar(){ _pbEl=document.getElementById('playbar'); if(!_pbEl||_p
 }
 function _transportIsGated(){ return !!(_nowSource==='generated' && Audio.running && !Audio.running() && !(Audio.isPaused&&Audio.isPaused())); }
 function _transportNeedsResume(){ return !!(Audio.started && Audio.running && !Audio.running() && !(Audio.isPaused&&Audio.isPaused())); }
-function _transportIsPaused(){ if(_watchOnly && !_watchMicActive) return false; if(Audio.isPaused && Audio.isPaused()) return true; if(_transportIsGated() || _transportNeedsResume()) return true; return !(typeof Radio!=='undefined' && Radio.state ? Radio.state.playing : true); }
+function _transportIsPaused(){ if(_watchOnly && !_watchMicActive) return false;
+  // waiting to be asked for a mood is a paused station: nothing is playing, so
+  // the button must offer play and the game must not run
+  try{ if(Audio.isHolding && Audio.isHolding()) return true; }catch(e){}
+  if(Audio.isPaused && Audio.isPaused()) return true; if(_transportIsGated() || _transportNeedsResume()) return true; return !(typeof Radio!=='undefined' && Radio.state ? Radio.state.playing : true); }
 function _transportUserPaused(){ return !!(Audio && Audio.isPaused && Audio.isPaused() && !_transportIsGated()); }
 function _syncPlayIcon(){ var paused=_transportIsPaused(), b=document.getElementById('pbPlay'), icon=paused?'play':'pause';
   if(b && b.dataset.icon!==icon){ b.dataset.icon=icon; b.innerHTML=_pbIcon(icon); }
