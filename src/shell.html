@@ -192,8 +192,14 @@
     mix-blend-mode:multiply; opacity:.3;   /* owner 2026-07-16: CRT effect halved (was .6) */
   }
   .vignette{
-    background:radial-gradient(ellipse at center, rgba(0,0,0,0) 28%, rgba(0,0,0,.88) 100%);
-    box-shadow: inset 0 0 210px 54px rgba(0,0,0,.78);
+    /* A CIRCLE, and gently. An `ellipse at center` fits the box, so on a wide
+       window the falloff ran out horizontally long before it ran out
+       vertically and the vignette landed as a dark vertical band down each
+       side -- measured at 51% of centre brightness. Scaled to match VIG_BG in
+       runtime.js, which bakes the layer the CRT actually uses; this rule is
+       the legacy fallback and the two must not drift apart. */
+    background:radial-gradient(circle farthest-corner at center, rgba(0,0,0,0) 74%, rgba(0,0,0,.28) 100%);
+    box-shadow: inset 0 0 135px 0px rgba(0,0,0,.23);
     opacity:1;   /* was .5 (halved 2026-07-16); x5 pass restores it to full */
   }
 

@@ -31049,12 +31049,14 @@ var _vigCache=new Map(), _VIG_LRU=12;
 function _vignette(e){ var qe=Math.round(e*20)/20, key=(W|0)+'x'+(H|0)+':'+DPR+':'+qe;
   var cv2=_vigCache.get(key);
   if(!cv2){
-    var vig=Math.max(0.12, 0.52 - qe*0.34);
+    var vig=Math.max(0.04, 0.16 - qe*0.10);          // a third of what it was; see VIG_BG
     // device-resolution offscreen + same DPR transform as the live context; the final native-size blit
     // below maps physical pixels 1:1 even when the capped DPR is fractional.
     cv2=document.createElement('canvas'); cv2.width=Math.max(1,Math.floor(W*DPR)); cv2.height=Math.max(1,Math.floor(H*DPR));
     var vg=cv2.getContext('2d'); vg.setTransform(DPR,0,0,DPR,0,0);
-    var grad=vg.createRadialGradient(W/2,H/2, Math.min(W,H)*(0.30+qe*0.20), W/2,H/2, Math.max(W,H)*0.74);
+    // inner radius off the LONGER axis too, so a wide window does not start
+    // darkening a third of the way in from each side
+    var grad=vg.createRadialGradient(W/2,H/2, Math.max(W,H)*(0.42+qe*0.20), W/2,H/2, Math.max(W,H)*0.82);
     grad.addColorStop(0,'rgba(0,0,0,0)'); grad.addColorStop(1,'rgba(0,0,0,'+vig.toFixed(3)+')');
     vg.fillStyle=grad; vg.fillRect(0,0,W,H);
     _vigCache.set(key,cv2);
@@ -33666,7 +33668,16 @@ function setMediaMeta(){
   // NOTE: keep these two style strings verbatim-in-sync with .scanlines/.vignette in shell.html
   // (MINUS the element opacity and mix-blend-mode — those are applied arithmetically below).
   var SCAN_BG='background:repeating-linear-gradient( to bottom, rgba(0,0,0,0) 0px, rgba(0,0,0,0) 2px, rgba(0,0,0,0.28) 2px, rgba(0,0,0,0.28) 4px), repeating-linear-gradient( to right, rgba(255,0,0,0.04) 0px, rgba(0,255,0,0.03) 1px, rgba(0,0,255,0.04) 2px);';
-  var VIG_BG='background:radial-gradient(ellipse at center, rgba(0,0,0,0) 46%, rgba(0,0,0,.62) 100%);box-shadow: inset 0 0 140px 30px rgba(0,0,0,.45);';
+  // A VIGNETTE ON A WIDE WINDOW IS NOT A VIGNETTE, IT IS TWO DARK BARS.
+  // `ellipse at center` fits itself to the box, so on a 1990x1250 window the
+  // falloff runs out horizontally long before it runs out vertically and the
+  // darkening lands as a vertical band down each side rather than as corners.
+  // Three layers were stacked on top of each other -- this gradient, the inset
+  // shadow below it, and the canvas radial in _vignette() -- and measured on a
+  // wide window the edge column sat at 28% of the centre's brightness.
+  // A CIRCLE sized to the LONGER axis keeps the falloff in the corners where a
+  // real tube's is, at any aspect ratio.
+  var VIG_BG='background:radial-gradient(circle farthest-corner at center, rgba(0,0,0,0) 74%, rgba(0,0,0,.20) 100%);box-shadow: inset 0 0 90px 0px rgba(0,0,0,.13);';
   function buildGain(w,h,dpr){
     return Promise.all([cssLayerImg(SCAN_BG,w,h), cssLayerImg(VIG_BG,w,h)]).then(function(imgs){
       var dw=Math.max(1,Math.round(w*dpr)), dh=Math.max(1,Math.round(h*dpr));

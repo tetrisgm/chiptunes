@@ -930,3 +930,22 @@ pass.
 - npm run test:rhythm measures the ENSEMBLE, not one song. A single song may
   repeat a figure as much as it likes; the station must not keep reaching for
   the same handful. REV is musician-12.
+
+- THE CRT VIGNETTE WAS TWO DARK VERTICAL BARS on a wide window, and the cause is
+  geometric: `radial-gradient(ellipse at center, ...)` fits itself to the box, so
+  at 1990x1250 the falloff runs out horizontally long before it runs out
+  vertically and the darkening lands as a band down each side instead of in the
+  corners. THREE layers were stacked -- the CSS radial, an inset box-shadow, and
+  the per-frame canvas radial in _vignette(). Measured on the baked gain mask:
+  the edge column sat at 50.9% of centre brightness. A CIRCLE sized to the
+  longer axis keeps the falloff in the corners at any aspect ratio; strengths
+  cut to roughly a third. Edge is 86.5% of centre now and nothing darkens before
+  90% of the width.
+
+- VIG_BG/SCAN_BG in runtime.js MIRROR the .scanlines/.vignette rules in
+  shell.html: the first bakes the gain map the CRT actually uses, the second is
+  the legacy fallback stack, and scripts/crt-diff.mjs exists to prove they are
+  the same pixels. They had already drifted -- crt-diff was failing at max
+  channel diff 103 BEFORE this change, and it is not in the npm gate list, so
+  nothing was watching. Editing one and not the other took it to 184. Both are
+  scaled together now and crt-diff reports 0. If you touch either, run it.
