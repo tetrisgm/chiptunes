@@ -1274,7 +1274,7 @@
      Painted by the frame loop into one canvas, so it costs two drawImages. */
   /* the scrub row: elapsed | the track | total, under the transport buttons */
   #playbar .pb-scrub{ grid-column:1 / -1; grid-row:2; display:none;
-    align-items:center; gap:10px; width:min(720px,52vw); min-width:0; }
+    align-items:center; flex-wrap:nowrap; gap:10px; width:min(720px,52vw); min-width:0; }
   body.ribbon-on #playbar .pb-scrub{ display:flex; }
   /* THE PLAYER BAR IS ALWAYS THE PLAYER BAR. It used to appear only once a
      track was on, so the first thing a visitor saw was a page with no
@@ -1309,6 +1309,77 @@
   body.gb-open #playbar .pb-scrub, body.create-open #playbar .pb-scrub,
   html.wallpaper-mode #playbar .pb-scrub, html.popover-mode #playbar .pb-scrub,
   html.browse-mode #playbar .pb-scrub{ display:none !important; }
+
+  /* ===== THE PLAYER BAR, DOCKED =====================================
+     It used to be four pills floating in the corners over the game. Asked for
+     the shape a music player actually uses: one bar across the bottom, track
+     on the left, transport and the song's own notes in the middle, and the
+     desk on the right -- what you are looking at, how fast, how loud, each
+     with a slider when there is room. The whole bar fades as one on idle,
+     rather than four things fading on their own schedules. */
+  body.ai-visual #playbar.show{
+    display:grid !important; left:0 !important; right:0 !important; bottom:0 !important;
+    width:auto !important; min-height:0; padding:9px 16px 10px !important;
+    grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); align-items:center; gap:16px;
+    background:rgba(8,6,16,.80) !important; border-top:1px solid rgba(255,255,255,.08) !important;
+    backdrop-filter:blur(16px) !important; -webkit-backdrop-filter:blur(16px) !important;
+    pointer-events:auto !important;
+    opacity:0; transition:opacity var(--fade-out);
+  }
+  body.ai-visual.controls-active #playbar.show{ opacity:1; transition:opacity var(--fade-in); }
+  /* the children stop being fixed furniture and become cells */
+  body.ai-visual #playbar .pb-left,
+  body.ai-visual #playbar .pb-ctrl,
+  body.ai-visual #playbar .pb-right,
+  body.ai-visual #playbar .pb-screendock{
+    position:static !important; transform:none !important; opacity:1 !important;
+    left:auto !important; right:auto !important; bottom:auto !important;
+    z-index:auto; pointer-events:auto !important;
+    background:none !important; border:0 !important; box-shadow:none !important;
+    backdrop-filter:none !important; -webkit-backdrop-filter:none !important;
+    padding:0 !important; border-radius:0 !important; height:auto !important;
+  }
+  body.ai-visual #playbar .pb-left{ grid-column:1; justify-self:start; max-width:100%; }
+  /* the track sits ON the bar; it does not need a pill of its own inside one */
+  body.ai-visual #playbar .pb-info{
+    position:static !important; opacity:1 !important; width:auto !important; max-width:100% !important;
+    height:auto !important; padding:0 !important; border:0 !important; border-radius:0 !important;
+    background:none !important; box-shadow:none !important;
+    backdrop-filter:none !important; -webkit-backdrop-filter:none !important;
+    transform:none !important; pointer-events:auto !important; }
+  /* the centre takes what the two clusters leave: at 1600 the desk on the right
+     is ~500px, so a fixed 720 pushed the total time onto a second line */
+  body.ai-visual #playbar .pb-scrub{ width:min(640px, calc(100vw - 720px)); }
+  @media (max-width:1180px){ body.ai-visual #playbar .pb-scrub{ width:min(640px, calc(100vw - 520px)); } }
+  @media (max-width:900px){ body.ai-visual #playbar .pb-scrub{ width:min(420px, calc(100vw - 300px)); } }
+  body.ai-visual #playbar .pb-ctrl{
+    grid-column:2; justify-self:center; width:auto !important; height:auto !important;
+    background:none !important; border:0 !important; box-shadow:none !important;
+    backdrop-filter:none !important; -webkit-backdrop-filter:none !important;
+    padding:0 !important; border-radius:0 !important;
+  }
+  body.ai-visual #playbar .pb-right{
+    grid-column:3; justify-self:end; display:flex; align-items:center; gap:10px;
+    background:none !important; border:0 !important; box-shadow:none !important;
+    backdrop-filter:none !important; -webkit-backdrop-filter:none !important;
+    padding:0 !important; height:auto !important; border-radius:0 !important;
+  }
+  /* a dial: a label or a button, a slider, and its number */
+  #playbar .pb-dial{ display:flex; align-items:center; gap:7px; }
+  #playbar .pb-dial input[type=range]{ width:84px; height:18px; cursor:pointer;
+    accent-color:var(--accent2); background:none; }
+  #playbar .pb-dial .pbd-lab{ color:var(--ink-2); font:600 11px/1 var(--ui); letter-spacing:.04em; text-transform:uppercase; }
+  #playbar .pb-dial .pbd-read{ color:var(--ink); font:600 12px/1 var(--ui);
+    font-variant-numeric:tabular-nums; min-width:30px; text-align:right; }
+  #playbar .pb-volume{ width:32px !important; height:32px !important; }
+  #playbar .pb-adv{ width:34px !important; height:34px !important; opacity:.55; }
+  #playbar .pb-adv:hover, #playbar:hover .pb-adv{ opacity:1; }
+  #playbar .pb-screendock{ display:flex !important; }
+  #playbar .pb-screen{ height:34px; }
+  /* narrow windows drop the sliders before they drop the numbers */
+  @media (max-width:1180px){ #playbar .pb-dial input[type=range]{ display:none; } }
+  @media (max-width:900px){ #playbar .pb-bpmdial{ display:none; }
+    #playbar .pb-screen .pbs-t{ display:none; } }
 
   body.ai-visual #playbar.show{
     display:block; left:auto; right:auto; bottom:0; width:auto; min-height:0; padding:0;
@@ -1638,7 +1709,7 @@
   <div id="popover"></div>
   <div id="browse"></div>
 
-<script src="../app.584f414a6468.js" defer></script>
+<script src="../app.899a623eb8fa.js" defer></script>
 
 </body>
 </html>

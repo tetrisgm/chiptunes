@@ -783,10 +783,28 @@ function _ribbonFrame(){
             g2.drawImage(_ribLit,0,0); g2.restore(); }             // ...and the track behind
   g2.fillStyle='rgba(255,255,255,.85)'; g2.fillRect(px-1,0,2,_ribH);
   _ribbonClock(pos);
+  _syncBarDials();
 }
 // elapsed / total, either side of the strip. Written only when the SECOND
 // changes: this runs every frame and setting textContent is a layout write.
 var _ribClockA='', _ribClockB='';
+function _syncBarDials(){
+  try{
+    var b=document.getElementById('pbBpm'), br=document.getElementById('pbBpmRead');
+    if(b){
+      var d=Audio.deckPosition&&Audio.deckPosition();
+      var bpm=null;
+      try{ var sc=Audio.currentScore&&Audio.currentScore(); bpm=sc?Math.round(sc.bpm):null; }catch(e){}
+      try{ if(typeof Radio!=='undefined'&&Radio.state&&Radio.state.tempo!=null) bpm=Math.round(Radio.state.tempo); }catch(e){}
+      if(bpm && document.activeElement!==b){ b.value=String(bpm); }
+      if(br) br.textContent = bpm ? String(bpm) : '\u2014';
+    }
+    var v=document.getElementById('pbVol');
+    if(v && document.activeElement!==v && window._scopeMix){
+      // the readout is kept by refreshVolumeDock; only the slider needs syncing
+    }
+  }catch(e){}
+}
 function _ribbonClock(pos){
   var fps=(typeof CT_GB_HARDWARE!=='undefined'?CT_GB_HARDWARE.FPS:59.7275);
   var total=_ribFrames?_ribFrames/fps:0, at=pos*total;
@@ -2014,7 +2032,7 @@ function _syncGameBoyPill(){
     if(!b) return;
     var st=_screenState(), face=_screenFace();
     var t=b.querySelector('.pbs-t');
-    if(t) t.textContent='Graphics: '+(_SCREEN_LABEL[st]||'CRT');
+    if(t) t.textContent='Display: '+(_SCREEN_LABEL[st]||'CRT');
     // Lit for anything other than the plain view. Under Random it stays lit
     // rather than blinking off on the tracks that roll a CRT -- it is reporting
     // the choice, not the roll.
@@ -2447,10 +2465,22 @@ function buildPlaybar(){ _pbEl=document.getElementById('playbar'); if(!_pbEl||_p
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 14l5-5 5 5"/></svg>'+
     'Edit</span></span>'+
     '<span class="pb-t" id="pbTotal">0:00</span></div></div>'+
-    '<div class="pb-screendock"><button id="pbScreen" class="pb-screen" title="Switch screen: CRT, Game Boy, NES">'+_IC_TV+'<span class="pbs-t">Screen</span></button></div>'+
-    // The cartridge export lives on the left rail now, beside "Try on Game Boy";
-    // the bottom-right is the volume alone again.
-    '<div class="pb-right"><button id="pbVolume" class="pb-volume" title="Volume, mixer & BPM"><span class="pbv-icon">'+svgIcon('mixer')+'</span><span class="pbv-t">Volume Mixer &amp; BPM</span><span id="pbVolRead">100</span></button></div>';
+    // THE RIGHT CLUSTER, the way a desk does it: what you are looking at, how
+    // fast it is going, how loud it is -- each with its own slider when the
+    // window has room, and the full mixer one press away.
+    '<div class="pb-right">'+
+      '<div class="pb-screendock"><button id="pbScreen" class="pb-screen" title="Switch screen: CRT, Game Boy, NES">'+_IC_TV+'<span class="pbs-t">Display</span></button></div>'+
+      '<div class="pb-dial pb-bpmdial"><span class="pbd-lab">BPM</span>'+
+        '<input type="range" id="pbBpm" min="60" max="220" step="1" value="128" title="Tempo">'+
+        '<span class="pbd-read" id="pbBpmRead">\u2014</span></div>'+
+      '<div class="pb-dial pb-voldial">'+
+        '<button id="pbVolume" class="pb-volume" title="Volume, mixer &amp; BPM"><span class="pbv-icon">'+svgIcon('mixer')+'</span></button>'+
+        '<input type="range" id="pbVol" min="0" max="150" step="1" value="100" title="Volume">'+
+        '<span class="pbd-read" id="pbVolRead">100</span></div>'+
+      '<button id="pbAdv" class="pb-adv" type="button" title="Advanced volumes" aria-label="Advanced volumes">'+
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 8h14M5 12h14M5 16h14"/><circle cx="9" cy="8" r="1.7" fill="currentColor"/><circle cx="15" cy="12" r="1.7" fill="currentColor"/><circle cx="8" cy="16" r="1.7" fill="currentColor"/></svg>'+
+      '</button>'+
+    '</div>';
   _buildBigPlay();
   // PULL THE NOTES UP. The strip already IS the editor's grid in miniature, so
   // the gesture that gets you the full one is to open the thing you are looking
@@ -2473,6 +2503,30 @@ function buildPlaybar(){ _pbEl=document.getElementById('playbar'); if(!_pbEl||_p
   _wirePlaybarButton('pbPlay', _transportToggle);
   _wirePlaybarButton('pbScreen', _toggleGameBoyScreen);
   _wirePlaybarButton('pbVolume', function(){ window.toggleMixPanel && window.toggleMixPanel(); });
+  _wirePlaybarButton('pbAdv', function(){ window.toggleMixPanel && window.toggleMixPanel(); });
+  (function(){
+    var vol=document.getElementById('pbVol');
+    if(vol) vol.addEventListener('input', function(ev){
+      ev.stopPropagation();
+      var v=Math.max(0, Math.min(1.5, (+vol.value||0)/100));
+      if(window._sessionMixSet) window._sessionMixSet('master', v);
+      else if(typeof Audio!=='undefined' && Audio.setMix) Audio.setMix('master', v);
+      var r=document.getElementById('pbVolRead'); if(r) r.textContent=String(Math.round(v*100));
+      if(typeof _pokeVisualControls==='function') _pokeVisualControls();
+    });
+    var bpm=document.getElementById('pbBpm');
+    if(bpm) bpm.addEventListener('input', function(ev){
+      ev.stopPropagation();
+      if(typeof Radio!=='undefined' && Radio.setTempo) Radio.setTempo(+bpm.value);
+      var r=document.getElementById('pbBpmRead'); if(r) r.textContent=String(bpm.value);
+      if(typeof syncTempoUI==='function') syncTempoUI();
+      if(typeof _pokeVisualControls==='function') _pokeVisualControls();
+    });
+    ['pbVol','pbBpm'].forEach(function(id){
+      var el=document.getElementById(id);
+      if(el) el.addEventListener('pointerdown', function(ev){ ev.stopPropagation(); });
+    });
+  })();
   var volBtn=document.getElementById('pbVolume');
   if(volBtn && !volBtn._mixHoverWired){ volBtn._mixHoverWired=true;
     volBtn.addEventListener('mouseenter', function(){ if(window.openMixPanel) window.openMixPanel(); });

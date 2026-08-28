@@ -1120,3 +1120,18 @@ pass.
 - The masthead ("Chiptunes.app ... How it works") collapses to just its button
   once music is playing. Saying what the page is answers a question only an
   arriving visitor has; with a song on it is a panel of prose over the game.
+
+- THE PLAYER BAR IS DOCKED, full width, the shape a music player uses. It had
+  been four pills floating in the corners over the game; it is one bar now --
+  track on the left, transport with the song's own notes in the middle, and the
+  desk on the right: Display, BPM, Volume, then the advanced mixer. Display and
+  BPM sliders sit LEFT of Volume, each with its number, and the whole bar fades
+  as one unit on idle rather than four things on four schedules.
+  #pbBpm drives Radio.setTempo; #pbVol drives window._sessionMixSet('master').
+  #pbAdv opens the same mix panel the volume icon does -- verified: volume 100
+  to 30 halves the measured peak, BPM 101 to 150 reaches Radio.state.tempo.
+  The screen pill had been fixed-positioned at 50%+81px from when it lived
+  outside the bar, so it floated over the strip until that was neutralised; it
+  says "Display: CRT/Game Boy/NES/Random" now.
+  Sliders drop first on a narrow window, then BPM, then the Display label -- the
+  numbers survive longest.
