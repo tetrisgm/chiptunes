@@ -1196,6 +1196,29 @@
     .dt-pills{ margin-left:2px; margin-right:2px; }
   }
   /* Visual mode: no persistent bottom dock, just optional cover art, title chip, and temporary controls. */
+  /* THE TRACK RIBBON: the whole song, laid out end to end, doubling as the
+     progress bar. A music player puts a waveform where the scrubber goes; the
+     Game Boy's equivalent of a waveform is its notes, so that is what this
+     draws -- every note of the track at once, played part lit and the rest
+     ahead of you dimmed. Narrow on purpose: it is a strip, not a second view.
+     Painted by the frame loop into one canvas, so it costs two drawImages. */
+  #noteribbon{
+    position:fixed; left:0; right:0; bottom:0; z-index:19; display:none;
+    width:100%; height:var(--ribh,52px); pointer-events:none;
+    background:linear-gradient(to top, rgba(6,5,14,.82), rgba(6,5,14,.34));
+    border-top:1px solid rgba(255,255,255,.07);
+  }
+  body.ribbon-on #noteribbon{ display:block; }
+  /* the bottom chrome steps up over it */
+  body.ribbon-on.ai-visual #playbar .pb-left,
+  body.ribbon-on.ai-visual #playbar .pb-right{ bottom:calc(18px + var(--ribh,52px)); }
+  body.ribbon-on.ai-visual #playbar .pb-mid{ bottom:calc(18px + var(--ribh,52px)); }
+  body.ribbon-on #trackname{ bottom:calc(18px + var(--ribh,52px)); }
+  @media (max-width:820px){ :root{ --ribh:40px; } }
+  body.gb-open #noteribbon, body.create-open #noteribbon,
+  html.wallpaper-mode #noteribbon, html.popover-mode #noteribbon,
+  html.browse-mode #noteribbon{ display:none !important; }
+
   body.ai-visual #playbar.show{
     display:block; left:auto; right:auto; bottom:0; width:auto; min-height:0; padding:0;
     background:transparent; border-top:0; backdrop-filter:none; pointer-events:none;
@@ -1503,6 +1526,7 @@
     <div id="transport"></div>
   </div>
 
+  <canvas id="noteribbon"></canvas>
   <div id="playbar"></div>
 
   <div id="intro">
@@ -1517,7 +1541,7 @@
   <div id="popover"></div>
   <div id="browse"></div>
 
-<script src="../app.f7dba1197372.js" defer></script>
+<script src="../app.7abe92e73f83.js" defer></script>
 
 </body>
 </html>

@@ -31248,6 +31248,110 @@ let _frameTarget = 16.7, _renderEMA = 6;        // aim for 60fps; adapt down onl
 let _tickMs = 0, _tickAcc = 0, _tickPrev = 0, _drawSeq = 0;
 let _wallpaperFpsCap = _WALLPAPER_MODE ? 30 : 0, _wallpaperPerformancePaused = false, _wallpaperMotionFrozen = false;
 let _frameReq = 0, _frameSeq = 0, _frameStoppedAt = 0;
+// ---- THE TRACK RIBBON ------------------------------------------------------
+// The whole song end to end along the bottom, doubling as the progress bar.
+// Music players put a waveform where the scrubber goes; a Game Boy's waveform
+// is its notes, so this draws every note of the track at once -- what has
+// played lit, what is coming dimmed. It can afford to be literal because since
+// the merge the station IS playing a document, so the notes are simply there
+// to read: score.gb.notes, four channels, frames on the x axis.
+//
+// Baked ONCE per track into two offscreen canvases (lit and dim) and blitted
+// twice a frame, because a full redraw of a thousand notes every frame is
+// exactly the kind of thing that turns a render budget into judder.
+var _ribCv=null, _ribLit=null, _ribDim=null, _ribKey='', _ribW=0, _ribH=0, _ribFrames=0;
+var RIB_COL=['#7BDCA0','#57C4FF','#E8A75D','#C9A4E8'];   // Melody, Harmony, Bass, Drums -- the editor's lanes
+function _ribbonVisible(){
+  try{
+    if(_WALLPAPER_MODE||_POPOVER_MODE||_BROWSE_MODE) return false;
+    if(document.body && document.body.classList.contains('create-open')) return false;
+    if(document.body && document.body.classList.contains('gb-open')) return false;
+    if(!(typeof Audio!=='undefined' && Audio.started)) return false;
+    // The deck compiles a track before anyone has pressed anything, so
+    // Audio.started is not the same question as "is the player up". The
+    // playbar's own show class is.
+    var pb=document.getElementById('playbar');
+    if(!pb || !pb.classList.contains('show')) return false;
+    // and only once there is actually a song to show: an empty strip sitting
+    // there before the first track has compiled is just a bar of furniture
+    var sc=Audio.currentScore && Audio.currentScore();
+    return !!(sc && sc.gb && sc.gb.notes && sc.gb.notes.length);
+  }catch(e){ return false; }
+}
+function _ribbonBake(){
+  var sc=null; try{ sc=(Audio.currentScore && Audio.currentScore())||null; }catch(e){}
+  var notes=(sc && sc.gb && sc.gb.notes)||null;
+  if(!notes || !notes.length) return false;
+  var total=(sc.gb.totalFrames|0) || 1;
+  var r=_ribCv.getBoundingClientRect();
+  var dpr=Math.min(2, (window.devicePixelRatio||1));
+  var w=Math.max(1,Math.round(r.width*dpr)), h=Math.max(1,Math.round(r.height*dpr));
+  var key=(sc.doc? sc.doc.length : notes.length)+':'+total+':'+notes.length+':'+w+'x'+h;
+  if(key===_ribKey && _ribLit) return true;
+  _ribKey=key; _ribW=w; _ribH=h; _ribFrames=total;
+  if(_ribCv.width!==w) _ribCv.width=w;
+  if(_ribCv.height!==h) _ribCv.height=h;
+  // pitch range across the melodic voices; drums ride a band of their own
+  var lo=127, hi=0, i, n;
+  for(i=0;i<notes.length;i++){ n=notes[i]; if(n.ch===3||n.midi==null) continue;
+    if(n.midi<lo) lo=n.midi; if(n.midi>hi) hi=n.midi; }
+  if(hi<lo){ lo=48; hi=72; }
+  if(hi-lo<12){ var mid=(hi+lo)/2; lo=mid-6; hi=mid+6; }
+  var pad=Math.max(2,Math.round(h*0.10)), drumH=Math.max(3,Math.round(h*0.18));
+  var melTop=pad, melH=Math.max(4, h-pad*2-drumH), drumTop=h-pad-drumH;
+  var nh=Math.max(2, Math.round(h*0.075));
+  // bar lines behind the notes: the request was to see the BARS of the song as
+  // well as what is in them, and they are what makes the shape of an
+  // arrangement readable -- where a section turns over, where the drums drop.
+  var fpb=0;
+  try{ var bpm=(sc.bpm||120); fpb=(typeof CT_GB_HARDWARE!=='undefined'?CT_GB_HARDWARE.FPS:59.7275)*(60/bpm)*4; }catch(e){}
+  function paint(ctx, alpha){
+    ctx.clearRect(0,0,w,h);
+    if(fpb>0 && total/fpb < 400){
+      var every=(total/fpb)>64?4:(total/fpb)>32?2:1;      // keep the ticks readable on a long song
+      for(var bx=0;bx*fpb<total;bx+=every){
+        var lx=Math.round((bx*fpb/total)*w)+0.5;
+        ctx.globalAlpha=alpha*(bx%(every*4)===0?0.20:0.09);
+        ctx.fillStyle='#ffffff'; ctx.fillRect(lx,pad*0.5,1,h-pad);
+      }
+      ctx.globalAlpha=1;
+    }
+    for(var j=0;j<notes.length;j++){
+      var q=notes[j];
+      var x=(q.frame/total)*w, ww=Math.max(2,((q.frames||1)/total)*w);
+      var y;
+      if(q.ch===3 || q.midi==null){ y=drumTop+Math.round(drumH/2)-nh/2; }
+      else { var t=(q.midi-lo)/Math.max(1,(hi-lo)); y=melTop+(1-t)*(melH-nh); }
+      ctx.globalAlpha=alpha*(0.55+0.45*Math.min(1,(q.vel==null?0.8:q.vel)));
+      ctx.fillStyle=RIB_COL[(q.ch|0)&3];
+      ctx.fillRect(x, y, ww, nh);
+    }
+    ctx.globalAlpha=1;
+  }
+  if(!_ribLit){ _ribLit=document.createElement('canvas'); _ribDim=document.createElement('canvas'); }
+  _ribLit.width=w; _ribLit.height=h; _ribDim.width=w; _ribDim.height=h;
+  paint(_ribLit.getContext('2d'), 1);
+  paint(_ribDim.getContext('2d'), 0.26);
+  return true;
+}
+function _ribbonFrame(){
+  if(!_ribCv){ _ribCv=document.getElementById('noteribbon'); if(!_ribCv) return; }
+  var on=_ribbonVisible();
+  if(document.body) document.body.classList.toggle('ribbon-on', on);
+  if(!on) return;
+  if(!_ribbonBake()) return;
+  var g2=_ribCv.getContext('2d');
+  g2.clearRect(0,0,_ribW,_ribH);
+  g2.drawImage(_ribDim,0,0);                                   // the track ahead
+  var pos=0;
+  try{ var d=Audio.deckPosition && Audio.deckPosition();
+       if(d && d.sec>0) pos=(d.sec*(typeof CT_GB_HARDWARE!=='undefined'?CT_GB_HARDWARE.FPS:59.7275))/_ribFrames; }catch(e){}
+  pos=Math.max(0,Math.min(1,pos));
+  var px=Math.round(pos*_ribW);
+  if(px>0){ g2.save(); g2.beginPath(); g2.rect(0,0,px,_ribH); g2.clip();
+            g2.drawImage(_ribLit,0,0); g2.restore(); }             // ...and the track behind
+  g2.fillStyle='rgba(255,255,255,.85)'; g2.fillRect(px-1,0,2,_ribH);
+}
 function _frameDiag(){
   return {
     active:!!_frameReq,
@@ -31355,6 +31459,7 @@ function frame(now){
     if(_N && (cv.width!==_N.w || cv.height!==_N.h)) resize();
     try{ _pnl.frame(); }catch(e){ _screenMode='crt'; _applyScreenMode(); }
   }
+  try{ _ribbonFrame(); }catch(e){}
   if(typeof window!=='undefined') window.__rrrFrame = _frameDiag();
   _frameRX = null; _frameSND = null;
 }

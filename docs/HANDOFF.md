@@ -980,3 +980,29 @@ pass.
   to run (seen passing at 0 and failing at 101 on the same code, DPR 2). It is
   not in the npm gate list and nothing watches it. Do not read a single run as
   a regression, in either direction, and do not claim a fix from one pass.
+
+- THE TRACK RIBBON. Owner asked for the horizontal strip of notes back, at the
+  bottom, narrow, showing the whole track -- and then: "conceptually this is
+  like showing the waveform of the music, where the progress bar usually is."
+  So it is both. A music player draws a waveform under the scrubber; a Game
+  Boy's waveform is its NOTES, and since the merge the station plays a document,
+  so they are simply there to read off score.gb.notes. Every note of the track
+  at once, x = frame/totalFrames, y = pitch (drums on their own band at the
+  foot), colour = the editor's four lane colours, bar lines behind. What has
+  played is lit and what is coming is dimmed, which is the progress bar.
+  52px tall (40 under 820px), bottom:0, and the bottom chrome steps up over it
+  via body.ribbon-on.
+  Baked ONCE per track into two offscreen canvases (lit + dim) and blitted
+  twice a frame with a clip, because a thousand notes redrawn every frame is
+  exactly the kind of thing the pacing work was about. Frame cost stays ~1ms.
+  It is the station's: hidden with the editor open (which has its own grid), in
+  wallpaper/popover/browse, and until the playbar is up -- Audio.started is not
+  the same question as "is the player up", because the deck compiles a track
+  before anyone presses anything.
+  npm run test:ribbon holds the geometry, that the played part grows, that the
+  baked track does NOT get redrawn, and the frame cost.
+
+- Not built, deliberately: scrubbing. It looks like a scrubber and a listener
+  will try to drag it. gotoTrackAtOffset exists but a document deck has no
+  token, so seeking a shared or edited song needs its own path. Ask before
+  wiring it rather than half-wiring it.
