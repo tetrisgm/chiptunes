@@ -423,10 +423,17 @@
     max-height:calc(100vh - 36px); }
   #plinks .plrow{ display:flex; align-items:center; gap:6px; }
   /* who made it, under the masthead and above the offers */
-  #plinks .plmade{ pointer-events:auto; display:flex; align-items:center; gap:10px; flex-wrap:wrap;
-    padding:0 4px 2px; color:var(--ink-2); font:500 12px/1.4 var(--ui); letter-spacing:-.005em; }
-  #plinks .plmade a{ color:var(--ink-2); text-decoration:none; border-bottom:1px solid rgba(255,255,255,.18); }
-  #plinks .plmade a:hover{ color:var(--ink); border-bottom-color:rgba(255,255,255,.5); }
+  #plinks .plmade{ pointer-events:auto; display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+    padding:2px 4px; color:var(--ink-2); font:500 12px/1.4 var(--ui); letter-spacing:-.005em; }
+  /* it sits directly on the game, with nothing behind it -- the same shadow the
+     rest of the free-standing chrome uses, or a bright frame swallows it */
+  #plinks .plmade .plmade-t{ margin-right:2px; text-shadow:0 1px 8px rgba(0,0,0,.85), 0 0 2px rgba(0,0,0,.7); }
+  #plinks .plmade .plmade-btn{ display:inline-flex; align-items:center; justify-content:center;
+    width:26px; height:26px; border-radius:50%; color:var(--ink-2); text-decoration:none;
+    border:1px solid var(--mat-edge); background:var(--mat);
+    transition:color .12s, border-color .12s, background .12s; }
+  #plinks .plmade .plmade-btn svg{ width:14px; height:14px; display:block; }
+  #plinks .plmade .plmade-btn:hover{ color:#fff; border-color:var(--mat-edge-hi); background:var(--mat-hi); }
   body.awaiting-mood #plinks .plmade{ display:none; }
   /* What the page is, above the first thing it offers you. ONE flowing
      paragraph: the name starts the sentence and the description continues from
@@ -451,7 +458,11 @@
   #plinks .plhead{ display:flex; align-items:baseline; gap:11px; }
   #plinks .plhead b{ flex:0 0 auto; font:700 26px/1.15 var(--ui); letter-spacing:-.022em;
     color:var(--ink); }
-  #plinks .plhead span{ flex:0 1 auto; font:400 15px/1.15 var(--ui);
+  /* DIRECT CHILD. As `.plhead span` this also matched the spans inside the
+     how-it-works button -- its label came out 15px/400 against every other rail
+     label at 13.5px/600, which is why the one button in the masthead read as a
+     different kind of control however much the pill around it matched. */
+  #plinks .plhead > span{ flex:0 1 auto; font:400 15px/1.15 var(--ui);
     letter-spacing:0; color:var(--ink-2); }
   /* the how-it-works pill rides the masthead line, compact against 26px type */
   /* the same pill as every other offer in the rail: it was 32px with a smaller
@@ -476,7 +487,7 @@
   @media (max-height:640px){ #plinks .plhead{ display:none; } }
   /* One line means one line: below this the sentence runs off the right edge,
      and the name on its own still says what the page is. */
-  @media (max-width:980px){ #plinks .plhead span{ display:none; } }
+  @media (max-width:980px){ #plinks .plhead > span{ display:none; } }
   /* FIRST LOAD. Big, centred, and the only thing asking to be pressed. Feedback
      lands on the press rather than the release, and it materialises -- blur and
      scale together -- so it arrives as a surface rather than fading in. */

@@ -1825,9 +1825,21 @@ function _buildPlayerLinks(){
     // page, down in the corner above the track name. See _buildDesktopCard.
     {k:'gh',    ic:_IC_GH,    t:'Source on GitHub', l:'GitHub'}
   ];
-  var madeBy='<div class="plmade">Made by TetrisGM '+
-    '<a href="'+GITHUB_URL+'" target="_blank" rel="noopener">@GitHub</a>'+
-    '<a href="https://twitter.com/tetrisgm" target="_blank" rel="noopener">@Twitter</a></div>';
+  // X's mark, drawn rather than fetched: nothing here loads a third-party asset
+  // Hacker News: the Y, drawn as strokes rather than the orange box, so it sits
+  // in the same round button as the other two and takes currentColor with them
+  var _IC_HN='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" '+
+    'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+
+    '<path d="M7 5l5 7 5-7"/><path d="M12 12v7"/></svg>';
+  var _IC_X='<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">'+
+    '<path d="M17.53 3h3.02l-6.6 7.54L21.75 21h-5.9l-4.62-6.04L5.94 21H2.91l7.06-8.07L2.5 3h6.05l4.18 5.52L17.53 3zm-1.06 16.17h1.67L7.6 4.73H5.81l10.66 14.44z"/></svg>';
+  var madeBy='<div class="plmade"><span class="plmade-t">An AI product experiment by Shokunin</span>'+
+    '<a class="plmade-btn" href="https://github.com/tetrisgm" target="_blank" rel="noopener" '+
+      'title="tetrisgm on GitHub" aria-label="tetrisgm on GitHub">'+_IC_GH+'</a>'+
+    '<a class="plmade-btn" href="https://twitter.com/tetrisgm" target="_blank" rel="noopener" '+
+      'title="tetrisgm on X" aria-label="tetrisgm on X">'+_IC_X+'</a>'+
+    '<a class="plmade-btn" href="https://news.ycombinator.com/user?id=tetrisgm" target="_blank" rel="noopener" '+
+      'title="tetrisgm on Hacker News" aria-label="tetrisgm on Hacker News">'+_IC_HN+'</a></div>';
   var wrap=document.createElement('div'); wrap.id='plinks';
   // THE MASTHEAD. The rail's first row offers you a Game Boy, which only reads
   // as an offer once you know what the page is -- and with the home page gone

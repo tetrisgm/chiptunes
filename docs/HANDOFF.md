@@ -1147,3 +1147,16 @@ pass.
   branch, because pressing play is a deliberate act; a click on the page is not.
   npm run test:entry is the gate: four clicks that mean nothing must start
   nothing, and the two that mean something must still work.
+
+- The credit reads "An AI product experiment by Shokunin" with three round icon
+  buttons: GitHub, X and Hacker News, all github.com/tetrisgm,
+  twitter.com/tetrisgm, news.ycombinator.com/user?id=tetrisgm (owner confirmed
+  the handle; the earlier guess was right). Icons are drawn inline -- nothing
+  here loads a third-party asset.
+
+- The How-it-works LABEL did not match the other rail labels even after the pill
+  did: `#plinks .plhead span`, written for the masthead's description paragraph,
+  is a descendant selector, so it also caught the spans INSIDE the button and
+  beat .plink-t on specificity -- 15px/400 against everything else at 13.5px/600.
+  It is `> span` now. If you add anything else to the masthead, remember that
+  rule reaches into it.
