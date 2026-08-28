@@ -1126,6 +1126,32 @@
     });
     return (out && out.gb && out.gb.notes && out.gb.notes.length) ? out : null;
   }
+  // A MOOD, STRAIGHT TO A SONG, with no editor open. The station's mood buttons
+  // and the editor's are the same act on the same machinery -- pick a seed
+  // whose style answers the word, then materialise it as a document, which is
+  // what both views play. Exposed rather than duplicated so the two can never
+  // drift into meaning different things by the same name.
+  function moodSong(moodText) {
+    var C = (G.CT_COMPOSERS && G.CT_COMPOSERS.rrr_core) || null;
+    if (!C || typeof C.compile !== 'function') return null;
+    resolveBank();
+    var want = parseMood(moodText), best = null, bestHit = -1, score = null;
+    for (var trial = 0; trial < 140; trial++) {
+      var tok = (G.Song && G.Song.mint) ? G.Song.mint() : ('mood-' + trial);
+      var cand = null;
+      try { cand = C.compile(tok); } catch (e) { break; }
+      if (!cand || !cand.gb || !cand.gb.notes || !cand.gb.notes.length) continue;
+      cand._tok = tok;
+      var m = scoreMatches(cand, want);
+      if (m.hit > bestHit) { bestHit = m.hit; best = cand; }
+      if (m.hit >= m.total) { score = cand; break; }
+    }
+    if (!score) score = best;
+    if (!score) return null;
+    var nm = '';
+    try { nm = (G.Song && G.Song.title) ? G.Song.title(score._tok || '') : ''; } catch (e) {}
+    return songFrom(score, nm);
+  }
   function songFrom(score, title) {
     resolveBank();
     var st = freshState(), out = null;
@@ -2641,6 +2667,27 @@
     });
   }
   // ---- open / close --------------------------------------------------------
+  // FROM SCRATCH: an empty grid, deliberately. The build path composes a song
+  // when it finds no cells ("never a blank page, never a dead room"), which is
+  // right when the editor is somewhere you land and wrong when emptiness is the
+  // thing you asked for.
+  var wantBlank = false;
+  function openBlank() {
+    wantBlank = true;
+    if (root) {
+      S = freshState(); order = 0;
+      dropLiveScore(); loopBar = -1; queuedBar = null; viewBar = 0; camX = 0;
+      selCol = -1; selCh = -1;
+      root.classList.add('show');
+      sizeTrack(); buildTrack(); renderAll();
+      armChip(); pausedAt = 0; playing = false; renderTransport();
+      ownRoute('');
+      hint('An empty grid. Take the pencil to it, or pick a mood above.');
+      wantBlank = false;
+      return;
+    }
+    open('');
+  }
   function open(code) {
     // open(code): the station hands over the song it is playing, so the editor
     // starts on exactly that -- the whole point of the two being one thing.
@@ -2682,7 +2729,10 @@
     hint('');
     // never a blank page, never a dead room: a song is already here, and the
     // transport is already running
-    if (!S.cells.length && G.CT_COMPOSERS) {
+    if (wantBlank) {
+      wantBlank = false;
+      hint('An empty grid. Take the pencil to it, or pick a mood above.');
+    } else if (!S.cells.length && G.CT_COMPOSERS) {
       var m0 = ['chill', 'happy', 'dreamy', 'funky'][Math.floor(Math.random() * 4)];
       var mi0 = root.querySelector('.cr-mood'); if (mi0) mi0.value = m0;
       composeIntoGrid(m0);
@@ -2737,6 +2787,9 @@
     // and "edit this" is the same song rather than an approximation of it.
     songFrom: songFrom,
     songOf: songOf,
+    moodSong: moodSong,
+    openBlank: openBlank,
+    moods: function () { return CHIPS.slice(); },
     _dbg: function () {
       var mx = 0, withInst = 0, hist = [0, 0, 0, 0];
       if (S) S.cells.forEach(function (x) { if ((x.len || 1) > mx) mx = x.len || 1; if (x.inst != null) withInst++;

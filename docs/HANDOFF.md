@@ -1006,3 +1006,47 @@ pass.
   will try to drag it. gotoTrackAtOffset exists but a document deck has no
   token, so seeking a shared or edited song needs its own path. Ask before
   wiring it rather than half-wiring it.
+
+- THE STRIP MOVED INTO THE PLAYER BAR, with the transport, the way a music
+  player groups them (owner's reference: Roon). #playbar .pb-ctrl is a two-row
+  group now -- prev/play/next above, elapsed | track | total below -- and over
+  the game that pill becomes a column instead of a 142px lozenge. It fades with
+  the rest of the chrome, because idle means gone here.
+  TRAP: a canvas reports its BUFFER width as its intrinsic size, so `flex:1 1
+  auto` let the buffer decide the layout that decided the buffer. The measured
+  size changed every frame, the bake key with it, and the strip re-baked a
+  thousand notes sixty times a second -- 41ms a frame. `flex:1 1 0%; width:0`
+  breaks the loop; the key is also rounded to 4 device pixels. And
+  getBoundingClientRect() in the frame loop forces layout every frame: measured
+  once every 45 frames and on resize instead. __rrrFrame.rib times the strip on
+  its own (0.02-0.03ms) because the frame EMA is dominated by the game.
+
+- FOUR LANES, NOT ONE PITCH BAND. The first cut mapped every melodic voice into
+  a single band with drums beneath. Drums are usually more than half the notes
+  in a song, so it came out 69% purple and read as one colour rather than four
+  voices -- reported as "it does not have the colour coding of create mode".
+  Melody / Harmony / Bass / Drums now each own a quarter of the strip in the
+  editor's own lane colours, each scaled to its own pitch range so a bass line
+  uses its whole lane. The gate matches rendered pixels against those four
+  colours and fails if any one voice takes more than 75%.
+
+- NOTHING PLAYS UNTIL YOU ASK. A cold load minted a random track and started it
+  -- or joined the scheduled broadcast, which amounts to the same -- answering a
+  question nobody had put. The station holds (Audio.holdForPick) and the moods
+  are the question: they sit in the middle of the screen, do not fade, and shrink
+  back to the top strip once something is on. Deep links (/track/<slug>, #s=)
+  still play immediately; the broadcast is still reachable, it just does not grab
+  the room on the way in.
+
+- THE WAY INTO THE EDITOR IS THE STRIP ITSELF. Owner asked for a good idea here;
+  this is it. The strip is already a miniature of the editor's grid, so clicking
+  it opens the full one ON THAT SONG -- no separate button to find, and the
+  gesture is "pull these notes up". A hover chevron says so. "From scratch" sits
+  at the end of the moods and opens an empty grid (CT_CREATE.openBlank), which
+  needed a flag because the build path deliberately composes something when it
+  finds no cells.
+
+- The handover gate had encoded an assumption that is no longer true: it pressed
+  play after opening the editor, which now PAUSES, because the editor opens
+  following what is already sounding. It picks a mood to start and only presses
+  play if the editor is not already running.

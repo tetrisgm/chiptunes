@@ -943,6 +943,7 @@ const Audio = (()=>{
   // start (or restart) playback on a token. Explicit tok = deep link / skip target; null = mint fresh.
   function startTrack(forcedTok, opts){
     opts=opts||{};
+    _holdForPick=false;              // anything that explicitly starts a track ends the wait
     var explicit=(forcedTok!=null && forcedTok!=='');
     var tok=explicit?String(forcedTok):mintTok();
     var cs=compileScore(tok);
@@ -1006,7 +1007,7 @@ const Audio = (()=>{
     startCompiled({ tok:'', score:scoreFromDoc(doc), fp:null }, {fade:0.12});
     return (deckCur && deckCur.score === undefined) ? false : true;
   }
-  var _sharedTitle='';
+  var _sharedTitle='', _holdForPick=false;
   // LIVE join: start a token AT an offset (seconds) — the mid-track seek for the shared
   // clock schedule. Same cold-open as startTrack (kill/clear/new generation), but the deck
   // origin is BACK-DATED so (now - origin) already equals the offset: every downstream
@@ -1108,6 +1109,11 @@ const Audio = (()=>{
     _schedLastWall = wallNow;
     var now=ctx.currentTime, horizon=now+LOOKAHEAD;
     if(!deckCur){
+      // ...unless the station has been told to wait. A cold load asks which
+      // mood you want before it writes anything, and the scheduler helpfully
+      // starting a random track underneath that question is the whole reason
+      // this flag exists.
+      if(_holdForPick) return;
       if(now>=_autoRetryAt) startTrack(null);               // radio starts itself (runtime's gotoTrack overrides with a deep link)
       if(!deckCur) return;
     }
@@ -1952,7 +1958,9 @@ const Audio = (()=>{
     // the song on air, as a Create document -- this is what makes "edit what I
     // am hearing" the same song rather than a near-enough copy of it
     currentDoc(){ return (deckCur && deckCur.score && deckCur.score.doc) || null; },
-    playDoc(code){ return playDoc(code); },
+    playDoc(code){ _holdForPick=false; return playDoc(code); },
+    holdForPick(on){ _holdForPick=!!on; },
+    isHolding(){ return _holdForPick; },
     sharedTitle(){ return _sharedTitle; },
     // Quiet, in-key game hooks (over the Engine): the games' melodic support layer.
     gameMelodyNote, reactNote, reactOK, playRecipe,

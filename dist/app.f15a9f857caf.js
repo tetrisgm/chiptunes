@@ -3632,6 +3632,32 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     });
     return (out && out.gb && out.gb.notes && out.gb.notes.length) ? out : null;
   }
+  // A MOOD, STRAIGHT TO A SONG, with no editor open. The station's mood buttons
+  // and the editor's are the same act on the same machinery -- pick a seed
+  // whose style answers the word, then materialise it as a document, which is
+  // what both views play. Exposed rather than duplicated so the two can never
+  // drift into meaning different things by the same name.
+  function moodSong(moodText) {
+    var C = (G.CT_COMPOSERS && G.CT_COMPOSERS.rrr_core) || null;
+    if (!C || typeof C.compile !== 'function') return null;
+    resolveBank();
+    var want = parseMood(moodText), best = null, bestHit = -1, score = null;
+    for (var trial = 0; trial < 140; trial++) {
+      var tok = (G.Song && G.Song.mint) ? G.Song.mint() : ('mood-' + trial);
+      var cand = null;
+      try { cand = C.compile(tok); } catch (e) { break; }
+      if (!cand || !cand.gb || !cand.gb.notes || !cand.gb.notes.length) continue;
+      cand._tok = tok;
+      var m = scoreMatches(cand, want);
+      if (m.hit > bestHit) { bestHit = m.hit; best = cand; }
+      if (m.hit >= m.total) { score = cand; break; }
+    }
+    if (!score) score = best;
+    if (!score) return null;
+    var nm = '';
+    try { nm = (G.Song && G.Song.title) ? G.Song.title(score._tok || '') : ''; } catch (e) {}
+    return songFrom(score, nm);
+  }
   function songFrom(score, title) {
     resolveBank();
     var st = freshState(), out = null;
@@ -5147,6 +5173,27 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     });
   }
   // ---- open / close --------------------------------------------------------
+  // FROM SCRATCH: an empty grid, deliberately. The build path composes a song
+  // when it finds no cells ("never a blank page, never a dead room"), which is
+  // right when the editor is somewhere you land and wrong when emptiness is the
+  // thing you asked for.
+  var wantBlank = false;
+  function openBlank() {
+    wantBlank = true;
+    if (root) {
+      S = freshState(); order = 0;
+      dropLiveScore(); loopBar = -1; queuedBar = null; viewBar = 0; camX = 0;
+      selCol = -1; selCh = -1;
+      root.classList.add('show');
+      sizeTrack(); buildTrack(); renderAll();
+      armChip(); pausedAt = 0; playing = false; renderTransport();
+      ownRoute('');
+      hint('An empty grid. Take the pencil to it, or pick a mood above.');
+      wantBlank = false;
+      return;
+    }
+    open('');
+  }
   function open(code) {
     // open(code): the station hands over the song it is playing, so the editor
     // starts on exactly that -- the whole point of the two being one thing.
@@ -5188,7 +5235,10 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     hint('');
     // never a blank page, never a dead room: a song is already here, and the
     // transport is already running
-    if (!S.cells.length && G.CT_COMPOSERS) {
+    if (wantBlank) {
+      wantBlank = false;
+      hint('An empty grid. Take the pencil to it, or pick a mood above.');
+    } else if (!S.cells.length && G.CT_COMPOSERS) {
       var m0 = ['chill', 'happy', 'dreamy', 'funky'][Math.floor(Math.random() * 4)];
       var mi0 = root.querySelector('.cr-mood'); if (mi0) mi0.value = m0;
       composeIntoGrid(m0);
@@ -5243,6 +5293,9 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     // and "edit this" is the same song rather than an approximation of it.
     songFrom: songFrom,
     songOf: songOf,
+    moodSong: moodSong,
+    openBlank: openBlank,
+    moods: function () { return CHIPS.slice(); },
     _dbg: function () {
       var mx = 0, withInst = 0, hist = [0, 0, 0, 0];
       if (S) S.cells.forEach(function (x) { if ((x.len || 1) > mx) mx = x.len || 1; if (x.inst != null) withInst++;
@@ -6913,6 +6966,7 @@ const Audio = (()=>{
   // start (or restart) playback on a token. Explicit tok = deep link / skip target; null = mint fresh.
   function startTrack(forcedTok, opts){
     opts=opts||{};
+    _holdForPick=false;              // anything that explicitly starts a track ends the wait
     var explicit=(forcedTok!=null && forcedTok!=='');
     var tok=explicit?String(forcedTok):mintTok();
     var cs=compileScore(tok);
@@ -6976,7 +7030,7 @@ const Audio = (()=>{
     startCompiled({ tok:'', score:scoreFromDoc(doc), fp:null }, {fade:0.12});
     return (deckCur && deckCur.score === undefined) ? false : true;
   }
-  var _sharedTitle='';
+  var _sharedTitle='', _holdForPick=false;
   // LIVE join: start a token AT an offset (seconds) — the mid-track seek for the shared
   // clock schedule. Same cold-open as startTrack (kill/clear/new generation), but the deck
   // origin is BACK-DATED so (now - origin) already equals the offset: every downstream
@@ -7078,6 +7132,11 @@ const Audio = (()=>{
     _schedLastWall = wallNow;
     var now=ctx.currentTime, horizon=now+LOOKAHEAD;
     if(!deckCur){
+      // ...unless the station has been told to wait. A cold load asks which
+      // mood you want before it writes anything, and the scheduler helpfully
+      // starting a random track underneath that question is the whole reason
+      // this flag exists.
+      if(_holdForPick) return;
       if(now>=_autoRetryAt) startTrack(null);               // radio starts itself (runtime's gotoTrack overrides with a deep link)
       if(!deckCur) return;
     }
@@ -7922,7 +7981,9 @@ const Audio = (()=>{
     // the song on air, as a Create document -- this is what makes "edit what I
     // am hearing" the same song rather than a near-enough copy of it
     currentDoc(){ return (deckCur && deckCur.score && deckCur.score.doc) || null; },
-    playDoc(code){ return playDoc(code); },
+    playDoc(code){ _holdForPick=false; return playDoc(code); },
+    holdForPick(on){ _holdForPick=!!on; },
+    isHolding(){ return _holdForPick; },
     sharedTitle(){ return _sharedTitle; },
     // Quiet, in-key game hooks (over the Engine): the games' melodic support layer.
     gameMelodyNote, reactNote, reactOK, playRecipe,
@@ -31260,6 +31321,8 @@ let _frameReq = 0, _frameSeq = 0, _frameStoppedAt = 0;
 // twice a frame, because a full redraw of a thousand notes every frame is
 // exactly the kind of thing that turns a render budget into judder.
 var _ribCv=null, _ribLit=null, _ribDim=null, _ribKey='', _ribW=0, _ribH=0, _ribFrames=0;
+var _ribRect=null, _ribMeasureAt=0, _ribEMA=0;
+if(typeof window!=='undefined') window.addEventListener('resize', function(){ _ribRect=null; }, {passive:true});
 var RIB_COL=['#7BDCA0','#57C4FF','#E8A75D','#C9A4E8'];   // Melody, Harmony, Bass, Drums -- the editor's lanes
 function _ribbonVisible(){
   try{
@@ -31283,23 +31346,39 @@ function _ribbonBake(){
   var notes=(sc && sc.gb && sc.gb.notes)||null;
   if(!notes || !notes.length) return false;
   var total=(sc.gb.totalFrames|0) || 1;
-  var r=_ribCv.getBoundingClientRect();
+  // MEASURE RARELY. getBoundingClientRect inside the frame loop forces a style
+  // and layout pass every frame -- with the playbar's flex row behind it that
+  // alone cost 13ms a frame, which is most of a frame's budget spent asking how
+  // wide something is that only changes when the window does.
+  if(!_ribRect || _ribMeasureAt<=0){ _ribRect=_ribCv.getBoundingClientRect(); _ribMeasureAt=45; }
+  else _ribMeasureAt--;
+  var r=_ribRect;
+  if(!r.width) return false;
   var dpr=Math.min(2, (window.devicePixelRatio||1));
-  var w=Math.max(1,Math.round(r.width*dpr)), h=Math.max(1,Math.round(r.height*dpr));
+  // rounded to 4 device pixels: a layout that settles a third of a pixel
+  // differently must not count as a new size and re-bake the song
+  var w=Math.max(4,Math.round(r.width*dpr/4)*4), h=Math.max(4,Math.round(r.height*dpr/4)*4);
   var key=(sc.doc? sc.doc.length : notes.length)+':'+total+':'+notes.length+':'+w+'x'+h;
   if(key===_ribKey && _ribLit) return true;
   _ribKey=key; _ribW=w; _ribH=h; _ribFrames=total;
   if(_ribCv.width!==w) _ribCv.width=w;
   if(_ribCv.height!==h) _ribCv.height=h;
-  // pitch range across the melodic voices; drums ride a band of their own
-  var lo=127, hi=0, i, n;
-  for(i=0;i<notes.length;i++){ n=notes[i]; if(n.ch===3||n.midi==null) continue;
-    if(n.midi<lo) lo=n.midi; if(n.midi>hi) hi=n.midi; }
-  if(hi<lo){ lo=48; hi=72; }
-  if(hi-lo<12){ var mid=(hi+lo)/2; lo=mid-6; hi=mid+6; }
-  var pad=Math.max(2,Math.round(h*0.10)), drumH=Math.max(3,Math.round(h*0.18));
-  var melTop=pad, melH=Math.max(4, h-pad*2-drumH), drumTop=h-pad-drumH;
-  var nh=Math.max(2, Math.round(h*0.075));
+  // FOUR LANES, THE WAY THE EDITOR STACKS THEM. Mapping every melodic voice
+  // into one pitch band was wrong: the drums are usually more than half the
+  // notes in a song, so the strip came out 69% purple and read as one colour
+  // rather than as four voices. Melody, Harmony, Bass, Drums each get a lane in
+  // their own colour, top to bottom, in the editor's order -- so this is a
+  // miniature of the grid rather than a different picture of the same song.
+  var pad=Math.max(1,Math.round(h*0.05));
+  var laneH=(h-pad*2)/4, gap=Math.max(1,Math.round(laneH*0.14));
+  var nh=Math.max(2, Math.round(laneH*0.42));   // room left over IS the pitch contour
+  // each voice is scaled to ITS OWN range, so a bass line uses its whole lane
+  var lo=[127,127,127,127], hi=[0,0,0,0], i, n;
+  for(i=0;i<notes.length;i++){ n=notes[i];
+    if(n.midi==null) continue; var ch0=(n.ch|0)&3;
+    if(n.midi<lo[ch0]) lo[ch0]=n.midi; if(n.midi>hi[ch0]) hi[ch0]=n.midi; }
+  for(i=0;i<4;i++){ if(hi[i]<lo[i]){ lo[i]=48; hi[i]=72; }
+    if(hi[i]-lo[i]<7){ var m2=(hi[i]+lo[i])/2; lo[i]=m2-3.5; hi[i]=m2+3.5; } }
   // bar lines behind the notes: the request was to see the BARS of the song as
   // well as what is in them, and they are what makes the shape of an
   // arrangement readable -- where a section turns over, where the drums drop.
@@ -31311,19 +31390,24 @@ function _ribbonBake(){
       var every=(total/fpb)>64?4:(total/fpb)>32?2:1;      // keep the ticks readable on a long song
       for(var bx=0;bx*fpb<total;bx+=every){
         var lx=Math.round((bx*fpb/total)*w)+0.5;
-        ctx.globalAlpha=alpha*(bx%(every*4)===0?0.20:0.09);
-        ctx.fillStyle='#ffffff'; ctx.fillRect(lx,pad*0.5,1,h-pad);
+        // faint, and only every fourth one carries any weight: drawn at white
+        // full height these read as a voice of their own rather than as a grid
+        ctx.globalAlpha=alpha*(bx%(every*4)===0?0.10:0.045);
+        ctx.fillStyle='#ffffff'; ctx.fillRect(lx,0,1,h);
       }
       ctx.globalAlpha=1;
     }
     for(var j=0;j<notes.length;j++){
       var q=notes[j];
+      var ch=(q.ch|0)&3;
       var x=(q.frame/total)*w, ww=Math.max(2,((q.frames||1)/total)*w);
-      var y;
-      if(q.ch===3 || q.midi==null){ y=drumTop+Math.round(drumH/2)-nh/2; }
-      else { var t=(q.midi-lo)/Math.max(1,(hi-lo)); y=melTop+(1-t)*(melH-nh); }
-      ctx.globalAlpha=alpha*(0.55+0.45*Math.min(1,(q.vel==null?0.8:q.vel)));
-      ctx.fillStyle=RIB_COL[(q.ch|0)&3];
+      var top=pad+ch*laneH;
+      // pitch still moves the note WITHIN its lane, so the contour is readable
+      var span=Math.max(0, laneH-gap-nh), y=top;
+      if(q.midi!=null){ var t=(q.midi-lo[ch])/Math.max(1,(hi[ch]-lo[ch])); y=top+(1-t)*span; }
+      else y=top+span*0.5;
+      ctx.globalAlpha=alpha*(0.6+0.4*Math.min(1,(q.vel==null?0.8:q.vel)));
+      ctx.fillStyle=RIB_COL[ch];
       ctx.fillRect(x, y, ww, nh);
     }
     ctx.globalAlpha=1;
@@ -31331,7 +31415,7 @@ function _ribbonBake(){
   if(!_ribLit){ _ribLit=document.createElement('canvas'); _ribDim=document.createElement('canvas'); }
   _ribLit.width=w; _ribLit.height=h; _ribDim.width=w; _ribDim.height=h;
   paint(_ribLit.getContext('2d'), 1);
-  paint(_ribDim.getContext('2d'), 0.26);
+  paint(_ribDim.getContext('2d'), 0.38);   // low enough to read as 'not yet', high enough to keep its hue
   return true;
 }
 function _ribbonFrame(){
@@ -31351,6 +31435,22 @@ function _ribbonFrame(){
   if(px>0){ g2.save(); g2.beginPath(); g2.rect(0,0,px,_ribH); g2.clip();
             g2.drawImage(_ribLit,0,0); g2.restore(); }             // ...and the track behind
   g2.fillStyle='rgba(255,255,255,.85)'; g2.fillRect(px-1,0,2,_ribH);
+  _ribbonClock(pos);
+}
+// elapsed / total, either side of the strip. Written only when the SECOND
+// changes: this runs every frame and setting textContent is a layout write.
+var _ribClockA='', _ribClockB='';
+function _ribbonClock(pos){
+  var fps=(typeof CT_GB_HARDWARE!=='undefined'?CT_GB_HARDWARE.FPS:59.7275);
+  var total=_ribFrames/fps, at=pos*total;
+  var a=_mmss(at), b=_mmss(total);
+  if(a!==_ribClockA){ var e1=document.getElementById('pbElapsed'); if(e1) e1.textContent=a; _ribClockA=a; }
+  if(b!==_ribClockB){ var e2=document.getElementById('pbTotal'); if(e2) e2.textContent=b; _ribClockB=b; }
+}
+function _mmss(sec){
+  if(!isFinite(sec)||sec<0) sec=0;
+  var m=Math.floor(sec/60), s2=Math.floor(sec%60);
+  return m+':'+(s2<10?'0':'')+s2;
 }
 function _frameDiag(){
   return {
@@ -31361,6 +31461,7 @@ function _frameDiag(){
     target:+_frameTarget.toFixed(1),
     cost:+_renderEMA.toFixed(2),
     tick:+(_tickMs||0).toFixed(2),
+    rib:+_ribEMA.toFixed(3),
     every:Math.max(1, Math.round(_frameTarget / (_tickMs || 16.7))),
     drawn:_drawSeq
   };
@@ -31459,7 +31560,9 @@ function frame(now){
     if(_N && (cv.width!==_N.w || cv.height!==_N.h)) resize();
     try{ _pnl.frame(); }catch(e){ _screenMode='crt'; _applyScreenMode(); }
   }
-  try{ _ribbonFrame(); }catch(e){}
+  // timed separately from _renderEMA, which covers the whole frame: the strip
+  // has to be provably cheap on its own, not lost inside the game's cost
+  try{ var _rt0=_nowMs(); _ribbonFrame(); _ribEMA += ((_nowMs()-_rt0) - _ribEMA)*0.1; }catch(e){}
   if(typeof window!=='undefined') window.__rrrFrame = _frameDiag();
   _frameRX = null; _frameSND = null;
 }
@@ -32226,8 +32329,55 @@ var _IC_TV='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-wi
 // A cartridge with a download arrow. The ROM export is the most surprising
 // thing this project does and it was three levels deep in an overflow menu.
 var _IC_ROM='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M5 3.5h9l5 5V17a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 5 17z"/><path d="M8.5 21.5h7" stroke-linecap="round"/><path d="M12 8v5.5M9.6 11.4 12 13.8l2.4-2.4" stroke-linecap="round"/></svg>';
+// Ask the station for a mood and it writes one and puts it on. Same words and
+// the same machinery as the editor's row (CT_CREATE.moodSong), because they are
+// two views of one thing and "write me a happy song" cannot mean two different
+// acts depending on which one you are looking at.
+function _moodOnAir(m, btn){
+  if(btn) btn.classList.add('busy');
+  // the search compiles up to 140 candidates; let the pressed state paint first
+  requestAnimationFrame(function(){ requestAnimationFrame(function(){
+    var doc=null;
+    try{ doc=(typeof CT_CREATE!=='undefined' && CT_CREATE.moodSong) ? CT_CREATE.moodSong(m) : null; }catch(e){}
+    if(btn) btn.classList.remove('busy');
+    if(!doc || !doc.code){ if(window._toast) _toast('Could not write one just then'); return; }
+    try{
+      window._sharedSongPlaying=true;      // it is yours, not the broadcast's
+      _forkFromLive();
+      _trkHist=[]; _trkI=0;
+      Audio.playDoc(doc.code);
+    }catch(e){ if(window._toast) _toast('Could not play it'); return; }
+    if(document.body) document.body.classList.remove('awaiting-mood');
+    if(window._toast) _toast('A ' + m + ' one' + (doc.title ? ': ' + doc.title : ''));
+    if(typeof _pokeVisualControls==='function') _pokeVisualControls();
+  }); });
+}
 function buildRadioUI(){
   presetsBar.innerHTML='';
+  try{
+    var moods=(typeof CT_CREATE!=='undefined' && CT_CREATE.moods) ? CT_CREATE.moods() : [];
+    if(moods.length){
+      var row=document.createElement('div'); row.id='rmoods';
+      var lab=document.createElement('span'); lab.className='rmood-lab';
+      lab.textContent='Write me a song that is\u2026';
+      row.appendChild(lab);
+      var pills=document.createElement('span'); pills.className='rmood-pills';
+      row.appendChild(pills);
+      moods.forEach(function(m){
+        var b=mkRbtn(m, function(){ _moodOnAir(m, b); });
+        b.classList.add('rmood'); b.title='Write a '+m+' song and play it';
+        pills.appendChild(b);
+      });
+      // ...or none of the above: an empty grid and your own hands.
+      var scratch=mkRbtn('from scratch', function(){
+        if(typeof _openCreate==='function') _openCreate(true);
+      });
+      scratch.classList.add('rmood','rmood-scratch');
+      scratch.title='Open the editor with an empty song';
+      pills.appendChild(scratch);
+      presetsBar.appendChild(row);
+    }
+  }catch(e){}
   // TEMPO = AUTO toggle + a continuous DJ-deck slider + clickable −/+ clamped to Radio.tempoBounds().
   const tg=document.createElement('div'); tg.id='rtempo'; tg.style.cssText='display:flex;align-items:center;gap:6px;';
   const auto=mkRbtn('auto', ()=>{ Radio.setTempo(null); syncTempoUI(); }); auto.title='Use this track BPM'; auto.style.padding='3px 8px;text-transform:uppercase;';
@@ -32333,7 +32483,7 @@ function _buildPlayerLinks(){
 // CREATE: the Mario-Paint-spirit editor (src/create.js). Entering hands the
 // chip to the user's song; leaving hands it back to the radio.
 var _createStandalone=false;      // true when /create booted without the radio behind it
-function _openCreate(){
+function _openCreate(blank){
   if(typeof CT_CREATE==='undefined') return;
   if(document.body) document.body.classList.add('ai-visual');
   if(_createStandalone){
@@ -32371,7 +32521,9 @@ function _openCreate(){
     if(sceneKind==='game' && selGame && selState) _reseatScene=true;
     try{ _syncBackgroundAudioOnly(); }catch(e){}
   };
-  // hand the editor the song that is playing, if there is one
+  // hand the editor the song that is playing, if there is one -- unless the
+  // whole point was to start from nothing
+  if(blank){ try{ CT_CREATE.openBlank(); }catch(e){ CT_CREATE.open(''); } return; }
   var _doc=null;
   try{ if(typeof Audio!=='undefined'&&Audio.currentDoc) _doc=Audio.currentDoc(); }catch(e){}
   CT_CREATE.open(_doc||undefined);
@@ -32910,14 +33062,37 @@ function buildPlaybar(){ _pbEl=document.getElementById('playbar'); if(!_pbEl||_p
     // the price of a visibly empty half. Two pills keep the centre AND lose the
     // hole: prev/play/next is symmetric and fixed at 142px, so the screen pill
     // hangs off a known edge and its label can be any width it likes.
+    // THE TRACK READS UNDER THE TRANSPORT, the way a music player puts its
+    // waveform under the scrubber: one group, controls on top, the whole song
+    // and where you are in it beneath, elapsed and total either side.
     '<div class="pb-ctrl"><div class="pb-main-ctrl"><button id="pbPrev" title="Previous">'+_pbIcon('prev')+'</button>'+
     '<button class="pb-play" id="pbPlay" title="Play / Pause">'+_pbIcon('pause')+'</button>'+
-    '<button id="pbNext" title="Next">'+_pbIcon('next')+'</button></div></div>'+
+    '<button id="pbNext" title="Next">'+_pbIcon('next')+'</button></div>'+
+    '<div class="pb-scrub"><span class="pb-t" id="pbElapsed">0:00</span>'+
+    '<span class="pb-wrap"><canvas id="noteribbon" title="Open these notes in the editor"></canvas>'+
+    '<span class="pb-expand">'+
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 14l5-5 5 5"/></svg>'+
+    'Edit</span></span>'+
+    '<span class="pb-t" id="pbTotal">0:00</span></div></div>'+
     '<div class="pb-screendock"><button id="pbScreen" class="pb-screen" title="Switch screen: CRT, Game Boy, NES">'+_IC_TV+'<span class="pbs-t">Screen</span></button></div>'+
     // The cartridge export lives on the left rail now, beside "Try on Game Boy";
     // the bottom-right is the volume alone again.
     '<div class="pb-right"><button id="pbVolume" class="pb-volume" title="Volume, mixer & BPM"><span class="pbv-icon">'+svgIcon('mixer')+'</span><span class="pbv-t">Volume Mixer &amp; BPM</span><span id="pbVolRead">100</span></button></div>';
   _buildBigPlay();
+  // PULL THE NOTES UP. The strip already IS the editor's grid in miniature, so
+  // the gesture that gets you the full one is to open the thing you are looking
+  // at -- no separate button to find, and it lands on this song rather than on
+  // a new one.
+  (function(){
+    var cv=document.getElementById('noteribbon');
+    if(!cv) return;
+    cv.style.pointerEvents='auto';
+    cv.addEventListener('click', function(ev){
+      ev.preventDefault(); ev.stopPropagation();
+      if(typeof _pokeVisualControls==='function') _pokeVisualControls();
+      if(typeof _openCreate==='function') _openCreate();
+    });
+  })();
   _wirePlaybarButton('pbPrev', _transportPrev);
   _wirePlaybarButton('pbNext', _transportNext);
   _wirePlaybarButton('pbPlay', _transportToggle);
@@ -34094,6 +34269,7 @@ var _genPlayTimer=null;
 function _maybeRecordGen(){ if(_genPlayTimer) clearTimeout(_genPlayTimer); var slug=_curSlug, name=_curName;
   _genPlayTimer=setTimeout(function(){ if(_curSlug===slug && slug && !(Audio.extActive&&Audio.extActive()) && window._recordGenPlay){ _recordGenPlay(slug,name); } }, 4000); }
 function _onTrack(slug){
+  if(document.body) document.body.classList.remove('awaiting-mood');
   if(_nowSource==='external' || (Audio.extActive&&Audio.extActive())) return;   // stale generated callbacks must not overwrite chip/mic/file titles
   if(slug) window._sharedSongPlaying=false;      // a real token means the station has moved on
   _setGeneratedNowPlaying(slug);
@@ -34186,12 +34362,20 @@ function startAudio(viaGesture, opts){
             if(!ok){ window._sharedSongPlaying=false;
                      if(Audio.gotoTrack) Audio.gotoTrack(_mintToken()); }   // unreadable link: still play something
           });
-        } else if(!_wantSlug && typeof LiveCtl!=='undefined' && typeof Radio!=='undefined' && Radio.live && Radio.live() && LiveCtl.join()){
-          _station='generated';
+        } else if(_wantSlug){
+          _trkHist = [_wantSlug]; _trkI = 0;                    // a shared link plays what it names
+          if(Audio.gotoTrack) Audio.gotoTrack(_wantSlug);
         } else {
-          var _startSlug = _wantSlug || _mintToken();
-          _trkHist = [_startSlug]; _trkI = 0;                   // history starts clean at the start track
-          if(Audio.gotoTrack) Audio.gotoTrack(_startSlug);
+          // NOTHING PLAYS UNTIL YOU ASK. A cold load used to mint a random
+          // track and start it -- or join the scheduled broadcast, which
+          // amounts to the same thing -- and either way it answered a question
+          // nobody had put yet. The moods are the question, and the station
+          // holds until one is picked, or until anything else explicitly starts
+          // a track. The broadcast is still reachable; it just does not grab
+          // the room on the way in.
+          _trkHist = []; _trkI = 0;
+          try{ if(Audio.holdForPick) Audio.holdForPick(true); }catch(e){}
+          if(document.body) document.body.classList.add('awaiting-mood');
         }
       }
       Audio.resume(!!viaGesture);

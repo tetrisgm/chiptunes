@@ -84,8 +84,13 @@ const SCENARIOS = {
     const errs = [];
     p.on('pageerror', e => errs.push(String(e).slice(0, 120)));
     await p.goto(`http://127.0.0.1:${h.port}/`, { waitUntil: 'domcontentloaded' });
-    await wait(3500);
-    await p.mouse.click(690, 450);                 // the station starts on a gesture
+    await wait(3000);
+    // Nothing plays until asked: a cold load holds and offers the moods.
+    await p.evaluate(() => {
+      const b2 = [...document.querySelectorAll('.rmood')].find(x => x.textContent === 'chill');
+      if (b2) b2.click();
+    });
+    await p.waitForFunction(() => !document.querySelector('.rmood.busy'), null, { timeout: 25000 });
     await wait(4000);
     const before = await peak(p, 1000);
 
@@ -96,7 +101,12 @@ const SCENARIOS = {
     });
     await wait(4500);
     await p.evaluate(() => { const t = document.querySelector('.cr-tour'); if (t) t.remove(); });
-    await p.click('[data-cr="play"]');
+    // The editor opens FOLLOWING what is already sounding, so pressing play
+    // here would pause it. Only press it if it is not already running.
+    await p.evaluate(async () => {
+      const d = CT_CREATE._dbg && CT_CREATE._dbg();
+      if (!d || !d.playing) { const b2 = document.querySelector('[data-cr="play"]'); if (b2) b2.click(); }
+    });
     await wait(1800);
     await setup(p);
     await wait(1200);
@@ -126,7 +136,11 @@ const SCENARIOS = {
     await p.waitForFunction(() => document.querySelector('#createscreen.show'), null, { timeout: 40000 });
     await wait(3600);
     await p.evaluate(() => { const t = document.querySelector('.cr-tour'); if (t) t.remove(); });
-    await p.click('[data-cr="play"]'); await wait(1800);
+    await p.evaluate(async () => {
+      const d = CT_CREATE._dbg && CT_CREATE._dbg();
+      if (!d || !d.playing) { const b2 = document.querySelector('[data-cr="play"]'); if (b2) b2.click(); }
+    });
+    await wait(1800);
     await p.evaluate(() => {
       const c = [...document.querySelectorAll('button')].find(x => /^close$/i.test(x.textContent.trim()));
       if (c) c.click();

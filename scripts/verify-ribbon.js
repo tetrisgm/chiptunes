@@ -34,9 +34,10 @@ function server() {
     s.listen(0, '127.0.0.1', () => res({ s, port: s.address().port }));
   });
 }
+// a canvas whose PARENT is display:none still computes display:block itself
 const shown = p => p.evaluate(() => {
   const c = document.getElementById('noteribbon');
-  return !!c && getComputedStyle(c).display !== 'none';
+  return !!c && c.getClientRects().length > 0;
 });
 const pixels = p => p.evaluate(() => {
   const c = document.getElementById('noteribbon');
@@ -60,12 +61,61 @@ const pixels = p => p.evaluate(() => {
   ok(await shown(p), 'the ribbon is up while the station plays');
   const geo = await p.evaluate(() => {
     const c = document.getElementById('noteribbon'), r = c.getBoundingClientRect();
+    const ctrl = document.querySelector('#playbar .pb-ctrl');
+    const cr = ctrl ? ctrl.getBoundingClientRect() : null;
+    const play = document.getElementById('pbPlay');
+    const pr = play ? play.getBoundingClientRect() : null;
     return { w: Math.round(r.width), h: Math.round(r.height),
-             fromBottom: Math.round(innerHeight - r.bottom), vw: innerWidth };
+             inCtrl: !!(ctrl && ctrl.contains(c)),
+             belowButtons: !!(pr && r.top >= pr.bottom - 1),
+             centred: cr ? Math.abs((cr.left + cr.right) / 2 - innerWidth / 2) : 999,
+             fromBottom: cr ? Math.round(innerHeight - cr.bottom) : -1,
+             times: [(document.getElementById('pbElapsed')||{}).textContent,
+                     (document.getElementById('pbTotal')||{}).textContent] };
   });
-  ok(geo.w >= geo.vw - 2, 'it spans the window (' + geo.w + ' of ' + geo.vw + ')');
-  ok(geo.fromBottom === 0, 'sitting on the bottom edge');
-  ok(geo.h > 20 && geo.h < 90, 'and stays a strip rather than a second view (' + geo.h + 'px tall)');
+  ok(geo.inCtrl, 'it lives inside the transport group, not floating on its own');
+  ok(geo.belowButtons, 'sitting under the play button, the way a scrubber does');
+  ok(geo.centred < 3, 'the group stays centred (' + geo.centred.toFixed(1) + 'px off)');
+  ok(geo.fromBottom > 0 && geo.fromBottom < 60, 'and anchored to the bottom (' + geo.fromBottom + 'px up)');
+  ok(geo.h > 20 && geo.h < 90, 'the track stays a strip rather than a second view (' + geo.h + 'px tall)');
+  ok(/^\d+:\d\d$/.test(geo.times[0] || '') && /^\d+:\d\d$/.test(geo.times[1] || ''),
+     'with elapsed and total either side (' + geo.times.join(' / ') + ')');
+
+  // the four voices must be TOLD APART, in the editor's colours -- the first
+  // cut mapped every voice into one pitch band and came out 69% drum-purple
+  const voices = await p.evaluate(async () => {
+    const c = document.getElementById('noteribbon');
+    // wait for the bake: sampling the frame before it lands reads an empty canvas
+    for (let t = 0; t < 40; t++) {
+      const q = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+      let n = 0; for (let i = 3; i < q.length; i += 4) if (q[i] > 40) { n++; if (n > 200) break; }
+      if (n > 200) break;
+      await new Promise(r => setTimeout(r, 100));
+    }
+    const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    const want = [[0x7B,0xDC,0xA0],[0x57,0xC4,0xFF],[0xE8,0xA7,0x5D],[0xC9,0xA4,0xE8]];
+    const hit = [0, 0, 0, 0];
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3] < 40) continue;
+      let best = -1, bd = 60;
+      for (let k = 0; k < 4; k++) {
+        const dd = Math.abs(d[i] - want[k][0]) + Math.abs(d[i+1] - want[k][1]) + Math.abs(d[i+2] - want[k][2]);
+        if (dd < bd) { bd = dd; best = k; }
+      }
+      if (best >= 0) hit[best]++;
+    }
+    const n = Audio.currentScore().gb.notes, per = [0,0,0,0];
+    n.forEach(x => per[x.ch | 0]++);
+    return { hit, per };
+  });
+  const sounding = voices.per.filter(x => x > 0).length;
+  const drawn = voices.hit.filter(x => x > 20).length;
+  ok(drawn >= Math.min(3, sounding),
+     'each voice is drawn in its own editor colour (' + drawn + ' of ' + sounding +
+     ' sounding voices found: ' + voices.hit.join('/') + ')');
+  const tot = voices.hit.reduce((a, c) => a + c, 0) || 1;
+  ok(Math.max(...voices.hit) / tot < 0.75,
+     'and no single voice swamps the strip (' + (100 * Math.max(...voices.hit) / tot).toFixed(0) + '% at most)');
 
   const a = await pixels(p);
   const notes = await p.evaluate(() => Audio.currentScore().gb.notes.length);
@@ -75,8 +125,10 @@ const pixels = p => p.evaluate(() => {
   ok(c2.lit > a.lit, 'and the played part grows as the song plays (' + a.lit + ' -> ' + c2.lit + ' lit pixels)');
   ok(Math.abs(c2.any - a.any) < a.any * 0.25, 'while the track itself stays put (baked once, not redrawn)');
 
-  const cost = await p.evaluate(() => window.__rrrFrame.cost);
-  ok(cost < 8, 'the frame still costs ' + cost + 'ms with it on');
+  // its OWN cost, not the whole frame's -- the frame EMA covers the game and
+  // the shaders and is dominated by whatever the software rasteriser is doing
+  const rib = await p.evaluate(() => window.__rrrFrame.rib);
+  ok(rib < 1.5, 'drawing it costs ' + rib + 'ms a frame (baked once, blitted twice)');
 
   // it belongs to the station: the editor has its own grid
   await p.evaluate(() => {

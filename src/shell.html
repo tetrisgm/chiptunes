@@ -236,6 +236,35 @@
     opacity:0; transition:opacity .6s ease;
   }
   #presets.show{ opacity:1; }
+  /* THE MOODS, ON THE STATION. The same words the editor offers, doing the same
+     thing: write me one of these and put it on. They fade with the rest of the
+     chrome over the game, because idle means gone here. */
+  #rmoods{ display:flex; align-items:center; gap:7px; flex-wrap:wrap; justify-content:center;
+    margin-top:74px; }   /* clear of the rail's opening paragraph, which is 61px tall at y18 */
+  #rmoods .rmood-lab{ pointer-events:none; color:var(--ink-2);
+    font:600 12.5px/1 var(--ui); letter-spacing:-.01em; margin-right:2px; }
+  #presets .rbtn.rmood{ text-transform:none; letter-spacing:0; font:600 12.5px/1 var(--ui);
+    padding:7px 12px; border-radius:999px; }
+  #presets .rbtn.rmood.busy{ opacity:.55; }
+  body.ai-visual #presets{ opacity:0; pointer-events:none; transition:opacity var(--fade-out); }
+  body.ai-visual.controls-active #presets{ opacity:1; transition:opacity var(--fade-in); }
+  body.ai-visual.controls-active #presets .rbtn{ pointer-events:auto; }
+  @media (max-width:820px){ #rmoods .rmood-lab{ display:none; } }
+  /* WAITING TO BE ASKED. Nothing plays on a cold load, so the moods are not
+     chrome at that moment -- they are the only thing to do, and they sit in the
+     middle of the screen and do not fade. Once a song is on they shrink back to
+     the top strip and behave like everything else. */
+  body.awaiting-mood #presets{ top:0; bottom:0; align-items:center;
+    opacity:1 !important; transition:opacity .35s ease; }
+  body.awaiting-mood #presets .rbtn{ pointer-events:auto; }
+  body.awaiting-mood #rmoods{ margin-top:0; flex-direction:column; gap:16px; max-width:min(760px,88vw); }
+  body.awaiting-mood #rmoods .rmood-lab{ display:block; margin:0;
+    font:700 clamp(20px,3.2vw,30px)/1.2 var(--ui); color:var(--ink); text-align:center;
+    text-shadow:0 2px 18px rgba(0,0,0,.7); }
+  body.awaiting-mood #rmoods .rmood-pills{ display:flex; flex-wrap:wrap; gap:9px; justify-content:center; }
+  body.awaiting-mood #presets .rbtn.rmood{ font-size:14.5px; padding:9px 16px; }
+  #rmoods .rmood-pills{ display:contents; }
+  #presets .rbtn.rmood-scratch{ border-color:rgba(123,220,160,.45); color:#bfe9cf; }
   .preset{
     pointer-events:auto; cursor:pointer;
     background:rgba(16,12,32,.72); color:#9a90c0;
@@ -1114,9 +1143,9 @@
   #playbar .pb-sub:empty{ display:none; }
   #playbar .pb-sub.link{ cursor:pointer; }
   #playbar .pb-sub.link:hover{ color:#fff; text-decoration:underline; }
-	  #playbar .pb-ctrl{ display:grid; grid-template-columns:1fr auto 1fr; align-items:center; justify-self:center; min-width:220px; }
-	  #playbar .pb-main-ctrl{ grid-column:2; display:flex; align-items:center; justify-content:center; gap:8px; }
-	  #playbar .pb-stop{ grid-column:3; justify-self:start; margin-left:8px; }
+	  #playbar .pb-ctrl{ display:grid; grid-template-columns:1fr auto 1fr; grid-template-rows:auto auto; row-gap:7px; justify-items:center; align-items:center; justify-self:center; min-width:220px; }
+	  #playbar .pb-main-ctrl{ grid-column:2; grid-row:1; display:flex; align-items:center; justify-content:center; gap:8px; }
+	  #playbar .pb-stop{ grid-column:3; grid-row:1; justify-self:start; margin-left:8px; }
 	  #playbar button{ background:none; border:none; color:var(--ink); cursor:pointer; display:inline-flex; align-items:center; justify-content:center; width:38px; height:38px; border-radius:50%; touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
   #playbar button svg{ pointer-events:none; }
   #playbar button:hover{ background:rgba(255,255,255,.10); color:#fff; }
@@ -1202,22 +1231,38 @@
      draws -- every note of the track at once, played part lit and the rest
      ahead of you dimmed. Narrow on purpose: it is a strip, not a second view.
      Painted by the frame loop into one canvas, so it costs two drawImages. */
-  #noteribbon{
-    position:fixed; left:0; right:0; bottom:0; z-index:19; display:none;
-    width:100%; height:var(--ribh,52px); pointer-events:none;
-    background:linear-gradient(to top, rgba(6,5,14,.82), rgba(6,5,14,.34));
-    border-top:1px solid rgba(255,255,255,.07);
-  }
-  body.ribbon-on #noteribbon{ display:block; }
-  /* the bottom chrome steps up over it */
-  body.ribbon-on.ai-visual #playbar .pb-left,
-  body.ribbon-on.ai-visual #playbar .pb-right{ bottom:calc(18px + var(--ribh,52px)); }
-  body.ribbon-on.ai-visual #playbar .pb-mid{ bottom:calc(18px + var(--ribh,52px)); }
-  body.ribbon-on #trackname{ bottom:calc(18px + var(--ribh,52px)); }
-  @media (max-width:820px){ :root{ --ribh:40px; } }
-  body.gb-open #noteribbon, body.create-open #noteribbon,
-  html.wallpaper-mode #noteribbon, html.popover-mode #noteribbon,
-  html.browse-mode #noteribbon{ display:none !important; }
+  /* the scrub row: elapsed | the track | total, under the transport buttons */
+  #playbar .pb-scrub{ grid-column:1 / -1; grid-row:2; display:none;
+    align-items:center; gap:10px; width:min(720px,52vw); min-width:0; }
+  body.ribbon-on #playbar .pb-scrub{ display:flex; }
+  /* flex-basis 0, not auto: a canvas reports its BUFFER width as its intrinsic
+     size, so `auto` let the buffer decide the layout that decides the buffer --
+     the measured size changed every frame, the bake key with it, and the strip
+     re-baked a thousand notes 60 times a second (41ms a frame). With basis 0 it
+     simply takes the room that is left. */
+  #playbar .pb-scrub canvas{ flex:1 1 0%; width:0; min-width:0; display:block;
+    height:var(--ribh,44px); border-radius:5px;
+    background:rgba(10,8,20,.55); box-shadow:inset 0 0 0 1px rgba(255,255,255,.06); }
+  /* The strip is a miniature of the editor's grid -- the same four lanes in the
+     same colours -- so the way into the editor is to pull it up. The whole
+     scrub row is the target; the chevron is there to say so. */
+  #playbar .pb-scrub canvas{ cursor:pointer; transition:box-shadow .16s ease, transform .16s ease; }
+  #playbar .pb-scrub:hover canvas{ box-shadow:inset 0 0 0 1px rgba(255,255,255,.22),
+    0 -6px 18px rgba(123,220,160,.13); transform:translateY(-1px); }
+  #playbar .pb-expand{ position:absolute; right:6px; top:50%; transform:translateY(-50%);
+    display:flex; align-items:center; gap:5px; padding:3px 7px; border-radius:7px;
+    background:rgba(12,10,24,.78); color:var(--ink-2); pointer-events:none;
+    font:600 10.5px/1 var(--ui); letter-spacing:.01em; opacity:0; transition:opacity .16s ease; }
+  #playbar .pb-scrub:hover .pb-expand{ opacity:1; }
+  #playbar .pb-expand svg{ width:11px; height:11px; }
+  #playbar .pb-wrap{ position:relative; flex:1 1 0%; min-width:0; display:flex; }
+  #playbar .pb-t{ flex:0 0 auto; color:var(--ink-2);
+    font:500 11px/1 var(--ui); font-variant-numeric:tabular-nums; letter-spacing:.01em; }
+  @media (max-width:820px){ :root{ --ribh:34px; }
+    #playbar .pb-scrub{ width:min(420px,74vw); } }
+  body.gb-open #playbar .pb-scrub, body.create-open #playbar .pb-scrub,
+  html.wallpaper-mode #playbar .pb-scrub, html.popover-mode #playbar .pb-scrub,
+  html.browse-mode #playbar .pb-scrub{ display:none !important; }
 
   body.ai-visual #playbar.show{
     display:block; left:auto; right:auto; bottom:0; width:auto; min-height:0; padding:0;
@@ -1307,6 +1352,13 @@
     padding:0 8px; border-radius:999px; background:var(--mat);
     border:1px solid var(--mat-edge); box-shadow:var(--mat-shadow);
     backdrop-filter:var(--mat-blur); -webkit-backdrop-filter:var(--mat-blur);
+  }
+  /* With the track under it the pill becomes a COLUMN -- transport above, the
+     song and its clock below -- which is the shape every music player uses and
+     what was asked for: one group, not a strip floating on its own. */
+  body.ribbon-on.ai-visual #playbar .pb-ctrl{
+    width:auto; height:auto;            /* the pill is 46px tall for one row of buttons */
+    flex-direction:column; gap:9px; padding:9px 14px 10px; border-radius:20px;
   }
   /* 142/2 = 71 to the transport's right edge, then a 10px gap. The screen pill
      grows rightwards from there, so "Random" and "Game Boy" cost the play button
@@ -1526,7 +1578,6 @@
     <div id="transport"></div>
   </div>
 
-  <canvas id="noteribbon"></canvas>
   <div id="playbar"></div>
 
   <div id="intro">
