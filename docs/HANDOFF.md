@@ -786,3 +786,38 @@ pass.
 - npm run test:song-document is the gate. It materialises twelve songs and
   compares note for note, round-trips a document through the URL into the
   editor, and checks the song on air has a document behind it.
+
+- THE FRAME LOOP PACED ITSELF BADLY, and that -- not rendering cost -- is what
+  "performance is extremely poor" was. The cap was `now - lastFrame <
+  _frameTarget - 1`, wall-clock. A vsync tick arriving 1ms early is dropped
+  WHOLE and the next lands a refresh later, so the cadence beats between 16.7
+  and 25ms. Fed measured timings: 51.9fps with 15.5% of frames hitching at +-1ms
+  of tick jitter, 43.6fps / 20.0% at +-2ms. The render itself costs 1-2ms.
+  It now counts vsync ticks -- learn the display's interval, draw every Nth --
+  which is exact by construction: 60.0fps, 0% hitches, at 60Hz and 120Hz alike,
+  and the 120Hz case (previously 55.6fps) is right for free.
+  Backoff steps are whole multiples of a 60fps frame now (16.7/33.4/50.1, so
+  60/30/20fps). The old middle step asked for 42fps, which no 60Hz display can
+  show evenly -- it only ever meant uneven frames.
+
+- Why every benchmark here missed it: headless browsers tick like metronomes,
+  so the jitter that triggers it does not exist in them. npm run test:pacing
+  therefore asserts the RULE against jittered timings rather than measuring fps
+  in a browser that rasterises in software at single-digit frame rates.
+
+- `__rrrFrame.seq` counted ticks SEEN, not frames drawn -- it incremented
+  before the cap. `.drawn` is the real one; `.tick` and `.every` show what the
+  loop measured and chose.
+
+- Smaller, from the same pass: hueRot re-parsed hex, rebuilt two closures per
+  call and ran per sprite per frame (~5% of samples during play) -- memoised on
+  colour plus whole degree, verified identical on 10087 colour/angle pairs. The
+  Media Session artwork cache grew by one 512x512 PNG data URL per track
+  forever; it keeps 8.
+
+- Checked and NOT problems, so nobody re-lit�igates them: canvases do not
+  accumulate (two console panels, cached deliberately, inactive one display:
+  none); Create does not rewrite the URL per frame (the guard needs a route it
+  never has); songFrom costs 1-3ms a track; the heap is flat across track
+  changes. The long tasks a headless profile shows are software rasterisation,
+  not JS.

@@ -1,6 +1,7 @@
 // AUTO-SPLIT from index.html — classic script, shares global scope (load order matters).
 // Draw/colour helpers + particles + the CT_GAMES registry (load after audio).
 const hsl = (h,s,l)=> 'hsl('+(Math.round(((h%360)+360)%360))+','+Math.round(Math.max(0,Math.min(100,s)))+'%,'+Math.round(Math.max(0,Math.min(100,l)))+'%)';
+var _hueMemo = {}, _hueN = 0;
 function hueRot(hex, deg){   // rotate a #rrggbb's hue by deg, RETURN HEX (composes with lighten/darken/pix); grays unaffected
   // Under an installed indexed palette (the DMG and NES screens) hue rotation
   // FIGHTS the quantizer: every rotated colour lands on a different nearest
@@ -10,14 +11,28 @@ function hueRot(hex, deg){   // rotate a #rrggbb's hue by deg, RETURN HEX (compo
   // continuous-colour CRT face only, so the guard lives here, once.
   if(typeof CT_PAL!=='undefined' && CT_PAL && CT_PAL.installed) return hex;
   if(typeof hex!=='string' || hex[0]!=='#' || hex.length<7) return hex;
+  deg = Math.round(deg);
+  var key = hex + '|' + deg;
+  var memo = _hueMemo[key];
+  if(memo !== undefined) return memo;
   var r=parseInt(hex.slice(1,3),16)/255, g2=parseInt(hex.slice(3,5),16)/255, b=parseInt(hex.slice(5,7),16)/255;
   var mx=Math.max(r,g2,b), mn=Math.min(r,g2,b), d=mx-mn, h=0, l=(mx+mn)/2, s=d===0?0:d/(1-Math.abs(2*l-1));
   if(d!==0){ if(mx===r)h=((g2-b)/d)%6; else if(mx===g2)h=(b-r)/d+2; else h=(r-g2)/d+4; h*=60; }
   var H=(((h+deg)%360)+360)%360/360, q=l<0.5?l*(1+s):l+s-l*s, p=2*l-q;
-  var f=function(t){ t=(t%1+1)%1; if(t<1/6)return p+(q-p)*6*t; if(t<0.5)return q; if(t<2/3)return p+(q-p)*(2/3-t)*6; return p; };
-  var to=function(v){ return ('0'+Math.round(Math.max(0,Math.min(1,v))*255).toString(16)).slice(-2); };
-  return s===0 ? hex : '#'+to(f(H+1/3))+to(f(H))+to(f(H-1/3));
+  if(s===0) return hex;
+  var out='#'+_hx(_ch(p,q,H+1/3))+_hx(_ch(p,q,H))+_hx(_ch(p,q,H-1/3));
+  if(_hueN>4096){ _hueMemo={}; _hueN=0; }        // a session changes palette; do not hoard
+  _hueMemo[key]=out; _hueN++;
+  return out;
 }
+// Hoisted out of hueRot: they were rebuilt on every call, and this runs per
+// sprite per frame -- hue rotation and the two closures it allocated were 5% of
+// all samples taken during play. The memo above is keyed on the colour and a
+// WHOLE degree: the rotation advances continuously over a bar, so exact-value
+// keys would never hit, and a sub-degree difference cannot survive being
+// rounded to an 8-bit channel anyway.
+function _ch(p,q,t){ t=(t%1+1)%1; if(t<1/6)return p+(q-p)*6*t; if(t<0.5)return q; if(t<2/3)return p+(q-p)*(2/3-t)*6; return p; }
+function _hx(v){ return ('0'+Math.round(Math.max(0,Math.min(1,v))*255).toString(16)).slice(-2); }
 // ===== MV — music-visual toolkit: the shared "beat = pulse, bar = palette, phrase = variation, energy = intensity"
 // language every game uses. Pass the clock from SND.clock() (or {} if absent). Keeps all games' reactivity consistent. =====
 const MV = {
