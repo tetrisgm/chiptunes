@@ -815,7 +815,7 @@ pass.
   Media Session artwork cache grew by one 512x512 PNG data URL per track
   forever; it keeps 8.
 
-- Checked and NOT problems, so nobody re-lit�igates them: canvases do not
+- Checked and NOT problems, so nobody re-litigates them: canvases do not
   accumulate (two console panels, cached deliberately, inactive one display:
   none); Create does not rewrite the URL per frame (the guard needs a route it
   never has); songFrom costs 1-3ms a track; the heap is flat across track
