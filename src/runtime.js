@@ -2239,11 +2239,13 @@ function _setVisualControlsActive(active){
     _visualControlsTimer=setTimeout(function(){
       if(_isAiRadioVisual() || _watchOnly) document.body.classList.remove('controls-active');
       _visualControlsTimer=0;
-      // The chrome does not snap away after three seconds any more -- it starts
-      // dissolving almost as soon as the pointer stops and takes those three
-      // seconds to go, so the fade IS the countdown rather than the thing that
-      // happens at the end of one. The long transition lives in shell.html.
-    }, 350);
+      // THREE SECONDS, HELD, then it goes. The fade was tried as the countdown
+      // -- start dissolving 350ms after the pointer stops and take three
+      // seconds about it -- and it reads as the chrome being yanked away the
+      // moment you stop moving, because that is what it is: the thing is
+      // already dimming while you are still looking at it. The wait has to be
+      // a wait.
+    }, 3000);
   }
 }
 function _syncVisualChrome(){
@@ -2558,7 +2560,12 @@ function _transportDislike(){ var it=_curItem(); if(!it||!window._dislikeToggle)
 // concatenate into a playable file with no container to write. Verified by
 // decoding the result back with decodeAudioData before this shipped. Where
 // WebCodecs is missing the fallback is WAV: bigger, but exact and universal.
-function _audioFilename(ext){ return (_curSlug || 'chiptunes') + '.' + ext; }
+function _audioFilename(ext){
+  // the token is 16 characters of base36 now; a file called that is no use to
+  // anybody. Downloads carry the name, which is what the listener saw.
+  var n = (_curName && _curName !== 'Chiptunes.app') ? _curName : 'chiptunes';
+  return String(n).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'') + '.' + ext;
+}
 function _renderTrackPcm(score, sr){
   return CT_GB_APU.render({notes:score.gb.notes, bank:score.gb.bank, totalFrames:score.gb.totalFrames}, sr);
 }
@@ -2662,7 +2669,7 @@ function _openGameBoy(){
   if(typeof CT_GB_ROM==='undefined' || typeof CT_GB_CPU==='undefined' || typeof CT_GB_PPU==='undefined'){
     if(window._toast) _toast('The Game Boy emulator is unavailable'); return; }
   var rom;
-  try{ rom=CT_GB_ROM.buildRom(score, { title:(_curSlug||'chiptunes').replace(/-/g,' ') }); }
+  try{ rom=CT_GB_ROM.buildRom(score, { title:(_curName||'chiptunes') }); }
   catch(e){ if(window._toast) _toast('Could not build the cartridge: '+(e&&e.message||e)); return; }
 
   // playRom TRANSFERS the buffer to the audio thread, so the copy it gets must
@@ -2787,8 +2794,8 @@ function _downloadRom(){
     var score = (Audio.currentScore && Audio.currentScore()) || null;
     if(!score || !score.gb){ if(window._toast) _toast('Start a track first'); return; }
     if(typeof CT_GB_ROM==='undefined'){ if(window._toast) _toast('ROM export unavailable'); return; }
-    var name = (_curSlug || 'chiptunes');
-    var rom = CT_GB_ROM.buildRom(score, { title: name.replace(/-/g,' ') });
+    var name = (_curName || 'chiptunes');
+    var rom = CT_GB_ROM.buildRom(score, { title: name });
     var blob = new Blob([rom], { type: 'application/octet-stream' });
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');

@@ -41,7 +41,7 @@ var Song = (function(){
     if(!hasL) out=out.slice(0,1)+String.fromCharCode(97+(randU32(rand)%26))+out.slice(2);
     return out;
   }
-  function looksLikeCode(w){ return /^[0-9a-z]{6,14}$/.test(w||'') && /[0-9]/.test(w||'') && /[a-z]/.test(w||''); }
+  function looksLikeCode(w){ return /^[0-9a-z]{6,24}$/.test(w||'') && /[0-9]/.test(w||'') && /[a-z]/.test(w||''); }   // 24: a modern token is one 16-char run. Needs BOTH a digit and a letter, so a real word never matches.
 
   // A composer pack may prefix its id: "<composerId>.<phrase>-<code8>". Strip it for display/parse.
   function stripComposer(slug){ var s=String(slug||''); var d=s.indexOf('.'); return d>0 ? s.slice(d+1) : s; }
@@ -50,15 +50,36 @@ var Song = (function(){
     var parts=slugify(stripComposer(slug)).split('-').filter(Boolean);
     if(parts.length && looksLikeCode(parts[parts.length-1])) parts.pop();           // drop the entropy nonce
     while(parts.length>4 && LEGACY_PREFIXES.indexOf(parts[0])>=0) parts.shift();     // strip old idiom/target prefixes
-    if(!parts.length) parts=slugify(stripComposer(slug)).split('-').filter(Boolean);
+    // A modern token is pure entropy and carries no words to read: mint the
+    // name from it instead. Old word-slugs still read out as themselves.
+    if(!parts.length || parts.every(looksLikeCode)) return nameFor(slug);
     return parts.map(titleCaseWord).join(' ') || 'Chiptunes.app';
   }
 
+  // A TOKEN IS ENTROPY, NOT A NAME.
+  //
+  // It used to be four words plus an eight-character nonce, and the composer
+  // hashes whatever it is handed -- so the words sat in the musical input.
+  // Measured, they changed nothing: holding the phrase fixed and varying only
+  // the nonce gives the same spread of styles and tempos as varying everything,
+  // because 41 bits of nonce dominate the hash. But the coupling was real even
+  // where its effect was not: a song could not be RENAMED without becoming a
+  // different song, and editing the word lists would have silently rewritten
+  // every future composition. Causality runs one way now -- token to music, and
+  // separately token to name -- so the words can never reach the composer.
   function mint(opts){
     opts=opts||{};
     var rand=opts.random||null;
-    var words=[ pick(SLOTS[0], rand), pick(SLOTS[1], rand), pick(SLOTS[2], rand), pick(SLOTS[3], rand) ];
-    return words.join('-')+'-'+code8(rand);
+    return code8(rand)+code8(rand);          // 16 base36 chars, ~82 bits
+  }
+
+  // ...and the name is minted FROM the token, at the very end, for the label
+  // and nothing else. Deriving it (rather than storing it) keeps one song's
+  // name stable across a reload and carries it through a shared link for free.
+  function nameFor(token){
+    var r = mulberry32(hash32(norm(token)+':name'));
+    return [ pick(SLOTS[0], r), pick(SLOTS[1], r), pick(SLOTS[2], r), pick(SLOTS[3], r) ]
+             .map(titleCaseWord).join(' ');
   }
 
   return {
@@ -68,6 +89,7 @@ var Song = (function(){
     slugify: slugify,
     title: title,
     mint: mint,
+    nameFor: nameFor,
     stripComposer: stripComposer,
     _hash32: hash32, _mulberry32: mulberry32                // exposed for tests
   };

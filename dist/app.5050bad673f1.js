@@ -42,7 +42,7 @@ var Song = (function(){
     if(!hasL) out=out.slice(0,1)+String.fromCharCode(97+(randU32(rand)%26))+out.slice(2);
     return out;
   }
-  function looksLikeCode(w){ return /^[0-9a-z]{6,14}$/.test(w||'') && /[0-9]/.test(w||'') && /[a-z]/.test(w||''); }
+  function looksLikeCode(w){ return /^[0-9a-z]{6,24}$/.test(w||'') && /[0-9]/.test(w||'') && /[a-z]/.test(w||''); }   // 24: a modern token is one 16-char run. Needs BOTH a digit and a letter, so a real word never matches.
 
   // A composer pack may prefix its id: "<composerId>.<phrase>-<code8>". Strip it for display/parse.
   function stripComposer(slug){ var s=String(slug||''); var d=s.indexOf('.'); return d>0 ? s.slice(d+1) : s; }
@@ -51,15 +51,36 @@ var Song = (function(){
     var parts=slugify(stripComposer(slug)).split('-').filter(Boolean);
     if(parts.length && looksLikeCode(parts[parts.length-1])) parts.pop();           // drop the entropy nonce
     while(parts.length>4 && LEGACY_PREFIXES.indexOf(parts[0])>=0) parts.shift();     // strip old idiom/target prefixes
-    if(!parts.length) parts=slugify(stripComposer(slug)).split('-').filter(Boolean);
+    // A modern token is pure entropy and carries no words to read: mint the
+    // name from it instead. Old word-slugs still read out as themselves.
+    if(!parts.length || parts.every(looksLikeCode)) return nameFor(slug);
     return parts.map(titleCaseWord).join(' ') || 'Chiptunes.app';
   }
 
+  // A TOKEN IS ENTROPY, NOT A NAME.
+  //
+  // It used to be four words plus an eight-character nonce, and the composer
+  // hashes whatever it is handed -- so the words sat in the musical input.
+  // Measured, they changed nothing: holding the phrase fixed and varying only
+  // the nonce gives the same spread of styles and tempos as varying everything,
+  // because 41 bits of nonce dominate the hash. But the coupling was real even
+  // where its effect was not: a song could not be RENAMED without becoming a
+  // different song, and editing the word lists would have silently rewritten
+  // every future composition. Causality runs one way now -- token to music, and
+  // separately token to name -- so the words can never reach the composer.
   function mint(opts){
     opts=opts||{};
     var rand=opts.random||null;
-    var words=[ pick(SLOTS[0], rand), pick(SLOTS[1], rand), pick(SLOTS[2], rand), pick(SLOTS[3], rand) ];
-    return words.join('-')+'-'+code8(rand);
+    return code8(rand)+code8(rand);          // 16 base36 chars, ~82 bits
+  }
+
+  // ...and the name is minted FROM the token, at the very end, for the label
+  // and nothing else. Deriving it (rather than storing it) keeps one song's
+  // name stable across a reload and carries it through a shared link for free.
+  function nameFor(token){
+    var r = mulberry32(hash32(norm(token)+':name'));
+    return [ pick(SLOTS[0], r), pick(SLOTS[1], r), pick(SLOTS[2], r), pick(SLOTS[3], r) ]
+             .map(titleCaseWord).join(' ');
   }
 
   return {
@@ -69,6 +90,7 @@ var Song = (function(){
     slugify: slugify,
     title: title,
     mint: mint,
+    nameFor: nameFor,
     stripComposer: stripComposer,
     _hash32: hash32, _mulberry32: mulberry32                // exposed for tests
   };
@@ -32487,11 +32509,13 @@ function _setVisualControlsActive(active){
     _visualControlsTimer=setTimeout(function(){
       if(_isAiRadioVisual() || _watchOnly) document.body.classList.remove('controls-active');
       _visualControlsTimer=0;
-      // The chrome does not snap away after three seconds any more -- it starts
-      // dissolving almost as soon as the pointer stops and takes those three
-      // seconds to go, so the fade IS the countdown rather than the thing that
-      // happens at the end of one. The long transition lives in shell.html.
-    }, 350);
+      // THREE SECONDS, HELD, then it goes. The fade was tried as the countdown
+      // -- start dissolving 350ms after the pointer stops and take three
+      // seconds about it -- and it reads as the chrome being yanked away the
+      // moment you stop moving, because that is what it is: the thing is
+      // already dimming while you are still looking at it. The wait has to be
+      // a wait.
+    }, 3000);
   }
 }
 function _syncVisualChrome(){
@@ -32806,7 +32830,12 @@ function _transportDislike(){ var it=_curItem(); if(!it||!window._dislikeToggle)
 // concatenate into a playable file with no container to write. Verified by
 // decoding the result back with decodeAudioData before this shipped. Where
 // WebCodecs is missing the fallback is WAV: bigger, but exact and universal.
-function _audioFilename(ext){ return (_curSlug || 'chiptunes') + '.' + ext; }
+function _audioFilename(ext){
+  // the token is 16 characters of base36 now; a file called that is no use to
+  // anybody. Downloads carry the name, which is what the listener saw.
+  var n = (_curName && _curName !== 'Chiptunes.app') ? _curName : 'chiptunes';
+  return String(n).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'') + '.' + ext;
+}
 function _renderTrackPcm(score, sr){
   return CT_GB_APU.render({notes:score.gb.notes, bank:score.gb.bank, totalFrames:score.gb.totalFrames}, sr);
 }
@@ -32910,7 +32939,7 @@ function _openGameBoy(){
   if(typeof CT_GB_ROM==='undefined' || typeof CT_GB_CPU==='undefined' || typeof CT_GB_PPU==='undefined'){
     if(window._toast) _toast('The Game Boy emulator is unavailable'); return; }
   var rom;
-  try{ rom=CT_GB_ROM.buildRom(score, { title:(_curSlug||'chiptunes').replace(/-/g,' ') }); }
+  try{ rom=CT_GB_ROM.buildRom(score, { title:(_curName||'chiptunes') }); }
   catch(e){ if(window._toast) _toast('Could not build the cartridge: '+(e&&e.message||e)); return; }
 
   // playRom TRANSFERS the buffer to the audio thread, so the copy it gets must
@@ -33035,8 +33064,8 @@ function _downloadRom(){
     var score = (Audio.currentScore && Audio.currentScore()) || null;
     if(!score || !score.gb){ if(window._toast) _toast('Start a track first'); return; }
     if(typeof CT_GB_ROM==='undefined'){ if(window._toast) _toast('ROM export unavailable'); return; }
-    var name = (_curSlug || 'chiptunes');
-    var rom = CT_GB_ROM.buildRom(score, { title: name.replace(/-/g,' ') });
+    var name = (_curName || 'chiptunes');
+    var rom = CT_GB_ROM.buildRom(score, { title: name });
     var blob = new Blob([rom], { type: 'application/octet-stream' });
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');

@@ -821,3 +821,29 @@ pass.
   never has); songFrom costs 1-3ms a track; the heap is flat across track
   changes. The long tasks a headless profile shows are software rasterisation,
   not JS.
+
+- THE TOKEN IS ENTROPY; THE NAME IS A LABEL MINTED FROM IT. Song.mint() used to
+  return four words plus an 8-char nonce, and compile(token) hashes whatever it
+  is given -- style, key, tempo, form, harmony, groove, motifs, channel plan and
+  instrument bank all come off that string. Measured before changing anything:
+  holding the phrase FIXED and varying only the nonce gives the same spread of
+  styles and tempos as varying everything (anthem 28/23, house 23/23, techno
+  20/20, bpm 74/134/171 vs 75/134/170), because 41 bits of nonce dominate the
+  hash. So the words were not audibly coercing the music. The coupling was still
+  wrong: a song could not be renamed without becoming a different song, and
+  editing SLOTS would have silently rewritten every future composition.
+  mint() is 16 base36 characters now (~82 bits) and Song.nameFor(token) derives
+  the words one way, at the end. Causality is token->music and token->name; the
+  words cannot reach the composer. Deriving rather than storing the name keeps
+  it stable across a reload and carries it through a shared link for free.
+  Song.title() still reads old word-slugs out as themselves.
+  looksLikeCode() widened to 24 chars for the longer token -- it demands both a
+  digit and a letter, so a real word still never matches.
+  Downloads and cartridge headers take _curName now; a file named after 16
+  characters of base36 is no use to anybody.
+
+- THE IDLE CHROME HOLDS FOR THREE SECONDS AGAIN. It had been 350ms plus a 2.9s
+  dissolve, on the theory that the fade could BE the countdown. It cannot: the
+  chrome starts dimming while you are still looking at it, and it reads as being
+  yanked away the moment you stop moving. 3000ms then a 0.42s fade. The wait has
+  to be a wait.
