@@ -15,6 +15,14 @@ const { chromium } = require('playwright');
 const DIST = path.join(__dirname, '..', 'dist');
 const wait = ms => new Promise(r => setTimeout(r, ms));
 let fail = 0;
+  // Nothing plays until asked: pick a mood, which is the station's entry now.
+  const startStation = async (pg) => {
+    await pg.evaluate(() => {
+      const b = [...document.querySelectorAll('.rmood')].find(x => x.textContent === 'chill');
+      if (b) b.click();
+    });
+    await pg.waitForFunction(() => !document.querySelector('.rmood.busy'), null, { timeout: 25000 });
+  };
 const ok = (c, m) => { console.log((c ? '  ok   ' : '  FAIL ') + m); if (!c) fail++; };
 
 function server() {
@@ -98,7 +106,7 @@ function server() {
   // ---- 3. and the station is playing one ----------------------------------
   await p.goto(`http://127.0.0.1:${h.port}/`, { waitUntil: 'domcontentloaded' });
   await wait(3500);
-  await p.mouse.click(690, 450);
+  await startStation(p);
   await wait(4000);
   // a single reading of a peak meter catches the gap between notes; watch it
   const onAir = await p.evaluate(async () => {

@@ -95,9 +95,9 @@ const SCENARIOS = {
     const before = await peak(p, 1000);
 
     await p.evaluate(() => {
-      const b2 = [...document.querySelectorAll('a,button')]
-        .find(x => /create/i.test(x.textContent || '') || /create/i.test(x.getAttribute('href') || ''));
-      if (b2) b2.click();
+      // the way into the editor is the strip of notes itself now
+      const c = document.getElementById('noteribbon');
+      if (c) c.click();
     });
     await wait(4500);
     await p.evaluate(() => { const t = document.querySelector('.cr-tour'); if (t) t.remove(); });

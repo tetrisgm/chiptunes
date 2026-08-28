@@ -17,6 +17,14 @@ const { chromium } = require('playwright');
 const DIST = path.join(__dirname, '..', 'dist');
 const wait = ms => new Promise(r => setTimeout(r, ms));
 let fail = 0;
+  // Nothing plays until asked: pick a mood, which is the station's entry now.
+  const startStation = async (pg) => {
+    await pg.evaluate(() => {
+      const b = [...document.querySelectorAll('.rmood')].find(x => x.textContent === 'chill');
+      if (b) b.click();
+    });
+    await pg.waitForFunction(() => !document.querySelector('.rmood.busy'), null, { timeout: 25000 });
+  };
 const ok = (c, m) => { console.log((c ? '  ok   ' : '  FAIL ') + m); if (!c) fail++; };
 
 function server() {
@@ -55,7 +63,7 @@ const pixels = p => p.evaluate(() => {
   p.on('pageerror', e => errs.push(String(e).slice(0, 120)));
   await p.goto(`http://127.0.0.1:${h.port}/`, { waitUntil: 'domcontentloaded' });
   await wait(3500);
-  await p.mouse.click(800, 500);
+  await startStation(p);
   await wait(7000);
 
   ok(await shown(p), 'the ribbon is up while the station plays');
@@ -131,11 +139,8 @@ const pixels = p => p.evaluate(() => {
   ok(rib < 1.5, 'drawing it costs ' + rib + 'ms a frame (baked once, blitted twice)');
 
   // it belongs to the station: the editor has its own grid
-  await p.evaluate(() => {
-    const b2 = [...document.querySelectorAll('a,button')]
-      .find(x => /create/i.test(x.textContent || '') || /create/i.test(x.getAttribute('href') || ''));
-    if (b2) b2.click();
-  });
+  // ...and the strip is itself the way in: clicking it opens the editor
+  await p.evaluate(() => { document.getElementById('noteribbon').click(); });
   await wait(4500);
   ok(!(await shown(p)), 'it gets out of the way when the editor opens');
   await p.evaluate(() => {

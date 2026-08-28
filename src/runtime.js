@@ -1701,6 +1701,16 @@ function buildRadioUI(){
     var moods=(typeof CT_CREATE!=='undefined' && CT_CREATE.moods) ? CT_CREATE.moods() : [];
     if(moods.length){
       var row=document.createElement('div'); row.id='rmoods';
+      // The name and the one line of what this is, in the middle of the page
+      // above the choice -- the shape of an ordinary product landing page.
+      // Only shown while the station is waiting to be asked; once something is
+      // playing the left rail carries them again and this shrinks to a strip.
+      var brand=document.createElement('span'); brand.className='rmood-brand';
+      var bn=document.createElement('b'); bn.textContent='Chiptunes.app';
+      var bs=document.createElement('i');
+      bs.textContent='An endless Game Boy radio for your second screen: background music, games that play themselves.';
+      brand.appendChild(bn); brand.appendChild(bs);
+      row.appendChild(brand);
       var lab=document.createElement('span'); lab.className='rmood-lab';
       lab.textContent='Write me a song that is\u2026';
       row.appendChild(lab);
@@ -1712,7 +1722,7 @@ function buildRadioUI(){
         pills.appendChild(b);
       });
       // ...or none of the above: an empty grid and your own hands.
-      var scratch=mkRbtn('from scratch', function(){
+      var scratch=mkRbtn('Start from scratch', function(){
         if(typeof _openCreate==='function') _openCreate(true);
       });
       scratch.classList.add('rmood','rmood-scratch');
@@ -1765,21 +1775,26 @@ function _buildPlayerLinks(){
   // console screens are the point of the project.
   var _os=_homeOS(), _osName=(_os==='win'?'Windows':_os==='linux'?'Linux':_os==='mac'?'Mac':'');
   var items=[
-    {k:'create', ic:_IC_CREATE, t:'Place little characters on a grid; hear them through the chip', l:'Create'},
-    // The two downloads sit together: this track as sound, and this track as the
-    // cartridge that makes the sound.
-    {k:'wav',   ic:_IC_WAVE,  t:'Download this track as an uncompressed WAV', l:'Download WAV',
-     subs:[{k:'rom', ic:_IC_ROM,  t:'Download the .gb cartridge (32 KB, runs on real hardware)', l:'Download ROM'}]},
+    // The Game Boy leads. It is the most surprising thing here -- this track,
+    // as a cartridge, on the hardware -- and the cartridge download belongs
+    // directly under the offer to run it rather than beside a WAV.
+    // No Create button: the strip of notes along the bottom IS the way in, and
+    // it opens the editor on the song you are actually listening to.
+    {k:'try',   ic:_IC_GB,    t:'Open this track in a Game Boy emulator, running the cartridge itself', l:'Try on Game Boy emulator'},
+    {k:'rom',   ic:_IC_ROM,   t:'Download the .gb cartridge (32 KB, runs on real hardware)', l:'Download as Game Boy ROM'},
+    {k:'wav',   ic:_IC_WAVE,  t:'Download this track as an uncompressed WAV', l:'Download WAV'},
     // The YouTube Live link is retired for now (owner 2026-08-26): the video
     // leg is off and the box is being freed for other work. The channel, its
     // tokens and the go-live tooling all remain for when it returns.
     {k:'radio', ic:_IC_RADIO, t:'Listen on any radio app', l:'Web radio'},
-    {k:'try',   ic:_IC_GB,    t:'Open this track in a Game Boy emulator, running the cartridge itself', l:'Try on Game Boy emulator'},
     // The desktop app is not a thing you do with THIS track, which is what the
     // rail is for. It is its own offer, so it gets the card it had on the home
     // page, down in the corner above the track name. See _buildDesktopCard.
     {k:'gh',    ic:_IC_GH,    t:'Source on GitHub', l:'GitHub'}
   ];
+  var madeBy='<div class="plmade">Made by TetrisGM '+
+    '<a href="'+GITHUB_URL+'" target="_blank" rel="noopener">@GitHub</a>'+
+    '<a href="https://twitter.com/tetrisgm" target="_blank" rel="noopener">@Twitter</a></div>';
   var wrap=document.createElement('div'); wrap.id='plinks';
   // THE MASTHEAD. The rail's first row offers you a Game Boy, which only reads
   // as an offer once you know what the page is -- and with the home page gone
@@ -1797,7 +1812,7 @@ function _buildPlayerLinks(){
     return '<div class="plrow">'+
       '<button class="plink" type="button" data-k="'+it.k+'" title="'+it.t+'" aria-label="'+it.t+'">'+
       '<span class="plink-ic">'+it.ic+'</span><span class="plink-t">'+it.l+'</span></button>'+extra+'</div>';
-  }).join('');
+  }).join('')+madeBy;
   wrap.addEventListener('click', function(ev){ var b=ev.target.closest('.plink'); if(!b) return; ev.preventDefault(); ev.stopPropagation();
     if(typeof _pokeVisualControls==='function') _pokeVisualControls();
     var k=b.dataset.k;
@@ -1984,7 +1999,7 @@ function _syncGameBoyPill(){
     if(!b) return;
     var st=_screenState(), face=_screenFace();
     var t=b.querySelector('.pbs-t');
-    if(t) t.textContent=_SCREEN_LABEL[st]||'CRT';
+    if(t) t.textContent='Graphics: '+(_SCREEN_LABEL[st]||'CRT');
     // Lit for anything other than the plain view. Under Random it stays lit
     // rather than blinking off on the tracks that roll a CRT -- it is reporting
     // the choice, not the roll.

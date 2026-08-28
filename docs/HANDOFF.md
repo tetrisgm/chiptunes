@@ -1050,3 +1050,27 @@ pass.
   play after opening the editor, which now PAUSES, because the editor opens
   following what is already sounding. It picks a mood to start and only presses
   play if the editor is not already running.
+
+- THE WAITING SCREEN IS A LANDING PAGE. Name, one line of what this is, then the
+  choice -- centred, in that order. The big play button and its paragraph
+  ("An endless Game Boy radio. Press play...") are hidden while waiting: the
+  moods are the entry now and two calls to action in the same square of screen
+  is one too many. The rail stops repeating the title while the hero shows it
+  (its How-it-works button stays), and the hero's brand is display:none the
+  moment something plays.
+
+- Rail, by owner instruction 2026-08-28: no Create button (the strip of notes is
+  the way into the editor, and it opens the song you are actually hearing), the
+  Game Boy emulator first, "Download as Game Boy ROM" directly under it -- the
+  cartridge belongs under the offer to run it, not beside a WAV -- then WAV, Web
+  radio, GitHub, then a "Made by TetrisGM @GitHub @Twitter" credit under the
+  offers. The screen pill says "Graphics: <face>" rather than a bare face name.
+  "Start from scratch", not "from scratch".
+
+  ⚠ The Twitter URL is a GUESS: nothing in this repo records one, so it matches
+  the GitHub handle (twitter.com/tetrisgm). Correct it if that is wrong.
+
+- Three gates encoded the old entry (a click anywhere starts music) and two
+  found the editor by looking for a button whose text says "create". Both
+  assumptions are gone: they pick a mood to start, and they open the editor by
+  clicking the strip, which is what a person now does.

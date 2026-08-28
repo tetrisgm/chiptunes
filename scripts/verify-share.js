@@ -15,6 +15,14 @@ const { chromium } = require('playwright');
 const DIST = path.join(__dirname, '..', 'dist');
 const wait = ms => new Promise(r => setTimeout(r, ms));
 let fail = 0;
+  // Nothing plays until asked: pick a mood, which is the station's entry now.
+  const startStation = async (pg) => {
+    await pg.evaluate(() => {
+      const b = [...document.querySelectorAll('.rmood')].find(x => x.textContent === 'chill');
+      if (b) b.click();
+    });
+    await pg.waitForFunction(() => !document.querySelector('.rmood.busy'), null, { timeout: 25000 });
+  };
 const ok = (c, m) => { console.log((c ? '  ok   ' : '  FAIL ') + m); if (!c) fail++; };
 
 function server() {
@@ -33,13 +41,20 @@ function server() {
   });
 }
 
-const sig = p => p.evaluate(() => {
+const sig = p => p.evaluate(async () => {
   const s = (Audio.currentScore && Audio.currentScore()) || null;
   const n = (s && s.gb && s.gb.notes) || [];
+  // watch the meter: one reading lands in the gap between two notes
+  let peak = 0;
+  for (let i = 0; i < 40; i++) {
+    peak = Math.max(peak, Audio.outputProbe().peak);
+    if (peak > 0.02) break;
+    await new Promise(r => setTimeout(r, 200));
+  }
   return { name: (document.getElementById('pbTitle') || {}).textContent.trim(),
            notes: n.length,
            sig: n.slice(0, 80).map(x => x.frame + ':' + x.ch + ':' + x.midi).join(','),
-           peak: Audio.outputProbe().peak, route: location.pathname };
+           peak, route: location.pathname };
 });
 
 (async () => {
@@ -55,7 +70,7 @@ const sig = p => p.evaluate(() => {
   p.on('pageerror', e => errs.push(String(e).slice(0, 120)));
   await p.goto(`http://127.0.0.1:${h.port}/`, { waitUntil: 'domcontentloaded' });
   await wait(3500);
-  await p.mouse.click(720, 450);
+  await startStation(p);
   await wait(6000);
   const sent = await sig(p);
   await p.evaluate(() => { const s = document.getElementById('rshare'); if (s) s.click(); });
