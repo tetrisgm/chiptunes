@@ -1337,3 +1337,20 @@ pass.
   where the gain path is captured against a stale map that __rrrCrtReady does
   not catch. NOT in the npm gate list, and it should not go in until that is
   understood. Do not read a single run either way.
+
+- THE LANDING PAGE'S BACKDROP WAS A FLAT FILL, not a game -- reported as "this
+  is not currently happening", and it was not. The reel WAS cycling packs every
+  2s (the key changed: squadron, trooper, vortex, blast, blocks) but every one
+  of them drew its empty first frame and stopped: four distinct colours on the
+  whole stage. Cause: _transportIsPaused() returns true while the station is
+  holding -- correct for the play icon, since nothing is playing -- and the
+  frame loop feeds that same flag into simDt. Pausing a SONG should stop the
+  games; having no song yet should not. The loop distinguishes them now, and
+  the stage draws 385 colours.
+  MEASUREMENT NOTE: "the game key is changing" is not "a game is drawing". The
+  first check only proved showGame() was being called. Count distinct colours on
+  the stage, or the reel can look healthy while the page is one flat rectangle.
+
+- A SCRIM behind the hero: with a game running under it, the name, the line and
+  the pills were competing with a platform every two seconds. Radial and centred
+  on the hero so the artwork still reads at the edges, where nothing is text.

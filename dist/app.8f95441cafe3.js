@@ -31644,7 +31644,14 @@ function frame(now){
   _drawSeq++;                                     // frames DRAWN; _frameSeq counts ticks seen
   const _t0 = now;
   const dt = Math.max(0, Math.min(0.05,(now-lastFrame)/1000)); lastFrame = now;
-  const paused = (typeof _transportIsPaused==='function' && _transportIsPaused());
+  // PAUSED, AND WAITING, ARE NOT THE SAME THING. A station that has not been
+  // asked for a mood reports as paused -- rightly: nothing is playing, so the
+  // button must offer play. But the landing page's whole backdrop is a reel of
+  // games, and freezing the simulation left every one of them drawing its empty
+  // first frame: a flat fill, four colours on the stage, for as long as anybody
+  // looked at it. Pausing a SONG stops the games; having no song yet does not.
+  const holding = (function(){ try{ return !!(Audio.isHolding && Audio.isHolding()); }catch(e){ return false; } })();
+  const paused = (typeof _transportIsPaused==='function' && _transportIsPaused()) && !holding;
   const simDt = paused ? 0 : dt;
   if(paused){
     if(typeof INP!=='undefined') INP.clickPulse = false;

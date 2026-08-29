@@ -305,6 +305,15 @@
   html body.awaiting-mood #dlcard{ display:none !important; }
 
   /* the bar is always there now, so the hero centres in what is left above it */
+  /* A SCRIM, because the backdrop is now a game rather than a black screen.
+     Name, line and pills sit over moving pixel art; without something behind
+     them the type competes with a platform every two seconds. Radial and
+     centred on the hero, so the artwork stays visible at the edges where
+     nothing is being read. */
+  body.awaiting-mood #presets::before{
+    content:''; position:fixed; inset:0; z-index:-1; pointer-events:none;
+    background:radial-gradient(ellipse 62% 48% at 50% 46%,
+      rgba(6,5,14,.86) 0%, rgba(6,5,14,.72) 45%, rgba(6,5,14,.18) 78%, rgba(6,5,14,0) 100%); }
   body.awaiting-mood #presets{ top:0; bottom:0; align-items:center;
     padding-bottom:calc(var(--ribh,44px) + 96px);
     opacity:1 !important; transition:opacity .35s ease; }
@@ -1901,7 +1910,7 @@
   <div id="popover"></div>
   <div id="browse"></div>
 
-<script src="../app.f74456819ac0.js" defer></script>
+<script src="../app.8f95441cafe3.js" defer></script>
 
 </body>
 </html>
