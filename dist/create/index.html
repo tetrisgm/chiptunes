@@ -289,6 +289,7 @@
      here, which is the button that starts one. */
   body.awaiting-mood #playbar .pb-left,
   body.awaiting-mood #playbar .pb-right,
+  body.awaiting-mood #playbar .pb-scrub,
   body.awaiting-mood #playbar .pb-t{ display:none !important; }
 
   /* the bar is always there now, so the hero centres in what is left above it */
@@ -354,10 +355,18 @@
     text-shadow:0 1px 8px rgba(0,0,0,.85), 0 0 2px rgba(0,0,0,.7); }
   body.awaiting-mood #rmoods .rmood-ask .rmood-pills{ display:flex; justify-content:flex-start; }
   body.awaiting-mood #rmoods .rmood-ask .rbtn.rmood{ font-size:13.5px; padding:8px 14px; }
-  /* the credit becomes the hero's last line */
+  /* THE CREDIT TAKES THE TOP CENTRE on the home. It was briefly made static so
+     it could sit inside the hero, which is a centred column of unknown height --
+     but static on a body-level element means normal document flow, and when the
+     node had not been moved into the hero yet it flowed to the top-left of the
+     page at full width. Fixed and centred needs no DOM move and cannot race. */
   body.awaiting-mood #madeby{
-    position:static !important; left:auto; bottom:auto; margin-top:6px;
-    justify-content:center; opacity:1 !important; }
+    top:18px; bottom:auto; left:50%; transform:translateX(-50%);
+    justify-content:center; flex-wrap:nowrap; max-width:calc(100vw - 460px);
+    opacity:1 !important; }
+  @media (max-width:1100px){
+    body.awaiting-mood #madeby{ position:fixed; top:auto;
+      bottom:calc(var(--barh,0px) + 96px); max-width:calc(100vw - 36px); flex-wrap:wrap; } }
   #presets .rbtn.rmood-scratch{ border-color:rgba(123,220,160,.45); color:#bfe9cf; }
   .preset{
     pointer-events:auto; cursor:pointer;
@@ -1820,7 +1829,7 @@
   <div id="popover"></div>
   <div id="browse"></div>
 
-<script src="../app.9c3ff51282a8.js" defer></script>
+<script src="../app.0c288866a90b.js" defer></script>
 
 </body>
 </html>

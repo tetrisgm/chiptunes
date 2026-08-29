@@ -1249,3 +1249,25 @@ pass.
 
 - verify-create-handover is INTERMITTENTLY FLAKY -- seen failing once and passing
   on the next run across several unrelated changes. Re-run before believing it.
+
+- THE HOME: credit TOP CENTRE, the ask BOTTOM LEFT, and a bar that is only a
+  transport. The strip goes too -- with nothing loaded it was an empty rounded
+  box in the middle of the bar and read as a control.
+
+- TWO BUGS FOUND DOING IT, both worth remembering:
+  * Placing the credit inside the hero was done by MOVING the node into #rmoods
+    (the hero is a centred column of unknown height, which a fixed element
+    cannot be told to sit inside). That is a timing dependency: on the deployed
+    build the move had not happened yet while `position:static` had already
+    applied, so a body-level element fell into normal document flow and landed
+    at x0-1180, y6 -- full width across the top. Fixed + translateX(-50%) needs
+    no move and cannot race. Prefer placement over reparenting.
+  * --barh was NEVER PUBLISHED on the home. The call was gated on
+    `(_frameSeq & 31)===0`, but _frameSeq counts TICKS while that line only runs
+    on DRAWN frames -- the loop draws every second tick, so drawn frames all had
+    one parity and multiples of 32 had the other. It never fired. Everything
+    anchored to `calc(var(--barh) + 18px)` fell back to 18px and sat under the
+    bar. It has its own counter now (_barhTick), and _updatePlaybar publishes it
+    eagerly the moment the bar is shown rather than waiting half a second for a
+    tick. If you gate anything else on a frame counter, check which frames the
+    line actually runs on.

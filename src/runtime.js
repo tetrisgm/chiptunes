@@ -671,7 +671,7 @@ var RIB_COL=['#7BDCA0','#57C4FF','#E8A75D','#C9A4E8'];   // Melody, Harmony, Bas
 // can end where it begins instead of running underneath it. Measured rather
 // than hard-coded: it changes with the viewport, and it is 0 in the modes that
 // hide the bar entirely.
-var _barhLast=-1;
+var _barhLast=-1, _barhTick=0;
 function _syncBarInset(){
   var h=0;
   try{
@@ -692,30 +692,6 @@ function _syncBarInset(){
   try{ window.dispatchEvent(new Event('resize')); }catch(e){}
 }
 window._syncBarInset=_syncBarInset;
-// THE HOME'S MIDDLE IS THE CREDIT; THE ASK SITS IN THE CORNER. Owner's call.
-// Done by moving the nodes rather than by positioning them from a distance: the
-// hero is a centred flex column of unknown height, and a fixed element cannot
-// be told to sit inside one.
-var _homeArranged = null;
-function _syncHomeLayout(){
-  try{
-    var wait = !!(document.body && document.body.classList.contains('awaiting-mood'));
-    if(wait === _homeArranged) return;
-    var rows = document.getElementById('rmoods');
-    var made = document.getElementById('madeby');
-    var ask  = rows && rows.querySelector('.rmood-ask');
-    if(!rows || !made || !ask) return;
-    if(wait){
-      var brand = rows.querySelector('.rmood-brand');
-      if(brand && brand.nextSibling !== made) rows.insertBefore(made, brand.nextSibling);
-      else if(!brand && made.parentNode !== rows) rows.appendChild(made);
-    } else if(made.parentNode !== document.body){
-      document.body.appendChild(made);
-    }
-    _homeArranged = wait;
-  }catch(e){}
-}
-window._syncHomeLayout=_syncHomeLayout;
 function _ribbonVisible(){
   try{
     if(_WALLPAPER_MODE||_POPOVER_MODE||_BROWSE_MODE) return false;
@@ -986,7 +962,11 @@ function frame(now){
   // timed separately from _renderEMA, which covers the whole frame: the strip
   // has to be provably cheap on its own, not lost inside the game's cost
   try{ var _rt0=_nowMs(); _ribbonFrame(); _ribEMA += ((_nowMs()-_rt0) - _ribEMA)*0.1; }catch(e){}
-  if((_frameSeq & 31)===0){ try{ _syncBarInset(); }catch(e){} try{ _syncHomeLayout(); }catch(e){} }
+  // Its own counter. This was `_frameSeq & 31`, and _frameSeq counts TICKS
+  // while this line only runs on DRAWN frames -- with the loop drawing every
+  // second tick, the drawn frames all had one parity and the multiples of 32
+  // had the other, so it never fired at all and --barh was never published.
+  if((++_barhTick & 31) === 0) try{ _syncBarInset(); }catch(e){}
   if(typeof window!=='undefined') window.__rrrFrame = _frameDiag();
   _frameRX = null; _frameSND = null;
 }
@@ -3355,6 +3335,7 @@ function _updatePlaybar(){ if(!_pbEl) buildPlaybar(); if(!_pbEl) return;
   // anything is on, so it does not appear under the visitor the moment they
   // pick a mood. With nothing loaded it is a transport and an empty strip.
   _pbEl.classList.add('show');
+  try{ _syncBarInset(); }catch(e){}
   if(!Audio.started){ _listenStatsAt=0; if(typeof _syncVisualChrome==='function') _syncVisualChrome(); return; }
   _listenStatsTick();
   _pbEl.classList.add('show');
