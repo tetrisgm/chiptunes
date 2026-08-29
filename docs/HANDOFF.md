@@ -1320,3 +1320,20 @@ pass.
   (verified: racer -> squadron -> trooper -> vortex -> blast in 8s).
   __rrrFrame.game reports the current pack -- window.curGameKey is not a global
   and selGame.key is empty, which cost two bad probes before this was added.
+
+- scripts/crt-diff.mjs: ITS PASSES USED TO BE VACUOUS. Both screenshots were
+  solid black -- the stage was never painted, or was cleared by a resize between
+  paint and capture -- so the two CRT paths were compared over nothing and every
+  "ok" meant nothing. I reported one of those passes as proof the paths agreed;
+  it was not. There is now a blank-frame guard: a comparison of an unpainted
+  frame is an ERROR, not a pass. It also repaints immediately before each
+  capture and stops the 700ms UI tick, because _updatePlaybar -> _syncBarInset
+  -> resize() clears the stage.
+  With real ink in the frames the paths DID differ, and that was mine: softening
+  the vignette, I scaled VIG_BG (which bakes the gain map) and the .vignette CSS
+  (the legacy layer) by two separate guesses. They are the same layer and must
+  be identical strings. They are now, and DPR 2 diffs at exactly 0.
+  STILL FLAKY AT DPR 1: sometimes 0, sometimes ~95 LSB, same code -- a race
+  where the gain path is captured against a stale map that __rrrCrtReady does
+  not catch. NOT in the npm gate list, and it should not go in until that is
+  understood. Do not read a single run either way.

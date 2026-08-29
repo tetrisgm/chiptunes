@@ -72,6 +72,17 @@ function diffStats(aBuf, bBuf) {
   return { max, pct1: (over1 / n * 100), pct2: (over2 / n * 100), diff };
 }
 
+// A BLANK FRAME AGREES WITH A BLANK FRAME. This harness reported PASS while
+// both screenshots were solid black -- the stage had not been painted (or had
+// been cleared by a resize between paint and capture), so the two CRT paths
+// were being compared over nothing at all and every "ok" was vacuous. Any
+// comparison of an unpainted frame is not evidence, so it is an error.
+function inkOf(png) {
+  let lit = 0, n = 0;
+  for (let i = 0; i < png.data.length; i += 4 * 97) { if (png.data[i] > 8 || png.data[i + 1] > 8 || png.data[i + 2] > 8) lit++; n++; }
+  return lit / Math.max(1, n);
+}
+
 const dist = await serveDist();
 const browser = await chromium.launch({ headless: true, args: ['--autoplay-policy=no-user-gesture-required'] });
 let fail = false;
@@ -87,18 +98,43 @@ for (const cse of CASES) {
     // isolate: only the canvas + CRT layers stay visible, so the A/B diff is purely the CRT path
     for (const el of document.body.children) {
       if (el.id === 'stage' || (el.classList && el.classList.contains('crt'))) continue;
+      // The player bar must be GONE, not merely invisible. The CRT layers are
+      // inset above it (--barh), _updatePlaybar republishes that height on a
+      // 700ms timer, and a hidden-but-present bar keeps reporting 111px -- so
+      // the layers could change size BETWEEN screenshot A and screenshot B and
+      // the whole frame would differ. That is what made this harness flaky:
+      // every DPR-2 case failing at ~106 LSB across 100% of pixels, which is
+      // not a rounding disagreement, it is two different pictures.
+      if (el.id === 'playbar') { el.style.display = 'none'; continue; }
       el.style.visibility = 'hidden';
     }
+    document.documentElement.style.setProperty('--barh', '0px');
   });
+  // The 700ms UI tick calls _updatePlaybar -> _syncBarInset -> resize(), and a
+  // resize CLEARS the stage. Painting the pattern once and then screenshotting
+  // twice a fifth of a second apart meant the second shot could be of a blank
+  // canvas -- both frames black, every pixel "different", which is exactly the
+  // flake this harness had. Stop the tick, and paint immediately before each
+  // capture so nothing can wipe it in between.
+  await page.evaluate(() => { try { clearInterval(window._radioTick); } catch (e) {} });
   for (const pattern of PATTERNS) {
-    await page.evaluate(paintPattern, pattern);
     await page.evaluate(() => window.__rrrCrtMode('legacy'));
     await page.waitForTimeout(120);
+    await page.evaluate(paintPattern, pattern);
     const A = await page.screenshot({ type: 'png' });
     await page.evaluate(() => window.__rrrCrtMode('gain'));
     await page.waitForFunction(() => window.__rrrCrtReady === true, null, { timeout: 10000 });   // gain build is async (foreignObject raster)
     await page.waitForTimeout(120);
+    await page.evaluate(paintPattern, pattern);
     const B = await page.screenshot({ type: 'png' });
+    const inkA = inkOf(PNG.sync.read(A)), inkB = inkOf(PNG.sync.read(B));
+    if (inkA < 0.02 || inkB < 0.02) {
+      console.log(`${(cse.w + 'x' + cse.h + '@' + cse.dpr).padEnd(23)} ${pattern.padEnd(8)} BLANK FRAME -- ` +
+        `nothing was painted (A ${(inkA * 100).toFixed(1)}% lit, B ${(inkB * 100).toFixed(1)}%). ` +
+        `Comparing two empty screens proves nothing.`);
+      fail = true;
+      continue;
+    }
     const st = diffStats(A, B);
     const tag = `${cse.w}x${cse.h}@${cse.dpr}`;
     // Gate: quantization noise passes, structure fails. The irreducible floor is the compositor's float
