@@ -1181,3 +1181,20 @@ pass.
   editor's own play/rewind are hidden -- the bar carries the transport; the
   editor's row keeps only what the bar has no business knowing (Follow, Speed,
   Grid).
+
+- THE CRT VIGNETTE, MEASURED PROPERLY AT LAST. Reported as a dark vertical bar
+  slightly right of centre. Column analysis of a screenshot is useless here --
+  it is dominated by the game's own walls and floor. The way to see the EFFECT
+  is to freeze the scene (pause), capture with __rrrScreenMode('crt') and then
+  ('off'), and divide: that ratio IS the effect's transmission curve, free of
+  content. It showed a smooth falloff, NO sharp step anywhere -- so there was
+  never a bar, there was a vignette strong enough to read as one: 0.846 in the
+  middle against 0.694 at the edges. Cut to 0.846 / 0.789, a 6% falloff.
+  scripts/... the isolate technique is worth keeping: freeze, toggle, divide.
+
+- Rail: the lone GitHub row is gone -- the credit carries GitHub, Twitter and
+  Hacker News as full rail pills (icon and label, 46px, same as every other
+  offer) rather than bare circles. The desktop card says "Use these games as an
+  animated wallpaper" and sits at bottom:calc(var(--barh) + 18px), inside the
+  picture: the player bar owns the bottom of the window on its own, and nothing
+  that belongs to the game may overlap it.

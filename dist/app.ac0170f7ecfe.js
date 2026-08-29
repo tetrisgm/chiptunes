@@ -31244,7 +31244,7 @@ var _vigCache=new Map(), _VIG_LRU=12;
 function _vignette(e){ var qe=Math.round(e*20)/20, key=(W|0)+'x'+(H|0)+':'+DPR+':'+qe;
   var cv2=_vigCache.get(key);
   if(!cv2){
-    var vig=Math.max(0.04, 0.16 - qe*0.10);          // a third of what it was; see VIG_BG
+    var vig=Math.max(0.02, 0.06 - qe*0.04);          // barely there; see VIG_BG
     // device-resolution offscreen + same DPR transform as the live context; the final native-size blit
     // below maps physical pixels 1:1 even when the capped DPR is fractional.
     cv2=document.createElement('canvas'); cv2.width=Math.max(1,Math.floor(W*DPR)); cv2.height=Math.max(1,Math.floor(H*DPR));
@@ -32523,12 +32523,11 @@ function _buildPlayerLinks(){
     // The YouTube Live link is retired for now (owner 2026-08-26): the video
     // leg is off and the box is being freed for other work. The channel, its
     // tokens and the go-live tooling all remain for when it returns.
-    {k:'radio', ic:_IC_RADIO, t:'Listen on any radio app', l:'Web radio'},
+    {k:'radio', ic:_IC_RADIO, t:'Listen on any radio app', l:'Web radio'}
     // The desktop app is not a thing you do with THIS track, which is what the
     // rail is for. It is its own offer, so it gets the card it had on the home
     // page, down in the corner above the track name. See _buildDesktopCard.
-    {k:'gh',    ic:_IC_GH,    t:'Source on GitHub', l:'GitHub'}
-  ];
+  ];   // no GitHub row: the credit below carries it, with the other two
   // X's mark, drawn rather than fetched: nothing here loads a third-party asset
   // Hacker News: the Y, drawn as strokes rather than the orange box, so it sits
   // in the same round button as the other two and takes currentColor with them
@@ -32537,13 +32536,17 @@ function _buildPlayerLinks(){
     '<path d="M7 5l5 7 5-7"/><path d="M12 12v7"/></svg>';
   var _IC_X='<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">'+
     '<path d="M17.53 3h3.02l-6.6 7.54L21.75 21h-5.9l-4.62-6.04L5.94 21H2.91l7.06-8.07L2.5 3h6.05l4.18 5.52L17.53 3zm-1.06 16.17h1.67L7.6 4.73H5.81l10.66 14.44z"/></svg>';
+  // the same pill as every other offer in the rail -- icon, then label
+  function _madeLink(href, ic, label, tip){
+    return '<a class="plink plmade-btn" href="'+href+'" target="_blank" rel="noopener" title="'+tip+'">'+
+      '<span class="plink-ic">'+ic+'</span><span class="plink-t">'+label+'</span></a>';
+  }
   var madeBy='<div class="plmade"><span class="plmade-t">An AI product experiment by Shokunin</span>'+
-    '<a class="plmade-btn" href="https://github.com/tetrisgm" target="_blank" rel="noopener" '+
-      'title="tetrisgm on GitHub" aria-label="tetrisgm on GitHub">'+_IC_GH+'</a>'+
-    '<a class="plmade-btn" href="https://twitter.com/tetrisgm" target="_blank" rel="noopener" '+
-      'title="tetrisgm on X" aria-label="tetrisgm on X">'+_IC_X+'</a>'+
-    '<a class="plmade-btn" href="https://news.ycombinator.com/user?id=tetrisgm" target="_blank" rel="noopener" '+
-      'title="tetrisgm on Hacker News" aria-label="tetrisgm on Hacker News">'+_IC_HN+'</a></div>';
+    '<div class="plmade-row">'+
+      _madeLink('https://github.com/tetrisgm', _IC_GH, 'GitHub', 'tetrisgm on GitHub')+
+      _madeLink('https://twitter.com/tetrisgm', _IC_X, 'Twitter', 'tetrisgm on X')+
+      _madeLink('https://news.ycombinator.com/user?id=tetrisgm', _IC_HN, 'Hacker News', 'tetrisgm on Hacker News')+
+    '</div></div>';
   var wrap=document.createElement('div'); wrap.id='plinks';
   // THE MASTHEAD. The rail's first row offers you a Game Boy, which only reads
   // as an offer once you know what the page is -- and with the home page gone
@@ -32688,7 +32691,7 @@ function _buildDesktopCard(os, osName){
   var order=[me].concat(['mac','win','linux'].filter(function(k){ return k!==me; }));   // the one you are on leads
   var card=document.createElement('div'); card.id='dlcard';
   card.innerHTML='<div class="dlc-h">On your desktop</div>'+
-    '<div class="dlc-d">The same radio as a living wallpaper or screensaver. It plays in the background while you work.</div>'+
+    '<div class="dlc-d">Use these games as an animated wallpaper.</div>'+
     '<div class="dlc-b">'+order.map(function(k){
       var a=ALL[k];
       return '<button type="button" data-k="'+a[0]+'" title="Download the '+a[1]+' desktop app">'+a[1]+'</button>';
@@ -34243,7 +34246,7 @@ function setMediaMeta(){
   // wide window the edge column sat at 28% of the centre's brightness.
   // A CIRCLE sized to the LONGER axis keeps the falloff in the corners where a
   // real tube's is, at any aspect ratio.
-  var VIG_BG='background:radial-gradient(circle farthest-corner at center, rgba(0,0,0,0) 74%, rgba(0,0,0,.20) 100%);box-shadow: inset 0 0 90px 0px rgba(0,0,0,.13);';
+  var VIG_BG='background:radial-gradient(circle farthest-corner at center, rgba(0,0,0,0) 82%, rgba(0,0,0,.09) 100%);box-shadow: inset 0 0 60px 0px rgba(0,0,0,.05);';
   function buildGain(w,h,dpr){
     return Promise.all([cssLayerImg(SCAN_BG,w,h), cssLayerImg(VIG_BG,w,h)]).then(function(imgs){
       var dw=Math.max(1,Math.round(w*dpr)), dh=Math.max(1,Math.round(h*dpr));
