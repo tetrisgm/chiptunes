@@ -2215,33 +2215,36 @@
      bottom that is the thickness of the plastic, and travel when you press it.
      Those four things, on everything. */
   .plink, #rfullscreen, #dlcard .dlc-b button{
-    /* The D-pad's plastic: near-black, but MOULDED -- a lit top face, a body
-       that darkens downwards, a warm-grey rim catching light off the shell, and
-       a hard 4px edge underneath that is the thickness of the key. Flat glass
-       with a border is what these were; the edge is what makes them objects. */
-    background:linear-gradient(180deg, #46434f 0%, #322f3b 42%, #24222b 78%, #1b1a21 100%) !important;
-    border:1px solid rgba(0,0,0,.7) !important;
-    color:#efecf6 !important;
+    /* THE SHELL'S OWN PLASTIC, NOT DARK UI WITH A BEVEL.
+       These were charcoal, and charcoal is the one thing a Game Boy's face is
+       NOT: the shell is warm light grey, and the only dark parts are the D-pad
+       and the screen surround. A bevelled dark pill reads as a dark interface
+       that has been embossed -- it does not read as the machine. Light grey
+       plastic, moulded, with dark type on it does, immediately.
+       Contrast goes UP, not down: near-black text on light grey is about 11:1,
+       where the old pale text on charcoal was about 9:1. */
+    background:linear-gradient(180deg, #e6e2d4 0%, #cdc9ba 38%, #b6b2a2 76%, #a09c8c 100%) !important;
+    border:1px solid rgba(40,38,28,.55) !important;
+    color:#23281c !important;
     box-shadow:
-      inset 0 1.5px 0 rgba(255,255,255,.26),
-      inset 0 0 0 1px rgba(198,194,180,.09),
-      inset 0 -2px 3px rgba(0,0,0,.5),
-      0 4px 0 rgba(0,0,0,.62),
-      0 4px 1px rgba(0,0,0,.5),
-      0 9px 18px rgba(0,0,0,.45) !important;
+      inset 0 1.5px 0 rgba(255,255,255,.85),
+      inset 0 -2px 3px rgba(90,86,70,.38),
+      0 4px 0 #6f6c5e,
+      0 5px 1px rgba(0,0,0,.45),
+      0 9px 18px rgba(0,0,0,.4) !important;
     transition:transform .06s ease, box-shadow .06s ease,
                background .12s, color .12s, opacity .22s ease !important; }
   .plink:hover, #rfullscreen:hover, #dlcard .dlc-b button:hover{
-    background:linear-gradient(180deg, #55516a 0%, #3d3a4c 42%, #2c2937 78%, #211f29 100%) !important;
-    color:#fff !important; }
+    background:linear-gradient(180deg, #f2eee0 0%, #dbd7c8 38%, #c4c0b0 76%, #adaa99 100%) !important;
+    color:#1a1e14 !important; }
   /* pressed: the key travels and the plastic edge under it disappears, because
      the top of the key has come down to meet it */
   .plink:active, #rfullscreen:active, #dlcard .dlc-b button:active{
     transform:translateY(4px) !important;
     box-shadow:
-      inset 0 1px 0 rgba(255,255,255,.12),
-      inset 0 2px 6px rgba(0,0,0,.5),
-      0 0 0 rgba(0,0,0,.55),
+      inset 0 1px 0 rgba(255,255,255,.5),
+      inset 0 2px 6px rgba(90,86,70,.5),
+      0 0 0 #6f6c5e,
       0 2px 5px rgba(0,0,0,.4) !important; }
   /* the OS you are on, and the moods, keep the A/B burgundy -- same moulding */
   #dlcard .dlc-b button:first-child{
@@ -2278,10 +2281,10 @@
     background:linear-gradient(180deg, #9b9ba7 0%, #7d7d89 58%, #62626c 100%) !important; }
   /* the screen toggle when it is ON keeps the LCD green, but moulded like the rest */
   .plink.on{
-    background:linear-gradient(180deg, #7f9418 0%, #5f7212 58%, #46540d 100%) !important;
-    color:#f2f7d4 !important; border-color:rgba(0,0,0,.62) !important; }
+    background:linear-gradient(180deg, #b9d43a 0%, #9bbc0f 45%, #86a30c 100%) !important;
+    color:#16300f !important; border-color:rgba(30,50,15,.6) !important; }
   .plink.on:hover{
-    background:linear-gradient(180deg, #8fa61c 0%, #6c8115 58%, #4f5f0f 100%) !important; }
+    background:linear-gradient(180deg, #c6e045 0%, #a8c916 45%, #92b00e 100%) !important; }
   /* the transport keys on the bar are keys too */
   #playbar .pb-main-ctrl button, #playbar .pb-screen{
     border-radius:999px;
@@ -2378,6 +2381,21 @@
   #dlcard .gb-lcd .dlc-d{ font-family:var(--px) !important; font-size:11.5px;
     line-height:1.7; letter-spacing:0; color:#1d4a1d; margin-top:6px;
     text-shadow:0 1px 0 rgba(255,255,255,.2); }
+
+  /* THE TWO BARE LABELS HAVE NO SURFACE UNDER THEM.
+     Everything else on the picture is a key or a card with its own background;
+     these two are raw text on whatever the game happens to be drawing, and on
+     the Game Boy face -- a cream field -- white type with a soft dark glow
+     nearly vanished. A hard 1px outline in every direction reads on a light
+     field AND a dark one, which is the only thing that can be true of a label
+     sitting on fourteen different games. */
+  .plmade-t,
+  body:not(.awaiting-mood) #rmoods .rmood-ask .rmood-lab{
+    color:#fff !important;
+    text-shadow:
+      1px 1px 0 rgba(0,0,0,.92), -1px 1px 0 rgba(0,0,0,.92),
+      1px -1px 0 rgba(0,0,0,.92), -1px -1px 0 rgba(0,0,0,.92),
+      0 2px 7px rgba(0,0,0,.75) !important; }
 </style>
 </head>
 <body>
