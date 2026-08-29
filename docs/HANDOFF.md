@@ -1294,3 +1294,29 @@ pass.
   cutting says "here are fourteen, and they play themselves", which is the
   product. Runs only while awaiting-mood, never when a game is pinned, never
   while the tab is hidden, and stops the moment a mood is picked. 0.5ms a frame.
+
+- THE LAG BEFORE A SONG STARTS WAS latencyHint:'playback'. That asks the browser
+  for the largest output buffer it likes: glitch resistance bought with delay
+  before anything is heard. It is why "start a mood" and "click next" felt late,
+  and it is also why the playhead correction measured 20ms in one session and
+  1026ms in another -- the buffer is negotiated per context. 'interactive' now.
+  The chip runs on the AUDIO thread, so it was never the one at risk from a busy
+  main thread. Measured after: deck-vs-chip 32-65ms (was 20-1026ms), skip to
+  audible 229ms median, which is the deck's own 0.18s lead plus the hop.
+  Also measured, so nobody optimises the wrong thing: the mood search over 140
+  candidates is 7ms, a composer compile is 1ms, a document materialisation 1ms.
+  None of those were ever the delay.
+
+- THE PLAYER BAR IS APPLE MUSIC'S SHAPE: transport and volume on the left, a
+  now-playing panel in the middle -- the track name over a thin scrubber with
+  the clock at either end -- and what changes the PICTURE on the right (Display,
+  BPM, the mixer). 79px tall, down from 111; the strip is 26px, down from 44.
+  Every element that was there is still there; it was the arrangement.
+  The volume readout sits beside its own slider now: on the far side of the bar
+  from it, next to the BPM number, it rendered as "104100".
+
+- LANDING PAGE: no bar, no full-screen button, no desktop card, credit in the
+  bottom-left, moods in the hero, and the wallpaper game cutting every 2s
+  (verified: racer -> squadron -> trooper -> vortex -> blast in 8s).
+  __rrrFrame.game reports the current pack -- window.curGameKey is not a global
+  and selGame.key is empty, which cost two bad probes before this was added.

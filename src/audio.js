@@ -652,7 +652,14 @@ const Audio = (()=>{
     if(started) return;                       // idempotent — never spin up a 2nd AudioContext or scheduler
     opts=opts||{};
     const AudioCtor = window.AudioContext||window.webkitAudioContext;
-    try{ ctx = new AudioCtor({latencyHint:'playback'}); }
+    // 'playback' asks the browser for the LARGEST output buffer it likes: it
+    // buys glitch resistance and pays for it in delay before anything is heard.
+    // Measured, that delay was up to a second between pressing a mood and the
+    // first note -- and it is also what made the playhead's correction vary
+    // from 20ms to 1026ms between sessions, because the buffer is negotiated
+    // per context. The chip runs on the audio thread, so it is not the one at
+    // risk from a busy main thread; 'interactive' is the right trade here.
+    try{ ctx = new AudioCtor({latencyHint:'interactive'}); }
     catch(e){ ctx = new AudioCtor(); }
     master = ctx.createGain(); master.gain.value = masterTargetGain();   // headroom into the leveler
     // MASTER VOICING EQ — measured against the owner's reference records

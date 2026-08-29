@@ -886,6 +886,7 @@ function _frameDiag(){
     cost:+_renderEMA.toFixed(2),
     tick:+(_tickMs||0).toFixed(2),
     rib:+_ribEMA.toFixed(3),
+    game:String(curGameKey||''),
     lag:+((typeof Audio!=='undefined'&&Audio.audibleLag)?Audio.audibleLag():0).toFixed(3),
     every:Math.max(1, Math.round(_frameTarget / (_tickMs || 16.7))),
     drawn:_drawSeq
@@ -2535,7 +2536,20 @@ function buildResumeMusicButton(){
   return b;
 }
 function buildPlaybar(){ _pbEl=document.getElementById('playbar'); if(!_pbEl||_pbEl._wired) return; _pbEl._wired=true;
-  _pbEl.innerHTML='<div class="pb-left"><div class="pb-cover" id="pbCover" title="Open album"></div>'+
+  // APPLE MUSIC'S SHAPE: transport and volume on the left, a now-playing panel
+  // in the middle with the track sitting over a thin scrubber, and the things
+  // that change what you LOOK at on the right. The same elements as before --
+  // the presentation was the problem, not the contents.
+  _pbEl.innerHTML='<div class="pb-left">'+
+    '<div class="pb-main-ctrl"><button id="pbPrev" title="Previous">'+_pbIcon('prev')+'</button>'+
+    '<button class="pb-play" id="pbPlay" title="Play / Pause">'+_pbIcon('pause')+'</button>'+
+    '<button id="pbNext" title="Next">'+_pbIcon('next')+'</button></div>'+
+    '<div class="pb-dial pb-voldial">'+
+      '<button id="pbVolume" class="pb-volume" title="Volume, mixer &amp; BPM"><span class="pbv-icon">'+svgIcon('mixer')+'</span></button>'+
+      '<input type="range" id="pbVol" min="0" max="150" step="1" value="100" title="Volume">'+
+      '<span class="pbd-read pb-volread" id="pbVolRead">100</span>'+
+    '</div>'+
+    '<div class="pb-cover" id="pbCover" title="Open album"></div>'+
     // No overflow button. Everything it held is either a pill over the game now
     // (YouTube, radio, the desktop app, the ROM) or reachable by clicking the
     // track name, which is what people try first anyway.
@@ -2556,15 +2570,14 @@ function buildPlaybar(){ _pbEl=document.getElementById('playbar'); if(!_pbEl||_p
     // THE TRACK READS UNDER THE TRANSPORT, the way a music player puts its
     // waveform under the scrubber: one group, controls on top, the whole song
     // and where you are in it beneath, elapsed and total either side.
-    '<div class="pb-ctrl"><div class="pb-main-ctrl"><button id="pbPrev" title="Previous">'+_pbIcon('prev')+'</button>'+
-    '<button class="pb-play" id="pbPlay" title="Play / Pause">'+_pbIcon('pause')+'</button>'+
-    '<button id="pbNext" title="Next">'+_pbIcon('next')+'</button></div>'+
+    '<div class="pb-ctrl"><div class="pb-lcd">'+
+    '<div class="pb-lcd-head"><span class="pb-lcd-title" id="pbLcdTitle">···</span></div>'+
     '<div class="pb-scrub"><span class="pb-t" id="pbElapsed">0:00</span>'+
     '<span class="pb-wrap"><canvas id="noteribbon" title="Open these notes in the editor"></canvas>'+
     '<span class="pb-expand">'+
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 14l5-5 5 5"/></svg>'+
     'Edit</span></span>'+
-    '<span class="pb-t" id="pbTotal">0:00</span></div></div>'+
+    '<span class="pb-t" id="pbTotal">0:00</span></div></div></div>'+
     // THE RIGHT CLUSTER, the way a desk does it: what you are looking at, how
     // fast it is going, how loud it is -- each with its own slider when the
     // window has room, and the full mixer one press away.
@@ -2573,10 +2586,6 @@ function buildPlaybar(){ _pbEl=document.getElementById('playbar'); if(!_pbEl||_p
       '<div class="pb-dial pb-bpmdial"><span class="pbd-lab">BPM</span>'+
         '<input type="range" id="pbBpm" min="60" max="220" step="1" value="128" title="Tempo">'+
         '<span class="pbd-read" id="pbBpmRead">\u2014</span></div>'+
-      '<div class="pb-dial pb-voldial">'+
-        '<button id="pbVolume" class="pb-volume" title="Volume, mixer &amp; BPM"><span class="pbv-icon">'+svgIcon('mixer')+'</span></button>'+
-        '<input type="range" id="pbVol" min="0" max="150" step="1" value="100" title="Volume">'+
-        '<span class="pbd-read" id="pbVolRead">100</span></div>'+
       '<button id="pbAdv" class="pb-adv" type="button" title="Advanced volumes" aria-label="Advanced volumes">'+
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 8h14M5 12h14M5 16h14"/><circle cx="9" cy="8" r="1.7" fill="currentColor"/><circle cx="15" cy="12" r="1.7" fill="currentColor"/><circle cx="8" cy="16" r="1.7" fill="currentColor"/></svg>'+
       '</button>'+
@@ -3380,6 +3389,7 @@ function _updatePlaybar(){ if(!_pbEl) buildPlaybar(); if(!_pbEl) return;
   var n=(liveOn && typeof window._presenceCount==='number') ? window._presenceCount : null;
   _updateLivePill(liveOn, n);                                   // LIVE + aggregate listener count now lives top-left, by the menu
   var T=document.getElementById('pbTitle'), S=document.getElementById('pbSub'), C=document.getElementById('pbCover');
+  var L=document.getElementById('pbLcdTitle'); if(L) L.textContent=title;
   if(T) T.textContent=title; if(S){ S.textContent=''; S.classList.remove('link','live'); S.title=''; }
   if(C){ C.classList.remove('has-cover'); C.classList.add('no-cover'); C.innerHTML=''; }
   if(window.refreshVolumeDock) window.refreshVolumeDock();
