@@ -8054,7 +8054,10 @@ const g = cv.getContext('2d');
 let W=0, H=0, DPR=1;
 let pxBase = 4;       // on-screen size of one sprite "pixel"
 function resize(){
-  var vw = window.innerWidth, vh = window.innerHeight;
+  // the player bar owns the bottom of the window; the picture ends above it
+  var _inset = 0;
+  try{ _inset = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--barh')) || 0; }catch(e){}
+  var vw = window.innerWidth, vh = Math.max(160, window.innerHeight - _inset);
   // On the Game Boy panel the stage IS the console's framebuffer: the games draw
   // at the LCD's own resolution, one canvas pixel per cell, and the panel shows
   // those pixels. Drawing at full device resolution and downsampling afterwards
@@ -8086,6 +8089,10 @@ function resize(){
   g.imageSmoothingEnabled = false;                 // crisp pixels, not blurry scaling
 }
 window.addEventListener('resize', resize);
+// the runtime calls this when the player bar's height changes, so the picture
+// re-fits to the room above it without waiting for a window resize
+try{ if(typeof Audio!=='undefined') Audio.resizeStage = resize; }catch(e){}
+try{ window.__ctResizeStage = resize; }catch(e){}
 resize();
 
 /* ---------- 8-bit sprite engine ----------
@@ -31339,10 +31346,34 @@ var _ribCv=null, _ribLit=null, _ribDim=null, _ribKey='', _ribW=0, _ribH=0, _ribF
 var _ribRect=null, _ribMeasureAt=0, _ribEMA=0;
 if(typeof window!=='undefined') window.addEventListener('resize', function(){ _ribRect=null; }, {passive:true});
 var RIB_COL=['#7BDCA0','#57C4FF','#E8A75D','#C9A4E8'];   // Melody, Harmony, Bass, Drums -- the editor's lanes
+// The player bar's height, published as --barh so the stage and the CRT layers
+// can end where it begins instead of running underneath it. Measured rather
+// than hard-coded: it changes with the viewport, and it is 0 in the modes that
+// hide the bar entirely.
+var _barhLast=-1;
+function _syncBarInset(){
+  var h=0;
+  try{
+    var pb=document.getElementById('playbar');
+    if(pb && pb.classList.contains('show') && getComputedStyle(pb).display!=='none'){
+      var r=pb.getBoundingClientRect();
+      // only when it is docked across the bottom; the old floating layout and
+      // the popover/wallpaper modes leave the picture full-bleed
+      if(r.width > window.innerWidth*0.9) h=Math.round(r.height);
+    }
+  }catch(e){ h=0; }
+  if(h===_barhLast) return;
+  _barhLast=h;
+  try{ document.documentElement.style.setProperty('--barh', h+'px'); }catch(e){}
+  try{ if(window.__ctResizeStage) window.__ctResizeStage(); }catch(e){}
+  // the CRT bakes its gain map to the picture's size; it rebuilds on resize,
+  // and the picture just changed size without the window doing so
+  try{ window.dispatchEvent(new Event('resize')); }catch(e){}
+}
+window._syncBarInset=_syncBarInset;
 function _ribbonVisible(){
   try{
     if(_WALLPAPER_MODE||_POPOVER_MODE||_BROWSE_MODE) return false;
-    if(document.body && document.body.classList.contains('create-open')) return false;
     if(document.body && document.body.classList.contains('gb-open')) return false;
     var pb=document.getElementById('playbar');
     return !!(pb && pb.classList.contains('show'));
@@ -31609,6 +31640,7 @@ function frame(now){
   // timed separately from _renderEMA, which covers the whole frame: the strip
   // has to be provably cheap on its own, not lost inside the game's cost
   try{ var _rt0=_nowMs(); _ribbonFrame(); _ribEMA += ((_nowMs()-_rt0) - _ribEMA)*0.1; }catch(e){}
+  if((_frameSeq & 31)===0) try{ _syncBarInset(); }catch(e){}
   if(typeof window!=='undefined') window.__rrrFrame = _frameDiag();
   _frameRX = null; _frameSND = null;
 }
@@ -34260,7 +34292,11 @@ function setMediaMeta(){
   }
   function apply(){
     var buildSeq=++_gainBuildSeq;
-    var w=window.innerWidth, h=window.innerHeight;
+    // the gain map covers the PICTURE, which now ends above the player bar --
+    // baking it to the whole window put its vignette a bar's height too low
+    var _bi=0;
+    try{ _bi=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--barh'))||0; }catch(e){}
+    var w=window.innerWidth, h=Math.max(160, window.innerHeight-_bi);
     // The gain layer is a soft multiply mask over the whole window, composited
     // every frame -- at DPR 2 on a 1440p display that is five megapixels of
     // blending for a texture whose finest detail is a scanline. Capped at 1.5
@@ -34275,7 +34311,9 @@ function setMediaMeta(){
         _gainCv=document.createElement('canvas');
         _gainCv.className='crt gain';
         _gainCv.style.mixBlendMode='multiply';
-        _gainCv.style.width='100%'; _gainCv.style.height='100%';
+        // no inline size: .crt is inset above the player bar, and a 100% height
+        // would measure against the window and reach back under it
+        _gainCv.style.width=''; _gainCv.style.height='';
         var vigEl=document.querySelector('.crt.vignette');
         if(vigEl && vigEl.parentNode) vigEl.parentNode.insertBefore(_gainCv, vigEl.nextSibling);
         else document.body.appendChild(_gainCv);

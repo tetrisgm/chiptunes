@@ -160,23 +160,36 @@
     -webkit-tap-highlight-color:transparent;
     cursor:default;
   }
-  #stage{ position:fixed; inset:0; display:block; }
+  /* THE BAR OWNS THE BOTTOM. The stage used to be inset:0 and sized from
+     innerHeight, so the game ran underneath the player bar and the bottom of
+     the picture was permanently behind it. --barh is the bar's measured height
+     (0 when it is not shown: wallpaper, popover, browse), and everything that
+     is "the picture" stops there. */
+  #stage{ position:fixed; inset:0 0 var(--barh,0px) 0; display:block; }
   html.audio-background #stage,
   html.audio-background .crt,
   html.audio-background #hud,
   html.audio-background #presets,
   html.audio-background #now,
-  html.audio-background #playbar,
   html.audio-background #rlist,
   html.audio-background #rfullscreen,
   html.audio-background #mixpanel,
   html.audio-background #trackpanel,
-  html.audio-background #gamepick{
+  html.audio-background #gamepick,
+  /* the playbar hides with the rest of the chrome when the tab is a background
+     audio source -- but NOT while the editor is open, which also parks the
+     frame loop into that mode and would otherwise leave the bar it is
+     contained above as an empty strip */
+  html.audio-background body:not(.create-open) #playbar{
     visibility:hidden !important;
   }
 
   /* CRT overlays */
-  .crt{ position:fixed; inset:0; pointer-events:none; z-index:5; }
+  /* the gain layer is a CANVAS -- a replaced element, so with height:auto its
+     intrinsic buffer size wins and the bottom inset is simply ignored. It needs
+     a stated height to stop above the player bar. */
+  .crt{ position:fixed; inset:0 0 var(--barh,0px) 0; pointer-events:none; z-index:5;
+    width:100vw; height:calc(100vh - var(--barh,0px)); }
   /* CRT strength x5 (owner 2026-08-22). The opacity multipliers alone could not
      deliver it -- both were already near their ceiling and clamp at 1 -- so the
      source alphas carry most of the increase: the scanline band and the RGB
@@ -523,10 +536,14 @@
   /* CREATE: the Mario-Paint-spirit editor. A full-screen takeover; the grid
      canvas owns the middle, the toolbar the top, the critter palette the
      bottom. Everything sized for fingers. */
-  #createscreen{ position:fixed; inset:0; z-index:76; display:flex; flex-direction:column;
+  /* the editor is contained above the player bar, like the game */
+  #createscreen{ position:fixed; inset:0 0 var(--barh,0px) 0; z-index:76; display:flex; flex-direction:column;
     background:#080610; opacity:0; pointer-events:none; transition:opacity .2s ease; }
   #createscreen.show{ opacity:1; pointer-events:auto; }
-  body.create-open #plinks, body.create-open #playbar, body.create-open #dlcard,
+  /* The player bar STAYS. The bottom of the window is its, and the editor is
+     contained above it the same way the game is -- one transport, in one place,
+     whichever of the two views you happen to be looking at. */
+  body.create-open #plinks, body.create-open #dlcard,
   body.create-open #bigplay{ display:none !important; }
   /* the editor is the page while it is open: no game underneath it, ever */
   body.create-open #stage, body.create-open .crt, body.create-open #hud,
@@ -1319,7 +1336,11 @@
     font:500 11px/1 var(--ui); font-variant-numeric:tabular-nums; letter-spacing:.01em; }
   @media (max-width:820px){ :root{ --ribh:34px; }
     #playbar .pb-scrub{ width:min(420px,74vw); } }
-  body.gb-open #playbar .pb-scrub, body.create-open #playbar .pb-scrub,
+  /* The strip stays while the editor is open. The bar has to be the same height
+     in both views or the thing contained above it jumps by the difference when
+     you open one -- and the strip is the whole song, which is a map of what the
+     editor is showing you a piece of. */
+  body.gb-open #playbar .pb-scrub,
   html.wallpaper-mode #playbar .pb-scrub, html.popover-mode #playbar .pb-scrub,
   html.browse-mode #playbar .pb-scrub{ display:none !important; }
 
@@ -1340,6 +1361,14 @@
     opacity:0; transition:opacity var(--fade-out);
   }
   body.ai-visual.controls-active #playbar.show{ opacity:1; transition:opacity var(--fade-in); }
+  /* the editor does not drive the idle timer -- moving the pointer inside the
+     grid is not "waking the chrome" -- so the bar under it must not fade */
+  body.create-open #playbar.show{ opacity:1 !important; }
+  /* ONE TRANSPORT. The bar below carries play, prev and next; the editor's row
+     keeps only what the bar has no business knowing about -- whether the camera
+     follows, how fast, and how fine the grid is. */
+  body.create-open #createscreen .n-tbtn[data-cr="play"],
+  body.create-open #createscreen .n-tbtn[data-cr="rewind"]{ display:none !important; }
   /* the children stop being fixed furniture and become cells */
   body.ai-visual #playbar .pb-left,
   body.ai-visual #playbar .pb-ctrl,

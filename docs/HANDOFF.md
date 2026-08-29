@@ -1160,3 +1160,24 @@ pass.
   beat .plink-t on specificity -- 15px/400 against everything else at 13.5px/600.
   It is `> span` now. If you add anything else to the masthead, remember that
   rule reaches into it.
+
+- THE BAR OWNS THE BOTTOM; EVERYTHING ELSE IS CONTAINED ABOVE IT. The stage was
+  inset:0 and sized from innerHeight, so the game ran underneath the player bar
+  and the bottom of the picture sat permanently behind it. --barh is the bar's
+  MEASURED height (0 in wallpaper/popover/browse, where it is not shown),
+  published by _syncBarInset() every 32 frames and on show/hide; the stage, the
+  CRT layers and the editor all end there, and resize() subtracts it.
+  Three things had to follow:
+  * .crt is a CANVAS for the gain layer -- a replaced element, so with
+    height:auto its intrinsic buffer size wins and the bottom inset is simply
+    ignored. It needs a stated height:calc(100vh - var(--barh)).
+  * the gain map bakes to the PICTURE's size, so publishing --barh dispatches a
+    resize; otherwise its vignette sat a bar's height too low.
+  * html.audio-background hides the playbar, and opening the editor parks the
+    frame loop into exactly that mode -- so the bar under the editor was there,
+    laid out, opacity 1, and invisible. Exempted while create-open.
+  The STRIP STAYS while the editor is open: the bar must be the same height in
+  both views or the thing contained above it jumps when you open one. And the
+  editor's own play/rewind are hidden -- the bar carries the transport; the
+  editor's row keeps only what the bar has no business knowing (Follow, Speed,
+  Grid).

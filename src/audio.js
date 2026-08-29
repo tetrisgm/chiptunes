@@ -2016,7 +2016,10 @@ const g = cv.getContext('2d');
 let W=0, H=0, DPR=1;
 let pxBase = 4;       // on-screen size of one sprite "pixel"
 function resize(){
-  var vw = window.innerWidth, vh = window.innerHeight;
+  // the player bar owns the bottom of the window; the picture ends above it
+  var _inset = 0;
+  try{ _inset = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--barh')) || 0; }catch(e){}
+  var vw = window.innerWidth, vh = Math.max(160, window.innerHeight - _inset);
   // On the Game Boy panel the stage IS the console's framebuffer: the games draw
   // at the LCD's own resolution, one canvas pixel per cell, and the panel shows
   // those pixels. Drawing at full device resolution and downsampling afterwards
@@ -2048,6 +2051,10 @@ function resize(){
   g.imageSmoothingEnabled = false;                 // crisp pixels, not blurry scaling
 }
 window.addEventListener('resize', resize);
+// the runtime calls this when the player bar's height changes, so the picture
+// re-fits to the room above it without waiting for a window resize
+try{ if(typeof Audio!=='undefined') Audio.resizeStage = resize; }catch(e){}
+try{ window.__ctResizeStage = resize; }catch(e){}
 resize();
 
 /* ---------- 8-bit sprite engine ----------
