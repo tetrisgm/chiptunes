@@ -1030,7 +1030,8 @@ function frame(now){
   // while this line only runs on DRAWN frames -- with the loop drawing every
   // second tick, the drawn frames all had one parity and the multiples of 32
   // had the other, so it never fired at all and --barh was never published.
-  if((++_barhTick & 31) === 0){ try{ _syncBarInset(); }catch(e){} try{ _syncReel(); }catch(e){} }
+  if((++_barhTick & 31) === 0){ try{ _syncBarInset(); }catch(e){} try{ _syncReel(); }catch(e){}
+    try{ if(window._dockFullscreen) _dockFullscreen(); }catch(e){} }
   if(typeof window!=='undefined') window.__rrrFrame = _frameDiag();
   _frameRX = null; _frameSND = null;
 }
@@ -1896,10 +1897,27 @@ function buildRadioUI(){
   // No hamburger. Everything it held is a button on the left rail now, which is
   // one fewer thing to open before you can do anything.
   var _stale=document.getElementById('rlist'); if(_stale) _stale.remove();
+  // the bar is built after this in some paths, so docking is idempotent and
+  // retried from the frame loop's periodic sync
+  function _dockFullscreen(){
+    try{
+      var b=document.getElementById('rfullscreen');
+      var dock=document.querySelector('#playbar .pb-right');
+      if(!b || !dock || b.parentNode===dock) return;
+      dock.insertBefore(b, dock.firstChild);   // left of the screen toggle
+    }catch(e){}
+  }
+  window._dockFullscreen=_dockFullscreen;
   let fsBtn=document.getElementById('rfullscreen');
   if(!fsBtn){ fsBtn=document.createElement('button'); fsBtn.type='button'; fsBtn.id='rfullscreen';
     fsBtn.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); _pokeVisualControls(); _toggleFullscreen(); });
+    // INTO THE BAR, not the corner. Full screen is a transport-level control --
+    // it acts on the whole picture, like the screen toggle beside it -- and it
+    // was the only thing floating in the top-right on its own. The bar owns the
+    // controls; the picture is what is left. Falls back to the body if the bar
+    // has not been built yet, and _syncFullscreenDock moves it when it has.
     document.body.appendChild(fsBtn); }
+  _dockFullscreen();
   _updateFullscreenButton();
   // TRACK TITLE (bottom-left) is the "details" affordance now — clicking it expands the full track recipe (YouTube/TikTok-style)
   if(trackEl && !trackEl._wired){ trackEl._wired=true; trackEl.addEventListener('click', ev=>{ ev.stopPropagation(); window.toggleTrackPanel && window.toggleTrackPanel(); }); }
@@ -2115,8 +2133,8 @@ function _buildDesktopCard(os, osName){
   // one: a little screen with a menu bar and a dock, and the actual running
   // game behind them. Not a mockup of the idea, the idea itself, blitted from
   // the same canvas the page is already drawing.
-  card.innerHTML='<div class="dlc-h">On your desktop</div>'+
-    '<div class="dlc-d">Use these games as an animated wallpaper.</div>'+
+  card.innerHTML='<div class="gb-lcd"><div class="dlc-h">On your desktop</div>'+
+    '<div class="dlc-d">Use these games as an animated wallpaper.</div></div>'+
     '<div class="dlc-shot" aria-hidden="true">'+
       // A RECORDING, NOT A SECOND SCREEN. This was a live blit of the stage
       // canvas into a second 2d context every sixth frame -- which measured
