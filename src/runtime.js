@@ -4372,7 +4372,10 @@ function _openRadioInApp(){
     var t=setTimeout(function(){ location.href='/radio.pls'; }, 1400);   // Broadcasts not installed -> playlist file
     var vis=function(){ if(document.hidden){ clearTimeout(t); document.removeEventListener('visibilitychange',vis); } };
     document.addEventListener('visibilitychange',vis);   // app opened -> page hides -> cancel the fallback
-    location.href='broadcasts://add?name=Chiptunes.app&address='+encodeURIComponent(stream);
+    // artwork too: Broadcasts shows it in the station list, on the lock screen
+    // and in CarPlay, and a station added without one is a grey square there
+    location.href='broadcasts://add?name=Chiptunes.app&address='+encodeURIComponent(stream)+
+      '&artworkAddress='+encodeURIComponent('https://chiptunes.app/station-icon.png');
     return;
   }
   location.href='/radio.pls';
