@@ -1519,9 +1519,12 @@ Reported as "severe performance issues running the website overall", in Safari.
   repainting canvas. Chromium/M4 absorbs it entirely (118 -> 120fps with them
   forced off, p95 unchanged), so it cannot be judged from here. `?perf=1&noblur=1`
   is the A/B; it needs a quiet Mac and real Safari.
-- **The backdrop-filter A/B is still unverified in real Safari.** The local
-  Chrome/M4 run is not a substitute for Safari; keep `?perf=1&noblur=1` as the
-  diagnostic until a real Safari session is available.
+- **Safari backdrop-filter A/B completed (2026-08-29).** At 1800x737 CSS px,
+  DPR 2, blur on measured 59.9fps / 18.0ms p95 / 18.0ms max; blur off measured
+  60.9fps / 18.0ms p95 / 18.0ms max. The long-stall counts varied slightly
+  between runs (5 vs 4 over 50ms), so there is no material backdrop-filter cost
+  to remove at this viewport. Keep `?perf=1&noblur=1` as the diagnostic for
+  future Safari regressions.
 
 ### Closed in the 2026-08-29 pass
 
@@ -1540,8 +1543,8 @@ Reported as "severe performance issues running the website overall", in Safari.
 
 ### Still worth doing when the environment permits
 
-- Real Safari A/B and a quiet-machine performance capture for the backdrop
-  filters. No code change is justified from Chromium-only evidence.
+- A quiet-machine performance capture at other viewport sizes could still be
+  useful, but the real Safari A/B at the shipped size found no actionable cost.
 - The radio endpoint should be rechecked if the reported 404 returns; the
   current probe on 2026-08-29 returned HTTP 200 audio from
   `https://radio.chiptunes.app` and valid `.pls`/`.m3u` responses.
