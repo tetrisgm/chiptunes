@@ -32879,6 +32879,10 @@ function buildRadioUI(){
     var moods=(typeof CT_CREATE!=='undefined' && CT_CREATE.moods) ? CT_CREATE.moods() : [];
     if(moods.length){
       var row=document.createElement('div'); row.id='rmoods'; row.className='gb-bezel';
+      // the case details: the pinstripes sit under the screen, the speaker
+      // grille in the bottom-right corner, exactly where the machine has them
+      var _spk=document.createElement('span'); _spk.className='gb-speaker'; row.appendChild(_spk);
+      var _stp=document.createElement('span'); _stp.className='gb-stripe'; row.appendChild(_stp);
       // The name and the one line of what this is, in the middle of the page
       // above the choice -- the shape of an ordinary product landing page.
       // Only shown while the station is waiting to be asked; once something is
@@ -33202,7 +33206,7 @@ function _buildDesktopCard(os, osName){
         '<s class="d4"></s><s class="d5"></s><s class="sep"></s><s class="d6"></s>'+
       '</div>'+
     '</div>'+
-    '<span class="gb-stripe"></span>'+
+    '<span class="gb-speaker"></span>'+
     '<div class="dlc-b">'+order.map(function(k){
       var a=ALL[k];
       return '<button type="button" data-k="'+a[0]+'" title="Download the '+a[1]+' desktop app">'+a[1]+'</button>';
