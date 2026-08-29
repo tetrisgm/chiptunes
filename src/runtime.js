@@ -1862,12 +1862,16 @@ function _buildPlayerLinks(){
     return '<a class="plink plmade-btn" href="'+href+'" target="_blank" rel="noopener" title="'+tip+'">'+
       '<span class="plink-ic">'+ic+'</span><span class="plink-t">'+label+'</span></a>';
   }
-  var madeBy='<div class="plmade"><span class="plmade-t">An AI product experiment by Shokunin</span>'+
+  var madeBy='<span class="plmade-t">An AI product experiment by Shokunin</span>'+
     '<div class="plmade-row">'+
       _madeLink('https://github.com/tetrisgm', _IC_GH, 'GitHub', 'tetrisgm on GitHub')+
       _madeLink('https://twitter.com/tetrisgm', _IC_X, 'Twitter', 'tetrisgm on X')+
       _madeLink('https://news.ycombinator.com/user?id=tetrisgm', _IC_HN, 'Hacker News', 'tetrisgm on Hacker News')+
-    '</div></div>';
+    '</div>';
+  // the credit is not something you DO with the track, so it is not a rail row:
+  // its own corner of the picture, bottom-left, above the player bar
+  var made=document.getElementById('madeby');
+  if(!made){ made=document.createElement('div'); made.id='madeby'; document.body.appendChild(made); }
   var wrap=document.createElement('div'); wrap.id='plinks';
   // THE MASTHEAD. The rail's first row offers you a Game Boy, which only reads
   // as an offer once you know what the page is -- and with the home page gone
@@ -1885,7 +1889,8 @@ function _buildPlayerLinks(){
     return '<div class="plrow">'+
       '<button class="plink" type="button" data-k="'+it.k+'" title="'+it.t+'" aria-label="'+it.t+'">'+
       '<span class="plink-ic">'+it.ic+'</span><span class="plink-t">'+it.l+'</span></button>'+extra+'</div>';
-  }).join('')+madeBy;
+  }).join('');
+  made.innerHTML=madeBy;
   wrap.addEventListener('click', function(ev){ var b=ev.target.closest('.plink'); if(!b) return; ev.preventDefault(); ev.stopPropagation();
     if(typeof _pokeVisualControls==='function') _pokeVisualControls();
     var k=b.dataset.k;

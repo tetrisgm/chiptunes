@@ -300,6 +300,12 @@
   /* ...and the rail stops repeating the title while the hero is showing it */
   body.awaiting-mood #plinks .plhead b,
   body.awaiting-mood #plinks .plhead > span{ display:none; }
+  /* NOTHING YOU CAN DO WITH A TRACK, UNTIL THERE IS A TRACK. Download the ROM,
+     the WAV, try it on a Game Boy, listen on a radio -- every one of those acts
+     on the song that is playing, and on the home there is not one yet. How it
+     works stays: that is a question about the page, which is exactly what
+     somebody arriving has. */
+  body.awaiting-mood #plinks .plrow{ display:none !important; }
   /* ONCE MUSIC IS PLAYING THE MASTHEAD GOES. Its job is to say what this page
      is, which is a question only an arriving visitor has; with a song on it is
      a panel of prose sitting over the game. The How-it-works button stays --
@@ -436,16 +442,26 @@
     max-height:calc(100vh - 36px); }
   #plinks .plrow{ display:flex; align-items:center; gap:6px; }
   /* who made it, under the masthead and above the offers */
-  #plinks .plmade{ pointer-events:auto; display:flex; align-items:center; gap:8px; flex-wrap:wrap;
-    padding:2px 4px; color:var(--ink-2); font:500 12px/1.4 var(--ui); letter-spacing:-.005em; }
   /* it sits directly on the game, with nothing behind it -- the same shadow the
      rest of the free-standing chrome uses, or a bright frame swallows it */
-  #plinks .plmade .plmade-t{ margin-right:2px; text-shadow:0 1px 8px rgba(0,0,0,.85), 0 0 2px rgba(0,0,0,.7); }
-  /* the same pill as every other offer in the rail: icon, then label */
-  #plinks .plmade{ flex-direction:column; align-items:flex-start; gap:9px; }
-  #plinks .plmade .plmade-row{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
-  #plinks .plmade .plmade-btn{ text-decoration:none; }
-  #plinks .plmade .plmade-btn svg{ width:18px; height:18px; display:block; }
+  /* THE CREDIT SITS IN THE BOTTOM-LEFT CORNER OF THE PICTURE, on its own line
+     with its three pills to the right of it -- out of the rail, which is for
+     things you do with the track. Above the player bar, like everything else
+     that belongs to the game. */
+  #madeby{ position:fixed; left:18px; bottom:calc(var(--barh,0px) + 18px); z-index:22;
+    display:none; align-items:center; gap:10px; flex-wrap:wrap; max-width:calc(100vw - 420px);
+    pointer-events:none; }
+  body.ai-visual #madeby{ display:flex; opacity:0; pointer-events:none; transition:opacity var(--fade-out); }
+  body.ai-visual.controls-active #madeby{ opacity:1; transition:opacity var(--fade-in); }
+  body.ai-visual.controls-active #madeby .plink{ pointer-events:auto; }
+  #madeby .plmade-t{ color:var(--ink-2); font:500 12.5px/1.4 var(--ui); letter-spacing:-.005em;
+    text-shadow:0 1px 8px rgba(0,0,0,.85), 0 0 2px rgba(0,0,0,.7); }
+  #madeby .plmade-row{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  #madeby .plmade-btn{ text-decoration:none; }
+  #madeby .plmade-btn svg{ width:18px; height:18px; display:block; }
+  body.gb-open #madeby, body.create-open #madeby,
+  html.wallpaper-mode #madeby, html.popover-mode #madeby,
+  html.browse-mode #madeby{ display:none !important; }
   /* It used to be hidden here, from when it sat under the masthead and would
      have run into the hero. It lives at the foot of the rail now, and the
      landing page is exactly where a credit belongs. */
@@ -459,10 +475,13 @@
      rather than something you can press. Hierarchy comes from WEIGHT, not size:
      two type sizes on one short line is fuss, and weight adds presence without
      taking more room. */
+  /* No panel. The masthead used to be a card with the name, the line under it
+     and the how-it-works button inside; the name and the line live in the hero
+     now, so all the card contained was one pill -- a box around a button that
+     is already a box. */
   #plinks .plhead{ align-self:flex-start; white-space:nowrap; margin-bottom:4px;
-    padding:13px 16px 14px; border-radius:16px;
-    background:var(--mat); border:1px solid var(--mat-edge); box-shadow:var(--mat-shadow);
-    backdrop-filter:var(--mat-blur); -webkit-backdrop-filter:var(--mat-blur); }
+    padding:0; border:0; background:none; box-shadow:none;
+    backdrop-filter:none; -webkit-backdrop-filter:none; }
   /* A title is set as a title: large, tight leading, NEGATIVE tracking, with the
      description under it at body size. At 13.5px sharing a line with its own
      explanation it was a label, not the name of the page. */
@@ -926,7 +945,7 @@
      surfaces in one corner that do not agree read as two accidents. */
   /* the card belongs to the picture, so it sits inside it: clear of the player
      bar, which owns the bottom of the window on its own */
-  #dlcard{ position:fixed; left:18px; bottom:calc(var(--barh,0px) + 18px); z-index:22; display:none;
+  #dlcard{ position:fixed; right:18px; left:auto; bottom:calc(var(--barh,0px) + 18px); z-index:22; display:none;
     width:340px; max-width:calc(50vw - 234px); padding:14px 16px 13px; border-radius:16px;
     background:var(--mat); border:1px solid var(--mat-edge);
     box-shadow:var(--mat-shadow);
@@ -1752,7 +1771,7 @@
   <div id="popover"></div>
   <div id="browse"></div>
 
-<script src="../app.ac0170f7ecfe.js" defer></script>
+<script src="../app.a1e2e2b1e518.js" defer></script>
 
 </body>
 </html>
