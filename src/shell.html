@@ -533,16 +533,18 @@
   /* Centred in the VIEWPORT, it ran under the desktop card in the top-right and
      Hacker News vanished behind it. Centred in what is left beside the card
      instead, which stays right however wide the window gets. */
-  body:not(.awaiting-mood) #madeby{ top:18px; bottom:auto; left:232px; right:392px;
+  /* 442, not 392: the card went from 352 to 390 wide when the type grew, and
+     the reservation did not follow it -- 16px of overlap, measured. */
+  body:not(.awaiting-mood) #madeby{ top:18px; bottom:auto; left:250px; right:442px;
     transform:none; justify-content:center; flex-wrap:nowrap; max-width:none; }
   /* 232px clears the rail's How-it-works pill, 392px clears the desktop card.
      What is left is 876px at 1500 wide and the row wanted 1070, so on the
      PLAYING screen -- where the credit is secondary to the picture -- it is set
      a notch smaller. The landing page keeps the full size; it has the room. */
-  body:not(.awaiting-mood) #madeby .plmade-t{ font-size:12px !important; }
-  body:not(.awaiting-mood) #madeby .plink{ font-size:12px !important;
-    min-height:38px; padding:8px 13px !important; }
-  body:not(.awaiting-mood) #madeby .plink svg{ width:15px; height:15px; }
+  body:not(.awaiting-mood) #madeby .plmade-t{ font-size:14px !important; }
+  body:not(.awaiting-mood) #madeby .plink{ font-size:14px !important;
+    min-height:44px; padding:10px 15px !important; }
+  body:not(.awaiting-mood) #madeby .plink svg{ width:17px; height:17px; }
   @media (max-width:1100px){
     body:not(.awaiting-mood) #madeby{ right:0; flex-wrap:wrap; } }
   body.awaiting-mood #madeby{ top:auto; bottom:18px; left:18px; transform:none;
@@ -1189,7 +1191,7 @@
   /* the same bezel as the hero -- .gb-bezel carries the shell ring, the corner
      and the material; this only places it and sizes it */
   #dlcard{ position:fixed; right:26px; left:auto; bottom:calc(var(--barh,0px) + 26px); z-index:22; display:none;
-    width:352px; max-width:calc(50vw - 234px); padding:16px 18px 26px; }
+    width:390px; max-width:calc(50vw - 234px); padding:16px 18px 26px; }
   #dlcard .dlc-h{ font:700 14.5px/1.25 var(--ui); letter-spacing:-.005em; color:var(--ink); }
   #dlcard .dlc-d{ margin-top:5px; font:500 13.5px/1.45 var(--ui); letter-spacing:.005em; color:var(--ink-2); }
   /* THE LITTLE DESKTOP. A screen with a menu bar, two file icons and a dock,
@@ -2161,25 +2163,29 @@
      were set at the sizes the old proportional face used, which is the wrong
      scale for this type and made the page look timid as well as harder to
      read. Roughly +25%, with the boxes grown to match. */
+  /* ANOTHER STEP UP. Silkscreen's cap height is small for its nominal size --
+     a 14px Silkscreen reads like an 11px proportional face -- so sizes chosen
+     against the old system stack land visually a third too small. Everything
+     here is set from what it LOOKS like, not what the number says. */
   body.awaiting-mood #presets .rbtn.rmood{ font-size:15px; padding:13px 18px; }
   body.awaiting-mood #rmoods .rmood-ask .rmood-lab{ font-size:15px; }
-  body:not(.awaiting-mood) #presets .rbtn.rmood{ font-size:13px; padding:10px 14px; }
-  body:not(.awaiting-mood) #rmoods .rmood-ask .rmood-lab{ font-size:13px; }
-  #plinks .plink-t, #plinks .plhead span, .plmade-t{ font-size:14px; }
+  body:not(.awaiting-mood) #presets .rbtn.rmood{ font-size:15px; padding:11px 16px; }
+  body:not(.awaiting-mood) #rmoods .rmood-ask .rmood-lab{ font-size:15px; }
+  #plinks .plink-t, #plinks .plhead span, .plmade-t{ font-size:17px; }
   /* the credit is one line: name then the three links. At 14px in a pixel face
      it outgrew the box it had and wrapped Hacker News onto the game. */
   #madeby{ max-width:min(96vw, 1100px); }
   #madeby .plmade-row{ flex-wrap:nowrap; }
   @media (max-width:1100px){ #madeby .plmade-row{ flex-wrap:wrap; } }
-  #plinks .plink, #madeby .plink{ height:auto; min-height:46px; padding:11px 18px; }
-  #rfullscreen{ font-size:14px; }
-  #playbar .pb-screen{ font-size:13px; }
-  #playbar .pbd-lab{ font-size:11.5px; }
-  #playbar .pbd-read, #pbElapsed, #pbTotal{ font-size:12.5px; }
-  #pbLcdTitle{ font-size:15px; }
-  #dlcard .dlc-h{ font-size:15px; }
-  #dlcard .dlc-d{ font-size:13.5px; }
-  #dlcard .dlc-b button{ font-size:13.5px; height:42px; padding:0 18px; }
+  #plinks .plink, #madeby .plink{ height:auto; min-height:52px; padding:13px 21px; }
+  #rfullscreen{ font-size:16px; }
+  #playbar .pb-screen{ font-size:15px; }
+  #playbar .pbd-lab{ font-size:13px; }
+  #playbar .pbd-read, #pbElapsed, #pbTotal{ font-size:14px; }
+  #pbLcdTitle{ font-size:17px; }
+  #dlcard .dlc-h{ font-size:17px; }
+  #dlcard .dlc-d{ font-size:15px; }
+  #dlcard .dlc-b button{ font-size:15px; height:46px; padding:0 20px; }
   /* the ask wraps to two rows at these sizes, which is fine, but the hero needs
      the room for the first row to hold most of the moods */
   body.awaiting-mood #rmoods .rmood-ask{ max-width:min(880px,90vw); gap:10px; }
@@ -2405,7 +2411,7 @@
   #dlcard .gb-lcd{ padding:13px 14px 14px; margin-bottom:12px; }
   #dlcard .gb-lcd .dlc-h{ color:var(--gb-screen-3);
     text-shadow:0 1px 0 rgba(255,255,255,.28); }
-  #dlcard .gb-lcd .dlc-d{ font-family:var(--px) !important; font-size:11.5px;
+  #dlcard .gb-lcd .dlc-d{ font-family:var(--px) !important; font-size:13.5px;
     line-height:1.7; letter-spacing:0; color:#1d4a1d; margin-top:6px;
     text-shadow:0 1px 0 rgba(255,255,255,.2); }
 
@@ -2465,7 +2471,7 @@
      Stood up: a narrow case, a near-square screen, and the controls stacked
      underneath it the way a menu sits under a Game Boy's screen. */
   body.awaiting-mood #rmoods{
-    width:min(444px, 92vw); max-width:none;
+    width:min(500px, 93vw); max-width:none;
     /* the deep shell below the controls is not padding for its own sake: on the
        machine that band carries START/SELECT and the speaker, and without it the
        case reads as cropped just under the buttons */
@@ -2480,9 +2486,9 @@
     min-height:378px; justify-content:center; padding:22px 20px;
     outline-width:13px; margin:1px 1px 0; }
   body.awaiting-mood #rmoods .rmood-brand b{
-    font-size:clamp(15px,4.4vw,21px) !important; line-height:1.45 !important; }
+    font-size:clamp(17px,4.9vw,25px) !important; line-height:1.45 !important; }
   body.awaiting-mood #rmoods .rmood-brand i{
-    font-size:11.5px !important; line-height:1.85 !important; }
+    font-size:13.5px !important; line-height:1.8 !important; }
   /* the controls, stacked under the screen. Three or four to a row in this
      width, which is what a menu on this machine looks like anyway. */
   body.awaiting-mood #rmoods .rmood-ask{
@@ -2491,14 +2497,14 @@
   /* START, on its own row under the rest, which is where it is on the case */
   body.awaiting-mood #presets .rbtn.rmood-scratch{
     order:9; flex-basis:100%; margin:15px auto 0; max-width:230px; }
-  body.awaiting-mood #presets .rbtn.rmood{ font-size:12px; padding:10px 13px; }
+  body.awaiting-mood #presets .rbtn.rmood{ font-size:14px; padding:11px 15px; }
   /* Still on the same line as the first mood, which was an explicit request and
      still FITS: the label is ~230px and a pill ~90px in a 412px row. Stacking it
      as a centred heading would look tidier now the case is portrait -- but that
      is a different instruction from the one that was given, and it is not mine
      to change by preference. */
   body.awaiting-mood #rmoods .rmood-ask .rmood-lab{
-    font-size:12px; margin:0 2px 0 0; }
+    font-size:14px; margin:0 2px 0 0; }
   body.awaiting-mood #rmoods > .gb-stripe{ margin:12px 13px 0; }
   body.awaiting-mood #rmoods > .gb-speaker{ right:22px; bottom:20px; width:84px; height:42px; opacity:.55; }
   /* short windows: give the screen back some height rather than scrolling */
