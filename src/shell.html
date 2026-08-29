@@ -117,6 +117,21 @@
        a wall, and the subtitle and the how-it-works panel are there to be read. */
     --pixel:'Press Start 2P','Silkscreen',"Courier New",ui-monospace,monospace;
     --px:'Silkscreen','Press Start 2P',ui-monospace,Menlo,Consolas,monospace;
+    /* ONE SIZE FOR UI TEXT. Every label had been set individually, against
+       whatever it happened to sit next to, so the page carried 15, 16 and 17px
+       at once and the odd 12 -- which reads as some things being quietly less
+       important than others. It is one number now; the only text that departs
+       from it is the hero's name (a display face doing a display job) and the
+       type inside the desktop thumbnail (scenery in a picture, not text). */
+    --txt:17px;
+    /* ONE BUTTON, TOO. The page carried 32, 34, 38, 46, 48 and 52px buttons at
+       once, each chosen against whatever it sat beside -- a control being in a
+       narrower strip is not a reason for it to be a different object. One
+       height, one horizontal padding, one gap between a glyph and its label,
+       everywhere. Icon-only buttons are the same height, square. */
+    --btn-h:48px;
+    --btn-px:20px;
+    --btn-gap:9px;
     --mono:ui-monospace,Menlo,Consolas,monospace;                          /* aligned data dumps stay plain monospace */
     --ui:-apple-system,"SF Pro Display","SF Pro Text",system-ui,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;   /* Apple system stack — headings, body, buttons */
     --navw:300px;
@@ -504,10 +519,18 @@
     justify-content:center; gap:9px; max-width:min(920px,92vw); }
   /* PLAYING: the moods move out of the top strip and into the bottom-left
      corner of the picture, above the player bar, where the credit used to be. */
+  /* The 460px reservation was for the desktop card when it sat bottom-right.
+     The card moved to the TOP right, so the bottom strip has the window to
+     itself -- and holding the old reservation was wrapping Start from scratch
+     onto a second row for no reason. */
   body:not(.awaiting-mood) #rmoods .rmood-ask{
     position:fixed; left:18px; bottom:calc(var(--barh,0px) + 18px); z-index:23;
-    display:flex; flex-direction:row; flex-wrap:wrap; align-items:center; gap:6px;
-    max-width:calc(100vw - 460px); }
+    display:flex; flex-direction:row; flex-wrap:wrap; align-items:center; gap:7px;
+    max-width:calc(100vw - 36px); }
+  /* ...and START only takes a row of its own inside the case, where the machine
+     puts it. Down here it is one of the row. */
+  body:not(.awaiting-mood) #presets .rbtn.rmood-scratch{
+    order:0; flex-basis:auto; margin:0; max-width:none; }
   body:not(.awaiting-mood) #rmoods .rmood-ask .rmood-lab{
     display:block; font:600 12.5px/1 var(--ui); color:var(--ink); letter-spacing:-.01em;
     margin-right:2px; text-shadow:0 1px 8px rgba(0,0,0,.85), 0 0 2px rgba(0,0,0,.7); }
@@ -546,8 +569,8 @@
      text smaller, which is the thing being complained about. It is the same
      size as the landing page now and wraps to a second line inside its reserved
      band when it must, which is what the band is for. */
-  body:not(.awaiting-mood) #madeby .plmade-t{ font-size:17px !important; }
-  body:not(.awaiting-mood) #madeby .plink{ font-size:17px !important;
+  body:not(.awaiting-mood) #madeby .plmade-t{ font-size:var(--txt) !important; }
+  body:not(.awaiting-mood) #madeby .plink{ font-size:var(--txt) !important;
     min-height:52px; padding:13px 21px !important; }
   body:not(.awaiting-mood) #madeby .plink svg{ width:19px; height:19px; }
   @media (max-width:1100px){
@@ -702,7 +725,11 @@
   body.ai-visual.controls-active #madeby{ opacity:1; transition:opacity var(--fade-in); }
   body.ai-visual.controls-active #madeby .plink{ pointer-events:auto; }
   /* the same type as the labels it sits with: .plink-t is 600 13.5px */
-  #madeby .plmade-t{ color:var(--ink); font:600 13.5px/1 var(--ui); letter-spacing:.005em;
+  /* 17px, and stated as font-size rather than buried in a `font:` shorthand.
+     The shorthand set 13.5px here and this selector carries an id, so it beat
+     the .plmade-t rule that raised everything else -- the credit stayed small on
+     the landing page while every neighbour grew. */
+  #madeby .plmade-t{ color:var(--ink); font:600 var(--txt)/1 var(--ui); letter-spacing:.005em;
     white-space:nowrap; text-shadow:0 1px 8px rgba(0,0,0,.85), 0 0 2px rgba(0,0,0,.7); }
   #madeby .plmade-row{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
   #madeby .plmade-btn{ text-decoration:none; }
@@ -1688,7 +1715,7 @@
     /* -820px, not -660px: Full screen moved into the right cluster and the
        centre panel kept claiming the width it had before, so the two collided
        and the label printed over the track title. */
-    width:min(560px, calc(100vw - 900px)); min-width:0;
+    width:min(560px, calc(100vw - 1010px)); min-width:0;
     padding:7px 12px 8px; border-radius:9px;
     background:rgba(255,255,255,.045); border:1px solid rgba(255,255,255,.07); }
   #playbar .pb-lcd-head{ display:flex; align-items:baseline; justify-content:center;
@@ -2153,14 +2180,32 @@
      and several carry their own `font:` shorthand -- which sets family, so
      setting it on the button alone left GitHub, Twitter, Hacker News, Display
      and Full screen sitting in the system stack inside pixel-font buttons. */
+  /* FAMILY *AND* SIZE, ON THE DESCENDANTS.
+     Setting a size on the button does nothing when the label is a <span> that
+     carries its own `font:` shorthand -- the shorthand sets size, so the button
+     grew and its text did not. Auditing the computed size of every visible
+     string on the page found five different sizes still live: 14px on the
+     subtitle, 13.5 on Full screen / Display / GitHub / Twitter / Hacker News,
+     12.5 on the track name, 12 on the readouts, 11 on BPM and 10.5 on the
+     clocks. One number, applied where the text actually is.
+     The desktop thumbnail is excluded on purpose: its menu bar and dock are
+     scenery inside a picture of a screen, not text to be read. */
   #presets .rbtn, #presets .rbtn *,
   #plinks .plink, #plinks .plink *, #plinks .plhead span,
   #madeby .plink, #madeby .plink *, #madeby .plmade-t, .plmade-t,
   #playbar button, #playbar button *, #playbar .pbd-lab, #playbar .pbd-read,
-  #pbLcdTitle, #pbElapsed, #pbTotal,
-  #rmoods .rmood-lab, #dlcard .dlc-h, #dlcard .dlc-b button,
+  #pbLcdTitle, #pbElapsed, #pbTotal, #playbar .pb-sub,
+  #playbar .pb-expand, #bigplay .bp-cap,
+  #rmoods .rmood-lab, #dlcard .dlc-h, #dlcard .dlc-d,
+  #dlcard .dlc-b button, #dlcard .dlc-b button *,
   #rfullscreen, #rfullscreen *{
-    font-family:var(--px) !important; letter-spacing:0 !important; }
+    font-family:var(--px) !important; letter-spacing:0 !important;
+    font-size:var(--txt) !important; }
+  /* the hero's name keeps the display face and its own scale */
+  body.awaiting-mood #rmoods .rmood-brand b{ font-size:clamp(17px,4.9vw,25px) !important; }
+  /* and the thumbnail's scenery keeps its tiny type */
+  #dlcard .dlc-shot *, #dlcard .dlc-menu *, #dlcard .dlc-win *, #dlcard .dlc-dock *{
+    font-size:6px !important; }
 
   /* BIGGER. Silkscreen is a bitmap face: it gets MORE legible as it grows,
      because at small sizes the strokes land between device pixels and blur,
@@ -2172,25 +2217,25 @@
      a 14px Silkscreen reads like an 11px proportional face -- so sizes chosen
      against the old system stack land visually a third too small. Everything
      here is set from what it LOOKS like, not what the number says. */
-  body.awaiting-mood #presets .rbtn.rmood{ font-size:15px; padding:13px 18px; }
-  body.awaiting-mood #rmoods .rmood-ask .rmood-lab{ font-size:15px; }
-  body:not(.awaiting-mood) #presets .rbtn.rmood{ font-size:15px; padding:11px 16px; }
-  body:not(.awaiting-mood) #rmoods .rmood-ask .rmood-lab{ font-size:15px; }
-  #plinks .plink-t, #plinks .plhead span, .plmade-t{ font-size:17px; }
+  body.awaiting-mood #presets .rbtn.rmood{ font-size:var(--txt); padding:13px 18px; }
+  body.awaiting-mood #rmoods .rmood-ask .rmood-lab{ font-size:var(--txt); }
+  body:not(.awaiting-mood) #presets .rbtn.rmood{ font-size:var(--txt); padding:11px 16px; }
+  body:not(.awaiting-mood) #rmoods .rmood-ask .rmood-lab{ font-size:var(--txt); }
+  #plinks .plink-t, #plinks .plhead span, .plmade-t{ font-size:var(--txt); }
   /* the credit is one line: name then the three links. At 14px in a pixel face
      it outgrew the box it had and wrapped Hacker News onto the game. */
   #madeby{ max-width:min(96vw, 1100px); }
   #madeby .plmade-row{ flex-wrap:nowrap; }
   @media (max-width:1100px){ #madeby .plmade-row{ flex-wrap:wrap; } }
   #plinks .plink, #madeby .plink{ height:auto; min-height:52px; padding:13px 21px; }
-  #rfullscreen{ font-size:16px; }
-  #playbar .pb-screen{ font-size:15px; }
-  #playbar .pbd-lab{ font-size:15px; }
-  #playbar .pbd-read, #pbElapsed, #pbTotal{ font-size:15px; }
-  #pbLcdTitle{ font-size:17px; }
-  #dlcard .dlc-h{ font-size:17px; }
-  #dlcard .dlc-d{ font-size:15px; }
-  #dlcard .dlc-b button{ font-size:15px; height:46px; padding:0 20px; }
+  #rfullscreen{ font-size:var(--txt); }
+  #playbar .pb-screen{ font-size:var(--txt); }
+  #playbar .pbd-lab{ font-size:var(--txt); }
+  #playbar .pbd-read, #pbElapsed, #pbTotal{ font-size:var(--txt); }
+  #pbLcdTitle{ font-size:var(--txt); }
+  #dlcard .dlc-h{ font-size:var(--txt); }
+  #dlcard .dlc-d{ font-size:var(--txt); }
+  #dlcard .dlc-b button{ font-size:var(--txt); height:48px; padding:0 20px; }
   /* the ask wraps to two rows at these sizes, which is fine, but the hero needs
      the room for the first row to hold most of the moods */
   body.awaiting-mood #rmoods .rmood-ask{ max-width:min(880px,90vw); gap:10px; }
@@ -2409,14 +2454,14 @@
     text-shadow:0 1px 0 rgba(255,255,255,.28) !important; }
   body.awaiting-mood #rmoods .rmood-brand i{
     font-family:var(--px) !important; letter-spacing:0;
-    font-size:15px; line-height:1.75; color:#1d4a1d;
+    font-size:var(--txt); line-height:1.7; color:#1d4a1d;
     text-shadow:0 1px 0 rgba(255,255,255,.22); max-width:none; }
 
   /* the download card's heading and line, on the same screen */
   #dlcard .gb-lcd{ padding:13px 14px 14px; margin-bottom:12px; }
   #dlcard .gb-lcd .dlc-h{ color:var(--gb-screen-3);
     text-shadow:0 1px 0 rgba(255,255,255,.28); }
-  #dlcard .gb-lcd .dlc-d{ font-family:var(--px) !important; font-size:15px;
+  #dlcard .gb-lcd .dlc-d{ font-family:var(--px) !important; font-size:var(--txt);
     line-height:1.7; letter-spacing:0; color:#1d4a1d; margin-top:6px;
     text-shadow:0 1px 0 rgba(255,255,255,.2); }
 
@@ -2493,7 +2538,7 @@
   body.awaiting-mood #rmoods .rmood-brand b{
     font-size:clamp(17px,4.9vw,25px) !important; line-height:1.45 !important; }
   body.awaiting-mood #rmoods .rmood-brand i{
-    font-size:15px !important; line-height:1.8 !important; }
+    font-size:var(--txt) !important; line-height:1.7 !important; }
   /* the controls, stacked under the screen. Three or four to a row in this
      width, which is what a menu on this machine looks like anyway. */
   body.awaiting-mood #rmoods .rmood-ask{
@@ -2502,14 +2547,14 @@
   /* START, on its own row under the rest, which is where it is on the case */
   body.awaiting-mood #presets .rbtn.rmood-scratch{
     order:9; flex-basis:100%; margin:15px auto 0; max-width:230px; }
-  body.awaiting-mood #presets .rbtn.rmood{ font-size:16px; padding:12px 17px; }
+  body.awaiting-mood #presets .rbtn.rmood{ font-size:var(--txt); padding:12px 17px; }
   /* Still on the same line as the first mood, which was an explicit request and
      still FITS: the label is ~230px and a pill ~90px in a 412px row. Stacking it
      as a centred heading would look tidier now the case is portrait -- but that
      is a different instruction from the one that was given, and it is not mine
      to change by preference. */
   body.awaiting-mood #rmoods .rmood-ask .rmood-lab{
-    font-size:16px; margin:0 2px 0 0; }
+    font-size:var(--txt); margin:0 2px 0 0; }
   body.awaiting-mood #rmoods > .gb-stripe{ margin:12px 13px 0; }
   body.awaiting-mood #rmoods > .gb-speaker{ right:22px; bottom:20px; width:84px; height:42px; opacity:.55; }
   /* short windows: give the screen back some height rather than scrolling */
@@ -2524,6 +2569,39 @@
   @media (max-height:700px){
     body.awaiting-mood #rmoods .rmood-brand{ min-height:160px; padding:14px 16px; }
     body.awaiting-mood #rmoods .rmood-brand i{ font-size:13px !important; line-height:1.7 !important; } }
+
+  /* ===== ONE BUTTON SIZE =============================================
+     Applied last so it beats the per-context sizes that accumulated, and
+     applied to every control that reads as a button: the rail, the credit
+     links, Full screen, the moods, the OS keys, the screen toggle and the
+     transport. */
+  .plink, #rfullscreen, #dlcard .dlc-b button,
+  #presets .rbtn.rmood, #playbar .pb-screen{
+    height:var(--btn-h) !important; min-height:var(--btn-h) !important;
+    padding:0 var(--btn-px) !important; gap:var(--btn-gap) !important;
+    border-radius:999px !important;
+    display:inline-flex !important; align-items:center !important;
+    justify-content:center !important; }
+  /* the rail's labels wrap on narrow windows, so those grow downwards instead
+     of clipping -- the one place a fixed height would do harm */
+  @media (max-width:900px){
+    #plinks .plink{ height:auto !important; padding:12px var(--btn-px) !important; } }
+  /* icon-only controls: the same height, square */
+  #playbar .pb-main-ctrl button, #playbar .pb-volume, #playbar .pb-adv,
+  #playbar .pb-heart-inline,
+  /* the play button carried its own body-scoped !important at 38px and so sat
+     out the standardisation -- it is the same key as prev and next */
+  body.ai-visual #playbar .pb-play, #playbar .pb-play{
+    width:var(--btn-h) !important; height:var(--btn-h) !important;
+    min-width:var(--btn-h) !important; border-radius:50% !important; padding:0 !important; }
+  #playbar .pb-main-ctrl button svg, #playbar .pb-volume svg, #playbar .pb-adv svg{
+    width:22px !important; height:22px !important; }
+  #playbar .pb-screen svg, .plink svg, #rfullscreen svg, #dlcard .dlc-b button svg{
+    width:20px !important; height:20px !important; }
+  /* the advanced-volume button was dimmed to half-opacity to make it recede;
+     one family means one weight, so it reads like its neighbours */
+  #playbar .pb-adv{ opacity:.9 !important; }
+  #playbar .pb-adv:hover{ opacity:1 !important; }
 </style>
 </head>
 <body>
