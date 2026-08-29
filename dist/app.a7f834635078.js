@@ -32877,7 +32877,7 @@ function buildRadioUI(){
   try{
     var moods=(typeof CT_CREATE!=='undefined' && CT_CREATE.moods) ? CT_CREATE.moods() : [];
     if(moods.length){
-      var row=document.createElement('div'); row.id='rmoods';
+      var row=document.createElement('div'); row.id='rmoods'; row.className='gb-bezel';
       // The name and the one line of what this is, in the middle of the page
       // above the choice -- the shape of an ordinary product landing page.
       // Only shown while the station is waiting to be asked; once something is
@@ -33141,7 +33141,7 @@ function _buildDesktopCard(os, osName){
   var me=(os==='win'?'win':os==='linux'?'linux':'mac');
   var ALL={mac:['dl-mac','Mac'], win:['dl-win','Windows'], linux:['dl-linux','Linux']};
   var order=[me].concat(['mac','win','linux'].filter(function(k){ return k!==me; }));   // the one you are on leads
-  var card=document.createElement('div'); card.id='dlcard';
+  var card=document.createElement('div'); card.id='dlcard'; card.className='gb-bezel';
   // A DESKTOP WITH THE WALLPAPER IN IT. The card claims the games can be your
   // wallpaper, which is a hard thing to picture from a sentence -- so it shows
   // one: a little screen with a menu bar and a dock, and the actual running
@@ -33184,6 +33184,7 @@ function _buildDesktopCard(os, osName){
         '<s class="d4"></s><s class="d5"></s><s class="sep"></s><s class="d6"></s>'+
       '</div>'+
     '</div>'+
+    '<span class="gb-stripe"></span>'+
     '<div class="dlc-b">'+order.map(function(k){
       var a=ALL[k];
       return '<button type="button" data-k="'+a[0]+'" title="Download the '+a[1]+' desktop app">'+a[1]+'</button>';
