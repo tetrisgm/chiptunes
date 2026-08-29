@@ -31408,6 +31408,41 @@ function _syncBarInset(){
   try{ window.dispatchEvent(new Event('resize')); }catch(e){}
 }
 window._syncBarInset=_syncBarInset;
+// ---- THE LANDING PAGE'S REEL ----------------------------------------------
+// The home shows a game as a silent wallpaper, and one game for however long
+// somebody reads the page says "here is a game" rather than "here are games".
+// Cutting every couple of seconds says the second thing: it is a reel, and the
+// point of the product is that there are fourteen of these and they play
+// themselves. It runs only while the station is waiting to be asked -- once a
+// song is picked the visualiser is a choice again, not a showreel.
+var _reelTimer=0, _reelKeys=null, _reelAt=0;
+function _reelStop(){ if(_reelTimer){ clearInterval(_reelTimer); _reelTimer=0; } }
+function _reelStart(){
+  if(_reelTimer) return;
+  try{
+    if(_WALLPAPER_MODE||_POPOVER_MODE||_BROWSE_MODE) return;
+    if(fixedGamePref()) return;              // somebody pinned a game: leave it alone
+  }catch(e){}
+  _reelTimer=setInterval(function(){
+    try{
+      if(!document.body || !document.body.classList.contains('awaiting-mood')){ _reelStop(); return; }
+      if(document.hidden) return;            // no work while nobody is looking
+      if(!_reelKeys || !_reelKeys.length){
+        _reelKeys=(typeof _pickerGameKeys==='function' ? _pickerGameKeys() : []).filter(function(k){ return k && k!=='random'; });
+        // start somewhere other than the top of the list every load
+        _reelAt=_reelKeys.length ? (Math.random()*_reelKeys.length)|0 : 0;
+      }
+      if(!_reelKeys.length) return;
+      _reelAt=(_reelAt+1)%_reelKeys.length;
+      if(typeof showGame==='function') showGame(_reelKeys[_reelAt]);
+    }catch(e){ _reelStop(); }
+  }, 2000);
+}
+function _syncReel(){
+  var wait = !!(document.body && document.body.classList.contains('awaiting-mood'));
+  if(wait) _reelStart(); else _reelStop();
+}
+window._syncReel=_syncReel;
 function _ribbonVisible(){
   try{
     if(_WALLPAPER_MODE||_POPOVER_MODE||_BROWSE_MODE) return false;
@@ -31682,7 +31717,7 @@ function frame(now){
   // while this line only runs on DRAWN frames -- with the loop drawing every
   // second tick, the drawn frames all had one parity and the multiples of 32
   // had the other, so it never fired at all and --barh was never published.
-  if((++_barhTick & 31) === 0) try{ _syncBarInset(); }catch(e){}
+  if((++_barhTick & 31) === 0){ try{ _syncBarInset(); }catch(e){} try{ _syncReel(); }catch(e){} }
   if(typeof window!=='undefined') window.__rrrFrame = _frameDiag();
   _frameRX = null; _frameSND = null;
 }
@@ -32477,6 +32512,7 @@ function _moodOnAir(m, btn){
       Audio.playDoc(doc.code);
     }catch(e){ if(window._toast) _toast('Could not play it'); return; }
     if(document.body) document.body.classList.remove('awaiting-mood');
+    try{ _reelStop(); }catch(e){}
     // No toast on success: the music starting IS the confirmation, and the name
     // is already on the playbar. A box announcing what you just asked for is
     // one more thing to read and then wait to go away.

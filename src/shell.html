@@ -275,8 +275,7 @@
   */
   body.awaiting-mood #plinks,
   body.awaiting-mood #madeby,
-  body.awaiting-mood #dlcard,
-  body.awaiting-mood #playbar.show{ opacity:1 !important; transition:none !important; }
+  body.awaiting-mood #dlcard{ opacity:1 !important; transition:none !important; }
   body.awaiting-mood #plinks .plink,
   body.awaiting-mood #madeby .plink,
   body.awaiting-mood #dlcard{ pointer-events:auto !important; }
@@ -287,10 +286,14 @@
      that has not started. All of them are readings of a song, and on the home
      there is no song -- so the bar keeps the one control that means something
      here, which is the button that starts one. */
-  body.awaiting-mood #playbar .pb-left,
-  body.awaiting-mood #playbar .pb-right,
-  body.awaiting-mood #playbar .pb-scrub,
-  body.awaiting-mood #playbar .pb-t{ display:none !important; }
+  /* NO BAR UNTIL THERE IS A TRACK. It had been stripped to a bare transport on
+     the home -- no now playing, no clock, no tempo, no volume, no strip -- and
+     what was left was three buttons and an empty band across the bottom of a
+     landing page. A transport with nothing to transport is furniture for its
+     own sake; the moods are the entry. --barh goes to 0 with it, so the ask,
+     the desktop card and the picture all run to the bottom of the window. */
+  html body.awaiting-mood #playbar,
+  html body.awaiting-mood #playbar.show{ display:none !important; }
 
   /* the bar is always there now, so the hero centres in what is left above it */
   body.awaiting-mood #presets{ top:0; bottom:0; align-items:center;
@@ -344,26 +347,39 @@
   body:not(.awaiting-mood) #plinks .plhead .plhow{ margin-left:0; }
   #rmoods .rmood-pills{ display:contents; }
   #rmoods .rmood-ask{ display:contents; }
-  /* WAITING: the credit holds the middle, and the ask moves to the corner --
-     out of the hero's flow entirely, into the bottom-left of the picture. */
+  /* The ask is the hero's last line again. It had been moved to the corner to
+     make room for the credit in the middle; with the player bar gone from the
+     landing page there is room for the question to be where the answer is. */
   body.awaiting-mood #rmoods .rmood-ask{
+    display:flex; flex-direction:column; align-items:center; gap:14px; }
+  /* PLAYING: the moods move out of the top strip and into the bottom-left
+     corner of the picture, above the player bar, where the credit used to be. */
+  body:not(.awaiting-mood) #rmoods .rmood-ask{
     position:fixed; left:18px; bottom:calc(var(--barh,0px) + 18px); z-index:23;
-    display:flex; flex-direction:column; align-items:flex-start; gap:10px;
+    display:flex; flex-direction:column; align-items:flex-start; gap:9px;
     max-width:calc(100vw - 460px); }
-  body.awaiting-mood #rmoods .rmood-ask .rmood-lab{
-    font:600 13.5px/1 var(--ui); color:var(--ink); letter-spacing:.005em;
+  body:not(.awaiting-mood) #rmoods .rmood-ask .rmood-lab{
+    display:block; font:600 13.5px/1 var(--ui); color:var(--ink); letter-spacing:.005em;
     text-shadow:0 1px 8px rgba(0,0,0,.85), 0 0 2px rgba(0,0,0,.7); }
-  body.awaiting-mood #rmoods .rmood-ask .rmood-pills{ display:flex; justify-content:flex-start; }
-  body.awaiting-mood #rmoods .rmood-ask .rbtn.rmood{ font-size:13.5px; padding:8px 14px; }
+  body:not(.awaiting-mood) #rmoods .rmood-ask .rmood-pills{
+    display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-start; }
+  /* the top strip is empty now, so it must not sit over the picture */
+  body:not(.awaiting-mood) #presets{ pointer-events:none; height:0; padding:0; }
+  body:not(.awaiting-mood) #rmoods{ margin-top:0; }
+  body.awaiting-mood #rmoods .rmood-ask .rmood-lab{
+    font:600 clamp(15px,1.7vw,19px)/1.3 var(--ui); color:var(--ink-2); }
+  body.awaiting-mood #rmoods .rmood-ask .rmood-pills{ display:flex; justify-content:center; }
   /* THE CREDIT TAKES THE TOP CENTRE on the home. It was briefly made static so
      it could sit inside the hero, which is a centred column of unknown height --
      but static on a body-level element means normal document flow, and when the
      node had not been moved into the hero yet it flowed to the top-left of the
      page at full width. Fixed and centred needs no DOM move and cannot race. */
-  body.awaiting-mood #madeby{
-    top:18px; bottom:auto; left:50%; transform:translateX(-50%);
-    justify-content:center; flex-wrap:nowrap; max-width:calc(100vw - 460px);
-    opacity:1 !important; }
+  /* THE CREDIT IS AT THE TOP, in both states: on the landing page and on the
+     screen that plays. It swapped with the moods -- they were at the top while
+     it sat in the corner, and it is the other way round now. */
+  #madeby{ top:18px; bottom:auto; left:50%; transform:translateX(-50%);
+    justify-content:center; flex-wrap:nowrap; max-width:calc(100vw - 460px); }
+  body.awaiting-mood #madeby{ opacity:1 !important; }
   @media (max-width:1100px){
     body.awaiting-mood #madeby{ position:fixed; top:auto;
       bottom:calc(var(--barh,0px) + 96px); max-width:calc(100vw - 36px); flex-wrap:wrap; } }
@@ -505,8 +521,8 @@
      with its three pills to the right of it -- out of the rail, which is for
      things you do with the track. Above the player bar, like everything else
      that belongs to the game. */
-  #madeby{ position:fixed; left:18px; bottom:calc(var(--barh,0px) + 18px); z-index:22;
-    display:none; align-items:center; gap:10px; flex-wrap:wrap; max-width:calc(100vw - 420px);
+  #madeby{ position:fixed; z-index:22;
+    display:none; align-items:center; gap:10px; flex-wrap:wrap;
     pointer-events:none; }
   body.ai-visual #madeby{ display:flex; opacity:0; pointer-events:none; transition:opacity var(--fade-out); }
   body.ai-visual.controls-active #madeby{ opacity:1; transition:opacity var(--fade-in); }

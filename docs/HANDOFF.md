@@ -1271,3 +1271,26 @@ pass.
     eagerly the moment the bar is shown rather than waiting half a second for a
     tick. If you gate anything else on a frame counter, check which frames the
     line actually runs on.
+
+- NO PLAYER BAR ON THE LANDING PAGE (owner reversed the earlier "always the same
+  bar" call after seeing it): stripped of now-playing, clock, tempo, volume and
+  the strip, what was left was three buttons and an empty band across a landing
+  page. --barh goes to 0 with it, so the ask, the card and the picture run to
+  the bottom of the window.
+  TRAP: `body.awaiting-mood #playbar.show{display:none !important}` LOST to
+  `body.ai-visual #playbar.show{display:grid !important}` -- identical
+  specificity, and the ai-visual rule is further down the file, so source order
+  decided it. Prefixing `html` broke the tie. Two !important rules of equal
+  weight are decided by position, which is not obvious when they are 1000 lines
+  apart.
+
+- THE SWAP WAS FOR THE PLAYING SCREEN, not the landing page (owner had to say so
+  twice; the first reading cost a round trip). Credit at the top in BOTH states;
+  the moods are the hero's last line on the landing page and the bottom-left
+  corner while a song plays.
+
+- THE LANDING PAGE IS A REEL: the wallpaper game cuts every 2s through the
+  roster. One game for as long as somebody reads the page says "here is a game";
+  cutting says "here are fourteen, and they play themselves", which is the
+  product. Runs only while awaiting-mood, never when a game is pinned, never
+  while the tab is hidden, and stops the moment a mood is picked. 0.5ms a frame.
