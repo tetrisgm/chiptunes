@@ -74,13 +74,49 @@
 })();
 </script>
 <style>
+
+  /* self-hosted; see assets/fonts/README.md */
+  @font-face{ font-family:'Press Start 2P'; font-style:normal; font-weight:400;
+    font-display:swap; src:url('/fonts/press-start-2p.woff2') format('woff2'); }
+  @font-face{ font-family:'Silkscreen'; font-style:normal; font-weight:400;
+    font-display:swap; src:url('/fonts/silkscreen.woff2') format('woff2'); }
+  @font-face{ font-family:'Silkscreen'; font-style:normal; font-weight:700;
+    font-display:swap; src:url('/fonts/silkscreen.woff2') format('woff2'); }
   :root{
     --bg:#0a0814;
     --ink:#fcfcf8;
+    /* OFF THE ACTUAL PLASTIC. The A and B buttons of a DMG-01 are burgundy, the
+       screen is four greens, the D-pad is near-black and the shell is warm
+       grey. These are those, and they are what the controls are coloured with
+       now -- the palette was a generic synthwave pink and purple, which is the
+       wrong decade and the wrong machine. */
+    --gb-button:#8b2252;            /* A / B */
+    --gb-button-hi:#a8306a;
+    --gb-screen-0:#9bbc0f;          /* the four LCD tones, lightest to darkest */
+    --gb-screen-1:#8bac0f;
+    --gb-screen-2:#306230;
+    --gb-screen-3:#0f380f;
+    --gb-shell:#c6c2b4;             /* the warm grey shell */
+    --gb-shell-dk:#8b8a7e;
+    --gb-dpad:#2b2b30;
+    --gb-led:#c4382e;               /* the power lamp */
     --accent:#f878f8;
     --accent2:#58f898;
     --accent3:#6888fc;
-    --pixel:'VT323',"Courier New",ui-monospace,Menlo,Consolas,monospace;   /* legible pixel/CRT font — brand wordmark + game only */
+    /* THE HARDWARE'S OWN TYPE. --pixel named VT323 for a long time and VT323 was
+       never bundled, so every use of it fell through to Courier New: the look
+       was declared and never once rendered. Two faces now, both self-hosted and
+       both SIL OFL (assets/fonts/OFL.txt), because the Electron app and the
+       wallpaper run offline and a webfont that 404s off-network falls back to a
+       proportional face and silently undoes the whole thing.
+         --pixel  Press Start 2P: the display face. Enormous per character, so
+                  it is for the name and nothing else.
+         --px     Silkscreen: drawn FOR small sizes, which is what a button
+                  label is. This carries the controls.
+       Prose stays on --ui. A pixel face is a costume; a paragraph set in one is
+       a wall, and the subtitle and the how-it-works panel are there to be read. */
+    --pixel:'Press Start 2P','Silkscreen',"Courier New",ui-monospace,monospace;
+    --px:'Silkscreen','Press Start 2P',ui-monospace,Menlo,Consolas,monospace;
     --mono:ui-monospace,Menlo,Consolas,monospace;                          /* aligned data dumps stay plain monospace */
     --ui:-apple-system,"SF Pro Display","SF Pro Text",system-ui,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;   /* Apple system stack — headings, body, buttons */
     --navw:300px;
@@ -1064,28 +1100,63 @@
     aspect-ratio:296/166; background:#05040c;
     border:1px solid rgba(255,255,255,.16);
     box-shadow:0 8px 22px rgba(0,0,0,.5), inset 0 0 0 1px rgba(255,255,255,.04); }
-  #dlcard .dlc-wall{ display:block; width:100%; height:100%; }
-  #dlcard .dlc-menu{ position:absolute; left:0; right:0; top:0; height:11px;
-    display:flex; align-items:center; gap:3px; padding:0 5px;
-    background:rgba(12,10,22,.62); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px);
-    border-bottom:1px solid rgba(255,255,255,.07); }
-  #dlcard .dlc-menu i{ width:3px; height:3px; border-radius:50%; background:rgba(255,255,255,.42); }
-  #dlcard .dlc-menu b{ margin-left:auto; width:26px; height:3px; border-radius:2px;
-    background:rgba(255,255,255,.28); }
-  #dlcard .dlc-icons{ position:absolute; left:7px; top:18px; display:flex; flex-direction:column; gap:9px; }
-  /* a light fill with a defined edge: at 13px over a bright game a flat grey
-     square reads as a smudge on the wallpaper rather than a file on a desk */
-  #dlcard .dlc-icons u{ width:13px; height:11px; border-radius:2px;
-    background:linear-gradient(180deg, rgba(255,255,255,.46), rgba(255,255,255,.24));
-    border:1px solid rgba(0,0,0,.35); box-shadow:0 1px 3px rgba(0,0,0,.55); }
-  #dlcard .dlc-dock{ position:absolute; left:50%; transform:translateX(-50%); bottom:5px;
-    display:flex; gap:4px; padding:3px 5px; border-radius:7px;
-    background:rgba(14,12,26,.6); border:1px solid rgba(255,255,255,.09);
-    backdrop-filter:blur(5px); -webkit-backdrop-filter:blur(5px); }
-  #dlcard .dlc-dock s{ width:11px; height:11px; border-radius:3px; text-decoration:none;
-    background:linear-gradient(180deg, rgba(255,255,255,.30), rgba(255,255,255,.13)); }
-  #dlcard .dlc-dock s:nth-child(2){ background:linear-gradient(180deg,#8f7ae0,#6a55c0); }
-  #dlcard .dlc-dock s:nth-child(4){ background:linear-gradient(180deg,#7bdca0,#4fae76); }
+  #dlcard .dlc-shot picture{ display:block; width:100%; height:100%; }
+  #dlcard .dlc-wall{ display:block; width:100%; height:100%; object-fit:cover;
+    background:#05040c; }
+  /* THE MENU BAR. Translucent, a rounded logo mark, a bold app name, three
+     menu titles, then status glyphs and a clock on the right -- the shape the
+     eye recognises before it reads anything. */
+  #dlcard .dlc-menu{ position:absolute; left:0; right:0; top:0; height:13px;
+    display:flex; align-items:center; gap:5px; padding:0 5px;
+    background:rgba(238,238,242,.16); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+    border-bottom:1px solid rgba(255,255,255,.10); }
+  #dlcard .dlm-logo{ width:7px; height:8px; border-radius:2px 2px 3px 3px;
+    background:rgba(255,255,255,.92); flex:0 0 auto; }
+  #dlcard .dlm-app{ font:700 6px/1 var(--px); color:rgba(255,255,255,.95); letter-spacing:.02em; }
+  #dlcard .dlm-i{ font:400 6px/1 var(--px); color:rgba(255,255,255,.62); }
+  #dlcard .dlm-sp{ flex:1 1 auto; }
+  #dlcard .dlm-s{ width:6px; height:6px; border-radius:1px; background:rgba(255,255,255,.5); }
+  #dlcard .dlm-clock{ width:22px; height:5px; border-radius:2px; background:rgba(255,255,255,.62); }
+
+  /* AN OPEN WINDOW, because "wallpaper" means BEHIND something. With nothing
+     over it the picture was just a screenshot of the game full-screen, which
+     is the one reading the card must not give. */
+  #dlcard .dlc-win{ position:absolute; left:11%; top:26%; width:52%; height:50%;
+    border-radius:5px; overflow:hidden; background:rgba(30,28,38,.92);
+    border:1px solid rgba(255,255,255,.14);
+    box-shadow:0 8px 20px rgba(0,0,0,.55), 0 1px 0 rgba(255,255,255,.10) inset; }
+  #dlcard .dlw-bar{ height:11px; display:flex; align-items:center; gap:3px; padding:0 4px;
+    background:rgba(58,55,70,.95); border-bottom:1px solid rgba(0,0,0,.35); }
+  #dlcard .dlw-bar i{ width:4px; height:4px; border-radius:50%; flex:0 0 auto; }
+  #dlcard .dlw-bar i.r{ background:#ff5f57; } #dlcard .dlw-bar i.y{ background:#febc2e; }
+  #dlcard .dlw-bar i.g{ background:#28c840; }
+  #dlcard .dlw-bar b{ margin-left:4px; width:34px; height:3px; border-radius:2px;
+    background:rgba(255,255,255,.34); }
+  #dlcard .dlw-body{ padding:7px 7px 0; display:flex; flex-direction:column; gap:5px; }
+  #dlcard .dlw-body u{ display:block; height:3px; border-radius:2px; text-decoration:none;
+    background:rgba(255,255,255,.20); }
+
+  /* THE DOCK. Distinguishable apps, not five identical squares: different hues,
+     one with the running dot under it. */
+  #dlcard .dlc-dock{ position:absolute; left:50%; transform:translateX(-50%); bottom:4px;
+    display:flex; align-items:flex-end; gap:3px; padding:3px 4px; border-radius:7px;
+    background:rgba(236,236,242,.18); border:1px solid rgba(255,255,255,.14);
+    backdrop-filter:blur(7px); -webkit-backdrop-filter:blur(7px); }
+  #dlcard .dlc-dock s{ width:12px; height:12px; border-radius:3px; text-decoration:none;
+    box-shadow:0 1px 2px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.28); }
+  #dlcard .dlc-dock s.d1{ background:linear-gradient(180deg,#5aa9ff,#2f6fd0); }
+  #dlcard .dlc-dock s.d2{ background:linear-gradient(180deg,#7be08f,#2f9c52); }
+  #dlcard .dlc-dock s.d3{ background:linear-gradient(180deg,#ffd35a,#e0a020); }
+  #dlcard .dlc-dock s.d4{ background:linear-gradient(180deg,#ff8f7a,#d64a34); }
+  /* the station itself, in its own burgundy, with the running dot */
+  #dlcard .dlc-dock s.d5{ background:linear-gradient(180deg,var(--gb-button-hi),var(--gb-button));
+    position:relative; }
+  #dlcard .dlc-dock s.d5::after{ content:''; position:absolute; left:50%; bottom:-3px;
+    transform:translateX(-50%); width:2px; height:2px; border-radius:50%;
+    background:rgba(255,255,255,.9); }
+  #dlcard .dlc-dock s.sep{ width:1px; height:12px; border-radius:0; box-shadow:none;
+    background:rgba(255,255,255,.22); }
+  #dlcard .dlc-dock s.d6{ background:linear-gradient(180deg,#b9b9c6,#7e7e8c); }
   @media (prefers-reduced-motion:reduce){ #dlcard .dlc-shot{ }  /* the blit is the animation; nothing spins */ }
   #dlcard .dlc-b{ margin-top:11px; display:flex; gap:7px; }
   #dlcard .dlc-b button{ height:38px; padding:0 15px; border-radius:999px; cursor:pointer;
@@ -1767,6 +1838,14 @@
     transition:opacity var(--fade-in), transform .22s ease;
   }
   body.ai-visual.controls-active #playbar .pb-ctrl{ transform:translate(-50%,0); }
+  /* THE PROGRESS BAR DOES NOT HIDE. Everything else on this bar is a CONTROL,
+     and a control is only worth showing while you are reaching for it. The
+     scrub is INFORMATION -- where the song is, how much is left -- which is
+     exactly the thing you glance down at without intending to touch anything,
+     and idling it away removed the one readable answer precisely when you had
+     stopped moving in order to read it. The transport, the dials and the
+     screen button still fade with everything else. */
+  body.ai-visual #playbar .pb-ctrl{ opacity:1 !important; pointer-events:auto !important; }
   body.ai-visual.controls-active #playbar .pb-heart-inline,
   body.ai-visual #playbar .pb-heart-inline.on,
   body.ai-visual #playbar .pb-play{ width:38px; height:38px; }
@@ -1935,6 +2014,88 @@
        construction — all chrome is a direct child of <body>, so this needs no per-element enumeration. */
     body.rrr-broadcast > *:not(#stage):not(.crt){ display:none !important; }
     body.rrr-broadcast{ cursor:none; background:#000; }
+
+  /* ===== THE MACHINE'S OWN TYPE AND COLOUR ===========================
+     Appended last on purpose: this is a wholesale re-facing of type and button
+     colour across surfaces that were each styled locally, and fighting every
+     one of those on specificity would leave the look dependent on the order
+     somebody happens to edit them in later. */
+
+  /* THE NAME, in the display face. Press Start 2P is about twice as wide per
+     character as the system stack, so the old clamp(34-56px) put a 13-character
+     title through the side of the screen. Roughly half the size, no negative
+     tracking -- a pixel face has no kerning to tighten, and pulling the letters
+     together only collides the stems. */
+  body.awaiting-mood #rmoods .rmood-brand b{
+    font-family:var(--pixel); font-weight:400; letter-spacing:0;
+    font-size:clamp(16px,2.85vw,33px); line-height:1.3;
+    text-shadow:0 3px 0 rgba(0,0,0,.5), 0 4px 32px rgba(0,0,0,.6); }
+
+  /* EVERY CONTROL LABEL. Silkscreen was drawn for small sizes, which is what a
+     button label is; Press Start 2P at 12px is a smear. Sizes come down a
+     notch because a pixel face has no descender overshoot and reads larger at
+     the same nominal size. */
+  /* Descendants too. Every one of these labels is a <span> inside the button,
+     and several carry their own `font:` shorthand -- which sets family, so
+     setting it on the button alone left GitHub, Twitter, Hacker News, Display
+     and Full screen sitting in the system stack inside pixel-font buttons. */
+  #presets .rbtn, #presets .rbtn *,
+  #plinks .plink, #plinks .plink *, #plinks .plhead span,
+  #madeby .plink, #madeby .plink *, #madeby .plmade-t, .plmade-t,
+  #playbar button, #playbar button *, #playbar .pbd-lab, #playbar .pbd-read,
+  #pbLcdTitle, #pbElapsed, #pbTotal,
+  #rmoods .rmood-lab, #dlcard .dlc-h, #dlcard .dlc-b button,
+  #rfullscreen, #rfullscreen *{
+    font-family:var(--px) !important; letter-spacing:0 !important; }
+
+  body.awaiting-mood #presets .rbtn.rmood{ font-size:12.5px; padding:10px 14px; }
+  body.awaiting-mood #rmoods .rmood-ask .rmood-lab{ font-size:12.5px; }
+  body:not(.awaiting-mood) #presets .rbtn.rmood{ font-size:11px; padding:8px 11px; }
+  body:not(.awaiting-mood) #rmoods .rmood-ask .rmood-lab{ font-size:11px; }
+  #plinks .plink-t, #plinks .plhead span, .plmade-t{ font-size:11.5px; }
+  #playbar .pb-screen{ font-size:11px; }
+  #playbar .pbd-lab{ font-size:10px; }
+  #playbar .pbd-read, #pbElapsed, #pbTotal{ font-size:11px; }
+  #pbLcdTitle{ font-size:12.5px; }
+  #dlcard .dlc-h{ font-size:13px; }
+  #dlcard .dlc-b button{ font-size:11.5px; }
+
+  /* THE BUTTONS ARE THE A AND THE B. A DMG's action buttons are burgundy, and
+     that is the one saturated colour on the whole machine -- so it is the one
+     saturated colour here, reserved for the thing the page wants you to press.
+     Everything else stays the dark material it already was. */
+  body.awaiting-mood #presets .rbtn.rmood{
+    background:linear-gradient(180deg, var(--gb-button-hi), var(--gb-button));
+    border:1px solid rgba(0,0,0,.55); color:#ffe9f2;
+    box-shadow:0 2px 0 rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.22); }
+  body.awaiting-mood #presets .rbtn.rmood:hover{
+    background:linear-gradient(180deg, #bd3a79, #9a2760); color:#fff; }
+  /* pressed, like a button that actually travels */
+  body.awaiting-mood #presets .rbtn.rmood:active{
+    transform:translateY(2px); box-shadow:0 0 0 rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.15); }
+
+  /* START and SELECT are the grey slanted pair, not another A button -- so the
+     one control that is not "write me a song" does not dress like one. */
+  body.awaiting-mood #presets .rbtn.rmood-scratch{
+    background:linear-gradient(180deg, #7c7c88, #5d5d68) !important;
+    border:1px solid rgba(0,0,0,.55) !important; color:#f2f2f6 !important; }
+  body.awaiting-mood #presets .rbtn.rmood-scratch:hover{
+    background:linear-gradient(180deg, #8d8d99, #6b6b77) !important; color:#fff !important; }
+
+  /* the OS you are on, on the download card: the same A-button burgundy */
+  #dlcard .dlc-b button:first-child{
+    background:linear-gradient(180deg, var(--gb-button-hi), var(--gb-button));
+    border-color:rgba(0,0,0,.5); color:#ffe9f2; }
+  #dlcard .dlc-b button:first-child:hover{
+    background:linear-gradient(180deg, #bd3a79, #9a2760); color:#fff; }
+
+  /* the power lamp: it is red on the hardware and it means ON */
+  #playbar .pb-play{ color:var(--gb-screen-0); }
+
+  /* Pixel faces are drawn on a grid. Let them land on it. */
+  #presets .rbtn, #plinks .plink, #playbar button, #dlcard .dlc-b button,
+  #pbLcdTitle, #pbElapsed, #pbTotal{
+    -webkit-font-smoothing:antialiased; text-rendering:optimizeSpeed; }
 </style>
 </head>
 <body>
@@ -1964,7 +2125,7 @@
   <div id="popover"></div>
   <div id="browse"></div>
 
-<script src="../app.999879587d27.js" defer></script>
+<script src="../app.cb84dfdad0d5.js" defer></script>
 
 </body>
 </html>

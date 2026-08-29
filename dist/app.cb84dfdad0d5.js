@@ -10653,6 +10653,7 @@ var BLIT_FS = '#version 300 es\nprecision highp float;in vec2 v;out vec4 o;unifo
     this.frameCount = 0;
     this.cells = { w: 160, h: 144 };
     this.canvas = document.createElement('canvas');
+    this._watchSize();
     this.canvas.id = 'dmg';
     this.canvas.className = 'crt';
     // A canvas is a REPLACED element: `inset:0` with width:auto resolves to the
@@ -10784,6 +10785,11 @@ var BLIT_FS = '#version 300 es\nprecision highp float;in vec2 v;out vec4 o;unifo
     // megapixels through the shader chain every frame, and this is the most
     // expensive thing the page does. 1.5 keeps the LCD grid and the scanlines
     // crisp and costs 44% fewer fragments than 2.
+    // Nothing has moved since the last measurement, so do not ask the layout
+    // engine again -- this runs on every frame and clientWidth is a forced
+    // synchronous layout. _watchSize sets the flag when the box really changes.
+    if (this._ro && !this._sizeDirty) return;
+    this._sizeDirty = false;
     var dpr = Math.min(1.5, (G.devicePixelRatio || 1));
     var w = Math.max(1, Math.round((this.canvas.clientWidth || G.innerWidth || 1) * dpr));
     var h = Math.max(1, Math.round((this.canvas.clientHeight || G.innerHeight || 1) * dpr));
@@ -10841,8 +10847,44 @@ var BLIT_FS = '#version 300 es\nprecision highp float;in vec2 v;out vec4 o;unifo
   // Hiding the stage before the panel has drawn a frame leaves a black screen
   // if the shaders are still loading or failed. The swap happens on the first
   // successful frame instead, so a broken pipeline degrades to the plain stage.
+
+  // FREE THE PIPELINE YOU ARE NOT LOOKING AT.
+  //
+  // setMode(false) set display:none and freed nothing. The default screen
+  // setting is "Random", which rolls between CRT, DMG and NES -- so within a
+  // few minutes of an ordinary session the page is holding all three at full
+  // backing resolution at once, and two of them are not on screen. At the
+  // 2400x1500 these panels run at, that is on the order of 300MB of render
+  // targets doing nothing, which on a memory-pressured Safari is not free
+  // however idle it is.
+  //
+  // Sleeping drops every full-resolution target and shrinks the drawing buffer
+  // to 1x1. The compiled programs and the parsed preset STAY: those are what is
+  // expensive to rebuild, they are small, and a face that has been shown once
+  // is likely to be shown again. vw/vh are cleared so resize() cannot take its
+  // unchanged-viewport early return and rebuilds everything on the way back.
+  DmgScreen.prototype.sleep = function () {
+    if (this._asleep || !this.ok || !this.gl) return;
+    this._asleep = true;
+    var gl = this.gl;
+    var drop = function (t) { if (t) { gl.deleteTexture(t.tex); gl.deleteFramebuffer(t.fbo); } };
+    (this.rts || []).forEach(drop);
+    (this.fb || []).forEach(drop);
+    drop(this.native); drop(this.rtIdx); drop(this.rtNtsc);
+    this.rts = null; this.fb = null; this.native = null;
+    this.rtIdx = null; this.rtNtsc = null;
+    try { this.canvas.width = 1; this.canvas.height = 1; } catch (e) {}
+    this.vw = this.vh = 0;
+  };
+  DmgScreen.prototype.wake = function () {
+    if (!this._asleep) return;
+    this._asleep = false;
+    this._sizeDirty = true;
+    this.vw = this.vh = -1;      // belt and braces: never take the early return
+  };
   DmgScreen.prototype.setMode = function (on) {
     this.wanted = !!on;
+    if (on) this.wake(); else this.sleep();
     // Turning the panel back on must force resize() to run again. Switching away
     // cleared the native size this panel publishes, and resize() returns early
     // when the viewport has not changed -- so on the way back the stage never
@@ -10868,8 +10910,40 @@ var BLIT_FS = '#version 300 es\nprecision highp float;in vec2 v;out vec4 o;unifo
     // of the swap disagree and the gap between them is black.
   };
 
+
+  // UNIFORM LOCATIONS ARE LOOKED UP ONCE PER PROGRAM, NOT ONCE PER FRAME.
+  // getUniformLocation is a synchronous driver query. This loop was running it
+  // for MVP, three *Size vectors, FrameCount and EVERY preset parameter, on
+  // every pass, on every frame -- hundreds of driver round-trips a frame for
+  // answers that cannot change: a program's uniform layout is fixed when it
+  // links. Cached against the program object, so it dies with it.
+  DmgScreen.prototype._ul = function (prog, name) {
+    var c = this._ulc || (this._ulc = new WeakMap());
+    var m = c.get(prog);
+    if (!m) { m = Object.create(null); c.set(prog, m); }
+    var v = m[name];
+    // `undefined` means not looked up yet; `null` is a real answer (no such
+    // uniform, usually optimised out) and must be cached too, or every frame
+    // re-asks the driver about the uniforms that do not exist.
+    if (v === undefined) v = m[name] = this.gl.getUniformLocation(prog, name);
+    return v;
+  };
+  // ...and the backing size is read on a real resize, not on every frame.
+  // clientWidth/clientHeight force layout, and frame() called this 60 times a
+  // second to be told the same number. A ResizeObserver covers every way the
+  // box can change -- window resize, DPR change, and the --barh inset moving,
+  // which a window-resize listener would have missed.
+  DmgScreen.prototype._watchSize = function () {
+    var self = this;
+    this._sizeDirty = true;
+    try {
+      if (typeof ResizeObserver === 'undefined') return;   // fall back to reading every frame
+      this._ro = new ResizeObserver(function () { self._sizeDirty = true; });
+      this._ro.observe(this.canvas);
+    } catch (e) { this._ro = null; }
+  };
   DmgScreen.prototype.bind = function (prog, name, tex, unit) {
-    var gl = this.gl, loc = gl.getUniformLocation(prog, name);
+    var gl = this.gl, self = this, loc = self._ul(prog, name);
     if (!loc || !tex) return;
     gl.activeTexture(gl.TEXTURE0 + unit);
     gl.bindTexture(gl.TEXTURE_2D, tex);
@@ -10878,7 +10952,8 @@ var BLIT_FS = '#version 300 es\nprecision highp float;in vec2 v;out vec4 o;unifo
 
   DmgScreen.prototype.frame = function () {
     if (!this.ok || !this.ready) return;
-    var gl = this.gl;
+    if (this._asleep) return;   // asleep: its targets are gone until setMode(true)
+    var gl = this.gl, self = this;
     this.resize();
     var w = this.vw, h = this.vh;
     gl.bindVertexArray(this.vao);
@@ -10895,10 +10970,10 @@ var BLIT_FS = '#version 300 es\nprecision highp float;in vec2 v;out vec4 o;unifo
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.native.fbo);
     gl.viewport(0, 0, this.native.w, this.native.h);
     gl.useProgram(this.blit);
-    gl.uniform1i(gl.getUniformLocation(this.blit, 't'), 0);
-    gl.uniform1f(gl.getUniformLocation(this.blit, 'invert'), this.invert ? 1 : 0);
-    gl.uniform1f(gl.getUniformLocation(this.blit, 'lo'), this.lo);
-    gl.uniform1f(gl.getUniformLocation(this.blit, 'hi'), this.hi);
+    gl.uniform1i(self._ul(this.blit, 't'), 0);
+    gl.uniform1f(self._ul(this.blit, 'invert'), this.invert ? 1 : 0);
+    gl.uniform1f(self._ul(this.blit, 'lo'), this.lo);
+    gl.uniform1f(self._ul(this.blit, 'hi'), this.hi);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
 
     var identity = new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]);
@@ -10910,20 +10985,20 @@ var BLIT_FS = '#version 300 es\nprecision highp float;in vec2 v;out vec4 o;unifo
       gl.viewport(0, 0, last ? w : rt.w, last ? h : rt.h);
       gl.useProgram(prog);
 
-      var mvp = gl.getUniformLocation(prog, 'MVP');
+      var mvp = self._ul(prog, 'MVP');
       if (mvp) gl.uniformMatrix4fv(mvp, false, identity);
       var setSize = function (name, tw, th) {
-        var l = gl.getUniformLocation(prog, name);
+        var l = self._ul(prog, name);
         if (l) gl.uniform4f(l, tw, th, 1 / tw, 1 / th);
       };
       setSize('SourceSize', prevOut.w, prevOut.h);
       setSize('OriginalSize', this.native.w, this.native.h);
       setSize('OutputSize', last ? w : rt.w, last ? h : rt.h);
-      var fc = gl.getUniformLocation(prog, 'FrameCount');
+      var fc = self._ul(prog, 'FrameCount');
       if (fc) gl.uniform1ui(fc, this.frameCount >>> 0);
       // the upstream tuned defaults
       for (var k in pass.params) {
-        var pl = gl.getUniformLocation(prog, k);
+        var pl = self._ul(prog, k);
         if (pl) gl.uniform1f(pl, pass.params[k]);
       }
 
@@ -11193,6 +11268,7 @@ var BLIT_FS = '#version 300 es\nprecision highp float;in vec2 v;out vec4 o;unifo
     this.frameCount = 0;
     this.ready = false;
     this.canvas = document.createElement('canvas');
+    this._watchSize();
     this.canvas.id = 'nes';
     this.canvas.className = 'crt';
     this.canvas.style.cssText = 'position:fixed;left:0;top:0;width:100vw;height:100vh;' +
@@ -11253,6 +11329,11 @@ var BLIT_FS = '#version 300 es\nprecision highp float;in vec2 v;out vec4 o;unifo
     // megapixels through the shader chain every frame, and this is the most
     // expensive thing the page does. 1.5 keeps the LCD grid and the scanlines
     // crisp and costs 44% fewer fragments than 2.
+    // Nothing has moved since the last measurement, so do not ask the layout
+    // engine again -- this runs on every frame and clientWidth is a forced
+    // synchronous layout. _watchSize sets the flag when the box really changes.
+    if (this._ro && !this._sizeDirty) return;
+    this._sizeDirty = false;
     var dpr = Math.min(1.5, (G.devicePixelRatio || 1));
     var w = Math.max(1, Math.round((this.canvas.clientWidth || G.innerWidth || 1) * dpr));
     var h = Math.max(1, Math.round((this.canvas.clientHeight || G.innerHeight || 1) * dpr));
@@ -11286,8 +11367,44 @@ var BLIT_FS = '#version 300 es\nprecision highp float;in vec2 v;out vec4 o;unifo
     this.broken = !(this.rtIdx && this.rtNtsc);
   };
 
+
+  // FREE THE PIPELINE YOU ARE NOT LOOKING AT.
+  //
+  // setMode(false) set display:none and freed nothing. The default screen
+  // setting is "Random", which rolls between CRT, DMG and NES -- so within a
+  // few minutes of an ordinary session the page is holding all three at full
+  // backing resolution at once, and two of them are not on screen. At the
+  // 2400x1500 these panels run at, that is on the order of 300MB of render
+  // targets doing nothing, which on a memory-pressured Safari is not free
+  // however idle it is.
+  //
+  // Sleeping drops every full-resolution target and shrinks the drawing buffer
+  // to 1x1. The compiled programs and the parsed preset STAY: those are what is
+  // expensive to rebuild, they are small, and a face that has been shown once
+  // is likely to be shown again. vw/vh are cleared so resize() cannot take its
+  // unchanged-viewport early return and rebuilds everything on the way back.
+  NesScreen.prototype.sleep = function () {
+    if (this._asleep || !this.ok || !this.gl) return;
+    this._asleep = true;
+    var gl = this.gl;
+    var drop = function (t) { if (t) { gl.deleteTexture(t.tex); gl.deleteFramebuffer(t.fbo); } };
+    (this.rts || []).forEach(drop);
+    (this.fb || []).forEach(drop);
+    drop(this.native); drop(this.rtIdx); drop(this.rtNtsc);
+    this.rts = null; this.fb = null; this.native = null;
+    this.rtIdx = null; this.rtNtsc = null;
+    try { this.canvas.width = 1; this.canvas.height = 1; } catch (e) {}
+    this.vw = this.vh = 0;
+  };
+  NesScreen.prototype.wake = function () {
+    if (!this._asleep) return;
+    this._asleep = false;
+    this._sizeDirty = true;
+    this.vw = this.vh = -1;      // belt and braces: never take the early return
+  };
   NesScreen.prototype.setMode = function (on) {
     this.wanted = !!on;
+    if (on) this.wake(); else this.sleep();
     // Force a resize on the way back in -- see the note in dmg-screen.js.
     // resize() early-returns on an unchanged viewport, so without this the stage
     // never returns to the console's framebuffer.
@@ -11302,9 +11419,42 @@ var BLIT_FS = '#version 300 es\nprecision highp float;in vec2 v;out vec4 o;unifo
     // black screen. The swap happens in frame(), once there is something there.
   };
 
+
+  // UNIFORM LOCATIONS ARE LOOKED UP ONCE PER PROGRAM, NOT ONCE PER FRAME.
+  // getUniformLocation is a synchronous driver query. This loop was running it
+  // for MVP, three *Size vectors, FrameCount and EVERY preset parameter, on
+  // every pass, on every frame -- hundreds of driver round-trips a frame for
+  // answers that cannot change: a program's uniform layout is fixed when it
+  // links. Cached against the program object, so it dies with it.
+  NesScreen.prototype._ul = function (prog, name) {
+    var c = this._ulc || (this._ulc = new WeakMap());
+    var m = c.get(prog);
+    if (!m) { m = Object.create(null); c.set(prog, m); }
+    var v = m[name];
+    // `undefined` means not looked up yet; `null` is a real answer (no such
+    // uniform, usually optimised out) and must be cached too, or every frame
+    // re-asks the driver about the uniforms that do not exist.
+    if (v === undefined) v = m[name] = this.gl.getUniformLocation(prog, name);
+    return v;
+  };
+  // ...and the backing size is read on a real resize, not on every frame.
+  // clientWidth/clientHeight force layout, and frame() called this 60 times a
+  // second to be told the same number. A ResizeObserver covers every way the
+  // box can change -- window resize, DPR change, and the --barh inset moving,
+  // which a window-resize listener would have missed.
+  NesScreen.prototype._watchSize = function () {
+    var self = this;
+    this._sizeDirty = true;
+    try {
+      if (typeof ResizeObserver === 'undefined') return;   // fall back to reading every frame
+      this._ro = new ResizeObserver(function () { self._sizeDirty = true; });
+      this._ro.observe(this.canvas);
+    } catch (e) { this._ro = null; }
+  };
   NesScreen.prototype.frame = function () {
     if (!this.ok || !this.ready) return;
-    var gl = this.gl;
+    if (this._asleep) return;   // asleep: its targets are gone until setMode(true)
+    var gl = this.gl, self = this;
     this.resize();
     if (this.broken) return;
     var w = this.vw, h = this.vh, t = this.tune;
@@ -11319,9 +11469,9 @@ var BLIT_FS = '#version 300 es\nprecision highp float;in vec2 v;out vec4 o;unifo
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.rtIdx.fbo);
     gl.viewport(0, 0, this.rtIdx.w, this.rtIdx.h);
     gl.useProgram(this.pIdx);
-    gl.uniform1i(gl.getUniformLocation(this.pIdx, 'src'), 0);
+    gl.uniform1i(self._ul(this.pIdx, 'src'), 0);
     gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, this.palTex);
-    gl.uniform1i(gl.getUniformLocation(this.pIdx, 'pal'), 1);
+    gl.uniform1i(self._ul(this.pIdx, 'pal'), 1);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
 
     // 2. modulate and demodulate
@@ -11329,10 +11479,10 @@ var BLIT_FS = '#version 300 es\nprecision highp float;in vec2 v;out vec4 o;unifo
     gl.viewport(0, 0, this.rtNtsc.w, this.rtNtsc.h);
     gl.useProgram(this.pNtsc);
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.rtIdx.tex);
-    gl.uniform1i(gl.getUniformLocation(this.pNtsc, 'idx'), 0);
-    gl.uniform2f(gl.getUniformLocation(this.pNtsc, 'srcSize'), this.rtIdx.w, this.rtIdx.h);
-    gl.uniform1i(gl.getUniformLocation(this.pNtsc, 'frame'), this.frameCount | 0);
-    gl.uniform1i(gl.getUniformLocation(this.pNtsc, 'emph'), this.emphasis | 0);
+    gl.uniform1i(self._ul(this.pNtsc, 'idx'), 0);
+    gl.uniform2f(self._ul(this.pNtsc, 'srcSize'), this.rtIdx.w, this.rtIdx.h);
+    gl.uniform1i(self._ul(this.pNtsc, 'frame'), this.frameCount | 0);
+    gl.uniform1i(self._ul(this.pNtsc, 'emph'), this.emphasis | 0);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
 
     // 3. the television
@@ -11340,11 +11490,11 @@ var BLIT_FS = '#version 300 es\nprecision highp float;in vec2 v;out vec4 o;unifo
     gl.viewport(0, 0, w, h);
     gl.useProgram(this.pCrt);
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.rtNtsc.tex);
-    gl.uniform1i(gl.getUniformLocation(this.pCrt, 'src'), 0);
-    gl.uniform2f(gl.getUniformLocation(this.pCrt, 'outSize'), w, h);
-    gl.uniform2f(gl.getUniformLocation(this.pCrt, 'srcSize'), this.rtIdx.w, this.rtIdx.h);
+    gl.uniform1i(self._ul(this.pCrt, 'src'), 0);
+    gl.uniform2f(self._ul(this.pCrt, 'outSize'), w, h);
+    gl.uniform2f(self._ul(this.pCrt, 'srcSize'), this.rtIdx.w, this.rtIdx.h);
     ['scan','mask','bloom','vig','gamma','bright'].forEach(function (k) {
-      var l = gl.getUniformLocation(this.pCrt, k);
+      var l = self._ul(this.pCrt, k);
       if (l) gl.uniform1f(l, t[k]);
     }, this);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
@@ -31443,7 +31593,17 @@ function _beatPump(RX){ g.save();                                  // beat zoom-
 // into an offscreen canvas and drawImage it per frame (Skia's fast SIMD path). Small LRU because the
 // quantized energy oscillates between adjacent buckets. Rasterize from the bucket center so reuse is
 // deterministic instead of depending on whichever raw energy value first populated that cache key.
-var _vigCache=new Map(), _VIG_LRU=12;
+// BOUNDED IN BYTES, NOT IN ENTRIES. Twelve was chosen when this cache held
+// small canvases; each entry is actually a FULL DEVICE-RESOLUTION RGBA canvas,
+// so on a 1600x1000 window at DPR 2 one entry is 12.8MB and the bound was
+// really "up to 154MB of vignettes". The energy bucket oscillates between two
+// or three neighbours in practice, so a byte budget keeps every entry that is
+// actually being reused and throws away the long tail that is not.
+var _vigCache=new Map(), _VIG_LRU=12, _VIG_MAX_BYTES=48*1024*1024;
+function _vigBytes(){ var n=0; _vigCache.forEach(function(c){ n+=c.width*c.height*4; }); return n; }
+// ...and nothing keeps them at all once the CRT is not the face on screen.
+function _vigDrop(){ _vigCache.forEach(function(c){ c.width=1; c.height=1; }); _vigCache.clear(); }
+window._vigDrop=_vigDrop;
 function _vignette(e){ var qe=Math.round(e*20)/20, key=(W|0)+'x'+(H|0)+':'+DPR+':'+qe;
   var cv2=_vigCache.get(key);
   if(!cv2){
@@ -31458,7 +31618,13 @@ function _vignette(e){ var qe=Math.round(e*20)/20, key=(W|0)+'x'+(H|0)+':'+DPR+'
     grad.addColorStop(0,'rgba(0,0,0,0)'); grad.addColorStop(1,'rgba(0,0,0,'+vig.toFixed(3)+')');
     vg.fillStyle=grad; vg.fillRect(0,0,W,H);
     _vigCache.set(key,cv2);
-    if(_vigCache.size>_VIG_LRU){ _vigCache.delete(_vigCache.keys().next().value); }   // evict oldest
+    // evict oldest until BOTH bounds hold; zero the canvas on the way out so
+    // the backing store goes now rather than whenever GC gets to it
+    while(_vigCache.size>_VIG_LRU || (_vigCache.size>1 && _vigBytes()>_VIG_MAX_BYTES)){
+      var oldest=_vigCache.keys().next().value, dead=_vigCache.get(oldest);
+      if(dead){ try{ dead.width=1; dead.height=1; }catch(e){} }
+      _vigCache.delete(oldest);
+    }
   } else { _vigCache.delete(key); _vigCache.set(key,cv2); }                            // refresh LRU order
   // Both canvases have identical floored physical dimensions. Blit in device space so a capped
   // fractional DPR cannot resample/shift the last row or column.
@@ -31737,8 +31903,13 @@ function _syncBarDials(){
       var bpm=null;
       try{ var sc=Audio.currentScore&&Audio.currentScore(); bpm=sc?Math.round(sc.bpm):null; }catch(e){}
       try{ if(typeof Radio!=='undefined'&&Radio.state&&Radio.state.tempo!=null) bpm=Math.round(Radio.state.tempo); }catch(e){}
-      if(bpm && document.activeElement!==b){ b.value=String(bpm); }
-      if(br) br.textContent = bpm ? String(bpm) : '\u2014';
+      // Only when it CHANGED. This runs on every drawn frame, and assigning an
+      // <input>'s value or a node's textContent is a DOM write whether or not
+      // the string differs -- 60 needless writes a second, each one a chance to
+      // dirty layout, to say the tempo is still 128.
+      var bpmS = bpm ? String(bpm) : '\u2014';
+      if(bpm && document.activeElement!==b && b.value!==bpmS){ b.value=bpmS; }
+      if(br && br.textContent!==bpmS) br.textContent = bpmS;
     }
     var v=document.getElementById('pbVol');
     if(v && document.activeElement!==v && window._scopeMix){
@@ -31887,7 +32058,6 @@ function frame(now){
   // timed separately from _renderEMA, which covers the whole frame: the strip
   // has to be provably cheap on its own, not lost inside the game's cost
   try{ var _rt0=_nowMs(); _ribbonFrame(); _ribEMA += ((_nowMs()-_rt0) - _ribEMA)*0.1; }catch(e){}
-  try{ _deskShotFrame(); }catch(e){}
   // Its own counter. This was `_frameSeq & 31`, and _frameSeq counts TICKS
   // while this line only runs on DRAWN frames -- with the loop drawing every
   // second tick, the drawn frames all had one parity and the multiples of 32
@@ -32069,6 +32239,14 @@ function _applyScreenMode(){
   }
   if(_dmg) _dmg.setMode(_screenMode==='dmg');
   if(_nes) _nes.setMode(_screenMode==='nes');
+  // The vignettes belong to the CRT face. Holding tens of megabytes of them
+  // while a Game Boy panel is on screen is the same mistake as holding the
+  // panels themselves; they rasterise again in ~2ms when the CRT comes back.
+  if(_screenMode!=='crt'){ try{ _vigDrop(); }catch(e){} }
+  // ...and if the gain map was deferred at boot because a panel had the screen,
+  // this is where it is wanted. __rrrCrtBuild is idempotent: it keys on size and
+  // strength and returns early when the existing map already matches.
+  else { try{ if(window.__rrrCrtBuild) window.__rrrCrtBuild(); }catch(e){} }
   resize();   // a panel decides what resolution the games draw at
   // The console's colour rules, at draw time, so the panel receives artwork the
   // hardware could actually have produced rather than 24-bit art with a filter
@@ -32272,7 +32450,7 @@ function watchOnlyToast(){
   // First key/click shows it ~2.6s; each further key or click WHILE it's up keeps it on longer (capped ~6.5s).
   var dur = showing ? Math.min((_watchToastUntil-now)+1100, 6500) : 2600;
   _watchToastUntil = now + dur;
-  if(typeof _toast==='function') _toast('This is a background radio. The games play themselves, like a screensaver. Just listen \ud83c\udfa7', { big:true, ms:dur });
+  if(typeof _toast==='function') _toast('The games are the visualiser \u2014 they play themselves, to the music. Nothing to control: sit back and listen \ud83c\udfa7', { big:true, ms:dur });
 }
 function shortcutTargetBlocked(ev){
   var el=ev&&ev.target;
@@ -32958,43 +33136,6 @@ function _toggleHowModal(){
   requestAnimationFrame(function(){ el.classList.add('show'); });
 }
 window._toggleHowModal=_toggleHowModal;
-// The desktop card's wallpaper: one downscaled blit of the stage, at a third
-// of the frame rate. It is skipped entirely unless the card is on screen, so
-// the cost is zero on the home page, in the editor, and on mobile -- and even
-// when it is showing, a 296x166 drawImage is a rounding error next to the game
-// that produced the pixels.
-var _deskShotN=0, _deskShotCv=null, _deskShotCx=null;
-function _deskShotFrame(){
-  // Every SIXTH drawn frame, not every third. On this Mac in Chromium the blit
-  // measures 0.2ms and the cadence would not matter -- but it is a canvas-to-
-  // canvas draw from a GPU-backed source, which is the shape of operation that
-  // can force a readback, and the browser the owner actually uses is one this
-  // machine cannot profile. Ten updates a second is plenty for a 296x166
-  // thumbnail of a game, and it halves whatever this costs where it is dearer.
-  if((++_deskShotN % 6) !== 0) return;
-  var card=document.getElementById('dlcard');
-  // getClientRects, NOT offsetParent: the card is position:fixed, and a fixed
-  // element's offsetParent is null even when it is plainly on screen -- so the
-  // first cut of this check skipped every frame and the wallpaper never drew.
-  if(!card || !card.getClientRects().length) return;
-  if(getComputedStyle(card).opacity === '0') return;        // faded out with the rest of the chrome
-  if(!_deskShotCv || !_deskShotCv.isConnected){
-    _deskShotCv=document.getElementById('dlcWall');
-    if(!_deskShotCv) return;
-    // raw: the palette hook quantises every 2d context it is given, and this
-    // one is copying pixels that have already been through it
-    _deskShotCv.__ctpalRaw=true;
-    _deskShotCx=_deskShotCv.getContext('2d');
-    if(_deskShotCx) _deskShotCx.imageSmoothingEnabled=false;
-  }
-  var src=document.getElementById('stage');
-  if(!_deskShotCx || !src || !src.width || !src.height) return;
-  // cover: the stage is the window's shape, the little screen is 16:9
-  var dw=_deskShotCv.width, dh=_deskShotCv.height;
-  var sc=Math.max(dw/src.width, dh/src.height);
-  var sw=Math.min(src.width, dw/sc), sh=Math.min(src.height, dh/sc);
-  _deskShotCx.drawImage(src, (src.width-sw)/2, (src.height-sh)/2, sw, sh, 0, 0, dw, dh);
-}
 function _buildDesktopCard(os, osName){
   if(document.getElementById('dlcard')) return;
   var me=(os==='win'?'win':os==='linux'?'linux':'mac');
@@ -33009,10 +33150,39 @@ function _buildDesktopCard(os, osName){
   card.innerHTML='<div class="dlc-h">On your desktop</div>'+
     '<div class="dlc-d">Use these games as an animated wallpaper.</div>'+
     '<div class="dlc-shot" aria-hidden="true">'+
-      '<canvas class="dlc-wall" id="dlcWall" width="296" height="166"></canvas>'+
-      '<div class="dlc-menu"><i></i><i></i><i></i><b></b></div>'+
-      '<div class="dlc-icons"><u></u><u></u></div>'+
-      '<div class="dlc-dock"><s></s><s></s><s></s><s></s><s></s></div>'+
+      // A RECORDING, NOT A SECOND SCREEN. This was a live blit of the stage
+      // canvas into a second 2d context every sixth frame -- which measured
+      // 0.2ms in Chromium on this Mac, but is a canvas-to-canvas drawImage from
+      // a GPU-backed source, the shape of operation that forces a GPU->CPU
+      // readback, and Chromium is the one browser this machine can profile.
+      // The card is a 296px thumbnail of a game; a recording of one says the
+      // same thing and costs nothing per frame. Reduced motion gets the still.
+      '<picture>'+
+        '<source srcset="/desktop-still.webp" media="(prefers-reduced-motion: reduce)">'+
+        '<img class="dlc-wall" src="/desktop-reel.webp" alt="" decoding="async" loading="lazy">'+
+      '</picture>'+
+      // A DESKTOP HAS TO READ AS ONE. Three dots and five grey squares did not:
+      // the bar looked like nothing in particular, the dock like a row of
+      // pills, and with no window open the picture never said "this is behind
+      // your work" -- which is the entire claim the card is making. A menu bar
+      // with a title and menus, a dock of distinguishable apps with a running
+      // dot, and one window sitting over the wallpaper.
+      '<div class="dlc-menu">'+
+        '<span class="dlm-logo"></span>'+
+        '<span class="dlm-app">Chiptunes</span>'+
+        '<span class="dlm-i">File</span><span class="dlm-i">Edit</span><span class="dlm-i">View</span>'+
+        '<span class="dlm-sp"></span>'+
+        '<span class="dlm-s"></span><span class="dlm-s"></span><span class="dlm-clock"></span>'+
+      '</div>'+
+      '<div class="dlc-win">'+
+        '<div class="dlw-bar"><i class="r"></i><i class="y"></i><i class="g"></i><b></b></div>'+
+        '<div class="dlw-body"><u style="width:78%"></u><u style="width:54%"></u>'+
+          '<u style="width:88%"></u><u style="width:38%"></u></div>'+
+      '</div>'+
+      '<div class="dlc-dock">'+
+        '<s class="d1"></s><s class="d2"></s><s class="d3"></s>'+
+        '<s class="d4"></s><s class="d5"></s><s class="sep"></s><s class="d6"></s>'+
+      '</div>'+
     '</div>'+
     '<div class="dlc-b">'+order.map(function(k){
       var a=ALL[k];
@@ -33561,6 +33731,29 @@ function buildPlaybar(){ _pbEl=document.getElementById('playbar'); if(!_pbEl||_p
   _wirePlaybarButton('pbScreen', _toggleGameBoyScreen);
   _wirePlaybarButton('pbVolume', function(){ window.toggleMixPanel && window.toggleMixPanel(); });
   _wirePlaybarButton('pbAdv', function(){ window.toggleMixPanel && window.toggleMixPanel(); });
+  // REACHING FOR ONE OF THESE IS THE WHOLE INTENT. Both dials are a sliver of
+  // the full mixer, and someone who has put the pointer on the tempo or the
+  // volume has already said what they came for -- so open it rather than making
+  // them find the third small button that does. OPEN, never toggle: a hover
+  // that closed what a click had opened would fight the pointer on its way to
+  // the sliders. Fine pointers only; on touch there is no hover, and the tap
+  // that would emulate one belongs to the slider underneath.
+  (function(){
+    var fine=true;
+    try{ fine=!window.matchMedia||window.matchMedia('(hover:hover) and (pointer:fine)').matches; }catch(e){}
+    if(!fine) return;
+    var t=0;
+    ['.pb-bpmdial','.pb-voldial'].forEach(function(sel){
+      var el=document.querySelector('#playbar '+sel);
+      if(!el) return;
+      el.addEventListener('pointerenter', function(ev){
+        if(ev.pointerType && ev.pointerType!=='mouse') return;
+        clearTimeout(t);
+        t=setTimeout(function(){ try{ window.openMixPanel && window.openMixPanel(); }catch(e){} }, 140);
+      });
+      el.addEventListener('pointerleave', function(){ clearTimeout(t); });
+    });
+  })();
   (function(){
     var vol=document.getElementById('pbVol');
     if(vol) vol.addEventListener('input', function(ev){
@@ -34733,7 +34926,19 @@ function setMediaMeta(){
   window.__rrrCrtMode=function(m){ if(m==='gain'){ _mode='gain'; apply(); } else if(m==='legacy'){ _mode='legacy'; setMode('legacy'); window.__rrrCrtReady=true; } return _mode; };
   window.__rrrSetScanlineStrength=function(v){ v=Number(v); if(!isFinite(v))return _RRR_SCANLINE_STRENGTH; _RRR_SCANLINE_STRENGTH=Math.max(0,Math.min(1,v)); _gainKey=''; apply(); return _RRR_SCANLINE_STRENGTH; };
   window.addEventListener('resize', function(){ _gainBuildSeq++; window.__rrrCrtReady=false; clearTimeout(_rsT); _rsT=setTimeout(apply,150); });
-  apply();
+  // BUILT WHEN THE CRT IS ACTUALLY THE FACE, not at module evaluation. The
+  // build is two getImageData calls, a putImageData and a JS loop over every
+  // pixel of a panel-sized buffer -- ~3.6M iterations -- and it ran on every
+  // load including the two loads in three where the toss picks a Game Boy or
+  // an NES and the gain map is never shown. Deferring it takes that off the
+  // boot path entirely for those; the CRT path is unchanged except that its
+  // build now starts a frame later.
+  window.__rrrCrtBuild=apply;
+  (function(){
+    var m=''; try{ m=(window.__rrrScreenMode&&window.__rrrScreenMode())||''; }catch(e){}
+    if(m && m!=='crt' && m!=='off'){ window.__rrrCrtReady=true; return; }   // a panel owns the screen; nothing to build
+    apply();
+  })();
 })();
 
 // audio engine calls this when the active preset changes; it must not override a fixed visualizer selection.
@@ -36299,4 +36504,104 @@ if(String(_pathParts(location.pathname||'/')[0]||'').toLowerCase()==='get') buil
     if(N.onDesktopState) N.onDesktopState(apply);
     else if(N.desktopState) N.desktopState().then(apply)['catch'](function(){});
   };
+})();
+
+// ---- ?perf=1 : THE NUMBERS, ON THE GLASS ----------------------------------
+// Safari cannot be profiled from here. safaridriver needs an authorisation this
+// session must not create, Safari does not implement the longtask observer, and
+// Playwright's WebKit is not Safari -- so the only honest way to measure the
+// browser the owner actually uses is to make the page say what it is doing and
+// read it off the screen. rAF deltas, which every engine reports the same way.
+// ?noblur=1 removes every backdrop-filter, so the two can be compared directly.
+(function(){
+  var q; try{ q=new URLSearchParams(location.search||''); }catch(e){ return; }
+  if(q.get('perf')!=='1') return;
+  if(q.get('noblur')==='1'){
+    var st=document.createElement('style');
+    st.textContent='*{backdrop-filter:none !important;-webkit-backdrop-filter:none !important;}';
+    (document.head||document.documentElement).appendChild(st);
+  }
+  var el=document.createElement('div');
+  el.id='ctperf';
+  el.style.cssText='position:fixed;left:8px;top:8px;z-index:2147483647;pointer-events:none;'+
+    'font:600 11px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;color:#9dff9d;'+
+    'background:rgba(0,0,0,.86);padding:8px 10px;border-radius:8px;white-space:pre;'+
+    'border:1px solid #1d4d1d;max-width:46vw';
+  var add=function(){ (document.body||document.documentElement).appendChild(el); };
+  if(document.body) add(); else document.addEventListener('DOMContentLoaded',add);
+
+  var gaps=[], last=0, t0=0, stalls50=0, stalls100=0, worst=999, winN=0, winSum=0, winT=0;
+  // Counters reset the moment a track starts. Cumulative-since-load would mix
+  // the idle landing page into the number that is actually being asked about,
+  // which is what the page costs WHILE PLAYING -- chrome up, ribbon baking,
+  // games running, the chip feeding.
+  var wasWaiting=true, resetAt=0;
+  function maybeReset(now){
+    var waiting=!!(document.body && document.body.classList.contains('awaiting-mood'));
+    if(wasWaiting && !waiting){
+      gaps.length=0; stalls50=0; stalls100=0; worst=999; winN=0; winSum=0; winT=now;
+      t0=now; resetAt=now;
+    }
+    wasWaiting=waiting;
+  }
+  function blurred(){
+    var n=0, area=0;
+    try{
+      var all=document.querySelectorAll('*');
+      for(var i=0;i<all.length;i++){
+        var c=getComputedStyle(all[i]);
+        var bf=c.backdropFilter||c.webkitBackdropFilter||'none';
+        if(!bf||bf==='none') continue;
+        if(c.visibility==='hidden'||c.display==='none'||+c.opacity===0) continue;
+        var r=all[i].getBoundingClientRect();
+        if(r.width<1||r.height<1) continue;
+        n++; area+=r.width*r.height;
+      }
+    }catch(e){}
+    return {n:n, pct:Math.round(100*area/Math.max(1,innerWidth*innerHeight))};
+  }
+  function canvases(){
+    var mp=0, n=0;
+    try{ var cs=document.querySelectorAll('canvas');
+      for(var i=0;i<cs.length;i++){ if(!cs[i].getClientRects().length) continue;
+        n++; mp+=cs[i].width*cs[i].height; } }catch(e){}
+    return {n:n, mp:(mp/1e6).toFixed(2)};
+  }
+  var bl={n:0,pct:0}, cv={n:0,mp:'0'}, slowCount=0;
+  function paint(){
+    var g=gaps.slice().sort(function(a,b){return a-b;});
+    if(!g.length) return;
+    var sum=0; for(var i=0;i<g.length;i++) sum+=g[i];
+    var fps=1000/(sum/g.length);
+    var p95=g[Math.floor(g.length*0.95)]||0;
+    var out=null;
+    try{ out=(window.Audio&&Audio.latencyDiag)?Audio.latencyDiag():null; }catch(e){}
+    el.textContent=
+      'fps '+fps.toFixed(1)+'   p95 '+p95.toFixed(1)+'ms   max '+g[g.length-1].toFixed(1)+'ms\n'+
+      'worst 2s window since load: '+(worst===999?'-':worst.toFixed(1))+' fps\n'+
+      'stalls >50ms '+stalls50+'   >100ms '+stalls100+'\n'+
+      'blurred layers '+bl.n+' ('+bl.pct+'% of viewport)'+(q.get('noblur')==='1'?'  [BLUR OFF]':'')+'\n'+
+      'canvases '+cv.n+'  '+cv.mp+' Mpx   dpr '+(window.devicePixelRatio||1)+'   '+innerWidth+'x'+innerHeight+'\n'+
+      'screen '+(function(){try{return window.__rrrScreenMode()||'-';}catch(e){return '-';}})()+
+        '   out '+(out==null?'-':out.outMs+'ms/'+(out.src||out.source||'?'))+'\n'+
+      (resetAt?'PLAYING ':'idle ')+Math.round((performance.now()-t0)/1000)+'s   ua '+
+        (/Safari/.test(navigator.userAgent)&&!/Chrome/.test(navigator.userAgent)?'Safari':'other');
+    gaps.length=0;
+  }
+  function tick(now){
+    if(!t0){ t0=now; last=now; requestAnimationFrame(tick); return; }
+    var d=now-last; last=now;
+    maybeReset(now);
+    if(d>0&&d<5000){
+      gaps.push(d);
+      if(d>50) stalls50++;
+      if(d>100) stalls100++;
+      winN++; winSum+=d;
+      if(now-winT>2000){ if(winN>4){ var f=1000/(winSum/winN); if(f<worst) worst=f; } winN=0; winSum=0; winT=now; }
+    }
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+  setInterval(paint, 500);
+  setInterval(function(){ bl=blurred(); cv=canvases(); }, 2000);   // the DOM walk is NOT per frame
 })();

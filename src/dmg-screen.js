@@ -156,6 +156,7 @@ var BLIT_FS = '#version 300 es\nprecision highp float;in vec2 v;out vec4 o;unifo
     this.frameCount = 0;
     this.cells = { w: 160, h: 144 };
     this.canvas = document.createElement('canvas');
+    this._watchSize();
     this.canvas.id = 'dmg';
     this.canvas.className = 'crt';
     // A canvas is a REPLACED element: `inset:0` with width:auto resolves to the
@@ -287,6 +288,11 @@ var BLIT_FS = '#version 300 es\nprecision highp float;in vec2 v;out vec4 o;unifo
     // megapixels through the shader chain every frame, and this is the most
     // expensive thing the page does. 1.5 keeps the LCD grid and the scanlines
     // crisp and costs 44% fewer fragments than 2.
+    // Nothing has moved since the last measurement, so do not ask the layout
+    // engine again -- this runs on every frame and clientWidth is a forced
+    // synchronous layout. _watchSize sets the flag when the box really changes.
+    if (this._ro && !this._sizeDirty) return;
+    this._sizeDirty = false;
     var dpr = Math.min(1.5, (G.devicePixelRatio || 1));
     var w = Math.max(1, Math.round((this.canvas.clientWidth || G.innerWidth || 1) * dpr));
     var h = Math.max(1, Math.round((this.canvas.clientHeight || G.innerHeight || 1) * dpr));
@@ -344,8 +350,44 @@ var BLIT_FS = '#version 300 es\nprecision highp float;in vec2 v;out vec4 o;unifo
   // Hiding the stage before the panel has drawn a frame leaves a black screen
   // if the shaders are still loading or failed. The swap happens on the first
   // successful frame instead, so a broken pipeline degrades to the plain stage.
+
+  // FREE THE PIPELINE YOU ARE NOT LOOKING AT.
+  //
+  // setMode(false) set display:none and freed nothing. The default screen
+  // setting is "Random", which rolls between CRT, DMG and NES -- so within a
+  // few minutes of an ordinary session the page is holding all three at full
+  // backing resolution at once, and two of them are not on screen. At the
+  // 2400x1500 these panels run at, that is on the order of 300MB of render
+  // targets doing nothing, which on a memory-pressured Safari is not free
+  // however idle it is.
+  //
+  // Sleeping drops every full-resolution target and shrinks the drawing buffer
+  // to 1x1. The compiled programs and the parsed preset STAY: those are what is
+  // expensive to rebuild, they are small, and a face that has been shown once
+  // is likely to be shown again. vw/vh are cleared so resize() cannot take its
+  // unchanged-viewport early return and rebuilds everything on the way back.
+  DmgScreen.prototype.sleep = function () {
+    if (this._asleep || !this.ok || !this.gl) return;
+    this._asleep = true;
+    var gl = this.gl;
+    var drop = function (t) { if (t) { gl.deleteTexture(t.tex); gl.deleteFramebuffer(t.fbo); } };
+    (this.rts || []).forEach(drop);
+    (this.fb || []).forEach(drop);
+    drop(this.native); drop(this.rtIdx); drop(this.rtNtsc);
+    this.rts = null; this.fb = null; this.native = null;
+    this.rtIdx = null; this.rtNtsc = null;
+    try { this.canvas.width = 1; this.canvas.height = 1; } catch (e) {}
+    this.vw = this.vh = 0;
+  };
+  DmgScreen.prototype.wake = function () {
+    if (!this._asleep) return;
+    this._asleep = false;
+    this._sizeDirty = true;
+    this.vw = this.vh = -1;      // belt and braces: never take the early return
+  };
   DmgScreen.prototype.setMode = function (on) {
     this.wanted = !!on;
+    if (on) this.wake(); else this.sleep();
     // Turning the panel back on must force resize() to run again. Switching away
     // cleared the native size this panel publishes, and resize() returns early
     // when the viewport has not changed -- so on the way back the stage never
@@ -371,8 +413,40 @@ var BLIT_FS = '#version 300 es\nprecision highp float;in vec2 v;out vec4 o;unifo
     // of the swap disagree and the gap between them is black.
   };
 
+
+  // UNIFORM LOCATIONS ARE LOOKED UP ONCE PER PROGRAM, NOT ONCE PER FRAME.
+  // getUniformLocation is a synchronous driver query. This loop was running it
+  // for MVP, three *Size vectors, FrameCount and EVERY preset parameter, on
+  // every pass, on every frame -- hundreds of driver round-trips a frame for
+  // answers that cannot change: a program's uniform layout is fixed when it
+  // links. Cached against the program object, so it dies with it.
+  DmgScreen.prototype._ul = function (prog, name) {
+    var c = this._ulc || (this._ulc = new WeakMap());
+    var m = c.get(prog);
+    if (!m) { m = Object.create(null); c.set(prog, m); }
+    var v = m[name];
+    // `undefined` means not looked up yet; `null` is a real answer (no such
+    // uniform, usually optimised out) and must be cached too, or every frame
+    // re-asks the driver about the uniforms that do not exist.
+    if (v === undefined) v = m[name] = this.gl.getUniformLocation(prog, name);
+    return v;
+  };
+  // ...and the backing size is read on a real resize, not on every frame.
+  // clientWidth/clientHeight force layout, and frame() called this 60 times a
+  // second to be told the same number. A ResizeObserver covers every way the
+  // box can change -- window resize, DPR change, and the --barh inset moving,
+  // which a window-resize listener would have missed.
+  DmgScreen.prototype._watchSize = function () {
+    var self = this;
+    this._sizeDirty = true;
+    try {
+      if (typeof ResizeObserver === 'undefined') return;   // fall back to reading every frame
+      this._ro = new ResizeObserver(function () { self._sizeDirty = true; });
+      this._ro.observe(this.canvas);
+    } catch (e) { this._ro = null; }
+  };
   DmgScreen.prototype.bind = function (prog, name, tex, unit) {
-    var gl = this.gl, loc = gl.getUniformLocation(prog, name);
+    var gl = this.gl, self = this, loc = self._ul(prog, name);
     if (!loc || !tex) return;
     gl.activeTexture(gl.TEXTURE0 + unit);
     gl.bindTexture(gl.TEXTURE_2D, tex);
@@ -381,7 +455,8 @@ var BLIT_FS = '#version 300 es\nprecision highp float;in vec2 v;out vec4 o;unifo
 
   DmgScreen.prototype.frame = function () {
     if (!this.ok || !this.ready) return;
-    var gl = this.gl;
+    if (this._asleep) return;   // asleep: its targets are gone until setMode(true)
+    var gl = this.gl, self = this;
     this.resize();
     var w = this.vw, h = this.vh;
     gl.bindVertexArray(this.vao);
@@ -398,10 +473,10 @@ var BLIT_FS = '#version 300 es\nprecision highp float;in vec2 v;out vec4 o;unifo
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.native.fbo);
     gl.viewport(0, 0, this.native.w, this.native.h);
     gl.useProgram(this.blit);
-    gl.uniform1i(gl.getUniformLocation(this.blit, 't'), 0);
-    gl.uniform1f(gl.getUniformLocation(this.blit, 'invert'), this.invert ? 1 : 0);
-    gl.uniform1f(gl.getUniformLocation(this.blit, 'lo'), this.lo);
-    gl.uniform1f(gl.getUniformLocation(this.blit, 'hi'), this.hi);
+    gl.uniform1i(self._ul(this.blit, 't'), 0);
+    gl.uniform1f(self._ul(this.blit, 'invert'), this.invert ? 1 : 0);
+    gl.uniform1f(self._ul(this.blit, 'lo'), this.lo);
+    gl.uniform1f(self._ul(this.blit, 'hi'), this.hi);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
 
     var identity = new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]);
@@ -413,20 +488,20 @@ var BLIT_FS = '#version 300 es\nprecision highp float;in vec2 v;out vec4 o;unifo
       gl.viewport(0, 0, last ? w : rt.w, last ? h : rt.h);
       gl.useProgram(prog);
 
-      var mvp = gl.getUniformLocation(prog, 'MVP');
+      var mvp = self._ul(prog, 'MVP');
       if (mvp) gl.uniformMatrix4fv(mvp, false, identity);
       var setSize = function (name, tw, th) {
-        var l = gl.getUniformLocation(prog, name);
+        var l = self._ul(prog, name);
         if (l) gl.uniform4f(l, tw, th, 1 / tw, 1 / th);
       };
       setSize('SourceSize', prevOut.w, prevOut.h);
       setSize('OriginalSize', this.native.w, this.native.h);
       setSize('OutputSize', last ? w : rt.w, last ? h : rt.h);
-      var fc = gl.getUniformLocation(prog, 'FrameCount');
+      var fc = self._ul(prog, 'FrameCount');
       if (fc) gl.uniform1ui(fc, this.frameCount >>> 0);
       // the upstream tuned defaults
       for (var k in pass.params) {
-        var pl = gl.getUniformLocation(prog, k);
+        var pl = self._ul(prog, k);
         if (pl) gl.uniform1f(pl, pass.params[k]);
       }
 

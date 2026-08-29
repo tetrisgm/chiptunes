@@ -37,8 +37,9 @@
     "test:entry": "node scripts/verify-entry.js",
     "test:sync": "node scripts/verify-sync.js",
     "test:chrome": "node scripts/verify-chrome.js",
-    "test": "node build.js && node scripts/verify-song-document.js && node scripts/verify-create-handover.js && node scripts/verify-frame-pacing.js && node scripts/verify-share.js && node scripts/verify-rhythm.js && node scripts/verify-ribbon.js && node scripts/verify-entry.js && node scripts/verify-sync.js && node scripts/verify-chrome.js && node scripts/verify-latency.js && node scripts/smoke-generated-seeds.js && node scripts/smoke-games.js && node scripts/audit-music-driven.js",
-    "test:latency": "node scripts/verify-latency.js"
+    "test": "node build.js && node scripts/verify-song-document.js && node scripts/verify-create-handover.js && node scripts/verify-frame-pacing.js && node scripts/verify-share.js && node scripts/verify-rhythm.js && node scripts/verify-ribbon.js && node scripts/verify-entry.js && node scripts/verify-sync.js && node scripts/verify-chrome.js && node scripts/verify-latency.js && node scripts/verify-screens.js && node scripts/smoke-generated-seeds.js && node scripts/smoke-games.js && node scripts/audit-music-driven.js",
+    "test:latency": "node scripts/verify-latency.js",
+    "test:screens": "node scripts/verify-screens.js"
   },
   "dependencies": {
     "node-web-audio-api": "2.0.0"

@@ -192,52 +192,65 @@ function names() {
   // ---- 4. the desktop card ------------------------------------------------
   console.log('the desktop card');
   const desk = await p.evaluate(async () => {
-    const c = document.getElementById('dlcWall');
-    if (!c) return { missing: true };
-    const read = (cv) => { const d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
-      let h = 0; const s = new Set();
-      for (let i = 0; i < d.length; i += 4 * 29) {
-        h = (h * 31 + d[i] + d[i + 1] * 3 + d[i + 2] * 7) | 0;
-        s.add(((d[i] >> 3) << 10) | ((d[i + 1] >> 3) << 5) | (d[i + 2] >> 3));   // 5-bit buckets
-      }
-      return { h, cols: s }; };
-    const stage = document.getElementById('stage');
-    // Poll for a change rather than comparing two instants 900ms apart. The
-    // wallpaper redraws on every third DRAWN frame, and this gate runs in
-    // headless Chromium, which has no GPU: the games render through SwiftShader
-    // at a few frames a second, so a fixed 900ms window legitimately contains
-    // no new frame at all and the check failed on working code.
-    const a = read(c);
-    let b2 = a;
-    for (let i = 0; i < 40 && b2.h === a.h; i++) {
-      await new Promise(r => setTimeout(r, 100));
-      b2 = read(c);
-    }
-    const st = read(stage);
-    // how much of the wallpaper's palette the stage also has: this is the claim
-    // that matters -- it is showing THE GAME, not some other picture
-    let shared = 0; b2.cols.forEach(v => { if (st.cols.has(v)) shared++; });
     const card = document.getElementById('dlcard');
-    return { visible: !!card && card.getClientRects().length > 0,
-             chrome: !!card.querySelector('.dlc-menu') && !!card.querySelector('.dlc-dock'),
-             colours: b2.cols.size, stageColours: st.cols.size,
-             sharePct: b2.cols.size ? Math.round(100 * shared / b2.cols.size) : 0,
-             moved: a.h !== b2.h };
+    const img = card && card.querySelector('img.dlc-wall');
+    if (!img) return { missing: true };
+    // it must have actually LOADED -- a broken src still lays out at the right
+    // size and would sail past a geometry-only check
+    if (!img.complete) { try { await img.decode(); } catch (e) {} }
+    const src = card.querySelector('picture source');
+    return {
+      visible: !!card.getClientRects().length,
+      chrome: !!card.querySelector('.dlc-menu') && !!card.querySelector('.dlc-dock'),
+      loaded: img.complete && img.naturalWidth > 0,
+      natural: img.naturalWidth + 'x' + img.naturalHeight,
+      animated: /desktop-reel\.webp/.test(img.currentSrc || img.src),
+      reducedMotionStill: !!(src && /desktop-still\.webp/.test(src.srcset || '') &&
+                             /prefers-reduced-motion/.test(src.media || '')),
+      // the whole point of the change: nothing draws into this card per frame
+      noLiveCanvas: !card.querySelector('canvas')
+    };
   });
   ok(!desk.missing && desk.visible, 'the card is on screen while a track plays');
   ok(desk.chrome, 'drawn as a desktop -- menu bar and dock');
-  // NOT a colour count. The first cut of this asked for >12 colours, which is a
-  // claim about whether the game showing at that instant happens to be
-  // colourful -- it failed at 4 and 8 and passed at 107 on identical code,
-  // because some games are mostly one colour when they open. What is actually
-  // being claimed is that the little screen shows THE STAGE, live.
-  ok(desk.colours >= 2, 'the wallpaper is a picture, not a flat fill (' + desk.colours + ' tones)');
-  ok(desk.sharePct >= 60, 'and it is the running game -- ' + desk.sharePct +
-     '% of its palette is on the stage (stage has ' + desk.stageColours + ' tones)');
-  ok(desk.moved, 'and the wallpaper is moving');
+  ok(desk.loaded, 'its wallpaper actually loaded (' + desk.natural + ')');
+  ok(desk.animated, 'and is the recorded loop, not a live second screen');
+  ok(desk.noLiveCanvas, 'with no per-frame canvas in the card at all');
+  ok(desk.reducedMotionStill, 'reduced motion gets the still instead');
   const cardBox = await p.$('#dlcard');
   if (cardBox) await cardBox.screenshot({ path: path.join(SHOT, 'chrome-dlcard.png') });
   await p.screenshot({ path: path.join(SHOT, 'chrome-playing.png') });
+
+  // ---- reaching for a dial opens the mixer --------------------------------
+  console.log('the dials');
+  const hover = await p.evaluate(async () => {
+    const panel = () => { const m = document.getElementById('mixpanel');
+      return !!m && m.style.display !== 'none' && m.getClientRects().length > 0; };
+    try { if (window.closeMixPanel) closeMixPanel(); } catch (e) {}
+    const before = panel();
+    const out = {};
+    for (const sel of ['.pb-bpmdial', '.pb-voldial']) {
+      try { if (window.closeMixPanel) closeMixPanel(); } catch (e) {}
+      const el = document.querySelector('#playbar ' + sel);
+      if (!el) { out[sel] = 'missing'; continue; }
+      el.dispatchEvent(new PointerEvent('pointerenter', { bubbles: false, pointerType: 'mouse' }));
+      await new Promise(r => setTimeout(r, 320));      // the opener waits 140ms
+      out[sel] = panel();
+      // and leaving before the delay elapses must NOT open it
+      try { if (window.closeMixPanel) closeMixPanel(); } catch (e) {}
+      el.dispatchEvent(new PointerEvent('pointerenter', { bubbles: false, pointerType: 'mouse' }));
+      el.dispatchEvent(new PointerEvent('pointerleave', { bubbles: false, pointerType: 'mouse' }));
+      await new Promise(r => setTimeout(r, 320));
+      out[sel + ':cancelled'] = panel();
+    }
+    try { if (window.closeMixPanel) closeMixPanel(); } catch (e) {}
+    return Object.assign({ before }, out);
+  });
+  ok(hover.before === false, 'the mixer starts closed');
+  ok(hover['.pb-bpmdial'] === true, 'hovering BPM opens the mixer');
+  ok(hover['.pb-voldial'] === true, 'hovering the volume opens it too');
+  ok(hover['.pb-bpmdial:cancelled'] === false && hover['.pb-voldial:cancelled'] === false,
+     'a pointer passing straight over does not open it');
 
   // ---- 5. the credit ------------------------------------------------------
   console.log('the credit');

@@ -172,6 +172,17 @@ for (const route of ROUTES) {
 const assetsSrc = path.join(ROOT, 'assets');
 if (fs.existsSync(assetsSrc)) {
   for (const entry of fs.readdirSync(assetsSrc, { withFileTypes: true })) {
+    // Directories too: the fonts live in assets/fonts/ and used to be skipped
+    // here in silence, so @font-face pointed at a 404 and every pixel face fell
+    // back to a proportional one -- the look gone, with nothing failing.
+    if (entry.isDirectory()) {
+      const sd = path.join(assetsSrc, entry.name), dd = path.join(DIST, entry.name);
+      fs.mkdirSync(dd, { recursive: true });
+      for (const f of fs.readdirSync(sd, { withFileTypes: true })) {
+        if (f.isFile()) fs.copyFileSync(path.join(sd, f.name), path.join(dd, f.name));
+      }
+      continue;
+    }
     if (entry.isFile()) fs.copyFileSync(path.join(assetsSrc, entry.name), path.join(DIST, entry.name));
   }
 }

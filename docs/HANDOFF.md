@@ -1457,3 +1457,75 @@ things being played happens instantly."
   code, because it was really asking whether the game showing at that instant
   happens to be colourful. It compares the wallpaper's palette to the stage's
   now, which is the claim that was meant.
+
+## The performance pass (2026-08-29)
+
+Reported as "severe performance issues running the website overall", in Safari.
+
+- **FIRST, THE ENVIRONMENT.** The owner's Mac was compiling Chromium (`siso` out
+  of `~/dev/webweb/upstream/chromium/src`, 12 clang processes, **load average
+  ~100-115**) for the whole investigation. That alone makes every browser on the
+  machine stutter, and it contaminated every Safari measurement taken that day
+  in BOTH directions -- the "before" baseline as much as the "after". Before
+  concluding anything about this site's performance from a local measurement,
+  run `uptime`. A load average over ~10 on this machine means stop and wait.
+- **HEADLESS CHROMIUM HAS NO GPU.** It runs the DMG/NES WebGL panels through
+  SwiftShader, where they measure 1.2 and 2.8 fps with 879ms long tasks and a
+  main thread pinned at 100%: a completely convincing performance regression
+  that does not exist. Headed with `--use-angle=metal` the same build is 57-60fps
+  with zero long tasks. `verify-screens.js` asserts it is not on SwiftShader
+  before it measures anything, because this fooled a whole afternoon once.
+- Safari's real numbers, read off an on-screen probe (`?perf=1`, and
+  `?perf=1&noblur=1` for the backdrop-filter A/B) because **Safari cannot be
+  profiled from a session here**: `safaridriver` needs an authorisation we must
+  not create, Safari has no `longtask` observer, and Playwright's WebKit is not
+  Safari. The probe measures rAF deltas, which every engine reports alike.
+  Safari's output latency measured **5.8-11.6ms** -- so the earlier theory that
+  Safari was buffering ~1s was wrong.
+
+### What was actually fixed
+
+- **Inactive screen pipelines are freed.** `setMode(false)` set `display:none`
+  and released nothing, so once the default "Random" had shown all three faces
+  the page held CRT, DMG and NES render targets simultaneously -- on the order
+  of 300MB at the 2400x1500 these run at. `sleep()`/`wake()` drop every
+  full-resolution target and shrink the drawing buffer to 1x1; the compiled
+  programs and parsed preset stay, because those are what is expensive to
+  rebuild. Held by `npm run test:screens`.
+- **The vignette cache is bounded in BYTES, not entries.** `_VIG_LRU=12` was
+  chosen when the entries were small; each is a full device-resolution RGBA
+  canvas, so the real bound was ~154MB. Now 48MB, and dropped entirely whenever
+  the CRT is not the face on screen.
+- **Uniform locations are looked up once per program, not once per frame.** The
+  DMG preset has 86 parameters; with MVP, three sizes, FrameCount and the
+  samplers that was ~145 `getUniformLocation` calls per frame, ~8,700 driver
+  queries a second, for answers fixed at link time.
+  ⚠️ The regex that made this change also rewrote the cache's OWN lookup into a
+  call to itself. It parsed fine and would have infinitely recursed on first
+  frame, killing both panels. If you do a sweep like this, check the helper.
+- **`resize()` stopped forcing layout every frame.** Both panels read
+  `clientWidth/clientHeight` in `frame()`. A ResizeObserver sets a dirty flag
+  instead -- it catches the `--barh` inset moving, which a window-resize
+  listener would not.
+- **The CRT gain map is built when the CRT is the face**, not at module
+  evaluation. Two `getImageData`, a `putImageData` and a ~3.6M-iteration JS loop
+  ran on every load, including the two loads in three where the toss picks a
+  panel and the map is never shown.
+- The desktop card's wallpaper is a recorded WebP, not a live blit of the stage.
+
+### Known and NOT fixed
+
+- **16 backdrop-filter surfaces** can be on screen at once over a continuously
+  repainting canvas. Chromium/M4 absorbs it entirely (118 -> 120fps with them
+  forced off, p95 unchanged), so it cannot be judged from here. `?perf=1&noblur=1`
+  is the A/B; it needs a quiet Mac and real Safari.
+- **The frame loop's `_cost` excludes the panel pass, the ribbon and the layout
+  sync.** The comment claiming `_renderEMA` "covers the whole frame" is false,
+  so the adaptive 15/24ms backoffs cannot react to the most expensive work.
+  Moving the boundary would capture the JS submission but still not the GPU or
+  compositor; the rAF-gap probe is the honest complement.
+- Panel fragment load: 2400x1500 is 3.6M fragments through five full-resolution
+  DMG passes. A 2.0M cap would remove 56% of them and is the single biggest
+  remaining lever if Safari still struggles once the machine is quiet.
+- `texImage2D(canvas)` re-specifies the source texture every frame in both
+  panels; `texSubImage2D` after one allocation is the cheaper form.

@@ -227,6 +227,7 @@
     this.frameCount = 0;
     this.ready = false;
     this.canvas = document.createElement('canvas');
+    this._watchSize();
     this.canvas.id = 'nes';
     this.canvas.className = 'crt';
     this.canvas.style.cssText = 'position:fixed;left:0;top:0;width:100vw;height:100vh;' +
@@ -287,6 +288,11 @@
     // megapixels through the shader chain every frame, and this is the most
     // expensive thing the page does. 1.5 keeps the LCD grid and the scanlines
     // crisp and costs 44% fewer fragments than 2.
+    // Nothing has moved since the last measurement, so do not ask the layout
+    // engine again -- this runs on every frame and clientWidth is a forced
+    // synchronous layout. _watchSize sets the flag when the box really changes.
+    if (this._ro && !this._sizeDirty) return;
+    this._sizeDirty = false;
     var dpr = Math.min(1.5, (G.devicePixelRatio || 1));
     var w = Math.max(1, Math.round((this.canvas.clientWidth || G.innerWidth || 1) * dpr));
     var h = Math.max(1, Math.round((this.canvas.clientHeight || G.innerHeight || 1) * dpr));
@@ -320,8 +326,44 @@
     this.broken = !(this.rtIdx && this.rtNtsc);
   };
 
+
+  // FREE THE PIPELINE YOU ARE NOT LOOKING AT.
+  //
+  // setMode(false) set display:none and freed nothing. The default screen
+  // setting is "Random", which rolls between CRT, DMG and NES -- so within a
+  // few minutes of an ordinary session the page is holding all three at full
+  // backing resolution at once, and two of them are not on screen. At the
+  // 2400x1500 these panels run at, that is on the order of 300MB of render
+  // targets doing nothing, which on a memory-pressured Safari is not free
+  // however idle it is.
+  //
+  // Sleeping drops every full-resolution target and shrinks the drawing buffer
+  // to 1x1. The compiled programs and the parsed preset STAY: those are what is
+  // expensive to rebuild, they are small, and a face that has been shown once
+  // is likely to be shown again. vw/vh are cleared so resize() cannot take its
+  // unchanged-viewport early return and rebuilds everything on the way back.
+  NesScreen.prototype.sleep = function () {
+    if (this._asleep || !this.ok || !this.gl) return;
+    this._asleep = true;
+    var gl = this.gl;
+    var drop = function (t) { if (t) { gl.deleteTexture(t.tex); gl.deleteFramebuffer(t.fbo); } };
+    (this.rts || []).forEach(drop);
+    (this.fb || []).forEach(drop);
+    drop(this.native); drop(this.rtIdx); drop(this.rtNtsc);
+    this.rts = null; this.fb = null; this.native = null;
+    this.rtIdx = null; this.rtNtsc = null;
+    try { this.canvas.width = 1; this.canvas.height = 1; } catch (e) {}
+    this.vw = this.vh = 0;
+  };
+  NesScreen.prototype.wake = function () {
+    if (!this._asleep) return;
+    this._asleep = false;
+    this._sizeDirty = true;
+    this.vw = this.vh = -1;      // belt and braces: never take the early return
+  };
   NesScreen.prototype.setMode = function (on) {
     this.wanted = !!on;
+    if (on) this.wake(); else this.sleep();
     // Force a resize on the way back in -- see the note in dmg-screen.js.
     // resize() early-returns on an unchanged viewport, so without this the stage
     // never returns to the console's framebuffer.
@@ -336,9 +378,42 @@
     // black screen. The swap happens in frame(), once there is something there.
   };
 
+
+  // UNIFORM LOCATIONS ARE LOOKED UP ONCE PER PROGRAM, NOT ONCE PER FRAME.
+  // getUniformLocation is a synchronous driver query. This loop was running it
+  // for MVP, three *Size vectors, FrameCount and EVERY preset parameter, on
+  // every pass, on every frame -- hundreds of driver round-trips a frame for
+  // answers that cannot change: a program's uniform layout is fixed when it
+  // links. Cached against the program object, so it dies with it.
+  NesScreen.prototype._ul = function (prog, name) {
+    var c = this._ulc || (this._ulc = new WeakMap());
+    var m = c.get(prog);
+    if (!m) { m = Object.create(null); c.set(prog, m); }
+    var v = m[name];
+    // `undefined` means not looked up yet; `null` is a real answer (no such
+    // uniform, usually optimised out) and must be cached too, or every frame
+    // re-asks the driver about the uniforms that do not exist.
+    if (v === undefined) v = m[name] = this.gl.getUniformLocation(prog, name);
+    return v;
+  };
+  // ...and the backing size is read on a real resize, not on every frame.
+  // clientWidth/clientHeight force layout, and frame() called this 60 times a
+  // second to be told the same number. A ResizeObserver covers every way the
+  // box can change -- window resize, DPR change, and the --barh inset moving,
+  // which a window-resize listener would have missed.
+  NesScreen.prototype._watchSize = function () {
+    var self = this;
+    this._sizeDirty = true;
+    try {
+      if (typeof ResizeObserver === 'undefined') return;   // fall back to reading every frame
+      this._ro = new ResizeObserver(function () { self._sizeDirty = true; });
+      this._ro.observe(this.canvas);
+    } catch (e) { this._ro = null; }
+  };
   NesScreen.prototype.frame = function () {
     if (!this.ok || !this.ready) return;
-    var gl = this.gl;
+    if (this._asleep) return;   // asleep: its targets are gone until setMode(true)
+    var gl = this.gl, self = this;
     this.resize();
     if (this.broken) return;
     var w = this.vw, h = this.vh, t = this.tune;
@@ -353,9 +428,9 @@
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.rtIdx.fbo);
     gl.viewport(0, 0, this.rtIdx.w, this.rtIdx.h);
     gl.useProgram(this.pIdx);
-    gl.uniform1i(gl.getUniformLocation(this.pIdx, 'src'), 0);
+    gl.uniform1i(self._ul(this.pIdx, 'src'), 0);
     gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, this.palTex);
-    gl.uniform1i(gl.getUniformLocation(this.pIdx, 'pal'), 1);
+    gl.uniform1i(self._ul(this.pIdx, 'pal'), 1);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
 
     // 2. modulate and demodulate
@@ -363,10 +438,10 @@
     gl.viewport(0, 0, this.rtNtsc.w, this.rtNtsc.h);
     gl.useProgram(this.pNtsc);
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.rtIdx.tex);
-    gl.uniform1i(gl.getUniformLocation(this.pNtsc, 'idx'), 0);
-    gl.uniform2f(gl.getUniformLocation(this.pNtsc, 'srcSize'), this.rtIdx.w, this.rtIdx.h);
-    gl.uniform1i(gl.getUniformLocation(this.pNtsc, 'frame'), this.frameCount | 0);
-    gl.uniform1i(gl.getUniformLocation(this.pNtsc, 'emph'), this.emphasis | 0);
+    gl.uniform1i(self._ul(this.pNtsc, 'idx'), 0);
+    gl.uniform2f(self._ul(this.pNtsc, 'srcSize'), this.rtIdx.w, this.rtIdx.h);
+    gl.uniform1i(self._ul(this.pNtsc, 'frame'), this.frameCount | 0);
+    gl.uniform1i(self._ul(this.pNtsc, 'emph'), this.emphasis | 0);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
 
     // 3. the television
@@ -374,11 +449,11 @@
     gl.viewport(0, 0, w, h);
     gl.useProgram(this.pCrt);
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.rtNtsc.tex);
-    gl.uniform1i(gl.getUniformLocation(this.pCrt, 'src'), 0);
-    gl.uniform2f(gl.getUniformLocation(this.pCrt, 'outSize'), w, h);
-    gl.uniform2f(gl.getUniformLocation(this.pCrt, 'srcSize'), this.rtIdx.w, this.rtIdx.h);
+    gl.uniform1i(self._ul(this.pCrt, 'src'), 0);
+    gl.uniform2f(self._ul(this.pCrt, 'outSize'), w, h);
+    gl.uniform2f(self._ul(this.pCrt, 'srcSize'), this.rtIdx.w, this.rtIdx.h);
     ['scan','mask','bloom','vig','gamma','bright'].forEach(function (k) {
-      var l = gl.getUniformLocation(this.pCrt, k);
+      var l = self._ul(this.pCrt, k);
       if (l) gl.uniform1f(l, t[k]);
     }, this);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
