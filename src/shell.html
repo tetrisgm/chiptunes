@@ -267,6 +267,30 @@
      chrome at that moment -- they are the only thing to do, and they sit in the
      middle of the screen and do not fade. Once a song is on they shrink back to
      the top strip and behave like everything else. */
+  /* ===== THE HOME DOES NOT FADE ====================================
+     Idle-hide is for watching the game: everything goes so only the picture is
+     left. On the home there is no picture yet -- it is a landing page, and a
+     landing page whose offers disappear three seconds after you arrive is a
+     landing page you cannot read. Everything stays until something is playing.
+  */
+  body.awaiting-mood #plinks,
+  body.awaiting-mood #madeby,
+  body.awaiting-mood #dlcard,
+  body.awaiting-mood #playbar.show{ opacity:1 !important; transition:none !important; }
+  body.awaiting-mood #plinks .plink,
+  body.awaiting-mood #madeby .plink,
+  body.awaiting-mood #dlcard{ pointer-events:auto !important; }
+
+  /* ===== THE HOME'S BAR IS A TRANSPORT, NOTHING ELSE ================
+     Now playing (nothing is), the elapsed and total of a track that does not
+     exist, the tempo and volume of silence, and a screen control for a picture
+     that has not started. All of them are readings of a song, and on the home
+     there is no song -- so the bar keeps the one control that means something
+     here, which is the button that starts one. */
+  body.awaiting-mood #playbar .pb-left,
+  body.awaiting-mood #playbar .pb-right,
+  body.awaiting-mood #playbar .pb-t{ display:none !important; }
+
   /* the bar is always there now, so the hero centres in what is left above it */
   body.awaiting-mood #presets{ top:0; bottom:0; align-items:center;
     padding-bottom:calc(var(--ribh,44px) + 96px);
@@ -318,6 +342,22 @@
   body:not(.awaiting-mood) #plinks .plhead > span{ display:none; }
   body:not(.awaiting-mood) #plinks .plhead .plhow{ margin-left:0; }
   #rmoods .rmood-pills{ display:contents; }
+  #rmoods .rmood-ask{ display:contents; }
+  /* WAITING: the credit holds the middle, and the ask moves to the corner --
+     out of the hero's flow entirely, into the bottom-left of the picture. */
+  body.awaiting-mood #rmoods .rmood-ask{
+    position:fixed; left:18px; bottom:calc(var(--barh,0px) + 18px); z-index:23;
+    display:flex; flex-direction:column; align-items:flex-start; gap:10px;
+    max-width:calc(100vw - 460px); }
+  body.awaiting-mood #rmoods .rmood-ask .rmood-lab{
+    font:600 13.5px/1 var(--ui); color:var(--ink); letter-spacing:.005em;
+    text-shadow:0 1px 8px rgba(0,0,0,.85), 0 0 2px rgba(0,0,0,.7); }
+  body.awaiting-mood #rmoods .rmood-ask .rmood-pills{ display:flex; justify-content:flex-start; }
+  body.awaiting-mood #rmoods .rmood-ask .rbtn.rmood{ font-size:13.5px; padding:8px 14px; }
+  /* the credit becomes the hero's last line */
+  body.awaiting-mood #madeby{
+    position:static !important; left:auto; bottom:auto; margin-top:6px;
+    justify-content:center; opacity:1 !important; }
   #presets .rbtn.rmood-scratch{ border-color:rgba(123,220,160,.45); color:#bfe9cf; }
   .preset{
     pointer-events:auto; cursor:pointer;
@@ -369,9 +409,14 @@
   /* The LIVE badge and the top-centre track name are both gone: the badge
      duplicated the rail's YouTube row (its red dot moved there) and the name
      went back to the bottom-left corner, where the transport already is. */
+  /* the same pill as the rail: 46px tall, icon then label. It was a 54px circle
+     with a bare glyph, which read as a different family of control from every
+     other button on the page. */
   #rfullscreen{
-    display:none; position:fixed; top:18px; right:18px; z-index:24; align-items:center; justify-content:center;
-    width:54px; height:54px; min-width:54px; padding:0; border-radius:999px; border:1px solid var(--mat-edge);
+    display:none; position:fixed; top:18px; right:18px; z-index:24;
+    align-items:center; justify-content:center; gap:9px;
+    height:46px; width:auto; min-width:0; padding:0 18px; border-radius:999px;
+    border:1px solid var(--mat-edge);
     background:var(--mat); color:var(--ink); cursor:pointer; pointer-events:auto;
     box-shadow:var(--mat-shadow);
     backdrop-filter:var(--mat-blur); -webkit-backdrop-filter:var(--mat-blur);
@@ -379,6 +424,9 @@
   }
   #rfullscreen:hover, #rfullscreen.on{ border-color:var(--mat-edge-hi); color:#fff; background:var(--mat-hi); }
   #rfullscreen svg{ width:20px; height:20px; flex:0 0 auto; }
+  #rfullscreen .plink-ic{ display:inline-flex; align-items:center; }
+  @media (max-width:820px){ #rfullscreen{ padding:0 14px; }
+    #rfullscreen .plink-t{ display:none; } }
   #rfullscreen.unsupported{ display:none !important; }
   /* PLAYER PLATFORM LINKS — a row of round glass buttons at the top-right, just left of fullscreen. */
   /* THE GAME BOY. Its own screen: the cartridge running on the emulator, with
@@ -454,8 +502,9 @@
   body.ai-visual #madeby{ display:flex; opacity:0; pointer-events:none; transition:opacity var(--fade-out); }
   body.ai-visual.controls-active #madeby{ opacity:1; transition:opacity var(--fade-in); }
   body.ai-visual.controls-active #madeby .plink{ pointer-events:auto; }
-  #madeby .plmade-t{ color:var(--ink-2); font:500 12.5px/1.4 var(--ui); letter-spacing:-.005em;
-    text-shadow:0 1px 8px rgba(0,0,0,.85), 0 0 2px rgba(0,0,0,.7); }
+  /* the same type as the labels it sits with: .plink-t is 600 13.5px */
+  #madeby .plmade-t{ color:var(--ink); font:600 13.5px/1 var(--ui); letter-spacing:.005em;
+    white-space:nowrap; text-shadow:0 1px 8px rgba(0,0,0,.85), 0 0 2px rgba(0,0,0,.7); }
   #madeby .plmade-row{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
   #madeby .plmade-btn{ text-decoration:none; }
   #madeby .plmade-btn svg{ width:18px; height:18px; display:block; }

@@ -1220,3 +1220,32 @@ pass.
   the reported frame CHANGES. That mistake made the same bug read as 206ms once
   and 1026ms the next time.
   npm run test:sync holds it.
+
+- THE HOME DOES NOT FADE, and its bar is a transport and nothing else. Idle-hide
+  exists so that watching the game leaves only the game; on the home there is no
+  game yet, and a landing page whose offers vanish three seconds after you
+  arrive cannot be read. Everything holds until something is playing.
+  The bar drops Now playing, the elapsed/total of a track that does not exist,
+  the tempo and volume of silence, and a screen control for a picture that has
+  not started -- all readings of a song. The strip stays (an empty box) so the
+  bar keeps one height across both states and nothing above it jumps.
+  The empty strip is NOT a door either: clicking it used to open a blank editor,
+  which is what "Start from scratch" is for, and it is what a stray click in the
+  middle of the bar landed on.
+  The "this is a background radio, just listen" hint waits for a radio. It fired
+  on any key or click, over the very buttons that would give you something to
+  listen to.
+
+- On the home the credit holds the MIDDLE and the ask sits in the corner (owner's
+  choice, offered against two other arrangements). Done by moving the nodes
+  (_syncHomeLayout, on the frame loop's 32-frame tick) rather than positioning
+  from a distance: the hero is a centred flex column of unknown height and a
+  fixed element cannot be told to sit inside one. .rmood-ask wraps the label and
+  the pills so they travel together.
+
+- Full screen is a rail pill with a label, 46px, like everything else; it was a
+  54px circle with a bare glyph. The credit line is 600 13.5px, the same type as
+  every button label beside it.
+
+- verify-create-handover is INTERMITTENTLY FLAKY -- seen failing once and passing
+  on the next run across several unrelated changes. Re-run before believing it.

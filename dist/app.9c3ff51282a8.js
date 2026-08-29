@@ -31408,6 +31408,30 @@ function _syncBarInset(){
   try{ window.dispatchEvent(new Event('resize')); }catch(e){}
 }
 window._syncBarInset=_syncBarInset;
+// THE HOME'S MIDDLE IS THE CREDIT; THE ASK SITS IN THE CORNER. Owner's call.
+// Done by moving the nodes rather than by positioning them from a distance: the
+// hero is a centred flex column of unknown height, and a fixed element cannot
+// be told to sit inside one.
+var _homeArranged = null;
+function _syncHomeLayout(){
+  try{
+    var wait = !!(document.body && document.body.classList.contains('awaiting-mood'));
+    if(wait === _homeArranged) return;
+    var rows = document.getElementById('rmoods');
+    var made = document.getElementById('madeby');
+    var ask  = rows && rows.querySelector('.rmood-ask');
+    if(!rows || !made || !ask) return;
+    if(wait){
+      var brand = rows.querySelector('.rmood-brand');
+      if(brand && brand.nextSibling !== made) rows.insertBefore(made, brand.nextSibling);
+      else if(!brand && made.parentNode !== rows) rows.appendChild(made);
+    } else if(made.parentNode !== document.body){
+      document.body.appendChild(made);
+    }
+    _homeArranged = wait;
+  }catch(e){}
+}
+window._syncHomeLayout=_syncHomeLayout;
 function _ribbonVisible(){
   try{
     if(_WALLPAPER_MODE||_POPOVER_MODE||_BROWSE_MODE) return false;
@@ -31678,7 +31702,7 @@ function frame(now){
   // timed separately from _renderEMA, which covers the whole frame: the strip
   // has to be provably cheap on its own, not lost inside the game's cost
   try{ var _rt0=_nowMs(); _ribbonFrame(); _ribEMA += ((_nowMs()-_rt0) - _ribEMA)*0.1; }catch(e){}
-  if((_frameSeq & 31)===0) try{ _syncBarInset(); }catch(e){}
+  if((_frameSeq & 31)===0){ try{ _syncBarInset(); }catch(e){} try{ _syncHomeLayout(); }catch(e){} }
   if(typeof window!=='undefined') window.__rrrFrame = _frameDiag();
   _frameRX = null; _frameSND = null;
 }
@@ -32047,6 +32071,12 @@ function watchOnlyToast(){
   // Only while actually watching a game — never over the home overlay.
   var introEl=document.getElementById('intro');
   if(introEl && !introEl.classList.contains('hidden')) return;
+  // ...and never before there IS a radio. On a cold load nothing is playing and
+  // the moods are the only thing on the page: telling somebody to just listen,
+  // over the buttons that would give them something to listen to, is answering
+  // a question they have not asked yet with an instruction they cannot follow.
+  try{ if(Audio.isHolding && Audio.isHolding()) return; }catch(e){}
+  if(document.body && document.body.classList.contains('awaiting-mood')) return;
   var now=performance.now();
   var showing = now < _watchToastUntil;
   // First key/click shows it ~2.6s; each further key or click WHILE it's up keeps it on longer (capped ~6.5s).
@@ -32410,7 +32440,10 @@ function _updateFullscreenButton(){
   if(on && typeof syncBrowseButton==='function') syncBrowseButton();
   b.classList.toggle('unsupported', !ok);
   b.classList.toggle('on', on);
-  b.innerHTML = svgIcon('fullscreen');
+  // a rail pill like everything else: the icon alone made the one control in
+  // the top-right read as a different kind of thing from the five on the left
+  b.innerHTML = '<span class="plink-ic">' + svgIcon('fullscreen') + '</span>' +
+                '<span class="plink-t">' + (on ? 'Exit full screen' : 'Full screen') + '</span>';
   b.title = on ? 'Exit full screen' : 'Go full screen';
   b.setAttribute('aria-label', b.title);
   b.title = on ? 'Exit full screen' : 'Go full screen';
@@ -32486,11 +32519,16 @@ function buildRadioUI(){
       bs.textContent='An endless Game Boy radio for your second screen: background music, games that play themselves.';
       brand.appendChild(bn); brand.appendChild(bs);
       row.appendChild(brand);
+      // The ask -- the words and the pills -- moves as one piece: it is in the
+      // hero while the page is being read, and in the bottom-left corner once
+      // the credit takes the middle.
+      var ask=document.createElement('div'); ask.className='rmood-ask';
       var lab=document.createElement('span'); lab.className='rmood-lab';
       lab.textContent='Write me a song that is\u2026';
-      row.appendChild(lab);
+      ask.appendChild(lab);
       var pills=document.createElement('span'); pills.className='rmood-pills';
-      row.appendChild(pills);
+      ask.appendChild(pills);
+      row.appendChild(ask);
       moods.forEach(function(m){
         var b=mkRbtn(m, function(){ _moodOnAir(m, b); });
         b.classList.add('rmood'); b.title='Write a '+m+' song and play it';
@@ -33255,9 +33293,14 @@ function buildPlaybar(){ _pbEl=document.getElementById('playbar'); if(!_pbEl||_p
     cv.addEventListener('click', function(ev){
       ev.preventDefault(); ev.stopPropagation();
       if(typeof _pokeVisualControls==='function') _pokeVisualControls();
+      // Nothing playing: the strip is an empty box, and an empty box is not a
+      // door. "Start from scratch" is on the home for exactly this, and a click
+      // that lands here by accident should do nothing at all.
+      try{ if(Audio.isHolding && Audio.isHolding()) return; }catch(e){}
       var has=false;
       try{ var s2=Audio.currentScore&&Audio.currentScore(); has=!!(s2&&s2.gb&&s2.gb.notes&&s2.gb.notes.length); }catch(e){}
-      if(typeof _openCreate==='function') _openCreate(!has);
+      if(!has) return;
+      if(typeof _openCreate==='function') _openCreate(false);
     });
   })();
   _wirePlaybarButton('pbPrev', _transportPrev);

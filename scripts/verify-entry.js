@@ -58,6 +58,21 @@ const peak = async (p, ms) => {
   ok(await p.evaluate(() => document.body.classList.contains('awaiting-mood')),
      'and says so: the moods are the only thing on offer');
   ok((await peak(p, 2500)) < 0.02, 'nothing is sounding');
+  // ...and nothing tells you to just listen, either. That hint is for somebody
+  // watching a game; on the home it lands over the buttons that would give them
+  // something to listen to.
+  await p.keyboard.press('KeyX');
+  await p.mouse.click(700, 300);
+  await wait(900);
+  const shouted = await p.evaluate(() => {
+    const t = [...document.querySelectorAll('*')]
+      .filter(e => /toast/i.test(String(e.className)) && e.getClientRects().length)
+      .map(e => e.textContent.trim()).filter(Boolean);
+    return t.join(' | ');
+  });
+  ok(!/background radio/i.test(shouted),
+     'and nothing says "this is a background radio" before there is one' +
+     (shouted ? ' -- saw: ' + shouted.slice(0, 60) : ''));
   ok(await p.evaluate(() => { const b2 = document.getElementById('pbPlay'); return b2 && b2.dataset.icon === 'play'; }),
      'the transport offers PLAY, not pause');
 
