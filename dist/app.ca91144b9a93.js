@@ -4664,11 +4664,11 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   }
   // ---- bar operations ------------------------------------------------------
   function addBar(bar) {
-    if (S.bars >= 512) { hint('512 bars is the limit \u2014 about twenty minutes.'); return; }
+    if (S.bars >= 48) { hint('48 bars is the limit \u2014 remove one to make room.'); return; }
     snapshot();
     if (bar != null) viewBar = bar;
-    var at = viewBar * 16;                      // an empty bar opens HERE
-    S.cells.forEach(function (x) { if (x.c >= at) x.c += 16; });
+    var width = spb(), at = viewBar * width;    // an empty bar opens HERE
+    S.cells.forEach(function (x) { if (x.c >= at) x.c += width; });
     S.bars++;
     buildTrack(); centerOn(viewBar, true);
     dirty(); renderAll();
@@ -4680,9 +4680,9 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     S.cells.forEach(function (x) {
       if (x.c >= (b + 1) * spb()) x.c += spb();
       else if (x.c >= b * spb()) {
-        var cp = { c: x.c + 16, r: x.r, t: ++order };
-        ['st', 'z', 'u', 'q', 'g', 'f', 'w', 'inst', 'midi', 'len', 'vel', 'ch', 'sweep'].forEach(function (k) {
-          if (x[k] != null) cp[k] = x[k];
+        var cp = { c: x.c + spb(), r: x.r, t: ++order };
+        Object.keys(x).forEach(function (k) {
+          if (k !== 'c' && k !== 'r' && k !== 't') cp[k] = x[k];
         });
         copies.push(cp);
       }
@@ -4771,11 +4771,18 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   }
   function buildTrack() { sizeTrack(); renderBars(); renderGrid(); renderChans(); }
   var stepW = 30, laneH = 62, sidePad = 0;
+  // Geometry used by the animation tick. Keep it in the resize/build path;
+  // reading these rects from applyCam() every frame forced synchronous layout
+  // while the playhead was moving.
+  var trackViewW = 0, scrollBarW = 0;
   function sizeTrack() {
     var sc = root.querySelector('.n-scroll');
     if (!sc) return;
     var r = sc.getBoundingClientRect();
     if (!r.width || !r.height) return;
+    trackViewW = r.width;
+    var sb = root.querySelector('.n-sbar');
+    scrollBarW = sb ? sb.getBoundingClientRect().width : 0;
     var narrow = r.width < 520;
     stepW = narrow ? 26 : 34;
     laneH = Math.max(48, Math.floor((r.height - 32) / 4));   // the four lanes fill the room
@@ -4788,13 +4795,11 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   }
   function songW() { return cols() * stepW; }
   function camMax() {
-    var sc = root.querySelector('.n-scroll');
-    var w = sc ? sc.getBoundingClientRect().width : 0;
+    var w = trackViewW;
     return Math.max(0, songW() + sidePad * 2 - w);
   }
   function centerOn(bar, snap) {
-    var sc = root.querySelector('.n-scroll');
-    var w = sc ? sc.getBoundingClientRect().width : 0;
+    var w = trackViewW;
     var want = Math.max(0, Math.min(camMax(), sidePad + (bar * spb() + spb() / 2) * stepW - w / 2));
     camX = snap ? want : camX + (want - camX) * (Math.abs(want - camX) > w ? 1 : 0.18);
     if (snap) camCatch = 0;
@@ -4803,8 +4808,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   // that only moves once a bar makes the track lurch and then stand still for
   // the rest of the bar -- smooth frames, stuttering motion.
   function viewW() {
-    var sc = root.querySelector('.n-scroll');
-    return sc ? sc.getBoundingClientRect().width : 0;
+    return trackViewW;
   }
   function camForCol(col) {
     return Math.max(0, Math.min(camMax(), sidePad + (col + 0.5) * stepW - viewW() / 2));
@@ -4849,10 +4853,9 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     // the scrollbar says where in the song you are, and how much of it you see
     var bar = root.querySelector('.n-sbar'), thumb = root.querySelector('.n-sthumb');
     if (bar && thumb) {
-      var sc2 = root.querySelector('.n-scroll');
-      var view = sc2 ? sc2.getBoundingClientRect().width : 0;
+      var view = trackViewW;
       var total = Math.max(view, songW());
-      var bw = bar.getBoundingClientRect().width;
+      var bw = scrollBarW;
       var tw = Math.max(28, Math.round(bw * view / total));
       var span = Math.max(1, camMax());
       thumb.style.width = tw + 'px';
@@ -4868,8 +4871,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     }
   }
   function barUnderCamera() {
-    var sc = root.querySelector('.n-scroll');
-    var w = sc ? sc.getBoundingClientRect().width : 0;
+    var w = trackViewW;
     return Math.max(0, Math.min(S.bars - 1, Math.floor((camX + w / 2 - sidePad) / (spb() * stepW))));
   }
   // a note can be dragged: these turn a pointer position into lane and pitch
@@ -10652,6 +10654,8 @@ var BLIT_FS = '#version 300 es\nprecision highp float;in vec2 v;out vec4 o;unifo
     this.ready = false;
     this.frameCount = 0;
     this.cells = { w: 160, h: 144 };
+    this._srcW = 0;
+    this._srcH = 0;
     this.canvas = document.createElement('canvas');
     this._watchSize();
     this.canvas.id = 'dmg';
@@ -10791,6 +10795,12 @@ var BLIT_FS = '#version 300 es\nprecision highp float;in vec2 v;out vec4 o;unifo
     if (this._ro && !this._sizeDirty) return;
     this._sizeDirty = false;
     var dpr = Math.min(1.5, (G.devicePixelRatio || 1));
+    // Keep the full-screen shader chain below roughly two million output
+    // fragments per pass. Above that point the extra pixels are display
+    // oversampling, not recoverable Game Boy detail, and Safari pays for all
+    // of them on every pass.
+    var maxPx = 2000000, px = (G.innerWidth || 1) * (G.innerHeight || 1) * dpr * dpr;
+    if (px > maxPx) dpr *= Math.sqrt(maxPx / px);
     var w = Math.max(1, Math.round((this.canvas.clientWidth || G.innerWidth || 1) * dpr));
     var h = Math.max(1, Math.round((this.canvas.clientHeight || G.innerHeight || 1) * dpr));
     if (this.vw === w && this.vh === h) return;
@@ -10966,7 +10976,14 @@ var BLIT_FS = '#version 300 es\nprecision highp float;in vec2 v;out vec4 o;unifo
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     // No flip on upload: canvas row 0 lands at v=0, which is what the vendored
     // passes expect (their vTexCoord is y-down, per finish.slang's note).
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, this.source);
+    // Allocate source storage only when the stage dimensions change. Reusing
+    // it avoids driver allocation/synchronization work on every frame.
+    var sw = Math.max(1, this.source.width|0), sh = Math.max(1, this.source.height|0);
+    if (this._srcW !== sw || this._srcH !== sh) {
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, sw, sh, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+      this._srcW = sw; this._srcH = sh;
+    }
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, this.source);
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.native.fbo);
     gl.viewport(0, 0, this.native.w, this.native.h);
     gl.useProgram(this.blit);
@@ -11266,6 +11283,8 @@ var BLIT_FS = '#version 300 es\nprecision highp float;in vec2 v;out vec4 o;unifo
     this.tune = Object.assign({}, TUNE, opts.tune || {});
     this.emphasis = 0;
     this.frameCount = 0;
+    this._srcW = 0;
+    this._srcH = 0;
     this.ready = false;
     this.canvas = document.createElement('canvas');
     this._watchSize();
@@ -11335,6 +11354,11 @@ var BLIT_FS = '#version 300 es\nprecision highp float;in vec2 v;out vec4 o;unifo
     if (this._ro && !this._sizeDirty) return;
     this._sizeDirty = false;
     var dpr = Math.min(1.5, (G.devicePixelRatio || 1));
+    // The console signal cannot carry detail beyond this output budget, while
+    // every CRT pass still pays for each pixel. Bound the full-screen chain so
+    // high-DPI Safari does not rasterize display oversampling indefinitely.
+    var maxPx = 2000000, px = (G.innerWidth || 1) * (G.innerHeight || 1) * dpr * dpr;
+    if (px > maxPx) dpr *= Math.sqrt(maxPx / px);
     var w = Math.max(1, Math.round((this.canvas.clientWidth || G.innerWidth || 1) * dpr));
     var h = Math.max(1, Math.round((this.canvas.clientHeight || G.innerHeight || 1) * dpr));
     if (this.vw === w && this.vh === h) return;
@@ -11463,7 +11487,14 @@ var BLIT_FS = '#version 300 es\nprecision highp float;in vec2 v;out vec4 o;unifo
 
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.srcTex);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, this.source);
+    // Keep source texture allocation stable across frames. Re-specify storage
+    // only for a real dimension change and use a sub-image upload normally.
+    var sw = Math.max(1, this.source.width|0), sh = Math.max(1, this.source.height|0);
+    if (this._srcW !== sw || this._srcH !== sh) {
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, sw, sh, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+      this._srcW = sw; this._srcH = sh;
+    }
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, this.source);
 
     // 1. index
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.rtIdx.fbo);
@@ -32032,13 +32063,6 @@ function frame(now){
   if(flash>0.01 && !_panelMode()){ g.fillStyle=`rgba(${flashColor},${0.10*flash})`; g.fillRect(0,0,W,H); }
   if(flash>0.01) flash=Math.max(0,flash-dt*3);
   if(!paused) drawParts(dt);
-  // adaptive: prefer smooth 60fps visuals; back off to ~42/30fps only when drawing cost threatens audio headroom.
-  const _cost = (typeof performance!=='undefined'&&performance.now?performance.now():now) - _t0;
-  _renderEMA += (_cost - _renderEMA) * 0.1;
-  // whole multiples of a 60fps frame: a display can only show 60/30/20, and
-  // asking for the 42fps that "24" used to mean just means uneven frames.
-  var adaptiveTarget = (_renderEMA > 24) ? 50.1 : (_renderEMA > 15 ? 33.4 : 16.7);
-  _frameTarget = Math.max(adaptiveTarget, _wallpaperFpsCap ? 1000/_wallpaperFpsCap : 0);
   var _pnl = _panel();
   if(_pnl){
     // the panel decides the framebuffer size; the stage follows it
@@ -32064,6 +32088,15 @@ function frame(now){
   // had the other, so it never fired at all and --barh was never published.
   if((++_barhTick & 31) === 0){ try{ _syncBarInset(); }catch(e){} try{ _syncReel(); }catch(e){}
     try{ if(window._dockFullscreen) _dockFullscreen(); }catch(e){} }
+  // Measure the whole drawn frame, including panel, ribbon, and occasional
+  // layout/chrome synchronization. The old boundary stopped before those
+  // consumers, so adaptive pacing could miss an over-budget frame.
+  const _cost = (typeof performance!=='undefined'&&performance.now?performance.now():now) - _t0;
+  _renderEMA += (_cost - _renderEMA) * 0.1;
+  // whole multiples of a 60fps frame: a display can only show 60/30/20, and
+  // asking for the 42fps that "24" used to mean just means uneven frames.
+  var adaptiveTarget = (_renderEMA > 24) ? 50.1 : (_renderEMA > 15 ? 33.4 : 16.7);
+  _frameTarget = Math.max(adaptiveTarget, _wallpaperFpsCap ? 1000/_wallpaperFpsCap : 0);
   if(typeof window!=='undefined') window.__rrrFrame = _frameDiag();
   _frameRX = null; _frameSND = null;
 }

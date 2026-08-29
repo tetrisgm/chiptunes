@@ -1000,13 +1000,6 @@ function frame(now){
   if(flash>0.01 && !_panelMode()){ g.fillStyle=`rgba(${flashColor},${0.10*flash})`; g.fillRect(0,0,W,H); }
   if(flash>0.01) flash=Math.max(0,flash-dt*3);
   if(!paused) drawParts(dt);
-  // adaptive: prefer smooth 60fps visuals; back off to ~42/30fps only when drawing cost threatens audio headroom.
-  const _cost = (typeof performance!=='undefined'&&performance.now?performance.now():now) - _t0;
-  _renderEMA += (_cost - _renderEMA) * 0.1;
-  // whole multiples of a 60fps frame: a display can only show 60/30/20, and
-  // asking for the 42fps that "24" used to mean just means uneven frames.
-  var adaptiveTarget = (_renderEMA > 24) ? 50.1 : (_renderEMA > 15 ? 33.4 : 16.7);
-  _frameTarget = Math.max(adaptiveTarget, _wallpaperFpsCap ? 1000/_wallpaperFpsCap : 0);
   var _pnl = _panel();
   if(_pnl){
     // the panel decides the framebuffer size; the stage follows it
@@ -1032,6 +1025,15 @@ function frame(now){
   // had the other, so it never fired at all and --barh was never published.
   if((++_barhTick & 31) === 0){ try{ _syncBarInset(); }catch(e){} try{ _syncReel(); }catch(e){}
     try{ if(window._dockFullscreen) _dockFullscreen(); }catch(e){} }
+  // Measure the whole drawn frame, including panel, ribbon, and occasional
+  // layout/chrome synchronization. The old boundary stopped before those
+  // consumers, so adaptive pacing could miss an over-budget frame.
+  const _cost = (typeof performance!=='undefined'&&performance.now?performance.now():now) - _t0;
+  _renderEMA += (_cost - _renderEMA) * 0.1;
+  // whole multiples of a 60fps frame: a display can only show 60/30/20, and
+  // asking for the 42fps that "24" used to mean just means uneven frames.
+  var adaptiveTarget = (_renderEMA > 24) ? 50.1 : (_renderEMA > 15 ? 33.4 : 16.7);
+  _frameTarget = Math.max(adaptiveTarget, _wallpaperFpsCap ? 1000/_wallpaperFpsCap : 0);
   if(typeof window!=='undefined') window.__rrrFrame = _frameDiag();
   _frameRX = null; _frameSND = null;
 }

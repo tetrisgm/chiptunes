@@ -1519,13 +1519,29 @@ Reported as "severe performance issues running the website overall", in Safari.
   repainting canvas. Chromium/M4 absorbs it entirely (118 -> 120fps with them
   forced off, p95 unchanged), so it cannot be judged from here. `?perf=1&noblur=1`
   is the A/B; it needs a quiet Mac and real Safari.
-- **The frame loop's `_cost` excludes the panel pass, the ribbon and the layout
-  sync.** The comment claiming `_renderEMA` "covers the whole frame" is false,
-  so the adaptive 15/24ms backoffs cannot react to the most expensive work.
-  Moving the boundary would capture the JS submission but still not the GPU or
-  compositor; the rAF-gap probe is the honest complement.
-- Panel fragment load: 2400x1500 is 3.6M fragments through five full-resolution
-  DMG passes. A 2.0M cap would remove 56% of them and is the single biggest
-  remaining lever if Safari still struggles once the machine is quiet.
-- `texImage2D(canvas)` re-specifies the source texture every frame in both
-  panels; `texSubImage2D` after one allocation is the cheaper form.
+- **The backdrop-filter A/B is still unverified in real Safari.** The local
+  Chrome/M4 run is not a substitute for Safari; keep `?perf=1&noblur=1` as the
+  diagnostic until a real Safari session is available.
+
+### Closed in the 2026-08-29 pass
+
+- `_renderEMA` now measures after the panel, ribbon and periodic layout-sync
+  work, so its JS cost covers the drawn frame. The rAF-gap probe remains the
+  GPU/compositor complement.
+- DMG and NES backing dimensions are capped at roughly 2,000,000 pixels per
+  surface. The screen source texture is allocated on dimension changes and
+  updated with `texSubImage2D` thereafter.
+- The editor's animation path uses cached track metrics instead of reading
+  layout on every frame. Bar insertion and duplication now respect the actual
+  steps-per-bar and the 48-bar limit.
+- `verify-ribbon` now asserts the shipped docked transport geometry rather than
+  the obsolete viewport-centering layout. `crt-diff.mjs` passed all ten cases
+  (including DPR 1 and DPR 2), and the complete `npm test` suite is green.
+
+### Still worth doing when the environment permits
+
+- Real Safari A/B and a quiet-machine performance capture for the backdrop
+  filters. No code change is justified from Chromium-only evidence.
+- The radio endpoint should be rechecked if the reported 404 returns; the
+  current probe on 2026-08-29 returned HTTP 200 audio from
+  `https://radio.chiptunes.app` and valid `.pls`/`.m3u` responses.

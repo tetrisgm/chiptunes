@@ -2068,11 +2068,11 @@
   }
   // ---- bar operations ------------------------------------------------------
   function addBar(bar) {
-    if (S.bars >= 512) { hint('512 bars is the limit \u2014 about twenty minutes.'); return; }
+    if (S.bars >= 48) { hint('48 bars is the limit \u2014 remove one to make room.'); return; }
     snapshot();
     if (bar != null) viewBar = bar;
-    var at = viewBar * 16;                      // an empty bar opens HERE
-    S.cells.forEach(function (x) { if (x.c >= at) x.c += 16; });
+    var width = spb(), at = viewBar * width;    // an empty bar opens HERE
+    S.cells.forEach(function (x) { if (x.c >= at) x.c += width; });
     S.bars++;
     buildTrack(); centerOn(viewBar, true);
     dirty(); renderAll();
@@ -2084,9 +2084,9 @@
     S.cells.forEach(function (x) {
       if (x.c >= (b + 1) * spb()) x.c += spb();
       else if (x.c >= b * spb()) {
-        var cp = { c: x.c + 16, r: x.r, t: ++order };
-        ['st', 'z', 'u', 'q', 'g', 'f', 'w', 'inst', 'midi', 'len', 'vel', 'ch', 'sweep'].forEach(function (k) {
-          if (x[k] != null) cp[k] = x[k];
+        var cp = { c: x.c + spb(), r: x.r, t: ++order };
+        Object.keys(x).forEach(function (k) {
+          if (k !== 'c' && k !== 'r' && k !== 't') cp[k] = x[k];
         });
         copies.push(cp);
       }
@@ -2175,11 +2175,18 @@
   }
   function buildTrack() { sizeTrack(); renderBars(); renderGrid(); renderChans(); }
   var stepW = 30, laneH = 62, sidePad = 0;
+  // Geometry used by the animation tick. Keep it in the resize/build path;
+  // reading these rects from applyCam() every frame forced synchronous layout
+  // while the playhead was moving.
+  var trackViewW = 0, scrollBarW = 0;
   function sizeTrack() {
     var sc = root.querySelector('.n-scroll');
     if (!sc) return;
     var r = sc.getBoundingClientRect();
     if (!r.width || !r.height) return;
+    trackViewW = r.width;
+    var sb = root.querySelector('.n-sbar');
+    scrollBarW = sb ? sb.getBoundingClientRect().width : 0;
     var narrow = r.width < 520;
     stepW = narrow ? 26 : 34;
     laneH = Math.max(48, Math.floor((r.height - 32) / 4));   // the four lanes fill the room
@@ -2192,13 +2199,11 @@
   }
   function songW() { return cols() * stepW; }
   function camMax() {
-    var sc = root.querySelector('.n-scroll');
-    var w = sc ? sc.getBoundingClientRect().width : 0;
+    var w = trackViewW;
     return Math.max(0, songW() + sidePad * 2 - w);
   }
   function centerOn(bar, snap) {
-    var sc = root.querySelector('.n-scroll');
-    var w = sc ? sc.getBoundingClientRect().width : 0;
+    var w = trackViewW;
     var want = Math.max(0, Math.min(camMax(), sidePad + (bar * spb() + spb() / 2) * stepW - w / 2));
     camX = snap ? want : camX + (want - camX) * (Math.abs(want - camX) > w ? 1 : 0.18);
     if (snap) camCatch = 0;
@@ -2207,8 +2212,7 @@
   // that only moves once a bar makes the track lurch and then stand still for
   // the rest of the bar -- smooth frames, stuttering motion.
   function viewW() {
-    var sc = root.querySelector('.n-scroll');
-    return sc ? sc.getBoundingClientRect().width : 0;
+    return trackViewW;
   }
   function camForCol(col) {
     return Math.max(0, Math.min(camMax(), sidePad + (col + 0.5) * stepW - viewW() / 2));
@@ -2253,10 +2257,9 @@
     // the scrollbar says where in the song you are, and how much of it you see
     var bar = root.querySelector('.n-sbar'), thumb = root.querySelector('.n-sthumb');
     if (bar && thumb) {
-      var sc2 = root.querySelector('.n-scroll');
-      var view = sc2 ? sc2.getBoundingClientRect().width : 0;
+      var view = trackViewW;
       var total = Math.max(view, songW());
-      var bw = bar.getBoundingClientRect().width;
+      var bw = scrollBarW;
       var tw = Math.max(28, Math.round(bw * view / total));
       var span = Math.max(1, camMax());
       thumb.style.width = tw + 'px';
@@ -2272,8 +2275,7 @@
     }
   }
   function barUnderCamera() {
-    var sc = root.querySelector('.n-scroll');
-    var w = sc ? sc.getBoundingClientRect().width : 0;
+    var w = trackViewW;
     return Math.max(0, Math.min(S.bars - 1, Math.floor((camX + w / 2 - sidePad) / (spb() * stepW))));
   }
   // a note can be dragged: these turn a pointer position into lane and pitch

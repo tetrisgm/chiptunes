@@ -155,6 +155,8 @@ var BLIT_FS = '#version 300 es\nprecision highp float;in vec2 v;out vec4 o;unifo
     this.ready = false;
     this.frameCount = 0;
     this.cells = { w: 160, h: 144 };
+    this._srcW = 0;
+    this._srcH = 0;
     this.canvas = document.createElement('canvas');
     this._watchSize();
     this.canvas.id = 'dmg';
@@ -294,6 +296,12 @@ var BLIT_FS = '#version 300 es\nprecision highp float;in vec2 v;out vec4 o;unifo
     if (this._ro && !this._sizeDirty) return;
     this._sizeDirty = false;
     var dpr = Math.min(1.5, (G.devicePixelRatio || 1));
+    // Keep the full-screen shader chain below roughly two million output
+    // fragments per pass. Above that point the extra pixels are display
+    // oversampling, not recoverable Game Boy detail, and Safari pays for all
+    // of them on every pass.
+    var maxPx = 2000000, px = (G.innerWidth || 1) * (G.innerHeight || 1) * dpr * dpr;
+    if (px > maxPx) dpr *= Math.sqrt(maxPx / px);
     var w = Math.max(1, Math.round((this.canvas.clientWidth || G.innerWidth || 1) * dpr));
     var h = Math.max(1, Math.round((this.canvas.clientHeight || G.innerHeight || 1) * dpr));
     if (this.vw === w && this.vh === h) return;
@@ -469,7 +477,14 @@ var BLIT_FS = '#version 300 es\nprecision highp float;in vec2 v;out vec4 o;unifo
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     // No flip on upload: canvas row 0 lands at v=0, which is what the vendored
     // passes expect (their vTexCoord is y-down, per finish.slang's note).
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, this.source);
+    // Allocate source storage only when the stage dimensions change. Reusing
+    // it avoids driver allocation/synchronization work on every frame.
+    var sw = Math.max(1, this.source.width|0), sh = Math.max(1, this.source.height|0);
+    if (this._srcW !== sw || this._srcH !== sh) {
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, sw, sh, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+      this._srcW = sw; this._srcH = sh;
+    }
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, this.source);
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.native.fbo);
     gl.viewport(0, 0, this.native.w, this.native.h);
     gl.useProgram(this.blit);

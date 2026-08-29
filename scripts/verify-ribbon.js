@@ -75,12 +75,16 @@ const pixels = p => p.evaluate(() => {
     const lr = lcd ? lcd.getBoundingClientRect() : null;
     const ttl = document.getElementById('pbLcdTitle');
     const tr = ttl ? ttl.getBoundingClientRect() : null;
+    const left = document.querySelector('#playbar .pb-left');
+    const right = document.querySelector('#playbar .pb-right');
+    const ar = left ? left.getBoundingClientRect() : null;
+    const rr = right ? right.getBoundingClientRect() : null;
     return { w: Math.round(r.width), h: Math.round(r.height),
              inCtrl: !!(ctrl && ctrl.contains(c)),
              inPanel: !!(lcd && lcd.contains(c)),
              belowTitle: !!(tr && r.top >= tr.bottom - 1),
              panelHolds: !!(lr && r.left >= lr.left - 1 && r.right <= lr.right + 1),
-             centred: cr ? Math.abs((cr.left + cr.right) / 2 - innerWidth / 2) : 999,
+             dockedBetween: !!(cr && ar && rr && cr.left >= ar.right - 1 && cr.right <= rr.left + 1),
              fromBottom: cr ? Math.round(innerHeight - cr.bottom) : -1,
              times: [(document.getElementById('pbElapsed')||{}).textContent,
                      (document.getElementById('pbTotal')||{}).textContent] };
@@ -91,7 +95,7 @@ const pixels = p => p.evaluate(() => {
   ok(geo.inPanel, 'it sits inside the now-playing panel');
   ok(geo.belowTitle, 'under the track name, the way a scrubber does');
   ok(geo.panelHolds, 'and the panel contains it rather than being overflowed');
-  ok(geo.centred < 3, 'the group stays centred (' + geo.centred.toFixed(1) + 'px off)');
+  ok(geo.dockedBetween, 'the docked groups stay in order without overlap');
   ok(geo.fromBottom > 0 && geo.fromBottom < 60, 'and anchored to the bottom (' + geo.fromBottom + 'px up)');
   ok(geo.h > 20 && geo.h < 90, 'the track stays a strip rather than a second view (' + geo.h + 'px tall)');
   ok(/^\d+:\d\d$/.test(geo.times[0] || '') && /^\d+:\d\d$/.test(geo.times[1] || ''),

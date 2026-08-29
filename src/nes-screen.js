@@ -225,6 +225,8 @@
     this.tune = Object.assign({}, TUNE, opts.tune || {});
     this.emphasis = 0;
     this.frameCount = 0;
+    this._srcW = 0;
+    this._srcH = 0;
     this.ready = false;
     this.canvas = document.createElement('canvas');
     this._watchSize();
@@ -294,6 +296,11 @@
     if (this._ro && !this._sizeDirty) return;
     this._sizeDirty = false;
     var dpr = Math.min(1.5, (G.devicePixelRatio || 1));
+    // The console signal cannot carry detail beyond this output budget, while
+    // every CRT pass still pays for each pixel. Bound the full-screen chain so
+    // high-DPI Safari does not rasterize display oversampling indefinitely.
+    var maxPx = 2000000, px = (G.innerWidth || 1) * (G.innerHeight || 1) * dpr * dpr;
+    if (px > maxPx) dpr *= Math.sqrt(maxPx / px);
     var w = Math.max(1, Math.round((this.canvas.clientWidth || G.innerWidth || 1) * dpr));
     var h = Math.max(1, Math.round((this.canvas.clientHeight || G.innerHeight || 1) * dpr));
     if (this.vw === w && this.vh === h) return;
@@ -422,7 +429,14 @@
 
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.srcTex);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, this.source);
+    // Keep source texture allocation stable across frames. Re-specify storage
+    // only for a real dimension change and use a sub-image upload normally.
+    var sw = Math.max(1, this.source.width|0), sh = Math.max(1, this.source.height|0);
+    if (this._srcW !== sw || this._srcH !== sh) {
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, sw, sh, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+      this._srcW = sw; this._srcH = sh;
+    }
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, this.source);
 
     // 1. index
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.rtIdx.fbo);
