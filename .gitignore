@@ -49,3 +49,6 @@ dist/radio.m3u
 .codex-auditions/
 dist/_paneltest.html
 *.wav
+
+# Gate screenshots, written by scripts/verify-chrome.js for eyeballing.
+.shots/

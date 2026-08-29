@@ -1005,6 +1005,7 @@ function frame(now){
   // timed separately from _renderEMA, which covers the whole frame: the strip
   // has to be provably cheap on its own, not lost inside the game's cost
   try{ var _rt0=_nowMs(); _ribbonFrame(); _ribEMA += ((_nowMs()-_rt0) - _ribEMA)*0.1; }catch(e){}
+  try{ _deskShotFrame(); }catch(e){}
   // Its own counter. This was `_frameSeq & 31`, and _frameSeq counts TICKS
   // while this line only runs on DRAWN frames -- with the loop drawing every
   // second tick, the drawn frames all had one parity and the multiples of 32
@@ -1927,7 +1928,9 @@ function _buildPlayerLinks(){
   }
   var madeBy='<span class="plmade-t">An AI product experiment by Shokunin</span>'+
     '<div class="plmade-row">'+
-      _madeLink('https://github.com/tetrisgm', _IC_GH, 'GitHub', 'tetrisgm on GitHub')+
+      // the REPOSITORY, not the profile: the interesting thing about this
+      // page is that you can read how it works and send a change back
+      _madeLink(GITHUB_URL, _IC_GH, 'GitHub', 'Source, issues and pull requests')+
       _madeLink('https://twitter.com/tetrisgm', _IC_X, 'Twitter', 'tetrisgm on X')+
       _madeLink('https://news.ycombinator.com/user?id=tetrisgm', _IC_HN, 'Hacker News', 'tetrisgm on Hacker News')+
     '</div>';
@@ -2073,14 +2076,56 @@ function _toggleHowModal(){
   requestAnimationFrame(function(){ el.classList.add('show'); });
 }
 window._toggleHowModal=_toggleHowModal;
+// The desktop card's wallpaper: one downscaled blit of the stage, at a third
+// of the frame rate. It is skipped entirely unless the card is on screen, so
+// the cost is zero on the home page, in the editor, and on mobile -- and even
+// when it is showing, a 296x166 drawImage is a rounding error next to the game
+// that produced the pixels.
+var _deskShotN=0, _deskShotCv=null, _deskShotCx=null;
+function _deskShotFrame(){
+  if((++_deskShotN % 3) !== 0) return;
+  var card=document.getElementById('dlcard');
+  // getClientRects, NOT offsetParent: the card is position:fixed, and a fixed
+  // element's offsetParent is null even when it is plainly on screen -- so the
+  // first cut of this check skipped every frame and the wallpaper never drew.
+  if(!card || !card.getClientRects().length) return;
+  if(getComputedStyle(card).opacity === '0') return;        // faded out with the rest of the chrome
+  if(!_deskShotCv || !_deskShotCv.isConnected){
+    _deskShotCv=document.getElementById('dlcWall');
+    if(!_deskShotCv) return;
+    // raw: the palette hook quantises every 2d context it is given, and this
+    // one is copying pixels that have already been through it
+    _deskShotCv.__ctpalRaw=true;
+    _deskShotCx=_deskShotCv.getContext('2d');
+    if(_deskShotCx) _deskShotCx.imageSmoothingEnabled=false;
+  }
+  var src=document.getElementById('stage');
+  if(!_deskShotCx || !src || !src.width || !src.height) return;
+  // cover: the stage is the window's shape, the little screen is 16:9
+  var dw=_deskShotCv.width, dh=_deskShotCv.height;
+  var sc=Math.max(dw/src.width, dh/src.height);
+  var sw=Math.min(src.width, dw/sc), sh=Math.min(src.height, dh/sc);
+  _deskShotCx.drawImage(src, (src.width-sw)/2, (src.height-sh)/2, sw, sh, 0, 0, dw, dh);
+}
 function _buildDesktopCard(os, osName){
   if(document.getElementById('dlcard')) return;
   var me=(os==='win'?'win':os==='linux'?'linux':'mac');
   var ALL={mac:['dl-mac','Mac'], win:['dl-win','Windows'], linux:['dl-linux','Linux']};
   var order=[me].concat(['mac','win','linux'].filter(function(k){ return k!==me; }));   // the one you are on leads
   var card=document.createElement('div'); card.id='dlcard';
+  // A DESKTOP WITH THE WALLPAPER IN IT. The card claims the games can be your
+  // wallpaper, which is a hard thing to picture from a sentence -- so it shows
+  // one: a little screen with a menu bar and a dock, and the actual running
+  // game behind them. Not a mockup of the idea, the idea itself, blitted from
+  // the same canvas the page is already drawing.
   card.innerHTML='<div class="dlc-h">On your desktop</div>'+
     '<div class="dlc-d">Use these games as an animated wallpaper.</div>'+
+    '<div class="dlc-shot" aria-hidden="true">'+
+      '<canvas class="dlc-wall" id="dlcWall" width="296" height="166"></canvas>'+
+      '<div class="dlc-menu"><i></i><i></i><i></i><b></b></div>'+
+      '<div class="dlc-icons"><u></u><u></u></div>'+
+      '<div class="dlc-dock"><s></s><s></s><s></s><s></s><s></s></div>'+
+    '</div>'+
     '<div class="dlc-b">'+order.map(function(k){
       var a=ALL[k];
       return '<button type="button" data-k="'+a[0]+'" title="Download the '+a[1]+' desktop app">'+a[1]+'</button>';
@@ -2551,11 +2596,7 @@ function buildPlaybar(){ _pbEl=document.getElementById('playbar'); if(!_pbEl||_p
     '<div class="pb-main-ctrl"><button id="pbPrev" title="Previous">'+_pbIcon('prev')+'</button>'+
     '<button class="pb-play" id="pbPlay" title="Play / Pause">'+_pbIcon('pause')+'</button>'+
     '<button id="pbNext" title="Next">'+_pbIcon('next')+'</button></div>'+
-    '<div class="pb-dial pb-voldial">'+
-      '<button id="pbVolume" class="pb-volume" title="Volume, mixer &amp; BPM"><span class="pbv-icon">'+svgIcon('mixer')+'</span></button>'+
-      '<input type="range" id="pbVol" min="0" max="150" step="1" value="100" title="Volume">'+
-      '<span class="pbd-read pb-volread" id="pbVolRead">100</span>'+
-    '</div>'+
+
     '<div class="pb-cover" id="pbCover" title="Open album"></div>'+
     // No overflow button. Everything it held is either a pill over the game now
     // (YouTube, radio, the desktop app, the ROM) or reachable by clicking the
@@ -2593,9 +2634,16 @@ function buildPlaybar(){ _pbEl=document.getElementById('playbar'); if(!_pbEl||_p
       '<div class="pb-dial pb-bpmdial"><span class="pbd-lab">BPM</span>'+
         '<input type="range" id="pbBpm" min="60" max="220" step="1" value="128" title="Tempo">'+
         '<span class="pbd-read" id="pbBpmRead">\u2014</span></div>'+
-      '<button id="pbAdv" class="pb-adv" type="button" title="Advanced volumes" aria-label="Advanced volumes">'+
-        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 8h14M5 12h14M5 16h14"/><circle cx="9" cy="8" r="1.7" fill="currentColor"/><circle cx="15" cy="12" r="1.7" fill="currentColor"/><circle cx="8" cy="16" r="1.7" fill="currentColor"/></svg>'+
-      '</button>'+
+      // volume last, hard against the right edge
+      '<div class="pb-dial pb-voldial">'+
+        '<button id="pbVolume" class="pb-volume" title="Volume, mixer &amp; BPM"><span class="pbv-icon">'+svgIcon('mixer')+'</span></button>'+
+        '<input type="range" id="pbVol" min="0" max="150" step="1" value="100" title="Volume">'+
+        '<span class="pbd-read pb-volread" id="pbVolRead">100</span>'+
+        // the mixer button is the volume's own expansion, so it rides with it
+        '<button id="pbAdv" class="pb-adv" type="button" title="Advanced volumes" aria-label="Advanced volumes">'+
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 8h14M5 12h14M5 16h14"/><circle cx="9" cy="8" r="1.7" fill="currentColor"/><circle cx="15" cy="12" r="1.7" fill="currentColor"/><circle cx="8" cy="16" r="1.7" fill="currentColor"/></svg>'+
+        '</button>'+
+      '</div>'+
     '</div>';
   _buildBigPlay();
   // PULL THE NOTES UP. The strip already IS the editor's grid in miniature, so
@@ -3951,6 +3999,13 @@ function startAudio(viaGesture, opts){
           _trkHist = []; _trkI = 0;
           try{ if(Audio.holdForPick) Audio.holdForPick(true); }catch(e){}
           if(document.body) document.body.classList.add('awaiting-mood');
+          // Start the reel HERE, not only from the frame loop. _syncReel is
+          // polled every 32 ticks, which is fine once the loop is running --
+          // but the loop is what parks itself when the tab is a background
+          // audio source, and it is exactly then that entering the home would
+          // leave the wallpaper on one frozen game forever. Starting it on the
+          // state change means the reel does not depend on the renderer.
+          try{ _syncReel(); }catch(e){}
         }
       }
       Audio.resume(!!viaGesture);

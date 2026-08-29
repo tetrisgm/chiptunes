@@ -12,14 +12,93 @@ var Song = (function(){
   function mulberry32(a){ a=a>>>0; return function(){ a=(a+0x6D2B79F5)|0;
     var t=Math.imul(a^(a>>>15), 1|a); t=(t+Math.imul(t^(t>>>7), 61|t))^t; return ((t^(t>>>14))>>>0)/4294967296; }; }
 
-  // --- readable phrase slots. Fresh mints add an 8-char base36 nonce: 36^8 (~2.8T) suffixes per
-  //     phrase, so "next" never cycles through a small audible neighborhood of near-duplicate names. ---
-  var SLOTS = [
-    ['velvet','neon','golden','hollow','restless','silent','electric','frozen','molten','lonely','gentle','savage','ancient','distant','secret','endless','fragile','radiant','weary','fearless','crimson','cobalt','amber','violet','copper','scarlet','ivory','onyx','ember','marble','twilight','lunar'],
-    ['tigers','foxes','robots','comets','sirens','wolves','sparrows','dreamers','angels','machines','shadows','sailors','dancers','rebels','ghosts','lanterns','engines','horses','pilots','gardens','mountains','rivers','towers','circuits','satellites','wanderers','lovers','strangers','voyagers','falcons','embers','giants'],
-    ['drift','dream','dance','wander','race','glide','burn','rise','fall','spin','sleep','sing','chase','fade','bloom','shiver','soar','echo','drown','wake','roam','sway','melt','gleam','tremble','whisper','collide','scatter','linger','ascend','ignite','dissolve'],
-    ['dusk','dawn','rain','glass','light','static','fog','snow','fire','dust','silence','thunder','ocean','sky','void','mist','storm','tide','ash','smoke','twilight','horizon','harbor','desert','garden','cinder','frost','echo','shore','dream','neon','midnight']
+  // --- THE CARTRIDGE LABEL VOCABULARY -------------------------------------
+  //
+  // Names used to be four soft words -- "Velvet Tigers Drift Dusk" -- which is
+  // an indie-album phrase, not something that was ever printed on a grey
+  // cartridge. The music is NES and Game Boy; the names should read like the
+  // shelf it came off. So: era words only, assembled in the shapes real
+  // cartridge labels took -- an adjective and a subject, a subject and a
+  // mission, a place and what happens there, and the sequel numeral that was
+  // on half the shelf.
+  //
+  // The words are deliberately GENERIC. That is not a style choice: a
+  // generated title that lands on a real one puts a trademark on a page we
+  // publish, and the repository is what a complaint lands on (see AGENTS.md on
+  // pack naming -- this is the same hazard with the same answer). Generic
+  // vocabulary makes collisions rare; BLOCKED, below, makes them impossible
+  // for the ones this vocabulary can actually reach.
+  var W = {
+    // what kind of thing it is
+    adj: ['turbo','super','hyper','mega','ultra','cosmic','astro','neo','cyber','laser',
+          'plasma','atomic','solar','lunar','crystal','thunder','shadow','iron','steel','chrome',
+          'neon','phantom','mystic','ancient','savage','rapid','blazing','frozen','twin','double',
+          'final','secret','hidden','dark','silver','golden','emerald','jade','obsidian','quantum',
+          'radical','rocket','magma','glacial','electric','magnetic','spectral','molten','arctic','scarlet',
+          'cobalt','crimson','velvet','wild','grand','royal','elite','prime','omega','delta'],
+    // who or what is doing it
+    hero:['ninja','samurai','knight','wizard','warrior','ranger','raider','rider','pilot','captain',
+          'commander','soldier','trooper','hunter','slayer','fighter','gunner','blaster','bomber','racer',
+          'runner','jumper','climber','diver','tank','mech','robot','android','cyborg','droid',
+          'dragon','phoenix','falcon','hawk','wolf','tiger','panther','viper','cobra','scorpion',
+          'mantis','beetle','turtle','frog','bat','ghost','goblin','wraith','golem','titan',
+          'giant','sentinel','guardian','marauder','buccaneer','nomad','drifter','scout','sniper','ace'],
+    // where it happens
+    place:['zone','land','world','island','castle','tower','dungeon','cavern','canyon','valley',
+           'forest','swamp','desert','glacier','volcano','city','metropolis','station','outpost','fortress',
+           'citadel','temple','shrine','palace','labyrinth','maze','arena','coliseum','factory','foundry',
+           'reactor','laboratory','sewer','highway','speedway','galaxy','nebula','orbit','moon','comet',
+           'void','abyss','ridge','summit','harbor','junkyard','wasteland','frontier','bunker','vault'],
+    // what you are there to do
+    mission:['quest','saga','legend','chronicle','adventure','mission','patrol','brigade','squadron','battalion',
+             'force','squad','corps','command','strike','assault','attack','invasion','rampage','rescue',
+             'escape','revenge','revolt','uprising','gauntlet','crusade','odyssey','pursuit','chase','showdown',
+             'duel','tournament','rally','blitz','panic','frenzy','fever','mania','madness','rush',
+             'dash','sprint','scramble','offensive','onslaught','siege','raid','hunt','trial','circuit']
+  };
+  // Roman numerals were on half the shelf and are most of what made a name
+  // read as a cartridge rather than a song.
+  var NUMERALS = ['II','III','IV','V','VI','X','2','3','\'89','\'91','DX','EX','GX','Turbo','Plus','Zero'];
+
+  // Real titles this vocabulary can actually produce. Checked on every mint;
+  // a hit is re-rolled, never shipped. Normalized to lowercase letters and
+  // digits only, so spacing and punctuation cannot slip one past.
+  var BLOCKED = (function(){
+    var t = ['double dragon','shadow warrior','shadow warriors','thunder force','dragon warrior',
+      'ice climber','blaster master','iron tank','twin cobra','mystic quest','solar striker',
+      'cosmic tank','star fox','marble madness','battle city','rad racer','final fight',
+      'ninja gaiden','mega man','metal gear','final fantasy','silver surfer','golden axe',
+      'space harrier','altered beast','phantasy star','bionic commando','ikari warriors',
+      'super mario land','adventure island','kid icarus','bubble bobble','balloon fight',
+      'city connection','elevator action','rolling thunder','shadow dancer','crystal quest',
+      'laser blast','dragon quest','battle arena','ghost squad','robot warriors','turbo racing',
+      'cyber police','last resort','burning rangers','steel empire','magma tank','crystal beans',
+      'phantom fighter','wizards warriors','solar jetman','time lord','silent service',
+      'guerrilla war','sky shark','snake rattle','cobra triangle','dark castle','shadow brigade',
+      'raiden trad','power blade','vice project','image fight','captain skyhawk','wild guns',
+      'super dodge','river city','crash dummies','battle clash','metal storm','over horizon',
+      'thunder blade','galaxy force','after burner','out run','hang on','virtua racing',
+      'panzer dragoon','shining force','landstalker','beyond oasis','gain ground','golden sun'];
+    var m = Object.create(null);
+    for(var i=0;i<t.length;i++) m[t[i].replace(/[^a-z0-9]+/g,'')] = 1;
+    return m;
+  })();
+  function blocked(name){ return !!BLOCKED[String(name).toLowerCase().replace(/[^a-z0-9]+/g,'')]; }
+
+  // The shapes a cartridge label actually took. Each is a function of the same
+  // seeded generator, so a token always names the same song.
+  var SHAPES = [
+    function(r){ return [pick(W.adj,r), pick(W.hero,r), pick(W.mission,r)]; },       // Turbo Falcon Gauntlet
+    function(r){ return [pick(W.adj,r), pick(W.hero,r), pick(W.NUM,r)]; },           // Neon Samurai II
+    function(r){ return [pick(W.adj,r), pick(W.place,r), pick(W.mission,r)]; },      // Frozen Fortress Rampage
+    function(r){ return [pick(W.hero,r), pick(W.mission,r), pick(W.NUM,r)]; },       // Raider Squadron III
+    function(r){ return [pick(W.adj,r), pick(W.hero,r)]; },                          // Cobalt Marauder
+    function(r){ return [pick(W.hero,r), pick(W.mission,r)]; },                      // Phoenix Crusade
+    function(r){ return [pick(W.adj,r), pick(W.place,r)]; },                         // Molten Citadel
+    function(r){ return [pick(W.place,r), pick(W.mission,r), pick(W.NUM,r)]; }       // Canyon Rally EX
   ];
+  W.NUM = NUMERALS;
+
   // Prefixes the OLD (V2) token scheme put in front of the readable phrase. Kept ONLY so old shared
   // /track/ URLs strip cleanly into a title; they no longer influence the music (the composer ignores them).
   var LEGACY_PREFIXES = ['arcade','radio','stage','boss','club','dream','pocket','scene','drive','cell','engine','machine','hook','tool','cue','rush','system','cart',
@@ -78,8 +157,19 @@ var Song = (function(){
   // name stable across a reload and carries it through a shared link for free.
   function nameFor(token){
     var r = mulberry32(hash32(norm(token)+':name'));
-    return [ pick(SLOTS[0], r), pick(SLOTS[1], r), pick(SLOTS[2], r), pick(SLOTS[3], r) ]
-             .map(titleCaseWord).join(' ');
+    // Up to eight goes at an unblocked name. Each attempt draws from the same
+    // stream, so a re-roll is still a pure function of the token; the loop
+    // only ever runs more than once for the handful of combinations BLOCKED
+    // names, and the last attempt is a shape that cannot collide.
+    for(var i=0;i<8;i++){
+      var parts = SHAPES[randU32(r)%SHAPES.length](r);
+      var name  = parts.map(function(w){
+        return /^[IVX0-9']/.test(w) ? w : titleCaseWord(w);   // numerals keep their case
+      }).join(' ');
+      if(!blocked(name)) return name;
+    }
+    return titleCaseWord(pick(W.adj,r))+' '+titleCaseWord(pick(W.hero,r))+' '+
+           titleCaseWord(pick(W.mission,r));
   }
 
   return {

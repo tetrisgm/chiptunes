@@ -368,25 +368,32 @@
   /* The ask is the hero's last line again. It had been moved to the corner to
      make room for the credit in the middle; with the player bar gone from the
      landing page there is room for the question to be where the answer is. */
+  /* ONE SENTENCE, ONE LINE. "Write me a song that is" and the moods are not a
+     heading over a list -- they are the front and the back of the same phrase,
+     so they sit on one row, set identically, and wrap together as running text
+     rather than breaking between the question and its answers. `display:contents`
+     on the pill wrapper lets the individual pills wrap alongside the words
+     instead of moving as one block. */
   body.awaiting-mood #rmoods .rmood-ask{
-    display:flex; flex-direction:column; align-items:center; gap:14px; }
+    display:flex; flex-direction:row; flex-wrap:wrap; align-items:center;
+    justify-content:center; gap:9px; max-width:min(920px,92vw); }
   /* PLAYING: the moods move out of the top strip and into the bottom-left
      corner of the picture, above the player bar, where the credit used to be. */
   body:not(.awaiting-mood) #rmoods .rmood-ask{
     position:fixed; left:18px; bottom:calc(var(--barh,0px) + 18px); z-index:23;
-    display:flex; flex-direction:column; align-items:flex-start; gap:9px;
+    display:flex; flex-direction:row; flex-wrap:wrap; align-items:center; gap:6px;
     max-width:calc(100vw - 460px); }
   body:not(.awaiting-mood) #rmoods .rmood-ask .rmood-lab{
-    display:block; font:600 13.5px/1 var(--ui); color:var(--ink); letter-spacing:.005em;
-    text-shadow:0 1px 8px rgba(0,0,0,.85), 0 0 2px rgba(0,0,0,.7); }
-  body:not(.awaiting-mood) #rmoods .rmood-ask .rmood-pills{
-    display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-start; }
+    display:block; font:600 12.5px/1 var(--ui); color:var(--ink); letter-spacing:-.01em;
+    margin-right:2px; text-shadow:0 1px 8px rgba(0,0,0,.85), 0 0 2px rgba(0,0,0,.7); }
+  body:not(.awaiting-mood) #rmoods .rmood-ask .rmood-pills{ display:contents; }
   /* the top strip is empty now, so it must not sit over the picture */
   body:not(.awaiting-mood) #presets{ pointer-events:none; height:0; padding:0; }
   body:not(.awaiting-mood) #rmoods{ margin-top:0; }
   body.awaiting-mood #rmoods .rmood-ask .rmood-lab{
-    font:600 clamp(15px,1.7vw,19px)/1.3 var(--ui); color:var(--ink-2); }
-  body.awaiting-mood #rmoods .rmood-ask .rmood-pills{ display:flex; justify-content:center; }
+    font:600 14.5px/1 var(--ui); letter-spacing:0; color:var(--ink); margin:0;
+    text-shadow:0 1px 10px rgba(0,0,0,.8); }
+  body.awaiting-mood #rmoods .rmood-ask .rmood-pills{ display:contents; }
   /* THE CREDIT TAKES THE TOP CENTRE on the home. It was briefly made static so
      it could sit inside the hero, which is a centred column of unknown height --
      but static on a body-level element means normal document flow, and when the
@@ -1049,6 +1056,37 @@
     backdrop-filter:var(--mat-blur); -webkit-backdrop-filter:var(--mat-blur); }
   #dlcard .dlc-h{ font:700 14.5px/1.25 var(--ui); letter-spacing:-.005em; color:var(--ink); }
   #dlcard .dlc-d{ margin-top:5px; font:500 13.5px/1.45 var(--ui); letter-spacing:.005em; color:var(--ink-2); }
+  /* THE LITTLE DESKTOP. A screen with a menu bar, two file icons and a dock,
+     and the running game behind all of it -- which is exactly what the app
+     does. The chrome is drawn in CSS so it costs nothing and stays crisp at
+     any DPR; only the wallpaper is a canvas. */
+  #dlcard .dlc-shot{ position:relative; margin-top:11px; border-radius:9px; overflow:hidden;
+    aspect-ratio:296/166; background:#05040c;
+    border:1px solid rgba(255,255,255,.16);
+    box-shadow:0 8px 22px rgba(0,0,0,.5), inset 0 0 0 1px rgba(255,255,255,.04); }
+  #dlcard .dlc-wall{ display:block; width:100%; height:100%; }
+  #dlcard .dlc-menu{ position:absolute; left:0; right:0; top:0; height:11px;
+    display:flex; align-items:center; gap:3px; padding:0 5px;
+    background:rgba(12,10,22,.62); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px);
+    border-bottom:1px solid rgba(255,255,255,.07); }
+  #dlcard .dlc-menu i{ width:3px; height:3px; border-radius:50%; background:rgba(255,255,255,.42); }
+  #dlcard .dlc-menu b{ margin-left:auto; width:26px; height:3px; border-radius:2px;
+    background:rgba(255,255,255,.28); }
+  #dlcard .dlc-icons{ position:absolute; left:7px; top:18px; display:flex; flex-direction:column; gap:9px; }
+  /* a light fill with a defined edge: at 13px over a bright game a flat grey
+     square reads as a smudge on the wallpaper rather than a file on a desk */
+  #dlcard .dlc-icons u{ width:13px; height:11px; border-radius:2px;
+    background:linear-gradient(180deg, rgba(255,255,255,.46), rgba(255,255,255,.24));
+    border:1px solid rgba(0,0,0,.35); box-shadow:0 1px 3px rgba(0,0,0,.55); }
+  #dlcard .dlc-dock{ position:absolute; left:50%; transform:translateX(-50%); bottom:5px;
+    display:flex; gap:4px; padding:3px 5px; border-radius:7px;
+    background:rgba(14,12,26,.6); border:1px solid rgba(255,255,255,.09);
+    backdrop-filter:blur(5px); -webkit-backdrop-filter:blur(5px); }
+  #dlcard .dlc-dock s{ width:11px; height:11px; border-radius:3px; text-decoration:none;
+    background:linear-gradient(180deg, rgba(255,255,255,.30), rgba(255,255,255,.13)); }
+  #dlcard .dlc-dock s:nth-child(2){ background:linear-gradient(180deg,#8f7ae0,#6a55c0); }
+  #dlcard .dlc-dock s:nth-child(4){ background:linear-gradient(180deg,#7bdca0,#4fae76); }
+  @media (prefers-reduced-motion:reduce){ #dlcard .dlc-shot{ }  /* the blit is the animation; nothing spins */ }
   #dlcard .dlc-b{ margin-top:11px; display:flex; gap:7px; }
   #dlcard .dlc-b button{ height:38px; padding:0 15px; border-radius:999px; cursor:pointer;
     border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.05); color:var(--ink);
@@ -1535,6 +1573,16 @@
   body.ai-visual #playbar .pb-info{ display:none !important; }
   body.ai-visual #playbar .pb-cover{ display:none !important; }
   body.ai-visual #playbar .pb-voldial input[type=range]{ width:72px; }
+  /* THE DISPLAY BUTTON IS A BUTTON LIKE THE OTHERS. Once the bar docked, the
+     screen control kept the 38px box it had as a free-floating pill over the
+     game, next to a 34px mixer button and a 32px volume -- three heights in
+     one cluster. Docked, it takes the same box as its neighbours; the floating
+     pill above keeps 38, which is right for what it is there.
+     The !important is the same device the rest of this block uses: the docked
+     rules sit BEFORE the floating ones in the file, and specificity ties break
+     on source order, so every docked override here has to say so out loud. */
+  body.ai-visual #playbar .pb-screen{ height:34px !important; padding:0 12px !important; gap:7px !important; }
+  body.ai-visual #playbar .pb-screen svg{ width:17px !important; height:17px !important; }
   /* the two numbers had nothing between them and read as one: "104100" */
   #playbar .pb-volread{ min-width:26px; margin-left:-4px; }
   #playbar .pb-bpmdial{ gap:8px; }
@@ -1576,7 +1624,9 @@
   #playbar .pb-adv{ width:34px !important; height:34px !important; opacity:.55; }
   #playbar .pb-adv:hover, #playbar:hover .pb-adv{ opacity:1; }
   #playbar .pb-screendock{ display:flex !important; }
-  #playbar .pb-screen{ height:34px; }
+  /* the same box as the mixer button beside it: 34px tall, 34px of breathing
+     room either side of the row, and the dial gap between it and the next thing */
+  #playbar .pb-screen{ height:34px; padding:0 12px; gap:7px; }
   /* narrow windows drop the sliders before they drop the numbers */
   @media (max-width:1180px){ #playbar .pb-dial input[type=range]{ display:none; } }
   @media (max-width:900px){ #playbar .pb-bpmdial{ display:none; }
@@ -1642,12 +1692,16 @@
     transition:opacity .22s ease, transform .22s ease;
   }
   /* the screen control lives with the transport */
-  #playbar .pb-screen{ width:auto !important; height:38px; padding:0 14px; gap:8px; border-radius:999px;
+  #playbar .pb-screen{ width:auto !important; border-radius:999px;
     display:inline-flex; align-items:center; color:var(--ink); font:600 13px/1 var(--ui); letter-spacing:-.01em; white-space:nowrap; }
   #playbar .pb-screen svg{ width:18px !important; height:18px !important; flex:0 0 auto; }
   #playbar .pb-screen:hover{ color:#fff; background:rgba(255,255,255,.10); }
-  #playbar .pb-screen.on{ background:rgba(155,188,15,.16); color:#dbe89a; }
-  #playbar .pb-screen.on:hover{ background:rgba(155,188,15,.24); color:#eef5c8; }
+  /* No colour of its own. It was tinted green whenever the screen was set to
+     anything but the plain CRT -- which is nearly always -- so the one control
+     that merely REPORTS a setting looked like the one control that was switched
+     on. Its label already says which face is showing; it needs nothing else. */
+  #playbar .pb-screen.on{ background:transparent; color:var(--ink); }
+  #playbar .pb-screen.on:hover{ background:rgba(255,255,255,.10); color:#fff; }
   #playbar .pb-main-ctrl{ display:flex; align-items:center; gap:6px; }
   /* CENTRED ON THE PLAY BUTTON, not on the pill. The screen button's label is
      "CRT", "Game Boy" or "NES", and those are different widths -- with it inside
@@ -1717,7 +1771,7 @@
   body.ai-visual #playbar .pb-heart-inline.on,
   body.ai-visual #playbar .pb-play{ width:38px; height:38px; }
   body.ai-visual #playbar .pb-play svg{ width:24px; height:24px; }
-  body.ai-visual #playbar .pb-screen{ height:38px; }
+  body.ai-visual #playbar .pb-screen{ height:38px; padding:0 14px; gap:8px; }
   body.ai-visual #playbar .pb-screen .pbs-t,
   body.ai-visual #playbar .pb-right .pb-volume .pbv-t{
     font:600 13.5px/1 var(--ui); letter-spacing:.005em; white-space:nowrap; }
@@ -1910,7 +1964,7 @@
   <div id="popover"></div>
   <div id="browse"></div>
 
-<script src="../app.8f95441cafe3.js" defer></script>
+<script src="../app.e4fbe79435fa.js" defer></script>
 
 </body>
 </html>

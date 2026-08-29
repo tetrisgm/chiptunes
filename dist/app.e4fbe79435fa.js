@@ -13,14 +13,93 @@ var Song = (function(){
   function mulberry32(a){ a=a>>>0; return function(){ a=(a+0x6D2B79F5)|0;
     var t=Math.imul(a^(a>>>15), 1|a); t=(t+Math.imul(t^(t>>>7), 61|t))^t; return ((t^(t>>>14))>>>0)/4294967296; }; }
 
-  // --- readable phrase slots. Fresh mints add an 8-char base36 nonce: 36^8 (~2.8T) suffixes per
-  //     phrase, so "next" never cycles through a small audible neighborhood of near-duplicate names. ---
-  var SLOTS = [
-    ['velvet','neon','golden','hollow','restless','silent','electric','frozen','molten','lonely','gentle','savage','ancient','distant','secret','endless','fragile','radiant','weary','fearless','crimson','cobalt','amber','violet','copper','scarlet','ivory','onyx','ember','marble','twilight','lunar'],
-    ['tigers','foxes','robots','comets','sirens','wolves','sparrows','dreamers','angels','machines','shadows','sailors','dancers','rebels','ghosts','lanterns','engines','horses','pilots','gardens','mountains','rivers','towers','circuits','satellites','wanderers','lovers','strangers','voyagers','falcons','embers','giants'],
-    ['drift','dream','dance','wander','race','glide','burn','rise','fall','spin','sleep','sing','chase','fade','bloom','shiver','soar','echo','drown','wake','roam','sway','melt','gleam','tremble','whisper','collide','scatter','linger','ascend','ignite','dissolve'],
-    ['dusk','dawn','rain','glass','light','static','fog','snow','fire','dust','silence','thunder','ocean','sky','void','mist','storm','tide','ash','smoke','twilight','horizon','harbor','desert','garden','cinder','frost','echo','shore','dream','neon','midnight']
+  // --- THE CARTRIDGE LABEL VOCABULARY -------------------------------------
+  //
+  // Names used to be four soft words -- "Velvet Tigers Drift Dusk" -- which is
+  // an indie-album phrase, not something that was ever printed on a grey
+  // cartridge. The music is NES and Game Boy; the names should read like the
+  // shelf it came off. So: era words only, assembled in the shapes real
+  // cartridge labels took -- an adjective and a subject, a subject and a
+  // mission, a place and what happens there, and the sequel numeral that was
+  // on half the shelf.
+  //
+  // The words are deliberately GENERIC. That is not a style choice: a
+  // generated title that lands on a real one puts a trademark on a page we
+  // publish, and the repository is what a complaint lands on (see AGENTS.md on
+  // pack naming -- this is the same hazard with the same answer). Generic
+  // vocabulary makes collisions rare; BLOCKED, below, makes them impossible
+  // for the ones this vocabulary can actually reach.
+  var W = {
+    // what kind of thing it is
+    adj: ['turbo','super','hyper','mega','ultra','cosmic','astro','neo','cyber','laser',
+          'plasma','atomic','solar','lunar','crystal','thunder','shadow','iron','steel','chrome',
+          'neon','phantom','mystic','ancient','savage','rapid','blazing','frozen','twin','double',
+          'final','secret','hidden','dark','silver','golden','emerald','jade','obsidian','quantum',
+          'radical','rocket','magma','glacial','electric','magnetic','spectral','molten','arctic','scarlet',
+          'cobalt','crimson','velvet','wild','grand','royal','elite','prime','omega','delta'],
+    // who or what is doing it
+    hero:['ninja','samurai','knight','wizard','warrior','ranger','raider','rider','pilot','captain',
+          'commander','soldier','trooper','hunter','slayer','fighter','gunner','blaster','bomber','racer',
+          'runner','jumper','climber','diver','tank','mech','robot','android','cyborg','droid',
+          'dragon','phoenix','falcon','hawk','wolf','tiger','panther','viper','cobra','scorpion',
+          'mantis','beetle','turtle','frog','bat','ghost','goblin','wraith','golem','titan',
+          'giant','sentinel','guardian','marauder','buccaneer','nomad','drifter','scout','sniper','ace'],
+    // where it happens
+    place:['zone','land','world','island','castle','tower','dungeon','cavern','canyon','valley',
+           'forest','swamp','desert','glacier','volcano','city','metropolis','station','outpost','fortress',
+           'citadel','temple','shrine','palace','labyrinth','maze','arena','coliseum','factory','foundry',
+           'reactor','laboratory','sewer','highway','speedway','galaxy','nebula','orbit','moon','comet',
+           'void','abyss','ridge','summit','harbor','junkyard','wasteland','frontier','bunker','vault'],
+    // what you are there to do
+    mission:['quest','saga','legend','chronicle','adventure','mission','patrol','brigade','squadron','battalion',
+             'force','squad','corps','command','strike','assault','attack','invasion','rampage','rescue',
+             'escape','revenge','revolt','uprising','gauntlet','crusade','odyssey','pursuit','chase','showdown',
+             'duel','tournament','rally','blitz','panic','frenzy','fever','mania','madness','rush',
+             'dash','sprint','scramble','offensive','onslaught','siege','raid','hunt','trial','circuit']
+  };
+  // Roman numerals were on half the shelf and are most of what made a name
+  // read as a cartridge rather than a song.
+  var NUMERALS = ['II','III','IV','V','VI','X','2','3','\'89','\'91','DX','EX','GX','Turbo','Plus','Zero'];
+
+  // Real titles this vocabulary can actually produce. Checked on every mint;
+  // a hit is re-rolled, never shipped. Normalized to lowercase letters and
+  // digits only, so spacing and punctuation cannot slip one past.
+  var BLOCKED = (function(){
+    var t = ['double dragon','shadow warrior','shadow warriors','thunder force','dragon warrior',
+      'ice climber','blaster master','iron tank','twin cobra','mystic quest','solar striker',
+      'cosmic tank','star fox','marble madness','battle city','rad racer','final fight',
+      'ninja gaiden','mega man','metal gear','final fantasy','silver surfer','golden axe',
+      'space harrier','altered beast','phantasy star','bionic commando','ikari warriors',
+      'super mario land','adventure island','kid icarus','bubble bobble','balloon fight',
+      'city connection','elevator action','rolling thunder','shadow dancer','crystal quest',
+      'laser blast','dragon quest','battle arena','ghost squad','robot warriors','turbo racing',
+      'cyber police','last resort','burning rangers','steel empire','magma tank','crystal beans',
+      'phantom fighter','wizards warriors','solar jetman','time lord','silent service',
+      'guerrilla war','sky shark','snake rattle','cobra triangle','dark castle','shadow brigade',
+      'raiden trad','power blade','vice project','image fight','captain skyhawk','wild guns',
+      'super dodge','river city','crash dummies','battle clash','metal storm','over horizon',
+      'thunder blade','galaxy force','after burner','out run','hang on','virtua racing',
+      'panzer dragoon','shining force','landstalker','beyond oasis','gain ground','golden sun'];
+    var m = Object.create(null);
+    for(var i=0;i<t.length;i++) m[t[i].replace(/[^a-z0-9]+/g,'')] = 1;
+    return m;
+  })();
+  function blocked(name){ return !!BLOCKED[String(name).toLowerCase().replace(/[^a-z0-9]+/g,'')]; }
+
+  // The shapes a cartridge label actually took. Each is a function of the same
+  // seeded generator, so a token always names the same song.
+  var SHAPES = [
+    function(r){ return [pick(W.adj,r), pick(W.hero,r), pick(W.mission,r)]; },       // Turbo Falcon Gauntlet
+    function(r){ return [pick(W.adj,r), pick(W.hero,r), pick(W.NUM,r)]; },           // Neon Samurai II
+    function(r){ return [pick(W.adj,r), pick(W.place,r), pick(W.mission,r)]; },      // Frozen Fortress Rampage
+    function(r){ return [pick(W.hero,r), pick(W.mission,r), pick(W.NUM,r)]; },       // Raider Squadron III
+    function(r){ return [pick(W.adj,r), pick(W.hero,r)]; },                          // Cobalt Marauder
+    function(r){ return [pick(W.hero,r), pick(W.mission,r)]; },                      // Phoenix Crusade
+    function(r){ return [pick(W.adj,r), pick(W.place,r)]; },                         // Molten Citadel
+    function(r){ return [pick(W.place,r), pick(W.mission,r), pick(W.NUM,r)]; }       // Canyon Rally EX
   ];
+  W.NUM = NUMERALS;
+
   // Prefixes the OLD (V2) token scheme put in front of the readable phrase. Kept ONLY so old shared
   // /track/ URLs strip cleanly into a title; they no longer influence the music (the composer ignores them).
   var LEGACY_PREFIXES = ['arcade','radio','stage','boss','club','dream','pocket','scene','drive','cell','engine','machine','hook','tool','cue','rush','system','cart',
@@ -79,8 +158,19 @@ var Song = (function(){
   // name stable across a reload and carries it through a shared link for free.
   function nameFor(token){
     var r = mulberry32(hash32(norm(token)+':name'));
-    return [ pick(SLOTS[0], r), pick(SLOTS[1], r), pick(SLOTS[2], r), pick(SLOTS[3], r) ]
-             .map(titleCaseWord).join(' ');
+    // Up to eight goes at an unblocked name. Each attempt draws from the same
+    // stream, so a re-roll is still a pure function of the token; the loop
+    // only ever runs more than once for the handful of combinations BLOCKED
+    // names, and the last attempt is a shape that cannot collide.
+    for(var i=0;i<8;i++){
+      var parts = SHAPES[randU32(r)%SHAPES.length](r);
+      var name  = parts.map(function(w){
+        return /^[IVX0-9']/.test(w) ? w : titleCaseWord(w);   // numerals keep their case
+      }).join(' ');
+      if(!blocked(name)) return name;
+    }
+    return titleCaseWord(pick(W.adj,r))+' '+titleCaseWord(pick(W.hero,r))+' '+
+           titleCaseWord(pick(W.mission,r));
   }
 
   return {
@@ -31728,6 +31818,7 @@ function frame(now){
   // timed separately from _renderEMA, which covers the whole frame: the strip
   // has to be provably cheap on its own, not lost inside the game's cost
   try{ var _rt0=_nowMs(); _ribbonFrame(); _ribEMA += ((_nowMs()-_rt0) - _ribEMA)*0.1; }catch(e){}
+  try{ _deskShotFrame(); }catch(e){}
   // Its own counter. This was `_frameSeq & 31`, and _frameSeq counts TICKS
   // while this line only runs on DRAWN frames -- with the loop drawing every
   // second tick, the drawn frames all had one parity and the multiples of 32
@@ -32650,7 +32741,9 @@ function _buildPlayerLinks(){
   }
   var madeBy='<span class="plmade-t">An AI product experiment by Shokunin</span>'+
     '<div class="plmade-row">'+
-      _madeLink('https://github.com/tetrisgm', _IC_GH, 'GitHub', 'tetrisgm on GitHub')+
+      // the REPOSITORY, not the profile: the interesting thing about this
+      // page is that you can read how it works and send a change back
+      _madeLink(GITHUB_URL, _IC_GH, 'GitHub', 'Source, issues and pull requests')+
       _madeLink('https://twitter.com/tetrisgm', _IC_X, 'Twitter', 'tetrisgm on X')+
       _madeLink('https://news.ycombinator.com/user?id=tetrisgm', _IC_HN, 'Hacker News', 'tetrisgm on Hacker News')+
     '</div>';
@@ -32796,14 +32889,56 @@ function _toggleHowModal(){
   requestAnimationFrame(function(){ el.classList.add('show'); });
 }
 window._toggleHowModal=_toggleHowModal;
+// The desktop card's wallpaper: one downscaled blit of the stage, at a third
+// of the frame rate. It is skipped entirely unless the card is on screen, so
+// the cost is zero on the home page, in the editor, and on mobile -- and even
+// when it is showing, a 296x166 drawImage is a rounding error next to the game
+// that produced the pixels.
+var _deskShotN=0, _deskShotCv=null, _deskShotCx=null;
+function _deskShotFrame(){
+  if((++_deskShotN % 3) !== 0) return;
+  var card=document.getElementById('dlcard');
+  // getClientRects, NOT offsetParent: the card is position:fixed, and a fixed
+  // element's offsetParent is null even when it is plainly on screen -- so the
+  // first cut of this check skipped every frame and the wallpaper never drew.
+  if(!card || !card.getClientRects().length) return;
+  if(getComputedStyle(card).opacity === '0') return;        // faded out with the rest of the chrome
+  if(!_deskShotCv || !_deskShotCv.isConnected){
+    _deskShotCv=document.getElementById('dlcWall');
+    if(!_deskShotCv) return;
+    // raw: the palette hook quantises every 2d context it is given, and this
+    // one is copying pixels that have already been through it
+    _deskShotCv.__ctpalRaw=true;
+    _deskShotCx=_deskShotCv.getContext('2d');
+    if(_deskShotCx) _deskShotCx.imageSmoothingEnabled=false;
+  }
+  var src=document.getElementById('stage');
+  if(!_deskShotCx || !src || !src.width || !src.height) return;
+  // cover: the stage is the window's shape, the little screen is 16:9
+  var dw=_deskShotCv.width, dh=_deskShotCv.height;
+  var sc=Math.max(dw/src.width, dh/src.height);
+  var sw=Math.min(src.width, dw/sc), sh=Math.min(src.height, dh/sc);
+  _deskShotCx.drawImage(src, (src.width-sw)/2, (src.height-sh)/2, sw, sh, 0, 0, dw, dh);
+}
 function _buildDesktopCard(os, osName){
   if(document.getElementById('dlcard')) return;
   var me=(os==='win'?'win':os==='linux'?'linux':'mac');
   var ALL={mac:['dl-mac','Mac'], win:['dl-win','Windows'], linux:['dl-linux','Linux']};
   var order=[me].concat(['mac','win','linux'].filter(function(k){ return k!==me; }));   // the one you are on leads
   var card=document.createElement('div'); card.id='dlcard';
+  // A DESKTOP WITH THE WALLPAPER IN IT. The card claims the games can be your
+  // wallpaper, which is a hard thing to picture from a sentence -- so it shows
+  // one: a little screen with a menu bar and a dock, and the actual running
+  // game behind them. Not a mockup of the idea, the idea itself, blitted from
+  // the same canvas the page is already drawing.
   card.innerHTML='<div class="dlc-h">On your desktop</div>'+
     '<div class="dlc-d">Use these games as an animated wallpaper.</div>'+
+    '<div class="dlc-shot" aria-hidden="true">'+
+      '<canvas class="dlc-wall" id="dlcWall" width="296" height="166"></canvas>'+
+      '<div class="dlc-menu"><i></i><i></i><i></i><b></b></div>'+
+      '<div class="dlc-icons"><u></u><u></u></div>'+
+      '<div class="dlc-dock"><s></s><s></s><s></s><s></s><s></s></div>'+
+    '</div>'+
     '<div class="dlc-b">'+order.map(function(k){
       var a=ALL[k];
       return '<button type="button" data-k="'+a[0]+'" title="Download the '+a[1]+' desktop app">'+a[1]+'</button>';
@@ -33274,11 +33409,7 @@ function buildPlaybar(){ _pbEl=document.getElementById('playbar'); if(!_pbEl||_p
     '<div class="pb-main-ctrl"><button id="pbPrev" title="Previous">'+_pbIcon('prev')+'</button>'+
     '<button class="pb-play" id="pbPlay" title="Play / Pause">'+_pbIcon('pause')+'</button>'+
     '<button id="pbNext" title="Next">'+_pbIcon('next')+'</button></div>'+
-    '<div class="pb-dial pb-voldial">'+
-      '<button id="pbVolume" class="pb-volume" title="Volume, mixer &amp; BPM"><span class="pbv-icon">'+svgIcon('mixer')+'</span></button>'+
-      '<input type="range" id="pbVol" min="0" max="150" step="1" value="100" title="Volume">'+
-      '<span class="pbd-read pb-volread" id="pbVolRead">100</span>'+
-    '</div>'+
+
     '<div class="pb-cover" id="pbCover" title="Open album"></div>'+
     // No overflow button. Everything it held is either a pill over the game now
     // (YouTube, radio, the desktop app, the ROM) or reachable by clicking the
@@ -33316,9 +33447,16 @@ function buildPlaybar(){ _pbEl=document.getElementById('playbar'); if(!_pbEl||_p
       '<div class="pb-dial pb-bpmdial"><span class="pbd-lab">BPM</span>'+
         '<input type="range" id="pbBpm" min="60" max="220" step="1" value="128" title="Tempo">'+
         '<span class="pbd-read" id="pbBpmRead">\u2014</span></div>'+
-      '<button id="pbAdv" class="pb-adv" type="button" title="Advanced volumes" aria-label="Advanced volumes">'+
-        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 8h14M5 12h14M5 16h14"/><circle cx="9" cy="8" r="1.7" fill="currentColor"/><circle cx="15" cy="12" r="1.7" fill="currentColor"/><circle cx="8" cy="16" r="1.7" fill="currentColor"/></svg>'+
-      '</button>'+
+      // volume last, hard against the right edge
+      '<div class="pb-dial pb-voldial">'+
+        '<button id="pbVolume" class="pb-volume" title="Volume, mixer &amp; BPM"><span class="pbv-icon">'+svgIcon('mixer')+'</span></button>'+
+        '<input type="range" id="pbVol" min="0" max="150" step="1" value="100" title="Volume">'+
+        '<span class="pbd-read pb-volread" id="pbVolRead">100</span>'+
+        // the mixer button is the volume's own expansion, so it rides with it
+        '<button id="pbAdv" class="pb-adv" type="button" title="Advanced volumes" aria-label="Advanced volumes">'+
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 8h14M5 12h14M5 16h14"/><circle cx="9" cy="8" r="1.7" fill="currentColor"/><circle cx="15" cy="12" r="1.7" fill="currentColor"/><circle cx="8" cy="16" r="1.7" fill="currentColor"/></svg>'+
+        '</button>'+
+      '</div>'+
     '</div>';
   _buildBigPlay();
   // PULL THE NOTES UP. The strip already IS the editor's grid in miniature, so
@@ -34674,6 +34812,13 @@ function startAudio(viaGesture, opts){
           _trkHist = []; _trkI = 0;
           try{ if(Audio.holdForPick) Audio.holdForPick(true); }catch(e){}
           if(document.body) document.body.classList.add('awaiting-mood');
+          // Start the reel HERE, not only from the frame loop. _syncReel is
+          // polled every 32 ticks, which is fine once the loop is running --
+          // but the loop is what parks itself when the tab is a background
+          // audio source, and it is exactly then that entering the home would
+          // leave the wallpaper on one frozen game forever. Starting it on the
+          // state change means the reel does not depend on the renderer.
+          try{ _syncReel(); }catch(e){}
         }
       }
       Audio.resume(!!viaGesture);
