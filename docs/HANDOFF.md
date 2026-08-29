@@ -1354,3 +1354,46 @@ pass.
 - A SCRIM behind the hero: with a game running under it, the name, the line and
   the pills were competing with a platform every two seconds. Radial and centred
   on the hero so the artwork still reads at the edges, where nothing is text.
+
+## The furniture pass (2026-08-29)
+
+- THE REEL DID NOT DEPEND ON THE RENDERER, and now it does not. `_syncReel()`
+  was called from exactly one place: the frame loop, every 32 drawn ticks. That
+  is fine while the loop runs -- but the loop is what parks itself when the tab
+  becomes a background audio source, so entering the home in that state left the
+  wallpaper on one frozen game forever. It is called on the state change too
+  now. Measured cadence 2002/1998/2004ms over the 14-game roster.
+  GATE NOTE: timing the reel by SAMPLING `_reelAt` from the page is skewed by
+  `showGame()` itself -- a pack that takes 900ms to load blocks the sampler, so
+  the cut is detected late and the next one looks early (923, 2911, 1995 on a
+  perfectly regular 2s timer). Check the mean and the count, not each gap.
+
+- `offsetParent` IS NULL FOR `position:fixed`, however plainly the element is on
+  screen. The desktop card's wallpaper used `if(!card.offsetParent) return` as
+  its "am I visible" test and therefore skipped every single frame: the canvas
+  stayed at one colour and nothing moved. `getClientRects().length` is the test
+  that works for fixed elements. Anything else in here guarding work on
+  visibility should be read with this in mind.
+
+- THE DOCKED PLAYER BAR'S RULES COME BEFORE THE FLOATING ONES in shell.html, and
+  both are `body.ai-visual #playbar ...` -- same specificity, so source order
+  decides and the floating pill wins every tie. That is why the docked overrides
+  in that block all carry `!important` (`position:static !important` and
+  friends). A docked-only change to a property the floating rules also set has
+  to say `!important` or it silently does nothing. The Display button's height
+  is the newest member of that group.
+
+- TRACK NAMES ARE A TRADEMARK SURFACE. The generator now assembles NES/Game Boy
+  era words, which is what was asked for and reads right -- but era vocabulary
+  is exactly the vocabulary real cartridges used, so combinations WILL land on
+  real titles by chance. `BLOCKED` in src/seed.js lists the ones this word pool
+  can actually reach; `nameFor` re-rolls on a hit, deterministically, and the
+  last attempt uses a shape that cannot collide. 200k samples, zero hits, held
+  by `npm run test:chrome`. If you widen the word lists, widen BLOCKED with them
+  and re-run that gate -- this is the same hazard as pack naming (AGENTS.md) and
+  a complaint lands on the repository, not the string.
+
+- `npm test` EXISTS NOW: build, the browser gates in the order they were
+  written, the two smokes, the game audit. It is a manual command. Nothing
+  invokes it on a trigger and nothing may be made to. `crt-diff` is still out of
+  it, for the reason recorded above.
