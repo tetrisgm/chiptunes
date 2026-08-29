@@ -799,7 +799,7 @@ function _ribbonFrame(){
   g2.drawImage(_ribDim,0,0);                                   // the track ahead
   var pos=0;
   if(!_ribFrames){ _ribbonClock(0); return; }        // nothing loaded: the lanes, empty
-  try{ var d=Audio.deckPosition && Audio.deckPosition();
+  try{ var d=(Audio.audiblePosition && Audio.audiblePosition()) || (Audio.deckPosition && Audio.deckPosition());
        if(d && d.sec>0) pos=(d.sec*(typeof CT_GB_HARDWARE!=='undefined'?CT_GB_HARDWARE.FPS:59.7275))/_ribFrames; }catch(e){}
   pos=Math.max(0,Math.min(1,pos));
   var px=Math.round(pos*_ribW);
@@ -851,6 +851,7 @@ function _frameDiag(){
     cost:+_renderEMA.toFixed(2),
     tick:+(_tickMs||0).toFixed(2),
     rib:+_ribEMA.toFixed(3),
+    lag:+((typeof Audio!=='undefined'&&Audio.audibleLag)?Audio.audibleLag():0).toFixed(3),
     every:Math.max(1, Math.round(_frameTarget / (_tickMs || 16.7))),
     drawn:_drawSeq
   };

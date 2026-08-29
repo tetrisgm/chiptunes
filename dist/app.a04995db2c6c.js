@@ -6366,7 +6366,18 @@ const Audio = (()=>{
       gbNode = new AudioWorkletNode(ctx, GB_WORKLET_NAME, {numberOfInputs:0, numberOfOutputs:1, outputChannelCount:[2]});
       gbNode.connect(gbChipGain);
       gbNode.port.onmessage = function(ev){
-        if(ev.data && ev.data.type==='stat' && typeof window!=='undefined') window.__rrrChip = ev.data;
+        if(ev.data && ev.data.type==='stat' && typeof window!=='undefined'){
+          window.__rrrChip = ev.data;
+          // WHERE THE MUSIC ACTUALLY IS. The deck opens 0.18s in the future and
+          // the chip is told to wait the same, but the worklet starts counting
+          // that lead when the AUDIO THREAD receives the message, not when the
+          // main thread posted it -- so the chip runs a little behind the deck's
+          // clock. Measured on this machine: 206ms, constant, no drift. Any
+          // playhead drawn from the deck clock is therefore ahead of the sound.
+          // The chip reports its true frame nine times a second; the difference
+          // between that and where the deck thinks it is IS the correction.
+          _chipLag = _measureChipLag(ev.data.frame);
+        }
         if(ev.data && ev.data.type==='msgError'){ try{ console.error('[chiptunes] chip message failed:', ev.data.in, ev.data.message); }catch(_){} }
       };
       // A track may have started before the module finished loading; play it now.
@@ -6416,6 +6427,20 @@ const Audio = (()=>{
     ensureGbChip();
     if(gbNode) gbNode.port.postMessage(msg); else gbPending=msg;
     return true;
+  }
+  // frames of correction, smoothed: one report is a sample, not a measurement
+  var _chipLag = 0, _chipLagSeen = 0;
+  function _measureChipLag(chipFrame){
+    if(typeof chipFrame!=='number' || !deckCur || !ctx) return _chipLag;
+    var FPS=(typeof CT_GB_HARDWARE!=='undefined')?CT_GB_HARDWARE.FPS:59.7275;
+    var expect=(ctx.currentTime - deckCur.origin) * FPS * chipRate();
+    if(!(expect>0) || expect>1e7) return _chipLag;
+    var d=expect - chipFrame;
+    if(!(d>-600 && d<600)) return _chipLag;          // a seek or a track change
+    // converge fast on the first few reports, then hold steady
+    var a = _chipLagSeen < 6 ? 0.5 : 0.12;
+    _chipLagSeen++;
+    return _chipLag + (d - _chipLag) * a;
   }
   function gbSetPaused(paused){ if(gbNode) gbNode.port.postMessage({type:'pause', paused:!!paused}); }
   // The chip's tempo is a playback rate: pinned bpm over the track's native
@@ -6995,6 +7020,7 @@ const Audio = (()=>{
   // the station.
   function startCompiled(cs, opts){
     opts=opts||{};
+    _chipLagSeen=0;                    // a new track: measure the lead again
     if(ctx && started){
       Engine.killAll(opts.fade!=null?opts.fade:0.12);     // manual skip = 120ms fade...
       Engine.clearFuture(ctx.currentTime+0.02);
@@ -7944,6 +7970,17 @@ const Audio = (()=>{
     tempoPinned(){ try{ return pinnedTempo()!=null; }catch(e){ return true; } },
     deckPosition(){ var d=deckCur; if(!d||!ctx) return null;
       return { tok:d.tok, sec:ctx.currentTime-d.origin, durSec:d.totalBeats*d.spb, next:deckNext?deckNext.tok:null }; },
+    // The same instant, corrected to what is coming out of the chip. Anything
+    // drawn for a person to look at should use this; anything SCHEDULING more
+    // audio must keep using deckPosition, which is the clock the scheduler runs
+    // on. audibleLag() is the correction in seconds, for diagnostics.
+    audiblePosition(){ var d=deckCur; if(!d||!ctx) return null;
+      var FPS=(typeof CT_GB_HARDWARE!=='undefined')?CT_GB_HARDWARE.FPS:59.7275;
+      var lag=_chipLag/FPS/Math.max(0.25,chipRate());
+      return { tok:d.tok, sec:(ctx.currentTime-d.origin)-lag, durSec:d.totalBeats*d.spb,
+               lag:lag, next:deckNext?deckNext.tok:null }; },
+    audibleLag(){ var FPS=(typeof CT_GB_HARDWARE!=='undefined')?CT_GB_HARDWARE.FPS:59.7275;
+      return _chipLag/FPS/Math.max(0.25,chipRate()); },
     // The score the synth is reading right now. The cartridge exporter uses this
     // so the download is the identical music, not a second compile that could
     // drift if the composer revision moved underneath it.
@@ -31478,7 +31515,7 @@ function _ribbonFrame(){
   g2.drawImage(_ribDim,0,0);                                   // the track ahead
   var pos=0;
   if(!_ribFrames){ _ribbonClock(0); return; }        // nothing loaded: the lanes, empty
-  try{ var d=Audio.deckPosition && Audio.deckPosition();
+  try{ var d=(Audio.audiblePosition && Audio.audiblePosition()) || (Audio.deckPosition && Audio.deckPosition());
        if(d && d.sec>0) pos=(d.sec*(typeof CT_GB_HARDWARE!=='undefined'?CT_GB_HARDWARE.FPS:59.7275))/_ribFrames; }catch(e){}
   pos=Math.max(0,Math.min(1,pos));
   var px=Math.round(pos*_ribW);
@@ -31530,6 +31567,7 @@ function _frameDiag(){
     cost:+_renderEMA.toFixed(2),
     tick:+(_tickMs||0).toFixed(2),
     rib:+_ribEMA.toFixed(3),
+    lag:+((typeof Audio!=='undefined'&&Audio.audibleLag)?Audio.audibleLag():0).toFixed(3),
     every:Math.max(1, Math.round(_frameTarget / (_tickMs || 16.7))),
     drawn:_drawSeq
   };

@@ -1198,3 +1198,25 @@ pass.
   animated wallpaper" and sits at bottom:calc(var(--barh) + 18px), inside the
   picture: the player bar owns the bottom of the window on its own, and nothing
   that belongs to the game may overlap it.
+
+- THE PICTURE RAN AHEAD OF THE SOUND, reported as "the music plays almost 1 sec
+  after" the strip. Measured, and the report was literally right: 1026ms in one
+  session. The cause is a clock mismatch, not a latency. A deck opens 0.18s in
+  the future and gbPlay tells the chip to wait the same leadSec -- but the
+  worklet starts counting that lead when the AUDIO THREAD receives the message,
+  not when the main thread posted it, and how late that is depends on what the
+  machine was doing at the instant the track started. Measured across sessions:
+  20ms, 206ms, 1026ms. It is NOT a constant, so no constant can correct it.
+  The chip already reports its true frame ~9 times a second (report() every 40
+  blocks). The difference between that and the deck's clock IS the correction,
+  taken live and per track. Audio.audiblePosition() is deckPosition() minus it;
+  the strip and the editor's playhead use it. ANYTHING SCHEDULING AUDIO MUST
+  KEEP USING deckPosition -- that is the clock the scheduler runs on, and
+  correcting it would move the music rather than the picture.
+  Residual is ~100ms, which is the anchor's own report interval: the floor
+  without making the worklet talk more often.
+  MEASUREMENT TRAP: comparing a fresh deck clock against whatever __rrrChip
+  happens to hold measures the report interval, not the lag. Sample only when
+  the reported frame CHANGES. That mistake made the same bug read as 206ms once
+  and 1026ms the next time.
+  npm run test:sync holds it.

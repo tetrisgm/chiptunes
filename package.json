@@ -34,7 +34,8 @@
     "test:share": "node scripts/verify-share.js",
     "test:rhythm": "node scripts/verify-rhythm.js",
     "test:ribbon": "node scripts/verify-ribbon.js",
-    "test:entry": "node scripts/verify-entry.js"
+    "test:entry": "node scripts/verify-entry.js",
+    "test:sync": "node scripts/verify-sync.js"
   },
   "dependencies": {
     "node-web-audio-api": "2.0.0"
