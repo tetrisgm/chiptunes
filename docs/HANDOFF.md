@@ -1397,3 +1397,63 @@ pass.
   written, the two smokes, the game audit. It is a manual command. Nothing
   invokes it on a trigger and nothing may be made to. `crt-diff` is still out of
   it, for the reason recorded above.
+
+## The picture was leading the sound (2026-08-29)
+
+Reported as "the performance is really bad again and when I click next it takes
+a second for audio to come out, whereas the games and the visual progress of
+things being played happens instantly."
+
+- THE OUTPUT LATENCY WAS NEVER MEASURED. `ctx.currentTime` is where the graph is
+  RENDERING; the sample rendered at T is not heard until T plus the device's
+  output buffer. Every visual clock in audio.js was timed against
+  `ctx.currentTime`, so on a device with a real buffer the games, the beat grid
+  and the playhead all ran that far ahead of the music. On this Mac's own
+  speakers that is 34ms and invisible. Over AirPods it is routinely 150-250ms
+  and over AirPlay it can exceed a second — which is exactly the report.
+  `outLatency()` in src/audio.js measures it and three visual clocks now carry
+  it: `consumeEvents()` (the single choke point for every audio-timed visual,
+  so the games come with it), `gridNow()`'s phase, and `audiblePosition()`.
+  `deckCur.origin` is UNCHANGED and must stay that way — the scheduler runs on
+  it, and moving it would queue every note late.
+  WHY `getOutputTimestamp()` AND NOT `ctx.outputLatency`: WebKit has never
+  shipped `outputLatency`, and Safari is the browser this matters most on.
+  Take the LARGER of the two signals — Playwright's WebKit returns a
+  `getOutputTimestamp` whose contextTime equals currentTime (a latency of
+  exactly zero, which no real output has) while its `outputLatency` says 15.8ms,
+  and preferring the timestamp threw the only real number away.
+  `__ctDiag()` in the console reports it, because this number cannot be measured
+  from a test runner: Playwright's WebKit is not Safari and neither is playing
+  through the owner's actual output device.
+
+- ONE PRESS OF NEXT STARTED TWO TRACKS. `_ensureGeneratedTransport()` guards on
+  `!Audio.trackToken()` meaning "nothing is loaded" — but a mood and a shared
+  link both enter through `playDoc`, which starts a real deck with an EMPTY
+  token, because a document has no seed to be named by. So the first Next after
+  a mood minted a token, compiled it and started it, and then the next line
+  called `Radio.next()` and started a different song 30ms later. It takes a
+  `startOne` argument now, and the skip paths pass false. Guarded by
+  `npm run test:latency`.
+
+- WHAT WAS *NOT* THE CAUSE, all measured: `leadSec` is a constant 0.18 (by
+  design, and the chip is still told exactly that); composer.compile 4.8ms;
+  CT_CREATE.songFrom 10ms; `new Sequencer(gb)` on the audio thread 0.1-0.5ms;
+  structuredClone of the 126KB payload 0.5-1.3ms; the whole click handler
+  5-15ms; `_deskShotFrame`'s blit and getComputedStyle 0.2ms each.
+
+- ⚠️ HEADLESS CHROMIUM HAS NO GPU AND WILL LIE TO YOU ABOUT THIS PROJECT.
+  It runs WebGL through SwiftShader, in software. Measured there, the `dmg` and
+  `nes` screen faces showed 1.2 and 2.8 fps, 879ms long tasks, a main thread
+  100% busy, and worklet stat messages arriving in bursts — a completely
+  convincing performance regression that does not exist. The same build headed
+  with `--use-angle=metal` on the M4: 57-60fps on all three faces, zero long
+  tasks, stats on a clean 116.1ms cadence. `dmg-screen.js` and `nes-screen.js`
+  are WebGL shader pipelines; anything that touches them must be measured on a
+  real GPU. Check with `WEBGL_debug_renderer_info` before believing a number.
+  The same artifact makes the desktop-card wallpaper check flaky: at 2fps a
+  fixed 900ms window legitimately contains no new frame, so `verify-chrome`
+  polls for the change instead. Its colour-count assertion was wrong for a
+  related reason — it failed at 4 and 8 tones and passed at 107 on identical
+  code, because it was really asking whether the game showing at that instant
+  happens to be colourful. It compares the wallpaper's palette to the stage's
+  now, which is the claim that was meant.

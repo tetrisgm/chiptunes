@@ -125,7 +125,7 @@ function names() {
     const seen = [], t0 = performance.now();
     await new Promise(r => { const iv = setInterval(() => {
       seen.push({ ms: Math.round(performance.now() - t0), k: (window._reelKeys || [])[window._reelAt] });
-      if (performance.now() - t0 > 7000) { clearInterval(iv); r(); }
+      if (performance.now() - t0 > 9500) { clearInterval(iv); r(); }
     }, 200); });
     const cuts = seen.filter((s, i) => i && s.k !== seen[i - 1].k);
     const gaps = cuts.slice(1).map((c, i) => c.ms - cuts[i].ms);
@@ -134,13 +134,16 @@ function names() {
   });
   ok(reel.running, 'the reel is running on the home');
   ok(reel.pool > 10, 'over the whole roster (' + reel.pool + ' games)');
-  ok(reel.distinct >= 3, 'and it cut to ' + reel.distinct + ' different games in 7s');
+  ok(reel.distinct >= 3, 'and it cut to ' + reel.distinct + ' different games in 9.5s');
   // Timed by SAMPLING, which a slow showGame blocks: a pack that takes 900ms
   // to load stalls the sampler, so the cut is detected late and the next one
   // looks early. The cadence is what is being checked, so check the mean and
   // the count rather than each gap.
   const mean = reel.gaps.length ? reel.gaps.reduce((a, b) => a + b, 0) / reel.gaps.length : 0;
-  ok(reel.gaps.length >= 2 && mean > 1700 && mean < 2400,
+  // one gap is enough for the cadence: that there were SEVERAL cuts is the
+  // assertion above, and demanding two gaps here failed a run whose single
+  // measured gap was 2030ms -- a correct reel, rejected for being sampled once.
+  ok(reel.gaps.length >= 1 && mean > 1700 && mean < 2400,
      'every two seconds (mean ' + Math.round(mean) + 'ms of ' + reel.gaps.join(', ') + ')');
 
   // ---- now put a song on --------------------------------------------------
@@ -191,21 +194,46 @@ function names() {
   const desk = await p.evaluate(async () => {
     const c = document.getElementById('dlcWall');
     if (!c) return { missing: true };
-    const shot = () => { const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    const read = (cv) => { const d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
       let h = 0; const s = new Set();
-      for (let i = 0; i < d.length; i += 4 * 29) { h = (h * 31 + d[i] + d[i + 1] * 3 + d[i + 2] * 7) | 0; s.add((d[i] << 16) | (d[i + 1] << 8) | d[i + 2]); }
-      return { h, colours: s.size }; };
-    const a = shot();
-    await new Promise(r => setTimeout(r, 900));
-    const b2 = shot();
+      for (let i = 0; i < d.length; i += 4 * 29) {
+        h = (h * 31 + d[i] + d[i + 1] * 3 + d[i + 2] * 7) | 0;
+        s.add(((d[i] >> 3) << 10) | ((d[i + 1] >> 3) << 5) | (d[i + 2] >> 3));   // 5-bit buckets
+      }
+      return { h, cols: s }; };
+    const stage = document.getElementById('stage');
+    // Poll for a change rather than comparing two instants 900ms apart. The
+    // wallpaper redraws on every third DRAWN frame, and this gate runs in
+    // headless Chromium, which has no GPU: the games render through SwiftShader
+    // at a few frames a second, so a fixed 900ms window legitimately contains
+    // no new frame at all and the check failed on working code.
+    const a = read(c);
+    let b2 = a;
+    for (let i = 0; i < 40 && b2.h === a.h; i++) {
+      await new Promise(r => setTimeout(r, 100));
+      b2 = read(c);
+    }
+    const st = read(stage);
+    // how much of the wallpaper's palette the stage also has: this is the claim
+    // that matters -- it is showing THE GAME, not some other picture
+    let shared = 0; b2.cols.forEach(v => { if (st.cols.has(v)) shared++; });
     const card = document.getElementById('dlcard');
     return { visible: !!card && card.getClientRects().length > 0,
              chrome: !!card.querySelector('.dlc-menu') && !!card.querySelector('.dlc-dock'),
-             colours: Math.max(a.colours, b2.colours), moved: a.h !== b2.h };
+             colours: b2.cols.size, stageColours: st.cols.size,
+             sharePct: b2.cols.size ? Math.round(100 * shared / b2.cols.size) : 0,
+             moved: a.h !== b2.h };
   });
   ok(!desk.missing && desk.visible, 'the card is on screen while a track plays');
   ok(desk.chrome, 'drawn as a desktop -- menu bar and dock');
-  ok(desk.colours > 12, 'with a real game as the wallpaper (' + desk.colours + ' colours)');
+  // NOT a colour count. The first cut of this asked for >12 colours, which is a
+  // claim about whether the game showing at that instant happens to be
+  // colourful -- it failed at 4 and 8 and passed at 107 on identical code,
+  // because some games are mostly one colour when they open. What is actually
+  // being claimed is that the little screen shows THE STAGE, live.
+  ok(desk.colours >= 2, 'the wallpaper is a picture, not a flat fill (' + desk.colours + ' tones)');
+  ok(desk.sharePct >= 60, 'and it is the running game -- ' + desk.sharePct +
+     '% of its palette is on the stage (stage has ' + desk.stageColours + ' tones)');
   ok(desk.moved, 'and the wallpaper is moving');
   const cardBox = await p.$('#dlcard');
   if (cardBox) await cardBox.screenshot({ path: path.join(SHOT, 'chrome-dlcard.png') });

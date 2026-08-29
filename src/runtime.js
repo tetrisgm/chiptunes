@@ -2083,7 +2083,13 @@ window._toggleHowModal=_toggleHowModal;
 // that produced the pixels.
 var _deskShotN=0, _deskShotCv=null, _deskShotCx=null;
 function _deskShotFrame(){
-  if((++_deskShotN % 3) !== 0) return;
+  // Every SIXTH drawn frame, not every third. On this Mac in Chromium the blit
+  // measures 0.2ms and the cadence would not matter -- but it is a canvas-to-
+  // canvas draw from a GPU-backed source, which is the shape of operation that
+  // can force a readback, and the browser the owner actually uses is one this
+  // machine cannot profile. Ten updates a second is plenty for a 296x166
+  // thumbnail of a game, and it halves whatever this costs where it is dearer.
+  if((++_deskShotN % 6) !== 0) return;
   var card=document.getElementById('dlcard');
   // getClientRects, NOT offsetParent: the card is position:fixed, and a fixed
   // element's offsetParent is null even when it is plainly on screen -- so the
@@ -2859,11 +2865,28 @@ function _pokeVisualControls(){ _syncVisualChrome(); if(document.body && (docume
 ['pointermove','pointerdown','touchstart','keydown','wheel'].forEach(function(type){
   window.addEventListener(type, _pokeVisualControls, {capture:true, passive:true});
 });
-function _ensureGeneratedTransport(){
+// `startOne` false means: put the station in generated mode but do NOT start
+// anything -- the caller is about to.
+//
+// TWO TRACKS FOR ONE CLICK. The guard below is `!Audio.trackToken()`, meaning
+// "nothing is loaded, so load something". But a mood and a shared link both
+// enter through playDoc, which starts a real deck with an EMPTY token -- a
+// document has no seed to be named by. So with a mood playing, the first press
+// of Next read as "nothing is loaded", minted a token, compiled it and started
+// it -- and then the line right after it called Radio.next() and started a
+// second, different track 30ms later. Two compiles, two 126KB payloads to the
+// chip, and the first song's 180ms of lead silence thrown away mid-flight,
+// which is audible as a stumble at the start of a skip.
+function _ensureGeneratedTransport(startOne){
   if(_nowSource!=='generated') return;
   if(Audio.extActive && Audio.extActive() && Audio.stopExternal) Audio.stopExternal();
   _station='generated';
-  if(Audio.gotoTrack && (!Audio.trackToken || !Audio.trackToken())){
+  if(startOne===false) return;
+  // "is a deck playing", not "does it have a name" -- a document has no name
+  var loaded=false;
+  try{ loaded=!!(Audio.deckPosition && Audio.deckPosition()); }catch(e){}
+  if(!loaded && Audio.trackToken && Audio.trackToken()) loaded=true;
+  if(Audio.gotoTrack && !loaded){
     var slug=_curSlug || (typeof _mintToken==='function' ? _mintToken() : 'chiptunes-app');
     _trkHist=[slug]; _trkI=0; Audio.gotoTrack(slug);
   }
@@ -3070,7 +3093,7 @@ function _transportNext(){
   if(_watchOnly && !_watchMicActive && _nowSource==='watch'){ advanceRandomVisualizer(); return; }   // only cycle the VISUAL in a genuinely silent watch session; if a track is playing (desktop/web), skip the SONG
   if(LiveCtl.active()) LiveCtl.leave();                           // ANY skip = fork off the broadcast to the private queue
   if(_advanceQueue(1)) return;
-  if(_nowSource==='generated') _ensureGeneratedTransport();
+  if(_nowSource==='generated') _ensureGeneratedTransport(false);   // Radio.next starts one
   if(typeof Radio!=='undefined'&&Radio.next){ Radio.next(); }
 }
 function _transportPrev(){
@@ -3078,11 +3101,56 @@ function _transportPrev(){
   if(_watchOnly && !_watchMicActive && _nowSource==='watch'){ advanceRandomVisualizer(); return; }   // only cycle the VISUAL in a genuinely silent watch session; if a track is playing (desktop/web), skip the SONG
   if(LiveCtl.active()) LiveCtl.leave();
   if(_advanceQueue(-1)) return;
-  if(_nowSource==='generated') _ensureGeneratedTransport();
+  if(_nowSource==='generated') _ensureGeneratedTransport(false);   // Radio.prev starts one
   if(typeof Radio!=='undefined'&&Radio.prev){ Radio.prev(); }
 }
 // the thing currently playing, as a tracking item (likes/dislikes/recent are track-specific)
 function _curItem(){ if(_nowSource==='generated' && _curSlug) return {kind:'gen',slug:_curSlug,name:_curName}; return null; }
+// ONE THING TO PASTE INTO A REAL BROWSER'S CONSOLE.
+//
+// The output latency is the number this whole correction turns on, and it is
+// device-specific: 34ms out of a MacBook's own speakers, 150-250ms over
+// AirPods, more again over AirPlay. It cannot be measured from a test runner --
+// Playwright's WebKit is not Safari and neither is running through the owner's
+// actual output device -- so the honest way to settle "is the audio really a
+// second late" is to read it where the complaint happened.
+//
+//   __ctDiag()
+//
+// outMs is what this machine's output costs. If it is large, the picture was
+// leading the sound by that much and now waits for it. renderFps and longest
+// say whether the frame loop is actually keeping up on THIS machine, which is
+// the other half of the same report.
+window.__ctDiag=function(){
+  var out={};
+  try{ out.latency=Audio.latencyDiag?Audio.latencyDiag():null; }catch(e){ out.latency=String(e); }
+  try{ out.chip=Audio.chipDiag?Audio.chipDiag():null; }catch(e){}
+  try{ var f=window.__rrrFrame||{};
+       out.frame={ screen:(window.__rrrScreenMode&&window.__rrrScreenMode())||'', game:f.game,
+                   target:f.target, costMs:f.cost, tickMs:f.tick, ribbonMs:f.rib,
+                   drawn:f.drawn, ticks:f.seq, everyNth:f.every }; }catch(e){}
+  try{ var c=Audio.audioCtx&&Audio.audioCtx();
+       out.ctx=c?{state:c.state, sampleRate:c.sampleRate,
+                  baseLatencyMs:+((c.baseLatency||0)*1000).toFixed(1),
+                  outputLatencyMs:(typeof c.outputLatency==='number')?+(c.outputLatency*1000).toFixed(1):'(not implemented)'}:null; }catch(e){}
+  // a live 3-second frame count, which is the only honest fps
+  try{
+    var d0=(window.__rrrFrame||{}).drawn||0, t0=performance.now(), longest=0;
+    var po=null;
+    try{ po=new PerformanceObserver(function(l){ l.getEntries().forEach(function(e){ if(e.duration>longest) longest=e.duration; }); });
+         po.observe({entryTypes:['longtask']}); }catch(e){}
+    out.measuring='call again in 3s for renderFps';
+    setTimeout(function(){
+      var dt=(performance.now()-t0)/1000;
+      window.__ctDiagFps={ renderFps:+(((window.__rrrFrame||{}).drawn-d0)/dt).toFixed(1),
+                           longestTaskMs:+longest.toFixed(0) };
+      try{ if(po) po.disconnect(); }catch(e){}
+      try{ console.log('__ctDiag fps:', window.__ctDiagFps); }catch(e){}
+    }, 3000);
+  }catch(e){}
+  if(window.__ctDiagFps) out.lastFps=window.__ctDiagFps;
+  return out;
+};
 window._currentNowPlaying=function(){ var it=_curItem()||{}; return Object.assign({gameKey:curGameKey||'', paused:_transportIsPaused()}, it); };
 var _listenStatsAt=0;
 function _listenStatsTick(){

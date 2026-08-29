@@ -390,6 +390,50 @@ const Audio = (()=>{
     if(gbNode) gbNode.port.postMessage(msg); else gbPending=msg;
     return true;
   }
+  // THE OUTPUT LATENCY: the gap between "the graph produced this sample" and
+  // "a person heard it".
+  //
+  // ctx.currentTime is the CONTEXT clock -- where the graph is rendering. The
+  // sample rendered at time T does not reach the speakers until T + however
+  // long the device's buffer is, and on a wireless output that is not a
+  // rounding error: AirPods are routinely 150-250ms and AirPlay can exceed a
+  // second. Every visual in here was timed against ctx.currentTime, so on such
+  // a device the games and the playhead ran exactly that far ahead of the
+  // music -- which reads, correctly, as "the audio is late".
+  //
+  // getOutputTimestamp().contextTime is the context time of the sample being
+  // played out RIGHT NOW, so the difference from currentTime is the true
+  // latency. It is the only measurement of this that Safari has: WebKit has
+  // never shipped AudioContext.outputLatency, so on the browser where this
+  // matters most, ctx.outputLatency is undefined and the old code had no way
+  // to know. Fall back to it where it exists, then to baseLatency.
+  var _outLat = 0, _outLatSeen = 0;
+  function outLatency(){
+    if(!ctx) return 0;
+    // The LARGER of the two signals, not the first that answers. WebKit returns
+    // a getOutputTimestamp whose contextTime equals currentTime -- a latency of
+    // exactly zero, which no real output has -- while its ctx.outputLatency
+    // reports 15.8ms. A zero from a timestamp that is not actually trailing is
+    // a non-measurement, and preferring it threw away the only real number on
+    // the engine this correction exists for.
+    var raw = -1;
+    try{
+      if(ctx.getOutputTimestamp){
+        var ts = ctx.getOutputTimestamp();
+        if(ts && ts.contextTime > 0) raw = Math.max(raw, ctx.currentTime - ts.contextTime);
+      }
+    }catch(e){}
+    if(typeof ctx.outputLatency === 'number') raw = Math.max(raw, ctx.outputLatency);
+    if(!(raw > 0)) raw = (ctx.baseLatency || 0) * 2;
+    // half a second is already absurd for a local device; beyond that we are
+    // reading a stalled timestamp, not a buffer, and shifting the picture by it
+    // would be worse than the thing being fixed
+    raw = Math.max(0, Math.min(0.5, raw));
+    var a = _outLatSeen < 8 ? 0.4 : 0.05;      // settle fast, then hold
+    _outLatSeen++;
+    _outLat += (raw - _outLat) * a;
+    return _outLat;
+  }
   // frames of correction, smoothed: one report is a sample, not a measurement
   var _chipLag = 0, _chipLagSeen = 0;
   function _measureChipLag(chipFrame){
@@ -1693,7 +1737,8 @@ const Audio = (()=>{
       return { gstep:gs, phase:(bph*4)-sub, beat:_bd.beatN, bar:(_bd.beatN/4)|0, spb:60/Math.max(55,gridBpm), step16:(60/Math.max(55,gridBpm))/4, bpm:gridBpm };
     }
     if(!ctx || !step16) return { gstep:0, phase:0, beat:0, bar:0, spb:spb, step16:step16, bpm:Math.round(60/spb) };
-    const rel = (ctx.currentTime - beatOrigin) / step16;
+    // same correction as consumeEvents: this is the phase gameplay animates on
+    const rel = ((ctx.currentTime - outLatency()) - beatOrigin) / step16;
     const gstep = Math.max(0, Math.floor(rel));
     return { gstep, phase: Math.max(0, Math.min(1, rel - Math.floor(rel))), beat:(gstep/4)|0, bar:(gstep/16)|0, spb, step16, bpm:Math.round(60/spb) };
   }
@@ -1842,7 +1887,14 @@ const Audio = (()=>{
   // returns (and clears) audio-timed events whose scheduled time has arrived
   function consumeEvents(){
     if(!started || transportPaused) return [];
-    const now = ctx.currentTime;
+    // Held back by the output latency: an event stamped for context time t is
+    // HEARD at t + outLatency(), and this queue exists to make things happen on
+    // screen when a person hears them. This is the single choke point for every
+    // audio-timed visual, so correcting it here corrects the games, the note
+    // flashes and the screen reactions together -- without touching the deck
+    // origin, which the SCHEDULER runs on and which must stay on the render
+    // clock or every note would be queued late.
+    const now = ctx.currentTime - outLatency();
     const out=[];
     for(let i=events.length-1;i>=0;i--){
       if(events[i].t <= now){ out.push(events[i]); events.splice(i,1); }
@@ -1945,11 +1997,28 @@ const Audio = (()=>{
     // on. audibleLag() is the correction in seconds, for diagnostics.
     audiblePosition(){ var d=deckCur; if(!d||!ctx) return null;
       var FPS=(typeof CT_GB_HARDWARE!=='undefined')?CT_GB_HARDWARE.FPS:59.7275;
-      var lag=_chipLag/FPS/Math.max(0.25,chipRate());
+      // two separate corrections, and they are not the same thing: the chip lag
+      // is how far the emulator's own frame counter trails the render clock,
+      // the output latency is how far the speakers trail it. Only the first was
+      // ever measured here.
+      var lag=_chipLag/FPS/Math.max(0.25,chipRate()) + outLatency();
       return { tok:d.tok, sec:(ctx.currentTime-d.origin)-lag, durSec:d.totalBeats*d.spb,
                lag:lag, next:deckNext?deckNext.tok:null }; },
     audibleLag(){ var FPS=(typeof CT_GB_HARDWARE!=='undefined')?CT_GB_HARDWARE.FPS:59.7275;
-      return _chipLag/FPS/Math.max(0.25,chipRate()); },
+      return _chipLag/FPS/Math.max(0.25,chipRate()) + outLatency(); },
+    // Readable in a real browser's console, which is the only place the Safari
+    // number can be read at all: outMs is what this machine's output actually
+    // costs, and `src` says whether the browser told us or we had to measure it.
+    latencyDiag(){
+      if(!ctx) return null;
+      var ts=null; try{ ts=ctx.getOutputTimestamp?ctx.getOutputTimestamp():null; }catch(e){}
+      var FPS=(typeof CT_GB_HARDWARE!=='undefined')?CT_GB_HARDWARE.FPS:59.7275;
+      return { outMs:+(outLatency()*1000).toFixed(1),
+               timestampMs: (ts && ts.contextTime>0) ? +((ctx.currentTime-ts.contextTime)*1000).toFixed(1) : null,
+               reportedOutputLatencyMs: (typeof ctx.outputLatency==='number' ? +(ctx.outputLatency*1000).toFixed(1) : null),
+               baseLatencyMs:+((ctx.baseLatency||0)*1000).toFixed(1),
+               chipLagMs:+((_chipLag/FPS/Math.max(0.25,chipRate()))*1000).toFixed(1),
+               leadMs:180, sampleRate:ctx.sampleRate, state:ctx.state }; },
     // The score the synth is reading right now. The cartridge exporter uses this
     // so the download is the identical music, not a second compile that could
     // drift if the composer revision moved underneath it.
