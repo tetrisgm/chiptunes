@@ -2456,6 +2456,63 @@
   #dlcard .dlc-shot{ margin-top:26px; }
   #dlcard .dlc-b{ margin-top:14px; padding:0 2px; }
   #dlcard .gb-speaker{ right:18px; bottom:11px; width:56px; height:26px; }
+
+  /* ===== IT IS A PORTRAIT MACHINE ====================================
+     The card was a console squashed into a letterbox: a DMG is about 90 x 148mm
+     -- markedly TALLER than it is wide -- with a screen that is nearly square
+     (47 x 43mm). Stretched to 880px wide with a 100px-tall screen it read as a
+     novelty, which is exactly what it looked like.
+     Stood up: a narrow case, a near-square screen, and the controls stacked
+     underneath it the way a menu sits under a Game Boy's screen. */
+  body.awaiting-mood #rmoods{
+    width:min(444px, 92vw); max-width:none;
+    /* the deep shell below the controls is not padding for its own sake: on the
+       machine that band carries START/SELECT and the speaker, and without it the
+       case reads as cropped just under the buttons */
+    padding:15px 15px 112px; }
+  /* the screen: near-square, and the type sized for a 380px-wide panel rather
+     than an 800px one */
+  /* Sized from the real thing rather than by eye: the DMG's visible LCD is
+     47 x 43mm, so the screen is 1.09:1, and the case is 90 x 148mm, so it is
+     0.61:1. At 412px of inner screen width that is 378px of height, and the
+     case lands near 730 tall for its 444 wide. Measured after: 0.61 and 1.09. */
+  body.awaiting-mood #rmoods .rmood-brand{
+    min-height:378px; justify-content:center; padding:22px 20px;
+    outline-width:13px; margin:1px 1px 0; }
+  body.awaiting-mood #rmoods .rmood-brand b{
+    font-size:clamp(15px,4.4vw,21px) !important; line-height:1.45 !important; }
+  body.awaiting-mood #rmoods .rmood-brand i{
+    font-size:11.5px !important; line-height:1.85 !important; }
+  /* the controls, stacked under the screen. Three or four to a row in this
+     width, which is what a menu on this machine looks like anyway. */
+  body.awaiting-mood #rmoods .rmood-ask{
+    margin-top:26px; padding:0 8px; row-gap:9px; gap:8px; justify-content:center;
+    align-items:center; }
+  /* START, on its own row under the rest, which is where it is on the case */
+  body.awaiting-mood #presets .rbtn.rmood-scratch{
+    order:9; flex-basis:100%; margin:15px auto 0; max-width:230px; }
+  body.awaiting-mood #presets .rbtn.rmood{ font-size:12px; padding:10px 13px; }
+  /* Still on the same line as the first mood, which was an explicit request and
+     still FITS: the label is ~230px and a pill ~90px in a 412px row. Stacking it
+     as a centred heading would look tidier now the case is portrait -- but that
+     is a different instruction from the one that was given, and it is not mine
+     to change by preference. */
+  body.awaiting-mood #rmoods .rmood-ask .rmood-lab{
+    font-size:12px; margin:0 2px 0 0; }
+  body.awaiting-mood #rmoods > .gb-stripe{ margin:12px 13px 0; }
+  body.awaiting-mood #rmoods > .gb-speaker{ right:22px; bottom:20px; width:84px; height:42px; opacity:.55; }
+  /* short windows: give the screen back some height rather than scrolling */
+  /* Short windows keep the case rather than the ratio: a Game Boy you have to
+     scroll is worse than a slightly stubby one. */
+  @media (max-height:900px){
+    body.awaiting-mood #rmoods .rmood-brand{ min-height:300px; }
+    body.awaiting-mood #rmoods{ padding-bottom:48px; } }
+  @media (max-height:800px){
+    body.awaiting-mood #rmoods .rmood-brand{ min-height:228px; padding:18px 18px; }
+    body.awaiting-mood #rmoods{ padding-bottom:44px; } }
+  @media (max-height:700px){
+    body.awaiting-mood #rmoods .rmood-brand{ min-height:160px; padding:14px 16px; }
+    body.awaiting-mood #rmoods .rmood-brand i{ font-size:10.5px !important; line-height:1.7 !important; } }
 </style>
 </head>
 <body>
