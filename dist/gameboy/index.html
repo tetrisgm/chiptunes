@@ -536,15 +536,20 @@
   /* 442, not 392: the card went from 352 to 390 wide when the type grew, and
      the reservation did not follow it -- 16px of overlap, measured. */
   body:not(.awaiting-mood) #madeby{ top:18px; bottom:auto; left:250px; right:442px;
-    transform:none; justify-content:center; flex-wrap:nowrap; max-width:none; }
+    transform:none; justify-content:center; flex-wrap:wrap; row-gap:8px; max-width:none; }
   /* 232px clears the rail's How-it-works pill, 392px clears the desktop card.
      What is left is 876px at 1500 wide and the row wanted 1070, so on the
      PLAYING screen -- where the credit is secondary to the picture -- it is set
      a notch smaller. The landing page keeps the full size; it has the room. */
-  body:not(.awaiting-mood) #madeby .plmade-t{ font-size:14px !important; }
-  body:not(.awaiting-mood) #madeby .plink{ font-size:14px !important;
-    min-height:44px; padding:10px 15px !important; }
-  body:not(.awaiting-mood) #madeby .plink svg{ width:17px; height:17px; }
+  /* NOT SHRUNK. This was set two steps below everything else purely so the row
+     would fit beside the desktop card -- solving a layout problem by making
+     text smaller, which is the thing being complained about. It is the same
+     size as the landing page now and wraps to a second line inside its reserved
+     band when it must, which is what the band is for. */
+  body:not(.awaiting-mood) #madeby .plmade-t{ font-size:17px !important; }
+  body:not(.awaiting-mood) #madeby .plink{ font-size:17px !important;
+    min-height:52px; padding:13px 21px !important; }
+  body:not(.awaiting-mood) #madeby .plink svg{ width:19px; height:19px; }
   @media (max-width:1100px){
     body:not(.awaiting-mood) #madeby{ right:0; flex-wrap:wrap; } }
   body.awaiting-mood #madeby{ top:auto; bottom:18px; left:18px; transform:none;
@@ -2017,7 +2022,7 @@
     body.ai-visual #playbar .pb-cover{ width:44px; height:44px; }
     body.ai-visual #playbar .pb-info{ max-width:min(70vw,300px); padding:7px 9px 7px 10px; border-radius:11px; text-align:right; }
     body.ai-visual #playbar .pb-title{ font-size:13px; }
-    body.ai-visual #playbar .pb-sub{ font-size:11px; }
+    body.ai-visual #playbar .pb-sub{ font-size:14px; }
     body.ai-visual.controls-active #playbar .pb-title{ max-width:calc(100vw - 108px); }
     /* one thumb row: transport owns bottom-CENTRE, volume pinned bottom-RIGHT.
        Track name lives up top-right now, so nothing pushes the transport off-centre. */
@@ -2063,7 +2068,7 @@
     border:1px solid rgba(255,255,255,.28); border-bottom-color:rgba(255,255,255,.12); border-radius:8px;
     background:linear-gradient(#28223f,#151125); color:#fff; font:700 13px/1 var(--mono); box-shadow:0 4px 0 rgba(0,0,0,.32); }
   #soundhint .sh-keys .wide{ min-width:74px; color:var(--accent2); }
-  #soundhint .sh-note{ color:#aaa2c8; font-size:14px; line-height:1.4; text-align:center; }
+  #soundhint .sh-note{ color:#aaa2c8; font-size:16px; line-height:1.45; text-align:center; }
   #soundhint.show{ opacity:1; animation:hintPulse 1.4s ease-in-out infinite; }
   @keyframes hintPulse{ 0%,100%{ box-shadow:0 0 16px rgba(214,120,255,.3); } 50%{ box-shadow:0 0 30px rgba(214,120,255,.7); } }
 
@@ -2180,8 +2185,8 @@
   #plinks .plink, #madeby .plink{ height:auto; min-height:52px; padding:13px 21px; }
   #rfullscreen{ font-size:16px; }
   #playbar .pb-screen{ font-size:15px; }
-  #playbar .pbd-lab{ font-size:13px; }
-  #playbar .pbd-read, #pbElapsed, #pbTotal{ font-size:14px; }
+  #playbar .pbd-lab{ font-size:15px; }
+  #playbar .pbd-read, #pbElapsed, #pbTotal{ font-size:15px; }
   #pbLcdTitle{ font-size:17px; }
   #dlcard .dlc-h{ font-size:17px; }
   #dlcard .dlc-d{ font-size:15px; }
@@ -2404,14 +2409,14 @@
     text-shadow:0 1px 0 rgba(255,255,255,.28) !important; }
   body.awaiting-mood #rmoods .rmood-brand i{
     font-family:var(--px) !important; letter-spacing:0;
-    font-size:13.5px; line-height:1.75; color:#1d4a1d;
+    font-size:15px; line-height:1.75; color:#1d4a1d;
     text-shadow:0 1px 0 rgba(255,255,255,.22); max-width:none; }
 
   /* the download card's heading and line, on the same screen */
   #dlcard .gb-lcd{ padding:13px 14px 14px; margin-bottom:12px; }
   #dlcard .gb-lcd .dlc-h{ color:var(--gb-screen-3);
     text-shadow:0 1px 0 rgba(255,255,255,.28); }
-  #dlcard .gb-lcd .dlc-d{ font-family:var(--px) !important; font-size:13.5px;
+  #dlcard .gb-lcd .dlc-d{ font-family:var(--px) !important; font-size:15px;
     line-height:1.7; letter-spacing:0; color:#1d4a1d; margin-top:6px;
     text-shadow:0 1px 0 rgba(255,255,255,.2); }
 
@@ -2488,7 +2493,7 @@
   body.awaiting-mood #rmoods .rmood-brand b{
     font-size:clamp(17px,4.9vw,25px) !important; line-height:1.45 !important; }
   body.awaiting-mood #rmoods .rmood-brand i{
-    font-size:13.5px !important; line-height:1.8 !important; }
+    font-size:15px !important; line-height:1.8 !important; }
   /* the controls, stacked under the screen. Three or four to a row in this
      width, which is what a menu on this machine looks like anyway. */
   body.awaiting-mood #rmoods .rmood-ask{
@@ -2497,14 +2502,14 @@
   /* START, on its own row under the rest, which is where it is on the case */
   body.awaiting-mood #presets .rbtn.rmood-scratch{
     order:9; flex-basis:100%; margin:15px auto 0; max-width:230px; }
-  body.awaiting-mood #presets .rbtn.rmood{ font-size:14px; padding:11px 15px; }
+  body.awaiting-mood #presets .rbtn.rmood{ font-size:16px; padding:12px 17px; }
   /* Still on the same line as the first mood, which was an explicit request and
      still FITS: the label is ~230px and a pill ~90px in a 412px row. Stacking it
      as a centred heading would look tidier now the case is portrait -- but that
      is a different instruction from the one that was given, and it is not mine
      to change by preference. */
   body.awaiting-mood #rmoods .rmood-ask .rmood-lab{
-    font-size:14px; margin:0 2px 0 0; }
+    font-size:16px; margin:0 2px 0 0; }
   body.awaiting-mood #rmoods > .gb-stripe{ margin:12px 13px 0; }
   body.awaiting-mood #rmoods > .gb-speaker{ right:22px; bottom:20px; width:84px; height:42px; opacity:.55; }
   /* short windows: give the screen back some height rather than scrolling */
@@ -2518,7 +2523,7 @@
     body.awaiting-mood #rmoods{ padding-bottom:44px; } }
   @media (max-height:700px){
     body.awaiting-mood #rmoods .rmood-brand{ min-height:160px; padding:14px 16px; }
-    body.awaiting-mood #rmoods .rmood-brand i{ font-size:10.5px !important; line-height:1.7 !important; } }
+    body.awaiting-mood #rmoods .rmood-brand i{ font-size:13px !important; line-height:1.7 !important; } }
 </style>
 </head>
 <body>
