@@ -2632,10 +2632,11 @@
      column it leaves behind. The LCD grows with the case, so opening the
      explanation never changes the Game Boy's dimensions. */
   @media (min-width:1200px) and (min-height:901px){
+    body.awaiting-mood{ --landing-vspace:24px; }
     body.awaiting-mood #presets{
-      align-items:flex-start; padding:20px 8px 96px; }
+      align-items:flex-start; padding:var(--landing-vspace) 8px 96px; }
     body.awaiting-mood #rmoods{
-      width:min(600px,93vw); height:calc(100vh - 136px); min-height:0;
+      width:min(600px,93vw); height:calc(100vh - 120px); min-height:0;
       justify-content:flex-start; }
     body.awaiting-mood #rmoods .rmood-brand{
       flex:0 0 auto; width:100%; min-height:0; aspect-ratio:47 / 43; }
@@ -2646,7 +2647,7 @@
     body.awaiting-mood #rmoods .rmood-ask{
       margin-top:42px; }
     body.awaiting-mood #madeby{
-      top:auto; bottom:20px; left:50%; right:auto;
+      top:auto; bottom:var(--landing-vspace); left:50%; right:auto;
       transform:translateX(-50%); justify-content:center;
       max-width:calc(100vw - 36px); }
   }
