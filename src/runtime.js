@@ -2081,7 +2081,7 @@ function _toggleHowModal(){
   if(heroLcd){
     if(!heroLcd.dataset.howOriginal) heroLcd.dataset.howOriginal=heroLcd.innerHTML;
     if(heroLcd.classList.toggle('how-page')){
-      heroLcd.innerHTML='<h3>HOW IT WORKS</h3>'+ 
+      heroLcd.innerHTML=
         '<p><b>WRITE YOUR OWN.</b> Create opens a tracker on the Game Boy chip: notes, hardware instruments, sweeps, slides and sampled drums.</p>'+ 
         '<p><b>OR COMPOSE.</b> Pick a mood and the app writes complete songs for you to edit and share.</p>'+ 
         '<p><b>THE SONGS ARE REAL.</b> Every track runs through a real sound-chip emulation and downloads as a cartridge for hardware.</p>'+ 
