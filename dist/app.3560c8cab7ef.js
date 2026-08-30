@@ -33803,6 +33803,8 @@ function buildPlaybar(){ _pbEl=document.getElementById('playbar'); if(!_pbEl||_p
   _wirePlaybarButton('pbNext', _transportNext);
   _wirePlaybarButton('pbPlay', _transportToggle);
   _wirePlaybarButton('pbScreen', function(){ toggleGamePicker(); });
+  var visualizerBtn=document.getElementById('pbScreen');
+  if(visualizerBtn && !visualizerBtn._pickerHover){ visualizerBtn._pickerHover=true; visualizerBtn.addEventListener('mouseenter', function(){ openGamePicker(); }); }
   _wirePlaybarButton('pbVolume', function(){ window.toggleMixPanel && window.toggleMixPanel(); });
   // REACHING FOR ONE OF THESE IS THE WHOLE INTENT. Both dials are a sliver of
   // the full mixer, and someone who has put the pointer on the tempo or the
