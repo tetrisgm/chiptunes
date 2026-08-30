@@ -2082,11 +2082,10 @@ function _toggleHowModal(){
     if(!heroLcd.dataset.howOriginal) heroLcd.dataset.howOriginal=heroLcd.innerHTML;
     if(heroLcd.classList.toggle('how-page')){
       heroLcd.innerHTML=
-        '<p><b>WRITE YOUR OWN.</b> Create opens a tracker on the Game Boy chip: notes, hardware instruments, sweeps, slides and sampled drums.</p>'+ 
-        '<p><b>OR COMPOSE.</b> Pick a mood and the app writes complete songs for you to edit and share.</p>'+ 
-        '<p><b>THE SONGS ARE REAL.</b> Every track runs through a real sound-chip emulation and downloads as a cartridge for hardware.</p>'+ 
-        '<p><b>IN YOUR BROWSER.</b> The composer is deterministic: the same link always makes the same song.</p>'+ 
-        '<p><b>THE SCREENS.</b> Game Boy shades and an NES signal are rebuilt with shaders.</p>';
+        '<p><b>THE SONGS ARE REAL.</b> A Game Boy sound chip plays them. Each downloads as a cartridge for real hardware.</p>'+ 
+        '<p><b>HOW THEY\'RE MADE.</b> The composer arranges four channels of pulse and wave instruments, sweeps, arpeggios and sampled drums.</p>'+ 
+        '<p><b>MAKE THEM YOURS.</b> Edit every note in the tracker, or start from scratch. Share a link, WAV or cartridge.</p>'+ 
+        '<p><b>THE SCREENS.</b> Game Boy shades and an NES signal are reconstructed with shaders.</p>';
     } else heroLcd.innerHTML=heroLcd.dataset.howOriginal;
     return;
   }
