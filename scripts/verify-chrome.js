@@ -171,7 +171,7 @@ function names() {
     sc.classList.add('on');
     const on = cs(sc).backgroundColor + ' ' + cs(sc).color;
     return {
-      volLast: !!(kids.length && kids[kids.length - 1].contains(vol)),
+      volLast: !!(kids.length && kids[kids.length - 2].contains(vol)),
       volRight: R(vol).r, fsRight: fs ? R(fs).r : -1, rightEdge: R(right).r,
       screenSame: on === off, on, off,
       screenH: Math.round(R(sc).h), fsH: fs ? Math.round(R(fs).h) : -1,
@@ -182,8 +182,8 @@ function names() {
     };
   });
   ok(bar.volLast, 'the volume is the last group in the bar');
-  ok(bar.rightEdge - bar.volRight < 2,
-     'hard against its right edge (' + Math.round(bar.rightEdge - bar.volRight) + 'px)');
+  ok(bar.rightEdge - bar.fsRight < 2,
+     'fullscreen is hard against its right edge (' + Math.round(bar.rightEdge - bar.fsRight) + 'px)');
   ok(bar.screenSame, 'the Display button looks the same whichever screen is on');
   console.log('       state: ' + bar.barCls + ' | dock ' + bar.dockPos + ' | right ' + bar.rightPos +
               ' | screen ' + bar.screenH + ' fullscreen ' + bar.fsH + ' vol ' + bar.volH + ' pad ' + bar.pad);

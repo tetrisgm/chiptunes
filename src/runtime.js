@@ -1899,7 +1899,7 @@ function buildRadioUI(){
       var b=document.getElementById('rfullscreen');
       var dock=document.querySelector('#playbar .pb-right');
       if(!b || !dock || b.parentNode===dock) return;
-      dock.insertBefore(b, dock.firstChild);   // left of the screen toggle
+      dock.appendChild(b);                     // fullscreen is the far-right utility
     }catch(e){}
   }
   window._dockFullscreen=_dockFullscreen;
