@@ -33157,29 +33157,22 @@ function _toggleHowModal(){
   el.innerHTML='<div class="hm-card">'+
     '<button type="button" class="hm-close" aria-label="Close">\u00d7</button>'+
     '<h2>How this works</h2>'+
-    '<p class="hm-lede">An endless Game Boy radio for your second screen. '+
-    'Press play, leave it in the background, and get on with your day.</p>'+
+    '<p class="hm-lede">Chiptunes.app is a music-making app built around a real Game Boy sound chip.</p>'+
     '<ul class="hm-list">'+
-    '<li><b>Every song is written live, in your browser.</b> No server and no '+
-    'playlist: a deterministic composer generates each track from the URL, so '+
-    'a link plays the same song forever.</li>'+
-    '<li><b>The sound chip is real.</b> A register-level emulation of the '+
-    'Game Boy APU, hardware sweep and vibrato included.</li>'+
-    '<li><b>Every song is a cartridge.</b> Download ROM gives you the track '+
-    'as a 32 KB .gb file that boots on real hardware, verified to sound '+
-    'identical to what you are hearing.</li>'+
-    '<li><b>The music is measured.</b> Fourteen styles, with kit bars, bass '+
-    'lines and chord movements mined from 74,552 video game MIDI files.</li>'+
-    '<li><b>The games play themselves.</b> They react to the beat; they never '+
-    'compose.</li>'+
     '<li><b>You can write your own.</b> Create opens a tracker on the same '+
-    'chip: four lanes of notes you drag around, every instrument the hardware '+
-    'has, movement under each note \u2014 vibrato, duty sweeps, arpeggios, '+
-    'pitch slides \u2014 and four-bit sampled drums streamed into the wave '+
-    'channel. Tap a mood and the composer writes a whole song for you to '+
-    'edit. Share it as a link, a WAV, or a cartridge.</li>'+
-    '<li><b>The screens are simulations.</b> Four real shades for the Game '+
-    'Boy face; a modulated-and-decoded NTSC signal for the NES one.</li>'+
+    'chip: four lanes of notes, hardware instruments, vibrato, sweeps, '+
+    'arpeggios, slides, and sampled drums. Share what you make as a link, WAV, '+
+    'or cartridge.</li>'+
+    '<li><b>Or let it compose for you.</b> Choose a mood and it writes an '+
+    'endless supply of complete songs for you to keep, edit, and share.</li>'+
+    '<li><b>The songs are real.</b> The browser runs a register-level Game Boy '+
+    'sound-chip emulation, and every track can be downloaded as a 32 KB cartridge '+
+    'that boots on real hardware.</li>'+
+    '<li><b>Every song is written in your browser.</b> The composer is '+
+    'deterministic: the same link always makes the same song. Nothing comes from '+
+    'a playlist or a server.</li>'+
+    '<li><b>The screens are shaders.</b> The Game Boy uses its four hardware '+
+    'shades; the NES picture is reconstructed from a modulated, decoded signal.</li>'+
     '</ul>'+
     '<p class="hm-foot"><a href="'+GITHUB_URL+'" target="_blank" rel="noopener">'+
     'The code is open. Read the full story on GitHub.</a></p>'+
