@@ -670,6 +670,13 @@
   #gbscreen .gb-dot{ width:7px; height:7px; border-radius:50%; background:#e05a6a; box-shadow:0 0 7px #e05a6a; }
   #gbscreen #gbLcd{ display:block; width:100%; height:auto; aspect-ratio:160/144; border-radius:2px;
     image-rendering:pixelated; background:#e0e8b0; }
+  #gbscreen .gb-how{ position:absolute; inset:16px 22px 24px; z-index:2; display:none;
+    overflow:auto; padding:8px; box-sizing:border-box; background:#d9e69a; color:#183d20;
+    font:400 8px/1.35 var(--pixel),monospace; image-rendering:pixelated; }
+  #gbscreen .gb-how.show{ display:block; }
+  #gbscreen .gb-how h3{ margin:0 0 7px; font:700 10px/1 var(--pixel),monospace; }
+  #gbscreen .gb-how p{ margin:0 0 7px; }
+  #gbscreen .gb-how b{ font-weight:700; }
   #gbscreen .gb-err{ display:none; margin-top:8px; color:#ffb4b4; font-size:11px; line-height:1.35; }
   #gbscreen .gb-brand{ margin:12px 2px 0; color:#3b3a63; font:800 17px/1 var(--pixel),system-ui;
     letter-spacing:.02em; }
@@ -2631,7 +2638,7 @@
   <div id="popover"></div>
   <div id="browse"></div>
 
-<script src="../app.6e362ccecfdf.js" defer></script>
+<script src="../app.df61da23e77e.js" defer></script>
 
 </body>
 </html>

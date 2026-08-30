@@ -2088,6 +2088,12 @@ window._openCreate=_openCreate;
 // seconds; this modal is for the visitor who gives it a minute. Same story as
 // the README, condensed.
 function _toggleHowModal(){
+  var gb=document.getElementById('gbscreen');
+  if(gb && gb.classList.contains('show')){
+    var hs=gb.querySelector('.gb-how');
+    if(hs) hs.classList.toggle('show');
+    return;
+  }
   var el=document.getElementById('howmodal');
   if(el){ el.classList.toggle('show'); return; }
   el=document.createElement('div'); el.id='howmodal';
@@ -3444,6 +3450,14 @@ function _ensureGameBoyScreen(){
       '<div class="gb-well">'+
         '<div class="gb-wellhead"><span class="gb-dot"></span>DOT MATRIX WITH STEREO SOUND</div>'+
         '<canvas id="gbLcd" width="160" height="144"></canvas>'+
+        '<div class="gb-how" aria-label="How this works">'+
+          '<h3>HOW IT WORKS</h3>'+
+          '<p><b>WRITE YOUR OWN.</b> Create opens a tracker on the Game Boy chip: notes, hardware instruments, sweeps, slides and sampled drums.</p>'+
+          '<p><b>OR COMPOSE.</b> Pick a mood and the app writes an endless supply of complete songs for you to edit and share.</p>'+
+          '<p><b>THE SONGS ARE REAL.</b> Every track runs through a register-level sound-chip emulation and downloads as a cartridge for real hardware.</p>'+
+          '<p><b>IN YOUR BROWSER.</b> The composer is deterministic. The same link always makes the same song; no playlist or server is involved.</p>'+
+          '<p><b>THE SCREENS.</b> Game Boy shades and an NES signal are rebuilt with shaders.</p>'+
+        '</div>'+
         '<div id="gbErr" class="gb-err"></div>'+
       '</div>'+
       '<div class="gb-brand">CHIPTUNES<span>.app</span></div>'+
