@@ -2441,14 +2441,12 @@
   @media (max-width:1000px){ #playbar .pb-right #rfullscreen .plink-t{ display:none; }
     #playbar .pb-right #rfullscreen{ padding:0 9px !important; } }
 
-  /* THE DESKTOP CARD TAKES THE TOP-RIGHT, which Full screen has just vacated.
-     It was bottom-right, above the bar, competing with the player for the one
-     corner the eye goes to last. */
-  #dlcard{ top:18px !important; bottom:auto !important; right:18px !important; }
+  /* THE DESKTOP CARD sits below the left rail, clear of its action links. */
+  #dlcard{ top:470px !important; bottom:auto !important; left:18px !important; right:auto !important; }
   /* ...which means the credit row can no longer use the full width of the top
      strip: centred, it ran straight under the card and Hacker News disappeared
      behind it. */
-  body:not(.awaiting-mood) #madeby{ max-width:calc(100vw - 430px); }
+  body:not(.awaiting-mood) #madeby{ max-width:calc(100vw - 40px); }
   @media (max-width:1100px){ body:not(.awaiting-mood) #madeby{ max-width:calc(100vw - 40px); } }
 
   /* ===== THE CARD HOLDS A SCREEN =====================================
