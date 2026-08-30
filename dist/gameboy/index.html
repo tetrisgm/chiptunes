@@ -1236,6 +1236,9 @@
   #howmodal .hm-close{ width:28px; height:28px; top:8px; right:8px; border-color:#527044; color:#315331; font:400 18px/1 var(--pixel),monospace; }
 
   body.ai-visual #plinks{ display:flex; opacity:0; pointer-events:none; transition:opacity var(--fade-out); }
+  /* Help is an always-available entry point, even while the visual rail is
+     resting. Keep the top-left button hit-testable in Safari and other engines. */
+  body.ai-visual #plinks .plhead .plhow{ pointer-events:auto !important; }
   /* The COLUMN never takes the pointer, only its rows do. A one-line masthead
      makes the column as wide as the sentence -- 762px -- and an interactive box
      that size sitting over the game is a dead zone you cannot see. */
