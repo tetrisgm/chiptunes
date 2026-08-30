@@ -1967,14 +1967,14 @@ function _buildPlayerLinks(){
     return '<a class="plink plmade-btn" href="'+href+'" target="_blank" rel="noopener" title="'+tip+'">'+
       '<span class="plink-ic">'+ic+'</span><span class="plink-t">'+label+'</span></a>';
   }
-  var madeBy='<span class="plmade-t">An AI product experiment by Shokunin</span>'+
+  var madeBy='<div class="plmade-line"><span class="plmade-name">Chiptunes.app</span><span class="plmade-t">An AI product experiment by Shokunin</span>'+
     '<div class="plmade-row">'+
       // the REPOSITORY, not the profile: the interesting thing about this
       // page is that you can read how it works and send a change back
       _madeLink(GITHUB_URL, _IC_GH, 'GitHub', 'Source, issues and pull requests')+
       _madeLink('https://twitter.com/tetrisgm', _IC_X, 'Twitter', 'tetrisgm on X')+
       _madeLink('https://news.ycombinator.com/user?id=tetrisgm', _IC_HN, 'Hacker News', 'tetrisgm on Hacker News')+
-    '</div>';
+    '</div></div>';
   // the credit is not something you DO with the track, so it is not a rail row:
   // its own corner of the picture, bottom-left, above the player bar
   var made=document.getElementById('madeby');

@@ -575,11 +575,12 @@
   body:not(.awaiting-mood) #madeby .plink svg{ width:19px; height:19px; }
   @media (max-width:1100px){
     body:not(.awaiting-mood) #madeby{ right:0; flex-wrap:wrap; } }
-  body.awaiting-mood #madeby{ top:auto; bottom:18px; left:18px; transform:none;
-    justify-content:flex-start; max-width:calc(100vw - 36px); opacity:1 !important; }
+  body.awaiting-mood #madeby{ top:18px; bottom:auto; left:26px; right:auto; transform:none;
+    justify-content:flex-start; max-width:calc(100vw - 52px); opacity:1 !important; pointer-events:auto; }
+  body.awaiting-mood #madeby .plmade-row{ flex-wrap:nowrap; }
   @media (max-width:1100px){
-    body.awaiting-mood #madeby{ position:fixed; top:auto;
-      bottom:calc(var(--barh,0px) + 96px); max-width:calc(100vw - 36px); flex-wrap:wrap; } }
+    body.awaiting-mood #madeby{ position:fixed; top:18px; bottom:auto;
+      max-width:calc(100vw - 36px); flex-wrap:nowrap; } }
   #presets .rbtn.rmood-scratch{ border-color:rgba(123,220,160,.45); color:#bfe9cf; }
   .preset{
     pointer-events:auto; cursor:pointer;
@@ -746,6 +747,8 @@
   #madeby .plmade-t{ color:var(--ink); font:600 var(--txt)/1 var(--ui); letter-spacing:.005em;
     white-space:nowrap; text-shadow:0 1px 8px rgba(0,0,0,.85), 0 0 2px rgba(0,0,0,.7); }
   #madeby .plmade-row{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  #madeby .plmade-line{ display:flex; align-items:center; gap:10px; flex-wrap:nowrap; white-space:nowrap; }
+  #madeby .plmade-name{ color:var(--ink); font:700 var(--txt)/1 var(--px); letter-spacing:.04em; }
   #madeby .plmade-btn{ text-decoration:none; }
   #madeby .plmade-btn svg{ width:18px; height:18px; display:block; }
   body.gb-open #madeby, body.create-open #madeby,
