@@ -33145,10 +33145,10 @@ function _toggleHowModal(){
     if(!heroLcd.dataset.howOriginal) heroLcd.dataset.howOriginal=heroLcd.innerHTML;
     if(heroLcd.classList.toggle('how-page')){
       heroLcd.innerHTML=
-        '<p><b>THE SONGS ARE REAL.</b> A Game Boy sound chip plays them. Each downloads as a cartridge for real hardware.</p>'+ 
-        '<p><b>HOW THEY\'RE MADE.</b> The composer arranges four channels of pulse and wave instruments, sweeps, arpeggios and sampled drums.</p>'+ 
-        '<p><b>MAKE THEM YOURS.</b> Edit every note in the tracker, or start from scratch. Share a link, WAV or cartridge.</p>'+ 
-        '<p><b>THE SCREENS.</b> Game Boy shades and an NES signal are reconstructed with shaders.</p>';
+        '<p><b>THE SONGS ARE REAL.</b> Every track is played by a register-level emulation of the Game Boy\'s four-channel sound chip. Download it as a cartridge that boots on original hardware.</p>'+ 
+        '<p><b>HOW THEY\'RE MADE.</b> In your browser, the composer builds a complete arrangement from pulse and wave instruments, pitch sweeps, slides, arpeggios, noise and sampled drums.</p>'+ 
+        '<p><b>MAKE THEM YOURS.</b> Open the tracker to change every note, instrument and effect, or begin with an empty song. Share the result as a link, WAV or cartridge.</p>'+ 
+        '<p><b>THE SCREENS.</b> Four Game Boy LCD tones and the NES\'s decoded video signal are reconstructed by custom shaders.</p>';
     } else heroLcd.innerHTML=heroLcd.dataset.howOriginal;
     return;
   }

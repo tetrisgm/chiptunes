@@ -2628,6 +2628,27 @@
     body.awaiting-mood #rmoods .rmood-brand{ min-height:160px; padding:14px 16px; }
     body.awaiting-mood #rmoods .rmood-brand i{ font-size:13px !important; line-height:1.7 !important; } }
 
+  /* On a tall desktop the credit becomes the footer and the console uses the
+     column it leaves behind. The LCD grows with the case, so opening the
+     explanation never changes the Game Boy's dimensions. */
+  @media (min-width:1200px) and (min-height:901px){
+    body.awaiting-mood #presets{
+      align-items:flex-start; padding:10px 8px 78px; }
+    body.awaiting-mood #rmoods{
+      width:min(600px,93vw); height:calc(100vh - 105px); min-height:0;
+      justify-content:flex-start; }
+    body.awaiting-mood #rmoods .rmood-brand{
+      flex:1 1 auto; min-height:0; }
+    body.awaiting-mood #rmoods .rmood-brand.how-page p{
+      font-size:17px; line-height:1.42; }
+    body.awaiting-mood #rmoods .rmood-brand.how-page p b{
+      font-size:17px !important; line-height:1.42 !important; }
+    body.awaiting-mood #madeby{
+      top:auto; bottom:12px; left:50%; right:auto;
+      transform:translateX(-50%); justify-content:center;
+      max-width:calc(100vw - 36px); }
+  }
+
   /* ===== ONE BUTTON SIZE =============================================
      Applied last so it beats the per-context sizes that accumulated, and
      applied to every control that reads as a button: the rail, the credit
@@ -2689,7 +2710,7 @@
   <div id="popover"></div>
   <div id="browse"></div>
 
-<script src="../app.ff9699dddb90.js" defer></script>
+<script src="../app.34938f0502a9.js" defer></script>
 
 </body>
 </html>
