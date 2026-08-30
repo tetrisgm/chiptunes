@@ -2703,7 +2703,7 @@ function buildPlaybar(){ _pbEl=document.getElementById('playbar'); if(!_pbEl||_p
     // fast it is going, how loud it is -- each with its own slider when the
     // window has room, and the full mixer one press away.
     '<div class="pb-right">'+
-      '<div class="pb-screendock"><button id="pbScreen" class="pb-screen" title="Choose visualizer">'+_IC_TV+'<span class="pbs-t">Visualizer</span></button></div>'+
+      '<div class="pb-screendock"><button id="pbScreen" class="pb-screen" title="Choose visualizer"><span class="pbs-t">Visualizer</span></button></div>'+
       '<div class="pb-dial pb-bpmdial"><span class="pbd-lab">BPM</span>'+ 
         '<input type="range" id="pbBpm" min="60" max="220" step="1" value="128" title="Tempo">'+
         '<span class="pbd-read" id="pbBpmRead">\u2014</span></div>'+

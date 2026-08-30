@@ -1260,7 +1260,7 @@
      bar, which owns the bottom of the window on its own */
   /* the same bezel as the hero -- .gb-bezel carries the shell ring, the corner
      and the material; this only places it and sizes it */
-  #dlcard{ position:fixed; right:26px; left:auto; bottom:calc(var(--barh,0px) + 26px); z-index:22; display:none;
+  #dlcard{ position:fixed; left:26px; right:auto; bottom:calc(var(--barh,0px) + 26px); z-index:22; display:none;
     width:390px; max-width:calc(50vw - 234px); padding:16px 18px 26px; }
   #dlcard .dlc-h{ font:700 14.5px/1.25 var(--ui); letter-spacing:-.005em; color:var(--ink); }
   #dlcard .dlc-d{ margin-top:5px; font:500 13.5px/1.45 var(--ui); letter-spacing:.005em; color:var(--ink-2); }
@@ -1366,10 +1366,9 @@
   .navitem-chev{ flex:0 0 auto; color:#6b6488; font-size:24px; line-height:1; }
 
   /* Visualizer picker opened by the G key. This is testing chrome, not game UI. */
-  #gamepick{ position:fixed; inset:0; z-index:10040; display:none; align-items:center; justify-content:center;
-    padding:22px; background:rgba(5,4,12,.52); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); }
+  #gamepick{ position:fixed; right:16px; bottom:calc(var(--barh,0px) + 12px); z-index:10040; display:none; align-items:flex-end; justify-content:flex-end; pointer-events:none; }
   #gamepick.show{ display:flex; }
-  #gamepick .gp-panel{ width:min(620px,calc(100vw - 28px)); max-height:min(720px,calc(100dvh - 34px)); overflow:hidden;
+  #gamepick .gp-panel{ width:min(430px,calc(100vw - 28px)); max-height:min(620px,calc(100dvh - 34px)); overflow:hidden; pointer-events:auto;
     background:rgba(10,8,20,.96); border:1px solid rgba(207,199,240,.18); border-radius:14px;
     box-shadow:0 24px 80px rgba(0,0,0,.68),0 0 38px rgba(248,120,248,.12); color:#fff; }
   #gamepick .gp-head{ display:flex; align-items:flex-start; justify-content:space-between; gap:18px; padding:18px 18px 14px;
@@ -1389,6 +1388,11 @@
   #gamepick .gp-key{ display:block; margin-top:3px; color:#8f86b8; font:700 11px/1.2 var(--mono); }
   #gamepick .gp-dot{ width:10px; height:10px; border-radius:50%; background:transparent; border:1px solid rgba(207,199,240,.34); flex:0 0 auto; }
   #gamepick .gp-item.active .gp-dot{ background:var(--accent2); border-color:var(--accent2); box-shadow:0 0 12px rgba(88,248,152,.45); }
+  #gamepick .gp-modes{ display:flex; align-items:center; gap:6px; padding:10px 18px; border-top:1px solid rgba(255,255,255,.08); border-bottom:1px solid rgba(255,255,255,.08); }
+  #gamepick .gp-modes b{ margin-right:auto; font:700 11px/1 var(--mono); color:#a99fc9; }
+  #gamepick .gp-modes button{ border:1px solid rgba(207,199,240,.25); border-radius:999px; padding:6px 9px; background:rgba(255,255,255,.06); color:#e6e0f5; cursor:pointer; font:600 11px/1 var(--ui); }
+  #gamepick .gp-modes button:hover{ background:rgba(248,120,248,.15); border-color:rgba(248,120,248,.56); }
+  #plinks .plhead .plhow{ display:none !important; }
 
   /* Intro */
   #intro{
