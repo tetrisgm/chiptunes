@@ -32903,9 +32903,9 @@ function buildRadioUI(){
       var brand=document.createElement('span'); brand.className='rmood-brand landing-copy';
       brand.innerHTML='<b class="rmood-title">Chiptunes.app</b>'+ 
         '<span class="rmood-copy">'+
-          '<p>Real Game Boy songs, composed in your browser. Pick a mood and the app writes a complete four-channel arrangement — or open an empty tracker and write your own.</p>'+ 
-          '<p>Edit every note, instrument and effect. Share a link, download a WAV, or turn the song into a cartridge that boots on original hardware.</p>'+ 
-          '<p>Original music-driven scenes complete the machine: four-tone Game Boy LCDs and decoded NES video, reconstructed with custom shaders.</p>'+ 
+          '<span class="rmood-section"><strong>THE SONGS ARE REAL.</strong><p>The browser composes and plays four-channel music through a register-level Game Boy sound-chip emulator. Pick a mood, or begin with an empty tracker.</p></span>'+ 
+          '<span class="rmood-section"><strong>MAKE THEM YOURS.</strong><p>Edit every note, instrument and effect. Share a link or WAV, or download a cartridge that boots on original hardware.</p></span>'+ 
+          '<span class="rmood-section"><strong>THE SCREENS.</strong><p>Four-tone Game Boy LCDs and decoded NES video are reconstructed with custom shaders.</p></span>'+ 
         '</span>';
       row.appendChild(brand);
       // The ask -- the words and the pills -- moves as one piece: it is in the
