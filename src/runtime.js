@@ -2091,7 +2091,8 @@ function _toggleHowModal(){
   var gb=document.getElementById('gbscreen');
   // The landing shell can keep the console mounted while its view state is
   // transitioning, so key off the LCD well rather than a transient class.
-  if(gb && gb.querySelector('.gb-how')){
+  if(gb && gb.querySelector('.gb-how') &&
+     (!document.getElementById('dlcard') || gb.classList.contains('show'))){
     var hs=gb.querySelector('.gb-how');
     if(hs) hs.classList.toggle('show');
     var old=document.getElementById('howmodal');
