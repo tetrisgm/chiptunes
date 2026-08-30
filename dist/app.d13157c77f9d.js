@@ -33152,9 +33152,13 @@ window._openCreate=_openCreate;
 // the README, condensed.
 function _toggleHowModal(){
   var gb=document.getElementById('gbscreen');
-  if(gb && gb.classList.contains('show')){
+  // The landing shell can keep the console mounted while its view state is
+  // transitioning, so key off the LCD well rather than a transient class.
+  if(gb && gb.querySelector('.gb-how')){
     var hs=gb.querySelector('.gb-how');
     if(hs) hs.classList.toggle('show');
+    var old=document.getElementById('howmodal');
+    if(old) old.classList.remove('show');
     return;
   }
   var el=document.getElementById('howmodal');
