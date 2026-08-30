@@ -32936,7 +32936,7 @@ function buildRadioUI(){
       var pills=document.createElement('span'); pills.className='rmood-pills';
       ask.appendChild(pills);
       row.appendChild(ask);
-      moods.forEach(function(m){
+      moods.filter(function(m){ return m!=='funky' && m!=='dreamy'; }).forEach(function(m){
         var b=mkRbtn(m, function(){ _moodOnAir(m, b); });
         b.classList.add('rmood'); b.title='Write a '+m+' song and play it';
         pills.appendChild(b);
@@ -32948,6 +32948,10 @@ function buildRadioUI(){
       scratch.classList.add('rmood','rmood-scratch');
       scratch.title='Open the editor with an empty song';
       pills.appendChild(scratch);
+      var select=mkRbtn('How it works', function(){ _toggleHowModal(); });
+      select.classList.add('rmood','rmood-select');
+      select.title='How this works';
+      pills.appendChild(select);
       presetsBar.appendChild(row);
     }
   }catch(e){}

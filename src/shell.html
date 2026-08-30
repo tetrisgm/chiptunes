@@ -422,7 +422,7 @@
       var(--gb-button) 0 2px, transparent 2px 3px, #2f3f7a 3px 5px); opacity:.62; }
   body.awaiting-mood #rmoods{
     margin-top:0; flex-direction:column; gap:16px;
-    max-width:min(880px,90vw); padding:34px 38px 40px; }
+    max-width:min(960px,92vw); padding:38px 44px 44px; }
   /* ...AND THE BEZEL IS ONLY THE HERO'S. #rmoods keeps the class in both
      states, so it has to be switched OFF while a track is playing -- not just
      for looks. backdrop-filter makes an element a CONTAINING BLOCK for
@@ -2293,6 +2293,10 @@
   body.awaiting-mood #presets .rbtn.rmood-scratch{
     background:linear-gradient(180deg, #7c7c88, #5d5d68) !important;
     border:1px solid rgba(0,0,0,.55) !important; color:#f2f2f6 !important; }
+  body.awaiting-mood #presets .rbtn.rmood-select{ order:10; background:linear-gradient(180deg, #8b8b97, #55555f) !important;
+    border:1px solid rgba(0,0,0,.55) !important; color:#f2f2f6 !important; }
+  body.awaiting-mood #presets .rbtn.rmood-scratch{ order:11; }
+  body.awaiting-mood #plinks .plhead .plhow{ display:none !important; }
   body.awaiting-mood #presets .rbtn.rmood-scratch:hover{
     background:linear-gradient(180deg, #8d8d99, #6b6b77) !important; color:#fff !important; }
 
@@ -2528,7 +2532,7 @@
   /* the case needs room UNDER the controls: the grille lives down there and was
      printing through the last button */
   body.awaiting-mood #rmoods{
-    padding:16px 16px 58px; gap:0; max-width:min(880px,90vw); }
+    padding:18px 20px 60px; gap:0; max-width:min(960px,92vw); }
   /* the stripe sits between the screen and the controls, and the controls are
      inset from the case edge the way the buttons are on the machine */
   body.awaiting-mood #rmoods > .gb-stripe{ order:0; margin:13px 15px 0; }
