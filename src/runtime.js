@@ -1840,9 +1840,10 @@ function buildRadioUI(){
       var brand=document.createElement('span'); brand.className='rmood-brand landing-copy';
       brand.innerHTML='<b class="rmood-title">Chiptunes.app</b>'+ 
         '<span class="rmood-copy">'+
-          '<span class="rmood-section"><strong>THE SONGS ARE REAL.</strong><p>The browser composes and plays four-channel music through a register-level Game Boy sound-chip emulator. Pick a mood, or begin with an empty tracker.</p></span>'+ 
-          '<span class="rmood-section"><strong>MAKE THEM YOURS.</strong><p>Edit every note, instrument and effect. Share a link or WAV, or download a cartridge that boots on original hardware.</p></span>'+ 
-          '<span class="rmood-section"><strong>THE SCREENS.</strong><p>Four-tone Game Boy LCDs and decoded NES video are reconstructed with custom shaders.</p></span>'+ 
+          '<span class="rmood-section"><strong>MAKE GAME BOY MUSIC.</strong><p>Pick a mood and the app composes a complete four-channel song in your browser — or open an empty tracker.</p></span>'+ 
+          '<span class="rmood-section"><strong>EDIT EVERY NOTE.</strong><p>Change the instruments, melodies, effects and drums. Share the result as a link or WAV.</p></span>'+ 
+          '<span class="rmood-section"><strong>PLAY IT FOR REAL.</strong><p>Every track runs through a register-level sound-chip emulator and downloads as a cartridge that boots on original Game Boy hardware.</p></span>'+ 
+          '<span class="rmood-section"><strong>THE SCREENS.</strong><p>Custom shaders recreate the Game Boy\'s four-tone LCD and decode an NES-style video signal.</p></span>'+ 
         '</span>';
       row.appendChild(brand);
       // The ask -- the words and the pills -- moves as one piece: it is in the
