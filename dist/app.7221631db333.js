@@ -32936,7 +32936,7 @@ function buildRadioUI(){
       var pills=document.createElement('span'); pills.className='rmood-pills';
       ask.appendChild(pills);
       row.appendChild(ask);
-      moods.filter(function(m){ return m!=='funky' && m!=='dreamy' && m!=='spooky'; }).forEach(function(m){
+      moods.filter(function(m){ return m!=='funky' && m!=='dreamy' && m!=='spooky' && m!=='retro'; }).forEach(function(m){
         var b=mkRbtn(m, function(){ _moodOnAir(m, b); });
         b.classList.add('rmood'); b.title='Write a '+m+' song and play it';
         pills.appendChild(b);
