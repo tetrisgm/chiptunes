@@ -33320,7 +33320,7 @@ function _syncGameBoyPill(){
     if(!b) return;
     var st=_screenState(), face=_screenFace();
     var t=b.querySelector('.pbs-t');
-    if(t) t.textContent='Display: '+(_SCREEN_LABEL[st]||'CRT');
+    if(t) t.textContent='Visualizer';
     // Lit for anything other than the plain view. Under Random it stays lit
     // rather than blinking off on the tracks that roll a CRT -- it is reporting
     // the choice, not the roll.

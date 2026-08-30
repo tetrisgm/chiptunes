@@ -1260,7 +1260,7 @@
      bar, which owns the bottom of the window on its own */
   /* the same bezel as the hero -- .gb-bezel carries the shell ring, the corner
      and the material; this only places it and sizes it */
-  #dlcard{ position:fixed; left:26px; right:auto; bottom:calc(var(--barh,0px) + 26px); z-index:22; display:none;
+  #dlcard{ position:fixed; left:26px; right:auto; top:430px; bottom:auto; z-index:22; display:none;
     width:390px; max-width:calc(50vw - 234px); padding:16px 18px 26px; }
   #dlcard .dlc-h{ font:700 14.5px/1.25 var(--ui); letter-spacing:-.005em; color:var(--ink); }
   #dlcard .dlc-d{ margin-top:5px; font:500 13.5px/1.45 var(--ui); letter-spacing:.005em; color:var(--ink-2); }
@@ -1393,6 +1393,7 @@
   #gamepick .gp-modes button{ border:1px solid rgba(207,199,240,.25); border-radius:999px; padding:6px 9px; background:rgba(255,255,255,.06); color:#e6e0f5; cursor:pointer; font:600 11px/1 var(--ui); }
   #gamepick .gp-modes button:hover{ background:rgba(248,120,248,.15); border-color:rgba(248,120,248,.56); }
   #plinks .plhead .plhow{ display:none !important; }
+  body:not(.awaiting-mood) #presets .rmood-select{ display:none !important; }
 
   /* Intro */
   #intro{
@@ -2686,7 +2687,7 @@
   <div id="popover"></div>
   <div id="browse"></div>
 
-<script src="../app.5acfa2c0362f.js" defer></script>
+<script src="../app.4cfdf774ed95.js" defer></script>
 
 </body>
 </html>
