@@ -1835,15 +1835,15 @@ function buildRadioUI(){
       // grille in the bottom-right corner, exactly where the machine has them
       var _spk=document.createElement('span'); _spk.className='gb-speaker'; row.appendChild(_spk);
       var _stp=document.createElement('span'); _stp.className='gb-stripe'; row.appendChild(_stp);
-      // The name and the one line of what this is, in the middle of the page
-      // above the choice -- the shape of an ordinary product landing page.
-      // Only shown while the station is waiting to be asked; once something is
-      // playing the left rail carries them again and this shrinks to a strip.
-      var brand=document.createElement('span'); brand.className='rmood-brand';
-      var bn=document.createElement('b'); bn.textContent='Chiptunes.app';
-      var bs=document.createElement('i');
-      bs.textContent='An endless Game Boy radio for your second screen: background music, games that play themselves.';
-      brand.appendChild(bn); brand.appendChild(bs);
+      // The LCD is the landing page: the name first, then the product story in
+      // the same place rather than behind a second "How it works" state.
+      var brand=document.createElement('span'); brand.className='rmood-brand landing-copy';
+      brand.innerHTML='<b class="rmood-title">Chiptunes.app</b>'+ 
+        '<span class="rmood-copy">'+
+          '<p>Real Game Boy songs, composed in your browser. Pick a mood and the app writes a complete four-channel arrangement — or open an empty tracker and write your own.</p>'+ 
+          '<p>Edit every note, instrument and effect. Share a link, download a WAV, or turn the song into a cartridge that boots on original hardware.</p>'+ 
+          '<p>Original music-driven scenes complete the machine: four-tone Game Boy LCDs and decoded NES video, reconstructed with custom shaders.</p>'+ 
+        '</span>';
       row.appendChild(brand);
       // The ask -- the words and the pills -- moves as one piece: it is in the
       // hero while the page is being read, and in the bottom-left corner once
@@ -1870,10 +1870,6 @@ function buildRadioUI(){
       scratch.classList.add('rmood','rmood-scratch');
       scratch.title='Open the editor with an empty song';
       pills.appendChild(scratch);
-      var select=mkRbtn('How it works', function(){ _toggleHowModal(); });
-      select.classList.add('rmood','rmood-select');
-      select.title='How this works';
-      pills.appendChild(select);
       presetsBar.appendChild(row);
     }
   }catch(e){}
