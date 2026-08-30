@@ -33161,6 +33161,14 @@ function _toggleHowModal(){
     if(old) old.classList.remove('show');
     return;
   }
+  var dl=document.querySelector('#dlcard .gb-lcd');
+  if(dl){
+    var dh=dl.querySelector('.dl-how');
+    if(dh) dh.classList.toggle('show');
+    var oldDl=document.getElementById('howmodal');
+    if(oldDl) oldDl.classList.remove('show');
+    return;
+  }
   var el=document.getElementById('howmodal');
   if(el){ el.classList.toggle('show'); return; }
   el=document.createElement('div'); el.id='howmodal';
@@ -33206,6 +33214,14 @@ function _buildDesktopCard(os, osName){
   // game behind them. Not a mockup of the idea, the idea itself, blitted from
   // the same canvas the page is already drawing.
   card.innerHTML='<div class="gb-lcd"><div class="dlc-h">On your desktop</div>'+
+    '<div class="dl-how" aria-label="How this works">'+
+      '<h3>HOW IT WORKS</h3>'+
+      '<p><b>WRITE YOUR OWN.</b> Create opens a tracker on the Game Boy chip: notes, hardware instruments, sweeps, slides and sampled drums.</p>'+
+      '<p><b>OR COMPOSE.</b> Pick a mood and the app writes complete songs for you to edit and share.</p>'+
+      '<p><b>THE SONGS ARE REAL.</b> Every track runs through a real sound-chip emulation and downloads as a cartridge for hardware.</p>'+
+      '<p><b>IN YOUR BROWSER.</b> The composer is deterministic: the same link always makes the same song.</p>'+
+      '<p><b>THE SCREENS.</b> Game Boy shades and an NES signal are rebuilt with shaders.</p>'+
+    '</div>'+
     '<div class="dlc-d">Use these games as an animated wallpaper.</div></div>'+
     '<div class="dlc-shot" aria-hidden="true">'+
       // A RECORDING, NOT A SECOND SCREEN. This was a live blit of the stage
