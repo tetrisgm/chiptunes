@@ -1875,7 +1875,7 @@ function buildRadioUI(){
       row.appendChild(ask);
       var shownMoods=moods.filter(function(m){ return m!=='sad' && m!=='upbeat' && m!=='funky' && m!=='dreamy' && m!=='spooky' && m!=='retro'; });
       shownMoods=shownMoods.filter(function(m){ return m!=='happy'; });
-      shownMoods.splice(1,0,'happy');
+      shownMoods.unshift('happy');
       shownMoods.forEach(function(m){
         var b=mkRbtn(m, function(){ _moodOnAir(m, b); });
         b.classList.add('rmood'); b.title='Write a '+m+' song and play it';

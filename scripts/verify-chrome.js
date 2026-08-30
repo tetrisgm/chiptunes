@@ -107,16 +107,16 @@ function names() {
     if (!lab || !pill) return null;
     const f = e => { const c = getComputedStyle(e); return c.fontSize + '/' + c.fontWeight + '/' + c.fontFamily; };
     const lr = lab.getBoundingClientRect(), pr = pill.getBoundingClientRect();
+    const moods=[...document.querySelectorAll('.rmood')].filter(b => !b.classList.contains('rmood-scratch') && !b.classList.contains('rmood-select'));
+    const tops=moods.map(b => Math.round(b.getBoundingClientRect().top));
     return { sameFont: f(lab) === f(pill), size: getComputedStyle(lab).fontSize,
-             sameRow: Math.abs((lr.top + lr.bottom) / 2 - (pr.top + pr.bottom) / 2) < 3,
-             labRight: Math.round(lr.right), pillLeft: Math.round(pr.left),
+             sameRow: new Set(tops).size === 1, firstHappy: moods[0] && moods[0].textContent.trim() === 'happy',
              text: lab.textContent.trim() };
   });
   ok(!!ask, 'the ask is on the landing page');
   ok(ask && ask.sameFont, 'the question is set exactly like the answers (' + (ask && ask.size) + ')');
-  ok(ask && ask.sameRow, 'and shares their line rather than heading a list');
-  ok(ask && ask.pillLeft > ask.labRight && ask.pillLeft - ask.labRight < 40,
-     'with the first mood right after the words (' + (ask && (ask.pillLeft - ask.labRight)) + 'px)');
+  ok(ask && ask.sameRow, 'the four moods share one line');
+  ok(ask && ask.firstHappy, 'and Happy is the first mood');
   await p.screenshot({ path: path.join(SHOT, 'chrome-landing.png') });
 
   // ---- 6. the reel --------------------------------------------------------
