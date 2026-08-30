@@ -58,8 +58,9 @@ const score = {
 };
 
 // ---- what the browser chip writes -----------------------------------------
-function browserWrites(sc, frames) {
+function browserWrites(sc, frames, mix) {
   const seq = new APU.Sequencer(sc.gb, 44100);
+  if (mix) seq.setMix(mix);
   const out = [];
   const real = seq.apu.write.bind(seq.apu);
   seq.apu.write = (reg, val) => { out.push({ frame: seq.frame, reg: reg & 0xFF, val: val & 0xFF }); real(reg, val); };
@@ -130,6 +131,30 @@ ok(bWave === 32 && rWave === 32,
    'both players reloaded wave RAM twice under the sounding note (' + bWave + ' / ' + rWave + ' byte writes)');
 
 ok(rw.rom.length === 0x8000, 'the cartridge is still 32 KiB with the new opcodes');
+
+// Mixer scaling must change only velocity. Detune and hardware sweep are part
+// of the note, not optional display metadata: dropping either makes the mixed
+// browser player write different hardware registers from the score.
+const mixNote = {
+  ch: 0, frame: 4, frames: 32,
+  midi: 60, inst: pulse, vel: 1, pri: 8,
+  det: 37, sweep: 0x3E
+};
+const mixScore = { gb: { bank, totalFrames: 48, loopFrames: 0, notes: [mixNote] } };
+const mixedWrites = browserWrites(mixScore, 40, { lead: 0.5 });
+const mixedRegs = HW.noteRegisters(Object.assign({}, mixNote, { vel: 0.5 }), bank);
+const mixedTuple = mixedWrites.some((w, i) =>
+  w.frame === mixNote.frame && w.reg === 0x11 && w.val === mixedRegs[0] &&
+  mixedWrites[i + 1] && mixedWrites[i + 1].reg === 0x12 && mixedWrites[i + 1].val === mixedRegs[1] &&
+  mixedWrites[i + 2] && mixedWrites[i + 2].reg === 0x13 && mixedWrites[i + 2].val === mixedRegs[2] &&
+  mixedWrites[i + 3] && mixedWrites[i + 3].reg === 0x14 && mixedWrites[i + 3].val === mixedRegs[3]);
+ok(mixedTuple, 'mixer scaling preserves the detuned hardware register tuple');
+ok(mixedWrites.some(w => w.frame === mixNote.frame && w.reg === 0x10 && w.val === mixNote.sweep),
+   'mixer scaling preserves the channel-1 hardware sweep');
+const mixedVibrato = mixedWrites.filter(w =>
+  (w.reg === 0x13 || w.reg === 0x14) && w.frame >= 20 && w.frame <= 35);
+ok(mixedVibrato.length === 0,
+   'a mixed hardware-sweep note does not also enter software vibrato (' + mixedVibrato.length + ' late writes)');
 
 console.log(fail ? '\nverify-automation: ' + fail + ' FAILED' : '\nverify-automation: both players move the same way');
 process.exit(fail ? 1 : 0);

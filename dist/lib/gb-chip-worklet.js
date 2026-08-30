@@ -775,8 +775,11 @@
         // Velocity has a 35% floor inside noteRegisters (an instrument at vel 0
         // still speaks), so a fader at zero must SKIP the trigger to be a mute.
         if (g <= 0.01) continue;
-        if (g !== 1) note = { ch: note.ch, midi: note.midi, inst: note.inst,
-                              vel: (note.vel == null ? 1 : note.vel) * g, pri: note.pri };
+        // Scale velocity on a copy so hardware fields such as detune and sweep
+        // survive the mixer, without mutating the stored score note.
+        if (g !== 1) note = Object.assign({}, note, {
+          vel: (note.vel == null ? 1 : note.vel) * g
+        });
       }
       if ((note.ch | 0) === 2) this._loadWave(H.waveSlotOf(this.inst, note.inst));
       // channel 1 carries its sweep byte with the note; zero clears it so a

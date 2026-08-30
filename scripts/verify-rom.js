@@ -62,6 +62,14 @@ function expected(score) {
   return out.sort((a, b) => a.frame - b.frame || a.reg - b.reg);
 }
 
+function matchesNoteWrite(writes, e, tolerance) {
+  return writes.some((w, i) =>
+    w.reg === e.reg && w.val === e.vals[0] && Math.abs(w.frame - e.frame) <= tolerance &&
+    writes[i + 1] && writes[i + 1].reg === e.reg + 1 && writes[i + 1].val === e.vals[1] &&
+    writes[i + 2] && writes[i + 2].reg === e.reg + 2 && writes[i + 2].val === e.vals[2] &&
+    writes[i + 3] && writes[i + 3].reg === e.reg + 3 && writes[i + 3].val === e.vals[3]);
+}
+
 // ---------------------------------------------------------------------- main
 const SEEDS = [
   'velvet-engines-melt-tide-1a2b3c4d',
@@ -95,11 +103,7 @@ for (const seed of SEEDS) {
   const exp = expected(score).filter(e => e.frame < FRAMES - 2);
   let matched = 0, missed = null;
   for (const e of exp) {
-    const hit = writes.some((w, i) =>
-      w.reg === e.reg && w.val === e.vals[0] && Math.abs(w.frame - e.frame) <= 1 &&
-      writes[i + 1] && writes[i + 1].val === e.vals[1] &&
-      writes[i + 2] && writes[i + 2].val === e.vals[2] &&
-      writes[i + 3] && writes[i + 3].val === e.vals[3]);
+    const hit = matchesNoteWrite(writes, e, 1);
     if (hit) matched++; else if (!missed) missed = e;
   }
   ok(exp.length > 0, 'score has notes inside the verified window (' + exp.length + ')');
@@ -110,6 +114,42 @@ for (const seed of SEEDS) {
   const frames = new Set(writes.map(w => w.frame));
   ok(frames.size > 4, 'writes are spread across frames, not dumped at once (' + frames.size + ' distinct frames)');
 }
+
+// Synthetic notes cover signed detune on both pulse and wave hardware. The
+// ordinary composer fixtures above currently carry no detune, so they cannot
+// catch the ROM encoder drifting from the canonical browser conversion.
+const parityBank = {
+  instruments: [
+    [0x80, 0xF0, 0xFF, 0],
+    [5,    0xF0, 0xFF, 1]
+  ],
+  waveTables: Array.from({ length: HW.WAVE_SLOTS }, () => new Array(32).fill(0))
+};
+const parityScore = {
+  gb: {
+    bank: parityBank,
+    totalFrames: 120,
+    loopFrames: 0,
+    notes: [
+      { ch: 0, frame: 10, frames: 24, midi: 60, inst: 0, vel: 1, pri: 8, det: 37, sweep: 0x3E },
+      { ch: 1, frame: 42, frames: 20, midi: 67, inst: 0, vel: 0.65, pri: 5, det: -41 },
+      { ch: 2, frame: 76, frames: 28, midi: 40, inst: 1, vel: 0.9, pri: 5, det: 23 }
+    ]
+  }
+};
+console.log('\nsynthetic hardware parity');
+const parityWrites = run(ROM.buildRom(parityScore, { title: 'PARITY' }), 115).writes;
+const parityExpected = expected(parityScore);
+let parityMatched = 0, parityMissed = null;
+for (const e of parityExpected) {
+  if (matchesNoteWrite(parityWrites, e, 1)) parityMatched++;
+  else if (!parityMissed) parityMissed = e;
+}
+ok(parityMatched === parityExpected.length,
+   'detuned pulse and wave notes use the browser hardware bytes (' + parityMatched + '/' + parityExpected.length + ')' +
+   (parityMissed ? ' -- first miss: frame ' + parityMissed.frame + ' reg $' + parityMissed.reg.toString(16) : ''));
+ok(parityWrites.some(w => w.reg === 0x10 && w.val === 0x3E && Math.abs(w.frame - 10) <= 1),
+   'channel-1 sweep is written before the synthetic note');
 
 console.log(fail ? '\nverify-rom: ' + fail + ' FAILED' : '\nverify-rom: the exported cartridge plays the score');
 process.exit(fail ? 1 : 0);

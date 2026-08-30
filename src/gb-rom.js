@@ -603,50 +603,20 @@
     if (!gb || !gb.notes || (!gb.notes.length && !(gb.kit && gb.kit.length)))
       throw new Error('gb-rom: score has no gb data');
     var HW = G.CT_GB_HARDWARE || G.CT_GB;
-    if (!HW || !HW.midiToPeriod) throw new Error('gb-rom: gb-hardware.js not loaded');
+    if (!HW || !HW.noteRegisters || !HW.waveSlotOf)
+      throw new Error('gb-rom: gb-hardware.js not loaded');
 
     var inst = (gb.bank && gb.bank.instruments) || [];
     var evs = [];
 
     gb.notes.forEach(function (n) {
-      // Exactly what Chip.noteOn() does, so the cartridge and the browser
-      // reach the same registers. rec is [byte0, nrx2, $FF, 0]: byte0 is the
-      // duty for a pulse, the wave slot for channel 3, and the whole NR43
-      // divisor/width/shift byte for noise.
-      var rec = inst[n.inst] || [0, 0xF0, 0xFF, 0];
       var ch = n.ch | 0;
+      var regs = HW.noteRegisters(n, gb.bank);
 
-      // The envelope's starting volume is scaled by note velocity before it is
-      // written, which is what gives the same instrument its dynamics. The
-      // cartridge cannot multiply, so it is baked in here.
-      var v0 = (rec[1] >> 4) & 15;
-      var vol = Math.max(0, Math.min(15, Math.round(v0 * (0.35 + 0.65 * (n.vel == null ? 1 : n.vel)))));
-      var nrx2 = (vol << 4) | (rec[1] & 0x0F);
-
-      var nrx1, nrx3, nrx4;
-      if (ch === 0 || ch === 1) {
-        var pp = HW.midiToPeriod(n.midi, 'pulse').period;
-        nrx1 = rec[0] & 0xC0;                       // duty, zero length
-        nrx3 = pp & 0xFF;
-        nrx4 = 0x80 | ((pp >> 8) & 7);              // trigger, length disabled
-      } else if (ch === 2) {
-        var wp = HW.midiToPeriod(n.midi, 'wave').period;
-        // Channel 3 has no envelope: it has four volume shifts. Map the
-        // envelope's starting volume onto the closest one.
-        var lvl = vol >= 12 ? 1 : vol >= 6 ? 2 : vol >= 1 ? 3 : 0;
-        nrx1 = 0;
-        nrx2 = lvl << 5;
-        nrx3 = wp & 0xFF;
-        nrx4 = 0x80 | ((wp >> 8) & 7);
-      } else {
-        nrx1 = 0;
-        nrx3 = rec[0] & 0xFF;                       // NR43 straight through
-        nrx4 = 0x80;
-      }
       // channel 1's sweep byte rides ahead of every note-on (zero clears), the
       // exact write the browser Sequencer makes -- the two cannot disagree
       if (ch === 0) evs.push({ f: n.frame | 0, ch: 0, type: 3, d: [(n.sweep || 0) & 0xFF] });
-      evs.push({ f: n.frame | 0, ch: ch, type: 1, d: [nrx1, nrx2, nrx3, nrx4] });
+      evs.push({ f: n.frame | 0, ch: ch, type: 1, d: regs });
       evs.push({ f: (n.frame | 0) + Math.max(1, n.frames | 0), ch: ch, type: 0, d: [] });
     });
 
