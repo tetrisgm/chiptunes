@@ -161,8 +161,8 @@ function names() {
   const bar = await p.evaluate(() => {
     const R = e => { const b = e.getBoundingClientRect(); return { l: b.left, r: b.right, h: b.height }; };
     const right = document.querySelector('#playbar .pb-right');
-    const vol = document.getElementById('pbVolume'), sc = document.getElementById('pbScreen');
-    const adv = document.getElementById('pbAdv');
+    const vol = document.querySelector('#playbar .pb-voldial'), sc = document.getElementById('pbScreen');
+    const fs = document.getElementById('rfullscreen');
     const kids = [...right.children].filter(e => e.getClientRects().length);
     const cs = e => getComputedStyle(e);
     // what the button looks like with the CRT showing vs with a console showing
@@ -172,9 +172,9 @@ function names() {
     const on = cs(sc).backgroundColor + ' ' + cs(sc).color;
     return {
       volLast: !!(kids.length && kids[kids.length - 1].contains(vol)),
-      volRight: R(vol).r, advRight: adv ? R(adv).r : -1, rightEdge: R(right).r,
+      volRight: R(vol).r, fsRight: fs ? R(fs).r : -1, rightEdge: R(right).r,
       screenSame: on === off, on, off,
-      screenH: Math.round(R(sc).h), advH: adv ? Math.round(R(adv).h) : -1,
+      screenH: Math.round(R(sc).h), fsH: fs ? Math.round(R(fs).h) : -1,
       volH: Math.round(R(vol).h),
       dockPos: cs(document.querySelector('#playbar .pb-screendock')).position,
       rightPos: cs(right).position, barCls: document.body.className,
@@ -182,12 +182,12 @@ function names() {
     };
   });
   ok(bar.volLast, 'the volume is the last group in the bar');
-  ok(bar.rightEdge - Math.max(bar.volRight, bar.advRight) < 2,
-     'hard against its right edge (' + Math.round(bar.rightEdge - Math.max(bar.volRight, bar.advRight)) + 'px)');
+  ok(bar.rightEdge - bar.volRight < 2,
+     'hard against its right edge (' + Math.round(bar.rightEdge - bar.volRight) + 'px)');
   ok(bar.screenSame, 'the Display button looks the same whichever screen is on');
   console.log('       state: ' + bar.barCls + ' | dock ' + bar.dockPos + ' | right ' + bar.rightPos +
-              ' | screen ' + bar.screenH + ' adv ' + bar.advH + ' vol ' + bar.volH + ' pad ' + bar.pad);
-  ok(bar.screenH === bar.advH, 'and takes the same box as its neighbour (' + bar.screenH + ' vs ' + bar.advH + 'px)');
+              ' | screen ' + bar.screenH + ' fullscreen ' + bar.fsH + ' vol ' + bar.volH + ' pad ' + bar.pad);
+  ok(bar.screenH === bar.fsH, 'and takes the same box as fullscreen (' + bar.screenH + ' vs ' + bar.fsH + 'px)');
 
   // ---- 4. the desktop card ------------------------------------------------
   console.log('the desktop card');

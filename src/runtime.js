@@ -1764,8 +1764,7 @@ function _updateFullscreenButton(){
   b.classList.toggle('on', on);
   // a rail pill like everything else: the icon alone made the one control in
   // the top-right read as a different kind of thing from the five on the left
-  b.innerHTML = '<span class="plink-ic">' + svgIcon('fullscreen') + '</span>' +
-                '<span class="plink-t">' + (on ? 'Exit full screen' : 'Full screen') + '</span>';
+  b.innerHTML = '<span class="plink-ic">' + svgIcon('fullscreen') + '</span>';
   b.title = on ? 'Exit full screen' : 'Go full screen';
   b.setAttribute('aria-label', b.title);
   b.title = on ? 'Exit full screen' : 'Go full screen';
@@ -2483,10 +2482,11 @@ function buildGamePicker(){
   el.id='gamepick';
   el.innerHTML='<div class="gp-panel" role="dialog" aria-modal="true" aria-label="Choose visualizer game">'+
     '<div class="gp-head"><div><div class="gp-title">Choose visualizer</div><div class="gp-sub">Shortcut: G. Selection is written to the URL as <b>?game=</b>.</div></div>'+
-    '<button class="gp-close" type="button" aria-label="Close">×</button></div><div class="gp-list"></div></div>';
+    '<button class="gp-close" type="button" aria-label="Close">×</button></div><div class="gp-modes"><b>DISPLAY</b><button data-mode="random">Random</button><button data-mode="crt">CRT</button><button data-mode="dmg">Game Boy</button><button data-mode="nes">NES</button></div><div class="gp-list"></div></div>';
   document.body.appendChild(el);
   el.addEventListener('click', function(ev){ if(ev.target===el) closeGamePicker(); });
   el.querySelector('.gp-close').addEventListener('click', function(ev){ ev.preventDefault(); closeGamePicker(); });
+  el.querySelectorAll('.gp-modes button').forEach(function(b){ b.addEventListener('click', function(){ if(window.__rrrScreenMode) window.__rrrScreenMode(b.dataset.mode==='random'?'mix':b.dataset.mode); _syncGameBoyPill(); }); });
   _gamePickerEl=el;
   _fillGamePickerList();
   return el;
@@ -2703,8 +2703,8 @@ function buildPlaybar(){ _pbEl=document.getElementById('playbar'); if(!_pbEl||_p
     // fast it is going, how loud it is -- each with its own slider when the
     // window has room, and the full mixer one press away.
     '<div class="pb-right">'+
-      '<div class="pb-screendock"><button id="pbScreen" class="pb-screen" title="Switch screen: CRT, Game Boy, NES">'+_IC_TV+'<span class="pbs-t">Display</span></button></div>'+
-      '<div class="pb-dial pb-bpmdial"><span class="pbd-lab">BPM</span>'+
+      '<div class="pb-screendock"><button id="pbScreen" class="pb-screen" title="Choose visualizer">'+_IC_TV+'<span class="pbs-t">Visualizer</span></button></div>'+
+      '<div class="pb-dial pb-bpmdial"><span class="pbd-lab">BPM</span>'+ 
         '<input type="range" id="pbBpm" min="60" max="220" step="1" value="128" title="Tempo">'+
         '<span class="pbd-read" id="pbBpmRead">\u2014</span></div>'+
       // volume last, hard against the right edge
@@ -2712,11 +2712,7 @@ function buildPlaybar(){ _pbEl=document.getElementById('playbar'); if(!_pbEl||_p
         '<button id="pbVolume" class="pb-volume" title="Volume, mixer &amp; BPM"><span class="pbv-icon">'+svgIcon('mixer')+'</span></button>'+
         '<input type="range" id="pbVol" min="0" max="150" step="1" value="100" title="Volume">'+
         '<span class="pbd-read pb-volread" id="pbVolRead">100</span>'+
-        // the mixer button is the volume's own expansion, so it rides with it
-        '<button id="pbAdv" class="pb-adv" type="button" title="Advanced volumes" aria-label="Advanced volumes">'+
-          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 8h14M5 12h14M5 16h14"/><circle cx="9" cy="8" r="1.7" fill="currentColor"/><circle cx="15" cy="12" r="1.7" fill="currentColor"/><circle cx="8" cy="16" r="1.7" fill="currentColor"/></svg>'+
-        '</button>'+
-      '</div>'+
+      '</div>'+ 
     '</div>';
   _buildBigPlay();
   // PULL THE NOTES UP. The strip already IS the editor's grid in miniature, so
@@ -2743,9 +2739,8 @@ function buildPlaybar(){ _pbEl=document.getElementById('playbar'); if(!_pbEl||_p
   _wirePlaybarButton('pbPrev', _transportPrev);
   _wirePlaybarButton('pbNext', _transportNext);
   _wirePlaybarButton('pbPlay', _transportToggle);
-  _wirePlaybarButton('pbScreen', _toggleGameBoyScreen);
+  _wirePlaybarButton('pbScreen', function(){ toggleGamePicker(); });
   _wirePlaybarButton('pbVolume', function(){ window.toggleMixPanel && window.toggleMixPanel(); });
-  _wirePlaybarButton('pbAdv', function(){ window.toggleMixPanel && window.toggleMixPanel(); });
   // REACHING FOR ONE OF THESE IS THE WHOLE INTENT. Both dials are a sliver of
   // the full mixer, and someone who has put the pointer on the tempo or the
   // volume has already said what they came for -- so open it rather than making

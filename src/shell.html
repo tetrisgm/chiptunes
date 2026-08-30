@@ -1217,6 +1217,10 @@
     border-radius:50%; border:1px solid var(--mat-edge); background:transparent; color:var(--ink-2);
     font:400 20px/1 var(--ui); cursor:pointer; }
   #howmodal .hm-close:hover{ color:var(--ink); border-color:var(--mat-edge-hi); }
+  #playbar .pb-bpmdial input, #playbar .pb-voldial input, #playbar .pb-volume{ display:none !important; }
+  #playbar .pb-bpmdial, #playbar .pb-voldial{ cursor:pointer; }
+  #playbar .pb-bpmdial .pbd-lab, #playbar .pb-voldial::before{ font:600 17px/1 var(--ui); color:var(--ink); }
+  #playbar .pb-voldial::before{ content:'VOL'; margin-right:5px; }
   /* On the landing page this explanation belongs to the Game Boy picture: make
      the card itself read as an in-screen cartridge page, not a separate app
      dialog. The compact pixel layout keeps the whole message inside the 4:3
