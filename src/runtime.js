@@ -1493,6 +1493,7 @@ function commitSkip(dir){ dir=dir||1; var off=(dir>0?-H:H); _sceneAnim=true; cv.
     requestAnimationFrame(()=>requestAnimationFrame(()=>{ cv.style.transition='transform .28s cubic-bezier(.2,.8,.3,1)'; cv.style.transform='translateY(0)';   // slide the new scene into view
       setTimeout(()=>{ _sceneAnim=false; cv.style.transition='none'; cv.style.transform=''; },300); })); }, 170); }
 function sceneGesturesBlocked(ev){
+  if(document.body && document.body.classList.contains('awaiting-mood')) return true;
   var intro=document.getElementById('intro');
   if(intro && intro.style.display!=='none' && !intro.classList.contains('hidden')) return true;
   var t=ev&&ev.target;
@@ -4253,7 +4254,9 @@ function _firstGesture(ev){
   if(_POPOVER_MODE || _BROWSE_MODE) return;
   if(shortcutTargetBlocked(ev)) return;
   var intro=document.getElementById('intro');
-  if(!bootDone && intro && !intro.classList.contains('hidden') && getComputedStyle(intro).display!=='none'){
+  var awaitingChoice=!!(document.body && document.body.classList.contains('awaiting-mood'));
+  var introVisible=!!(intro && !intro.classList.contains('hidden') && getComputedStyle(intro).display!=='none');
+  if(awaitingChoice || introVisible){
     var launch=_gestureLaunchTarget(ev);
     if(!launch) return;   // Home is up -> only launcher/play controls start audio
     // Launcher/library controls start audio inside their own click handlers. Do not prime here:

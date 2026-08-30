@@ -76,15 +76,31 @@ const peak = async (p, ms) => {
   ok(await p.evaluate(() => { const b2 = document.getElementById('pbPlay'); return b2 && b2.dataset.icon === 'play'; }),
      'the transport offers PLAY, not pause');
 
-  // clicks that mean nothing must start nothing
-  const spots = [[60, 930, 'the bottom-left corner'], [1400, 200, 'empty space'],
-                 [300, 900, 'a blank part of the bar'], [1050, 900, 'between the bar controls']];
-  for (const [x, y, what] of spots) {
-    await p.mouse.click(x, y);
+  // Clicks that mean nothing must start nothing. Address the inert surfaces by
+  // role: fixed viewport coordinates become controls as the landing Game Boy
+  // and player bar move between layouts.
+  const checkInert = async (what, click) => {
+    await click();
     await wait(1200);
     const q = await peak(p, 1500);
     const held = await p.evaluate(() => !!(Audio.isHolding && Audio.isHolding()));
     ok(q < 0.02 && held, 'clicking ' + what + ' starts nothing (' + q.toFixed(3) + ')');
+  };
+  const inertTargets = [
+    ['#stage', 'pointerdown', 'the game scene'],
+    ['.rmood-brand', 'click', 'the landing screen'],
+    ['#playbar', 'click', 'the player-bar background'],
+    ['.pb-lcd-head', 'click', 'the track header around its title']
+  ];
+  for (const [selector, type, what] of inertTargets) {
+    const exists = await p.evaluate(sel => !!document.querySelector(sel), selector);
+    ok(exists, what + ' exists');
+    if (exists) await checkInert(what, () => p.evaluate(([sel, eventType]) => {
+      const EventType = eventType === 'pointerdown' ? PointerEvent : MouseEvent;
+      document.querySelector(sel).dispatchEvent(new EventType(eventType, {
+        bubbles: true, cancelable: true, pointerId: 1, pointerType: 'mouse'
+      }));
+    }, [selector, type]));
   }
 
   // ...and the two things that DO mean something still work
