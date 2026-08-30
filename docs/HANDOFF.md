@@ -1541,6 +1541,23 @@ Reported as "severe performance issues running the website overall", in Safari.
   the obsolete viewport-centering layout. `crt-diff.mjs` passed all ten cases
   (including DPR 1 and DPR 2), and the complete `npm test` suite is green.
 
+## One-pass mood composition (2026-08-30)
+
+- Landing and editor moods formerly compiled as many as 140 complete songs and
+  kept the first whose style, mode and tempo metadata matched. Nothing listened
+  to those candidates, so this was both the dominant mood-click cost and a
+  production best-of-N path in conflict with the product contract.
+- A mood is now a normalized `{styles, mode, bpmMin, bpmMax}` premise passed to
+  the one composer. The existing style, mode and tempo choices are constrained
+  before generation; one opaque token is minted and one score is compiled.
+  Impossible combinations fail instead of silently returning a mislabeled
+  partial match. The normalized premise is recorded at `score.tracker.premise`.
+- `compile(token)` without a premise is byte-for-byte unchanged. The 48-song
+  smoke ensemble retains SHA-256
+  `72731f65bb59e30722a9ba09dd069f98d697c1de887375c21d043d355cfbf566`.
+  `verify-mood-constraints` holds the constraint behavior and checksum;
+  `verify-entry` holds the production interaction to exactly one compiler call.
+
 ### Still worth doing when the environment permits
 
 - A quiet-machine performance capture at other viewport sizes could still be

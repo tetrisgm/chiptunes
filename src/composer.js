@@ -78,11 +78,34 @@ function pickPair(r,rows){
   for(i=0;i<rows.length;i++){at-=rows[i][1];if(at<=0)return rows[i][0];}
   return rows[rows.length-1][0];
 }
-function pickStyle(token){
-  var t=0,i;for(i=0;i<STYLES.length;i++)t+=STYLES[i].w;
+function normalizedPremise(raw){
+  if(!raw||typeof raw!=='object')return null;
+  var known={};STYLES.forEach(function(s){known[s.id]=1;});
+  var styles=Array.isArray(raw.styles)?raw.styles.filter(function(s,i,a){return known[s]&&a.indexOf(s)===i;}):null;
+  var mode=raw.mode==='maj'||raw.mode==='min'?raw.mode:null;
+  var bpmMin=Number.isFinite(raw.bpmMin)?Math.max(0,Math.round(raw.bpmMin)):0;
+  var bpmMax=Number.isFinite(raw.bpmMax)?Math.max(0,Math.round(raw.bpmMax)):999;
+  if(!styles||!styles.length)styles=null;
+  if(!styles&&!mode&&bpmMin<=0&&bpmMax>=999)return null;
+  return{styles:styles,mode:mode,bpmMin:bpmMin,bpmMax:bpmMax};
+}
+function styleModes(style){
+  if(style&&style.modes==='maj')return MODES.filter(function(m){return MAJ_MODES[m.name];});
+  if(style&&style.modes==='min')return MODES.filter(function(m){return !MAJ_MODES[m.name];});
+  return MODES;
+}
+function styleAnswers(style,p){
+  if(p.styles&&p.styles.indexOf(style.id)<0)return false;
+  if(p.mode&&!styleModes(style).some(function(m){return (p.mode==='maj')===!!MAJ_MODES[m.name];}))return false;
+  return Math.max(style.bpm[0],p.bpmMin)<=Math.min(style.bpm[1],p.bpmMax);
+}
+function pickStyle(token,premise){
+  var pool=premise?STYLES.filter(function(s){return styleAnswers(s,premise);}):STYLES;
+  if(!pool.length)return null;
+  var t=0,i;for(i=0;i<pool.length;i++)t+=pool[i].w;
   var at=hash(token+':style')%t;
-  for(i=0;i<STYLES.length;i++){at-=STYLES[i].w;if(at<0)return STYLES[i];}
-  return STYLES[0];
+  for(i=0;i<pool.length;i++){at-=pool[i].w;if(at<0)return pool[i];}
+  return pool[0];
 }
 var MODES=[
   {name:'ionian',scale:[0,2,4,5,7,9,11],w:12},   {name:'mixolydian',scale:[0,2,4,5,7,9,10],w:10},
@@ -91,10 +114,9 @@ var MODES=[
   {name:'blues',scale:[0,3,5,6,7,10],w:1}
 ];
 var MAJ_MODES={ionian:1,mixolydian:1,lydian:1,'pent-major':1};
-function pickMode(r,style){
-  var pool=MODES;
-  if(style&&style.modes==='maj')pool=MODES.filter(function(m){return MAJ_MODES[m.name];});
-  else if(style&&style.modes==='min')pool=MODES.filter(function(m){return !MAJ_MODES[m.name];});
+function pickMode(r,style,premise){
+  var pool=styleModes(style);
+  if(premise&&premise.mode){var constrained=pool.filter(function(m){return (premise.mode==='maj')===!!MAJ_MODES[m.name];});if(constrained.length)pool=constrained;}
   var t=0,i;for(i=0;i<pool.length;i++)t+=pool[i].w;var at=r()*t;
   for(i=0;i<pool.length;i++){at-=pool[i].w;if(at<=0)return pool[i];}return pool[0];}
 // Sections used to differ only in drum-mutation rate and a velocity nudge, so
@@ -370,15 +392,19 @@ function pickBank(token,style){
     hat:at(hatPool,'v-hat'), snare:at(ns.slice(third,third*2),'v-snare'),
     kick:at(ns.slice(-third),'v-kick')}};
 }
-function compile(token){
+function compile(token,rawPremise){
+  var premise=normalizedPremise(rawPremise);
   token=String(token||'chiptunes');var pr=rng(token,'premise'),trained=trainedModel(pr),model=trained.model;
-  var style=pickStyle(token);
-  var mode=pickMode(pr,style),key=ri(pr,0,11),SLEN=mode.scale.length;
+  var style=pickStyle(token,premise);
+  if(!style)throw new Error('No composer style satisfies this premise');
+  var mode=pickMode(pr,style,premise),key=ri(pr,0,11),SLEN=mode.scale.length;
   // heat is intensity WITHIN the style now: how hard a house track pushes,
   // not whether the song is a banger at all
   var heat=0.45+((hash(token+':heat')%1000)/1000)*0.45;
   // the style owns its tempo band; heat leans toward its top
-  var bpm=Math.round(style.bpm[0]+(style.bpm[1]-style.bpm[0])*(((hash(token+':bpmf')%100)/100)*0.6+heat*0.4));
+  var bpmLo=style.bpm[0],bpmHi=style.bpm[1];
+  if(premise){var lo=Math.max(bpmLo,premise.bpmMin),hi=Math.min(bpmHi,premise.bpmMax);if(lo<=hi){bpmLo=lo;bpmHi=hi;}}
+  var bpm=Math.round(bpmLo+(bpmHi-bpmLo)*(((hash(token+':bpmf')%100)/100)*0.6+heat*0.4));
   // "Tracks too long, sections too long": ~85 seconds, not two minutes.
   var bars=clamp(Math.round((88*bpm/240)/4)*4,36,56),form=makeForm(token,bars,model,bpm,heat),harm=makeHarmony(token,model,mode,style),groove=makeGroove(token,model,heat,style);
   var bassMotif=makeMotif(token,'bass-motif',3,6,model,'bass'),leadMotif=makeMotif(token,'lead-motif',5,10,model,'lead'),events=[],ordinal=0;
@@ -555,12 +581,14 @@ function compile(token){
   events.sort(function(a,b){return(a.tBeat||0)-(b.tBeat||0);});
   var gbNotes=V?V.collect():[];
   var lastN=gbNotes.length?gbNotes[gbNotes.length-1]:null;
+  var tracker={format:'CTRACK-1',hardware:'CHIP',mode:mode.name,trainedModel:trained.id,instrumentBank:G.CT_CHIP_INSTRUMENTS&&G.CT_CHIP_INSTRUMENTS.corpusFingerprint||''};
+  if(premise)tracker.premise={styles:premise.styles?premise.styles.slice():null,mode:premise.mode,bpmMin:premise.bpmMin,bpmMax:premise.bpmMax};
   return{v:4,composerRevision:REV,token:token,bpm:bpm,
     gb:{plan:PLAN.id,fps:(G.CT_GB?G.CT_GB.FPS:59.7275),notes:gbNotes,
         bank:GBB?GBB.bank:null,instruments:GBB?GBB.inst:null,
         totalFrames:lastN?lastN.frame+lastN.frames:0},beatsPerBar:4,totalBars:bars,endsCleanAtBeat:end,transitionTailBeats:1.25,
     gainScalar:.76,palette:palette(token,trained.id),sections:form,musical:{scale:mode.scale.slice(),rootMidi:60+key,motifDegs:leadMotif.degrees.slice(),leadHint:'lead'},
-    form:form.formId,style:style.id,tracker:{format:'CTRACK-1',hardware:'CHIP',mode:mode.name,trainedModel:trained.id,instrumentBank:G.CT_CHIP_INSTRUMENTS&&G.CT_CHIP_INSTRUMENTS.corpusFingerprint||''},background:{attentionBudget:.1},events:events};
+    form:form.formId,style:style.id,tracker:tracker,background:{attentionBudget:.1},events:events};
 }
 function duration(token){var s=compile(token);return s.totalBars*4*60/s.bpm;}
 var API={V:3,id:'rrr_core',revision:REV,compile:compile,duration:duration};

@@ -888,7 +888,6 @@
   }
 
   // ---- moods: words -> the composer's own dials ----------------------------
-  var MAJ_MODES = { ionian: 1, mixolydian: 1, lydian: 1, 'pent-major': 1 };
   var MOOD = {
     happy: { mode: 'maj', bpmMin: 110 }, cheerful: { mode: 'maj', bpmMin: 110 }, joyful: { mode: 'maj', bpmMin: 110 },
     sunny: { mode: 'maj', bpmMin: 104 }, bright: { mode: 'maj', bpmMin: 104 }, fun: { mode: 'maj', bpmMin: 110 },
@@ -943,41 +942,29 @@
     });
     return want;
   }
-  function scoreMatches(sc, want) {
-    var n = 0, total = 0;
-    if (want.styles) { total++; if (want.styles.indexOf(sc.style) >= 0) n++; }
-    if (want.mode) { total++;
-      var mn = (sc.tracker && sc.tracker.mode) || '';
-      if ((want.mode === 'maj') === !!MAJ_MODES[mn]) n++; }
-    if (want.bpmMin > 0 || want.bpmMax < 999) { total++;
-      if (sc.bpm >= want.bpmMin && sc.bpm <= want.bpmMax) n++; }
-    return { hit: n, total: total };
+  function composeMood(moodText) {
+    var C = (G.CT_COMPOSERS && G.CT_COMPOSERS.rrr_core) || null;
+    if (!C || typeof C.compile !== 'function') return null;
+    var tok = (G.Song && G.Song.mint) ? G.Song.mint() : Math.random().toString(36).slice(2, 18);
+    var score = null;
+    try { score = C.compile(tok, parseMood(moodText)); } catch (e) { return null; }
+    if (!score || !score.gb || !score.gb.notes || !score.gb.notes.length) return null;
+    score._tok = tok;
+    return score;
   }
 
   // The dice and the mood box compose a REAL track: the same composer the
-  // radio uses, a seed search over its declared parameters, and the whole
+  // radio uses, constrained by the requested mood, and the whole
   // score projected onto the grid as exact, editable notes. It plays
   // verbatim (its own bank, every instrument) until the first hand edit.
-  // Choosing a song and IMPORTING one are different jobs. The search below
-  // stays with the editor; importScore fills whatever state is current, so the
+  // Choosing a song and IMPORTING one are different jobs. Composition stays
+  // with the editor; importScore fills whatever state is current, so the
   // radio can materialise a song without the editor being open at all.
   function composeIntoGrid(moodText, auto) {
-    var C = (G.CT_COMPOSERS && G.CT_COMPOSERS.rrr_core) || null;
-    if (!C || typeof C.compile !== 'function') return;
     if (!auto) tourAdvance(3);
     if (auto) dropLiveScore(); else snapshot();
     resolveBank();
-    var want = parseMood(moodText);
-    var score = null, bestScore = null, bestHit = -1;
-    for (var trial = 0; trial < 140; trial++) {
-      var cand = null;
-      try { cand = C.compile('create-' + Math.random().toString(36).slice(2, 10)); } catch (e) { break; }
-      if (!cand || !cand.gb || !cand.gb.notes || !cand.gb.notes.length) continue;
-      var m = scoreMatches(cand, want);
-      if (m.hit > bestHit) { bestHit = m.hit; bestScore = cand; }
-      if (m.hit >= m.total) { score = cand; break; }
-    }
-    if (!score) score = bestScore;
+    var score = composeMood(moodText);
     var gb = score && score.gb;
     if (!gb || !gb.notes || !gb.notes.length) return;
     importScore(score, moodText);
@@ -1127,26 +1114,13 @@
     return (out && out.gb && out.gb.notes && out.gb.notes.length) ? out : null;
   }
   // A MOOD, STRAIGHT TO A SONG, with no editor open. The station's mood buttons
-  // and the editor's are the same act on the same machinery -- pick a seed
-  // whose style answers the word, then materialise it as a document, which is
+  // and the editor's are the same act on the same machinery -- constrain one
+  // composition with the word, then materialise it as a document, which is
   // what both views play. Exposed rather than duplicated so the two can never
   // drift into meaning different things by the same name.
   function moodSong(moodText) {
-    var C = (G.CT_COMPOSERS && G.CT_COMPOSERS.rrr_core) || null;
-    if (!C || typeof C.compile !== 'function') return null;
     resolveBank();
-    var want = parseMood(moodText), best = null, bestHit = -1, score = null;
-    for (var trial = 0; trial < 140; trial++) {
-      var tok = (G.Song && G.Song.mint) ? G.Song.mint() : ('mood-' + trial);
-      var cand = null;
-      try { cand = C.compile(tok); } catch (e) { break; }
-      if (!cand || !cand.gb || !cand.gb.notes || !cand.gb.notes.length) continue;
-      cand._tok = tok;
-      var m = scoreMatches(cand, want);
-      if (m.hit > bestHit) { bestHit = m.hit; best = cand; }
-      if (m.hit >= m.total) { score = cand; break; }
-    }
-    if (!score) score = best;
+    var score = composeMood(moodText);
     if (!score) return null;
     var nm = '';
     try { nm = (G.Song && G.Song.title) ? G.Song.title(score._tok || '') : ''; } catch (e) {}

@@ -111,12 +111,33 @@ const peak = async (p, ms) => {
   await p.reload({ waitUntil: 'domcontentloaded' });
   await wait(4000);
   await p.evaluate(() => {
+    const C = CT_COMPOSERS.rrr_core;
+    const original = C.compile;
+    window.__moodCompileCalls = 0;
+    C.compile = function () {
+      window.__moodCompileCalls++;
+      return original.apply(this, arguments);
+    };
+    // Naturally a trance token. An epic request must constrain this one token
+    // to anthem, rather than compiling new tokens until anthem appears.
+    Song.mint = () => '523e26qcl13jeeuu';
+  });
+  await p.evaluate(() => {
     const b2 = [...document.querySelectorAll('.rmood')].find(x => x.textContent === 'epic');
     if (b2) b2.click();
   });
   await p.waitForFunction(() => !document.querySelector('.rmood.busy'), null, { timeout: 25000 });
   await wait(3000);
   ok((await peak(p, 3000)) > 0.02, 'and picking a mood plays that');
+  const moodResult = await p.evaluate(() => {
+    const s = CT_CREATE._source();
+    return { calls: window.__moodCompileCalls, style: s && s.style,
+             premise: s && s.tracker && s.tracker.premise };
+  });
+  ok(moodResult.calls === 1, 'a mood composes exactly one token (' + moodResult.calls + ' call)');
+  ok(moodResult.style === 'anthem' && moodResult.premise &&
+     moodResult.premise.styles && moodResult.premise.styles[0] === 'anthem',
+     'and that one score records and satisfies the epic premise');
   ok(!(await p.evaluate(() => document.body.classList.contains('awaiting-mood'))),
      'the hero stands down once something is on');
   ok(!errs.length, 'no page errors' + (errs.length ? ' -- ' + errs[0] : ''));

@@ -1806,7 +1806,7 @@ var _IC_ROM='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-w
 // acts depending on which one you are looking at.
 function _moodOnAir(m, btn){
   if(btn) btn.classList.add('busy');
-  // the search compiles up to 140 candidates; let the pressed state paint first
+  // Let the pressed state paint before the one requested composition begins.
   requestAnimationFrame(function(){ requestAnimationFrame(function(){
     var doc=null;
     try{ doc=(typeof CT_CREATE!=='undefined' && CT_CREATE.moodSong) ? CT_CREATE.moodSong(m) : null; }catch(e){}
