@@ -1217,6 +1217,23 @@
     border-radius:50%; border:1px solid var(--mat-edge); background:transparent; color:var(--ink-2);
     font:400 20px/1 var(--ui); cursor:pointer; }
   #howmodal .hm-close:hover{ color:var(--ink); border-color:var(--mat-edge-hi); }
+  /* On the landing page this explanation belongs to the Game Boy picture: make
+     the card itself read as an in-screen cartridge page, not a separate app
+     dialog. The compact pixel layout keeps the whole message inside the 4:3
+     hero display at desktop and mobile sizes. */
+  #howmodal .hm-card{ width:min(640px,78vw); max-height:min(70vh,500px); overflow:auto;
+    padding:24px 28px 20px; border-radius:4px; background:#d9e69a; color:#183d20;
+    border:8px solid #39452a; box-shadow:0 0 0 3px #111a12, 0 18px 50px rgba(0,0,0,.55);
+    font-family:var(--pixel),monospace; }
+  #howmodal h2{ font:700 18px/1 var(--pixel),monospace; letter-spacing:.02em; color:#183d20; margin:0 0 12px; }
+  #howmodal p, #howmodal .hm-list li{ font:400 11px/1.45 var(--pixel),monospace; letter-spacing:0; color:#274b28; }
+  #howmodal .hm-lede{ font-size:12px; color:#183d20; }
+  #howmodal .hm-list{ margin:10px 0 0; padding-left:17px; }
+  #howmodal .hm-list li{ margin:0 0 7px; }
+  #howmodal .hm-list li b{ color:#183d20; font-weight:700; }
+  #howmodal .hm-foot{ margin-top:12px; }
+  #howmodal .hm-foot a{ color:#245f38; }
+  #howmodal .hm-close{ width:28px; height:28px; top:8px; right:8px; border-color:#527044; color:#315331; font:400 18px/1 var(--pixel),monospace; }
 
   body.ai-visual #plinks{ display:flex; opacity:0; pointer-events:none; transition:opacity var(--fade-out); }
   /* The COLUMN never takes the pointer, only its rows do. A one-line masthead
