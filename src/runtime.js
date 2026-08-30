@@ -2088,6 +2088,19 @@ window._openCreate=_openCreate;
 // seconds; this modal is for the visitor who gives it a minute. Same story as
 // the README, condensed.
 function _toggleHowModal(){
+  var heroLcd=document.querySelector('#rmoods .rmood-brand');
+  if(heroLcd){
+    if(!heroLcd.dataset.howOriginal) heroLcd.dataset.howOriginal=heroLcd.innerHTML;
+    if(heroLcd.classList.toggle('how-page')){
+      heroLcd.innerHTML='<h3>HOW IT WORKS</h3>'+ 
+        '<p><b>WRITE YOUR OWN.</b> Create opens a tracker on the Game Boy chip: notes, hardware instruments, sweeps, slides and sampled drums.</p>'+ 
+        '<p><b>OR COMPOSE.</b> Pick a mood and the app writes complete songs for you to edit and share.</p>'+ 
+        '<p><b>THE SONGS ARE REAL.</b> Every track runs through a real sound-chip emulation and downloads as a cartridge for hardware.</p>'+ 
+        '<p><b>IN YOUR BROWSER.</b> The composer is deterministic: the same link always makes the same song.</p>'+ 
+        '<p><b>THE SCREENS.</b> Game Boy shades and an NES signal are rebuilt with shaders.</p>';
+    } else heroLcd.innerHTML=heroLcd.dataset.howOriginal;
+    return;
+  }
   var gb=document.getElementById('gbscreen');
   // The landing shell can keep the console mounted while its view state is
   // transitioning, so key off the LCD well rather than a transient class.
