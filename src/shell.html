@@ -2587,10 +2587,11 @@
      width, which is what a menu on this machine looks like anyway. */
   body.awaiting-mood #rmoods .rmood-ask{
     margin-top:26px; padding:0 8px; row-gap:9px; gap:8px; justify-content:center;
-    align-items:center; }
+    align-items:center; display:flex; flex-direction:row; flex-wrap:wrap; }
   /* START, on its own row under the rest, which is where it is on the case */
   body.awaiting-mood #presets .rbtn.rmood-scratch{
-    order:9; flex-basis:100%; margin:15px auto 0; max-width:230px; }
+    order:9; flex-basis:auto; margin:15px 0 0; max-width:230px; }
+  body.awaiting-mood #presets .rbtn.rmood-select{ order:10; flex-basis:auto; margin:15px 0 0; max-width:230px; }
   body.awaiting-mood #presets .rbtn.rmood{ font-size:var(--txt); padding:12px 17px; }
   /* Still on the same line as the first mood, which was an explicit request and
      still FITS: the label is ~230px and a pill ~90px in a 412px row. Stacking it
