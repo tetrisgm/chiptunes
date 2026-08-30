@@ -1498,16 +1498,6 @@ function sceneGesturesBlocked(ev){
   var t=ev&&ev.target;
   return !!(t && t.closest && t.closest('#gamepick,#watchbar,#trackpanel,#mixpanel,#presets,#transport,#playbar,#rlist,#rfullscreen,#rmic,#intro,#hometiles,.lib-nav,.detail'));
 }
-// TRACKPAD / wheel: a decisive two-finger vertical swipe changes the track (either direction), animating the scene the way you swiped.
-let _whAcc=0, _whCool=false, _whTimer=0;
-window.addEventListener('wheel', function(ev){
-  if(_whCool || _sceneAnim) return;
-  if(sceneGesturesBlocked(ev)){ _whAcc=0; return; }   // let library pages, panels, and controls scroll normally
-  _whAcc += ev.deltaY;
-  clearTimeout(_whTimer); _whTimer=setTimeout(()=>{ _whAcc=0; }, 170);                            // reset if the gesture pauses (so only a real swipe accumulates)
-  if(Math.abs(_whAcc) > 90){ var dir=(_whAcc>0?1:-1); _whAcc=0; _whCool=true; commitSkip(dir);     // deltaY>0 (two-finger swipe up, natural scroll) -> slide up; down -> slide down
-    setTimeout(()=>{ _whCool=false; }, 650); }                                                    // one change per fling
-}, {passive:true});
 cv.addEventListener('pointerdown', e=>{ if(sceneGesturesBlocked(e)) return;
   if(performance.now() < _suppressSceneInputUntil) return;
   if(_watchOnly && !_watchMicActive){
@@ -1528,16 +1518,9 @@ cv.addEventListener('pointerdown', e=>{ if(sceneGesturesBlocked(e)) return;
 });   // click = particles/shake only — games stay on autopilot (watch-only)
 cv.addEventListener('pointermove', e=>{
   if(sceneGesturesBlocked(e)) return;
-  if(INP.down && !_gest.committed){
-    const dy=_gest.y0 - e.clientY, dx=e.clientX-_gest.x0;                                          // dy>0 = UP (next) · dy<0 = DOWN (prev)
-    if(!_gest.swiping && Math.abs(dy)>46 && Math.abs(dy)>Math.abs(dx)*1.4){ _gest.swiping=true; }   // enter SKIP-swipe -> stop steering the game
-    if(_gest.swiping){ _gest.dy=dy; setSceneY(-Math.max(-H,Math.min(H, dy*0.92))); return; }       // scene follows the finger (either direction)
-  }
   setPos(e.clientX,e.clientY); spawnTrail(); if(INP.down) engage();                                // hover = trail; drag = engage
 });
-const _up=()=>{ if(_gest.swiping && !_gest.committed){ _gest.committed=true;                       // release a swipe -> next/prev if far enough, else snap back
-    if(Math.abs(_gest.dy) > Math.min(H*0.16, 150)) commitSkip(_gest.dy>0?1:-1); else snapSceneBack(); _gest.swiping=false; }
-  INP.down=false; };
+const _up=()=>{ _gest.swiping=false; _gest.committed=false; INP.down=false; };
 cv.addEventListener('pointerup',_up); cv.addEventListener('pointercancel',_up); cv.addEventListener('pointerleave',_up);
 window.addEventListener('keydown', e=>{
   if(handleEscapeShortcut(e)) return;
