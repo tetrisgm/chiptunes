@@ -35362,7 +35362,7 @@ function _backToGenerated(){ if(typeof _exitWatchMode==='function') _exitWatchMo
   if(typeof _syncVisualChrome==='function') _syncVisualChrome();
   // returning from an external source (chip/mic/file): the paused generative track can come back silent
   // (a long external session makes the scheduler resume-guard fast-forward it past its arrangement), so start FRESH.
-  if(wasExt && Audio.gotoTrack) Audio.gotoTrack(_nextGeneratedToken()); }
+  if(wasExt && Audio.gotoTrack) Audio.gotoTrack(_mintToken()); }
 // play a SPECIFIC generated track by its slug (from a Recently-played / Liked card) — leaves any chip source, reseeds that song
 function _playGenerated(slug, opts){ opts=opts||{}; if(typeof _exitWatchMode==='function') _exitWatchMode(); if(!opts.keepQueue) _clearPlaybackQueue(); if(typeof startAudio==='function') startAudio(true);
   _forkFromLive();   // explicit track pick (card/playlist/deep link) leaves the broadcast — placed AFTER startAudio (cold boot joins live there)
@@ -35375,7 +35375,7 @@ function _playGenerated(slug, opts){ opts=opts||{}; if(typeof _exitWatchMode==='
   if(slug && Audio.gotoTrack){ _trkHist=[slug]; _trkI=0; Audio.gotoTrack(slug); }
   if(typeof hideHome==='function') hideHome(); }
 window._playGenerated=_playGenerated;
-// ===== TILE 1: Start Endless Radio — mint a fresh fp-scored token, play it, and put its route in the bar. =====
+// ===== TILE 1: Start Endless Radio — mint one fresh token and play it. =====
 function _startEndlessRadio(){
   // ALWAYS leave the home backdrop first. It used to be torn down only in enterStation() (the click-a-tile
   // path), so landing directly on /radio — which routes straight here via _productRouteTo — left _homeBackdrop
@@ -35397,7 +35397,7 @@ function _startEndlessRadio(){
   _setTransportPlaying();
   if(Audio.extActive && Audio.extActive() && Audio.stopExternal) Audio.stopExternal();
   _station='generated'; _nowSource='generated';
-  if(alreadyBooted && Audio.gotoTrack){ var tok=_nextGeneratedToken(); _trkHist=[tok]; _trkI=0; Audio.gotoTrack(tok); }
+  if(alreadyBooted && Audio.gotoTrack){ var tok=_mintToken(); _trkHist=[tok]; _trkI=0; Audio.gotoTrack(tok); }
   if(window._applyMixScopeForSource) window._applyMixScopeForSource();
   if(window.refreshMixPanel) window.refreshMixPanel();
   if(typeof _syncVisualChrome==='function') _syncVisualChrome();
@@ -35939,16 +35939,8 @@ if(String(_pathParts(location.pathname||'/')[0]||'').toLowerCase()==='get') buil
   // start the sound, which is the same thing a shared /track link has always
   // done -- so autoplay policy costs a tap, not the whole experience.
   if(head===''||head==='radio'){
-    // live intent (fresh default / persisted): keep the /radio route and let startAudio's
-    // no-slug branch join the shared broadcast; otherwise mint a private track as before.
-    var liveBoot=false;
-    try{ liveBoot=!!(typeof Radio!=='undefined' && Radio.live && Radio.live()); }catch(e0){}
-    if(!liveBoot){
-      var tok=_nextGeneratedToken();
-      if(typeof history!=='undefined' && history.replaceState){ try{ history.replaceState(null,'',_generatedRoute(tok)+_routeQueryExtras()); }catch(e){} }
-    }
     if(document.body) document.body.classList.add('ai-visual');
-    startAudio(false);                                           // boots at the minted slug (or joins live); sound arms on first tap
+    startAudio(false);                                           // holds for a choice; sound arms when the visitor starts something
   }
 })();
 
