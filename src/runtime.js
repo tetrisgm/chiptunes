@@ -1873,7 +1873,10 @@ function buildRadioUI(){
       var pills=document.createElement('span'); pills.className='rmood-pills';
       ask.appendChild(pills);
       row.appendChild(ask);
-      moods.filter(function(m){ return m!=='sad' && m!=='funky' && m!=='dreamy' && m!=='spooky' && m!=='retro'; }).forEach(function(m){
+      var shownMoods=moods.filter(function(m){ return m!=='sad' && m!=='upbeat' && m!=='funky' && m!=='dreamy' && m!=='spooky' && m!=='retro'; });
+      shownMoods=shownMoods.filter(function(m){ return m!=='happy'; });
+      shownMoods.splice(1,0,'happy');
+      shownMoods.forEach(function(m){
         var b=mkRbtn(m, function(){ _moodOnAir(m, b); });
         b.classList.add('rmood'); b.title='Write a '+m+' song and play it';
         pills.appendChild(b);
