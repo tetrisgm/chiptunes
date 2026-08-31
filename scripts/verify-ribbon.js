@@ -73,8 +73,10 @@ const pixels = p => p.evaluate(() => {
     const cr = ctrl ? ctrl.getBoundingClientRect() : null;
     const lcd = document.querySelector('#playbar .pb-lcd');
     const lr = lcd ? lcd.getBoundingClientRect() : null;
-    const ttl = document.getElementById('pbLcdTitle');
+    const ttl = document.getElementById('pbTitle');
     const tr = ttl ? ttl.getBoundingClientRect() : null;
+    const share = document.getElementById('pbShare');
+    const sr = share ? share.getBoundingClientRect() : null;
     const left = document.querySelector('#playbar .pb-left');
     const right = document.querySelector('#playbar .pb-right');
     const ar = left ? left.getBoundingClientRect() : null;
@@ -82,7 +84,8 @@ const pixels = p => p.evaluate(() => {
     return { w: Math.round(r.width), h: Math.round(r.height),
              inCtrl: !!(ctrl && ctrl.contains(c)),
              inPanel: !!(lcd && lcd.contains(c)),
-             belowTitle: !!(tr && r.top >= tr.bottom - 1),
+             titleAtLeft: !!(tr && ar && tr.left >= ar.left - 1 && tr.right <= ar.right + 1),
+             shareByTitle: !!(tr && sr && sr.left >= tr.right && Math.abs((sr.top+sr.bottom-tr.top-tr.bottom)/2)<3),
              panelHolds: !!(lr && r.left >= lr.left - 1 && r.right <= lr.right + 1),
              dockedBetween: !!(cr && ar && rr && cr.left >= ar.right - 1 && cr.right <= rr.left + 1),
              fromBottom: cr ? Math.round(innerHeight - cr.bottom) : -1,
@@ -93,7 +96,7 @@ const pixels = p => p.evaluate(() => {
   // the transport moved to the left of the bar (Apple Music's shape); the strip
   // is the scrubber inside the now-playing panel
   ok(geo.inPanel, 'it sits inside the now-playing panel');
-  ok(geo.belowTitle, 'under the track name, the way a scrubber does');
+  ok(geo.titleAtLeft && geo.shareByTitle, 'the track name and share control sit together at the left');
   ok(geo.panelHolds, 'and the panel contains it rather than being overflowed');
   ok(geo.dockedBetween, 'the docked groups stay in order without overlap');
   ok(geo.fromBottom > 0 && geo.fromBottom < 60, 'and anchored to the bottom (' + geo.fromBottom + 'px up)');

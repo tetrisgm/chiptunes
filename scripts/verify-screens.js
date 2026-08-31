@@ -50,7 +50,10 @@ function server() {
 // distinct colours in a screenshot: the only honest test that a face is drawing
 async function colours(p, tag) {
   const f = path.join(SHOT, 'screens-' + tag + '.png');
-  await p.screenshot({ path: f });
+  // A 3200x2000 headed Metal capture occasionally finishes just beyond
+  // Playwright's 30s action default even though the page and fonts are ready.
+  // Keep the real-GPU assertion; give the actual pixel readback enough time.
+  await p.screenshot({ path: f, timeout: 60000 });
   const png = PNG.sync.read(fs.readFileSync(f));
   const s = new Set();
   for (let i = 0; i < png.data.length; i += 4 * 97) s.add((png.data[i] << 16) | (png.data[i + 1] << 8) | png.data[i + 2]);

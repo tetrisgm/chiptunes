@@ -162,14 +162,17 @@ function names() {
   // ---- 1 + 2. the bar -----------------------------------------------------
   console.log('the player bar');
   const bar = await p.evaluate(() => {
-    const R = e => { const b = e.getBoundingClientRect(); return { l: b.left, r: b.right, h: b.height }; };
+    const R = e => { const b = e.getBoundingClientRect(); return { l: b.left, r: b.right, t:b.top, b:b.bottom, h: b.height }; };
     const right = document.querySelector('#playbar .pb-right');
     const vol = document.querySelector('#playbar .pb-voldial'), adv = document.getElementById('pbAdvanced');
     const sc = document.getElementById('pbScreen'), bpm = document.querySelector('#playbar .pb-bpmdial');
     const fs = document.getElementById('rfullscreen');
     const track = document.querySelector('#playbar .pb-ctrl'), transport=document.querySelector('#playbar .pb-main-ctrl');
+    const left=document.querySelector('#playbar .pb-left'), title=document.getElementById('pbTitle'), share=document.getElementById('pbShare');
+    const playbar=document.getElementById('playbar');
     const kids = [...right.children].filter(e => e.getClientRects().length);
     const cs = e => getComputedStyle(e);
+    const surface=e=>{ const s=cs(e); return [s.backgroundColor,s.backgroundImage,s.borderTopColor,s.borderTopWidth,s.borderTopStyle,s.boxShadow]; };
     return {
       onlyVolume: kids.filter(e => e !== fs).length === 1 && kids.filter(e => e !== fs)[0].contains(vol),
       screenHidden: !sc || !sc.getClientRects().length,
@@ -182,7 +185,12 @@ function names() {
       transportBeforeTrack: R(transport).r < R(track).l,
       trackMidY:Math.round((track.getBoundingClientRect().top+track.getBoundingClientRect().bottom)/2),
       transportMidY:Math.round((transport.getBoundingClientRect().top+transport.getBoundingClientRect().bottom)/2),
-      barMidY:Math.round((document.getElementById('playbar').getBoundingClientRect().top+innerHeight)/2),
+      leftMidY:Math.round((left.getBoundingClientRect().top+left.getBoundingClientRect().bottom)/2),
+      volumeMidY:Math.round((vol.getBoundingClientRect().top+vol.getBoundingClientRect().bottom)/2),
+      barMidY:Math.round((playbar.getBoundingClientRect().top+innerHeight)/2), barH:Math.round(R(playbar).h),
+      trackPad:parseFloat(cs(track).paddingTop)+parseFloat(cs(track).paddingBottom),
+      matchingSurfaces:[track,transport,vol].map(surface),
+      titleAtLeft:!!title&&!!share&&R(title).l>=R(left).l-1&&R(share).l>=R(title).r&&Math.abs((R(title).t+R(title).b-R(share).t-R(share).b)/2)<3,
       volH: Math.round(R(vol).h), rightPos: cs(right).position, barCls: document.body.className
     };
   });
@@ -193,8 +201,13 @@ function names() {
   ok(bar.volumeSlider >= 140, 'the complete volume slider is visible (' + bar.volumeSlider + 'px)');
   ok(Math.abs(bar.trackCenter-bar.viewportCenter) <= 2 && bar.transportBeforeTrack,
      'the track is centred with transport immediately to its left');
-  ok(Math.abs(bar.trackMidY-bar.barMidY) <= 6 && Math.abs(bar.transportMidY-bar.barMidY) <= 6,
-     'track and transport are vertically centred in the bottom bar ('+bar.trackMidY+'/'+bar.transportMidY+' vs '+bar.barMidY+')');
+  ok([bar.trackMidY,bar.transportMidY,bar.leftMidY,bar.volumeMidY].every(y=>Math.abs(y-bar.barMidY)<=6),
+     'title, transport, progress and volume share one vertical centre ('+[bar.leftMidY,bar.transportMidY,bar.trackMidY,bar.volumeMidY].join('/')+' vs '+bar.barMidY+')');
+  ok(bar.titleAtLeft, 'the track name sits at the bottom-left with its share button');
+  ok(bar.barH >= 94 && bar.trackPad >= 16,
+     'the bar and track chip have room around the title ('+bar.barH+'px bar, '+bar.trackPad+'px track padding)');
+  ok(bar.matchingSurfaces.every(x => JSON.stringify(x) === JSON.stringify(bar.matchingSurfaces[0])),
+     'track, transport and volume share one black surface treatment');
   ok(bar.rightEdge - bar.fsRight < 2,
      'fullscreen is hard against its right edge (' + Math.round(bar.rightEdge - bar.fsRight) + 'px)');
   console.log('       state: ' + bar.barCls + ' | right ' + bar.rightPos + ' | vol ' + bar.volH);
@@ -251,19 +264,22 @@ function names() {
     const labels = made ? [...made.querySelectorAll('.plmade-btn .plink-t')].filter(x => x.getClientRects().length).map(x => x.textContent.trim()) : [];
     const r = made && made.getBoundingClientRect();
     const rail=document.getElementById('plinks'), rr=rail&&rail.getBoundingClientRect();
+    const railButtons=rail ? [...rail.querySelectorAll('.plink')].filter(x=>x.getClientRects().length) : [];
+    const railGap=railButtons.length>1 ? Math.round(railButtons[1].getBoundingClientRect().top-railButtons[0].getBoundingClientRect().bottom) : 0;
     const type=[made&&made.querySelector('.plmade-name'), made&&made.querySelector('.plmade-t'), rail&&rail.querySelector('.plink-t')]
       .map(x=>{ if(!x) return []; const s=getComputedStyle(x); return [
         s.fontFamily,s.fontSize,s.fontWeight,s.fontStyle,s.lineHeight,s.letterSpacing,
         s.textTransform,s.textShadow,s.getPropertyValue('-webkit-text-stroke-width')
       ]; });
     return { href:a ? a.href : null, hnHidden:!hn || !hn.getClientRects().length,
-      labels, left:r ? Math.round(r.left) : -1, aboveRail:!!r&&!!rr&&r.bottom<rr.top, type };
+      labels, left:r ? Math.round(r.left) : -1, aboveRail:!!r&&!!rr&&r.bottom<rr.top, type, railGap };
   });
   ok(/github\.com\/[^/]+\/chiptunes\/?$/.test(credit.href || ''), 'GitHub goes to the repository (' + credit.href + ')');
   ok(credit.hnHidden && credit.labels.length === 0, 'playing hides Hacker News and the social labels');
   ok(credit.left <= 20 && credit.aboveRail, 'the playing credit sits above the left rail (' + credit.left + 'px)');
   ok(credit.type.every(x => JSON.stringify(x) === JSON.stringify(credit.type[0])),
      'the product name, credit and rail use one type style (' + credit.type[0].join(', ') + ')');
+  ok(credit.railGap >= 12, 'the top-left action buttons have breathing room ('+credit.railGap+'px)');
 
   ok(errs.length === 0, 'no page errors' + (errs.length ? ': ' + errs[0] : ''));
   await b.close(); h.s.close();

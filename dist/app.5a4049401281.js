@@ -33567,6 +33567,7 @@ function buildPlaybar(){ _pbEl=document.getElementById('playbar'); if(!_pbEl||_p
     // (YouTube, radio, the ROM) or reachable by clicking the
     // track name, which is what people try first anyway.
     '<div class="pb-info" id="pbInfo"><div class="pb-titleline"><span class="pb-np">Now playing</span><div class="pb-title" id="pbTitle">···</div>'+
+    '<button id="pbShare" class="pb-share" title="Share track" aria-label="Share track">'+svgIcon('share')+'</button>'+
     '</div><div class="pb-sub" id="pbSub"></div></div></div>'+
     // The screen control sits with the transport: it changes what you are
     // LOOKING at, which belongs beside the controls for what you are hearing
@@ -33628,6 +33629,7 @@ function buildPlaybar(){ _pbEl=document.getElementById('playbar'); if(!_pbEl||_p
   _wirePlaybarButton('pbPrev', _transportPrev);
   _wirePlaybarButton('pbNext', _transportNext);
   _wirePlaybarButton('pbPlay', _transportToggle);
+  _wirePlaybarButton('pbShare', function(){ shareTrackLink(document.getElementById('pbShare')); });
   _wirePlaybarButton('pbVolume', function(){ window.toggleMixPanel && window.toggleMixPanel(); });
   // REACHING FOR ONE OF THESE IS THE WHOLE INTENT. Both dials are a sliver of
   // the full mixer, and someone who has put the pointer on the tempo or the
