@@ -108,11 +108,13 @@ function names() {
     const lr = lab.getBoundingClientRect(), pr = pill.getBoundingClientRect();
     const moods=[...document.querySelectorAll('.rmood')].filter(b => !b.classList.contains('rmood-scratch') && !b.classList.contains('rmood-select'));
     const scratch=document.querySelector('.rmood-scratch');
+    const valueCopy=document.querySelector('#rmoods .rmood-brand');
     const tops=moods.map(b => Math.round(b.getBoundingClientRect().top));
     return { sameFont: f(lab) === f(pill), size: getComputedStyle(lab).fontSize,
              sameRow: new Set(tops).size === 1, firstHappy: moods[0] && moods[0].textContent.trim() === 'happy',
              scratchOneLine: !!scratch && getComputedStyle(scratch).whiteSpace === 'nowrap' && scratch.scrollHeight <= scratch.clientHeight,
              scratchWidth: scratch ? Math.round(scratch.getBoundingClientRect().width) : 0,
+             valueCopy:valueCopy ? valueCopy.textContent.replace(/\s+/g,' ').trim() : '',
              text: lab.textContent.trim() };
   });
   ok(!!ask, 'the ask is on the landing page');
@@ -121,6 +123,10 @@ function names() {
   ok(ask && ask.firstHappy, 'and Happy is the first mood');
   ok(ask && ask.scratchOneLine && ask.scratchWidth >= 280,
     'Start from scratch stays on one line in a wider button (' + (ask && ask.scratchWidth) + 'px)');
+  ok(ask && /CREATE OR LISTEN\./.test(ask.valueCopy) && /automatically, one after another/.test(ask.valueCopy),
+    'the value proposition leads with automatic creation and listening');
+  ok(ask && /COMPLETE SONGS\./.test(ask.valueCopy) && /not loops/.test(ask.valueCopy) && /AUTHENTIC HARDWARE\./.test(ask.valueCopy),
+    'the landing copy explains composition and hardware authenticity');
   await p.screenshot({ path: path.join(SHOT, 'chrome-landing.png') });
 
   // ---- 6. the reel --------------------------------------------------------

@@ -1600,4 +1600,5 @@ Reported as "severe performance issues running the website overall", in Safari.
 - The player-bar track title uses the same 25 px/600 system type treatment as the rest of the playing UI and the bar contents are vertically centred.
 - The playing dock is a single baseline with three non-overlapping zones: a 420 px metadata lane that keeps Share visible, a flexible transport/progress lane, and volume/fullscreen on the right.
 - The root landing page opens directly on the Game Boy chooser; the separate CHIPTUNES.APP introductory splash overlay was removed.
+- The Game Boy landing copy now leads with “Create or listen”: mood choices automatically compose complete songs one after another, while the next sections distinguish full arrangements from loops and explain the register-level hardware model.
 - Radio Browser accepted the public station as UUID `967010ce-34f5-460d-beb4-67a196c49d9b`.

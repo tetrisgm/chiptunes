@@ -1795,10 +1795,10 @@ function buildRadioUI(){
       var brand=document.createElement('span'); brand.className='rmood-brand landing-copy';
       brand.innerHTML='<b class="rmood-title">Chiptunes.app</b>'+ 
         '<span class="rmood-copy">'+
-          '<span class="rmood-section"><strong>GAME BOY MUSIC APP.</strong><p>Choose a mood or start from scratch. In your browser, Chiptunes builds complete four-channel songs from pulse and wave instruments, noise and sampled drums.</p></span>'+
-          '<span class="rmood-section"><strong>MAKE IT YOURS.</strong><p>Open the tracker to edit any note, instrument or effect. Share your song as a link, WAV or cartridge.</p></span>'+
-          '<span class="rmood-section"><strong>PLAY IT ON A GAME BOY.</strong><p>Register-level emulation models the original four-channel sound chip, so every cartridge boots on real hardware.</p></span>'+
-          '<span class="rmood-section"><strong>WATCH IT PLAY.</strong><p>Custom shaders recreate a four-tone Game Boy LCD or decode an NES-style video signal.</p></span>'+
+          '<span class="rmood-section"><strong>CREATE OR LISTEN.</strong><p>Choose a mood and Chiptunes composes complete Game Boy songs for you, automatically, one after another. Or open the tracker and write your own.</p></span>'+
+          '<span class="rmood-section"><strong>COMPLETE SONGS.</strong><p>The composer writes full arrangements, not loops, from pulse and wave instruments, noise and sampled drums.</p></span>'+
+          '<span class="rmood-section"><strong>AUTHENTIC HARDWARE.</strong><p>Every note runs through register-level emulation of the original four-channel sound chip. Download a cartridge that boots on a real Game Boy.</p></span>'+
+          '<span class="rmood-section"><strong>MAKE IT YOURS.</strong><p>Edit every note, instrument and effect. Share it as a link, WAV or cartridge.</p></span>'+
         '</span>';
       row.appendChild(brand);
       // The ask -- the words and the pills -- moves as one piece: it is in the
