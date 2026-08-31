@@ -191,6 +191,9 @@ function names() {
       trackPad:parseFloat(cs(track).paddingTop)+parseFloat(cs(track).paddingBottom),
       matchingSurfaces:[track,transport,vol].map(surface),
       titleAtLeft:!!title&&!!share&&R(title).l>=R(left).l-1&&R(share).l>=R(title).r&&Math.abs((R(title).t+R(title).b-R(share).t-R(share).b)/2)<3,
+      metadataWidth:Math.round(R(left).r-R(left).l),
+      shareVisible:!!share&&R(share).r<=innerWidth&&R(share).l>=R(left).l&&R(share).r<=R(left).r+1&&R(share).h>=38,
+      zonesClear:R(left).r<=R(track).l-8&&R(track).r<=R(vol).l-8,
       titleType:[cs(title).fontFamily,cs(title).fontSize,cs(title).fontWeight,cs(title).lineHeight,cs(title).textShadow,cs(title).webkitTextStrokeWidth],
       volH: Math.round(R(vol).h), rightPos: cs(right).position, barCls: document.body.className
     };
@@ -200,11 +203,14 @@ function names() {
   ok(/^VOL\s*\d+/.test(bar.volumeText), 'volume remains readable (' + bar.volumeText + ')');
   ok(bar.advancedGone, 'the separate advanced volume icon is gone');
   ok(bar.volumeSlider >= 140, 'the complete volume slider is visible (' + bar.volumeSlider + 'px)');
-  ok(Math.abs(bar.trackCenter-bar.viewportCenter) <= 2 && bar.transportBeforeTrack,
-     'the track is centred with transport immediately to its left');
+  ok(bar.transportBeforeTrack && bar.trackCenter > bar.viewportCenter,
+     'transport and progress share the flexible middle lane');
   ok([bar.trackMidY,bar.transportMidY,bar.leftMidY,bar.volumeMidY].every(y=>Math.abs(y-bar.barMidY)<=6),
-     'title, transport, progress and volume share one vertical centre ('+[bar.leftMidY,bar.transportMidY,bar.trackMidY,bar.volumeMidY].join('/')+' vs '+bar.barMidY+')');
+     'metadata, transport, progress and volume share one baseline ('+[bar.leftMidY,bar.transportMidY,bar.trackMidY,bar.volumeMidY].join('/')+' vs '+bar.barMidY+')');
   ok(bar.titleAtLeft, 'the track name sits at the bottom-left with its share button');
+  ok(bar.metadataWidth >= 400 && bar.shareVisible,
+     'the metadata zone is wide and keeps sharing visible ('+bar.metadataWidth+'px)');
+  ok(bar.zonesClear, 'metadata, transport/progress and volume occupy clear player zones');
   ok(bar.titleType[1] === '25px' && bar.titleType[2] === '600' && bar.titleType[4] === 'none' && bar.titleType[5] === '0px',
      'the track title uses the page typography (' + bar.titleType.join(', ') + ')');
   ok(bar.barH >= 94 && bar.trackPad >= 16,
