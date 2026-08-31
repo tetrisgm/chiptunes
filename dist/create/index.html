@@ -2429,7 +2429,8 @@
   body.awaiting-mood #rmoods .rmood-ask .rmood-pills{ display:flex !important; flex:0 0 100%; flex-wrap:wrap; justify-content:center; gap:8px; }
   /* START, on its own row under the rest, which is where it is on the case */
   body.awaiting-mood #presets .rbtn.rmood-scratch{
-    order:9; flex-basis:auto; margin:15px 0 0; max-width:230px; }
+    order:9; flex:0 0 auto; margin:15px 0 0; min-width:280px; max-width:none;
+    white-space:nowrap; }
   body.awaiting-mood #presets .rbtn.rmood-select{ order:10; flex-basis:auto; margin:15px 0 0; max-width:230px; }
   body.awaiting-mood #presets .rbtn.rmood{ font-size:var(--txt); padding:12px 17px; }
   /* Still on the same line as the first mood, which was an explicit request and

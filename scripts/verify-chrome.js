@@ -106,15 +106,20 @@ function names() {
     const f = e => { const c = getComputedStyle(e); return c.fontSize + '/' + c.fontWeight + '/' + c.fontFamily; };
     const lr = lab.getBoundingClientRect(), pr = pill.getBoundingClientRect();
     const moods=[...document.querySelectorAll('.rmood')].filter(b => !b.classList.contains('rmood-scratch') && !b.classList.contains('rmood-select'));
+    const scratch=document.querySelector('.rmood-scratch');
     const tops=moods.map(b => Math.round(b.getBoundingClientRect().top));
     return { sameFont: f(lab) === f(pill), size: getComputedStyle(lab).fontSize,
              sameRow: new Set(tops).size === 1, firstHappy: moods[0] && moods[0].textContent.trim() === 'happy',
+             scratchOneLine: !!scratch && getComputedStyle(scratch).whiteSpace === 'nowrap' && scratch.scrollHeight <= scratch.clientHeight,
+             scratchWidth: scratch ? Math.round(scratch.getBoundingClientRect().width) : 0,
              text: lab.textContent.trim() };
   });
   ok(!!ask, 'the ask is on the landing page');
   ok(ask && ask.sameFont, 'the question is set exactly like the answers (' + (ask && ask.size) + ')');
   ok(ask && ask.sameRow, 'the four moods share one line');
   ok(ask && ask.firstHappy, 'and Happy is the first mood');
+  ok(ask && ask.scratchOneLine && ask.scratchWidth >= 280,
+    'Start from scratch stays on one line in a wider button (' + (ask && ask.scratchWidth) + 'px)');
   await p.screenshot({ path: path.join(SHOT, 'chrome-landing.png') });
 
   // ---- 6. the reel --------------------------------------------------------
