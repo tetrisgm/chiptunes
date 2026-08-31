@@ -2555,9 +2555,13 @@
   body:not(.awaiting-mood) #madeby{
     top:18px; left:18px; right:auto; justify-content:flex-start; }
   body:not(.awaiting-mood) #madeby .plmade-name,
-  body:not(.awaiting-mood) #madeby .plmade-t{
+  body:not(.awaiting-mood) #madeby .plmade-t,
+  body:not(.awaiting-mood) #plinks .plink-t{
     font:600 25px/1 var(--ui) !important;
-    letter-spacing:.005em !important; text-transform:none; }
+    font-style:normal !important; letter-spacing:.005em !important;
+    text-transform:none !important; text-shadow:none !important;
+    -webkit-text-stroke:0 transparent !important;
+    -webkit-font-smoothing:antialiased; text-rendering:optimizeSpeed; }
   body:not(.awaiting-mood) #plinks{ top:82px; }
   body.ai-visual #playbar .pb-center{
     position:fixed; left:50%; bottom:.5px; z-index:23;

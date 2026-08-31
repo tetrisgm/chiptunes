@@ -252,7 +252,10 @@ function names() {
     const r = made && made.getBoundingClientRect();
     const rail=document.getElementById('plinks'), rr=rail&&rail.getBoundingClientRect();
     const type=[made&&made.querySelector('.plmade-name'), made&&made.querySelector('.plmade-t'), rail&&rail.querySelector('.plink-t')]
-      .map(x=>x ? [getComputedStyle(x).fontFamily,getComputedStyle(x).fontSize,getComputedStyle(x).fontWeight] : []);
+      .map(x=>{ if(!x) return []; const s=getComputedStyle(x); return [
+        s.fontFamily,s.fontSize,s.fontWeight,s.fontStyle,s.lineHeight,s.letterSpacing,
+        s.textTransform,s.textShadow,s.getPropertyValue('-webkit-text-stroke-width')
+      ]; });
     return { href:a ? a.href : null, hnHidden:!hn || !hn.getClientRects().length,
       labels, left:r ? Math.round(r.left) : -1, aboveRail:!!r&&!!rr&&r.bottom<rr.top, type };
   });
