@@ -32808,7 +32808,7 @@ function _moodOnAir(m, btn){
     if(document.body) document.body.classList.remove('awaiting-mood');
     // Root is the landing-page contract. A mood creates an unnamed document,
     // so there is no track token whose callback could move it off root.
-    try{ if(location.pathname==='/' && history.replaceState) history.replaceState(null,'','/radio'+_routeQueryExtras()); }catch(e2){}
+    try{ if(location.pathname==='/' && history.replaceState) history.replaceState(null,'','/player'+_routeQueryExtras()); }catch(e2){}
     try{ _reelStop(); }catch(e){}
     // No toast on success: the music starting IS the confirmation, and the name
     // is already on the playbar. A box announcing what you just asked for is
@@ -32987,7 +32987,7 @@ function _buildPlayerLinks(){
     var k=b.dataset.k;
     if(k==='yt') window.open(YT_HANDLE+'/live','_blank','noopener');
     else if(k==='gh') window.open(GITHUB_URL,'_blank','noopener');
-    else if(k==='radio'){ try{ if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(RADIO_STREAM_URL); }catch(e){} if(window._toast) _toast('Radio stream URL copied. Paste it into any radio app 👾'); }
+    else if(k==='radio'){ location.href='/radio'; }
     else if(k==='rom'){ _downloadRom(); }
     else if(k==='wav'){ _downloadAudio('wav'); }
     else if(k==='try'){ _toggleGameBoyEmulator(); }
@@ -34891,7 +34891,7 @@ function _pathParts(path){
 // stable /radio route; a song somebody keeps is still shared as a document.
 function _generatedRoute(){
   var p=(location.pathname||'/');
-  return p==='/watch' ? p : '/radio';
+  return p==='/watch' ? p : '/player';
 }
 function _queryFlag(name){
   try{
@@ -34943,6 +34943,7 @@ var _genPlayTimer=null;
 function _maybeRecordGen(){ if(_genPlayTimer) clearTimeout(_genPlayTimer); var slug=_curSlug, name=_curName;
   _genPlayTimer=setTimeout(function(){ if(_curSlug===slug && slug && !(Audio.extActive&&Audio.extActive()) && window._recordGenPlay){ _recordGenPlay(slug,name); } }, 4000); }
 function _onTrack(slug){
+  _showTrackTransition();
   if(document.body) document.body.classList.remove('awaiting-mood');
   if(_nowSource==='external' || (Audio.extActive&&Audio.extActive())) return;   // stale generated callbacks must not overwrite chip/mic/file titles
   if(slug) window._sharedSongPlaying=false;      // a real token means the station has moved on
@@ -34953,6 +34954,14 @@ function _onTrack(slug){
   _maybeRecordGen();                                             // -> Recently played (unified with chip albums)
   _deriveGame(_curSlug);                                          // game visuals seeded from the same slug
 }
+var _trackTransitionTimer=0;
+function _showTrackTransition(){
+  var el=document.getElementById('track-transition'); if(!el || !document.body) return;
+  clearTimeout(_trackTransitionTimer); el.classList.remove('on'); void el.offsetWidth;
+  el.classList.add('on'); document.body.classList.add('track-transition');
+  _trackTransitionTimer=setTimeout(function(){ el.classList.remove('on'); document.body.classList.remove('track-transition'); },310);
+}
+window._showTrackTransition=_showTrackTransition;
 // Apply the selected visualizer mode when a generated track changes. A fixed game stays pinned.
 // RANDOM means a fresh non-repeating visualizer pick, not a slug-derived fixed game.
 function _deriveGame(token){
@@ -35534,7 +35543,7 @@ function _openRadioInApp(){
     return;
   }
   if(/iPhone|iPad|iPod/i.test(ua)){
-    var t=setTimeout(function(){ location.href='/radio.pls'; }, 1400);   // Broadcasts not installed -> playlist file
+    var t=setTimeout(function(){ location.href='/listen.m3u'; }, 1400);   // Broadcasts not installed -> generic playlist
     var vis=function(){ if(document.hidden){ clearTimeout(t); document.removeEventListener('visibilitychange',vis); } };
     document.addEventListener('visibilitychange',vis);   // app opened -> page hides -> cancel the fallback
     // artwork too: Broadcasts shows it in the station list, on the lock screen
@@ -35543,7 +35552,7 @@ function _openRadioInApp(){
       '&artworkAddress='+encodeURIComponent('https://chiptunes.app/station-icon.png');
     return;
   }
-  location.href='/radio.pls';
+  location.href='/listen.m3u';
 }
 function _homeAction(k, btnEl){
   if(k==='web-listen'){ if(typeof enterStation==='function') enterStation('st-any'); return; }   // the one shared LIVE station
@@ -35592,7 +35601,7 @@ window.openProductHome=openProductHome;
 function _productRouteFromPath(path){
   var head=String(_pathParts(path)[0]||'').toLowerCase();
   if(!head) return {mode:'radio'};                 // '/' IS the player now
-  if(head==='radio') return {mode:'radio'};
+  if(head==='player') return {mode:'radio'};
   if(head==='get') return {mode:'home'};
   if(head==='gameboy') return {mode:'gameboy'};
   if(head==='watch') return {mode:'watch'};
@@ -35707,7 +35716,7 @@ if(String(_pathParts(location.pathname||'/')[0]||'').toLowerCase()==='get') buil
   // no-gesture path reveals the game immediately and arms the first tap to
   // start the sound, which is the same thing a shared /track link has always
   // done -- so autoplay policy costs a tap, not the whole experience.
-  if(head===''||head==='radio'){
+  if(head===''||head==='player'){
     if(document.body) document.body.classList.add('ai-visual');
     startAudio(false);                                           // holds for a choice; sound arms when the visitor starts something
   }

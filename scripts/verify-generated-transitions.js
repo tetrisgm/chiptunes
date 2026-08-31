@@ -54,18 +54,18 @@ function assert(condition, message){
     const errors = [];
     page.on('pageerror', error => errors.push(String(error)));
 
-    // /radio is a supported cold entry. It must wait for an explicit choice,
+    // /player is a supported cold entry. It must wait for an explicit choice,
     // not mint and discard a song while rewriting the route to itself.
-    await page.goto(url + '/radio', { waitUntil: 'domcontentloaded' });
+    await page.goto(url + '/player', { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => typeof Audio !== 'undefined' && Audio.isHolding && Audio.isHolding());
     const cold = await page.evaluate(() => ({
       holding: Audio.isHolding(),
       token: Audio.trackToken ? Audio.trackToken() : '',
       path: location.pathname
     }));
-    assert(cold.holding && !cold.token, 'cold /radio holds without minting a track');
-    assert(cold.path === '/' || cold.path === '/radio',
-      'cold /radio stays on a player route without inventing a track URL');
+    assert(cold.holding && !cold.token, 'cold /player holds without minting a track');
+    assert(cold.path === '/' || cold.path === '/player',
+      'cold /player stays on a player route without inventing a track URL');
 
     // Exercise the public router after boot. Private intent must mint directly;
     // live schedule and queue policy are not allowed to substitute a token.
@@ -97,6 +97,14 @@ function assert(condition, message){
     assert(!routed.live, 'private route remains outside the live schedule');
     assert(routed.calls.length === 1 && routed.calls[0] === 'private-route-token',
       'already-booted private route mints one fresh token');
+
+    const snow = await page.evaluate(async () => {
+      _showTrackTransition();
+      const immediate = document.body.classList.contains('track-transition') && document.getElementById('track-transition').classList.contains('on');
+      await new Promise(resolve => setTimeout(resolve, 360));
+      return { immediate, cleared: !document.body.classList.contains('track-transition') && !document.getElementById('track-transition').classList.contains('on') };
+    });
+    assert(snow.immediate && snow.cleared, 'track changes show and clear the 300ms CRT snow transition');
 
     assert(!errors.length, 'generated transitions raise no page errors');
     assert(!fs.readFileSync(path.join(__dirname, '..', 'src', 'runtime.js'), 'utf8').includes('_nextGeneratedToken'),

@@ -39,8 +39,8 @@ const DRIFT_MAX_MS = 10000;
 // consume) plus its own /everything mounts all answer this one stream.
 const PRIMARY_ALIASES = ['/', '/radio.mp3', '/stream', '/;'];
 const CHANNELS = [
-  { mood: 'everything',   name: 'Chiptunes.app',                genre: 'Chiptune Electronic Generative Chillwave',
-    desc: 'Endless generative chiptune that never plays the same track twice - a shared broadcast, in sync for everyone tuned in.',
+  { mood: 'everything',   name: 'CHIPTUNES.APP',                genre: 'Chiptune, Game Boy, Video Game Music, 8-bit',
+    desc: 'Endless Game Boy radio',
     paths: ['/everything', '/everything.mp3'] },
 ];
 const SITE_URL = 'https://chiptunes.app';
@@ -242,7 +242,7 @@ class Channel {
       // (which already honors byteOffset). tail STAYS a real copy — it outlives this track as pendingTail.
       const body = all.subarray(offFrame * 2, bodyEndFrame * 2);
       const tail = Float32Array.from(all.subarray(bodyEndFrame * 2));
-      this.title = Song.title(cur.token);
+      this.title = 'Game Boy - ' + Song.title(cur.token);
       const next = cur.isStraddler ? { blockN: cur.blockN + 1, i: 0 } : { blockN: cur.blockN, i: cur.i + 1 };
       joinOffset = 0;
       job = this.renderDesc(next);
@@ -281,7 +281,7 @@ const server = http.createServer((req, res) => {
     if (p === '/logo.png' || p === '/favicon.ico') { if (!LOGO) { res.writeHead(404); res.end(); return; }
       res.writeHead(200, { 'content-type': 'image/png', 'cache-control': 'public, max-age=86400' }); res.end(LOGO); return; }
     if (p === '/channels.json') { res.writeHead(200, { 'content-type': 'application/json', 'access-control-allow-origin': '*' });
-      res.end(JSON.stringify({ station: 'Chiptunes.app', site: SITE_URL, streams: channels.map(c => ({
+      res.end(JSON.stringify({ station: 'CHIPTUNES.APP', site: SITE_URL, streams: channels.map(c => ({
         mood: c.mood, name: c.name, description: c.desc, genre: c.genre, url: 'https://stream.chiptunes.app' + c.paths[0],
         bitrate: BITRATE_KBPS, format: 'mp3', nowPlaying: c.title })) }, null, 2)); return; }
     if (p === '/status-json.xsl') { res.writeHead(200, { 'content-type': 'application/json', 'access-control-allow-origin': '*', 'cache-control': 'no-store' });

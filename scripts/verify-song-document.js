@@ -120,7 +120,7 @@ function server() {
   });
   ok(!!onAir.doc, 'the song on air has a document behind it' + (onAir.doc ? ' (' + (onAir.doc.length / 1024).toFixed(1) + ' KB)' : ''));
   ok(onAir.peak > 0.02, 'and it is sounding (' + onAir.peak.toFixed(3) + ')');
-  ok(onAir.route === '/radio', 'the address bar uses the unnamed radio route (' + onAir.route + ')');
+  ok(onAir.route === '/player', 'the address bar uses the unnamed player route (' + onAir.route + ')');
   ok(!errs.length, 'no page errors' + (errs.length ? ' -- ' + errs[0] : ''));
 
   await b.close(); h.s.close();

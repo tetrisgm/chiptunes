@@ -118,10 +118,14 @@ for (const f of fs.readdirSync(DIST)) if (/^app\.[0-9a-f]+\.js$/.test(f) && f !=
 fs.writeFileSync(path.join(DIST, bundleName), js);
 fs.writeFileSync(path.join(DIST, 'index.html'), html);
 
+// /radio is the public “listen anywhere” page. The visual music player uses
+// /player, so the radio-app handoff has a durable, unambiguous web address.
+const radioHtml = fs.readFileSync(path.join(ROOT, 'src', 'listen-anywhere.html'), 'utf8');
+
 // route entrypoints + stale-route cleanup
 // '/' is the player; /get is the platform page; /radio is the player under its own
 // name (kept: it is in links people have shared).
-const ROUTES = ['radio', 'get', 'gameboy', 'create'];
+const ROUTES = ['player', 'get', 'gameboy', 'create'];
 for (const stale of ['create', 'listen', 'play', 'wip', 'watch']) {
   fs.rmSync(path.join(DIST, stale), { recursive: true, force: true });
 }
@@ -141,6 +145,8 @@ for (const route of ROUTES) {
   fs.writeFileSync(path.join(DIST, route, 'index.html'),
                    html.replace('src="' + bundleName + '"', 'src="../' + bundleName + '"'));
 }
+fs.mkdirSync(path.join(DIST, 'radio'), { recursive: true });
+fs.writeFileSync(path.join(DIST, 'radio', 'index.html'), radioHtml);
 
 // worklets + workers (+ anything else under src/lib) → dist/lib/, recursively:
 // lib/shaders/brickboy holds the vendored .slang passes + grain texture, which

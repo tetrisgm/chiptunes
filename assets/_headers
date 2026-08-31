@@ -9,6 +9,14 @@
   Content-Type: audio/x-mpegurl
   Content-Disposition: attachment; filename="chiptunes.m3u"
   Cache-Control: public, max-age=3600
+/listen.pls
+  Content-Type: audio/x-scpls
+  Content-Disposition: attachment; filename="chiptunes.pls"
+  Cache-Control: public, max-age=3600
+/listen.m3u
+  Content-Type: audio/x-mpegurl; charset=utf-8
+  Content-Disposition: attachment; filename="chiptunes.m3u"
+  Cache-Control: public, max-age=3600
 
 # The app bundle carries a content hash in its name, so it can be cached for
 # good: a new build is a new filename. This is what stops every visit paying to

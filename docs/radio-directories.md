@@ -4,30 +4,29 @@ Everything a directory asks for, ready to paste. The values below are the ones
 the live stream actually advertises — read off its ICY headers on 2026-08-29,
 not invented for the form.
 
-**These submissions are yours to make, not mine.** Every directory asks the
-submitter to certify they hold the right to stream the material, and most tie
-the listing to an account. That is a representation about ownership, so it has
-to come from you.
+The technical package and public metadata live here so directory listings stay
+consistent. Account-bound submissions still require the owner to supply the
+contact/location fields and accept each directory's terms.
 
 ## The station, as it describes itself
 
 | Field | Value |
 |---|---|
-| Name | `Chiptunes.app` |
+| Name | `CHIPTUNES.APP` |
 | Homepage | `https://chiptunes.app` |
 | Stream URL | `https://radio.chiptunes.app` |
 | Codec / bitrate | MP3, 256 kbps, 48 kHz, stereo |
-| Genre | `Chiptune, Electronic, Generative, Chillwave` |
+| Genre | `Chiptune, Game Boy, Video Game Music, 8-bit` |
 | Language | Instrumental / no spoken language |
 | Country | (yours) |
 | Logo | `https://stream.chiptunes.app/logo.png` |
-| Playlist (M3U) | `https://chiptunes.app/radio.m3u` |
-| Playlist (PLS) | `https://chiptunes.app/radio.pls` |
+| Listen Anywhere | `https://chiptunes.app/radio` |
+| Playlist (M3U) | `https://chiptunes.app/listen.m3u` |
+| Playlist (PLS) | `https://chiptunes.app/listen.pls` |
 
 Short description (most forms cap around 200 characters):
 
-> Endless generative chiptune that never plays the same track twice — a shared
-> broadcast, in sync for everyone tuned in.
+> An endless Game Boy radio for the background of your day.
 
 Longer description, where there is room for one:
 
@@ -38,8 +37,8 @@ Longer description, where there is room for one:
 > Every song can be downloaded as a real 32 KB cartridge that runs on the
 > hardware itself.
 
-Tags: `chiptune`, `game boy`, `8-bit`, `video game music`, `generative`,
-`instrumental`, `electronic`, `lo-fi`, `focus`, `background`
+Tags: `chiptune`, `game boy`, `8-bit`, `video game music`, `electronic`,
+`instrumental`
 
 ## Where to submit, in the order worth doing
 
@@ -55,18 +54,20 @@ Tags: `chiptune`, `game boy`, `8-bit`, `video game music`, `generative`,
 5. **TuneIn** — evaluate last. Its current model separates non-US self-service
    submission from paid TuneIn On Air for US broadcasters.
 
-## Already done, so don't redo it
+## Implementation status
 
 The technical half of the "listen anywhere" package is built and live:
 
 - the permanent MP3 stream, with `icy-name`, `icy-description`, `icy-genre`,
   `icy-url` and `icy-logo` set, and `icy-metaint` for per-track metadata;
-- `/radio.m3u` and `/radio.pls`, served with `audio/x-mpegurl` and
+- `/listen.m3u` and `/listen.pls`, served with `audio/x-mpegurl` and
   `audio/x-scpls` so players offer to open them rather than showing text;
 - platform-aware handoff in the app: an Android intent with a `.pls` fallback,
   the `broadcasts://` deep link on iOS (name, stream and artwork) with a
   visibility check so the fallback only fires when the app is not installed,
   and copy-stream-URL everywhere;
-- Media Session metadata, so lock screens and media keys show the track.
+- Media Session metadata, so lock screens and media keys show the track;
+- `/radio`, with browser playback, app handoff, copy feedback, Broadcasts,
+  compatibility links, and a desktop QR code.
 
 What is missing is only the directory listings above.

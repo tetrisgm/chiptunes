@@ -1590,3 +1590,11 @@ Reported as "severe performance issues running the website overall", in Safari.
   visualizers. The new Wallpaper repository owns its own copy of the initial
   14-scene roster and drives it with a visual-only clock; it does not bundle the
   composer, audio engine, radio, editor, or music export paths.
+# 2026-08-31 — Listen Anywhere and track-change presentation
+
+- `/radio` is the standalone “Take CHIPTUNES.APP with you” page; generated visual playback uses `/player`.
+- The permanent public MP3 endpoint remains `https://radio.chiptunes.app`.
+- Canonical app playlists are `/listen.m3u` and `/listen.pls`; legacy `/radio.m3u` and `/radio.pls` remain available.
+- The stream advertises CHIPTUNES.APP, “Endless Game Boy radio,” the requested genre set, square artwork, and `Game Boy - Track Title` ICY titles.
+- Every generated track-ready event produces a 300 ms CRT/noise transition, covering both skips and natural handoffs.
+- The player-bar track title uses the same 25 px/600 system type treatment as the rest of the playing UI and the bar contents are vertically centred.

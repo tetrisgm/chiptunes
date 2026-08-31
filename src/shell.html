@@ -29,15 +29,15 @@
 <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet" />
 <script>
 (function(){
-  // player-route boot: hide the Home overlay pre-paint for direct track/watch/radio links.
+  // player-route boot: hide the Home overlay pre-paint for direct track/watch/player links.
   // /track/<slug> (generated; slug may carry a '<composerId>.' prefix)
-  // /watch (silent wallpaper) · /radio (mints a fresh generated track).
+  // /watch (silent wallpaper) · /player (mints a fresh generated track).
   var path=(location.pathname||'/').replace(/^\/+|\/+$/g,''), slug=path;
   try{ slug=decodeURIComponent(slug); }catch(e){}
   slug=String(slug||'').toLowerCase();
   var parts=slug.split('/').filter(Boolean);
   var aiTrackRoute=!!(parts[0]==='track' && parts[1] && !parts[2] && /^[a-z0-9][a-z0-9._-]*$/.test(parts[1]));
-  var modeRoute=(parts.length===1 && (parts[0]==='watch' || parts[0]==='radio' || parts[0]==='gameboy' || parts[0]==='create'));
+  var modeRoute=(parts.length===1 && (parts[0]==='watch' || parts[0]==='player' || parts[0]==='gameboy' || parts[0]==='create'));
   // Root is always the landing page. Once a visitor starts a song the runtime
   // gives it a /track URL, so restoring or reloading / can never resurrect a
   // playing screen under the homepage address.
@@ -45,8 +45,8 @@
     document.documentElement.classList.add('boot-player-route');
     window.__RRR_BOOT_PLAYER_ROUTE=true;
   }
-  // /radio is deliberately distinct from root: root always means landing,
-  // while /radio is the now-playing screen.
+  // /player is deliberately distinct from root: root always means landing,
+  // while /player is the now-playing screen.
 })();
 </script>
 <style>
@@ -2576,7 +2576,9 @@
   body.ai-visual #playbar .pb-np,
   body.ai-visual #playbar .pb-sub{ display:none !important; }
   body.ai-visual #playbar .pb-title{
-    flex:0 1 auto; font:600 17px/1.2 var(--ui); color:var(--ink);
+    flex:0 1 auto; font:600 25px/1 var(--ui); color:var(--ink);
+    font-style:normal; letter-spacing:.005em; text-transform:none;
+    text-shadow:none; -webkit-text-stroke:0 transparent;
     -webkit-font-smoothing:antialiased; }
   body.ai-visual #playbar .pb-share{
     flex:0 0 40px; width:40px !important; min-width:40px !important;
@@ -2585,7 +2587,7 @@
     box-shadow:var(--mat-shadow) !important; }
   body.ai-visual #playbar .pb-share svg{ width:19px !important; height:19px !important; }
   body.ai-visual #playbar .pb-center{
-    position:fixed; left:50%; bottom:23px; z-index:23;
+    position:fixed; left:50%; bottom:24px; z-index:23;
     transform:translate(-50%,0); display:flex; align-items:center;
     width:min(600px,46vw); opacity:1; pointer-events:auto;
     transition:opacity .22s ease,transform .22s ease; }
@@ -2630,12 +2632,20 @@
     body.ai-visual #playbar .pb-center{ width:42vw; }
     body.ai-visual #playbar .pb-center .pb-ctrl{ min-width:300px !important; }
   }
+  #track-transition{position:fixed;inset:0;z-index:19;pointer-events:none;opacity:0;
+    background:repeating-radial-gradient(circle at 27% 43%,rgba(255,255,255,.72) 0 1px,rgba(0,0,0,.78) 1px 3px),repeating-linear-gradient(0deg,rgba(255,255,255,.22) 0 1px,rgba(0,0,0,.28) 1px 3px);
+    background-size:7px 5px,100% 4px;mix-blend-mode:screen;}
+  #track-transition.on{animation:trackSnow .3s steps(6,end);}
+  body.track-transition .crt.scanlines{opacity:.7!important;filter:contrast(2.2) brightness(1.8)!important;}
+  body.track-transition #stage{filter:contrast(1.8) brightness(1.35) saturate(.25)!important;}
+  @keyframes trackSnow{0%{opacity:0;background-position:0 0}18%{opacity:.78;background-position:19px -7px}72%{opacity:.58;background-position:-11px 17px}100%{opacity:0;background-position:7px -13px}}
 </style>
 </head>
 <body>
   <canvas id="stage"></canvas>
   <div class="crt scanlines"></div>
   <div class="crt vignette"></div>
+  <div id="track-transition" aria-hidden="true"></div>
   <div id="hearts"></div>
 
   <div id="presets"></div>

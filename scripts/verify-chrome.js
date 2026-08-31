@@ -191,6 +191,7 @@ function names() {
       trackPad:parseFloat(cs(track).paddingTop)+parseFloat(cs(track).paddingBottom),
       matchingSurfaces:[track,transport,vol].map(surface),
       titleAtLeft:!!title&&!!share&&R(title).l>=R(left).l-1&&R(share).l>=R(title).r&&Math.abs((R(title).t+R(title).b-R(share).t-R(share).b)/2)<3,
+      titleType:[cs(title).fontFamily,cs(title).fontSize,cs(title).fontWeight,cs(title).lineHeight,cs(title).textShadow,cs(title).webkitTextStrokeWidth],
       volH: Math.round(R(vol).h), rightPos: cs(right).position, barCls: document.body.className
     };
   });
@@ -204,6 +205,8 @@ function names() {
   ok([bar.trackMidY,bar.transportMidY,bar.leftMidY,bar.volumeMidY].every(y=>Math.abs(y-bar.barMidY)<=6),
      'title, transport, progress and volume share one vertical centre ('+[bar.leftMidY,bar.transportMidY,bar.trackMidY,bar.volumeMidY].join('/')+' vs '+bar.barMidY+')');
   ok(bar.titleAtLeft, 'the track name sits at the bottom-left with its share button');
+  ok(bar.titleType[1] === '25px' && bar.titleType[2] === '600' && bar.titleType[4] === 'none' && bar.titleType[5] === '0px',
+     'the track title uses the page typography (' + bar.titleType.join(', ') + ')');
   ok(bar.barH >= 94 && bar.trackPad >= 16,
      'the bar and track chip have room around the title ('+bar.barH+'px bar, '+bar.trackPad+'px track padding)');
   ok(bar.matchingSurfaces.every(x => JSON.stringify(x) === JSON.stringify(bar.matchingSurfaces[0])),

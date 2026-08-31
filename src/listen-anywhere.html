@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#090811">
+  <title>Take CHIPTUNES.APP with you</title>
+  <meta name="description" content="Listen to CHIPTUNES.APP in your browser, your favorite radio app, or the car.">
+  <style>
+    :root{--ink:#f7f5ef;--muted:#b9b4c7;--panel:#11101b;--edge:#302a43;--green:#9bbc0f;--dark:#24330a;--pink:#a51f5d;--ui:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    *{box-sizing:border-box} body{margin:0;min-height:100vh;background:#080710;color:var(--ink);font:600 17px/1.48 var(--ui);display:grid;place-items:center;padding:clamp(20px,5vw,64px)}
+    body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.16;background:repeating-linear-gradient(0deg,transparent 0 3px,#a4daff 4px),radial-gradient(circle at 18% 16%,#8f1c68 0,transparent 32%),radial-gradient(circle at 82% 82%,#223b82 0,transparent 38%)}
+    main{position:relative;width:min(1040px,100%);border:1px solid var(--edge);border-radius:28px;background:rgba(17,16,27,.94);box-shadow:0 28px 90px #000;padding:clamp(24px,5vw,58px)}
+    .brand{font-weight:850;letter-spacing:.02em}.eyebrow{color:#b7e34c;text-transform:uppercase;letter-spacing:.15em;font-size:13px}h1{font-size:clamp(36px,6vw,68px);line-height:1;margin:.22em 0}.lead{font-size:clamp(20px,2.6vw,29px);max-width:680px;color:var(--muted);margin:0 0 30px}
+    .layout{display:grid;grid-template-columns:minmax(0,1fr) 230px;gap:42px;align-items:start}.actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.button{min-height:58px;border:1px solid #696178;border-radius:999px;background:linear-gradient(#e8e5d8,#b9b6a8);color:#20251b;text-decoration:none;padding:0 22px;display:flex;align-items:center;justify-content:center;text-align:center;font:750 17px/1.1 var(--ui);cursor:pointer;box-shadow:inset 0 2px #fff8,0 5px 0 #68665f,0 12px 24px #0008}.button.primary{background:linear-gradient(#c03678,#8d174f);color:#fff;border-color:#df5594;box-shadow:inset 0 2px #fff3,0 5px 0 #4d102f,0 12px 24px #0008}.button:active{transform:translateY(3px);box-shadow:inset 0 2px #fff4,0 2px 0 #4d102f}.button.apple{display:none}.apple-device .button.apple{display:flex}
+    .player{margin:18px 0 0;padding:18px;border:1px solid var(--edge);border-radius:18px;background:#08070f}.now{min-height:27px;margin-bottom:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.station{color:#8edbff;font-size:13px;text-transform:uppercase;letter-spacing:.12em}.track{font-size:19px}audio{width:100%;height:44px}
+    .other{margin-top:30px;padding-top:24px;border-top:1px solid var(--edge)}.other h2{font-size:20px;margin:0 0 8px}.other p{color:var(--muted);margin:0 0 15px}.links{display:flex;gap:10px;flex-wrap:wrap}.links a{color:#a8dcff}.qr{margin:0;text-align:center;color:var(--muted);font-size:13px}.qr img{display:block;width:100%;border:12px solid #fff;border-radius:18px;margin-bottom:10px}.note{font-size:13px;color:var(--muted);margin:10px 0 0}.copied{background:linear-gradient(#b8e969,#6b9e19)!important}
+    footer{margin-top:34px;color:#777181;font-size:13px}footer a{color:#aaa3b9}
+    @media(max-width:760px){body{padding:0}main{min-height:100vh;border:0;border-radius:0;padding:28px 18px}.layout{grid-template-columns:1fr}.actions{grid-template-columns:1fr}.qr{display:none}.lead{margin-bottom:24px}}
+  </style>
+</head>
+<body>
+<main>
+  <div class="eyebrow brand">CHIPTUNES.APP · Endless Game Boy radio</div>
+  <h1>Take CHIPTUNES.APP with you</h1>
+  <p class="lead">Listen in your browser, your favorite radio app, or the car.</p>
+  <div class="layout">
+    <section>
+      <div class="actions">
+        <button class="button primary" id="play" type="button">Play here</button>
+        <a class="button" href="/listen.m3u">Open in radio app</a>
+        <button class="button" id="copy" type="button">Copy stream URL</button>
+        <a class="button apple" id="broadcasts" href="#">Add to Broadcasts</a>
+      </div>
+      <div class="player">
+        <div class="now"><div class="station">CHIPTUNES.APP</div><div class="track" id="track">Endless Game Boy radio</div></div>
+        <audio id="audio" preload="none" controls src="https://radio.chiptunes.app"></audio>
+      </div>
+      <p class="note apple">“Add to Broadcasts” requires the Broadcasts app. “Open in radio app” works as the generic fallback.</p>
+      <section class="other">
+        <h2>Other players</h2>
+        <p>For a player that does not open the main radio-app link, try the alternate playlist or paste the direct address.</p>
+        <div class="links"><a href="/listen.pls">Open compatibility playlist</a><a href="https://radio.chiptunes.app">Open the direct stream</a></div>
+      </section>
+    </section>
+    <figure class="qr"><img src="/radio-qr.png" alt="QR code for chiptunes.app/radio">Open this page on your phone</figure>
+  </div>
+  <footer><a href="/">Make your own song on CHIPTUNES.APP</a></footer>
+</main>
+<script>
+(function(){
+  var STREAM='https://radio.chiptunes.app', ART='https://chiptunes.app/station-icon.png';
+  var apple=/Mac|iPhone|iPad|iPod/i.test(navigator.platform||navigator.userAgent||'');
+  if(apple) document.documentElement.classList.add('apple-device');
+  var b=document.getElementById('broadcasts');
+  b.href='broadcasts://add?name='+encodeURIComponent('CHIPTUNES.APP')+'&address='+encodeURIComponent(STREAM)+'&artworkAddress='+encodeURIComponent(ART);
+  var audio=document.getElementById('audio'), play=document.getElementById('play'), copy=document.getElementById('copy'), track=document.getElementById('track');
+  function syncPlay(){ play.textContent=audio.paused?'Play here':'Pause'; }
+  play.onclick=function(){ if(audio.paused) audio.play(); else audio.pause(); }; audio.onplay=syncPlay; audio.onpause=syncPlay;
+  copy.onclick=function(){ var done=function(){copy.textContent='Stream URL copied';copy.classList.add('copied');setTimeout(function(){copy.textContent='Copy stream URL';copy.classList.remove('copied')},1700)}; if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(STREAM).then(done,done);else{var t=document.createElement('textarea');t.value=STREAM;document.body.appendChild(t);t.select();try{document.execCommand('copy')}catch(e){}t.remove();done()}};
+  function media(title){ if(!('mediaSession' in navigator)||typeof MediaMetadata==='undefined')return;navigator.mediaSession.metadata=new MediaMetadata({title:title||'Endless Game Boy radio',artist:'CHIPTUNES.APP',album:'CHIPTUNES.APP',artwork:[{src:ART,sizes:'1024x1024',type:'image/png'}]}); }
+  function status(){fetch('https://radio.chiptunes.app/status-json.xsl',{cache:'no-store'}).then(function(r){return r.json()}).then(function(j){var s=j&&j.icestats&&j.icestats.source;s=Array.isArray(s)?s[0]:s;var title=s&&s.title;if(title){track.textContent=title;media(title)}}).catch(function(){})}
+  media('Endless Game Boy radio');status();setInterval(status,10000);
+  if('mediaSession' in navigator){try{navigator.mediaSession.setActionHandler('play',function(){audio.play()});navigator.mediaSession.setActionHandler('pause',function(){audio.pause()})}catch(e){}}
+})();
+</script>
+</body>
+</html>
