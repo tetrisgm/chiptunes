@@ -33601,8 +33601,7 @@ function buildPlaybar(){ _pbEl=document.getElementById('playbar'); if(!_pbEl||_p
       '<div class="pb-dial pb-voldial">'+
         '<button id="pbVolume" class="pb-volume" title="Volume"><span class="pbv-icon">'+svgIcon('spkOn')+'</span><span class="pbv-t">VOL</span><span class="pbd-read pb-volread" id="pbVolRead">100</span></button>'+
         '<input type="range" id="pbVol" min="0" max="150" step="1" value="100" title="Volume">'+
-      '</div>'+ 
-      '<button id="pbAdvanced" class="pb-adv" title="Advanced volume, tempo and display" aria-label="Advanced volume, tempo and display">'+svgIcon('mixer')+'</button>'+
+      '</div>'+
     '</div>';
   _buildBigPlay();
   // PULL THE NOTES UP. The strip already IS the editor's grid in miniature, so
@@ -33630,7 +33629,6 @@ function buildPlaybar(){ _pbEl=document.getElementById('playbar'); if(!_pbEl||_p
   _wirePlaybarButton('pbNext', _transportNext);
   _wirePlaybarButton('pbPlay', _transportToggle);
   _wirePlaybarButton('pbVolume', function(){ window.toggleMixPanel && window.toggleMixPanel(); });
-  _wirePlaybarButton('pbAdvanced', function(){ window.toggleMixPanel && window.toggleMixPanel(); });
   // REACHING FOR ONE OF THESE IS THE WHOLE INTENT. Both dials are a sliver of
   // the full mixer, and someone who has put the pointer on the tempo or the
   // volume has already said what they came for -- so open it rather than making
@@ -33643,7 +33641,7 @@ function buildPlaybar(){ _pbEl=document.getElementById('playbar'); if(!_pbEl||_p
     try{ fine=!window.matchMedia||window.matchMedia('(hover:hover) and (pointer:fine)').matches; }catch(e){}
     if(!fine) return;
     var t=0;
-    ['.pb-voldial','.pb-adv'].forEach(function(sel){
+    ['.pb-voldial'].forEach(function(sel){
       var el=document.querySelector('#playbar '+sel);
       if(!el) return;
       el.addEventListener('pointerenter', function(ev){
@@ -33677,7 +33675,7 @@ function buildPlaybar(){ _pbEl=document.getElementById('playbar'); if(!_pbEl||_p
       if(el) el.addEventListener('pointerdown', function(ev){ ev.stopPropagation(); });
     });
   })();
-  ['pbVolume','pbAdvanced'].forEach(function(id){ var b=document.getElementById(id);
+  ['pbVolume'].forEach(function(id){ var b=document.getElementById(id);
     if(b && !b._mixHoverWired){ b._mixHoverWired=true;
       b.addEventListener('mouseenter', function(){ if(window.openMixPanel) window.openMixPanel(); }); }
   });
@@ -35829,7 +35827,7 @@ if(String(_pathParts(location.pathname||'/')[0]||'').toLowerCase()==='get') buil
   function toggle(){ var willOpen=(panel.style.display==='none'); if(willOpen) open(); else panel.style.display='none'; }
   window.openMixPanel=open; window.toggleMixPanel=toggle; window.closeMixPanel=function(){ panel.style.display='none'; };
   document.addEventListener('click', function(ev){ if(panel.style.display==='none') return;
-    if(ev.target && ev.target.closest && ev.target.closest('#mixpanel,#pbVolume,#pbAdvanced')) return;
+    if(ev.target && ev.target.closest && ev.target.closest('#mixpanel,#pbVolume,.pb-voldial')) return;
     panel.style.display='none';
   });
   document.addEventListener('keydown', function(ev){ if(shortcutTargetBlocked(ev)) return;

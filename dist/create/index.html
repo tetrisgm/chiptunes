@@ -2554,11 +2554,15 @@
      control rather than a readout that requires opening a menu. */
   body:not(.awaiting-mood) #madeby{
     top:18px; left:18px; right:auto; justify-content:flex-start; }
+  body:not(.awaiting-mood) #madeby .plmade-name,
+  body:not(.awaiting-mood) #madeby .plmade-t{
+    font:600 25px/1 var(--ui) !important;
+    letter-spacing:.005em !important; text-transform:none; }
   body:not(.awaiting-mood) #plinks{ top:82px; }
   body.ai-visual #playbar .pb-center{
-    position:fixed; left:50%; bottom:18px; z-index:23;
-    transform:translate(-50%,8px); display:flex; align-items:center;
-    width:min(600px,46vw); opacity:0; pointer-events:none;
+    position:fixed; left:50%; bottom:.5px; z-index:23;
+    transform:translate(-50%,0); display:flex; align-items:center;
+    width:min(600px,46vw); opacity:1; pointer-events:auto;
     transition:opacity .22s ease,transform .22s ease; }
   body.ai-visual.controls-active #playbar .pb-center{
     opacity:1; pointer-events:auto; transform:translate(-50%,0);
@@ -2572,10 +2576,21 @@
     position:static !important; left:auto !important; bottom:auto !important;
     transform:none !important; width:100% !important;
     min-width:420px !important; opacity:1 !important; }
+  body.ribbon-on.ai-visual #playbar .pb-center .pb-ctrl{
+    padding:5px 12px 6px !important; gap:3px !important; border-radius:12px !important; }
+  body.ai-visual #playbar .pb-center .pb-lcd{
+    width:100%; padding:3px 10px 4px !important; }
+  body.ai-visual #playbar .pb-center .pb-lcd-title{ line-height:1 !important; }
   body.ai-visual #playbar .pb-center .pb-lcd{ width:100%; }
 
-  body.ai-visual #playbar .pb-right{ padding:0 0 0 8px !important; gap:4px !important; }
-  body.ai-visual #playbar .pb-right .pb-voldial{ gap:7px !important; }
+  body.ai-visual #playbar .pb-right{ padding:0 !important; gap:0 !important; background:none !important; border:0 !important; box-shadow:none !important; }
+  body.ai-visual #playbar .pb-right .pb-voldial{
+    gap:7px !important; height:48px; padding:0 14px 0 6px;
+    border-radius:999px; background:var(--mat); border:1px solid var(--mat-edge);
+    box-shadow:var(--mat-shadow); backdrop-filter:var(--mat-blur);
+    -webkit-backdrop-filter:var(--mat-blur); }
+  body.ai-visual #playbar .pb-right .pb-voldial:hover{
+    background:var(--mat-hi); border-color:var(--mat-edge-hi); }
   body.ai-visual #playbar .pb-right .pb-voldial input[type=range]{
     display:block !important; width:150px !important; min-width:150px; }
   body.ai-visual #playbar .pb-right .pb-volume{ padding:0 6px !important; }
@@ -2610,7 +2625,7 @@
     <button id="start" hidden></button>
   </div>
 
-<script src="../app.eeed5ead3b91.js" defer></script>
+<script src="../app.1aceced48592.js" defer></script>
 
 </body>
 </html>

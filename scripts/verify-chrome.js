@@ -171,26 +171,30 @@ function names() {
     const kids = [...right.children].filter(e => e.getClientRects().length);
     const cs = e => getComputedStyle(e);
     return {
-      onlyVolumeAdvanced: kids.filter(e => e !== fs).length === 2 &&
-        kids.filter(e => e !== fs)[0].contains(vol) && kids.filter(e => e !== fs)[1] === adv,
+      onlyVolume: kids.filter(e => e !== fs).length === 1 && kids.filter(e => e !== fs)[0].contains(vol),
       screenHidden: !sc || !sc.getClientRects().length,
       bpmHidden: !bpm || !bpm.getClientRects().length,
       volRight: R(vol).r, fsRight: fs ? R(fs).r : -1, rightEdge: R(right).r,
       volumeText: document.getElementById('pbVolume').textContent.replace(/\s+/g, ' ').trim(),
-      advancedVisible: !!adv && !!adv.getClientRects().length,
+      advancedGone: !adv || !adv.getClientRects().length,
       volumeSlider: (() => { const s=document.getElementById('pbVol'); return s && s.getClientRects().length ? Math.round(R(s).r-R(s).l) : 0; })(),
       trackCenter: Math.round((R(track).l+R(track).r)/2), viewportCenter:Math.round(innerWidth/2),
       transportBeforeTrack: R(transport).r < R(track).l,
+      trackMidY:Math.round((track.getBoundingClientRect().top+track.getBoundingClientRect().bottom)/2),
+      transportMidY:Math.round((transport.getBoundingClientRect().top+transport.getBoundingClientRect().bottom)/2),
+      barMidY:Math.round((document.getElementById('playbar').getBoundingClientRect().top+innerHeight)/2),
       volH: Math.round(R(vol).h), rightPos: cs(right).position, barCls: document.body.className
     };
   });
-  ok(bar.onlyVolumeAdvanced, 'the right dock contains only volume and advanced volume');
+  ok(bar.onlyVolume, 'the right dock contains only the volume chip');
   ok(bar.screenHidden && bar.bpmHidden, 'Visualizer and BPM are absent from the bar');
   ok(/^VOL\s*\d+/.test(bar.volumeText), 'volume remains readable (' + bar.volumeText + ')');
-  ok(bar.advancedVisible, 'the advanced volume button is visible');
+  ok(bar.advancedGone, 'the separate advanced volume icon is gone');
   ok(bar.volumeSlider >= 140, 'the complete volume slider is visible (' + bar.volumeSlider + 'px)');
   ok(Math.abs(bar.trackCenter-bar.viewportCenter) <= 2 && bar.transportBeforeTrack,
      'the track is centred with transport immediately to its left');
+  ok(Math.abs(bar.trackMidY-bar.barMidY) <= 6 && Math.abs(bar.transportMidY-bar.barMidY) <= 6,
+     'track and transport are vertically centred in the bottom bar ('+bar.trackMidY+'/'+bar.transportMidY+' vs '+bar.barMidY+')');
   ok(bar.rightEdge - bar.fsRight < 2,
      'fullscreen is hard against its right edge (' + Math.round(bar.rightEdge - bar.fsRight) + 'px)');
   console.log('       state: ' + bar.barCls + ' | right ' + bar.rightPos + ' | vol ' + bar.volH);
@@ -203,7 +207,7 @@ function names() {
     try { if (window.closeMixPanel) closeMixPanel(); } catch (e) {}
     const before = panel();
     const out = {};
-    for (const sel of ['.pb-voldial', '.pb-adv']) {
+    for (const sel of ['.pb-voldial']) {
       try { if (window.closeMixPanel) closeMixPanel(); } catch (e) {}
       const el = document.querySelector('#playbar ' + sel);
       if (!el) { out[sel] = 'missing'; continue; }
@@ -222,8 +226,7 @@ function names() {
   });
   ok(hover.before === false, 'the mixer starts closed');
   ok(hover['.pb-voldial'] === true, 'hovering volume opens the advanced menu');
-  ok(hover['.pb-adv'] === true, 'hovering its advanced icon opens the menu too');
-  ok(hover['.pb-voldial:cancelled'] === false && hover['.pb-adv:cancelled'] === false,
+  ok(hover['.pb-voldial:cancelled'] === false,
      'a pointer passing straight over does not open it');
 
   const display = await p.evaluate(() => {
@@ -248,12 +251,16 @@ function names() {
     const labels = made ? [...made.querySelectorAll('.plmade-btn .plink-t')].filter(x => x.getClientRects().length).map(x => x.textContent.trim()) : [];
     const r = made && made.getBoundingClientRect();
     const rail=document.getElementById('plinks'), rr=rail&&rail.getBoundingClientRect();
+    const type=[made&&made.querySelector('.plmade-name'), made&&made.querySelector('.plmade-t'), rail&&rail.querySelector('.plink-t')]
+      .map(x=>x ? [getComputedStyle(x).fontFamily,getComputedStyle(x).fontSize,getComputedStyle(x).fontWeight] : []);
     return { href:a ? a.href : null, hnHidden:!hn || !hn.getClientRects().length,
-      labels, left:r ? Math.round(r.left) : -1, aboveRail:!!r&&!!rr&&r.bottom<rr.top };
+      labels, left:r ? Math.round(r.left) : -1, aboveRail:!!r&&!!rr&&r.bottom<rr.top, type };
   });
   ok(/github\.com\/[^/]+\/chiptunes\/?$/.test(credit.href || ''), 'GitHub goes to the repository (' + credit.href + ')');
   ok(credit.hnHidden && credit.labels.length === 0, 'playing hides Hacker News and the social labels');
   ok(credit.left <= 20 && credit.aboveRail, 'the playing credit sits above the left rail (' + credit.left + 'px)');
+  ok(credit.type.every(x => JSON.stringify(x) === JSON.stringify(credit.type[0])),
+     'the product name, credit and rail use one type style (' + credit.type[0].join(', ') + ')');
 
   ok(errs.length === 0, 'no page errors' + (errs.length ? ': ' + errs[0] : ''));
   await b.close(); h.s.close();
