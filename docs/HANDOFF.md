@@ -1598,3 +1598,4 @@ Reported as "severe performance issues running the website overall", in Safari.
 - The stream advertises CHIPTUNES.APP, “Endless Game Boy radio,” the requested genre set, square artwork, and `Game Boy - Track Title` ICY titles.
 - Every generated track-ready event produces a 300 ms CRT/noise transition, covering both skips and natural handoffs.
 - The player-bar track title uses the same 25 px/600 system type treatment as the rest of the playing UI and the bar contents are vertically centred.
+- Radio Browser accepted the public station as UUID `967010ce-34f5-460d-beb4-67a196c49d9b`.

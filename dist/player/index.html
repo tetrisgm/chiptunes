@@ -29,9 +29,9 @@
 <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet" />
 <script>
 (function(){
-  // player-route boot: hide the Home overlay pre-paint for direct track/watch/radio links.
+  // player-route boot: hide the Home overlay pre-paint for direct track/watch/player links.
   // /track/<slug> (generated; slug may carry a '<composerId>.' prefix)
-  // /watch (silent wallpaper) · /radio (mints a fresh generated track).
+  // /watch (silent wallpaper) · /player (mints a fresh generated track).
   var path=(location.pathname||'/').replace(/^\/+|\/+$/g,''), slug=path;
   try{ slug=decodeURIComponent(slug); }catch(e){}
   slug=String(slug||'').toLowerCase();
@@ -45,8 +45,8 @@
     document.documentElement.classList.add('boot-player-route');
     window.__RRR_BOOT_PLAYER_ROUTE=true;
   }
-  // /radio is deliberately distinct from root: root always means landing,
-  // while /radio is the now-playing screen.
+  // /player is deliberately distinct from root: root always means landing,
+  // while /player is the now-playing screen.
 })();
 </script>
 <style>
@@ -2666,7 +2666,7 @@
     <button id="start" hidden></button>
   </div>
 
-<script src="../app.31bbbf7ff1ff.js" defer></script>
+<script src="../app.e27b1484edfb.js" defer></script>
 
 </body>
 </html>

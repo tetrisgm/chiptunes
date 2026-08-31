@@ -70,4 +70,20 @@ The technical half of the "listen anywhere" package is built and live:
 - `/radio`, with browser playback, app handoff, copy feedback, Broadcasts,
   compatibility links, and a desktop QR code.
 
+## Directory status (2026-08-31)
+
+- **Radio Browser:** submitted and accepted. Station UUID:
+  `967010ce-34f5-460d-beb4-67a196c49d9b`.
+- **myTuner:** requires a broadcaster account and ownership validation.
+- **radio.net:** requires a contact person, business/postal address, email,
+  country, and acceptance of its linking agreement.
+- **Online Radio Box:** requires an owner feedback/contact submission.
+- **TuneIn:** requires a manager email, station location/time zone, mailing
+  address and licensing/rights declarations; US stations also enter TuneIn's
+  paid On Air path.
+
+The latter four cannot be truthfully submitted from repository data alone;
+their forms require owner identity, location, rights declarations, and/or
+account access.
+
 What is missing is only the directory listings above.

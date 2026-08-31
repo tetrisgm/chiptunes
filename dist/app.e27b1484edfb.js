@@ -34881,14 +34881,14 @@ function unlockAudioSession(){
 
 // ---- URL routing: /track/<slug> is the current generated track. Each generated song updates it via replaceState;
 // loading a track URL reseeds that exact song. The GAME is NOT in the URL path; ?game= is a presentation setting.
-// Route table: / (home) · /radio · /watch · /track/<slug>. Legacy heads redirect home. ----
+// Route table: / (home) · /player · /watch · /track/<slug>. Legacy heads redirect home. ----
 function _pathParts(path){
   var p=String(path||location.pathname||'/').split('?')[0].replace(/^\/+|\/+$/g,'');
   if(!p) return [];
   return p.split('/').map(function(x){ try{ return decodeURIComponent(x); }catch(e){ return x; } });
 }
 // Root belongs exclusively to the landing page. Generated playback uses the
-// stable /radio route; a song somebody keeps is still shared as a document.
+// stable /player route; a song somebody keeps is still shared as a document.
 function _generatedRoute(){
   var p=(location.pathname||'/');
   return p==='/watch' ? p : '/player';
