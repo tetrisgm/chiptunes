@@ -99,6 +99,7 @@ function names() {
 
   // ---- 3. the ask, on the landing page ------------------------------------
   console.log('the ask');
+  ok(!await p.$('#intro .intro-hero'), 'the obsolete splash screen is absent');
   const ask = await p.evaluate(() => {
     const lab = document.querySelector('#rmoods .rmood-ask .rmood-lab');
     const pill = document.querySelector('#rmoods .rbtn.rmood');

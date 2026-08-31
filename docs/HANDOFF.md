@@ -1599,4 +1599,5 @@ Reported as "severe performance issues running the website overall", in Safari.
 - Every generated track-ready event produces a 300 ms CRT/noise transition, covering both skips and natural handoffs.
 - The player-bar track title uses the same 25 px/600 system type treatment as the rest of the playing UI and the bar contents are vertically centred.
 - The playing dock is a single baseline with three non-overlapping zones: a 420 px metadata lane that keeps Share visible, a flexible transport/progress lane, and volume/fullscreen on the right.
+- The root landing page opens directly on the Game Boy chooser; the separate CHIPTUNES.APP introductory splash overlay was removed.
 - Radio Browser accepted the public station as UUID `967010ce-34f5-460d-beb4-67a196c49d9b`.
