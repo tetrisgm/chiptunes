@@ -205,10 +205,9 @@ const Audio = (()=>{
       // browser and the offline renderer disagree (their filter and compressor
       // implementations differ). Same JS, same notes, same samples, either side.
       var GB=(typeof globalThis!=='undefined'?globalThis:window).CT_GB_APU;
-      if(GB && score && score.gb && score.gb.notes && score.gb.notes.length){
+      if(GB && score && score.gb && ((score.gb.notes&&score.gb.notes.length)||(score.gb.kit&&score.gb.kit.length))){
         var gsr=opts.sampleRate||48000;
-        var mono=GB.render({notes:score.gb.notes, bank:score.gb.bank,
-                            totalFrames:score.gb.totalFrames}, gsr);
+        var mono=GB.render(score.gb, gsr);
         return Promise.resolve({left:mono, right:mono, sampleRate:gsr});
       }
       if(typeof OfflineAudioContext==='undefined' || typeof AudioWorkletNode==='undefined')

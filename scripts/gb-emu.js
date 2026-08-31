@@ -79,7 +79,7 @@ if (require.main === module) {
   console.log('  cartridge executed: ' + cpu.frame + ' LCD frames, ' +
               (cpu.cycles / APU.MASTER).toFixed(2) + 's of machine time, ' + (Date.now() - t0) + 'ms');
   t0 = Date.now();
-  const site = APU.render({ notes: score.gb.notes, bank: score.gb.bank, totalFrames: score.gb.totalFrames }, sr)
+  const site = APU.render(score.gb, sr)
                   .subarray(0, pcm.length);
   console.log('  browser chip rendered the same score, ' + (Date.now() - t0) + 'ms');
   fs.writeFileSync(path.join(ROOT, 'rom.wav'), wav(pcm, sr));

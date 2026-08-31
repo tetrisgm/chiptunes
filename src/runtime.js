@@ -3287,7 +3287,7 @@ function _audioFilename(ext){
   return String(n).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'') + '.' + ext;
 }
 function _renderTrackPcm(score, sr){
-  return CT_GB_APU.render({notes:score.gb.notes, bank:score.gb.bank, totalFrames:score.gb.totalFrames}, sr);
+  return CT_GB_APU.render(score.gb, sr);
 }
 function _pcmToWav(pcm, sr){
   var n=pcm.length, buf=new ArrayBuffer(44+n*2), v=new DataView(buf);

@@ -142,13 +142,13 @@ class NodeRenderEngine {
     const score = composer.compile(token);
     let timer;
     let audio;
-    const isGb = !!(score && score.gb && score.gb.notes && score.gb.notes.length);
+    const isGb = !!(score && score.gb && ((score.gb.notes && score.gb.notes.length) ||
+                                          (score.gb.kit && score.gb.kit.length)));
     if (isGb) {
       // identical arithmetic to the browser; everything downstream (silence
       // gate, peak checks, interleave) still applies
       const sr = sampleRate || 48000;
-      const mono = GB_APU.render({ notes: score.gb.notes, bank: score.gb.bank,
-                                   totalFrames: score.gb.totalFrames }, sr);
+      const mono = GB_APU.render(score.gb, sr);
       audio = { left: mono, right: mono, sampleRate: sr };
     } else {
       try {

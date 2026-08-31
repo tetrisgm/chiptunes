@@ -1187,9 +1187,8 @@
   // ---- exports -------------------------------------------------------------
   function exportRom() {
     var song = liveScore || buildSong();
-    var score = { gb: { notes: song.notes, bank: song.bank, totalFrames: song.totalFrames, fps: FPS } };
     try {
-      var rom = G.CT_GB_ROM.buildRom(score, { title: 'MY CREATION' });
+      var rom = G.CT_GB_ROM.buildRom({ gb: song }, { title: 'MY CREATION' });
       _saveBlob(new Blob([rom], { type: 'application/octet-stream' }), 'my-creation.gb');
       if (G._toast) G._toast('Downloaded my-creation.gb. It boots on a real Game Boy 🎮');
     } catch (e) { if (G._toast) G._toast('ROM export failed: ' + (e && e.message || e)); }
@@ -1197,7 +1196,7 @@
   function exportWav() {
     var song = liveScore || buildSong(), sr = 44100;
     try {
-      var pcm = G.CT_GB_APU.render({ notes: song.notes, bank: song.bank, totalFrames: song.totalFrames }, sr);
+      var pcm = G.CT_GB_APU.render(song, sr);
       _saveBlob(_pcmToWav(pcm, sr), 'my-creation.wav');
       if (G._toast) G._toast('Downloaded my-creation.wav');
     } catch (e) { if (G._toast) G._toast('WAV export failed: ' + (e && e.message || e)); }

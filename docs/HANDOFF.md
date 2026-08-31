@@ -1558,6 +1558,21 @@ Reported as "severe performance issues running the website overall", in Safari.
   `verify-mood-constraints` holds the constraint behavior and checksum;
   `verify-entry` holds the production interaction to exactly one compiler call.
 
+## Complete chip-song exports (2026-08-30)
+
+- Create ROM/WAV and station WAV/AAC wrappers used to reconstruct a chip song
+  from only `notes`, `bank` and `totalFrames`. That silently discarded `auto`,
+  `vibOff`, `waveLoads` and `kit`, so exported performances could lose duty,
+  pan and pitch motion, let vibrato overwrite glides, miss wave-table changes,
+  or omit sampled drums even though live playback retained them.
+- Export and offline-render boundaries now pass the complete `gb` song object
+  rather than enumerating its current schema. The same invariant covers the
+  browser engine, Node broadcast renderer and ROM-audio comparison helpers;
+  kit-only chip scores are accepted by both renderer entry points.
+- `verify-export-boundaries` edits a real song until it contains all four data
+  classes, intercepts the actual Create ROM/WAV buttons, and checks the shared
+  station WAV/AAC boundary with sentinels. It is part of the main test gate.
+
 ### Still worth doing when the environment permits
 
 - A quiet-machine performance capture at other viewport sizes could still be

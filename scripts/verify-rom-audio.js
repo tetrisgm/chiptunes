@@ -142,7 +142,7 @@ for (const seed of SEEDS) {
 
   // ---- 2. sound ---------------------------------------------------------
   const romPcm = emu.renderRom(rom, { seconds: SECONDS, sampleRate: SR }).pcm;
-  const sitePcm = APU.render({ notes: score.gb.notes, bank: score.gb.bank, totalFrames: score.gb.totalFrames }, SR);
+  const sitePcm = APU.render(score.gb, SR);
   // The driver acts after vblank, so the cartridge lags the browser by a fixed
   // ~17ms. Align on it once rather than pretending it is not there.
   const LAG = Math.round(0.0176 * SR);

@@ -3756,9 +3756,8 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   // ---- exports -------------------------------------------------------------
   function exportRom() {
     var song = liveScore || buildSong();
-    var score = { gb: { notes: song.notes, bank: song.bank, totalFrames: song.totalFrames, fps: FPS } };
     try {
-      var rom = G.CT_GB_ROM.buildRom(score, { title: 'MY CREATION' });
+      var rom = G.CT_GB_ROM.buildRom({ gb: song }, { title: 'MY CREATION' });
       _saveBlob(new Blob([rom], { type: 'application/octet-stream' }), 'my-creation.gb');
       if (G._toast) G._toast('Downloaded my-creation.gb. It boots on a real Game Boy 🎮');
     } catch (e) { if (G._toast) G._toast('ROM export failed: ' + (e && e.message || e)); }
@@ -3766,7 +3765,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   function exportWav() {
     var song = liveScore || buildSong(), sr = 44100;
     try {
-      var pcm = G.CT_GB_APU.render({ notes: song.notes, bank: song.bank, totalFrames: song.totalFrames }, sr);
+      var pcm = G.CT_GB_APU.render(song, sr);
       _saveBlob(_pcmToWav(pcm, sr), 'my-creation.wav');
       if (G._toast) G._toast('Downloaded my-creation.wav');
     } catch (e) { if (G._toast) G._toast('WAV export failed: ' + (e && e.message || e)); }
@@ -6310,10 +6309,9 @@ const Audio = (()=>{
       // browser and the offline renderer disagree (their filter and compressor
       // implementations differ). Same JS, same notes, same samples, either side.
       var GB=(typeof globalThis!=='undefined'?globalThis:window).CT_GB_APU;
-      if(GB && score && score.gb && score.gb.notes && score.gb.notes.length){
+      if(GB && score && score.gb && ((score.gb.notes&&score.gb.notes.length)||(score.gb.kit&&score.gb.kit.length))){
         var gsr=opts.sampleRate||48000;
-        var mono=GB.render({notes:score.gb.notes, bank:score.gb.bank,
-                            totalFrames:score.gb.totalFrames}, gsr);
+        var mono=GB.render(score.gb, gsr);
         return Promise.resolve({left:mono, right:mono, sampleRate:gsr});
       }
       if(typeof OfflineAudioContext==='undefined' || typeof AudioWorkletNode==='undefined')
@@ -34325,7 +34323,7 @@ function _audioFilename(ext){
   return String(n).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'') + '.' + ext;
 }
 function _renderTrackPcm(score, sr){
-  return CT_GB_APU.render({notes:score.gb.notes, bank:score.gb.bank, totalFrames:score.gb.totalFrames}, sr);
+  return CT_GB_APU.render(score.gb, sr);
 }
 function _pcmToWav(pcm, sr){
   var n=pcm.length, buf=new ArrayBuffer(44+n*2), v=new DataView(buf);
