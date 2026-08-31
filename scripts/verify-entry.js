@@ -108,8 +108,13 @@ const peak = async (p, ms) => {
   await wait(3500);
   ok((await peak(p, 3000)) > 0.02, 'pressing play starts one anyway (it means "surprise me")');
 
-  await p.reload({ waitUntil: 'domcontentloaded' });
+  ok(await p.evaluate(() => location.pathname === '/radio'),
+     'playing leaves the homepage address for /radio');
+
+  await p.goto(`http://127.0.0.1:${h.port}/`, { waitUntil: 'domcontentloaded' });
   await wait(4000);
+  ok(await p.evaluate(() => location.pathname === '/' && document.body.classList.contains('awaiting-mood')),
+     'returning to / always returns to the landing page');
   await p.evaluate(() => {
     const C = CT_COMPOSERS.rrr_core;
     const original = C.compile;

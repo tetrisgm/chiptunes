@@ -164,33 +164,29 @@ function names() {
   const bar = await p.evaluate(() => {
     const R = e => { const b = e.getBoundingClientRect(); return { l: b.left, r: b.right, h: b.height }; };
     const right = document.querySelector('#playbar .pb-right');
-    const vol = document.querySelector('#playbar .pb-voldial'), sc = document.getElementById('pbScreen');
+    const vol = document.querySelector('#playbar .pb-voldial'), adv = document.getElementById('pbAdvanced');
+    const sc = document.getElementById('pbScreen'), bpm = document.querySelector('#playbar .pb-bpmdial');
     const fs = document.getElementById('rfullscreen');
     const kids = [...right.children].filter(e => e.getClientRects().length);
     const cs = e => getComputedStyle(e);
-    // what the button looks like with the CRT showing vs with a console showing
-    sc.classList.remove('on');
-    const off = cs(sc).backgroundColor + ' ' + cs(sc).color;
-    sc.classList.add('on');
-    const on = cs(sc).backgroundColor + ' ' + cs(sc).color;
     return {
-      volLast: !!(kids.length && kids[kids.length - 2].contains(vol)),
+      onlyVolumeAdvanced: kids.filter(e => e !== fs).length === 2 &&
+        kids.filter(e => e !== fs)[0].contains(vol) && kids.filter(e => e !== fs)[1] === adv,
+      screenHidden: !sc || !sc.getClientRects().length,
+      bpmHidden: !bpm || !bpm.getClientRects().length,
       volRight: R(vol).r, fsRight: fs ? R(fs).r : -1, rightEdge: R(right).r,
-      screenSame: on === off, on, off,
-      screenH: Math.round(R(sc).h), fsH: fs ? Math.round(R(fs).h) : -1,
-      volH: Math.round(R(vol).h),
-      dockPos: cs(document.querySelector('#playbar .pb-screendock')).position,
-      rightPos: cs(right).position, barCls: document.body.className,
-      pad: cs(sc).paddingLeft + ' ' + cs(sc).paddingRight
+      volumeText: document.getElementById('pbVolume').textContent.replace(/\s+/g, ' ').trim(),
+      advancedVisible: !!adv && !!adv.getClientRects().length,
+      volH: Math.round(R(vol).h), rightPos: cs(right).position, barCls: document.body.className
     };
   });
-  ok(bar.volLast, 'the volume is the last group in the bar');
+  ok(bar.onlyVolumeAdvanced, 'the right dock contains only volume and advanced volume');
+  ok(bar.screenHidden && bar.bpmHidden, 'Visualizer and BPM are absent from the bar');
+  ok(/^VOL\s*\d+/.test(bar.volumeText), 'volume remains readable (' + bar.volumeText + ')');
+  ok(bar.advancedVisible, 'the advanced volume button is visible');
   ok(bar.rightEdge - bar.fsRight < 2,
      'fullscreen is hard against its right edge (' + Math.round(bar.rightEdge - bar.fsRight) + 'px)');
-  ok(bar.screenSame, 'the Display button looks the same whichever screen is on');
-  console.log('       state: ' + bar.barCls + ' | dock ' + bar.dockPos + ' | right ' + bar.rightPos +
-              ' | screen ' + bar.screenH + ' fullscreen ' + bar.fsH + ' vol ' + bar.volH + ' pad ' + bar.pad);
-  ok(bar.screenH === bar.fsH, 'and takes the same box as fullscreen (' + bar.screenH + ' vs ' + bar.fsH + 'px)');
+  console.log('       state: ' + bar.barCls + ' | right ' + bar.rightPos + ' | vol ' + bar.volH);
 
   // ---- reaching for a dial opens the mixer --------------------------------
   console.log('the dials');
@@ -200,7 +196,7 @@ function names() {
     try { if (window.closeMixPanel) closeMixPanel(); } catch (e) {}
     const before = panel();
     const out = {};
-    for (const sel of ['.pb-bpmdial', '.pb-voldial']) {
+    for (const sel of ['.pb-voldial', '.pb-adv']) {
       try { if (window.closeMixPanel) closeMixPanel(); } catch (e) {}
       const el = document.querySelector('#playbar ' + sel);
       if (!el) { out[sel] = 'missing'; continue; }
@@ -218,19 +214,33 @@ function names() {
     return Object.assign({ before }, out);
   });
   ok(hover.before === false, 'the mixer starts closed');
-  ok(hover['.pb-bpmdial'] === true, 'hovering BPM opens the mixer');
-  ok(hover['.pb-voldial'] === true, 'hovering the volume opens it too');
-  ok(hover['.pb-bpmdial:cancelled'] === false && hover['.pb-voldial:cancelled'] === false,
+  ok(hover['.pb-voldial'] === true, 'hovering volume opens the advanced menu');
+  ok(hover['.pb-adv'] === true, 'hovering its advanced icon opens the menu too');
+  ok(hover['.pb-voldial:cancelled'] === false && hover['.pb-adv:cancelled'] === false,
      'a pointer passing straight over does not open it');
+
+  const display = await p.evaluate(() => {
+    if (window.openMixPanel) openMixPanel();
+    const buttons = [...document.querySelectorAll('#mixpanel .mixdisplay button')];
+    return buttons.map(b => b.textContent.trim());
+  });
+  ok(display.join('|') === 'Random|Modern|Game Boy|NES',
+     'display modes moved into the advanced menu (' + display.join(', ') + ')');
 
   // ---- 5. the credit ------------------------------------------------------
   console.log('the credit');
-  const gh = await p.evaluate(() => {
+  const credit = await p.evaluate(() => {
     const a = [...document.querySelectorAll('a.plmade-btn, #madeby a, #plinks a')]
       .find(x => /github/i.test(x.textContent) || /github\.com/.test(x.href || ''));
-    return a ? a.href : null;
+    const made = document.getElementById('madeby'), hn = made && made.querySelector('.plmade-hn');
+    const labels = made ? [...made.querySelectorAll('.plmade-btn .plink-t')].filter(x => x.getClientRects().length).map(x => x.textContent.trim()) : [];
+    const r = made && made.getBoundingClientRect();
+    return { href:a ? a.href : null, hnHidden:!hn || !hn.getClientRects().length,
+      labels, right:r ? Math.round(innerWidth-r.right) : -1 };
   });
-  ok(/github\.com\/[^/]+\/chiptunes\/?$/.test(gh || ''), 'GitHub goes to the repository (' + gh + ')');
+  ok(/github\.com\/[^/]+\/chiptunes\/?$/.test(credit.href || ''), 'GitHub goes to the repository (' + credit.href + ')');
+  ok(credit.hnHidden && credit.labels.length === 0, 'playing hides Hacker News and the social labels');
+  ok(credit.right <= 20, 'the playing credit is aligned right (' + credit.right + 'px)');
 
   ok(errs.length === 0, 'no page errors' + (errs.length ? ': ' + errs[0] : ''));
   await b.close(); h.s.close();

@@ -1770,6 +1770,9 @@ function _moodOnAir(m, btn){
       Audio.playDoc(doc.code);
     }catch(e){ if(window._toast) _toast('Could not play it'); return; }
     if(document.body) document.body.classList.remove('awaiting-mood');
+    // Root is the landing-page contract. A mood creates an unnamed document,
+    // so there is no track token whose callback could move it off root.
+    try{ if(location.pathname==='/' && history.replaceState) history.replaceState(null,'','/radio'+_routeQueryExtras()); }catch(e2){}
     try{ _reelStop(); }catch(e){}
     // No toast on success: the music starting IS the confirmation, and the name
     // is already on the playbar. A box announcing what you just asked for is
@@ -1908,8 +1911,8 @@ function _buildPlayerLinks(){
   var _IC_X='<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">'+
     '<path d="M17.53 3h3.02l-6.6 7.54L21.75 21h-5.9l-4.62-6.04L5.94 21H2.91l7.06-8.07L2.5 3h6.05l4.18 5.52L17.53 3zm-1.06 16.17h1.67L7.6 4.73H5.81l10.66 14.44z"/></svg>';
   // the same pill as every other offer in the rail -- icon, then label
-  function _madeLink(href, ic, label, tip){
-    return '<a class="plink plmade-btn" href="'+href+'" target="_blank" rel="noopener" title="'+tip+'">'+
+  function _madeLink(href, ic, label, tip, extra){
+    return '<a class="plink plmade-btn'+(extra?' '+extra:'')+'" href="'+href+'" target="_blank" rel="noopener" title="'+tip+'">'+
       '<span class="plink-ic">'+ic+'</span><span class="plink-t">'+label+'</span></a>';
   }
   var madeBy='<div class="plmade-line"><span class="plmade-name">Chiptunes.app</span><span class="plmade-t">An AI product experiment by Shokunin</span>'+
@@ -1918,7 +1921,7 @@ function _buildPlayerLinks(){
       // page is that you can read how it works and send a change back
       _madeLink(GITHUB_URL, _IC_GH, 'GitHub', 'Source, issues and pull requests')+
       _madeLink('https://twitter.com/tetrisgm', _IC_X, 'Twitter', 'tetrisgm on X')+
-      _madeLink('https://news.ycombinator.com/user?id=tetrisgm', _IC_HN, 'Hacker News', 'tetrisgm on Hacker News')+
+      _madeLink('https://news.ycombinator.com/user?id=tetrisgm', _IC_HN, 'Hacker News', 'tetrisgm on Hacker News', 'plmade-hn')+
     '</div></div>';
   // the credit is not something you DO with the track, so it is not a rail row:
   // its own corner of the picture, bottom-left, above the player bar
@@ -2560,16 +2563,11 @@ function buildPlaybar(){ _pbEl=document.getElementById('playbar'); if(!_pbEl||_p
     // fast it is going, how loud it is -- each with its own slider when the
     // window has room, and the full mixer one press away.
     '<div class="pb-right">'+
-      '<div class="pb-screendock"><button id="pbScreen" class="pb-screen" title="Choose visualizer"><span class="pbs-t">Visualizer</span></button></div>'+
-      '<div class="pb-dial pb-bpmdial"><span class="pbd-lab">BPM</span>'+ 
-        '<input type="range" id="pbBpm" min="60" max="220" step="1" value="128" title="Tempo">'+
-        '<span class="pbd-read" id="pbBpmRead">\u2014</span></div>'+
-      // volume last, hard against the right edge
       '<div class="pb-dial pb-voldial">'+
-        '<button id="pbVolume" class="pb-volume" title="Volume, mixer &amp; BPM"><span class="pbv-icon">'+svgIcon('mixer')+'</span></button>'+
+        '<button id="pbVolume" class="pb-volume" title="Volume"><span class="pbv-icon">'+svgIcon('spkOn')+'</span><span class="pbv-t">VOL</span><span class="pbd-read pb-volread" id="pbVolRead">100</span></button>'+
         '<input type="range" id="pbVol" min="0" max="150" step="1" value="100" title="Volume">'+
-        '<span class="pbd-read pb-volread" id="pbVolRead">100</span>'+
       '</div>'+ 
+      '<button id="pbAdvanced" class="pb-adv" title="Advanced volume, tempo and display" aria-label="Advanced volume, tempo and display">'+svgIcon('mixer')+'</button>'+
     '</div>';
   _buildBigPlay();
   // PULL THE NOTES UP. The strip already IS the editor's grid in miniature, so
@@ -2596,10 +2594,8 @@ function buildPlaybar(){ _pbEl=document.getElementById('playbar'); if(!_pbEl||_p
   _wirePlaybarButton('pbPrev', _transportPrev);
   _wirePlaybarButton('pbNext', _transportNext);
   _wirePlaybarButton('pbPlay', _transportToggle);
-  _wirePlaybarButton('pbScreen', function(){ toggleGamePicker(); });
-  var visualizerBtn=document.getElementById('pbScreen');
-  if(visualizerBtn && !visualizerBtn._pickerHover){ visualizerBtn._pickerHover=true; visualizerBtn.addEventListener('mouseenter', function(){ openGamePicker(); }); }
   _wirePlaybarButton('pbVolume', function(){ window.toggleMixPanel && window.toggleMixPanel(); });
+  _wirePlaybarButton('pbAdvanced', function(){ window.toggleMixPanel && window.toggleMixPanel(); });
   // REACHING FOR ONE OF THESE IS THE WHOLE INTENT. Both dials are a sliver of
   // the full mixer, and someone who has put the pointer on the tempo or the
   // volume has already said what they came for -- so open it rather than making
@@ -2612,7 +2608,7 @@ function buildPlaybar(){ _pbEl=document.getElementById('playbar'); if(!_pbEl||_p
     try{ fine=!window.matchMedia||window.matchMedia('(hover:hover) and (pointer:fine)').matches; }catch(e){}
     if(!fine) return;
     var t=0;
-    ['.pb-bpmdial','.pb-voldial'].forEach(function(sel){
+    ['.pb-voldial','.pb-adv'].forEach(function(sel){
       var el=document.querySelector('#playbar '+sel);
       if(!el) return;
       el.addEventListener('pointerenter', function(ev){
@@ -2646,10 +2642,10 @@ function buildPlaybar(){ _pbEl=document.getElementById('playbar'); if(!_pbEl||_p
       if(el) el.addEventListener('pointerdown', function(ev){ ev.stopPropagation(); });
     });
   })();
-  var volBtn=document.getElementById('pbVolume');
-  if(volBtn && !volBtn._mixHoverWired){ volBtn._mixHoverWired=true;
-    volBtn.addEventListener('mouseenter', function(){ if(window.openMixPanel) window.openMixPanel(); });
-  }
+  ['pbVolume','pbAdvanced'].forEach(function(id){ var b=document.getElementById(id);
+    if(b && !b._mixHoverWired){ b._mixHoverWired=true;
+      b.addEventListener('mouseenter', function(){ if(window.openMixPanel) window.openMixPanel(); }); }
+  });
   // The track title IS the affordance for track details now that the overflow
   // menu is gone, so it opens them whatever the source.
   document.getElementById('pbTitle').onclick=function(ev){ ev.stopPropagation(); if(window.toggleTrackPanel) toggleTrackPanel(); };
@@ -3856,14 +3852,11 @@ function _pathParts(path){
   if(!p) return [];
   return p.split('/').map(function(x){ try{ return decodeURIComponent(x); }catch(e){ return x; } });
 }
-// A SONG IS NOT ITS NAME ANY MORE. The address bar used to carry the slug that
-// generated the track, which made the name the seed and the URL the song. Songs
-// are made now, not named into being: the station keeps the plain route and a
-// song you want to keep is shared as a Create document, which is the song
-// itself rather than an instruction for rebuilding it.
+// Root belongs exclusively to the landing page. Generated playback uses the
+// stable /radio route; a song somebody keeps is still shared as a document.
 function _generatedRoute(){
   var p=(location.pathname||'/');
-  return (p==='/radio'||p==='/watch') ? p : '/';
+  return p==='/watch' ? p : '/radio';
 }
 function _queryFlag(name){
   try{
@@ -3956,7 +3949,8 @@ function revealApp(){
   if(wasBoot) intro.style.display='none';
   if(document.documentElement) document.documentElement.classList.remove('boot-player-route');
   intro.classList.add('hidden');
-  if(!wasBoot) setTimeout(()=> intro.style.display='none', 500);
+  if(!wasBoot) setTimeout(function(){ intro.style.display='none'; if(_curSlug) syncRoute(_curSlug); }, 500);
+  else if(_curSlug) syncRoute(_curSlug);
   hud.classList.add('show'); presetsBar.classList.add('show');
   if(typeof syncBrowseButton==='function') syncBrowseButton();
   if(typeof syncRadioUI==='function') syncRadioUI();
@@ -4696,6 +4690,17 @@ if(String(_pathParts(location.pathname||'/')[0]||'').toLowerCase()==='get') buil
   var GEN_ROWS=[MASTER_ROW,['lead','Lead / melody'],['bass','Bass'],['kick','Kick'],['snare','Snare / clap'],['hat','Hi-hats'],['arp','Arp'],['pad','Pad'],['fx','FX / risers']];
 
   var panel=document.createElement('div'); panel.id='mixpanel'; panel.style.display='none';
+  var displayHead=document.createElement('div'); displayHead.className='mixnp mixnp-display'; displayHead.innerHTML='<div class="nph">DISPLAY</div>'; panel.appendChild(displayHead);
+  var displayModes=document.createElement('div'); displayModes.className='mixdisplay'; panel.appendChild(displayModes);
+  [['random','Random'],['crt','Modern'],['dmg','Game Boy'],['nes','NES']].forEach(function(mode){
+    var b=document.createElement('button'); b.type='button'; b.className='mixbtn'; b.dataset.screen=mode[0]; b.textContent=mode[1];
+    b.addEventListener('click', function(ev){ ev.stopPropagation();
+      if(typeof window.__rrrScreenMode==='function') window.__rrrScreenMode(mode[0]==='random'?'mix':mode[0]);
+      if(typeof _syncGameBoyPill==='function') _syncGameBoyPill(); syncDisplayModes(); });
+    displayModes.appendChild(b);
+  });
+  function syncDisplayModes(){ var state=(typeof _screenState==='function')?_screenState():'random';
+    displayModes.querySelectorAll('button').forEach(function(b){ b.classList.toggle('on', b.dataset.screen===state); }); }
   var tempoHead=document.createElement('div'); tempoHead.className='mixnp mixnp-tempo'; tempoHead.innerHTML='<div class="nph">TEMPO · BPM</div>'; panel.appendChild(tempoHead);
   var tempoSlot=document.createElement('div'); tempoSlot.id='mixtemposlot'; panel.appendChild(tempoSlot);
   var levelsHead=document.createElement('div'); levelsHead.className='mixhead'; levelsHead.innerHTML='<div class="nph">LEVELS</div>';
@@ -4785,11 +4790,11 @@ if(String(_pathParts(location.pathname||'/')[0]||'').toLowerCase()==='get') buil
   window.refreshMixPanel=function(){ buildRows(); syncSliders(); };
   buildRows();
   document.body.appendChild(panel);
-  function open(){ panel.style.display='block'; adoptTempo(); buildRows(); if(typeof syncTempoUI==='function') syncTempoUI(); syncSliders(); if(window.closeTrackPanel) window.closeTrackPanel(); }
+  function open(){ panel.style.display='block'; adoptTempo(); buildRows(); syncDisplayModes(); if(typeof syncTempoUI==='function') syncTempoUI(); syncSliders(); if(window.closeTrackPanel) window.closeTrackPanel(); }
   function toggle(){ var willOpen=(panel.style.display==='none'); if(willOpen) open(); else panel.style.display='none'; }
   window.openMixPanel=open; window.toggleMixPanel=toggle; window.closeMixPanel=function(){ panel.style.display='none'; };
   document.addEventListener('click', function(ev){ if(panel.style.display==='none') return;
-    if(ev.target && ev.target.closest && ev.target.closest('#mixpanel,#pbVolume')) return;
+    if(ev.target && ev.target.closest && ev.target.closest('#mixpanel,#pbVolume,#pbAdvanced')) return;
     panel.style.display='none';
   });
   document.addEventListener('keydown', function(ev){ if(shortcutTargetBlocked(ev)) return;
@@ -4801,6 +4806,10 @@ if(String(_pathParts(location.pathname||'/')[0]||'').toLowerCase()==='get') buil
     '.mixnp{margin:14px 0 8px;padding-top:11px;border-top:1px solid #234;}'+
     '.mixnp-tempo{margin:-2px 0 10px;padding-top:0;padding-bottom:12px;border-top:0;border-bottom:1px solid #234;}'+
     '.mixnp-volume{margin:15px 0 8px;padding-top:12px;border-top:1px solid #345;}'+
+    '.mixnp-display{margin:-2px 0 8px;padding-top:0;border-top:0;}'+
+    '.mixdisplay{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid #234;}'+
+    '.mixdisplay .mixbtn{justify-content:center;padding:8px 6px;}'+
+    '.mixdisplay .mixbtn.on{background:#28546a;color:#fff;border-color:#6cf;}'+
     '.mixnp .nph,.mixhead .nph{color:#6cf;font-size:13px;letter-spacing:0;}'+
     '.mixnp .npg{color:#e6c8ff;font-size:17px;margin:3px 0;text-transform:uppercase;letter-spacing:0;}'+
     '.mixnp .npd{color:#7787a8;font-size:14px;line-height:1.5;}'+

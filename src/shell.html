@@ -38,21 +38,15 @@
   var parts=slug.split('/').filter(Boolean);
   var aiTrackRoute=!!(parts[0]==='track' && parts[1] && !parts[2] && /^[a-z0-9][a-z0-9._-]*$/.test(parts[1]));
   var modeRoute=(parts.length===1 && (parts[0]==='watch' || parts[0]==='radio' || parts[0]==='gameboy' || parts[0]==='create'));
-  // The ROOT is a player route. The station used to open on a page listing the
-  // ways to listen, with the game running muted behind it; you had to press
-  // Listen now to get to the thing the page was describing. It starts now, and
-  // the platform page moved to /get for the one pill that needs it.
-  var rootRoute=(parts.length===0);
-  if(aiTrackRoute || modeRoute || rootRoute){
+  // Root is always the landing page. Once a visitor starts a song the runtime
+  // gives it a /track URL, so restoring or reloading / can never resurrect a
+  // playing screen under the homepage address.
+  if(aiTrackRoute || modeRoute){
     document.documentElement.classList.add('boot-player-route');
     window.__RRR_BOOT_PLAYER_ROUTE=true;
   }
-  // The station's address is chiptunes.app, not chiptunes.app/radio. /radio
-  // still serves it -- the link is in the wild and the stream directories carry
-  // it -- but it rewrites to the root before first paint so the bar agrees.
-  if(parts.length===1 && parts[0]==='radio'){
-    try{ history.replaceState(null,'','/'+(location.search||'')+(location.hash||'')); }catch(e2){}
-  }
+  // /radio is deliberately distinct from root: root always means landing,
+  // while /radio is the now-playing screen.
 })();
 </script>
 <style>
@@ -2530,6 +2524,30 @@
      one family means one weight, so it reads like its neighbours */
   #playbar .pb-adv{ opacity:.9 !important; }
   #playbar .pb-adv:hover{ opacity:1 !important; }
+
+  /* Playing masthead: a quiet, right-aligned credit with icon-only social
+     links. The landing page keeps its complete labels and Hacker News link. */
+  body:not(.awaiting-mood) #madeby{
+    left:auto; right:18px; max-width:calc(100vw - 36px);
+    justify-content:flex-end; flex-wrap:nowrap; }
+  body:not(.awaiting-mood) #madeby .plmade-row{ flex-wrap:nowrap; }
+  body:not(.awaiting-mood) #madeby .plmade-btn{
+    width:var(--btn-h); min-width:var(--btn-h); height:var(--btn-h);
+    padding:0 !important; border-radius:50%; }
+  body:not(.awaiting-mood) #madeby .plmade-btn .plink-t{ display:none !important; }
+  body:not(.awaiting-mood) #madeby .plmade-hn{ display:none !important; }
+
+  /* The bottom-right dock exposes only volume and its advanced menu. Tempo and
+     display remain available inside that menu instead of occupying the bar. */
+  #playbar .pb-right .pb-screendock,
+  #playbar .pb-right .pb-bpmdial{ display:none !important; }
+  #playbar .pb-right{ gap:6px !important; }
+  #playbar .pb-right .pb-voldial{ display:flex !important; align-items:center; }
+  #playbar .pb-right .pb-volume{
+    width:auto !important; min-width:0 !important; padding:0 8px !important;
+    gap:5px !important; border-radius:6px !important; }
+  #playbar .pb-right .pb-volume #pbVolRead{ display:inline !important; }
+  #playbar .pb-right .pb-volume .pbv-t{ display:inline !important; }
 </style>
 </head>
 <body>
