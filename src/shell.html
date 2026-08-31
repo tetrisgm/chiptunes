@@ -2548,6 +2548,42 @@
     gap:5px !important; border-radius:6px !important; }
   #playbar .pb-right .pb-volume #pbVolRead{ display:inline !important; }
   #playbar .pb-right .pb-volume .pbv-t{ display:inline !important; }
+
+  /* Playing composition: credit and rail share the left edge; the transport
+     and song are one centred unit; the right edge gets a complete volume
+     control rather than a readout that requires opening a menu. */
+  body:not(.awaiting-mood) #madeby{
+    top:18px; left:18px; right:auto; justify-content:flex-start; }
+  body:not(.awaiting-mood) #plinks{ top:82px; }
+  body.ai-visual #playbar .pb-center{
+    position:fixed; left:50%; bottom:18px; z-index:23;
+    transform:translate(-50%,8px); display:flex; align-items:center;
+    width:min(600px,46vw); opacity:0; pointer-events:none;
+    transition:opacity .22s ease,transform .22s ease; }
+  body.ai-visual.controls-active #playbar .pb-center{
+    opacity:1; pointer-events:auto; transform:translate(-50%,0);
+    transition:opacity var(--fade-in),transform .22s ease; }
+  body.ai-visual #playbar .pb-center .pb-main-ctrl{
+    position:absolute; right:calc(100% + 12px); flex:0 0 auto;
+    padding:4px 6px; border-radius:999px;
+    background:var(--mat); border:1px solid var(--mat-edge); box-shadow:var(--mat-shadow);
+    backdrop-filter:var(--mat-blur); -webkit-backdrop-filter:var(--mat-blur); }
+  body.ai-visual #playbar .pb-center .pb-ctrl{
+    position:static !important; left:auto !important; bottom:auto !important;
+    transform:none !important; width:100% !important;
+    min-width:420px !important; opacity:1 !important; }
+  body.ai-visual #playbar .pb-center .pb-lcd{ width:100%; }
+
+  body.ai-visual #playbar .pb-right{ padding:0 0 0 8px !important; gap:4px !important; }
+  body.ai-visual #playbar .pb-right .pb-voldial{ gap:7px !important; }
+  body.ai-visual #playbar .pb-right .pb-voldial input[type=range]{
+    display:block !important; width:150px !important; min-width:150px; }
+  body.ai-visual #playbar .pb-right .pb-volume{ padding:0 6px !important; }
+  @media (max-width:1180px){
+    body.ai-visual #playbar .pb-right .pb-voldial input[type=range]{ display:block !important; width:105px !important; min-width:105px; }
+    body.ai-visual #playbar .pb-center{ width:42vw; }
+    body.ai-visual #playbar .pb-center .pb-ctrl{ min-width:300px !important; }
+  }
 </style>
 </head>
 <body>

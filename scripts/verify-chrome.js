@@ -167,6 +167,7 @@ function names() {
     const vol = document.querySelector('#playbar .pb-voldial'), adv = document.getElementById('pbAdvanced');
     const sc = document.getElementById('pbScreen'), bpm = document.querySelector('#playbar .pb-bpmdial');
     const fs = document.getElementById('rfullscreen');
+    const track = document.querySelector('#playbar .pb-ctrl'), transport=document.querySelector('#playbar .pb-main-ctrl');
     const kids = [...right.children].filter(e => e.getClientRects().length);
     const cs = e => getComputedStyle(e);
     return {
@@ -177,6 +178,9 @@ function names() {
       volRight: R(vol).r, fsRight: fs ? R(fs).r : -1, rightEdge: R(right).r,
       volumeText: document.getElementById('pbVolume').textContent.replace(/\s+/g, ' ').trim(),
       advancedVisible: !!adv && !!adv.getClientRects().length,
+      volumeSlider: (() => { const s=document.getElementById('pbVol'); return s && s.getClientRects().length ? Math.round(R(s).r-R(s).l) : 0; })(),
+      trackCenter: Math.round((R(track).l+R(track).r)/2), viewportCenter:Math.round(innerWidth/2),
+      transportBeforeTrack: R(transport).r < R(track).l,
       volH: Math.round(R(vol).h), rightPos: cs(right).position, barCls: document.body.className
     };
   });
@@ -184,6 +188,9 @@ function names() {
   ok(bar.screenHidden && bar.bpmHidden, 'Visualizer and BPM are absent from the bar');
   ok(/^VOL\s*\d+/.test(bar.volumeText), 'volume remains readable (' + bar.volumeText + ')');
   ok(bar.advancedVisible, 'the advanced volume button is visible');
+  ok(bar.volumeSlider >= 140, 'the complete volume slider is visible (' + bar.volumeSlider + 'px)');
+  ok(Math.abs(bar.trackCenter-bar.viewportCenter) <= 2 && bar.transportBeforeTrack,
+     'the track is centred with transport immediately to its left');
   ok(bar.rightEdge - bar.fsRight < 2,
      'fullscreen is hard against its right edge (' + Math.round(bar.rightEdge - bar.fsRight) + 'px)');
   console.log('       state: ' + bar.barCls + ' | right ' + bar.rightPos + ' | vol ' + bar.volH);
@@ -222,10 +229,15 @@ function names() {
   const display = await p.evaluate(() => {
     if (window.openMixPanel) openMixPanel();
     const buttons = [...document.querySelectorAll('#mixpanel .mixdisplay button')];
-    return buttons.map(b => b.textContent.trim());
+    const panel=document.getElementById('mixpanel'), lead=[...panel.querySelectorAll('.mixrow label')].find(x => /Lead/.test(x.textContent));
+    const pr=panel.getBoundingClientRect(), lr=lead&&lead.getBoundingClientRect();
+    return { labels:buttons.map(b => b.textContent.trim()), width:Math.round(pr.width),
+      leadOneLine:!!lead && lead.scrollHeight<=lead.clientHeight, sidePad:Math.round(lr.left-pr.left) };
   });
-  ok(display.join('|') === 'Random|Modern|Game Boy|NES',
-     'display modes moved into the advanced menu (' + display.join(', ') + ')');
+  ok(display.labels.join('|') === 'Random|Modern|Game Boy|NES',
+     'display modes moved into the advanced menu (' + display.labels.join(', ') + ')');
+  ok(display.width >= 680 && display.leadOneLine && display.sidePad >= 60,
+     'the advanced menu is spacious and keeps Lead / melody on one line (' + display.width + 'px)');
 
   // ---- 5. the credit ------------------------------------------------------
   console.log('the credit');
@@ -235,12 +247,13 @@ function names() {
     const made = document.getElementById('madeby'), hn = made && made.querySelector('.plmade-hn');
     const labels = made ? [...made.querySelectorAll('.plmade-btn .plink-t')].filter(x => x.getClientRects().length).map(x => x.textContent.trim()) : [];
     const r = made && made.getBoundingClientRect();
+    const rail=document.getElementById('plinks'), rr=rail&&rail.getBoundingClientRect();
     return { href:a ? a.href : null, hnHidden:!hn || !hn.getClientRects().length,
-      labels, right:r ? Math.round(innerWidth-r.right) : -1 };
+      labels, left:r ? Math.round(r.left) : -1, aboveRail:!!r&&!!rr&&r.bottom<rr.top };
   });
   ok(/github\.com\/[^/]+\/chiptunes\/?$/.test(credit.href || ''), 'GitHub goes to the repository (' + credit.href + ')');
   ok(credit.hnHidden && credit.labels.length === 0, 'playing hides Hacker News and the social labels');
-  ok(credit.right <= 20, 'the playing credit is aligned right (' + credit.right + 'px)');
+  ok(credit.left <= 20 && credit.aboveRail, 'the playing credit sits above the left rail (' + credit.left + 'px)');
 
   ok(errs.length === 0, 'no page errors' + (errs.length ? ': ' + errs[0] : ''));
   await b.close(); h.s.close();

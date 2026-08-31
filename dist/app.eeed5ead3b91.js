@@ -33562,10 +33562,6 @@ function buildPlaybar(){ _pbEl=document.getElementById('playbar'); if(!_pbEl||_p
   // that change what you LOOK at on the right. The same elements as before --
   // the presentation was the problem, not the contents.
   _pbEl.innerHTML='<div class="pb-left">'+
-    '<div class="pb-main-ctrl"><button id="pbPrev" title="Previous">'+_pbIcon('prev')+'</button>'+
-    '<button class="pb-play" id="pbPlay" title="Play / Pause">'+_pbIcon('pause')+'</button>'+
-    '<button id="pbNext" title="Next">'+_pbIcon('next')+'</button></div>'+
-
     '<div class="pb-cover" id="pbCover" title="Open album"></div>'+
     // No overflow button. Everything it held is either a pill over the game now
     // (YouTube, radio, the ROM) or reachable by clicking the
@@ -33587,6 +33583,9 @@ function buildPlaybar(){ _pbEl=document.getElementById('playbar'); if(!_pbEl||_p
     // THE TRACK READS UNDER THE TRANSPORT, the way a music player puts its
     // waveform under the scrubber: one group, controls on top, the whole song
     // and where you are in it beneath, elapsed and total either side.
+    '<div class="pb-center"><div class="pb-main-ctrl"><button id="pbPrev" title="Previous">'+_pbIcon('prev')+'</button>'+
+    '<button class="pb-play" id="pbPlay" title="Play / Pause">'+_pbIcon('pause')+'</button>'+
+    '<button id="pbNext" title="Next">'+_pbIcon('next')+'</button></div>'+
     '<div class="pb-ctrl"><div class="pb-lcd">'+
     '<div class="pb-lcd-head"><span class="pb-lcd-title" id="pbLcdTitle">···</span></div>'+
     '<div class="pb-scrub"><span class="pb-t" id="pbElapsed">0:00</span>'+
@@ -33594,7 +33593,7 @@ function buildPlaybar(){ _pbEl=document.getElementById('playbar'); if(!_pbEl||_p
     '<span class="pb-expand">'+
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 14l5-5 5 5"/></svg>'+
     'Edit</span></span>'+
-    '<span class="pb-t" id="pbTotal">0:00</span></div></div></div>'+
+    '<span class="pb-t" id="pbTotal">0:00</span></div></div></div></div>'+
     // THE RIGHT CLUSTER, the way a desk does it: what you are looking at, how
     // fast it is going, how loud it is -- each with its own slider when the
     // window has room, and the full mixer one press away.
@@ -35837,22 +35836,22 @@ if(String(_pathParts(location.pathname||'/')[0]||'').toLowerCase()==='get') buil
     if(ev.key==='Escape' && panel.style.display!=='none'){ panel.style.display='none'; return; }
     if((ev.key==='m'||ev.key==='M')&&!ev.metaKey&&!ev.ctrlKey&&!ev.altKey){ toggle(); } });
   var css=document.createElement('style'); css.textContent=
-    '#mixpanel{position:fixed;right:12px;bottom:86px;z-index:9999;text-align:left;font-family:var(--pixel);font-size:16px;color:#cfe;background:rgba(8,6,16,.97);border:1px solid #345;border-radius:8px;padding:15px 17px;width:430px;max-width:calc(100vw - 20px);max-height:calc(100vh - 104px);overflow-y:auto;box-shadow:0 6px 24px rgba(0,0,0,.6);}'+
-    '.mixhead{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:14px 0 10px;padding-top:11px;border-top:1px solid #234;}'+
-    '.mixnp{margin:14px 0 8px;padding-top:11px;border-top:1px solid #234;}'+
-    '.mixnp-tempo{margin:-2px 0 10px;padding-top:0;padding-bottom:12px;border-top:0;border-bottom:1px solid #234;}'+
-    '.mixnp-volume{margin:15px 0 8px;padding-top:12px;border-top:1px solid #345;}'+
+    '#mixpanel{position:fixed;right:12px;bottom:86px;z-index:9999;text-align:left;font-family:var(--pixel);font-size:16px;color:#cfe;background:rgba(8,6,16,.97);border:1px solid #345;border-radius:12px;padding:24px 28px;width:700px;max-width:calc(100vw - 32px);max-height:calc(100vh - 104px);overflow-y:auto;box-shadow:0 6px 24px rgba(0,0,0,.6);}'+
+    '.mixhead{display:flex;align-items:center;justify-content:space-between;gap:20px;margin:22px 0 14px;padding-top:18px;border-top:1px solid #234;}'+
+    '.mixnp{margin:20px 0 12px;padding-top:17px;border-top:1px solid #234;}'+
+    '.mixnp-tempo{margin:0 0 15px;padding-top:0;padding-bottom:18px;border-top:0;border-bottom:1px solid #234;}'+
+    '.mixnp-volume{margin:22px 0 12px;padding-top:18px;border-top:1px solid #345;}'+
     '.mixnp-display{margin:-2px 0 8px;padding-top:0;border-top:0;}'+
-    '.mixdisplay{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid #234;}'+
-    '.mixdisplay .mixbtn{justify-content:center;padding:8px 6px;}'+
+    '.mixdisplay{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid #234;}'+
+    '.mixdisplay .mixbtn{justify-content:center;padding:11px 10px;}'+
     '.mixdisplay .mixbtn.on{background:#28546a;color:#fff;border-color:#6cf;}'+
     '.mixnp .nph,.mixhead .nph{color:#6cf;font-size:13px;letter-spacing:0;}'+
     '.mixnp .npg{color:#e6c8ff;font-size:17px;margin:3px 0;text-transform:uppercase;letter-spacing:0;}'+
     '.mixnp .npd{color:#7787a8;font-size:14px;line-height:1.5;}'+
     '.mixnp .npd b{color:#aebbe0;font-weight:600;}'+
-    '.mixrow{display:grid;grid-template-columns:30px minmax(100px,122px) minmax(140px,1fr) 48px;align-items:center;gap:9px;margin:7px 0;}'+
-    '.mixrow-master{grid-template-columns:34px minmax(82px,108px) minmax(170px,1fr) 56px;margin:5px -3px 0;padding:10px 9px;border:1px solid rgba(102,204,255,.38);border-radius:7px;background:linear-gradient(90deg,rgba(102,204,255,.12),rgba(248,120,248,.07));}'+
-    '.mixrow label{color:#9ab;line-height:1.15;overflow-wrap:anywhere;}'+
+    '.mixrow{display:grid;grid-template-columns:32px 170px minmax(220px,1fr) 58px;align-items:center;gap:14px;margin:12px 0;}'+
+    '.mixrow-master{grid-template-columns:34px 170px minmax(240px,1fr) 62px;margin:8px 0 0;padding:14px 16px;border:1px solid rgba(102,204,255,.38);border-radius:9px;background:linear-gradient(90deg,rgba(102,204,255,.12),rgba(248,120,248,.07));}'+
+    '.mixrow label{color:#9ab;line-height:1.15;white-space:nowrap;}'+
     '.mixrow-master label{color:#f7fbff;font-size:18px;}'+
     '.mixrow input[type=range]{width:100%;min-width:0;accent-color:#6cf;}'+
     '.mixrow-master input[type=range]{accent-color:var(--accent2);}'+
@@ -35874,7 +35873,7 @@ if(String(_pathParts(location.pathname||'/')[0]||'').toLowerCase()==='get') buil
     '.mixread{flex:1;min-width:0;background:#06040c;color:#7a9;border:1px solid #234;border-radius:5px;padding:3px 6px;font:10px ui-monospace,monospace;}'+
     '.mixhint{margin-top:7px;color:#7787a8;font:10px ui-monospace,monospace;line-height:1.35;}'+
     '@media (min-width:980px){#mixpanel{right:16px;bottom:96px;}}'+
-    '@media (max-width:760px){#mixpanel{right:8px;bottom:86px;width:calc(100vw - 16px);}}';
+    '@media (max-width:760px){#mixpanel{right:8px;bottom:86px;width:calc(100vw - 16px);padding:18px 16px;}.mixrow,.mixrow-master{grid-template-columns:30px minmax(105px,135px) minmax(100px,1fr) 52px;gap:8px}.mixdisplay{gap:6px}.mixdisplay .mixbtn{padding:8px 4px}}';
   document.head.appendChild(css);
   refreshVolumeDock();
 })();
