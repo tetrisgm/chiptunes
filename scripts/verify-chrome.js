@@ -11,8 +11,6 @@
 //      like the one control that was switched on.
 //   3. "Write me a song that is" and the moods are one sentence on one line,
 //      set identically -- not a heading over a list.
-//   4. The desktop card shows a desktop, with the running game as its
-//      wallpaper, and the wallpaper actually moves.
 //   5. The credit's GitHub button goes to the REPOSITORY, not the profile.
 //   6. The landing page's reel cuts to a different game every two seconds.
 //
@@ -188,38 +186,6 @@ function names() {
   console.log('       state: ' + bar.barCls + ' | dock ' + bar.dockPos + ' | right ' + bar.rightPos +
               ' | screen ' + bar.screenH + ' fullscreen ' + bar.fsH + ' vol ' + bar.volH + ' pad ' + bar.pad);
   ok(bar.screenH === bar.fsH, 'and takes the same box as fullscreen (' + bar.screenH + ' vs ' + bar.fsH + 'px)');
-
-  // ---- 4. the desktop card ------------------------------------------------
-  console.log('the desktop card');
-  const desk = await p.evaluate(async () => {
-    const card = document.getElementById('dlcard');
-    const img = card && card.querySelector('img.dlc-wall');
-    if (!img) return { missing: true };
-    // it must have actually LOADED -- a broken src still lays out at the right
-    // size and would sail past a geometry-only check
-    if (!img.complete) { try { await img.decode(); } catch (e) {} }
-    const src = card.querySelector('picture source');
-    return {
-      visible: !!card.getClientRects().length,
-      chrome: !!card.querySelector('.dlc-menu') && !!card.querySelector('.dlc-dock'),
-      loaded: img.complete && img.naturalWidth > 0,
-      natural: img.naturalWidth + 'x' + img.naturalHeight,
-      animated: /desktop-reel\.webp/.test(img.currentSrc || img.src),
-      reducedMotionStill: !!(src && /desktop-still\.webp/.test(src.srcset || '') &&
-                             /prefers-reduced-motion/.test(src.media || '')),
-      // the whole point of the change: nothing draws into this card per frame
-      noLiveCanvas: !card.querySelector('canvas')
-    };
-  });
-  ok(!desk.missing && desk.visible, 'the card is on screen while a track plays');
-  ok(desk.chrome, 'drawn as a desktop -- menu bar and dock');
-  ok(desk.loaded, 'its wallpaper actually loaded (' + desk.natural + ')');
-  ok(desk.animated, 'and is the recorded loop, not a live second screen');
-  ok(desk.noLiveCanvas, 'with no per-frame canvas in the card at all');
-  ok(desk.reducedMotionStill, 'reduced motion gets the still instead');
-  const cardBox = await p.$('#dlcard');
-  if (cardBox) await cardBox.screenshot({ path: path.join(SHOT, 'chrome-dlcard.png') });
-  await p.screenshot({ path: path.join(SHOT, 'chrome-playing.png') });
 
   // ---- reaching for a dial opens the mixer --------------------------------
   console.log('the dials');

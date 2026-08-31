@@ -43,6 +43,12 @@ const peak = async (p, ms) => {
   }
   return k;
 };
+const audiblePeak = async (p, timeout = 10000) => {
+  let k = 0;
+  for (let elapsed = 0; elapsed < timeout && k <= 0.02; elapsed += 1000)
+    k = Math.max(k, await peak(p, 1000));
+  return k;
+};
 
 // each scenario is a function run inside the open editor
 const SCENARIOS = {
@@ -92,7 +98,10 @@ const SCENARIOS = {
     });
     await p.waitForFunction(() => !document.querySelector('.rmood.busy'), null, { timeout: 25000 });
     await wait(4000);
-    const before = await peak(p, 1000);
+    // A generated arrangement can legitimately leave one second nearly empty
+    // at a phrase boundary. Sample a musical window rather than treating that
+    // quiet bar as a stopped audio engine.
+    const before = await audiblePeak(p);
 
     await p.evaluate(() => {
       // the way into the editor is the strip of notes itself now
@@ -120,7 +129,7 @@ const SCENARIOS = {
     // and the transport still works afterwards
     await p.keyboard.press('Space'); await wait(1000);
     await p.keyboard.press('Space'); await wait(1800);
-    const restarted = await peak(p, 2500);
+    const restarted = await audiblePeak(p);
 
     ok(before > 0.02, name + ': the station was playing to begin with (' + before.toFixed(3) + ')');
     ok(after > 0.02, name + ': it is playing again after Close (' + after.toFixed(3) + ')');

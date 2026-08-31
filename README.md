@@ -51,9 +51,8 @@ on with your day: <https://chiptunes.app>
   draws it. The NES face modulates the picture into an NTSC signal and
   decodes it back; the palette is derived from the 2C02 waveform, not a
   table.
-- **Take it anywhere.** Web radio stream, WAV/AAC export, a desktop app that
-  runs as a living wallpaper (Mac, Windows, Linux), and the in-page Game Boy
-  emulator that runs the exported cartridge.
+- **Take it anywhere.** Web radio, WAV/AAC export, and the in-page Game Boy
+  emulator all use the same generated songs.
 
 ## How it works, in one line
 

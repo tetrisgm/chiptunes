@@ -31036,13 +31036,8 @@ if(typeof VisualizerGame !== 'undefined' && typeof CT_GAMES !== 'undefined' && C
 /* ===== src/runtime.js ===== */
 // AUTO-SPLIT from index.html — classic script, shares global scope (load order matters).
 // Scene loop, home/routes, watch mode, input wiring (must load LAST).
-const _RRR_DESKTOP_MODE=(function(){ try{ return new URLSearchParams(location.search||'').get('mode')||''; }catch(e){ return ''; } })();
-const _WALLPAPER_MODE=_RRR_DESKTOP_MODE==='wallpaper' && !!(window.RRRNative && window.RRRNative.isDesktop);   // Electron-only; a bare ?mode=wallpaper on the web must NOT strip the UI
-const _WALLPAPER_AUDIO=(function(){ try{ return new URLSearchParams(location.search||'').get('audio')!=='0'; }catch(e){ return true; } })();
 // CRT strength x5 (owner 2026-08-22): default was 0.3. ?scanlines=0..1 overrides.
 let _RRR_SCANLINE_STRENGTH=(function(){ try{ var raw=new URLSearchParams(location.search||'').get('scanlines'),v=Number(raw); return raw!=null&&isFinite(v)?Math.max(0,Math.min(1,v)):1.0; }catch(e){ return 1.0; } })();
-const _POPOVER_MODE=_RRR_DESKTOP_MODE==='popover' && !!(window.RRRNative && window.RRRNative.isDesktop);   // Electron menu-bar popover (a controller, plays no audio itself)
-const _BROWSE_MODE=_RRR_DESKTOP_MODE==='browse' && !!(window.RRRNative && window.RRRNative.isDesktop);     // Electron desktop control-center window (Portal-style; also a controller)
 // BROADCAST render (the YouTube video leg, broadcast/video.js x11grabs the whole window): pure game,
 // zero chrome. Force-hides every DOM overlay via CSS so the grab captures ONLY the #stage canvas —
 // deterministic, independent of the idle-hide timers the manual playExternal path never drives.
@@ -31097,7 +31092,7 @@ function _shouldBackgroundAudioOnly(){
   if(typeof document==='undefined') return false;
   // Stand down to audio-only ONLY when the page is truly hidden — minimised, another tab, or fully
   // occluded (all report document.hidden). A visible-but-UNFOCUSED window keeps animating at full rate,
-  // so you can park it on the side and watch the games play themselves — desktop app AND browser alike.
+  // so you can park it on the side and watch the games play themselves in the browser.
   // (Blur was never a reliable "background" signal anyway: touch devices, and any window with a playing
   // media element, report unfocused while fully visible.)
   if(document.hidden) return true;
@@ -31141,7 +31136,7 @@ function _syncBackgroundAudioOnly(){
 if(typeof window!=='undefined') window._backgroundAudioOnlyActive = _backgroundAudioOnlyActive;
 let SCENE_TIME=30, sceneTimer=0, sceneBeatenFlag=false;     // RANDOM-mode visual rotation interval (seconds). Fixed selections stay pinned.
 // One interval for every surface (web player, /watch, YouTube broadcast, wallpaper) — default 30s. The
-// desktop wallpaper app can override it via ?rotate=<seconds> (a Settings control) and live-update it.
+// capture hosts can override it via ?rotate=<seconds>.
 let _RRR_SCENE_SECONDS=(function(){ try{ var raw=new URLSearchParams(location.search||'').get('rotate'),v=Number(raw); return raw!=null&&isFinite(v)?Math.max(3,Math.min(3600,Math.round(v))):0; }catch(e){ return 0; } })();
 try{ window.__rrrSetSceneSeconds=function(s){ s=Number(s); if(isFinite(s)&&s>0) _RRR_SCENE_SECONDS=Math.max(3,Math.min(3600,Math.round(s))); };
   window.__rrrSceneSeconds=function(){ return _RRR_SCENE_SECONDS || SCENE_TIME; }; }catch(e){}
@@ -31187,9 +31182,7 @@ function sceneSafeBottom(){ if(_RRR_BROADCAST) return 0;
   // of the screen back, which is the third time this project has had to answer
   // "the games don't fill the screen".
   //
-  // The wallpaper dock and the ordinary bottom bar (library/browse) are real
-  // full-width chrome, so those keep the inset.
-  try{ if(!_WALLPAPER_MODE && document.body && document.body.classList.contains('ai-visual')) return 0; }catch(e){}
+  try{ if(document.body && document.body.classList.contains('ai-visual')) return 0; }catch(e){}
   // Proportional ONLY on the Game Boy framebuffer, where H is 180 and the old
   // absolute 42px floor reserved 23% of the screen. The normal view keeps the
   // original formula exactly -- it is not the thing being fixed.
@@ -31702,7 +31695,7 @@ let _frameTarget = 16.7, _renderEMA = 6;        // aim for 60fps; adapt down onl
 // 120Hz right for free -- N becomes 2 -- where the clock gate quietly returned
 // 55fps.
 let _tickMs = 0, _tickAcc = 0, _tickPrev = 0, _drawSeq = 0, _pnlHold = 2;
-let _wallpaperFpsCap = _WALLPAPER_MODE ? 30 : 0, _wallpaperPerformancePaused = false, _wallpaperMotionFrozen = false;
+let _renderFpsCap = 0;
 let _frameReq = 0, _frameSeq = 0, _frameStoppedAt = 0;
 // ---- THE TRACK RIBBON ------------------------------------------------------
 // The whole song end to end along the bottom, doubling as the progress bar.
@@ -31756,7 +31749,6 @@ function _reelStop(){ if(_reelTimer){ clearInterval(_reelTimer); _reelTimer=0; }
 function _reelStart(){
   if(_reelTimer) return;
   try{
-    if(_WALLPAPER_MODE||_POPOVER_MODE||_BROWSE_MODE) return;
     if(fixedGamePref()) return;              // somebody pinned a game: leave it alone
   }catch(e){}
   _reelTimer=setInterval(function(){
@@ -31781,7 +31773,6 @@ function _syncReel(){
 window._syncReel=_syncReel;
 function _ribbonVisible(){
   try{
-    if(_WALLPAPER_MODE||_POPOVER_MODE||_BROWSE_MODE) return false;
     if(document.body && document.body.classList.contains('gb-open')) return false;
     var pb=document.getElementById('playbar');
     return !!(pb && pb.classList.contains('show'));
@@ -32069,7 +32060,7 @@ function frame(now){
   // whole multiples of a 60fps frame: a display can only show 60/30/20, and
   // asking for the 42fps that "24" used to mean just means uneven frames.
   var adaptiveTarget = (_renderEMA > 24) ? 50.1 : (_renderEMA > 15 ? 33.4 : 16.7);
-  _frameTarget = Math.max(adaptiveTarget, _wallpaperFpsCap ? 1000/_wallpaperFpsCap : 0);
+  _frameTarget = Math.max(adaptiveTarget, _renderFpsCap ? 1000/_renderFpsCap : 0);
   if(typeof window!=='undefined') window.__rrrFrame = _frameDiag();
   _frameRX = null; _frameSND = null;
 }
@@ -32344,56 +32335,16 @@ if(typeof window!=='undefined'){
 }
 _scheduleFrameLoop();
 if(_screenMode!=='crt') setTimeout(_applyScreenMode, 0);
-function _applyWallpaperPerformance(state){
-  if(!_WALLPAPER_MODE || !state) return;
-  var wasPaused=_wallpaperPerformancePaused, wasStopped=wasPaused||_wallpaperMotionFrozen;
-  _wallpaperPerformancePaused=!!state.paused;
-  _wallpaperMotionFrozen=!!state.frozen;
-  var stopped=_wallpaperPerformancePaused||_wallpaperMotionFrozen;
-  var cap=Number(state.fpsCap);
-  if(isFinite(cap) && cap>0) _wallpaperFpsCap=Math.max(1,Math.min(60,cap));
-  window.__rrrWallpaperPerformance={paused:_wallpaperPerformancePaused,frozen:_wallpaperMotionFrozen,fpsCap:_wallpaperFpsCap,reason:String(state.reason||'')};
-  if(document.documentElement){
-    document.documentElement.dataset.rrrWallpaperPaused=_wallpaperPerformancePaused?'1':'0';
-    document.documentElement.dataset.rrrWallpaperFrozen=_wallpaperMotionFrozen?'1':'0';
-    document.documentElement.dataset.rrrWallpaperFps=String(_wallpaperFpsCap);
-    document.documentElement.dataset.rrrWallpaperReason=String(state.reason||'');
-  }
-  if(stopped){
-    _stopFrameLoop();
-  } else {
-    lastFrame=_nowMs();
-    _scheduleFrameLoop();
-  }
-  // A power/occlusion pause suspends DSP. A deliberate visual freeze only holds the canvas while
-  // the radio keeps playing, so switching between those states must update audio independently.
-  if(_wallpaperPerformancePaused && !wasPaused){
-    if(_WALLPAPER_AUDIO){ try{ if(Audio&&Audio.setPlaying) Audio.setPlaying(false); }catch(e){} }
-  } else if(wasPaused && !_wallpaperPerformancePaused){
-    if(_WALLPAPER_AUDIO){ try{ if(Audio&&Audio.setPlaying) Audio.setPlaying(true); }catch(e){} }
-    try{ if(Audio&&Audio.resume) Audio.resume(false); }catch(e){}
-  }
-  if(wasStopped && !stopped){
-    lastFrame=_nowMs();
-    // Do not replay a freeze's accumulated visual events in one burst. Resume from the live music
-    // position and rebuild the game scene on the next frame, matching long background wake-up.
-    try{ if(Audio&&Audio.consumeEvents) Audio.consumeEvents(); }catch(e){}
-    if(sceneKind==='game' && selGame && selState) _reseatScene=true;
-  }
-}
-if(_WALLPAPER_MODE && window.RRRNative && window.RRRNative.onWallpaperPerformance){
-  try{ window.RRRNative.onWallpaperPerformance(_applyWallpaperPerformance); }catch(e){}
-}
 // Off-screen capture host (the YouTube video leg, broadcast/video.js) caps the render FPS so a
 // GPU-less broadcast box spends its cycles on audio scheduling, not on a 60fps game raster that
-// nobody is watching locally. Ungated by wallpaper mode on purpose: it drives _frameTarget directly
+// nobody is watching locally. It drives _frameTarget directly
 // (see frame(), line ~594). 0 clears the cap. Returns the effective cap.
 if(typeof window!=='undefined'){
   window.__rrrSetRenderFpsCap = function(fps){
     var c = Number(fps);
-    if(c === 0){ _wallpaperFpsCap = 0; }
-    else if(isFinite(c) && c > 0){ _wallpaperFpsCap = Math.max(1, Math.min(60, c)); }
-    return _wallpaperFpsCap;
+    if(c === 0){ _renderFpsCap = 0; }
+    else if(isFinite(c) && c > 0){ _renderFpsCap = Math.max(1, Math.min(60, c)); }
+    return _renderFpsCap;
   };
 }
 // On return-to-foreground, re-anchor the frame clock so the first frame's dt is normal AND (if we were away long enough that the
@@ -32952,7 +32903,7 @@ function buildRadioUI(){
   if(trackEl && !trackEl._wired){ trackEl._wired=true; trackEl.addEventListener('click', ev=>{ ev.stopPropagation(); window.toggleTrackPanel && window.toggleTrackPanel(); }); }
   buildTransport();                                            // hidden compatibility rail; superseded by #playbar
   buildPlaybar();                                              // Roon-style bottom transport bar
-  _buildPlayerLinks();                                         // top-right: Watch on YouTube · Add to radio · (Get the app on desktop)
+  _buildPlayerLinks();                                         // track actions and project links
   syncTempoUI();
   Radio.onChange(()=>{ syncRadioUI(); });
 }
@@ -32970,7 +32921,6 @@ function _buildPlayerLinks(){
   // playing, down the left edge, plus the screen switcher -- which is not on the
   // owner's list but had no other way in once the hamburger went, and the two
   // console screens are the point of the project.
-  var _os=_homeOS(), _osName=(_os==='win'?'Windows':_os==='linux'?'Linux':_os==='mac'?'Mac':'');
   var items=[
     // The Game Boy leads. It is the most surprising thing here -- this track,
     // as a cartridge, on the hardware -- and the cartridge download belongs
@@ -32984,9 +32934,6 @@ function _buildPlayerLinks(){
     // leg is off and the box is being freed for other work. The channel, its
     // tokens and the go-live tooling all remain for when it returns.
     {k:'radio', ic:_IC_RADIO, t:'Listen on any radio app', l:'Web radio'}
-    // The desktop app is not a thing you do with THIS track, which is what the
-    // rail is for. It is its own offer, so it gets the card it had on the home
-    // page, down in the corner above the track name. See _buildDesktopCard.
   ];   // no GitHub row: the credit below carries it, with the other two
   // X's mark, drawn rather than fetched: nothing here loads a third-party asset
   // Hacker News: the Y, drawn as strokes rather than the orange box, so it sits
@@ -33044,12 +32991,8 @@ function _buildPlayerLinks(){
     else if(k==='how'){ _toggleHowModal(); }
     else if(k==='create'){ _openCreate(); }
     else if(k==='screen'){ _toggleGameBoyScreen(); }
-    else if(k==='dl-mac'){ _startDownload(DL_MAC); }
-    else if(k==='dl-win'){ _startDownload(DL_WIN); }
-    else if(k==='dl-linux'){ _startDownload(DL_LINUX); }
   });
   document.body.appendChild(wrap);
-  _buildDesktopCard(_os, _osName);
   _syncGameBoyPill(); _syncTryPill();
   _syncGameBoyPill();
 }
@@ -33133,14 +33076,6 @@ function _toggleHowModal(){
     if(old) old.classList.remove('show');
     return;
   }
-  var dl=document.querySelector('#dlcard .gb-lcd');
-  if(dl){
-    var dh=dl.querySelector('.dl-how');
-    if(dh) dh.classList.toggle('show');
-    var oldDl=document.getElementById('howmodal');
-    if(oldDl) oldDl.classList.remove('show');
-    return;
-  }
   var el=document.getElementById('howmodal');
   if(el){ el.classList.toggle('show'); return; }
   el=document.createElement('div'); el.id='howmodal';
@@ -33174,78 +33109,6 @@ function _toggleHowModal(){
   requestAnimationFrame(function(){ el.classList.add('show'); });
 }
 window._toggleHowModal=_toggleHowModal;
-function _buildDesktopCard(os, osName){
-  if(document.getElementById('dlcard')) return;
-  var me=(os==='win'?'win':os==='linux'?'linux':'mac');
-  var ALL={mac:['dl-mac','Mac'], win:['dl-win','Windows'], linux:['dl-linux','Linux']};
-  var order=[me].concat(['mac','win','linux'].filter(function(k){ return k!==me; }));   // the one you are on leads
-  var card=document.createElement('div'); card.id='dlcard'; card.className='gb-bezel';
-  // A DESKTOP WITH THE WALLPAPER IN IT. The card claims the games can be your
-  // wallpaper, which is a hard thing to picture from a sentence -- so it shows
-  // one: a little screen with a menu bar and a dock, and the actual running
-  // game behind them. Not a mockup of the idea, the idea itself, blitted from
-  // the same canvas the page is already drawing.
-  card.innerHTML='<div class="gb-lcd"><div class="dlc-h">On your desktop</div>'+
-    '<div class="dl-how" aria-label="How this works">'+
-      '<h3>HOW IT WORKS</h3>'+
-      '<p><b>WRITE YOUR OWN.</b> Create opens a tracker on the Game Boy chip: notes, hardware instruments, sweeps, slides and sampled drums.</p>'+
-      '<p><b>OR COMPOSE.</b> Pick a mood and the app writes complete songs for you to edit and share.</p>'+
-      '<p><b>THE SONGS ARE REAL.</b> Every track runs through a real sound-chip emulation and downloads as a cartridge for hardware.</p>'+
-      '<p><b>IN YOUR BROWSER.</b> The composer is deterministic: the same link always makes the same song.</p>'+
-      '<p><b>THE SCREENS.</b> Game Boy shades and an NES signal are rebuilt with shaders.</p>'+
-    '</div>'+
-    '<div class="dlc-d">Use these games as an animated wallpaper.</div></div>'+
-    '<div class="dlc-shot" aria-hidden="true">'+
-      // A RECORDING, NOT A SECOND SCREEN. This was a live blit of the stage
-      // canvas into a second 2d context every sixth frame -- which measured
-      // 0.2ms in Chromium on this Mac, but is a canvas-to-canvas drawImage from
-      // a GPU-backed source, the shape of operation that forces a GPU->CPU
-      // readback, and Chromium is the one browser this machine can profile.
-      // The card is a 296px thumbnail of a game; a recording of one says the
-      // same thing and costs nothing per frame. Reduced motion gets the still.
-      '<picture>'+
-        '<source srcset="/desktop-still.webp" media="(prefers-reduced-motion: reduce)">'+
-        '<img class="dlc-wall" src="/desktop-reel.webp" alt="" decoding="async" loading="lazy">'+
-      '</picture>'+
-      // A DESKTOP HAS TO READ AS ONE. Three dots and five grey squares did not:
-      // the bar looked like nothing in particular, the dock like a row of
-      // pills, and with no window open the picture never said "this is behind
-      // your work" -- which is the entire claim the card is making. A menu bar
-      // with a title and menus, a dock of distinguishable apps with a running
-      // dot, and one window sitting over the wallpaper.
-      '<div class="dlc-menu">'+
-        '<span class="dlm-logo"></span>'+
-        '<span class="dlm-app">Chiptunes</span>'+
-        '<span class="dlm-i">File</span><span class="dlm-i">Edit</span><span class="dlm-i">View</span>'+
-        '<span class="dlm-sp"></span>'+
-        '<span class="dlm-s"></span><span class="dlm-s"></span><span class="dlm-clock"></span>'+
-      '</div>'+
-      '<div class="dlc-win">'+
-        '<div class="dlw-bar"><i class="r"></i><i class="y"></i><i class="g"></i><b></b></div>'+
-        '<div class="dlw-body"><u style="width:78%"></u><u style="width:54%"></u>'+
-          '<u style="width:88%"></u><u style="width:38%"></u></div>'+
-      '</div>'+
-      '<div class="dlc-dock">'+
-        '<s class="d1"></s><s class="d2"></s><s class="d3"></s>'+
-        '<s class="d4"></s><s class="d5"></s><s class="sep"></s><s class="d6"></s>'+
-      '</div>'+
-    '</div>'+
-    '<span class="gb-speaker"></span>'+
-    '<div class="dlc-b">'+order.map(function(k){
-      var a=ALL[k];
-      return '<button type="button" data-k="'+a[0]+'" title="Download the '+a[1]+' desktop app">'+a[1]+'</button>';
-    }).join('')+'</div>';
-  card.addEventListener('click', function(ev){
-    var b=ev.target.closest('button[data-k]'); if(!b) return;
-    ev.preventDefault(); ev.stopPropagation();
-    if(typeof _pokeVisualControls==='function') _pokeVisualControls();
-    var k=b.dataset.k;
-    if(k==='dl-mac') _startDownload(DL_MAC);
-    else if(k==='dl-win') _startDownload(DL_WIN);
-    else if(k==='dl-linux') _startDownload(DL_LINUX);
-  });
-  document.body.appendChild(card);
-}
 // The three screens, as a thing a visitor can find. This was a two-way toggle
 // against the plain view, then a two-way toggle between the consoles -- which
 // left the plain view with no way back once it rejoined the rotation. It is a
@@ -33353,10 +33216,7 @@ function openNavMenu(){
     _navRow('radio-copy',_NAV_LINK_IC,'Copy stream URL','radio.chiptunes.app')+
     // The old 'Home' row led to a landing page that no longer exists as a
     // landing page. Same destination, named for what is actually there: the
-    // desktop app and the wallpaper. On mobile the pills are hidden, so without
-    // this row /get has no way in at all.
     _navRow('how',_IC_INFO,'How it works','What this is, in a minute')+
-    _navRow('home',_IC_MON,'Get the desktop app','Mac, Windows or Linux, plus the wallpaper')+
     '</div>';
   el.classList.add('show');
 }
@@ -33705,7 +33565,7 @@ function buildPlaybar(){ _pbEl=document.getElementById('playbar'); if(!_pbEl||_p
 
     '<div class="pb-cover" id="pbCover" title="Open album"></div>'+
     // No overflow button. Everything it held is either a pill over the game now
-    // (YouTube, radio, the desktop app, the ROM) or reachable by clicking the
+    // (YouTube, radio, the ROM) or reachable by clicking the
     // track name, which is what people try first anyway.
     '<div class="pb-info" id="pbInfo"><div class="pb-titleline"><span class="pb-np">Now playing</span><div class="pb-title" id="pbTitle">···</div>'+
     '</div><div class="pb-sub" id="pbSub"></div></div></div>'+
@@ -34392,15 +34252,6 @@ function _downloadAudio(fmt){
     _saveBlob(blob, _audioFilename('wav'));
     if(window._toast) _toast('Downloaded '+_audioFilename('wav')+' ('+mb(blob)+')');
   }, 30);
-}
-// A real download rather than a page describing one.
-function _startDownload(url){
-  try{
-    var a=document.createElement('a');
-    a.href=url; a.rel='noopener'; a.download='';
-    document.body.appendChild(a); a.click(); a.remove();
-    if(window._toast) _toast('Downloading the desktop app...');
-  }catch(e){ window.open(url,'_blank','noopener'); }
 }
 function _saveBlob(blob, filename){
   var url=URL.createObjectURL(blob), a=document.createElement('a');
@@ -35149,7 +35000,6 @@ function revealApp(){
   if(!window._radioTick) window._radioTick = setInterval(()=>{ if(Audio.started && !(typeof _backgroundAudioOnlyActive==='function' && _backgroundAudioOnlyActive())){ syncTempoUI(); updateNow(); } }, 700);   // keep bpm/now-line live only while the UI is visible
 }
 function startAudio(viaGesture, opts){
-  if(_POPOVER_MODE || _BROWSE_MODE) return;                // controller windows must never become a second audio player
   if(viaGesture && typeof viaGesture==='object'){ opts=viaGesture; viaGesture=!!opts.viaGesture; }
   opts=opts||{};
   if(!bootDone){
@@ -35287,7 +35137,6 @@ function _resumePausedFromGesture(ev){
   return true;
 }
 function _firstGesture(ev){
-  if(_POPOVER_MODE || _BROWSE_MODE) return;
   if(shortcutTargetBlocked(ev)) return;
   var intro=document.getElementById('intro');
   var awaitingChoice=!!(document.body && document.body.classList.contains('awaiting-mood'));
@@ -35314,7 +35163,7 @@ _audioUnlockEvents.forEach(function(t){ document.addEventListener(t,_firstGestur
 let _station='generated', _micStream=null, _fileSrc=null;
 // DIRECT GENERATED TRACK LINK (/track/<phrase>-<code8>): drop straight into the game (skip the menu); audio resumes on
 // the first interaction above. Autoplay-allowed browsers start instantly; others show the hint until you touch anything.
-if(!_POPOVER_MODE && !_BROWSE_MODE && typeof _readSlug==='function' && _readSlug()){
+if(typeof _readSlug==='function' && _readSlug()){
   if(document.body) document.body.classList.add('ai-visual');
   startAudio(false);
 }
@@ -35509,7 +35358,7 @@ function enterWatchMode(opts){
   opts=opts||{};
   _watchReturnState=opts.resumeMusic ? _captureWatchReturnState() : null;
   _watchOnly=true; _watchMicActive=false; _station='watch'; _nowSource='watch';
-  _watchAnchorMs=_WALLPAPER_MODE ? (_nowMs()-Date.now()) : _nowMs();   // wallpaper: shared wall-clock epoch so every display's beat grid is in phase (else per-entry anchor)
+  _watchAnchorMs=_nowMs();
   _stopMicStream();
   _stopAudiblePlaybackForWatch();
   if(!opts.noRoute && typeof history!=='undefined' && history.replaceState && (location.pathname||'/')!=='/watch'){
@@ -35603,7 +35452,7 @@ function _showProductHomeShell(){
   return el;
 }
 // ---- HOME = platform cards (like lofigirl's stream grid, our own retro look). The live game runs
-//      BEHIND them; each card is one way to get Chiptunes: browser · desktop wallpaper · YouTube · radio.
+//      BEHIND them; each card is one way to use Chiptunes: browser · YouTube · radio.
 var _IC_PLAY='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5.5v13l11-6.5z"/></svg>';
 var _IC_GB='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="5" y="2.5" width="14" height="19" rx="2.5"/><rect x="7.5" y="5" width="9" height="7" rx="1"/><path d="M9 16h2M10 15v2" stroke-linecap="round"/><circle cx="15" cy="16" r="1"/></svg>';
 var _IC_WAVE='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12h2.5l2-6 3 13 3-9 2 4H21"/></svg>';
@@ -35616,10 +35465,6 @@ var _IC_CREATE='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strok
 var _IC_MON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2.5" y="3.5" width="19" height="13" rx="1.5"/><path d="M9 20.5h6M12 16.5v4" stroke-linecap="round"/></svg>';
 var _IC_YT='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M22.5 7.2a2.8 2.8 0 0 0-2-2C18.8 4.7 12 4.7 12 4.7s-6.8 0-8.5.5a2.8 2.8 0 0 0-2 2A29 29 0 0 0 1 12a29 29 0 0 0 .5 4.8 2.8 2.8 0 0 0 2 2c1.7.5 8.5.5 8.5.5s6.8 0 8.5-.5a2.8 2.8 0 0 0 2-2A29 29 0 0 0 23 12a29 29 0 0 0-.5-4.8zM9.8 15.3V8.7l5.7 3.3z"/></svg>';
 var _IC_RADIO='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="8" cy="14" r="3"/><rect x="2.5" y="8.5" width="19" height="12" rx="1.5"/><path d="M16 4.5l3 4M14 13h4M14 16.5h4"/></svg>';
-// Platform glyphs for the Apple-landing-style desktop download buttons (Apple mark · Windows panes · Tux).
-var _IC_APPLE='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.05 12.04c-.03-2.85 2.33-4.22 2.44-4.28-1.33-1.95-3.4-2.22-4.14-2.25-1.76-.18-3.44 1.04-4.33 1.04-.89 0-2.27-1.02-3.73-.99-1.92.03-3.69 1.12-4.68 2.84-2 3.46-.51 8.58 1.43 11.39.95 1.38 2.08 2.92 3.56 2.87 1.43-.06 1.97-.92 3.7-.92 1.73 0 2.22.92 3.73.89 1.54-.03 2.51-1.4 3.45-2.79 1.09-1.6 1.54-3.15 1.56-3.23-.03-.01-2.99-1.15-3.02-4.55zM14.28 3.87c.79-.96 1.32-2.29 1.17-3.62-1.13.05-2.5.76-3.31 1.71-.73.85-1.37 2.2-1.2 3.5 1.26.1 2.55-.64 3.34-1.59z"/></svg>';
-var _IC_WIN='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 5.1l7.5-1v7.3H3zM11.3 4L21 2.6v9.8h-9.7zM3 12.9h7.5v7.2L3 19zM11.3 12.9H21v9.5l-9.7-1.35z"/></svg>';
-var _IC_LINUX='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c-2.2 0-3.8 1.8-3.8 4.2 0 1.3.2 2.1-.6 3.2-.9 1.2-2.6 2.9-3.2 5-.3 1 .2 1.6 1 1.4.5-.1.9-.5 1.2-1-.2 1.3-.5 2.3-1.1 3.2-.5.8 0 1.6 1 1.6h11c1 0 1.5-.8 1-1.6-.6-.9-.9-1.9-1.1-3.2.3.5.7.9 1.2 1 .8.2 1.3-.4 1-1.4-.6-2.1-2.3-3.8-3.2-5-.8-1.1-.6-1.9-.6-3.2C15.8 3.8 14.2 2 12 2zm-1.6 4.2c.4 0 .7.4.7 1s-.3 1-.7 1-.7-.4-.7-1 .3-1 .7-1zm3.2 0c.4 0 .7.4.7 1s-.3 1-.7 1-.7-.4-.7-1 .3-1 .7-1zM12 8.6c.7 0 1.6.4 1.6.9 0 .3-.8.8-1.6.8s-1.6-.5-1.6-.8c0-.5.9-.9 1.6-.9z"/></svg>';
 var RADIO_STREAM_URL='https://radio.chiptunes.app';   // bare root is a first-class stream alias (see broadcaster PRIMARY_ALIASES) — cleaner to paste than /radio.mp3
 var YT_HANDLE='https://www.youtube.com/@chiptunesapp';
 // Immutable channel id (an @handle can be renamed/reassigned; the UC id never rots).
@@ -35630,9 +35475,6 @@ var YT_SUB_URL='https://www.youtube.com/channel/'+YT_CHANNEL_ID+'?sub_confirmati
 // pause/hover — never triggers. controls/rel/iv/fs/disablekb strip the rest of the chrome. Can't remove
 // the tiny watermark/LIVE badge (baked in). referrerpolicy on the iframe is the real "Error 153" fix.
 var YT_LIVE_EMBED='https://www.youtube-nocookie.com/embed/live_stream?channel='+YT_CHANNEL_ID+'&autoplay=1&mute=1&playsinline=1&controls=0&rel=0&iv_load_policy=3&fs=0&disablekb=1&modestbranding=1';
-var DL_MAC='https://updates.chiptunes.app/Chiptunes-mac.zip';
-var DL_WIN='https://updates.chiptunes.app/Chiptunes-win-x64.exe';
-var DL_LINUX='https://updates.chiptunes.app/Chiptunes-linux-x86_64.AppImage';
 // Ordered for a balanced 2×2 grid: the two media-rich cards (browser moods · live embed) on top,
 // The browser card is the hero (full-width top row — it's the primary, most-obvious way to listen);
 // desktop · YouTube · radio sit three-across beneath it. No leading icon tiles — Apple-clean text cards.
@@ -35640,10 +35482,6 @@ var PLATFORMS = [
   { plat:'web', accent:'#27d9e8', title:'In your browser',
     desc:'One endless station: a shuffle of every mood of generative chiptune, the exact same stream you get on YouTube and the radio. Plays instantly, nothing to install.',
     actions:[{k:'web-listen', label:'Listen now'}] },            // the single shared LIVE station (same everywhere)
-  { plat:'desktop', accent:'#8f7ae0', title:'On your desktop',
-    desc:'A music-reactive scene you can run in a window, or set as a living desktop wallpaper. Mac, Windows and Linux.',
-    actions:[{k:'dl-mac', label:'Mac', href:DL_MAC}, {k:'dl-win', label:'Windows', href:DL_WIN}, {k:'dl-linux', label:'Linux', href:DL_LINUX}] },
-
   { plat:'radio', accent:'#5ee08a', title:'On any radio app',
     desc:'A real internet radio station. Paste the stream into your radio app, or listen right here.',
     url:'radio.chiptunes.app', copy:true,
@@ -35663,16 +35501,7 @@ function _homeOS(){
   }catch(e){}
   return '';
 }
-var _DL_ICON={ 'dl-mac':_IC_APPLE, 'dl-win':_IC_WIN, 'dl-linux':_IC_LINUX };
-var _DL_OS={ 'dl-mac':'mac', 'dl-win':'win', 'dl-linux':'linux' };
 function _platBtn(a){
-  // Desktop downloads get the Apple-landing treatment: platform glyph + name, the visitor's own OS
-  // rendered as the filled primary, the others as glass secondaries.
-  if(/^dl-/.test(a.k)){
-    var primary = !_homeIsMobile() && _homeOS()===_DL_OS[a.k];
-    return '<a class="pc-btn pc-dl'+(primary?' is-primary':'')+'" data-k="'+a.k+'" href="'+_homeEsc(a.href)+'">'+
-      '<span class="pc-dl-ic">'+(_DL_ICON[a.k]||'')+'</span><span class="pc-dl-t">'+_homeEsc(a.label)+'</span></a>';
-  }
   var attrs='class="pc-btn" data-k="'+a.k+'"';
   if(a.href) return '<a '+attrs+' href="'+_homeEsc(a.href)+'">'+_homeEsc(a.label)+'</a>';
   return '<button '+attrs+' type="button">'+_homeEsc(a.label)+'</button>';
@@ -35724,7 +35553,6 @@ function _openRadioInApp(){
   location.href='/radio.pls';
 }
 function _homeAction(k, btnEl){
-  if(k==='dl-mac' || k==='dl-win' || k==='dl-linux'){ return; }  // real <a> download links — let the browser handle them
   if(k==='web-listen'){ if(typeof enterStation==='function') enterStation('st-any'); return; }   // the one shared LIVE station
   if(k==='yt-live'){ window.open(YT_HANDLE+'/live','_blank','noopener'); return; }   // channel/live — unmute, full-screen, subscribe there
   if(k==='radio-listen'){ window.open(RADIO_STREAM_URL,'_blank','noopener'); return; }   // open the bare stream — the browser plays the MP3
@@ -35739,12 +35567,12 @@ function _homeAction(k, btnEl){
 function buildHomeTiles(){ var el=_showProductHomeShell(); if(!el) return;
   if(typeof _startHomeBackdrop==='function') _startHomeBackdrop();   // live game plays behind the cards
   el.innerHTML = '<div class="platforms-head"><h2 class="platforms-title">So many ways to listen.</h2>'+
-    '<p class="platforms-sub">Chiptunes.app plays wherever you are: in your browser, on your desktop, on YouTube, or on any radio app.</p></div>'+
+    '<p class="platforms-sub">Chiptunes.app plays in your browser and on any radio app.</p></div>'+
     '<div class="platforms">'+PLATFORMS.map(_platCard).join('')+'</div>';
   if(!el._wired){ el._wired=true; el.addEventListener('click', function(ev){
     var btn=ev.target.closest('.pc-btn,.pc-copy'); if(!btn) return;
     var k=btn.dataset.k;
-    if(!/^dl-/.test(k)){ ev.preventDefault(); ev.stopPropagation(); }   // dl-* are real <a> downloads; the rest handled here
+    ev.preventDefault(); ev.stopPropagation();
     _homeAction(k, btn);
   }); }
 }
@@ -35852,7 +35680,7 @@ if(typeof Packs!=='undefined' && Packs.init){
   }catch(e){}
 }
 // ----- BOOT ROUTE: '/' and /radio ARE the player; /get is the platform page;
-//  /watch is the silent wallpaper; legacy heads collapse to the player. -----
+//  /watch is the silent visualizer; legacy heads collapse to the player. -----
 // Old station links are accepted as compatibility no-ops; one radio means
 // they may never alter or fork the generated sequence.
 try{
@@ -35864,31 +35692,6 @@ try{
 // about to start real playback and immediately tear that backdrop down again.
 if(String(_pathParts(location.pathname||'/')[0]||'').toLowerCase()==='get') buildHomeTiles();
 (function(){
-  // Popover/browse renderers are ASSIGNED (window._renderX=function) further down this same bundle, so
-  // calling them synchronously here is call-before-definition — a TypeError the old silent catch hid,
-  // shipping a BLACK window (v0.1.3 desktop bug). Defer one tick so the whole bundle has evaluated,
-  // and log failures instead of swallowing them.
-  if(_POPOVER_MODE){ setTimeout(function(){ try{ _renderPopover(); }catch(e){ console.error('popover render failed:', e); } },0); return; }   // controller UI; no audio, no scene loop
-  if(_BROWSE_MODE){ setTimeout(function(){ try{ _renderBrowse(); }catch(e){ console.error('browse render failed:', e); } },0); return; }      // Portal-style control center; no audio, no scene loop
-  if(_WALLPAPER_MODE){
-    if(document.body) document.body.classList.add('wallpaper-visual');
-    var _wpStation=''; try{ _wpStation=new URLSearchParams(location.search||'').get('station')||''; }catch(e0){}
-    if(_WALLPAPER_AUDIO){
-      if(_wpStation && typeof enterStation==='function') enterStation(_wpStation);   // popover-chosen station on the audio-owner display
-      else startAudio(true);
-      // The wallpaper audio-owner window has NO user gesture, but Electron sets
-      // autoplayPolicy:'no-user-gesture-required', so it MUST unlock + un-pause the transport exactly
-      // like the play button does — else the AudioContext never fully starts and the wallpaper renders
-      // its visuals in SILENCE (owner bug 2026-07-18: "no music while using the video background").
-      try{
-        if(Audio.resume) Audio.resume(true);
-        if(typeof unlockAudioSession==='function') unlockAudioSession();
-        if(Audio.setPlaying) Audio.setPlaying(true);
-      }catch(e){ console.error('wallpaper audio start failed:', e); }
-    } else { enterWatchMode({noRoute:true}); }
-    if(window.__rrrWallpaperPerformance) _applyWallpaperPerformance(window.__rrrWallpaperPerformance);
-    return;
-  }
   var head=String(_pathParts(location.pathname||'/')[0]||'').toLowerCase();
   // 'create' left this retired-routes list 2026-08-26: it is the editor now
   if(head==='listen'||head==='play'||head==='wip'){
@@ -36196,361 +35999,6 @@ if(String(_pathParts(location.pathname||'/')[0]||'').toLowerCase()==='get') buil
     else window.addEventListener('load', function(){ setTimeout(fire, 4000); });
     setTimeout(fire, 9000);
   }catch(e){}
-})();
-
-/* ============================================================
-   DESKTOP CONTROL BRIDGE (window.RRR) + menu-bar POPOVER UI.
-   Radio/Audio are const (not on window); this is the stable surface the Electron main process +
-   popover window drive playback through. Present in every window; every call is no-op-safe.
-   ============================================================ */
-(function(){
-  var _systemAudioStream=null, _systemAudioSource=null, _systemAudioStatus='off';
-  function desktopDiagnostic(event,data){
-    try{
-      if(window.RRRNative&&window.RRRNative.reportAudioDiagnostic){
-        var payload=Object.assign({event:event},data||{}),p=window.RRRNative.reportAudioDiagnostic(payload);
-        if(p&&typeof p.catch==='function')p.catch(function(){});
-      }
-    }catch(e){}
-  }
-  function stopSystemAudio(returnToRadio){
-    if(_systemAudioStream){ try{ _systemAudioStream.getTracks().forEach(function(t){t.stop();}); }catch(e){} }
-    _systemAudioStream=null; _systemAudioSource=null; _systemAudioStatus='off';
-    if(returnToRadio && Audio.extActive&&Audio.extActive()) _backToGenerated();
-    desktopDiagnostic('system-audio-state',{status:'off'});
-  }
-  function setSystemAudio(enabled){
-    enabled=!!enabled;
-    if(!_WALLPAPER_AUDIO){ return Promise.resolve(false); }
-    if(!enabled){ stopSystemAudio(true); return Promise.resolve(true); }
-    if(_systemAudioStatus==='active'&&_systemAudioStream)return Promise.resolve(true);
-    _systemAudioStatus='starting'; desktopDiagnostic('system-audio-state',{status:'starting'});
-    try{ startAudio(true,{external:true}); }catch(e){}
-    if(!navigator.mediaDevices||!navigator.mediaDevices.getDisplayMedia){
-      _systemAudioStatus='error'; desktopDiagnostic('system-audio-state',{status:'error',error:'System audio capture is unavailable'}); return Promise.resolve(false);
-    }
-    return navigator.mediaDevices.getDisplayMedia({audio:true,video:true}).then(function(stream){
-      var tracks=stream.getAudioTracks();
-      stream.getVideoTracks().forEach(function(t){t.stop();});
-      if(!tracks.length)throw new Error('macOS returned no system audio track');
-      stopSystemAudio(false);
-      var ctx=Audio.audioCtx&&Audio.audioCtx(); if(!ctx)throw new Error('audio context unavailable');
-      var source=ctx.createMediaStreamSource(new MediaStream(tracks)),boost=ctx.createGain(); boost.gain.value=1.5;
-      source.connect(boost); Audio.playExternal(boost,{source:'system',monitor:false});
-      _systemAudioStream=stream; _systemAudioSource=source; _systemAudioStatus='active';
-      _station='system'; _nowSource='external';
-      if(typeof _setExternalNowPlaying==='function')_setExternalNowPlaying('System audio');
-      tracks[0].onended=function(){ if(_systemAudioStream===stream){ stopSystemAudio(true); _systemAudioStatus='error'; desktopDiagnostic('system-audio-state',{status:'error',error:'System audio capture ended'}); } };
-      desktopDiagnostic('system-audio-state',{status:'active',trackLabel:tracks[0].label||''});
-      return true;
-    }).catch(function(error){
-      stopSystemAudio(false); _systemAudioStatus='error';
-      desktopDiagnostic('system-audio-state',{status:'error',error:String(error&&error.message||error)});
-      return false;
-    });
-  }
-  function stId(){ return 'st-any'; }   // one station
-  function nowPlaying(){
-    try{
-      var mix=(typeof window._sessionMixGet==='function') ? window._sessionMixGet() :
-        ((typeof Audio!=='undefined' && Audio.getMix) ? Audio.getMix() : {});
-      var bounds=(typeof Radio!=='undefined' && Radio.tempoBounds) ? Radio.tempoBounds() : [60,220];
-      var nativeBpm=(function(){ try{ return Audio.trackBpm?Audio.trackBpm():null; }catch(e){ return null; } })();
-      var details=(function(){ try{ return Audio.nowPlaying?Audio.nowPlaying():null; }catch(e){ return null; } })()||{};
-      var liveDebug=(function(){ try{ return LiveCtl&&LiveCtl.debug?LiveCtl.debug():null; }catch(e){ return null; } })();
-      var deck=(function(){ try{ return Audio.deckPosition?Audio.deckPosition():null; }catch(e){ return null; } })();
-      return {
-        title:(typeof _curName!=='undefined' && _curName) ? String(_curName) : '',
-        station:stId(),
-        live:!!(typeof LiveCtl!=='undefined' && LiveCtl.active && LiveCtl.active()),
-        listeners:(typeof window._presenceCount==='number') ? window._presenceCount : null,
-        playing:!!(typeof Audio!=='undefined' && Audio.running && Audio.running()),
-        bpm:nativeBpm,
-        tempo:{ manual:(Radio&&Radio.state)?Radio.state.tempo:null, native:nativeBpm, min:bounds[0], max:bounds[1] },
-        mix:mix,
-        dialect:details.dialect||null,
-        era:details.era||null,
-        development:details.development||null,
-        motion:details.motion||null,
-        token:(liveDebug&&liveDebug.token)||(deck&&deck.tok)||'',
-        offsetSec:(liveDebug&&liveDebug.offsetSec!=null)?liveDebug.offsetSec:(deck&&deck.sec!=null?deck.sec:null)
-      };
-    }catch(e){ return { title:'', station:'st-any', live:false, playing:false, listeners:null, bpm:null, tempo:null, mix:null, token:'', offsetSec:null }; }
-  }
-  window.RRR={
-    isControl:true,
-    enterStation:function(id){ try{ enterStation(id); }catch(e){} },
-    station:stId,
-    transport:function(dir){ try{ if(dir==='prev')_transportPrev(); else if(dir==='toggle')_transportToggle(); else _transportNext(); }catch(e){} },
-    setMasterVol:function(v){ v=Math.max(0,Math.min(2,+v||0)); try{ if(typeof _sessionMixSet==='function')_sessionMixSet('master',v); else if(Audio&&Audio.setMix)Audio.setMix('master',v); }catch(e){} },
-    setMix:function(role,v){ try{ if(typeof _sessionMixSet==='function')_sessionMixSet(role,Math.max(0,Math.min(2,+v||0))); else if(Audio&&Audio.setMix)Audio.setMix(role,v); }catch(e){} },
-    resetMix:function(){ try{ var roles=['lead','bass','kick','snare','hat','arp','pad','fx']; if(typeof _sessionMixReset==='function')_sessionMixReset(roles); else if(Audio&&Audio.setMix)roles.forEach(function(role){Audio.setMix(role,1);}); }catch(e){} },
-    setTempo:function(v){ try{ if(Radio&&Radio.setTempo)Radio.setTempo(v==null?null:+v); }catch(e){} },
-    visualizer:function(dir){ try{ return cycleVisualizerGame(dir); }catch(e){ return false; } },
-    setSystemAudio:setSystemAudio,
-    nowPlaying:nowPlaying
-  };
-
-  // Wallpaper audio-owner window: take live station/transport commands from main (no reload), and
-  // report now-playing up so the popover can show the current track.
-  if(_WALLPAPER_MODE && window.RRRNative){
-    if(window.RRRNative.onCommand){ try{ window.RRRNative.onCommand(function(cmd){
-      if(!cmd||!cmd.type) return;
-      if(cmd.type==='enterStation' && cmd.id) window.RRR.enterStation(cmd.id);
-      else if(cmd.type==='transport') window.RRR.transport(cmd.dir);
-      else if(cmd.type==='masterVol') window.RRR.setMasterVol(cmd.value);
-      else if(cmd.type==='mix') window.RRR.setMix(cmd.role,cmd.value);
-      else if(cmd.type==='resetMix') window.RRR.resetMix();
-      else if(cmd.type==='tempo') window.RRR.setTempo(cmd.value);
-      else if(cmd.type==='visualizer') window.RRR.visualizer(cmd.dir);
-      else if(cmd.type==='scanlines' && window.__rrrSetScanlineStrength) window.__rrrSetScanlineStrength(cmd.value);
-      else if(cmd.type==='sceneSeconds' && window.__rrrSetSceneSeconds) window.__rrrSetSceneSeconds(cmd.value);
-      else if(cmd.type==='systemAudio') window.RRR.setSystemAudio(!!cmd.value);
-    }); }catch(e){} }
-    if(_WALLPAPER_AUDIO && window.RRRNative.reportNowPlaying){
-      var _lastNp='', _pendingNp='';
-      setInterval(function(){ try{ var n=nowPlaying(), k=JSON.stringify(n); if(k!==_lastNp && k!==_pendingNp){
-        _pendingNp=k; var sent=window.RRRNative.reportNowPlaying(n);
-        if(sent&&typeof sent.then==='function') sent.then(function(){ _lastNp=k; if(_pendingNp===k)_pendingNp=''; },function(e){ if(_pendingNp===k)_pendingNp=''; console.error('[desktop] now-playing report failed:',e); });
-        else { _lastNp=k; _pendingNp=''; }
-      } }catch(e){ _pendingNp=''; console.error('[desktop] now-playing report failed:',e); } }, 1500);
-    }
-    if(_WALLPAPER_AUDIO && window.RRRNative.reportAudioDiagnostic){
-      var _diagSilentAt=0,_diagSilentReported=false,_diagToken='',_diagCtx='';
-      function audioSnapshot(){
-        var ctx=Audio.audioCtx&&Audio.audioCtx(),deck=Audio.deckPosition&&Audio.deckPosition(),np=Audio.nowPlaying&&Audio.nowPlaying();
-        var rx=Audio.vis&&Audio.vis(),probe=Audio.outputProbe&&Audio.outputProbe(),b=rx&&rx.bands||{},wave=rx&&rx.waveform||[];
-        var signal=probe?+probe.signal||0:Math.max(+b.bass||0,+b.mid||0,+b.treble||0);
-        if(!probe)for(var i=0;i<wave.length;i++)signal=Math.max(signal,Math.abs(+wave[i]||0));
-        return {context:ctx?{state:ctx.state,currentTime:ctx.currentTime,sampleRate:ctx.sampleRate,baseLatency:ctx.baseLatency,outputLatency:ctx.outputLatency}:null,
-          audio:{started:!!Audio.started,running:!!(Audio.running&&Audio.running()),paused:!!(Audio.isPaused&&Audio.isPaused()),external:!!(Audio.extActive&&Audio.extActive()),systemAudio:_systemAudioStatus},
-          deck:deck,nowPlaying:np,signal:signal,outputProbe:probe,reactor:rx?{bpm:rx.bpm,idle:rx.idle,section:rx.section,bands:b,silentTempoFallback:!!_silentTempoFallback}:null,
-          radio:{playing:!!(Radio&&Radio.state&&Radio.state.playing),live:!!(Radio&&Radio.live&&Radio.live()),tempo:Radio&&Radio.state?Radio.state.tempo:null},
-          scheduler:window.__rrrSched||null,schedulerClock:window.__rrrSchedClock||null,audioResume:window.__rrrAudioResume||null,
-          transport:window.__rrrTransport||null,frame:window.__rrrFrame||null,visibility:document.visibilityState,online:navigator.onLine};
-      }
-      function reportAudio(){
-        try{
-          var snap=audioSnapshot(),now=Date.now(),tok=snap.deck&&snap.deck.tok||'',ctxState=snap.context&&snap.context.state||'none';
-          if(tok!==_diagToken){ desktopDiagnostic('track-token',{previous:_diagToken,current:tok,snapshot:snap}); _diagToken=tok; }
-          if(ctxState!==_diagCtx){ desktopDiagnostic('audio-context',{previous:_diagCtx,current:ctxState,snapshot:snap}); _diagCtx=ctxState; }
-          var shouldSound=snap.audio.running&&!snap.audio.external&&!snap.audio.paused;
-          if(shouldSound&&snap.signal<0.004){
-            if(!_diagSilentAt)_diagSilentAt=now;
-            if(!_diagSilentReported&&now-_diagSilentAt>=10000){ _diagSilentReported=true; desktopDiagnostic('silence-start',{silentMs:now-_diagSilentAt,snapshot:snap}); }
-          }else if(_diagSilentAt){
-            if(_diagSilentReported)desktopDiagnostic('silence-end',{silentMs:now-_diagSilentAt,snapshot:snap});
-            _diagSilentAt=0; _diagSilentReported=false;
-          }
-          desktopDiagnostic('heartbeat',{silentMs:_diagSilentAt?now-_diagSilentAt:0,snapshot:snap});
-        }catch(e){ desktopDiagnostic('diagnostic-error',{error:String(e&&e.message||e)}); }
-      }
-      setInterval(reportAudio,5000); setTimeout(reportAudio,1200);
-      document.addEventListener('visibilitychange',function(){desktopDiagnostic('visibility',{state:document.visibilityState});});
-      window.addEventListener('online',function(){desktopDiagnostic('network',{online:true});});
-      window.addEventListener('offline',function(){desktopDiagnostic('network',{online:false});});
-      window.addEventListener('error',function(e){desktopDiagnostic('renderer-error',{message:e.message||'',filename:e.filename||'',line:e.lineno||0});});
-      window.addEventListener('unhandledrejection',function(e){desktopDiagnostic('renderer-rejection',{reason:String(e.reason&&e.reason.message||e.reason||'unknown')});});
-    }
-    window.addEventListener('beforeunload',function(){ if(_systemAudioStream)stopSystemAudio(false); });
-  }
-
-  // ---- the menu-bar popover control panel (rendered ONLY in the Electron popover window) ----
-  window._renderPopover=function(){
-    var host=document.getElementById('popover'); if(!host) return;
-    var MIX_ROWS=[['lead','Lead / melody'],['bass','Bass'],['kick','Kick'],['snare','Snare / clap'],['hat','Hi-hats'],['arp','Arp'],['pad','Pad'],['fx','FX / risers']];
-    var css=document.createElement('style');
-    css.textContent=
-      'html,body{background:transparent;margin:0}'+
-      '#popover{font-family:var(--pixel);color:#f4f2ff;-webkit-user-select:none;user-select:none;height:100vh}'+
-      '.pv{display:flex;flex-direction:column;height:100vh;background:linear-gradient(180deg,#141024,#0b0916);border:1px solid rgba(255,255,255,.07);border-radius:18px;overflow:hidden;box-shadow:0 18px 60px rgba(0,0,0,.6)}'+
-      '.pv-scroll{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;scrollbar-color:#514573 transparent}'+
-      '.pv-body{display:flex;flex-direction:column;gap:25px;padding:28px 24px 24px}'+
-      '.pv-transport{display:flex;align-items:center;justify-content:center;gap:28px}'+
-      '.pv-tb{width:54px;height:54px;border-radius:50%;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#f4f2ff;font-size:18px;cursor:pointer}'+
-      '.pv-tb.play{width:72px;height:72px;font-size:28px;background:#f878f8;border-color:#f878f8;color:#160b1f;box-shadow:0 8px 26px rgba(248,120,248,.38)}'+
-      '.pv-tb:active{transform:scale(.94)}'+
-      '.pv-mixhead{display:flex;align-items:center;justify-content:space-between;color:#6cf;font-size:12px;letter-spacing:.5px;margin-bottom:11px}'+
-      '.pv-reset,.pv-auto,.pv-step{border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.07);color:#f4f2ff;border-radius:8px;height:32px;padding:0 10px;font-family:var(--pixel);font-weight:800;cursor:pointer}'+
-      '.pv-auto.on{background:#6888fc;color:#0b0916;border-color:#6888fc}'+
-      '.pv-tempo{display:grid;grid-template-columns:auto auto minmax(120px,1fr) auto 76px;gap:9px;align-items:center;padding-bottom:15px;border-bottom:1px solid rgba(255,255,255,.12)}'+
-      '.pv-tempo input,.pv-mixrow input{width:100%;min-width:0;accent-color:#6cf}'+
-      '.pv-temporead,.pv-mixval{text-align:right;color:#d8fff3;font:700 13px var(--mono)}'+
-      '.pv-control-section{padding-top:2px}.pv-control-section+.pv-control-section{padding-top:18px;border-top:1px solid rgba(255,255,255,.12)}'+
-      '.pv-levelhead{margin-top:0}.pv-mixrow{display:grid;grid-template-columns:34px minmax(115px,150px) minmax(150px,1fr) 54px;gap:10px;align-items:center;margin:10px 0}'+
-      '.pv-mixrow.master{margin-top:16px;padding:12px 9px;border:1px solid rgba(94,224,138,.35);border-radius:10px;background:rgba(94,224,138,.08)}'+
-      '.pv-mixrow label{font-size:12px;color:#b9b2d4}.pv-mixrow.master label{font-size:15px;color:#fff;font-weight:900}.pv-mixrow.master input{accent-color:#5ee08a}'+
-      '.pv-mute{width:32px;height:32px;border:0;border-radius:8px;background:rgba(255,255,255,.06);color:#fff;cursor:pointer;font-size:15px}.pv-mute.on{color:#ff7272;background:rgba(255,93,93,.15)}'+
-      '.pv-bar{flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:13px 16px;background:rgba(0,0,0,.34);border-top:1px solid rgba(255,255,255,.08)}'+
-      '.pv-version{border:0;background:transparent;color:#a69fc2;font:700 11px var(--pixel);letter-spacing:.3px;cursor:pointer;padding:8px 4px}.pv-version:hover{color:#fff;text-decoration:underline}'+
-      '.pv-spacer{flex:1}.pv-bic{width:40px;height:40px;border-radius:11px;border:0;background:rgba(255,255,255,.07);color:#d8d1ee;font-size:17px;cursor:pointer}'+
-      '.pv-bic:active{transform:scale(.94)}'+
-      '@media(max-width:580px){.pv-body{padding:18px}.pv-mixrow{grid-template-columns:32px 104px minmax(110px,1fr) 50px}.pv-tempo{grid-template-columns:auto auto minmax(90px,1fr) auto 66px}}';
-    document.head.appendChild(css);
-
-    function esc(x){ var d=document.createElement('div'); d.textContent=String(x==null?'':x); return d.innerHTML; }
-    var mixRows=MIX_ROWS.map(function(r){ return '<div class="pv-mixrow" data-role="'+r[0]+'"><button class="pv-mute" title="Mute '+esc(r[1])+'">🔊</button><label>'+esc(r[1])+'</label><input type="range" min="0" max="2" step="0.05" value="1"><span class="pv-mixval">100%</span></div>'; }).join('');
-    host.innerHTML=
-      '<div class="pv">'+
-      ' <div class="pv-scroll"><div class="pv-body">'+
-      '    <div class="pv-transport">'+
-      '      <button class="pv-tb" id="pvPrev" title="Previous track">⏮</button>'+
-      '      <button class="pv-tb play" id="pvPlay" title="Play / Pause">▶</button>'+
-      '      <button class="pv-tb" id="pvNext" title="Next track">⏭</button></div>'+
-      '    <section class="pv-control-section"><div class="pv-mixhead"><span>VOLUME</span></div>'+
-      '      <div class="pv-mixrow master" data-role="master"><button class="pv-mute" title="Mute volume">🔊</button><label>Volume</label><input type="range" min="0" max="2" step="0.05" value="0.4"><span class="pv-mixval">40%</span></div></section>'+
-      '    <section class="pv-control-section"><div class="pv-mixhead pv-levelhead"><span>LEVELS</span><button class="pv-reset" id="pvReset">reset levels</button></div>'+
-             mixRows+
-      '    </section>'+
-      '    <section class="pv-control-section"><div class="pv-mixhead"><span>TEMPO · BPM</span></div>'+
-      '      <div class="pv-tempo"><button class="pv-auto" id="pvTempoAuto">auto</button><button class="pv-step" id="pvTempoMinus">−</button><input id="pvTempo" type="range" min="60" max="220" step="1" value="130"><button class="pv-step" id="pvTempoPlus">+</button><span class="pv-temporead" id="pvTempoRead">130 BPM</span></div></section>'+
-      '  </div></div>'+
-      '  <div class="pv-bar">'+
-      '    <button class="pv-version" id="pvVersion" title="Check for updates">v?</button><span class="pv-spacer"></span>'+
-      '    <button class="pv-bic" id="pvGear" title="Desktop settings">⚙</button>'+
-      '    <button class="pv-bic" id="pvQuit" title="Quit Chiptunes.app">⏻</button>'+
-      '  </div>'+
-      '</div>';
-
-    var N=window.RRRNative||{};
-    var _state={ appVersion:'?', audioMuted:false, volume:.4, station:'st-any', nowPlaying:null, update:{phase:'idle'} };
-    var _lastNonZero={};
-    function ctl(action, extra){ try{ if(N.control){ var p=N.control(Object.assign({action:action}, extra||{})); if(p&&typeof p.catch==='function')p.catch(function(e){console.error('[desktop] control failed:',e);}); return p; } }catch(e){console.error('[desktop] control failed:',e);} return null; }
-    document.getElementById('pvPrev').onclick=function(){ ctl('transport',{dir:'prev'}); };
-    document.getElementById('pvPlay').onclick=function(){ ctl('transport',{dir:'toggle'}); };
-    document.getElementById('pvNext').onclick=function(){ ctl('transport',{dir:'next'}); };
-    document.getElementById('pvGear').onclick=function(){ ctl('openWindow'); };
-    document.getElementById('pvQuit').onclick=function(){ ctl('confirmQuit'); };
-    document.getElementById('pvVersion').onclick=function(){ ctl('checkForUpdates'); };
-
-    function setMixRow(row,value,send){
-      var role=row.getAttribute('data-role'), slider=row.querySelector('input'), read=row.querySelector('.pv-mixval'), mute=row.querySelector('.pv-mute');
-      value=Math.max(0,Math.min(2,Number(value==null?1:value)));
-      if(value>0.001)_lastNonZero[role]=value;
-      if(document.activeElement!==slider)slider.value=String(value);
-      read.textContent=Math.round(value*100)+'%'; mute.textContent=value<=0.001?'🔇':'🔊'; mute.classList.toggle('on',value<=0.001);
-      if(send)ctl('setMix',{role:role,value:value});
-    }
-    Array.prototype.forEach.call(host.querySelectorAll('.pv-mixrow'),function(row){
-      var role=row.getAttribute('data-role'), slider=row.querySelector('input'), mute=row.querySelector('.pv-mute');
-      slider.oninput=function(){ setMixRow(row,+slider.value,true); };
-      mute.onclick=function(){ var cur=+slider.value||0; setMixRow(row,cur>0.001?0:(_lastNonZero[role]||1),true); };
-    });
-    document.getElementById('pvReset').onclick=function(){ MIX_ROWS.forEach(function(r){ var row=host.querySelector('.pv-mixrow[data-role="'+r[0]+'"]'); if(row)setMixRow(row,1,false); }); ctl('resetMix'); };
-    function tempoValue(){ var np=_state.nowPlaying||{}, t=np.tempo||{}; return t.manual!=null?+t.manual:(t.native!=null?+t.native:(np.bpm||130)); }
-    function setTempo(value){ var sl=document.getElementById('pvTempo'); value=Math.max(+sl.min,Math.min(+sl.max,Math.round(value))); sl.value=String(value); document.getElementById('pvTempoRead').textContent=value+' BPM'; ctl('setTempo',{value:value}); }
-    document.getElementById('pvTempo').oninput=function(){ setTempo(+this.value); };
-    document.getElementById('pvTempoAuto').onclick=function(){ ctl('setTempo',{value:null}); };
-    document.getElementById('pvTempoMinus').onclick=function(){ setTempo(tempoValue()-1); };
-    document.getElementById('pvTempoPlus').onclick=function(){ setTempo(tempoValue()+1); };
-
-    function apply(s){
-      if(!s) return; _state=Object.assign(_state,s);
-      var update=_state.update||{}, version='v'+String(_state.appVersion||'?');
-      if(update.phase==='checking')version+=' · checking…';
-      else if(update.phase==='downloading')version+=' · downloading…';
-      else if(update.phase==='ready')version+=' · update ready';
-      document.getElementById('pvVersion').textContent=version;
-      var np=s.nowPlaying||_state.nowPlaying||{};
-      document.getElementById('pvPlay').innerHTML=np.playing?'⏸':'▶';
-      var mix=Object.assign({master:s.volume==null ? .4 : s.volume,lead:1,bass:1,kick:1,snare:1,hat:1,arp:1,pad:1,fx:1},np.mix||{});
-      if(s.volume!=null)mix.master=s.volume;
-      Array.prototype.forEach.call(host.querySelectorAll('.pv-mixrow'),function(row){ setMixRow(row,mix[row.getAttribute('data-role')],false); });
-      var tempo=np.tempo||{}, sl=document.getElementById('pvTempo');
-      sl.min=String(tempo.min||60); sl.max=String(tempo.max||220);
-      var tv=tempo.manual!=null?tempo.manual:(tempo.native!=null?tempo.native:(np.bpm||130));
-      if(document.activeElement!==sl)sl.value=String(Math.max(+sl.min,Math.min(+sl.max,Math.round(tv))));
-      document.getElementById('pvTempoRead').textContent=Math.round(tv)+' BPM';
-      document.getElementById('pvTempoAuto').classList.toggle('on',tempo.manual==null);
-      document.getElementById('pvTempoMinus').disabled=+sl.value<=+sl.min;
-      document.getElementById('pvTempoPlus').disabled=+sl.value>=+sl.max;
-    }
-    if(N.onDesktopState) N.onDesktopState(apply);
-    else if(N.desktopState) N.desktopState().then(apply)['catch'](function(){});
-  };
-
-  // ---- the Portal-style desktop control center (the app's main window: ?mode=browse) ----
-  window._renderBrowse=function(){
-    var host=document.getElementById('browse'); if(!host) return;
-    var css=document.createElement('style');
-    css.textContent=
-      '#browse{font-family:var(--pixel);color:#f4f2ff;min-height:100vh;-webkit-user-select:none;user-select:none;padding:38px 28px}'+
-      '.bz-wrap{max-width:900px;margin:0 auto}'+
-      '.bz-h1{font-size:28px;letter-spacing:.5px;font-weight:900}'+
-      '.bz-tag{color:#b9b2d6;font-size:14px;margin:7px 0 30px}'+
-      '.bz-sec{margin-bottom:26px}'+
-      '.bz-sect{font-size:12px;text-transform:uppercase;letter-spacing:1.2px;color:#8f88b3;margin-bottom:11px}'+
-      '.bz-disp,.bz-set{display:flex;align-items:center;gap:12px;border:1px solid rgba(255,255,255,.09);background:rgba(255,255,255,.03);border-radius:12px;padding:12px 14px;margin-bottom:8px}'+
-      '.bz-disp .di,.bz-set .sl{flex:1}.bz-disp .dn,.bz-set .sl>b{font-size:14px;font-weight:700}'+
-      '.bz-disp .dm,.bz-set .sd{font-size:11px;color:#9a93bd;margin-top:2px}'+
-      '.bz-badge{font-size:9px;text-transform:uppercase;letter-spacing:.6px;background:rgba(104,136,252,.25);color:#cdd6ff;border-radius:6px;padding:2px 6px;margin-left:6px}'+
-      '.bz-sw{width:46px;height:26px;border-radius:14px;background:rgba(255,255,255,.14);position:relative;cursor:pointer;flex:0 0 auto;transition:background .12s}'+
-      '.bz-sw::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left .12s}'+
-      '.bz-sw.on{background:var(--accent2)}.bz-sw.on::after{left:23px}'+
-      '.bz-seg{display:flex;border:1px solid rgba(255,255,255,.14);border-radius:9px;overflow:hidden;flex:0 0 auto}'+
-      '.bz-seg button{background:transparent;color:#cfc8ea;border:0;padding:6px 13px;font-size:13px;cursor:pointer}'+
-      '.bz-seg button.on{background:var(--accent3);color:#0c0a1a}'+
-      '.bz-range{display:flex;align-items:center;gap:11px;min-width:260px}.bz-range input{width:210px;accent-color:var(--accent2)}'+
-      '.bz-read{width:44px;text-align:right;color:#d8fff3;font:700 12px var(--mono)}';
-    document.head.appendChild(css);
-
-    function esc(x){ var d=document.createElement('div'); d.textContent=String(x==null?'':x); return d.innerHTML; }
-    function sw(on){ return '<div class="bz-sw'+(on?' on':'')+'"></div>'; }
-
-    host.innerHTML=
-      '<div class="bz-wrap">'+
-      '  <div class="bz-h1">Desktop Settings</div>'+
-      '  <div class="bz-tag">Choose where the animated wallpaper appears and how much power it uses.</div>'+
-      '  <div class="bz-sec"><div class="bz-sect">Displays</div><div id="bzDisplays"></div></div>'+
-      '  <div class="bz-sec"><div class="bz-sect">Wallpaper</div><div id="bzSettings"></div></div>'+
-      '</div>';
-
-    var N=window.RRRNative||{};
-    var _state={ wallpaperEnabled:false, motionFrozen:false, fpsCap:30, powerSaver:false, openAtLogin:false,
-      systemAudioReactive:false,systemAudioStatus:'off',scanlineStrength:.3,displays:[] };
-    function ctl(a,x){ try{ if(N.control){ var p=N.control(Object.assign({action:a},x||{})); if(p&&typeof p.catch==='function')p.catch(function(e){console.error('[desktop] control failed:',e);}); } }catch(e){console.error('[desktop] control failed:',e);} }
-
-    function renderDisplays(list){
-      var el=document.getElementById('bzDisplays');
-      if(!list||!list.length){ el.innerHTML='<div class="bz-disp"><div class="di"><div class="dn">No displays detected</div></div></div>'; return; }
-      el.innerHTML=list.map(function(d){
-        var badges=(d.primary?'<span class="bz-badge">Primary</span>':'')+(d.audioOwner?'<span class="bz-badge">Audio</span>':'');
-        return '<div class="bz-disp" data-id="'+esc(d.id)+'"><div class="di"><div class="dn">'+esc(d.label)+badges+'</div><div class="dm">'+d.width+' × '+d.height+'</div></div>'+sw(d.enabled)+'</div>';
-      }).join('');
-      Array.prototype.forEach.call(el.querySelectorAll('.bz-disp'), function(row){ var s=row.querySelector('.bz-sw'); if(!s) return; s.onclick=function(){ ctl('setDisplayEnabled',{id:row.getAttribute('data-id'), value:!s.classList.contains('on')}); }; });
-    }
-    function renderSettings(s){
-      var el=document.getElementById('bzSettings');
-      el.innerHTML=
-        '<div class="bz-set"><div class="sl"><b>Animated wallpaper</b><div class="sd">Run the visuals behind your desktop icons</div></div><div id="bzWallpaper">'+sw(s.wallpaperEnabled)+'</div></div>'+
-        '<div class="bz-set"><div class="sl"><b>Freeze motion</b><div class="sd">Hold the current frame while the radio keeps playing</div></div><div id="bzFreeze">'+sw(s.motionFrozen)+'</div></div>'+
-        '<div class="bz-set"><div class="sl"><b>Frame rate</b><div class="sd">Higher = smoother, more power</div></div><div class="bz-seg" id="bzFps">'+[15,30,60].map(function(f){return '<button data-f="'+f+'"'+(s.fpsCap===f?' class="on"':'')+'>'+f+'</button>';}).join('')+'</div></div>'+
-        '<div class="bz-set"><div class="sl"><b>Battery saver</b><div class="sd">Drop to 15fps on battery</div></div><div id="bzPower">'+sw(s.powerSaver)+'</div></div>'+
-        '<div class="bz-set"><div class="sl"><b>React to system audio</b><div class="sd">Use Mac audio for the wallpaper beat and BPM. Analysis only; never recorded or transmitted.'+(s.systemAudioStatus==='error'?' Permission or capture error. Toggle off and on to retry.':'')+'</div></div><div id="bzSystemAudio">'+sw(s.systemAudioReactive)+'</div></div>'+
-        '<div class="bz-set"><div class="sl"><b>Scanline strength</b><div class="sd">Control the CRT scanline overlay</div></div><div class="bz-range"><input id="bzScanlines" type="range" min="0" max="1" step="0.01" value="'+Number(s.scanlineStrength==null ? .3 : s.scanlineStrength)+'"><span class="bz-read" id="bzScanRead">'+Math.round(Number(s.scanlineStrength==null ? .3 : s.scanlineStrength)*100)+'%</span></div></div>'+
-        '<div class="bz-set"><div class="sl"><b>Launch at login</b><div class="sd">Start the wallpaper when you log in</div></div><div id="bzLogin">'+sw(s.openAtLogin)+'</div></div>';
-      document.querySelector('#bzWallpaper .bz-sw').onclick=function(){ ctl('setWallpaperEnabled',{value:!s.wallpaperEnabled}); };
-      document.querySelector('#bzFreeze .bz-sw').onclick=function(){ if(s.wallpaperEnabled) ctl('setMotionFrozen',{value:!s.motionFrozen}); };
-      Array.prototype.forEach.call(el.querySelectorAll('#bzFps button'), function(b){ b.onclick=function(){ ctl('setFps',{value:+b.getAttribute('data-f')}); }; });
-      document.querySelector('#bzPower .bz-sw').onclick=function(){ ctl('setPowerSaver',{value:!s.powerSaver}); };
-      document.querySelector('#bzSystemAudio .bz-sw').onclick=function(){ ctl('setSystemAudioReactive',{value:!s.systemAudioReactive}); };
-      document.getElementById('bzScanlines').oninput=function(){ document.getElementById('bzScanRead').textContent=Math.round(+this.value*100)+'%'; ctl('setScanlineStrength',{value:+this.value}); };
-      document.querySelector('#bzLogin .bz-sw').onclick=function(){ ctl('setLogin',{value:!s.openAtLogin}); };
-    }
-
-    var _structKey='';
-    function apply(s){
-      if(!s) return; _state=Object.assign(_state,s);
-      var key=JSON.stringify({w:_state.wallpaperEnabled,z:_state.motionFrozen,f:_state.fpsCap,p:_state.powerSaver,
-        a:_state.systemAudioReactive,as:_state.systemAudioStatus,l:_state.openAtLogin,d:_state.displays});
-      if(key!==_structKey){ _structKey=key;
-        renderDisplays(_state.displays);
-        renderSettings(_state);
-      }
-    }
-    if(N.onDesktopState) N.onDesktopState(apply);
-    else if(N.desktopState) N.desktopState().then(apply)['catch'](function(){});
-  };
 })();
 
 // ---- ?perf=1 : THE NUMBERS, ON THE GLASS ----------------------------------

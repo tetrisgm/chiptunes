@@ -1,7 +1,6 @@
-// The two ways back into a private generated station must mint exactly one
-// fresh token. This guards the real router and desktop bridge paths: a former
-// selector helper was removed when generation became single-path, but these
-// callers were left behind and crashed only after the player had booted.
+// Returning to a private generated station must mint exactly one fresh token.
+// A former selector helper was removed when generation became single-path, but
+// its router caller was left behind and crashed only after the player had booted.
 'use strict';
 
 const fs = require('fs');
@@ -99,45 +98,11 @@ function assert(condition, message){
     assert(routed.calls.length === 1 && routed.calls[0] === 'private-route-token',
       'already-booted private route mints one fresh token');
 
-    // Exercise the desktop bridge path used when system-audio capture is
-    // disabled or ends. It also requires a direct fresh token rather than the
-    // broadcast schedule or playback queue.
-    const returned = await page.evaluate(async () => {
-      const calls = [];
-      const original = {
-        mint: Song.mint,
-        extActive: Audio.extActive,
-        stopExternal: Audio.stopExternal,
-        gotoTrack: Audio.gotoTrack,
-        liveActive: LiveCtl.active,
-        liveNext: LiveCtl.nextToken
-      };
-      try {
-        Song.mint = () => 'external-return-token';
-        Audio.extActive = () => true;
-        Audio.stopExternal = () => { calls.push('stopped'); };
-        Audio.gotoTrack = token => { calls.push(token); };
-        LiveCtl.active = () => true;
-        LiveCtl.nextToken = () => { calls.push('live-policy'); return 'scheduled-token'; };
-        const ok = await RRR.setSystemAudio(false);
-        return { calls, ok };
-      } finally {
-        Song.mint = original.mint;
-        Audio.extActive = original.extActive;
-        Audio.stopExternal = original.stopExternal;
-        Audio.gotoTrack = original.gotoTrack;
-        LiveCtl.active = original.liveActive;
-        LiveCtl.nextToken = original.liveNext;
-      }
-    });
-    assert(returned.ok === true, 'desktop bridge accepts system-audio shutdown');
-    assert(returned.calls.join(',') === 'stopped,external-return-token',
-      'external return stops capture and mints one fresh token');
     assert(!errors.length, 'generated transitions raise no page errors');
     assert(!fs.readFileSync(path.join(__dirname, '..', 'src', 'runtime.js'), 'utf8').includes('_nextGeneratedToken'),
       'removed selector has no remaining runtime callers');
 
-    console.log('\nverify-generated-transitions: private entry and external return are safe');
+    console.log('\nverify-generated-transitions: private entry is safe');
   } finally {
     if (browser) await browser.close().catch(() => {});
     await new Promise(resolve => server.close(resolve));

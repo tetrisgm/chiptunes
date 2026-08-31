@@ -137,9 +137,7 @@ for (const stale of ['create', 'listen', 'play', 'wip', 'watch']) {
 }
 for (const route of ROUTES) {
   fs.mkdirSync(path.join(DIST, route), { recursive: true });
-  // one level down, so the bundle is one level up. Relative on purpose: the
-  // desktop app's offline fallback loads these over file://, where an absolute
-  // path means the filesystem root.
+  // one level down, so the bundle is one level up.
   fs.writeFileSync(path.join(DIST, route, 'index.html'),
                    html.replace('src="' + bundleName + '"', 'src="../' + bundleName + '"'));
 }

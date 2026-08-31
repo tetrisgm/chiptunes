@@ -29,24 +29,6 @@
 <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet" />
 <script>
 (function(){
-  var shellMode='';
-  try{ shellMode=new URLSearchParams(location.search||'').get('mode')||''; }catch(e0){}
-  // wallpaper mode is an ELECTRON-only presentation (all chrome + the cursor are hidden). Gate it on
-  // the native bridge so a bare ?mode=wallpaper on the public web can't strip the UI for a visitor.
-  var isDesktopHost=!!(window.RRRNative && window.RRRNative.isDesktop);
-  if(shellMode==='wallpaper' && isDesktopHost){
-    document.documentElement.classList.add('wallpaper-mode','boot-player-route');
-    window.__RRR_WALLPAPER_MODE=true;
-    window.__RRR_BOOT_PLAYER_ROUTE=true;
-  } else if(shellMode==='popover' && isDesktopHost){
-    document.documentElement.classList.add('popover-mode','boot-player-route');
-    window.__RRR_POPOVER_MODE=true;
-    window.__RRR_BOOT_PLAYER_ROUTE=true;
-  } else if(shellMode==='browse' && isDesktopHost){
-    document.documentElement.classList.add('browse-mode','boot-player-route');
-    window.__RRR_BROWSE_MODE=true;
-    window.__RRR_BOOT_PLAYER_ROUTE=true;
-  }
   // player-route boot: hide the Home overlay pre-paint for direct track/watch/radio links.
   // /track/<slug> (generated; slug may carry a '<composerId>.' prefix)
   // /watch (silent wallpaper) · /radio (mints a fresh generated track).
@@ -122,7 +104,7 @@
        at once and the odd 12 -- which reads as some things being quietly less
        important than others. It is one number now; the only text that departs
        from it is the hero's name (a display face doing a display job) and the
-       type inside the desktop thumbnail (scenery in a picture, not text). */
+       display text inside the hero screen. */
     --txt:17px;
     /* ONE BUTTON, TOO. The page carried 32, 34, 38, 46, 48 and 52px buttons at
        once, each chosen against whatever it sat beside -- a control being in a
@@ -169,40 +151,6 @@
   *{ box-sizing:border-box; margin:0; padding:0; }
   html,body{ height:100%; width:100%; overflow:hidden; background:var(--bg); }
   html.boot-player-route #intro{ display:none !important; }
-  html.wallpaper-mode body, html.wallpaper-mode body *{ cursor:none !important; }
-  html.wallpaper-mode #intro,
-  html.wallpaper-mode #hud,
-  html.wallpaper-mode #presets,
-  html.wallpaper-mode #playbar,
-  html.wallpaper-mode #watchbar,
-  html.wallpaper-mode #radionav,
-  html.wallpaper-mode #rlist,
-  html.wallpaper-mode #rfullscreen,
-  html.wallpaper-mode #resumeMusic,
-  html.wallpaper-mode #mixpanel,
-  html.wallpaper-mode #trackpanel,
-  html.wallpaper-mode #gamepick,
-  html.wallpaper-mode #soundhint{ display:none !important; }
-  /* Electron menu-bar popover: hide the whole radio UI, show only the compact control panel. */
-  html.popover-mode #stage, html.popover-mode .crt, html.popover-mode #hearts,
-  html.popover-mode #presets, html.popover-mode #hud, html.popover-mode #playbar,
-  html.popover-mode #intro, html.popover-mode #watchbar, html.popover-mode #radionav,
-  html.popover-mode #rlist, html.popover-mode #rfullscreen, html.popover-mode #mixpanel,
-  html.popover-mode #trackpanel, html.popover-mode #gamepick,
-  html.popover-mode #soundhint, html.popover-mode #resumeMusic{ display:none !important; }
-  html.popover-mode, html.popover-mode body{ background:transparent !important; cursor:default; overflow:hidden; }
-  #popover{ display:none; }
-  html.popover-mode #popover{ display:block; }
-  /* Electron desktop control-center window (Portal-style browse). */
-  html.browse-mode #stage, html.browse-mode .crt, html.browse-mode #hearts,
-  html.browse-mode #presets, html.browse-mode #hud, html.browse-mode #playbar,
-  html.browse-mode #intro, html.browse-mode #watchbar, html.browse-mode #radionav,
-  html.browse-mode #rlist, html.browse-mode #rfullscreen, html.browse-mode #mixpanel,
-  html.browse-mode #trackpanel, html.browse-mode #gamepick,
-  html.browse-mode #soundhint, html.browse-mode #resumeMusic{ display:none !important; }
-  html.browse-mode, html.browse-mode body{ background:var(--bg) !important; cursor:default; overflow:auto; height:auto; min-height:100%; }
-  #browse{ display:none; }
-  html.browse-mode #browse{ display:block; }
   body{
     font-family:var(--pixel);
     color:var(--ink);
@@ -330,11 +278,9 @@
      landing page you cannot read. Everything stays until something is playing.
   */
   body.awaiting-mood #plinks,
-  body.awaiting-mood #madeby,
-  body.awaiting-mood #dlcard{ opacity:1 !important; transition:none !important; }
+  body.awaiting-mood #madeby{ opacity:1 !important; transition:none !important; }
   body.awaiting-mood #plinks .plink,
-  body.awaiting-mood #madeby .plink,
-  body.awaiting-mood #dlcard{ pointer-events:auto !important; }
+  body.awaiting-mood #madeby .plink{ pointer-events:auto !important; }
 
   /* ===== THE HOME'S BAR IS A TRANSPORT, NOTHING ELSE ================
      Now playing (nothing is), the elapsed and total of a track that does not
@@ -347,13 +293,11 @@
      what was left was three buttons and an empty band across the bottom of a
      landing page. A transport with nothing to transport is furniture for its
      own sake; the moods are the entry. --barh goes to 0 with it, so the ask,
-     the desktop card and the picture all run to the bottom of the window. */
+     and the picture run to the bottom of the window. */
   html body.awaiting-mood #playbar,
   html body.awaiting-mood #playbar.show{ display:none !important; }
-  /* Nor a full-screen button (there is nothing yet worth filling a screen with)
-     nor the desktop card (an upsell before the thing has even been heard). */
-  html body.awaiting-mood #rfullscreen,
-  html body.awaiting-mood #dlcard{ display:none !important; }
+  /* Nor a full-screen button (there is nothing yet worth filling a screen with). */
+  html body.awaiting-mood #rfullscreen{ display:none !important; }
 
   /* the bar is always there now, so the hero centres in what is left above it */
   /* A SCRIM, because the backdrop is now a game rather than a black screen.
@@ -679,13 +623,6 @@
   #gbscreen .gb-how h3{ margin:0 0 7px; font:700 10px/1 var(--pixel),monospace; }
   #gbscreen .gb-how p{ margin:0 0 7px; }
   #gbscreen .gb-how b{ font-weight:700; }
-  #dlcard .dl-how{ position:absolute; inset:10px; z-index:3; display:none; overflow:auto;
-    padding:8px 10px; box-sizing:border-box; background:#d9e69a; color:#183d20;
-    font:400 8px/1.35 var(--pixel),monospace; }
-  #dlcard .dl-how.show{ display:block; }
-  #dlcard .dl-how h3{ margin:0 0 7px; font:700 10px/1 var(--pixel),monospace; }
-  #dlcard .dl-how p{ margin:0 0 7px; }
-  #dlcard .dl-how b{ font-weight:700; }
   #gbscreen .gb-err{ display:none; margin-top:8px; color:#ffb4b4; font-size:11px; line-height:1.35; }
   #gbscreen .gb-brand{ margin:12px 2px 0; color:#3b3a63; font:800 17px/1 var(--pixel),system-ui;
     letter-spacing:.02em; }
@@ -752,9 +689,7 @@
   #madeby .plmade-name{ color:var(--ink); font:700 var(--txt)/1 var(--px); letter-spacing:.04em; }
   #madeby .plmade-btn{ text-decoration:none; }
   #madeby .plmade-btn svg{ width:18px; height:18px; display:block; }
-  body.gb-open #madeby, body.create-open #madeby,
-  html.wallpaper-mode #madeby, html.popover-mode #madeby,
-  html.browse-mode #madeby{ display:none !important; }
+  body.gb-open #madeby, body.create-open #madeby{ display:none !important; }
   /* It used to be hidden here, from when it sat under the masthead and would
      have run into the hero. It lives at the foot of the rail now, and the
      landing page is exactly where a credit belongs. */
@@ -854,8 +789,7 @@
   /* The player bar STAYS. The bottom of the window is its, and the editor is
      contained above it the same way the game is -- one transport, in one place,
      whichever of the two views you happen to be looking at. */
-  body.create-open #plinks, body.create-open #dlcard,
-  body.create-open #bigplay{ display:none !important; }
+  body.create-open #plinks, body.create-open #bigplay{ display:none !important; }
   /* the editor is the page while it is open: no game underneath it, ever */
   body.create-open #stage, body.create-open .crt, body.create-open #hud,
   body.create-open #now, body.create-open #presets{ display:none !important; }
@@ -1256,98 +1190,6 @@
   body.ai-visual.controls-active #plinks .plrow,
   body.ai-visual.controls-active #plinks .plhead .plhow{ pointer-events:auto; }
 
-  /* THE DESKTOP CARD: the one offer on this screen that is not about the track
-     you are hearing, so it does not sit in the rail with the ones that are. It
-     stacks above the track name in the bottom-left corner -- the pill is 46px
-     at bottom:18px, so this clears it at 76. */
-  /* Same width, same corner, same padding as the track box it stacks on: two
-     surfaces in one corner that do not agree read as two accidents. */
-  /* the card belongs to the picture, so it sits inside it: clear of the player
-     bar, which owns the bottom of the window on its own */
-  /* the same bezel as the hero -- .gb-bezel carries the shell ring, the corner
-     and the material; this only places it and sizes it */
-  #dlcard{ position:fixed; left:26px; right:auto; top:430px; bottom:auto; z-index:22; display:none;
-    width:320px; max-width:calc(50vw - 234px); padding:12px 14px 18px; }
-  #dlcard .dlc-h{ font:700 14.5px/1.25 var(--ui); letter-spacing:-.005em; color:var(--ink); }
-  #dlcard .dlc-d{ margin-top:5px; font:500 13.5px/1.45 var(--ui); letter-spacing:.005em; color:var(--ink-2); }
-  /* THE LITTLE DESKTOP. A screen with a menu bar, two file icons and a dock,
-     and the running game behind all of it -- which is exactly what the app
-     does. The chrome is drawn in CSS so it costs nothing and stays crisp at
-     any DPR; only the wallpaper is a canvas. */
-  #dlcard .dlc-shot{ position:relative; margin-top:11px; border-radius:9px; overflow:hidden;
-    aspect-ratio:296/166; background:#05040c;
-    border:1px solid rgba(255,255,255,.16);
-    box-shadow:0 8px 22px rgba(0,0,0,.5), inset 0 0 0 1px rgba(255,255,255,.04); }
-  #dlcard .dlc-shot picture{ display:block; width:100%; height:100%; }
-  #dlcard .dlc-wall{ display:block; width:100%; height:100%; object-fit:cover;
-    background:#05040c; }
-  /* THE MENU BAR. Translucent, a rounded logo mark, a bold app name, three
-     menu titles, then status glyphs and a clock on the right -- the shape the
-     eye recognises before it reads anything. */
-  #dlcard .dlc-menu{ position:absolute; left:0; right:0; top:0; height:13px;
-    display:flex; align-items:center; gap:5px; padding:0 5px;
-    background:rgba(238,238,242,.16); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
-    border-bottom:1px solid rgba(255,255,255,.10); }
-  #dlcard .dlm-logo{ width:7px; height:8px; border-radius:2px 2px 3px 3px;
-    background:rgba(255,255,255,.92); flex:0 0 auto; }
-  #dlcard .dlm-app{ font:700 6px/1 var(--px); color:rgba(255,255,255,.95); letter-spacing:.02em; }
-  #dlcard .dlm-i{ font:400 6px/1 var(--px); color:rgba(255,255,255,.62); }
-  #dlcard .dlm-sp{ flex:1 1 auto; }
-  #dlcard .dlm-s{ width:6px; height:6px; border-radius:1px; background:rgba(255,255,255,.5); }
-  #dlcard .dlm-clock{ width:22px; height:5px; border-radius:2px; background:rgba(255,255,255,.62); }
-
-  /* AN OPEN WINDOW, because "wallpaper" means BEHIND something. With nothing
-     over it the picture was just a screenshot of the game full-screen, which
-     is the one reading the card must not give. */
-  #dlcard .dlc-win{ position:absolute; left:11%; top:26%; width:52%; height:50%;
-    border-radius:5px; overflow:hidden; background:rgba(30,28,38,.92);
-    border:1px solid rgba(255,255,255,.14);
-    box-shadow:0 8px 20px rgba(0,0,0,.55), 0 1px 0 rgba(255,255,255,.10) inset; }
-  #dlcard .dlw-bar{ height:11px; display:flex; align-items:center; gap:3px; padding:0 4px;
-    background:rgba(58,55,70,.95); border-bottom:1px solid rgba(0,0,0,.35); }
-  #dlcard .dlw-bar i{ width:4px; height:4px; border-radius:50%; flex:0 0 auto; }
-  #dlcard .dlw-bar i.r{ background:#ff5f57; } #dlcard .dlw-bar i.y{ background:#febc2e; }
-  #dlcard .dlw-bar i.g{ background:#28c840; }
-  #dlcard .dlw-bar b{ margin-left:4px; width:34px; height:3px; border-radius:2px;
-    background:rgba(255,255,255,.34); }
-  #dlcard .dlw-body{ padding:7px 7px 0; display:flex; flex-direction:column; gap:5px; }
-  #dlcard .dlw-body u{ display:block; height:3px; border-radius:2px; text-decoration:none;
-    background:rgba(255,255,255,.20); }
-
-  /* THE DOCK. Distinguishable apps, not five identical squares: different hues,
-     one with the running dot under it. */
-  #dlcard .dlc-dock{ position:absolute; left:50%; transform:translateX(-50%); bottom:4px;
-    display:flex; align-items:flex-end; gap:3px; padding:3px 4px; border-radius:7px;
-    background:rgba(236,236,242,.18); border:1px solid rgba(255,255,255,.14);
-    backdrop-filter:blur(7px); -webkit-backdrop-filter:blur(7px); }
-  #dlcard .dlc-dock s{ width:12px; height:12px; border-radius:3px; text-decoration:none;
-    box-shadow:0 1px 2px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.28); }
-  #dlcard .dlc-dock s.d1{ background:linear-gradient(180deg,#5aa9ff,#2f6fd0); }
-  #dlcard .dlc-dock s.d2{ background:linear-gradient(180deg,#7be08f,#2f9c52); }
-  #dlcard .dlc-dock s.d3{ background:linear-gradient(180deg,#ffd35a,#e0a020); }
-  #dlcard .dlc-dock s.d4{ background:linear-gradient(180deg,#ff8f7a,#d64a34); }
-  /* the station itself, in its own burgundy, with the running dot */
-  #dlcard .dlc-dock s.d5{ background:linear-gradient(180deg,var(--gb-button-hi),var(--gb-button));
-    position:relative; }
-  #dlcard .dlc-dock s.d5::after{ content:''; position:absolute; left:50%; bottom:-3px;
-    transform:translateX(-50%); width:2px; height:2px; border-radius:50%;
-    background:rgba(255,255,255,.9); }
-  #dlcard .dlc-dock s.sep{ width:1px; height:12px; border-radius:0; box-shadow:none;
-    background:rgba(255,255,255,.22); }
-  #dlcard .dlc-dock s.d6{ background:linear-gradient(180deg,#b9b9c6,#7e7e8c); }
-  @media (prefers-reduced-motion:reduce){ #dlcard .dlc-shot{ }  /* the blit is the animation; nothing spins */ }
-  #dlcard .dlc-b{ margin-top:11px; display:flex; gap:7px; }
-  #dlcard .dlc-b button{ height:38px; padding:0 15px; border-radius:999px; cursor:pointer;
-    border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.05); color:var(--ink);
-    font:600 13.5px/1 var(--ui); letter-spacing:.005em; white-space:nowrap;
-    transition:border-color .12s, color .12s, background .12s; }
-  #dlcard .dlc-b button:hover{ border-color:var(--mat-edge-hi); color:#fff; background:rgba(255,255,255,.11); }
-  /* the OS you are on leads, and looks like the answer */
-  #dlcard .dlc-b button:first-child{ background:rgba(143,122,224,.22); border-color:rgba(143,122,224,.55); color:#e6e0ff; }
-  #dlcard .dlc-b button:first-child:hover{ background:rgba(143,122,224,.32); border-color:rgba(143,122,224,.75); color:#fff; }
-  body.ai-visual #dlcard{ display:block; opacity:0; pointer-events:none; transition:opacity var(--fade-out); }
-  body.ai-visual.controls-active #dlcard{ opacity:1; pointer-events:auto; transition:opacity var(--fade-in); }
-  body.gb-open #dlcard{ display:none !important; }
 
   /* MOBILE NAV MENU — the hamburger's standard link menu (a column of big rows). Backdrop click closes. */
   #navmenu{ position:fixed; inset:0; z-index:60; display:none; padding:74px 16px 20px; justify-content:center; align-items:flex-start;
@@ -1749,9 +1591,7 @@
      in both views or the thing contained above it jumps by the difference when
      you open one -- and the strip is the whole song, which is a map of what the
      editor is showing you a piece of. */
-  body.gb-open #playbar .pb-scrub,
-  html.wallpaper-mode #playbar .pb-scrub, html.popover-mode #playbar .pb-scrub,
-  html.browse-mode #playbar .pb-scrub{ display:none !important; }
+  body.gb-open #playbar .pb-scrub{ display:none !important; }
 
   /* ===== THE NOW-PLAYING PANEL =====================================
      Apple Music's centre is a small rounded panel: the track on one line, a
@@ -2094,7 +1934,6 @@
        top-right corner so the transport could own the bottom-centre, which just
        moved the clutter; the screen is small enough that the game IS the page. */
     body.ai-visual #playbar .pb-left{ display:none !important; }
-    #dlcard{ display:none !important; }
     body.ai-visual #playbar .pb-cover{ width:44px; height:44px; }
     body.ai-visual #playbar .pb-info{ max-width:min(70vw,300px); padding:7px 9px 7px 10px; border-radius:11px; text-align:right; }
     body.ai-visual #playbar .pb-title{ font-size:13px; }
@@ -2245,16 +2084,10 @@
   #playbar button, #playbar button *, #playbar .pbd-lab, #playbar .pbd-read,
   #pbLcdTitle, #pbElapsed, #pbTotal, #playbar .pb-sub,
   #playbar .pb-expand, #bigplay .bp-cap,
-  #rmoods .rmood-lab, #dlcard .dlc-h, #dlcard .dlc-d,
-  #dlcard .dlc-b button, #dlcard .dlc-b button *,
-  #rfullscreen, #rfullscreen *{
-    font-family:var(--px) !important; letter-spacing:0 !important;
-    font-size:var(--txt) !important; }
+  #rmoods .rmood-lab,
   /* the hero's name keeps the display face and its own scale */
   body.awaiting-mood #rmoods .rmood-brand b{ font-size:clamp(17px,4.9vw,25px) !important; }
   /* and the thumbnail's scenery keeps its tiny type */
-  #dlcard .dlc-shot *, #dlcard .dlc-menu *, #dlcard .dlc-win *, #dlcard .dlc-dock *{
-    font-size:6px !important; }
 
   /* BIGGER. Silkscreen is a bitmap face: it gets MORE legible as it grows,
      because at small sizes the strokes land between device pixels and blur,
@@ -2282,9 +2115,6 @@
   #playbar .pbd-lab{ font-size:var(--txt); }
   #playbar .pbd-read, #pbElapsed, #pbTotal{ font-size:var(--txt); }
   #pbLcdTitle{ font-size:var(--txt); }
-  #dlcard .dlc-h{ font-size:var(--txt); }
-  #dlcard .dlc-d{ font-size:var(--txt); }
-  #dlcard .dlc-b button{ font-size:var(--txt); height:48px; padding:0 20px; }
   /* the ask wraps to two rows at these sizes, which is fine, but the hero needs
      the room for the first row to hold most of the moods */
   body.awaiting-mood #rmoods .rmood-ask{ max-width:min(880px,90vw); gap:10px; }
@@ -2316,17 +2146,12 @@
     background:linear-gradient(180deg, #8d8d99, #6b6b77) !important; color:#fff !important; }
 
   /* the OS you are on, on the download card: the same A-button burgundy */
-  #dlcard .dlc-b button:first-child{
-    background:linear-gradient(180deg, var(--gb-button-hi), var(--gb-button));
-    border-color:rgba(0,0,0,.5); color:#ffe9f2; }
-  #dlcard .dlc-b button:first-child:hover{
-    background:linear-gradient(180deg, #bd3a79, #9a2760); color:#fff; }
 
   /* the power lamp: it is red on the hardware and it means ON */
   #playbar .pb-play{ color:var(--gb-screen-0); }
 
   /* Pixel faces are drawn on a grid. Let them land on it. */
-  #presets .rbtn, #plinks .plink, #playbar button, #dlcard .dlc-b button,
+  #presets .rbtn, #plinks .plink, #playbar button,
   #pbLcdTitle, #pbElapsed, #pbTotal{
     -webkit-font-smoothing:antialiased; text-rendering:optimizeSpeed; }
 
@@ -2345,7 +2170,7 @@
      lit top face, a body that darkens downwards, a hard dark band along the
      bottom that is the thickness of the plastic, and travel when you press it.
      Those four things, on everything. */
-  .plink, #rfullscreen, #dlcard .dlc-b button{
+  .plink, #rfullscreen{
     /* THE SHELL'S OWN PLASTIC, NOT DARK UI WITH A BEVEL.
        These were charcoal, and charcoal is the one thing a Game Boy's face is
        NOT: the shell is warm light grey, and the only dark parts are the D-pad
@@ -2365,12 +2190,12 @@
       0 9px 18px rgba(0,0,0,.4) !important;
     transition:transform .06s ease, box-shadow .06s ease,
                background .12s, color .12s, opacity .22s ease !important; }
-  .plink:hover, #rfullscreen:hover, #dlcard .dlc-b button:hover{
+  .plink:hover, #rfullscreen:hover{
     background:linear-gradient(180deg, #f2eee0 0%, #dbd7c8 38%, #c4c0b0 76%, #adaa99 100%) !important;
     color:#1a1e14 !important; }
   /* pressed: the key travels and the plastic edge under it disappears, because
      the top of the key has come down to meet it */
-  .plink:active, #rfullscreen:active, #dlcard .dlc-b button:active{
+  .plink:active, #rfullscreen:active{
     transform:translateY(4px) !important;
     box-shadow:
       inset 0 1px 0 rgba(255,255,255,.5),
@@ -2378,11 +2203,6 @@
       0 0 0 #6f6c5e,
       0 2px 5px rgba(0,0,0,.4) !important; }
   /* the OS you are on, and the moods, keep the A/B burgundy -- same moulding */
-  #dlcard .dlc-b button:first-child{
-    background:linear-gradient(180deg, var(--gb-button-hi) 0%, var(--gb-button) 60%, #6d1a40 100%) !important;
-    color:#ffe9f2 !important; }
-  #dlcard .dlc-b button:first-child:hover{
-    background:linear-gradient(180deg, #c33f80 0%, #a52c68 60%, #7d1f4a 100%) !important; }
   body.awaiting-mood #presets .rbtn.rmood,
   body:not(.awaiting-mood) #presets .rbtn.rmood{
     background:linear-gradient(180deg, var(--gb-button-hi) 0%, var(--gb-button) 60%, #6d1a40 100%);
@@ -2425,7 +2245,7 @@
     transform:translateY(2px);
     box-shadow:inset 0 2px 5px rgba(0,0,0,.45), 0 0 0 rgba(0,0,0,.42); }
   @media (prefers-reduced-motion:reduce){
-    .plink:active, #rfullscreen:active, #dlcard .dlc-b button:active,
+    .plink:active, #rfullscreen:active,
     #presets .rbtn.rmood:active, #playbar .pb-main-ctrl button:active,
     #playbar .pb-screen:active{ transform:none !important; }
   }
@@ -2448,7 +2268,6 @@
     #playbar .pb-right #rfullscreen{ padding:0 9px !important; } }
 
   /* THE DESKTOP CARD sits below the left rail, clear of its action links. */
-  #dlcard{ top:470px !important; bottom:auto !important; left:18px !important; right:auto !important; }
   /* ...which means the credit row can no longer use the full width of the top
      strip: centred, it ran straight under the card and Hacker News disappeared
      behind it. */
@@ -2531,12 +2350,6 @@
   body.awaiting-mood #rmoods .rmood-brand.how-page p b{ font-size:15px !important; line-height:1.4 !important; font-weight:700; }
 
   /* the download card's heading and line, on the same screen */
-  #dlcard .gb-lcd{ padding:13px 14px 14px; margin-bottom:12px; }
-  #dlcard .gb-lcd .dlc-h{ color:var(--gb-screen-3);
-    text-shadow:0 1px 0 rgba(255,255,255,.28); }
-  #dlcard .gb-lcd .dlc-d{ font-family:var(--px) !important; font-size:var(--txt);
-    line-height:1.7; letter-spacing:0; color:#1d4a1d; margin-top:6px;
-    text-shadow:0 1px 0 rgba(255,255,255,.2); }
 
   /* THE TWO BARE LABELS HAVE NO SURFACE UNDER THEM.
      Everything else on the picture is a key or a card with its own background;
@@ -2580,11 +2393,6 @@
   body.awaiting-mood #rmoods::after{ display:none; }
 
   /* the download card, same anatomy at a smaller scale */
-  #dlcard{ padding:12px 12px 46px; }
-  #dlcard .gb-lcd{ margin:1px 1px 0; outline-width:11px; padding:12px 13px 13px; }
-  #dlcard .dlc-shot{ margin-top:26px; }
-  #dlcard .dlc-b{ margin-top:14px; padding:0 2px; }
-  #dlcard .gb-speaker{ right:18px; bottom:11px; width:56px; height:26px; }
 
   /* ===== IT IS A PORTRAIT MACHINE ====================================
      The card was a console squashed into a letterbox: a DMG is about 90 x 148mm
@@ -2694,7 +2502,7 @@
      applied to every control that reads as a button: the rail, the credit
      links, Full screen, the moods, the OS keys, the screen toggle and the
      transport. */
-  .plink, #rfullscreen, #dlcard .dlc-b button,
+  .plink, #rfullscreen,
   #presets .rbtn.rmood, #playbar .pb-screen{
     height:var(--btn-h) !important; min-height:var(--btn-h) !important;
     padding:0 var(--btn-px) !important; gap:var(--btn-gap) !important;
@@ -2715,7 +2523,7 @@
     min-width:var(--btn-h) !important; border-radius:50% !important; padding:0 !important; }
   #playbar .pb-main-ctrl button svg, #playbar .pb-volume svg, #playbar .pb-adv svg{
     width:22px !important; height:22px !important; }
-  #playbar .pb-screen svg, .plink svg, #rfullscreen svg, #dlcard .dlc-b button svg{
+  #playbar .pb-screen svg, .plink svg, #rfullscreen svg{
     width:20px !important; height:20px !important; }
   /* the advanced-volume button was dimmed to half-opacity to make it recede;
      one family means one weight, so it reads like its neighbours */
@@ -2747,10 +2555,7 @@
     <button id="start" hidden></button>
   </div>
 
-  <div id="popover"></div>
-  <div id="browse"></div>
-
-<script src="../app.c6ae5b223597.js" defer></script>
+<script src="../app.81aed0a1d03c.js" defer></script>
 
 </body>
 </html>

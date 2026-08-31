@@ -10,7 +10,7 @@ through a port of a hardware-measured DMG display pipeline.
 **Play:** <https://chiptunes.app>. The station starts on load; there is no
 landing page. `?screen=nes` for the NES panel, `?screen=dmg` for the Game Boy
 one, `?screen=crt` for the plain view, `?screen=mix` (the default) to have each
-track pick one of the three at random. `/get` has the desktop app.
+track pick one of the three at random.
 
 ```text
 seed → composer → score → APU → audio          (and → .gb cartridge)
@@ -236,8 +236,7 @@ npm run panel:test         # a Game Boy panel harness, no game, for measuring
 npm run panel:test-nes     # the same for the NES panel, with a 64-entry probe
 ```
 
-`build.js` produces the shared artifact used by the website, the desktop app and
-the broadcaster.
+`build.js` produces the shared artifact used by the website and broadcaster.
 
 ## License
 

@@ -1580,3 +1580,13 @@ Reported as "severe performance issues running the website overall", in Safari.
 - The radio endpoint should be rechecked if the reported 404 returns; the
   current probe on 2026-08-29 returned HTTP 200 audio from
   `https://radio.chiptunes.app` and valid `.pls`/`.m3u` responses.
+## Wallpaper product extraction (2026-08-30)
+
+- The animated desktop wallpaper is now a separate product in
+  `github.com/tetrisgm/wallpaper`. Chiptunes no longer contains the Electron
+  application, native wallpaper bridge, update publisher, wallpaper download
+  assets, platform download offer, or the in-player wallpaper promotion card.
+- The Chiptunes game packs remain because they are still the music player's
+  visualizers. The new Wallpaper repository owns its own copy of the initial
+  14-scene roster and drives it with a visual-only clock; it does not bundle the
+  composer, audio engine, radio, editor, or music export paths.
