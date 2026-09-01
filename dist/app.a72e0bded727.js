@@ -32951,9 +32951,9 @@ function _buildPlayerLinks(){
       '<span class="plink-ic">'+ic+'</span><span class="plink-t">'+label+'</span></a>';
   }
   function _madeGitHubLink(){
-    return '<a class="plink plmade-btn plmade-github" href="'+GITHUB_URL+'" target="_blank" rel="noopener" title="Star Chiptunes.app on GitHub">'+
-      '<span class="plink-ic">'+_IC_GH+'</span><span class="plink-t">Star</span>'+
-      '<span class="plmade-stars" aria-label="GitHub stars">0</span></a>';
+    return '<span class="plmade-github-host" data-repository="tetrisgm/chiptunes" data-dynamic-count="true">'+
+      '<a class="github-button" href="'+GITHUB_URL+'" data-icon="octicon-star" data-size="large" '+
+      'data-show-count="true" aria-label="Star tetrisgm/chiptunes on GitHub">Star</a></span>';
   }
   var madeBy='<div class="plmade-line"><span class="plmade-name">Chiptunes.app</span><span class="plmade-t">An AI product experiment by Shokunin</span>'+
     '<div class="plmade-row">'+
@@ -32967,18 +32967,6 @@ function _buildPlayerLinks(){
   // its own corner of the picture, bottom-left, above the player bar
   var made=document.getElementById('madeby');
   if(!made){ made=document.createElement('div'); made.id='madeby'; document.body.appendChild(made); }
-  // The count is helpful context, but never blocks or destabilises the page:
-  // GitHub being unavailable simply leaves a clean, count-free Star button.
-  var starCount=made.querySelector('.plmade-stars');
-  if(starCount && typeof fetch==='function'){
-    fetch('https://api.github.com/repos/tetrisgm/chiptunes', {headers:{Accept:'application/vnd.github+json'}})
-      .then(function(res){ return res.ok ? res.json() : null; })
-      .then(function(repo){
-        if(!repo || typeof repo.stargazers_count!=='number') return;
-        starCount.textContent=repo.stargazers_count.toLocaleString();
-        starCount.hidden=false;
-      }).catch(function(){});
-  }
   var wrap=document.createElement('div'); wrap.id='plinks';
   // THE MASTHEAD. The rail's first row offers you a Game Boy, which only reads
   // as an offer once you know what the page is -- and with the home page gone
@@ -32998,6 +32986,17 @@ function _buildPlayerLinks(){
       '<span class="plink-ic">'+it.ic+'</span><span class="plink-t">'+it.l+'</span></button>'+extra+'</div>';
   }).join('');
   made.innerHTML=madeBy;
+  // The credit is built after boot, so the snippet script must load after the
+  // anchor exists. Loading it statically let its one-time DOM scan run too
+  // early, leaving the unenhanced fallback link behind.
+  var oldGithubButtons=document.getElementById('github-buttons-script');
+  if(oldGithubButtons) oldGithubButtons.remove();
+  var githubButtons=document.createElement('script');
+  githubButtons.id='github-buttons-script';
+  githubButtons.async=true;
+  githubButtons.defer=true;
+  githubButtons.src='https://buttons.github.io/buttons.js';
+  document.head.appendChild(githubButtons);
   wrap.addEventListener('click', function(ev){ var b=ev.target.closest('.plink'); if(!b) return; ev.preventDefault(); ev.stopPropagation();
     if(typeof _pokeVisualControls==='function') _pokeVisualControls();
     var k=b.dataset.k;

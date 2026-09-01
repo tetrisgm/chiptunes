@@ -274,10 +274,12 @@ function names() {
   // ---- 5. the credit ------------------------------------------------------
   console.log('the credit');
   const credit = await p.evaluate(() => {
-    const a = [...document.querySelectorAll('a.plmade-btn, #madeby a, #plinks a')]
-      .find(x => /github/i.test(x.textContent) || /github\.com/.test(x.href || ''));
+    const host = document.querySelector('.plmade-github-host');
+    const ghAnchor = host && host.querySelector('a.github-button');
+    const ghComponent = host && host.firstElementChild;
+    const ghFrame = host && (host.querySelector('iframe') ||
+      ghComponent && ghComponent.shadowRoot && ghComponent.shadowRoot.querySelector('iframe'));
     const made = document.getElementById('madeby'), hn = made && made.querySelector('.plmade-hn');
-    const stars = made && made.querySelector('.plmade-stars');
     const labels = made ? [...made.querySelectorAll('.plmade-btn .plink-t')].filter(x => x.getClientRects().length).map(x => x.textContent.trim()) : [];
     const r = made && made.getBoundingClientRect();
     const rail=document.getElementById('plinks'), rr=rail&&rail.getBoundingClientRect();
@@ -288,20 +290,21 @@ function names() {
         s.fontFamily,s.fontSize,s.fontWeight,s.fontStyle,s.lineHeight,s.letterSpacing,
         s.textTransform,s.textShadow,s.getPropertyValue('-webkit-text-stroke-width')
       ]; });
-    const starStyle=stars&&getComputedStyle(stars), starRect=stars&&stars.getBoundingClientRect();
-    return { href:a ? a.href : null, hnVisible:!!hn && !!hn.getClientRects().length,
-      starVisible:!!stars && !!stars.getClientRects().length, starText:stars && stars.textContent.trim(),
-      starColor:starStyle&&starStyle.color, starBackground:starStyle&&starStyle.backgroundColor,
-      starHeight:starRect&&Math.round(starRect.height),
+    const ghRect=(ghFrame||ghAnchor||ghComponent)&& (ghFrame||ghAnchor||ghComponent).getBoundingClientRect();
+    return { repo:host&&host.dataset.repository,
+      hnVisible:!!hn && !!hn.getClientRects().length,
+      githubConfigured:host&&host.dataset.dynamicCount === 'true' && (
+        !!ghAnchor && ghAnchor.dataset.showCount === 'true' ||
+        !!ghFrame && /(?:[?&]|%26)count(?:=|%3D)true/i.test(ghFrame.src) ||
+        !!ghComponent && ghComponent.tagName === 'SPAN' && !ghAnchor),
+      githubVisible:!!ghRect && ghRect.width>0 && ghRect.height>0,
       labels, left:r ? Math.round(r.left) : -1, aboveRail:!!r&&!!rr&&r.bottom<rr.top, type, railGap };
   });
-  ok(/github\.com\/[^/]+\/chiptunes\/?$/.test(credit.href || ''), 'GitHub goes to the repository (' + credit.href + ')');
-  ok(credit.starVisible && /^\d[\d,.]*[kKmM]?$/.test(credit.starText || ''),
-     'the GitHub Star button always shows its count (' + credit.starText + ')');
-  ok(credit.starColor === 'rgb(36, 40, 32)' && credit.starBackground !== 'rgba(0, 0, 0, 0)' && credit.starHeight === 28,
-     'the star count is a compact inset counter, not a loose pale digit');
-  ok(credit.hnVisible && credit.labels.join('|') === 'Star',
-     'playing keeps social logos compact and gives GitHub a Star action');
+  ok(credit.repo === 'tetrisgm/chiptunes', 'GitHub goes to the repository (' + credit.repo + ')');
+  ok(credit.githubConfigured && credit.githubVisible,
+     'the standard GitHub widget is visible and configured for a dynamic count');
+  ok(credit.hnVisible && credit.labels.length === 0,
+     'playing keeps the other social links compact and icon-only');
   ok(credit.left <= 20 && credit.aboveRail, 'the playing credit sits above the left rail (' + credit.left + 'px)');
   ok(credit.type.every(x => JSON.stringify(x) === JSON.stringify(credit.type[0])),
      'the product name, credit and rail use one type style (' + credit.type[0].join(', ') + ')');

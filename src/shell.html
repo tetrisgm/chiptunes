@@ -686,26 +686,7 @@
   #madeby .plmade-name{ color:var(--ink); font:700 var(--txt)/1 var(--px); letter-spacing:.04em; }
   #madeby .plmade-btn{ text-decoration:none; }
   #madeby .plmade-btn svg{ width:18px; height:18px; display:block; }
-  /* GitHub is an action, not another author profile. Present it like GitHub's
-     compact Star control: mark, verb, then a quiet count compartment. */
-  #madeby .plmade-github{
-    min-height:38px; height:38px; padding:0 10px !important; gap:7px;
-    border-radius:9px; color:#f0f2f5;
-    background:#24272d; border:1px solid rgba(255,255,255,.12);
-    box-shadow:0 1px 0 rgba(255,255,255,.06) inset, 0 2px 8px rgba(0,0,0,.3);
-  }
-  #madeby .plmade-github:hover{ background:#30343c; color:#fff; }
-  #madeby .plmade-github .plink-t{
-    display:inline !important; font:600 14px/1 var(--ui) !important;
-    letter-spacing:0 !important; text-transform:none !important;
-    text-shadow:none !important; -webkit-text-stroke:0 transparent !important;
-  }
-  #madeby .plmade-stars{
-    align-self:stretch; display:inline-flex; align-items:center;
-    margin-left:2px; padding-left:9px; border-left:1px solid rgba(255,255,255,.13);
-    color:#c7cbd2; font:600 13px/1 var(--ui); font-variant-numeric:tabular-nums;
-  }
-  #madeby .plmade-stars[hidden]{ display:none; }
+  #madeby .plmade-github-host{ display:inline-flex; align-items:center; height:30px; }
   body.gb-open #madeby, body.create-open #madeby{ display:none !important; }
   /* It used to be hidden here, from when it sat under the masthead and would
      have run into the hero. It lives at the foot of the rail now, and the
@@ -2551,10 +2532,6 @@
     width:var(--btn-h); min-width:var(--btn-h); height:var(--btn-h);
     padding:0 !important; border-radius:50%; }
   body:not(.awaiting-mood) #madeby .plmade-btn .plink-t{ display:none !important; }
-  body:not(.awaiting-mood) #madeby .plmade-github{
-    width:auto; min-width:auto; height:var(--btn-h); padding:0 11px !important;
-    border-radius:9px; }
-  body:not(.awaiting-mood) #madeby .plmade-github .plink-t{ display:inline !important; }
 
   /* The bottom-right dock exposes only volume and its advanced menu. Tempo and
      display remain available inside that menu instead of occupying the bar. */
@@ -2666,21 +2643,6 @@
   body.track-transition #stage{filter:contrast(1.8) brightness(1.35) saturate(.25)!important;}
   @keyframes trackSnow{0%{opacity:0;background-position:0 0}18%{opacity:.78;background-position:19px -7px}72%{opacity:.58;background-position:-11px 17px}100%{opacity:0;background-position:7px -13px}}
 
-  /* Keep the repository count visually inside the cream Star button. Earlier
-     material rules restyle the outer link late in the cascade, so the counter
-     needs its final treatment here as well: dark ink, an inset surface and a
-     deliberate separator rather than a loose pale numeral. */
-  #madeby .plmade-github .plmade-stars{
-    align-self:center !important; height:28px; min-width:28px;
-    margin:0 0 0 3px !important; padding:0 7px !important;
-    display:inline-flex !important; align-items:center; justify-content:center;
-    border:1px solid rgba(31,35,28,.22) !important;
-    border-radius:7px; background:rgba(31,35,28,.10) !important;
-    color:#242820 !important;
-    font:600 14px/1 var(--ui) !important; letter-spacing:0 !important;
-    text-shadow:none !important; -webkit-text-stroke:0 transparent !important;
-    font-variant-numeric:tabular-nums;
-  }
 </style>
 </head>
 <body>
