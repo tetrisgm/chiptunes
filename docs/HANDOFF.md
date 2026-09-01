@@ -1639,3 +1639,12 @@ Reported as "severe performance issues running the website overall", in Safari.
   video asset; uploading or submitting it is a separate public launch action.
 - The public GitHub repository description, homepage, and discovery topics now
   match the product.
+
+# 2026-09-01 — Listen-anywhere Safari playback
+
+- `/radio/` now explicitly loads and awaits the live audio stream when “Play
+  here” is pressed, exposes a connecting state, and shows a usable retry/error
+  state instead of discarding Safari's rejected playback promise.
+- Production commit `2ca0b6d` was deployed site-only and verified in real
+  Safari: both the page button and native audio control changed from Play to
+  Pause while `https://radio.chiptunes.app` played.
