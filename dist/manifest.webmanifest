@@ -1,0 +1,12 @@
+{
+  "name": "Chiptunes.app",
+  "short_name": "Chiptunes",
+  "description": "Create or listen to complete Game Boy songs, composed automatically in your browser.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0814",
+  "theme_color": "#0a0814",
+  "icons": [
+    {"src": "/station-icon.png", "sizes": "1024x1024", "type": "image/png", "purpose": "any maskable"}
+  ]
+}

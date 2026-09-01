@@ -1,78 +1,70 @@
 # Chiptunes.app
 
-An endless Game Boy radio. Press play, put it on your second screen, and get
-on with your day: <https://chiptunes.app>
+Create or listen to complete Game Boy songs—composed automatically in your
+browser and played through an emulation of the original sound chip.
+
+**[Open Chiptunes.app](https://chiptunes.app)** ·
+**[Take the radio with you](https://chiptunes.app/radio)**
 
 ![Chiptunes.app](https://chiptunes.app/og.png)
 
-## Highlights
+## What it does
 
-- **Every song is written in your browser, live.** No server, no model, no
-  playlist. A deterministic composer generates each track from the token in
-  the URL, so a link plays the same song forever, on any machine.
-- **The sound chip is real.** A register-level emulation of the DMG APU: two
-  pulse channels, one wave, one noise, the channel-1 hardware sweep unit, and
-  per-frame vibrato tables. What you hear is what the silicon would do.
-- **Every song is a cartridge.** Download ROM hands you the track you are
-  hearing as a 32 KB `.gb` file that boots on real hardware. The browser chip
-  and the cartridge are spectrally verified against each other in CI-grade
-  tests (`npm run test:rom-audio`), so they cannot drift apart.
-- **Make your own.** Create is a pocket tracker on the same chip: the song
-  runs left to right as four lanes -- Melody, Harmony, Bass, Drums, the DMG's
-  own voices -- and a note is a block you drag anywhere. Up and down for
-  pitch, sideways in time, into another lane to change voice, by its right
-  edge to make it longer, and it sounds as it moves. A note's sound is the chip's own
-  settings, the way LSDJ shows an instrument: a pulse note has a shape (12.5%,
-  25%, 50%, 75%) and a fade, a bass note picks one of the cartridge's wave
-  tables, a drum has a noise mode, a pitch and a fade. Any note can also be given
-  movement -- Wobble puts its own vibrato on it, Sweep walks the duty while it
-  holds, Morph swaps the bass waveform under it, Pan sends it to one speaker --
-  all of which become register writes on their own frames, the way a real
-  driver makes an instrument. Drums can be SAMPLES -- four-bit kick, snare,
-  hat, clap and the rest, streamed into the wave channel at 8192 Hz exactly as
-  a Game Boy game does it, which costs you the bass voice while they play.
-  Glide slides a note in from the one before, Detune
-  puts it between the twelve tones, and the grid cuts a bar into 16, 24 or 32
-  steps, so a note can sit where a sixteenth cannot reach. And a motion -- Arp strums the chord, Roll ratchets it,
-  Echo repeats and fades, Fall and Rise slide the pitch -- which expands into
-  ordinary chip notes the way trackers have always done it. Tap a mood (happy, spooky, battle) and the radio's
-  composer writes a whole track into the lanes, no AI involved, yours to edit
-  note by note. Share it as a link, a WAV, or a real cartridge.
-- **The music is measured, not guessed.** Songs draw one of fourteen styles
-  (house, dnb, trance, rock, chill, and friends). The patterns inside them
-  are mined from 74,552 video-game MIDI files: real kit bars, real bass
-  lines, real chord movements.
-- **53 instruments.** Corpus-learned patches plus an authored palette (four
-  duties by five envelope characters, six wave shapes), dressed per style.
-- **The games play themselves.** Fourteen bundled arcade-style games run on
-  autopilot and react to the beat. They visualize; they never compose.
-- **The screens are simulations, not filters.** The Game Boy face quantises
-  every colour to four shades before a hardware-measured display pipeline
-  draws it. The NES face modulates the picture into an NTSC signal and
-  decodes it back; the palette is derived from the 2C02 waveform, not a
-  table.
-- **Take it anywhere.** Web radio, WAV/AAC export, and the in-page Game Boy
-  emulator all use the same generated songs.
+- **Creates complete songs automatically.** Choose a mood and the composer
+  writes a finite arrangement—not a loop—from pulse and wave instruments,
+  noise, sampled drums, pitch sweeps, slides, arpeggios, and effects. When it
+  ends, another begins.
+- **Lets you make the result yours.** Open the tracker to edit every note,
+  instrument, and effect, or begin with an empty song. Share the result as a
+  link, WAV, or cartridge.
+- **Models the original sound hardware.** Every note runs through a
+  register-level emulation of the four-channel DMG audio processor. A song can
+  be exported as a 32 KB `.gb` cartridge that boots on compatible hardware.
+- **Turns listening into a visualizer.** Fourteen original, self-playing games
+  react to the shared beat and energy data. Game Boy LCD and NES-style video
+  pipelines reconstruct their characteristic displays with custom shaders.
+- **Plays outside the website.** The live radio works in the browser, radio
+  apps, desktop players, phones, and cars through a stable MP3 stream, M3U and
+  PLS endpoints, Media Session metadata, and an Apple Broadcasts link.
 
-## How it works, in one line
+## How it works
 
 ```text
-seed -> composer -> score -> emulated DMG APU -> audio   (and -> .gb cartridge)
+seed -> composer -> score -> emulated DMG audio -> speakers / WAV / cartridge
                       |
-                   beat/energy -> self-playing game -> GB / NES / CRT screen
+                   beat + energy -> self-playing game -> display pipeline
 ```
 
-The full story, including the display pipelines, the cartridge driver, and
-the verification harness, lives in [docs/how-it-works.md](docs/how-it-works.md).
+The composer is deterministic: the same song document produces the same notes,
+timing, and chip-register schedule. Shared song links carry that document, so
+someone opening the link hears the song you shared rather than a newly generated
+replacement.
 
-## Development
+The browser player, exported audio, cartridge, desktop build, stream, and video
+renderer all use the same built artifact. Browser and cartridge output are
+checked for render parity rather than maintained as separate implementations.
+
+The full technical tour lives in
+[docs/how-it-works.md](docs/how-it-works.md).
+
+## Run it locally
 
 ```bash
 npm install
-node build.js            # builds dist/ (a single HTML file plus the worklets)
-npm run smoke            # 48 deterministic songs + all 14 games advance
-npm run test:rom-audio   # the cartridge and the browser make the same sound
+npm run build
+npm test
 ```
+
+The production artifact is written to `dist/`.
+
+## Project status
+
+Chiptunes.app is an independent product experiment by Shokunin. The source is
+public so the composition, emulation, visualizers, export path, and verification
+harness can be inspected and improved.
+
+Game Boy is a trademark of Nintendo. Chiptunes.app is an independent project
+and is not affiliated with or endorsed by Nintendo.
 
 ## License
 

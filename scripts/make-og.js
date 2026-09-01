@@ -76,7 +76,7 @@ function serve() {
     </style></head>
     <body><div class="card"><div class="lockup">
       <div class="wm">CHIPTUNES<span class="dot">.</span>APP</div>
-      <div class="tag">Endless retro music that makes itself — games that play to the beat.</div>
+      <div class="tag">Create or listen to complete Game Boy songs — composed automatically in your browser.</div>
     </div></div></body></html>`, { waitUntil: 'networkidle' });
   try { await page2.evaluate(() => document.fonts && document.fonts.ready); } catch (e) {}
   await page2.waitForTimeout(300);

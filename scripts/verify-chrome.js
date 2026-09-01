@@ -314,6 +314,44 @@ function names() {
      'the product name, credit and rail use one type style (' + credit.type[0].join(', ') + ')');
   ok(credit.railGap >= 12, 'the top-left action buttons have breathing room ('+credit.railGap+'px)');
 
+  // ---- 6. a phone is a first-class launch surface -------------------------
+  console.log('phone layout');
+  const mobile = await b.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
+  const mobileErrs = [];
+  mobile.on('pageerror', e => mobileErrs.push(String(e).slice(0, 140)));
+  await mobile.goto(`http://127.0.0.1:${h.port}/`, { waitUntil: 'domcontentloaded' });
+  await wait(1500);
+  const mobileLanding = await mobile.evaluate(() => {
+    const title=document.querySelector('.rmood-title'), legal=document.querySelector('.rmood-legal'), hero=document.getElementById('rmoods');
+    const tr=title&&title.getBoundingClientRect(), lr=legal&&legal.getBoundingClientRect(), hr=hero&&hero.getBoundingClientRect();
+    return { titleVisible:!!tr&&tr.top>=0&&tr.bottom<=innerHeight,
+      legalVisible:!!lr&&lr.top>=0&&lr.bottom<=innerHeight,
+      heroFits:!!hr&&hr.left>=0&&hr.right<=innerWidth,
+      noHorizontalOverflow:document.documentElement.scrollWidth<=innerWidth };
+  });
+  ok(mobileLanding.titleVisible && mobileLanding.legalVisible && mobileLanding.heroFits,
+     'the phone landing page keeps its title, story and independent-project clarification visible');
+  ok(mobileLanding.noHorizontalOverflow, 'the phone landing page has no horizontal overflow');
+  await mobile.getByText('happy', { exact:true }).click();
+  await wait(2500);
+  await mobile.evaluate(() => { if (window._dockFullscreen) window._dockFullscreen(); });
+  await wait(100);
+  const mobilePlayer = await mobile.evaluate(() => {
+    const ids=['pbShare','pbPrev','pbPlay','pbNext','pbVolume','rfullscreen'];
+    const rects=ids.map(id=>{ const el=document.getElementById(id), r=el&&el.getBoundingClientRect();
+      return {id, visible:!!r&&r.width>0&&r.height>0, left:r&&r.left, right:r&&r.right, top:r&&r.top, bottom:r&&r.bottom}; });
+    const playTop=rects.find(y=>y.id==='pbPlay').top;
+    return { rects, noHorizontalOverflow:document.documentElement.scrollWidth<=innerWidth,
+      noOverlap:rects.slice(0,-1).every((x,i)=>!x.visible||!rects[i+1].visible||x.right<=rects[i+1].left),
+      sameBaseline:rects.filter(x=>x.visible).every(x=>Math.abs(x.top-playTop)<=8) };
+  });
+  ok(mobilePlayer.rects.every(x=>x.visible&&x.left>=0&&x.right<=390),
+     'share, transport, volume and fullscreen all remain reachable on a 390px phone');
+  ok(mobilePlayer.sameBaseline && mobilePlayer.noHorizontalOverflow && mobilePlayer.noOverlap,
+     'the phone player keeps its controls on one baseline without horizontal overflow');
+  ok(mobileErrs.length === 0, 'no phone page errors' + (mobileErrs.length ? ': ' + mobileErrs[0] : ''));
+  await mobile.close();
+
   ok(errs.length === 0, 'no page errors' + (errs.length ? ': ' + errs[0] : ''));
   await b.close(); h.s.close();
   console.log(fail ? '\nFAILED (' + fail + ')' : '\nall good');

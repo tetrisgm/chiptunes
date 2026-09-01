@@ -4,14 +4,14 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <meta name="theme-color" content="#0a0814" />
-<title>Chiptunes.app: an endless Game Boy radio for your second screen</title>
-<meta name="description" content="An endless Game Boy radio for the background of your day: generated chiptunes with games that play themselves, like a screensaver for your second screen." />
+<title>Chiptunes.app — create or listen to Game Boy music</title>
+<meta name="description" content="Create or listen to complete Game Boy songs, composed automatically in your browser and played through an emulation of the original sound chip." />
 <link rel="canonical" href="https://chiptunes.app/" />
 <!-- Social share (Open Graph + Twitter). Static site-level card; per-track cards would need SSR. -->
 <meta property="og:type" content="website" />
 <meta property="og:site_name" content="Chiptunes.app" />
 <meta property="og:title" content="Chiptunes.app" />
-<meta property="og:description" content="An endless Game Boy radio for your second screen. Background music; the games play themselves." />
+<meta property="og:description" content="Create or listen to complete Game Boy songs—composed automatically and played through an emulation of the original sound chip." />
 <meta property="og:url" content="https://chiptunes.app/" />
 <meta property="og:image" content="https://chiptunes.app/og.png" />
 <meta property="og:image:width" content="1200" />
@@ -19,7 +19,9 @@
 <meta property="og:image:alt" content="Chiptunes.app: endless generative chiptune with self-playing arcade games." />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="Chiptunes.app" />
-<meta name="twitter:description" content="An endless Game Boy radio for your second screen. Background music; the games play themselves." />
+<meta name="twitter:description" content="Create or listen to complete Game Boy songs—composed automatically and played through an emulation of the original sound chip." />
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="apple-touch-icon" href="/station-icon.png" />
 <meta name="twitter:image" content="https://chiptunes.app/og.png" />
 <!-- static fallback favicon (Safari ignores the JS/canvas reactive favicon; this is what it + any browser shows pre-start) -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='rgb(10,8,20)'/><g fill='rgb(150,120,246)'><rect x='7.25' y='5.80' width='2.50' height='2.5'/><rect x='22.25' y='5.80' width='2.50' height='2.5'/><rect x='9.75' y='8.30' width='2.50' height='2.5'/><rect x='19.75' y='8.30' width='2.50' height='2.5'/><rect x='7.25' y='10.80' width='17.50' height='2.5'/><rect x='4.75' y='13.30' width='5.00' height='2.5'/><rect x='12.25' y='13.30' width='7.50' height='2.5'/><rect x='22.25' y='13.30' width='5.00' height='2.5'/><rect x='2.25' y='15.80' width='27.50' height='2.5'/><rect x='2.25' y='18.30' width='2.50' height='2.5'/><rect x='7.25' y='18.30' width='17.50' height='2.5'/><rect x='27.25' y='18.30' width='2.50' height='2.5'/><rect x='2.25' y='20.80' width='2.50' height='2.5'/><rect x='7.25' y='20.80' width='2.50' height='2.5'/><rect x='22.25' y='20.80' width='2.50' height='2.5'/><rect x='27.25' y='20.80' width='2.50' height='2.5'/><rect x='9.75' y='23.30' width='5.00' height='2.5'/><rect x='17.25' y='23.30' width='5.00' height='2.5'/></g></svg>" />
@@ -29,6 +31,11 @@
 <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet" />
 <script>
 (function(){
+  // One public origin. The canonical tag covers crawlers; this also prevents a
+  // person from keeping a duplicate www address through the interactive app.
+  if(location.hostname==='www.chiptunes.app'){
+    location.replace('https://chiptunes.app'+location.pathname+location.search+location.hash); return;
+  }
   // /player was the old generated-player address. Root is the only landing
   // address now, so collapse an old bookmark before the page can boot there.
   if((location.pathname||'/').replace(/\/+$/,'')==='/player'){
@@ -2542,6 +2549,13 @@
     width:var(--btn-h); min-width:var(--btn-h); height:var(--btn-h);
     padding:0 !important; border-radius:50%; }
   body:not(.awaiting-mood) #madeby .plmade-btn .plink-t{ display:none !important; }
+  #madeby .plmade-legal{
+    display:block; flex-basis:100%; margin-top:6px;
+    font:500 11px/1.3 var(--ui); color:var(--ink-2);
+    letter-spacing:0; text-transform:none; text-shadow:none;
+  }
+  body:not(.awaiting-mood) #madeby .plmade-legal{ display:none; }
+  .rmood-legal{ display:block; margin-top:2px; font:500 10px/1.35 var(--ui); color:#1d4a1d; }
 
   /* The bottom-right dock exposes only volume and its advanced menu. Tempo and
      display remain available inside that menu instead of occupying the bar. */
@@ -2645,6 +2659,109 @@
     body.ai-visual #playbar.show{ grid-template-columns:minmax(260px,320px) minmax(0,1fr) auto !important; column-gap:10px !important; }
     body.ai-visual #playbar .pb-center .pb-ctrl{ min-width:300px !important; }
   }
+
+  /* Phone layout. These rules deliberately live last: the desktop player has
+     strong minimum widths and the landing case can be taller than a phone.
+     A phone scrolls the landing page instead of centring content offscreen,
+     while the player keeps every control on one compact baseline. */
+  @media (max-width:760px){
+    body.awaiting-mood{ overflow-y:auto !important; touch-action:pan-y; }
+    body.awaiting-mood #presets{
+      position:relative; inset:auto; min-height:100dvh; height:auto;
+      overflow:visible; align-items:flex-start; padding:8px 6px 18px !important;
+    }
+    body.awaiting-mood #rmoods{
+      width:calc(100vw - 12px) !important; height:auto !important;
+      min-height:0 !important; max-height:none; padding-bottom:34px !important;
+    }
+    body.awaiting-mood #rmoods .rmood-brand{
+      aspect-ratio:auto !important; min-height:0 !important;
+      padding:18px 16px !important;
+    }
+    body.awaiting-mood #rmoods .landing-copy .rmood-title{
+      font-size:clamp(19px,6.6vw,27px) !important; margin-bottom:18px !important;
+    }
+    body.awaiting-mood #rmoods .landing-copy .rmood-copy{ gap:10px !important; }
+    body.awaiting-mood #rmoods .landing-copy .rmood-section strong{
+      font-size:14px !important; line-height:1.2 !important;
+    }
+    body.awaiting-mood #rmoods .landing-copy p{
+      font-size:12px !important; line-height:1.38 !important;
+    }
+    body.awaiting-mood #rmoods .rmood-ask{
+      margin-top:26px !important; padding:0 10px !important; row-gap:10px !important;
+    }
+    body.awaiting-mood #rmoods .rmood-ask .rmood-lab{ font-size:15px !important; }
+    body.awaiting-mood #rmoods .rmood-ask .rmood-pills{ gap:8px !important; }
+    body.awaiting-mood #presets .rbtn.rmood{
+      height:42px !important; min-height:42px !important; padding:0 14px !important;
+      font-size:15px !important;
+    }
+    body.awaiting-mood #presets .rbtn.rmood-scratch{
+      flex-basis:auto !important; min-width:210px; white-space:nowrap;
+      margin-top:8px !important;
+    }
+    body.awaiting-mood #madeby{ display:none !important; }
+
+    body:not(.awaiting-mood) #madeby{ display:none !important; }
+    body:not(.awaiting-mood) #plinks{ top:12px !important; left:12px !important; gap:8px !important; }
+    body:not(.awaiting-mood) #plinks .plink{
+      max-width:calc(100vw - 24px); padding:9px 14px !important;
+    }
+    body:not(.awaiting-mood) #plinks .plink-t{
+      font-size:16px !important; line-height:1.1 !important; white-space:nowrap;
+    }
+    body.ai-visual #playbar.show{
+      min-height:76px !important; height:76px !important; padding:8px !important;
+      grid-template-columns:minmax(0,175px) 105px 77px !important;
+      column-gap:6px !important; align-items:center !important;
+    }
+    body.ai-visual #playbar .pb-left{
+      width:auto !important; min-width:0 !important; overflow:hidden !important;
+    }
+    body.ai-visual #playbar .pb-title{ font-size:14px !important; }
+    body.ai-visual #playbar .pb-share{
+      flex-basis:34px; width:34px !important; min-width:34px !important; height:34px !important;
+    }
+    body.ai-visual #playbar .pb-center{ width:auto !important; gap:0 !important; }
+    body.ai-visual #playbar .pb-center .pb-main-ctrl{
+      padding:3px !important; gap:1px !important;
+    }
+    body.ai-visual #playbar .pb-main-ctrl button,
+    body.ai-visual #playbar .pb-play{
+      width:34px !important; min-width:34px !important; height:34px !important;
+    }
+    body.ai-visual #playbar .pb-center .pb-ctrl{
+      position:absolute !important; left:8px !important; right:8px !important;
+      bottom:3px !important; width:auto !important; min-width:0 !important;
+      height:7px !important; padding:0 !important; border:0 !important;
+      box-shadow:none !important; border-radius:999px !important; overflow:hidden;
+    }
+    body.ai-visual #playbar .pb-center .pb-lcd{ height:7px; padding:0 !important; }
+    body.ai-visual #playbar .pb-center .pb-scrub{ height:7px; }
+    body.ai-visual #playbar .pb-center .pb-wrap{ height:7px; }
+    body.ai-visual #playbar .pb-center .pb-t{ display:none !important; }
+    body.ai-visual #playbar .pb-right .pb-voldial{
+      height:42px !important; padding:0 !important;
+    }
+    body.ai-visual #playbar .pb-right .pb-voldial input[type=range]{ display:none !important; }
+    body.ai-visual #playbar .pb-right .pb-volume{
+      width:38px !important; min-width:38px !important; height:38px !important;
+      padding:0 !important; display:inline-flex !important;
+    }
+    body.ai-visual #playbar .pb-right .pb-volume .pbv-t,
+    body.ai-visual #playbar .pb-right .pb-volume #pbVolRead{ display:none !important; }
+    body.ai-visual #playbar .pb-right #rfullscreen{
+      width:38px !important; min-width:38px !important; height:38px !important;
+      min-height:38px !important; padding:0 !important; margin:0 !important;
+    }
+    body.ai-visual #playbar .pb-right{
+      display:flex !important; align-items:center !important; min-width:0 !important;
+      width:77px !important; max-width:77px !important; overflow:visible !important;
+      transform:translateX(-12px) !important;
+    }
+    body.ai-visual #playbar .pb-right > *{ flex:0 0 38px !important; }
+  }
   #track-transition{position:fixed;inset:0;z-index:19;pointer-events:none;opacity:0;
     background:repeating-radial-gradient(circle at 27% 43%,rgba(255,255,255,.72) 0 1px,rgba(0,0,0,.78) 1px 3px),repeating-linear-gradient(0deg,rgba(255,255,255,.22) 0 1px,rgba(0,0,0,.28) 1px 3px);
     background-size:7px 5px,100% 4px;mix-blend-mode:screen;}
@@ -2662,7 +2779,7 @@
   <div id="track-transition" aria-hidden="true"></div>
   <div id="hearts"></div>
 
-  <div id="presets"></div>
+  <main id="presets" aria-label="Chiptunes.app"></main>
 
   <div id="hud">
     <div id="trackname"></div>
@@ -2676,7 +2793,7 @@
     <button id="start" hidden></button>
   </div>
 
-<script src="../app.f1bdb534f582.js" defer></script>
+<script src="../app.28e8709b4775.js" defer></script>
 
 </body>
 </html>

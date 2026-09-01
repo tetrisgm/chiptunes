@@ -32834,6 +32834,7 @@ function buildRadioUI(){
           '<span class="rmood-section"><strong>COMPLETE SONGS.</strong><p>The composer writes full arrangements, not loops, from pulse and wave instruments, noise and sampled drums.</p></span>'+
           '<span class="rmood-section"><strong>AUTHENTIC HARDWARE.</strong><p>Every note runs through register-level emulation of the original four-channel sound chip. Download a cartridge that boots on a real Game Boy.</p></span>'+
           '<span class="rmood-section"><strong>MAKE IT YOURS.</strong><p>Edit every note, instrument and effect. Share it as a link, WAV or cartridge.</p></span>'+
+          '<small class="rmood-legal">Game Boy is a trademark of Nintendo. Independent project; not affiliated with or endorsed by Nintendo.</small>'+
         '</span>';
       row.appendChild(brand);
       // The ask -- the words and the pills -- moves as one piece: it is in the
@@ -32962,7 +32963,7 @@ function _buildPlayerLinks(){
       _madeGitHubLink()+
       _madeLink('https://twitter.com/tetrisgm', _IC_X, 'Twitter', 'tetrisgm on X')+
       _madeLink('https://news.ycombinator.com/user?id=tetrisgm', _IC_HN, 'Hacker News', 'tetrisgm on Hacker News', 'plmade-hn')+
-    '</div></div>';
+    '</div><small class="plmade-legal">Game Boy is a trademark of Nintendo. Independent project; not affiliated with or endorsed by Nintendo.</small></div>';
   // the credit is not something you DO with the track, so it is not a rail row:
   // its own corner of the picture, bottom-left, above the player bar
   var made=document.getElementById('madeby');

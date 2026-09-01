@@ -1619,3 +1619,23 @@ Reported as "severe performance issues running the website overall", in Safari.
 # 2026-08-31 — GitHub Star control
 
 - The site credit keeps PartyParty's useful `GitHub · Star · count` structure, pointed at the public `tetrisgm/chiptunes` repository, but uses the same cream moulded Game Boy material as the Twitter and Hacker News controls. It starts with the last verified public count and refreshes from GitHub's public repository API.
+
+# 2026-09-01 — Launch-readiness pass
+
+- The public story is now “create or listen to complete Game Boy songs,” with
+  automatic composition, editable song documents, register-level chip
+  emulation, cartridge export, self-playing visualizers, and listen-anywhere
+  radio described consistently across the site, README, metadata, and GitHub.
+- The landing page and README clarify that Game Boy is a Nintendo trademark
+  and that Chiptunes.app is an independent project, not affiliated with or
+  endorsed by Nintendo.
+- A final 390 px layout owns the phone landing and playing surfaces. The title,
+  product story, mood controls, share, transport, volume, and fullscreen remain
+  visible without horizontal overflow; `verify-chrome` holds those facts.
+- Static crawler/install assets now include `robots.txt`, `sitemap.xml`,
+  `manifest.webmanifest`, `favicon.ico`, and the existing square station icon.
+- `docs/launch/` contains the HN and Product Hunt copy, launch checklist, and
+  three 1270×760 gallery frames. The 12-second Remotion demo remains the current
+  video asset; uploading or submitting it is a separate public launch action.
+- The public GitHub repository description, homepage, and discovery topics now
+  match the product.
