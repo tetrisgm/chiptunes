@@ -1914,7 +1914,7 @@ function _buildPlayerLinks(){
       '<span class="plink-ic">'+ic+'</span><span class="plink-t">'+label+'</span></a>';
   }
   function _madeGitHubLink(){
-    return '<a class="plmade-github" id="githubStarBtn" href="'+GITHUB_URL+'" target="_blank" rel="noopener" '+
+    return '<a class="plink plmade-github" id="githubStarBtn" href="'+GITHUB_URL+'" target="_blank" rel="noopener" '+
       'aria-label="Star Chiptunes.app on GitHub, 1 star">'+_IC_GH+'<span>Star</span>'+
       '<span class="plmade-star-count" id="githubStarCount" aria-live="polite">1</span></a>';
   }
@@ -1949,8 +1949,10 @@ function _buildPlayerLinks(){
       '<span class="plink-ic">'+it.ic+'</span><span class="plink-t">'+it.l+'</span></button>'+extra+'</div>';
   }).join('');
   made.innerHTML=madeBy;
-  // Match the working PartyParty star control: a useful last-known value is
-  // visible immediately, then GitHub's public repository response refreshes it.
+  // Keep a useful last-known value visible immediately, then refresh it from
+  // GitHub's public repository response. The outer control uses the same
+  // moulded Game Boy key as the other credit links; only the divided count is
+  // special to this control.
   var githubStarBtn=document.getElementById('githubStarBtn');
   var githubStarCount=document.getElementById('githubStarCount');
   if(githubStarBtn && githubStarCount && typeof fetch==='function'){

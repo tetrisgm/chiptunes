@@ -277,6 +277,7 @@ function names() {
     const gh = document.querySelector('.plmade-github');
     const stars = gh && gh.querySelector('.plmade-star-count');
     const made = document.getElementById('madeby'), hn = made && made.querySelector('.plmade-hn');
+    const twitter = made && [...made.querySelectorAll('.plmade-btn')].find(x => /twitter\.com/.test(x.href || ''));
     const labels = made ? [...made.querySelectorAll('.plmade-btn .plink-t')].filter(x => x.getClientRects().length).map(x => x.textContent.trim()) : [];
     const r = made && made.getBoundingClientRect();
     const rail=document.getElementById('plinks'), rr=rail&&rail.getBoundingClientRect();
@@ -288,20 +289,24 @@ function names() {
         s.textTransform,s.textShadow,s.getPropertyValue('-webkit-text-stroke-width')
       ]; });
     const ghRect=gh&&gh.getBoundingClientRect(), ghStyle=gh&&getComputedStyle(gh), starStyle=stars&&getComputedStyle(stars);
+    const twitterStyle=twitter&&getComputedStyle(twitter);
     return { githubHref:gh&&gh.href, githubLabel:gh&&gh.getAttribute('aria-label'),
       starText:stars&&stars.textContent.trim(),
       hnVisible:!!hn && !!hn.getClientRects().length,
       githubVisible:!!ghRect && ghRect.width>0 && ghRect.height>0,
       githubHeight:ghRect&&Math.round(ghRect.height), githubBackground:ghStyle&&ghStyle.backgroundColor,
       githubRadius:ghStyle&&ghStyle.borderRadius, starDivider:starStyle&&starStyle.borderLeftWidth,
+      githubSurface:ghStyle&&[ghStyle.backgroundImage,ghStyle.borderColor,ghStyle.boxShadow,ghStyle.color],
+      twitterSurface:twitterStyle&&[twitterStyle.backgroundImage,twitterStyle.borderColor,twitterStyle.boxShadow,twitterStyle.color],
       labels, left:r ? Math.round(r.left) : -1, aboveRail:!!r&&!!rr&&r.bottom<rr.top, type, railGap };
   });
   ok(/github\.com\/tetrisgm\/chiptunes\/?$/.test(credit.githubHref || ''),
      'GitHub goes to the repository (' + credit.githubHref + ')');
   ok(credit.githubVisible && /^\d[\d,.]*[kKmM]?$/.test(credit.starText || '') && /star/i.test(credit.githubLabel || ''),
      'the GitHub control visibly exposes its live star count (' + credit.starText + ')');
-  ok(credit.githubHeight === 52 && credit.githubBackground !== 'rgba(0, 0, 0, 0)' && credit.githubRadius === '999px' && credit.starDivider === '1px',
-     'the GitHub control uses PartyParty’s unified dark glass pill');
+  ok(credit.githubHeight === 48 && credit.githubRadius === '999px' && credit.starDivider === '1px' &&
+     JSON.stringify(credit.githubSurface) === JSON.stringify(credit.twitterSurface),
+     'the live GitHub control uses the same moulded Game Boy material as Twitter and Hacker News');
   ok(credit.hnVisible && credit.labels.length === 0,
      'playing keeps the other social links compact and icon-only');
   ok(credit.left <= 20 && credit.aboveRail, 'the playing credit sits above the left rail (' + credit.left + 'px)');

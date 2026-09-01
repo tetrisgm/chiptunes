@@ -1618,4 +1618,4 @@ Reported as "severe performance issues running the website overall", in Safari.
 
 # 2026-08-31 — GitHub Star control
 
-- The site credit reuses PartyParty's dark glass `GitHub · Star · count` component, pointed at the public `tetrisgm/chiptunes` repository. It starts with the last verified public count and refreshes from GitHub's public repository API; X and Hacker News remain secondary links.
+- The site credit keeps PartyParty's useful `GitHub · Star · count` structure, pointed at the public `tetrisgm/chiptunes` repository, but uses the same cream moulded Game Boy material as the Twitter and Hacker News controls. It starts with the last verified public count and refreshes from GitHub's public repository API.

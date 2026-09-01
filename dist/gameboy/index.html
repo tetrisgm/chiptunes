@@ -686,21 +686,15 @@
   #madeby .plmade-name{ color:var(--ink); font:700 var(--txt)/1 var(--px); letter-spacing:.04em; }
   #madeby .plmade-btn{ text-decoration:none; }
   #madeby .plmade-btn svg{ width:18px; height:18px; display:block; }
-  /* Same star control as PartyParty: one dark glass pill with a divided count,
-     not GitHub's unrelated default white widget skin. */
+  /* The live count remains part of the GitHub control, but the control itself
+     is one of this machine's moulded cream keys, exactly like X and HN. */
   #madeby .plmade-github{
-    display:inline-flex; align-items:center; gap:9px; min-height:52px;
-    padding:0 17px; border-radius:999px; text-decoration:none;
-    background:rgba(29,29,31,.78); color:#fff;
-    border:0; box-shadow:inset 0 0 0 1px rgba(255,255,255,.18), 0 2px 8px rgba(0,0,0,.3);
-    backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+    text-decoration:none; white-space:nowrap;
     font:600 17px/1 var(--ui); letter-spacing:-.01em;
   }
-  #madeby .plmade-github:hover{ background:rgba(29,29,31,.92); color:#fff; }
-  #madeby .plmade-github:active{ transform:scale(.97); }
   #madeby .plmade-github svg{ width:19px; height:19px; fill:currentColor; flex:none; }
   #madeby .plmade-star-count{
-    border-left:1px solid rgba(255,255,255,.24); padding-left:9px;
+    border-left:1px solid rgba(40,38,28,.3); padding-left:9px;
     min-width:1.25ch; font-variant-numeric:tabular-nums;
   }
   body.gb-open #madeby, body.create-open #madeby{ display:none !important; }
@@ -2682,7 +2676,7 @@
     <button id="start" hidden></button>
   </div>
 
-<script src="../app.612a1cad05e6.js" defer></script>
+<script src="../app.f1bdb534f582.js" defer></script>
 
 </body>
 </html>
