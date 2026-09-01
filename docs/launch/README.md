@@ -62,7 +62,7 @@ clearly the landing page explains what is actually happening.
 
 **Tagline:** `Automatic Game Boy songs you can edit, share, and play anywhere`
 
-**Description (239 characters):** Pick a mood and Chiptunes.app composes a
+**Description (223 characters):** Pick a mood and Chiptunes.app composes a
 complete song in your browser, plays it through an emulation of the original
 sound chip, and pairs it with a self-playing game. Edit every note, then share a
 link, WAV, or cartridge.
