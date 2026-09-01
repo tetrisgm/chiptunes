@@ -14,7 +14,7 @@
     .brand{font-weight:850;letter-spacing:.02em}.eyebrow{color:#b7e34c;text-transform:uppercase;letter-spacing:.15em;font-size:13px}h1{font-size:clamp(36px,6vw,68px);line-height:1;margin:.22em 0}.lead{font-size:clamp(20px,2.6vw,29px);max-width:680px;color:var(--muted);margin:0 0 30px}
     .layout{display:grid;grid-template-columns:minmax(0,1fr) 230px;gap:42px;align-items:start}.actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.button{min-height:58px;border:1px solid #696178;border-radius:999px;background:linear-gradient(#e8e5d8,#b9b6a8);color:#20251b;text-decoration:none;padding:0 22px;display:flex;align-items:center;justify-content:center;text-align:center;font:750 17px/1.1 var(--ui);cursor:pointer;box-shadow:inset 0 2px #fff8,0 5px 0 #68665f,0 12px 24px #0008}.button.primary{background:linear-gradient(#c03678,#8d174f);color:#fff;border-color:#df5594;box-shadow:inset 0 2px #fff3,0 5px 0 #4d102f,0 12px 24px #0008}.button:active{transform:translateY(3px);box-shadow:inset 0 2px #fff4,0 2px 0 #4d102f}.button.apple{display:none}.apple-device .button.apple{display:flex}
     .player{margin:18px 0 0;padding:18px;border:1px solid var(--edge);border-radius:18px;background:#08070f}.now{min-height:27px;margin-bottom:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.station{color:#8edbff;font-size:13px;text-transform:uppercase;letter-spacing:.12em}.track{font-size:19px}audio{width:100%;height:44px}
-    .other{margin-top:30px;padding-top:24px;border-top:1px solid var(--edge)}.other h2{font-size:20px;margin:0 0 8px}.other p{color:var(--muted);margin:0 0 15px}.links{display:flex;gap:10px;flex-wrap:wrap}.links a{color:#a8dcff}.qr{margin:0;text-align:center;color:var(--muted);font-size:13px}.qr img{display:block;width:100%;border:12px solid #fff;border-radius:18px;margin-bottom:10px}.note{font-size:13px;color:var(--muted);margin:10px 0 0}.copied{background:linear-gradient(#b8e969,#6b9e19)!important}
+    .other{margin-top:30px;padding-top:24px;border-top:1px solid var(--edge)}.other h2{font-size:20px;margin:0 0 8px}.other p{color:var(--muted);margin:0 0 15px}.links{display:flex;gap:10px;flex-wrap:wrap}.links a{color:#a8dcff}.qr{margin:0;text-align:center;color:var(--muted);font-size:13px}.qr img{display:block;width:100%;border:12px solid #fff;border-radius:18px;margin-bottom:10px}.note{font-size:13px;color:var(--muted);margin:10px 0 0}.copied{background:linear-gradient(#b8e969,#6b9e19)!important}.play-error{color:#ff9fbd}
     footer{margin-top:34px;color:#777181;font-size:13px}footer a{color:#aaa3b9}
     @media(max-width:760px){body{padding:0}main{min-height:100vh;border:0;border-radius:0;padding:28px 18px}.layout{grid-template-columns:1fr}.actions{grid-template-columns:1fr}.qr{display:none}.lead{margin-bottom:24px}}
   </style>
@@ -34,7 +34,8 @@
       </div>
       <div class="player">
         <div class="now"><div class="station">CHIPTUNES.APP</div><div class="track" id="track">Endless Game Boy radio</div></div>
-        <audio id="audio" preload="none" controls src="https://radio.chiptunes.app"></audio>
+        <audio id="audio" preload="metadata" playsinline controls src="https://radio.chiptunes.app"></audio>
+        <div class="note play-error" id="play-error" role="status" hidden></div>
       </div>
       <p class="note apple">“Add to Broadcasts” requires the Broadcasts app. “Open in radio app” works as the generic fallback.</p>
       <section class="other">
@@ -54,14 +55,26 @@
   if(apple) document.documentElement.classList.add('apple-device');
   var b=document.getElementById('broadcasts');
   b.href='broadcasts://add?name='+encodeURIComponent('CHIPTUNES.APP')+'&address='+encodeURIComponent(STREAM)+'&artworkAddress='+encodeURIComponent(ART);
-  var audio=document.getElementById('audio'), play=document.getElementById('play'), copy=document.getElementById('copy'), track=document.getElementById('track');
-  function syncPlay(){ play.textContent=audio.paused?'Play here':'Pause'; }
-  play.onclick=function(){ if(audio.paused) audio.play(); else audio.pause(); }; audio.onplay=syncPlay; audio.onpause=syncPlay;
+  var audio=document.getElementById('audio'), play=document.getElementById('play'), copy=document.getElementById('copy'), track=document.getElementById('track'), playError=document.getElementById('play-error');
+  var connecting=false;
+  function syncPlay(){ if(!connecting)play.textContent=audio.paused?'Play here':'Pause'; }
+  function showPlayError(){connecting=false;play.textContent='Try again';playError.hidden=false;playError.textContent='The stream could not start. Try again or open the direct stream below.';}
+  function startPlayback(){
+    if(connecting)return;
+    connecting=true;play.textContent='Connecting…';playError.hidden=true;
+    if(audio.networkState===HTMLMediaElement.NETWORK_EMPTY)audio.load();
+    var started;
+    try{started=audio.play()}catch(e){showPlayError();return;}
+    if(started&&typeof started.then==='function')started.then(function(){connecting=false;syncPlay()},showPlayError);
+    else{connecting=false;syncPlay()}
+  }
+  play.onclick=function(){if(audio.paused)startPlayback();else audio.pause()};
+  audio.onplaying=function(){connecting=false;playError.hidden=true;syncPlay()};audio.onpause=syncPlay;audio.onerror=showPlayError;
   copy.onclick=function(){ var done=function(){copy.textContent='Stream URL copied';copy.classList.add('copied');setTimeout(function(){copy.textContent='Copy stream URL';copy.classList.remove('copied')},1700)}; if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(STREAM).then(done,done);else{var t=document.createElement('textarea');t.value=STREAM;document.body.appendChild(t);t.select();try{document.execCommand('copy')}catch(e){}t.remove();done()}};
   function media(title){ if(!('mediaSession' in navigator)||typeof MediaMetadata==='undefined')return;navigator.mediaSession.metadata=new MediaMetadata({title:title||'Endless Game Boy radio',artist:'CHIPTUNES.APP',album:'CHIPTUNES.APP',artwork:[{src:ART,sizes:'1024x1024',type:'image/png'}]}); }
   function status(){fetch('https://radio.chiptunes.app/status-json.xsl',{cache:'no-store'}).then(function(r){return r.json()}).then(function(j){var s=j&&j.icestats&&j.icestats.source;s=Array.isArray(s)?s[0]:s;var title=s&&s.title;if(title){track.textContent=title;media(title)}}).catch(function(){})}
   media('Endless Game Boy radio');status();setInterval(status,10000);
-  if('mediaSession' in navigator){try{navigator.mediaSession.setActionHandler('play',function(){audio.play()});navigator.mediaSession.setActionHandler('pause',function(){audio.pause()})}catch(e){}}
+  if('mediaSession' in navigator){try{navigator.mediaSession.setActionHandler('play',startPlayback);navigator.mediaSession.setActionHandler('pause',function(){audio.pause()})}catch(e){}}
 })();
 </script>
 </body>
