@@ -32950,11 +32950,16 @@ function _buildPlayerLinks(){
     return '<a class="plink plmade-btn'+(extra?' '+extra:'')+'" href="'+href+'" target="_blank" rel="noopener" title="'+tip+'">'+
       '<span class="plink-ic">'+ic+'</span><span class="plink-t">'+label+'</span></a>';
   }
+  function _madeGitHubLink(){
+    return '<a class="plink plmade-btn plmade-github" href="'+GITHUB_URL+'" target="_blank" rel="noopener" title="Star Chiptunes.app on GitHub">'+
+      '<span class="plink-ic">'+_IC_GH+'</span><span class="plink-t">Star</span>'+
+      '<span class="plmade-stars" aria-label="GitHub stars">0</span></a>';
+  }
   var madeBy='<div class="plmade-line"><span class="plmade-name">Chiptunes.app</span><span class="plmade-t">An AI product experiment by Shokunin</span>'+
     '<div class="plmade-row">'+
       // the REPOSITORY, not the profile: the interesting thing about this
       // page is that you can read how it works and send a change back
-      _madeLink(GITHUB_URL, _IC_GH, 'GitHub', 'Source, issues and pull requests')+
+      _madeGitHubLink()+
       _madeLink('https://twitter.com/tetrisgm', _IC_X, 'Twitter', 'tetrisgm on X')+
       _madeLink('https://news.ycombinator.com/user?id=tetrisgm', _IC_HN, 'Hacker News', 'tetrisgm on Hacker News', 'plmade-hn')+
     '</div></div>';
@@ -32962,6 +32967,18 @@ function _buildPlayerLinks(){
   // its own corner of the picture, bottom-left, above the player bar
   var made=document.getElementById('madeby');
   if(!made){ made=document.createElement('div'); made.id='madeby'; document.body.appendChild(made); }
+  // The count is helpful context, but never blocks or destabilises the page:
+  // GitHub being unavailable simply leaves a clean, count-free Star button.
+  var starCount=made.querySelector('.plmade-stars');
+  if(starCount && typeof fetch==='function'){
+    fetch('https://api.github.com/repos/tetrisgm/chiptunes', {headers:{Accept:'application/vnd.github+json'}})
+      .then(function(res){ return res.ok ? res.json() : null; })
+      .then(function(repo){
+        if(!repo || typeof repo.stargazers_count!=='number') return;
+        starCount.textContent=repo.stargazers_count.toLocaleString();
+        starCount.hidden=false;
+      }).catch(function(){});
+  }
   var wrap=document.createElement('div'); wrap.id='plinks';
   // THE MASTHEAD. The rail's first row offers you a Game Boy, which only reads
   // as an offer once you know what the page is -- and with the home page gone
