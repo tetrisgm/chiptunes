@@ -288,13 +288,18 @@ function names() {
         s.fontFamily,s.fontSize,s.fontWeight,s.fontStyle,s.lineHeight,s.letterSpacing,
         s.textTransform,s.textShadow,s.getPropertyValue('-webkit-text-stroke-width')
       ]; });
+    const starStyle=stars&&getComputedStyle(stars), starRect=stars&&stars.getBoundingClientRect();
     return { href:a ? a.href : null, hnVisible:!!hn && !!hn.getClientRects().length,
       starVisible:!!stars && !!stars.getClientRects().length, starText:stars && stars.textContent.trim(),
+      starColor:starStyle&&starStyle.color, starBackground:starStyle&&starStyle.backgroundColor,
+      starHeight:starRect&&Math.round(starRect.height),
       labels, left:r ? Math.round(r.left) : -1, aboveRail:!!r&&!!rr&&r.bottom<rr.top, type, railGap };
   });
   ok(/github\.com\/[^/]+\/chiptunes\/?$/.test(credit.href || ''), 'GitHub goes to the repository (' + credit.href + ')');
   ok(credit.starVisible && /^\d[\d,.]*[kKmM]?$/.test(credit.starText || ''),
      'the GitHub Star button always shows its count (' + credit.starText + ')');
+  ok(credit.starColor === 'rgb(36, 40, 32)' && credit.starBackground !== 'rgba(0, 0, 0, 0)' && credit.starHeight === 28,
+     'the star count is a compact inset counter, not a loose pale digit');
   ok(credit.hnVisible && credit.labels.join('|') === 'Star',
      'playing keeps social logos compact and gives GitHub a Star action');
   ok(credit.left <= 20 && credit.aboveRail, 'the playing credit sits above the left rail (' + credit.left + 'px)');
