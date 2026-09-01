@@ -1,0 +1,18 @@
+{
+  "name": "chiptunes-promo-video",
+  "private": true,
+  "scripts": {
+    "capture": "node capture.mjs",
+    "render": "remotion render src/index.ts ChiptunesPromo out/chiptunes-promo.mp4 --codec=h264 --crf=18",
+    "poster": "remotion still src/index.ts ChiptunesPromo out/chiptunes-promo.webp --frame=72 --image-format=webp"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.374",
+    "react": "19.1.1",
+    "react-dom": "19.1.1",
+    "remotion": "4.0.374"
+  },
+  "devDependencies": {
+    "typescript": "5.9.2"
+  }
+}

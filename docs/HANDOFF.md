@@ -1609,3 +1609,9 @@ Reported as "severe performance issues running the website overall", in Safari.
 - The playing credit again shows GitHub, X, and Hacker News as icon-only links.
 - Create is a 93-dvh bottom sheet over the still-visible game. It hides the unrelated station dock, owns its transport, uses a real share icon, and closes through a labelled “Back to game” control.
 - Route, editor geometry, editor/audio handoff, social-credit, and station-dock behavior are held by the browser verification suite.
+
+# 2026-08-31 — Remotion portfolio preview
+
+- `promo-video/` is the reproducible 12-second, 1280×720 Remotion composition used by the chiptunes.app card on ramine.net.
+- `npm run capture` refreshes its landing, playing, and Create reference frames from the current local build. `npm run render` and `npm run poster` produce the portfolio MP4 and WebP in the ignored `promo-video/out/` directory.
+- The cut leads with automatic creation/listening, shows continuous generated playback, opens the tall Create tracker sheet, and closes on real four-channel sound plus cartridge export.
