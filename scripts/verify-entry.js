@@ -108,8 +108,8 @@ const peak = async (p, ms) => {
   await wait(3500);
   ok((await peak(p, 3000)) > 0.02, 'pressing play starts one anyway (it means "surprise me")');
 
-  ok(await p.evaluate(() => location.pathname === '/player'),
-     'playing leaves the homepage address for /player');
+  ok(await p.evaluate(() => location.pathname === '/'),
+     'playing keeps the permanent root address');
 
   await p.goto(`http://127.0.0.1:${h.port}/`, { waitUntil: 'domcontentloaded' });
   await wait(4000);

@@ -1602,3 +1602,10 @@ Reported as "severe performance issues running the website overall", in Safari.
 - The root landing page opens directly on the Game Boy chooser; the separate CHIPTUNES.APP introductory splash overlay was removed.
 - The Game Boy landing copy now leads with “Create or listen”: mood choices automatically compose complete songs one after another, while the next sections distinguish full arrangements from loops and explain the register-level hardware model.
 - Radio Browser accepted the public station as UUID `967010ce-34f5-460d-beb4-67a196c49d9b`.
+
+# 2026-08-31 — Root routing and Create sheet
+
+- `/player` is retired. Generated playback remains at `/`, the build no longer emits a player route, and legacy `/player` requests replace themselves with `/` before boot.
+- The playing credit again shows GitHub, X, and Hacker News as icon-only links.
+- Create is a 93-dvh bottom sheet over the still-visible game. It hides the unrelated station dock, owns its transport, uses a real share icon, and closes through a labelled “Back to game” control.
+- Route, editor geometry, editor/audio handoff, social-credit, and station-dock behavior are held by the browser verification suite.

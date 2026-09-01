@@ -29,15 +29,20 @@
 <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet" />
 <script>
 (function(){
-  // player-route boot: hide the Home overlay pre-paint for direct track/watch/player links.
+  // /player was the old generated-player address. Root is the only landing
+  // address now, so collapse an old bookmark before the page can boot there.
+  if((location.pathname||'/').replace(/\/+$/,'')==='/player'){
+    location.replace('/'+(location.search||'')+(location.hash||'')); return;
+  }
+  // player-route boot: hide the Home overlay pre-paint for direct track/watch links.
   // /track/<slug> (generated; slug may carry a '<composerId>.' prefix)
-  // /watch (silent wallpaper) · /player (mints a fresh generated track).
+  // /watch (silent wallpaper).
   var path=(location.pathname||'/').replace(/^\/+|\/+$/g,''), slug=path;
   try{ slug=decodeURIComponent(slug); }catch(e){}
   slug=String(slug||'').toLowerCase();
   var parts=slug.split('/').filter(Boolean);
   var aiTrackRoute=!!(parts[0]==='track' && parts[1] && !parts[2] && /^[a-z0-9][a-z0-9._-]*$/.test(parts[1]));
-  var modeRoute=(parts.length===1 && (parts[0]==='watch' || parts[0]==='player' || parts[0]==='gameboy' || parts[0]==='create'));
+  var modeRoute=(parts.length===1 && (parts[0]==='watch' || parts[0]==='gameboy' || parts[0]==='create'));
   // Root is always the landing page. Once a visitor starts a song the runtime
   // gives it a /track URL, so restoring or reloading / can never resurrect a
   // playing screen under the homepage address.
@@ -45,8 +50,6 @@
     document.documentElement.classList.add('boot-player-route');
     window.__RRR_BOOT_PLAYER_ROUTE=true;
   }
-  // /player is deliberately distinct from root: root always means landing,
-  // while /player is the now-playing screen.
 })();
 </script>
 <style>
@@ -773,19 +776,17 @@
     :root{ --fade-out:.25s ease; --fade-in:.12s ease-out; }
   }
 
-  /* CREATE: the Mario-Paint-spirit editor. A full-screen takeover; the grid
-     canvas owns the middle, the toolbar the top, the critter palette the
-     bottom. Everything sized for fingers. */
-  /* the editor is contained above the player bar, like the game */
-  #createscreen{ position:fixed; inset:0 0 var(--barh,0px) 0; z-index:76; display:flex; flex-direction:column;
-    background:#080610; opacity:0; pointer-events:none; transition:opacity .2s ease; }
-  #createscreen.show{ opacity:1; pointer-events:auto; }
-  /* The player bar STAYS. The bottom of the window is its, and the editor is
-     contained above it the same way the game is -- one transport, in one place,
-     whichever of the two views you happen to be looking at. */
-  body.create-open #plinks, body.create-open #bigplay{ display:none !important; }
-  /* the editor is the page while it is open: no game underneath it, ever */
-  body.create-open #stage, body.create-open .crt, body.create-open #hud,
+  /* CREATE is a tall bottom sheet. Its exposed strip keeps the game visibly
+     behind it, while its own transport and actions remain self-contained. */
+  #createscreen{ position:fixed; inset:auto 0 0; height:93dvh; max-height:calc(100dvh - 28px);
+    z-index:76; display:flex; flex-direction:column; overflow:hidden;
+    background:#080610; border:1px solid rgba(255,255,255,.14); border-bottom:0;
+    border-radius:24px 24px 0 0; box-shadow:0 -28px 80px rgba(0,0,0,.58);
+    transform:translateY(102%); pointer-events:none; transition:transform .24s cubic-bezier(.2,.75,.25,1); }
+  #createscreen.show{ transform:translateY(0); pointer-events:auto; }
+  body.create-open #playbar, body.create-open #plinks, body.create-open #madeby,
+  body.create-open #bigplay{ display:none !important; }
+  body.create-open #hud,
   body.create-open #now, body.create-open #presets{ display:none !important; }
   #createscreen.instant{ transition:none; }
   #createscreen .cr-top{ flex:0 0 auto; display:flex; align-items:center; gap:14px;
@@ -800,7 +801,8 @@
   #createscreen .cr-btn:hover{ border-color:var(--mat-edge-hi); background:rgba(255,255,255,.1); }
   #createscreen .cr-btn.on{ background:rgba(155,188,15,.18); border-color:rgba(155,188,15,.55); }
   #createscreen .cr-primary{ background:rgba(120,220,160,.16); border-color:rgba(120,220,160,.5); }
-  #createscreen .cr-close{ width:38px; padding:0; font-size:19px; }
+  #createscreen .cr-close{ width:auto; padding:0 14px; display:inline-flex; align-items:center; gap:7px; }
+  #createscreen .cr-close svg{ width:15px; height:15px; }
   #createscreen .cr-sel{ height:38px; padding:0 10px; border-radius:10px;
     border:1px solid var(--mat-edge); background:rgba(255,255,255,.05); color:var(--ink);
     font:600 13px var(--ui); }
@@ -1635,14 +1637,8 @@
     opacity:0; transition:opacity var(--fade-out);
   }
   body.ai-visual.controls-active #playbar.show{ opacity:1; transition:opacity var(--fade-in); }
-  /* the editor does not drive the idle timer -- moving the pointer inside the
-     grid is not "waking the chrome" -- so the bar under it must not fade */
-  body.create-open #playbar.show{ opacity:1 !important; }
-  /* ONE TRANSPORT. The bar below carries play, prev and next; the editor's row
-     keeps only what the bar has no business knowing about -- whether the camera
-     follows, how fast, and how fine the grid is. */
-  body.create-open #createscreen .n-tbtn[data-cr="play"],
-  body.create-open #createscreen .n-tbtn[data-cr="rewind"]{ display:none !important; }
+  /* Create owns its transport; the station dock is intentionally absent. */
+  body.ai-visual.create-open #playbar.show{ display:none !important; }
   /* the children stop being fixed furniture and become cells */
   body.ai-visual #playbar .pb-left,
   body.ai-visual #playbar .pb-ctrl,
@@ -2535,7 +2531,6 @@
     width:var(--btn-h); min-width:var(--btn-h); height:var(--btn-h);
     padding:0 !important; border-radius:50%; }
   body:not(.awaiting-mood) #madeby .plmade-btn .plink-t{ display:none !important; }
-  body:not(.awaiting-mood) #madeby .plmade-hn{ display:none !important; }
 
   /* The bottom-right dock exposes only volume and its advanced menu. Tempo and
      display remain available inside that menu instead of occupying the bar. */

@@ -121,7 +121,7 @@ const SCENARIOS = {
     await wait(1200);
 
     await p.evaluate(() => {
-      const c = [...document.querySelectorAll('button')].find(x => /^close$/i.test(x.textContent.trim()));
+      const c = document.querySelector('[data-cr="close"]');
       if (c) c.click();
     });
     await wait(3200);
@@ -144,6 +144,17 @@ const SCENARIOS = {
     await p.goto(`http://127.0.0.1:${h.port}/create`, { waitUntil: 'domcontentloaded' });
     await p.waitForFunction(() => document.querySelector('#createscreen.show'), null, { timeout: 40000 });
     await wait(3600);
+    const shell = await p.evaluate(() => {
+      const sheet=document.getElementById('createscreen'), dock=document.getElementById('playbar');
+      const r=sheet.getBoundingClientRect(), close=sheet.querySelector('[data-cr="close"]');
+      return { top:Math.round(r.top), bottom:Math.round(r.bottom), height:Math.round(r.height), vh:innerHeight,
+        dockVisible:!!dock && !!dock.getClientRects().length,
+        closeText:close&&close.textContent.trim(), shareIcon:!!sheet.querySelector('[data-cr="share"] .cr-share-icon') };
+    });
+    ok(shell.height >= shell.vh*.9 && shell.top > 0 && Math.abs(shell.bottom-shell.vh)<2,
+       'Create is a 90%+ bottom sheet with the game exposed above it');
+    ok(!shell.dockVisible, 'Create hides the unrelated station dock');
+    ok(shell.closeText === 'Back to game' && shell.shareIcon, 'Create has clear back and share controls');
     await p.evaluate(() => { const t = document.querySelector('.cr-tour'); if (t) t.remove(); });
     await p.evaluate(async () => {
       const d = CT_CREATE._dbg && CT_CREATE._dbg();
@@ -151,7 +162,7 @@ const SCENARIOS = {
     });
     await wait(1800);
     await p.evaluate(() => {
-      const c = [...document.querySelectorAll('button')].find(x => /^close$/i.test(x.textContent.trim()));
+      const c = document.querySelector('[data-cr="close"]');
       if (c) c.click();
     });
     await wait(4500);

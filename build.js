@@ -118,15 +118,14 @@ for (const f of fs.readdirSync(DIST)) if (/^app\.[0-9a-f]+\.js$/.test(f) && f !=
 fs.writeFileSync(path.join(DIST, bundleName), js);
 fs.writeFileSync(path.join(DIST, 'index.html'), html);
 
-// /radio is the public “listen anywhere” page. The visual music player uses
-// /player, so the radio-app handoff has a durable, unambiguous web address.
+// /radio is the public “listen anywhere” page.
 const radioHtml = fs.readFileSync(path.join(ROOT, 'src', 'listen-anywhere.html'), 'utf8');
 
 // route entrypoints + stale-route cleanup
 // '/' is the player; /get is the platform page; /radio is the player under its own
 // name (kept: it is in links people have shared).
-const ROUTES = ['player', 'get', 'gameboy', 'create'];
-for (const stale of ['create', 'listen', 'play', 'wip', 'watch']) {
+const ROUTES = ['get', 'gameboy', 'create'];
+for (const stale of ['player', 'create', 'listen', 'play', 'wip', 'watch']) {
   fs.rmSync(path.join(DIST, stale), { recursive: true, force: true });
 }
 

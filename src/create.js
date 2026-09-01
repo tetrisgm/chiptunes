@@ -2096,6 +2096,7 @@
     try {
       if (which === 'wave' && typeof _IC_WAVE !== 'undefined') return _IC_WAVE;
       if (which === 'rom' && typeof _IC_ROM !== 'undefined') return _IC_ROM;
+      if (which === 'share') return '<svg class="cr-share-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="m8.2 10.8 7.6-4.5M8.2 13.2l7.6 4.5"/></svg>';
     } catch (e) {}
     return '';
   }
@@ -2105,10 +2106,10 @@
       '<div class="n-utils">' +
         '<button type="button" class="cr-btn" data-cr="undo">↩ Undo</button>' +
         '<button type="button" class="cr-btn" data-cr="redo">↪ Redo</button>' +
-        '<button type="button" class="cr-btn" data-cr="share">' + _ic('wave') + 'Copy link</button>' +
+        '<button type="button" class="cr-btn cr-dl" data-cr="share">' + _ic('share') + 'Copy link</button>' +
         '<button type="button" class="cr-btn cr-dl" data-cr="wav">' + _ic('wave') + 'Download WAV</button>' +
         '<button type="button" class="cr-btn cr-dl" data-cr="rom">' + _ic('rom') + 'Download ROM</button>' +
-        '<button type="button" class="cr-btn cr-close" data-cr="close">Close</button>' +
+        '<button type="button" class="cr-btn cr-close" data-cr="close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg><span>Back to game</span></button>' +
       '</div>' +
       '<div class="n-moodrow"><span class="n-moodlab">Write me a song that is…</span>' +
         '<span class="n-moodchips">' +

@@ -160,23 +160,21 @@ const pixels = p => p.evaluate(() => {
   // ...and the strip is itself the way in: clicking it opens the editor
   await p.evaluate(() => { document.getElementById('noteribbon').click(); });
   await wait(4500);
-  // The strip STAYS while the editor is open, deliberately: the bar owns the
-  // bottom of the window and has to be the same height in both views, or
-  // whatever is contained above it jumps by the difference when you open one.
-  ok(await shown(p), 'it stays while the editor is open -- the bar keeps one height');
+  ok(!(await shown(p)), 'the station bar leaves while Create owns the screen');
   const inset = await p.evaluate(() => {
     const cs = document.getElementById('createscreen');
     const pb = document.getElementById('playbar');
     if (!cs || !pb) return null;
     const a = cs.getBoundingClientRect(), b2 = pb.getBoundingClientRect();
-    return { gap: Math.round(a.bottom - b2.top), vis: getComputedStyle(pb).visibility };
+    return { top:Math.round(a.top), bottom:Math.round(a.bottom), height:Math.round(a.height), vh:innerHeight,
+      dockVisible:!!pb.getClientRects().length };
   });
-  ok(inset && Math.abs(inset.gap) < 2, 'and the editor is contained above it (' +
-     (inset ? inset.gap + 'px overlap' : 'not measured') + ')');
-  ok(inset && inset.vis === 'visible', 'with the bar actually visible under it');
+  ok(inset && inset.height >= inset.vh*.9 && inset.top > 0 && Math.abs(inset.bottom-inset.vh)<2,
+     'the editor is a tall bottom sheet over the game');
+  ok(inset && !inset.dockVisible, 'with no duplicate player bar underneath it');
   await p.evaluate(() => {
     const t = document.querySelector('.cr-tour'); if (t) t.remove();
-    const c = [...document.querySelectorAll('button')].find(x => /^close$/i.test(x.textContent.trim()));
+    const c = document.querySelector('[data-cr="close"]');
     if (c) c.click();
   });
   await wait(4000);

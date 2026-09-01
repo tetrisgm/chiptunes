@@ -1770,9 +1770,7 @@ function _moodOnAir(m, btn){
       Audio.playDoc(doc.code);
     }catch(e){ if(window._toast) _toast('Could not play it'); return; }
     if(document.body) document.body.classList.remove('awaiting-mood');
-    // Root is the landing-page contract. A mood creates an unnamed document,
-    // so there is no track token whose callback could move it off root.
-    try{ if(location.pathname==='/' && history.replaceState) history.replaceState(null,'','/player'+_routeQueryExtras()); }catch(e2){}
+    // Root remains the permanent address for generated playback.
     try{ _reelStop(); }catch(e){}
     // No toast on success: the music starting IS the confirmation, and the name
     // is already on the playbar. A box announcing what you just asked for is
@@ -3845,17 +3843,15 @@ function unlockAudioSession(){
 
 // ---- URL routing: /track/<slug> is the current generated track. Each generated song updates it via replaceState;
 // loading a track URL reseeds that exact song. The GAME is NOT in the URL path; ?game= is a presentation setting.
-// Route table: / (home) · /player · /watch · /track/<slug>. Legacy heads redirect home. ----
+// Route table: / (home/player) · /watch · /track/<slug>. Legacy heads redirect home. ----
 function _pathParts(path){
   var p=String(path||location.pathname||'/').split('?')[0].replace(/^\/+|\/+$/g,'');
   if(!p) return [];
   return p.split('/').map(function(x){ try{ return decodeURIComponent(x); }catch(e){ return x; } });
 }
-// Root belongs exclusively to the landing page. Generated playback uses the
-// stable /player route; a song somebody keeps is still shared as a document.
 function _generatedRoute(){
   var p=(location.pathname||'/');
-  return p==='/watch' ? p : '/player';
+  return p==='/watch' ? p : '/';
 }
 function _queryFlag(name){
   try{
@@ -3948,7 +3944,7 @@ function _deriveGame(token){
 let _revealed=false;
 function revealApp(){
   if(_revealed) return; _revealed=true;
-  // On a player route the Home overlay was NEVER shown -- html.boot-player-route
+  // On a direct app route the Home overlay was NEVER shown -- html.boot-player-route
   // hides it before first paint. Dropping that class here and then starting the
   // .hidden fade made it visible again for the length of the fade: half a second
   // of splash on every single load of the station. Take it out of the layout
@@ -4560,12 +4556,12 @@ function openProductHome(opts){
 window.openProductHome=openProductHome;
 // ----- route table: / and /radio are the PLAYER · /get is the platform page ·
 //  /browse[...] (library-owned) · /watch · /track/<slug>.
-//  Legacy heads (listen|play|create|wip) land on the player. Returns false for
+//  Legacy heads (player|listen|play|wip) land on root. Returns false for
 //  library/track routes. -----
 function _productRouteFromPath(path){
   var head=String(_pathParts(path)[0]||'').toLowerCase();
   if(!head) return {mode:'radio'};                 // '/' IS the player now
-  if(head==='player') return {mode:'radio'};
+  if(head==='player') return {mode:'radio', legacy:true};
   if(head==='get') return {mode:'home'};
   if(head==='gameboy') return {mode:'gameboy'};
   if(head==='watch') return {mode:'watch'};
@@ -4660,17 +4656,16 @@ if(String(_pathParts(location.pathname||'/')[0]||'').toLowerCase()==='get') buil
 (function(){
   var head=String(_pathParts(location.pathname||'/')[0]||'').toLowerCase();
   // 'create' left this retired-routes list 2026-08-26: it is the editor now
-  if(head==='listen'||head==='play'||head==='wip'){
+  if(head==='player'||head==='listen'||head==='play'||head==='wip'){
     if(typeof history!=='undefined' && history.replaceState){ try{ history.replaceState(null,'','/'); }catch(e){} }
     head='';
   }
   if(head==='gameboy'){ if(document.body) document.body.classList.add('ai-visual');
     startAudio(false); _openGameBoyWhenReady(); return; }
-  // The editor is the page here, not an overlay: open it straight away.
-  // Booting the radio first flashed a game behind it for a moment, and the
-  // station is not needed until Create hands back on close.
+  // Create is a bottom sheet over the game, including on a direct refresh.
   if(head==='create'){ if(document.body) document.body.classList.add('ai-visual');
-    document.body.classList.add('create-open');   // hide the stage before anything can paint
+    startAudio(false);
+    document.body.classList.add('create-open');
     _createStandalone=true; _openCreate(); return; }
   if(head==='get') return;                                       // the platform page; #intro is already up
   if(head==='watch'){ enterWatchMode({noRoute:true}); return; }
@@ -4680,7 +4675,7 @@ if(String(_pathParts(location.pathname||'/')[0]||'').toLowerCase()==='get') buil
   // no-gesture path reveals the game immediately and arms the first tap to
   // start the sound, which is the same thing a shared /track link has always
   // done -- so autoplay policy costs a tap, not the whole experience.
-  if(head===''||head==='player'){
+  if(head===''){
     if(document.body) document.body.classList.add('ai-visual');
     startAudio(false);                                           // holds for a choice; sound arms when the visitor starts something
   }

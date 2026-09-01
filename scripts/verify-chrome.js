@@ -287,11 +287,11 @@ function names() {
         s.fontFamily,s.fontSize,s.fontWeight,s.fontStyle,s.lineHeight,s.letterSpacing,
         s.textTransform,s.textShadow,s.getPropertyValue('-webkit-text-stroke-width')
       ]; });
-    return { href:a ? a.href : null, hnHidden:!hn || !hn.getClientRects().length,
+    return { href:a ? a.href : null, hnVisible:!!hn && !!hn.getClientRects().length,
       labels, left:r ? Math.round(r.left) : -1, aboveRail:!!r&&!!rr&&r.bottom<rr.top, type, railGap };
   });
   ok(/github\.com\/[^/]+\/chiptunes\/?$/.test(credit.href || ''), 'GitHub goes to the repository (' + credit.href + ')');
-  ok(credit.hnHidden && credit.labels.length === 0, 'playing hides Hacker News and the social labels');
+  ok(credit.hnVisible && credit.labels.length === 0, 'playing shows all three social logos without labels');
   ok(credit.left <= 20 && credit.aboveRail, 'the playing credit sits above the left rail (' + credit.left + 'px)');
   ok(credit.type.every(x => JSON.stringify(x) === JSON.stringify(credit.type[0])),
      'the product name, credit and rail use one type style (' + credit.type[0].join(', ') + ')');

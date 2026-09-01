@@ -54,8 +54,8 @@ function assert(condition, message){
     const errors = [];
     page.on('pageerror', error => errors.push(String(error)));
 
-    // /player is a supported cold entry. It must wait for an explicit choice,
-    // not mint and discard a song while rewriting the route to itself.
+    // /player is retired. Old bookmarks collapse to root without minting a
+    // song or preserving the obsolete route.
     await page.goto(url + '/player', { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => typeof Audio !== 'undefined' && Audio.isHolding && Audio.isHolding());
     const cold = await page.evaluate(() => ({
@@ -63,9 +63,8 @@ function assert(condition, message){
       token: Audio.trackToken ? Audio.trackToken() : '',
       path: location.pathname
     }));
-    assert(cold.holding && !cold.token, 'cold /player holds without minting a track');
-    assert(cold.path === '/' || cold.path === '/player',
-      'cold /player stays on a player route without inventing a track URL');
+    assert(cold.holding && !cold.token, 'retired /player holds without minting a track');
+    assert(cold.path === '/', 'retired /player redirects to root');
 
     // Exercise the public router after boot. Private intent must mint directly;
     // live schedule and queue policy are not allowed to substitute a token.
