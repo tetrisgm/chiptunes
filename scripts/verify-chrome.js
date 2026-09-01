@@ -277,6 +277,7 @@ function names() {
     const a = [...document.querySelectorAll('a.plmade-btn, #madeby a, #plinks a')]
       .find(x => /github/i.test(x.textContent) || /github\.com/.test(x.href || ''));
     const made = document.getElementById('madeby'), hn = made && made.querySelector('.plmade-hn');
+    const stars = made && made.querySelector('.plmade-stars');
     const labels = made ? [...made.querySelectorAll('.plmade-btn .plink-t')].filter(x => x.getClientRects().length).map(x => x.textContent.trim()) : [];
     const r = made && made.getBoundingClientRect();
     const rail=document.getElementById('plinks'), rr=rail&&rail.getBoundingClientRect();
@@ -288,10 +289,14 @@ function names() {
         s.textTransform,s.textShadow,s.getPropertyValue('-webkit-text-stroke-width')
       ]; });
     return { href:a ? a.href : null, hnVisible:!!hn && !!hn.getClientRects().length,
+      starVisible:!!stars && !!stars.getClientRects().length, starText:stars && stars.textContent.trim(),
       labels, left:r ? Math.round(r.left) : -1, aboveRail:!!r&&!!rr&&r.bottom<rr.top, type, railGap };
   });
   ok(/github\.com\/[^/]+\/chiptunes\/?$/.test(credit.href || ''), 'GitHub goes to the repository (' + credit.href + ')');
-  ok(credit.hnVisible && credit.labels.length === 0, 'playing shows all three social logos without labels');
+  ok(credit.starVisible && /^\d[\d,.]*[kKmM]?$/.test(credit.starText || ''),
+     'the GitHub Star button always shows its count (' + credit.starText + ')');
+  ok(credit.hnVisible && credit.labels.join('|') === 'Star',
+     'playing keeps social logos compact and gives GitHub a Star action');
   ok(credit.left <= 20 && credit.aboveRail, 'the playing credit sits above the left rail (' + credit.left + 'px)');
   ok(credit.type.every(x => JSON.stringify(x) === JSON.stringify(credit.type[0])),
      'the product name, credit and rail use one type style (' + credit.type[0].join(', ') + ')');
