@@ -1618,4 +1618,4 @@ Reported as "severe performance issues running the website overall", in Safari.
 
 # 2026-08-31 — GitHub Star control
 
-- The site credit uses the standard GitHub Buttons `Star` widget with its dynamic count enabled, pointed at the public `tetrisgm/chiptunes` repository. The widget script loads only after the runtime-built credit exists so its one-time DOM scan cannot miss the anchor; X and Hacker News remain secondary icon links.
+- The site credit reuses PartyParty's dark glass `GitHub · Star · count` component, pointed at the public `tetrisgm/chiptunes` repository. It starts with the last verified public count and refreshes from GitHub's public repository API; X and Hacker News remain secondary links.
