@@ -1714,3 +1714,13 @@ after full screen, and the product name and source links had gone.
   until the score carries automation, a vibrato hand-off, a wave reload and a
   kit hit; seen failing once with `auto:0, vibOff:0` on a 572-note song and
   passing on the next four runs of the same build. Re-run before believing it.
+
+- **Deployed site-only on 2026-09-01** (owner asked after seeing the old layout
+  still on the phone). `npm run deploy:site`; production went from
+  `app.28e8709b4775.js` to `app.b432657d7129.js` and the edge cache was purged.
+  The deployed build was re-probed at 390px, not just checked by hash: strip
+  370px on its own row with the notes drawn (286x26), the Edit key standing
+  beside them, NEXT clear of the volume, full screen against the right edge, the
+  credit at the top, and the ask on two lines. Still owed: the same look on the
+  owner's real iPhone Safari — headless Chromium is not that, and this repo has
+  been fooled by that difference before.
