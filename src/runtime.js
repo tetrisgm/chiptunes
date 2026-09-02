@@ -1840,6 +1840,18 @@ function buildRadioUI(){
       scratch.classList.add('rmood','rmood-scratch');
       scratch.title='Open the editor with an empty song';
       pills.appendChild(scratch);
+      // HOW IT WORKS LIVES HERE, not in the left rail. The rail is desktop-only
+      // (it is never built on a phone) and its copy of this button was
+      // display:none on the landing page, so between the two there was no
+      // reachable way to open the explanation at all. The ask row is on screen
+      // in both states and on every device, and it already carries a control
+      // that is not a mood.
+      var how=mkRbtn('How it works', function(){
+        if(typeof _toggleHowModal==='function') _toggleHowModal();
+      });
+      how.classList.add('rmood','rmood-how');
+      how.title='What this is and how it works';
+      pills.appendChild(how);
       presetsBar.appendChild(row);
     }
   }catch(e){}
@@ -1982,10 +1994,10 @@ function _buildPlayerLinks(){
   // THE MASTHEAD. The rail's first row offers you a Game Boy, which only reads
   // as an offer once you know what the page is -- and with the home page gone
   // there is nowhere else left that says so. Name, then one line of what it does.
+  // No How-it-works button here any more: it lives in the ask row, which is on
+  // screen in both states and on every device, where this rail is not.
   var head='<div class="plhead"><b>Chiptunes.app</b>'+
-    '<span>An endless Game Boy radio for your second screen: background music, games that play themselves.</span>'+
-    '<button type="button" class="plink plhow" data-k="how" title="What this is and how it works">'+
-    '<span class="plink-ic">'+_IC_INFO+'</span><span class="plink-t">How it works</span></button></div>';
+    '<span>An endless Game Boy radio for your second screen: background music, games that play themselves.</span></div>';
   wrap.innerHTML=head+items.map(function(it){
     var extra='';
     if(it.subs) extra=it.subs.map(function(sb){
@@ -2071,18 +2083,11 @@ window._openCreate=_openCreate;
 // seconds; this modal is for the visitor who gives it a minute. Same story as
 // the README, condensed.
 function _toggleHowModal(){
-  var heroLcd=document.querySelector('#rmoods .rmood-brand');
-  if(heroLcd){
-    if(!heroLcd.dataset.howOriginal) heroLcd.dataset.howOriginal=heroLcd.innerHTML;
-    if(heroLcd.classList.toggle('how-page')){
-      heroLcd.innerHTML=
-        '<p><b>THE SONGS ARE REAL.</b> Every track is played by a register-level emulation of the Game Boy\'s four-channel sound chip. Download it as a cartridge that boots on original hardware.</p>'+ 
-        '<p><b>HOW THEY\'RE MADE.</b> In your browser, the composer builds a complete arrangement from pulse and wave instruments, pitch sweeps, slides, arpeggios, noise and sampled drums.</p>'+ 
-        '<p><b>MAKE THEM YOURS.</b> Open the tracker to change every note, instrument and effect, or begin with an empty song. Share the result as a link, WAV or cartridge.</p>'+ 
-        '<p><b>THE SCREENS.</b> Four Game Boy LCD tones and the NES\'s decoded video signal are reconstructed by custom shaders.</p>';
-    } else heroLcd.innerHTML=heroLcd.dataset.howOriginal;
-    return;
-  }
+  // ONE BEHAVIOUR, EVERYWHERE. This used to swap the landing hero's LCD for a
+  // four-paragraph "how-page" and open the modal only once a song was playing,
+  // so the same control did two different things depending on where you pressed
+  // it -- and the landing branch was unreachable anyway, because the button was
+  // display:none there. It is the modal in both states now.
   var gb=document.getElementById('gbscreen');
   // The landing shell can keep the console mounted while its view state is
   // transitioning, so key off the LCD well rather than a transient class.
@@ -2099,25 +2104,58 @@ function _toggleHowModal(){
   el.innerHTML='<div class="hm-card">'+
     '<button type="button" class="hm-close" aria-label="Close">\u00d7</button>'+
     '<h2>How this works</h2>'+
-    '<p class="hm-lede">Chiptunes.app is a music-making app built around a real Game Boy sound chip.</p>'+
+    '<p class="hm-lede">A register-level emulation of the Game Boy sound chip, a '+
+    'composer that writes complete songs for it, and an exporter that turns any of '+
+    'them into a 32 KB cartridge that boots on real hardware.</p>'+
     '<ul class="hm-list">'+
-    '<li><b>You can write your own.</b> Create opens a tracker on the same '+
-    'chip: four lanes of notes, hardware instruments, vibrato, sweeps, '+
-    'arpeggios, slides, and sampled drums. Share what you make as a link, WAV, '+
-    'or cartridge.</li>'+
-    '<li><b>Or let it compose for you.</b> Choose a mood and it writes an '+
-    'endless supply of complete songs for you to keep, edit, and share.</li>'+
-    '<li><b>The songs are real.</b> The browser runs a register-level Game Boy '+
-    'sound-chip emulation, and every track can be downloaded as a 32 KB cartridge '+
-    'that boots on real hardware.</li>'+
-    '<li><b>Every song is written in your browser.</b> The composer is '+
-    'deterministic: the same link always makes the same song. Nothing comes from '+
-    'a playlist or a server.</li>'+
-    '<li><b>The screens are shaders.</b> The Game Boy uses its four hardware '+
-    'shades; the NES picture is reconstructed from a modulated, decoded signal.</li>'+
+
+    '<li><b>The chip is emulated at its registers.</b> Every note becomes writes to '+
+    '$FF10&ndash;$FF3F: duty and envelope on the two pulse channels, the sweep unit on '+
+    'channel 1, the wave table on channel 3, the noise channel’s shift register on '+
+    'channel 4. Nothing here is a recording or a sample library of chip sounds.</li>'+
+
+    '<li><b>The browser and the cartridge are checked against each other.</b> They are '+
+    'not two implementations that happen to sound alike. A test plays a score through '+
+    'the Web Audio worklet and through the cartridge driver running on an emulated CPU, '+
+    'then asserts that every register receives the same values, on the same frames, in '+
+    'the same order.</li>'+
+
+    '<li><b>The drums are 4-bit PCM on channel 3, and the rate is chosen rather than '+
+    'rounded.</b> The Game Boy has one sample buffer: 32 nibbles of wave RAM. Channel 3 '+
+    'steps them at 4194304 / ((2048 &minus; period) × 2), so period 1792 is exactly '+
+    '8192 samples a second and one buffer lasts exactly 1/256 s. The cartridge refills it '+
+    'from the timer interrupt, where the 4096 Hz clock with a reload of 240 fires exactly '+
+    '256 times a second. The sample clock and the refill clock are the same clock, so '+
+    'nothing drifts. Refilling once a frame instead would have given 1911 Hz for 955 Hz of '+
+    'bandwidth: muffled thuds, no click, no sizzle.</li>'+
+
+    '<li><b>The composer is deterministic and single pass.</b> One token in, one score '+
+    'out. No randomness from the clock, the network or the page, and no writing several '+
+    'songs and keeping the best. The same document always gives the same notes, the same '+
+    'timing and the same register schedule.</li>'+
+
+    '<li><b>A song is a document, and a link carries the whole one.</b> Shared songs ride '+
+    'in the URL fragment, which browsers never send to a server. There is no database '+
+    'behind sharing and nothing is stored. The station and the tracker play the same '+
+    'document, so editing what you are hearing gives you that song note for note.</li>'+
+
+    '<li><b>You can change every note.</b> Create opens a four-lane tracker on the same '+
+    'chip: hardware instruments, vibrato, sweeps, arpeggios, slides and sampled drums. '+
+    'Take the result away as a link, a WAV, or a cartridge.</li>'+
+
+    '<li><b>The screens are shaders.</b> The Game Boy panel uses its four hardware shades; '+
+    'the NES picture is reconstructed from a modulated and decoded composite signal. '+
+    'Fourteen self-playing games read shared beat and energy data and never compose '+
+    'anything themselves.</li>'+
+
+    '<li><b>It is all one build.</b> The website, the WAV renderer, the cartridge '+
+    'exporter, the radio stream and the video renderer come from the same artifact, so '+
+    'there is no per-target copy to drift. Twenty verification gates hold it, most of them '+
+    'written because the thing they check was once wrong.</li>'+
+
     '</ul>'+
     '<p class="hm-foot"><a href="'+GITHUB_URL+'" target="_blank" rel="noopener">'+
-    'The code is open. Read the full story on GitHub.</a></p>'+
+    'The code is open, including the tests. Read it on GitHub.</a></p>'+
     '</div>';
   el.addEventListener('click', function(ev){
     if(ev.target===el || ev.target.closest('.hm-close')) el.classList.remove('show');

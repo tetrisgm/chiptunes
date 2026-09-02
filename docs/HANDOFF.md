@@ -1874,3 +1874,38 @@ after — eg it plays in game boy for every song".
   a synthesised touch pointerdown on `#stage` in the iPhone context must NOT
   raise `#rtoast`, and an ArrowLeft on the desktop page still must. Verified to
   FAIL on the old code.
+
+# 2026-09-02 — How it works, reachable and about the engineering
+
+- **IT HAD TWO BEHAVIOURS AND NO WAY IN.** `_toggleHowModal()` swapped the
+  landing hero's LCD for a four-paragraph "how-page" when `#rmoods .rmood-brand`
+  existed, and opened `#howmodal` otherwise — so the same control did different
+  things depending on where you pressed it. And it could not be pressed: the
+  button lived in `.plhead`, which is `display:none` on the landing, inside
+  `#plinks`, which is never built on a phone. The explanation existed and nobody
+  could open it. One control, one modal, both states, every device.
+- The button is a SELECT-key pill in the ask row (`.rmood-how`), beside Start
+  from scratch. That row is the only chrome on screen in both states on every
+  device; the rail is desktop-only. The rail's copy and the `.how-page` branch
+  and CSS are gone.
+- The modal now carries the engineering: registers `$FF10`–`$FF3F`, the
+  browser/cartridge same-values-same-frames-same-order check, the
+  timer-interrupt PCM with its numbers, the deterministic single-pass composer,
+  the song document in the URL fragment, the shader screens, one build, 20
+  gates. Same story as the README.
+- Its card keeps the green Game Boy cartridge-page look and the pixel heading,
+  but the BODY COPY is now the UI face. The pixel font was chosen when this was
+  three short lines; a screenful of technical prose in a bitmap face is a wall.
+
+- ⚠️ **REMOVING A RULE FROM A MULTI-SELECTOR LEFT A DANGLING SELECTOR, and it
+  silently applied the NEXT rule's declarations.** Deleting
+  `body.ai-visual.controls-active #plinks .plhead .plhow{ pointer-events:auto; }`
+  left the line above it —
+  `body.ai-visual.controls-active #plinks .plrow,` — ending in a comma, so the
+  selector list ran on into `#navmenu{ display:none; ... }` and **the entire
+  action rail became display:none on the playing screen**. Caught only because
+  `verify-chrome`'s rail-gap assertion went to 0. When deleting a selector,
+  check whether it was carrying the braces for the ones above it.
+  (That assertion also had to be repaired: it measured the first two `.plink`s,
+  which worked only because the How-it-works button happened to be first. It
+  measures `.plrow` gaps now, which is what "breathing room" means.)

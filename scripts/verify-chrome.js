@@ -106,7 +106,8 @@ function names() {
     if (!lab || !pill) return null;
     const f = e => { const c = getComputedStyle(e); return c.fontSize + '/' + c.fontWeight + '/' + c.fontFamily; };
     const lr = lab.getBoundingClientRect(), pr = pill.getBoundingClientRect();
-    const moods=[...document.querySelectorAll('.rmood')].filter(b => !b.classList.contains('rmood-scratch') && !b.classList.contains('rmood-select'));
+    const NOT_A_MOOD = 'rmood-scratch rmood-select rmood-how'.split(' ');
+    const moods=[...document.querySelectorAll('.rmood')].filter(b => !NOT_A_MOOD.some(c => b.classList.contains(c)));
     const scratch=document.querySelector('.rmood-scratch');
     const valueCopy=document.querySelector('#rmoods .rmood-brand');
     const tops=moods.map(b => Math.round(b.getBoundingClientRect().top));
@@ -281,8 +282,8 @@ function names() {
     const labels = made ? [...made.querySelectorAll('.plmade-btn .plink-t')].filter(x => x.getClientRects().length).map(x => x.textContent.trim()) : [];
     const r = made && made.getBoundingClientRect();
     const rail=document.getElementById('plinks'), rr=rail&&rail.getBoundingClientRect();
-    const railButtons=rail ? [...rail.querySelectorAll('.plink')].filter(x=>x.getClientRects().length) : [];
-    const railGap=railButtons.length>1 ? Math.round(railButtons[1].getBoundingClientRect().top-railButtons[0].getBoundingClientRect().bottom) : 0;
+    const railRows=rail ? [...rail.querySelectorAll('.plrow')].filter(x=>x.getClientRects().length) : [];
+    const railGap=railRows.length>1 ? Math.round(railRows[1].getBoundingClientRect().top-railRows[0].getBoundingClientRect().bottom) : 0;
     const type=[made&&made.querySelector('.plmade-name'), made&&made.querySelector('.plmade-t'), rail&&rail.querySelector('.plink-t')]
       .map(x=>{ if(!x) return []; const s=getComputedStyle(x); return [
         s.fontFamily,s.fontSize,s.fontWeight,s.fontStyle,s.lineHeight,s.letterSpacing,
@@ -313,6 +314,39 @@ function names() {
   ok(credit.type.every(x => JSON.stringify(x) === JSON.stringify(credit.type[0])),
      'the product name, credit and rail use one type style (' + credit.type[0].join(', ') + ')');
   ok(credit.railGap >= 12, 'the top-left action buttons have breathing room ('+credit.railGap+'px)');
+
+  // ---- How it works ------------------------------------------------------
+  //
+  // It had TWO ways of behaving and no way of being reached: on the landing page
+  // it swapped the hero's LCD for a "how-page", elsewhere it opened a modal, and
+  // the button that triggered either was display:none on the landing and lived
+  // in the desktop-only rail everywhere else. So the explanation existed and
+  // nobody could open it. One control in the ask row, one modal, both states.
+  console.log('how it works');
+  const how = await p.evaluate(async () => {
+    const btn = [...document.querySelectorAll('.rmood-how')].find(x => x.getClientRects().length);
+    if (!btn) return { btn: false };
+    const r = btn.getBoundingClientRect();
+    btn.click();
+    await new Promise(res => setTimeout(res, 400));
+    const m = document.getElementById('howmodal');
+    const txt = m ? m.textContent.replace(/\s+/g, ' ') : '';
+    const open = !!m && m.classList.contains('show');
+    if (m) m.classList.remove('show');
+    return { btn: true, onScreen: r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth,
+      open, len: txt.length, railHow: !!document.querySelector('#plinks .plhow'),
+      heroSwap: !!document.querySelector('#rmoods .rmood-brand.how-page'),
+      // the claims a reader came for
+      registers: /\$FF10/.test(txt), parity: /same order/.test(txt),
+      pcm: /8192 samples a second/.test(txt) && /timer interrupt/.test(txt),
+      deterministic: /deterministic/i.test(txt), fragment: /URL fragment/.test(txt) };
+  });
+  ok(how.btn && how.onScreen, 'How it works is a visible control on the playing screen');
+  ok(how.open && how.len > 1500, 'and it opens the explanation (' + how.len + ' chars)');
+  ok(!how.railHow && !how.heroSwap, 'with one behaviour, not a rail button and a hero swap');
+  ok(how.registers && how.parity, 'it explains the register-level emulation and the browser/cartridge check');
+  ok(how.pcm && how.deterministic && how.fragment,
+     'and the timer-interrupt PCM, the deterministic composer and the in-fragment song document');
 
   // ---- 6. a phone is a first-class launch surface -------------------------
   console.log('phone layout');
@@ -396,7 +430,7 @@ function names() {
     const gh=made&&made.querySelector('.plmade-github'), nm=made&&made.querySelector('.plmade-name');
     // the ask: the question on its own line, every mood together under it
     const lab=R(document.querySelector('#rmoods .rmood-ask .rmood-lab'));
-    const moods=[...document.querySelectorAll('#rmoods .rmood-ask .rmood:not(.rmood-scratch)')].map(e=>Object.assign({t:e.textContent.trim()},R(e)));
+    const moods=[...document.querySelectorAll('#rmoods .rmood-ask .rmood:not(.rmood-scratch):not(.rmood-how)')].map(e=>Object.assign({t:e.textContent.trim()},R(e)));
     return { rects, noHorizontalOverflow:document.documentElement.scrollWidth<=innerWidth,
       noOverlap:rects.slice(0,-1).every((x,i)=>!x.visible||!rects[i+1].visible||x.right<=rects[i+1].left),
       sameBaseline:rects.filter(x=>x.visible).every(x=>Math.abs(x.top-playTop)<=8),

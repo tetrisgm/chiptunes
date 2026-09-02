@@ -450,7 +450,6 @@
     box-shadow:none; backdrop-filter:none; -webkit-backdrop-filter:none; }
   body:not(.awaiting-mood) #plinks .plhead b,
   body:not(.awaiting-mood) #plinks .plhead > span{ display:none; }
-  body:not(.awaiting-mood) #plinks .plhead .plhow{ margin-left:0; }
   #rmoods .rmood-pills{ display:contents; }
   #rmoods .rmood-ask{ display:contents; }
   /* The ask is the hero's last line again. It had been moved to the corner to
@@ -531,6 +530,9 @@
     body.awaiting-mood #madeby{ position:fixed; top:18px; bottom:auto;
       max-width:calc(100vw - 36px); flex-wrap:nowrap; } }
   #presets .rbtn.rmood-scratch{ border-color:rgba(123,220,160,.45); color:#bfe9cf; }
+  /* How it works is a SELECT-key control, like Start from scratch: it is not one
+     of the "write me a song" answers, so it does not wear the A/B burgundy. */
+  #presets .rbtn.rmood-how{ order:12; flex:0 0 auto; }
   .preset{
     pointer-events:auto; cursor:pointer;
     background:rgba(16,12,32,.72); color:#9a90c0;
@@ -744,7 +746,6 @@
   /* the same pill as every other offer in the rail: it was 32px with a smaller
      label, which made the one button in the masthead read as a different
      family of control from the five under it */
-  #plinks .plhead .plhow{ flex:0 0 auto; align-self:center; margin-left:14px; }
   .plink{ height:46px; padding:0 18px; border-radius:999px; border:1px solid var(--mat-edge);
     background:var(--mat); color:var(--ink); cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:9px;
     box-shadow:var(--mat-shadow); backdrop-filter:var(--mat-blur); -webkit-backdrop-filter:var(--mat-blur);
@@ -1225,13 +1226,17 @@
      the card itself read as an in-screen cartridge page, not a separate app
      dialog. The compact pixel layout keeps the whole message inside the 4:3
      hero display at desktop and mobile sizes. */
-  #howmodal .hm-card{ width:min(640px,78vw); max-height:min(70vh,500px); overflow:auto;
+  #howmodal .hm-card{ width:min(660px,92vw); max-height:min(86vh,760px); overflow:auto;
     padding:24px 28px 20px; border-radius:4px; background:#d9e69a; color:#183d20;
     border:8px solid #39452a; box-shadow:0 0 0 3px #111a12, 0 18px 50px rgba(0,0,0,.55);
     font-family:var(--pixel),monospace; }
   #howmodal h2{ font:700 18px/1 var(--pixel),monospace; letter-spacing:.02em; color:#183d20; margin:0 0 12px; }
-  #howmodal p, #howmodal .hm-list li{ font:400 11px/1.45 var(--pixel),monospace; letter-spacing:0; color:#274b28; }
-  #howmodal .hm-lede{ font-size:12px; color:#183d20; }
+  /* THE BODY COPY IS NOT IN THE PIXEL FACE. This card was three short lines when
+     the pixel font was chosen for it; it now carries the whole explanation, and
+     a screenful of technical prose in a bitmap face is a wall. The Game Boy
+     shell, the green, and the pixel heading stay -- the reading does not. */
+  #howmodal p, #howmodal .hm-list li{ font:400 13px/1.55 var(--ui); letter-spacing:.005em; color:#274b28; }
+  #howmodal .hm-lede{ font-size:14px; line-height:1.5; color:#183d20; }
   #howmodal .hm-list{ margin:10px 0 0; padding-left:17px; }
   #howmodal .hm-list li{ margin:0 0 7px; }
   #howmodal .hm-list li b{ color:#183d20; font-weight:700; }
@@ -1240,15 +1245,11 @@
   #howmodal .hm-close{ width:28px; height:28px; top:8px; right:8px; border-color:#527044; color:#315331; font:400 18px/1 var(--pixel),monospace; }
 
   body.ai-visual #plinks{ display:flex; opacity:0; pointer-events:none; transition:opacity var(--fade-out); }
-  /* Help is an always-available entry point, even while the visual rail is
-     resting. Keep the top-left button hit-testable in Safari and other engines. */
-  body.ai-visual #plinks .plhead .plhow{ pointer-events:auto !important; }
   /* The COLUMN never takes the pointer, only its rows do. A one-line masthead
      makes the column as wide as the sentence -- 762px -- and an interactive box
      that size sitting over the game is a dead zone you cannot see. */
   body.ai-visual.controls-active #plinks{ opacity:1; pointer-events:none; transition:opacity var(--fade-in); }
-  body.ai-visual.controls-active #plinks .plrow,
-  body.ai-visual.controls-active #plinks .plhead .plhow{ pointer-events:auto; }
+  body.ai-visual.controls-active #plinks .plrow{ pointer-events:auto; }
 
 
   /* MOBILE NAV MENU — the hamburger's standard link menu (a column of big rows). Backdrop click closes. */
@@ -1300,7 +1301,6 @@
   #gamepick .gp-modes b{ margin-right:auto; font:700 11px/1 var(--mono); color:#a99fc9; }
   #gamepick .gp-modes button{ border:1px solid rgba(207,199,240,.25); border-radius:999px; padding:6px 9px; background:rgba(255,255,255,.06); color:#e6e0f5; cursor:pointer; font:600 11px/1 var(--ui); }
   #gamepick .gp-modes button:hover{ background:rgba(248,120,248,.15); border-color:rgba(248,120,248,.56); }
-  #plinks .plhead .plhow{ display:none !important; }
   body:not(.awaiting-mood) #presets .rmood-select{ display:none !important; }
 
   /* Intro */
@@ -2192,13 +2192,13 @@
 
   /* START and SELECT are the grey slanted pair, not another A button -- so the
      one control that is not "write me a song" does not dress like one. */
-  body.awaiting-mood #presets .rbtn.rmood-scratch{
+  body.awaiting-mood #presets .rbtn.rmood-scratch,
+  body.awaiting-mood #presets .rbtn.rmood-how{
     background:linear-gradient(180deg, #7c7c88, #5d5d68) !important;
     border:1px solid rgba(0,0,0,.55) !important; color:#f2f2f6 !important; }
   body.awaiting-mood #presets .rbtn.rmood-select{ order:10; background:linear-gradient(180deg, #8b8b97, #55555f) !important;
     border:1px solid rgba(0,0,0,.55) !important; color:#f2f2f6 !important; }
   body.awaiting-mood #presets .rbtn.rmood-scratch{ order:11; }
-  body.awaiting-mood #plinks .plhead .plhow{ display:none !important; }
   body.awaiting-mood #presets .rbtn.rmood-scratch:hover{
     background:linear-gradient(180deg, #8d8d99, #6b6b77) !important; color:#fff !important; }
 
@@ -2281,11 +2281,15 @@
   /* START and SELECT: the grey slanted pair, so the one control that is not
      "write me a song" does not dress like one */
   body.awaiting-mood #presets .rbtn.rmood-scratch,
-  body:not(.awaiting-mood) #presets .rbtn.rmood-scratch{
+  body:not(.awaiting-mood) #presets .rbtn.rmood-scratch,
+  body.awaiting-mood #presets .rbtn.rmood-how,
+  body:not(.awaiting-mood) #presets .rbtn.rmood-how{
     background:linear-gradient(180deg, #8b8b97 0%, #6e6e7a 58%, #55555f 100%) !important;
     color:#f4f4f8 !important; }
   body.awaiting-mood #presets .rbtn.rmood-scratch:hover,
-  body:not(.awaiting-mood) #presets .rbtn.rmood-scratch:hover{
+  body:not(.awaiting-mood) #presets .rbtn.rmood-scratch:hover,
+  body.awaiting-mood #presets .rbtn.rmood-how:hover,
+  body:not(.awaiting-mood) #presets .rbtn.rmood-how:hover{
     background:linear-gradient(180deg, #9b9ba7 0%, #7d7d89 58%, #62626c 100%) !important; }
   /* the screen toggle when it is ON keeps the LCD green, but moulded like the rest */
   .plink.on{
@@ -2400,11 +2404,6 @@
   body.awaiting-mood #rmoods .landing-copy p{
     margin:0; color:#1d4a1d; font:400 15px/1.45 var(--px),monospace;
     text-shadow:0 1px 0 rgba(255,255,255,.22); }
-  body.awaiting-mood #rmoods .rmood-brand.how-page{
-    display:flex; flex-direction:column; justify-content:space-between;
-    overflow:auto; text-align:left; padding:16px 20px 18px; gap:0; }
-  body.awaiting-mood #rmoods .rmood-brand.how-page p{ margin:0; font:400 15px/1.4 var(--px),monospace; color:#1d4a1d; }
-  body.awaiting-mood #rmoods .rmood-brand.how-page p b{ font-size:15px !important; line-height:1.4 !important; font-weight:700; }
 
   /* the download card's heading and line, on the same screen */
 
@@ -2528,10 +2527,6 @@
       font-size:16px; line-height:1.4; }
     body.awaiting-mood #rmoods .landing-copy .rmood-section strong{
       font-size:18px; line-height:1.3; }
-    body.awaiting-mood #rmoods .rmood-brand.how-page p{
-      font-size:17px; line-height:1.42; }
-    body.awaiting-mood #rmoods .rmood-brand.how-page p b{
-      font-size:17px !important; line-height:1.42 !important; }
     body.awaiting-mood #rmoods .rmood-ask{
       margin-top:84px; padding-left:14px; padding-right:14px; row-gap:14px; }
     body.awaiting-mood #rmoods .rmood-ask .rmood-pills{
