@@ -63,6 +63,32 @@ artifacts of the real displays.
 radio stream and the video renderer are the same build. There is no per-target
 fork to drift.
 
+## Instant, free, and local
+
+There is no queue, no account, and no server in the loop. A song is **composed
+in your browser** by a deterministic algorithm, not fetched from a model.
+
+| | measured |
+| --- | --- |
+| compose a complete song | **1.6 ms** |
+| a thousand complete songs | **471 ms** |
+| build a 32 KB cartridge | 1.2 ms |
+| render the audio | 103 ms for 40.7 s — **395× faster than real time** |
+
+Three consequences worth stating plainly, because they are unusual:
+
+- **Nothing is uploaded to make a song.** Composition happens on your machine.
+  A shared link carries the whole arrangement in the URL fragment, which
+  browsers never send to a server, so sharing needs no database and stores
+  nothing.
+- **Nothing is metered.** No key, no quota, no cost per generation. Generating a
+  hundred candidates and keeping one is a reasonable thing to do here.
+- **Provenance is a readable algorithm**, in this repository, rather than a model
+  trained on other people's recordings.
+
+(The radio stream is a server, because listening in a car needs one. Making
+music is not.)
+
 ## Verification
 
 `npm test` runs 20 gates. Most of them exist because the thing they check was

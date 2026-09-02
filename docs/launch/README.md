@@ -58,6 +58,12 @@ keeping the best. A song is a document rather than a recording, so a shared link
 carries the entire arrangement packed into the URL fragment, which browsers
 never send to a server. Sharing has no database behind it and stores nothing.
 
+It is also instant, free and local, which I did not expect to matter as much as
+it does. A complete song is written in about 1.6 ms on the machine you are
+sitting at; a thousand of them take 471 ms; the audio renders 395x faster than
+real time. There is no queue, no account and nothing metered, and nothing is
+uploaded to make music.
+
 For a listener: pick a mood and it writes a finite arrangement rather than a
 loop, then another. Open the tracker and every note, instrument and effect is
 editable. Take it away as a link, a WAV, or a 32 KB .gb file. Fourteen
@@ -89,7 +95,12 @@ not tried, I would like to hear which one.
   beat and energy data and never generate music. The Game Boy LCD and NES
   composite screens are WebGL shader pipelines.
 - Free, public-source, usable without an account. Songs are composed in your
-  browser, not on a server.
+  browser, not on a server: a complete song takes about 1.6 ms to write, a
+  thousand of them take 471 ms, and the audio renders 395x faster than real
+  time. No queue, no key, nothing metered, nothing uploaded to make music.
+- Provenance is a deterministic algorithm in a public repository rather than a
+  model trained on recordings, which matters if you want to ship the output in
+  something.
 - Game Boy is a trademark of Nintendo. This is an independent project, not
   affiliated with or endorsed by Nintendo.
 

@@ -39,7 +39,7 @@ stop trying. What it has instead is unusual and mostly unavailable elsewhere:
 | --- | --- | --- |
 | Output | a **symbolic document**: notes, instruments, register schedule | an opaque waveform |
 | Reproducible | the same token gives the same bytes, forever | usually not |
-| Cost and latency | ~5 ms, free, local | tens of seconds, per-generation cost |
+| Cost and latency | **1.6 ms**, free, local | tens of seconds, per-generation cost |
 | Stems | **exact**, four hardware channels, verified below | ML separation, approximate, often paid |
 | Loop points | native — a song carries `loopFrames` | inferred, or absent |
 | Size | ~10 KB document, 32 KB cartridge | megabytes |
@@ -58,10 +58,23 @@ Two of those are commercially decisive for the likeliest audience, which is
   game developer worried about shipping AI music, that is the whole ballgame,
   and it should be stated in the API, the docs and the launch copy.
 
-Also worth saying plainly: **generation is so cheap that breadth is free.** A
-compile is about 5 ms. An agent can generate two hundred candidates, describe
-them all, and present five — a workflow that is prohibitively slow and expensive
-against any hosted model.
+Also worth saying plainly: **generation is so cheap that breadth is free**, and
+this should be the headline of the API rather than a footnote. Measured:
+
+| | |
+| --- | --- |
+| compose a complete song | 1.6 ms |
+| a thousand complete songs | 471 ms |
+| build a 32 KB cartridge | 1.2 ms |
+| render the audio | 103 ms for 40.7 s, i.e. 395x real time |
+
+An agent can generate two hundred candidates, describe them all and present
+five, inside the time a hosted model takes to acknowledge one request — and at
+no cost. Nothing is uploaded to make music, there is no key and nothing is
+metered, so an agent needs no credentials and cannot run up a bill. For an
+agent-facing product those three properties matter more than any single
+feature: **instant, free, and local** is what makes an iterative loop possible
+at all.
 
 > ⚠️ **Contract question for the owner.** `AGENTS.md` says production composes
 > each seed once and best-of-N stays in the offline generator. An API consumer

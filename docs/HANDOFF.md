@@ -1978,3 +1978,30 @@ browser, and drive the running page when there is one.
   composition. An API consumer generating many candidates and choosing is close
   to that line. Needs an owner ruling before `generate_many` is built; nothing
   else in the plan depends on it.
+
+# 2026-09-02 — Instant, free and local, with the numbers
+
+Measured on this Mac rather than asserted, and now stated in the README, the
+How-it-works modal, the Show HN copy and the agent plan:
+
+| | |
+| --- | --- |
+| `composer.compile` | 0.61 ms |
+| score to document | 1.51 ms |
+| a complete `compose()` | **1.6 ms** |
+| document back to a song | 0.77 ms |
+| build a 32 KB cartridge | 1.19 ms |
+| render audio | 103 ms for 40.7 s, **395x real time** |
+| **a thousand complete songs** | **471 ms** |
+
+Why it is worth leading with rather than burying: against a hosted music model
+this is the difference in kind, not degree. No queue, no account, no key,
+nothing metered, and nothing uploaded to make music. Generating a hundred
+candidates and keeping one becomes a reasonable thing to do, and an agent needs
+no credentials and cannot run up a bill.
+
+**Keep the claim precise.** The honest sentence is that COMPOSITION and SHARING
+are local: songs are written in the browser and a shared link carries the whole
+arrangement in the URL fragment, which browsers never send anywhere. The radio
+stream is a server, and the site itself is hosted. Every place this is written
+says so in the same breath; do not let it drift into "there are no servers".

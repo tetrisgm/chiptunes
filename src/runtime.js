@@ -2139,6 +2139,12 @@ function _toggleHowModal(){
     'behind sharing and nothing is stored. The station and the tracker play the same '+
     'document, so editing what you are hearing gives you that song note for note.</li>'+
 
+    '<li><b>It is instant, free and local.</b> Every song is written on your machine in '+
+    'about a millisecond and a half \u2014 a thousand complete songs take half a second \u2014 '+
+    'so there is no queue, no account, no key and nothing metered. Nothing is uploaded to '+
+    'make music. (The radio stream is a server, because listening in a car needs one. '+
+    'Composing is not.)</li>'+
+
     '<li><b>You can change every note.</b> Create opens a four-lane tracker on the same '+
     'chip: hardware instruments, vibrato, sweeps, arpeggios, slides and sampled drums. '+
     'Take the result away as a link, a WAV, or a cartridge.</li>'+
