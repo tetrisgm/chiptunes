@@ -32411,6 +32411,13 @@ const KEYMAP = { ArrowLeft:'left', ArrowRight:'right', ArrowUp:'up', ArrowDown:'
   KeyA:'left', KeyD:'right', KeyW:'up', KeyS:'down' };
 let _watchToastUntil=0;
 function watchOnlyToast(){
+  // NEVER ON A PHONE. This hint answers "why can't I steer the character?",
+  // which is a question an arrow key asks -- a phone has no arrow keys. What it
+  // actually fired on there was a TAP ON THE PICTURE, and that tap is the
+  // gesture that wakes the idle chrome: the one action whose whole purpose is
+  // to reveal the transport, the credit and the moods put a big panel of text
+  // over them. Reported from the owner's iPhone as exactly that.
+  if(typeof _homeIsMobile==='function' && _homeIsMobile()) return;
   // Only while actually watching a game — never over the home overlay.
   var introEl=document.getElementById('intro');
   if(introEl && !introEl.classList.contains('hidden')) return;

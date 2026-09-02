@@ -450,8 +450,42 @@ function names() {
   ok(mobilePlayer.moods.length >= 3 &&
      mobilePlayer.moods.every(m => Math.abs(m.t - mobilePlayer.moods[0].t) <= 2),
      'and every mood on one line under it (' + mobilePlayer.moods.map(m => m.t).join('/') + ')');
+  // A TAP ON THE PICTURE IS HOW A PHONE WAKES THE CHROME, and it used to fire
+  // the "nothing to control, sit back and listen" toast -- a big panel of text
+  // over the transport, the credit and the moods the tap was meant to reveal.
+  // The hint answers a question an arrow key asks, and a phone has no arrow
+  // keys.
+  const toastOnTap = await mobile.evaluate(async () => {
+    const t0 = document.getElementById('rtoast');
+    if (t0) t0.classList.remove('show');
+    const cv = document.getElementById('stage');
+    const r = cv.getBoundingClientRect();
+    const x = Math.round(r.left + r.width / 2), y = Math.round(r.top + r.height / 3);
+    for (const type of ['pointerdown', 'pointerup']) {
+      cv.dispatchEvent(new PointerEvent(type, { bubbles: true, clientX: x, clientY: y, pointerType: 'touch' }));
+    }
+    await new Promise(r2 => setTimeout(r2, 400));
+    const t = document.getElementById('rtoast');
+    return { shown: !!t && t.classList.contains('show'), text: t ? t.textContent.slice(0, 40) : '' };
+  });
+  ok(!toastOnTap.shown,
+     'tapping the picture on a phone does not cover it with the watch-only hint' +
+     (toastOnTap.shown ? ' (got "' + toastOnTap.text + '")' : ''));
   ok(mobileErrs.length === 0, 'no phone page errors' + (mobileErrs.length ? ': ' + mobileErrs[0] : ''));
   await mobile.close(); await mctx.close();
+
+  // ...but it is still there on a pointer, where an arrow key is a real thing
+  // somebody might press.
+  const deskHint = await p.evaluate(async () => {
+    const t0 = document.getElementById('rtoast');
+    if (t0) t0.classList.remove('show');
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'ArrowLeft', bubbles: true }));
+    await new Promise(r => setTimeout(r, 400));
+    const t = document.getElementById('rtoast');
+    return { shown: !!t && t.classList.contains('show'), text: t ? t.textContent : '' };
+  });
+  ok(deskHint.shown && /sit back and listen/.test(deskHint.text),
+     'and an arrow key on a desktop still explains that the games play themselves');
 
   ok(errs.length === 0, 'no page errors' + (errs.length ? ': ' + errs[0] : ''));
   await b.close(); h.s.close();

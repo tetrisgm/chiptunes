@@ -1860,3 +1860,17 @@ after — eg it plays in game boy for every song".
   and a tracker wants every pixel of height. Desktop keeps the 93dvh sheet.
 - The close X is centred on the first row (`--cr-row1`), and the ask reserves
   `--cr-closew` on its right so a chip cannot come to rest under it.
+
+# 2026-09-02 — The watch-only hint is desktop-only
+
+- `watchOnlyToast()` ("the games are the visualiser... nothing to control: sit
+  back and listen") answers **"why can't I steer the character?"**, which is a
+  question an ARROW KEY asks. A phone has no arrow keys, so the only thing that
+  ever fired it there was a tap on the picture — and on a phone that tap is the
+  gesture that wakes the idle chrome. The one action whose entire purpose is to
+  reveal the transport, the credit and the moods was covering them with a big
+  panel of text. Reported from the owner's iPhone.
+- It returns early on `_homeIsMobile()` now. Held both ways by `verify-chrome`:
+  a synthesised touch pointerdown on `#stage` in the iPhone context must NOT
+  raise `#rtoast`, and an ArrowLeft on the desktop page still must. Verified to
+  FAIL on the old code.
