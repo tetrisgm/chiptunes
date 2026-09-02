@@ -2109,7 +2109,11 @@
         '<button type="button" class="cr-btn cr-dl" data-cr="share">' + _ic('share') + 'Copy link</button>' +
         '<button type="button" class="cr-btn cr-dl" data-cr="wav">' + _ic('wave') + 'Download WAV</button>' +
         '<button type="button" class="cr-btn cr-dl" data-cr="rom">' + _ic('rom') + 'Download ROM</button>' +
-        '<button type="button" class="cr-btn cr-close" data-cr="close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg><span>Back to game</span></button>' +
+        // CLOSE IS AN X IN THE CORNER, not a labelled button in the wrapping
+        // utility row. It is the one control that leaves, every sheet on a
+        // phone puts it top-right, and as a worded pill it wrapped onto a
+        // second line where it read as one more export action.
+        '<button type="button" class="cr-btn cr-close" data-cr="close" title="Close the editor and go back to the game" aria-label="Close the editor"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg><span>Back to game</span></button>' +
       '</div>' +
       '<div class="n-moodrow"><span class="n-moodlab">Write me a song that is…</span>' +
         '<span class="n-moodchips">' +

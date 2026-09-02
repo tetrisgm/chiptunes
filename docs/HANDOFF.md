@@ -1724,3 +1724,57 @@ after full screen, and the product name and source links had gone.
   credit at the top, and the ask on two lines. Still owed: the same look on the
   owner's real iPhone Safari — headless Chromium is not that, and this repo has
   been fooled by that difference before.
+
+# 2026-09-02 — The face never re-rolled after a mood
+
+Reported from a phone as "it seems to stick to one render mode and never change
+after — eg it plays in game boy for every song".
+
+- **A NEW TRACK IS A NEW DECK, NOT A NEW SLUG.** `_setGeneratedNowPlaying`
+  decided a track had changed with `slug !== _curSlug`. A DOCUMENT HAS NO TOKEN
+  — `playDoc` calls `startCompiled({tok:'', ...})` — and **picking a mood
+  composes a document**, so that test was false for every mood the visitor
+  tapped, and the two things gated on it never ran: `_rollScreenMode()` and
+  `_pickNesScheme()`. Someone driving the station by tapping moods therefore sat
+  on whichever face the boot toss happened to pick, for the entire session.
+  `publishTrackReady` now carries the deck's `generation` as a second argument
+  (it is a fresh number per started deck whether or not there is a token) and
+  `changed` reads that first.
+
+- **WHAT WAS NOT WRONG, all measured, so nobody re-litigates it:** there is no
+  persisted screen preference to latch on (the boot IIFE *deletes* `rrrScreen`,
+  and nothing writes it); `_rollScreenMode` and `_tossScreen` are correct; and
+  the natural end-of-song hand-off ALWAYS re-rolled — watched over six minutes
+  of real playback it went nes -> dmg -> crt at 92s and 172s. Skipping with Next
+  worked too. Only the document path was broken, which is why this looked like
+  "it never changes" to someone tapping moods and like "works fine" from a test
+  that skips tracks.
+
+- `npm run test:screens` now covers it, and it is the gap that let this ship:
+  every other check in that file drives `__rrrScreenMode()` with a PINNED face,
+  so nothing watched the coin toss and nothing advanced a track. The new block
+  stubs `Math.random` so the toss is deterministic, taps three moods and asserts
+  the face follows — verified to FAIL on the old code (`nes -> nes -> nes`).
+
+# 2026-09-02 — Phone landing and the Create close control
+
+- **THE GAME BOY IS CENTRED ON A PHONE, VIA AUTO MARGINS.** It was pinned 8px
+  from the top with all its free space below (136px at 844 tall, 224px at 932).
+  `align-items:center` is the wrong tool: the container is a scroller, and
+  centring a flex item TALLER than its line splits the overflow both ways and
+  puts the top out of reach — which is what the `flex-start` was there to avoid.
+  Auto margins resolve to ZERO when free space is negative, so the case centres
+  when it fits and top-aligns when it does not. Measured: 67/77 at 844, 111/121
+  at 932, and still top-aligned and scrollable at 620.
+
+- **CLOSE IS AN X IN THE TOP-RIGHT CORNER.** "Back to game" was a worded pill at
+  the end of the utility row; on a phone that row wraps, so the one control that
+  LEAVES took a second line and read as one more export action beside Download
+  WAV and Download ROM. It is absolutely positioned in the sheet's corner, 40px,
+  icon-only with an aria-label, and `.n-utils` reserves 58px of right padding so
+  the row cannot slide a button under it. The size properties carry `!important`
+  because `.n-utils .cr-btn` (a 30px pill) is one class more specific and the
+  button still lives in that row.
+  `verify-create-handover` asserted `closeText === 'Back to game'`, which would
+  have kept passing on the hidden span; it now asserts the corner geometry, the
+  icon-only rendering, the accessible label and the reserved room.

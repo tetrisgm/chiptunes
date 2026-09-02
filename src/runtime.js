@@ -1671,10 +1671,18 @@ function _playSection(key, startKey, opts){
   if(opts.shuffle && !startKey) idx=(Math.random()*arr.length)|0;
   if(_setPlaybackQueue(arr, idx, {shuffle:!!opts.shuffle})) _playQueueAt(_queueI);
 }
-let _curSlug='', _curName='Chiptunes.app', _nowSource='generated';
-function _setGeneratedNowPlaying(slug){
+let _curSlug='', _curName='Chiptunes.app', _nowSource='generated', _curGen=null;
+function _setGeneratedNowPlaying(slug, gen){
   _nowSource='generated';
-  var changed = !!slug && slug !== _curSlug;
+  // A NEW TRACK IS A NEW DECK, NOT A NEW SLUG. Documents have no token -- and
+  // picking a mood composes a document -- so `slug !== _curSlug` was false for
+  // every mood the visitor tapped, and the two things gated on it never ran:
+  // the screen face never re-rolled and the NES scheme never changed. Someone
+  // driving the station by tapping moods therefore sat on whichever face the
+  // boot toss happened to pick, for the whole session. The deck's generation
+  // is a fresh number per started deck whether or not there is a token.
+  var changed = (gen != null && gen !== _curGen) || (!!slug && slug !== _curSlug);
+  if(gen != null) _curGen = gen;
   _curSlug = slug || _curSlug;
   // a shared document has no token to read a name off; it brought its own
   var shared=''; try{ shared=(Audio.sharedTitle && Audio.sharedTitle()) || ''; }catch(e){}
@@ -3933,12 +3941,12 @@ window.addEventListener('popstate', ()=>{ if(!bootDone) return;
 var _genPlayTimer=null;
 function _maybeRecordGen(){ if(_genPlayTimer) clearTimeout(_genPlayTimer); var slug=_curSlug, name=_curName;
   _genPlayTimer=setTimeout(function(){ if(_curSlug===slug && slug && !(Audio.extActive&&Audio.extActive()) && window._recordGenPlay){ _recordGenPlay(slug,name); } }, 4000); }
-function _onTrack(slug){
+function _onTrack(slug, gen){
   _showTrackTransition();
   if(document.body) document.body.classList.remove('awaiting-mood');
   if(_nowSource==='external' || (Audio.extActive&&Audio.extActive())) return;   // stale generated callbacks must not overwrite chip/mic/file titles
   if(slug) window._sharedSongPlaying=false;      // a real token means the station has moved on
-  _setGeneratedNowPlaying(slug);
+  _setGeneratedNowPlaying(slug, gen);
   _noteGeneratedPlaying(slug);                                    // fp history (queue novelty) + Radio.setCurrent (learning)
   syncRoute(_curSlug);                                            // address bar -> /track/slug (updates every song)
   if(typeof setMediaMeta==='function') setMediaMeta(_curName);

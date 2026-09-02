@@ -332,6 +332,31 @@ function names() {
   ok(mobileLanding.titleVisible && mobileLanding.legalVisible && mobileLanding.heroFits,
      'the phone landing page keeps its title, story and independent-project clarification visible');
   ok(mobileLanding.noHorizontalOverflow, 'the phone landing page has no horizontal overflow');
+  // THE MACHINE SITS IN THE MIDDLE when it fits, and is still reachable from
+  // the top when it does not. Auto margins, not align-items:center -- centring
+  // a flex item taller than its scrolling line puts the top half out of reach.
+  {
+    const centred = await mobile.evaluate(() => {
+      const hero = document.getElementById('rmoods');
+      const r = hero.getBoundingClientRect();
+      return { above: Math.round(r.top), below: Math.round(innerHeight - r.bottom), h: Math.round(r.height), vh: innerHeight };
+    });
+    ok(centred.h < centred.vh && Math.abs(centred.above - centred.below) <= 24,
+       'the phone landing centres the Game Boy (' + centred.above + 'px above, ' + centred.below + 'px below)');
+    // and the short-viewport case: it must top-align and scroll, not centre
+    // itself half off the top of a scroller
+    const short = await b.newPage({ viewport: { width: 390, height: 620 }, deviceScaleFactor: 1 });
+    await short.goto(`http://127.0.0.1:${h.port}/`, { waitUntil: 'domcontentloaded' });
+    await wait(1500);
+    const tall = await short.evaluate(() => {
+      const r = document.getElementById('rmoods').getBoundingClientRect();
+      return { top: Math.round(r.top), overflows: r.height > innerHeight,
+        scrollable: document.body.scrollHeight > innerHeight + 2 };
+    });
+    ok(tall.overflows && tall.top >= 0 && tall.scrollable,
+       'and on a short phone it stays reachable from the top and scrolls (top ' + tall.top + 'px)');
+    await short.close();
+  }
   await mobile.getByText('happy', { exact:true }).click();
   await wait(2500);
   await mobile.evaluate(() => { if (window._dockFullscreen) window._dockFullscreen(); });

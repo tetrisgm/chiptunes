@@ -4678,7 +4678,11 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
         '<button type="button" class="cr-btn cr-dl" data-cr="share">' + _ic('share') + 'Copy link</button>' +
         '<button type="button" class="cr-btn cr-dl" data-cr="wav">' + _ic('wave') + 'Download WAV</button>' +
         '<button type="button" class="cr-btn cr-dl" data-cr="rom">' + _ic('rom') + 'Download ROM</button>' +
-        '<button type="button" class="cr-btn cr-close" data-cr="close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg><span>Back to game</span></button>' +
+        // CLOSE IS AN X IN THE CORNER, not a labelled button in the wrapping
+        // utility row. It is the one control that leaves, every sheet on a
+        // phone puts it top-right, and as a worded pill it wrapped onto a
+        // second line where it read as one more export action.
+        '<button type="button" class="cr-btn cr-close" data-cr="close" title="Close the editor and go back to the game" aria-label="Close the editor"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg><span>Back to game</span></button>' +
       '</div>' +
       '<div class="n-moodrow"><span class="n-moodlab">Write me a song that is…</span>' +
         '<span class="n-moodchips">' +
@@ -7104,20 +7108,25 @@ const Audio = (()=>{
   function onSeedReset(fn){ _onSeedResetCb=fn; }    // fired (with the token) just before -> runtime resets URL/session bookkeeping
   function onMintToken(fn){ _mintTokenCb=fn; }      // runtime mints each fresh track's NAME/slug (auto-advance + skip); the slug IS the seed
   function onTrackEnd(fn){ _onTrackEndCb=fn; }      // optional: observe track boundaries (the queue already feeds tokens via onMintToken)
-  function publishTrackReady(tok, fp){
-    if(backgroundAudioOnly){ _bgPendingTrackPublish={tok:tok, fp:fp}; return; }
+  // THE SECOND ARGUMENT IS THE DECK'S IDENTITY, and it exists when the token
+  // does not. A document -- every mood pick and every shared link -- reaches
+  // the deck through playDoc with tok:'', so a listener that asks "is this a
+  // different slug?" reads every one of them as the same track. The deck
+  // generation is a fresh number per started deck, always.
+  function publishTrackReady(tok, fp, gen){
+    if(backgroundAudioOnly){ _bgPendingTrackPublish={tok:tok, fp:fp, gen:gen}; return; }
     if(typeof Radio!=='undefined' && Radio.setCurrent && fp) Radio.setCurrent(Object.assign({slug:tok}, fp));
-    if(_trackReadyCb){ try{ _trackReadyCb(tok); }catch(e){} }
+    if(_trackReadyCb){ try{ _trackReadyCb(tok, gen); }catch(e){} }
   }
   function flushBackgroundTrackPublish(){
     if(!_bgPendingTrackPublish || backgroundAudioOnly) return;
     var p=_bgPendingTrackPublish; _bgPendingTrackPublish=null;
-    publishTrackReady(p.tok, p.fp);
+    publishTrackReady(p.tok, p.fp, p.gen);
   }
   function announceDeck(d){
     curTok=d.tok;
     if(_onSeedResetCb){ try{ _onSeedResetCb(d.tok); }catch(e){} }
-    publishTrackReady(d.tok, d.fp);
+    publishTrackReady(d.tok, d.fp, d.generation);
   }
 
   // start (or restart) playback on a token. Explicit tok = deep link / skip target; null = mint fresh.
@@ -32708,10 +32717,18 @@ function _playSection(key, startKey, opts){
   if(opts.shuffle && !startKey) idx=(Math.random()*arr.length)|0;
   if(_setPlaybackQueue(arr, idx, {shuffle:!!opts.shuffle})) _playQueueAt(_queueI);
 }
-let _curSlug='', _curName='Chiptunes.app', _nowSource='generated';
-function _setGeneratedNowPlaying(slug){
+let _curSlug='', _curName='Chiptunes.app', _nowSource='generated', _curGen=null;
+function _setGeneratedNowPlaying(slug, gen){
   _nowSource='generated';
-  var changed = !!slug && slug !== _curSlug;
+  // A NEW TRACK IS A NEW DECK, NOT A NEW SLUG. Documents have no token -- and
+  // picking a mood composes a document -- so `slug !== _curSlug` was false for
+  // every mood the visitor tapped, and the two things gated on it never ran:
+  // the screen face never re-rolled and the NES scheme never changed. Someone
+  // driving the station by tapping moods therefore sat on whichever face the
+  // boot toss happened to pick, for the whole session. The deck's generation
+  // is a fresh number per started deck whether or not there is a token.
+  var changed = (gen != null && gen !== _curGen) || (!!slug && slug !== _curSlug);
+  if(gen != null) _curGen = gen;
   _curSlug = slug || _curSlug;
   // a shared document has no token to read a name off; it brought its own
   var shared=''; try{ shared=(Audio.sharedTitle && Audio.sharedTitle()) || ''; }catch(e){}
@@ -34970,12 +34987,12 @@ window.addEventListener('popstate', ()=>{ if(!bootDone) return;
 var _genPlayTimer=null;
 function _maybeRecordGen(){ if(_genPlayTimer) clearTimeout(_genPlayTimer); var slug=_curSlug, name=_curName;
   _genPlayTimer=setTimeout(function(){ if(_curSlug===slug && slug && !(Audio.extActive&&Audio.extActive()) && window._recordGenPlay){ _recordGenPlay(slug,name); } }, 4000); }
-function _onTrack(slug){
+function _onTrack(slug, gen){
   _showTrackTransition();
   if(document.body) document.body.classList.remove('awaiting-mood');
   if(_nowSource==='external' || (Audio.extActive&&Audio.extActive())) return;   // stale generated callbacks must not overwrite chip/mic/file titles
   if(slug) window._sharedSongPlaying=false;      // a real token means the station has moved on
-  _setGeneratedNowPlaying(slug);
+  _setGeneratedNowPlaying(slug, gen);
   _noteGeneratedPlaying(slug);                                    // fp history (queue novelty) + Radio.setCurrent (learning)
   syncRoute(_curSlug);                                            // address bar -> /track/slug (updates every song)
   if(typeof setMediaMeta==='function') setMediaMeta(_curName);

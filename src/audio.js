@@ -999,20 +999,25 @@ const Audio = (()=>{
   function onSeedReset(fn){ _onSeedResetCb=fn; }    // fired (with the token) just before -> runtime resets URL/session bookkeeping
   function onMintToken(fn){ _mintTokenCb=fn; }      // runtime mints each fresh track's NAME/slug (auto-advance + skip); the slug IS the seed
   function onTrackEnd(fn){ _onTrackEndCb=fn; }      // optional: observe track boundaries (the queue already feeds tokens via onMintToken)
-  function publishTrackReady(tok, fp){
-    if(backgroundAudioOnly){ _bgPendingTrackPublish={tok:tok, fp:fp}; return; }
+  // THE SECOND ARGUMENT IS THE DECK'S IDENTITY, and it exists when the token
+  // does not. A document -- every mood pick and every shared link -- reaches
+  // the deck through playDoc with tok:'', so a listener that asks "is this a
+  // different slug?" reads every one of them as the same track. The deck
+  // generation is a fresh number per started deck, always.
+  function publishTrackReady(tok, fp, gen){
+    if(backgroundAudioOnly){ _bgPendingTrackPublish={tok:tok, fp:fp, gen:gen}; return; }
     if(typeof Radio!=='undefined' && Radio.setCurrent && fp) Radio.setCurrent(Object.assign({slug:tok}, fp));
-    if(_trackReadyCb){ try{ _trackReadyCb(tok); }catch(e){} }
+    if(_trackReadyCb){ try{ _trackReadyCb(tok, gen); }catch(e){} }
   }
   function flushBackgroundTrackPublish(){
     if(!_bgPendingTrackPublish || backgroundAudioOnly) return;
     var p=_bgPendingTrackPublish; _bgPendingTrackPublish=null;
-    publishTrackReady(p.tok, p.fp);
+    publishTrackReady(p.tok, p.fp, p.gen);
   }
   function announceDeck(d){
     curTok=d.tok;
     if(_onSeedResetCb){ try{ _onSeedResetCb(d.tok); }catch(e){} }
-    publishTrackReady(d.tok, d.fp);
+    publishTrackReady(d.tok, d.fp, d.generation);
   }
 
   // start (or restart) playback on a token. Explicit tok = deep link / skip target; null = mint fresh.

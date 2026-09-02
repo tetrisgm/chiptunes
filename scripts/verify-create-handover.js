@@ -147,14 +147,30 @@ const SCENARIOS = {
     const shell = await p.evaluate(() => {
       const sheet=document.getElementById('createscreen'), dock=document.getElementById('playbar');
       const r=sheet.getBoundingClientRect(), close=sheet.querySelector('[data-cr="close"]');
+      const cr=close&&close.getBoundingClientRect();
+      const utils=[...sheet.querySelectorAll('.n-utils .cr-btn')].filter(x=>x!==close)
+        .map(x=>x.getBoundingClientRect()).filter(x=>x.width>0);
       return { top:Math.round(r.top), bottom:Math.round(r.bottom), height:Math.round(r.height), vh:innerHeight,
         dockVisible:!!dock && !!dock.getClientRects().length,
-        closeText:close&&close.textContent.trim(), shareIcon:!!sheet.querySelector('[data-cr="share"] .cr-share-icon') };
+        shareIcon:!!sheet.querySelector('[data-cr="share"] .cr-share-icon'),
+        closeLabel:close&&(close.getAttribute('aria-label')||''),
+        closeIconOnly:!!close && [...close.children].every(c => c.tagName==='svg' || getComputedStyle(c).display==='none'),
+        closeSize:cr&&[Math.round(cr.width),Math.round(cr.height)],
+        closeInCorner:!!cr && (r.right-cr.right)<=16 && (cr.top-r.top)<=16,
+        closeClearOfUtils:!!cr && utils.every(u=>u.right<=cr.left||u.bottom<=cr.top||u.top>=cr.bottom) };
     });
     ok(shell.height >= shell.vh*.9 && shell.top > 0 && Math.abs(shell.bottom-shell.vh)<2,
        'Create is a 90%+ bottom sheet with the game exposed above it');
     ok(!shell.dockVisible, 'Create hides the unrelated station dock');
-    ok(shell.closeText === 'Back to game' && shell.shareIcon, 'Create has clear back and share controls');
+    ok(shell.shareIcon, 'Create has a real share control');
+    // CLOSE IS THE CORNER X. It used to be a worded pill inside the wrapping
+    // utility row, where it took a second line and read as one more export
+    // action rather than as the way out.
+    ok(shell.closeIconOnly && shell.closeInCorner,
+       'Create closes through an icon-only X in the top-right corner (' + (shell.closeSize||[]).join('x') + ')');
+    ok(/close/i.test(shell.closeLabel) && shell.closeSize && shell.closeSize[0] >= 36 && shell.closeSize[1] >= 36,
+       'and it is a labelled, finger-sized target (aria "' + shell.closeLabel + '")');
+    ok(shell.closeClearOfUtils, 'with the utility row reserving room rather than running under it');
     await p.evaluate(() => { const t = document.querySelector('.cr-tour'); if (t) t.remove(); });
     await p.evaluate(async () => {
       const d = CT_CREATE._dbg && CT_CREATE._dbg();

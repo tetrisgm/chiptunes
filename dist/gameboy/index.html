@@ -819,8 +819,20 @@
   #createscreen .cr-btn:hover{ border-color:var(--mat-edge-hi); background:rgba(255,255,255,.1); }
   #createscreen .cr-btn.on{ background:rgba(155,188,15,.18); border-color:rgba(155,188,15,.55); }
   #createscreen .cr-primary{ background:rgba(120,220,160,.16); border-color:rgba(120,220,160,.5); }
-  #createscreen .cr-close{ width:auto; padding:0 14px; display:inline-flex; align-items:center; gap:7px; }
-  #createscreen .cr-close svg{ width:15px; height:15px; }
+  /* CLOSE IS THE CORNER X. It is the only control in the sheet that LEAVES, so
+     it does not belong in the row of export actions -- worded and in that row
+     it wrapped to a second line and read as one more thing to download. Pinned
+     to the sheet's top-right corner, where every sheet puts it; the utility row
+     reserves width for it so its buttons never run underneath. */
+  /* the sizes carry !important because `.n-utils .cr-btn` (a 30px pill) is one
+     class more specific than this rule and the button still lives in that row */
+  #createscreen .cr-close{
+    position:absolute; top:8px; right:10px; z-index:8;
+    width:40px !important; height:40px !important; min-width:40px;
+    padding:0 !important; border-radius:50%;
+    display:inline-flex; align-items:center; justify-content:center; gap:0; }
+  #createscreen .cr-close svg{ width:18px; height:18px; }
+  #createscreen .cr-close span{ display:none; }
   #createscreen .cr-sel{ height:38px; padding:0 10px; border-radius:10px;
     border:1px solid var(--mat-edge); background:rgba(255,255,255,.05); color:var(--ink);
     font:600 13px var(--ui); }
@@ -923,8 +935,10 @@
   #createscreen .n-param.on{ background:rgba(232,227,250,.14); border-color:var(--mat-edge-hi); color:var(--ink); }
   #createscreen .n-tool{ height:32px; padding:0 10px; font-size:11px; }
   #createscreen .n-tool.on{ background:rgba(123,220,160,.2); border-color:rgba(123,220,160,.6); }
+  /* the right padding is the corner X's own width plus its inset: the row must
+     not slide a button under it */
   #createscreen .n-utils{ flex:0 0 auto; display:flex; justify-content:flex-end; gap:6px;
-    padding:8px 14px 0; flex-wrap:wrap; }
+    padding:8px 58px 0 14px; flex-wrap:wrap; }
   #createscreen .n-utils .cr-btn{ height:30px; padding:0 11px; font-size:11px; }
   #createscreen .cr-dl{ display:inline-flex; align-items:center; gap:6px; }
   #createscreen .cr-dl svg{ width:14px; height:14px; flex:0 0 auto; }
@@ -2676,6 +2690,16 @@
     body.awaiting-mood #rmoods{
       width:calc(100vw - 12px) !important; height:auto !important;
       min-height:0 !important; max-height:none; padding-bottom:34px !important;
+      /* THE MACHINE SITS IN THE MIDDLE OF THE PHONE, and AUTO MARGINS are how,
+         not align-items:center. The container is a scroller: centring a flex
+         item that is TALLER than its line splits the overflow both ways and the
+         top half becomes unreachable -- which is the trap the flex-start above
+         was avoiding, and why the case was pinned to the top with all its free
+         space below. Auto margins resolve to ZERO when free space is negative,
+         so this centres the case when it fits (measured: 68/68 at 844 tall,
+         112/112 at 932) and top-aligns it when it does not (667 tall), leaving
+         the page scrollable exactly as before. */
+      margin-top:auto !important; margin-bottom:auto !important;
     }
     body.awaiting-mood #rmoods .rmood-brand{
       aspect-ratio:auto !important; min-height:0 !important;
@@ -2914,7 +2938,7 @@
     <button id="start" hidden></button>
   </div>
 
-<script src="../app.b432657d7129.js" defer></script>
+<script src="../app.a1f8502303a1.js" defer></script>
 
 </body>
 </html>

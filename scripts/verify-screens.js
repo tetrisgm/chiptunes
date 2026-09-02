@@ -129,6 +129,49 @@ const SNAP = `(() => {
   const peak = Math.max(...seen.map(s => s.canvasMB));
   ok(peak < 60, 'canvas backing never accumulates across faces (peak ' + peak + 'MB)');
 
+  // ---- 4. RANDOM RE-ROLLS ON EVERY TRACK, INCLUDING A MOOD ------------------
+  //
+  // The gap this closes: every check above drives __rrrScreenMode() with a
+  // PINNED face, so nothing watched the coin toss, and nothing advanced a
+  // track. A mood pick composes a DOCUMENT, and a document has no token --
+  // publishTrackReady used to carry only the slug, so the runtime's "did the
+  // track change?" test was false for every mood a visitor tapped and the face
+  // never re-rolled. Someone driving the station by tapping moods sat on
+  // whichever face the boot toss picked, for the whole session. Reported from
+  // a phone as "it plays in Game Boy for every song".
+  //
+  // Deterministic on purpose: the toss is stubbed to name the face we want, so
+  // this asserts the re-roll actually HAPPENS rather than hoping three random
+  // draws differ.
+  {
+    const p2 = await b.newPage({ viewport: { width: 1200, height: 820 } });
+    const e2 = []; p2.on('pageerror', e => e2.push(String(e).slice(0, 160)));
+    await p2.goto(`http://127.0.0.1:${h.port}/`, { waitUntil: 'domcontentloaded' });
+    await wait(2200);
+    const FACES = ['crt', 'dmg', 'nes'];
+    // force the next toss to land on `face`, tap a mood, report what happened
+    const tapMood = async (mood, face) => {
+      await p2.evaluate(i => { Math.random = () => (i + 0.5) / 3; }, FACES.indexOf(face));
+      await p2.evaluate(m => {
+        const b3 = [...document.querySelectorAll('.rmood')].find(x => x.textContent.trim() === m);
+        if (b3) b3.click();
+      }, mood);
+      await wait(5000);
+      return p2.evaluate(() => { const d = window.__rrrPanelDiag(); return { mode: d.mode, mix: d.mix }; });
+    };
+    const boot = await p2.evaluate(() => window.__rrrPanelDiag());
+    ok(boot.mix === true, 'a fresh visit starts on Random rather than a pinned face');
+    // three moods, each forced to a different face than the one before it
+    const a = await tapMood('happy', 'dmg');
+    const c = await tapMood('chill', 'nes');
+    const d2 = await tapMood('epic', 'crt');
+    ok(a.mode === 'dmg' && c.mode === 'nes' && d2.mode === 'crt',
+       'every mood pick re-rolls the screen face (' + [a.mode, c.mode, d2.mode].join(' -> ') + ')');
+    ok(a.mix && c.mix && d2.mix, 'and Random stays armed across them');
+    ok(e2.length === 0, 'no page errors while re-rolling' + (e2.length ? ': ' + e2[0] : ''));
+    await p2.close();
+  }
+
   ok(errs.length === 0, 'no page errors' + (errs.length ? ': ' + errs[0] : ''));
   await b.close(); h.s.close();
   console.log(fail ? '\nFAILED (' + fail + ')' : '\nall good');
