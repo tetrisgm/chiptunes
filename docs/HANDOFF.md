@@ -1803,14 +1803,23 @@ after — eg it plays in game boy for every song".
   render that, `onload` still fires with a BLANK image — no error, no `catch`.
   Two blank layers bake to 255,255,255 everywhere. A map with no pixel below 250
   in it is refused and the legacy divs stay on.
-- ⚠️ **NOT REPRODUCED, and be careful reading a green run here.** Playwright's
-  WebKit rasterises the layers fine (`blank:false`) and shows none of this, and
-  `scripts/crt-diff.mjs` has only ever run Chromium. This is a mitigation
-  reasoned from the failure modes, not a confirmed repro. If white screens
-  continue on the phone, `__rrrCrtDiag()` is the first thing to read, and the
-  next suspect is `#track-transition` (a 72%-white sheet at `mix-blend-mode:
-  screen`, `steps(6,end)` so its last step holds opacity .58, cleared only by a
-  310ms timeout — if that timer is throttled it stays up).
+- ✅ **CONFIRMED FIXED ON THE OWNER'S IPHONE (2026-09-02)** — "no more white
+  screen" after the deploy of `app.13ad90d728d1.js`. That is the only evidence
+  that counts here and it is now in hand.
+- ⚠️ **It was never reproduced HERE, so do not read a green local run as
+  covering this.** Playwright's WebKit rasterises the layers fine
+  (`blank:false`) and shows none of the symptom, and `scripts/crt-diff.mjs` has
+  only ever run Chromium. The change was reasoned from the two paths' failure
+  modes and then confirmed on the device. If white screens ever return,
+  `__rrrCrtDiag()` is the first thing to read, and the next suspect is
+  `#track-transition` (a 72%-white sheet at `mix-blend-mode:screen`,
+  `steps(6,end)` so its last step holds opacity .58, cleared only by a 310ms
+  timeout — if that timer is throttled it stays up).
+- **The general lesson, which is bigger than the CRT:** an overlay that is
+  invisible only because of a blend mode is a bet on the compositor. Make the
+  layer's FAILURE mode safe — black-based layers degrade to "slightly darker",
+  white-based ones degrade to "the product is gone". If you add a full-viewport
+  overlay here, check what it looks like with its blend mode removed.
 - A build-in-flight guard (one build per key) was tried here to stop
   `_applyScreenMode`'s two `apply()` calls doing the work twice. **It broke
   crt-diff — 100% of pixels differing at DPR 2** — because the two calls do not
