@@ -2580,9 +2580,9 @@ function buildPlaybar(){ _pbEl=document.getElementById('playbar'); if(!_pbEl||_p
     '<div class="pb-lcd-head"><span class="pb-lcd-title" id="pbLcdTitle">···</span></div>'+
     '<div class="pb-scrub"><span class="pb-t" id="pbElapsed">0:00</span>'+
     '<span class="pb-wrap"><canvas id="noteribbon" title="Open these notes in the editor"></canvas>'+
-    '<span class="pb-expand">'+
+    '<button type="button" id="pbExpand" class="pb-expand" title="Open these notes in the editor" aria-label="Edit this song">'+
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 14l5-5 5 5"/></svg>'+
-    'Edit</span></span>'+
+    'Edit</button></span>'+
     '<span class="pb-t" id="pbTotal">0:00</span></div></div></div></div>'+
     // THE RIGHT CLUSTER, the way a desk does it: what you are looking at, how
     // fast it is going, how loud it is -- each with its own slider when the
@@ -2600,9 +2600,8 @@ function buildPlaybar(){ _pbEl=document.getElementById('playbar'); if(!_pbEl||_p
   // a new one.
   (function(){
     var cv=document.getElementById('noteribbon');
-    if(!cv) return;
-    cv.style.pointerEvents='auto';
-    cv.addEventListener('click', function(ev){
+    var ex=document.getElementById('pbExpand');
+    function pullUp(ev){
       ev.preventDefault(); ev.stopPropagation();
       if(typeof _pokeVisualControls==='function') _pokeVisualControls();
       // Nothing playing: the strip is an empty box, and an empty box is not a
@@ -2613,7 +2612,12 @@ function buildPlaybar(){ _pbEl=document.getElementById('playbar'); if(!_pbEl||_p
       try{ var s2=Audio.currentScore&&Audio.currentScore(); has=!!(s2&&s2.gb&&s2.gb.notes&&s2.gb.notes.length); }catch(e){}
       if(!has) return;
       if(typeof _openCreate==='function') _openCreate(false);
-    });
+    }
+    if(cv){ cv.style.pointerEvents='auto'; cv.addEventListener('click', pullUp); }
+    // A PHONE HAS NO HOVER, so on that layout the chevron is a standing button
+    // rather than a hint the strip reveals -- and it needs the same handler, or
+    // the only way into the editor from the playing screen is invisible there.
+    if(ex) ex.addEventListener('click', pullUp);
   })();
   _wirePlaybarButton('pbPrev', _transportPrev);
   _wirePlaybarButton('pbNext', _transportNext);

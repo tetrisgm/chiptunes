@@ -1648,3 +1648,69 @@ Reported as "severe performance issues running the website overall", in Safari.
 - Production commit `2ca0b6d` was deployed site-only and verified in real
   Safari: both the page button and native audio control changed from Play to
   Pause while `https://radio.chiptunes.app` played.
+
+# 2026-09-01 — The phone playing screen
+
+Reported from a real iPhone on the production site: the question ran into its
+first answer, the song strip and the NEXT button were missing, there was a hole
+after full screen, and the product name and source links had gone.
+
+- **THE ASK IS TWO LINES ON A PHONE.** "Write me a song that is…" and the moods
+  are one running sentence on a wide window and wrap as one, which is right
+  there. In a 390px column the label alone is ~214px, so exactly one mood fit
+  beside it and the rest fell to a second row — a phrase broken after its first
+  answer, which reads as an accident. The label takes the full width and every
+  mood sits together underneath it.
+
+- **THE BAR IS TWO ROWS.** One row could not hold it, and both symptoms were the
+  same width problem:
+  * the song strip was a 7px absolutely-positioned sliver along the bar's bottom
+    edge that measured **24px wide with a zero-width canvas** — the notes, which
+    are the whole point of the strip, were not drawn at all;
+  * the transport wanted 112px in a 105px column, so **NEXT was laid out
+    underneath the volume dial**.
+  Row 1 is now the song end to end with its own Edit key; row 2 is the title,
+  the transport, and volume/full-screen. `display:contents` on `.pb-center`
+  promotes its two children to grid items so they can take different rows
+  without touching the desktop markup.
+
+- **THE EDIT KEY IS A KEY, NOT A HOVER HINT.** `.pb-expand` was a
+  `pointer-events:none` span at opacity 0 that the scrub row revealed on hover.
+  A phone has no hover, so the only way into the editor from the playing screen
+  was invisible there. It is a real `<button id="pbExpand">` sharing the
+  ribbon's handler, standing and labelled on the phone layout and still a
+  reveal-on-hover chevron on a pointer.
+
+- **NO HOLE AFTER FULL SCREEN.** `.pb-right` was pinned to `width:77px` and then
+  pulled `translateX(-12px)` off the right edge, which left a gap the width of a
+  button — and that fixed width is what hid NEXT. It sizes to what it holds and
+  ends where the bar ends. `VOL` (a `::before` on the dial, 48px next to a
+  speaker icon that already says it) comes off the phone and the track name
+  takes the width.
+
+- **THE CREDIT STAYS ON A PHONE.** It was `display:none` here, which also
+  removed the only place the playing screen says what this is and where the
+  source is — name, GitHub star, X and Hacker News exist nowhere else once a
+  song is on. Compact: name at reading size, links as icons, tagline and legal
+  line still off (those are the landing page's job). The rail drops to `top:54px`.
+
+- **`justify-self:start` SIZES A GRID ITEM TO ITS MAX-CONTENT.** Found doing the
+  above and worth remembering: `.pb-left` carried it, so the title lane grew with
+  the track name instead of staying in its `minmax(0,1fr)` column — a long name
+  carried the share button 300px along, under the transport and outside
+  `.pb-left`'s own `overflow:hidden`, so **Share simply vanished on some
+  tracks**. `justify-self:stretch` plus `overflow:hidden` on `.pb-info` and
+  `.pb-titleline` (the desktop bar sets those `visible`, harmless in a 420px
+  lane) makes the name ellipsise instead. The gate forces a long title inside
+  the same evaluate that measures, because the bar's ticker rewrites the title
+  and the check was otherwise passing or failing by luck of the draw.
+
+- `verify-chrome` holds all of it: NEXT clear of the volume, full screen against
+  the right edge, the strip on its own row with the notes actually drawn in it,
+  the standing Edit key, the credit above the rail, and the ask's two lines.
+
+- **`verify-export-boundaries` IS INTERMITTENTLY FLAKY**, like
+  `verify-create-handover`. It edits whatever song Create happens to compose
+  until the score carries automation, a vibrato hand-off, a wave reload and a
+  kit hit; seen failing once with `auto:0, vibOff:0` on a 572-note song and
+  passing on the next four runs of the same build. Re-run before believing it.

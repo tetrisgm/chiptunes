@@ -337,18 +337,76 @@ function names() {
   await mobile.evaluate(() => { if (window._dockFullscreen) window._dockFullscreen(); });
   await wait(100);
   const mobilePlayer = await mobile.evaluate(() => {
+    // THE GENERATED NAME DECIDES HOW WIDE THE TITLE LANE WANTS TO BE, so a
+    // short one hides the bug where a long one carried the share button 300px
+    // along, under the transport and outside .pb-left's own clip. Forced here
+    // rather than in a separate step because the bar's ticker rewrites the
+    // title, which made the check pass or fail by luck of the draw.
+    const _t = document.getElementById('pbTitle');
+    if (_t) _t.textContent = 'Thunderous Crystal Panther Adventure Deluxe Turbo III';
     const ids=['pbShare','pbPrev','pbPlay','pbNext','pbVolume','rfullscreen'];
     const rects=ids.map(id=>{ const el=document.getElementById(id), r=el&&el.getBoundingClientRect();
       return {id, visible:!!r&&r.width>0&&r.height>0, left:r&&r.left, right:r&&r.right, top:r&&r.top, bottom:r&&r.bottom}; });
     const playTop=rects.find(y=>y.id==='pbPlay').top;
+    const R=e=>{ if(!e) return null; const r=e.getBoundingClientRect();
+      return {l:r.left,r:r.right,t:r.top,b:r.bottom,w:r.width,h:r.height,vis:e.getClientRects().length>0&&r.width>0&&r.height>0}; };
+    // the song strip, the Edit key it carries, and the credit
+    const bar=R(document.getElementById('playbar')), strip=R(document.querySelector('#playbar .pb-ctrl'));
+    const ribbon=R(document.getElementById('noteribbon')), expand=R(document.getElementById('pbExpand'));
+    const made=document.getElementById('madeby');
+    const gh=made&&made.querySelector('.plmade-github'), nm=made&&made.querySelector('.plmade-name');
+    // the ask: the question on its own line, every mood together under it
+    const lab=R(document.querySelector('#rmoods .rmood-ask .rmood-lab'));
+    const moods=[...document.querySelectorAll('#rmoods .rmood-ask .rmood:not(.rmood-scratch)')].map(e=>Object.assign({t:e.textContent.trim()},R(e)));
     return { rects, noHorizontalOverflow:document.documentElement.scrollWidth<=innerWidth,
       noOverlap:rects.slice(0,-1).every((x,i)=>!x.visible||!rects[i+1].visible||x.right<=rects[i+1].left),
-      sameBaseline:rects.filter(x=>x.visible).every(x=>Math.abs(x.top-playTop)<=8) };
+      sameBaseline:rects.filter(x=>x.visible).every(x=>Math.abs(x.top-playTop)<=8),
+      bar, strip, ribbon, expand,
+      expandPointer:!!document.getElementById('pbExpand')&&getComputedStyle(document.getElementById('pbExpand')).pointerEvents!=='none',
+      creditVisible:!!R(made)&&R(made).vis, githubVisible:!!R(gh)&&R(gh).vis, nameVisible:!!R(nm)&&R(nm).vis,
+      creditAboveRail:(()=>{ const m=R(made), rail=R(document.getElementById('plinks')); return !!m&&!!rail&&m.b<=rail.t; })(),
+      lab, moods,
+      fsRight:rects.find(x=>x.id==='rfullscreen').right, barRight:bar&&bar.r };
   });
   ok(mobilePlayer.rects.every(x=>x.visible&&x.left>=0&&x.right<=390),
      'share, transport, volume and fullscreen all remain reachable on a 390px phone');
   ok(mobilePlayer.sameBaseline && mobilePlayer.noHorizontalOverflow && mobilePlayer.noOverlap,
-     'the phone player keeps its controls on one baseline without horizontal overflow');
+     'the phone player keeps its controls on one baseline without horizontal overflow (' +
+     mobilePlayer.rects.map(x => x.id.replace(/^pb/, '') + ' ' + Math.round(x.left) + '-' + Math.round(x.right)).join(', ') + ')');
+  // The NEXT button used to sit underneath the volume dial, because the
+  // transport wanted 112px in a 105px column. It has to be reachable, not
+  // merely present in the DOM.
+  {
+    const next = mobilePlayer.rects.find(x => x.id === 'pbNext');
+    const vol = mobilePlayer.rects.find(x => x.id === 'pbVolume');
+    ok(next.visible && next.right <= vol.left,
+       'the phone transport shows NEXT clear of the volume control (' + Math.round(vol.left - next.right) + 'px)');
+  }
+  ok(mobilePlayer.barRight - mobilePlayer.fsRight <= 12,
+     'full screen ends at the phone bar\'s right edge, with no hole after it (' +
+     Math.round(mobilePlayer.barRight - mobilePlayer.fsRight) + 'px)');
+  // The strip was a 7px sliver absolutely positioned along the bar's bottom
+  // edge, 24px wide with a zero-width canvas: the notes were not drawn at all.
+  ok(!!mobilePlayer.strip && mobilePlayer.strip.vis && mobilePlayer.strip.w >= 320 &&
+     mobilePlayer.strip.b <= mobilePlayer.rects.find(x => x.id === 'pbPlay').top,
+     'the phone song strip takes its own row above the transport (' +
+     Math.round(mobilePlayer.strip ? mobilePlayer.strip.w : -1) + 'px wide)');
+  ok(!!mobilePlayer.ribbon && mobilePlayer.ribbon.vis && mobilePlayer.ribbon.w >= 200 && mobilePlayer.ribbon.h >= 16,
+     'the notes are actually drawn in it (' + Math.round(mobilePlayer.ribbon ? mobilePlayer.ribbon.w : -1) + 'x' +
+     Math.round(mobilePlayer.ribbon ? mobilePlayer.ribbon.h : -1) + ')');
+  ok(!!mobilePlayer.expand && mobilePlayer.expand.vis && mobilePlayer.expandPointer && mobilePlayer.expand.h >= 22,
+     'the strip carries a standing Edit key -- a phone has no hover to reveal one');
+  ok(mobilePlayer.creditVisible && mobilePlayer.nameVisible && mobilePlayer.githubVisible && mobilePlayer.creditAboveRail,
+     'the phone playing screen still says what this is and where the source is');
+  // "Write me a song that is…" is one running sentence with the moods on a wide
+  // window. In a 390px column the label alone is ~214px, so it takes its own
+  // line and the moods sit together underneath rather than one beside it.
+  ok(!!mobilePlayer.lab && mobilePlayer.moods.length >= 3 &&
+     mobilePlayer.moods.every(m => m.t >= mobilePlayer.lab.b - 1),
+     'the phone ask puts the question on its own line');
+  ok(mobilePlayer.moods.length >= 3 &&
+     mobilePlayer.moods.every(m => Math.abs(m.t - mobilePlayer.moods[0].t) <= 2),
+     'and every mood on one line under it (' + mobilePlayer.moods.map(m => m.t).join('/') + ')');
   ok(mobileErrs.length === 0, 'no phone page errors' + (mobileErrs.length ? ': ' + mobileErrs[0] : ''));
   await mobile.close();
 

@@ -1590,8 +1590,11 @@
   #playbar .pb-scrub canvas{ cursor:pointer; transition:box-shadow .16s ease, transform .16s ease; }
   #playbar .pb-scrub:hover canvas{ box-shadow:inset 0 0 0 1px rgba(255,255,255,.22),
     0 -6px 18px rgba(123,220,160,.13); transform:translateY(-1px); }
+  /* a <button>, so it is reachable by keyboard and tap -- the width/height reset
+     is because #playbar button is a 38px circle by default */
   #playbar .pb-expand{ position:absolute; right:6px; top:50%; transform:translateY(-50%);
     display:flex; align-items:center; gap:5px; padding:3px 7px; border-radius:7px;
+    width:auto; height:auto; min-width:0; border:0; cursor:pointer;
     background:rgba(12,10,24,.78); color:var(--ink-2); pointer-events:none;
     font:600 10.5px/1 var(--ui); letter-spacing:.01em; opacity:0; transition:opacity .16s ease; }
   #playbar .pb-scrub:hover .pb-expand{ opacity:1; }
@@ -2703,64 +2706,182 @@
     }
     body.awaiting-mood #madeby{ display:none !important; }
 
-    body:not(.awaiting-mood) #madeby{ display:none !important; }
-    body:not(.awaiting-mood) #plinks{ top:12px !important; left:12px !important; gap:8px !important; }
+    /* THE QUESTION IS ITS OWN LINE, THE ANSWERS ARE ANOTHER. On a wide window
+       "Write me a song that is…" and the moods really are one running sentence
+       and wrap as one. In a 390px column they cannot be: the label alone is
+       ~214px, so the first mood is the only one that fits beside it and the
+       rest fall to a second row -- a phrase broken after its first answer,
+       which reads as an accident rather than as running text. The label takes
+       the full width and every mood sits together underneath it. */
+    body:not(.awaiting-mood) #rmoods .rmood-ask{
+      display:flex !important; flex-direction:row !important; flex-wrap:wrap !important;
+      row-gap:9px !important; column-gap:7px !important; left:12px !important;
+      max-width:calc(100vw - 24px) !important;
+    }
+    body:not(.awaiting-mood) #rmoods .rmood-ask .rmood-lab{
+      flex:0 0 100% !important; margin:0 !important; font-size:14px !important;
+    }
+    body:not(.awaiting-mood) #rmoods .rmood-ask .rmood-pills{
+      display:flex !important; flex:0 0 100% !important; flex-wrap:wrap !important;
+      align-items:center !important; gap:7px !important;
+    }
+    body:not(.awaiting-mood) #presets .rbtn.rmood{
+      height:40px !important; min-height:40px !important; padding:0 13px !important;
+      font-size:14px !important;
+    }
+
+    /* THE CREDIT STAYS ON A PHONE. It was hidden here so the top of the picture
+       would be clear, which also removed the only place the playing screen says
+       what this is and where the source is -- the product name and the GitHub,
+       X and Hacker News links exist nowhere else once a song is on. Compact:
+       the name at reading size, the links as icons, the tagline and the legal
+       line still off (those are the landing page's job). */
+    body:not(.awaiting-mood) #madeby{
+      display:flex !important; top:10px !important; left:12px !important;
+      right:auto !important; bottom:auto !important;
+      max-width:calc(100vw - 24px) !important; flex-wrap:nowrap !important;
+      justify-content:flex-start !important;
+    }
+    body:not(.awaiting-mood) #madeby .plmade-line{
+      display:flex !important; align-items:center !important; gap:8px !important;
+      flex-wrap:nowrap !important; white-space:nowrap !important;
+    }
+    body:not(.awaiting-mood) #madeby .plmade-name{
+      display:block !important; font-size:15px !important; line-height:1 !important;
+    }
+    body:not(.awaiting-mood) #madeby .plmade-t{ display:none !important; }
+    body:not(.awaiting-mood) #madeby .plmade-row{ gap:5px !important; }
+    body:not(.awaiting-mood) #madeby .plmade-btn{
+      width:34px !important; min-width:34px !important; height:34px !important;
+      min-height:34px !important; padding:0 !important;
+    }
+    body:not(.awaiting-mood) #madeby .plmade-btn svg{ width:17px !important; height:17px !important; }
+    /* the star control is a labelled pill, not an icon: it keeps its count */
+    body:not(.awaiting-mood) #madeby .plmade-github{
+      width:auto !important; min-width:0 !important; height:34px !important;
+      min-height:34px !important; padding:0 9px !important; gap:5px !important;
+      border-radius:999px !important; font-size:12px !important;
+    }
+    body:not(.awaiting-mood) #madeby .plmade-github span{ font-size:12px !important; }
+    body:not(.awaiting-mood) #madeby .plmade-github .plink-t{ display:none !important; }
+
+    /* the rail drops below the credit rather than under it */
+    body:not(.awaiting-mood) #plinks{ top:54px !important; left:12px !important; gap:8px !important; }
     body:not(.awaiting-mood) #plinks .plink{
       max-width:calc(100vw - 24px); padding:9px 14px !important;
     }
     body:not(.awaiting-mood) #plinks .plink-t{
       font-size:16px !important; line-height:1.1 !important; white-space:nowrap;
     }
+    /* ===== THE PHONE BAR IS TWO ROWS ==================================
+       One row could not hold it. The song strip was squeezed into a 7px
+       absolutely-positioned sliver along the bar's bottom edge, where it
+       measured 24px wide with a zero-width canvas -- so the notes, which are
+       the whole point of the strip, were not drawn at all -- and the transport
+       needed 112px in a 105px column, which pushed the NEXT button underneath
+       the volume dial. Both are width problems, and the only spare width on a
+       phone is vertical.
+       Row 1 is the song end to end with its own Edit key; row 2 is the title,
+       the transport and volume/full-screen. `display:contents` on .pb-center
+       promotes its two children to grid items so they can take different rows
+       without touching the desktop markup. */
     body.ai-visual #playbar.show{
-      min-height:76px !important; height:76px !important; padding:8px !important;
-      grid-template-columns:minmax(0,175px) 105px 77px !important;
-      column-gap:6px !important; align-items:center !important;
+      min-height:0 !important; height:auto !important;
+      padding:7px 10px 9px !important;
+      grid-template-columns:minmax(0,1fr) auto auto !important;
+      grid-template-rows:auto auto !important;
+      column-gap:7px !important; row-gap:7px !important; align-items:center !important;
     }
+    body.ai-visual #playbar .pb-center{ display:contents !important; }
+
+    /* row 1: the whole song */
+    body.ai-visual #playbar .pb-ctrl{
+      grid-column:1 / -1 !important; grid-row:1 !important;
+      position:static !important; width:auto !important; min-width:0 !important;
+      justify-self:stretch !important; display:block !important;
+      height:auto !important; padding:5px 7px !important; margin:0 !important;
+      border-radius:12px !important; overflow:visible !important;
+    }
+    body.ai-visual #playbar .pb-ctrl .pb-lcd{ height:auto !important; padding:0 !important; width:100% !important; }
+    body.ai-visual #playbar .pb-ctrl .pb-scrub{
+      display:flex !important; width:100% !important; height:auto !important; gap:7px !important;
+    }
+    body.ai-visual #playbar .pb-ctrl .pb-wrap{ height:auto !important; }
+    body.ai-visual #playbar .pb-ctrl .pb-t{ display:none !important; }
+    body.ai-visual #playbar .pb-ctrl canvas{ height:26px !important; border-radius:6px !important; }
+    /* THE EDIT KEY IS A KEY HERE, not a hover hint. On a pointer the strip
+       reveals its chevron when you reach for it; a phone has no hover, so the
+       one way into the editor from the playing screen was invisible. It sits
+       beside the notes as an ordinary button. */
+    body.ai-visual #playbar .pb-ctrl .pb-expand{
+      position:static !important; transform:none !important; opacity:1 !important;
+      pointer-events:auto !important; flex:0 0 auto !important;
+      width:auto !important; height:26px !important; min-width:0 !important;
+      padding:0 9px !important; border-radius:7px !important;
+      font-size:11.5px !important; color:var(--ink) !important;
+      background:rgba(255,255,255,.11) !important;
+    }
+    body.ai-visual #playbar .pb-ctrl .pb-expand svg{ width:12px !important; height:12px !important; }
+
+    /* row 2: the title, the transport, and what is on the right edge */
     body.ai-visual #playbar .pb-left{
-      width:auto !important; min-width:0 !important; overflow:hidden !important;
+      grid-column:1 !important; grid-row:2 !important;
+      width:auto !important; min-width:0 !important; max-width:none !important;
+      overflow:hidden !important; gap:8px !important;
+      /* STRETCH, NOT START. justify-self:start sizes a grid item to its
+         MAX-content, so the lane grew with the track name instead of staying in
+         its 1fr column -- which is how the share button ended up 300px along,
+         under the transport and outside its own clip. */
+      justify-self:stretch !important;
     }
-    body.ai-visual #playbar .pb-title{ font-size:14px !important; }
+    /* THE NAME ELLIPSISES; THE SHARE BUTTON DOES NOT MOVE. The desktop bar sets
+       overflow:visible on the title box and its line, which is harmless in a
+       420px lane -- on a phone a long name grew the flex row past its grid
+       column and carried Share out with it, under the transport and into
+       .pb-left's own clip, so the button simply vanished on some tracks. The
+       boxes shrink to the column here and the name is what gives way. */
+    body.ai-visual #playbar .pb-info{ overflow:hidden !important; max-width:100% !important; min-width:0 !important; }
+    body.ai-visual #playbar .pb-titleline{ overflow:hidden !important; min-width:0 !important; }
+    body.ai-visual #playbar .pb-title{ font-size:14px !important; flex:1 1 auto !important; min-width:0 !important; }
     body.ai-visual #playbar .pb-share{
       flex-basis:34px; width:34px !important; min-width:34px !important; height:34px !important;
     }
-    body.ai-visual #playbar .pb-center{ width:auto !important; gap:0 !important; }
-    body.ai-visual #playbar .pb-center .pb-main-ctrl{
-      padding:3px !important; gap:1px !important;
+    body.ai-visual #playbar .pb-main-ctrl{
+      grid-column:2 !important; grid-row:2 !important;
+      padding:3px !important; gap:2px !important;
     }
     body.ai-visual #playbar .pb-main-ctrl button,
     body.ai-visual #playbar .pb-play{
       width:34px !important; min-width:34px !important; height:34px !important;
     }
-    body.ai-visual #playbar .pb-center .pb-ctrl{
-      position:absolute !important; left:8px !important; right:8px !important;
-      bottom:3px !important; width:auto !important; min-width:0 !important;
-      height:7px !important; padding:0 !important; border:0 !important;
-      box-shadow:none !important; border-radius:999px !important; overflow:hidden;
-    }
-    body.ai-visual #playbar .pb-center .pb-lcd{ height:7px; padding:0 !important; }
-    body.ai-visual #playbar .pb-center .pb-scrub{ height:7px; }
-    body.ai-visual #playbar .pb-center .pb-wrap{ height:7px; }
-    body.ai-visual #playbar .pb-center .pb-t{ display:none !important; }
     body.ai-visual #playbar .pb-right .pb-voldial{
-      height:42px !important; padding:0 !important;
+      height:38px !important; padding:0 !important;
     }
+    /* the word VOL is 48px of a 390px row next to a speaker icon that already
+       says it; the track name is what that width is worth here */
+    body.ai-visual #playbar .pb-right .pb-voldial::before{ display:none !important; }
     body.ai-visual #playbar .pb-right .pb-voldial input[type=range]{ display:none !important; }
     body.ai-visual #playbar .pb-right .pb-volume{
-      width:38px !important; min-width:38px !important; height:38px !important;
+      width:36px !important; min-width:36px !important; height:36px !important;
       padding:0 !important; display:inline-flex !important;
     }
     body.ai-visual #playbar .pb-right .pb-volume .pbv-t,
     body.ai-visual #playbar .pb-right .pb-volume #pbVolRead{ display:none !important; }
     body.ai-visual #playbar .pb-right #rfullscreen{
-      width:38px !important; min-width:38px !important; height:38px !important;
-      min-height:38px !important; padding:0 !important; margin:0 !important;
+      width:36px !important; min-width:36px !important; height:36px !important;
+      min-height:36px !important; padding:0 !important; margin:0 !important;
     }
+    /* NO HOLE AFTER FULL SCREEN. The cluster was pinned to 77px and then pulled
+       12px back off the right edge, which left a gap the width of a button
+       where nothing was -- and the width was what hid NEXT behind the volume.
+       It sizes to what it holds and ends where the bar ends. */
     body.ai-visual #playbar .pb-right{
+      grid-column:3 !important; grid-row:2 !important;
       display:flex !important; align-items:center !important; min-width:0 !important;
-      width:77px !important; max-width:77px !important; overflow:visible !important;
-      transform:translateX(-12px) !important;
+      width:auto !important; max-width:none !important; overflow:visible !important;
+      transform:none !important; gap:3px !important; justify-self:end !important;
     }
-    body.ai-visual #playbar .pb-right > *{ flex:0 0 38px !important; }
+    body.ai-visual #playbar .pb-right > *{ flex:0 0 auto !important; }
   }
   #track-transition{position:fixed;inset:0;z-index:19;pointer-events:none;opacity:0;
     background:repeating-radial-gradient(circle at 27% 43%,rgba(255,255,255,.72) 0 1px,rgba(0,0,0,.78) 1px 3px),repeating-linear-gradient(0deg,rgba(255,255,255,.22) 0 1px,rgba(0,0,0,.28) 1px 3px);
@@ -2793,7 +2914,7 @@
     <button id="start" hidden></button>
   </div>
 
-<script src="../app.28e8709b4775.js" defer></script>
+<script src="../app.b432657d7129.js" defer></script>
 
 </body>
 </html>
