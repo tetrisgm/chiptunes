@@ -121,11 +121,37 @@ than none. Mitigations, all cheap:
 rather than by an edge request, crawlers that never run scripts never count. No
 bot list to maintain.
 
-**Exclude our own devices.** The box's Roon connection is in the `stream` count
-today — `/api/presence/count` reported 2 listeners, both stream, with no one
-watching. The reporter should subtract known-local connections before POSTing,
-or the counter inflates itself before launch. Self-counting is the one form of
-inflation with no defence.
+**The `stream` count is almost entirely BOTS — measured, 2026-09-02.** The
+broadcaster was temporarily patched to log user-agent and `cf-connecting-ip` on
+connect, watched for 150s, and restored (md5 back to `85453af…`). What was
+actually connected:
+
+| user-agent | ip | share |
+| --- | --- | --- |
+| `hackney/1.21.0` | 65.108.235.185 (Hetzner FI) | ~13 of 25 — the dominant source |
+| `GlobradioHarvester/1.0 (+globradio.com)` | 35.158.29.84 | directory harvester |
+| `ClaudeBot/1.0` | 216.73.216.198 | AI crawler |
+| `NSPlayer/12.00` (Windows Media Player) | 159.26.100.223 | checker or listener |
+| `Mozilla/5.0` | 174.57.151.78 (US residential) | possibly a real person |
+| `curl/8.5.0` | 127.0.0.1 | our own watchdog |
+| — | 2a06:98c0:3600::103 (Cloudflare) | our own monitor Worker |
+
+**No Roon.** The earlier hypothesis — that the owner's own Roon was the standing
+listener — is REFUTED; it never appeared. The real cause is that the station is
+listed in radio directories (Radio Browser accepted it as
+`967010ce-34f5-460d-beb4-67a196c49d9b`), and directories poll continuously to
+verify a stream is alive. 4,416 connections in 24h, flat overnight, is the cost
+of being listed. Nearly all of them request `/` rather than `/radio.mp3`.
+
+**So the fix is dwell time, not a blocklist.** A directory checker connects for a
+few seconds and drops; a person stays for minutes. Count a stream listener only
+once its connection has lasted **≥60s**, which needs no user-agent list, cannot
+be spoofed away, and matches the ≥30s rule used for web listeners. The reporter
+should send that filtered figure, not `clients.size`.
+
+**Still exclude our own devices** — the local `curl` watchdog and the monitor
+Worker both register today, and self-counting is the one form of inflation with
+no defence.
 
 ## Display
 
