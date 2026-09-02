@@ -1956,9 +1956,25 @@ browser, and drive the running page when there is one.
   in nine runs, and nothing in this change touches playback. Re-run before
   believing it, like `verify-create-handover` and `verify-export-boundaries`.
 
-- **`docs/AGENT_VOCABULARY.md` is the plan for the next layer**: what a producer
-  actually says ("make it happier", "repeat the melody", "the drums are too
-  busy"), mapped to a vocabulary of named deterministic transforms, plus the
-  compound-word recipes so a model applies "happier" the same way twice. The
-  division of labour is deliberate — the model understands, the API provides the
-  verbs. Nothing of it is built yet.
+- **`docs/AGENT_PLAN.md` is the plan for the next layer.** It replaced
+  `AGENT_VOCABULARY.md`, which planned a DAW — "make it happier", "repeat the
+  melody" — and that is what somebody ALREADY HOLDING A TRACK says, not what
+  people ask a music generator for. The rework leads with briefs, guaranteed
+  constraints, cohesive SETS and deliverables, and demotes the editing verbs to
+  the last tier. The old vocabulary tables are good and survive in git history.
+- **STEMS ARE FREE AND EXACT HERE, and that is the strongest unbuilt feature.**
+  `Sequencer` already carries a per-channel `chMute`, so rendering each voice
+  alone is four renders and no new engine work. Measured on one composed song:
+  Melody peak 0.500, Harmony 0.250, Bass 0.250, Drums 0.251, each with real
+  energy. Elsewhere stem separation is an ML approximation and usually paid.
+  Songs also already carry `loopFrames`, so seamless-loop metadata is plumbing.
+- The other structural advantages worth building the API around: the output is
+  SYMBOLIC (transpose, retempo and restructure are exact), composition is ~5ms
+  and free (breadth costs nothing), it is deterministic (a token reproduces a
+  song byte for byte), and its provenance is a readable algorithm rather than a
+  model trained on other people's recordings — which is the decisive point for
+  a game developer worried about shipping AI music.
+- ⚠️ **Open contract question**: `AGENTS.md` keeps best-of-N out of production
+  composition. An API consumer generating many candidates and choosing is close
+  to that line. Needs an owner ruling before `generate_many` is built; nothing
+  else in the plan depends on it.
