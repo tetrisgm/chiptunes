@@ -172,8 +172,53 @@ const SNAP = `(() => {
     await p2.close();
   }
 
+  await b.close();
+
+  // ---- 5. NOTHING FULL-SCREEN IS OPAQUE WHITE, ON EITHER ENGINE ------------
+  //
+  // Reported from a real iPhone: "sometimes the screen is white, it appears to
+  // be when it's in modern mode". Modern is the only face that shows
+  // `.crt.gain` -- an OPAQUE, almost entirely WHITE, full-viewport, z-index-5
+  // canvas whose sole reason for being invisible is mix-blend-mode:multiply.
+  // Every other overlay on the page is black-based, so a dropped blend darkens
+  // them; a dropped blend on this one paints the window white. WebKit gets the
+  // legacy divs instead, and this asserts that it does.
+  //
+  // ⚠️ Playwright's WebKit is NOT Safari: it rasterises the gain map fine and
+  // shows none of the symptom. This checks the DEFENCE (which layer is shown),
+  // not the symptom, because the symptom cannot be reproduced from here.
+  {
+    const { webkit } = require('playwright');
+    for (const [eng, launcher] of [['webkit', webkit], ['chromium', chromium]]) {
+      const eb = await launcher.launch();
+      const ep = await eb.newPage({ viewport: { width: 900, height: 700 } });
+      await ep.goto(`http://127.0.0.1:${h.port}/?screen=crt`, { waitUntil: 'domcontentloaded' });
+      await wait(3500);
+      const d = await ep.evaluate(() => {
+        const diag = window.__rrrCrtDiag ? window.__rrrCrtDiag() : null;
+        // any full-viewport element that is opaque and light, blend or no blend
+        const risky = [...document.querySelectorAll('body > *')].filter(e => {
+          const r = e.getBoundingClientRect(), c = getComputedStyle(e);
+          if (r.width < innerWidth * 0.9 || r.height < innerHeight * 0.5) return false;
+          if (c.display === 'none' || c.visibility === 'hidden' || +c.opacity < 0.9) return false;
+          return c.mixBlendMode === 'multiply' && /canvas/i.test(e.tagName);
+        }).map(e => e.className);
+        return { diag, risky };
+      });
+      ok(!!d.diag, eng + ': the CRT reports its own state (__rrrCrtDiag)');
+      if (eng === 'webkit') {
+        ok(d.diag && d.diag.forceLegacy && !d.diag.gainShown && d.risky.length === 0,
+           'webkit is given the black-based legacy overlays, not the white gain canvas');
+      } else {
+        ok(d.diag && !d.diag.forceLegacy && d.diag.gainShown && !d.diag.blank,
+           'chromium keeps the baked gain map (the reason it exists is a GPU-less box)');
+      }
+      await eb.close();
+    }
+  }
+
   ok(errs.length === 0, 'no page errors' + (errs.length ? ': ' + errs[0] : ''));
-  await b.close(); h.s.close();
+  h.s.close();
   console.log(fail ? '\nFAILED (' + fail + ')' : '\nall good');
   process.exit(fail ? 1 : 0);
 })();

@@ -824,13 +824,20 @@
      it wrapped to a second line and read as one more thing to download. Pinned
      to the sheet's top-right corner, where every sheet puts it; the utility row
      reserves width for it so its buttons never run underneath. */
-  /* the sizes carry !important because `.n-utils .cr-btn` (a 30px pill) is one
-     class more specific than this rule and the button still lives in that row */
+  /* Pinned to the sheet and centred on the FIRST row (the ask), so it lines up
+     with something real instead of floating between two rows. --cr-row1 is
+     that row's height; the ask reserves --cr-closew on its right so a chip
+     scrolling past cannot come to rest under it. */
+  #createscreen{ --cr-row1:56px; --cr-closew:52px; }
   #createscreen .cr-close{
-    position:absolute; top:8px; right:10px; z-index:8;
+    position:absolute; right:10px; z-index:8;
+    top:calc(var(--cr-row1) / 2); transform:translateY(-50%);
     width:40px !important; height:40px !important; min-width:40px;
     padding:0 !important; border-radius:50%;
+    /* opaque, because the mood chips scroll underneath it */
+    background:#171522 !important; border:1px solid var(--mat-edge-hi) !important;
     display:inline-flex; align-items:center; justify-content:center; gap:0; }
+  #createscreen .cr-close:hover{ background:#22202f !important; }
   #createscreen .cr-close svg{ width:18px; height:18px; }
   #createscreen .cr-close span{ display:none; }
   #createscreen .cr-sel{ height:38px; padding:0 10px; border-radius:10px;
@@ -935,15 +942,27 @@
   #createscreen .n-param.on{ background:rgba(232,227,250,.14); border-color:var(--mat-edge-hi); color:var(--ink); }
   #createscreen .n-tool{ height:32px; padding:0 10px; font-size:11px; }
   #createscreen .n-tool.on{ background:rgba(123,220,160,.2); border-color:rgba(123,220,160,.6); }
-  /* the right padding is the corner X's own width plus its inset: the row must
-     not slide a button under it */
-  #createscreen .n-utils{ flex:0 0 auto; display:flex; justify-content:flex-end; gap:6px;
-    padding:8px 58px 0 14px; flex-wrap:wrap; }
+  /* ONE ROW THAT SCROLLS. Five pills do not fit across a phone and wrapping
+     them cost a whole line of a screen that is mostly song, so this is the same
+     nowrap + overflow-x treatment the mood row above it uses. */
+  /* justify-content:flex-END WOULD HIDE UNDO. It is the flexbox overflow trap
+     again: in a scroller, end-alignment pushes the overflow off the START edge
+     where it cannot be scrolled back to -- the row opened on Download ROM with
+     Undo and Redo lost off the left. An auto margin on the first pill right-
+     aligns the row when it fits and resolves to zero when it does not, so the
+     row simply begins at Undo and scrolls. */
+  #createscreen .n-utils{ flex:0 0 auto; display:flex; justify-content:flex-start; gap:6px;
+    padding:2px 14px 6px; flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; }
+  #createscreen .n-utils::-webkit-scrollbar{ display:none; }
+  #createscreen .n-utils .cr-btn{ flex:0 0 auto; }
+  #createscreen .n-utils .cr-btn:first-child{ margin-left:auto; }
   #createscreen .n-utils .cr-btn{ height:30px; padding:0 11px; font-size:11px; }
   #createscreen .cr-dl{ display:inline-flex; align-items:center; gap:6px; }
   #createscreen .cr-dl svg{ width:14px; height:14px; flex:0 0 auto; }
+  /* the ask is the first row now, and it leaves room for the corner X */
   #createscreen .n-moodrow{ flex:0 0 auto; display:flex; align-items:center; gap:10px;
-    padding:10px 18px 14px; overflow-x:auto; scrollbar-width:none; }
+    min-height:var(--cr-row1,56px); box-sizing:border-box;
+    padding:8px var(--cr-closew,52px) 8px 18px; overflow-x:auto; scrollbar-width:none; }
   #createscreen .n-moodrow::-webkit-scrollbar{ display:none; }
   #createscreen .n-moodlab{ flex:0 0 auto; font:700 17px/1.2 var(--ui); color:var(--ink); letter-spacing:-.01em; }
   #createscreen .n-moodchips{ display:flex; gap:7px; }
@@ -1121,7 +1140,20 @@
   #createscreen .cr-tools [data-tip]:hover::after{ bottom:auto; top:calc(100% + 8px); }
   #createscreen .cr-palsep{ width:1px; height:34px; background:var(--mat-edge); margin:0 4px; }
   @media (max-width:760px){
-    #createscreen{ touch-action:manipulation; }
+    /* THE SHEET TAKES THE WHOLE PHONE. The 7dvh strip of game above it was the
+       "this is a sheet, the station is still back there" affordance and the
+       only visible way out; the corner X says both, and a tracker is the one
+       screen here that wants every pixel of height it can get. */
+    #createscreen{ touch-action:manipulation;
+      height:100dvh !important; max-height:100dvh !important;
+      border-radius:0 !important; border-left:0; border-right:0; }
+    #createscreen{ --cr-row1:52px; --cr-closew:48px; }
+    /* full-bleed to the top of the viewport now, so honour the inset when the
+       page is running standalone and there is a status bar over it */
+    #createscreen .n-moodrow{ padding-top:max(6px, env(safe-area-inset-top));
+      padding-bottom:6px; padding-left:12px; }
+    #createscreen .n-utils{ padding:0 12px 5px; }
+    #createscreen .cr-close{ right:8px; width:38px !important; height:38px !important; min-width:38px; }
     #createscreen .cr-top{ padding:6px 8px; gap:6px; }
     #createscreen .cr-title{ display:none; }
     #createscreen .cr-btn{ height:34px; padding:0 10px; font-size:12px; }

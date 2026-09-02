@@ -1778,3 +1778,76 @@ after — eg it plays in game boy for every song".
   `verify-create-handover` asserted `closeText === 'Back to game'`, which would
   have kept passing on the hidden span; it now asserts the corner geometry, the
   icon-only rendering, the accessible label and the reserved room.
+
+# 2026-09-02 — Four reports from the phone
+
+## The white screen (Modern only, intermittent)
+
+- **`.crt.gain` IS AN OPAQUE, ALMOST ENTIRELY WHITE, FULL-VIEWPORT CANVAS whose
+  only reason for being invisible is `mix-blend-mode:multiply`.** Read the two
+  CRT paths side by side: the legacy divs are BLACK based (`.scanlines` is
+  rgba(0,0,0,.62) stripes at opacity .3, `.vignette` a black radial with no
+  blend mode at all), so a dropped blend darkens them very slightly. The gain
+  canvas is the opposite, and it is z-index 5 over the whole window. It is the
+  one element on this page that can turn the screen white, and Modern is the
+  only face that shows it — which is the report, exactly.
+- **WebKit now gets the legacy divs and no gain canvas is built there at all.**
+  The gain layer exists as a PERFORMANCE optimisation for the GPU-less Linux
+  broadcast box (a backdrop copy and two full-screen blends per frame, ~1.34ms).
+  An iPhone has a GPU. Trading that, on the one engine this project cannot
+  profile or reproduce, against "the screen can go white" is not a close call.
+  Chromium keeps the baked map. `window.__rrrCrtDiag()` reports which path is
+  live, because this was invisible from outside.
+- **The build also measures its own output now.** `cssLayerImg` rasterises HTML
+  inside an SVG `foreignObject` through an `<img>`; where an engine declines to
+  render that, `onload` still fires with a BLANK image — no error, no `catch`.
+  Two blank layers bake to 255,255,255 everywhere. A map with no pixel below 250
+  in it is refused and the legacy divs stay on.
+- ⚠️ **NOT REPRODUCED, and be careful reading a green run here.** Playwright's
+  WebKit rasterises the layers fine (`blank:false`) and shows none of this, and
+  `scripts/crt-diff.mjs` has only ever run Chromium. This is a mitigation
+  reasoned from the failure modes, not a confirmed repro. If white screens
+  continue on the phone, `__rrrCrtDiag()` is the first thing to read, and the
+  next suspect is `#track-transition` (a 72%-white sheet at `mix-blend-mode:
+  screen`, `steps(6,end)` so its last step holds opacity .58, cleared only by a
+  310ms timeout — if that timer is throttled it stays up).
+- A build-in-flight guard (one build per key) was tried here to stop
+  `_applyScreenMode`'s two `apply()` calls doing the work twice. **It broke
+  crt-diff — 100% of pixels differing at DPR 2** — because the two calls do not
+  always ask for the same key and suppressing the second left the overlay built
+  for the wrong one. Reverted; the doubled build is wasteful and harmless.
+- crt-diff's BLANK FRAME flakiness is PRE-EXISTING, measured either side of this
+  change: baseline 0/2/2 blank cases over three runs, after 2/2/4. Every case
+  that actually painted diffs at 0 LSB on both.
+
+## The credit was never on a phone at all
+
+- `_buildPlayerLinks()` bailed out on `_homeIsMobile()` before building EITHER
+  the rail or the credit, on the theory that a hamburger menu carried them —
+  the hamburger has been gone since 2026-08. So on a real phone the playing
+  screen had no product name, no GitHub, no X, no Hacker News, and the CSS
+  written last session to show the credit there was styling an element that did
+  not exist.
+- **`_homeIsMobile()` tests the USER AGENT and touch support, never the width**,
+  which is why a 390px desktop Playwright page built the credit exactly as a
+  wide one did and every headless check reported it present. `verify-chrome`'s
+  phone section now runs in a real `devices['iPhone 13']` context. Anything
+  claiming to test "the phone" must, or it is testing a narrow window.
+- The credit is built on every device now; the RAIL stays desktop-only (four
+  full-width action pills would take the top half of a phone), and the gate
+  asserts both halves of that.
+
+## Create: the ask first, one row of actions, no gap above
+
+- The mood row is the FIRST line — writing a song is what the screen is for;
+  Undo/Redo and the three exports are what you do to one afterwards.
+- `.n-utils` is one nowrap row that scrolls, like the mood row above it. NOTE:
+  it uses `justify-content:flex-start` with `margin-left:auto` on the first
+  pill, NOT `flex-end` — end-alignment in a scroller pushes the overflow off the
+  START edge where it cannot be scrolled back to, and the row opened on Download
+  ROM with Undo and Redo lost off the left. Same trap as the landing hero.
+- The sheet is 100dvh on a phone. The 7dvh strip of game above it was the "this
+  is a sheet" affordance and the only visible way out; the corner X says both,
+  and a tracker wants every pixel of height. Desktop keeps the 93dvh sheet.
+- The close X is centred on the first row (`--cr-row1`), and the ask reserves
+  `--cr-closew` on its right so a chip cannot come to rest under it.

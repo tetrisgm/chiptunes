@@ -19,7 +19,7 @@
 const fs = require('fs');
 const http = require('http');
 const path = require('path');
-const { chromium } = require('playwright');
+const { chromium, devices } = require('playwright');
 
 const DIST = path.join(__dirname, '..', 'dist');
 const SHOT = path.join(__dirname, '..', '.shots');
@@ -316,7 +316,14 @@ function names() {
 
   // ---- 6. a phone is a first-class launch surface -------------------------
   console.log('phone layout');
-  const mobile = await b.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
+  // A REAL PHONE USER AGENT, not merely a 390px window. _buildPlayerLinks()
+  // bails out on `_homeIsMobile()`, which tests the USER AGENT and touch
+  // support -- never the width -- so a narrow desktop window built the credit
+  // and the rail exactly as a wide one did. That is how the playing screen
+  // shipped to a phone with no product name and no GitHub link while this
+  // gate reported the credit present: the gate was not on a phone.
+  const mctx = await b.newContext(Object.assign({}, devices['iPhone 13'], { deviceScaleFactor: 1 }));
+  const mobile = await mctx.newPage();
   const mobileErrs = [];
   mobile.on('pageerror', e => mobileErrs.push(String(e).slice(0, 140)));
   await mobile.goto(`http://127.0.0.1:${h.port}/`, { waitUntil: 'domcontentloaded' });
@@ -336,16 +343,23 @@ function names() {
   // the top when it does not. Auto margins, not align-items:center -- centring
   // a flex item taller than its scrolling line puts the top half out of reach.
   {
+    // measured at a height the case FITS in -- iPhone 13's 664px content
+    // viewport is shorter than the 700px case, which is the scroll branch below
+    await mobile.setViewportSize({ width: 390, height: 900 });
+    await wait(700);
     const centred = await mobile.evaluate(() => {
       const hero = document.getElementById('rmoods');
       const r = hero.getBoundingClientRect();
       return { above: Math.round(r.top), below: Math.round(innerHeight - r.bottom), h: Math.round(r.height), vh: innerHeight };
     });
     ok(centred.h < centred.vh && Math.abs(centred.above - centred.below) <= 24,
-       'the phone landing centres the Game Boy (' + centred.above + 'px above, ' + centred.below + 'px below)');
+       'the phone landing centres the Game Boy when it fits (' + centred.above + 'px above, ' + centred.below + 'px below)');
+    await mobile.setViewportSize({ width: 390, height: 844 });
+    await wait(700);
     // and the short-viewport case: it must top-align and scroll, not centre
     // itself half off the top of a scroller
-    const short = await b.newPage({ viewport: { width: 390, height: 620 }, deviceScaleFactor: 1 });
+    const short = await mctx.newPage();
+    await short.setViewportSize({ width: 390, height: 620 });
     await short.goto(`http://127.0.0.1:${h.port}/`, { waitUntil: 'domcontentloaded' });
     await wait(1500);
     const tall = await short.evaluate(() => {
@@ -389,7 +403,10 @@ function names() {
       bar, strip, ribbon, expand,
       expandPointer:!!document.getElementById('pbExpand')&&getComputedStyle(document.getElementById('pbExpand')).pointerEvents!=='none',
       creditVisible:!!R(made)&&R(made).vis, githubVisible:!!R(gh)&&R(gh).vis, nameVisible:!!R(nm)&&R(nm).vis,
-      creditAboveRail:(()=>{ const m=R(made), rail=R(document.getElementById('plinks')); return !!m&&!!rail&&m.b<=rail.t; })(),
+      // the four-pill rail is desktop-only (it would take the top half of a
+      // phone), so the credit has the top corner to itself here
+      railAbsent:!document.getElementById('plinks'),
+      creditAtTop:(()=>{ const m=R(made); return !!m&&m.t>=0&&m.t<=24&&m.l<=24; })(),
       lab, moods,
       fsRight:rects.find(x=>x.id==='rfullscreen').right, barRight:bar&&bar.r };
   });
@@ -421,8 +438,9 @@ function names() {
      Math.round(mobilePlayer.ribbon ? mobilePlayer.ribbon.h : -1) + ')');
   ok(!!mobilePlayer.expand && mobilePlayer.expand.vis && mobilePlayer.expandPointer && mobilePlayer.expand.h >= 22,
      'the strip carries a standing Edit key -- a phone has no hover to reveal one');
-  ok(mobilePlayer.creditVisible && mobilePlayer.nameVisible && mobilePlayer.githubVisible && mobilePlayer.creditAboveRail,
+  ok(mobilePlayer.creditVisible && mobilePlayer.nameVisible && mobilePlayer.githubVisible && mobilePlayer.creditAtTop,
      'the phone playing screen still says what this is and where the source is');
+  ok(mobilePlayer.railAbsent, 'and the desktop action rail stays off the phone');
   // "Write me a song that is…" is one running sentence with the moods on a wide
   // window. In a 390px column the label alone is ~214px, so it takes its own
   // line and the moods sit together underneath rather than one beside it.
@@ -433,7 +451,7 @@ function names() {
      mobilePlayer.moods.every(m => Math.abs(m.t - mobilePlayer.moods[0].t) <= 2),
      'and every mood on one line under it (' + mobilePlayer.moods.map(m => m.t).join('/') + ')');
   ok(mobileErrs.length === 0, 'no phone page errors' + (mobileErrs.length ? ': ' + mobileErrs[0] : ''));
-  await mobile.close();
+  await mobile.close(); await mctx.close();
 
   ok(errs.length === 0, 'no page errors' + (errs.length ? ': ' + errs[0] : ''));
   await b.close(); h.s.close();

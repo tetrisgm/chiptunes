@@ -4672,22 +4672,29 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   var CHIPS = ['happy', 'sad', 'upbeat', 'chill', 'spooky', 'epic', 'retro', 'funky', 'dreamy', 'battle'];
   function buildUI() {
     root.innerHTML =
+      // THE ASK COMES FIRST. Writing a song is what this screen is for; Undo,
+      // Redo and the three exports are what you do to one afterwards, so they
+      // sat above the reason to be here.
+      '<div class="n-moodrow"><span class="n-moodlab">Write me a song that is…</span>' +
+        '<span class="n-moodchips">' +
+        CHIPS.map(function (c) { return '<button type="button" class="cr-chip" data-mood="' + c + '">' + c + '</button>'; }).join('') +
+        '</span></div>' +
+      // ONE ROW THAT SCROLLS, not a wrapping block. Five pills do not fit
+      // across a phone, and wrapping them cost a whole line of a screen that
+      // is mostly song. This is the same nowrap + overflow-x treatment the
+      // mood row above already uses.
       '<div class="n-utils">' +
         '<button type="button" class="cr-btn" data-cr="undo">↩ Undo</button>' +
         '<button type="button" class="cr-btn" data-cr="redo">↪ Redo</button>' +
         '<button type="button" class="cr-btn cr-dl" data-cr="share">' + _ic('share') + 'Copy link</button>' +
         '<button type="button" class="cr-btn cr-dl" data-cr="wav">' + _ic('wave') + 'Download WAV</button>' +
         '<button type="button" class="cr-btn cr-dl" data-cr="rom">' + _ic('rom') + 'Download ROM</button>' +
-        // CLOSE IS AN X IN THE CORNER, not a labelled button in the wrapping
-        // utility row. It is the one control that leaves, every sheet on a
-        // phone puts it top-right, and as a worded pill it wrapped onto a
-        // second line where it read as one more export action.
-        '<button type="button" class="cr-btn cr-close" data-cr="close" title="Close the editor and go back to the game" aria-label="Close the editor"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg><span>Back to game</span></button>' +
       '</div>' +
-      '<div class="n-moodrow"><span class="n-moodlab">Write me a song that is…</span>' +
-        '<span class="n-moodchips">' +
-        CHIPS.map(function (c) { return '<button type="button" class="cr-chip" data-mood="' + c + '">' + c + '</button>'; }).join('') +
-        '</span></div>' +
+      // CLOSE IS AN X IN THE CORNER, not a labelled button in the utility row.
+      // It is the one control that LEAVES, every sheet puts it top-right, and
+      // as a worded pill it read as one more export action. Outside both rows
+      // so it can be pinned to the sheet rather than carried by a flex line.
+      '<button type="button" class="cr-btn cr-close" data-cr="close" title="Close the editor and go back to the game" aria-label="Close the editor"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg><span>Back to game</span></button>' +
       '<div class="n-mid">' +
         '<div class="n-side">' +
           '<div class="n-sidehead"></div>' +
@@ -32929,14 +32936,35 @@ function buildRadioUI(){
 }
 // PLAYER PLATFORM LINKS (top-right): Watch on YouTube · Add to radio · (Get the app — desktop only;
 // no download on mobile since it's the desktop version). Visible in the player on web + mobile; hides on idle.
+// Keep a useful last-known value visible immediately, then refresh it from
+// GitHub's public repository response. The outer control uses the same moulded
+// Game Boy key as the other credit links; only the divided count is special.
+function _wireGithubStar(){
+  var githubStarBtn=document.getElementById('githubStarBtn');
+  var githubStarCount=document.getElementById('githubStarCount');
+  if(!githubStarBtn || !githubStarCount || typeof fetch!=='function') return;
+  fetch('https://api.github.com/repos/tetrisgm/chiptunes', {
+    headers:{Accept:'application/vnd.github+json'}
+  }).then(function(response){
+    if(!response.ok) throw new Error('GitHub count unavailable');
+    return response.json();
+  }).then(function(repo){
+    if(!Number.isFinite(repo.stargazers_count)) return;
+    var stars=repo.stargazers_count;
+    githubStarCount.textContent=new Intl.NumberFormat(undefined, {
+      notation:stars>=1000?'compact':'standard'
+    }).format(stars);
+    githubStarBtn.setAttribute('aria-label','Star Chiptunes.app on GitHub, '+stars+(stars===1?' star':' stars'));
+  }).catch(function(){});
+}
 function _buildPlayerLinks(){
-  if(document.getElementById('plinks')) return;
+  // On a phone the rail is never built, so #plinks cannot be the "already done"
+  // test there -- the credit is.
+  if(document.getElementById('plinks') || document.querySelector('#madeby .plmade-line')) return;
   // The _IC_* icon strings are hoisted `var`s assigned further down the module. buildRadioUI()
   // can run before those assignments execute, so if they're not ready yet, defer one microtask
   // (module init finishes synchronously first) and try again.
   if(typeof _IC_YT==='undefined' || !_IC_YT){ if(typeof queueMicrotask==='function') queueMicrotask(_buildPlayerLinks); else setTimeout(_buildPlayerLinks,0); return; }
-  // On mobile these live in the hamburger menu (see openNavMenu) instead of the top-right pills.
-  if(_homeIsMobile()) return;
   // THE RAIL. Six things a listener might want to do with the track that is
   // playing, down the left edge, plus the screen switcher -- which is not on the
   // owner's list but had no other way in once the hamburger went, and the two
@@ -32985,6 +33013,17 @@ function _buildPlayerLinks(){
   // its own corner of the picture, bottom-left, above the player bar
   var made=document.getElementById('madeby');
   if(!made){ made=document.createElement('div'); made.id='madeby'; document.body.appendChild(made); }
+  made.innerHTML=madeBy;
+  _wireGithubStar();
+  // THE CREDIT IS BUILT ON EVERY DEVICE; THE RAIL IS NOT. Both used to sit
+  // behind one mobile bail-out here, on the theory that a hamburger menu
+  // carried them instead -- the hamburger is gone, so on a real phone the
+  // playing screen had no product name and no way to reach the source at all.
+  // (The bail tests the USER AGENT, not the width, so a narrow desktop window
+  // still built them and this was invisible to every headless check.)
+  // The rail stays desktop-only: four full-width action pills would take the
+  // top half of a phone.
+  if(_homeIsMobile()) return;
   var wrap=document.createElement('div'); wrap.id='plinks';
   // THE MASTHEAD. The rail's first row offers you a Game Boy, which only reads
   // as an offer once you know what the page is -- and with the home page gone
@@ -33003,28 +33042,6 @@ function _buildPlayerLinks(){
       '<button class="plink" type="button" data-k="'+it.k+'" title="'+it.t+'" aria-label="'+it.t+'">'+
       '<span class="plink-ic">'+it.ic+'</span><span class="plink-t">'+it.l+'</span></button>'+extra+'</div>';
   }).join('');
-  made.innerHTML=madeBy;
-  // Keep a useful last-known value visible immediately, then refresh it from
-  // GitHub's public repository response. The outer control uses the same
-  // moulded Game Boy key as the other credit links; only the divided count is
-  // special to this control.
-  var githubStarBtn=document.getElementById('githubStarBtn');
-  var githubStarCount=document.getElementById('githubStarCount');
-  if(githubStarBtn && githubStarCount && typeof fetch==='function'){
-    fetch('https://api.github.com/repos/tetrisgm/chiptunes', {
-      headers:{Accept:'application/vnd.github+json'}
-    }).then(function(response){
-      if(!response.ok) throw new Error('GitHub count unavailable');
-      return response.json();
-    }).then(function(repo){
-      if(!Number.isFinite(repo.stargazers_count)) return;
-      var stars=repo.stargazers_count;
-      githubStarCount.textContent=new Intl.NumberFormat(undefined, {
-        notation:stars>=1000?'compact':'standard'
-      }).format(stars);
-      githubStarBtn.setAttribute('aria-label','Star Chiptunes.app on GitHub, '+stars+(stars===1?' star':' stars'));
-    }).catch(function(){});
-  }
   wrap.addEventListener('click', function(ev){ var b=ev.target.closest('.plink'); if(!b) return; ev.preventDefault(); ev.stopPropagation();
     if(typeof _pokeVisualControls==='function') _pokeVisualControls();
     var k=b.dataset.k;
@@ -34760,6 +34777,55 @@ function setMediaMeta(){
 (function(){
   if(typeof document==='undefined' || typeof window==='undefined') return;
   var _gainCv=null, _gainKey='', _gainBuildSeq=0, _mode='gain', _rsT=0;
+  // THE RASTER CAN COME BACK BLANK, AND A BLANK RASTER BAKES TO SOLID WHITE.
+  // cssLayerImg below renders HTML inside an SVG foreignObject through an
+  // <img>. WebKit loads SVG-as-image in secure static mode and does not render
+  // the HTML in it -- and it reports SUCCESS: onload fires with a blank image,
+  // so neither onerror nor the .catch() ever sees a problem. Both layers blank
+  // means as=0 and av=0, every pixel resolves to 255,255,255,255, and what gets
+  // shown is an opaque white canvas over the whole viewport whose only reason
+  // for being invisible is mix-blend-mode:multiply. The moment WebKit drops
+  // that blend -- compositing churn, memory pressure, an iPhone -- the page is
+  // white. Reported from a real iPhone as "sometimes the screen is white, in
+  // Modern mode"; Modern is the only face that shows this layer.
+  // So the build measures its own output and refuses to show a map that has no
+  // darkening anywhere in it, and the legacy divs (which WebKit renders
+  // natively) stay on instead. _gainPending stops the doubled build that
+  // _applyScreenMode's two apply() calls would otherwise start.
+  var _gainBlank=false;
+  // ...AND ON WEBKIT WE DO NOT TAKE THE BET AT ALL.
+  // Read the two layers' failure modes side by side. The legacy divs are BLACK
+  // based -- .scanlines is rgba(0,0,0,.62) stripes at opacity .3, .vignette is
+  // a black radial with no blend mode at all -- so if a blend is dropped they
+  // composite source-over and the picture darkens very slightly. The gain
+  // canvas is the opposite: an OPAQUE, almost entirely WHITE, full-viewport,
+  // z-index-5 canvas whose only reason for being invisible is that
+  // mix-blend-mode:multiply is applied to it. It is the one element on this
+  // page that can turn the screen white, and Modern is the only face that
+  // shows it -- which is the report, exactly.
+  // The gain layer exists as a PERFORMANCE optimisation for the GPU-less Linux
+  // broadcast box (a backdrop copy and two full-screen blends per frame,
+  // ~1.34ms). An iPhone has a GPU. Trading that optimisation, on the one engine
+  // this project cannot profile or reproduce, against "the screen can go
+  // white" is not a close call. Safari gets the legacy divs, which are also
+  // what the gain map is baked FROM, so it is the same picture.
+  // NOTE: Playwright's WebKit is not Safari and shows none of this -- it
+  // rasterises the layers fine and reports blank:false. Do not conclude from a
+  // green Playwright run that the gain path is safe on a phone.
+  //
+  // NOTE: an "only one build in flight per key" guard was tried here to stop
+  // _applyScreenMode's two apply() calls doing the work twice. It broke
+  // crt-diff -- 100% of pixels differing at DPR 2 -- because the two calls do
+  // not always ask for the same key, and suppressing the second left the
+  // overlay built for the wrong one. The doubled build is wasteful and
+  // harmless; this is not the place to fix it.
+  var _forceLegacy=(function(){
+    try{
+      var ua=navigator.userAgent||'';
+      // every browser on iOS is WebKit, so this deliberately catches them all
+      return /AppleWebKit/.test(ua) && !/Chrome\/|Chromium\/|Edg\//.test(ua);
+    }catch(e){ return false; }
+  })();
   // Rasterize a styled block with Chrome's OWN CSS engine (SVG foreignObject -> <img>): gradients,
   // box-shadow AND the engine's gradient dithering come out exactly as the legacy divs render them —
   // hand-recomputing the gradients in canvas measurably diverges (dither noise, kernel differences).
@@ -34793,6 +34859,7 @@ function setMediaMeta(){
       var dw=Math.max(1,Math.round(w*dpr)), dh=Math.max(1,Math.round(h*dpr));
       var out=document.createElement('canvas'); out.width=dw; out.height=dh;
       var o=out.getContext('2d');
+      var darkest=255;
       function layerData(img){ var c=document.createElement('canvas'); c.width=dw; c.height=dh;
         var x=c.getContext('2d'); x.drawImage(img,0,0,dw,dh); return x.getImageData(0,0,dw,dh).data; }
       try{
@@ -34807,6 +34874,7 @@ function setMediaMeta(){
           gd[i+1]=Math.round(((1-as)+as*(sd[i+1]/255))*va*255);
           gd[i+2]=Math.round(((1-as)+as*(sd[i+2]/255))*va*255);
           gd[i+3]=255;
+          if(gd[i]<darkest) darkest=gd[i];
         }
         o.putImageData(G,0,0);
       }catch(e){
@@ -34815,8 +34883,17 @@ function setMediaMeta(){
         o.globalAlpha=_RRR_SCANLINE_STRENGTH; o.globalCompositeOperation='multiply'; o.drawImage(imgs[0],0,0,dw,dh);
         o.globalAlpha=1.0; o.globalCompositeOperation='source-over'; o.drawImage(imgs[1],0,0,dw,dh);   // matches the gain path above
         o.globalAlpha=1; o.globalCompositeOperation='source-over';
+        // this path may have tainted the canvas; if it did we cannot measure,
+        // and an unmeasurable map is trusted rather than thrown away
+        darkest=0;
+        try{
+          var s=o.getImageData(0,0,dw,dh).data;
+          darkest=255; for(var j=0;j<s.length;j+=64){ if(s[j]<darkest) darkest=s[j]; }
+        }catch(e2){ darkest=0; }
       }
-      return out;
+      // A REAL MAP HAS SCANLINES IN IT. Nothing below 250 anywhere means the
+      // two layers rasterized blank and this is a white rectangle.
+      return { cv:out, blank:(darkest>=250) };
     });
   }
   function setMode(m){
@@ -34827,14 +34904,20 @@ function setMediaMeta(){
     // came straight back -- multiply-blended over the panel. It has to know
     // whether the CRT is the screen being shown at all.
     var off = (typeof _screenMode !== 'undefined' && _screenMode !== 'crt');
+    // a blank map is never the shown layer, whatever mode asks for
+    var useGain = (m==='gain') && !_gainBlank;
     var els=document.querySelectorAll('.crt.scanlines,.crt.vignette');
     for(var i=0;i<els.length;i++){
-      els[i].style.display = off ? 'none' : ((m==='gain')?'none':'');
+      els[i].style.display = off ? 'none' : (useGain?'none':'');
       if(els[i].classList.contains('scanlines')) els[i].style.opacity=String(_RRR_SCANLINE_STRENGTH);
     }
-    if(_gainCv) _gainCv.style.display = off ? 'none' : ((m==='gain')?'':'none');
+    if(_gainCv) _gainCv.style.display = (off||!useGain) ? 'none' : '';
   }
   function apply(){
+    // Nothing is built on WebKit: skipping the build also takes three
+    // full-viewport canvases and two rasters per call off a phone that is
+    // already the device most likely to be short of memory.
+    if(_forceLegacy){ _mode='legacy'; _gainBlank=true; setMode('legacy'); window.__rrrCrtReady=true; return; }
     var buildSeq=++_gainBuildSeq;
     // the gain map covers the PICTURE, which now ends above the player bar --
     // baking it to the whole window put its vignette a bar's height too low
@@ -34849,8 +34932,17 @@ function setMediaMeta(){
     var key=w+'x'+h+'@'+dpr+'#'+_RRR_SCANLINE_STRENGTH;
     if(key===_gainKey){ setMode(_mode==='legacy'?'legacy':'gain'); window.__rrrCrtReady=true; return; }
     window.__rrrCrtReady=false;
-    buildGain(w,h,dpr).then(function(built){
+    buildGain(w,h,dpr).then(function(res){
       if(buildSeq!==_gainBuildSeq) return;   // a newer resize/build owns the overlay now
+      if(res.blank){
+        // the engine would not rasterize the layers: keep the CSS divs, which
+        // it renders natively, and never show the white rectangle
+        _gainBlank=true; _gainKey=key; _mode='legacy';
+        if(_gainCv) _gainCv.style.display='none';
+        setMode('legacy'); window.__rrrCrtReady=true; return;
+      }
+      _gainBlank=false;
+      var built=res.cv;
       if(!_gainCv){
         _gainCv=document.createElement('canvas');
         _gainCv.className='crt gain';
@@ -34867,10 +34959,34 @@ function setMediaMeta(){
       _gainKey=key;
       setMode(_mode==='legacy'?'legacy':'gain');
       window.__rrrCrtReady=true;
-    }).catch(function(){ if(buildSeq!==_gainBuildSeq) return; setMode('legacy'); window.__rrrCrtReady=true; });   // fallback: legacy divs stay on
+    }).catch(function(){ if(buildSeq!==_gainBuildSeq) return; _gainBlank=true; _mode='legacy'; setMode('legacy'); window.__rrrCrtReady=true; });   // fallback: legacy divs stay on
   }
-  window.__rrrCrtMode=function(m){ if(m==='gain'){ _mode='gain'; apply(); } else if(m==='legacy'){ _mode='legacy'; setMode('legacy'); window.__rrrCrtReady=true; } return _mode; };
-  window.__rrrSetScanlineStrength=function(v){ v=Number(v); if(!isFinite(v))return _RRR_SCANLINE_STRENGTH; _RRR_SCANLINE_STRENGTH=Math.max(0,Math.min(1,v)); _gainKey=''; apply(); return _RRR_SCANLINE_STRENGTH; };
+  // asking for 'gain' explicitly re-measures: the harness switches modes to
+  // compare them, and a stale blank verdict would silently refuse
+  // Asking for 'gain' explicitly overrides the WebKit default, so the pixel-diff
+  // harness can still compare the two paths on any engine. It only forces a
+  // REBUILD when the map was previously rejected: clearing the key
+  // unconditionally made every switch an async rebuild, and crt-diff -- which
+  // toggles the modes to compare them and is already race-prone at DPR 1 --
+  // started capturing mid-build (blank frames one run, 103 LSB the next).
+  window.__rrrCrtMode=function(m){
+    if(m==='gain'){
+      _mode='gain';
+      if(_gainBlank || _forceLegacy){ _gainBlank=false; _forceLegacy=false; _gainKey=''; }
+      apply();
+    } else if(m==='legacy'){ _mode='legacy'; setMode('legacy'); window.__rrrCrtReady=true; }
+    return _gainBlank ? 'legacy' : _mode;
+  };
+  window.__rrrSetScanlineStrength=function(v){ v=Number(v); if(!isFinite(v))return _RRR_SCANLINE_STRENGTH; _RRR_SCANLINE_STRENGTH=Math.max(0,Math.min(1,v)); _gainKey=''; _gainBlank=false; apply(); return _RRR_SCANLINE_STRENGTH; };
+  // Whether the baked map is real, as opposed to which mode claims to be on.
+  // The white-screen bug was invisible from outside for exactly this reason.
+  window.__rrrCrtDiag=function(){
+    return { mode:_mode, blank:_gainBlank, forceLegacy:_forceLegacy,
+             key:_gainKey,
+             ready:!!window.__rrrCrtReady,
+             gainShown:!!(_gainCv && _gainCv.style.display!=='none'),
+             strength:_RRR_SCANLINE_STRENGTH };
+  };
   window.addEventListener('resize', function(){ _gainBuildSeq++; window.__rrrCrtReady=false; clearTimeout(_rsT); _rsT=setTimeout(apply,150); });
   // BUILT WHEN THE CRT IS ACTUALLY THE FACE, not at module evaluation. The
   // build is two getImageData calls, a putImageData and a JS loop over every

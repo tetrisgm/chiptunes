@@ -2103,22 +2103,29 @@
   var CHIPS = ['happy', 'sad', 'upbeat', 'chill', 'spooky', 'epic', 'retro', 'funky', 'dreamy', 'battle'];
   function buildUI() {
     root.innerHTML =
+      // THE ASK COMES FIRST. Writing a song is what this screen is for; Undo,
+      // Redo and the three exports are what you do to one afterwards, so they
+      // sat above the reason to be here.
+      '<div class="n-moodrow"><span class="n-moodlab">Write me a song that is…</span>' +
+        '<span class="n-moodchips">' +
+        CHIPS.map(function (c) { return '<button type="button" class="cr-chip" data-mood="' + c + '">' + c + '</button>'; }).join('') +
+        '</span></div>' +
+      // ONE ROW THAT SCROLLS, not a wrapping block. Five pills do not fit
+      // across a phone, and wrapping them cost a whole line of a screen that
+      // is mostly song. This is the same nowrap + overflow-x treatment the
+      // mood row above already uses.
       '<div class="n-utils">' +
         '<button type="button" class="cr-btn" data-cr="undo">↩ Undo</button>' +
         '<button type="button" class="cr-btn" data-cr="redo">↪ Redo</button>' +
         '<button type="button" class="cr-btn cr-dl" data-cr="share">' + _ic('share') + 'Copy link</button>' +
         '<button type="button" class="cr-btn cr-dl" data-cr="wav">' + _ic('wave') + 'Download WAV</button>' +
         '<button type="button" class="cr-btn cr-dl" data-cr="rom">' + _ic('rom') + 'Download ROM</button>' +
-        // CLOSE IS AN X IN THE CORNER, not a labelled button in the wrapping
-        // utility row. It is the one control that leaves, every sheet on a
-        // phone puts it top-right, and as a worded pill it wrapped onto a
-        // second line where it read as one more export action.
-        '<button type="button" class="cr-btn cr-close" data-cr="close" title="Close the editor and go back to the game" aria-label="Close the editor"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg><span>Back to game</span></button>' +
       '</div>' +
-      '<div class="n-moodrow"><span class="n-moodlab">Write me a song that is…</span>' +
-        '<span class="n-moodchips">' +
-        CHIPS.map(function (c) { return '<button type="button" class="cr-chip" data-mood="' + c + '">' + c + '</button>'; }).join('') +
-        '</span></div>' +
+      // CLOSE IS AN X IN THE CORNER, not a labelled button in the utility row.
+      // It is the one control that LEAVES, every sheet puts it top-right, and
+      // as a worded pill it read as one more export action. Outside both rows
+      // so it can be pinned to the sheet rather than carried by a flex line.
+      '<button type="button" class="cr-btn cr-close" data-cr="close" title="Close the editor and go back to the game" aria-label="Close the editor"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg><span>Back to game</span></button>' +
       '<div class="n-mid">' +
         '<div class="n-side">' +
           '<div class="n-sidehead"></div>' +
