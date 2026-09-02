@@ -124,15 +124,16 @@ bot list to maintain.
 **The `stream` count is almost entirely BOTS — measured, 2026-09-02.** The
 broadcaster was temporarily patched to log user-agent and `cf-connecting-ip` on
 connect, watched for 150s, and restored (md5 back to `85453af…`). What was
-actually connected:
+actually connected (addresses deliberately generalised — `docs/` is published
+to the website, and one of these was a residential connection):
 
 | user-agent | ip | share |
 | --- | --- | --- |
-| `hackney/1.21.0` | 65.108.235.185 (Hetzner FI) | ~13 of 25 — the dominant source |
-| `GlobradioHarvester/1.0 (+globradio.com)` | 35.158.29.84 | directory harvester |
-| `ClaudeBot/1.0` | 216.73.216.198 | AI crawler |
-| `NSPlayer/12.00` (Windows Media Player) | 159.26.100.223 | checker or listener |
-| `Mozilla/5.0` | 174.57.151.78 (US residential) | possibly a real person |
+| `hackney/1.21.0` | a Hetzner (FI) host | ~13 of 25 — the dominant source |
+| `GlobradioHarvester/1.0 (+globradio.com)` | AWS eu-central | directory harvester |
+| `ClaudeBot/1.0` | datacentre | AI crawler |
+| `NSPlayer/12.00` (Windows Media Player) | datacentre | checker or listener |
+| `Mozilla/5.0` | a US residential ISP | possibly a real person |
 | `curl/8.5.0` | 127.0.0.1 | our own watchdog |
 | — | 2a06:98c0:3600::103 (Cloudflare) | our own monitor Worker |
 
