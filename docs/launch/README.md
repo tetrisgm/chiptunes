@@ -17,42 +17,81 @@ turn the music into a second-screen visualizer.
 
 **Submission URL:** `https://chiptunes.app`
 
-**Title:** `Show HN: Chiptunes.app – automatic Game Boy songs, editable and exportable as cartridges`
+**Title:** `Show HN: A Game Boy sound chip in the browser that exports real cartridges`
+
+74 characters. HN truncates at 80, which the previous title (88) would have hit.
+Alternate, if the verification angle is preferred as the hook:
+`Show HN: Browser Game Boy music, verified to match the cartridge it compiles` (76).
 
 **First comment:**
 
-I built Chiptunes.app to answer a narrow question: could a browser compose a
-complete Game Boy song automatically, play it through an emulation of the
-original four-channel sound chip, and then export the same arrangement as a
-cartridge?
+I wanted to know whether a browser could compose a complete Game Boy song, play
+it through an emulation of the sound chip at the level of its hardware
+registers, and then compile the same score into a cartridge that boots on the
+real machine. Chiptunes.app is the answer to that.
 
-Pick a mood and it writes a finite song—not an endless loop—while one of fourteen
-original games plays itself to the beat. You can open the tracker and change
-every note, instrument, and effect, then share a link, download a WAV, or export
-a 32 KB `.gb` file.
+The part I would point another developer at is the verification. The browser
+player and the cartridge are not two implementations that happen to sound
+alike. A test plays a score carrying every kind of automation through the Web
+Audio worklet and through the cartridge driver executing on an emulated CPU,
+then asserts that every APU register receives the same values, on the same
+frames, in the same order. A second gate compares the two spectrally. Getting a
+note wrong in one and not the other fails the build instead of shipping as a
+difference nobody notices until a cartridge sounds wrong on hardware.
 
-The browser player, WAV renderer, cartridge exporter, radio, and visualizers all
-use one built artifact rather than separate implementations. The source includes
-tests that compare the browser and cartridge register schedules:
-https://github.com/tetrisgm/chiptunes
+The drums were the interesting problem. The DMG has one sample buffer, 32
+nibbles of wave RAM, so a sampled kit is played by rewriting that buffer while
+channel 3 runs. Channel 3 steps its nibbles at 4194304/((2048-period)*2), so
+period 1792 is exactly 8192 Hz and one buffer lasts exactly 1/256 s. The
+cartridge refills it from the timer interrupt, where the 4096 Hz clock with
+TMA=240 fires exactly 256 times a second. The sample clock and the refill clock
+are the same clock, so nothing drifts. Refilling once a frame instead, which
+needs no interrupts, gives 1911 Hz for 955 Hz of bandwidth: muffled thuds, no
+click, no sizzle. Supporting the interrupt meant teaching the CPU emulator
+interrupts, the timer and six more opcodes, and giving the driver an ISR at the
+$0050 vector. A kit hit steals the bass voice for its length, as it does on
+hardware and in LSDJ.
 
-You can try it without an account: https://chiptunes.app
+The composer is deterministic and single pass: one token in, one score out, no
+randomness from the clock or the network, and no generating several songs and
+keeping the best. A song is a document rather than a recording, so a shared link
+carries the entire arrangement packed into the URL fragment, which browsers
+never send to a server. Sharing has no database behind it and stores nothing.
 
-I would especially value feedback on the musical output, the tracker, and how
-clearly the landing page explains what is actually happening.
+For a listener: pick a mood and it writes a finite arrangement rather than a
+loop, then another. Open the tracker and every note, instrument and effect is
+editable. Take it away as a link, a WAV, or a 32 KB .gb file. Fourteen
+self-playing games read shared beat and energy data as visualizers.
+
+Try it, no account needed: https://chiptunes.app
+Source, including the tests above: https://github.com/tetrisgm/chiptunes
+
+I would most value feedback on the musical output, and from anyone who runs an
+exported cartridge on real hardware. If a song sounds wrong on a device I have
+not tried, I would like to hear which one.
 
 **Useful answers for the thread:**
 
-- The composer generates a finite score from a seed. It does not stream model
-  output or choose among multiple production candidates.
-- Browser audio and the exported cartridge follow the same note and register
-  schedule. The test gate requires render-parity correlation of at least 0.995.
-- The `.gb` export is a 32 KB ROM-only cartridge image and boots on compatible
-  hardware or an emulator.
-- The fourteen visualizers are original, generic game implementations. They
-  consume shared beat and energy data; they do not generate the music.
-- The site is free, public-source, usable without an account, and does not send
-  song-generation requests to a server.
+- `npm test` runs 20 gates. `test:automation` is the register-order comparison;
+  `test:rom-audio` and `test:kit` compare the two engines spectrally
+  (the kit agrees to 0.9918 correlation at 1.34 dB a band); `test:render-parity`
+  requires at least 0.995 correlation between the offline render and live
+  playback. The three heavier ones run outside `npm test` because they render
+  audio through both engines.
+- The composer generates a finite score from a token. It does not stream model
+  output and does not choose among candidates in production. The style pattern
+  pools are distilled offline from a 74,552-file game-music MIDI corpus.
+- The `.gb` export is a 32 KB ROM-only image. The cartridge carries 32 wave
+  tables, four register bytes per note, and no instrument table.
+- Yes, it drives real hardware: the cartridge is a normal ROM, and the driver
+  is the same one the parity tests execute on the CPU emulator.
+- The fourteen visualizers are original, generic implementations. They consume
+  beat and energy data and never generate music. The Game Boy LCD and NES
+  composite screens are WebGL shader pipelines.
+- Free, public-source, usable without an account. Songs are composed in your
+  browser, not on a server.
+- Game Boy is a trademark of Nintendo. This is an independent project, not
+  affiliated with or endorsed by Nintendo.
 
 ## Product Hunt
 
@@ -157,8 +196,10 @@ and is not affiliated with or endorsed by Nintendo.
   thumbnail.
 - [x] Product copy, maker comment, Show HN copy, technical answers, and launch
   monitoring steps are prepared here.
-- [ ] Physical iPhone and Android checks. The attached iPhone and iPad were
-  offline during the 2026-09-01 gate; no Android device was attached.
+- [x] Physical iPhone checks. The owner verified the deployed build on a real
+  iPhone on 2026-09-02: the phone player bar, the Create sheet, the credit, the
+  centred landing hero, the per-track screen-face re-roll, and the fix for the
+  white screen in Modern mode. Android is still unchecked; no device attached.
 - [x] The demo is uploaded to YouTube as an unlisted, non-private video and its
   full URL is recorded above.
 - [ ] Create or schedule the Product Hunt draft.
