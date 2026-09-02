@@ -1,51 +1,103 @@
 # Chiptunes.app
 
-Create or listen to complete Game Boy songs—composed automatically in your
-browser and played through an emulation of the original sound chip.
+A register-level emulation of the Game Boy sound chip in the browser, a
+composer that writes complete songs for it, and an exporter that turns any of
+them into a 32 KB cartridge that boots on real hardware.
+
+The browser and the cartridge are not two implementations of the same music.
+They are checked against each other: the same register writes, on the same
+frames, in the same order.
 
 **[Open Chiptunes.app](https://chiptunes.app)** ·
-**[Take the radio with you](https://chiptunes.app/radio)**
+**[Take the radio with you](https://chiptunes.app/radio)** ·
+**[How it works](docs/how-it-works.md)**
 
 ![Chiptunes.app](https://chiptunes.app/og.png)
 
-## What it does
+## The engineering
 
-- **Creates complete songs automatically.** Choose a mood and the composer
-  writes a finite arrangement—not a loop—from pulse and wave instruments,
-  noise, sampled drums, pitch sweeps, slides, arpeggios, and effects. When it
-  ends, another begins.
-- **Lets you make the result yours.** Open the tracker to edit every note,
-  instrument, and effect, or begin with an empty song. Share the result as a
-  link, WAV, or cartridge.
-- **Models the original sound hardware.** Every note runs through a
-  register-level emulation of the four-channel DMG audio processor. A song can
-  be exported as a 32 KB `.gb` cartridge that boots on compatible hardware.
-- **Turns listening into a visualizer.** Fourteen original, self-playing games
-  react to the shared beat and energy data. Game Boy LCD and NES-style video
-  pipelines reconstruct their characteristic displays with custom shaders.
-- **Plays outside the website.** The live radio works in the browser, radio
-  apps, desktop players, phones, and cars through a stable MP3 stream, M3U and
-  PLS endpoints, Media Session metadata, and an Apple Broadcasts link.
+**The chip is emulated at the registers, twice, and the two are compared.**
+Every note becomes writes to `$FF10`–`$FF3F`: duty, envelope, the sweep unit on
+channel 1, the wave table on channel 3, the LFSR on channel 4. The browser
+runs those through a Web Audio worklet; the cartridge runs them through a
+driver executing on an emulated CPU. `npm run test:automation` plays a score
+carrying every kind of automation through both and asserts that each register
+receives the same values **in the same order** — not merely a similar sound.
+`npm run test:rom-audio` then compares the two spectrally.
 
-## How it works
+**Sampled drums are 4-bit PCM on channel 3, and the rate is chosen rather than
+rounded.** The DMG has one DAC — 32 nibbles of wave RAM — so a sample is played
+by rewriting that buffer while the channel runs. Channel 3 steps its nibbles at
+`4194304 / ((2048 - period) * 2)`, so period 1792 is exactly 8192 Hz and one
+buffer lasts exactly 1/256 s. The cartridge refills it from the **timer
+interrupt**: the 4096 Hz clock with `TMA = 240` fires exactly 256 times a
+second. The sample clock and the refill clock are the same clock, so nothing
+drifts. Refilling once per frame instead — the obvious approach, no interrupts
+needed — would have sampled at 1911 Hz for 955 Hz of bandwidth: muffled thuds,
+no click, no sizzle.
+
+Getting that working meant teaching the CPU emulator interrupts, the timer and
+six more opcodes, and giving the driver an ISR at the `$0050` vector. A kit hit
+steals the bass voice for its length, exactly as it does on hardware and in
+LSDJ. `npm run test:kit` plays every drum through both paths and compares
+spectrograms — they agree to 0.9918 correlation, 1.34 dB a band, and the two
+clocks are asserted to be exactly in step.
+
+**The composer is deterministic and single-pass.** One token in, one score out,
+with no ambient randomness, no clock, no network and no best-of-N scoring
+anywhere in the production path. The same document always produces the same
+notes, the same timing and the same register schedule.
+
+**Songs are documents, and a shared link carries the whole one** — packed into
+the URL fragment, which browsers never send to a server. There is no database
+behind sharing, nothing stored, and nothing to moderate. The station and the
+tracker play the same document, so "edit what I am hearing" is that song note
+for note rather than an approximation of it.
+
+**Fourteen visualizers, and two display pipelines.** The games play themselves
+from shared beat and energy data and never compose anything. The Game Boy LCD
+and NES composite screens are WebGL shader pipelines that reconstruct the
+artifacts of the real displays.
+
+**One artifact.** The website, the WAV renderer, the cartridge exporter, the
+radio stream and the video renderer are the same build. There is no per-target
+fork to drift.
+
+## Verification
+
+`npm test` runs 20 gates. Most of them exist because the thing they check was
+once wrong, and the comment above each one says what went wrong.
+
+| gate | what it holds | in `npm test` |
+| --- | --- | --- |
+| `test:automation` | every register write lands on the same frame, in the same order, in both players | yes |
+| `test:song-document` | a song materialised from a document is the same song, note for note | yes |
+| `test:share` | a shared link is the same song from either side | yes |
+| `test:sync` | the picture sits on the sound, corrected for measured output latency | yes |
+| `test:screens` | all three screen faces actually draw, and sleeping one frees its GPU targets | yes |
+| `test:rom-audio` | browser chip vs. the ROM executing on the emulated CPU, spectrally | run on its own |
+| `test:kit` | sampled drums match across both paths; the sample and refill clocks are in step | run on its own |
+| `test:render-parity` | offline render matches live playback to ≥ 0.995 correlation | run on its own |
+
+The three heavier comparisons render audio through both engines, so they are
+run separately rather than on every pass.
+
+`npm test` is a manual command. Nothing in this repository builds, signs,
+publishes or deploys on a trigger.
+
+## What you get as a listener
+
+Pick a mood and it writes a complete song — a finite arrangement, not a loop —
+then another. Open the tracker and every note, instrument and effect is
+editable. Take the result away as a link, a WAV, or a `.gb` cartridge. The live
+radio plays in browsers, radio apps, desktop players and cars over a stable MP3
+stream with M3U and PLS endpoints.
 
 ```text
 seed -> composer -> score -> emulated DMG audio -> speakers / WAV / cartridge
                       |
                    beat + energy -> self-playing game -> display pipeline
 ```
-
-The composer is deterministic: the same song document produces the same notes,
-timing, and chip-register schedule. Shared song links carry that document, so
-someone opening the link hears the song you shared rather than a newly generated
-replacement.
-
-The browser player, exported audio, cartridge, desktop build, stream, and video
-renderer all use the same built artifact. Browser and cartridge output are
-checked for render parity rather than maintained as separate implementations.
-
-The full technical tour lives in
-[docs/how-it-works.md](docs/how-it-works.md).
 
 ## Run it locally
 
@@ -59,9 +111,9 @@ The production artifact is written to `dist/`.
 
 ## Project status
 
-Chiptunes.app is an independent product experiment by Shokunin. The source is
-public so the composition, emulation, visualizers, export path, and verification
-harness can be inspected and improved.
+An independent product experiment by Shokunin. The source is public so the
+composition, emulation, visualizers, export path and verification harness can
+be inspected and improved.
 
 Game Boy is a trademark of Nintendo. Chiptunes.app is an independent project
 and is not affiliated with or endorsed by Nintendo.
