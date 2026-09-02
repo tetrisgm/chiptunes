@@ -51,9 +51,10 @@
     "test:generated-transitions": "node scripts/verify-generated-transitions.js",
     "test:sync": "node scripts/verify-sync.js",
     "test:chrome": "node scripts/verify-chrome.js",
-    "test": "node build.js && node scripts/verify-automation.js && node scripts/verify-rom.js && node scripts/verify-song-document.js && node scripts/verify-create-handover.js && node scripts/verify-frame-pacing.js && node scripts/verify-share.js && node scripts/verify-rhythm.js && node scripts/verify-ribbon.js && node scripts/verify-mood-constraints.js && node scripts/verify-export-boundaries.js && node scripts/verify-entry.js && node scripts/verify-radio-promotion.js && node scripts/verify-generated-transitions.js && node scripts/verify-sync.js && node scripts/verify-chrome.js && node scripts/verify-latency.js && node scripts/verify-screens.js && node scripts/smoke-generated-seeds.js && node scripts/smoke-games.js && node scripts/audit-music-driven.js",
+    "test": "node build.js && node scripts/verify-automation.js && node scripts/verify-rom.js && node scripts/verify-song-document.js && node scripts/verify-create-handover.js && node scripts/verify-frame-pacing.js && node scripts/verify-share.js && node scripts/verify-rhythm.js && node scripts/verify-ribbon.js && node scripts/verify-mood-constraints.js && node scripts/verify-export-boundaries.js && node scripts/verify-entry.js && node scripts/verify-radio-promotion.js && node scripts/verify-generated-transitions.js && node scripts/verify-sync.js && node scripts/verify-chrome.js && node scripts/verify-api.js && node scripts/verify-latency.js && node scripts/verify-screens.js && node scripts/smoke-generated-seeds.js && node scripts/smoke-games.js && node scripts/audit-music-driven.js",
     "test:latency": "node scripts/verify-latency.js",
-    "test:screens": "node scripts/verify-screens.js"
+    "test:screens": "node scripts/verify-screens.js",
+    "test:api": "node scripts/verify-api.js"
   },
   "dependencies": {
     "node-web-audio-api": "2.0.0"
@@ -62,5 +63,8 @@
     "pixelmatch": "^7.2.0",
     "playwright": "^1.61.1",
     "pngjs": "^7.0.0"
+  },
+  "bin": {
+    "chiptunes": "./bin/chiptunes.js"
   }
 }

@@ -2790,6 +2790,32 @@
     songFrom: songFrom,
     songOf: songOf,
     moodSong: moodSong,
+    // THE AGENT SURFACE, and the only two things it needs from in here: a
+    // document as plain state, and plain state back as a document. src/api.js
+    // builds the readable JSON on top of these so an agent edits named lanes
+    // and note names rather than a 10,000-character packed string. Copies in
+    // and out, so nothing an agent hands us can alias the editor's live state.
+    docState: function (code) {
+      var st = decode(String(code || ''));
+      return st ? JSON.parse(JSON.stringify(st)) : null;
+    },
+    docFromState: function (state) {
+      var out = null;
+      try {
+        withState(JSON.parse(JSON.stringify(state)), function () { out = encode(); });
+      } catch (e) { out = null; }
+      return out;
+    },
+    // the tables an agent has to obey, read off the same constants the editor uses
+    tables: function () {
+      return {
+        lanes: CH.map(function (c, i) { return { index: i, name: c.n, stamp: c.stamp }; }),
+        drums: DRUMS.map(function (d) { return d.id; }),
+        stamps: STAMPS.map(function (s) { return { id: s.id, channel: s.ch }; }),
+        grids: GRIDS.slice(),
+        melodicRows: MEL_ROWS, drumLanes: DRUM_LANES
+      };
+    },
     openBlank: openBlank,
     moods: function () { return CHIPS.slice(); },
     _dbg: function () {

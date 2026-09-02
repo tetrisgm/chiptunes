@@ -1909,3 +1909,56 @@ after — eg it plays in game boy for every song".
   (That assertion also had to be repaired: it measured the first two `.plink`s,
   which worked only because the How-it-works button happened to be first. It
   measures `.plrow` gaps now, which is what "breathing room" means.)
+
+# 2026-09-02 — The agent surfaces
+
+Four faces of one API, so a program (or a model) can make songs without a
+browser, and drive the running page when there is one.
+
+- **THE WHOLE PIPELINE ALREADY RAN HEADLESS**, which is why this is exposure
+  rather than new machinery: `create.js`, `composer.js`, `seed.js`, `gb-rom.js`
+  and `gb-apu.js` all `require()` in plain Node. Compose → document → cartridge
+  → rendered audio works with no DOM. What was missing was a CONTRACT.
+- **`src/api.js`** — the versioned facade: `capabilities`, `compose`, `load`,
+  `toJSON`, `fromJSON`, `validate`, `describe`, `buildCartridge`, `renderWav`,
+  `shareUrl`. Documents in, documents out; the editor's underscore-private
+  internals stay private.
+- **`bin/chiptunes.js`** — the CLI over the same facade (`npx chiptunes`).
+- **`mcp/server.js`** — MCP over stdio, hand-rolled JSON-RPC rather than an SDK
+  dependency (this repo has one runtime dependency and the protocol needed is
+  three methods). Two ergonomics decisions that matter: songs are held by SHORT
+  ID because a document is ~10k characters and returning one per call burns the
+  caller's context, and `song_to_json` is PAGED BY BAR so an agent can work a
+  section at a time.
+- **`src/webmcp.js`** — `window.chiptunes` plus `navigator.modelContext`
+  registration when the browser has it. This drives the live SESSION (now
+  playing, transport, moods, editor, screen), which is a different job from
+  making tracks.
+- **`create.js` gained three agent hooks only**: `docState`, `docFromState`,
+  `tables`. Everything readable is built on those in `api.js`.
+
+- ⚠️ **`Audio` IS A LEXICAL const IN THE BUNDLE, NOT A WINDOW PROPERTY**, and
+  `webmcp.js` walked straight into it: `G.Audio` resolves to the browser's
+  native `HTMLAudioElement` constructor, which has no `currentDoc` and no
+  `playDoc`, so it returned nothing instead of throwing. The page reported "no
+  song" while a song was playing. Use the bare name behind a `typeof` guard.
+  This is the trap already recorded further up this file; it caught me anyway.
+- A hand-authored song round-trips JSON → document → JSON **losslessly**, and
+  re-encoding the read-back gives the identical document. Composed songs lose a
+  few notes to the projection rules, which is expected and documented.
+- `npm run test:api` holds all of it: the surface, determinism, the round trip,
+  the error text (which IS the interface an agent iterates on), a cartridge with
+  a real boot logo and header checksum, an audible WAV, the MCP protocol over a
+  real stdio process, and the in-page tools with a stubbed `modelContext`.
+
+- **`verify-entry` has a low-rate timing flake**: `pressing play starts one
+  anyway` clicks play, waits 3.5s and samples the audio peak. Seen failing once
+  in nine runs, and nothing in this change touches playback. Re-run before
+  believing it, like `verify-create-handover` and `verify-export-boundaries`.
+
+- **`docs/AGENT_VOCABULARY.md` is the plan for the next layer**: what a producer
+  actually says ("make it happier", "repeat the melody", "the drums are too
+  busy"), mapped to a vocabulary of named deterministic transforms, plus the
+  compound-word recipes so a model applies "happier" the same way twice. The
+  division of labour is deliberate — the model understands, the API provides the
+  verbs. Nothing of it is built yet.

@@ -52,6 +52,7 @@ const ORDER = [
   'src/live.js',        // the shared broadcast schedule (pure fn of wall clock; needs Song + CT_COMPOSERS)
   'src/audio.js',
   'src/radio.js',
+  'src/webmcp.js',      // window.chiptunes + WebMCP tools: an agent driving the live page
   'src/helpers.js',
   'src/visualizer.js',
   'src/sprites.js',
