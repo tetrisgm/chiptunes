@@ -121,6 +121,11 @@ function capabilities() {
     gameGenres: Object.keys(WORD_GAME_GENRES),
     forms: Object.keys(WORD_FORMS),
     techniques: Object.keys(WORD_TECHNIQUES),
+    tempo: {
+      reachable: CT_CREATE.tempos ? CT_CREATE.tempos(16) : [],
+      note: 'A ladder, not a range. A step lasts a WHOLE number of frames on this hardware, so only these tempi exist; asking for one in between gives you the nearest rung. The gaps widen as it gets faster, which is a property of the machine rather than a choice.',
+      groove: 'Tempi off the plain ladder are reached with a GROOVE -- a short repeating list of tick counts, like [6,7,6,7]. The same mechanism carries swing. describe() reports the groove a song plays.'
+    },
     meter: 'Everything is in four. There is no time-signature dial, so a waltz is not expressible and asking for one says so rather than pretending.',
     titles: REF && REF.names ? REF.names() : [],
     references: 'Naming a game from `titles` is READ AS a genre description -- genre, styles, major/minor, a tempo band, a mood, one technique -- and the reading is always said back so you can disagree with it. It is not an imitation: nothing here is trained on or derived from anybody else\'s music, and a title can only set dials you could type yourself. A name that is not on the list is REFUSED rather than quietly ignored, because it maps to nothing at all.',
@@ -340,7 +345,15 @@ function describe(doc) {
   var rom = null;
   try { rom = GB_ROM.buildRom({ gb: gb, name: song.title || 'SONG' }).length; } catch (e) { rom = null; }
   return {
-    title: song.title || '', bpm: song.bpm, bars: song.bars,
+    title: song.title || '', bpm: song.bpm,
+    // The tick pattern the song actually plays. bpm is the average of it; the
+    // groove is what the machine is really doing, and for a swung or
+    // between-the-rungs tempo the average alone does not describe it.
+    groove: (function () {
+      try { var s2 = CT_CREATE.docState(typeof doc === 'string' ? doc : fromJSON(doc));
+            return s2 && s2.groove ? s2.groove.slice() : null; } catch (e) { return null; }
+    })(),
+    bars: song.bars,
     seconds: +(gb.totalFrames / fps).toFixed(2),
     notes: gb.notes.length,
     perLane: { Melody: perLane[0], Harmony: perLane[1], Bass: perLane[2], Drums: perLane[3] },

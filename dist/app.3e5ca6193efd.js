@@ -2826,12 +2826,93 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     var d = (MEL_ROWS - 1) - r;              // degree from the bottom
     return 48 + S.key + scaleArr()[d % 7] + 12 * Math.floor(d / 7);
   }
-  // frames in ONE STEP -- a bar is four beats however many steps it is cut into
-  function framesPer16() { return (60 / S.bpm) * 4 / spb() * FPS; }
+  // ---- TIME IS TICKS, AND A GROOVE IS THE ONLY WAY TO BEND IT --------------
+  //
+  // The hardware has no fractional frames. A step lasts an INTEGER number of
+  // them. That is not a simplification, it is the whole timing model of every
+  // Game Boy tracker, because it is the only thing the machine can do.
+  //
+  // This used to be a float: framesPer16() returned 6.27 and colFrame() rounded
+  // the running total, so a "6.27 frame step" was really some steps of 6 frames
+  // and some of 7, in whatever pattern the rounding happened to produce. That is
+  // swing nobody asked for, it drifted with tempo, and it meant our tempi were
+  // not reachable on the machine at all -- measured across 40 songs, only 7 sat
+  // within a tenth of a frame of an integer step.
+  //
+  // A GROOVE is that unevenness made deliberate: a short repeating list of tick
+  // counts. It is how a tracker reaches a tempo between the rungs of the ladder,
+  // and it is how feel is expressed. Both jobs, one mechanism.
+  //
+  // Four steps is the longest groove used here on purpose. It gives quarter-of-
+  // a-frame resolution on tempo, which is finer than the ear, and it stays a
+  // pattern you could read off a screen. Eight would reach finer tempi and start
+  // to sound like a limp.
+  // k of the four steps are one tick longer, spread rather than bunched.
+  function grooveSpread(base, k) {
+    if (k <= 0) return [base];
+    if (k >= 4) return [base + 1];
+    var g = [];
+    for (var i = 0; i < 4; i++)
+      g.push(Math.floor((i * k) / 4) !== Math.floor(((i + 1) * k) / 4) ? base + 1 : base);
+    return g;
+  }
+  // CHOSEN BY SEARCH, not by arithmetic, because the answer has to be a tempo
+  // the DOCUMENT can hold as well as one the machine can play. Rounding
+  // straight to the nearest groove put bpm 70 on a 32nd grid at 68.9, which is
+  // below the storable minimum -- the header wrote a negative offset, it wrapped
+  // through the mask, and the song came back at 179. So: enumerate the grooves
+  // around the target, discard any whose tempo cannot be represented, and keep
+  // the closest of what remains.
+  function grooveFor(bpm, swing, stepsPerBar) {
+    var want = (60 / bpm) * 4 / stepsPerBar * FPS;      // frames per step, real
+    var best = null, cand = [], i, k, b;
+    if (swing) {
+      // A shuffle is a long-short PAIR, defined on the pair rather than on the
+      // average, so it keeps its character at every tempo.
+      for (i = -1; i <= 1; i++) {
+        var pair = Math.max(4, Math.round(want * 2) + i);
+        var lng = Math.max(2, Math.round(pair * 0.62));
+        cand.push([lng, Math.max(2, pair - lng)]);
+      }
+    } else {
+      for (var base = Math.max(2, Math.floor(want) - 1); base <= Math.floor(want) + 1; base++)
+        for (k = 0; k <= 4; k++) cand.push(grooveSpread(base, k));
+    }
+    for (i = 0; i < cand.length; i++) {
+      b = bpmOfGroove(cand[i], stepsPerBar);
+      if (b < 70 || b > 180) continue;                  // the header cannot carry it
+      var d = Math.abs(b - bpm);
+      if (!best || d < best.d) best = { g: cand[i], d: d };
+    }
+    return best ? best.g : [Math.max(2, Math.round(want))];
+  }
+  function groove() {
+    if (!S._groove || S._groove.bpm !== S.bpm || S._groove.sw !== S.swing || S._groove.spb !== spb())
+      S._groove = { bpm: S.bpm, sw: S.swing, spb: spb(), g: grooveFor(S.bpm, S.swing, spb()) };
+    return S._groove.g;
+  }
+  // The TRUE tempo of a groove, which is what the song actually plays at. A
+  // document may carry any bpm; what it gets is the nearest one the machine can
+  // hold, and reporting the asked-for number instead of the played one is how a
+  // player comes to disagree with its own clock.
+  function bpmOfGroove(g, stepsPerBar) {
+    var sum = 0;
+    for (var i = 0; i < g.length; i++) sum += g[i];
+    return (240 * FPS) / (stepsPerBar * (sum / g.length));
+  }
+  // frames in ONE STEP -- the average over the groove, for note lengths
+  function framesPer16() {
+    var g = groove(), sum = 0;
+    for (var i = 0; i < g.length; i++) sum += g[i];
+    return sum / g.length;
+  }
   function colFrame(c) {
-    var f = c * framesPer16();
-    if (S.swing && (c % 4) >= 2) f += 0.28 * framesPer16();   // swung eighth pair
-    return Math.round(f);
+    var g = groove(), n = g.length, sum = 0, i;
+    for (i = 0; i < n; i++) sum += g[i];
+    c = c | 0;
+    var f = Math.floor(c / n) * sum, rem = c % n;
+    for (i = 0; i < rem; i++) f += g[i];
+    return f;                                            // already an integer
   }
   // WHERE A NOTE ACTUALLY STARTS. The grid is where you place notes by hand;
   // a note may also carry an offset in frames, which is how a composed song
@@ -3094,8 +3175,13 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     // v13: the TITLE rides inside the document. Names are derived from a token
     // and a document has no token, so without this a song opens under a
     // different name than the one the sender was looking at when they shared it.
-    var out = [13, S.key, S.minor, S.bars & 63, (S.bpm - 70) & 63,
-               S.swing | (((S.bpm - 70) >> 6) << 1), (S.bars >> 6) & 63,
+    // A DOCUMENT IS BORN ON THE LADDER. Snapping only on the way in would mean
+    // encode(decode(x)) !== x for anything written with a tempo the machine
+    // cannot hold -- the document would keep changing every time it was opened.
+    // Snapping here makes the round trip a fixed point instead.
+    var bpm = Math.round(bpmOfGroove(grooveFor(S.bpm, S.swing, spb()), spb()));
+    var out = [13, S.key, S.minor, S.bars & 63, (bpm - 70) & 63,
+               S.swing | (((bpm - 70) >> 6) << 1), (S.bars >> 6) & 63,
                Math.max(0, GRIDS.indexOf(spb()))];
     var t = String(S.title || '').slice(0, 48);
     out.push(t.length & 63);
@@ -3147,6 +3233,13 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
                           : Math.max(70, Math.min(180, ver >= 5 ? 70 + v[4] * 2 : v[4] * 2));
       st2.swing = v[5] & 1;
       st2.grid = ver >= 12 ? (GRIDS[v[7]] || 16) : ver >= 9 ? (GRIDS[v[6]] || 16) : 16;
+      // TEMPO IS SNAPPED TO WHAT THE MACHINE CAN ACTUALLY HOLD. A document may
+      // carry any bpm; what it gets is the nearest groove the hardware can play,
+      // and the state has to report the tempo it PLAYS rather than the one it was
+      // asked for. Reporting the asked-for number is how a player comes to
+      // disagree with its own clock.
+      st2.groove = grooveFor(st2.bpm, st2.swing, st2.grid);
+      st2.bpm = Math.round(bpmOfGroove(st2.groove, st2.grid));
       var head = ver >= 12 ? 8 : ver >= 9 ? 7 : 6;
       if (ver >= 13) {                       // the title block, then the cells
         var tn = v[head] | 0, tt = '';
@@ -5390,6 +5483,23 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
         withState(JSON.parse(JSON.stringify(state)), function () { out = encode(); });
       } catch (e) { out = null; }
       return out;
+    },
+    // WHAT TEMPI EXIST. Not a range: a ladder. A step lasts a whole number of
+    // frames, so only some tempi are playable, and a caller that asks for one
+    // between the rungs gets the nearest rung rather than an error.
+    tempos: function (grid) {
+      grid = GRIDS.indexOf(grid | 0) >= 0 ? (grid | 0) : 16;
+      var seen = {}, out = [];
+      for (var b = 70; b <= 180; b++) {
+        var t = Math.round(bpmOfGroove(grooveFor(b, 0, grid), grid));
+        if (!seen[t]) { seen[t] = 1; out.push(t); }
+      }
+      return out.sort(function (a, b2) { return a - b2; });
+    },
+    // The groove a tempo resolves to: the tick count of each step, repeating.
+    grooveOf: function (bpm, swing, grid) {
+      grid = GRIDS.indexOf(grid | 0) >= 0 ? (grid | 0) : 16;
+      return grooveFor(Math.max(70, Math.min(180, bpm | 0)), swing ? 1 : 0, grid).slice();
     },
     // the tables an agent has to obey, read off the same constants the editor uses
     tables: function () {
@@ -8904,6 +9014,11 @@ function capabilities() {
     gameGenres: Object.keys(WORD_GAME_GENRES),
     forms: Object.keys(WORD_FORMS),
     techniques: Object.keys(WORD_TECHNIQUES),
+    tempo: {
+      reachable: CT_CREATE.tempos ? CT_CREATE.tempos(16) : [],
+      note: 'A ladder, not a range. A step lasts a WHOLE number of frames on this hardware, so only these tempi exist; asking for one in between gives you the nearest rung. The gaps widen as it gets faster, which is a property of the machine rather than a choice.',
+      groove: 'Tempi off the plain ladder are reached with a GROOVE -- a short repeating list of tick counts, like [6,7,6,7]. The same mechanism carries swing. describe() reports the groove a song plays.'
+    },
     meter: 'Everything is in four. There is no time-signature dial, so a waltz is not expressible and asking for one says so rather than pretending.',
     titles: REF && REF.names ? REF.names() : [],
     references: 'Naming a game from `titles` is READ AS a genre description -- genre, styles, major/minor, a tempo band, a mood, one technique -- and the reading is always said back so you can disagree with it. It is not an imitation: nothing here is trained on or derived from anybody else\'s music, and a title can only set dials you could type yourself. A name that is not on the list is REFUSED rather than quietly ignored, because it maps to nothing at all.',
@@ -9123,7 +9238,15 @@ function describe(doc) {
   var rom = null;
   try { rom = GB_ROM.buildRom({ gb: gb, name: song.title || 'SONG' }).length; } catch (e) { rom = null; }
   return {
-    title: song.title || '', bpm: song.bpm, bars: song.bars,
+    title: song.title || '', bpm: song.bpm,
+    // The tick pattern the song actually plays. bpm is the average of it; the
+    // groove is what the machine is really doing, and for a swung or
+    // between-the-rungs tempo the average alone does not describe it.
+    groove: (function () {
+      try { var s2 = CT_CREATE.docState(typeof doc === 'string' ? doc : fromJSON(doc));
+            return s2 && s2.groove ? s2.groove.slice() : null; } catch (e) { return null; }
+    })(),
+    bars: song.bars,
     seconds: +(gb.totalFrames / fps).toFixed(2),
     notes: gb.notes.length,
     perLane: { Melody: perLane[0], Harmony: perLane[1], Bass: perLane[2], Drums: perLane[3] },

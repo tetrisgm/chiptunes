@@ -113,8 +113,21 @@ function mcp(messages) {
   const back = api.toJSON(doc);
   ok(back.notes.length === hand.notes.length,
      'a hand-written song survives JSON -> document -> JSON (' + hand.notes.length + ' notes)');
-  ok(back.title === hand.title && back.bpm === hand.bpm && back.grid === hand.grid,
-     'with its title, tempo and grid');
+  ok(back.title === hand.title && back.grid === hand.grid, 'with its title and grid');
+  // TEMPO IS A LADDER, NOT A RANGE, and this used to assert it was a range. A
+  // step lasts a whole number of frames, so 120 bpm is not playable on this
+  // machine at a 16th grid -- 119 is. Asking for the number back unchanged was
+  // asking the document to store a tempo it does not play.
+  {
+    const ladder = api.capabilities().tempo.reachable;
+    ok(ladder.length >= 20 && ladder.indexOf(back.bpm) >= 0,
+       'and a tempo from the reachable ladder (' + hand.bpm + ' -> ' + back.bpm +
+       ', ' + ladder.length + ' rungs)');
+    const nearest = ladder.reduce((a, b) => Math.abs(b - hand.bpm) < Math.abs(a - hand.bpm) ? b : a);
+    ok(back.bpm === nearest, 'which is the NEAREST rung, not merely a legal one (nearest ' + nearest + ')');
+    ok(ladder.every(t => api.toJSON(api.fromJSON(Object.assign({}, hand, {bpm: t}))).bpm === t),
+       'and every rung survives a round trip unchanged');
+  }
   const same = hand.notes.every((n, i) => {
     const b = back.notes[i];
     return b && b.lane === n.lane && b.step === n.step && (b.note || b.drum) === (n.note || n.drum) &&
