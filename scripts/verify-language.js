@@ -195,8 +195,8 @@ console.log('refusing, out loud');
   ok(unknown.reference && unknown.reference.known === false, 'a name not on the list is not silently ignored');
   ok(unknown.unsupported.length === 1, 'it is refused');
   const asked = api.ask('something like radiohead', {});
-  ok(!asked.ok && /do not know/.test(asked.error) && /capabilities/.test(asked.error),
-     'and the refusal explains itself and says where the list is');
+  ok(!asked.ok && /do not know/.test(asked.error) && /Castlevania/.test(asked.error),
+     'and the refusal explains itself and names games the list DOES know, since it is read in a browser as often as by an agent');
 
   const cannot = [
     ['a waltz for a shop', 'time signature'],

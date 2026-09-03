@@ -10110,7 +10110,7 @@ function interpret(text, opts) {
                 : refName ? { name: refName, known: false } : null;
   if (reference && !reference.known)
     unsupported.push({ asked: '"like ' + refName + '"',
-                       why: 'I do not know that one. I match names against a published list of about a hundred games and read each as a genre, rather than imitating anything; nothing here is derived from anybody’s music. Ask for the genre instead, or name a game from capabilities().titles' });
+                       why: 'I do not know that one. I match names against a published list of about a hundred games and read each as a genre, rather than imitating anything; nothing here is derived from anybody’s music. Ask for the genre instead, or name a game the list knows: Castlevania, Metroid, Tetris, Mega Man, Final Fantasy (the full list is capabilities().titles)' });
 
   // anything left that was clearly ignored. Scanned over the BLANKED sentence,
   // so a title's own words can never be reported as ignored.
