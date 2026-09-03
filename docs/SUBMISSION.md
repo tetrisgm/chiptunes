@@ -31,10 +31,15 @@ Gallery: `promo-video/out/gallery/01.png` … `09.png`, same 3:2.
 ## Live URL
 
 ```
-https://chiptunes.app/webmcp
+https://chiptunes.app
 ```
 
-No login, nothing to install, free. Works with or without a WebMCP browser.
+The bare domain, not `/webmcp`. This field is for judges to OPEN in a WebMCP
+browser and USE the app, not to read about it — and the tools register
+identically on every route (verified live: 15 tools within 1.2 s on both). `/`
+is the app with no overlay at all; `/webmcp` puts a corner bar over it.
+
+No login, nothing to install, free.
 
 ## Repository
 
@@ -365,18 +370,22 @@ would only ever have appeared at the agent.
 
 ## Testing instructions for judges
 
-Open **https://chiptunes.app/webmcp**. No login.
+Open **https://chiptunes.app** in a WebMCP browser and ask your agent for music.
+No login, nothing to install. The tools register on every route.
+
+**If your agent reports no tools**, open **https://chiptunes.app/webmcp** — the
+same app with a diagnostic panel. Press *"What did this page detect?"* and it
+prints which surfaces existed and how many tools registered, which separates
+"the page failed to register" from "the client is not passing page-defined tools
+to its model". That page also demonstrates every tool **without** a WebMCP
+browser, via buttons that call the identical implementation.
 
 - In **ChatGPT's desktop in-app browser**, site tools are gated behind
   **Settings → Browser → Permissions → Enable site tools** — worth checking
   first. In **Chrome 149+**, enable `chrome://flags/#enable-webmcp-testing` and
   restart.
-- The panel shows a **live status line**: green with the tool count and the
-  surface, or amber with instructions. Press **"What did this page detect?"** to
-  see exactly which surfaces existed and how many tools registered.
-- **No WebMCP browser? It still demonstrates.** The "Try it right now, agent or
-  not" row calls the same implementation an agent gets, with the JSON shown and
-  the station audibly responding.
+- Start with `what_can_i_do_here`: the page introduces itself, and it answers on
+  a cold load rather than waiting for the app to finish booting.
 
 Prompts to try: *"What can this page do?"* · *"Write me a dungeon theme like
 Castlevania, 40 seconds, no drums"* · *"Is that actually in a minor key?"* ·
