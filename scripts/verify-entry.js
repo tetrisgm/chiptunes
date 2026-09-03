@@ -121,6 +121,20 @@ const audibleWithin = async (p, ms, threshold = 0.02) => {
   // ...and the two things that DO mean something still work
   await p.evaluate(() => { document.getElementById('pbPlay').click(); });
   await wait(3500);
+  // Every control that can be picked by "surprise me" must actually start a
+  // song. `.rmood` is a look, not a meaning: Start from scratch, How it works
+  // and Make it all wear it.
+  const pickable = await p.evaluate(() => {
+    const sel = [...document.querySelectorAll('#rmoods .rmood[data-mood]')];
+    const all = [...document.querySelectorAll('#rmoods .rmood')];
+    return { moods: sel.map(e => e.dataset.mood),
+             nonMoods: all.filter(e => !e.dataset.mood).map(e => e.textContent.trim()) };
+  });
+  ok(pickable.moods.length >= 3 && pickable.moods.every(Boolean),
+     '"surprise me" can only pick real moods (' + pickable.moods.join(', ') + ')');
+  ok(pickable.nonMoods.length > 0,
+     'and the row does carry pills that are not moods, which is why that matters (' +
+     pickable.nonMoods.join(', ') + ')');
   const playPeak = await audibleWithin(p, 20000);
   ok(playPeak > 0.02, 'pressing play starts one anyway (it means "surprise me") [peak ' + playPeak.toFixed(4) +
      ', chip ' + JSON.stringify(await p.evaluate(() => { try { return Audio.chipDiag ? Audio.chipDiag() : null; } catch (e) { return String(e); } })).slice(0, 160) + ']');

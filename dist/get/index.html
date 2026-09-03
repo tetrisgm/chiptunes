@@ -533,6 +533,38 @@
   /* How it works is a SELECT-key control, like Start from scratch: it is not one
      of the "write me a song" answers, so it does not wear the A/B burgundy. */
   #presets .rbtn.rmood-how{ order:12; flex:0 0 auto; }
+
+  /* SAY WHAT YOU WANT. The chips are four answers; this is the same machinery
+     with the whole vocabulary behind it. It sits under them because it is the
+     longer way of asking the same question, not a different feature. */
+  /* #presets is pointer-events:none so the picture underneath stays draggable,
+     and only .rbtn children re-enable it. A bare <input> is not a .rbtn, so
+     without this the field could not be focused or clicked once a game was
+     running behind it. */
+  #rmoods .rmood-say{ display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+    flex:1 1 100%; width:100%; margin-top:12px; pointer-events:auto; }
+  #rmoods .rmood-sayin, #rmoods .rmood-saidback{ pointer-events:auto; }
+  #rmoods .rmood-sayin{
+    flex:1 1 320px; min-width:0; height:44px; padding:0 15px; border-radius:999px;
+    font:500 15px/1 var(--ui); color:var(--ink);
+    background:rgba(10,8,20,.55); border:1px solid var(--mat-edge-hi);
+    outline:none; -webkit-appearance:none; }
+  #rmoods .rmood-sayin::placeholder{ color:var(--ink-2); }
+  #rmoods .rmood-sayin:focus{ border-color:rgba(123,220,160,.7);
+    box-shadow:0 0 0 3px rgba(123,220,160,.16); }
+  #rmoods .rmood-saidback{
+    flex:1 1 100%; min-height:0; font:500 12.5px/1.45 var(--ui); color:var(--ink-2);
+    text-shadow:0 1px 6px rgba(0,0,0,.7); }
+  #rmoods .rmood-saidback:empty{ display:none; }
+  #rmoods .rmood-saidback.bad{ color:#ffc9b8; }
+  /* on the playing screen the whole ask is a small corner overlay */
+  body:not(.awaiting-mood) #rmoods .rmood-say{ margin-top:8px; max-width:min(560px,86vw); }
+  body:not(.awaiting-mood) #rmoods .rmood-sayin{ height:38px; font-size:13.5px; flex-basis:240px; }
+  @media (max-width:760px){
+    #rmoods .rmood-say{ margin-top:10px; gap:6px; }
+    #rmoods .rmood-sayin{ height:42px; font-size:15px; flex-basis:100%; }
+    body:not(.awaiting-mood) #rmoods .rmood-sayin{ height:38px; font-size:14px; }
+  }
   .preset{
     pointer-events:auto; cursor:pointer;
     background:rgba(16,12,32,.72); color:#9a90c0;
@@ -2965,7 +2997,7 @@
     <button id="start" hidden></button>
   </div>
 
-<script src="../app.e0d82a16f2ae.js" defer></script>
+<script src="../app.18b8714f9c01.js" defer></script>
 
 </body>
 </html>

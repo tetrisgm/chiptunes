@@ -2044,3 +2044,50 @@ Built on the four surfaces: scenes, briefs, constraints, sets, variants, stems.
 - **`verify-entry`'s audio assertions were a fixed-window race** and are now
   `audibleWithin(20s)`: they return as soon as sound appears. The old form
   failed about one run in nine. Absence still samples a full window.
+
+# 2026-09-02 — Say what you want, and the bug that hid behind a flaky test
+
+## The field
+
+There is now a text field under the mood chips, in both states, on every device.
+It is **not decoration**: `CT_API.interpret()` is a deterministic parser (there is
+no model in the page) and `CT_API.ask()` carries the reading out.
+
+- It handles scenes, lengths, keys, modes, tempo words, register, lanes to leave
+  out, repeat, swing and the eight mood recipes, and it distinguishes a NEW piece
+  ("a boss theme, 30 seconds, no drums") from a CHANGE to what is playing
+  ("make it much slower").
+- **It always says what it did**, names anything it ignored, and refuses out
+  loud when it understood nothing rather than composing something at random.
+  That last rule is the whole difference between this and a decorative box.
+- `verify-api` pins the phrase → reading table, `ask()` end to end, and the field
+  in the page including that nonsense changes nothing.
+
+## ⚠️ `.rmood` IS A LOOK, NOT A MEANING — and this cost most of a session
+
+`_transportToggle` starts a song when the station is holding by picking a random
+element from `#rmoods .rmood:not(.rmood-scratch)` and clicking it. That was
+correct when the only pills in that row were moods and Start from scratch. Today
+the row also gained **How it works** and **Make it**, both of which wear
+`.rmood` for the pill styling and both of which correctly do nothing when
+clicked with no input.
+
+So pressing play had a **one-in-three chance of clicking a control that starts
+nothing**, and the station simply never began.
+
+It surfaced as `verify-entry` failing intermittently, and **I misdiagnosed it
+twice**: first as an audio timing race (and "fixed" it by making the assertion
+wait 20s, which was a real improvement but not the cause), then as a bundle
+global leak (which WAS a real, separate bug — see the IIFE note above). The rate
+tracked the number of non-mood pills: clean before How it works, ~1 in 5 after
+it, ~1 in 3 once Make it landed.
+
+**The fix is a marker, not a blocklist.** Real moods carry `data-mood`, and
+anything meaning "pick a mood" selects on that. `verify-entry` now asserts that
+every pickable control is a real mood AND that the row does contain non-mood
+pills, so the assertion cannot quietly become vacuous. `verify-chrome`'s two
+mood-line checks use the same marker; they had been maintaining their own
+blocklist, which is the same mistake one layer up.
+
+If you add another pill to that row, it needs no thought — just do not give it
+`data-mood`.

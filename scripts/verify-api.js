@@ -212,6 +212,43 @@ function mcp(messages) {
   ok(live.length >= 2, 'and they carry real audio (' + live.map(x => x.lane).join(', ') + ')');
   ok(stems[3].wav.includes(Buffer.from('smpl')), 'with a smpl chunk so an engine reads the loop point');
 
+  // ---- 5c. saying what you want -------------------------------------------
+  //
+  // The field in the product. It is deterministic on purpose -- there is no
+  // model in the page -- so these are exact expectations, not vibes. The rule
+  // that matters: it never silently does nothing.
+  console.log('saying what you want');
+  const said = [
+    ['a boss theme, 30 seconds, no drums', 'brief', ['scene: boss', 'length: 30s', 'without Drums']],
+    ['something happy for a title screen', 'brief', ['scene: title', 'mood: happier']],
+    ['a sad cave theme in D minor', 'brief', ['scene: cave', 'key: D', 'mode: minor']],
+    // "much" attaches to "sadder" here, not to "slower", so plain slower is the
+    // right reading. Mood recipes are not intensity-scaled today.
+    ['make it much sadder and slower', 'change', ['slower', 'mood: sadder']],
+    ['much slower', 'change', ['much slower']],
+    ['120 bpm and no bass', 'change', ['without Bass', 'tempo: 120 bpm']],
+    ['a short victory fanfare', 'brief', ['scene: victory', 'length: short (20s)']]
+  ];
+  said.forEach(([text, kind, want]) => {
+    const r = api.interpret(text, { hasSong: true });
+    const got = r.understood.join(' | ');
+    ok(r.kind === kind && want.every(w => r.understood.indexOf(w) >= 0),
+       '"' + text + '" -> ' + r.kind + ': ' + got);
+  });
+  const nonsense = api.interpret('banana wobble frobnicate', { hasSong: true });
+  ok(nonsense.understood.length === 0 && nonsense.notUnderstood.length === 3,
+     'and nonsense is reported as not understood rather than guessed at');
+  ok(api.interpret('a boss theme, 30 seconds', {}).notUnderstood.length === 0,
+     'words it consumed are not reported as ignored (the warning stays meaningful)');
+
+  const askA = api.ask('a boss theme, 30 seconds, no drums');
+  ok(askA.ok && askA.perLane.Drums === 0 && Math.abs(askA.seconds - 30) <= 6,
+     'ask() carries a whole sentence out (' + askA.seconds + 's, ' + askA.notes + ' notes)');
+  const askB = api.ask('make it much slower', { doc: askA.doc });
+  ok(askB.ok && askB.bpm < askA.bpm, 'and a change applies to the song it is given (' + askA.bpm + ' -> ' + askB.bpm + ')');
+  const askC = api.ask('zzzz qqqq');
+  ok(!askC.ok && /did not recognise/.test(askC.error), 'and nonsense refuses rather than composing something random');
+
   // ---- 6. the MCP server --------------------------------------------------
   console.log('the MCP server');
   const romPath = path.join(tmp, 'gate.gb');
@@ -298,6 +335,21 @@ function mcp(messages) {
   ok(leaks.leaked.length === 0,
      'and it leaks no globals of its own' + (leaks.leaked.length ? ': ' + leaks.leaked.join(', ') : ''));
   ok(leaks.songIsSeed, 'and Song is still seed.js, not something a later file overwrote');
+  // COMPOSING IN THE PAGE, not just transforming. The first version of this
+  // resolved the composer from a global that does not exist (it lives in the
+  // CT_COMPOSERS registry), so brief() threw in the browser while variant()
+  // worked -- and nothing here noticed until production did.
+  const pageCompose = await p.evaluate(() => {
+    if (typeof CT_API === 'undefined') return { api: false };
+    try {
+      const c = CT_API.brief({ scene: 'boss', seconds: 20 });
+      const t = CT_API.compose({ mood: 'chill' });
+      return { api: true, brief: c.title, seconds: c.seconds, notes: c.notes, mood: t.title };
+    } catch (e) { return { api: true, error: e && e.message ? e.message : String(e) }; }
+  });
+  ok(pageCompose.api && !pageCompose.error && pageCompose.notes > 0,
+     'brief() and compose() work IN THE PAGE' + (pageCompose.error ? ': ' + pageCompose.error :
+      ' (' + pageCompose.brief + ', ' + pageCompose.seconds + 's)'));
   ok(page.webmcp === 'registerTool' && page.registered.length === page.tools.length,
      'and every tool is registered with WebMCP when the browser has it');
   ok(page.now && Array.isArray(page.now.moods) && page.now.moods.length > 0,
@@ -333,6 +385,35 @@ function mcp(messages) {
      'a variant of the song on air is composed in the browser (' + (inPage.applied || []).join('; ') + ')');
   ok(inPage.changed && inPage.canGoBack,
      'it replaces what is playing and hands back the previous document, so "go back" works');
+  // the field, in the product, on the screen people are looking at
+  const fieldOk = await p.evaluate(async () => {
+    const fill = async (t) => {
+      const f = document.querySelector('.rmood-sayin');
+      const g = document.querySelector('.rmood-saygo');
+      if (!f || !g) return null;
+      f.value = t; g.click();
+      await new Promise(r => setTimeout(r, 4000));
+      const s = document.querySelector('.rmood-saidback');
+      return { said: s ? s.textContent : '', bad: s ? /bad/.test(s.className) : false };
+    };
+    const cs = getComputedStyle(document.querySelector('.rmood-sayin'));
+    const r = document.querySelector('.rmood-sayin').getBoundingClientRect();
+    const before = (function () { try { return Audio.currentDoc() || ''; } catch (e) { return ''; } })();
+    const made = await fill('a cave theme, 20 seconds, no drums');
+    const after = (function () { try { return Audio.currentDoc() || ''; } catch (e) { return ''; } })();
+    const junk = await fill('zzzz qqqq');
+    const afterJunk = (function () { try { return Audio.currentDoc() || ''; } catch (e) { return ''; } })();
+    return { pointer: cs.pointerEvents, onScreen: r.top >= 0 && r.bottom <= innerHeight && r.left >= 0,
+             made, changed: after !== before && !!after, junk, junkChanged: afterJunk !== after };
+  });
+  ok(fieldOk.pointer === 'auto' && fieldOk.onScreen,
+     'the ask field is reachable on the playing screen (pointer-events ' + fieldOk.pointer + ')');
+  ok(fieldOk.made && /scene: cave/.test(fieldOk.made.said) && /without Drums/.test(fieldOk.made.said),
+     'typing a brief names back what it understood (' + (fieldOk.made && fieldOk.made.said || '').slice(0, 90) + ')');
+  ok(fieldOk.changed, 'and actually puts that song on the deck');
+  ok(fieldOk.junk && fieldOk.junk.bad && !fieldOk.junkChanged,
+     'and nonsense says so and changes nothing, rather than composing at random');
+
   ok(errs.length === 0, 'no page errors' + (errs.length ? ': ' + errs[0] : ''));
   await b.close(); h.s.close();
 

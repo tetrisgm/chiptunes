@@ -39,11 +39,19 @@ var API_VERSION = 1;
 // after it down with it -- which is how window.chiptunes went missing.
 var _req = (typeof require === 'function') ? require : null;
 var Song = _req ? _req('./seed.js') : _G.Song;
-var composer = _req ? _req('./composer.js') : _G.CT_COMPOSER;
+// the browser registers composers in a REGISTRY, not under a single name:
+// composer.js does `G.CT_COMPOSERS.rrr_core = API`. Guessing `CT_COMPOSER` left
+// it undefined, so brief() and compose() threw in the page while variant() --
+// which only transforms -- worked, and the gate did not catch it.
+var composer = _req ? _req('./composer.js')
+                    : ((_G.CT_COMPOSERS && _G.CT_COMPOSERS.rrr_core) || null);
 var CT_CREATE = _req ? _req('./create.js') : _G.CT_CREATE;
 var GB_ROM = _req ? _req('./gb-rom.js') : _G.CT_GB_ROM;
 var GB_APU = _req ? _req('./gb-apu.js') : _G.CT_GB_APU;
-var HW = _req ? _req('./gb-hardware.js') : _G.CT_GB_HARDWARE;
+// gb-hardware registers itself as CT_GB in the page, not CT_GB_HARDWARE. Both
+// gb-apu.js and gb-rom.js already write `CT_GB_HARDWARE || CT_GB` for exactly
+// this reason; guessing one name left HW undefined and brief() threw on FPS.
+var HW = _req ? _req('./gb-hardware.js') : (_G.CT_GB_HARDWARE || _G.CT_GB);
 
 // Buffer is Node's. The browser gets everything except the file exports, which
 // is the right split: rendering a WAV in the page is the player's job.
@@ -715,6 +723,163 @@ function wavOf(pcm, rate, loop) {
   return buf;
 }
 
+// ----------------------------------------------------------------- interpret
+//
+// WHAT SOMEBODY TYPES, TURNED INTO OPERATIONS. Deterministic on purpose: there
+// is no model in the page, and a field that quietly does nothing is worse than
+// no field. Everything it recognises is listed in the vocabulary it returns,
+// everything it does not recognise comes back in `notUnderstood`, and the
+// caller is expected to SHOW both. It never guesses.
+//
+// Two readings, because people mean two different things:
+//   * a NEW piece   -- "a boss theme, 30 seconds, no drums"
+//   * a CHANGE      -- "make it sadder", "faster", "drop the harmony"
+// A change needs something to change, so with no song playing it falls back to
+// composing one and applying the change to it.
+
+var WORD_SCENES = {
+  'title': 'title', 'title screen': 'title', 'main theme': 'title',
+  'menu': 'menu', 'pause': 'menu',
+  'overworld': 'overworld', 'world map': 'overworld', 'exploring': 'overworld',
+  'town': 'town', 'village': 'town', 'shop': 'shop', 'store': 'shop',
+  'cave': 'cave', 'dungeon': 'cave', 'underground': 'cave',
+  'battle': 'battle', 'fight': 'battle', 'combat': 'battle',
+  'boss': 'boss', 'boss fight': 'boss', 'final boss': 'boss',
+  'victory': 'victory', 'win': 'victory', 'fanfare': 'victory',
+  'game over': 'game_over', 'death': 'game_over', 'defeat': 'game_over',
+  'credits': 'credits', 'ending': 'credits'
+};
+var WORD_MOODS = {
+  happy: 'happier', happier: 'happier', cheerful: 'happier', upbeat: 'happier', joyful: 'happier',
+  sad: 'sadder', sadder: 'sadder', melancholy: 'sadder', sorrowful: 'sadder', mournful: 'sadder',
+  dark: 'darker', darker: 'darker', sinister: 'darker', ominous: 'darker', evil: 'darker',
+  bright: 'brighter', brighter: 'brighter', sparkly: 'brighter',
+  calm: 'calmer', calmer: 'calmer', relaxed: 'calmer', gentle: 'calmer', chill: 'calmer', peaceful: 'calmer',
+  intense: 'intense', intenser: 'intense', aggressive: 'intense', urgent: 'intense', epic: 'intense', heavy: 'intense',
+  sparse: 'sparser', sparser: 'sparser', simpler: 'sparser', minimal: 'sparser', emptier: 'sparser',
+  dreamy: 'dreamier', dreamier: 'dreamier', ethereal: 'dreamier', floaty: 'dreamier'
+};
+var LANE_WORDS = { drums: 'Drums', drum: 'Drums', percussion: 'Drums', beat: 'Drums',
+                   bass: 'Bass', melody: 'Melody', lead: 'Melody', tune: 'Melody',
+                   harmony: 'Harmony', chords: 'Harmony', pads: 'Harmony' };
+
+function interpret(text, opts) {
+  opts = opts || {};
+  var t = ' ' + String(text || '').toLowerCase().replace(/[^a-z0-9#.\s-]/g, ' ').replace(/\s+/g, ' ') + ' ';
+  var understood = [], notUnderstood = [], spec = {}, ops = [], sawScene = null, sawNew = false;
+
+  // scenes, longest phrase first so "boss fight" beats "fight"
+  Object.keys(WORD_SCENES).sort(function (a, b) { return b.length - a.length; }).forEach(function (w) {
+    if (sawScene) return;
+    if (t.indexOf(' ' + w + ' ') >= 0) { sawScene = WORD_SCENES[w]; understood.push('scene: ' + sawScene); }
+  });
+  if (sawScene) { spec.scene = sawScene; sawNew = true; }
+
+  // length
+  var m = t.match(/(\d+(?:\.\d+)?)\s*(seconds|second|secs|sec|s)\b/);
+  if (m) { spec.seconds = +m[1]; understood.push('length: ' + spec.seconds + 's'); sawNew = true; }
+  var mb = t.match(/(\d+)\s*(bars|bar)\b/);
+  if (mb) { spec.bars = +mb[1]; understood.push('length: ' + spec.bars + ' bars'); sawNew = true; }
+  if (/\ba minute\b/.test(t)) { spec.seconds = 60; understood.push('length: 60s'); sawNew = true; }
+  if (/\b(short|brief)\b/.test(t) && !spec.seconds) { spec.seconds = 20; understood.push('length: short (20s)'); sawNew = true; }
+  if (/\b(long|longer piece|full)\b/.test(t) && !spec.seconds) { spec.seconds = 75; understood.push('length: long (75s)'); sawNew = true; }
+
+  // key and mode
+  var mk = t.match(/\bin ([a-g])(\s?#|\s?sharp|\s?flat)?\s*(major|minor)?\b/);
+  if (mk) {
+    spec.key = mk[1].toUpperCase() + (mk[2] && /#|sharp/.test(mk[2]) ? '#' : '');
+    understood.push('key: ' + spec.key);
+    if (mk[3]) { spec.mode = mk[3]; understood.push('mode: ' + mk[3]); }
+    sawNew = true;
+  }
+  if (!spec.mode && /\bminor\b/.test(t)) { spec.mode = 'minor'; understood.push('mode: minor'); }
+  if (!spec.mode && /\bmajor\b/.test(t)) { spec.mode = 'major'; understood.push('mode: major'); }
+
+  // lanes to leave out
+  Object.keys(LANE_WORDS).forEach(function (w) {
+    if (new RegExp('\\b(no|without|remove|drop|mute|lose the|minus)\\s+' + w + '\\b').test(t)) {
+      var lane = LANE_WORDS[w];
+      if ((spec.exclude || []).indexOf(lane) < 0) { (spec.exclude = spec.exclude || []).push(lane); ops.push({ op: 'drop', lane: lane }); }
+      understood.push('without ' + lane);
+    }
+  });
+
+  // tempo
+  var bpm = t.match(/(\d{2,3})\s*bpm\b/);
+  if (bpm) { ops.push({ op: 'tempo', absolute: +bpm[1] }); understood.push('tempo: ' + bpm[1] + ' bpm'); }
+  else if (/\b(much|way|a lot) (faster|quicker)\b/.test(t)) { ops.push({ op: 'tempo', percent: 25 }); understood.push('much faster'); }
+  else if (/\b(a (bit|little)|slightly) (faster|quicker)\b/.test(t)) { ops.push({ op: 'tempo', percent: 6 }); understood.push('a bit faster'); }
+  else if (/\b(faster|quicker|speed it up)\b/.test(t)) { ops.push({ op: 'tempo', percent: 15 }); understood.push('faster'); }
+  else if (/\b(much|way|a lot) slower\b/.test(t)) { ops.push({ op: 'tempo', percent: -25 }); understood.push('much slower'); }
+  else if (/\b(a (bit|little)|slightly) slower\b/.test(t)) { ops.push({ op: 'tempo', percent: -6 }); understood.push('a bit slower'); }
+  else if (/\b(slower|slow it down)\b/.test(t)) { ops.push({ op: 'tempo', percent: -15 }); understood.push('slower'); }
+  if (/\bhalf time\b/.test(t)) { ops.push({ op: 'tempo', multiply: 0.5 }); understood.push('half time'); }
+  if (/\bdouble time\b/.test(t)) { ops.push({ op: 'tempo', multiply: 2 }); understood.push('double time'); }
+
+  // register
+  if (/\b(higher|up an octave|an octave up)\b/.test(t)) { ops.push({ op: 'register', lane: 'Melody', octaves: 1 }); understood.push('melody an octave up'); }
+  if (/\b(lower|down an octave|an octave down)\b/.test(t)) { ops.push({ op: 'register', lane: 'Melody', octaves: -1 }); understood.push('melody an octave down'); }
+
+  // structure
+  if (/\b(repeat|say it again|again)\b/.test(t)) { ops.push({ op: 'repeat', times: 1 }); understood.push('repeat it'); }
+  if (/\bswing\b/.test(t)) { ops.push({ op: 'swing', on: !/\b(no|without|straight)\s+swing\b/.test(t) }); understood.push('swing'); }
+
+  // moods, last so an explicit tempo word wins its own slot
+  var moods = [];
+  Object.keys(WORD_MOODS).sort(function (a, b) { return b.length - a.length; }).forEach(function (w) {
+    if (moods.length) return;
+    if (new RegExp('\\b' + w + '\\b').test(t)) { moods.push(WORD_MOODS[w]); understood.push('mood: ' + WORD_MOODS[w]); }
+  });
+
+  // is this a new piece or a change to one?
+  var changeish = /\b(make it|more|less|-er|instead|now)\b/.test(t) || (ops.length > 0 && !sawNew);
+  var kind = (sawNew || (!opts.hasSong && !ops.length && !moods.length)) ? 'brief'
+           : (changeish || moods.length || ops.length) ? 'change' : 'brief';
+
+  // a mood on a NEW piece steers the composer; on a change it is a recipe
+  if (kind === 'brief' && moods.length) {
+    var toMode = { sadder: 'minor', darker: 'minor', happier: 'major', brighter: 'major' }[moods[0]];
+    if (toMode && !spec.mode) { spec.mode = toMode; understood.push('mode: ' + toMode); }
+  }
+
+  // anything left that we clearly ignored
+  var claimed = understood.join(' ').toLowerCase();
+  String(text || '').toLowerCase().split(/[^a-z0-9#]+/).filter(Boolean).forEach(function (w) {
+    if (w.length < 4) return;
+    if (claimed.indexOf(w) >= 0) return;
+    // words that ARE consumed, just not echoed verbatim in the summary. Crying
+    // wolf about these would make the "ignored" line useless.
+    if (/^(make|that|this|with|please|song|track|music|piece|thing|want|like|give|some|about|which|would|could|really|theme|tune|screen|second|seconds|secs|bars|minute|minutes|fanfare|sounding|feel|feeling|vibe|style|kind|something|anything|there|from|into|onto|then|also|very|much|more|less|just|only|even|still|again|now|and|but|for|the|a|an)$/.test(w)) return;
+    if (WORD_MOODS[w] || LANE_WORDS[w] || WORD_SCENES[w]) return;
+    if (notUnderstood.indexOf(w) < 0) notUnderstood.push(w);
+  });
+
+  return { kind: kind, spec: spec, ops: ops, moods: moods, understood: understood, notUnderstood: notUnderstood };
+}
+
+// Interpret and carry out, in one call. Returns the new document plus exactly
+// what it did, so a caller can show its working instead of being a black box.
+function ask(text, opts) {
+  opts = opts || {};
+  var read = interpret(text, { hasSong: !!opts.doc });
+  if (!read.understood.length)
+    return Object.assign({ ok: false, error: 'I did not recognise anything in that.' }, read);
+  var doc = opts.doc || null, applied = [], skipped = [], made = null;
+  if (read.kind === 'brief' || !doc) {
+    made = brief(Object.assign({}, read.spec, opts.brief || {}));
+    doc = made.doc;
+    applied = applied.concat(read.understood.filter(function (u) { return /^(scene|length|key|mode|without)/.test(u); }));
+    if (made.unmet && made.unmet.length) skipped = skipped.concat(made.unmet);
+  }
+  var ops = read.ops.slice();
+  read.moods.forEach(function (m) { ops = ops.concat(MOODS[m] || []); });
+  if (ops.length) {
+    var r = transform(doc, ops);
+    doc = r.doc; applied = applied.concat(r.applied); skipped = skipped.concat(r.skipped);
+  }
+  return Object.assign({ ok: true, doc: doc, applied: applied, skipped: skipped }, describe(doc), read);
+}
+
 // --------------------------------------------------------------------- guide
 //
 // The answers an agent would otherwise guess at, and guess wrong. Licensing in
@@ -763,7 +928,9 @@ var EXPORTS = {
   soundtrack: soundtrack,
   transform: transform,
   variant: variant,
-  renderStems: renderStems
+  renderStems: renderStems,
+  interpret: interpret,
+  ask: ask
 };
 
 // In the browser this file is concatenated as a plain script, so the same

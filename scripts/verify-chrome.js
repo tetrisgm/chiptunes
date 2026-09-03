@@ -106,8 +106,11 @@ function names() {
     if (!lab || !pill) return null;
     const f = e => { const c = getComputedStyle(e); return c.fontSize + '/' + c.fontWeight + '/' + c.fontFamily; };
     const lr = lab.getBoundingClientRect(), pr = pill.getBoundingClientRect();
-    const NOT_A_MOOD = 'rmood-scratch rmood-select rmood-how'.split(' ');
-    const moods=[...document.querySelectorAll('.rmood')].filter(b => !NOT_A_MOOD.some(c => b.classList.contains(c)));
+    // data-mood is the marker for a REAL mood. `.rmood` is the pill look and is
+    // also worn by Start from scratch, How it works and Make it -- maintaining a
+    // blocklist of those was how the runtime's own "surprise me" picker ended up
+    // clicking a control that does nothing.
+    const moods=[...document.querySelectorAll('.rmood[data-mood]')];
     const scratch=document.querySelector('.rmood-scratch');
     const valueCopy=document.querySelector('#rmoods .rmood-brand');
     const tops=moods.map(b => Math.round(b.getBoundingClientRect().top));
@@ -430,7 +433,7 @@ function names() {
     const gh=made&&made.querySelector('.plmade-github'), nm=made&&made.querySelector('.plmade-name');
     // the ask: the question on its own line, every mood together under it
     const lab=R(document.querySelector('#rmoods .rmood-ask .rmood-lab'));
-    const moods=[...document.querySelectorAll('#rmoods .rmood-ask .rmood:not(.rmood-scratch):not(.rmood-how)')].map(e=>Object.assign({t:e.textContent.trim()},R(e)));
+    const moods=[...document.querySelectorAll('#rmoods .rmood-ask .rmood[data-mood]')].map(e=>Object.assign({t:e.textContent.trim()},R(e)));
     return { rects, noHorizontalOverflow:document.documentElement.scrollWidth<=innerWidth,
       noOverlap:rects.slice(0,-1).every((x,i)=>!x.visible||!rects[i+1].visible||x.right<=rects[i+1].left),
       sameBaseline:rects.filter(x=>x.visible).every(x=>Math.abs(x.top-playTop)<=8),

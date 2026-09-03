@@ -1830,7 +1830,10 @@ function buildRadioUI(){
       shownMoods.unshift('happy');
       shownMoods.forEach(function(m){
         var b=mkRbtn(m, function(){ _moodOnAir(m, b); });
-        b.classList.add('rmood'); b.title='Write a '+m+' song and play it';
+        // data-mood marks the REAL moods. `.rmood` is the pill LOOK and is worn
+        // by Start from scratch, How it works and Make it as well, so anything
+        // that means "pick a mood" has to select on this, not on the class.
+        b.classList.add('rmood'); b.dataset.mood=m; b.title='Write a '+m+' song and play it';
         pills.appendChild(b);
       });
       // ...or none of the above: an empty grid and your own hands.
@@ -1852,6 +1855,57 @@ function buildRadioUI(){
       how.classList.add('rmood','rmood-how');
       how.title='What this is and how it works';
       pills.appendChild(how);
+
+      // ASK FOR IT IN WORDS. The mood chips are four answers; this is the same
+      // machinery with the whole vocabulary behind it -- scenes, lengths, keys,
+      // tempo, lanes to leave out, and changes to what is already playing.
+      // It is NOT decoration: every phrase it acts on is one it can name back
+      // to you, and anything it did not understand is said out loud rather than
+      // quietly dropped. The interpreter is deterministic and lives in
+      // src/api.js; there is no model in the page.
+      var askRow=document.createElement('div'); askRow.className='rmood-say';
+      var field=document.createElement('input'); field.type='text'; field.className='rmood-sayin';
+      field.setAttribute('aria-label','Describe the music you want');
+      field.placeholder='…or say it: “a boss theme, 30 seconds, no drums”';
+      var go=document.createElement('button'); go.type='button'; go.className='rbtn rmood rmood-saygo';
+      go.textContent='Make it';
+      var said=document.createElement('div'); said.className='rmood-saidback'; said.setAttribute('aria-live','polite');
+      askRow.appendChild(field); askRow.appendChild(go); askRow.appendChild(said);
+      // INSIDE the ask, not beside it: on the playing screen `.rmood-ask` is a
+      // fixed overlay in the bottom-left corner, and a sibling of it would be
+      // left wherever the document flow put it -- which measured as "outside
+      // the viewport" and could not be clicked.
+      ask.appendChild(askRow);
+
+      function sayBack(msg, cls){ said.textContent=msg||''; said.className='rmood-saidback'+(cls?(' '+cls):''); }
+      function runAsk(){
+        var text=String(field.value||'').trim();
+        if(!text){ field.focus(); return; }
+        if(typeof CT_API==='undefined' || !CT_API.ask){ sayBack('The composer is still loading.','bad'); return; }
+        go.disabled=true; sayBack('Writing…');
+        // a frame, so the disabled state paints before the compile
+        requestAnimationFrame(function(){ setTimeout(function(){
+          var cur=''; try{ cur=(Audio.currentDoc && Audio.currentDoc()) || ''; }catch(e){}
+          var r;
+          try{ r=CT_API.ask(text, {doc:cur||null}); }
+          catch(e){ go.disabled=false; sayBack(String(e&&e.message||e),'bad'); return; }
+          go.disabled=false;
+          if(!r.ok){
+            sayBack('I did not understand that. Try a scene (boss, title, cave), a length (30 seconds), a key (in D minor), or a change (faster, sadder, no drums).','bad');
+            return;
+          }
+          try{ Audio.playDoc(r.doc); }catch(e){}
+          var bits=r.applied.filter(function(x){ return x; });
+          var msg=bits.length?('Made it: '+bits.join(' · ')):'Made it.';
+          if(r.notUnderstood && r.notUnderstood.length) msg+='  (ignored: '+r.notUnderstood.join(', ')+')';
+          sayBack(msg);
+        },0); });
+      }
+      go.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); runAsk(); });
+      field.addEventListener('keydown', function(ev){
+        ev.stopPropagation();                       // the page's shortcuts must not eat typing
+        if(ev.key==='Enter'){ ev.preventDefault(); runAsk(); }
+      });
       presetsBar.appendChild(row);
     }
   }catch(e){}
@@ -2934,7 +2988,13 @@ function _transportToggle(){
   // which is the only way anything starts now.
   try{
     if(Audio.isHolding && Audio.isHolding()){
-      var all=document.querySelectorAll('#rmoods .rmood:not(.rmood-scratch)');
+      // ⚠️ SELECT ON data-mood, NOT ON .rmood. This used to be
+      // `.rmood:not(.rmood-scratch)`, which also matched How it works and the
+      // Make it button once those joined the row -- so pressing play had a
+      // one-in-three chance of clicking a control that correctly does nothing,
+      // and the station simply never started. It read as a flaky test for a
+      // whole session and was misdiagnosed twice as an audio timing race.
+      var all=document.querySelectorAll('#rmoods .rmood[data-mood]');
       if(all.length){ all[(Math.random()*all.length)|0].click(); return; }
     }
   }catch(e){}
