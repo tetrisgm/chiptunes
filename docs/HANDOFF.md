@@ -2005,3 +2005,42 @@ are local: songs are written in the browser and a shared link carries the whole
 arrangement in the URL fragment, which browsers never send anywhere. The radio
 stream is a server, and the site itself is hosted. Every place this is written
 says so in the same breath; do not let it drift into "there are no servers".
+
+# 2026-09-02 — The agent layer people actually asked for
+
+Built on the four surfaces: scenes, briefs, constraints, sets, variants, stems.
+
+- **`brief({scene, seconds, exclude, ...})`** — 11 scenes (`title`, `menu`,
+  `overworld`, `town`, `shop`, `cave`, `battle`, `boss`, `victory`,
+  `game_over`, `credits`), each a bundle of premise plus constraints, so the
+  word behaves the same way every time. It reports what it could NOT meet in
+  `unmet` rather than pretending.
+- **`soundtrack({scenes, key})`** — several cues pulled into one key. Five cues
+  in 58 ms. This is the thing an audio model cannot do, because you cannot
+  transplant a key between two waveforms.
+- **`variant(doc, {mood})`** — eight published recipes (`sadder`, `intense`,
+  `calmer`...) over exact primitives, so a word means one thing twice. Returns a
+  NEW document; the original is untouched, which is free undo.
+- **`transform(doc, ops)`** — tempo, transpose, register, mode, velocity, thin,
+  drop, trim, repeat, swing, motion, shape, fade. All mechanical. Deliberately
+  no `thicken`: adding notes is composing, not transforming.
+  `mode` moves the third, sixth and seventh relative to the song's key, which is
+  what makes "make it sad" actually work rather than just slowing it down.
+- **`renderStems(doc)`** — four WAVs with a `smpl` loop chunk. Not separation:
+  the other channels are muted per render, so the stems sum to the mix.
+- **`guide()`** — the answers an agent would otherwise invent, licensing above
+  all. It says plainly that it is not legal advice and points at the LICENSE.
+
+- ⚠️⚠️ **THE BUNDLE IS CONCATENATED CLASSIC SCRIPTS, SO A TOP-LEVEL `var` IN ANY
+  SOURCE FILE IS A GLOBAL.** `api.js` was written as a Node module and shipped
+  into the page unwrapped: 47 top-level names including `Song`, `compose`,
+  `load`, `describe` and `validate`. It overwrote seed.js's `Song` and **killed
+  the audio chip** — `chipDiag()` reported `chip:false, chipGain:0` with the
+  context running. It passed standalone eight times and failed the FULL SUITE
+  three times running, which is what finally isolated it: baseline suite green,
+  mine red. Both agent files are IIFEs now, and `verify-api` asserts the page
+  leaks none of those names and that `Song` is still seed.js. Every file in
+  `build.js`'s list must be wrapped.
+- **`verify-entry`'s audio assertions were a fixed-window race** and are now
+  `audibleWithin(20s)`: they return as soon as sound appears. The old form
+  failed about one run in nine. Absence still samples a full window.

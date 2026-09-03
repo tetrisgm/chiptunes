@@ -49,6 +49,93 @@ function summary(doc, id) {
 
 const TOOLS = [
   {
+    name: 'guide',
+    description: 'READ THIS FIRST. What this is, how to ask for music, and the answers to the questions you would otherwise guess at: licensing and provenance, determinism, looping, stems, formats and limits. Composition is instant, free and local, so generating many candidates and keeping one is reasonable.',
+    inputSchema: { type: 'object', properties: {} },
+    run: () => api.guide()
+  },
+  {
+    name: 'brief',
+    description: 'Ask for music the way you would ask a composer: a scene (title, menu, overworld, town, shop, cave, battle, boss, victory, game_over, credits), a length in seconds or bars, whether it must loop, which lanes to leave out. Reports any constraint it could not meet rather than pretending. Returns a short song id.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        scene: { type: 'string', description: 'the kind of cue this is' },
+        seconds: { type: 'number' }, bars: { type: 'number' },
+        loop: { type: 'boolean' },
+        key: { type: 'string' }, mode: { type: 'string', enum: ['major', 'minor'] },
+        styles: { type: 'array', items: { type: 'string' } },
+        bpmMin: { type: 'number' }, bpmMax: { type: 'number' },
+        exclude: { type: 'array', items: { type: 'string' }, description: 'lanes to leave out, e.g. ["Drums"] to leave room for sound effects' },
+        maxBytes: { type: 'number', description: 'cartridge budget' },
+        title: { type: 'string' }, token: { type: 'string', description: 'reproduce an exact song' }
+      }
+    },
+    run: (a) => { const r = api.brief(a || {}); const id = keep(r.doc); return Object.assign({ token: r.token, scene: r.scene, unmet: r.unmet }, summary(r.doc, id)); }
+  },
+  {
+    name: 'soundtrack',
+    description: 'Several cues that belong to the same game: one key, one mode, one tempo family across every scene. This is the thing an audio model cannot do, because you cannot transplant a key between two waveforms.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        scenes: { type: 'array', items: { type: 'string' }, description: 'default: title, overworld, battle, boss, game_over' },
+        key: { type: 'string', description: 'e.g. "D"' },
+        mode: { type: 'string', enum: ['major', 'minor'] }
+      }
+    },
+    run: (a) => {
+      const s = api.soundtrack(a || {});
+      return { key: s.key, cues: s.cues.map(c => Object.assign({ scene: c.scene, unmet: c.unmet }, summary(c.doc, keep(c.doc)))) };
+    }
+  },
+  {
+    name: 'variant',
+    description: 'A version of a song with a different feeling, keeping it recognisably the same music: the sad one for the death screen, the intense one for the boss. Each mood word is a published recipe of exact operations, so it means the same thing every time. Returns a NEW song; the original is untouched.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        song: { type: 'string' },
+        mood: { type: 'string', description: 'happier, sadder, darker, brighter, calmer, intense, sparser, dreamier' },
+        ops: { type: 'array', items: { type: 'object' }, description: 'or your own operations, see transform' }
+      },
+      required: ['song']
+    },
+    run: (a) => {
+      const r = api.variant(resolveDoc(a.song), { mood: a.mood, ops: a.ops });
+      return Object.assign({ applied: r.applied, skipped: r.skipped }, summary(r.doc, keep(r.doc)));
+    }
+  },
+  {
+    name: 'transform',
+    description: 'Exact edits, applied in order: tempo, transpose, register, mode (major/minor), velocity, thin, drop, trim, repeat, swing, motion, shape, fade. Each takes an optional lane and fromBar/toBar. Nothing here needs taste, so the result can be explained and repeated. There is no "thicken": adding notes is composing, not transforming.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        song: { type: 'string' },
+        ops: { type: 'array', items: { type: 'object' }, description: 'e.g. [{"op":"tempo","percent":-10},{"op":"drop","lane":"Harmony"}]' }
+      },
+      required: ['song', 'ops']
+    },
+    run: (a) => {
+      const r = api.transform(resolveDoc(a.song), a.ops);
+      return Object.assign({ applied: r.applied, skipped: r.skipped }, summary(r.doc, keep(r.doc)));
+    }
+  },
+  {
+    name: 'export_stems',
+    description: 'Four exact WAVs, one per hardware voice (Melody, Harmony, Bass, Drums). Not source separation: the other channels are muted for each render, so the stems sum to the mix. Loop points are written into each file.',
+    inputSchema: {
+      type: 'object',
+      properties: { song: { type: 'string' }, directory: { type: 'string', description: 'where to write the four files' } },
+      required: ['song', 'directory']
+    },
+    run: (a) => {
+      const stems = api.renderStems(resolveDoc(a.song));
+      return stems.map(s => writeFileArg(path.join(a.directory, s.lane.toLowerCase() + '.wav'), s.wav, s.lane));
+    }
+  },
+  {
     name: 'capabilities',
     description: 'The rules a song must obey before you write one: the four lanes and which motions each can do, the drums, the grid values, the note and velocity ranges, the cartridge budget, and the mood words. Read this first.',
     inputSchema: { type: 'object', properties: {} },

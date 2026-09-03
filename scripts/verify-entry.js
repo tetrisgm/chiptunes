@@ -44,6 +44,21 @@ const peak = async (p, ms) => {
   }
   return k;
 };
+// ASSERTING THAT SOMETHING BECOMES AUDIBLE IS A RACE, and a fixed window loses
+// it occasionally: a track has to compose, the deck opens 0.18s in the future,
+// and the output ramps. Measured, this assertion failed about one run in nine
+// against a 3.5s wait plus a 3s sample. Waiting UNTIL it is audible, with a
+// generous ceiling, is fast when it works and patient when the machine is busy.
+// Absence still has to be sampled over a full window -- use peak() for that.
+const audibleWithin = async (p, ms, threshold = 0.02) => {
+  let k = 0;
+  for (let i = 0; i < Math.ceil(ms / 200); i++) {
+    k = Math.max(k, await p.evaluate(() => Audio.outputProbe().peak));
+    if (k > threshold) return k;
+    await wait(200);
+  }
+  return k;
+};
 
 (async () => {
   const h = await server();
@@ -106,7 +121,9 @@ const peak = async (p, ms) => {
   // ...and the two things that DO mean something still work
   await p.evaluate(() => { document.getElementById('pbPlay').click(); });
   await wait(3500);
-  ok((await peak(p, 3000)) > 0.02, 'pressing play starts one anyway (it means "surprise me")');
+  const playPeak = await audibleWithin(p, 20000);
+  ok(playPeak > 0.02, 'pressing play starts one anyway (it means "surprise me") [peak ' + playPeak.toFixed(4) +
+     ', chip ' + JSON.stringify(await p.evaluate(() => { try { return Audio.chipDiag ? Audio.chipDiag() : null; } catch (e) { return String(e); } })).slice(0, 160) + ']');
 
   ok(await p.evaluate(() => location.pathname === '/'),
      'playing keeps the permanent root address');
@@ -133,7 +150,7 @@ const peak = async (p, ms) => {
   });
   await p.waitForFunction(() => !document.querySelector('.rmood.busy'), null, { timeout: 25000 });
   await wait(3000);
-  ok((await peak(p, 3000)) > 0.02, 'and picking a mood plays that');
+  ok((await audibleWithin(p, 20000)) > 0.02, 'and picking a mood plays that');
   const moodResult = await p.evaluate(() => {
     const s = CT_CREATE._source();
     return { calls: window.__moodCompileCalls, style: s && s.style,

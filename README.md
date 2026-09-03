@@ -125,6 +125,43 @@ seed -> composer -> score -> emulated DMG audio -> speakers / WAV / cartridge
                    beat + energy -> self-playing game -> display pipeline
 ```
 
+## Use it from a program, or an agent
+
+Everything runs headless. There is no service to call and no key to get.
+
+```bash
+npx chiptunes brief --scene boss --seconds 45 --exclude Drums --out boss.doc
+npx chiptunes variant boss.doc --mood sadder --out gameover.doc
+npx chiptunes stems boss.doc --out stems/       # four exact WAVs, one per voice
+npx chiptunes rom boss.doc --out boss.gb        # boots on hardware
+npx chiptunes soundtrack --scenes title,overworld,battle,boss,game_over --key D --out ost/
+```
+
+That last one is the interesting case: five cues in the same key, in about 60 ms.
+
+```js
+const chiptunes = require('chiptunes/src/api');
+const cue = chiptunes.brief({ scene: 'battle', seconds: 30, exclude: ['Drums'] });
+const sad = chiptunes.variant(cue.doc, { mood: 'sadder' });   // the death-screen version
+```
+
+**As an MCP server**, for a model that should be able to write music:
+
+```json
+{ "mcpServers": { "chiptunes": { "command": "node", "args": ["mcp/server.js"] } } }
+```
+
+It exposes `guide`, `brief`, `soundtrack`, `variant`, `transform`, `describe`,
+`song_to_json`, `json_to_song`, `validate`, `export_cartridge`, `export_wav`,
+`export_stems` and `share_link`. Songs are held by short id, reading is paged by
+bar, and every transform returns a **new** song, so going back is free.
+
+The page carries the same idea for the session you are looking at: `window.chiptunes`
+plus WebMCP tool registration, so a browsing agent can pick a mood, skip, open
+the tracker, or make the playing song sadder.
+
+Design notes: [docs/AGENT_PLAN.md](docs/AGENT_PLAN.md).
+
 ## Run it locally
 
 ```bash

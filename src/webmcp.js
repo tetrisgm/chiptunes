@@ -132,6 +132,26 @@
       }
     },
     {
+      name: 'chiptunes_variant',
+      description: 'Make a version of the song on air with a different feeling and play it: sadder for a death screen, intense for a boss, calmer for a menu. The original document is returned too, so you can go back.',
+      inputSchema: {
+        type: 'object',
+        properties: { mood: { type: 'string', description: 'happier, sadder, darker, brighter, calmer, intense, sparser, dreamier' } },
+        required: ['mood']
+      },
+      run: function (a) {
+        if (!deck() || !has(Audio.currentDoc)) return { ok: false, error: 'the player is not ready' };
+        var before = Audio.currentDoc() || '';
+        if (!before) return { ok: false, error: 'nothing is playing yet' };
+        if (!G.CT_API || !has(G.CT_API.variant)) return { ok: false, error: 'the variant API is unavailable in this build' };
+        var r;
+        try { r = G.CT_API.variant(before, { mood: String((a && a.mood) || '') }); }
+        catch (e) { return { ok: false, error: e && e.message ? e.message : String(e) }; }
+        var played = Audio.playDoc(r.doc);
+        return played ? { ok: true, applied: r.applied, previous: before } : { ok: false, error: 'the variant would not play' };
+      }
+    },
+    {
       name: 'chiptunes_screen',
       description: 'Choose the display: crt (Modern), dmg (Game Boy), nes, or mix to let it re-roll on every track.',
       inputSchema: {

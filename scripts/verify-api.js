@@ -164,6 +164,54 @@ function mcp(messages) {
   ok(api.shareUrl(doc).startsWith('https://chiptunes.app/#s='),
      'a share link carries the song in the fragment, so nothing is uploaded');
 
+  // ---- 5b. briefs, sets, variants and stems -------------------------------
+  //
+  // The tier that makes this usable rather than merely programmable: ask for a
+  // scene of a given length, get cohesive sets, get a sad version, get stems.
+  console.log('briefs, sets and variants');
+  const g = api.guide();
+  ok(g.scenes.length >= 8 && g.moodWords.length >= 6 && !!g.licensing && !!g.provenance,
+     'guide() answers the questions an agent would otherwise guess at');
+  ok(/deterministic algorithm/.test(g.provenance) && !/legal advice/.test(g.provenance) &&
+     /not legal advice/.test(g.licensing),
+     'and is careful about licensing rather than inventing an answer');
+
+  const boss = api.brief({ scene: 'boss', seconds: 30, exclude: ['Drums'] });
+  ok(boss.unmet.length === 0, 'a brief with a scene, a length and an exclusion is met (' + boss.unmet.join('; ') + ')');
+  ok(Math.abs(boss.seconds - 30) <= 5, 'the length is close to what was asked (' + boss.seconds + 's of 30s)');
+  ok(boss.perLane.Drums === 0 && boss.notes > 0, 'and the excluded lane really is absent');
+  let bo = null;
+  try { api.brief({ scene: 'nope' }); } catch (e) { bo = e.message; }
+  ok(/Known:/.test(bo || ''), 'an unknown scene lists the real ones');
+
+  const sad = api.variant(boss.doc, { mood: 'sadder' });
+  const bd = api.describe(boss.doc), sd = api.describe(sad.doc);
+  ok(sd.bpm < bd.bpm && sad.applied.some(x => /mode -> minor/.test(x)),
+     'a sadder variant is slower and in the minor (' + bd.bpm + ' -> ' + sd.bpm + 'bpm)');
+  ok(sd.notes === bd.notes, 'and keeps every note, so it is recognisably the same music');
+  ok(api.describe(boss.doc).bpm === bd.bpm, 'and leaves the original alone');
+  ok(Array.isArray(sad.recipe) && sad.recipe.length > 0, 'the recipe is data an agent can read');
+
+  const tr = api.transform(boss.doc, [{ op: 'tempo', absolute: 100 }, { op: 'drop', lane: 'Harmony' }]);
+  ok(api.describe(tr.doc).bpm === 100 && api.describe(tr.doc).perLane.Harmony === 0,
+     'transforms are exact and compose in order');
+  ok(api.transform(boss.doc, [{ op: 'nonsense' }]).skipped.length === 1,
+     'and an unknown operation is reported, not silently ignored');
+
+  const ost = api.soundtrack({ scenes: ['title', 'battle', 'game_over'], key: 'D' });
+  ok(ost.cues.length === 3 && ost.cues.every(c => c.notes > 0), 'a soundtrack returns a cue per scene');
+  const CT = require('../src/create.js');
+  const keys = new Set(ost.cues.map(c => CT.docState(c.doc).key));
+  ok(keys.size === 1, 'and every cue is in the same key, which is what makes them belong together');
+
+  const stems = api.renderStems(boss.doc);
+  ok(stems.length === 4 && stems.every(x => x.wav.slice(0, 4).toString() === 'RIFF'),
+     'four stems render, one per hardware voice');
+  const energy = w => { let e = 0; for (let i = 44; i + 1 < w.length; i += 2) e += Math.abs(w.readInt16LE(i)); return e; };
+  const live = stems.filter(x => energy(x.wav) > 0);
+  ok(live.length >= 2, 'and they carry real audio (' + live.map(x => x.lane).join(', ') + ')');
+  ok(stems[3].wav.includes(Buffer.from('smpl')), 'with a smpl chunk so an engine reads the loop point');
+
   // ---- 6. the MCP server --------------------------------------------------
   console.log('the MCP server');
   const romPath = path.join(tmp, 'gate.gb');
@@ -174,7 +222,11 @@ function mcp(messages) {
     { jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'song_to_json', arguments: { song: 'song_1', fromBar: 0, toBar: 0 } } },
     { jsonrpc: '2.0', id: 5, method: 'tools/call', params: { name: 'export_cartridge', arguments: { song: 'song_1', path: romPath } } },
     { jsonrpc: '2.0', id: 6, method: 'tools/call', params: { name: 'compose', arguments: { mood: 'nope' } } },
-    { jsonrpc: '2.0', id: 7, method: 'tools/call', params: { name: 'describe', arguments: { song: 'song_404' } } }
+    { jsonrpc: '2.0', id: 7, method: 'tools/call', params: { name: 'describe', arguments: { song: 'song_404' } } },
+    { jsonrpc: '2.0', id: 8, method: 'tools/call', params: { name: 'guide', arguments: {} } },
+    { jsonrpc: '2.0', id: 9, method: 'tools/call', params: { name: 'brief', arguments: { scene: 'battle', seconds: 20 } } },
+    { jsonrpc: '2.0', id: 10, method: 'tools/call', params: { name: 'variant', arguments: { song: 'song_2', mood: 'calmer' } } },
+    { jsonrpc: '2.0', id: 11, method: 'tools/call', params: { name: 'soundtrack', arguments: { scenes: ['title', 'boss'], key: 'A' } } }
   ]);
   const by = id => msgs.find(x => x.id === id);
   ok(by(1) && by(1).result.serverInfo.name === 'chiptunes' && !!by(1).result.protocolVersion,
@@ -193,6 +245,16 @@ function mcp(messages) {
      'a bad argument comes back as a readable tool error, not a protocol failure');
   ok(by(7).result.isError && /unknown song id/.test(by(7).result.content[0].text),
      'and an unknown song id says so');
+  const gg = JSON.parse(by(8).result.content[0].text);
+  ok(gg.scenes && gg.recipes && gg.instantFreeLocal,
+     'guide is a tool, so an agent reads the rules instead of guessing');
+  const br = JSON.parse(by(9).result.content[0].text);
+  ok(br.id && br.notes > 0 && Array.isArray(br.unmet), 'brief works over MCP and reports unmet constraints');
+  const va = JSON.parse(by(10).result.content[0].text);
+  ok(va.id && va.id !== 'song_2' && va.applied.length > 0,
+     'variant returns a NEW id, so "go back" is free');
+  const so = JSON.parse(by(11).result.content[0].text);
+  ok(so.cues.length === 2 && so.cues.every(c => c.id), 'soundtrack returns one id per cue');
 
   // ---- 7. the in-page surface --------------------------------------------
   console.log('the page');
@@ -220,6 +282,22 @@ function mcp(messages) {
     now: window.chiptunes && window.chiptunes.now_playing()
   }));
   ok(page.present && page.tools.length >= 6, 'window.chiptunes is on the page (' + page.tools.length + ' tools)');
+  // ⚠️ THE BUNDLE IS CONCATENATED CLASSIC SCRIPTS, so a top-level `var` in any
+  // source file is a GLOBAL. api.js declares 47 names including Song, compose,
+  // load, describe and validate; shipping it unwrapped clobbered seed.js's Song
+  // and killed the audio chip (chipDiag reported chip:false, chipGain:0) -- and
+  // it only showed up under the full suite, never standalone. Both agent files
+  // are inside IIFEs now, and this asserts they stay that way.
+  const leaks = await p.evaluate(() => {
+    const names = ['compose', 'brief', 'soundtrack', 'variant', 'transform', 'describe', 'validate',
+                   'capabilities', 'renderWav', 'renderStems', 'toJSON', 'fromJSON', 'guide',
+                   'SCENES', 'MOODS', 'LANES', 'EXPORTS', 'wavOf', 'rowFor', 'laneOfCell'];
+    return { leaked: names.filter(n => n in window),
+             songIsSeed: typeof Song === 'object' && typeof Song.mint === 'function' };
+  });
+  ok(leaks.leaked.length === 0,
+     'and it leaks no globals of its own' + (leaks.leaked.length ? ': ' + leaks.leaked.join(', ') : ''));
+  ok(leaks.songIsSeed, 'and Song is still seed.js, not something a later file overwrote');
   ok(page.webmcp === 'registerTool' && page.registered.length === page.tools.length,
      'and every tool is registered with WebMCP when the browser has it');
   ok(page.now && Array.isArray(page.now.moods) && page.now.moods.length > 0,
@@ -240,6 +318,21 @@ function mcp(messages) {
     return { ok: r.ok };
   }, doc);
   ok(rt.ok, 'a document made in Node plays in the page');
+  // the API is in the page too, so an agent can transform what is playing
+  const inPage = await p.evaluate(async () => {
+    if (typeof CT_API === 'undefined') return { api: false };
+    const before = window.chiptunes.current_song().document;
+    const r = window.chiptunes.variant({ mood: 'sadder' });
+    await new Promise(res => setTimeout(res, 3000));
+    const after = window.chiptunes.current_song().document;
+    return { api: true, ok: r.ok, applied: r.applied || [], changed: !!after && after !== before,
+             canGoBack: !!r.previous && r.previous === before };
+  });
+  ok(inPage.api, 'the API is reachable in the page as CT_API');
+  ok(inPage.ok && inPage.applied.some(x => /minor/.test(x)),
+     'a variant of the song on air is composed in the browser (' + (inPage.applied || []).join('; ') + ')');
+  ok(inPage.changed && inPage.canGoBack,
+     'it replaces what is playing and hands back the previous document, so "go back" works');
   ok(errs.length === 0, 'no page errors' + (errs.length ? ': ' + errs[0] : ''));
   await b.close(); h.s.close();
 

@@ -11,6 +11,13 @@ const USAGE = `chiptunes — make Game Boy songs from the command line
 
   compose [--mood M | --token T | --styles a,b --mode M --bpm-min N --bpm-max N]
                               [--title S] [--out FILE]
+  brief --scene S [--seconds N] [--bars N] [--exclude Drums] [--key D]
+                              [--mode minor] [--out FILE]
+  soundtrack [--scenes a,b,c] [--key D] [--mode minor] --out DIR
+  variant <doc|file> --mood sadder [--out FILE]
+  transform <doc|file> --ops '[{"op":"tempo","percent":-10}]' [--out FILE]
+  stems <doc|file> --out DIR
+  guide
   describe <doc|file>
   json <doc|file> [--out FILE]        document -> readable JSON
   build <json-file> [--out FILE]      readable JSON -> document
@@ -62,6 +69,62 @@ try {
       process.stderr.write(r.title + ' — ' + r.bpm + 'bpm, ' + r.bars + ' bars' +
                            (r.token ? ', token ' + r.token : '') + '\n');
       out(r.doc);
+      break;
+    }
+    case 'guide': out(JSON.stringify(api.guide(), null, 2)); break;
+    case 'brief': {
+      const spec = {};
+      if (arg('scene')) spec.scene = arg('scene');
+      if (arg('seconds')) spec.seconds = +arg('seconds');
+      if (arg('bars')) spec.bars = +arg('bars');
+      if (arg('key')) spec.key = arg('key');
+      if (arg('mode')) spec.mode = arg('mode');
+      if (arg('exclude')) spec.exclude = arg('exclude').split(',');
+      if (arg('title')) spec.title = arg('title');
+      const r = api.brief(spec);
+      process.stderr.write(r.title + ' — ' + r.seconds + 's, ' + r.bars + ' bars' +
+        (r.unmet.length ? '\n  not met: ' + r.unmet.join('; ') : '') + '\n');
+      out(r.doc);
+      break;
+    }
+    case 'soundtrack': {
+      const dir = arg('out');
+      if (!dir) die('soundtrack writes several files; pass --out DIR');
+      const spec = {};
+      if (arg('scenes')) spec.scenes = arg('scenes').split(',');
+      if (arg('key')) spec.key = arg('key');
+      if (arg('mode')) spec.mode = arg('mode');
+      const s = api.soundtrack(spec);
+      fs.mkdirSync(path.resolve(dir), { recursive: true });
+      s.cues.forEach(c => {
+        const f = path.join(dir, c.scene + '.doc');
+        fs.writeFileSync(f, c.doc);
+        process.stdout.write(f + '  ' + c.seconds + 's  ' + c.bars + ' bars  ' + c.title + '\n');
+      });
+      process.stderr.write('all in the key of ' + s.key + '\n');
+      break;
+    }
+    case 'variant': {
+      const r = api.variant(readDoc(process.argv[3]), { mood: arg('mood') });
+      process.stderr.write(r.applied.join('\n') + '\n');
+      out(r.doc);
+      break;
+    }
+    case 'transform': {
+      const r = api.transform(readDoc(process.argv[3]), JSON.parse(arg('ops') || '[]'));
+      process.stderr.write(r.applied.join('\n') + (r.skipped.length ? '\nskipped: ' + r.skipped.join('; ') : '') + '\n');
+      out(r.doc);
+      break;
+    }
+    case 'stems': {
+      const dir = arg('out');
+      if (!dir) die('stems writes four files; pass --out DIR');
+      fs.mkdirSync(path.resolve(dir), { recursive: true });
+      api.renderStems(readDoc(process.argv[3])).forEach(s2 => {
+        const f = path.join(dir, s2.lane.toLowerCase() + '.wav');
+        fs.writeFileSync(f, s2.wav);
+        process.stdout.write(f + ' (' + s2.wav.length + ' bytes)\n');
+      });
       break;
     }
     case 'describe': out(JSON.stringify(api.describe(readDoc(process.argv[3])), null, 2)); break;
