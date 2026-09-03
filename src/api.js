@@ -116,6 +116,12 @@ function capabilities() {
     moods: CT_CREATE.moods(),
     scenes: Object.keys(SCENES),
     moodWords: Object.keys(MOODS),
+    genres: Object.keys(WORD_GENRES),
+    gameGenres: Object.keys(WORD_GAME_GENRES),
+    forms: Object.keys(WORD_FORMS),
+    techniques: Object.keys(WORD_TECHNIQUES),
+    meter: 'Everything is in four. There is no time-signature dial, so a waltz is not expressible and asking for one says so rather than pretending.',
+    references: 'A real game, band or composer is recognised and REFUSED. Nothing here is derived from anyone else\'s music, so a franchise name could only be a guess wearing a trademark. Ask for the GENRE instead -- platformer, shmup, rpg, horror, racing -- which maps to dials that really move.',
     operations: ['tempo', 'transpose', 'register', 'mode', 'velocity', 'thin', 'double',
                  'subdivide', 'drop', 'trim', 'repeat', 'swing', 'resolve', 'motion',
                  'shape', 'fade'],
@@ -956,6 +962,66 @@ var WORD_MOODS = {
   solemn: 'solemn', stately: 'solemn', ceremonial: 'solemn', reverent: 'solemn',
   tense: 'tense', anxious: 'tense', nervous: 'tense', suspenseful: 'tense'
 };
+// GENRES ARE REAL DIALS. The composer's fourteen styles ARE genres, so mapping
+// a genre word onto them is a true statement about what the machine will do --
+// unlike a franchise name, which could only be a guess wearing a trademark.
+var WORD_GENRES = {
+  anthem: ['anthem'], anthemic: ['anthem'],
+  house: ['house'], techno: ['techno'], trance: ['trance'],
+  dnb: ['dnb'], jungle: ['dnb'], breakbeat: ['breaks'], breaks: ['breaks'],
+  arcade: ['arcade'], rock: ['rock'], punk: ['punk'], hardcore: ['punk'],
+  funk: ['funk'], funky: ['funk'], groovy: ['funk'],
+  hiphop: ['boombap'], boombap: ['boombap'], lofi: ['boombap', 'chill'],
+  ambient: ['drone', 'chill'], drone: ['drone'],
+  ballad: ['ballad'],
+  dance: ['house', 'trance'], electronic: ['techno', 'house'], rave: ['trance', 'techno'],
+  metal: ['punk', 'rock'], surf: ['rock'], disco: ['house', 'funk']
+};
+
+// GAME GENRES, which is usually what somebody means when they name a game.
+// These are ordinary genre words, not marks belonging to anybody.
+var WORD_GAME_GENRES = {
+  platformer: { styles: ['arcade', 'anthem'], mode: 'major' },
+  shmup: { styles: ['dnb', 'techno'], mode: 'minor' },
+  shooter: { styles: ['dnb', 'techno'], mode: 'minor' },
+  racing: { styles: ['anthem', 'trance'], mode: 'major', bpmMin: 145 },
+  puzzle: { styles: ['chill', 'house'], mode: 'major' },
+  rpg: { styles: ['anthem', 'ballad'], mode: 'major' },
+  jrpg: { styles: ['anthem', 'ballad'], mode: 'major' },
+  adventure: { styles: ['anthem', 'arcade'], mode: 'major' },
+  horror: { styles: ['drone', 'ballad'], mode: 'minor' },
+  roguelike: { styles: ['chill', 'drone'], mode: 'minor' },
+  fighting: { styles: ['rock', 'punk'], mode: 'minor', bpmMin: 140 },
+  stealth: { styles: ['chill', 'drone'], mode: 'minor' },
+  strategy: { styles: ['chill', 'anthem'], mode: 'major' },
+  sports: { styles: ['anthem', 'breaks'], mode: 'major' },
+  metroidvania: { styles: ['chill', 'anthem'], mode: 'minor' }
+};
+
+// FORMS -- what shape the piece takes.
+var WORD_FORMS = {
+  fanfare:  { styles: ['anthem'], mode: 'major', seconds: 10, loop: false },
+  lullaby:  { styles: ['ballad'], mode: 'major', seconds: 45, bpmMax: 90 },
+  dirge:    { styles: ['drone', 'ballad'], mode: 'minor', bpmMax: 82 },
+  hymn:     { styles: ['ballad'], mode: 'major', bpmMax: 95 },
+  march:    { styles: ['anthem', 'rock'], mode: 'major', bpmMin: 110, bpmMax: 130 },
+  sting:    { styles: ['arcade'], seconds: 6, loop: false }
+};
+
+// TECHNIQUES -- things this chip does, named the way a musician names them.
+var WORD_TECHNIQUES = {
+  arpeggiated: { op: 'motion', motion: 'arp' }, arpeggios: { op: 'motion', motion: 'arp' },
+  arps: { op: 'motion', motion: 'arp' }, arpeggio: { op: 'motion', motion: 'arp' },
+  echoing: { op: 'motion', lane: 'Melody', motion: 'echo' },
+  rolled: { op: 'motion', motion: 'roll' },
+  staccato: { op: 'fade', fade: 6 }, plucky: { op: 'fade', fade: 6 },
+  sustained: { op: 'fade', fade: 0 }, legato: { op: 'fade', fade: 0 },
+  punchy: { op: 'velocity', delta: 0.12 }, muted: { op: 'velocity', delta: -0.15 },
+  syncopated: { op: 'swing', on: true }, swung: { op: 'swing', on: true },
+  shuffled: { op: 'swing', on: true },
+  doubled: { op: 'double', lane: 'Bass' }, halftime: { op: 'tempo', multiply: 0.5 }
+};
+
 var LANE_WORDS = { drums: 'Drums', drum: 'Drums', percussion: 'Drums', beat: 'Drums',
                    bass: 'Bass', melody: 'Melody', lead: 'Melody', tune: 'Melody',
                    harmony: 'Harmony', chords: 'Harmony', pads: 'Harmony' };
@@ -971,6 +1037,30 @@ function interpret(text, opts) {
     if (t.indexOf(' ' + w + ' ') >= 0) { sawScene = WORD_SCENES[w]; understood.push('scene: ' + sawScene); }
   });
   if (sawScene) { spec.scene = sawScene; sawNew = true; }
+
+  // game genres, then musical genres, then forms -- longest phrase first
+  Object.keys(WORD_GAME_GENRES).sort(function (a, b) { return b.length - a.length; }).forEach(function (w) {
+    if (spec.styles || t.indexOf(' ' + w + ' ') < 0) return;
+    var gg = WORD_GAME_GENRES[w];
+    Object.keys(gg).forEach(function (k) { if (spec[k] == null) spec[k] = gg[k]; });
+    understood.push('game genre: ' + w); sawNew = true;
+  });
+  Object.keys(WORD_GENRES).sort(function (a, b) { return b.length - a.length; }).forEach(function (w) {
+    if (spec.styles || t.indexOf(' ' + w + ' ') < 0) return;
+    spec.styles = WORD_GENRES[w].slice();
+    understood.push('genre: ' + w); sawNew = true;
+  });
+  Object.keys(WORD_FORMS).sort(function (a, b) { return b.length - a.length; }).forEach(function (w) {
+    if (t.indexOf(' ' + w + ' ') < 0) return;
+    var ff = WORD_FORMS[w];
+    Object.keys(ff).forEach(function (k) { if (spec[k] == null) spec[k] = ff[k]; });
+    understood.push('form: ' + w); sawNew = true;
+  });
+  Object.keys(WORD_TECHNIQUES).sort(function (a, b) { return b.length - a.length; }).forEach(function (w) {
+    if (t.indexOf(' ' + w + ' ') < 0) return;
+    ops.push(Object.assign({}, WORD_TECHNIQUES[w]));
+    understood.push('technique: ' + w);
+  });
 
   // length
   var m = t.match(/(\d+(?:\.\d+)?)\s*(seconds|second|secs|sec|s)\b/);
@@ -1039,6 +1129,17 @@ function interpret(text, opts) {
     if (toMode && !spec.mode) { spec.mode = toMode; understood.push('mode: ' + toMode); }
   }
 
+  // METER IS NOT A DIAL HERE. The composer writes in four; there is no time
+  // signature to set. Asking for a waltz should be told that, not quietly
+  // handed a 4/4 ballad, for the same reason a franchise name is refused.
+  var unsupported = [];
+  if (/\b(waltz|3\/4|three four|6\/8|six eight|triplet|swing time|odd meter|5\/4|7\/8)\b/.test(t))
+    unsupported.push({ asked: 'a different time signature', why: 'everything here is in four; the composer has no meter dial' });
+  if (/\b(vocals?|singing|lyrics|voice|choir)\b/.test(t))
+    unsupported.push({ asked: 'vocals', why: 'the Game Boy has two pulses, a wave and a noise channel, and none of them sings' });
+  if (/\b(guitar|piano|violin|orchestra|strings|brass|saxophone|flute solo)\b/.test(t))
+    unsupported.push({ asked: 'a real instrument', why: 'every sound is one of the four chip voices; there are no samples of real instruments' });
+
   // anything left that we clearly ignored
   var claimed = understood.join(' ').toLowerCase();
   String(text || '').toLowerCase().split(/[^a-z0-9#]+/).filter(Boolean).forEach(function (w) {
@@ -1048,6 +1149,10 @@ function interpret(text, opts) {
     // wolf about these would make the "ignored" line useless.
     if (/^(make|that|this|with|please|song|track|music|piece|thing|want|like|give|some|about|which|would|could|really|theme|tune|screen|second|seconds|secs|bars|minute|minutes|fanfare|sounding|feel|feeling|vibe|style|kind|something|anything|there|from|into|onto|then|also|very|much|more|less|just|only|even|still|again|now|and|but|for|the|a|an)$/.test(w)) return;
     if (WORD_MOODS[w] || LANE_WORDS[w] || WORD_SCENES[w]) return;
+    if (WORD_GENRES[w] || WORD_GAME_GENRES[w] || WORD_FORMS[w] || WORD_TECHNIQUES[w]) return;
+    // length adjectives are consumed by whichever thing set the length first
+    if (/^(short|brief|long|full|minute|seconds?)$/.test(w)) return;
+    if (unsupported.length) return;   // already explained, in better words
     if (notUnderstood.indexOf(w) < 0) notUnderstood.push(w);
   });
 
@@ -1066,8 +1171,10 @@ function interpret(text, opts) {
   var ref = String(text || '').match(/\b(?:like|similar to|in the style of|sounds? like|reminiscent of)\s+([a-z0-9' -]{2,40})/i);
   var reference = ref ? ref[1].trim().replace(/[.,!?]+$/, '') : null;
 
+
   return { kind: kind, spec: spec, ops: ops, moods: moods,
-           understood: understood, notUnderstood: notUnderstood, reference: reference };
+           understood: understood, notUnderstood: notUnderstood,
+           reference: reference, unsupported: unsupported };
 }
 
 // Interpret and carry out, in one call. Returns the new document plus exactly

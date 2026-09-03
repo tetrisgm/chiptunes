@@ -252,7 +252,7 @@ function mcp(messages) {
   console.log('closing the plan');
   const ost2 = api.soundtrack({ scenes: ['title', 'battle', 'game_over'], key: 'D', motif: true });
   ok(!!ost2.motif && ost2.motif.notes >= 2, 'a soundtrack shares a motif (' +
-     (ost2.motif ? ost2.motif.pitches.slice(0, 4).join(' ') : 'none') + ')');
+     (ost2.motif ? ost2.motif.pitches.slice(0, 4).join(' ') + ' on ' + ost2.motif.lane : 'none') + ')');
   {
     // COMPARE INTERVALS, NOT PITCHES. The figure is transposed into each cue on
     // purpose -- a copied motif is what makes a soundtrack sound like one song
@@ -261,9 +261,12 @@ function mcp(messages) {
     // toJSON labels the lane, which matters: reading every melodic cell in the
     // window interleaves Melody, Harmony and Bass and produces intervals that
     // are an artefact of the reader rather than the music.
+    // the figure may come from Harmony: both are pulse voices, and soundtrack()
+    // falls back when the first cue has no melodic phrase. It reports which.
+    const motifLane = ost2.motif.lane || 'Melody';
     const intervals = (doc, fromBar, n) => {
       const j = api.toJSON(doc);
-      const mel = j.notes.filter(x => x.lane === 'Melody' && x.note &&
+      const mel = j.notes.filter(x => x.lane === motifLane && x.note &&
                                       x.bar >= fromBar && x.bar < fromBar + 2)
                          .sort((a2, b2) => a2.step - b2.step)
                          .map(x => api.midiOf(x.note));
@@ -277,7 +280,7 @@ function mcp(messages) {
        'and every other cue opens with the same SHAPE, transposed (' + source + ')');
     const pitchHeads = ost2.cues.slice(1).map(c => {
       const j = api.toJSON(c.doc);
-      const m = j.notes.filter(x => x.lane === 'Melody' && x.note).sort((a2, b2) => a2.step - b2.step)[0];
+      const m = j.notes.filter(x => x.lane === motifLane && x.note).sort((a2, b2) => a2.step - b2.step)[0];
       return m ? m.note : null;
     });
     ok(new Set(pitchHeads).size > 1 || ost2.cues.length <= 2,
@@ -379,7 +382,9 @@ function mcp(messages) {
     ['make it much sadder and slower', 'change', ['slower', 'mood: sadder']],
     ['much slower', 'change', ['much slower']],
     ['120 bpm and no bass', 'change', ['without Bass', 'tempo: 120 bpm']],
-    ['a short victory fanfare', 'brief', ['scene: victory', 'length: short (20s)']],
+    // "fanfare" is a FORM and carries its own length, so it wins over the vague
+    // adjective rather than both being applied
+    ['a short victory fanfare', 'brief', ['scene: victory', 'form: fanfare']],
     ['something mysterious and slow', 'change', ['slower', 'mood: mysterious']],
     ['a heroic fast title theme', 'brief', ['scene: title', 'faster', 'mood: heroic']]
   ];
@@ -420,6 +425,42 @@ function mcp(messages) {
     const leaked = words.filter(w => NAMES.some(n => w.toLowerCase().indexOf(n) >= 0));
     ok(leaked.length === 0,
        'no real game or company is in the prompt vocabulary' + (leaked.length ? ': ' + leaked.join(', ') : ''));
+  }
+
+  // The vocabulary that replaced franchise names: genres, game genres, forms
+  // and techniques, all of which map to dials that really move.
+  const vocab = [
+    ['a platformer overworld theme', ['scene: overworld', 'game genre: platformer']],
+    ['a horror cave theme, arpeggiated', ['scene: cave', 'game genre: horror', 'technique: arpeggiated']],
+    ['something funky and syncopated', ['genre: funky', 'technique: syncopated']],
+    ['a lullaby, sustained', ['form: lullaby', 'technique: sustained']],
+    ['dnb boss fight, frantic', ['scene: boss', 'genre: dnb', 'mood: frantic']],
+    ['a racing theme', ['game genre: racing']]
+  ];
+  vocab.forEach(([text, want]) => {
+    const r = api.interpret(text, { hasSong: true });
+    ok(want.every(w => r.understood.indexOf(w) >= 0),
+       '"' + text + '" -> ' + r.understood.join(' | '));
+  });
+  {
+    const c = api.capabilities();
+    ok(c.genres.length >= 20 && c.gameGenres.length >= 12 && c.techniques.length >= 12,
+       'the published vocabulary is broad (' + c.genres.length + ' genres, ' +
+       c.gameGenres.length + ' game genres, ' + c.forms.length + ' forms, ' +
+       c.techniques.length + ' techniques)');
+  }
+  // ...and what it CANNOT do is said, not silently dropped
+  [['a waltz for a shop', 'a different time signature'],
+   ['something with vocals', 'vocals'],
+   ['a guitar solo boss theme', 'a real instrument']].forEach(([text, asked]) => {
+    const r = api.interpret(text, { hasSong: true });
+    ok(r.unsupported.length > 0 && r.unsupported[0].asked === asked,
+       '"' + text + '" says what it cannot do (' + (r.unsupported[0] || {}).asked + ')');
+  });
+  {
+    const r = api.interpret('a platformer overworld theme, arpeggiated, 40 seconds', {});
+    ok(r.notUnderstood.length === 0,
+       'and a fully-understood sentence reports nothing ignored');
   }
 
   const nonsense = api.interpret('banana wobble frobnicate', { hasSong: true });

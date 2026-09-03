@@ -1907,7 +1907,10 @@ function buildRadioUI(){
           if(r.reference){
             msg+='  \u2014 but I cannot do \u201clike '+r.reference+'\u201d. '+
                  'I match words, not references: there is no model reading this, '+
-                 'and I will not pretend to imitate something I was not built from.';
+                 'and I will not pretend to imitate something I was not built from. '+
+                 'Ask for the genre instead \u2014 platformer, shmup, rpg, horror, racing.';
+          } else if(r.unsupported && r.unsupported.length){
+            msg+='  \u2014 but I cannot do '+r.unsupported[0].asked+': '+r.unsupported[0].why+'.';
           } else if(r.notUnderstood && r.notUnderstood.length){
             msg+='  \u2014 I ignored: '+r.notUnderstood.join(', ')+'. Press How it works for the words I know.';
           }

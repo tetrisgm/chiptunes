@@ -2226,3 +2226,43 @@ Playwright runs) and passed 2/2 standalone immediately after. The rule already
 recorded further up this file applies to the test suite as well as to
 performance work: run `uptime` first, and a load average over ~10 means the
 measurement is not about the code.
+
+# 2026-09-02 — The vocabulary, widened without franchise names
+
+The owner asked for franchise names in the prompt vocabulary ("in the style of
+this game or that game"), on the grounds that no code or IP is being lifted.
+Two separate objections, and only one of them is legal:
+
+1. **It would not be true.** There is no model here and nothing is derived from
+   anyone else's music, so a mapping from a franchise name to musical dials
+   would be an invention — my impression of what a series sounds like, wearing
+   a trademark as a label. The product's whole pitch, in the README and the Show
+   HN post, is that it is honest about what it does; a fake style mapping
+   undercuts the one thing that differentiates it.
+2. **It reverses a documented decision.** `AGENTS.md`: "Never name a pack,
+   entity, sprite, palette or display string after a real game, character or
+   company... Renamed wholesale 2026-08-12 for exactly this reason." `seed.js`
+   carries `BLOCKED` so generated TITLES cannot land on real ones, held by
+   `verify-chrome`. A trademark in the prompt vocabulary is the same hazard one
+   step earlier. That contract is the owner's to change, not an agent's.
+
+**What was built instead**, which gets most of what somebody means by naming a
+game, and is true:
+
+- **Game genres** (15): platformer, shmup, racing, puzzle, rpg, adventure,
+  horror, roguelike, fighting, stealth, strategy, sports, metroidvania...
+- **Musical genres** (28) mapped onto the composer's own fourteen styles, so
+  the mapping is a statement of fact rather than a guess.
+- **Forms** (6): fanfare, lullaby, dirge, hymn, march, sting.
+- **Techniques** (17): arpeggiated, staccato, legato, syncopated, punchy,
+  muted, rolled, echoing, doubled, halftime...
+- Plus the compound moods added earlier: heroic, mysterious, menacing, frantic,
+  playful, solemn, tense.
+
+So *"a platformer overworld theme, arpeggiated, 40 seconds"* lands completely.
+
+**And it now says what it CANNOT do, rather than dropping it silently:** a
+different time signature (everything is in four; there is no meter dial),
+vocals, or a real instrument. Same treatment as a franchise reference. Held by
+`verify-api`, which also asserts the published vocabulary is broad and that a
+fully-understood sentence reports nothing ignored.

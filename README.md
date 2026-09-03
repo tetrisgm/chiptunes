@@ -159,8 +159,15 @@ It exposes `guide`, `brief`, `soundtrack`, `variations`, `variant`, `transform`,
 bar, and every transform returns a **new** song, so going back is free.
 
 And in the product itself there is a field under the mood chips: type
-*"a boss theme, 30 seconds, no drums"* or *"make it much slower and darker"* and
-it does that. The parser is deterministic and lives in `src/api.js`, so it names
+*"a platformer overworld theme, arpeggiated, 40 seconds"* or *"make it much
+slower and darker"* and it does that. It knows scenes, game genres, musical
+genres, forms, techniques, moods, keys, tempi and lengths.
+
+It will **not** pretend to imitate a named game or composer. Ask for "something
+like Zelda" and it says so plainly and asks for the genre instead, because
+nothing here is derived from anyone else's music and a franchise name could only
+ever be a guess wearing a trademark. Same for the things the hardware cannot do:
+a waltz, vocals, a guitar. It says which, and why. The parser is deterministic and lives in `src/api.js`, so it names
 back exactly what it understood, says what it ignored, and refuses out loud
 rather than composing something at random.
 
