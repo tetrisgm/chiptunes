@@ -591,6 +591,13 @@ function compile(token,rawPremise){
     form:form.formId,style:style.id,tracker:tracker,background:{attentionBudget:.1},events:events};
 }
 function duration(token){var s=compile(token);return s.totalBars*4*60/s.bpm;}
-var API={V:3,id:'rrr_core',revision:REV,compile:compile,duration:duration};
+// The style table, read-only, so callers can tell whether a premise is
+// SATISFIABLE before handing it over. Ten of these fourteen are major-only
+// and each has a narrow native tempo range, so a premise combining a style
+// with an incompatible mode or tempo band leaves pickStyle() with an empty
+// pool -- and the caller's fallback then drops the styles, which is the one
+// part of the request it was least entitled to throw away.
+function styles(){return STYLES.map(function(s){return {id:s.id,bpm:s.bpm.slice(),modes:s.modes};});}
+var API={V:3,id:'rrr_core',revision:REV,compile:compile,duration:duration,styles:styles};
 G.CT_COMPOSERS=G.CT_COMPOSERS||{};G.CT_COMPOSERS.rrr_core=API;if(typeof module!=='undefined'&&module.exports)module.exports=API;
 })();

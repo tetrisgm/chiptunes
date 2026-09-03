@@ -2266,3 +2266,87 @@ different time signature (everything is in four; there is no meter dial),
 vocals, or a real instrument. Same treatment as a franchise reference. Held by
 `verify-api`, which also asserts the published vocabulary is broad and that a
 fully-understood sentence reports nothing ignored.
+
+# 2026-09-02 (later) — Named games ARE in the vocabulary now, read as genres
+
+The owner scoped the `AGENTS.md` naming rule: it was written for the visualizer
+PACKS, which are original code that looks like somebody's game, and it does not
+govern the music. `AGENTS.md` now says so, and names three separate things that
+kept being confused:
+
+1. **A title in a prompt** is a genre description and is allowed.
+2. **A generated song title** landing on a real cartridge name is passing off,
+   not describing, and stays forbidden — `BLOCKED` in `seed.js`, held by
+   `verify-chrome`.
+3. **A visualizer pack** named after a real game is the takedown hazard the
+   original rule was written for — held by `smoke-games.js`.
+
+## What was built
+
+`src/reference-styles.js`: 115 titles, aliases included, mapping onto genre,
+composer styles, major/minor, a tempo band, a mood and one technique. Nothing
+else — and `verify-language.js` asserts the entry shape, so a future edit cannot
+smuggle in anything that would stop it being a genre reading.
+
+The summary always states the reading, never a resemblance: *"like Castlevania
+(platformer), used for: rock/punk, 145-172 bpm, menacing, arpeggiated"*. And it
+names only what the title **actually set** — see the precedence below.
+
+## Three things that fought each other, and how they were settled
+
+- **An explicit word beats the reference.** "a platformer like Metroid" is a
+  platformer. The title's span is BLANKED before ordinary vocabulary matching,
+  because otherwise "Kirby's Adventure" also fires the game genre *adventure*
+  and "Metal Gear" fires the genre *metal*, and the summary contradicts itself.
+- **A named scene keeps its own mode.** A scene is a functional requirement (a
+  game-over cue must not come out jaunty); a title is an atmosphere hint. So a
+  dungeon "like Zelda" is minor. Typing "major" still beats both.
+- **A title's mood goes in as ops with its tempo and mode stripped**, because
+  both were already decided by things that outrank it.
+
+## Two real bugs this uncovered
+
+**Forty-eight of the 115 titles were silently losing their genre.** Ten of the
+composer's fourteen styles are `modes:'maj'`, so a premise of `styles:['rock',
+'punk']` plus `mode:'minor'` leaves `pickStyle()` an empty pool. `brief()`'s
+fallback then deletes `styles` and keeps the mode — discarding the one part of a
+reference a listener can actually hear, while the summary went on naming it. Fix:
+a title's mode is applied as a `mode` TRANSFORM after composing, exactly as the
+mood recipes already do. Twelve more had tempo bands no listed style could
+reach; those were corrected, and `_bandIsReachable()` now drops an unreachable
+band rather than letting it cost the genre. `composer.styles()` was added
+(read-only) so that check has something true to consult.
+
+**`brief()` never honoured `SCENES`' own `resolve: true`.** It had been there
+since scenes were added, so `victory` and `game_over` — the two cues that most
+need a clean ending — were the two not getting one.
+
+## Parser work, generally
+
+Shared normalisation with the title table (hyphens, apostrophes, `&`, roman
+numerals), so "boss-fight" and "castlevania iii" match. `unsupported` is tested
+against punctuation-bearing text, which is why the `3/4` check can now fire at
+all — the slash had previously been replaced by a space before it ran. Written
+numbers ("forty five seconds", "a minute and a half"), flats mapped to sharps,
+"just bass and drums", "leave out the harmony", loop and resolve, and five
+categories of honest refusal (time signature, vocals, real instruments, modes
+beyond major/minor, studio effects).
+
+Every rule that fires now **eats its own words** (`consumed`), instead of a
+hand-maintained list of function words growing by one entry every time the
+ignored line cried wolf about "leave" or "half" or "brisk".
+
+## Gate
+
+`scripts/verify-language.js`, in `npm test`. It walks all 115 titles for
+compose-ability AND genre retention, checks alias/sequel/apostrophe resolution,
+the precedence rules above, sixteen ordinary sentences that must be understood
+*completely*, the refusals, determinism, and a global-leak guard. Its strongest
+assertion is the general one: **everything a summary lists under "used for" is
+really in force** — that is what catches the next false claim, whatever shape it
+takes.
+
+`verify-diversity`'s "thirty songs made sadder" assertion was demanding 30/30
+from a randomly seeded batch. Measured over 60 batches: one collided, worst case
+29/30. It was failing ~1.7% of runs for no reason, so it now has a floor of 28
+with the measurement recorded next to it.

@@ -91,7 +91,7 @@ music is not.)
 
 ## Verification
 
-`npm test` runs 20 gates. Most of them exist because the thing they check was
+`npm test` runs 21 gates. Most of them exist because the thing they check was
 once wrong, and the comment above each one says what went wrong.
 
 | gate | what it holds | in `npm test` |
@@ -101,6 +101,7 @@ once wrong, and the comment above each one says what went wrong.
 | `test:share` | a shared link is the same song from either side | yes |
 | `test:sync` | the picture sits on the sound, corrected for measured output latency | yes |
 | `test:screens` | all three screen faces actually draw, and sleeping one frees its GPU targets | yes |
+| `test:language` | every claim the prompt parser makes about a sentence is true, and every title composes with the genre it named | yes |
 | `test:rom-audio` | browser chip vs. the ROM executing on the emulated CPU, spectrally | run on its own |
 | `test:kit` | sampled drums match across both paths; the sample and refill clocks are in step | run on its own |
 | `test:render-parity` | offline render matches live playback to ≥ 0.995 correlation | run on its own |
@@ -159,17 +160,25 @@ It exposes `guide`, `brief`, `soundtrack`, `variations`, `variant`, `transform`,
 bar, and every transform returns a **new** song, so going back is free.
 
 And in the product itself there is a field under the mood chips: type
-*"a platformer overworld theme, arpeggiated, 40 seconds"* or *"make it much
+*"a dungeon theme like Castlevania, 40 seconds, no drums"* or *"make it much
 slower and darker"* and it does that. It knows scenes, game genres, musical
-genres, forms, techniques, moods, keys, tempi and lengths.
+genres, forms, techniques, moods, keys, tempi, lengths, and about a hundred
+Game Boy and NES titles.
 
-It will **not** pretend to imitate a named game or composer. Ask for "something
-like Zelda" and it says so plainly and asks for the genre instead, because
-nothing here is derived from anyone else's music and a franchise name could only
-ever be a guess wearing a trademark. Same for the things the hardware cannot do:
-a waltz, vocals, a guitar. It says which, and why. The parser is deterministic and lives in `src/api.js`, so it names
-back exactly what it understood, says what it ignored, and refuses out loud
-rather than composing something at random.
+**A title is read as a genre, and the reading is always said back.** "Like
+Castlevania" resolves to *platformer, rock/punk, minor, 145-172 bpm, menacing,
+arpeggiated*, and that sentence is what you see. It is not an imitation and
+cannot be: nothing here is trained on or derived from anybody's recordings, and
+a title can only reach dials you could type yourself, which
+[`src/reference-styles.js`](src/reference-styles.js) makes visible and the gate
+asserts. Explicit words beat the reference, so *"a platformer like Metroid"* is
+a platformer, and a named scene keeps its own mode, so a dungeon stays minor.
+
+Everything else is refused out loud rather than quietly dropped: a name that is
+not on the list, a waltz, vocals, a guitar, a Dorian mode, reverb. It says which,
+and why. The parser is deterministic and lives in `src/api.js`, so it names back
+exactly what it understood, says what it ignored, and never composes something
+at random and lets the phrasing imply it worked.
 
 The page carries the same idea for the session you are looking at: `window.chiptunes`
 plus WebMCP tool registration, so a browsing agent can pick a mood, skip, open

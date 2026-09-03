@@ -45,6 +45,7 @@ var Song = _req ? _req('./seed.js') : _G.Song;
 // which only transforms -- worked, and the gate did not catch it.
 var composer = _req ? _req('./composer.js')
                     : ((_G.CT_COMPOSERS && _G.CT_COMPOSERS.rrr_core) || null);
+var REF = _req ? _req('./reference-styles.js') : _G.CT_REFERENCE_STYLES;
 var CT_CREATE = _req ? _req('./create.js') : _G.CT_CREATE;
 var GB_ROM = _req ? _req('./gb-rom.js') : _G.CT_GB_ROM;
 var GB_APU = _req ? _req('./gb-apu.js') : _G.CT_GB_APU;
@@ -121,7 +122,8 @@ function capabilities() {
     forms: Object.keys(WORD_FORMS),
     techniques: Object.keys(WORD_TECHNIQUES),
     meter: 'Everything is in four. There is no time-signature dial, so a waltz is not expressible and asking for one says so rather than pretending.',
-    references: 'A real game, band or composer is recognised and REFUSED. Nothing here is derived from anyone else\'s music, so a franchise name could only be a guess wearing a trademark. Ask for the GENRE instead -- platformer, shmup, rpg, horror, racing -- which maps to dials that really move.',
+    titles: REF && REF.names ? REF.names() : [],
+    references: 'Naming a game from `titles` is READ AS a genre description -- genre, styles, major/minor, a tempo band, a mood, one technique -- and the reading is always said back so you can disagree with it. It is not an imitation: nothing here is trained on or derived from anybody else\'s music, and a title can only set dials you could type yourself. A name that is not on the list is REFUSED rather than quietly ignored, because it maps to nothing at all.',
     operations: ['tempo', 'transpose', 'register', 'mode', 'velocity', 'thin', 'double',
                  'subdivide', 'drop', 'trim', 'repeat', 'swing', 'resolve', 'motion',
                  'shape', 'fade'],
@@ -715,6 +717,12 @@ function brief(b) {
   var ops = [];
   if (spec.exclude) [].concat(spec.exclude).forEach(function (l) { ops.push({ op: 'drop', lane: l }); });
   if (spec.intensity > 0) ops.push({ op: 'velocity', delta: 0.1 });
+  // SCENES has carried `resolve: true` on victory and game_over since scenes
+  // were added, and brief() never read it, so the two cues that most need a
+  // clean ending were the two not getting one. It is a transform, so it goes
+  // in with the others -- before the length trim, since trimming can remove
+  // the bar the resolved note lands in and the trim is what defines the end.
+  if (spec.resolve) ops.push({ op: 'resolve' });
   var doc = made.doc;
   if (ops.length) doc = transform(doc, ops).doc;
 
@@ -928,15 +936,26 @@ function wavOf(pcm, rate, loop) {
 
 var WORD_SCENES = {
   'title': 'title', 'title screen': 'title', 'main theme': 'title',
-  'menu': 'menu', 'pause': 'menu',
+  'intro': 'title', 'opening': 'title', 'attract mode': 'title',
+  'menu': 'menu', 'pause': 'menu', 'main menu': 'menu', 'file select': 'menu',
+  'character select': 'menu', 'options screen': 'menu',
   'overworld': 'overworld', 'world map': 'overworld', 'exploring': 'overworld',
-  'town': 'town', 'village': 'town', 'shop': 'shop', 'store': 'shop',
-  'cave': 'cave', 'dungeon': 'cave', 'underground': 'cave',
+  'field': 'overworld', 'travelling': 'overworld', 'traveling': 'overworld',
+  'town': 'town', 'village': 'town', 'inn': 'town', 'tavern': 'town',
+  'shop': 'shop', 'store': 'shop', 'market': 'shop', 'merchant': 'shop',
+  'cave': 'cave', 'dungeon': 'cave', 'underground': 'cave', 'cavern': 'cave',
+  'temple': 'cave', 'crypt': 'cave', 'catacombs': 'cave', 'labyrinth': 'cave',
+  'sewer': 'cave', 'sewers': 'cave', 'ruins': 'cave', 'caves': 'cave', 'dungeons': 'cave',
   'battle': 'battle', 'fight': 'battle', 'combat': 'battle',
-  'boss': 'boss', 'boss fight': 'boss', 'final boss': 'boss',
+  'encounter': 'battle', 'skirmish': 'battle', 'duel': 'battle',
+  'boss': 'boss', 'boss fight': 'boss', 'final boss': 'boss', 'boss battle': 'boss',
+  'final battle': 'boss',
   'victory': 'victory', 'win': 'victory', 'fanfare': 'victory',
+  'level complete': 'victory', 'stage clear': 'victory', 'results': 'victory',
   'game over': 'game_over', 'death': 'game_over', 'defeat': 'game_over',
-  'credits': 'credits', 'ending': 'credits'
+  'you died': 'game_over', 'continue screen': 'game_over',
+  'credits': 'credits', 'ending': 'credits', 'outro': 'credits',
+  'staff roll': 'credits', 'end credits': 'credits'
 };
 var WORD_MOODS = {
   happy: 'happier', happier: 'happier', cheerful: 'happier', upbeat: 'happier', joyful: 'happier',
@@ -1026,100 +1045,263 @@ var LANE_WORDS = { drums: 'Drums', drum: 'Drums', percussion: 'Drums', beat: 'Dr
                    bass: 'Bass', melody: 'Melody', lead: 'Melody', tune: 'Melody',
                    harmony: 'Harmony', chords: 'Harmony', pads: 'Harmony' };
 
+// ONE NORMALISATION, shared with reference-styles.js so the table's keys and
+// the sentence are the same shape. Two bugs came from having more than one:
+// hyphens survived, so "boss-fight" matched nothing, and the `3/4` test could
+// never fire because the slash had already become a space before it ran.
+var _norm = (REF && REF.normalize) || function (s) {
+  return String(s == null ? '' : s).toLowerCase().replace(/&/g, ' and ')
+    .replace(/['‘’ʼ]/g, '').replace(/[^a-z0-9#]+/g, ' ')
+    .replace(/\s+/g, ' ').trim();
+};
+
+// "forty five seconds" is how people type a duration. Leaving it unparsed made
+// the parser look worst at the one constraint it is genuinely good at.
+var NUM_WORDS = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7,
+  eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, fifteen: 15, sixteen: 16,
+  eighteen: 18, twenty: 20, thirty: 30, forty: 40, fourty: 40, fifty: 50,
+  sixty: 60, seventy: 70, eighty: 80, ninety: 90 };
+var TENS = { twenty: 20, thirty: 30, forty: 40, fourty: 40, fifty: 50,
+             sixty: 60, seventy: 70, eighty: 80, ninety: 90 };
+function _digits(s) {
+  var w = s.split(' '), out = [];
+  for (var i = 0; i < w.length; i++) {
+    if (TENS[w[i]] != null && NUM_WORDS[w[i + 1]] != null && NUM_WORDS[w[i + 1]] < 10) {
+      out.push(String(TENS[w[i]] + NUM_WORDS[w[i + 1]])); i++; continue;
+    }
+    out.push(NUM_WORDS[w[i]] != null ? String(NUM_WORDS[w[i]]) : w[i]);
+  }
+  return out.join(' ');
+}
+// Flats are spelled as sharps everywhere below this line, because the composer
+// names twelve pitch classes and does not have two names for any of them.
+var FLAT_TO_SHARP = { a: 'G#', b: 'A#', c: 'B', d: 'C#', e: 'D#', f: 'E', g: 'F#' };
+
+// Can any of these styles sit in this tempo band? The composer's styles each
+// have a narrow native range, and a premise naming both a style and a band
+// outside it leaves pickStyle() with nothing to pick.
+function _bandIsReachable(styles, lo, hi) {
+  var table = composer && composer.styles ? composer.styles() : null;
+  if (!table || !styles || !styles.length) return true;   // nothing to check against
+  return styles.some(function (id) {
+    var st = table.filter(function (x) { return x.id === id; })[0];
+    return !st || Math.max(st.bpm[0], lo) <= Math.min(st.bpm[1], hi);
+  });
+}
+
 function interpret(text, opts) {
   opts = opts || {};
-  var t = ' ' + String(text || '').toLowerCase().replace(/[^a-z0-9#.\s-]/g, ' ').replace(/\s+/g, ' ') + ' ';
-  var understood = [], notUnderstood = [], spec = {}, ops = [], sawScene = null, sawNew = false;
+  var src = String(text || '');
+  // punctuation intact, for the handful of patterns that need it (3/4, 6/8)
+  var raw = src.toLowerCase().replace(/\s+/g, ' ').trim();
+  var norm = _norm(src);
 
-  // scenes, longest phrase first so "boss fight" beats "fight"
-  Object.keys(WORD_SCENES).sort(function (a, b) { return b.length - a.length; }).forEach(function (w) {
-    if (sawScene) return;
-    if (t.indexOf(' ' + w + ' ') >= 0) { sawScene = WORD_SCENES[w]; understood.push('scene: ' + sawScene); }
+  var understood = [], notUnderstood = [], spec = {}, ops = [], moods = [];
+  var sawScene = null, sawNew = false, namedTechnique = false, unsupported = [];
+
+  // 1. TITLES FIRST, and each match is blanked out of the sentence before
+  //    anything else looks at it. Without that, "Kirby's Adventure" also
+  //    registers as the game genre "adventure" and "Metal Gear" as the genre
+  //    "metal", and the summary contradicts itself.
+  var titles = (REF && REF.scan) ? REF.scan(norm) : [];
+  var title = titles.length ? titles[0].entry : null;
+  var chars = norm.split('');
+  titles.forEach(function (m) { for (var i = m.start; i < m.end; i++) chars[i] = ' '; });
+  var t = ' ' + _digits(chars.join('').replace(/\s+/g, ' ').trim()) + ' ';
+  var has = function (w) { return t.indexOf(' ' + w + ' ') >= 0; };
+  // EVERY RULE THAT FIRES EATS ITS OWN WORDS. Maintaining a hand-written list
+  // of function words instead ("leave", "half", "brisk") meant the ignored line
+  // cried wolf about words a rule had plainly consumed, one word at a time,
+  // forever. Recording the matched span is the same thing done once.
+  var consumed = [];
+  var eat = function (m) { if (m) consumed.push(String(m[0] || m)); return m; };
+  var re = function (r) { return !!eat(t.match(new RegExp(r))); };
+  var longestFirst = function (o) {
+    return Object.keys(o).sort(function (a, b) { return b.length - a.length || a.localeCompare(b); });
+  };
+
+  // 2. scenes, longest phrase first so "boss fight" beats "fight"
+  longestFirst(WORD_SCENES).forEach(function (w) {
+    if (sawScene || !has(w)) return;
+    sawScene = WORD_SCENES[w]; understood.push('scene: ' + sawScene);
   });
   if (sawScene) { spec.scene = sawScene; sawNew = true; }
 
-  // game genres, then musical genres, then forms -- longest phrase first
-  Object.keys(WORD_GAME_GENRES).sort(function (a, b) { return b.length - a.length; }).forEach(function (w) {
-    if (spec.styles || t.indexOf(' ' + w + ' ') < 0) return;
+  // 3. genres and forms the user named THEMSELVES. These come before the
+  //    title's dials and win over them, so "a platformer like Metroid" is a
+  //    platformer -- the explicit word is the one they chose.
+  longestFirst(WORD_GAME_GENRES).forEach(function (w) {
+    if (spec.styles || !has(w)) return;
     var gg = WORD_GAME_GENRES[w];
     Object.keys(gg).forEach(function (k) { if (spec[k] == null) spec[k] = gg[k]; });
     understood.push('game genre: ' + w); sawNew = true;
   });
-  Object.keys(WORD_GENRES).sort(function (a, b) { return b.length - a.length; }).forEach(function (w) {
-    if (spec.styles || t.indexOf(' ' + w + ' ') < 0) return;
+  longestFirst(WORD_GENRES).forEach(function (w) {
+    if (spec.styles || !has(w)) return;
     spec.styles = WORD_GENRES[w].slice();
     understood.push('genre: ' + w); sawNew = true;
   });
-  Object.keys(WORD_FORMS).sort(function (a, b) { return b.length - a.length; }).forEach(function (w) {
-    if (t.indexOf(' ' + w + ' ') < 0) return;
+  longestFirst(WORD_FORMS).forEach(function (w) {
+    if (!has(w)) return;
     var ff = WORD_FORMS[w];
     Object.keys(ff).forEach(function (k) { if (spec[k] == null) spec[k] = ff[k]; });
     understood.push('form: ' + w); sawNew = true;
   });
-  Object.keys(WORD_TECHNIQUES).sort(function (a, b) { return b.length - a.length; }).forEach(function (w) {
-    if (t.indexOf(' ' + w + ' ') < 0) return;
+  longestFirst(WORD_TECHNIQUES).forEach(function (w) {
+    if (!has(w)) return;
     ops.push(Object.assign({}, WORD_TECHNIQUES[w]));
-    understood.push('technique: ' + w);
+    understood.push('technique: ' + w); namedTechnique = true;
   });
 
-  // length
-  var m = t.match(/(\d+(?:\.\d+)?)\s*(seconds|second|secs|sec|s)\b/);
+  // 4. length
+  var m = eat(t.match(/(\d+(?:\.\d+)?)\s*(?:seconds|second|secs|sec|s)\b/));
+  var mm = eat(t.match(/(\d+(?:\.\d+)?)\s*(?:minutes|minute|mins|min)\b/));
   if (m) { spec.seconds = +m[1]; understood.push('length: ' + spec.seconds + 's'); sawNew = true; }
-  var mb = t.match(/(\d+)\s*(bars|bar)\b/);
+  else if (mm) { spec.seconds = Math.round(+mm[1] * 60); understood.push('length: ' + spec.seconds + 's'); sawNew = true; }
+  else if (re('\\ba minute and a half\\b')) { spec.seconds = 90; understood.push('length: 90s'); sawNew = true; }
+  else if (re('\\bhalf a minute\\b')) { spec.seconds = 30; understood.push('length: 30s'); sawNew = true; }
+  else if (re('\\ba minute\\b')) { spec.seconds = 60; understood.push('length: 60s'); sawNew = true; }
+  var mb = eat(t.match(/(\d+)\s*(?:bars|bar)\b/));
   if (mb) { spec.bars = +mb[1]; understood.push('length: ' + spec.bars + ' bars'); sawNew = true; }
-  if (/\ba minute\b/.test(t)) { spec.seconds = 60; understood.push('length: 60s'); sawNew = true; }
-  if (/\b(short|brief)\b/.test(t) && !spec.seconds) { spec.seconds = 20; understood.push('length: short (20s)'); sawNew = true; }
-  if (/\b(long|longer piece|full)\b/.test(t) && !spec.seconds) { spec.seconds = 75; understood.push('length: long (75s)'); sawNew = true; }
+  if (spec.seconds == null && spec.bars == null) {
+    if (re('\\b(short|brief|quick one|snippet|stinger)\\b')) { spec.seconds = 20; understood.push('length: short (20s)'); sawNew = true; }
+    else if (re('\\b(long|lengthy|extended|full length)\\b')) { spec.seconds = 75; understood.push('length: long (75s)'); sawNew = true; }
+  }
 
-  // key and mode
-  var mk = t.match(/\bin ([a-g])(\s?#|\s?sharp|\s?flat)?\s*(major|minor)?\b/);
+  // 5. key and mode
+  var mk = eat(t.match(/\bin ([a-g])\s?(#|sharp|flat|b)?\s*(major|minor)?\b/));
   if (mk) {
-    spec.key = mk[1].toUpperCase() + (mk[2] && /#|sharp/.test(mk[2]) ? '#' : '');
+    var letter = mk[1], acc = mk[2] || '';
+    spec.key = /flat|^b$/.test(acc) ? FLAT_TO_SHARP[letter] : letter.toUpperCase() + (/#|sharp/.test(acc) ? '#' : '');
     understood.push('key: ' + spec.key);
     if (mk[3]) { spec.mode = mk[3]; understood.push('mode: ' + mk[3]); }
     sawNew = true;
   }
-  if (!spec.mode && /\bminor\b/.test(t)) { spec.mode = 'minor'; understood.push('mode: minor'); }
-  if (!spec.mode && /\bmajor\b/.test(t)) { spec.mode = 'major'; understood.push('mode: major'); }
+  if (!spec.mode && has('minor')) { spec.mode = 'minor'; understood.push('mode: minor'); }
+  if (!spec.mode && has('major')) { spec.mode = 'major'; understood.push('mode: major'); }
 
-  // lanes to leave out
+  // 6. which voices to leave out. "no drums" is the single most common
+  //    constraint anybody asks a music generator for -- room for dialogue and
+  //    sound effects -- so it takes the filler words people actually type.
+  var LANES = ['Melody', 'Harmony', 'Bass', 'Drums'];
+  var exclude = function (lane, why) {
+    if ((spec.exclude || []).indexOf(lane) >= 0) return;
+    (spec.exclude = spec.exclude || []).push(lane);
+    ops.push({ op: 'drop', lane: lane });
+    understood.push(why);
+  };
   Object.keys(LANE_WORDS).forEach(function (w) {
-    if (new RegExp('\\b(no|without|remove|drop|mute|lose the|minus)\\s+' + w + '\\b').test(t)) {
-      var lane = LANE_WORDS[w];
-      if ((spec.exclude || []).indexOf(lane) < 0) { (spec.exclude = spec.exclude || []).push(lane); ops.push({ op: 'drop', lane: lane }); }
-      understood.push('without ' + lane);
-    }
+    if (re('\\b(no|without|remove|drop|mute|lose|minus|skip|leave out|leaving out|less)\\s+(the\\s+|any\\s+|its\\s+|all\\s+)?' + w + '\\b'))
+      exclude(LANE_WORDS[w], 'without ' + LANE_WORDS[w]);
+  });
+  // "just bass and drums", "melody only" -- name what stays, drop the rest.
+  var words = t.trim().split(' ');
+  words.forEach(function (w, i) {
+    if (!/^(only|just|nothing but|solely)$/.test(w)) return;
+    var near = words.slice(Math.max(0, i - 3), i + 5);
+    var keep = [];
+    near.forEach(function (n) { if (LANE_WORDS[n] && keep.indexOf(LANE_WORDS[n]) < 0) keep.push(LANE_WORDS[n]); });
+    if (!keep.length || keep.length === LANES.length) return;
+    LANES.forEach(function (l) { if (keep.indexOf(l) < 0) exclude(l, 'without ' + l); });
+    understood.push(keep.join(' and ') + ' only');
   });
 
-  // tempo
-  var bpm = t.match(/(\d{2,3})\s*bpm\b/);
+  // 7. tempo
+  var bpm = eat(t.match(/(\d{2,3})\s*bpm\b/));
   if (bpm) { ops.push({ op: 'tempo', absolute: +bpm[1] }); understood.push('tempo: ' + bpm[1] + ' bpm'); }
-  else if (/\b(much|way|a lot) (faster|quicker)\b/.test(t)) { ops.push({ op: 'tempo', percent: 25 }); understood.push('much faster'); }
-  else if (/\b(a (bit|little)|slightly) (faster|quicker)\b/.test(t)) { ops.push({ op: 'tempo', percent: 6 }); understood.push('a bit faster'); }
-  else if (/\b(faster|quicker|speed it up|fast)\b/.test(t)) { ops.push({ op: 'tempo', percent: 15 }); understood.push('faster'); }
-  else if (/\b(much|way|a lot) slower\b/.test(t)) { ops.push({ op: 'tempo', percent: -25 }); understood.push('much slower'); }
-  else if (/\b(a (bit|little)|slightly) slower\b/.test(t)) { ops.push({ op: 'tempo', percent: -6 }); understood.push('a bit slower'); }
-  else if (/\b(slower|slow it down|slow)\b/.test(t)) { ops.push({ op: 'tempo', percent: -15 }); understood.push('slower'); }
-  if (/\bhalf time\b/.test(t)) { ops.push({ op: 'tempo', multiply: 0.5 }); understood.push('half time'); }
-  if (/\bdouble time\b/.test(t)) { ops.push({ op: 'tempo', multiply: 2 }); understood.push('double time'); }
+  else if (re('\\b(breakneck|blistering|frantic pace)\\b')) { ops.push({ op: 'tempo', percent: 30 }); understood.push('much faster'); }
+  else if (re('\\b(much|way|a lot|far) (faster|quicker)\\b')) { ops.push({ op: 'tempo', percent: 25 }); understood.push('much faster'); }
+  else if (re('\\b(a (bit|little|touch)|slightly) (faster|quicker)\\b')) { ops.push({ op: 'tempo', percent: 6 }); understood.push('a bit faster'); }
+  else if (re('\\b(faster|quicker|speed it up|fast|brisk|upbeat tempo|snappy)\\b')) { ops.push({ op: 'tempo', percent: 15 }); understood.push('faster'); }
+  else if (re('\\b(much|way|a lot|far) slower\\b')) { ops.push({ op: 'tempo', percent: -25 }); understood.push('much slower'); }
+  else if (re('\\b(a (bit|little|touch)|slightly) slower\\b')) { ops.push({ op: 'tempo', percent: -6 }); understood.push('a bit slower'); }
+  else if (re('\\b(slower|slow it down|slow|sluggish|plodding|laid back|dragging)\\b')) { ops.push({ op: 'tempo', percent: -15 }); understood.push('slower'); }
+  if (has('half time') || has('halftime')) { ops.push({ op: 'tempo', multiply: 0.5 }); understood.push('half time'); }
+  if (has('double time')) { ops.push({ op: 'tempo', multiply: 2 }); understood.push('double time'); }
 
-  // register
-  if (/\b(higher|up an octave|an octave up)\b/.test(t)) { ops.push({ op: 'register', lane: 'Melody', octaves: 1 }); understood.push('melody an octave up'); }
-  if (/\b(lower|down an octave|an octave down)\b/.test(t)) { ops.push({ op: 'register', lane: 'Melody', octaves: -1 }); understood.push('melody an octave down'); }
+  // 8. register
+  if (re('\\b(higher|up an octave|an octave up|octave up)\\b')) { ops.push({ op: 'register', lane: 'Melody', octaves: 1 }); understood.push('melody an octave up'); }
+  if (re('\\b(lower|down an octave|an octave down|octave down)\\b')) { ops.push({ op: 'register', lane: 'Melody', octaves: -1 }); understood.push('melody an octave down'); }
 
-  // structure
-  if (/\b(repeat|say it again|again)\b/.test(t)) { ops.push({ op: 'repeat', times: 1 }); understood.push('repeat it'); }
-  if (/\bswing\b/.test(t)) { ops.push({ op: 'swing', on: !/\b(no|without|straight)\s+swing\b/.test(t) }); understood.push('swing'); }
+  // 9. structure
+  if (re('\\b(repeat|say it again|again|twice as long)\\b')) { ops.push({ op: 'repeat', times: 1 }); understood.push('repeat it'); }
+  if (has('swing')) { ops.push({ op: 'swing', on: !re('\\b(no|without|straight)\\s+swing\\b') }); understood.push('swing'); }
+  if (re('\\b(resolve|resolved|resolves|end on the tonic|ends on the tonic|clean ending|proper ending)\\b')) {
+    spec.resolve = true; ops.push({ op: 'resolve' }); understood.push('ends on the tonic'); sawNew = true;
+  }
+  // Every song is trimmed to a whole number of bars, which is the thing that
+  // makes the join work. That is the claim, and verify-language checks it.
+  if (re('\\b(loop|loops|looping|loopable|seamless|seamlessly)\\b')) {
+    spec.loop = true; understood.push('loops (a whole number of bars, so it joins to itself)');
+  }
 
-  // moods, last so an explicit tempo word wins its own slot
-  var moods = [];
-  Object.keys(WORD_MOODS).sort(function (a, b) { return b.length - a.length; }).forEach(function (w) {
-    if (moods.length) return;
-    if (new RegExp('\\b' + w + '\\b').test(t)) { moods.push(WORD_MOODS[w]); understood.push('mood: ' + WORD_MOODS[w]); }
+  // 10. moods, last so an explicit tempo word wins its own slot
+  longestFirst(WORD_MOODS).forEach(function (w) {
+    if (moods.length || !has(w)) return;
+    moods.push(WORD_MOODS[w]); understood.push('mood: ' + WORD_MOODS[w]);
   });
+
+  // 11. and NOW the title fills whatever nobody named. Gap-fill is what keeps
+  //     a reference a suggestion rather than an override.
+  if (title) {
+    var took = [];
+    if (!spec.styles) { spec.styles = title.styles.slice(); took.push(title.styles.join('/')); }
+    // A TITLE'S MODE IS A TRANSFORM, NOT A CONSTRAINT, and that is not a
+    // stylistic choice -- it is what the composer's style table permits. Ten of
+    // its fourteen styles are major-only (`modes:'maj'`), so asking for `rock`
+    // AND `minor` empties the eligible pool, and brief()'s fallback then throws
+    // the STYLES away and keeps the mode. Forty-eight of the titles here were
+    // silently losing their genre that way while the summary still named it.
+    // Composing in the style and moving the third, sixth and seventh afterwards
+    // gets both, and it is the same thing the mood recipes already do.
+    //
+    // A NAMED SCENE KEEPS ITS OWN MODE regardless: a scene is a functional
+    // requirement -- a game-over cue must not come out jaunty -- while a title
+    // is an atmosphere hint. Typing "minor" or "major" still wins over both.
+    if (!spec.mode && !spec.scene) {
+      ops.push({ op: 'mode', to: title.mode });
+      took.push(title.mode);
+    }
+    // AND THE BAND ONLY IF SOME STYLE CAN REACH IT. brief() falls back by
+    // deleting `styles` when a premise is unsatisfiable, so an out-of-range
+    // band does not fail loudly -- it quietly discards the genre, which is the
+    // part of a reference the user can actually hear, while the summary goes on
+    // naming it. Dropping the band instead keeps the reading honest, and
+    // verify-language walks every title to prove none of them need it.
+    if (spec.bpmMin == null && title.bpmMin && _bandIsReachable(spec.styles, title.bpmMin, title.bpmMax)) {
+      spec.bpmMin = title.bpmMin; spec.bpmMax = title.bpmMax;
+      took.push(title.bpmMin + '-' + title.bpmMax + ' bpm');
+    }
+    // A TITLE'S MOOD GOES IN AS OPS, NOT AS A MOOD, and with its tempo and
+    // mode changes removed. Both of those were already decided by things that
+    // outrank a reference: the title's own tempo band, and whatever the scene
+    // said. Left in, they fought each other -- "a platformer like Metroid" set
+    // an 88-118 band and then the `mysterious` recipe dragged it to 79, so the
+    // summary named a band the song did not sit in. What survives is the part
+    // a mood is actually for: register, dynamics, density and articulation.
+    if (!moods.length && title.mood && MOODS[title.mood]) {
+      MOODS[title.mood].forEach(function (o) {
+        if (o.op === 'tempo' || o.op === 'mode') return;
+        ops.push(Object.assign({}, o));
+      });
+      took.push(title.mood);
+    }
+    if (!namedTechnique && title.tech && WORD_TECHNIQUES[title.tech]) {
+      ops.push(Object.assign({}, WORD_TECHNIQUES[title.tech])); took.push(title.tech);
+    }
+    // The wording is deliberate and load-bearing. READ AS, not "sounds like":
+    // the mapping is a genre description somebody wrote down, and the composer
+    // writes its own music to it. And USED FOR lists only what the title
+    // actually set -- when the user named "a platformer like Metroid" the genre
+    // is theirs, and a summary saying "read as: metroidvania" would be
+    // describing a dial that lost.
+    understood.unshift('like ' + title.name + ' (' + title.genre + '), used for: ' +
+                       (took.length ? took.join(', ') : 'nothing, you named it all yourself'));
+    sawNew = true;
+  }
 
   // is this a new piece or a change to one?
-  var changeish = /\b(make it|more|less|-er|instead|now)\b/.test(t) || (ops.length > 0 && !sawNew);
+  var changeish = re('\\b(make it|more|less|instead|now|turn it|but)\\b') || (ops.length > 0 && !sawNew);
   var kind = (sawNew || (!opts.hasSong && !ops.length && !moods.length)) ? 'brief'
            : (changeish || moods.length || ops.length) ? 'change' : 'brief';
 
@@ -1129,48 +1311,47 @@ function interpret(text, opts) {
     if (toMode && !spec.mode) { spec.mode = toMode; understood.push('mode: ' + toMode); }
   }
 
-  // METER IS NOT A DIAL HERE. The composer writes in four; there is no time
-  // signature to set. Asking for a waltz should be told that, not quietly
-  // handed a 4/4 ballad, for the same reason a franchise name is refused.
-  var unsupported = [];
-  if (/\b(waltz|3\/4|three four|6\/8|six eight|triplet|swing time|odd meter|5\/4|7\/8)\b/.test(t))
+  // THINGS THIS MACHINE CANNOT DO, said out loud. Dropping them silently and
+  // composing something adjacent is the failure mode: the user reads a
+  // confident summary and assumes the part they cared about landed.
+  if (/\b(waltz|3\s*\/\s*4|three four|6\s*\/\s*8|six eight|5\s*\/\s*4|7\s*\/\s*8|odd meter|odd time|polyrhythm)\b/.test(raw))
     unsupported.push({ asked: 'a different time signature', why: 'everything here is in four; the composer has no meter dial' });
-  if (/\b(vocals?|singing|lyrics|voice|choir)\b/.test(t))
+  if (/\b(vocals?|singing|sung|lyrics|a voice|choir|acapella|a cappella)\b/.test(raw))
     unsupported.push({ asked: 'vocals', why: 'the Game Boy has two pulses, a wave and a noise channel, and none of them sings' });
-  if (/\b(guitar|piano|violin|orchestra|strings|brass|saxophone|flute solo)\b/.test(t))
+  if (/\b(guitar|piano|violin|orchestra|orchestral|strings|brass|saxophone|trumpet|flute|cello|accordion|real drums)\b/.test(raw))
     unsupported.push({ asked: 'a real instrument', why: 'every sound is one of the four chip voices; there are no samples of real instruments' });
+  if (/\b(dorian|phrygian|lydian|mixolydian|locrian|pentatonic|chromatic scale|whole tone)\b/.test(raw))
+    unsupported.push({ asked: 'a mode other than major or minor', why: 'the composer picks a key and a major or minor scale; there is no modal dial' });
+  if (/\b(stereo|panning|reverb|delay effect|chorus effect|sidechain)\b/.test(raw))
+    unsupported.push({ asked: 'studio effects', why: 'the DMG mixes four voices and has no reverb, delay or panning automation to give you' });
 
-  // anything left that we clearly ignored
+  // A REFERENCE THIS TABLE DOES NOT KNOW is refused rather than ignored. There
+  // is no model here: a name is matched against a published list, and a name
+  // that is not on it maps to nothing at all. Composing something anyway and
+  // letting the phrasing imply it worked is the dishonest option.
+  var refm = raw.match(/\b(?:like|similar to|in the style of|sounds? like|reminiscent of|inspired by|vibes? of)\s+([a-z0-9'’#&. -]{2,40})/);
+  var refName = refm ? refm[1].trim().replace(/[.,!?;:]+$/, '') : null;
+  var reference = title ? { name: title.name, genre: title.genre, reads: title.reads, known: true }
+                : refName ? { name: refName, known: false } : null;
+  if (reference && !reference.known)
+    unsupported.push({ asked: '"like ' + refName + '"',
+                       why: 'I do not know that one. I match names against a published list of about a hundred games and read each as a genre, rather than imitating anything; nothing here is derived from anybody’s music. Ask for the genre instead, or name a game from capabilities().titles' });
+
+  // anything left that was clearly ignored. Scanned over the BLANKED sentence,
+  // so a title's own words can never be reported as ignored.
   var claimed = understood.join(' ').toLowerCase();
-  String(text || '').toLowerCase().split(/[^a-z0-9#]+/).filter(Boolean).forEach(function (w) {
-    if (w.length < 4) return;
-    if (claimed.indexOf(w) >= 0) return;
-    // words that ARE consumed, just not echoed verbatim in the summary. Crying
-    // wolf about these would make the "ignored" line useless.
-    if (/^(make|that|this|with|please|song|track|music|piece|thing|want|like|give|some|about|which|would|could|really|theme|tune|screen|second|seconds|secs|bars|minute|minutes|fanfare|sounding|feel|feeling|vibe|style|kind|something|anything|there|from|into|onto|then|also|very|much|more|less|just|only|even|still|again|now|and|but|for|the|a|an)$/.test(w)) return;
+  t.trim().split(' ').filter(Boolean).forEach(function (w) {
+    if (w.length < 4 || /^\d+$/.test(w)) return;
+    if (claimed.indexOf(w) >= 0 || consumed.join(' ').indexOf(w) >= 0) return;
+    // words that ARE consumed, just not echoed verbatim. Crying wolf about
+    // these would make the "ignored" line useless, which is worse than nothing.
+    if (/^(make|makes|made|write|writes|compose|generate|create|need|want|give|gimme|please|should|could|would|maybe|really|very|much|more|less|just|only|even|still|again|now|then|also|about|which|with|from|into|onto|this|that|these|those|there|here|thing|something|anything|some|like|similar|style|sounds?|sounding|feel|feels|feeling|vibe|vibes|kind|sort|track|song|music|musical|piece|tune|theme|melody|loop|background|video|stream|game|games|level|stage|screen|scene|player|second|seconds|secs|minute|minutes|mins|bars|bar|tempo|beat|beats|type|good|great|nice|cool|little|thats|dont|cant|wont|isnt)$/.test(w)) return;
     if (WORD_MOODS[w] || LANE_WORDS[w] || WORD_SCENES[w]) return;
     if (WORD_GENRES[w] || WORD_GAME_GENRES[w] || WORD_FORMS[w] || WORD_TECHNIQUES[w]) return;
-    // length adjectives are consumed by whichever thing set the length first
-    if (/^(short|brief|long|full|minute|seconds?)$/.test(w)) return;
+    if (/^(short|brief|long|full|lengthy|extended|fast|faster|slow|slower|quick|quicker|quickly|brisk|snappy|sluggish|plodding|dragging|blistering|breakneck|higher|lower|octave|swing|swung|repeat|resolve|resolved|resolves|tonic|seamless|seamlessly|loopable|looping|major|minor|sharp|flat|natural)$/.test(w)) return;
     if (unsupported.length) return;   // already explained, in better words
     if (notUnderstood.indexOf(w) < 0) notUnderstood.push(w);
   });
-
-  // ⚠️ "LIKE ZELDA" IS NOT A THING THIS CAN DO, and saying so is the whole
-  // point. There is no model here: the parser matches words against a published
-  // vocabulary. A reference to a named game, band or composer is matched by
-  // nothing, and the honest answer is to say that rather than quietly compose a
-  // cave theme and let the phrasing imply it worked.
-  //
-  // Adding game names to the vocabulary is NOT the fix, for two reasons. It
-  // would be a false claim -- nothing here is trained on or derived from that
-  // music -- and AGENTS.md forbids naming anything in this product after a real
-  // game or company, which is why seed.js carries a BLOCKED list so generated
-  // TITLES cannot land on real ones either. A trademark in the prompt
-  // vocabulary is the same hazard one step earlier.
-  var ref = String(text || '').match(/\b(?:like|similar to|in the style of|sounds? like|reminiscent of)\s+([a-z0-9' -]{2,40})/i);
-  var reference = ref ? ref[1].trim().replace(/[.,!?]+$/, '') : null;
-
 
   return { kind: kind, spec: spec, ops: ops, moods: moods,
            understood: understood, notUnderstood: notUnderstood,
@@ -1182,18 +1363,38 @@ function interpret(text, opts) {
 function ask(text, opts) {
   opts = opts || {};
   var read = interpret(text, { hasSong: !!opts.doc });
-  if (!read.understood.length)
-    return Object.assign({ ok: false, error: 'I did not recognise anything in that.' }, read);
+  if (!read.understood.length) {
+    // A REFUSAL IS AN ANSWER. "like radiohead" understands nothing, and
+    // returning the generic shrug threw away the one sentence that explains
+    // why -- the user reads "I did not recognise anything" and assumes a
+    // parser bug rather than a deliberate limit.
+    var no = read.unsupported && read.unsupported.length ? read.unsupported[0] : null;
+    return Object.assign({ ok: false,
+      error: no ? ('I cannot do ' + no.asked + ': ' + no.why + '.')
+                : 'I did not recognise anything in that. Try a scene (boss, title, cave), a length (30 seconds), a key (in D minor), a genre, a game from capabilities().titles, or a change (faster, sadder, no drums).' }, read);
+  }
   // how much of what was asked for actually landed
   var words = String(text || '').split(/[^A-Za-z0-9#]+/).filter(function (w) { return w.length > 2; }).length;
   var doc = opts.doc || null, applied = [], skipped = [], made = null;
   if (read.kind === 'brief' || !doc) {
     made = brief(Object.assign({}, read.spec, opts.brief || {}));
     doc = made.doc;
-    applied = applied.concat(read.understood.filter(function (u) { return /^(scene|length|key|mode|without)/.test(u); }));
+    // Everything the brief itself decided. The narrower list this used to
+    // carry (scene/length/key/mode/without) silently dropped the genre, the
+    // form and the title reading -- exactly the parts a user most wants
+    // confirmed, since those are the ones they cannot verify by ear in a
+    // second. Ops report themselves separately, below, so nothing doubles up.
+    applied = applied.concat(read.understood.filter(function (u) {
+      return /^(like |scene|game genre|genre|form|length|key|mode|without|loops|ends on|[A-Z][a-z]+ (and|only))/.test(u);
+    }));
     if (made.unmet && made.unmet.length) skipped = skipped.concat(made.unmet);
   }
-  var ops = read.ops.slice();
+  // Lanes the BRIEF already left out must not be dropped a second time by a
+  // transform: brief() honours spec.exclude itself, so the op finds nothing and
+  // the summary reads "dropped Drums (0 notes)" under a line that already said
+  // "without Drums".
+  var already = (made && read.spec.exclude) ? [].concat(read.spec.exclude) : [];
+  var ops = read.ops.filter(function (o) { return !(o.op === 'drop' && already.indexOf(o.lane) >= 0); });
   read.moods.forEach(function (m) { ops = ops.concat(MOODS[m] || []); });
   if (ops.length) {
     var r = transform(doc, ops);

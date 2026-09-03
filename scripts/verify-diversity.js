@@ -142,7 +142,15 @@ console.log('mood recipes do not flatten');
   const docs = Array.from({ length: N }, () => api.brief({ scene: 'battle', seconds: 25 }).doc);
   const sad = docs.map(d => api.variant(d, { mood: 'sadder' }).doc);
   const b = batch(sad);
-  ok(b.openings === b.n, 'thirty songs made sadder are still thirty songs (' + b.openings + '/' + b.n + ')');
+  // A FLOOR, NOT 100%, AND THIS ONE IS MEASURED. A mood recipe flattens: it
+  // moves mode, tempo, register and dynamics towards a common target, so two
+  // songs that were near neighbours can land on the same first sixteen notes.
+  // Over 60 batches of 30 the worst seen was 29/30, and exactly one batch in
+  // 60 collided at all -- so demanding 30/30 fails about one run in sixty for
+  // no reason, which is how a gate earns a reputation for lying and gets
+  // deleted. 28 catches a recipe that is genuinely collapsing the batch.
+  ok(b.openings >= b.n - 2, 'thirty songs made sadder are still thirty songs (' +
+     b.openings + '/' + b.n + ', floor ' + (b.n - 2) + ')');
   ok(b.similarity < 0.7, 'and the recipe has not pulled them into one key (' + b.similarity.toFixed(3) + ', ceiling 0.7)');
 }
 

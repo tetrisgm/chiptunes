@@ -52,6 +52,7 @@ const ORDER = [
   'src/live.js',        // the shared broadcast schedule (pure fn of wall clock; needs Song + CT_COMPOSERS)
   'src/audio.js',
   'src/radio.js',
+  'src/reference-styles.js',  // "like Castlevania" -> genre dials, read back out loud
   'src/api.js',         // the agent API, also reachable in the page as CT_API
   'src/webmcp.js',      // window.chiptunes + WebMCP tools: an agent driving the live page
   'src/helpers.js',

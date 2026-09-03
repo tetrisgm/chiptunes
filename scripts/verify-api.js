@@ -394,37 +394,54 @@ function mcp(messages) {
     ok(r.kind === kind && want.every(w => r.understood.indexOf(w) >= 0),
        '"' + text + '" -> ' + r.kind + ': ' + got);
   });
-  // ⚠️ A REFERENCE TO A NAMED GAME IS REFUSED, OUT LOUD. This matches words
-  // against a published vocabulary; there is no model reading the sentence.
-  // Quietly composing a cave theme for "dungeon song like zelda" and reporting
-  // success implies the reference was used. It was not, and adding game names
-  // to the vocabulary would be both a false claim and exactly the trademark
-  // hazard AGENTS.md exists to prevent -- the same reason seed.js carries a
-  // BLOCKED list so generated titles cannot land on real ones.
-  const refs = [
-    ['dungeon song like zelda', 'zelda', 'scene: cave'],
-    ['a battle theme in the style of nobuo uematsu', 'nobuo uematsu', 'scene: battle'],
-    ['something similar to mega man', 'mega man', null]
-  ];
-  refs.forEach(([text, want, alsoUnderstood]) => {
-    const r = api.interpret(text, { hasSong: true });
-    ok(r.reference === want, '"' + text + '" is flagged as a reference (' + r.reference + ')');
-    if (alsoUnderstood) ok(r.understood.indexOf(alsoUnderstood) >= 0,
-      'and the part it CAN do still happens (' + alsoUnderstood + ')');
-  });
+  // NAMED GAMES ARE READ AS GENRES, AND THE READING IS SAID BACK. The detail
+  // of that lives in verify-language.js; what belongs here is the boundary it
+  // must not cross, because this file is where the API's promises are pinned.
+  //
+  // Three separate things, often confused:
+  //   * A TITLE IN A PROMPT is a genre description ("Castlevania" -> minor
+  //     action platformer, brisk, menacing) and is allowed. Owner, 2026-09-02.
+  //   * A GENERATED SONG TITLE landing on a real cartridge name is passing off
+  //     rather than describing, and is still forbidden -- seed.js's BLOCKED
+  //     list and verify-chrome hold that end.
+  //   * A VISUALIZER PACK named after a real game is the takedown hazard
+  //     AGENTS.md was written for, and smoke-games.js holds that end.
   {
-    const r = api.ask('dungeon song like zelda');
-    ok(r.ok && r.reference === 'zelda' && r.applied.indexOf('scene: cave') >= 0,
-       'ask() composes the part it understood and reports the reference it did not');
+    const r = api.interpret('dungeon song like zelda', { hasSong: true });
+    ok(r.reference && r.reference.known && r.reference.name === 'The Legend of Zelda',
+       'a known title resolves (' + (r.reference || {}).name + ')');
+    ok(/^like The Legend of Zelda \(adventure\), used for:/.test(r.understood[0]),
+       'and is reported as a READING of a genre, never as an imitation (' + r.understood[0] + ')');
+    ok(r.understood.indexOf('scene: cave') >= 0, 'without swallowing the rest of the sentence');
+
+    const un = api.interpret('a battle theme in the style of nobuo uematsu', { hasSong: true });
+    ok(un.reference && un.reference.known === false, 'a name that is NOT on the list stays unknown');
+    ok(un.unsupported.some(u => /nobuo uematsu/.test(u.asked)),
+       'and is refused out loud rather than quietly ignored');
+    ok(un.understood.indexOf('scene: battle') >= 0, 'while the part it can do still happens');
   }
-  // and no real game or company may enter the vocabulary
+  // A TITLE MAY ONLY SET DIALS A USER COULD TYPE. If a mapping could carry
+  // anything specific to somebody's composition it would stop being a genre
+  // reading, which is the claim the whole feature rests on.
+  {
+    const REF = require(path.join(__dirname, '..', 'src', 'reference-styles.js'));
+    const allowed = ['name', 'genre', 'styles', 'mode', 'bpmMin', 'bpmMax', 'mood', 'tech', 'reads'];
+    const extra = [];
+    Object.keys(REF.TITLES).forEach(k => Object.keys(REF.TITLES[k]).forEach(f => {
+      if (allowed.indexOf(f) < 0 && extra.indexOf(f) < 0) extra.push(f);
+    }));
+    ok(!extra.length, 'a title carries genre dials and nothing else' + (extra.length ? ': ' + extra.join(', ') : ''));
+    ok(api.capabilities().titles.length >= 100, 'and the list is published, so an agent can see what is known');
+  }
+  // ...and a real name still may not become a MOOD or a SCENE. Those are the
+  // machine's own vocabulary; a reference is a separate, labelled channel.
   {
     const words = Object.keys(api.moods()).concat(Object.keys(api.scenes()));
     const NAMES = ['zelda', 'mario', 'pokemon', 'metroid', 'megaman', 'sonic', 'nintendo',
                    'castlevania', 'tetris', 'kirby', 'final fantasy'];
     const leaked = words.filter(w => NAMES.some(n => w.toLowerCase().indexOf(n) >= 0));
     ok(leaked.length === 0,
-       'no real game or company is in the prompt vocabulary' + (leaked.length ? ': ' + leaked.join(', ') : ''));
+       'no real game or company is a mood or a scene' + (leaked.length ? ': ' + leaked.join(', ') : ''));
   }
 
   // The vocabulary that replaced franchise names: genres, game genres, forms

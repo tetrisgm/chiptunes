@@ -1866,7 +1866,7 @@ function buildRadioUI(){
       var askRow=document.createElement('div'); askRow.className='rmood-say';
       var field=document.createElement('input'); field.type='text'; field.className='rmood-sayin';
       field.setAttribute('aria-label','Describe the music you want');
-      field.placeholder='…or say it: “a boss theme, 30 seconds, no drums”';
+      field.placeholder='…or say it: “a dungeon theme like Castlevania, 40 seconds”';
       var go=document.createElement('button'); go.type='button'; go.className='rbtn rmood rmood-saygo';
       go.textContent='Make it';
       var said=document.createElement('div'); said.className='rmood-saidback'; said.setAttribute('aria-live','polite');
@@ -1891,7 +1891,10 @@ function buildRadioUI(){
           catch(e){ go.disabled=false; sayBack(String(e&&e.message||e),'bad'); return; }
           go.disabled=false;
           if(!r.ok){
-            sayBack('I did not understand that. Try a scene (boss, title, cave), a length (30 seconds), a key (in D minor), or a change (faster, sadder, no drums).','bad');
+            // ask() already worked out WHY when it can. Replacing its reason
+            // with a generic shrug reads as a parser bug rather than the
+            // deliberate limit it usually is.
+            sayBack(r.error || 'I did not understand that. Try a scene (boss, title, cave), a length (30 seconds), a key (in D minor), a game you know, or a change (faster, sadder, no drums).','bad');
             return;
           }
           try{ Audio.playDoc(r.doc); }catch(e){}
@@ -1900,21 +1903,20 @@ function buildRadioUI(){
           // BE LOUD ABOUT WHAT WAS NOT UNDERSTOOD, not apologetic in brackets.
           // Typing "dungeon song like zelda" and getting back a quiet
           // "(ignored: zelda)" reads as though the reference was taken into
-          // account. It was not, and it cannot be: this matches words against a
-          // published vocabulary, there is no model reading the sentence, and
-          // naming a real game in the vocabulary would be both a false claim
-          // and the trademark hazard AGENTS.md exists to prevent.
-          if(r.reference){
-            msg+='  \u2014 but I cannot do \u201clike '+r.reference+'\u201d. '+
-                 'I match words, not references: there is no model reading this, '+
-                 'and I will not pretend to imitate something I was not built from. '+
-                 'Ask for the genre instead \u2014 platformer, shmup, rpg, horror, racing.';
-          } else if(r.unsupported && r.unsupported.length){
+          // account when it was not.
+          //
+          // A KNOWN title now IS taken into account, and the say-back states
+          // the reading rather than the name, for the same reason: "read as
+          // adventure, anthem/arcade, major" is what actually happened, and a
+          // bare "like Zelda ✓" would imply a resemblance nothing here can
+          // promise. Nothing is derived from that game's music; the title is a
+          // genre description and the composer writes its own piece to it.
+          if(r.unsupported && r.unsupported.length){
             msg+='  \u2014 but I cannot do '+r.unsupported[0].asked+': '+r.unsupported[0].why+'.';
           } else if(r.notUnderstood && r.notUnderstood.length){
             msg+='  \u2014 I ignored: '+r.notUnderstood.join(', ')+'. Press How it works for the words I know.';
           }
-          sayBack(msg, r.reference ? 'partial' : '');
+          sayBack(msg, (r.unsupported && r.unsupported.length) ? 'partial' : '');
         },0); });
       }
       go.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); runAsk(); });

@@ -209,6 +209,13 @@ Fewer and larger than the old plan:
 8. ✅ **Tier 6 transforms** — 13 exact operations, plus `interpret()`/`ask()`
    and the field in the product, which was originally planned as the last thing
    and turned out to be the thing that makes the rest legible.
+9. ✅ **Named games as genre readings.** About a hundred Game Boy and NES
+   titles map onto composer dials in `src/reference-styles.js`, and the reading
+   is always said back: "like Castlevania" reports *platformer, rock/punk,
+   minor, 145-172 bpm, menacing, arpeggiated*. This is a genre description
+   somebody wrote down, not an imitation, and the table can only reach dials a
+   user could type by hand -- `verify-language.js` asserts exactly that, so the
+   claim stays true as the table grows.
 
 **All four of the items this list used to leave open are now built:**
 
