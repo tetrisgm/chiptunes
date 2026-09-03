@@ -1,0 +1,11 @@
+Chiptunes.app is MIT licensed; see LICENSE.
+
+This repository vendors third-party work under its own terms:
+
+  src/lib/shaders/brickboy/  -- Apache-2.0. See its LICENSE and NOTICE files.
+                                Do not remove those files or the attribution
+                                headers in the .slang sources.
+
+The Apache-2.0 shader pipeline is vendored unmodified. Its own LICENSE and
+NOTICE files, and the attribution headers in the .slang sources, must stay
+where they are.

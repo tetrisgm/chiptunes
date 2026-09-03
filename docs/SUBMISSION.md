@@ -39,7 +39,7 @@ No login, nothing to install, free. Works with or without a WebMCP browser.
 ## Repository
 
 ```
-https://github.com/VaporWorks/chiptunes
+https://github.com/tetrisgm/chiptunes
 ```
 
 MIT licensed (`LICENSE` at the root, so it shows in the About box).
@@ -65,7 +65,7 @@ emulation, midi, procedural-generation, music-generation, chiptune
 
 ```
 https://chiptunes.app/webmcp
-https://github.com/VaporWorks/chiptunes
+https://github.com/tetrisgm/chiptunes
 https://chiptunes.app
 ```
 

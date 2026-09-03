@@ -355,7 +355,7 @@
     var t2 = 0, tt = setInterval(function () { paintTools(); if (grid.childNodes.length || ++t2 > 40) clearInterval(tt); }, 250);
 
     var foot = el('div', 'foot');
-    [['The station', '/'], ['Source (MIT)', 'https://github.com/VaporWorks/chiptunes'],
+    [['The station', '/'], ['Source (MIT)', 'https://github.com/tetrisgm/chiptunes'],
      ['How it was built', '/docs/WEBMCP.md']].forEach(function (l) {
       var a = el('a', null, l[0]); a.href = l[1]; foot.appendChild(a);
     });

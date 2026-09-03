@@ -299,5 +299,6 @@ and is not affiliated with or endorsed by Nintendo.
 
 ## License
 
-MIT; see [LICENSE](LICENSE). The vendored Game Boy display shader pipeline is
-Apache-2.0 and unmodified; see its NOTICE.
+MIT; see [LICENSE](LICENSE) — kept as unmodified MIT text so GitHub detects it.
+The vendored Game Boy display shader pipeline is Apache-2.0 and unmodified; its
+terms are in [NOTICE](NOTICE).

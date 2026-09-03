@@ -116,7 +116,7 @@ const End: React.FC<{duration: number}> = ({duration}) => {
         </div>
         <div style={{fontSize: 22, fontWeight: 600, color: '#cfc9dd', marginTop: 18, lineHeight: 1.5}}>
           Deterministic composer · register-level DMG emulation<br />
-          MIT licensed · github.com/VaporWorks/chiptunes
+          MIT licensed · github.com/tetrisgm/chiptunes
         </div>
       </div>
     </AbsoluteFill>
