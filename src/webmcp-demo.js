@@ -126,13 +126,48 @@
     var help = el('div');
     wrap.appendChild(help);
 
+    // THE DIAGNOSTIC LINE. Without it, "my agent cannot see the tools" has two
+    // completely different causes that look identical from the outside: the page
+    // failed to register, or the page registered fine and the AI client is not
+    // handing page-defined tools to its model. Printing what was found separates
+    // them in one glance, and it is the first thing anybody debugging this asks.
+    var probe = el('pre');
+    probe.style.cssText = 'margin:8px 0 0;max-height:none;font-size:12px';
+    var probeWrap = el('div');
+    var toggle = el('button', 'b', 'What did this page detect?');
+    toggle.style.cssText = 'margin:8px 0 0';
+    var shown = false;
+    toggle.addEventListener('click', function () {
+      shown = !shown;
+      probe.style.display = shown ? 'block' : 'none';
+      toggle.textContent = shown ? 'Hide detection details' : 'What did this page detect?';
+      if (shown) paintProbe();
+    });
+    probe.style.display = 'none';
+    var recheck = el('button', 'b', 'Re-check');
+    recheck.style.cssText = 'margin:8px 0 0 8px';
+    recheck.addEventListener('click', function () {
+      var s = api();
+      if (s && has(s.register)) s.register();
+      paint(); paintProbe();
+    });
+    probeWrap.appendChild(toggle); probeWrap.appendChild(recheck); probeWrap.appendChild(probe);
+
+    function paintProbe() {
+      var s = api();
+      if (!s || !has(s.probe)) { probe.textContent = 'the page is still loading'; return; }
+      try { probe.textContent = JSON.stringify(s.probe(), null, 2); }
+      catch (e) { probe.textContent = String(e); }
+    }
+
     function paint() {
       var s = api(), where = s && s.webmcp;
       if (where) {
         status.className = 'status on';
         sb.textContent = 'WebMCP is live in this browser.';
         ss.textContent = (s.registered || (s.tools || []).length) + ' tools registered on ' + where +
-                         '. Ask your agent for one of the things below.';
+                         '. If your agent still says it has no tools, the page has done its part: ' +
+                         'the AI client is not passing page-defined tools to its model.';
         help.innerHTML = '';
       } else {
         status.className = 'status off';
@@ -152,11 +187,12 @@
         }
       }
     }
+    wrap.appendChild(probeWrap);
     paint();
     // registration can arrive after load: the agent browser injects the API on
     // its own schedule, and a panel that said "not supported" for the whole
     // session would be lying about a page that had in fact registered.
-    var polls = 0, timer = setInterval(function () { paint(); if (++polls > 60) clearInterval(timer); }, 500);
+    var polls = 0, timer = setInterval(function () { paint(); if (shown) paintProbe(); if (++polls > 240) clearInterval(timer); }, 500);
 
     // ---- prompts -----------------------------------------------------
     wrap.appendChild(el('h2', null, 'Ask your agent'));
@@ -182,7 +218,7 @@
     wrap.appendChild(el('p', null,
       'These buttons call the tools directly. Listen to the station behind the panel as they run.'));
 
-    var out = el('pre', null, 'Results appear here.');
+    var out = el('pre', 'out', 'Results appear here.');   // named, so a test can find THIS one
     var field = el('input', 't');
     field.type = 'text';
     field.value = 'a dungeon theme like Castlevania, 40 seconds, no drums';

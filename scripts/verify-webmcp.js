@@ -182,7 +182,7 @@ const SHIM = `
     document.querySelector('#wmcp button.b.p').click();
   });
   await wait(6000);
-  const panelOut = await p2.evaluate(() => (document.querySelector('#wmcp pre') || {}).textContent || '');
+  const panelOut = await p2.evaluate(() => (document.querySelector('#wmcp pre.out') || {}).textContent || '');
   ok(/"ok": true/.test(panelOut) && /scene: shop/.test(panelOut),
      'and calling a tool from the panel really composes (' + panelOut.slice(0, 60).replace(/\n/g, ' ') + ')');
 

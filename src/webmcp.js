@@ -401,10 +401,15 @@
 
   function register() {
     if (surface.webmcp) return true;                       // already done
-    var mc = (typeof document !== 'undefined' && document.modelContext) ||
-             (G.navigator && G.navigator.modelContext) || null;
+    // Three candidates, in the order the spec and the shipping implementations
+    // put them. `document` is the one the spec defines and the one the agent
+    // browsers use; the other two cost nothing to accept and are insurance
+    // against a surface that moves again while this is young.
+    var where = null, mc = null;
+    if (typeof document !== 'undefined' && document.modelContext) { mc = document.modelContext; where = 'document'; }
+    else if (G.navigator && G.navigator.modelContext) { mc = G.navigator.modelContext; where = 'navigator'; }
+    else if (G.modelContext) { mc = G.modelContext; where = 'window'; }
     if (!mc) return false;
-    var where = (typeof document !== 'undefined' && document.modelContext) ? 'document' : 'navigator';
     try {
       if (has(mc.registerTool)) {
         TOOLS.forEach(function (t) { mc.registerTool(describeTool(t)); });
@@ -418,15 +423,44 @@
     } catch (e) { surface.webmcpError = String(e && e.message || e); return false; }
   }
 
+  // WHAT WAS ACTUALLY FOUND, for the panel and for anybody debugging a browser
+  // that ought to support this. "It did not work" is not a diagnosis; which of
+  // the two objects existed, and what shape it had, is.
+  surface.probe = function () {
+    var d = (typeof document !== 'undefined') ? document.modelContext : undefined;
+    var n = G.navigator ? G.navigator.modelContext : undefined;
+    var shape = function (o) {
+      if (!o) return o === undefined ? 'absent' : String(o);
+      return 'present{' + ['registerTool', 'provideContext', 'unregisterTool']
+        .filter(function (k) { return has(o[k]); }).join(',') + '}';
+    };
+    return {
+      documentModelContext: shape(d),
+      navigatorModelContext: shape(n),
+      windowModelContext: shape(G.modelContext),
+      registeredOn: surface.webmcp || null,
+      toolsRegistered: surface.registered || 0,
+      toolsAvailable: TOOLS.length,
+      error: surface.webmcpError || null,
+      secondsSinceLoad: Math.round((Date.now() - t0) / 100) / 10
+    };
+  };
+
+  var t0 = Date.now();
   surface.webmcp = null;
-  surface.register = register;          // so a page or a test can force it
+  surface.register = register;          // so a page, a test or a judge can force it
   if (!register()) {
-    // ~10s of polling, then stop. Cheap, bounded, and it never touches the page.
+    // An agent browser injects the API on its own schedule, and a bounded poll
+    // that gives up can lose the race on a slow machine -- leaving a page that
+    // looks healthy with no tools and no explanation. So: two minutes of
+    // polling, plus a retry on every signal that the environment changed.
     var tries = 0;
     var timer = setInterval(function () {
-      if (register() || ++tries > 40) clearInterval(timer);
-    }, 250);
-    if (typeof G.addEventListener === 'function')
-      G.addEventListener('load', function () { register(); }, { once: true });
+      if (register() || ++tries > 240) clearInterval(timer);
+    }, 500);
+    ['load', 'focus', 'pointerdown', 'visibilitychange'].forEach(function (ev) {
+      try { (ev === 'visibilitychange' ? document : G).addEventListener(ev, function () { register(); }); }
+      catch (e) {}
+    });
   }
 })(typeof globalThis !== 'undefined' ? globalThis : window);
