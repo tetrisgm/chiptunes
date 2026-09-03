@@ -17,6 +17,8 @@ const USAGE = `chiptunes — make Game Boy songs from the command line
   variant <doc|file> --mood sadder [--out FILE]
   transform <doc|file> --ops '[{"op":"tempo","percent":-10}]' [--out FILE]
   stems <doc|file> --out DIR
+  midi <doc|file> --out FILE          format 1, one track per voice
+  variations --scene S [--n 5] --out DIR   n songs, unranked
   guide
   describe <doc|file>
   json <doc|file> [--out FILE]        document -> readable JSON
@@ -141,6 +143,23 @@ try {
       v.warnings.forEach(w => process.stdout.write('warning: ' + w + '\n'));
       process.stdout.write(v.ok ? 'ok\n' : 'not valid\n');
       process.exit(v.ok ? 0 : 1);
+      break;
+    }
+    case 'midi': outBin(api.toMidi(readDoc(process.argv[3]))); break;
+    case 'variations': {
+      const dir = arg('out');
+      if (!dir) die('variations writes several files; pass --out DIR');
+      const spec = {};
+      if (arg('scene')) spec.scene = arg('scene');
+      if (arg('seconds')) spec.seconds = +arg('seconds');
+      const v = api.variations(spec, +(arg('n') || 5));
+      fs.mkdirSync(path.resolve(dir), { recursive: true });
+      v.candidates.forEach((c, i) => {
+        const f = path.join(dir, String(i + 1).padStart(2, '0') + '-' + c.title.replace(/[^\w]+/g, '-').toLowerCase() + '.doc');
+        fs.writeFileSync(f, c.doc);
+        process.stdout.write(f + '  ' + c.seconds + 's  ' + c.title + '\n');
+      });
+      process.stderr.write(v.note + '\n');
       break;
     }
     case 'wav': outBin(api.renderWav(readDoc(process.argv[3]))); break;

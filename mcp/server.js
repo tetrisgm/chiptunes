@@ -208,6 +208,29 @@ const TOOLS = [
     run: (a) => writeFileArg(a.path, api.renderWav(resolveDoc(a.song)), 'audio')
   },
   {
+    name: 'export_midi',
+    description: 'Write the song as a Standard MIDI file: format 1, one track per hardware voice, drums on channel 10 with General MIDI numbers. This is the export that takes the music out of the Game Boy and into a DAW or a game engine, and it is only possible because the song is symbolic.',
+    inputSchema: { type: 'object', properties: { song: { type: 'string' }, path: { type: 'string' } }, required: ['song', 'path'] },
+    run: (a) => writeFileArg(a.path, api.toMidi(resolveDoc(a.song)), 'MIDI')
+  },
+  {
+    name: 'variations',
+    description: 'Compose n different songs for the same brief and return them all, UNRANKED and unselected, in the order composed. Nothing scores them for you: pick with describe(), or play them. Composition is about 1.6 ms, so asking for twenty is reasonable.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        scene: { type: 'string' }, seconds: { type: 'number' }, bars: { type: 'number' },
+        mode: { type: 'string' }, exclude: { type: 'array', items: { type: 'string' } },
+        n: { type: 'number', description: 'how many, up to 50 (default 5)' }
+      }
+    },
+    run: (a) => {
+      const n = (a || {}).n; const spec = Object.assign({}, a || {}); delete spec.n;
+      const v = api.variations(spec, n);
+      return { note: v.note, candidates: v.candidates.map(c => summary(c.doc, keep(c.doc))) };
+    }
+  },
+  {
     name: 'share_link',
     description: 'A URL that plays the song. The whole arrangement rides in the URL fragment, so nothing is uploaded and nothing is stored.',
     inputSchema: { type: 'object', properties: { song: { type: 'string' } }, required: ['song'] },

@@ -135,6 +135,8 @@ npx chiptunes variant boss.doc --mood sadder --out gameover.doc
 npx chiptunes stems boss.doc --out stems/       # four exact WAVs, one per voice
 npx chiptunes rom boss.doc --out boss.gb        # boots on hardware
 npx chiptunes soundtrack --scenes title,overworld,battle,boss,game_over --key D --out ost/
+npx chiptunes midi boss.doc --out boss.mid            # format 1, a track per voice
+npx chiptunes variations --scene cave --n 10 --out options/
 ```
 
 That last one is the interesting case: five cues in the same key, in about 60 ms.
@@ -151,10 +153,16 @@ const sad = chiptunes.variant(cue.doc, { mood: 'sadder' });   // the death-scree
 { "mcpServers": { "chiptunes": { "command": "node", "args": ["mcp/server.js"] } } }
 ```
 
-It exposes `guide`, `brief`, `soundtrack`, `variant`, `transform`, `describe`,
-`song_to_json`, `json_to_song`, `validate`, `export_cartridge`, `export_wav`,
-`export_stems` and `share_link`. Songs are held by short id, reading is paged by
+It exposes `guide`, `brief`, `soundtrack`, `variations`, `variant`, `transform`,
+`describe`, `song_to_json`, `json_to_song`, `validate`, `export_cartridge`,
+`export_wav`, `export_stems`, `export_midi` and `share_link`. Songs are held by short id, reading is paged by
 bar, and every transform returns a **new** song, so going back is free.
+
+And in the product itself there is a field under the mood chips: type
+*"a boss theme, 30 seconds, no drums"* or *"make it much slower and darker"* and
+it does that. The parser is deterministic and lives in `src/api.js`, so it names
+back exactly what it understood, says what it ignored, and refuses out loud
+rather than composing something at random.
 
 The page carries the same idea for the session you are looking at: `window.chiptunes`
 plus WebMCP tool registration, so a browsing agent can pick a mood, skip, open

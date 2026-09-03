@@ -880,6 +880,100 @@ function ask(text, opts) {
   return Object.assign({ ok: true, doc: doc, applied: applied, skipped: skipped }, describe(doc), read);
 }
 
+// ---------------------------------------------------------------------- MIDI
+//
+// The export that takes this out of the Game Boy and into anybody's tools. It
+// is only possible because the music is SYMBOLIC -- an audio model has nothing
+// to hand you here. One track per hardware voice, so the MIDI carries the stems
+// too, and drums go to channel 10 with General MIDI numbers so they land on a
+// drum kit rather than as pitched noise.
+var GM_DRUM = { hat: 42, snare: 38, kick: 36 };
+
+function vlq(n) {                                   // MIDI variable-length quantity
+  var bytes = [n & 0x7F];
+  n >>= 7;
+  while (n > 0) { bytes.unshift((n & 0x7F) | 0x80); n >>= 7; }
+  return bytes;
+}
+function be32(n) { return [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255]; }
+function be16(n) { return [(n >>> 8) & 255, n & 255]; }
+function midiTrack(events, ppq) {
+  // events: {tick, bytes}. Sorted, then delta-encoded.
+  events.sort(function (a, b) { return a.tick - b.tick || (a.off ? -1 : 1); });
+  var out = [], last = 0;
+  events.forEach(function (e) {
+    out = out.concat(vlq(Math.max(0, e.tick - last)), e.bytes);
+    last = e.tick;
+  });
+  out = out.concat(vlq(0), [0xFF, 0x2F, 0x00]);     // end of track
+  return [].concat([0x4D, 0x54, 0x72, 0x6B], be32(out.length), out);
+}
+
+function toMidi(doc, opts) {
+  needBuffer('toMidi');
+  opts = opts || {};
+  var song = CT_CREATE.songOf(typeof doc === 'string' ? doc : fromJSON(doc));
+  if (!song) throw new Error('toMidi: not a playable song');
+  var ppq = opts.ppq || 480, fps = HW.FPS || 59.7275, bpm = song.bpm || 128;
+  var ticksPerFrame = (ppq * bpm) / (60 * fps);
+  var tick = function (f) { return Math.max(0, Math.round(f * ticksPerFrame)); };
+
+  // track 0: tempo and name only, which is what format 1 expects
+  var meta = [];
+  var us = Math.round(60000000 / bpm);
+  meta.push({ tick: 0, bytes: [0xFF, 0x51, 0x03, (us >> 16) & 255, (us >> 8) & 255, us & 255] });
+  var name = String(song.title || 'Chiptunes').slice(0, 60);
+  meta.push({ tick: 0, bytes: [0xFF, 0x03, name.length].concat(name.split('').map(function (c) { return c.charCodeAt(0) & 127; })) });
+
+  var tracks = [midiTrack(meta, ppq)];
+  LANES.forEach(function (laneName, ch) {
+    var evs = [], chan = ch === 3 ? 9 : ch;         // MIDI channel 10 is drums
+    evs.push({ tick: 0, bytes: [0xFF, 0x03, laneName.length].concat(laneName.split('').map(function (c) { return c.charCodeAt(0); })) });
+    (song.gb.notes || []).forEach(function (n) {
+      if ((n.ch | 0) !== ch) return;
+      var note = ch === 3 ? (GM_DRUM[['hat', 'snare', 'kick'][Math.min(2, Math.max(0, (n.pri | 0) === 9 ? 2 : (n.pri | 0) === 7 ? 1 : 0))]] || 38)
+                          : (n.midi == null ? null : (n.midi | 0));
+      if (note == null) return;
+      var v = Math.max(1, Math.min(127, Math.round((n.vel == null ? 0.8 : n.vel) * 127)));
+      var on = tick(n.frame), off = Math.max(on + 1, tick(n.frame + Math.max(1, n.frames || 1)));
+      evs.push({ tick: on, bytes: [0x90 | chan, note & 127, v] });
+      evs.push({ tick: off, bytes: [0x80 | chan, note & 127, 0], off: true });
+    });
+    // a kit hit is a drum too, and it lives outside gb.notes
+    if (ch === 3) (song.gb.kit || []).forEach(function (k) {
+      var note = GM_DRUM[k.id] || GM_DRUM[['hat', 'snare', 'kick'][k.slot | 0]] || 38;
+      var on = tick(k.f == null ? k.frame : k.f);
+      evs.push({ tick: on, bytes: [0x90 | chan, note & 127, 100] });
+      evs.push({ tick: on + Math.round(ppq / 8), bytes: [0x80 | chan, note & 127, 0], off: true });
+    });
+    tracks.push(midiTrack(evs, ppq));
+  });
+
+  var head = [].concat([0x4D, 0x54, 0x68, 0x64], be32(6), be16(1), be16(tracks.length), be16(ppq));
+  var all = head;
+  tracks.forEach(function (t) { all = all.concat(t); });
+  return Buffer.from(all);
+}
+
+// --------------------------------------------------------------- variations
+//
+// N DISTINCT SONGS, RANKED BY NOBODY. AGENTS.md keeps best-of-N out of
+// production composition: the product must not write several songs and score
+// them. This does not score, sort or select -- it composes n from n different
+// tokens and hands all of them back with their descriptions, which is the same
+// act as pressing "next" n times. The choosing is the caller's, and that has
+// always been allowed. Do not add a `best` argument to this.
+function variations(spec, n) {
+  n = Math.max(1, Math.min(50, n || 5));
+  var out = [];
+  for (var i = 0; i < n; i++) {
+    var made = brief(Object.assign({}, spec || {}, { token: Song.mint() }));
+    out.push(made);
+  }
+  return { asked: spec || {}, count: out.length, candidates: out,
+           note: 'Unranked and unselected, in the order composed. Choosing is yours.' };
+}
+
 // --------------------------------------------------------------------- guide
 //
 // The answers an agent would otherwise guess at, and guess wrong. Licensing in
@@ -897,7 +991,8 @@ function guide() {
     licensing: 'The source is MIT. The generated music is produced by that algorithm on your machine. This is not legal advice, and the project makes no warranty; the repository and its LICENSE are the authority.',
     looping: 'Songs carry a loop point. Ask for loop:true in a brief and the cue is trimmed to a whole number of bars; exported WAVs carry a smpl chunk so engines pick the loop up automatically.',
     stems: 'Four exact stems, one per hardware channel (Melody, Harmony, Bass, Drums). This is not source separation: the other channels are muted for each render, so the stems sum to the mix.',
-    formats: ['wav (16-bit stereo, optional loop metadata)', 'stems (four wavs)', 'gb (32 KB cartridge, boots on hardware)', 'song document (a string)', 'share link (the document rides in the URL fragment)'],
+    formats: ['wav (16-bit stereo, optional loop metadata)', 'stems (four wavs)', 'midi (format 1, one track per voice, drums on channel 10)', 'gb (32 KB cartridge, boots on hardware)', 'song document (a string)', 'share link (the document rides in the URL fragment)'],
+    choosing: 'variations(spec, n) composes n songs from n tokens and returns them all, unranked. Nothing here scores or selects for you; that is deliberate and it is your choice to make.',
     limits: 'Four voices, one note at a time per lane, 32 KB on the cartridge. No vocals. One aesthetic: this is a Game Boy, not a general music model.',
     howToAsk: 'Start with a scene (title, overworld, battle, boss, game_over, ...) plus a length. Use variant() for "the sad version of this". Use soundtrack() when several cues have to belong together.',
     scenes: Object.keys(SCENES),
@@ -930,7 +1025,9 @@ var EXPORTS = {
   variant: variant,
   renderStems: renderStems,
   interpret: interpret,
-  ask: ask
+  ask: ask,
+  toMidi: toMidi,
+  variations: variations
 };
 
 // In the browser this file is concatenated as a plain script, so the same

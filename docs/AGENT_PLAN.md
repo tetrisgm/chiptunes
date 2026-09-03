@@ -76,12 +76,14 @@ agent-facing product those three properties matter more than any single
 feature: **instant, free, and local** is what makes an iterative loop possible
 at all.
 
-> ⚠️ **Contract question for the owner.** `AGENTS.md` says production composes
-> each seed once and best-of-N stays in the offline generator. An API consumer
-> generating many and choosing is arguably a person pressing "next" quickly, not
-> the product scoring its own output — but it is close enough to the line that I
-> want a ruling before building `generate_many`. Everything else here is
-> unaffected.
+> ✅ **Resolved without needing a ruling.** `AGENTS.md` forbids the product
+> *scoring* candidates: "fix bad output in the composer rather than hiding it
+> behind candidate scoring". `variations(spec, n)` composes n songs from n
+> tokens and returns **all of them, unranked and unselected** — it is the same
+> act as pressing "next" n times, and the choosing is the caller's, which has
+> always been allowed. There is deliberately no `best` argument and the gate
+> asserts there never is one. If someone later wants automatic selection, that
+> is the ruling to ask for.
 
 ## The reworked shape
 
@@ -190,18 +192,28 @@ Fewer and larger than the old plan:
 | `transform(song, ops)` | Tier 6. |
 | `song_to_json` / `json_to_song` / `validate` | Already built. The escape hatch to exact editing. |
 
-## Build order
+## Build order, and what is done
 
-1. **`guide()` and provenance copy.** Cheapest thing here and it changes what an
-   agent tells a user about licensing. Do it first.
-2. **Stems and loop metadata.** Both already work at the engine level; this is
-   plumbing plus a WAV `smpl` chunk. High value, low risk.
-3. **Constraints**: exact seconds/bars, loop, lane exclusion, resolve.
-4. **Scenes**, then `compose(brief)` on top of 3.
-5. **`soundtrack()`** with shared key, palette and motif.
-6. **`variant()`** and intensity layers.
-7. **MIDI export**, if wanted.
-8. **Tier 6 transforms**, last.
+1. ✅ **`guide()` and provenance copy.**
+2. ✅ **Stems and loop metadata** — four exact WAVs with a `smpl` chunk.
+3. ✅ **Constraints**: seconds/bars, lane exclusion, cartridge budget, with
+   anything unmet reported rather than hidden. `resolve:true` is accepted on a
+   scene but is not yet enforced — see below.
+4. ✅ **Scenes** (11 of them) and `brief()`.
+5. ◐ **`soundtrack()`** — shared key, mode and tempo family are done. A shared
+   instrument palette and a shared MOTIF across cues are **not**; that is the
+   remaining cohesion work and the harder half.
+6. ✅ **`variant()`** with eight published recipes. Intensity *layers* (vertical
+   remixing beyond the four stems) are not built.
+7. ✅ **MIDI export** — format 1, a track per voice, drums on channel 10.
+8. ✅ **Tier 6 transforms** — 13 exact operations, plus `interpret()`/`ask()`
+   and the field in the product, which was originally planned as the last thing
+   and turned out to be the thing that makes the rest legible.
+
+**Honestly still open:** a shared motif across a soundtrack; `resolve:true`
+actually forcing a tonic ending; intensity layers; and increasing density
+(`thin` has no opposite, because adding notes is composing rather than
+transforming and should go through the composer).
 
 ## What I got wrong the first time, kept here on purpose
 

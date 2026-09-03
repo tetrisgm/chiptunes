@@ -2091,3 +2091,25 @@ blocklist, which is the same mistake one layer up.
 
 If you add another pill to that row, it needs no thought — just do not give it
 `data-mood`.
+
+# 2026-09-02 — MIDI, and the best-of-N question answered
+
+- **`toMidi(doc)`** — Standard MIDI format 1: a tempo track plus one track per
+  hardware voice, so the file carries the stems too, with drums on channel 10
+  using General MIDI numbers. `file(1)` recognises it. This export exists only
+  because the music is symbolic; an audio model has nothing to hand you here.
+  The gate walks every chunk and requires the lengths to land exactly on the end
+  of the file, rather than trusting the header.
+- **`variations(spec, n)` resolves the contract question without a ruling.**
+  `AGENTS.md` forbids the product *scoring* candidates — "fix bad output in the
+  composer rather than hiding it behind candidate scoring". Composing n songs
+  from n tokens and returning **all** of them, unranked, scores nothing; it is
+  pressing "next" n times, and the choosing has always been the caller's. There
+  is deliberately no `best` argument and `verify-api` asserts there is not one.
+  Automatic selection is the thing that would need an owner ruling.
+- `docs/AGENT_PLAN.md` now marks the build order done or not, and states plainly
+  what is still open: a shared MOTIF across a soundtrack (shared key, mode and
+  tempo are done; the palette and motif are not), `resolve:true` actually
+  forcing a tonic ending, intensity layers beyond the four stems, and increasing
+  density — `thin` has no opposite on purpose, because adding notes is composing
+  and belongs in the composer rather than in a transform.

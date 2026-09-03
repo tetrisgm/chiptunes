@@ -212,6 +212,39 @@ function mcp(messages) {
   ok(live.length >= 2, 'and they carry real audio (' + live.map(x => x.lane).join(', ') + ')');
   ok(stems[3].wav.includes(Buffer.from('smpl')), 'with a smpl chunk so an engine reads the loop point');
 
+  // MIDI: the export that leaves the Game Boy behind, and only a symbolic
+  // composer can offer it at all.
+  const mid = api.toMidi(boss.doc);
+  ok(mid.slice(0, 4).toString() === 'MThd' && mid.readUInt32BE(4) === 6,
+     'the MIDI file has a real header (' + mid.length + ' bytes)');
+  ok(mid.readUInt16BE(8) === 1 && mid.readUInt16BE(10) === 5,
+     'format 1 with a track per voice plus tempo (' + mid.readUInt16BE(10) + ' tracks)');
+  {
+    // walk the chunks: every one must be MTrk with a length that lands exactly
+    let off = 14, chunks = 0, notes = 0, drumChan = false, ok2 = true;
+    while (off < mid.length) {
+      if (mid.slice(off, off + 4).toString() !== 'MTrk') { ok2 = false; break; }
+      const len = mid.readUInt32BE(off + 4);
+      for (let i = off + 8; i < off + 8 + len; i++) {
+        if ((mid[i] & 0xF0) === 0x90) { notes++; if ((mid[i] & 0x0F) === 9) drumChan = true; }
+      }
+      off += 8 + len; chunks++;
+    }
+    ok(ok2 && off === mid.length && chunks === 5,
+       'and every chunk parses to exactly the end of the file (' + chunks + ' chunks)');
+    ok(notes > 0, 'with note-on events in it (' + notes + ')');
+    ok(drumChan, 'and the drums on MIDI channel 10, so they land on a kit');
+  }
+
+  // variations: many, unranked. AGENTS.md keeps best-of-N out of production
+  // composition; composing n and handing them all back scores nothing.
+  const vs = api.variations({ scene: 'title', seconds: 20 }, 5);
+  ok(vs.candidates.length === 5 && vs.candidates.every(c => c.notes > 0),
+     'variations composes n distinct songs (' + vs.candidates.length + ')');
+  ok(new Set(vs.candidates.map(c => c.doc)).size === 5, 'and they really are different songs');
+  ok(/[Uu]nranked/.test(vs.note) && typeof api.variations({}, 2).best === 'undefined',
+     'and it ranks and selects nothing, which is what the product contract requires');
+
   // ---- 5c. saying what you want -------------------------------------------
   //
   // The field in the product. It is deterministic on purpose -- there is no
