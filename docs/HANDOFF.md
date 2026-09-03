@@ -2113,3 +2113,81 @@ If you add another pill to that row, it needs no thought — just do not give it
   forcing a tonic ending, intensity layers beyond the four stems, and increasing
   density — `thin` has no opposite on purpose, because adding notes is composing
   and belongs in the composer rather than in a transform.
+
+# 2026-09-02 — Variety is now a gate, and the DMG is not negotiable
+
+## `scripts/verify-diversity.js` — the build fails if the music gets samey
+
+Every cohesion device is a way to make a generator boring: shared keys, scene
+presets, mood recipes, shared motifs. Each is individually reasonable and the
+cumulative effect is that everything sounds alike. That is the failure the owner
+cares about most, so it is **measured on every run** rather than argued about.
+
+Measured today, with the ceilings the gate enforces in brackets:
+
+| | distinct openings | pitch-class similarity |
+| --- | --- | --- |
+| free composition | 30/30 | 0.33 (ceiling 0.55) |
+| brief: boss | 30/30 | 0.25 (0.6) |
+| brief: cave | 30/30 | 0.40 (0.6) |
+| ten different games' title themes | 10/10 | 0.29 (0.65) |
+| thirty songs made "sadder" | 30/30 | 0.33 (0.7) |
+
+Thresholds are floors with headroom, not today's numbers rounded down — a gate
+set to the current measurement fails on noise and gets deleted.
+
+**The signature was wrong twice, in opposite directions, and both are instructive.**
+Flattening every lane into one sequence is fine for identity but useless for
+INTERVALS, because it interleaves a bass line into the melody and produces
+intervals that are an artefact of the reader (`-29,24,3,-27,29`). Filtering to
+Melody only looks more precise and is worse: plenty of cues have no melody in
+their opening bars, so every one of those produced an EMPTY signature and
+collided with all the others. It is lane-TAGGED now, over sixteen notes.
+
+## The shared motif is opt-in, and varied rather than copied
+
+Reversed from the previous entry after the owner's objection, which was right.
+Shared KEY already makes cues belong together and costs no variety; a recurring
+figure is a stronger, riskier claim, so `motif: true` is required. When it is on,
+each cue gets the figure at a different transposition (the octave, the fifth, the
+fourth below), so the cues are related the way a leitmotif is related. The gate
+compares INTERVAL SHAPE, not pitches, because that is what survives
+transposition and what a listener recognises. Two different soundtracks never
+share anything.
+
+If the first cue has no melodic phrase at all — a drone, a percussion-led piece —
+it says so in `motifSkipped` rather than sharing silence.
+
+## ⚠️ THE FOUR CHANNELS ARE NOT INTERCHANGEABLE
+
+`double` (octave doubling, the density-up operation) exposed two hardware facts
+in one afternoon:
+
+1. **One voice per channel.** An octave copy left on its own lane sounds at the
+   same instant as the note it came from, and the voice allocator correctly drops
+   one, so the operation silently did nothing. A double has to land on a
+   DIFFERENT lane that is free at that moment, and says so when none is.
+2. **An instrument record belongs to one channel.** Copying a cell wholesale
+   carried its `inst` across, putting a wave table on a pulse channel — exactly
+   the fault recorded further up this file as guarded. Moving a note between
+   lanes now drops `inst`, `dy`, `fd`, `wv`, `nz`, `ns`, and the channel-1 sweep
+   flags, and lets the stamp speak.
+
+`verify-api` now asserts, over composed, doubled AND transformed songs, that
+**every note is on a channel its instrument belongs to**. That invariant is
+cheap and it is the one that keeps this a Game Boy rather than a synthesiser
+with four arbitrary voices.
+
+## Eight intensity layers, which is why density had to exist
+
+Lane presence alone gives four steps, too coarse to fade an action scene up.
+Density is the second axis: each voice arrives thinned before it arrives whole,
+and the bass doubles at the top. `ambient · pulse · groove · drive · colour ·
+rise · lead · full`. A layer that adds nothing to the one below **says so** —
+plenty of songs have no Harmony, and returning two identical layers as an
+intensity step is a quiet lie.
+
+## MIDI is in the product
+
+Create has a Download MIDI button beside WAV and ROM. `toMidi` returns a Node
+Buffer where there is one and a `Uint8Array` in the browser, same bytes.

@@ -208,6 +208,14 @@ const TOOLS = [
     run: (a) => writeFileArg(a.path, api.renderWav(resolveDoc(a.song)), 'audio')
   },
   {
+    name: 'layers',
+    description: 'The same cue at three intensities for adaptive game audio: base (bass and drums, for exploring or under dialogue), mid (adds harmony), full. The layers ARE the four hardware voices, so they are in time with each other by construction. A layer that adds nothing to the one below says so.',
+    inputSchema: { type: 'object', properties: { song: { type: 'string' } }, required: ['song'] },
+    run: (a) => api.layers(resolveDoc(a.song)).map(l =>
+      Object.assign({ layer: l.layer, lanes: l.lanes, use: l.use, addsNotes: l.addsNotes, note: l.note },
+                    summary(l.doc, keep(l.doc))))
+  },
+  {
     name: 'export_midi',
     description: 'Write the song as a Standard MIDI file: format 1, one track per hardware voice, drums on channel 10 with General MIDI numbers. This is the export that takes the music out of the Game Boy and into a DAW or a game engine, and it is only possible because the song is symbolic.',
     inputSchema: { type: 'object', properties: { song: { type: 'string' }, path: { type: 'string' } }, required: ['song', 'path'] },

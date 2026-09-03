@@ -18,6 +18,7 @@ const USAGE = `chiptunes — make Game Boy songs from the command line
   transform <doc|file> --ops '[{"op":"tempo","percent":-10}]' [--out FILE]
   stems <doc|file> --out DIR
   midi <doc|file> --out FILE          format 1, one track per voice
+  layers <doc|file> --out DIR         base / mid / full, for adaptive audio
   variations --scene S [--n 5] --out DIR   n songs, unranked
   guide
   describe <doc|file>
@@ -146,6 +147,17 @@ try {
       break;
     }
     case 'midi': outBin(api.toMidi(readDoc(process.argv[3]))); break;
+    case 'layers': {
+      const dir = arg('out');
+      if (!dir) die('layers writes several files; pass --out DIR');
+      fs.mkdirSync(path.resolve(dir), { recursive: true });
+      api.layers(readDoc(process.argv[3])).forEach(l => {
+        const f = path.join(dir, l.layer + '.doc');
+        fs.writeFileSync(f, l.doc);
+        process.stdout.write(f + '  ' + l.notes + ' notes  ' + l.use + (l.note ? '  [' + l.note + ']' : '') + '\n');
+      });
+      break;
+    }
     case 'variations': {
       const dir = arg('out');
       if (!dir) die('variations writes several files; pass --out DIR');

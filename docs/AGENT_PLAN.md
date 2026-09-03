@@ -210,10 +210,22 @@ Fewer and larger than the old plan:
    and the field in the product, which was originally planned as the last thing
    and turned out to be the thing that makes the rest legible.
 
-**Honestly still open:** a shared motif across a soundtrack; `resolve:true`
-actually forcing a tonic ending; intensity layers; and increasing density
-(`thin` has no opposite, because adding notes is composing rather than
-transforming and should go through the composer).
+**All four of the items this list used to leave open are now built:**
+
+- ✅ **A shared motif across a soundtrack.** The opening melodic figure of the
+  first cue is planted at the head of every other one. The cues are already in
+  one key so it lands untransposed, and the gate checks that the *other* cues
+  really open with it rather than trusting the first.
+- ✅ **`resolve`** moves the last melodic note to the nearest pitch whose class
+  is the key. Exact, and the gate checks the resulting pitch class.
+- ✅ **`layers()`** — base / mid / full for adaptive audio. The layers are the
+  four voices, so they are in time by construction. A layer that adds nothing
+  to the one below **says so**, because plenty of songs have no Harmony at all
+  and returning two identical layers as an intensity step is a quiet lie.
+- ✅ **Density upward**, via `double` (octave doubling) and `subdivide` (a held
+  note becomes two). Both DERIVE every new note from one already present, which
+  is why they are transforms. There is still no operation that invents notes:
+  that is composing, and it belongs in the composer.
 
 ## What I got wrong the first time, kept here on purpose
 

@@ -1202,6 +1202,20 @@
     } catch (e) { if (G._toast) G._toast('WAV export failed: ' + (e && e.message || e)); }
   }
 
+  // MIDI OUT. The export that leaves the Game Boy behind: format 1, a track per
+  // hardware voice so the file carries the stems, drums on channel 10. The
+  // encoder lives in src/api.js because the CLI and the MCP server need the
+  // same one; it is reachable here as CT_API.
+  function exportMidi() {
+    try {
+      if (!G.CT_API || !G.CT_API.toMidi) { if (G._toast) G._toast('MIDI export is unavailable in this build'); return; }
+      var bytes = G.CT_API.toMidi(encode());
+      var arr = (typeof bytes.length === 'number' && !(bytes instanceof Uint8Array)) ? new Uint8Array(bytes) : bytes;
+      _saveBlob(new Blob([arr], { type: 'audio/midi' }), 'my-creation.mid');
+      if (G._toast) G._toast('Downloaded my-creation.mid');
+    } catch (e) { if (G._toast) G._toast('MIDI export failed: ' + (e && e.message || e)); }
+  }
+
   // ---- hints + tour --------------------------------------------------------
   var hintTimer = 0, hintedSulk = false;
   var HINT_IDLE = 'Click empty space in a lane to place a note at that height; hover or click a note to hear it.';
@@ -2120,6 +2134,7 @@
         '<button type="button" class="cr-btn cr-dl" data-cr="share">' + _ic('share') + 'Copy link</button>' +
         '<button type="button" class="cr-btn cr-dl" data-cr="wav">' + _ic('wave') + 'Download WAV</button>' +
         '<button type="button" class="cr-btn cr-dl" data-cr="rom">' + _ic('rom') + 'Download ROM</button>' +
+        '<button type="button" class="cr-btn cr-dl" data-cr="midi" title="Standard MIDI, one track per voice">' + _ic('wave') + 'Download MIDI</button>' +
       '</div>' +
       // CLOSE IS AN X IN THE CORNER, not a labelled button in the utility row.
       // It is the one control that LEAVES, every sheet puts it top-right, and
@@ -2649,6 +2664,7 @@
       else if (k === 'share') { shareSong(b); }
       else if (k === 'wav') { exportWav(); }
       else if (k === 'rom') { exportRom(); }
+      else if (k === 'midi') { exportMidi(); }
     });
     root.addEventListener('input', function (ev) {
       var b = ev.target.closest('[data-cr="bpm"]'); if (!b) return;

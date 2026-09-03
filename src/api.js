@@ -116,8 +116,11 @@ function capabilities() {
     moods: CT_CREATE.moods(),
     scenes: Object.keys(SCENES),
     moodWords: Object.keys(MOODS),
-    operations: ['tempo', 'transpose', 'register', 'mode', 'velocity', 'thin', 'drop',
-                 'trim', 'repeat', 'swing', 'motion', 'shape', 'fade'],
+    operations: ['tempo', 'transpose', 'register', 'mode', 'velocity', 'thin', 'double',
+                 'subdivide', 'drop', 'trim', 'repeat', 'swing', 'resolve', 'motion',
+                 'shape', 'fade'],
+    layers: LAYER_SETS.map(function (l) { return { name: l.name, lanes: l.keep, use: l.use }; }),
+    variety: 'Cohesion devices are opt-in on purpose. soundtrack() shares a KEY by default, which costs no variety; a shared motif needs motif:true and is transposed per cue rather than copied. Nothing is shared between two different soundtracks.',
     limits: { maxTitle: 48 }
   };
 }
@@ -527,6 +530,99 @@ function transform(doc, ops) {
         applied.push('repeated bars ' + rf + '-' + rt + ' x' + times); break;
       }
       case 'swing': st.swing = o.on === false ? 0 : 1; applied.push('swing ' + (st.swing ? 'on' : 'off')); break;
+      case 'resolve': {
+        // End on the tonic. That is what "make it resolve" means, and it is
+        // exact: move the LAST melodic note to the nearest pitch whose class is
+        // the key. Nothing is composed.
+        var lastCell = null;
+        st.cells.forEach(function (c) {
+          if (isDrum(c) || c.midi == null) return;
+          if (o.lane != null && laneOf(c) !== lane) return;
+          if (!lastCell || (c.c | 0) > (lastCell.c | 0)) lastCell = c;
+        });
+        if (!lastCell) { skipped.push('nothing melodic to resolve'); break; }
+        var want = st.key | 0, pcNow = ((lastCell.midi % 12) + 12) % 12;
+        var upBy = ((want - pcNow) % 12 + 12) % 12, downBy = upBy - 12;
+        lastCell.midi += (Math.abs(downBy) < upBy ? downBy : upBy);
+        lastCell.r = rowFor(lastCell.midi);
+        applied.push('resolved to the tonic (' + noteName(lastCell.midi) + ')'); break;
+      }
+      case 'double': {
+        // DENSITY UP, HONESTLY -- and constrained by the hardware in a way that
+        // took a failing test to notice. `thin` had no opposite because
+        // inventing notes is composing; doubling only DERIVES from notes already
+        // present, which is fine. But the DMG has ONE VOICE PER CHANNEL: an
+        // octave copy left on its own lane sounds at the same instant as the
+        // note it came from, and the voice allocator correctly drops one of
+        // them, so the operation silently did nothing. A double has to land on
+        // a DIFFERENT lane that is free at that moment, and if none is, this
+        // says so instead of pretending.
+        var oct = o.octaves == null ? -1 : o.octaves;
+        var toLane = o.to != null ? LANES.indexOf(o.to) : -1;
+        if (o.to != null && toLane < 0) { skipped.push('unknown lane ' + o.to); break; }
+        var melodic = [0, 1, 2];                       // Drums cannot carry a pitch
+        var busy = {};                                 // lane -> occupied step ranges
+        st.cells.forEach(function (c) {
+          if (isDrum(c)) return;
+          var L = laneOf(c);
+          (busy[L] = busy[L] || []).push([c.c | 0, (c.c | 0) + (c.len || 1)]);
+        });
+        var free = function (L, from, to2) {
+          return !(busy[L] || []).some(function (r) { return from < r[1] && to2 > r[0]; });
+        };
+        var add2 = [], noRoom = 0;
+        st.cells.slice().forEach(function (c) {
+          if (isDrum(c) || c.midi == null || !pick(c)) return;
+          var midi = c.midi + 12 * oct;
+          if (midi < 24 || midi > 108) return;
+          var from = c.c | 0, to2 = from + (c.len || 1);
+          var target = toLane >= 0 ? (free(toLane, from, to2) ? toLane : -1)
+                                   : (melodic.filter(function (L) { return L !== laneOf(c) && free(L, from, to2); })[0]);
+          if (target == null || target < 0) { noRoom++; return; }
+          var cp = JSON.parse(JSON.stringify(c));
+          cp.midi = midi; cp.r = rowFor(midi);
+          cp.vel = Math.max(0.05, (c.vel == null ? 0.8 : c.vel) * 0.8);
+          cp.ch = target === 2 ? undefined : target;
+          cp.st = target === 2 ? 'bassg' : target === 1 ? 'bell' : 'piano';
+          if (cp.ch === undefined) delete cp.ch;
+          // ⚠️ MOVING A NOTE BETWEEN LANES MEANS MOVING IT BETWEEN CHANNELS, and
+          // the channels are not interchangeable on this chip. An instrument
+          // record belongs to one: a wave table is meaningless on a pulse
+          // channel and a duty is meaningless on the wave channel. Carrying the
+          // source note's `inst` across is precisely the fault HANDOFF.md
+          // records as guarded ("the instrument has to belong to the channel"),
+          // and it would also send the copy straight back to the lane it came
+          // from, because cellVoice() reads the instrument to decide.
+          // Drop everything channel-specific and let the stamp speak.
+          delete cp.inst; delete cp.dy; delete cp.fd; delete cp.wv; delete cp.nz; delete cp.ns;
+          // the sweep unit is channel 1's alone
+          if (target !== 0) { delete cp.z; delete cp.u; }
+          (busy[target] = busy[target] || []).push([from, to2]);
+          add2.push(cp);
+        });
+        st.cells = st.cells.concat(add2);
+        applied.push('doubled ' + (o.lane || 'everything') + ' ' + (oct < 0 ? 'an octave down' : 'an octave up') +
+                     ' onto a free voice (' + add2.length + ' notes)');
+        if (noRoom) skipped.push(noRoom + ' note(s) had no free voice to double into: the chip has one voice per lane');
+        break;
+      }
+      case 'subdivide': {
+        // The other honest way to add density: a held note becomes two of half
+        // the length. Derived, not invented.
+        var add3 = [], splitN = 0;
+        st.cells.forEach(function (c) {
+          if (!pick(c)) return;
+          var len = c.len || 1;
+          if (len < 2) return;
+          var half = Math.floor(len / 2);
+          c.len = half;
+          var cp = JSON.parse(JSON.stringify(c));
+          cp.c = (c.c | 0) + half; cp.len = len - half;
+          add3.push(cp); splitN++;
+        });
+        st.cells = st.cells.concat(add3);
+        applied.push('subdivided ' + (o.lane || 'everything') + ' (' + splitN + ' notes)'); break;
+      }
       case 'motion': {
         var flag = { arp: 'q', roll: 'g', echo: 'f', fall: 'z', rise: 'u' }[o.motion];
         if (!flag) { skipped.push('unknown motion ' + o.motion); break; }
@@ -662,7 +758,85 @@ function soundtrack(b) {
     cue.scene = name;
     return cue;
   });
-  return { key: rootName, mode: b.mode || null, cues: cues };
+  // A SHARED MOTIF IS WHAT MAKES IT A SOUNDTRACK RATHER THAN A PLAYLIST. Take
+  // the opening melodic figure of the first cue and plant it at the head of
+  // every other one, replacing whatever melody they had there. They are already
+  // in one key, so it lands without transposition. Only possible because the
+  // music is symbolic: you cannot move a figure between two waveforms.
+  // ⚠️ A SHARED MOTIF IS OFF BY DEFAULT, and that is a deliberate reversal.
+  // Cohesion devices are exactly how a generator starts sounding the same, and
+  // the owner has been burned by that repeatedly. Shared KEY already makes cues
+  // belong together and costs no variety; a recurring figure is a stronger,
+  // riskier claim, so it is opt-in with `motif: true`.
+  //
+  // And when it is on, the figure is VARIED rather than copied: each cue gets it
+  // at a different transposition and register, so they are related the way a
+  // leitmotif is related, not identical. Measured either way by
+  // scripts/verify-diversity.js, which fails if output gets samey.
+  var motif = null;
+  if (b.motif === true && cues.length > 1) {
+    var src = CT_CREATE.docState(cues[0].doc), grid0 = src.grid || 16;
+    // Look for the first two-bar window that actually HAS a phrase in it. The
+    // opening bars of a cue are often empty or a single held note, and taking
+    // whatever is at bar 0 meant a soundtrack sometimes reported no motif at
+    // all -- which read as the feature being broken rather than the cue being
+    // sparse there.
+    var figure = [], motifBar = 0, motifLane = 0, why = null;
+    // Search the WHOLE cue, and take Harmony if Melody has nothing: both are
+    // pulse voices, and a figure stated on the second pulse is an ordinary
+    // thing for this hardware. Some cues genuinely have no melodic phrase at
+    // all -- a drone or a percussion-led piece -- and in that case there is
+    // nothing to share and it should say so rather than share silence.
+    for (var ln = 0; ln < 2 && !figure.length; ln++) {
+      for (var w = 0; w < src.bars && !figure.length; w++) {
+        var lo = w * grid0, hi = lo + grid0 * 2;
+        var got = src.cells.filter(function (c) {
+          return !isDrum(c) && c.midi != null && laneOf(c) === ln && (c.c | 0) >= lo && (c.c | 0) < hi;
+        });
+        if (got.length >= 3) {
+          motifBar = w; motifLane = ln;
+          figure = got.map(function (c) {
+            var cp = JSON.parse(JSON.stringify(c)); cp.c = (c.c | 0) - lo; return cp;
+          });
+        }
+      }
+    }
+    if (figure.length < 2) why = 'the first cue has no melodic phrase to build on';
+    if (figure.length >= 2) {
+      motif = { notes: figure.length, bars: 2, fromBar: motifBar,
+                lane: LANES[motifLane],
+                pitches: figure.slice(0, 8).map(function (c) { return noteName(c.midi); }) };
+      // musical relations, not repetition: the octave, the fifth, the fourth
+      // below, the sixth. Each cue hears the figure somewhere else.
+      var RELATION = [0, 7, -5, 12, 3, -12, 5];
+      for (var i = 1; i < cues.length; i++) {
+        var stc = CT_CREATE.docState(cues[i].doc), g = stc.grid || 16, win = g * 2;
+        var shiftBy = RELATION[i % RELATION.length];
+        stc.cells = stc.cells.filter(function (c) {
+          return !(!isDrum(c) && c.midi != null && laneOf(c) === 0 && (c.c | 0) < win);
+        });
+        stc.cells = stc.cells.filter(function (c) {
+          return !(!isDrum(c) && c.midi != null && laneOf(c) === motifLane && (c.c | 0) < win);
+        });
+        figure.forEach(function (c) {
+          var cp = JSON.parse(JSON.stringify(c));
+          cp.c = Math.round((c.c | 0) * (g / grid0));       // rescale if the grid differs
+          cp.midi = c.midi + shiftBy;
+          if (cp.midi < 24 || cp.midi > 108) cp.midi = c.midi;
+          cp.r = rowFor(cp.midi);
+          if (cp.c < win) stc.cells.push(cp);
+        });
+        var re = CT_CREATE.docFromState(stc);
+        if (re) {
+          var sc = cues[i].scene;
+          cues[i] = Object.assign({}, cues[i], { doc: re }, describe(re),
+                                  { scene: sc, motif: { transposedBy: shiftBy } });
+        }
+      }
+    }
+  }
+  return { key: rootName, mode: b.mode || null, motif: motif,
+           motifSkipped: (b.motif === true && !motif) ? why : undefined, cues: cues };
 }
 
 // -------------------------------------------------------------------- stems
@@ -880,6 +1054,49 @@ function ask(text, opts) {
   return Object.assign({ ok: true, doc: doc, applied: applied, skipped: skipped }, describe(doc), read);
 }
 
+// -------------------------------------------------------------------- layers
+//
+// VERTICAL REMIXING, the way game audio middleware wants it: the same cue at
+// several intensities, so a game fades a layer in as the action rises. The
+// layers ARE the four voices, so this costs nothing but naming them -- every
+// layer is the same song with lanes removed, which means they are in time with
+// each other by construction rather than by careful mixing.
+// EIGHT STEPS OUT OF FOUR VOICES. Lane presence alone gives you four, which is
+// too coarse to fade an action scene up. DENSITY is the other axis: each voice
+// can arrive thinned before it arrives whole, and the bass can double at the
+// top. That is why `thin`, `double` and `subdivide` had to exist first.
+var LAYER_SETS = [
+  { name: 'ambient',  keep: ['Bass'],                              thin: ['Bass'],    use: 'barely there: a held low line' },
+  { name: 'pulse',    keep: ['Bass'],                              thin: [],          use: 'a heartbeat under dialogue' },
+  { name: 'groove',   keep: ['Bass', 'Drums'],                     thin: ['Drums'],   use: 'walking around' },
+  { name: 'drive',    keep: ['Bass', 'Drums'],                     thin: [],          use: 'moving with purpose' },
+  { name: 'colour',   keep: ['Bass', 'Drums', 'Harmony'],          thin: ['Harmony'], use: 'something is coming' },
+  { name: 'rise',     keep: ['Bass', 'Drums', 'Harmony'],          thin: [],          use: 'tension' },
+  { name: 'lead',     keep: ['Bass', 'Drums', 'Harmony', 'Melody'],thin: ['Melody'],  use: 'engaged' },
+  { name: 'full',     keep: ['Bass', 'Drums', 'Harmony', 'Melody'],thin: [], double: 'Bass', use: 'full intensity' }
+];
+function layers(doc) {
+  var base = typeof doc === 'string' ? doc : fromJSON(doc);
+  var prev = -1;
+  return LAYER_SETS.map(function (set) {
+    var ops = LANES.filter(function (l) { return set.keep.indexOf(l) < 0; })
+                   .map(function (l) { return { op: 'drop', lane: l }; });
+    (set.thin || []).forEach(function (l) { ops.push({ op: 'thin', lane: l }); });
+    if (set.double) ops.push({ op: 'double', lane: set.double });
+    var d = ops.length ? transform(base, ops).doc : base;
+    var info = describe(d);
+    // A LAYER THAT ADDS NOTHING HAS TO SAY SO. Not every song uses every voice
+    // -- plenty have no Harmony at all -- and handing back two identical layers
+    // as if they were an intensity step is a quiet lie. Say it instead.
+    var adds = prev < 0 ? info.notes : info.notes - prev;
+    prev = info.notes;
+    var out = Object.assign({ layer: set.name, lanes: set.keep, use: set.use, doc: d, addsNotes: adds }, info);
+    if (adds === 0) out.note = 'identical to the layer below: this song has nothing on ' +
+      LANES.filter(function (l) { return set.keep.indexOf(l) >= 0 && info.perLane[l] === 0; }).join(', ');
+    return out;
+  });
+}
+
 // ---------------------------------------------------------------------- MIDI
 //
 // The export that takes this out of the Game Boy and into anybody's tools. It
@@ -909,8 +1126,9 @@ function midiTrack(events, ppq) {
   return [].concat([0x4D, 0x54, 0x72, 0x6B], be32(out.length), out);
 }
 
+// Returns a Node Buffer where there is one and a Uint8Array in the browser, so
+// the page can put it straight into a Blob. Same bytes either way.
 function toMidi(doc, opts) {
-  needBuffer('toMidi');
   opts = opts || {};
   var song = CT_CREATE.songOf(typeof doc === 'string' ? doc : fromJSON(doc));
   if (!song) throw new Error('toMidi: not a playable song');
@@ -952,7 +1170,7 @@ function toMidi(doc, opts) {
   var head = [].concat([0x4D, 0x54, 0x68, 0x64], be32(6), be16(1), be16(tracks.length), be16(ppq));
   var all = head;
   tracks.forEach(function (t) { all = all.concat(t); });
-  return Buffer.from(all);
+  return HAS_BUFFER ? Buffer.from(all) : new Uint8Array(all);
 }
 
 // --------------------------------------------------------------- variations
@@ -1027,7 +1245,8 @@ var EXPORTS = {
   interpret: interpret,
   ask: ask,
   toMidi: toMidi,
-  variations: variations
+  variations: variations,
+  layers: layers
 };
 
 // In the browser this file is concatenated as a plain script, so the same
