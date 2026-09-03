@@ -1808,7 +1808,7 @@ function buildRadioUI(){
       var brand=document.createElement('span'); brand.className='rmood-brand landing-copy';
       brand.innerHTML='<b class="rmood-title">Chiptunes.app</b>'+ 
         '<span class="rmood-copy">'+
-          '<span class="rmood-section"><strong>CREATE OR LISTEN.</strong><p>Choose a mood and Chiptunes composes complete Game Boy songs for you, automatically, one after another. Or open the tracker and write your own.</p></span>'+
+          '<span class="rmood-section"><strong>CREATE OR LISTEN.</strong><p>Choose a mood and Chiptunes composes complete Game Boy songs for you, automatically, one after another. Or open the tracker and write your own \u2014 or let an AI agent drive it, through 15 <a class="rmood-link" href="/webmcp">WebMCP tools</a>.</p></span>'+
           '<span class="rmood-section"><strong>COMPLETE SONGS.</strong><p>The composer writes full arrangements, not loops, from pulse and wave instruments, noise and sampled drums.</p></span>'+
           '<span class="rmood-section"><strong>AUTHENTIC HARDWARE.</strong><p>Every note runs through register-level emulation of the original four-channel sound chip. Download a cartridge that boots on a real Game Boy.</p></span>'+
           '<span class="rmood-section"><strong>MAKE IT YOURS.</strong><p>Edit every note, instrument and effect. Share it as a link, WAV or cartridge.</p></span>'+

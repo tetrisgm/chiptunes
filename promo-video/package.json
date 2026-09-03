@@ -4,7 +4,10 @@
   "scripts": {
     "capture": "node capture.mjs",
     "render": "remotion render src/index.ts ChiptunesPromo out/chiptunes-promo.mp4 --codec=h264 --crf=18",
-    "poster": "remotion still src/index.ts ChiptunesPromo out/chiptunes-promo.webp --frame=72 --image-format=webp"
+    "poster": "remotion still src/index.ts ChiptunesPromo out/chiptunes-promo.webp --frame=72 --image-format=webp",
+    "webmcp": "remotion render src/index.ts WebMcpDemo out/chiptunes-webmcp.mp4 --codec=h264 --crf=18",
+    "thumbnail": "remotion still src/index.ts Thumbnail out/thumbnail.png",
+    "logo": "remotion still src/index.ts Logo out/logo.png"
   },
   "dependencies": {
     "@remotion/cli": "4.0.374",

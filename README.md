@@ -15,27 +15,46 @@ frames, in the same order.
 
 ---
 
-### 🤖 Built for the WebMCP Challenge
+### 🤖 A Game Boy studio your agent can drive
 
-**[chiptunes.app/webmcp](https://chiptunes.app/webmcp)** — the same app, with the
-agent story on top of it and every tool callable from the page whether or not
-your browser speaks WebMCP yet.
+**[chiptunes.app/webmcp](https://chiptunes.app/webmcp)** — built for the
+[WebMCP Challenge](https://webmcp.devpost.com).
 
-`src/webmcp.js` registers **14 tools** on `document.modelContext`. Eight operate
-the session you are watching; six compose, measure and export **with no server
-at all**, because the composer and a register-level Game Boy sound chip are
-already running in the tab. No API key, no account, nothing metered — and a song
-is 1.6 ms, so `chiptunes_variations` hands back **twelve complete, different
-songs in about 70 ms**. An agent cannot listen, so `chiptunes_analyse` lets it
-measure what it made instead.
+The composer, a register-level Game Boy sound chip, the MIDI writer and the
+cartridge builder are **already running in the tab**, because the website needs
+them. `src/webmcp.js` exposes them as **15 tools** on `document.modelContext`.
+So an agent that can open a tab can write music — **no server, no API key, no
+account, nothing metered.**
 
-Ask for *"a dungeon theme like Castlevania, 40 seconds, no drums"* and it tells
-you exactly what it understood, what it ignored, and what it refused.
+| an agent can | tool |
+| --- | --- |
+| find out what this page is, before anything has loaded | `what_can_i_do_here` |
+| ask in plain English: *"a dungeon theme like Castlevania, 40 seconds, no drums"* | `chiptunes_ask` |
+| **check its own work** — it can't listen, so it measures | `chiptunes_analyse` |
+| get **twelve complete, different songs in ~70 ms**, unranked | `chiptunes_variations` |
+| recompose the exact song on air: *"make it gloomier"* | `chiptunes_variant` |
+| hand over a share link, a MIDI file, or a **32 KB `.gb` cartridge** | `chiptunes_export` |
+| drive the session the user is watching — play, skip, screen, tracker | 8 more |
 
-Full write-up, including which work was added during the submission window:
-**[docs/WEBMCP.md](docs/WEBMCP.md)**. Verified by
-[`scripts/verify-webmcp.js`](scripts/verify-webmcp.js), which shims the spec API
-the way an agent browser does and calls all 14 tools for real.
+Three things follow that a hosted model behind a key cannot do:
+
+- **Breadth is free.** A song is 1.6 ms, so offering a real choice costs
+  nothing. Against a metered API nobody generates twenty candidates; here it is
+  the obvious move.
+- **The agent can judge without listening.** `analyse()` reports how major or
+  minor the pitch material is, whether phrases climb or fall, how much the
+  melody agrees with the chords under it. Blind generation becomes a loop.
+- **You and the agent share one session.** The tools are thin calls into the
+  same functions the buttons call, so you hear every step and can take the mouse
+  at any time. Agent actions are announced on screen — *🤖 agent: switched the
+  screen to nes* — and your own clicks are not.
+
+Full write-up, including which work landed inside the submission window:
+**[docs/WEBMCP.md](docs/WEBMCP.md)**. Gated by
+[`scripts/verify-webmcp.js`](scripts/verify-webmcp.js), which installs the spec's
+`document.modelContext` before any page script (as an agent browser does) and
+calls all 15 tools for real — locally and against production
+(`npm run test:webmcp:live`).
 
 ---
 
