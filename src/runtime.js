@@ -1897,8 +1897,21 @@ function buildRadioUI(){
           try{ Audio.playDoc(r.doc); }catch(e){}
           var bits=r.applied.filter(function(x){ return x; });
           var msg=bits.length?('Made it: '+bits.join(' · ')):'Made it.';
-          if(r.notUnderstood && r.notUnderstood.length) msg+='  (ignored: '+r.notUnderstood.join(', ')+')';
-          sayBack(msg);
+          // BE LOUD ABOUT WHAT WAS NOT UNDERSTOOD, not apologetic in brackets.
+          // Typing "dungeon song like zelda" and getting back a quiet
+          // "(ignored: zelda)" reads as though the reference was taken into
+          // account. It was not, and it cannot be: this matches words against a
+          // published vocabulary, there is no model reading the sentence, and
+          // naming a real game in the vocabulary would be both a false claim
+          // and the trademark hazard AGENTS.md exists to prevent.
+          if(r.reference){
+            msg+='  \u2014 but I cannot do \u201clike '+r.reference+'\u201d. '+
+                 'I match words, not references: there is no model reading this, '+
+                 'and I will not pretend to imitate something I was not built from.';
+          } else if(r.notUnderstood && r.notUnderstood.length){
+            msg+='  \u2014 I ignored: '+r.notUnderstood.join(', ')+'. Press How it works for the words I know.';
+          }
+          sayBack(msg, r.reference ? 'partial' : '');
         },0); });
       }
       go.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); runAsk(); });

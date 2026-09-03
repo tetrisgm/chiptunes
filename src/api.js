@@ -421,7 +421,16 @@ var MOODS = {
   calmer:   [{ op: 'tempo', percent: -12 }, { op: 'thin', lane: 'Drums' }, { op: 'velocity', delta: -0.15 }],
   intense:  [{ op: 'tempo', percent: 12 }, { op: 'velocity', delta: 0.15 }, { op: 'register', lane: 'Bass', octaves: -1 }],
   sparser:  [{ op: 'thin', lane: 'Harmony' }, { op: 'thin', lane: 'Drums' }],
-  dreamier: [{ op: 'tempo', percent: -8 }, { op: 'motion', lane: 'Melody', motion: 'echo' }, { op: 'thin', lane: 'Drums' }]
+  dreamier: [{ op: 'tempo', percent: -8 }, { op: 'motion', lane: 'Melody', motion: 'echo' }, { op: 'thin', lane: 'Drums' }],
+  // compounds, spelled out for the same reason the simple ones are: a word that
+  // means something different each time it is used is not a vocabulary
+  heroic:     [{ op: 'mode', to: 'major' }, { op: 'tempo', percent: 6 }, { op: 'register', lane: 'Melody', octaves: 1 }, { op: 'velocity', delta: 0.1 }],
+  mysterious: [{ op: 'mode', to: 'minor' }, { op: 'tempo', percent: -10 }, { op: 'thin', lane: 'Drums' }, { op: 'motion', lane: 'Melody', motion: 'echo' }],
+  menacing:   [{ op: 'mode', to: 'minor' }, { op: 'register', lane: 'Melody', octaves: -1 }, { op: 'register', lane: 'Bass', octaves: -1 }, { op: 'velocity', delta: 0.1 }],
+  frantic:    [{ op: 'tempo', percent: 22 }, { op: 'subdivide', lane: 'Drums' }, { op: 'velocity', delta: 0.12 }],
+  playful:    [{ op: 'mode', to: 'major' }, { op: 'tempo', percent: 10 }, { op: 'swing', on: true }, { op: 'register', lane: 'Melody', octaves: 1 }],
+  solemn:     [{ op: 'tempo', percent: -18 }, { op: 'thin', lane: 'Drums' }, { op: 'register', lane: 'Bass', octaves: -1 }],
+  tense:      [{ op: 'mode', to: 'minor' }, { op: 'thin', lane: 'Melody' }, { op: 'velocity', delta: -0.05 }, { op: 'tempo', percent: 5 }]
 };
 
 function rowFor(midi) { return Math.max(0, Math.min(MEL_ROWS - 1, Math.round((midi - 48) * (MEL_ROWS - 1) / 36))); }
@@ -925,13 +934,27 @@ var WORD_SCENES = {
 };
 var WORD_MOODS = {
   happy: 'happier', happier: 'happier', cheerful: 'happier', upbeat: 'happier', joyful: 'happier',
-  sad: 'sadder', sadder: 'sadder', melancholy: 'sadder', sorrowful: 'sadder', mournful: 'sadder',
+  sunny: 'happier', warm: 'happier',
+  sad: 'sadder', sadder: 'sadder', melancholy: 'sadder', melancholic: 'sadder', sorrowful: 'sadder',
+  mournful: 'sadder', wistful: 'sadder', bittersweet: 'sadder', lonely: 'sadder', nostalgic: 'sadder',
   dark: 'darker', darker: 'darker', sinister: 'darker', ominous: 'darker', evil: 'darker',
-  bright: 'brighter', brighter: 'brighter', sparkly: 'brighter',
+  grim: 'darker', bleak: 'darker',
+  bright: 'brighter', brighter: 'brighter', sparkly: 'brighter', hopeful: 'brighter', shimmering: 'brighter',
   calm: 'calmer', calmer: 'calmer', relaxed: 'calmer', gentle: 'calmer', chill: 'calmer', peaceful: 'calmer',
-  intense: 'intense', intenser: 'intense', aggressive: 'intense', urgent: 'intense', epic: 'intense', heavy: 'intense',
+  quiet: 'calmer', serene: 'calmer',
+  intense: 'intense', intenser: 'intense', aggressive: 'intense', urgent: 'intense', epic: 'intense',
+  heavy: 'intense', driving: 'intense', relentless: 'intense',
   sparse: 'sparser', sparser: 'sparser', simpler: 'sparser', minimal: 'sparser', emptier: 'sparser',
-  dreamy: 'dreamier', dreamier: 'dreamier', ethereal: 'dreamier', floaty: 'dreamier'
+  dreamy: 'dreamier', dreamier: 'dreamier', ethereal: 'dreamier', floaty: 'dreamier', hazy: 'dreamier',
+  // compounds of the above, so a word means the same thing every time
+  heroic: 'heroic', triumphant: 'heroic', victorious: 'heroic', noble: 'heroic',
+  mysterious: 'mysterious', eerie: 'mysterious', haunting: 'mysterious', creepy: 'mysterious',
+  spooky: 'mysterious', uneasy: 'mysterious',
+  menacing: 'menacing', threatening: 'menacing', foreboding: 'menacing', brooding: 'menacing',
+  frantic: 'frantic', panicked: 'frantic', desperate: 'frantic', hectic: 'frantic',
+  playful: 'playful', bouncy: 'playful', silly: 'playful', jaunty: 'playful',
+  solemn: 'solemn', stately: 'solemn', ceremonial: 'solemn', reverent: 'solemn',
+  tense: 'tense', anxious: 'tense', nervous: 'tense', suspenseful: 'tense'
 };
 var LANE_WORDS = { drums: 'Drums', drum: 'Drums', percussion: 'Drums', beat: 'Drums',
                    bass: 'Bass', melody: 'Melody', lead: 'Melody', tune: 'Melody',
@@ -983,10 +1006,10 @@ function interpret(text, opts) {
   if (bpm) { ops.push({ op: 'tempo', absolute: +bpm[1] }); understood.push('tempo: ' + bpm[1] + ' bpm'); }
   else if (/\b(much|way|a lot) (faster|quicker)\b/.test(t)) { ops.push({ op: 'tempo', percent: 25 }); understood.push('much faster'); }
   else if (/\b(a (bit|little)|slightly) (faster|quicker)\b/.test(t)) { ops.push({ op: 'tempo', percent: 6 }); understood.push('a bit faster'); }
-  else if (/\b(faster|quicker|speed it up)\b/.test(t)) { ops.push({ op: 'tempo', percent: 15 }); understood.push('faster'); }
+  else if (/\b(faster|quicker|speed it up|fast)\b/.test(t)) { ops.push({ op: 'tempo', percent: 15 }); understood.push('faster'); }
   else if (/\b(much|way|a lot) slower\b/.test(t)) { ops.push({ op: 'tempo', percent: -25 }); understood.push('much slower'); }
   else if (/\b(a (bit|little)|slightly) slower\b/.test(t)) { ops.push({ op: 'tempo', percent: -6 }); understood.push('a bit slower'); }
-  else if (/\b(slower|slow it down)\b/.test(t)) { ops.push({ op: 'tempo', percent: -15 }); understood.push('slower'); }
+  else if (/\b(slower|slow it down|slow)\b/.test(t)) { ops.push({ op: 'tempo', percent: -15 }); understood.push('slower'); }
   if (/\bhalf time\b/.test(t)) { ops.push({ op: 'tempo', multiply: 0.5 }); understood.push('half time'); }
   if (/\bdouble time\b/.test(t)) { ops.push({ op: 'tempo', multiply: 2 }); understood.push('double time'); }
 
@@ -1028,7 +1051,23 @@ function interpret(text, opts) {
     if (notUnderstood.indexOf(w) < 0) notUnderstood.push(w);
   });
 
-  return { kind: kind, spec: spec, ops: ops, moods: moods, understood: understood, notUnderstood: notUnderstood };
+  // ⚠️ "LIKE ZELDA" IS NOT A THING THIS CAN DO, and saying so is the whole
+  // point. There is no model here: the parser matches words against a published
+  // vocabulary. A reference to a named game, band or composer is matched by
+  // nothing, and the honest answer is to say that rather than quietly compose a
+  // cave theme and let the phrasing imply it worked.
+  //
+  // Adding game names to the vocabulary is NOT the fix, for two reasons. It
+  // would be a false claim -- nothing here is trained on or derived from that
+  // music -- and AGENTS.md forbids naming anything in this product after a real
+  // game or company, which is why seed.js carries a BLOCKED list so generated
+  // TITLES cannot land on real ones either. A trademark in the prompt
+  // vocabulary is the same hazard one step earlier.
+  var ref = String(text || '').match(/\b(?:like|similar to|in the style of|sounds? like|reminiscent of)\s+([a-z0-9' -]{2,40})/i);
+  var reference = ref ? ref[1].trim().replace(/[.,!?]+$/, '') : null;
+
+  return { kind: kind, spec: spec, ops: ops, moods: moods,
+           understood: understood, notUnderstood: notUnderstood, reference: reference };
 }
 
 // Interpret and carry out, in one call. Returns the new document plus exactly
@@ -1038,6 +1077,8 @@ function ask(text, opts) {
   var read = interpret(text, { hasSong: !!opts.doc });
   if (!read.understood.length)
     return Object.assign({ ok: false, error: 'I did not recognise anything in that.' }, read);
+  // how much of what was asked for actually landed
+  var words = String(text || '').split(/[^A-Za-z0-9#]+/).filter(function (w) { return w.length > 2; }).length;
   var doc = opts.doc || null, applied = [], skipped = [], made = null;
   if (read.kind === 'brief' || !doc) {
     made = brief(Object.assign({}, read.spec, opts.brief || {}));
@@ -1051,7 +1092,8 @@ function ask(text, opts) {
     var r = transform(doc, ops);
     doc = r.doc; applied = applied.concat(r.applied); skipped = skipped.concat(r.skipped);
   }
-  return Object.assign({ ok: true, doc: doc, applied: applied, skipped: skipped }, describe(doc), read);
+  return Object.assign({ ok: true, doc: doc, applied: applied, skipped: skipped,
+                         askedWords: words }, describe(doc), read);
 }
 
 // -------------------------------------------------------------------- layers

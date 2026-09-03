@@ -379,7 +379,9 @@ function mcp(messages) {
     ['make it much sadder and slower', 'change', ['slower', 'mood: sadder']],
     ['much slower', 'change', ['much slower']],
     ['120 bpm and no bass', 'change', ['without Bass', 'tempo: 120 bpm']],
-    ['a short victory fanfare', 'brief', ['scene: victory', 'length: short (20s)']]
+    ['a short victory fanfare', 'brief', ['scene: victory', 'length: short (20s)']],
+    ['something mysterious and slow', 'change', ['slower', 'mood: mysterious']],
+    ['a heroic fast title theme', 'brief', ['scene: title', 'faster', 'mood: heroic']]
   ];
   said.forEach(([text, kind, want]) => {
     const r = api.interpret(text, { hasSong: true });
@@ -387,6 +389,39 @@ function mcp(messages) {
     ok(r.kind === kind && want.every(w => r.understood.indexOf(w) >= 0),
        '"' + text + '" -> ' + r.kind + ': ' + got);
   });
+  // ⚠️ A REFERENCE TO A NAMED GAME IS REFUSED, OUT LOUD. This matches words
+  // against a published vocabulary; there is no model reading the sentence.
+  // Quietly composing a cave theme for "dungeon song like zelda" and reporting
+  // success implies the reference was used. It was not, and adding game names
+  // to the vocabulary would be both a false claim and exactly the trademark
+  // hazard AGENTS.md exists to prevent -- the same reason seed.js carries a
+  // BLOCKED list so generated titles cannot land on real ones.
+  const refs = [
+    ['dungeon song like zelda', 'zelda', 'scene: cave'],
+    ['a battle theme in the style of nobuo uematsu', 'nobuo uematsu', 'scene: battle'],
+    ['something similar to mega man', 'mega man', null]
+  ];
+  refs.forEach(([text, want, alsoUnderstood]) => {
+    const r = api.interpret(text, { hasSong: true });
+    ok(r.reference === want, '"' + text + '" is flagged as a reference (' + r.reference + ')');
+    if (alsoUnderstood) ok(r.understood.indexOf(alsoUnderstood) >= 0,
+      'and the part it CAN do still happens (' + alsoUnderstood + ')');
+  });
+  {
+    const r = api.ask('dungeon song like zelda');
+    ok(r.ok && r.reference === 'zelda' && r.applied.indexOf('scene: cave') >= 0,
+       'ask() composes the part it understood and reports the reference it did not');
+  }
+  // and no real game or company may enter the vocabulary
+  {
+    const words = Object.keys(api.moods()).concat(Object.keys(api.scenes()));
+    const NAMES = ['zelda', 'mario', 'pokemon', 'metroid', 'megaman', 'sonic', 'nintendo',
+                   'castlevania', 'tetris', 'kirby', 'final fantasy'];
+    const leaked = words.filter(w => NAMES.some(n => w.toLowerCase().indexOf(n) >= 0));
+    ok(leaked.length === 0,
+       'no real game or company is in the prompt vocabulary' + (leaked.length ? ': ' + leaked.join(', ') : ''));
+  }
+
   const nonsense = api.interpret('banana wobble frobnicate', { hasSong: true });
   ok(nonsense.understood.length === 0 && nonsense.notUnderstood.length === 3,
      'and nonsense is reported as not understood rather than guessed at');

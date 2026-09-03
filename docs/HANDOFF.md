@@ -2191,3 +2191,38 @@ intensity step is a quiet lie.
 
 Create has a Download MIDI button beside WAV and ROM. `toMidi` returns a Node
 Buffer where there is one and a `Uint8Array` in the browser, same bytes.
+
+# 2026-09-02 — "like zelda" is refused out loud
+
+The owner typed **"dungeon song like zelda"** and got back
+*"Made it: scene: cave (ignored: zelda)"*. The parser had matched one word —
+`dungeon` → the cave scene — and thrown the rest away, and the quiet bracketed
+apology read as though the reference had been taken into account.
+
+- **A reference is now detected and refused explicitly.** `interpret()` returns
+  `reference` for "like X", "in the style of X", "similar to X", "sounds like
+  X", and the field says: *"I cannot do 'like zelda'. I match words, not
+  references: there is no model reading this, and I will not pretend to imitate
+  something I was not built from."* It still composes the part it did
+  understand, and says which part that was.
+- **Adding game names to the vocabulary is NOT the fix, and must not be done.**
+  It would be a false claim — nothing here is trained on or derived from that
+  music — and `AGENTS.md` forbids naming anything in this product after a real
+  game or company. `seed.js` already carries a `BLOCKED` list so generated
+  TITLES cannot land on real cartridge names; a trademark in the *prompt
+  vocabulary* is the same hazard one step earlier. `verify-api` asserts no real
+  game or company appears in the scenes or mood words.
+- **The vocabulary is much wider instead**, with honest descriptors that map to
+  real dials: heroic, mysterious, menacing, frantic, playful, solemn, tense,
+  plus wistful/nostalgic/grim/hopeful/serene/driving and friends. Each compound
+  is a published recipe of primitives, so a word means one thing twice. Bare
+  "slow" and "fast" work now; only "slower"/"faster" did.
+- Anything not understood is stated in the sentence rather than in brackets,
+  and points at How it works for the words that do exist.
+
+**⚠️ `verify-sync` is load-sensitive and will fail on a busy machine.** It failed
+three assertions during this pass at load average 51 (from my own back-to-back
+Playwright runs) and passed 2/2 standalone immediately after. The rule already
+recorded further up this file applies to the test suite as well as to
+performance work: run `uptime` first, and a load average over ~10 means the
+measurement is not about the code.
