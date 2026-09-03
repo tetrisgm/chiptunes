@@ -57,6 +57,7 @@
     "test:api": "node scripts/verify-api.js",
     "test:language": "node scripts/verify-language.js",
     "test:webmcp": "node scripts/verify-webmcp.js",
+    "test:webmcp:live": "VERIFY_URL=https://chiptunes.app node scripts/verify-webmcp.js",
     "test:diversity": "node scripts/verify-diversity.js"
   },
   "dependencies": {

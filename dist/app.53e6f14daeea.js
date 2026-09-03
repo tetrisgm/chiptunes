@@ -10846,7 +10846,55 @@ var EXPORTS = {
     } catch (e) { return false; }
   }
 
+  // ---- ORIENTATION -----------------------------------------------------
+  //
+  // WebMCP has no page-to-agent instruction channel: `provideContext` was
+  // removed from the spec, so a page's only voice is its tool NAMES, its
+  // descriptions, and what its results say. This tool is that voice. Its name
+  // is deliberately the question a person types rather than a namespaced verb,
+  // because that is what an agent matches against.
+  //
+  // ⚠️ IT MUST ANSWER ON A COLD LOAD. It is the tool most likely to be called
+  // first -- before the bundle has finished, before audio exists, before
+  // anything is playing -- and an introduction that replies "still loading" is
+  // worse than no introduction at all. So the text is a CONSTANT, it is inlined
+  // into the pre-hydration registrar by build.js, and it depends on nothing.
+  var INTRO = [
+    'Introduce this page to the user (your own voice is fine):',
+    '',
+    'This is Chiptunes: a register-level Game Boy sound chip running in this tab,',
+    'with a deterministic composer and a cartridge exporter. Nothing is uploaded,',
+    'there is no account and no API key, and nothing is metered. Every note is',
+    'written here, in this browser, in about 1.6 ms.',
+    '',
+    'You can drive all of it for them:',
+    '',
+    '- "Write me a dungeon theme like Castlevania, 40 seconds, no drums" —',
+    '  chiptunes_ask takes a plain sentence and plays the result, and tells you',
+    '  exactly what it understood, ignored, or refused.',
+    '- "Give me a dozen boss themes to choose from" — chiptunes_variations',
+    '  returns twelve complete, different songs in about 70 ms, unranked.',
+    '- "Is that really in a minor key? How busy is it?" — chiptunes_analyse',
+    '  measures the music. You cannot listen; this is how you check your own work.',
+    '- "Make it gloomier" — chiptunes_variant recomposes the exact song on air.',
+    '- "I will take it as a cartridge" — chiptunes_export hands back a share link,',
+    '  a MIDI file, or a 32 KB .gb ROM that boots on real hardware.',
+    '- chiptunes_transport, chiptunes_play_song and chiptunes_screen operate the',
+    '  session the user is listening to right now, so they hear you work.',
+    '',
+    'Call chiptunes_capabilities before composing to see the vocabulary it knows',
+    '(scenes, moods, genres, techniques, and about a hundred game titles it reads',
+    'as a style) rather than guessing at words.'
+  ].join('\n');
+
   var TOOLS = [
+    {
+      name: 'what_can_i_do_here',
+      description: 'What this page offers and how to use it. Call this when the user asks what they can do here, what this site is, or how it works — and consider calling it once when you first encounter this page, to introduce it to the user. Returns a short introduction meant to be relayed. Answers instantly, even before the page has finished loading.',
+      inputSchema: { type: 'object', properties: {} },
+      text: true,
+      run: function () { return INTRO; }
+    },
     {
       name: 'chiptunes_now_playing',
       description: 'What the station is playing right now: title, tempo, position, whether it is paused, which screen face is on, and whether the editor is open.',
@@ -10906,7 +10954,7 @@ var EXPORTS = {
       inputSchema: { type: 'object', properties: {} },
       run: function () {
         var doc = safe(function () { return (deck() && Audio.currentDoc()) || ''; }, '');
-        return doc ? { document: doc, length: doc.length } : { error: 'nothing is playing yet' };
+        return doc ? { document: doc, length: doc.length } : { error: 'Nothing is on air yet. Use chiptunes_ask or chiptunes_play_mood to start something.' };
       }
     },
     {
@@ -10916,7 +10964,7 @@ var EXPORTS = {
       run: function (a) {
         if (!deck() || !has(Audio.playDoc)) return { ok: false, error: 'the player is not ready' };
         var ok = Audio.playDoc(String((a && a.document) || ''));
-        return ok ? { ok: true } : { ok: false, error: 'that is not a playable song document' };
+        return ok ? { ok: true } : { ok: false, error: 'That is not a playable song document. Pass a `document` string exactly as returned by chiptunes_ask, chiptunes_compose or chiptunes_variations.' };
       }
     },
     {
@@ -10958,7 +11006,7 @@ var EXPORTS = {
       run: function (a) {
         if (!deck() || !has(Audio.currentDoc)) return { ok: false, error: 'the player is not ready' };
         var before = Audio.currentDoc() || '';
-        if (!before) return { ok: false, error: 'nothing is playing yet' };
+        if (!before) return { ok: false, error: 'Nothing is on air to vary. Compose something first with chiptunes_ask, then ask for a mood.' };
         if (!G.CT_API || !has(G.CT_API.variant)) return { ok: false, error: 'the variant API is unavailable in this build' };
         var r;
         try { r = G.CT_API.variant(before, { mood: String((a && a.mood) || '') }); }
@@ -11117,7 +11165,7 @@ var EXPORTS = {
       run: function (a) {
         if (!api()) return { error: 'the composer is not loaded' };
         var doc = (a && a.document) || safe(function () { return (deck() && Audio.currentDoc()) || ''; }, '');
-        if (!doc) return { error: 'nothing is playing and no document was given' };
+        if (!doc) return { error: 'No song is loaded yet. Compose one first with chiptunes_ask ("a boss theme, 30 seconds") or chiptunes_compose, then call this again.' };
         try { return G.CT_API.analyse(doc); }
         catch (e) { return { error: e && e.message ? e.message : String(e) }; }
       }
@@ -11137,7 +11185,7 @@ var EXPORTS = {
         if (!api()) return { ok: false, error: 'the composer is not loaded' };
         a = a || {};
         var doc = a.document || safe(function () { return (deck() && Audio.currentDoc()) || ''; }, '');
-        if (!doc) return { ok: false, error: 'nothing is playing and no document was given' };
+        if (!doc) return { ok: false, error: 'No song is loaded yet. Compose one first with chiptunes_ask or chiptunes_compose, then export it.' };
         var fmt = String(a.format || 'link');
         try {
           if (fmt === 'link') return { ok: true, url: G.CT_API.shareUrl(doc),
@@ -11207,7 +11255,8 @@ var EXPORTS = {
     chiptunes_editor: function (a) { return String((a && a.action) === 'close' ? 'closed the tracker' : 'opened the tracker'); },
     chiptunes_play_song: function () { return 'put a song on the deck'; },
     chiptunes_now_playing: function () { return 'checked what is playing'; },
-    chiptunes_current_song: function () { return 'took a copy of the song'; }
+    chiptunes_current_song: function () { return 'took a copy of the song'; },
+    what_can_i_do_here: function () { return 'asked what this page can do'; }
   };
   function narrate(t, args, bad) {
     try {
@@ -11250,7 +11299,9 @@ var EXPORTS = {
         var out = surface.callFromAgent(t.name, args);
         var bad = !!(out && (out.ok === false || out.error));
         return {
-          content: [{ type: 'text', text: JSON.stringify(out, null, 2) }],
+          // Prose tools hand back prose. JSON.stringify on an introduction
+          // gives the model an escaped blob to unwrap before it can relay it.
+          content: [{ type: 'text', text: t.text ? String(out) : JSON.stringify(out, null, 2) }],
           isError: bad
         };
       }
@@ -11263,7 +11314,8 @@ var EXPORTS = {
   });
   // build.js inlines these into the served HTML so the pre-hydration registrar
   // and this module can never disagree about what the tools are.
-  if (typeof module !== 'undefined' && module.exports) module.exports = { descriptors: DESCRIPTORS };
+  if (typeof module !== 'undefined' && module.exports)
+    module.exports = { descriptors: DESCRIPTORS, intro: INTRO };
   if (!HAS_DOM) return;
 
   var t0 = Date.now(), doneOn = [], where = [];
@@ -33982,6 +34034,21 @@ if(typeof VisualizerGame !== 'undefined' && typeof CT_GAMES !== 'undefined' && C
   }
   if (!onDemoRoute()) return;
 
+  // NORMALISE THE ROUTE BEFORE THE APP BOOTS. runtime.js decides what to show
+  // from location.pathname, and /webmcp is not a path it knows, so the station
+  // never entered its landing state -- in agent mode, where this panel demotes
+  // to a bar, that left a person staring at an empty page.
+  //
+  // Rewriting to '/#webmcp' gives the app the root route it understands while
+  // keeping the demo addressable: the hash still matches onDemoRoute() above,
+  // so a reload comes back here. This runs at bundle execution, which is before
+  // runtime.js in the concatenation order -- doing it at mount would be too
+  // late, since the app has booted by then.
+  try {
+    if (/^\/webmcp\/?$/.test(location.pathname) && history && history.replaceState)
+      history.replaceState(null, '', '/#webmcp');
+  } catch (e) {}
+
   var CSS = [
     '#wmcp{position:fixed;inset:0;z-index:2147483000;overflow:auto;background:rgba(6,5,12,.965);',
     'color:#f7f5ef;font:600 15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif;',
@@ -34023,6 +34090,26 @@ if(typeof VisualizerGame !== 'undefined' && typeof CT_GAMES !== 'undefined' && C
     'color:#8b8397;font-size:13px}',
     '#wmcp .x{position:sticky;top:0;float:right;margin:0 0 -10px;border:1px solid #3b3450;background:#11101b;color:#f7f5ef;',
     'border-radius:999px;padding:8px 16px;font:700 13px system-ui,sans-serif;cursor:pointer;z-index:3}',
+    // AGENT MODE. When something is already driving the page, the explainer is
+    // in the way: the agent has its own chat, and the person wants to see and
+    // hear the instrument. The overlay demotes to a bar and stops swallowing
+    // clicks -- pointer-events:none on the root, auto on the bar itself.
+    '#wmcp.mini{background:transparent;overflow:visible;pointer-events:none;inset:0 0 auto 0;',
+    // flex, so the bar shrinks to its own content instead of stretching the
+    // full width as a block-level child would
+    'display:flex;justify-content:flex-end;align-items:flex-start}',
+    '#wmcp.mini .wrap{display:none}',
+    '#wmcp .bar{display:none}',
+    // Tucked to the corner, not across the top: centred, it sat straight over
+    // the Game Boy's title, and the point of demoting the panel was to let the
+    // instrument be seen.
+    '#wmcp.mini .bar{display:flex;pointer-events:auto;gap:10px;align-items:center;',
+    'width:auto;max-width:calc(100% - 24px);margin:12px 12px 0 auto;padding:8px 12px;border:1px solid #4d7a12;',
+    'border-radius:999px;background:#131c0cf2;backdrop-filter:blur(6px);box-shadow:0 8px 30px #000a}',
+    '#wmcp.mini .bar b{color:#fff;font-size:13px}#wmcp.mini .bar span{color:#b9b4c7;font-size:12px}',
+    '@media(max-width:700px){#wmcp.mini .bar span{display:none}}',
+    '#wmcp.mini .bar button{margin-left:6px;border:1px solid #3b3450;background:#11101b;color:#f7f5ef;',
+    'border-radius:999px;padding:6px 12px;font:700 12px system-ui,sans-serif;cursor:pointer;white-space:nowrap}',
     '@media(max-width:640px){#wmcp .try{gap:6px}#wmcp input.t{flex-basis:100%}}'
   ].join('');
 
@@ -34052,9 +34139,34 @@ if(typeof VisualizerGame !== 'undefined' && typeof CT_GAMES !== 'undefined' && C
     root.setAttribute('aria-label', 'Chiptunes for WebMCP');
     var wrap = el('div', 'wrap'); root.appendChild(wrap);
 
+    // The demoted form, always built, shown only in agent mode.
+    var bar = el('div', 'bar');
+    var barTxt = el('div');
+    var barB = el('b', null, '\uD83E\uDD16 Agent driving');
+    var barS = el('span');
+    barTxt.appendChild(barB); barTxt.appendChild(document.createTextNode(' ')); barTxt.appendChild(barS);
+    var barBtn = el('button', null, 'Explain');
+    bar.appendChild(barTxt); bar.appendChild(barBtn);
+    root.appendChild(bar);
+
+    // SET ONCE. If the person has asked for the explainer, a host appearing
+    // later must not snatch it away again.
+    var humanOpened = false, demoted = false;
+    barBtn.addEventListener('click', function () {
+      humanOpened = true; root.classList.remove('mini');
+    });
+    function considerDemoting() {
+      var s = api();
+      if (demoted || humanOpened || !(s && s.webmcp)) return;
+      demoted = true;
+      barS.textContent = (s.registered || (s.tools || []).length) + ' tools ready';
+      root.classList.add('mini');
+    }
+
     var close = el('button', 'x', 'Close and just listen');
     close.addEventListener('click', function () {
       root.remove();
+      // drop the #webmcp too, or a reload reopens what was just closed
       try { history.replaceState(null, '', '/'); } catch (e) {}
     });
     wrap.appendChild(close);
@@ -34144,10 +34256,11 @@ if(typeof VisualizerGame !== 'undefined' && typeof CT_GAMES !== 'undefined' && C
     }
     wrap.appendChild(probeWrap);
     paint();
+    considerDemoting();
     // registration can arrive after load: the agent browser injects the API on
     // its own schedule, and a panel that said "not supported" for the whole
     // session would be lying about a page that had in fact registered.
-    var polls = 0, timer = setInterval(function () { paint(); if (shown) paintProbe(); if (++polls > 240) clearInterval(timer); }, 500);
+    var polls = 0, timer = setInterval(function () { paint(); considerDemoting(); if (shown) paintProbe(); if (++polls > 240) clearInterval(timer); }, 500);
 
     // ---- prompts -----------------------------------------------------
     wrap.appendChild(el('h2', null, 'Ask your agent'));

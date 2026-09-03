@@ -60,14 +60,22 @@ const SHIM = `
   };
 `;
 
+// VERIFY_URL=https://chiptunes.app runs this against the DEPLOYED site rather
+// than the local build. A gate that only ever sees dist/ cannot tell you that
+// the thing judges will open works, and every WebMCP bug so far has been about
+// what the browser really receives.
+const LIVE = process.env.VERIFY_URL || '';
+
 (async () => {
-  const h = await server();
+  const h = LIVE ? { s: { close() {} }, port: 0 } : await server();
+  const BASE = LIVE || `http://127.0.0.1:${h.port}`;
+  if (LIVE) console.log('  ..     against ' + LIVE);
   const b = await chromium.launch({ headless: true, args: ['--autoplay-policy=no-user-gesture-required'] });
   const p = await b.newPage({ viewport: { width: 1500, height: 950 } });
   const errs = [];
   p.on('pageerror', e => errs.push(String(e).slice(0, 160)));
   await p.addInitScript(SHIM);
-  await p.goto(`http://127.0.0.1:${h.port}/`, { waitUntil: 'domcontentloaded' });
+  await p.goto(BASE + '/', { waitUntil: 'domcontentloaded' });
   await wait(4000);
 
   const reg = await p.evaluate(() => ({
@@ -79,8 +87,8 @@ const SHIM = `
   }));
   ok(/^document\.modelContext\.registerTool/.test(reg.where || ''),
      'the tools register on document.modelContext, which is the surface the spec defines (' + reg.where + ')');
-  ok(reg.count === 14, 'and all of them arrive, exactly once each (' + reg.count + ' tools)' + (reg.err ? ' -- ' + reg.err : ''));
-  ok(reg.pre && reg.pre.count === 14,
+  ok(reg.count === 15, 'and all of them arrive, exactly once each (' + reg.count + ' tools)' + (reg.err ? ' -- ' + reg.err : ''));
+  ok(reg.pre && reg.pre.count === 15,
      'the PRE-HYDRATION registrar got there first, before the deferred bundle ran (' +
      (reg.pre ? reg.pre.count + ' via ' + reg.pre.where.join(', ') : 'it did not run') + ')');
 
@@ -181,7 +189,7 @@ const SHIM = `
   const errs2 = [];
   p2.on('pageerror', e => errs2.push(String(e).slice(0, 160)));
   await p2.addInitScript(SHIM);
-  await p2.goto(`http://127.0.0.1:${h.port}/webmcp`, { waitUntil: 'domcontentloaded' });
+  await p2.goto(BASE + '/webmcp', { waitUntil: 'domcontentloaded' });
   await wait(4500);
   const demo = await p2.evaluate(() => ({
     panel: !!document.getElementById('wmcp'),
@@ -193,10 +201,10 @@ const SHIM = `
     heading: (document.querySelector('#wmcp h1') || {}).textContent || ''
   }));
   ok(demo.panel && demo.heading.length > 10, 'the /webmcp route mounts the explainer ("' + demo.heading + '")');
-  ok(demo.registered >= 14 && /^document\.modelContext/.test(demo.webmcp || ''),
+  ok(demo.registered >= 15 && /^document\.modelContext/.test(demo.webmcp || ''),
      'AND is the real app, so the tools register where an agent will look (' +
      demo.registered + ' on ' + demo.webmcp + ')');
-  ok(demo.cards >= 14, 'it lists every tool from the live surface (' + demo.cards + ')');
+  ok(demo.cards >= 15, 'it lists every tool from the live surface (' + demo.cards + ')');
   ok(demo.prompts >= 4 && demo.buttons >= 8,
      'with prompts to copy and buttons that call the tools (' + demo.prompts + ' prompts, ' + demo.buttons + ' buttons)');
 
@@ -210,6 +218,38 @@ const SHIM = `
   const panelOut = await p2.evaluate(() => (document.querySelector('#wmcp pre.out') || {}).textContent || '');
   ok(/"ok": true/.test(panelOut) && /scene: shop/.test(panelOut),
      'and calling a tool from the panel really composes (' + panelOut.slice(0, 60).replace(/\n/g, ' ') + ')');
+
+  // ---- AGENT MODE: the explainer yields to the instrument --------------
+  // A chat-bearing agent browser already has the explanation; what the person
+  // wants then is to see and hear the thing. And the demotion is a DEFAULT, set
+  // once -- a host appearing later must not snatch the panel away from someone
+  // who asked for it.
+  {
+    const agent = await b.newPage({ viewport: { width: 1200, height: 860 } });
+    await agent.addInitScript(SHIM);
+    await agent.goto(BASE + '/webmcp', { waitUntil: 'domcontentloaded' });
+    await wait(4500);
+    const st = await agent.evaluate(() => ({
+      mini: document.getElementById('wmcp').classList.contains('mini'),
+      bar: (document.querySelector('#wmcp .bar') || {}).textContent || '',
+      width: Math.round(document.querySelector('#wmcp .bar').getBoundingClientRect().width),
+      landing: document.body.classList.contains('awaiting-mood'),
+      url: location.pathname + location.hash
+    }));
+    ok(st.mini && /Agent driving/.test(st.bar),
+       'with a host present the explainer demotes to a bar (' + st.bar.trim() + ')');
+    ok(st.width < 500, 'which does not span the page (' + st.width + 'px)');
+    // /webmcp is not a route runtime.js knows, so the station never entered its
+    // landing state -- in agent mode that left a person staring at nothing.
+    ok(st.landing && st.url === '/#webmcp',
+       'and the station behind it is in its normal landing state (' + st.url + ')');
+    const reopened = await agent.evaluate(() => {
+      document.querySelector('#wmcp .bar button').click();
+      return !document.getElementById('wmcp').classList.contains('mini');
+    });
+    ok(reopened, 'a person can still ask for the explainer');
+    await agent.close();
+  }
 
   const closed = await p2.evaluate(() => {
     document.querySelector('#wmcp .x').click();
@@ -238,6 +278,58 @@ const SHIM = `
     return el && el.classList.contains('show') ? el.textContent : '';
   });
   ok(!/agent/.test(human), 'while the same call made by a person is not (' + (human || 'nothing shown') + ')');
+
+  // ---- ORIENTATION, ON A COLD PAGE ------------------------------------
+  // The tool an agent calls FIRST, before the bundle has run. An introduction
+  // that replies "still loading" is a worse greeting than silence, so it is
+  // answered by the inline registrar from a constant and depends on nothing.
+  {
+    const intro = await p.evaluate(async () => {
+      const t = window.__mcpTools.filter(x => x.name === 'what_can_i_do_here')[0];
+      const raw = await t.execute({});
+      return { isError: raw.isError, text: raw.content[0].text };
+    });
+    ok(!intro.isError && /Chiptunes/.test(intro.text) && intro.text.length > 400,
+       'what_can_i_do_here introduces the page in prose (' + intro.text.length + ' chars)');
+    ok(/chiptunes_ask/.test(intro.text) && /chiptunes_analyse/.test(intro.text),
+       'and every capability it names maps to a tool that exists');
+    const names = await p.evaluate(() => (window.__mcpTools || []).map(t => t.name));
+    const promised = (intro.text.match(/chiptunes_[a-z_]+/g) || []);
+    const missing = promised.filter(n => names.indexOf(n) < 0);
+    ok(!missing.length, 'with nothing promised that is not registered' +
+       (missing.length ? ' -- ' + missing.join(', ') : ''));
+  }
+
+  // ---- A HOST THAT ARRIVES LATE ---------------------------------------
+  // The closest thing to ChatGPT's browser that can be automated, and the same
+  // window that lets a person paste a mock context into the console. No model
+  // context at load; one appears afterwards; the polling must find it.
+  {
+    const late = await b.newPage({ viewport: { width: 1200, height: 800 } });
+    await late.goto(BASE + '/', { waitUntil: 'domcontentloaded' });
+    await wait(3000);
+    const before = await late.evaluate(() => window.chiptunes && window.chiptunes.webmcp);
+    ok(!before, 'with no host at load, nothing is registered (' + String(before) + ')');
+    await late.evaluate(() => {
+      window.__late = [];
+      navigator.modelContext = { registerTool: t => { window.__late.push(t); return {}; } };
+    });
+    await wait(1500);
+    const after = await late.evaluate(() => ({
+      n: window.__late.length, where: window.chiptunes && window.chiptunes.webmcp
+    }));
+    ok(after.n >= 15 && /navigator/.test(after.where || ''),
+       'and a host injected AFTER load is picked up within a second and a half (' +
+       after.n + ' tools on ' + after.where + ')');
+    const worked = await late.evaluate(async () => {
+      const t = window.__late.filter(x => x.name === 'chiptunes_ask')[0];
+      const raw = await t.execute({ text: 'a calm town theme, 20 seconds' });
+      return JSON.parse(raw.content[0].text);
+    });
+    ok(worked.ok && /scene: town/.test((worked.applied || []).join(' ')),
+       'and its tools really work, not just register');
+    await late.close();
+  }
 
   ok(!errs.length, 'no page errors throughout' + (errs.length ? ' -- ' + errs[0] : ''));
 

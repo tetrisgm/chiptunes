@@ -2626,3 +2626,47 @@ only when that is true. Gated both ways.
 Not applicable to this codebase, from the same playbook: the Next.js `<head>`
 hydration crash, and ref-authoritative state for React (our state is the audio
 deck, read synchronously).
+
+# 2026-09-03 (second pass) — orientation, late hosts, agent mode
+
+More from the TreeTree playbook. What was still missing:
+
+**`what_can_i_do_here` — the orientation tool.** WebMCP has no page-to-agent
+instruction channel: `provideContext` was removed from the spec, so a page's
+only voice is tool names, descriptions and results. This tool is named as the
+question a person types, and returns prose meant to be relayed rather than JSON.
+
+⚠️ **It must answer on a COLD LOAD.** It is the tool most likely to be called
+first, and "still loading" is a worse greeting than silence. Our pre-hydration
+stubs wait for the bundle, so this one is special-cased: the text is a constant
+inlined into the registrar by build.js, sourced from `src/webmcp.js`'s own
+`INTRO` export. Gated with the bundle deliberately delayed 9 s — it answered in
+under 1.5 s with 15 tools registered.
+
+**Late hosts, tested.** New gate case: load with no model context, inject one
+afterwards, assert the polling registers within 1.5 s and the tools really work.
+That is the closest automatable stand-in for ChatGPT's browser, and the same
+window that lets a person paste a mock `{registerTool}` into the console.
+
+**`VERIFY_URL=https://chiptunes.app npm run test:webmcp:live`** runs the whole
+gate against production. A gate that only ever sees `dist/` cannot tell you the
+page judges open works.
+
+**Agent mode on /webmcp.** With a host present the explainer demotes to a corner
+bar; the station is visible and audible behind it. Set once — a host appearing
+later must not snatch the panel from a person who asked for it.
+
+⚠️ **Which exposed a real bug**: `/webmcp` is not a route `runtime.js` knows, so
+the station never entered its landing state. Nobody noticed while the panel
+covered the whole screen; the moment it demoted, the page behind was EMPTY. Fixed
+by rewriting to `/#webmcp` at bundle-execution time (before runtime.js runs, and
+too late if done at mount): the app gets the root route it understands, the hash
+still matches the demo route so a reload comes back, and the address still says
+what the page is.
+
+**Error messages teach the next step** — "No song is loaded yet. Compose one
+first with chiptunes_ask (\"a boss theme, 30 seconds\")" rather than "nothing is
+playing yet".
+
+Still not applicable: the Next.js `<head>` crash, and ref-authoritative state
+(no framework; tools read the audio deck synchronously).

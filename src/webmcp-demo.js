@@ -27,6 +27,21 @@
   }
   if (!onDemoRoute()) return;
 
+  // NORMALISE THE ROUTE BEFORE THE APP BOOTS. runtime.js decides what to show
+  // from location.pathname, and /webmcp is not a path it knows, so the station
+  // never entered its landing state -- in agent mode, where this panel demotes
+  // to a bar, that left a person staring at an empty page.
+  //
+  // Rewriting to '/#webmcp' gives the app the root route it understands while
+  // keeping the demo addressable: the hash still matches onDemoRoute() above,
+  // so a reload comes back here. This runs at bundle execution, which is before
+  // runtime.js in the concatenation order -- doing it at mount would be too
+  // late, since the app has booted by then.
+  try {
+    if (/^\/webmcp\/?$/.test(location.pathname) && history && history.replaceState)
+      history.replaceState(null, '', '/#webmcp');
+  } catch (e) {}
+
   var CSS = [
     '#wmcp{position:fixed;inset:0;z-index:2147483000;overflow:auto;background:rgba(6,5,12,.965);',
     'color:#f7f5ef;font:600 15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif;',
@@ -68,6 +83,26 @@
     'color:#8b8397;font-size:13px}',
     '#wmcp .x{position:sticky;top:0;float:right;margin:0 0 -10px;border:1px solid #3b3450;background:#11101b;color:#f7f5ef;',
     'border-radius:999px;padding:8px 16px;font:700 13px system-ui,sans-serif;cursor:pointer;z-index:3}',
+    // AGENT MODE. When something is already driving the page, the explainer is
+    // in the way: the agent has its own chat, and the person wants to see and
+    // hear the instrument. The overlay demotes to a bar and stops swallowing
+    // clicks -- pointer-events:none on the root, auto on the bar itself.
+    '#wmcp.mini{background:transparent;overflow:visible;pointer-events:none;inset:0 0 auto 0;',
+    // flex, so the bar shrinks to its own content instead of stretching the
+    // full width as a block-level child would
+    'display:flex;justify-content:flex-end;align-items:flex-start}',
+    '#wmcp.mini .wrap{display:none}',
+    '#wmcp .bar{display:none}',
+    // Tucked to the corner, not across the top: centred, it sat straight over
+    // the Game Boy's title, and the point of demoting the panel was to let the
+    // instrument be seen.
+    '#wmcp.mini .bar{display:flex;pointer-events:auto;gap:10px;align-items:center;',
+    'width:auto;max-width:calc(100% - 24px);margin:12px 12px 0 auto;padding:8px 12px;border:1px solid #4d7a12;',
+    'border-radius:999px;background:#131c0cf2;backdrop-filter:blur(6px);box-shadow:0 8px 30px #000a}',
+    '#wmcp.mini .bar b{color:#fff;font-size:13px}#wmcp.mini .bar span{color:#b9b4c7;font-size:12px}',
+    '@media(max-width:700px){#wmcp.mini .bar span{display:none}}',
+    '#wmcp.mini .bar button{margin-left:6px;border:1px solid #3b3450;background:#11101b;color:#f7f5ef;',
+    'border-radius:999px;padding:6px 12px;font:700 12px system-ui,sans-serif;cursor:pointer;white-space:nowrap}',
     '@media(max-width:640px){#wmcp .try{gap:6px}#wmcp input.t{flex-basis:100%}}'
   ].join('');
 
@@ -97,9 +132,34 @@
     root.setAttribute('aria-label', 'Chiptunes for WebMCP');
     var wrap = el('div', 'wrap'); root.appendChild(wrap);
 
+    // The demoted form, always built, shown only in agent mode.
+    var bar = el('div', 'bar');
+    var barTxt = el('div');
+    var barB = el('b', null, '\uD83E\uDD16 Agent driving');
+    var barS = el('span');
+    barTxt.appendChild(barB); barTxt.appendChild(document.createTextNode(' ')); barTxt.appendChild(barS);
+    var barBtn = el('button', null, 'Explain');
+    bar.appendChild(barTxt); bar.appendChild(barBtn);
+    root.appendChild(bar);
+
+    // SET ONCE. If the person has asked for the explainer, a host appearing
+    // later must not snatch it away again.
+    var humanOpened = false, demoted = false;
+    barBtn.addEventListener('click', function () {
+      humanOpened = true; root.classList.remove('mini');
+    });
+    function considerDemoting() {
+      var s = api();
+      if (demoted || humanOpened || !(s && s.webmcp)) return;
+      demoted = true;
+      barS.textContent = (s.registered || (s.tools || []).length) + ' tools ready';
+      root.classList.add('mini');
+    }
+
     var close = el('button', 'x', 'Close and just listen');
     close.addEventListener('click', function () {
       root.remove();
+      // drop the #webmcp too, or a reload reopens what was just closed
       try { history.replaceState(null, '', '/'); } catch (e) {}
     });
     wrap.appendChild(close);
@@ -189,10 +249,11 @@
     }
     wrap.appendChild(probeWrap);
     paint();
+    considerDemoting();
     // registration can arrive after load: the agent browser injects the API on
     // its own schedule, and a panel that said "not supported" for the whole
     // session would be lying about a page that had in fact registered.
-    var polls = 0, timer = setInterval(function () { paint(); if (shown) paintProbe(); if (++polls > 240) clearInterval(timer); }, 500);
+    var polls = 0, timer = setInterval(function () { paint(); considerDemoting(); if (shown) paintProbe(); if (++polls > 240) clearInterval(timer); }, 500);
 
     // ---- prompts -----------------------------------------------------
     wrap.appendChild(el('h2', null, 'Ask your agent'));

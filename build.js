@@ -131,11 +131,19 @@ let pageHtml;
 // The descriptors come from src/webmcp.js itself, so the inline copy and the
 // module can never disagree about what the tools are or what they accept.
 {
-  const { descriptors } = require('./src/webmcp.js');
+  const { descriptors, intro } = require('./src/webmcp.js');
   if (!descriptors || !descriptors.length) throw new Error('build: webmcp descriptors missing');
+  if (!intro || intro.length < 200) throw new Error('build: webmcp introduction missing');
+  if (!descriptors.some(d => d.name === 'what_can_i_do_here'))
+    throw new Error('build: the orientation tool is missing from the descriptors');
   const registrar = `<script>
 (function(G){
   var D=${JSON.stringify(descriptors)};
+  // The introduction is the one answer that must not wait for anything. It is
+  // the tool an agent calls FIRST, on a cold page, and "still loading" is a
+  // worse greeting than silence -- so the text is right here, not fetched from
+  // the bundle that has not run yet.
+  var INTRO=${JSON.stringify(intro)};
   function hosts(){var o=[];try{if(document.modelContext)o.push(['document',document.modelContext]);}catch(e){}
     try{if(G.navigator&&G.navigator.modelContext)o.push(['navigator',G.navigator.modelContext]);}catch(e){}
     try{if(G.modelContext)o.push(['window',G.modelContext]);}catch(e){}return o;}
@@ -143,6 +151,8 @@ let pageHtml;
   // seconds is generous for a script that is already downloading; after that a
   // readable failure beats a silent hang.
   function call(name,args){
+    if(name==='what_can_i_do_here')
+      return Promise.resolve({content:[{type:'text',text:INTRO}],isError:false});
     return new Promise(function(res){
       var n=0,t=setInterval(function(){
         var s=G.chiptunes,fn=s&&(s.callFromAgent||s.call);

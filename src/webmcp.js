@@ -45,7 +45,55 @@
     } catch (e) { return false; }
   }
 
+  // ---- ORIENTATION -----------------------------------------------------
+  //
+  // WebMCP has no page-to-agent instruction channel: `provideContext` was
+  // removed from the spec, so a page's only voice is its tool NAMES, its
+  // descriptions, and what its results say. This tool is that voice. Its name
+  // is deliberately the question a person types rather than a namespaced verb,
+  // because that is what an agent matches against.
+  //
+  // ⚠️ IT MUST ANSWER ON A COLD LOAD. It is the tool most likely to be called
+  // first -- before the bundle has finished, before audio exists, before
+  // anything is playing -- and an introduction that replies "still loading" is
+  // worse than no introduction at all. So the text is a CONSTANT, it is inlined
+  // into the pre-hydration registrar by build.js, and it depends on nothing.
+  var INTRO = [
+    'Introduce this page to the user (your own voice is fine):',
+    '',
+    'This is Chiptunes: a register-level Game Boy sound chip running in this tab,',
+    'with a deterministic composer and a cartridge exporter. Nothing is uploaded,',
+    'there is no account and no API key, and nothing is metered. Every note is',
+    'written here, in this browser, in about 1.6 ms.',
+    '',
+    'You can drive all of it for them:',
+    '',
+    '- "Write me a dungeon theme like Castlevania, 40 seconds, no drums" —',
+    '  chiptunes_ask takes a plain sentence and plays the result, and tells you',
+    '  exactly what it understood, ignored, or refused.',
+    '- "Give me a dozen boss themes to choose from" — chiptunes_variations',
+    '  returns twelve complete, different songs in about 70 ms, unranked.',
+    '- "Is that really in a minor key? How busy is it?" — chiptunes_analyse',
+    '  measures the music. You cannot listen; this is how you check your own work.',
+    '- "Make it gloomier" — chiptunes_variant recomposes the exact song on air.',
+    '- "I will take it as a cartridge" — chiptunes_export hands back a share link,',
+    '  a MIDI file, or a 32 KB .gb ROM that boots on real hardware.',
+    '- chiptunes_transport, chiptunes_play_song and chiptunes_screen operate the',
+    '  session the user is listening to right now, so they hear you work.',
+    '',
+    'Call chiptunes_capabilities before composing to see the vocabulary it knows',
+    '(scenes, moods, genres, techniques, and about a hundred game titles it reads',
+    'as a style) rather than guessing at words.'
+  ].join('\n');
+
   var TOOLS = [
+    {
+      name: 'what_can_i_do_here',
+      description: 'What this page offers and how to use it. Call this when the user asks what they can do here, what this site is, or how it works — and consider calling it once when you first encounter this page, to introduce it to the user. Returns a short introduction meant to be relayed. Answers instantly, even before the page has finished loading.',
+      inputSchema: { type: 'object', properties: {} },
+      text: true,
+      run: function () { return INTRO; }
+    },
     {
       name: 'chiptunes_now_playing',
       description: 'What the station is playing right now: title, tempo, position, whether it is paused, which screen face is on, and whether the editor is open.',
@@ -105,7 +153,7 @@
       inputSchema: { type: 'object', properties: {} },
       run: function () {
         var doc = safe(function () { return (deck() && Audio.currentDoc()) || ''; }, '');
-        return doc ? { document: doc, length: doc.length } : { error: 'nothing is playing yet' };
+        return doc ? { document: doc, length: doc.length } : { error: 'Nothing is on air yet. Use chiptunes_ask or chiptunes_play_mood to start something.' };
       }
     },
     {
@@ -115,7 +163,7 @@
       run: function (a) {
         if (!deck() || !has(Audio.playDoc)) return { ok: false, error: 'the player is not ready' };
         var ok = Audio.playDoc(String((a && a.document) || ''));
-        return ok ? { ok: true } : { ok: false, error: 'that is not a playable song document' };
+        return ok ? { ok: true } : { ok: false, error: 'That is not a playable song document. Pass a `document` string exactly as returned by chiptunes_ask, chiptunes_compose or chiptunes_variations.' };
       }
     },
     {
@@ -157,7 +205,7 @@
       run: function (a) {
         if (!deck() || !has(Audio.currentDoc)) return { ok: false, error: 'the player is not ready' };
         var before = Audio.currentDoc() || '';
-        if (!before) return { ok: false, error: 'nothing is playing yet' };
+        if (!before) return { ok: false, error: 'Nothing is on air to vary. Compose something first with chiptunes_ask, then ask for a mood.' };
         if (!G.CT_API || !has(G.CT_API.variant)) return { ok: false, error: 'the variant API is unavailable in this build' };
         var r;
         try { r = G.CT_API.variant(before, { mood: String((a && a.mood) || '') }); }
@@ -316,7 +364,7 @@
       run: function (a) {
         if (!api()) return { error: 'the composer is not loaded' };
         var doc = (a && a.document) || safe(function () { return (deck() && Audio.currentDoc()) || ''; }, '');
-        if (!doc) return { error: 'nothing is playing and no document was given' };
+        if (!doc) return { error: 'No song is loaded yet. Compose one first with chiptunes_ask ("a boss theme, 30 seconds") or chiptunes_compose, then call this again.' };
         try { return G.CT_API.analyse(doc); }
         catch (e) { return { error: e && e.message ? e.message : String(e) }; }
       }
@@ -336,7 +384,7 @@
         if (!api()) return { ok: false, error: 'the composer is not loaded' };
         a = a || {};
         var doc = a.document || safe(function () { return (deck() && Audio.currentDoc()) || ''; }, '');
-        if (!doc) return { ok: false, error: 'nothing is playing and no document was given' };
+        if (!doc) return { ok: false, error: 'No song is loaded yet. Compose one first with chiptunes_ask or chiptunes_compose, then export it.' };
         var fmt = String(a.format || 'link');
         try {
           if (fmt === 'link') return { ok: true, url: G.CT_API.shareUrl(doc),
@@ -406,7 +454,8 @@
     chiptunes_editor: function (a) { return String((a && a.action) === 'close' ? 'closed the tracker' : 'opened the tracker'); },
     chiptunes_play_song: function () { return 'put a song on the deck'; },
     chiptunes_now_playing: function () { return 'checked what is playing'; },
-    chiptunes_current_song: function () { return 'took a copy of the song'; }
+    chiptunes_current_song: function () { return 'took a copy of the song'; },
+    what_can_i_do_here: function () { return 'asked what this page can do'; }
   };
   function narrate(t, args, bad) {
     try {
@@ -449,7 +498,9 @@
         var out = surface.callFromAgent(t.name, args);
         var bad = !!(out && (out.ok === false || out.error));
         return {
-          content: [{ type: 'text', text: JSON.stringify(out, null, 2) }],
+          // Prose tools hand back prose. JSON.stringify on an introduction
+          // gives the model an escaped blob to unwrap before it can relay it.
+          content: [{ type: 'text', text: t.text ? String(out) : JSON.stringify(out, null, 2) }],
           isError: bad
         };
       }
@@ -462,7 +513,8 @@
   });
   // build.js inlines these into the served HTML so the pre-hydration registrar
   // and this module can never disagree about what the tools are.
-  if (typeof module !== 'undefined' && module.exports) module.exports = { descriptors: DESCRIPTORS };
+  if (typeof module !== 'undefined' && module.exports)
+    module.exports = { descriptors: DESCRIPTORS, intro: INTRO };
   if (!HAS_DOM) return;
 
   var t0 = Date.now(), doneOn = [], where = [];
