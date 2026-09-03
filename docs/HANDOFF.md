@@ -2573,3 +2573,56 @@ not a different product.
 `verify-webmcp` covers the route: the panel mounts, the tools still register on
 `document.modelContext` there (the point of not using an iframe), every tool is
 listed, a tool call from the panel really composes, and closing it lands on `/`.
+
+# 2026-09-03 — WebMCP hardening, against a playbook from another project
+
+The owner passed on a field playbook from TreeTree (github.com/tetrisgm/treetree).
+Most of it named things that were live gaps here. What changed:
+
+**Both surfaces, not one.** Registration picked the FIRST of document /
+navigator / window and stopped. Now it registers on every surface present,
+deduped by object identity. A host exposing one object in two places gets one
+registration; two genuinely different objects both get tools.
+
+**Schemas.** `type`, `properties` AND `additionalProperties` are all required —
+ChatGPT enforces it, and a malformed inputSchema is the commonest silent
+registration failure. Normalised centrally in `describeTool` rather than in
+fourteen hand-written literals, and gated.
+
+**`isError: true`** on failing results, so a model can tell a failure from an
+answer instead of reading `{"ok":false}` as success.
+
+**Per-tool try/catch**, so one descriptor a host rejects cannot take the other
+thirteen with it.
+
+**Pre-hydration registrar — the real gap.** The bundle is `defer`red, so it runs
+AFTER the document parses; an agent enumerating tools during parse would find
+none. `build.js` now inlines a registrar as the first child of `<body>`,
+generated from `src/webmcp.js`'s own descriptors (it exports them under Node) so
+the two cannot drift. Its execute stubs poll for the dispatcher for 10s, then
+fail politely.
+
+⚠️ **The bug that cost the most time here**: `/(<body[^>]*>)/` matched the text
+`<body>` inside a CSS COMMENT in the inline stylesheet, so the registrar was
+inserted into the middle of a comment and never ran, while the page looked
+perfectly normal. Anchored to start-of-line now, with a guard that the match is
+after the last `</style>` — and note the guard must use `found.index`, not
+`indexOf(found[0])`, because that string also occurs in the comment.
+
+**Agent calls are narrated.** `surface.callFromAgent` is a separate dispatcher
+that runs the tool and shows "🤖 agent: …". The pre-hydration stub forwards
+there; the demo panel's own buttons use plain `call`, so the toast says "agent"
+only when that is true. Gated both ways.
+
+## Field notes worth keeping
+
+- **ChatGPT's browser gates site tools behind Settings → Browser → Permissions →
+  Enable site tools.** Check that before blaming code — it is very likely the
+  explanation for the earlier "I haven't been given one" result.
+- Any browser can be made a host by hand for testing: assign
+  `{registerTool}` to `navigator.modelContext` in the console and the page's
+  polling picks it up within half a second.
+
+Not applicable to this codebase, from the same playbook: the Next.js `<head>`
+hydration crash, and ref-authoritative state for React (our state is the audio
+deck, read synchronously).

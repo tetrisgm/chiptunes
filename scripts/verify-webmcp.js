@@ -74,11 +74,28 @@ const SHIM = `
     where: window.chiptunes && window.chiptunes.webmcp,
     count: (window.__mcpTools || []).length,
     names: (window.__mcpTools || []).map(t => t.name),
-    err: window.chiptunes && window.chiptunes.webmcpError || null
+    err: window.chiptunes && window.chiptunes.webmcpError || null,
+    pre: window.__ctWebmcpPre ? { count: window.__ctWebmcpPre.count, where: window.__ctWebmcpPre.where } : null
   }));
-  ok(/^document\.modelContext\.registerTool$/.test(reg.where || ''),
+  ok(/^document\.modelContext\.registerTool/.test(reg.where || ''),
      'the tools register on document.modelContext, which is the surface the spec defines (' + reg.where + ')');
-  ok(reg.count >= 14, 'and all of them arrive (' + reg.count + ' tools)' + (reg.err ? ' -- ' + reg.err : ''));
+  ok(reg.count === 14, 'and all of them arrive, exactly once each (' + reg.count + ' tools)' + (reg.err ? ' -- ' + reg.err : ''));
+  ok(reg.pre && reg.pre.count === 14,
+     'the PRE-HYDRATION registrar got there first, before the deferred bundle ran (' +
+     (reg.pre ? reg.pre.count + ' via ' + reg.pre.where.join(', ') : 'it did not run') + ')');
+
+  // SCHEMAS. `type`, `properties` and `additionalProperties` are all required;
+  // a malformed inputSchema is the most common way a registration is dropped
+  // without a word from anybody.
+  const schemas = await p.evaluate(() => (window.__mcpTools || []).map(t => ({
+    name: t.name,
+    type: t.inputSchema && t.inputSchema.type,
+    props: !!(t.inputSchema && t.inputSchema.properties),
+    addl: t.inputSchema && t.inputSchema.additionalProperties
+  })));
+  const wrong = schemas.filter(s => s.type !== 'object' || !s.props || s.addl !== false).map(s => s.name);
+  ok(!wrong.length, 'every schema declares type, properties AND additionalProperties' +
+     (wrong.length ? ' -- ' + wrong.join(', ') : ''));
 
   // Every descriptor has to be well formed, or an agent cannot call it.
   const shapes = await p.evaluate(() => (window.__mcpTools || []).map(t => ({
@@ -145,10 +162,18 @@ const SHIM = `
   ok(scr.ok, 'and the display can be changed');
 
   // A tool must never throw at the agent: a thrown error reads as a broken page.
-  const boom = await p.evaluate(() => window.__mcpCall('chiptunes_play_song', { document: 'not-a-song' })
-    .then(r => ({ threw: false, r })).catch(e => ({ threw: true, e: String(e) })));
-  ok(!boom.threw && boom.r && boom.r.ok === false,
+  const boom = await p.evaluate(async () => {
+    const t = window.__mcpTools.filter(x => x.name === 'chiptunes_play_song')[0];
+    try {
+      const raw = await t.execute({ document: 'not-a-song' });
+      return { threw: false, isError: raw.isError, body: JSON.parse(raw.content[0].text) };
+    } catch (e) { return { threw: true, e: String(e) }; }
+  });
+  ok(!boom.threw && boom.body && boom.body.ok === false,
      'a bad argument comes back as a returned error, not an exception');
+  // ...and MARKED as an error, so the model can tell a failure from an answer
+  // instead of reading '{"ok":false}' as a successful result.
+  ok(boom.isError === true, 'and the result carries isError:true');
 
   // ---- /webmcp: the route a judge actually lands on -------------------
   // It must be the REAL app, or the tools register somewhere no agent looks.
@@ -192,6 +217,27 @@ const SHIM = `
   });
   ok(closed.gone && closed.path === '/', 'and it closes onto the station, which was playing underneath all along');
   ok(!errs2.length, 'no page errors on /webmcp' + (errs2.length ? ' -- ' + errs2[0] : ''));
+
+  // AGENT WORK HAS TO BE VISIBLE. A person watching should never have the music
+  // change under them with no explanation, and in a demo nobody can tell a tool
+  // call apart from a coincidence unless the page says so.
+  const toast = await p.evaluate(async () => {
+    const t = window.__mcpTools.filter(x => x.name === 'chiptunes_screen')[0];
+    await t.execute({ mode: 'nes' });
+    await new Promise(r => setTimeout(r, 400));
+    const el = document.getElementById('rtoast');
+    return el && el.classList.contains('show') ? el.textContent : '';
+  });
+  ok(/agent/.test(toast), 'an agent-driven call says so on screen (' + toast + ')');
+  // ...and a human clicking in the page is NOT announced as an agent.
+  const human = await p.evaluate(async () => {
+    document.getElementById('rtoast').classList.remove('show');
+    window.chiptunes.call('chiptunes_screen', { mode: 'dmg' });
+    await new Promise(r => setTimeout(r, 400));
+    const el = document.getElementById('rtoast');
+    return el && el.classList.contains('show') ? el.textContent : '';
+  });
+  ok(!/agent/.test(human), 'while the same call made by a person is not (' + (human || 'nothing shown') + ')');
 
   ok(!errs.length, 'no page errors throughout' + (errs.length ? ' -- ' + errs[0] : ''));
 

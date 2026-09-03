@@ -112,11 +112,32 @@ document.modelContext.registerTool({
   `play_mood`, `transport`, `current_song`, `play_song`, `editor`, `variant`,
   `screen`. *Composing without a server:* `capabilities`, `ask`, `compose`,
   `variations`, `analyse`, `export`.
-- **Registered on `document.modelContext`**, with `navigator.modelContext` as a
-  fallback and `provideContext` as an alternative shape.
-- **Polled for ~10 s after load**, because an agent browser can inject the API
-  after the page's scripts run. A one-shot check loses that race silently: the
-  page looks healthy and simply has no tools.
+- **Registered on every surface present** — `document.modelContext` (the spec
+  and the Challenge rules), `navigator.modelContext` (the W3C draft and Chrome),
+  and `window.modelContext` — deduped by object identity, with `provideContext`
+  as an alternative shape. Registering on only one is how this broke the first
+  time.
+- **Three timing layers**, because an agent may enumerate tools the instant the
+  document parses or inject its model context seconds later:
+  1. a **pre-hydration registrar inlined as the first child of `<body>`**, which
+     matters here because the bundle is `defer`red and therefore runs *after*
+     parsing — an agent looking early would otherwise find nothing. Its
+     descriptors are generated at build time from `src/webmcp.js` itself, so the
+     inline copy cannot drift, and its execute stubs wait up to 10 s for the
+     real dispatcher and then fail politely instead of hanging.
+  2. the bundle's own registration when it runs;
+  3. **two minutes of polling** plus retries on `load`, `focus`, `pointerdown`
+     and `visibilitychange`.
+- **Schemas declare `type`, `properties` AND `additionalProperties`**, normalised
+  centrally rather than trusted to fourteen hand-written literals. A malformed
+  input schema is the most common way a registration is dropped without a word.
+- **Failures return `isError: true`** alongside the JSON, so the model can tell
+  a failure from an answer.
+- **Registration is per-tool inside try/catch**, so one descriptor a host
+  dislikes cannot take the other thirteen down with it.
+- **Agent calls are narrated on screen** — "🤖 agent: switched the screen to
+  nes" — and a human clicking the same control is not, so a person watching
+  always knows who did what. Gated both ways.
 - **Tools return errors, never throw.** A thrown error reads to an agent as a
   broken page; a returned one is something it can tell the user about.
 - **Same implementation as `window.chiptunes`**, so console, automation and
@@ -192,9 +213,22 @@ the page and the 14 tools register automatically. Things worth asking for:
 - *"Make that one gloomier"* → `chiptunes_variant`
 - *"I'll take it as a cartridge"* → `chiptunes_export`
 
-Without a WebMCP browser, the same tools are on `window.chiptunes` — try
+**If your agent says it has no tools**, open `/webmcp` and press *"What did this
+page detect?"*. It prints which of the three surfaces existed and how many tools
+registered, which separates the two causes that otherwise look identical: the
+page failed to register, or the page registered fine and the client is not
+passing page-defined tools to its model. In ChatGPT's browser, site tools are
+gated behind **Settings → Browser → Permissions → Enable site tools**.
+
+Without a WebMCP browser at all, the same tools are on `window.chiptunes` — try
 `chiptunes.tools`, then `chiptunes.call('chiptunes_ask', { text: 'a boss theme' })`
-in the console.
+in the console. You can also make any browser a host by hand:
+
+```js
+navigator.modelContext = { registerTool: t => (window.T = window.T || []).push(t) };
+// the page's polling picks it up within half a second
+setTimeout(() => window.T[1].execute({ mood: 'happy' }), 1000);
+```
 
 ```bash
 npm install && npm run build && npm test     # 22 gates, including test:webmcp

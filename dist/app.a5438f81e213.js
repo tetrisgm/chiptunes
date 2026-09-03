@@ -10819,7 +10819,7 @@ var EXPORTS = {
 // behaviour, so an agent and a person cannot end up in different states.
 (function (G) {
   'use strict';
-  if (typeof document === 'undefined') return;
+  var HAS_DOM = (typeof document !== 'undefined');
 
   function has(fn) { return typeof fn === 'function'; }
   function safe(fn, dflt) { try { return fn(); } catch (e) { return dflt; } }
@@ -11172,98 +11172,180 @@ var EXPORTS = {
 
   // ---- WEBMCP REGISTRATION -------------------------------------------
   //
-  // ⚠️ THE SPEC SURFACE IS `document.modelContext`, NOT `navigator`. This code
-  // looked only at `navigator.modelContext`, which meant that in the browsers
-  // that actually implement WebMCP -- the ChatGPT desktop app's in-app browser,
-  // and Chrome with chrome://flags/#enable-webmcp-testing -- not one of these
-  // tools was ever registered. Everything worked in testing, because testing
-  // was a shim on `navigator`. Both are tried now, `document` first.
+  // ⚠️ THREE THINGS HERE ARE EACH A SILENT FAILURE IF GOT WRONG. None of them
+  // breaks the page, throws, or logs; the tools simply are not there.
   //
-  // It is also polled briefly, because the agent browser can inject the API
-  // AFTER the page's scripts run, and a one-shot check at load time loses that
-  // race silently: the page looks fine and simply has no tools.
+  // 1. THE SURFACE. The W3C draft and Chrome expose `navigator.modelContext`;
+  //    ChatGPT's docs and the Challenge rules name `document.modelContext`.
+  //    This code originally looked only at `navigator`, so in the browsers that
+  //    actually implement WebMCP nothing registered at all. Register on EVERY
+  //    surface present, deduped by object identity in case a host exposes one
+  //    object in two places.
+  // 2. THE SCHEMA. `type`, `properties` AND `additionalProperties` are all
+  //    required -- ChatGPT enforces it, and a malformed inputSchema is the most
+  //    common way a registration is silently dropped. Normalised centrally
+  //    below rather than trusted to fourteen hand-written literals.
+  // 3. THE TIMING. See the pre-hydration registrar inlined into the HTML: this
+  //    bundle is `defer`red, so an agent enumerating tools while the document
+  //    parses would find none. That inline copy registers first and forwards to
+  //    these implementations once they exist.
+  // AN AGENT'S WORK HAS TO BE VISIBLE TO THE PERSON WATCHING. Otherwise the
+  // music changes under them with no explanation, which is unnerving rather
+  // than impressive -- and in a demo nobody can tell the tool call apart from
+  // a coincidence. Every agent-driven call says so on screen, briefly.
+  var SAYS = {
+    chiptunes_ask: function (a) { return '\u201c' + String((a && a.text) || '').slice(0, 60) + '\u201d'; },
+    chiptunes_play_mood: function (a) { return 'played ' + ((a && a.mood) || 'a mood'); },
+    chiptunes_variant: function (a) { return 'made it ' + ((a && a.mood) || 'different'); },
+    chiptunes_variations: function (a) { return 'wrote ' + ((a && a.n) || 5) + ' options'; },
+    chiptunes_compose: function (a) { return 'composed ' + ((a && a.scene) || 'a cue'); },
+    chiptunes_export: function (a) { return 'exported ' + ((a && a.format) || 'the song'); },
+    chiptunes_screen: function (a) { return 'switched the screen to ' + ((a && a.mode) || 'mix'); },
+    chiptunes_analyse: function () { return 'measured the song'; },
+    chiptunes_capabilities: function () { return 'read what this page can do'; },
+    chiptunes_transport: function (a) { return String((a && a.action) || 'transport'); },
+    chiptunes_editor: function (a) { return String((a && a.action) === 'close' ? 'closed the tracker' : 'opened the tracker'); },
+    chiptunes_play_song: function () { return 'put a song on the deck'; },
+    chiptunes_now_playing: function () { return 'checked what is playing'; },
+    chiptunes_current_song: function () { return 'took a copy of the song'; }
+  };
+  function narrate(t, args, bad) {
+    try {
+      var say = SAYS[t.name] ? SAYS[t.name](args) : t.name;
+      var msg = '\uD83E\uDD16 ' + (bad ? 'agent: could not ' + say : 'agent: ' + say);
+      if (typeof _toast === 'function') _toast(msg, { ms: 2600 });
+    } catch (e) {}
+  }
+
+  // ONE DISPATCHER FOR AGENT CALLS. The pre-hydration registrar forwards here
+  // rather than to `chiptunes.call`, so a call that arrives through WebMCP is
+  // narrated on screen and a click on the demo panel is not -- the toast says
+  // "agent", and it should only say that when it is true.
+  surface.callFromAgent = function (name, args) {
+    var t = TOOLS.filter(function (x) { return x.name === name; })[0];
+    if (!t) return { ok: false, error: 'unknown tool ' + name };
+    var out;
+    try { out = t.run(args || {}); }
+    catch (e) { out = { ok: false, error: e && e.message ? e.message : String(e) }; }
+    narrate(t, args, !!(out && (out.ok === false || out.error)));
+    return out;
+  };
+
   function describeTool(t) {
+    var schema = t.inputSchema || {};
     return {
       name: t.name,
       description: t.description,
-      inputSchema: t.inputSchema,
-      // The spec passes the arguments straight in and expects MCP content back.
-      // Errors are RETURNED rather than thrown: a tool that throws reads to the
-      // agent as a broken page, while a returned error is something it can tell
-      // the user about.
+      inputSchema: {
+        type: 'object',
+        properties: schema.properties || {},
+        required: schema.required || [],
+        additionalProperties: false
+      },
+      // The spec passes arguments straight in and expects MCP content back.
+      // Errors are RETURNED, never thrown, and carry `isError` so the model can
+      // tell "this failed, here is why" from "here is your answer". A tool that
+      // throws reads to an agent as a broken page.
       execute: function (args) {
-        var out;
-        try { out = t.run(args || {}); }
-        catch (e) { out = { ok: false, error: e && e.message ? e.message : String(e) }; }
-        return { content: [{ type: 'text', text: JSON.stringify(out, null, 2) }] };
+        var out = surface.callFromAgent(t.name, args);
+        var bad = !!(out && (out.ok === false || out.error));
+        return {
+          content: [{ type: 'text', text: JSON.stringify(out, null, 2) }],
+          isError: bad
+        };
       }
     };
   }
 
-  function register() {
-    if (surface.webmcp) return true;                       // already done
-    // Three candidates, in the order the spec and the shipping implementations
-    // put them. `document` is the one the spec defines and the one the agent
-    // browsers use; the other two cost nothing to accept and are insurance
-    // against a surface that moves again while this is young.
-    var where = null, mc = null;
-    if (typeof document !== 'undefined' && document.modelContext) { mc = document.modelContext; where = 'document'; }
-    else if (G.navigator && G.navigator.modelContext) { mc = G.navigator.modelContext; where = 'navigator'; }
-    else if (G.modelContext) { mc = G.modelContext; where = 'window'; }
-    if (!mc) return false;
-    try {
-      if (has(mc.registerTool)) {
-        TOOLS.forEach(function (t) { mc.registerTool(describeTool(t)); });
-        surface.webmcp = where + '.modelContext.registerTool';
-      } else if (has(mc.provideContext)) {
-        mc.provideContext({ tools: TOOLS.map(describeTool) });
-        surface.webmcp = where + '.modelContext.provideContext';
-      } else return false;
-      surface.registered = TOOLS.length;
-      return true;
-    } catch (e) { surface.webmcpError = String(e && e.message || e); return false; }
+  var DESCRIPTORS = TOOLS.map(function (t) {
+    var d = describeTool(t);
+    return { name: d.name, description: d.description, inputSchema: d.inputSchema };
+  });
+  // build.js inlines these into the served HTML so the pre-hydration registrar
+  // and this module can never disagree about what the tools are.
+  if (typeof module !== 'undefined' && module.exports) module.exports = { descriptors: DESCRIPTORS };
+  if (!HAS_DOM) return;
+
+  var t0 = Date.now(), doneOn = [], where = [];
+  function hosts() {
+    var out = [];
+    try { if (document.modelContext) out.push(['document', document.modelContext]); } catch (e) {}
+    try { if (G.navigator && G.navigator.modelContext) out.push(['navigator', G.navigator.modelContext]); } catch (e) {}
+    try { if (G.modelContext) out.push(['window', G.modelContext]); } catch (e) {}
+    return out;
   }
 
-  // WHAT WAS ACTUALLY FOUND, for the panel and for anybody debugging a browser
-  // that ought to support this. "It did not work" is not a diagnosis; which of
-  // the two objects existed, and what shape it had, is.
+  function register() {
+    var added = false;
+    hosts().forEach(function (pair) {
+      var mc = pair[1];
+      if (doneOn.indexOf(mc) >= 0) return;            // same object, two names
+      var n = 0;
+      if (has(mc.registerTool)) {
+        // PER TOOL, so one descriptor a host dislikes cannot take the other
+        // thirteen down with it.
+        TOOLS.forEach(function (t) {
+          try { mc.registerTool(describeTool(t)); n++; }
+          catch (e) { surface.webmcpError = t.name + ': ' + (e && e.message || e); }
+        });
+      } else if (has(mc.provideContext)) {
+        try { mc.provideContext({ tools: TOOLS.map(describeTool) }); n = TOOLS.length; }
+        catch (e) { surface.webmcpError = String(e && e.message || e); }
+      }
+      if (!n) return;
+      doneOn.push(mc);
+      where.push(pair[0] + '.modelContext.' + (has(mc.registerTool) ? 'registerTool' : 'provideContext'));
+      surface.registered = n;
+      surface.webmcp = where.join(' + ');
+      added = true;
+    });
+    return added;
+  }
+
+  // What was actually found. "It did not work" is not a diagnosis; which
+  // objects existed and what methods they had is.
   surface.probe = function () {
-    var d = (typeof document !== 'undefined') ? document.modelContext : undefined;
-    var n = G.navigator ? G.navigator.modelContext : undefined;
     var shape = function (o) {
       if (!o) return o === undefined ? 'absent' : String(o);
       return 'present{' + ['registerTool', 'provideContext', 'unregisterTool']
         .filter(function (k) { return has(o[k]); }).join(',') + '}';
     };
     return {
-      documentModelContext: shape(d),
-      navigatorModelContext: shape(n),
+      documentModelContext: shape(document.modelContext),
+      navigatorModelContext: shape(G.navigator && G.navigator.modelContext),
       windowModelContext: shape(G.modelContext),
       registeredOn: surface.webmcp || null,
       toolsRegistered: surface.registered || 0,
       toolsAvailable: TOOLS.length,
+      preHydrationRegistrar: !!G.__ctWebmcpPre,
       error: surface.webmcpError || null,
       secondsSinceLoad: Math.round((Date.now() - t0) / 100) / 10
     };
   };
 
-  var t0 = Date.now();
   surface.webmcp = null;
-  surface.register = register;          // so a page, a test or a judge can force it
-  if (!register()) {
-    // An agent browser injects the API on its own schedule, and a bounded poll
-    // that gives up can lose the race on a slow machine -- leaving a page that
-    // looks healthy with no tools and no explanation. So: two minutes of
-    // polling, plus a retry on every signal that the environment changed.
-    var tries = 0;
-    var timer = setInterval(function () {
-      if (register() || ++tries > 240) clearInterval(timer);
-    }, 500);
-    ['load', 'focus', 'pointerdown', 'visibilitychange'].forEach(function (ev) {
-      try { (ev === 'visibilitychange' ? document : G).addEventListener(ev, function () { register(); }); }
-      catch (e) {}
-    });
+  surface.register = register;      // so a page, a test or a judge can force it
+  // The inline registrar registered the same descriptors already and forwards
+  // to `chiptunes.call`, which exists by now -- so do not register a second
+  // copy into a host it already covered.
+  if (G.__ctWebmcpPre && G.__ctWebmcpPre.hosts) {
+    G.__ctWebmcpPre.hosts.forEach(function (mc) { doneOn.push(mc); });
+    where = (G.__ctWebmcpPre.where || []).slice();
+    surface.registered = TOOLS.length;
+    surface.webmcp = where.length ? where.join(' + ') + ' (pre-hydration)' : null;
   }
+  register();
+  // An agent browser injects its model context on its own schedule, and a
+  // bounded poll that gives up leaves a healthy-looking page with no tools and
+  // no explanation. Two minutes, plus a retry on every signal that the
+  // environment changed. Registration is deduped, so retrying is free.
+  var tries = 0;
+  var timer = setInterval(function () { register(); if (++tries > 240) clearInterval(timer); }, 500);
+  surface.stopPolling = function () { clearInterval(timer); };
+  ['load', 'focus', 'pointerdown', 'visibilitychange'].forEach(function (ev) {
+    try { (ev === 'visibilitychange' ? document : G).addEventListener(ev, function () { register(); }); }
+    catch (e) {}
+  });
 })(typeof globalThis !== 'undefined' ? globalThis : window);
 
 /* ===== src/helpers.js ===== */

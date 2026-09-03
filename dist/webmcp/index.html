@@ -2979,6 +2979,42 @@
 </style>
 </head>
 <body>
+<script>
+(function(G){
+  var D=[{"name":"chiptunes_now_playing","description":"What the station is playing right now: title, tempo, position, whether it is paused, which screen face is on, and whether the editor is open.","inputSchema":{"type":"object","properties":{},"required":[],"additionalProperties":false}},{"name":"chiptunes_play_mood","description":"Compose a complete song for a mood word and play it. Use chiptunes_now_playing to see the available moods.","inputSchema":{"type":"object","properties":{"mood":{"type":"string"}},"required":["mood"],"additionalProperties":false}},{"name":"chiptunes_transport","description":"Control playback: next, previous, play, pause or toggle.","inputSchema":{"type":"object","properties":{"action":{"type":"string","enum":["next","previous","toggle","play","pause"]}},"required":["action"],"additionalProperties":false}},{"name":"chiptunes_current_song","description":"The document of the song on air. It is the whole arrangement as a string, and it round-trips: hand it to chiptunes_play_song, to a share link, or to the Node API to edit or export it.","inputSchema":{"type":"object","properties":{},"required":[],"additionalProperties":false}},{"name":"chiptunes_play_song","description":"Put a specific song document on the deck and play it, with its visuals and transport, exactly as a shared link would.","inputSchema":{"type":"object","properties":{"document":{"type":"string"}},"required":["document"],"additionalProperties":false}},{"name":"chiptunes_editor","description":"Open the tracker on the song that is playing, on a given document, or on an empty song; or close it and hand the screen back to the station.","inputSchema":{"type":"object","properties":{"action":{"type":"string","enum":["open","open_blank","close"]},"document":{"type":"string","description":"optional: open this song instead of the one playing"}},"required":["action"],"additionalProperties":false}},{"name":"chiptunes_variant","description":"Make a version of the song on air with a different feeling and play it: sadder for a death screen, intense for a boss, calmer for a menu. The original document is returned too, so you can go back.","inputSchema":{"type":"object","properties":{"mood":{"type":"string","description":"happier, sadder, darker, brighter, calmer, intense, sparser, dreamier"}},"required":["mood"],"additionalProperties":false}},{"name":"chiptunes_screen","description":"Choose the display: crt (Modern), dmg (Game Boy), nes, or mix to let it re-roll on every track.","inputSchema":{"type":"object","properties":{"mode":{"type":"string","enum":["crt","dmg","nes","mix"]}},"required":["mode"],"additionalProperties":false}},{"name":"chiptunes_capabilities","description":"Every word this understands and every knob it has: scenes, moods, musical genres, game genres, forms, techniques, the hundred-odd game titles it can read as a style, the transform operations, and the things it deliberately cannot do. Read this BEFORE composing rather than guessing at vocabulary.","inputSchema":{"type":"object","properties":{},"required":[],"additionalProperties":false}},{"name":"chiptunes_ask","description":"Describe music in a sentence and hear it: \"a dungeon theme like Castlevania, 40 seconds, no drums\", \"a gloomy song about exploring a cave\", or a change to what is on air like \"make it much slower\". Returns exactly what it understood, what it ignored, and anything it refused, so you can tell the user the truth rather than guessing whether it worked.","inputSchema":{"type":"object","properties":{"text":{"type":"string","description":"the request, in plain English"},"apply_to_current":{"type":"boolean","description":"treat it as a change to the song on air rather than a new one"},"play":{"type":"boolean","description":"put the result on the deck (default true)"}},"required":["text"],"additionalProperties":false}},{"name":"chiptunes_compose","description":"Compose from a structured brief rather than a sentence: a scene, a length in seconds, a key and mode, voices to leave out. Anything it could not satisfy comes back in `unmet` instead of being quietly dropped.","inputSchema":{"type":"object","properties":{"scene":{"type":"string","description":"title, menu, overworld, town, shop, cave, battle, boss, victory, game_over, credits"},"seconds":{"type":"number"},"bars":{"type":"number"},"key":{"type":"string","description":"C, D, F#, A# ..."},"mode":{"type":"string","enum":["major","minor"]},"exclude":{"type":"array","items":{"type":"string"},"description":"lanes to leave out: Melody, Harmony, Bass, Drums"},"play":{"type":"boolean"}},"required":[],"additionalProperties":false}},{"name":"chiptunes_variations","description":"Compose several DIFFERENT songs from one brief and get them all back, unranked, each with its measurements. This is the thing that is cheap here and expensive everywhere else: twenty complete songs take about thirty milliseconds and cost nothing, so you can offer the user a real choice instead of one take. Nothing is scored or pre-selected; the choosing is yours.","inputSchema":{"type":"object","properties":{"scene":{"type":"string"},"seconds":{"type":"number"},"key":{"type":"string"},"mode":{"type":"string","enum":["major","minor"]},"n":{"type":"number","description":"how many, 1 to 20"}},"required":[],"additionalProperties":false}},{"name":"chiptunes_analyse","description":"Measure a song instead of listening to it: how major or minor its pitch material is, whether its phrases climb or fall, how much the melody agrees with the chords under it, how high it sits, how busy it is, whether it ends on the tonic. You cannot hear the output; this is how you check that what you asked for is what you got.","inputSchema":{"type":"object","properties":{"document":{"type":"string","description":"omit to measure whatever is on air"}},"required":[],"additionalProperties":false}},{"name":"chiptunes_export","description":"Take the music away: a share link that carries the whole arrangement in the URL, a Standard MIDI file, or a 32 KB .gb cartridge that boots on real Game Boy hardware. The link needs no server and stores nothing; the files are built in the page and handed straight to the user.","inputSchema":{"type":"object","properties":{"format":{"type":"string","enum":["link","midi","rom"]},"document":{"type":"string","description":"omit to export whatever is on air"}},"required":["format"],"additionalProperties":false}}];
+  function hosts(){var o=[];try{if(document.modelContext)o.push(['document',document.modelContext]);}catch(e){}
+    try{if(G.navigator&&G.navigator.modelContext)o.push(['navigator',G.navigator.modelContext]);}catch(e){}
+    try{if(G.modelContext)o.push(['window',G.modelContext]);}catch(e){}return o;}
+  // Wait for the real implementation, then hand the call straight to it. Ten
+  // seconds is generous for a script that is already downloading; after that a
+  // readable failure beats a silent hang.
+  function call(name,args){
+    return new Promise(function(res){
+      var n=0,t=setInterval(function(){
+        var s=G.chiptunes,fn=s&&(s.callFromAgent||s.call);
+        if(typeof fn==='function'){clearInterval(t);
+          var out;try{out=fn.call(s,name,args||{});}catch(e){out={ok:false,error:String(e&&e.message||e)};}
+          var bad=!!(out&&(out.ok===false||out.error));
+          res({content:[{type:'text',text:JSON.stringify(out,null,2)}],isError:bad});return;}
+        if(++n>100){clearInterval(t);
+          res({content:[{type:'text',text:'The page is still loading. Try this tool again in a moment.'}],isError:true});}
+      },100);
+    });
+  }
+  var done=[],where=[];
+  hosts().forEach(function(p){
+    var mc=p[1];
+    if(done.indexOf(mc)>=0||typeof mc.registerTool!=='function')return;
+    var n=0;
+    D.forEach(function(d){
+      try{mc.registerTool({name:d.name,description:d.description,inputSchema:d.inputSchema,
+        execute:function(a){return call(d.name,a);}});n++;}catch(e){}
+    });
+    if(n){done.push(mc);where.push(p[0]+'.modelContext.registerTool');}
+  });
+  if(done.length)G.__ctWebmcpPre={hosts:done,where:where,count:D.length};
+})(typeof globalThis!=='undefined'?globalThis:window);
+</script>
   <canvas id="stage"></canvas>
   <div class="crt scanlines"></div>
   <div class="crt vignette"></div>
@@ -2999,7 +3035,7 @@
     <button id="start" hidden></button>
   </div>
 
-<script src="../app.a2f98428bd8f.js" defer></script>
+<script src="../app.a5438f81e213.js" defer></script>
 
 </body>
 </html>

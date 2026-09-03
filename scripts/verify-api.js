@@ -601,7 +601,7 @@ function mcp(messages) {
   // actually injects it and then calling every tool for real. Both are asserted
   // because supporting only one is exactly the bug that made every tool
   // invisible in the browsers that implement WebMCP.
-  ok(page.webmcp === 'navigator.modelContext.registerTool' && page.registered.length === page.tools.length,
+  ok(/^navigator\.modelContext\.registerTool/.test(page.webmcp || '') && page.registered.length === page.tools.length,
      'and every tool registers on the navigator fallback too (' + page.webmcp + ')');
   ok(page.now && Array.isArray(page.now.moods) && page.now.moods.length > 0,
      'now_playing reads the live session (' + (page.now && page.now.moods.length) + ' moods)');

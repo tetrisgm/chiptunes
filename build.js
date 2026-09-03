@@ -120,7 +120,72 @@ const html = shell.replace('__SCRIPTS__', () => '<script src="' + bundleName + '
 // clear yesterday's bundles so dist/ never accumulates them
 for (const f of fs.readdirSync(DIST)) if (/^app\.[0-9a-f]+\.js$/.test(f) && f !== bundleName) fs.unlinkSync(path.join(DIST, f));
 fs.writeFileSync(path.join(DIST, bundleName), js);
-fs.writeFileSync(path.join(DIST, 'index.html'), html);
+let pageHtml;
+// ---- PRE-HYDRATION WEBMCP REGISTRAR ---------------------------------------
+// The bundle is `defer`red, so it runs AFTER the document is parsed. An agent
+// that enumerates the page's tools while it is still parsing would find none.
+// This inline script registers the real descriptors immediately, with execute
+// stubs that wait for the bundle's dispatcher (`window.chiptunes.call`) and
+// then fail politely rather than hanging.
+//
+// The descriptors come from src/webmcp.js itself, so the inline copy and the
+// module can never disagree about what the tools are or what they accept.
+{
+  const { descriptors } = require('./src/webmcp.js');
+  if (!descriptors || !descriptors.length) throw new Error('build: webmcp descriptors missing');
+  const registrar = `<script>
+(function(G){
+  var D=${JSON.stringify(descriptors)};
+  function hosts(){var o=[];try{if(document.modelContext)o.push(['document',document.modelContext]);}catch(e){}
+    try{if(G.navigator&&G.navigator.modelContext)o.push(['navigator',G.navigator.modelContext]);}catch(e){}
+    try{if(G.modelContext)o.push(['window',G.modelContext]);}catch(e){}return o;}
+  // Wait for the real implementation, then hand the call straight to it. Ten
+  // seconds is generous for a script that is already downloading; after that a
+  // readable failure beats a silent hang.
+  function call(name,args){
+    return new Promise(function(res){
+      var n=0,t=setInterval(function(){
+        var s=G.chiptunes,fn=s&&(s.callFromAgent||s.call);
+        if(typeof fn==='function'){clearInterval(t);
+          var out;try{out=fn.call(s,name,args||{});}catch(e){out={ok:false,error:String(e&&e.message||e)};}
+          var bad=!!(out&&(out.ok===false||out.error));
+          res({content:[{type:'text',text:JSON.stringify(out,null,2)}],isError:bad});return;}
+        if(++n>100){clearInterval(t);
+          res({content:[{type:'text',text:'The page is still loading. Try this tool again in a moment.'}],isError:true});}
+      },100);
+    });
+  }
+  var done=[],where=[];
+  hosts().forEach(function(p){
+    var mc=p[1];
+    if(done.indexOf(mc)>=0||typeof mc.registerTool!=='function')return;
+    var n=0;
+    D.forEach(function(d){
+      try{mc.registerTool({name:d.name,description:d.description,inputSchema:d.inputSchema,
+        execute:function(a){return call(d.name,a);}});n++;}catch(e){}
+    });
+    if(n){done.push(mc);where.push(p[0]+'.modelContext.registerTool');}
+  });
+  if(done.length)G.__ctWebmcpPre={hosts:done,where:where,count:D.length};
+})(typeof globalThis!=='undefined'?globalThis:window);
+</` + `script>`;
+  // First thing in <body>: it executes at parse time, which is early enough,
+  // and it leaves <head> alone.
+  // ANCHORED AT THE START OF A LINE. A bare /<body[^>]*>/ matched the text
+  // "<body ...>" inside a CSS COMMENT in the inline stylesheet, so the registrar
+  // was inserted into the middle of a comment and never ran -- while the page
+  // looked completely normal. The gate below is what caught it.
+  const bodyTag = /^[ \t]*<body[^>]*>/m;
+  const found = html.match(bodyTag);
+  if (!found) throw new Error('build: could not find the <body> tag for the WebMCP registrar');
+  // found.index, NOT indexOf(found[0]) -- the string "<body>" also appears in
+  // that CSS comment, so searching by text finds the wrong one and this guard
+  // would fire on a correct match.
+  if (found.index < html.lastIndexOf('</style>'))
+    throw new Error('build: matched a <body> inside the stylesheet, not the document body');
+  pageHtml = html.replace(bodyTag, found[0] + '\n' + registrar);
+}
+fs.writeFileSync(path.join(DIST, 'index.html'), pageHtml);
 
 // /radio is the public “listen anywhere” page.
 const radioHtml = fs.readFileSync(path.join(ROOT, 'src', 'listen-anywhere.html'), 'utf8');
@@ -149,8 +214,10 @@ for (const stale of ['player', 'create', 'listen', 'play', 'wip', 'watch']) {
 for (const route of ROUTES) {
   fs.mkdirSync(path.join(DIST, route), { recursive: true });
   // one level down, so the bundle is one level up.
+  // pageHtml, not html: every route needs the pre-hydration registrar too --
+  // /webmcp most of all, since that is the one an agent is pointed at.
   fs.writeFileSync(path.join(DIST, route, 'index.html'),
-                   html.replace('src="' + bundleName + '"', 'src="../' + bundleName + '"'));
+                   pageHtml.replace('src="' + bundleName + '"', 'src="../' + bundleName + '"'));
 }
 fs.mkdirSync(path.join(DIST, 'radio'), { recursive: true });
 fs.writeFileSync(path.join(DIST, 'radio', 'index.html'), radioHtml);
