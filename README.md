@@ -165,14 +165,26 @@ slower and darker"* and it does that. It knows scenes, game genres, musical
 genres, forms, techniques, moods, keys, tempi, lengths, and about a hundred
 Game Boy and NES titles.
 
-**A title is read as a genre, and the reading is always said back.** "Like
-Castlevania" resolves to *platformer, rock/punk, minor, 145-172 bpm, menacing,
-arpeggiated*, and that sentence is what you see. It is not an imitation and
-cannot be: nothing here is trained on or derived from anybody's recordings, and
-a title can only reach dials you could type yourself, which
-[`src/reference-styles.js`](src/reference-styles.js) makes visible and the gate
-asserts. Explicit words beat the reference, so *"a platformer like Metroid"* is
-a platformer, and a named scene keeps its own mode, so a dungeon stays minor.
+**A title is read as a genre and a character, and the reading is always said
+back.** "Like Castlevania" resolves to *platformer, rock/punk, minor, 145-172
+bpm, menacing, intense, arpeggiated*, and that sentence is what you see. The
+character is the part that matters: a game is not only a genre, so naming one
+next to a genre still changes the music. Asked for the same platformer from the
+same seed, one word apart:
+
+| | tempo | notes |
+| --- | --- | --- |
+| a platformer | 149 bpm | 185 |
+| a platformer like Metroid | **112 bpm** | 241, minor, sparse, echoing |
+| a platformer like Castlevania | 150 bpm | **985**, minor, arpeggiated |
+| a platformer like Recca | **176 bpm** | 184 |
+
+It is not an imitation and cannot be: nothing here is trained on or derived from
+anybody's recordings, and a title can only reach dials you could type yourself,
+which [`src/reference-styles.js`](src/reference-styles.js) makes visible and the
+gate asserts. Explicit words still beat the reference, so *"a platformer like
+Metroid"* keeps the platformer's styles, and a named scene keeps its own mode,
+so a dungeon stays minor.
 
 Everything else is refused out loud rather than quietly dropped: a name that is
 not on the list, a waltz, vocals, a guitar, a Dorian mode, reverb. It says which,

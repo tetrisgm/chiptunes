@@ -438,7 +438,12 @@ var MOODS = {
   frantic:    [{ op: 'tempo', percent: 22 }, { op: 'subdivide', lane: 'Drums' }, { op: 'velocity', delta: 0.12 }],
   playful:    [{ op: 'mode', to: 'major' }, { op: 'tempo', percent: 10 }, { op: 'swing', on: true }, { op: 'register', lane: 'Melody', octaves: 1 }],
   solemn:     [{ op: 'tempo', percent: -18 }, { op: 'thin', lane: 'Drums' }, { op: 'register', lane: 'Bass', octaves: -1 }],
-  tense:      [{ op: 'mode', to: 'minor' }, { op: 'thin', lane: 'Melody' }, { op: 'velocity', delta: -0.05 }, { op: 'tempo', percent: 5 }]
+  tense:      [{ op: 'mode', to: 'minor' }, { op: 'thin', lane: 'Melody' }, { op: 'velocity', delta: -0.05 }, { op: 'tempo', percent: 5 }],
+  // EXPLORING IS A FEELING WITH A SHAPE: unhurried, thin underneath, long
+  // notes, and a melody that answers itself. It is the trait that makes a
+  // wandering game sound like one, and there was no way to ask for it.
+  exploratory:[{ op: 'tempo', percent: -8 }, { op: 'thin', lane: 'Harmony' },
+               { op: 'fade', fade: 0 }, { op: 'motion', lane: 'Melody', motion: 'echo' }]
 };
 
 function rowFor(midi) { return Math.max(0, Math.min(MEL_ROWS - 1, Math.round((midi - 48) * (MEL_ROWS - 1) / 36))); }
@@ -939,7 +944,10 @@ var WORD_SCENES = {
   'intro': 'title', 'opening': 'title', 'attract mode': 'title',
   'menu': 'menu', 'pause': 'menu', 'main menu': 'menu', 'file select': 'menu',
   'character select': 'menu', 'options screen': 'menu',
-  'overworld': 'overworld', 'world map': 'overworld', 'exploring': 'overworld',
+  // NOT 'exploring': it is a feeling, not a place, and as a scene word it beat
+  // "cave" in "a gloomy song about exploring a cave" purely for being longer.
+  // It is a mood now, and the overworld still has four ways to ask for it.
+  'overworld': 'overworld', 'world map': 'overworld',
   'field': 'overworld', 'travelling': 'overworld', 'traveling': 'overworld',
   'town': 'town', 'village': 'town', 'inn': 'town', 'tavern': 'town',
   'shop': 'shop', 'store': 'shop', 'market': 'shop', 'merchant': 'shop',
@@ -979,7 +987,14 @@ var WORD_MOODS = {
   frantic: 'frantic', panicked: 'frantic', desperate: 'frantic', hectic: 'frantic',
   playful: 'playful', bouncy: 'playful', silly: 'playful', jaunty: 'playful',
   solemn: 'solemn', stately: 'solemn', ceremonial: 'solemn', reverent: 'solemn',
-  tense: 'tense', anxious: 'tense', nervous: 'tense', suspenseful: 'tense'
+  tense: 'tense', anxious: 'tense', nervous: 'tense', suspenseful: 'tense',
+  exploratory: 'exploratory', exploring: 'exploratory', exploration: 'exploratory',
+  wandering: 'exploratory', roaming: 'exploratory',
+  gloomy: 'darker', moody: 'darker', murky: 'darker',
+  adventurous: 'heroic', daring: 'heroic', valiant: 'heroic',
+  whimsical: 'playful', mischievous: 'playful',
+  somber: 'solemn', sombre: 'solemn', majestic: 'solemn', dignified: 'solemn',
+  atmospheric: 'dreamier', spacious: 'dreamier'
 };
 // GENRES ARE REAL DIALS. The composer's fourteen styles ARE genres, so mapping
 // a genre word onto them is a true statement about what the machine will do --
@@ -1080,6 +1095,62 @@ var FLAT_TO_SHARP = { a: 'G#', b: 'A#', c: 'B', d: 'C#', e: 'D#', f: 'E', g: 'F#
 // Can any of these styles sit in this tempo band? The composer's styles each
 // have a narrow native range, and a premise naming both a style and a band
 // outside it leaves pickStyle() with nothing to pick.
+function _styleBand(styles) {
+  var table = composer && composer.styles ? composer.styles() : null;
+  if (!table || !styles || !styles.length) return null;
+  var lo = Infinity, hi = -Infinity;
+  styles.forEach(function (id) {
+    var st = table.filter(function (x) { return x.id === id; })[0];
+    if (!st) return;
+    lo = Math.min(lo, st.bpm[0]); hi = Math.max(hi, st.bpm[1]);
+  });
+  return isFinite(lo) ? [lo, hi] : null;
+}
+
+// WHEN THE BAND CANNOT BE MET, PULL TOWARDS IT ANYWAY. "A platformer like
+// Metroid" cannot sit at 88-118 -- the platformer styles live at 140-158 -- but
+// silently discarding the band, which is what this used to do, is how naming
+// Metroid came to change almost nothing. A platformer dragged 20% slower is
+// still recognisably the thing that was asked for, and the summary says that is
+// what happened rather than claiming the band.
+function _bandPull(styles, lo, hi) {
+  var band = _styleBand(styles);
+  if (!band) return 0;
+  var pct = Math.round(((lo + hi) / 2 / ((band[0] + band[1]) / 2) - 1) * 100);
+  return Math.max(-25, Math.min(25, Math.abs(pct) < 4 ? 0 : pct));
+}
+
+// A TITLE'S CHARACTER IS SEVERAL TRAITS, AND THEY HAVE TO COMBINE WITHOUT
+// PILING UP. Three recipes stacked raw would move the melody three octaves and
+// the tempo by half, so the additive dials are summed and then clamped, and the
+// structural ones (thin, subdivide, motion, swing, shape) are taken once each.
+// `mode` is dropped throughout: the title's own major/minor already said that,
+// and applying it two or three more times is how a blend turns to mud.
+function _blendMoods(words, opts) {
+  opts = opts || {};
+  var tempo = 0, oct = {}, vel = 0, seen = {}, out = [];
+  (words || []).forEach(function (w) {
+    (MOODS[w] || []).forEach(function (o) {
+      if (o.op === 'mode' && !opts.keepMode) return;
+      if (o.op === 'mode') { var mk2 = 'mode'; if (seen[mk2]) return; seen[mk2] = 1; out.push(Object.assign({}, o)); return; }
+      if (o.op === 'tempo') { tempo += (o.percent || 0); return; }
+      if (o.op === 'register') { oct[o.lane] = (oct[o.lane] || 0) + (o.octaves || 0); return; }
+      if (o.op === 'velocity') { vel += (o.delta || 0); return; }
+      var k = o.op + ':' + (o.lane || '') + ':' + (o.motion || o.duty || '');
+      if (seen[k]) return;
+      seen[k] = 1; out.push(Object.assign({}, o));
+    });
+  });
+  var clamp = function (v, lo, hi) { return Math.max(lo, Math.min(hi, v)); };
+  if (!opts.skipTempo && tempo) out.push({ op: 'tempo', percent: clamp(Math.round(tempo), -25, 25) });
+  Object.keys(oct).forEach(function (lane) {
+    var n = clamp(oct[lane], -1, 1);
+    if (n) out.push({ op: 'register', lane: lane, octaves: n });
+  });
+  if (vel) out.push({ op: 'velocity', delta: clamp(Math.round(vel * 100) / 100, -0.25, 0.25) });
+  return out;
+}
+
 function _bandIsReachable(styles, lo, hi) {
   var table = composer && composer.styles ? composer.styles() : null;
   if (!table || !styles || !styles.length) return true;   // nothing to check against
@@ -1097,7 +1168,7 @@ function interpret(text, opts) {
   var norm = _norm(src);
 
   var understood = [], notUnderstood = [], spec = {}, ops = [], moods = [];
-  var sawScene = null, sawNew = false, namedTechnique = false, unsupported = [];
+  var sawScene = null, sawNew = false, namedTechnique = false, modeTyped = false, unsupported = [];
 
   // 1. TITLES FIRST, and each match is blanked out of the sentence before
   //    anything else looks at it. Without that, "Kirby's Adventure" also
@@ -1177,8 +1248,14 @@ function interpret(text, opts) {
     if (mk[3]) { spec.mode = mk[3]; understood.push('mode: ' + mk[3]); }
     sawNew = true;
   }
-  if (!spec.mode && has('minor')) { spec.mode = 'minor'; understood.push('mode: minor'); }
-  if (!spec.mode && has('major')) { spec.mode = 'major'; understood.push('mode: major'); }
+  // TYPED, as opposed to inherited. `platformer` carries mode:'major' as a
+  // genre default, and treating that as the user's own word let it block a
+  // title's mode -- so "a platformer like Metroid" came out major and cheerful,
+  // which is the opposite of naming Metroid. Only a mode the user actually
+  // wrote, or a scene's functional requirement, outranks a reference.
+  if (mk && mk[3]) modeTyped = true;
+  if (!modeTyped && has('minor')) { spec.mode = 'minor'; modeTyped = true; understood.push('mode: minor'); }
+  else if (!modeTyped && has('major')) { spec.mode = 'major'; modeTyped = true; understood.push('mode: major'); }
 
   // 6. which voices to leave out. "no drums" is the single most common
   //    constraint anybody asks a music generator for -- room for dialogue and
@@ -1236,9 +1313,15 @@ function interpret(text, opts) {
   }
 
   // 10. moods, last so an explicit tempo word wins its own slot
+  // ALL OF THEM, NOT JUST THE FIRST. "gloomy and exploratory" is two traits and
+  // taking one silently discarded the other -- the same bug the title character
+  // had. They are blended below rather than concatenated, so three recipes
+  // cannot stack into three octaves and half the tempo.
   longestFirst(WORD_MOODS).forEach(function (w) {
-    if (moods.length || !has(w)) return;
-    moods.push(WORD_MOODS[w]); understood.push('mood: ' + WORD_MOODS[w]);
+    if (!has(w) || moods.length >= 3) return;
+    var m2 = WORD_MOODS[w];
+    if (moods.indexOf(m2) >= 0) return;
+    moods.push(m2); understood.push('mood: ' + m2);
   });
 
   // 11. and NOW the title fills whatever nobody named. Gap-fill is what keeps
@@ -1246,45 +1329,52 @@ function interpret(text, opts) {
   if (title) {
     var took = [];
     if (!spec.styles) { spec.styles = title.styles.slice(); took.push(title.styles.join('/')); }
+
     // A TITLE'S MODE IS A TRANSFORM, NOT A CONSTRAINT, and that is not a
     // stylistic choice -- it is what the composer's style table permits. Ten of
     // its fourteen styles are major-only (`modes:'maj'`), so asking for `rock`
     // AND `minor` empties the eligible pool, and brief()'s fallback then throws
     // the STYLES away and keeps the mode. Forty-eight of the titles here were
     // silently losing their genre that way while the summary still named it.
-    // Composing in the style and moving the third, sixth and seventh afterwards
-    // gets both, and it is the same thing the mood recipes already do.
     //
-    // A NAMED SCENE KEEPS ITS OWN MODE regardless: a scene is a functional
-    // requirement -- a game-over cue must not come out jaunty -- while a title
-    // is an atmosphere hint. Typing "minor" or "major" still wins over both.
-    if (!spec.mode && !spec.scene) {
+    // A NAMED SCENE KEEPS ITS OWN MODE: a scene is a functional requirement --
+    // a game-over cue must not come out jaunty -- while a title is an
+    // atmosphere hint. A mode the user TYPED beats both.
+    if (!modeTyped && !spec.scene && spec.mode !== title.mode) {
       ops.push({ op: 'mode', to: title.mode });
       took.push(title.mode);
     }
-    // AND THE BAND ONLY IF SOME STYLE CAN REACH IT. brief() falls back by
-    // deleting `styles` when a premise is unsatisfiable, so an out-of-range
-    // band does not fail loudly -- it quietly discards the genre, which is the
-    // part of a reference the user can actually hear, while the summary goes on
-    // naming it. Dropping the band instead keeps the reading honest, and
-    // verify-language walks every title to prove none of them need it.
-    if (spec.bpmMin == null && title.bpmMin && _bandIsReachable(spec.styles, title.bpmMin, title.bpmMax)) {
-      spec.bpmMin = title.bpmMin; spec.bpmMax = title.bpmMax;
-      took.push(title.bpmMin + '-' + title.bpmMax + ' bpm');
+
+    // TEMPO: the band when the styles in force can reach it, and a pull towards
+    // it when they cannot. Dropping it outright was the bug -- it meant naming
+    // a slow, brooding game next to a fast genre changed nothing at all.
+    var tempoHandled = false;
+    if (title.bpmMin && spec.bpmMin == null) {
+      if (_bandIsReachable(spec.styles, title.bpmMin, title.bpmMax)) {
+        spec.bpmMin = title.bpmMin; spec.bpmMax = title.bpmMax;
+        took.push(title.bpmMin + '-' + title.bpmMax + ' bpm');
+        tempoHandled = true;
+      } else {
+        var pull = _bandPull(spec.styles, title.bpmMin, title.bpmMax);
+        if (pull) {
+          ops.push({ op: 'tempo', percent: pull });
+          took.push(Math.abs(pull) + '% ' + (pull < 0 ? 'slower' : 'faster') +
+                    ', towards its ' + title.bpmMin + '-' + title.bpmMax + ' bpm');
+          tempoHandled = true;
+        }
+      }
     }
-    // A TITLE'S MOOD GOES IN AS OPS, NOT AS A MOOD, and with its tempo and
-    // mode changes removed. Both of those were already decided by things that
-    // outrank a reference: the title's own tempo band, and whatever the scene
-    // said. Left in, they fought each other -- "a platformer like Metroid" set
-    // an 88-118 band and then the `mysterious` recipe dragged it to 79, so the
-    // summary named a band the song did not sit in. What survives is the part
-    // a mood is actually for: register, dynamics, density and articulation.
-    if (!moods.length && title.mood && MOODS[title.mood]) {
-      MOODS[title.mood].forEach(function (o) {
-        if (o.op === 'tempo' || o.op === 'mode') return;
-        ops.push(Object.assign({}, o));
-      });
-      took.push(title.mood);
+
+    // CHARACTER, AND IT APPLIES WHETHER OR NOT A GENRE WAS NAMED. This is the
+    // whole point of the table. "A platformer like Metroid" is not just a
+    // platformer: Metroid is gloomy, sparse and unhurried, and if naming it
+    // only survives when nothing else is said then it may as well not be there.
+    // Genre says what the piece is FOR, character says what it FEELS like, and
+    // the two are orthogonal. A mood the user typed themselves still wins,
+    // because that is a more specific request than a reference.
+    if (!moods.length && title.character && title.character.length) {
+      _blendMoods(title.character, { skipTempo: tempoHandled }).forEach(function (o) { ops.push(o); });
+      took.push(title.character.join(', '));
     }
     if (!namedTechnique && title.tech && WORD_TECHNIQUES[title.tech]) {
       ops.push(Object.assign({}, WORD_TECHNIQUES[title.tech])); took.push(title.tech);
@@ -1385,7 +1475,7 @@ function ask(text, opts) {
     // confirmed, since those are the ones they cannot verify by ear in a
     // second. Ops report themselves separately, below, so nothing doubles up.
     applied = applied.concat(read.understood.filter(function (u) {
-      return /^(like |scene|game genre|genre|form|length|key|mode|without|loops|ends on|[A-Z][a-z]+ (and|only))/.test(u);
+      return /^(like |scene|game genre|genre|form|mood|length|key|mode|without|loops|ends on|technique|[A-Z][a-z]+ (and|only))/.test(u);
     }));
     if (made.unmet && made.unmet.length) skipped = skipped.concat(made.unmet);
   }
@@ -1395,7 +1485,15 @@ function ask(text, opts) {
   // "without Drums".
   var already = (made && read.spec.exclude) ? [].concat(read.spec.exclude) : [];
   var ops = read.ops.filter(function (o) { return !(o.op === 'drop' && already.indexOf(o.lane) >= 0); });
-  read.moods.forEach(function (m) { ops = ops.concat(MOODS[m] || []); });
+  // Blended, for the same reason a title's character is: concatenating three
+  // recipes adds their tempo changes and their octave shifts together.
+  // A TEMPO THE SENTENCE ALREADY ASKED FOR WINS. "a cheerful fast platformer"
+  // has both an explicit "fast" and `happier`'s own +8%, and compounding them
+  // ran the song to 180 bpm -- neither word asked for that.
+  ops = ops.concat(_blendMoods(read.moods, {
+    keepMode: true,
+    skipTempo: ops.some(function (o) { return o.op === 'tempo'; })
+  }));
   if (ops.length) {
     var r = transform(doc, ops);
     doc = r.doc; applied = applied.concat(r.applied); skipped = skipped.concat(r.skipped);

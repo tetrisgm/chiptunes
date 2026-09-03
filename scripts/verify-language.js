@@ -43,7 +43,7 @@ console.log('the reference table');
   // whole feature description rests on: if a mapping could ever carry
   // something specific to somebody's composition, it would not be a genre
   // reading any more.
-  const allowed = ['name', 'genre', 'styles', 'mode', 'bpmMin', 'bpmMax', 'mood', 'tech', 'reads'];
+  const allowed = ['name', 'genre', 'styles', 'mode', 'bpmMin', 'bpmMax', 'character', 'tech', 'reads'];
   const STYLES = ['anthem', 'house', 'trance', 'techno', 'dnb', 'breaks', 'arcade',
                   'rock', 'punk', 'funk', 'boombap', 'chill', 'ballad', 'drone'];
   const moodWords = api.capabilities().moodWords;
@@ -55,7 +55,8 @@ console.log('the reference table');
     Object.keys(e).forEach(f => { if (allowed.indexOf(f) < 0) bad.push(e.name + '.' + f); });
     e.styles.forEach(s => { if (STYLES.indexOf(s) < 0) bad.push(e.name + ' style ' + s); });
     if (['major', 'minor'].indexOf(e.mode) < 0) bad.push(e.name + ' mode ' + e.mode);
-    if (e.mood && moodWords.indexOf(e.mood) < 0) bad.push(e.name + ' mood ' + e.mood);
+    if (!e.character.length) bad.push(e.name + ' has no character');
+    e.character.forEach(c => { if (moodWords.indexOf(c) < 0) bad.push(e.name + ' character ' + c); });
     if (e.tech && techniques.indexOf(e.tech) < 0) bad.push(e.name + ' technique ' + e.tech);
     if (gameGenres.indexOf(e.genre) < 0 && ['arcade', 'shooter'].indexOf(e.genre) < 0) bad.push(e.name + ' genre ' + e.genre);
   });
@@ -100,6 +101,101 @@ console.log('the reference table');
      'and none of them constrains the composer to minor -- the mode is a transform after the fact');
 }
 
+/* ------------------------------------------------- character reaches the notes */
+// THE POINT OF NAMING A GAME. "A platformer like Metroid" is not just a
+// platformer -- Metroid is gloomy, sparse and unhurried -- and for one whole
+// release naming it changed almost nothing, because an explicit genre took the
+// styles and the mode, and the tempo band was discarded for being out of the
+// genre's reach. What was left was a single mood word.
+//
+// So this measures the music, not the summary. Same token, same request, one
+// word different.
+console.log('the character of a title reaches the notes');
+{
+  const TOKEN = '7f3a12bc55de90aa';
+  // The content, not two summary numbers: swing, duty and register change the
+  // music without moving either the tempo or the note count, and an earlier
+  // version of this check called that "unchanged".
+  const content = doc => {
+    const j = api.toJSON(doc);
+    return j.notes.map(n => n.lane[0] + (n.note || n.drum) + '@' + n.step + ':' + (n.fd || 0) + (n.dy || 0)).join(',');
+  };
+  const song = name => {
+    const r = api.ask('a platformer like ' + name + ', 30 seconds', { brief: { token: TOKEN } });
+    return Object.assign({ ok: r.ok, content: content(r.doc) }, api.describe(r.doc));
+  };
+  const metroid = song('metroid'), mario = song('super mario bros');
+  const castlevania = song('castlevania'), recca = song('recca');
+
+  ok(metroid.bpm < mario.bpm - 15,
+     'Metroid is markedly slower than Mario, asked as the same platformer (' +
+     metroid.bpm + ' vs ' + mario.bpm + ' bpm)');
+  ok(recca.bpm > mario.bpm, 'and Recca is faster still (' + recca.bpm + ' bpm)');
+  ok(castlevania.notes > metroid.notes * 2,
+     'Castlevania is far denser than Metroid (' + castlevania.notes + ' vs ' + metroid.notes + ' notes)');
+
+  // and it is the CHARACTER doing it, not luck: the same brief with no title
+  const plainDoc = api.ask('a platformer, 30 seconds', { brief: { token: TOKEN } }).doc;
+  const plain = content(plainDoc);
+  const four = [metroid, mario, castlevania, recca];
+  const moved = four.filter(x => x.content !== plain).length;
+  ok(moved === 4, 'every one of them differs from the same platformer with no title named (' + moved + '/4)');
+  const distinct = new Set(four.map(x => x.content)).size;
+  ok(distinct === 4, 'and from each other (' + distinct + '/4 distinct)');
+
+  // a title's mode has to land even when a GENRE DEFAULT says otherwise:
+  // `platformer` carries mode 'major', and treating that as the user's own word
+  // is what made "a platformer like Metroid" come out cheerful.
+  const m = say('a platformer like metroid');
+  ok(m.ops.some(o => o.op === 'mode' && o.to === 'minor'),
+     "a genre's default mode does not block the title's (Metroid stays minor under `platformer`)");
+  ok(say('a platformer like metroid in major').ops.every(o => o.op !== 'mode' || o.to !== 'minor'),
+     'but a mode the user TYPES does block it');
+
+  // an unreachable band becomes a pull rather than nothing at all
+  ok(m.ops.some(o => o.op === 'tempo' && o.percent < 0) && /slower, towards its 88-118/.test(m.understood[0]),
+     'and a band the styles cannot reach pulls the tempo towards it, and says so (' + m.understood[0] + ')');
+
+  // THE BLEND MUST NOT STACK. Three recipes concatenated raw would move the
+  // melody three octaves and the tempo by half.
+  let piled = [];
+  REF.names().forEach(n => {
+    const r = say('like ' + n);
+    const oct = {}; let tempos = 0, vel = 0;
+    r.ops.forEach(o => {
+      if (o.op === 'register') oct[o.lane] = (oct[o.lane] || 0) + o.octaves;
+      if (o.op === 'tempo') tempos++;
+      if (o.op === 'velocity') vel += o.delta;
+    });
+    if (tempos > 1) piled.push(n + ': ' + tempos + ' tempo ops');
+    if (Object.keys(oct).some(l => Math.abs(oct[l]) > 1)) piled.push(n + ': octaves ' + JSON.stringify(oct));
+    if (Math.abs(vel) > 0.25 + 1e-9) piled.push(n + ': velocity ' + vel.toFixed(2));
+  });
+  ok(!piled.length, 'and blending traits never piles up into octaves or runaway tempo' +
+     (piled.length ? ' -- ' + piled.slice(0, 3).join('; ') : ''));
+}
+
+/* --------------------------------------------- the user's own adjectives too */
+console.log("the user's own adjectives reach the notes");
+{
+  // "a gloomy song about exploring a cave" -- both adjectives, and the cave.
+  const g = say('a gloomy song about exploring a cave');
+  ok(g.spec.scene === 'cave', '"exploring a cave" is a cave, not an overworld');
+  ok(g.moods.indexOf('darker') >= 0 && g.moods.indexOf('exploratory') >= 0,
+     'and BOTH adjectives are taken, not just the first (' + g.moods.join(', ') + ')');
+  ok(!g.notUnderstood.length, 'with nothing ignored');
+  const made = api.ask('a gloomy song about exploring a cave', { brief: { token: '7f3a12bc55de90aa' } });
+  const plainCave = api.describe(api.brief({ scene: 'cave', seconds: 30, token: '7f3a12bc55de90aa' }).doc);
+  ok(made.ok && api.describe(made.doc).bpm < plainCave.bpm,
+     'and the result is slower than the same cave without them (' +
+     api.describe(made.doc).bpm + ' vs ' + plainCave.bpm + ' bpm)');
+
+  // a tempo the sentence asked for is not compounded by a mood's own tempo
+  const f = api.ask('a cheerful fast platformer', { brief: { token: '7f3a12bc55de90aa' } });
+  ok(f.ok && api.describe(f.doc).bpm <= 175,
+     'an explicit "fast" is not compounded by cheerful\'s own +8% (' + api.describe(f.doc).bpm + ' bpm)');
+}
+
 /* -------------------------------------------------------- reading a title in */
 console.log('reading a title');
 {
@@ -140,8 +236,8 @@ console.log('what a title is NOT allowed to overrule');
   const p = say('a platformer like metroid');
   ok(p.spec.styles.join() === 'arcade,anthem', 'a named genre beats the title (platformer wins over metroidvania)');
   ok(!/used for: metroidvania/.test(joined(p)), 'and the summary does not claim the dial that lost (' + p.understood[0] + ')');
-  ok(!/bpm/.test(p.understood[0]),
-     'and drops the band it cannot reach with those styles rather than naming it (' + p.understood[0] + ')');
+  ok(/% slower, towards its/.test(p.understood[0]) && !/^like Metroid \(metroidvania\), used for: 88-118 bpm/.test(p.understood[0]),
+     'and a band those styles cannot reach becomes a pull towards it, described as one (' + p.understood[0] + ')');
 
   // THE GENERAL INVARIANT, which is the one worth holding: everything the
   // summary lists under "used for" is really in force. This is the assertion
@@ -156,8 +252,15 @@ console.log('what a title is NOT allowed to overrule');
     const head = r.understood[0] || '';
     const used = (head.match(/used for: (.*)$/) || [, ''])[1];
     if (!used || /nothing, you named/.test(used)) return;
-    used.split(', ').forEach(item => {
-      if (/bpm$/.test(item)) {
+    // the character is a comma list inside one item, so a bare split would
+    // hand each trait to the wrong branch; traits are checked as a group below
+    used.replace(/(\d+)% (slower|faster), towards/, '$1%_$2,_towards')
+        .split(', ').map(x => x.replace(/_/g, ' ')).forEach(item => {
+      if (/^\d+% (slower|faster), towards its/.test(item)) {
+        const pct = Number(item.match(/^(\d+)%/)[1]);
+        const dir = /slower/.test(item) ? -1 : 1;
+        if (!r.ops.some(o => o.op === 'tempo' && o.percent === pct * dir)) lies.push(text + ': pull ' + item);
+      } else if (/bpm$/.test(item)) {
         const [lo, hi] = item.replace(' bpm', '').split('-').map(Number);
         if (r.spec.bpmMin !== lo || r.spec.bpmMax !== hi) lies.push(text + ': band ' + item);
       } else if (item.indexOf('/') >= 0 || table2.some(x => x.id === item)) {
@@ -223,7 +326,8 @@ console.log('sentences people actually type');
   const complete = [
     ['a platformer overworld theme, arpeggiated, 40 seconds', r => r.spec.scene === 'overworld' && r.spec.seconds === 40],
     ['forty five seconds of upbeat shop music', r => r.spec.seconds === 45 && r.spec.scene === 'shop'],
-    ['two minutes of calm exploring music', r => r.spec.seconds === 120 && r.spec.scene === 'overworld'],
+    ['two minutes of calm world map music', r => r.spec.seconds === 120 && r.spec.scene === 'overworld'],
+    ['a gloomy exploratory piece, 40 seconds', r => r.spec.seconds === 40 && r.moods.length === 2],
     ['half a minute, tense, in the sewers', r => r.spec.seconds === 30 && r.spec.scene === 'cave'],
     ['a minute and a half of credits music', r => r.spec.seconds === 90 && r.spec.scene === 'credits'],
     ['16 bars of menacing dungeon music', r => r.spec.bars === 16 && r.spec.scene === 'cave'],

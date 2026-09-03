@@ -8526,9 +8526,17 @@ const Radio=(()=>{
 // Generated SONG TITLES are a third thing and are still forbidden from landing
 // on real cartridge names; `BLOCKED` in seed.js and verify-chrome hold that.
 //
+// CHARACTER IS THE POINT, not the genre. "A platformer like Metroid" is not
+// just a platformer: Metroid is gloomy, sparse and exploratory, and those words
+// have to reach the notes or naming the game did nothing. So a title carries
+// two or three TRAITS, drawn from the same published mood vocabulary a user can
+// type, and they are applied whether or not a genre was named alongside --
+// genre says what a piece is FOR, character says what it FEELS like, and the
+// two are orthogonal rather than competing.
+//
 // Positional, because it is a table and reads like one:
-//   P(name, genre, styles, mode, bpmMin, bpmMax, mood, technique, aliases)
-// mood is a WORD_MOODS value, technique a WORD_TECHNIQUES key, both optional.
+//   P(name, genre, styles, mode, bpmMin, bpmMax, character, technique, aliases)
+// character is a list of WORD_MOODS values, technique a WORD_TECHNIQUES key.
 (function (G) {
   'use strict';
 
@@ -8552,12 +8560,12 @@ const Radio=(()=>{
       .join(' ');
   }
 
-  function P(name, genre, styles, mode, bpmMin, bpmMax, mood, tech, aliases) {
+  function P(name, genre, styles, mode, bpmMin, bpmMax, character, tech, aliases) {
     var e = { name: name, genre: genre, styles: styles, mode: mode,
               bpmMin: bpmMin || null, bpmMax: bpmMax || null,
-              mood: mood || null, tech: tech || null };
+              character: character || [], tech: tech || null };
     // A short sentence saying what the reading IS, for the user-facing summary.
-    e.reads = [genre, styles.join('/'), mode].concat(mood ? [mood] : [])
+    e.reads = [genre, styles.join('/'), mode].concat(e.character)
       .concat(bpmMin ? [bpmMin + '-' + bpmMax + ' bpm'] : []).join(', ');
     [name].concat(aliases || []).forEach(function (a) {
       var k = normalize(a);
@@ -8568,166 +8576,166 @@ const Radio=(()=>{
   }
 
   /* ---- Nintendo ---------------------------------------------------------- */
-  P('Super Mario Bros.', 'platformer', ['funk', 'arcade'], 'major', 140, 168, 'playful', 'syncopated',
+  P('Super Mario Bros.', 'platformer', ['funk', 'arcade'], 'major', 140, 168, ['playful', 'happier', 'brighter'], 'syncopated',
     ['mario', 'super mario', 'super mario brothers', 'smb']);
-  P('Super Mario Bros. 2', 'platformer', ['arcade', 'funk'], 'major', 128, 155, 'playful', null, ['smb2']);
-  P('Super Mario Bros. 3', 'platformer', ['funk', 'anthem'], 'major', 132, 162, 'playful', 'syncopated', ['smb3']);
-  P('Super Mario Land', 'platformer', ['arcade', 'funk'], 'major', 142, 170, 'playful', null, []);
-  P('Super Mario Land 2', 'platformer', ['funk', 'arcade'], 'major', 128, 155, 'playful', null, []);
-  P('The Legend of Zelda', 'adventure', ['anthem', 'arcade'], 'major', 130, 158, 'heroic', null,
+  P('Super Mario Bros. 2', 'platformer', ['arcade', 'funk'], 'major', 128, 155, ['playful', 'dreamier'], null, ['smb2']);
+  P('Super Mario Bros. 3', 'platformer', ['funk', 'anthem'], 'major', 132, 162, ['playful', 'heroic', 'brighter'], 'syncopated', ['smb3']);
+  P('Super Mario Land', 'platformer', ['arcade', 'funk'], 'major', 142, 170, ['playful', 'happier'], null, []);
+  P('Super Mario Land 2', 'platformer', ['funk', 'arcade'], 'major', 128, 155, ['playful', 'brighter'], null, []);
+  P('The Legend of Zelda', 'adventure', ['anthem', 'arcade'], 'major', 130, 158, ['heroic', 'brighter', 'intense'], null,
     ['zelda', 'legend of zelda']);
-  P('Zelda II: The Adventure of Link', 'adventure', ['anthem', 'rock'], 'minor', 132, 162, 'heroic', null,
+  P('Zelda II: The Adventure of Link', 'adventure', ['anthem', 'rock'], 'minor', 132, 162, ['heroic', 'mysterious'], null,
     ['zelda 2', 'adventure of link']);
-  P("Link's Awakening", 'adventure', ['anthem', 'chill'], 'major', 118, 148, 'playful', null, ['links awakening']);
-  P('Metroid', 'metroidvania', ['drone', 'chill'], 'minor', 88, 118, 'mysterious', null, []);
-  P('Metroid II: Return of Samus', 'metroidvania', ['drone'], 'minor', 82, 112, 'mysterious', null,
+  P("Link's Awakening", 'adventure', ['anthem', 'chill'], 'major', 118, 148, ['playful', 'dreamier', 'brighter'], null, ['links awakening']);
+  P('Metroid', 'metroidvania', ['drone', 'chill'], 'minor', 88, 118, ['mysterious', 'sparser', 'calmer', 'darker'], null, []);
+  P('Metroid II: Return of Samus', 'metroidvania', ['drone'], 'minor', 82, 112, ['mysterious', 'sparser', 'darker'], null,
     ['metroid 2', 'return of samus']);
-  P('Kid Icarus', 'platformer', ['arcade', 'anthem'], 'major', 130, 158, 'heroic', null, []);
-  P('Ice Climber', 'platformer', ['arcade'], 'major', 132, 155, 'playful', null, []);
-  P('Balloon Fight', 'arcade', ['arcade'], 'major', 138, 162, 'playful', null, []);
-  P('Excitebike', 'racing', ['arcade', 'anthem'], 'major', 148, 172, null, null, []);
-  P('Punch-Out!!', 'sports', ['anthem', 'arcade'], 'major', 140, 168, 'intense', null,
+  P('Kid Icarus', 'platformer', ['arcade', 'anthem'], 'major', 130, 158, ['heroic', 'playful'], null, []);
+  P('Ice Climber', 'platformer', ['arcade'], 'major', 132, 155, ['playful', 'brighter'], null, []);
+  P('Balloon Fight', 'arcade', ['arcade'], 'major', 138, 162, ['playful', 'calmer'], null, []);
+  P('Excitebike', 'racing', ['arcade', 'anthem'], 'major', 148, 172, ['playful', 'intense'], null, []);
+  P('Punch-Out!!', 'sports', ['anthem', 'arcade'], 'major', 140, 168, ['intense', 'heroic'], null,
     ['punch out', 'mike tysons punch out']);
-  P('Donkey Kong', 'arcade', ['arcade'], 'major', 130, 158, 'playful', null, ['donkey kong jr']);
-  P('Donkey Kong Land', 'platformer', ['funk', 'breaks'], 'major', 128, 155, null, null, []);
-  P("Kirby's Adventure", 'platformer', ['funk', 'anthem'], 'major', 130, 158, 'playful', null, ['kirby']);
-  P("Kirby's Dream Land", 'platformer', ['arcade', 'funk'], 'major', 132, 160, 'playful', null, ['kirbys dreamland']);
-  P('StarTropics', 'adventure', ['anthem', 'arcade'], 'major', 125, 152, 'heroic', null, ['star tropics']);
-  P('Tetris', 'puzzle', ['arcade', 'house'], 'minor', 138, 166, 'playful', null, []);
-  P('Dr. Mario', 'puzzle', ['funk', 'house'], 'minor', 102, 128, 'playful', 'syncopated', ['dr mario']);
-  P('Pokemon Red and Blue', 'rpg', ['anthem', 'arcade'], 'major', 128, 156, 'playful', null,
+  P('Donkey Kong', 'arcade', ['arcade'], 'major', 130, 158, ['playful', 'intense'], null, ['donkey kong jr']);
+  P('Donkey Kong Land', 'platformer', ['funk', 'breaks'], 'major', 128, 155, ['playful', 'intense'], null, []);
+  P("Kirby's Adventure", 'platformer', ['funk', 'anthem'], 'major', 130, 158, ['playful', 'happier', 'brighter'], null, ['kirby']);
+  P("Kirby's Dream Land", 'platformer', ['arcade', 'funk'], 'major', 132, 160, ['playful', 'happier', 'brighter'], null, ['kirbys dreamland']);
+  P('StarTropics', 'adventure', ['anthem', 'arcade'], 'major', 125, 152, ['heroic', 'playful'], null, ['star tropics']);
+  P('Tetris', 'puzzle', ['arcade', 'house'], 'minor', 138, 166, ['playful', 'intense'], null, []);
+  P('Dr. Mario', 'puzzle', ['funk', 'house'], 'minor', 102, 128, ['playful', 'intense'], 'syncopated', ['dr mario']);
+  P('Pokemon Red and Blue', 'rpg', ['anthem', 'arcade'], 'major', 128, 156, ['playful', 'brighter', 'heroic'], null,
     ['pokemon', 'pokemon red', 'pokemon blue', 'pokemon yellow']);
-  P('Pokemon Gold and Silver', 'rpg', ['anthem', 'chill'], 'major', 122, 150, 'playful', null,
+  P('Pokemon Gold and Silver', 'rpg', ['anthem', 'chill'], 'major', 122, 150, ['playful', 'calmer', 'brighter'], null,
     ['pokemon gold', 'pokemon silver']);
-  P('Fire Emblem', 'strategy', ['anthem', 'ballad'], 'major', 110, 140, 'solemn', null, []);
-  P('Wario Land', 'platformer', ['funk', 'arcade'], 'major', 130, 158, 'playful', null, []);
+  P('Fire Emblem', 'strategy', ['anthem', 'ballad'], 'major', 110, 140, ['solemn', 'heroic'], null, []);
+  P('Wario Land', 'platformer', ['funk', 'arcade'], 'major', 130, 158, ['playful', 'intense'], null, []);
 
   /* ---- Konami ------------------------------------------------------------ */
-  P('Castlevania', 'platformer', ['rock', 'punk'], 'minor', 145, 172, 'menacing', 'arpeggiated', []);
-  P("Castlevania II: Simon's Quest", 'platformer', ['rock', 'anthem'], 'minor', 128, 158, 'mysterious', null,
+  P('Castlevania', 'platformer', ['rock', 'punk'], 'minor', 145, 172, ['menacing', 'intense'], 'arpeggiated', []);
+  P("Castlevania II: Simon's Quest", 'platformer', ['rock', 'anthem'], 'minor', 128, 158, ['mysterious', 'menacing', 'solemn'], null,
     ['castlevania 2', 'simons quest']);
-  P("Castlevania III: Dracula's Curse", 'platformer', ['rock', 'punk'], 'minor', 148, 178, 'intense', 'arpeggiated',
+  P("Castlevania III: Dracula's Curse", 'platformer', ['rock', 'punk'], 'minor', 148, 178, ['intense', 'menacing', 'frantic'], 'arpeggiated',
     ['castlevania 3', 'draculas curse']);
-  P('Contra', 'shooter', ['rock', 'dnb'], 'minor', 150, 178, 'intense', null, ['super c', 'super contra']);
-  P('Gradius', 'shmup', ['techno', 'dnb'], 'minor', 150, 176, 'intense', 'arpeggiated', []);
-  P('Life Force', 'shmup', ['techno', 'dnb'], 'minor', 150, 178, 'intense', null, ['salamander', 'lifeforce']);
-  P('Metal Gear', 'stealth', ['chill', 'drone'], 'minor', 98, 128, 'tense', null, []);
-  P('Teenage Mutant Ninja Turtles', 'platformer', ['rock', 'techno'], 'minor', 142, 170, 'intense', null,
+  P('Contra', 'shooter', ['rock', 'dnb'], 'minor', 150, 178, ['intense', 'frantic', 'heroic'], null, ['super c', 'super contra']);
+  P('Gradius', 'shmup', ['techno', 'dnb'], 'minor', 150, 176, ['intense', 'heroic'], 'arpeggiated', []);
+  P('Life Force', 'shmup', ['techno', 'dnb'], 'minor', 150, 178, ['intense', 'heroic'], null, ['salamander', 'lifeforce']);
+  P('Metal Gear', 'stealth', ['chill', 'drone'], 'minor', 98, 128, ['tense', 'sparser', 'mysterious'], null, []);
+  P('Teenage Mutant Ninja Turtles', 'platformer', ['rock', 'techno'], 'minor', 142, 170, ['intense', 'frantic'], null,
     ['tmnt', 'ninja turtles']);
-  P("The Goonies II", 'platformer', ['arcade', 'funk'], 'minor', 132, 160, 'mysterious', null, ['goonies']);
-  P('Lagrange Point', 'rpg', ['anthem', 'techno'], 'minor', 122, 152, null, 'arpeggiated', []);
-  P('Crisis Force', 'shmup', ['techno', 'dnb'], 'minor', 152, 180, 'intense', null, []);
-  P('Jackal', 'shooter', ['rock', 'techno'], 'minor', 140, 168, null, null, []);
-  P('Blades of Steel', 'sports', ['rock', 'anthem'], 'major', 140, 168, null, null, []);
+  P("The Goonies II", 'platformer', ['arcade', 'funk'], 'minor', 132, 160, ['mysterious', 'playful'], null, ['goonies']);
+  P('Lagrange Point', 'rpg', ['anthem', 'techno'], 'minor', 122, 152, ['mysterious', 'intense'], 'arpeggiated', []);
+  P('Crisis Force', 'shmup', ['techno', 'dnb'], 'minor', 152, 180, ['intense', 'frantic'], null, []);
+  P('Jackal', 'shooter', ['rock', 'techno'], 'minor', 140, 168, ['intense', 'tense'], null, []);
+  P('Blades of Steel', 'sports', ['rock', 'anthem'], 'major', 140, 168, ['intense', 'playful'], null, []);
 
   /* ---- Capcom ------------------------------------------------------------ */
-  P('Mega Man', 'platformer', ['anthem', 'rock'], 'minor', 150, 178, 'heroic', 'arpeggiated',
+  P('Mega Man', 'platformer', ['anthem', 'rock'], 'minor', 150, 178, ['heroic', 'intense', 'brighter'], 'arpeggiated',
     ['megaman', 'mega man 2', 'megaman 2', 'mega man 3', 'mega man 4', 'mega man 5', 'mega man 6',
      'mega man 5 gb', 'rockman']);
-  P('DuckTales', 'platformer', ['arcade', 'funk'], 'major', 140, 168, 'playful', null, ['duck tales', 'ducktales 2']);
-  P("Chip 'n Dale Rescue Rangers", 'platformer', ['funk', 'arcade'], 'major', 135, 162, 'playful', null,
+  P('DuckTales', 'platformer', ['arcade', 'funk'], 'major', 140, 168, ['playful', 'brighter', 'heroic'], null, ['duck tales', 'ducktales 2']);
+  P("Chip 'n Dale Rescue Rangers", 'platformer', ['funk', 'arcade'], 'major', 135, 162, ['playful', 'happier'], null,
     ['chip n dale', 'rescue rangers']);
-  P('Darkwing Duck', 'platformer', ['rock', 'arcade'], 'minor', 140, 168, null, null, []);
-  P("Ghosts 'n Goblins", 'platformer', ['arcade', 'rock'], 'minor', 148, 176, 'tense', null,
+  P('Darkwing Duck', 'platformer', ['rock', 'arcade'], 'minor', 140, 168, ['menacing', 'intense'], null, []);
+  P("Ghosts 'n Goblins", 'platformer', ['arcade', 'rock'], 'minor', 148, 176, ['tense', 'menacing', 'frantic'], null,
     ['ghosts n goblins', 'ghouls n ghosts']);
-  P('Bionic Commando', 'platformer', ['techno', 'rock'], 'minor', 140, 170, 'intense', null, []);
-  P('Strider', 'platformer', ['rock', 'techno'], 'minor', 142, 170, 'intense', null, []);
-  P('Little Nemo: The Dream Master', 'platformer', ['chill', 'arcade'], 'major', 122, 150, 'dreamier', null,
+  P('Bionic Commando', 'platformer', ['techno', 'rock'], 'minor', 140, 170, ['intense', 'heroic'], null, []);
+  P('Strider', 'platformer', ['rock', 'techno'], 'minor', 142, 170, ['intense', 'tense'], null, []);
+  P('Little Nemo: The Dream Master', 'platformer', ['chill', 'arcade'], 'major', 122, 150, ['dreamier', 'playful', 'calmer'], null,
     ['little nemo']);
-  P('Mighty Final Fight', 'fighting', ['funk', 'rock'], 'minor', 138, 165, null, null, ['final fight']);
-  P("Gargoyle's Quest", 'platformer', ['drone', 'rock'], 'minor', 118, 148, 'mysterious', null,
+  P('Mighty Final Fight', 'fighting', ['funk', 'rock'], 'minor', 138, 165, ['intense', 'playful'], null, ['final fight']);
+  P("Gargoyle's Quest", 'platformer', ['drone', 'rock'], 'minor', 118, 148, ['mysterious', 'menacing'], null,
     ['gargoyles quest', 'demons crest']);
-  P('1943', 'shmup', ['arcade', 'anthem'], 'minor', 145, 172, null, null, ['1942']);
+  P('1943', 'shmup', ['arcade', 'anthem'], 'minor', 145, 172, ['intense', 'solemn'], null, ['1942']);
 
   /* ---- Sunsoft ----------------------------------------------------------- */
-  P('Blaster Master', 'metroidvania', ['rock', 'anthem'], 'minor', 130, 160, 'heroic', null, []);
-  P('Journey to Silius', 'platformer', ['techno', 'dnb'], 'minor', 145, 172, 'intense', 'arpeggiated',
+  P('Blaster Master', 'metroidvania', ['rock', 'anthem'], 'minor', 130, 160, ['heroic', 'mysterious', 'intense'], null, []);
+  P('Journey to Silius', 'platformer', ['techno', 'dnb'], 'minor', 145, 172, ['intense', 'sadder', 'tense'], 'arpeggiated',
     ['silius']);
-  P('Batman', 'platformer', ['rock', 'techno'], 'minor', 140, 168, 'menacing', null,
+  P('Batman', 'platformer', ['rock', 'techno'], 'minor', 140, 168, ['menacing', 'tense', 'intense'], null,
     ['batman return of the joker']);
-  P('Gimmick!', 'platformer', ['funk', 'arcade'], 'major', 135, 162, 'playful', null, ['gimmick']);
-  P("Fester's Quest", 'platformer', ['rock', 'techno'], 'minor', 132, 160, 'menacing', null, ['festers quest']);
-  P('Ufouria', 'platformer', ['funk', 'arcade'], 'major', 130, 158, 'playful', null, []);
+  P('Gimmick!', 'platformer', ['funk', 'arcade'], 'major', 135, 162, ['playful', 'happier'], null, ['gimmick']);
+  P("Fester's Quest", 'platformer', ['rock', 'techno'], 'minor', 132, 160, ['menacing', 'tense'], null, ['festers quest']);
+  P('Ufouria', 'platformer', ['funk', 'arcade'], 'major', 130, 158, ['playful', 'happier'], null, []);
 
   /* ---- Tecmo ------------------------------------------------------------- */
-  P('Ninja Gaiden', 'platformer', ['rock', 'punk'], 'minor', 148, 176, 'intense', 'arpeggiated',
+  P('Ninja Gaiden', 'platformer', ['rock', 'punk'], 'minor', 148, 176, ['intense', 'tense', 'menacing'], 'arpeggiated',
     ['ninja gaiden 2', 'ninja gaiden 3', 'shadow warriors']);
-  P('Rygar', 'platformer', ['anthem', 'rock'], 'minor', 130, 160, 'heroic', null, []);
-  P('Tecmo Bowl', 'sports', ['anthem', 'funk'], 'major', 138, 166, null, null, []);
-  P("Solomon's Key", 'puzzle', ['arcade'], 'major', 132, 160, 'playful', null, ['solomons key']);
+  P('Rygar', 'platformer', ['anthem', 'rock'], 'minor', 130, 160, ['heroic', 'solemn', 'mysterious'], null, []);
+  P('Tecmo Bowl', 'sports', ['anthem', 'funk'], 'major', 138, 166, ['intense', 'heroic'], null, []);
+  P("Solomon's Key", 'puzzle', ['arcade'], 'major', 132, 160, ['playful', 'calmer'], null, ['solomons key']);
 
   /* ---- Rare / Tradewest -------------------------------------------------- */
-  P('Battletoads', 'platformer', ['dnb', 'techno'], 'minor', 130, 172, 'intense', null,
+  P('Battletoads', 'platformer', ['dnb', 'techno'], 'minor', 130, 172, ['intense', 'playful', 'frantic'], null,
     ['battletoads double dragon']);
-  P("Snake Rattle 'n' Roll", 'platformer', ['funk', 'arcade'], 'major', 138, 165, 'playful', 'syncopated',
+  P("Snake Rattle 'n' Roll", 'platformer', ['funk', 'arcade'], 'major', 138, 165, ['playful', 'happier'], 'syncopated',
     ['snake rattle n roll']);
-  P('R.C. Pro-Am', 'racing', ['arcade', 'techno'], 'major', 150, 178, null, null, ['rc pro am']);
-  P('Wizards & Warriors', 'platformer', ['anthem', 'arcade'], 'major', 135, 162, 'heroic', null,
+  P('R.C. Pro-Am', 'racing', ['arcade', 'techno'], 'major', 150, 178, ['intense', 'playful'], null, ['rc pro am']);
+  P('Wizards & Warriors', 'platformer', ['anthem', 'arcade'], 'major', 135, 162, ['heroic', 'brighter'], null,
     ['wizards and warriors', 'ironsword']);
-  P('Marble Madness', 'puzzle', ['funk', 'house'], 'major', 102, 128, null, 'syncopated', []);
-  P('Silver Surfer', 'shmup', ['techno', 'dnb'], 'minor', 155, 182, 'intense', 'arpeggiated', []);
-  P('Cobra Triangle', 'racing', ['arcade', 'techno'], 'major', 145, 172, null, null, []);
-  P('Captain Skyhawk', 'shmup', ['techno', 'rock'], 'minor', 128, 142, null, null, []);
+  P('Marble Madness', 'puzzle', ['funk', 'house'], 'major', 102, 128, ['playful', 'calmer', 'dreamier'], 'syncopated', []);
+  P('Silver Surfer', 'shmup', ['techno', 'dnb'], 'minor', 155, 182, ['intense', 'frantic', 'mysterious'], 'arpeggiated', []);
+  P('Cobra Triangle', 'racing', ['arcade', 'techno'], 'major', 145, 172, ['intense', 'playful'], null, []);
+  P('Captain Skyhawk', 'shmup', ['techno', 'rock'], 'minor', 128, 142, ['intense', 'tense'], null, []);
 
   /* ---- Technos ----------------------------------------------------------- */
-  P('Double Dragon', 'fighting', ['rock', 'funk'], 'minor', 135, 165, 'intense', null,
+  P('Double Dragon', 'fighting', ['rock', 'funk'], 'minor', 135, 165, ['intense', 'menacing'], null,
     ['double dragon 2', 'double dragon 3']);
-  P('River City Ransom', 'fighting', ['funk', 'arcade'], 'major', 135, 162, 'playful', null, ['river city']);
-  P("Super Dodge Ball", 'sports', ['funk', 'arcade'], 'major', 138, 165, 'playful', null, ['super dodgeball']);
+  P('River City Ransom', 'fighting', ['funk', 'arcade'], 'major', 135, 162, ['playful', 'intense'], null, ['river city']);
+  P("Super Dodge Ball", 'sports', ['funk', 'arcade'], 'major', 138, 165, ['playful', 'intense'], null, ['super dodgeball']);
 
   /* ---- RPGs and adventures ----------------------------------------------- */
-  P('Final Fantasy', 'rpg', ['anthem', 'ballad'], 'major', 108, 140, 'heroic', null,
+  P('Final Fantasy', 'rpg', ['anthem', 'ballad'], 'major', 108, 140, ['heroic', 'solemn', 'brighter'], null,
     ['final fantasy 3', 'final fantasy adventure']);
-  P('Dragon Warrior', 'rpg', ['ballad', 'chill'], 'major', 76, 108, 'solemn', null,
+  P('Dragon Warrior', 'rpg', ['ballad', 'chill'], 'major', 76, 108, ['solemn', 'calmer', 'heroic'], null,
     ['dragon quest', 'dragon warrior 4']);
-  P('Mother', 'rpg', ['chill', 'ballad'], 'major', 100, 132, 'sadder', null, ['earthbound beginnings']);
-  P('Crystalis', 'rpg', ['anthem', 'arcade'], 'minor', 125, 155, 'heroic', null, []);
-  P('Faxanadu', 'rpg', ['ballad', 'drone'], 'minor', 72, 96, 'mysterious', null, []);
-  P('Legacy of the Wizard', 'rpg', ['anthem', 'rock'], 'minor', 125, 155, null, null, []);
-  P('Willow', 'rpg', ['anthem', 'ballad'], 'major', 112, 142, 'heroic', null, []);
-  P('Ultima: Exodus', 'rpg', ['ballad', 'chill'], 'minor', 76, 108, 'solemn', null, ['ultima']);
-  P('Shadowgate', 'adventure', ['drone', 'ballad'], 'minor', 80, 110, 'mysterious', null, []);
-  P('Maniac Mansion', 'adventure', ['chill', 'funk'], 'minor', 110, 140, 'playful', null, []);
-  P('Deja Vu', 'adventure', ['chill', 'drone'], 'minor', 95, 125, 'mysterious', null, ['uninvited']);
-  P('The Immortal', 'adventure', ['drone', 'ballad'], 'minor', 88, 118, 'menacing', null, []);
+  P('Mother', 'rpg', ['chill', 'ballad'], 'major', 100, 132, ['sadder', 'dreamier', 'calmer'], null, ['earthbound beginnings']);
+  P('Crystalis', 'rpg', ['anthem', 'arcade'], 'minor', 125, 155, ['heroic', 'mysterious', 'intense'], null, []);
+  P('Faxanadu', 'rpg', ['ballad', 'drone'], 'minor', 72, 96, ['mysterious', 'sadder', 'calmer'], null, []);
+  P('Legacy of the Wizard', 'rpg', ['anthem', 'rock'], 'minor', 125, 155, ['heroic', 'mysterious'], null, []);
+  P('Willow', 'rpg', ['anthem', 'ballad'], 'major', 112, 142, ['heroic', 'solemn'], null, []);
+  P('Ultima: Exodus', 'rpg', ['ballad', 'chill'], 'minor', 76, 108, ['solemn', 'mysterious'], null, ['ultima']);
+  P('Shadowgate', 'adventure', ['drone', 'ballad'], 'minor', 80, 110, ['mysterious', 'menacing', 'sparser'], null, []);
+  P('Maniac Mansion', 'adventure', ['chill', 'funk'], 'minor', 110, 140, ['playful', 'mysterious'], null, []);
+  P('Deja Vu', 'adventure', ['chill', 'drone'], 'minor', 95, 125, ['mysterious', 'tense', 'sparser'], null, ['uninvited']);
+  P('The Immortal', 'adventure', ['drone', 'ballad'], 'minor', 88, 118, ['menacing', 'solemn', 'sparser'], null, []);
 
   /* ---- shmups ------------------------------------------------------------ */
-  P('Zanac', 'shmup', ['techno', 'dnb'], 'minor', 152, 180, 'intense', null, []);
-  P('The Guardian Legend', 'shmup', ['techno', 'dnb'], 'minor', 145, 175, 'intense', 'arpeggiated',
+  P('Zanac', 'shmup', ['techno', 'dnb'], 'minor', 152, 180, ['intense', 'frantic'], null, []);
+  P('The Guardian Legend', 'shmup', ['techno', 'dnb'], 'minor', 145, 175, ['intense', 'heroic'], 'arpeggiated',
     ['guardian legend']);
-  P('Recca', 'shmup', ['dnb', 'techno'], 'minor', 165, 188, 'frantic', null, ['summer carnival 92 recca']);
-  P('Gun-Nac', 'shmup', ['techno', 'arcade'], 'minor', 148, 175, null, null, ['gun nac']);
-  P('TwinBee', 'shmup', ['arcade', 'funk'], 'major', 140, 168, 'playful', null, ['twin bee']);
-  P('Abadox', 'shmup', ['techno', 'dnb'], 'minor', 130, 172, 'menacing', null, []);
-  P('Gyruss', 'shmup', ['arcade', 'techno'], 'minor', 148, 175, null, 'arpeggiated', []);
-  P('Galaga', 'arcade', ['arcade'], 'major', 140, 168, 'playful', null, ['galaxian']);
-  P('Xevious', 'shmup', ['arcade', 'drone'], 'minor', 138, 165, null, null, []);
+  P('Recca', 'shmup', ['dnb', 'techno'], 'minor', 165, 188, ['frantic', 'intense'], null, ['summer carnival 92 recca']);
+  P('Gun-Nac', 'shmup', ['techno', 'arcade'], 'minor', 148, 175, ['intense', 'playful'], null, ['gun nac']);
+  P('TwinBee', 'shmup', ['arcade', 'funk'], 'major', 140, 168, ['playful', 'happier'], null, ['twin bee']);
+  P('Abadox', 'shmup', ['techno', 'dnb'], 'minor', 130, 172, ['menacing', 'tense', 'frantic'], null, []);
+  P('Gyruss', 'shmup', ['arcade', 'techno'], 'minor', 148, 175, ['intense', 'mysterious'], 'arpeggiated', []);
+  P('Galaga', 'arcade', ['arcade'], 'major', 140, 168, ['playful', 'intense'], null, ['galaxian']);
+  P('Xevious', 'shmup', ['arcade', 'drone'], 'minor', 138, 165, ['mysterious', 'sparser'], null, []);
 
   /* ---- arcade ports and the rest ----------------------------------------- */
-  P('Pac-Man', 'arcade', ['arcade', 'funk'], 'major', 138, 165, 'playful', null, ['pac man', 'ms pac man']);
-  P('Dig Dug', 'arcade', ['arcade'], 'major', 135, 162, 'playful', null, []);
-  P('Bubble Bobble', 'arcade', ['arcade', 'funk'], 'major', 140, 168, 'playful', null, []);
-  P('Arkanoid', 'puzzle', ['arcade', 'techno'], 'minor', 142, 170, null, null, []);
-  P('BurgerTime', 'arcade', ['arcade', 'funk'], 'major', 138, 165, 'playful', null, ['burger time']);
-  P('Paperboy', 'arcade', ['arcade', 'funk'], 'major', 138, 165, 'playful', null, []);
-  P('Skate or Die', 'sports', ['rock', 'funk'], 'major', 140, 168, null, null, []);
-  P('Adventures of Lolo', 'puzzle', ['chill', 'arcade'], 'major', 122, 150, 'playful', null, ['lolo']);
-  P('Kickle Cubicle', 'puzzle', ['arcade', 'chill'], 'major', 128, 155, 'playful', null, []);
-  P('Felix the Cat', 'platformer', ['arcade', 'funk'], 'major', 132, 160, 'playful', null, []);
-  P("Bucky O'Hare", 'platformer', ['rock', 'anthem'], 'minor', 145, 172, 'intense', null, ['bucky ohare']);
-  P('Power Blade', 'platformer', ['techno', 'dnb'], 'minor', 128, 172, null, 'syncopated', []);
-  P('Shatterhand', 'platformer', ['techno', 'rock'], 'minor', 142, 170, 'intense', null, []);
-  P('Vice: Project Doom', 'platformer', ['techno', 'rock'], 'minor', 140, 168, null, null, ['project doom']);
-  P('Kabuki Quantum Fighter', 'platformer', ['techno', 'rock'], 'minor', 142, 170, 'intense', null, ['kabuki']);
-  P('Clash at Demonhead', 'platformer', ['funk', 'arcade'], 'major', 132, 160, 'playful', null, ['demonhead']);
-  P('Little Samson', 'platformer', ['anthem', 'arcade'], 'major', 132, 160, 'heroic', null, []);
-  P('Moon Crystal', 'platformer', ['ballad', 'anthem'], 'minor', 118, 148, 'sadder', null, []);
-  P('Solstice', 'puzzle', ['trance', 'techno'], 'minor', 140, 170, 'mysterious', 'arpeggiated', []);
-  P('Treasure Master', 'platformer', ['techno', 'trance'], 'minor', 128, 142, null, 'arpeggiated', []);
-  P('Friday the 13th', 'horror', ['drone', 'ballad'], 'minor', 85, 115, 'menacing', null, ['friday the 13']);
-  P('A Nightmare on Elm Street', 'horror', ['drone', 'ballad'], 'minor', 74, 100, 'menacing', null,
+  P('Pac-Man', 'arcade', ['arcade', 'funk'], 'major', 138, 165, ['playful', 'happier'], null, ['pac man', 'ms pac man']);
+  P('Dig Dug', 'arcade', ['arcade'], 'major', 135, 162, ['playful', 'happier'], null, []);
+  P('Bubble Bobble', 'arcade', ['arcade', 'funk'], 'major', 140, 168, ['playful', 'happier', 'brighter'], null, []);
+  P('Arkanoid', 'puzzle', ['arcade', 'techno'], 'minor', 142, 170, ['intense', 'calmer'], null, []);
+  P('BurgerTime', 'arcade', ['arcade', 'funk'], 'major', 138, 165, ['playful', 'happier'], null, ['burger time']);
+  P('Paperboy', 'arcade', ['arcade', 'funk'], 'major', 138, 165, ['playful', 'intense'], null, []);
+  P('Skate or Die', 'sports', ['rock', 'funk'], 'major', 140, 168, ['intense', 'playful'], null, []);
+  P('Adventures of Lolo', 'puzzle', ['chill', 'arcade'], 'major', 122, 150, ['playful', 'calmer'], null, ['lolo']);
+  P('Kickle Cubicle', 'puzzle', ['arcade', 'chill'], 'major', 128, 155, ['playful', 'happier'], null, []);
+  P('Felix the Cat', 'platformer', ['arcade', 'funk'], 'major', 132, 160, ['playful', 'happier'], null, []);
+  P("Bucky O'Hare", 'platformer', ['rock', 'anthem'], 'minor', 145, 172, ['intense', 'heroic'], null, ['bucky ohare']);
+  P('Power Blade', 'platformer', ['techno', 'dnb'], 'minor', 128, 172, ['intense', 'heroic'], 'syncopated', []);
+  P('Shatterhand', 'platformer', ['techno', 'rock'], 'minor', 142, 170, ['intense', 'tense'], null, []);
+  P('Vice: Project Doom', 'platformer', ['techno', 'rock'], 'minor', 140, 168, ['tense', 'menacing'], null, ['project doom']);
+  P('Kabuki Quantum Fighter', 'platformer', ['techno', 'rock'], 'minor', 142, 170, ['intense', 'frantic'], null, ['kabuki']);
+  P('Clash at Demonhead', 'platformer', ['funk', 'arcade'], 'major', 132, 160, ['playful', 'mysterious'], null, ['demonhead']);
+  P('Little Samson', 'platformer', ['anthem', 'arcade'], 'major', 132, 160, ['heroic', 'playful'], null, []);
+  P('Moon Crystal', 'platformer', ['ballad', 'anthem'], 'minor', 118, 148, ['sadder', 'solemn', 'dreamier'], null, []);
+  P('Solstice', 'puzzle', ['trance', 'techno'], 'minor', 140, 170, ['mysterious', 'dreamier', 'intense'], 'arpeggiated', []);
+  P('Treasure Master', 'platformer', ['techno', 'trance'], 'minor', 128, 142, ['intense', 'playful'], 'arpeggiated', []);
+  P('Friday the 13th', 'horror', ['drone', 'ballad'], 'minor', 85, 115, ['menacing', 'tense', 'sparser'], null, ['friday the 13']);
+  P('A Nightmare on Elm Street', 'horror', ['drone', 'ballad'], 'minor', 74, 100, ['menacing', 'tense', 'dreamier'], null,
     ['nightmare on elm street']);
-  P('Shantae', 'platformer', ['funk', 'house'], 'major', 102, 128, 'playful', null, []);
+  P('Shantae', 'platformer', ['funk', 'house'], 'major', 102, 128, ['playful', 'brighter'], null, []);
 
   // Longest key first, so "castlevania 3" beats "castlevania" and
   // "super mario bros 3" beats "mario".
@@ -9213,7 +9221,12 @@ var MOODS = {
   frantic:    [{ op: 'tempo', percent: 22 }, { op: 'subdivide', lane: 'Drums' }, { op: 'velocity', delta: 0.12 }],
   playful:    [{ op: 'mode', to: 'major' }, { op: 'tempo', percent: 10 }, { op: 'swing', on: true }, { op: 'register', lane: 'Melody', octaves: 1 }],
   solemn:     [{ op: 'tempo', percent: -18 }, { op: 'thin', lane: 'Drums' }, { op: 'register', lane: 'Bass', octaves: -1 }],
-  tense:      [{ op: 'mode', to: 'minor' }, { op: 'thin', lane: 'Melody' }, { op: 'velocity', delta: -0.05 }, { op: 'tempo', percent: 5 }]
+  tense:      [{ op: 'mode', to: 'minor' }, { op: 'thin', lane: 'Melody' }, { op: 'velocity', delta: -0.05 }, { op: 'tempo', percent: 5 }],
+  // EXPLORING IS A FEELING WITH A SHAPE: unhurried, thin underneath, long
+  // notes, and a melody that answers itself. It is the trait that makes a
+  // wandering game sound like one, and there was no way to ask for it.
+  exploratory:[{ op: 'tempo', percent: -8 }, { op: 'thin', lane: 'Harmony' },
+               { op: 'fade', fade: 0 }, { op: 'motion', lane: 'Melody', motion: 'echo' }]
 };
 
 function rowFor(midi) { return Math.max(0, Math.min(MEL_ROWS - 1, Math.round((midi - 48) * (MEL_ROWS - 1) / 36))); }
@@ -9714,7 +9727,10 @@ var WORD_SCENES = {
   'intro': 'title', 'opening': 'title', 'attract mode': 'title',
   'menu': 'menu', 'pause': 'menu', 'main menu': 'menu', 'file select': 'menu',
   'character select': 'menu', 'options screen': 'menu',
-  'overworld': 'overworld', 'world map': 'overworld', 'exploring': 'overworld',
+  // NOT 'exploring': it is a feeling, not a place, and as a scene word it beat
+  // "cave" in "a gloomy song about exploring a cave" purely for being longer.
+  // It is a mood now, and the overworld still has four ways to ask for it.
+  'overworld': 'overworld', 'world map': 'overworld',
   'field': 'overworld', 'travelling': 'overworld', 'traveling': 'overworld',
   'town': 'town', 'village': 'town', 'inn': 'town', 'tavern': 'town',
   'shop': 'shop', 'store': 'shop', 'market': 'shop', 'merchant': 'shop',
@@ -9754,7 +9770,14 @@ var WORD_MOODS = {
   frantic: 'frantic', panicked: 'frantic', desperate: 'frantic', hectic: 'frantic',
   playful: 'playful', bouncy: 'playful', silly: 'playful', jaunty: 'playful',
   solemn: 'solemn', stately: 'solemn', ceremonial: 'solemn', reverent: 'solemn',
-  tense: 'tense', anxious: 'tense', nervous: 'tense', suspenseful: 'tense'
+  tense: 'tense', anxious: 'tense', nervous: 'tense', suspenseful: 'tense',
+  exploratory: 'exploratory', exploring: 'exploratory', exploration: 'exploratory',
+  wandering: 'exploratory', roaming: 'exploratory',
+  gloomy: 'darker', moody: 'darker', murky: 'darker',
+  adventurous: 'heroic', daring: 'heroic', valiant: 'heroic',
+  whimsical: 'playful', mischievous: 'playful',
+  somber: 'solemn', sombre: 'solemn', majestic: 'solemn', dignified: 'solemn',
+  atmospheric: 'dreamier', spacious: 'dreamier'
 };
 // GENRES ARE REAL DIALS. The composer's fourteen styles ARE genres, so mapping
 // a genre word onto them is a true statement about what the machine will do --
@@ -9855,6 +9878,62 @@ var FLAT_TO_SHARP = { a: 'G#', b: 'A#', c: 'B', d: 'C#', e: 'D#', f: 'E', g: 'F#
 // Can any of these styles sit in this tempo band? The composer's styles each
 // have a narrow native range, and a premise naming both a style and a band
 // outside it leaves pickStyle() with nothing to pick.
+function _styleBand(styles) {
+  var table = composer && composer.styles ? composer.styles() : null;
+  if (!table || !styles || !styles.length) return null;
+  var lo = Infinity, hi = -Infinity;
+  styles.forEach(function (id) {
+    var st = table.filter(function (x) { return x.id === id; })[0];
+    if (!st) return;
+    lo = Math.min(lo, st.bpm[0]); hi = Math.max(hi, st.bpm[1]);
+  });
+  return isFinite(lo) ? [lo, hi] : null;
+}
+
+// WHEN THE BAND CANNOT BE MET, PULL TOWARDS IT ANYWAY. "A platformer like
+// Metroid" cannot sit at 88-118 -- the platformer styles live at 140-158 -- but
+// silently discarding the band, which is what this used to do, is how naming
+// Metroid came to change almost nothing. A platformer dragged 20% slower is
+// still recognisably the thing that was asked for, and the summary says that is
+// what happened rather than claiming the band.
+function _bandPull(styles, lo, hi) {
+  var band = _styleBand(styles);
+  if (!band) return 0;
+  var pct = Math.round(((lo + hi) / 2 / ((band[0] + band[1]) / 2) - 1) * 100);
+  return Math.max(-25, Math.min(25, Math.abs(pct) < 4 ? 0 : pct));
+}
+
+// A TITLE'S CHARACTER IS SEVERAL TRAITS, AND THEY HAVE TO COMBINE WITHOUT
+// PILING UP. Three recipes stacked raw would move the melody three octaves and
+// the tempo by half, so the additive dials are summed and then clamped, and the
+// structural ones (thin, subdivide, motion, swing, shape) are taken once each.
+// `mode` is dropped throughout: the title's own major/minor already said that,
+// and applying it two or three more times is how a blend turns to mud.
+function _blendMoods(words, opts) {
+  opts = opts || {};
+  var tempo = 0, oct = {}, vel = 0, seen = {}, out = [];
+  (words || []).forEach(function (w) {
+    (MOODS[w] || []).forEach(function (o) {
+      if (o.op === 'mode' && !opts.keepMode) return;
+      if (o.op === 'mode') { var mk2 = 'mode'; if (seen[mk2]) return; seen[mk2] = 1; out.push(Object.assign({}, o)); return; }
+      if (o.op === 'tempo') { tempo += (o.percent || 0); return; }
+      if (o.op === 'register') { oct[o.lane] = (oct[o.lane] || 0) + (o.octaves || 0); return; }
+      if (o.op === 'velocity') { vel += (o.delta || 0); return; }
+      var k = o.op + ':' + (o.lane || '') + ':' + (o.motion || o.duty || '');
+      if (seen[k]) return;
+      seen[k] = 1; out.push(Object.assign({}, o));
+    });
+  });
+  var clamp = function (v, lo, hi) { return Math.max(lo, Math.min(hi, v)); };
+  if (!opts.skipTempo && tempo) out.push({ op: 'tempo', percent: clamp(Math.round(tempo), -25, 25) });
+  Object.keys(oct).forEach(function (lane) {
+    var n = clamp(oct[lane], -1, 1);
+    if (n) out.push({ op: 'register', lane: lane, octaves: n });
+  });
+  if (vel) out.push({ op: 'velocity', delta: clamp(Math.round(vel * 100) / 100, -0.25, 0.25) });
+  return out;
+}
+
 function _bandIsReachable(styles, lo, hi) {
   var table = composer && composer.styles ? composer.styles() : null;
   if (!table || !styles || !styles.length) return true;   // nothing to check against
@@ -9872,7 +9951,7 @@ function interpret(text, opts) {
   var norm = _norm(src);
 
   var understood = [], notUnderstood = [], spec = {}, ops = [], moods = [];
-  var sawScene = null, sawNew = false, namedTechnique = false, unsupported = [];
+  var sawScene = null, sawNew = false, namedTechnique = false, modeTyped = false, unsupported = [];
 
   // 1. TITLES FIRST, and each match is blanked out of the sentence before
   //    anything else looks at it. Without that, "Kirby's Adventure" also
@@ -9952,8 +10031,14 @@ function interpret(text, opts) {
     if (mk[3]) { spec.mode = mk[3]; understood.push('mode: ' + mk[3]); }
     sawNew = true;
   }
-  if (!spec.mode && has('minor')) { spec.mode = 'minor'; understood.push('mode: minor'); }
-  if (!spec.mode && has('major')) { spec.mode = 'major'; understood.push('mode: major'); }
+  // TYPED, as opposed to inherited. `platformer` carries mode:'major' as a
+  // genre default, and treating that as the user's own word let it block a
+  // title's mode -- so "a platformer like Metroid" came out major and cheerful,
+  // which is the opposite of naming Metroid. Only a mode the user actually
+  // wrote, or a scene's functional requirement, outranks a reference.
+  if (mk && mk[3]) modeTyped = true;
+  if (!modeTyped && has('minor')) { spec.mode = 'minor'; modeTyped = true; understood.push('mode: minor'); }
+  else if (!modeTyped && has('major')) { spec.mode = 'major'; modeTyped = true; understood.push('mode: major'); }
 
   // 6. which voices to leave out. "no drums" is the single most common
   //    constraint anybody asks a music generator for -- room for dialogue and
@@ -10011,9 +10096,15 @@ function interpret(text, opts) {
   }
 
   // 10. moods, last so an explicit tempo word wins its own slot
+  // ALL OF THEM, NOT JUST THE FIRST. "gloomy and exploratory" is two traits and
+  // taking one silently discarded the other -- the same bug the title character
+  // had. They are blended below rather than concatenated, so three recipes
+  // cannot stack into three octaves and half the tempo.
   longestFirst(WORD_MOODS).forEach(function (w) {
-    if (moods.length || !has(w)) return;
-    moods.push(WORD_MOODS[w]); understood.push('mood: ' + WORD_MOODS[w]);
+    if (!has(w) || moods.length >= 3) return;
+    var m2 = WORD_MOODS[w];
+    if (moods.indexOf(m2) >= 0) return;
+    moods.push(m2); understood.push('mood: ' + m2);
   });
 
   // 11. and NOW the title fills whatever nobody named. Gap-fill is what keeps
@@ -10021,45 +10112,52 @@ function interpret(text, opts) {
   if (title) {
     var took = [];
     if (!spec.styles) { spec.styles = title.styles.slice(); took.push(title.styles.join('/')); }
+
     // A TITLE'S MODE IS A TRANSFORM, NOT A CONSTRAINT, and that is not a
     // stylistic choice -- it is what the composer's style table permits. Ten of
     // its fourteen styles are major-only (`modes:'maj'`), so asking for `rock`
     // AND `minor` empties the eligible pool, and brief()'s fallback then throws
     // the STYLES away and keeps the mode. Forty-eight of the titles here were
     // silently losing their genre that way while the summary still named it.
-    // Composing in the style and moving the third, sixth and seventh afterwards
-    // gets both, and it is the same thing the mood recipes already do.
     //
-    // A NAMED SCENE KEEPS ITS OWN MODE regardless: a scene is a functional
-    // requirement -- a game-over cue must not come out jaunty -- while a title
-    // is an atmosphere hint. Typing "minor" or "major" still wins over both.
-    if (!spec.mode && !spec.scene) {
+    // A NAMED SCENE KEEPS ITS OWN MODE: a scene is a functional requirement --
+    // a game-over cue must not come out jaunty -- while a title is an
+    // atmosphere hint. A mode the user TYPED beats both.
+    if (!modeTyped && !spec.scene && spec.mode !== title.mode) {
       ops.push({ op: 'mode', to: title.mode });
       took.push(title.mode);
     }
-    // AND THE BAND ONLY IF SOME STYLE CAN REACH IT. brief() falls back by
-    // deleting `styles` when a premise is unsatisfiable, so an out-of-range
-    // band does not fail loudly -- it quietly discards the genre, which is the
-    // part of a reference the user can actually hear, while the summary goes on
-    // naming it. Dropping the band instead keeps the reading honest, and
-    // verify-language walks every title to prove none of them need it.
-    if (spec.bpmMin == null && title.bpmMin && _bandIsReachable(spec.styles, title.bpmMin, title.bpmMax)) {
-      spec.bpmMin = title.bpmMin; spec.bpmMax = title.bpmMax;
-      took.push(title.bpmMin + '-' + title.bpmMax + ' bpm');
+
+    // TEMPO: the band when the styles in force can reach it, and a pull towards
+    // it when they cannot. Dropping it outright was the bug -- it meant naming
+    // a slow, brooding game next to a fast genre changed nothing at all.
+    var tempoHandled = false;
+    if (title.bpmMin && spec.bpmMin == null) {
+      if (_bandIsReachable(spec.styles, title.bpmMin, title.bpmMax)) {
+        spec.bpmMin = title.bpmMin; spec.bpmMax = title.bpmMax;
+        took.push(title.bpmMin + '-' + title.bpmMax + ' bpm');
+        tempoHandled = true;
+      } else {
+        var pull = _bandPull(spec.styles, title.bpmMin, title.bpmMax);
+        if (pull) {
+          ops.push({ op: 'tempo', percent: pull });
+          took.push(Math.abs(pull) + '% ' + (pull < 0 ? 'slower' : 'faster') +
+                    ', towards its ' + title.bpmMin + '-' + title.bpmMax + ' bpm');
+          tempoHandled = true;
+        }
+      }
     }
-    // A TITLE'S MOOD GOES IN AS OPS, NOT AS A MOOD, and with its tempo and
-    // mode changes removed. Both of those were already decided by things that
-    // outrank a reference: the title's own tempo band, and whatever the scene
-    // said. Left in, they fought each other -- "a platformer like Metroid" set
-    // an 88-118 band and then the `mysterious` recipe dragged it to 79, so the
-    // summary named a band the song did not sit in. What survives is the part
-    // a mood is actually for: register, dynamics, density and articulation.
-    if (!moods.length && title.mood && MOODS[title.mood]) {
-      MOODS[title.mood].forEach(function (o) {
-        if (o.op === 'tempo' || o.op === 'mode') return;
-        ops.push(Object.assign({}, o));
-      });
-      took.push(title.mood);
+
+    // CHARACTER, AND IT APPLIES WHETHER OR NOT A GENRE WAS NAMED. This is the
+    // whole point of the table. "A platformer like Metroid" is not just a
+    // platformer: Metroid is gloomy, sparse and unhurried, and if naming it
+    // only survives when nothing else is said then it may as well not be there.
+    // Genre says what the piece is FOR, character says what it FEELS like, and
+    // the two are orthogonal. A mood the user typed themselves still wins,
+    // because that is a more specific request than a reference.
+    if (!moods.length && title.character && title.character.length) {
+      _blendMoods(title.character, { skipTempo: tempoHandled }).forEach(function (o) { ops.push(o); });
+      took.push(title.character.join(', '));
     }
     if (!namedTechnique && title.tech && WORD_TECHNIQUES[title.tech]) {
       ops.push(Object.assign({}, WORD_TECHNIQUES[title.tech])); took.push(title.tech);
@@ -10160,7 +10258,7 @@ function ask(text, opts) {
     // confirmed, since those are the ones they cannot verify by ear in a
     // second. Ops report themselves separately, below, so nothing doubles up.
     applied = applied.concat(read.understood.filter(function (u) {
-      return /^(like |scene|game genre|genre|form|length|key|mode|without|loops|ends on|[A-Z][a-z]+ (and|only))/.test(u);
+      return /^(like |scene|game genre|genre|form|mood|length|key|mode|without|loops|ends on|technique|[A-Z][a-z]+ (and|only))/.test(u);
     }));
     if (made.unmet && made.unmet.length) skipped = skipped.concat(made.unmet);
   }
@@ -10170,7 +10268,15 @@ function ask(text, opts) {
   // "without Drums".
   var already = (made && read.spec.exclude) ? [].concat(read.spec.exclude) : [];
   var ops = read.ops.filter(function (o) { return !(o.op === 'drop' && already.indexOf(o.lane) >= 0); });
-  read.moods.forEach(function (m) { ops = ops.concat(MOODS[m] || []); });
+  // Blended, for the same reason a title's character is: concatenating three
+  // recipes adds their tempo changes and their octave shifts together.
+  // A TEMPO THE SENTENCE ALREADY ASKED FOR WINS. "a cheerful fast platformer"
+  // has both an explicit "fast" and `happier`'s own +8%, and compounding them
+  // ran the song to 180 bpm -- neither word asked for that.
+  ops = ops.concat(_blendMoods(read.moods, {
+    keepMode: true,
+    skipTempo: ops.some(function (o) { return o.op === 'tempo'; })
+  }));
   if (ops.length) {
     var r = transform(doc, ops);
     doc = r.doc; applied = applied.concat(r.applied); skipped = skipped.concat(r.skipped);

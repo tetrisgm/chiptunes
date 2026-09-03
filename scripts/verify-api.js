@@ -425,7 +425,7 @@ function mcp(messages) {
   // reading, which is the claim the whole feature rests on.
   {
     const REF = require(path.join(__dirname, '..', 'src', 'reference-styles.js'));
-    const allowed = ['name', 'genre', 'styles', 'mode', 'bpmMin', 'bpmMax', 'mood', 'tech', 'reads'];
+    const allowed = ['name', 'genre', 'styles', 'mode', 'bpmMin', 'bpmMax', 'character', 'tech', 'reads'];
     const extra = [];
     Object.keys(REF.TITLES).forEach(k => Object.keys(REF.TITLES[k]).forEach(f => {
       if (allowed.indexOf(f) < 0 && extra.indexOf(f) < 0) extra.push(f);

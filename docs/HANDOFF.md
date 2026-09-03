@@ -2350,3 +2350,64 @@ takes.
 from a randomly seeded batch. Measured over 60 batches: one collided, worst case
 29/30. It was failing ~1.7% of runs for no reason, so it now has a floor of 28
 with the measurement recorded next to it.
+
+# 2026-09-02 (third pass) — A title is a CHARACTER, not just a genre
+
+The owner disputed the precedence rule from the pass above, and was right. "A
+platformer like Metroid" is not just a platformer: Metroid is gloomy, sparse and
+about exploring, and those words have to reach the notes or naming the game did
+nothing. The shipped behaviour reported `used for: mysterious` and nothing else
+— an explicit genre took the styles, a genre DEFAULT of `mode:'major'` blocked
+the title's minor, and the reachability guard discarded the tempo band. Naming
+Metroid was very nearly decoration.
+
+**Genre says what a piece is FOR; character says what it FEELS like.** They are
+orthogonal, so they now compose instead of competing.
+
+- Each title carries a **character of two to four traits** drawn from the same
+  published mood vocabulary a user can type, not one mood. Metroid is
+  `mysterious, sparser, calmer, darker`; Mario is `playful, happier, brighter`;
+  Castlevania is `menacing, intense`.
+- **Character applies whether or not a genre was named.** Only a mood the user
+  typed themselves suppresses it, being the more specific request.
+- **A genre's default mode no longer blocks a title's.** `platformer` carries
+  `mode:'major'` as a default, and treating that as the user's own word is what
+  made "like Metroid" come out cheerful. Only a TYPED mode, or a scene's
+  functional requirement, outranks a reference now (`modeTyped`).
+- **An unreachable tempo band pulls instead of vanishing.** A platformer cannot
+  sit at Metroid's 88-118, but it can be dragged 25% towards it, and the summary
+  says that is what happened rather than claiming the band.
+- **Traits blend, they do not stack.** Three recipes concatenated raw would move
+  the melody three octaves and the tempo by half. Additive dials are summed then
+  clamped (±1 octave a lane, ±25% tempo, ±0.25 velocity); structural ops (thin,
+  subdivide, motion, swing, shape) are taken once each; `mode` is dropped from
+  the blend because the title's own major/minor already said it.
+
+## The user's own adjectives got the same treatment
+
+Only the FIRST mood word in a sentence was ever taken, so "gloomy and
+exploratory" silently discarded one of them. All of them are taken now (up to
+three) and blended the same way. An explicit tempo word suppresses the blend's
+own tempo, because "a cheerful fast platformer" was compounding "fast" with
+`happier`'s +8% and arriving at 180 bpm, which neither word asked for.
+
+Two vocabulary changes fell out of the owner's own example, "a gloomy song about
+exploring a cave":
+
+- `gloomy` did not exist. Added, along with moody, murky, adventurous, daring,
+  whimsical, somber, majestic, atmospheric, spacious, wandering, roaming.
+- **`exploring` was a SCENE word meaning overworld**, and being the longer
+  phrase it beat "cave" in that very sentence. Exploring is a feeling, not a
+  place. It is a mood now — `exploratory`, a new recipe: unhurried, thin
+  underneath, sustained notes, and an echoing melody. The overworld still has
+  four other ways to ask for it.
+
+## Gate
+
+`verify-language` now measures the MUSIC rather than the summary. Same token,
+same "a platformer, 30 seconds", one word different: Metroid 112 bpm, Mario 149,
+Castlevania 150 at 985 notes, Recca 176. All four differ from the untitled
+platformer and from each other, compared on note CONTENT — an earlier version
+compared bpm and note count and called Mario "unchanged", because swing, duty
+and register move none of those. It also asserts the blend never piles up,
+across all 115 titles.
