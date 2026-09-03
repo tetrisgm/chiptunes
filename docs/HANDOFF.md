@@ -2411,3 +2411,72 @@ platformer and from each other, compared on note CONTENT — an earlier version
 compared bpm and note count and called Mario "unchanged", because swing, duty
 and register move none of those. It also asserts the blend never piles up,
 across all 115 titles.
+
+# 2026-09-02 (fourth pass) — The words have to move the notes
+
+The owner's point: "if I say write a happy song, it should write a happy song...
+those things need to have an actual effect on the music." He is not asking for a
+model — he said so — but for the mapping a human has from a word to the shape of
+the MIDI.
+
+He was right that this did not exist. A mood was three settings — mode, tempo,
+octave — applied to an already-written song. A happy song and a sad song were
+the same tune under different lighting: same contour, same leaps, same
+consonance, same cadence.
+
+## Four operations that WRITE rather than set
+
+- **`chordtones`** — a melody note that clashes with the chord sounding under it
+  moves to the nearest pitch that does not, at most a whole tone. Exact: the
+  harmony is already in the song, so nothing is invented.
+- **`arc`** — ramps a phrase up or down in SCALE DEGREES, not semitones, so it
+  reshapes the line instead of detuning it. Gated on both counts.
+- **`smooth`** — leaps become steps by octave displacement, which preserves the
+  pitch class and so leaves the harmony alone. This is what makes a lullaby.
+- **`accent`** — metric emphasis: downbeat loudest, half-bar next, offbeats
+  quieter. Clamped at 0.05 rather than 0, because velocity 0 is a REST and is
+  dropped from the song, so accenting an offbeat must never delete it.
+
+All sixteen mood recipes were rewritten around these. `_blendMoods` emits in a
+MUSICAL order (reshape, then fix consonance, then texture, then dynamics)
+because snapping to chord tones *before* arcing a phrase just moves the notes
+back off the chord, while every individual op still reports success.
+
+## `analyse(doc)`, and the bug it found immediately
+
+`describe()` gives the facts of a song; `analyse()` gives its character:
+majorness, phrase arc, consonance, step ratio, mean pitch, density, whether it
+ends on the tonic. It exists so a claim like "happier" can be checked instead of
+trusted.
+
+It immediately exposed a real musical error. **Consonance was defined as
+pitch-class set membership** — a melody note counted as consonant only if its
+pitch class was already IN the sounding chord. A third above the bass is
+consonant. So is a sixth. The same wrong definition was in the operation AND in
+the measurement, so they agreed with each other and both were wrong: a good tune
+measured 0.19, `chordtones` shoved half of it onto the root, and where only a
+bass note was sounding it could find no legal target and **silently gave up**,
+reporting nothing left to snap while the measure still said the music was
+dissonant. It is one shared `_isConsonant` now (unison, thirds, fourth, fifth,
+sixths), and the op reports what it could not fix rather than returning quietly.
+
+A second measurement bug: `arc` ramps WITHIN each phrase, and `analyse` measured
+first-half-vs-second-half of the whole piece, which a per-phrase ramp does not
+move. A working operation looked like a no-op. `melody.phraseArc` measures what
+the operation controls; `melody.arc` keeps the whole-piece figure.
+
+## The gate
+
+`verify-language` now measures batches. Over 22 songs each, happy vs sad:
+majorness 0.94/0.00, tempo 144/120, phrase arc +1.8/−1.6, consonance 0.99/0.64,
+mean pitch 84/69. Each gap is asserted.
+
+The strongest assertion is per-song and deliberately excludes **both** majorness
+and tempo, since those are one flag and one number set directly by the recipe:
+on the WRITING alone, each song is classified correctly **93%** of the time.
+Features are standardised before being summed — an earlier version added them
+raw at wildly different scales, scored 77%, and that said more about the
+arithmetic than about the music. Floor set at 80%.
+
+Each operation is also asserted individually to do what it says, to stay in key,
+never to silence a note into a rest, and to remain deterministic.

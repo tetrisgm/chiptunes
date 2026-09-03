@@ -186,6 +186,26 @@ gate asserts. Explicit words still beat the reference, so *"a platformer like
 Metroid"* keeps the platformer's styles, and a named scene keeps its own mode,
 so a dungeon stays minor.
 
+**And the words move the notes, which is checked rather than claimed.** A mood
+used to be three settings (mode, tempo, octave), so a happy song and a sad song
+were the same tune under different lighting. Four operations now change how the
+music is *written*: `chordtones` (consonance against the chord underneath),
+`arc` (whether a phrase climbs or falls, counted in scale degrees so it reshapes
+rather than detunes), `smooth` (leaps into steps) and `accent` (emphasis on the
+beat). `analyse()` measures the result, so the claim is falsifiable:
+
+| over 22 songs each | happy | sad |
+| --- | --- | --- |
+| major-flavoured pitch material | 0.94 | 0.00 |
+| tempo | 144 bpm | 120 bpm |
+| phrase climbs or falls | **+1.8** | **−1.6** |
+| melody agrees with the chord under it | **0.99** | 0.64 |
+| where the tune sits | 84 | 69 |
+
+`npm run test:language` asserts every one of those gaps, and that each song is
+sorted correctly **93% of the time by the writing alone** — with major/minor and
+tempo excluded from the classifier, since those are the easy half.
+
 Everything else is refused out loud rather than quietly dropped: a name that is
 not on the list, a waltz, vocals, a guitar, a Dorian mode, reverb. It says which,
 and why. The parser is deterministic and lives in `src/api.js`, so it names back

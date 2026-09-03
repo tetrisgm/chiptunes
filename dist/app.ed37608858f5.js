@@ -8909,7 +8909,8 @@ function capabilities() {
     references: 'Naming a game from `titles` is READ AS a genre description -- genre, styles, major/minor, a tempo band, a mood, one technique -- and the reading is always said back so you can disagree with it. It is not an imitation: nothing here is trained on or derived from anybody else\'s music, and a title can only set dials you could type yourself. A name that is not on the list is REFUSED rather than quietly ignored, because it maps to nothing at all.',
     operations: ['tempo', 'transpose', 'register', 'mode', 'velocity', 'thin', 'double',
                  'subdivide', 'drop', 'trim', 'repeat', 'swing', 'resolve', 'motion',
-                 'shape', 'fade'],
+                 'shape', 'fade', 'chordtones', 'arc', 'smooth', 'accent'],
+    writing: 'chordtones, arc, smooth and accent are the operations that change how the music is WRITTEN rather than how it is set: consonance against the chord underneath, the rise or fall of a phrase, leaps turned into steps, and emphasis on the beat. analyse() measures all four so a caller can check a word did what it said.',
     layers: LAYER_SETS.map(function (l) { return { name: l.name, lanes: l.keep, use: l.use }; }),
     variety: 'Cohesion devices are opt-in on purpose. soundtrack() shares a KEY by default, which costs no variety; a shared motif needs motif:true and is transposed per cue rather than copied. Nothing is shared between two different soundtracks.',
     limits: { maxTitle: 48 }
@@ -9205,29 +9206,98 @@ var SCENES = {
 // capabilities() so a model applies "sadder" the same way twice rather than
 // inventing a reading each time.
 var MOODS = {
-  happier:  [{ op: 'mode', to: 'major' }, { op: 'tempo', percent: 8 }, { op: 'register', lane: 'Melody', octaves: 1 }],
-  sadder:   [{ op: 'mode', to: 'minor' }, { op: 'tempo', percent: -10 }, { op: 'velocity', delta: -0.1 }],
-  darker:   [{ op: 'mode', to: 'minor' }, { op: 'register', lane: 'Melody', octaves: -1 }, { op: 'thin', lane: 'Drums' }],
-  brighter: [{ op: 'register', lane: 'Melody', octaves: 1 }, { op: 'shape', lane: 'Melody', duty: 1 }],
-  calmer:   [{ op: 'tempo', percent: -12 }, { op: 'thin', lane: 'Drums' }, { op: 'velocity', delta: -0.15 }],
-  intense:  [{ op: 'tempo', percent: 12 }, { op: 'velocity', delta: 0.15 }, { op: 'register', lane: 'Bass', octaves: -1 }],
+  // THESE ARE COMPOSITIONAL, not just settings. An earlier version of this
+  // table was three dials a piece -- mode, tempo, octave -- which meant a happy
+  // song and a sad song were the same tune under different lighting: same
+  // contour, same leaps, same consonance, same cadence. A person told to write
+  // a happy tune changes those. So `arc`, `chordtones`, `smooth` and `accent`
+  // are in here, and `analyse()` measures whether they landed.
+  happier:  [{ op: 'mode', to: 'major' }, { op: 'arc', lane: 'Melody', degrees: 2 },
+             { op: 'chordtones', lane: 'Melody' }, { op: 'accent', amount: 0.12 },
+             { op: 'tempo', percent: 8 }, { op: 'register', lane: 'Melody', octaves: 1 }],
+  sadder:   [{ op: 'mode', to: 'minor' }, { op: 'arc', lane: 'Melody', degrees: -2 },
+             { op: 'fade', fade: 0 }, { op: 'thin', lane: 'Drums' },
+             { op: 'tempo', percent: -10 }, { op: 'velocity', delta: -0.1 }],
+  darker:   [{ op: 'mode', to: 'minor' }, { op: 'arc', lane: 'Melody', degrees: -1 },
+             { op: 'thin', lane: 'Drums' }, { op: 'register', lane: 'Melody', octaves: -1 }],
+  brighter: [{ op: 'chordtones', lane: 'Melody' }, { op: 'shape', lane: 'Melody', duty: 1 },
+             { op: 'register', lane: 'Melody', octaves: 1 }],
+  calmer:   [{ op: 'smooth', lane: 'Melody' }, { op: 'fade', fade: 0 }, { op: 'thin', lane: 'Drums' },
+             { op: 'tempo', percent: -12 }, { op: 'velocity', delta: -0.15 }],
+  intense:  [{ op: 'accent', amount: 0.2 }, { op: 'tempo', percent: 12 },
+             { op: 'velocity', delta: 0.15 }, { op: 'register', lane: 'Bass', octaves: -1 }],
   sparser:  [{ op: 'thin', lane: 'Harmony' }, { op: 'thin', lane: 'Drums' }],
-  dreamier: [{ op: 'tempo', percent: -8 }, { op: 'motion', lane: 'Melody', motion: 'echo' }, { op: 'thin', lane: 'Drums' }],
+  dreamier: [{ op: 'smooth', lane: 'Melody' }, { op: 'motion', lane: 'Melody', motion: 'echo' },
+             { op: 'thin', lane: 'Drums' }, { op: 'tempo', percent: -8 }],
   // compounds, spelled out for the same reason the simple ones are: a word that
   // means something different each time it is used is not a vocabulary
-  heroic:     [{ op: 'mode', to: 'major' }, { op: 'tempo', percent: 6 }, { op: 'register', lane: 'Melody', octaves: 1 }, { op: 'velocity', delta: 0.1 }],
-  mysterious: [{ op: 'mode', to: 'minor' }, { op: 'tempo', percent: -10 }, { op: 'thin', lane: 'Drums' }, { op: 'motion', lane: 'Melody', motion: 'echo' }],
-  menacing:   [{ op: 'mode', to: 'minor' }, { op: 'register', lane: 'Melody', octaves: -1 }, { op: 'register', lane: 'Bass', octaves: -1 }, { op: 'velocity', delta: 0.1 }],
-  frantic:    [{ op: 'tempo', percent: 22 }, { op: 'subdivide', lane: 'Drums' }, { op: 'velocity', delta: 0.12 }],
-  playful:    [{ op: 'mode', to: 'major' }, { op: 'tempo', percent: 10 }, { op: 'swing', on: true }, { op: 'register', lane: 'Melody', octaves: 1 }],
-  solemn:     [{ op: 'tempo', percent: -18 }, { op: 'thin', lane: 'Drums' }, { op: 'register', lane: 'Bass', octaves: -1 }],
-  tense:      [{ op: 'mode', to: 'minor' }, { op: 'thin', lane: 'Melody' }, { op: 'velocity', delta: -0.05 }, { op: 'tempo', percent: 5 }],
+  heroic:     [{ op: 'mode', to: 'major' }, { op: 'arc', lane: 'Melody', degrees: 2 },
+               { op: 'chordtones', lane: 'Melody' }, { op: 'resolve' }, { op: 'accent', amount: 0.15 },
+               { op: 'tempo', percent: 6 }, { op: 'register', lane: 'Melody', octaves: 1 },
+               { op: 'velocity', delta: 0.1 }],
+  mysterious: [{ op: 'mode', to: 'minor' }, { op: 'arc', lane: 'Melody', degrees: -1 },
+               { op: 'motion', lane: 'Melody', motion: 'echo' }, { op: 'thin', lane: 'Drums' },
+               { op: 'tempo', percent: -10 }],
+  menacing:   [{ op: 'mode', to: 'minor' }, { op: 'arc', lane: 'Melody', degrees: -2 },
+               { op: 'register', lane: 'Melody', octaves: -1 }, { op: 'register', lane: 'Bass', octaves: -1 },
+               { op: 'velocity', delta: 0.1 }],
+  frantic:    [{ op: 'subdivide', lane: 'Drums' }, { op: 'accent', amount: 0.2 },
+               { op: 'tempo', percent: 22 }, { op: 'velocity', delta: 0.12 }],
+  playful:    [{ op: 'mode', to: 'major' }, { op: 'chordtones', lane: 'Melody' },
+               { op: 'swing', on: true }, { op: 'accent', amount: 0.15 },
+               { op: 'tempo', percent: 10 }, { op: 'register', lane: 'Melody', octaves: 1 }],
+  solemn:     [{ op: 'smooth', lane: 'Melody' }, { op: 'fade', fade: 0 }, { op: 'thin', lane: 'Drums' },
+               { op: 'tempo', percent: -18 }, { op: 'register', lane: 'Bass', octaves: -1 }],
+  tense:      [{ op: 'mode', to: 'minor' }, { op: 'thin', lane: 'Melody' },
+               { op: 'velocity', delta: -0.05 }, { op: 'tempo', percent: 5 }],
   // EXPLORING IS A FEELING WITH A SHAPE: unhurried, thin underneath, long
   // notes, and a melody that answers itself. It is the trait that makes a
   // wandering game sound like one, and there was no way to ask for it.
-  exploratory:[{ op: 'tempo', percent: -8 }, { op: 'thin', lane: 'Harmony' },
-               { op: 'fade', fade: 0 }, { op: 'motion', lane: 'Melody', motion: 'echo' }]
+  exploratory:[{ op: 'smooth', lane: 'Melody' }, { op: 'thin', lane: 'Harmony' },
+               { op: 'fade', fade: 0 }, { op: 'motion', lane: 'Melody', motion: 'echo' },
+               { op: 'tempo', percent: -8 }]
 };
+
+// CONSONANCE, DEFINED ONCE. This was wrong in both the operation and the
+// measurement, identically, which is exactly why sharing it matters: a melody
+// note was called consonant only if its pitch class was already IN the chord.
+// A third above the bass is consonant. So is a sixth. Under the old rule a
+// perfectly good tune measured 0.19, `chordtones` shoved half of it onto the
+// root, and where only a bass note was sounding it could not find a legal
+// target at all and silently gave up -- reporting nothing left to snap while
+// the measure still said the music was dissonant.
+//
+// Intervals against every pitch sounding underneath: unison, thirds, fourth,
+// fifth and sixths are consonant; seconds, tritone and sevenths are not.
+var CONSONANT_INTERVALS = { 0: 1, 3: 1, 4: 1, 5: 1, 7: 1, 8: 1, 9: 1 };
+function _isConsonant(pc, set) {
+  var keys = set ? Object.keys(set) : [];
+  if (!keys.length) return true;                 // nothing sounding, nothing to clash with
+  for (var i = 0; i < keys.length; i++)
+    if (!CONSONANT_INTERVALS[((pc - +keys[i]) % 12 + 12) % 12]) return false;
+  return true;
+}
+
+// Diatonic helpers for the composing operations below. Moving a line by SCALE
+// DEGREES rather than semitones is the whole difference between reshaping a
+// melody and detuning it.
+function _scaleOf(st) { return st.minor ? [0, 2, 3, 5, 7, 8, 10] : [0, 2, 4, 5, 7, 9, 11]; }
+function _inRange(midi) {
+  try { if (HW && typeof HW.inRange === 'function') return HW.inRange(midi); } catch (e) {}
+  return midi >= 24 && midi <= 107;
+}
+function _byDegrees(midi, key, scale, n) {
+  if (!n) return midi;
+  var pc = ((midi - key) % 12 + 12) % 12;
+  var idx = 0, best = 99;
+  for (var i = 0; i < scale.length; i++) {
+    var d = Math.abs(scale[i] - pc);
+    if (d < best) { best = d; idx = i; }
+  }
+  var oct = Math.round((midi - key - scale[idx]) / 12);
+  var t = idx + n, len = scale.length;
+  return key + (oct + Math.floor(t / len)) * 12 + scale[((t % len) + len) % len];
+}
 
 function rowFor(midi) { return Math.max(0, Math.min(MEL_ROWS - 1, Math.round((midi - 48) * (MEL_ROWS - 1) / 36))); }
 function isDrum(c) { return c.r >= MEL_ROWS; }
@@ -9445,6 +9515,113 @@ function transform(doc, ops) {
       case 'fade':
         st.cells.forEach(function (c) { if (pick(c)) c.fd = o.fade | 0; });
         applied.push('fade ' + o.fade + ' on ' + (o.lane || 'everything')); break;
+      // ---- MUSICALLY LITERATE OPERATIONS -------------------------------
+      //
+      // Everything above this point adjusts a song. These four WRITE like a
+      // composer does, and they exist because the mood recipes did not.
+      // "Happier" meant major, faster, an octave up -- three dials that leave
+      // the melodic writing exactly as it was, so a happy song and a sad song
+      // were the same tune under different lighting. A person told to write a
+      // happy tune changes the CONTOUR, the CONSONANCE and the CADENCE, which
+      // is what these reach. `analyse()` measures the result, and
+      // verify-language asserts happy and sad are separable on those measures
+      // rather than only on the label.
+      case 'chordtones': {
+        // Consonance. A note that is not in the chord sounding underneath it is
+        // moved to the nearest one, at most a whole tone. This is the single
+        // biggest difference between "resolved" and "uneasy", and it is exact:
+        // the harmony is already in the song, so nothing is invented.
+        var sounding = {};
+        st.cells.forEach(function (c) {
+          if (isDrum(c) || c.midi == null) return;
+          var l2 = laneOf(c);
+          if (l2 !== 1 && l2 !== 2) return;              // Harmony and Bass
+          var from2 = c.c | 0, len2 = Math.max(1, c.len || 1);
+          for (var s2 = from2; s2 < from2 + len2; s2++)
+            (sounding[s2] = sounding[s2] || {})[((c.midi % 12) + 12) % 12] = 1;
+        });
+        var tonic2 = st.key | 0, triad = {};
+        [0, st.minor ? 3 : 4, 7].forEach(function (iv) { triad[(tonic2 + iv) % 12] = 1; });
+        var snapped = 0, unsnappable = 0;
+        st.cells.forEach(function (c) {
+          if (!pick(c) || isDrum(c) || c.midi == null) return;
+          var set = sounding[c.c | 0];
+          if (!set || !Object.keys(set).length) set = triad;
+          if (_isConsonant(((c.midi % 12) + 12) % 12, set)) return;
+          // nearest pitch, at most a whole tone away, that clashes with nothing
+          var bestD = 99, bestM = null;
+          for (var d2 = -2; d2 <= 2; d2++) {
+            if (!d2) continue;
+            var m2 = c.midi + d2;
+            if (!_inRange(m2) || !_isConsonant(((m2 % 12) + 12) % 12, set)) continue;
+            if (Math.abs(d2) < bestD) { bestD = Math.abs(d2); bestM = m2; }
+          }
+          if (bestM == null) { unsnappable++; return; }
+          c.midi = bestM; c.r = rowFor(bestM); snapped++;
+        });
+        // SAY WHEN IT COULD NOT. Giving up silently is what let the operation
+        // report success on music it had not fixed.
+        applied.push('snapped ' + snapped + ' notes onto the chord underneath');
+        if (unsnappable) skipped.push(unsnappable + ' notes had no consonant pitch within a whole tone');
+        break;
+      }
+      case 'arc': {
+        // PHRASE SHAPE. A line that climbs across its phrase reads as lifting;
+        // one that falls reads as sinking. The ramp is measured in SCALE
+        // DEGREES rather than semitones, so the shape changes and the key does
+        // not -- transposing chromatically here would just detune the tune.
+        var degrees = o.degrees != null ? (o.degrees | 0)
+                    : (String(o.direction || 'up') === 'down' ? -2 : 2);
+        var phrase = Math.max(1, (o.bars || 2)) * grid;
+        var scale = _scaleOf(st), arcMoved = 0;
+        st.cells.forEach(function (c) {
+          if (!pick(c) || isDrum(c) || c.midi == null) return;
+          var n2 = Math.round(degrees * (((c.c | 0) % phrase) / phrase));
+          if (!n2) return;
+          var next2 = _byDegrees(c.midi, st.key | 0, scale, n2);
+          if (next2 === c.midi || !_inRange(next2)) return;
+          c.midi = next2; c.r = rowFor(next2); arcMoved++;
+        });
+        applied.push('arc ' + (degrees > 0 ? 'up' : 'down') + ' across every ' +
+                     Math.max(1, (o.bars || 2)) + ' bars (' + arcMoved + ' notes)'); break;
+      }
+      case 'smooth': {
+        // Stepwise motion, by octave displacement -- which keeps the pitch
+        // class, so the harmony is untouched and only the line becomes
+        // singable. This is what makes a lullaby a lullaby.
+        var maxLeap = o.maxLeap != null ? (o.maxLeap | 0) : 5;
+        var seq = st.cells.filter(function (c) { return pick(c) && !isDrum(c) && c.midi != null; })
+                          .sort(function (a, b) { return (a.c | 0) - (b.c | 0); });
+        var smoothed = 0;
+        for (var i2 = 1; i2 < seq.length; i2++) {
+          var prev2 = seq[i2 - 1].midi, cur2 = seq[i2], guard = 0;
+          while (Math.abs(cur2.midi - prev2) > maxLeap && guard++ < 4) {
+            var cand = cur2.midi + (cur2.midi > prev2 ? -12 : 12);
+            if (!_inRange(cand) || Math.abs(cand - prev2) >= Math.abs(cur2.midi - prev2)) break;
+            cur2.midi = cand; smoothed++;
+          }
+          cur2.r = rowFor(cur2.midi);
+        }
+        applied.push('smoothed ' + smoothed + ' leaps into steps'); break;
+      }
+      case 'accent': {
+        // Metric emphasis: the downbeat loudest, the half-bar next, the
+        // offbeats quieter. It is what makes a rhythm legible rather than a
+        // flat wall, and it is the difference between "driving" and "loud".
+        var amount = o.amount != null ? +o.amount : 0.15;
+        var q = Math.max(1, grid / 4), accented = 0;
+        st.cells.forEach(function (c) {
+          if (!pick(c)) return;
+          var pos = (c.c | 0) % grid;
+          var w = pos === 0 ? 1 : (pos % (q * 2) === 0 ? 0.5 : (pos % q === 0 ? 0 : -0.6));
+          if (!w) return;
+          // 0.05 rather than 0: velocity 0 is a REST and is dropped from the
+          // song, so accenting an offbeat must never silence it.
+          c.vel = Math.max(0.05, Math.min(1, (c.vel != null ? c.vel : 0.8) + amount * w));
+          accented++;
+        });
+        applied.push('accented ' + accented + ' notes to the beat'); break;
+      }
       default: skipped.push('unknown operation ' + JSON.stringify(o.op));
     }
   });
@@ -9459,7 +9636,8 @@ function variant(doc, how) {
   how = how || {};
   var ops = [];
   if (how.mood) {
-    var recipe = MOODS[String(how.mood).toLowerCase()];
+    var recipe = _blendMoods([String(how.mood).toLowerCase()], { keepMode: true });
+    if (!recipe.length) recipe = null;
     if (!recipe) throw new Error('variant: no recipe for ' + JSON.stringify(how.mood) +
                                  '. Known: ' + Object.keys(MOODS).join(', '));
     ops = ops.concat(recipe);
@@ -9911,7 +10089,7 @@ function _bandPull(styles, lo, hi) {
 // and applying it two or three more times is how a blend turns to mud.
 function _blendMoods(words, opts) {
   opts = opts || {};
-  var tempo = 0, oct = {}, vel = 0, seen = {}, out = [];
+  var tempo = 0, oct = {}, vel = 0, arc = {}, seen = {}, out = [];
   (words || []).forEach(function (w) {
     (MOODS[w] || []).forEach(function (o) {
       if (o.op === 'mode' && !opts.keepMode) return;
@@ -9919,19 +10097,38 @@ function _blendMoods(words, opts) {
       if (o.op === 'tempo') { tempo += (o.percent || 0); return; }
       if (o.op === 'register') { oct[o.lane] = (oct[o.lane] || 0) + (o.octaves || 0); return; }
       if (o.op === 'velocity') { vel += (o.delta || 0); return; }
+      if (o.op === 'arc') { arc[o.lane || ''] = (arc[o.lane || ''] || 0) + (o.degrees || 0); return; }
       var k = o.op + ':' + (o.lane || '') + ':' + (o.motion || o.duty || '');
       if (seen[k]) return;
       seen[k] = 1; out.push(Object.assign({}, o));
     });
   });
   var clamp = function (v, lo, hi) { return Math.max(lo, Math.min(hi, v)); };
+  Object.keys(arc).forEach(function (l) {
+    var n = clamp(arc[l], -3, 3);
+    if (n) out.push(l ? { op: 'arc', lane: l, degrees: n } : { op: 'arc', degrees: n });
+  });
   if (!opts.skipTempo && tempo) out.push({ op: 'tempo', percent: clamp(Math.round(tempo), -25, 25) });
   Object.keys(oct).forEach(function (lane) {
     var n = clamp(oct[lane], -1, 1);
     if (n) out.push({ op: 'register', lane: lane, octaves: n });
   });
   if (vel) out.push({ op: 'velocity', delta: clamp(Math.round(vel * 100) / 100, -0.25, 0.25) });
-  return out;
+  // ORDER IS MUSICAL, NOT ARBITRARY. Reshape the line first, then fix its
+  // consonance against the harmony, then texture, then dynamics -- snapping to
+  // chord tones BEFORE arcing the phrase just moves the notes back off the
+  // chord, which is how a blend produces something that sounds unresolved while
+  // every individual operation reports success.
+  var ORDER = ['mode', 'transpose', 'arc', 'smooth', 'chordtones', 'resolve', 'motion',
+               'shape', 'fade', 'thin', 'subdivide', 'double', 'swing', 'register',
+               'tempo', 'accent', 'velocity'];
+  return out.map(function (o, i) { return [o, i]; })
+    .sort(function (a, b) {
+      var ai = ORDER.indexOf(a[0].op), bi = ORDER.indexOf(b[0].op);
+      if (ai < 0) ai = ORDER.length; if (bi < 0) bi = ORDER.length;
+      return ai - bi || a[1] - b[1];
+    })
+    .map(function (x) { return x[0]; });
 }
 
 function _bandIsReachable(styles, lo, hi) {
@@ -10231,6 +10428,119 @@ function interpret(text, opts) {
            reference: reference, unsupported: unsupported };
 }
 
+// WHAT THE MUSIC ACTUALLY IS, in numbers.
+//
+// describe() reports the facts of a song: tempo, bars, note counts, whether it
+// fits on a cartridge. This reports its CHARACTER, and it exists because
+// "happier" was a label rather than a claim anybody could check. An agent
+// cannot listen; neither can a gate. So the properties a person would name when
+// asked why a tune sounds happy are computed instead:
+//
+//   majorness   how much of the pitch material is major-flavoured -- the third,
+//               sixth and seventh are where major and minor differ, so those
+//               degrees are counted and everything else ignored
+//   arc         does the melody climb or fall across the piece, in semitones
+//   consonance  the share of melody notes that belong to the chord sounding
+//               underneath them at that moment
+//   stepRatio   the share of melodic moves that are a tone or less. High is
+//               singable and calm; low is angular
+//   meanPitch   where the tune sits, in MIDI numbers
+//   density     onsets a second, which is what "busy" means
+//   endsOnTonic whether it lands home
+//
+// None of these is a verdict. Together they are enough to assert that two
+// requests produced measurably different music, which is the thing that was
+// being taken on trust.
+function analyse(doc) {
+  var packed = typeof doc === 'string' ? doc : null;
+  var st = CT_CREATE.docState(packed || fromJSON(doc));
+  if (!st) throw new Error('analyse: not a readable song document');
+  var d = describe(packed || doc);
+  var j = toJSON(packed || doc);
+  var key = st.key | 0;
+  var pitched = j.notes.filter(function (n) { return n.note; });
+
+  // major vs minor colour, counted only on the degrees where they differ
+  var maj = 0, min = 0;
+  pitched.forEach(function (n) {
+    var pc = ((midiOf(n.note) - key) % 12 + 12) % 12;
+    if (pc === 4 || pc === 9 || pc === 11) maj++;
+    else if (pc === 3 || pc === 8 || pc === 10) min++;
+  });
+
+  var mel = pitched.filter(function (n) { return n.lane === 'Melody'; })
+                   .sort(function (a, b) { return a.step - b.step; });
+  var pitches = mel.map(function (n) { return midiOf(n.note); });
+  var steps = 0, moves = 0, intervalSum = 0;
+  for (var i = 1; i < pitches.length; i++) {
+    var iv = pitches[i] - pitches[i - 1];
+    moves++; intervalSum += iv;
+    if (Math.abs(iv) <= 2) steps++;
+  }
+  var half = Math.floor(pitches.length / 2);
+  var meanOf = function (a) { return a.length ? a.reduce(function (x, y) { return x + y; }, 0) / a.length : 0; };
+  var arc = pitches.length >= 4 ? meanOf(pitches.slice(half)) - meanOf(pitches.slice(0, half)) : 0;
+
+  // consonance against whatever Harmony and Bass are sounding at that step
+  var sounding = {};
+  j.notes.forEach(function (n) {
+    if (!n.note || (n.lane !== 'Harmony' && n.lane !== 'Bass')) return;
+    var len = Math.max(1, n.len || 1);
+    for (var s = n.step; s < n.step + len; s++)
+      (sounding[s] = sounding[s] || {})[((midiOf(n.note) % 12) + 12) % 12] = 1;
+  });
+  var triad = {};
+  [0, st.minor ? 3 : 4, 7].forEach(function (iv2) { triad[(key + iv2) % 12] = 1; });
+  var consonant = 0;
+  mel.forEach(function (n) {
+    var set = sounding[n.step];
+    if (!set || !Object.keys(set).length) set = triad;
+    if (_isConsonant(((midiOf(n.note) % 12) + 12) % 12, set)) consonant++;
+  });
+
+  // THE RISE OR FALL WITHIN A PHRASE, which is the shape `arc` controls. The
+  // whole-piece figure below it is a different thing and does not move when a
+  // per-phrase ramp is applied -- measuring only that one made a working
+  // operation look like a no-op.
+  var phraseLen = (st.grid || 16) * 2, arcs = [];
+  var byPhrase = {};
+  mel.forEach(function (n) {
+    var k = Math.floor(n.step / phraseLen);
+    (byPhrase[k] = byPhrase[k] || []).push(midiOf(n.note));
+  });
+  Object.keys(byPhrase).forEach(function (k) {
+    var ps = byPhrase[k];
+    if (ps.length < 4) return;
+    var h = Math.floor(ps.length / 2);
+    arcs.push(meanOf(ps.slice(h)) - meanOf(ps.slice(0, h)));
+  });
+
+  var last = mel.length ? mel[mel.length - 1] : null;
+  var byLane = {};
+  j.notes.forEach(function (n) { byLane[n.lane] = (byLane[n.lane] || 0) + 1; });
+
+  return {
+    bpm: d.bpm, bars: d.bars, seconds: d.seconds,
+    key: noteName(60 + key).replace(/\d+$/, ''), mode: st.minor ? 'minor' : 'major',
+    majorness: (maj + min) ? maj / (maj + min) : null,
+    melody: {
+      n: mel.length,
+      meanPitch: pitches.length ? Math.round(meanOf(pitches) * 10) / 10 : null,
+      span: pitches.length ? Math.max.apply(null, pitches) - Math.min.apply(null, pitches) : null,
+      arc: Math.round(arc * 10) / 10,
+      phraseArc: arcs.length ? Math.round(meanOf(arcs) * 100) / 100 : null,
+      meanInterval: moves ? Math.round(intervalSum / moves * 100) / 100 : null,
+      stepRatio: moves ? Math.round(steps / moves * 1000) / 1000 : null,
+      consonance: mel.length ? Math.round(consonant / mel.length * 1000) / 1000 : null,
+      endsOnTonic: last ? ((midiOf(last.note) % 12) + 12) % 12 === key : null
+    },
+    density: {
+      onsetsPerSecond: d.seconds ? Math.round(j.notes.length / d.seconds * 100) / 100 : null,
+      byLane: byLane
+    }
+  };
+}
+
 // Interpret and carry out, in one call. Returns the new document plus exactly
 // what it did, so a caller can show its working instead of being a black box.
 function ask(text, opts) {
@@ -10458,7 +10768,7 @@ var EXPORTS = {
   toJSON: toJSON,
   fromJSON: fromJSON,
   validate: validate,
-  describe: describe,
+  describe: describe, analyse: analyse,
   buildCartridge: buildCartridge,
   renderWav: renderWav,
   shareUrl: shareUrl,

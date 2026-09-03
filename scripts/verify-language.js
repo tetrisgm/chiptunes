@@ -399,6 +399,148 @@ console.log('claims that have to be true');
   ok(a1.doc === a2.doc, 'the same sentence and the same token give the same song, byte for byte');
 }
 
+/* ------------------------------------------- the words have to mean something */
+// "IF I SAY WRITE A HAPPY SONG, IT SHOULD WRITE A HAPPY SONG."
+//
+// For a long time a mood was three settings -- mode, tempo, octave -- so a
+// happy song and a sad song were the same tune under different lighting: same
+// contour, same leaps, same consonance, same cadence. The label changed and the
+// writing did not. A person told to write a happy tune does not do that.
+//
+// So this measures the MUSIC, over a batch, with analyse(). It is the only
+// honest way to hold a claim like "happier" to account, because the alternative
+// is trusting the word in the summary -- which is precisely what was wrong.
+console.log('the words mean something measurable');
+{
+  const mean = (xs, k) => {
+    const v = xs.map(k).filter(x => x != null);
+    return v.length ? v.reduce((a, b) => a + b, 0) / v.length : NaN;
+  };
+  // A song with no melody at all is a real outcome here and carries no melodic
+  // measurements; including it as a zero would be inventing data.
+  const sample = (text, n) => {
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      const token = ('sd' + i).padEnd(16, '3').slice(0, 16).replace(/[^0-9a-f]/g, 'a');
+      const r = api.ask(text, { brief: { token } });
+      if (!r.ok) continue;
+      const x = api.analyse(r.doc);
+      if (x.melody.n >= 8) out.push(x);
+    }
+    return out;
+  };
+  const happy = sample('a happy song', 24), sad = sample('a sad song', 24);
+  ok(happy.length >= 18 && sad.length >= 18,
+     'a batch of each, with a melody to measure (' + happy.length + ' happy, ' + sad.length + ' sad)');
+
+  const cmp = (label, k, wantGap) => {
+    const h = mean(happy, k), s = mean(sad, k);
+    ok(h - s >= wantGap, label + ': happy ' + h.toFixed(2) + ' vs sad ' + s.toFixed(2) +
+       ' (needs a gap of ' + wantGap + ')');
+  };
+  cmp('major-flavoured pitch material', x => x.majorness, 0.5);
+  cmp('tempo', x => x.bpm, 10);
+  cmp('phrases rise rather than fall', x => x.melody.phraseArc, 1.5);
+  cmp('melody agrees with the chord underneath', x => x.melody.consonance, 0.15);
+  cmp('the tune sits higher', x => x.melody.meanPitch, 5);
+
+  // PER SONG, not just on average, and deliberately WITHOUT majorness OR tempo.
+  // Those two are the easy half -- one flag and one number, set directly by the
+  // recipe -- and either would carry the whole score on its own. What is asked
+  // here is whether the WRITING gives it away: the shape of the phrase, how the
+  // melody sits against the harmony, where it lies, how it moves.
+  //
+  // Features are standardised before they are added, because they are on wildly
+  // different scales and summing them raw is not a measurement, it is a
+  // weighting nobody chose. An earlier version of this did exactly that and
+  // scored 77%, which said more about the arithmetic than the music.
+  const FEATURES = [x => x.melody.phraseArc, x => x.melody.consonance,
+                    x => x.melody.meanPitch, x => x.melody.stepRatio];
+  const all = happy.concat(sad);
+  const norm = FEATURES.map(k => {
+    const v = all.map(k).filter(x => x != null);
+    const m = v.reduce((a, b) => a + b, 0) / v.length;
+    const sd = Math.sqrt(v.reduce((a, b) => a + (b - m) * (b - m), 0) / v.length) || 1;
+    return { k, m, sd, dir: Math.sign(mean(happy, k) - mean(sad, k)) };
+  });
+  const score = x => norm.reduce((s, f) => s + f.dir * (((f.k(x) == null ? f.m : f.k(x)) - f.m) / f.sd), 0);
+  const right = happy.filter(x => score(x) > 0).length + sad.filter(x => score(x) <= 0).length;
+  const pct = right / all.length;
+  // Measured at 93-95%. A floor of 0.8 fails long before the writing has
+  // stopped distinguishing them, and does not fail on a batch that happens to
+  // draw two awkward seeds.
+  ok(pct >= 0.8, 'and each song is placed correctly by its writing alone -- no major/minor, no tempo (' +
+     Math.round(pct * 100) + '%, floor 80%)');
+
+  // the other words people reach for first
+  const calm = sample('a calm song', 16), frantic = sample('a frantic song', 16);
+  ok(mean(frantic, x => x.bpm) - mean(calm, x => x.bpm) >= 25,
+     'frantic is much faster than calm (' + mean(frantic, x => x.bpm).toFixed(0) + ' vs ' +
+     mean(calm, x => x.bpm).toFixed(0) + ' bpm)');
+  ok(mean(calm, x => x.melody.stepRatio) > mean(frantic, x => x.melody.stepRatio),
+     'and calm moves by steps more than frantic does (' +
+     mean(calm, x => x.melody.stepRatio).toFixed(2) + ' vs ' +
+     mean(frantic, x => x.melody.stepRatio).toFixed(2) + ')');
+  const fast = sample('a fast song', 12), slow = sample('a slow song', 12);
+  ok(mean(fast, x => x.bpm) - mean(slow, x => x.bpm) >= 20,
+     'fast is faster than slow, which is the least anybody expects (' +
+     mean(fast, x => x.bpm).toFixed(0) + ' vs ' + mean(slow, x => x.bpm).toFixed(0) + ')');
+}
+
+/* ------------------------------- the composing operations do what they claim */
+console.log('the composing operations');
+{
+  const docs = [0, 1, 2, 3, 4].map(i =>
+    api.brief({ scene: ['title', 'battle', 'cave', 'town', 'boss'][i], seconds: 30 }).doc);
+  const avg = (ds, k) => {
+    const v = ds.map(d => k(api.analyse(d))).filter(x => x != null);
+    return v.reduce((a, b) => a + b, 0) / (v.length || 1);
+  };
+  const after = op => docs.map(d => api.transform(d, [op]).doc);
+
+  const chorded = after({ op: 'chordtones', lane: 'Melody' });
+  ok(avg(chorded, x => x.melody.consonance) > avg(docs, x => x.melody.consonance) + 0.1,
+     'chordtones raises consonance (' + avg(docs, x => x.melody.consonance).toFixed(2) + ' -> ' +
+     avg(chorded, x => x.melody.consonance).toFixed(2) + ')');
+
+  const up = after({ op: 'arc', lane: 'Melody', degrees: 2 });
+  const down = after({ op: 'arc', lane: 'Melody', degrees: -2 });
+  ok(avg(up, x => x.melody.phraseArc) > avg(docs, x => x.melody.phraseArc) &&
+     avg(down, x => x.melody.phraseArc) < avg(docs, x => x.melody.phraseArc),
+     'arc lifts or drops the shape of a phrase (' + avg(down, x => x.melody.phraseArc).toFixed(2) +
+     ' / ' + avg(docs, x => x.melody.phraseArc).toFixed(2) + ' / ' + avg(up, x => x.melody.phraseArc).toFixed(2) + ')');
+  // ...and it stays IN KEY, which is the reason it counts scale degrees rather
+  // than semitones
+  const keyKept = docs.every((d, i) => api.analyse(d).key === api.analyse(up[i]).key);
+  ok(keyKept, 'and it does not detune the tune');
+
+  const smoothed = after({ op: 'smooth', lane: 'Melody' });
+  ok(avg(smoothed, x => x.melody.stepRatio) > avg(docs, x => x.melody.stepRatio),
+     'smooth turns leaps into steps (' + avg(docs, x => x.melody.stepRatio).toFixed(2) + ' -> ' +
+     avg(smoothed, x => x.melody.stepRatio).toFixed(2) + ')');
+
+  // accent must emphasise the beat WITHOUT silencing anything: velocity 0 is a
+  // rest and is dropped from the song entirely.
+  const acc = api.transform(docs[1], [{ op: 'accent', amount: 0.2 }]);
+  ok(api.describe(acc.doc).notes === api.describe(docs[1]).notes,
+     'accent never silences a note into a rest (' + api.describe(acc.doc).notes + ' notes, unchanged)');
+  const vel = d => api.toJSON(d).notes.filter(n => n.velocity != null);
+  const spread = d => {
+    const on = vel(d).filter(n => n.beat % 1 === 0).map(n => n.velocity);
+    const off = vel(d).filter(n => n.beat % 1 !== 0).map(n => n.velocity);
+    const m = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0;
+    return m(on) - m(off);
+  };
+  ok(spread(acc.doc) > spread(docs[1]),
+     'and it does widen the gap between on-beat and off-beat (' +
+     spread(docs[1]).toFixed(3) + ' -> ' + spread(acc.doc).toFixed(3) + ')');
+
+  // every one of them is still deterministic
+  ok(api.transform(docs[0], [{ op: 'chordtones' }]).doc === api.transform(docs[0], [{ op: 'chordtones' }]).doc &&
+     api.transform(docs[0], [{ op: 'arc', degrees: 2 }]).doc === api.transform(docs[0], [{ op: 'arc', degrees: 2 }]).doc,
+     'and they are deterministic, like everything else here');
+}
+
 /* ------------------------------------------------------------- global leaks */
 console.log('the bundle');
 {
