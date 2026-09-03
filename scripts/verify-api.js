@@ -595,8 +595,14 @@ function mcp(messages) {
   ok(pageCompose.api && !pageCompose.error && pageCompose.notes > 0,
      'brief() and compose() work IN THE PAGE' + (pageCompose.error ? ': ' + pageCompose.error :
       ' (' + pageCompose.brief + ', ' + pageCompose.seconds + 's)'));
-  ok(page.webmcp === 'registerTool' && page.registered.length === page.tools.length,
-     'and every tool is registered with WebMCP when the browser has it');
+  // The FALLBACK surface. This file shims `navigator.modelContext`, which is
+  // the older shape; the spec surface is `document.modelContext`, and
+  // verify-webmcp.js covers that one by shimming it the way an agent browser
+  // actually injects it and then calling every tool for real. Both are asserted
+  // because supporting only one is exactly the bug that made every tool
+  // invisible in the browsers that implement WebMCP.
+  ok(page.webmcp === 'navigator.modelContext.registerTool' && page.registered.length === page.tools.length,
+     'and every tool registers on the navigator fallback too (' + page.webmcp + ')');
   ok(page.now && Array.isArray(page.now.moods) && page.now.moods.length > 0,
      'now_playing reads the live session (' + (page.now && page.now.moods.length) + ' moods)');
   const played = await p.evaluate(async () => {

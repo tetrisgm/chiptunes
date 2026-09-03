@@ -2480,3 +2480,59 @@ arithmetic than about the music. Floor set at 80%.
 
 Each operation is also asserted individually to do what it says, to stay in key,
 never to silence a note into a rest, and to remain deterministic.
+
+# 2026-09-02 (fifth pass) — WebMCP, and the bug that would have sunk it
+
+Aimed at the OpenAI WebMCP Challenge (webmcp.devpost.com). **Submissions close
+2026-09-03, 13:00 PT.** Judging is four equally weighted criteria: WebMCP
+leverage, execution, potential impact, creativity.
+
+## The bug
+
+`src/webmcp.js` registered on **`navigator.modelContext`**. The spec surface is
+**`document.modelContext`**. In the ChatGPT desktop app's in-app browser and in
+Chrome with `chrome://flags/#enable-webmcp-testing`, not one tool would have
+registered — and nothing would have looked wrong. `window.chiptunes` worked, the
+page was healthy, and `verify-api.js` passed because its shim had been written
+against the same wrong surface. The test and the code agreed with each other and
+were both wrong, which is the same failure shape as the consonance bug a pass
+earlier.
+
+Registration now tries `document` first, `navigator` second, `registerTool` then
+`provideContext`, and **polls for ~10 s** because an agent browser can inject the
+API after page scripts run — a one-shot check loses that race silently.
+
+## Six new tools, and why they are the point
+
+The eight that existed only OPERATED the session. The six added compose,
+measure and export **in the page**: `capabilities`, `ask`, `compose`,
+`variations`, `analyse`, `export`. That is the WebMCP argument in one line: the
+composer is already in the bundle, so an agent that can open a tab writes music
+with no key, no account and nothing metered — and a song is 1.6 ms, so
+`variations` returns twelve complete different songs in ~80 ms. `analyse` closes
+the loop: an agent cannot listen, so it measures instead.
+
+`export` does link / midi / rom in the page. WAV is Node-only — `renderWav`
+calls `needBuffer`.
+
+## The gate
+
+`scripts/verify-webmcp.js`, in `npm test`. It installs the SPEC shim before any
+page script runs, exactly as an agent browser does, then calls all 14 tools for
+real against the built bundle. It found a second live bug immediately:
+`variations()` returns an envelope `{asked, count, candidates, note}`, not an
+array, and the tool called `.map` on it — a failure that would only ever have
+appeared at the agent.
+
+## Submission material
+
+`docs/WEBMCP.md` carries the four required description points and the
+**prior-work vs new-work** table the rules demand for a pre-existing project.
+Note for anyone checking: this repository's first commit is 2026-08-26 because
+the public repo was initialised then, but the project is older (AGENTS.md
+records decisions from July), so it is submitted as pre-existing and extended,
+not as new. Every agent- and WebMCP-related commit is dated 2026-09-02, inside
+the window.
+
+**Still owner-only:** the Devpost entry itself and the demo video (under three
+minutes, on YouTube, with audio, showing the tools working).

@@ -91,7 +91,7 @@ music is not.)
 
 ## Verification
 
-`npm test` runs 21 gates. Most of them exist because the thing they check was
+`npm test` runs 22 gates. Most of them exist because the thing they check was
 once wrong, and the comment above each one says what went wrong.
 
 | gate | what it holds | in `npm test` |
@@ -102,6 +102,7 @@ once wrong, and the comment above each one says what went wrong.
 | `test:sync` | the picture sits on the sound, corrected for measured output latency | yes |
 | `test:screens` | all three screen faces actually draw, and sleeping one frees its GPU targets | yes |
 | `test:language` | every claim the prompt parser makes about a sentence is true, and every title composes with the genre it named | yes |
+| `test:webmcp` | the tools register on `document.modelContext` and all 14 work, called for real against the built bundle | yes |
 | `test:rom-audio` | browser chip vs. the ROM executing on the emulated CPU, spectrally | run on its own |
 | `test:kit` | sampled drums match across both paths; the sample and refill clocks are in step | run on its own |
 | `test:render-parity` | offline render matches live playback to ≥ 0.995 correlation | run on its own |
@@ -212,9 +213,22 @@ and why. The parser is deterministic and lives in `src/api.js`, so it names back
 exactly what it understood, says what it ignored, and never composes something
 at random and lets the phrasing imply it worked.
 
-The page carries the same idea for the session you are looking at: `window.chiptunes`
-plus WebMCP tool registration, so a browsing agent can pick a mood, skip, open
-the tracker, or make the playing song sadder.
+**And the page itself is a WebMCP server.** `src/webmcp.js` registers **14 tools**
+on `document.modelContext`, in two groups: ones that operate the session you are
+looking at (what is on air, skip, put this song on the deck, open the tracker,
+change the display), and ones that compose without a server at all
+(`capabilities`, `ask`, `compose`, `variations`, `analyse`, `export`).
+
+That second group is the interesting half. The composer is already in the page,
+so an agent that can open a tab can write music with no key, no account and
+nothing metered — and because a song is 1.6 ms, `chiptunes_variations` hands
+back **twelve complete, different songs in about 80 ms**. An agent cannot
+listen, so `chiptunes_analyse` lets it measure what it made instead. The user
+hears every step as it happens and can take the mouse at any time, because the
+tools are thin calls into the same functions the buttons call.
+
+See [docs/WEBMCP.md](docs/WEBMCP.md). The same tools are on `window.chiptunes`
+in any browser: try `chiptunes.tools` in the console.
 
 Design notes: [docs/AGENT_PLAN.md](docs/AGENT_PLAN.md).
 
