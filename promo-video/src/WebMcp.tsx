@@ -260,3 +260,50 @@ export const Logo: React.FC = () => (
     </div>
   </AbsoluteFill>
 );
+
+/* ------------------------------------------------------- Devpost gallery */
+// Up to 15 images at 3:2. Each is a REAL frame from the recorded session (the
+// same footage as the video, sampled at the moment its tool fired) with one
+// sentence saying what it proves. A gallery of raw screenshots makes a judge
+// work out the story; a gallery of captioned evidence tells it.
+export const GALLERY: {src: string; kicker: string; line: string; pos?: string; top?: boolean}[] = [
+  {src: 'agent-landing.png', kicker: 'chiptunes.app/webmcp',
+   line: 'An agent attached to the page. The station keeps playing underneath.'},
+  {src: 'webmcp.png', kicker: '15 tools, listed live',
+   line: 'The panel reads the tools off the running surface, so the list cannot go stale.'},
+  {src: 'webmcp-probe.png', kicker: 'No guessing',
+   line: 'It reports which surfaces existed and how many tools registered.'},
+  {src: 'shots/chiptunes_ask.png', top: true, kicker: 'chiptunes_ask',
+   line: '“A dungeon theme like Castlevania, 40 seconds, no drums” — and it says what it understood.'},
+  {src: 'shots/chiptunes_analyse.png', top: true, kicker: 'chiptunes_analyse',
+   line: 'An agent cannot listen, so it measures: mode, phrase arc, consonance, density.'},
+  {src: 'shots/chiptunes_variations.png', top: true, kicker: 'chiptunes_variations',
+   line: 'Twelve complete, different songs in about 70 ms. Breadth is free here.'},
+  {src: 'shots/chiptunes_variant.png', top: true, kicker: 'chiptunes_variant',
+   line: 'It recomposes the exact song on air — the same document, not an approximation.'},
+  {src: 'shots/chiptunes_export.png', top: true, kicker: 'chiptunes_export',
+   line: 'A 32 KB .gb cartridge, built in the page, that boots on real hardware.'},
+  {src: 'create.png', kicker: 'The tracker',
+   line: 'Every note the agent wrote is editable by hand. One song, two ways in.'},
+];
+
+export const GalleryShot: React.FC<{i: number}> = ({i}) => {
+  const s = GALLERY[i] || GALLERY[0];
+  return (
+    <AbsoluteFill style={{background: '#07060e', fontFamily: UI, color: INK, overflow: 'hidden'}}>
+      <Fonts />
+      <Img src={staticFile(s.src)} style={{width: '100%', height: '100%',
+        objectFit: 'cover', objectPosition: s.pos || (s.top ? '50% 78%' : '50% 22%')}} />
+      {/* Session frames caption at the TOP: the app's own toast sits along the
+          bottom edge, and that toast is the evidence — covering it to label it
+          would be self-defeating. */}
+      <AbsoluteFill style={{background: s.top
+        ? 'linear-gradient(180deg,#07060e 0%,#07060ee6 26%,transparent 56%)'
+        : 'linear-gradient(0deg,#07060e 0%,#07060ee6 22%,transparent 52%)'}} />
+      <div style={{position: 'absolute', left: 56, right: 56, ...(s.top ? {top: 48} : {bottom: 52})}}>
+        <div style={{fontFamily: PIXEL, fontSize: 17, color: LIME, letterSpacing: 1}}>{s.kicker}</div>
+        <div style={{fontSize: 33, fontWeight: 800, letterSpacing: -1, marginTop: 16, lineHeight: 1.24}}>{s.line}</div>
+      </div>
+    </AbsoluteFill>
+  );
+};

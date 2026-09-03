@@ -71,7 +71,20 @@ await plain.evaluate(() => {
   const b = [...document.querySelectorAll('#wmcp button.b')].find(x => /detect/i.test(x.textContent));
   if (b) b.click();
 });
-await plain.waitForTimeout(600);
+await plain.waitForTimeout(700);
+// SCROLL IT INTO VIEW. The probe output sits below the fold at 720px, so the
+// "detected" shot was pixel-identical to the one above it — two gallery slides
+// showing the same thing and neither showing the evidence.
+await plain.evaluate(() => {
+  const root = document.getElementById('wmcp');
+  // `pre:not(.out)` is the probe; `.out` is the tool-output pane. Matching by
+  // text with /modelContext/ found NOTHING — the key is `documentModelContext`,
+  // so the lowercase form never appears, and the shot came out identical to the
+  // one above it twice while I "fixed" the scrolling instead.
+  const pre = document.querySelector('#wmcp pre:not(.out)');
+  if (root && pre) root.scrollTop = Math.max(0, pre.offsetTop - 210);
+});
+await plain.waitForTimeout(500);
 await plain.screenshot({path:path.join(pub,'webmcp-probe.png')});
 await plain.close();
 

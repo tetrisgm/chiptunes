@@ -1,7 +1,7 @@
 import React from 'react';
 import {Composition, Still} from 'remotion';
 import {ChiptunesPromo} from './Video';
-import {WebMcpDemo, Thumbnail, Logo, TOTAL_FRAMES} from './WebMcp';
+import {WebMcpDemo, Thumbnail, Logo, GalleryShot, GALLERY, TOTAL_FRAMES} from './WebMcp';
 
 export const Root: React.FC = () => (
   <>
@@ -27,5 +27,10 @@ export const Root: React.FC = () => (
     {/* Devpost asks for 3:2 */}
     <Still id="Thumbnail" component={Thumbnail} width={1200} height={800} />
     <Still id="Logo" component={Logo} width={512} height={512} />
+    {/* Devpost gallery: 3:2, one per beat of the story */}
+    {GALLERY.map((_, i) => (
+      <Still key={i} id={`Gallery${i + 1}`} component={GalleryShot}
+        defaultProps={{i}} width={1200} height={800} />
+    ))}
   </>
 );

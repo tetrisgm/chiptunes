@@ -24,8 +24,9 @@ Two alternates, if you want a different emphasis:
 
 ## Thumbnail (JPG/PNG/GIF, 5 MB max, 3:2)
 
-`promo-video/out/thumbnail.png` — 1200×800, 3:2, ~0.5 MB.
+`promo-video/out/thumbnail.png` — 1200×800, 3:2, ~0.7 MB.
 Square logo if anything else wants one: `promo-video/out/logo.png` (512×512).
+Gallery: `promo-video/out/gallery/01.png` … `09.png`, same 3:2.
 
 ## Live URL
 
@@ -47,6 +48,183 @@ MIT licensed (`LICENSE` at the root, so it shows in the About box).
 
 `promo-video/out/chiptunes-webmcp.mp4` — 51 s, 1280×720. **Silent: narration
 still to record.** Script and timings below.
+
+---
+
+# Project details (the "Project Story" box)
+
+## Built with (tags)
+
+```
+javascript, webmcp, mcp, web-audio-api, audioworklet, webgl, glsl, canvas,
+html5, css, node.js, playwright, remotion, cloudflare-pages, game-boy,
+emulation, midi, procedural-generation, music-generation, chiptune
+```
+
+## "Try it out" links
+
+```
+https://chiptunes.app/webmcp
+https://github.com/VaporWorks/chiptunes
+https://chiptunes.app
+```
+
+## Image gallery (3:2, up to 15)
+
+`promo-video/out/gallery/01.png` … `09.png` — nine 1200×800 slides, in order.
+Every one of them is a **real frame** from the recorded agent session or the
+live page, captioned with what it proves. Upload in numeric order.
+
+## About the project *(paste as Markdown)*
+
+```markdown
+## Inspiration
+
+Every AI music tool is a model behind an API key. You send a prompt, you wait,
+you get back an opaque waveform, and you pay per attempt. That shape quietly
+decides what an agent is allowed to try: nobody generates twenty candidates to
+offer a real choice, because twenty candidates is a minute of waiting and twenty
+billable generations.
+
+Chiptunes already had the opposite shape and I hadn't noticed. It's a
+register-level emulation of the Game Boy sound chip with a deterministic
+composer, and all of it runs **in the browser tab** because the website needs it
+there. A song takes 1.6 milliseconds. Nothing is uploaded, because there's
+nothing to upload it to.
+
+WebMCP is what turns that from an implementation detail into a capability. If
+the composer is already in the page, then an agent that can open a tab can write
+music — with no credential, no account, no quota and no bill. There is nothing
+to sign up for because there is no server to sign up to.
+
+## What it does
+
+Fifteen tools on `document.modelContext`, in two groups.
+
+**Composing, with no server involved:**
+
+- `what_can_i_do_here` — the page introduces itself. WebMCP has no page-to-agent
+  instruction channel (`provideContext` was removed from the spec), so a page's
+  only voice is its tool names, descriptions and results. This one is named as
+  the question a person types, and returns prose meant to be relayed.
+- `chiptunes_ask` — *"a dungeon theme like Castlevania, 40 seconds, no drums"*,
+  and it reports exactly what it understood, what it ignored, and what it
+  refused.
+- `chiptunes_variations` — **twelve complete, different songs in about 70 ms**,
+  unranked. Nothing is scored or pre-selected; the choosing is the agent's.
+- `chiptunes_analyse` — an agent can't listen, so it **measures**: how major or
+  minor the pitch material is, whether phrases climb or fall, how much the
+  melody agrees with the chords under it, how busy it is, whether it ends on the
+  tonic.
+- `chiptunes_export` — a share link carrying the whole arrangement in the URL
+  fragment, a Standard MIDI file, or a **32 KB `.gb` cartridge that boots on
+  real hardware** — all built in the page.
+
+**Driving the session the user is watching:** what's on air, skip, put this song
+on the deck, open the tracker, change the display, make the playing song
+gloomier. The tools are thin calls into the same functions the buttons call, so
+the agent and the person can never end up in different states — and the user
+hears every step as it happens.
+
+## How I built it
+
+`src/webmcp.js` is the whole WebMCP layer. It registers on **every surface
+present** — `document.modelContext` (the spec and these rules),
+`navigator.modelContext` (the W3C draft and Chrome), `window.modelContext` —
+deduped by object identity, per tool inside try/catch.
+
+Timing turned out to be the hard part, in three layers. The app bundle is
+`defer`red, so it runs *after* the document parses; an agent enumerating tools
+early would find nothing at all. So a **pre-hydration registrar is inlined as
+the first child of `<body>`**, with descriptors generated at build time from
+`src/webmcp.js` itself so the inline copy can never drift from the module. Then
+the bundle registers when it runs. Then two minutes of polling, plus retries on
+`load`, `focus`, `pointerdown` and `visibilitychange`, for hosts that inject
+late.
+
+`what_can_i_do_here` gets special treatment: its text is a constant carried by
+the inline registrar, so it answers on a completely cold page. It's the tool
+most likely to be called first, and "still loading" is a worse greeting than
+silence.
+
+The page also **adapts to who is driving**. On `/webmcp`, when a model context
+is present the explainer demotes to a corner bar and hands the screen to the
+instrument — an agent browser already has a chat; the person wants to see and
+hear the thing. And every agent-driven call is **announced on screen** ("🤖
+agent: switched the screen to nes") while a human clicking the same control is
+not, so nobody wonders why the music changed.
+
+## Challenges I ran into
+
+**The bug that would have sunk it.** I registered on `navigator.modelContext`.
+The spec surface is `document.modelContext`. In every browser that actually
+implements WebMCP, **not one tool would have registered** — and nothing would
+have looked wrong: the page was healthy, the console API worked, and my test
+passed, because the test shim had been written against the same wrong surface.
+The test and the code agreed with each other and both were wrong.
+
+That's why the gate now installs the **spec** shim before any page script, the
+way an agent browser does, and calls every tool for real. It immediately found a
+second bug that could only ever have appeared at the agent: `variations()`
+returns an envelope, not an array, and the tool was calling `.map` on it.
+
+**A registrar that was silently dead.** My inline registrar matched `<body` with
+a regex — and hit the text `<body>` inside a **CSS comment** in the inline
+stylesheet, injecting the whole script into the middle of a comment. The page
+looked completely normal and had no tools.
+
+**Making the words actually mean something.** A mood used to be three settings —
+mode, tempo, octave — applied after the fact, so a happy song and a sad song
+were the same tune under different lighting. I added four operations that change
+how the music is *written*: consonance against the chord underneath, the rise or
+fall of a phrase (in scale degrees, so it reshapes rather than detunes), leaps
+turned into steps, and emphasis on the beat.
+
+Then I built `analyse()` to check the claim, and it immediately caught a real
+musical error of mine: I'd defined consonance as pitch-class set membership, so
+a third above the bass counted as a clash. The same wrong definition sat in the
+operation *and* the measurement, so they agreed with each other and were both
+wrong.
+
+## Accomplishments I'm proud of
+
+**The claims are measured, not asserted.** Over 22 songs each, "happy" and "sad"
+separate on major-flavoured pitch material 0.94/0.00, tempo 144/120, phrase arc
++1.8/−1.6, consonance 0.99/0.64 — and each song is classified correctly **93% of
+the time by the writing alone**, with major/minor and tempo excluded from the
+classifier because those are the easy half. `npm run test:language` asserts
+every one of those gaps.
+
+**The demo works without WebMCP.** Most visitors — and possibly a judge in a
+hurry — don't have a WebMCP browser. The `/webmcp` page has a "Try it right now,
+agent or not" row that calls the same implementation an agent gets, with the
+JSON shown and the station audibly responding.
+
+**And it tells you when it can't help.** A waltz, vocals, a guitar, a Dorian
+mode, reverb, a game it doesn't know — each comes back with a reason.
+*"Everything here is in four; the composer has no meter dial"* is more use than
+a 4/4 ballad and a confident summary.
+
+## What I learned
+
+Two of my worst bugs this week had the same shape: **the test and the code
+agreed with each other and were both wrong.** The WebMCP surface, and the
+definition of consonance. A test that shares an assumption with the code under
+test verifies nothing. Both are now checked against something external — the
+spec's own API shape, and a measurement taken from the audio content.
+
+And WebMCP's real advantage isn't "an API without the HTTP". It's that the
+capability and the user are *in the same place*. The agent isn't fetching a
+result to describe; it's operating an instrument the person is listening to, and
+can hand back at any moment.
+
+## What's next
+
+Streaming a cue while an agent adjusts it, so a game developer can hear a boss
+theme escalate live rather than in takes. And an agent-facing loop point editor
+— the composer already knows its own bar structure, and adaptive game audio
+needs exactly that.
+```
 
 ---
 
