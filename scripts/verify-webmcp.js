@@ -150,6 +150,49 @@ const SHIM = `
   ok(!boom.threw && boom.r && boom.r.ok === false,
      'a bad argument comes back as a returned error, not an exception');
 
+  // ---- /webmcp: the route a judge actually lands on -------------------
+  // It must be the REAL app, or the tools register somewhere no agent looks.
+  const p2 = await b.newPage({ viewport: { width: 1280, height: 900 } });
+  const errs2 = [];
+  p2.on('pageerror', e => errs2.push(String(e).slice(0, 160)));
+  await p2.addInitScript(SHIM);
+  await p2.goto(`http://127.0.0.1:${h.port}/webmcp`, { waitUntil: 'domcontentloaded' });
+  await wait(4500);
+  const demo = await p2.evaluate(() => ({
+    panel: !!document.getElementById('wmcp'),
+    cards: document.querySelectorAll('#wmcp .card').length,
+    buttons: document.querySelectorAll('#wmcp button.b').length,
+    prompts: document.querySelectorAll('#wmcp .prompt').length,
+    webmcp: window.chiptunes && window.chiptunes.webmcp,
+    registered: (window.__mcpTools || []).length,
+    heading: (document.querySelector('#wmcp h1') || {}).textContent || ''
+  }));
+  ok(demo.panel && demo.heading.length > 10, 'the /webmcp route mounts the explainer ("' + demo.heading + '")');
+  ok(demo.registered >= 14 && /^document\.modelContext/.test(demo.webmcp || ''),
+     'AND is the real app, so the tools register where an agent will look (' +
+     demo.registered + ' on ' + demo.webmcp + ')');
+  ok(demo.cards >= 14, 'it lists every tool from the live surface (' + demo.cards + ')');
+  ok(demo.prompts >= 4 && demo.buttons >= 8,
+     'with prompts to copy and buttons that call the tools (' + demo.prompts + ' prompts, ' + demo.buttons + ' buttons)');
+
+  // The panel has to work for somebody with NO WebMCP browser, which is most
+  // people and possibly a judge in a hurry.
+  await p2.evaluate(() => {
+    document.querySelector('#wmcp input.t').value = 'a happy shop theme, 20 seconds';
+    document.querySelector('#wmcp button.b.p').click();
+  });
+  await wait(6000);
+  const panelOut = await p2.evaluate(() => (document.querySelector('#wmcp pre') || {}).textContent || '');
+  ok(/"ok": true/.test(panelOut) && /scene: shop/.test(panelOut),
+     'and calling a tool from the panel really composes (' + panelOut.slice(0, 60).replace(/\n/g, ' ') + ')');
+
+  const closed = await p2.evaluate(() => {
+    document.querySelector('#wmcp .x').click();
+    return { gone: !document.getElementById('wmcp'), path: location.pathname };
+  });
+  ok(closed.gone && closed.path === '/', 'and it closes onto the station, which was playing underneath all along');
+  ok(!errs2.length, 'no page errors on /webmcp' + (errs2.length ? ' -- ' + errs2[0] : ''));
+
   ok(!errs.length, 'no page errors throughout' + (errs.length ? ' -- ' + errs[0] : ''));
 
   await b.close(); h.s.close();

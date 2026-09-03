@@ -2536,3 +2536,40 @@ the window.
 
 **Still owner-only:** the Devpost entry itself and the demo video (under three
 minutes, on YouTube, with audio, showing the tools working).
+
+# 2026-09-02 (sixth pass) — /webmcp, a dedicated path for the demo
+
+Owner: the site needs a path geared for the WebMCP demo without hijacking the
+product. So `/webmcp` is a route, and `src/webmcp-demo.js` mounts an explainer
+panel there.
+
+**It is the REAL app, not a standalone page, and that is not a style choice.** An
+agent landing on /webmcp reads the TOP document's `modelContext`. An explainer
+page framing the app in an iframe would register its tools inside the frame,
+where no agent would ever find them. Building it as a route entry (`ROUTES` in
+build.js) means registration happens exactly where it is looked for, and what a
+judge tests is the same page everybody else uses. The panel is a passenger:
+close it and the station is playing underneath, because it always was.
+
+The panel carries:
+
+- **live status** — "WebMCP is live, 14 tools on document.modelContext" or, in
+  an ordinary browser, how to get it (ChatGPT desktop in-app browser, or Chrome
+  149+ with `chrome://flags/#enable-webmcp-testing`). It re-checks for 30s,
+  because the agent browser injects the API on its own schedule and a panel
+  stuck on "not supported" would be lying about a page that had registered.
+- **five prompts to copy** for the agent.
+- **"Try it right now, agent or not"** — buttons calling the same
+  `window.chiptunes` implementation the agent reaches, with the JSON shown and
+  the station audibly responding. This matters: most visitors, and possibly a
+  judge in a hurry, have no WebMCP browser, and the capability should be
+  visible before anybody installs anything.
+- **the 14 tools**, read from the live surface rather than duplicated in copy.
+
+A "For agents" pill sits next to "How it works" on the landing page. That is the
+whole of the home-page change — a link into a different reading of the product,
+not a different product.
+
+`verify-webmcp` covers the route: the panel mounts, the tools still register on
+`document.modelContext` there (the point of not using an iframe), every tool is
+listed, a tool call from the panel really composes, and closing it lands on `/`.

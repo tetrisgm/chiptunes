@@ -1856,6 +1856,14 @@ function buildRadioUI(){
       how.title='What this is and how it works';
       pills.appendChild(how);
 
+      // A PATH TO THE AGENT DEMO, not a takeover of the home page. /webmcp is
+      // the same app with an explainer panel on top, so this is a link into a
+      // different reading of the thing rather than a different product.
+      var forAgents=mkRbtn('For agents', function(){ location.href='/webmcp'; });
+      forAgents.classList.add('rmood','rmood-how');
+      forAgents.title='Drive this page with an AI agent over WebMCP';
+      pills.appendChild(forAgents);
+
       // ASK FOR IT IN WORDS. The mood chips are four answers; this is the same
       // machinery with the whole vocabulary behind it -- scenes, lengths, keys,
       // tempo, lanes to leave out, and changes to what is already playing.

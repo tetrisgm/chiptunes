@@ -67,6 +67,7 @@ const ORDER = [
   'src/nes-screen.js',   // WebGL NTSC composite + CRT (opt-in screen mode)
   'src/packs.js',
   ...inlineGameSources,
+  'src/webmcp-demo.js',   // the /webmcp explainer panel, mounted only on that route
   'src/runtime.js'
 ];
 
@@ -127,7 +128,11 @@ const radioHtml = fs.readFileSync(path.join(ROOT, 'src', 'listen-anywhere.html')
 // route entrypoints + stale-route cleanup
 // '/' is the player; /get is the platform page; /radio is the player under its own
 // name (kept: it is in links people have shared).
-const ROUTES = ['get', 'gameboy', 'create'];
+// /webmcp is the same app with the WebMCP explainer on top of it. It has to be
+// the REAL page rather than a standalone explainer: an agent arriving there
+// reads the top document's modelContext, and tools registered inside an iframe
+// would be invisible to it.
+const ROUTES = ['get', 'gameboy', 'create', 'webmcp'];
 for (const stale of ['player', 'create', 'listen', 'play', 'wip', 'watch']) {
   fs.rmSync(path.join(DIST, stale), { recursive: true, force: true });
 }

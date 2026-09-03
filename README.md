@@ -9,8 +9,35 @@ They are checked against each other: the same register writes, on the same
 frames, in the same order.
 
 **[Open Chiptunes.app](https://chiptunes.app)** ·
+**[Drive it with an agent (WebMCP)](https://chiptunes.app/webmcp)** ·
 **[Take the radio with you](https://chiptunes.app/radio)** ·
 **[How it works](docs/how-it-works.md)**
+
+---
+
+### 🤖 Built for the WebMCP Challenge
+
+**[chiptunes.app/webmcp](https://chiptunes.app/webmcp)** — the same app, with the
+agent story on top of it and every tool callable from the page whether or not
+your browser speaks WebMCP yet.
+
+`src/webmcp.js` registers **14 tools** on `document.modelContext`. Eight operate
+the session you are watching; six compose, measure and export **with no server
+at all**, because the composer and a register-level Game Boy sound chip are
+already running in the tab. No API key, no account, nothing metered — and a song
+is 1.6 ms, so `chiptunes_variations` hands back **twelve complete, different
+songs in about 70 ms**. An agent cannot listen, so `chiptunes_analyse` lets it
+measure what it made instead.
+
+Ask for *"a dungeon theme like Castlevania, 40 seconds, no drums"* and it tells
+you exactly what it understood, what it ignored, and what it refused.
+
+Full write-up, including which work was added during the submission window:
+**[docs/WEBMCP.md](docs/WEBMCP.md)**. Verified by
+[`scripts/verify-webmcp.js`](scripts/verify-webmcp.js), which shims the spec API
+the way an agent browser does and calls all 14 tools for real.
+
+---
 
 ![Chiptunes.app](https://chiptunes.app/og.png)
 
