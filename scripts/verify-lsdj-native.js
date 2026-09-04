@@ -243,6 +243,21 @@ Object.keys(IMAGES).forEach(name => {
   const sentD = dj.notes.filter(x => x.drum).map(x => x.step + ':' + x.drum).join(' ');
   const gotD = api.toJSON(dBack.doc).notes.filter(x => x.drum).map(x => x.step + ':' + x.drum).join(' ');
   ok(sentD === gotD, 'and a kick comes back a kick, a hat a hat (' + gotD + ')');
+
+  // AND HOW LONG EACH NOTE LASTED. LSDj stores no length -- a note runs until
+  // the next note or a K command -- so this was written off as unrecoverable.
+  // It is not: a length IS "where it stops", the export says so with a KILL, and
+  // the import reads it back. Without the KILL a staccato note exported as a
+  // sustained one, which is a different piece of music and was audible on
+  // anything with space in it; verified in mGBA, the volume now drops one row
+  // after the note instead of holding to the next.
+  const lj = { title: 'Lengths', grid: 16, bpm: 128, bars: 2, notes: [] };
+  [1, 2, 1, 4, 1, 2, 3, 1].forEach((len, s) =>
+    lj.notes.push({ lane: 'Melody', step: s * 4, note: nm(60 + s), len }));
+  const lBack = api.fromLsdsng(api.toLsdsng(api.fromJSON(lj)).bytes);
+  const sentL = lj.notes.map(n => n.len).join(' ');
+  const gotL = api.toJSON(lBack.doc).notes.filter(n => n.note).map(n => n.len).join(' ');
+  ok(sentL === gotL, 'and every note lasts as long as it did (' + gotL + ')');
 }
 
 // How much of a song we UNDERSTAND rather than carry verbatim. A ratchet the

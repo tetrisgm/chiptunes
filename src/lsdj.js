@@ -345,10 +345,43 @@
       else if (x.g && lane !== 3) { slot.cmd = CMD.R; slot.val = 0x00; }
       else if (x.vb && lane !== 3) { slot.cmd = CMD.V; slot.val = 0x84; }
       if (grid[lane][step]) dropped++;
+      slot.len = Math.max(1, x.len | 0 || 1);
       grid[lane][step] = slot;
     });
     if (outOfRange) warn.push(outOfRange + ' notes were still outside LSDj\'s range after transposing and were left out');
     if (dropped) warn.push(dropped + ' notes shared a step with another on the same channel and were replaced');
+
+    // ---- KILL, because LSDj does not store a note length ------------------
+    // A note in LSDj RUNS UNTIL THE NEXT ONE. Ours have lengths, so a staccato
+    // note exported without saying where it stops becomes a sustained one that
+    // holds until the next note arrives -- which is a different piece of music,
+    // and was audible on anything with space in it.
+    //
+    // The envelope cannot fix this. Measured off the ROM, byte 1's low nibble is
+    // a HOLD IN FRAMES -- 1,1,1,1,1,2,2,3,4,5,6,8,11,15,20 for 1..f, and 0 means
+    // sustain -- so it tops out at twenty frames and is tied to the instrument
+    // rather than the note. A tracker says this with a command, and the command
+    // is KILL: put it on the row the note stops on.
+    var kills = 0;
+    for (ch = 0; ch < 4; ch++) {
+      // Drums are one-shots; killing them would cut the sample short.
+      if (ch === 3) continue;
+      for (var gs = 0; gs < steps; gs++) {
+        var here = grid[ch][gs];
+        if (!here || !here.note) continue;
+        var endsAt = gs + here.len;
+        if (endsAt >= steps) continue;
+        // find the next note on this channel
+        var nxt = -1;
+        for (var gt = gs + 1; gt < steps; gt++) if (grid[ch][gt] && grid[ch][gt].note) { nxt = gt; break; }
+        if (nxt >= 0 && nxt <= endsAt) continue;       // the next note ends it
+        // ...and only if that row is free: a row holds one command, and an
+        // arpeggio or a vibrato already there is the more musical thing to keep.
+        if (grid[ch][endsAt] && (grid[ch][endsAt].note || grid[ch][endsAt].cmd !== CMD.NONE)) continue;
+        grid[ch][endsAt] = { note: NO_NOTE, cmd: CMD.K, val: 0, inst: here.inst, len: 1 };
+        kills++;
+      }
+    }
 
     // ---- phrases, deduplicated --------------------------------------------
     var phrases = [], byKey = {}, chainsOf = [[], [], [], []];
@@ -721,9 +754,29 @@
   // instrument slot can, because each drum is written to its own, which is also
   // what an LSDj musician would do by hand.
   //
-  // ⚠️ NOTE LENGTH still cannot come back, and never will: LSDj does not store
-  // one. A note runs until the next note or a KILL command, so length is
-  // reconstructed as the gap to the next note on that channel.
+  // NOTE LENGTH comes back from the KILL, when there is one. LSDj stores no
+  // length -- a note runs until the next note or a K command -- so a length is
+  // exactly "where it stops", and that is a row we wrote. Read the K and the
+  // length survives; with no K the note really does run to the next note, and
+  // the reconstructed gap is the truth rather than a guess.
+  // The rows a channel is told to STOP on. Same walk as playedNotes, but K
+  // commands sit on rows with no note, so that walk cannot see them.
+  function killRows(m, ch) {
+    var out = [], row = 0, s, cr, st;
+    for (s = 0; s < 256; s++) {
+      var chain = m.sequence[s][ch];
+      if (chain === NO_CHAIN) continue;
+      for (cr = 0; cr < 16; cr++) {
+        var ph = m.chainPhrases[chain][cr];
+        if (ph === NO_PHRASE) continue;
+        for (st = 0; st < 16; st++)
+          if (m.phraseCommands[ph][st] === CMD.K) out.push(row + st);
+        row += 16;
+      }
+    }
+    return out;
+  }
+
   function instrumentName(m, slot) {
     if (slot == null || slot === NO_INSTRUMENT || !m.instrumentNames[slot]) return '';
     var s = '';
@@ -739,10 +792,16 @@
     var known = { hat: 1, snare: 1, kick: 1 };
     var lastRow = 0, unnamedDrums = 0;
     for (ch = 0; ch < 4; ch++) {
-      var played = playedNotes(m, ch);
+      var played = playedNotes(m, ch), kills = killRows(m, ch);
       for (i = 0; i < played.length; i++) {
         var n = played[i], next = played[i + 1];
-        var len = next ? Math.max(1, Math.min(16, next.row - n.row)) : 1;
+        // Where does this note STOP? A KILL before the next note is the answer
+        // and is exact; otherwise it runs to the next note, which is also exact
+        // because that is what LSDj does.
+        var stop = next ? next.row : n.row + 1;
+        for (var ki = 0; ki < kills.length; ki++)
+          if (kills[ki] > n.row && kills[ki] < stop) { stop = kills[ki]; break; }
+        var len = Math.max(1, Math.min(16, stop - n.row));
         if (n.row > lastRow) lastRow = n.row;
         if (ch === 3) {
           var nm2 = instrumentName(m, n.instrument);
