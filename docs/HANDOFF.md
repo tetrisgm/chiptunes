@@ -3175,3 +3175,16 @@ drawing any conclusion about envelope shapes.
 NOTE_BASE was an octave low, twice, with clean believable numbers, and it was
 wrong both times -- caught only by re-measuring with a single note. A confident
 wrong envelope table would be worse than none.
+
+**Attempted and abandoned, so nobody repeats it:** a `tools/lsdjenv.c` that
+stepped the core one instruction at a time (`core->step`) and watched NR12.
+`core->step` did not advance the GB core in mGBA 0.10.5 in this setup -- the
+tool produced an empty trace on a song that was audibly playing. Two traps
+inside that one attempt, both of which produce a believable empty result:
+`core->frameCounter()` does not count frames the way the name suggests, so a
+frame-budgeted loop exits after a few dozen instructions; and an empty trace
+reads exactly like "LSDj wrote nothing".
+
+The next attempt should hook mGBA's memory WRITE path for 0xFF10..0xFF25
+directly rather than stepping and polling, and should first prove the hook fires
+at all on a song known to be playing.
