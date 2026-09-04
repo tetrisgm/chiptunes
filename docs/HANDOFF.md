@@ -3251,3 +3251,39 @@ the thing being measured does not.
 
 The pattern: **a gate that races a stopwatch is measuring the machine's mood.**
 Wait for the condition, or compare like with like.
+
+
+## The bass was playing in LSDj's voice, not ours (2026-09-04)
+
+A wave voice's whole timbre is its 32-nibble table, and the export never wrote
+one. LSDj played the right notes through its own default waveform: the correct
+tune in somebody else's voice. A register trace limited to NR10..NR51 could
+never have said so, because the PITCH was right -- which is why `lsdjtrace` now
+runs through 0xFF3F and carries wave RAM.
+
+**WAVES live at 0x6000**, 256 frames of 16 bytes. Found by looking rather than
+guessing: the default wave appears in the empty song at exactly 256 contiguous
+slots from 0x6000 to 0x6FF0, which is precisely the gap the field map had.
+Confirmed on the machine -- a marker table planted at frame 0 comes back out of
+LSDj's wave RAM byte for byte.
+
+⚠️ **A wave instrument ANIMATES by default.** Left alone it walks a run of
+frames -- that is LSDj's wave synth, and it is a lovely thing that is not what
+our bass sounds like. **Byte 9 = 0x03 pins it to frame 0**, measured; byte 11
+does not select the frame, so a pinned instrument holds frame 0 specifically and
+a song using two wave voices has to share one table. The export says so in
+`warnings` rather than leaving it to be noticed by ear.
+
+Field-map coverage went 71.5% -> 84.0% with the wave region named.
+
+## A gate cannot edit a song that is not there
+
+`verify-export-boundaries` opened bare `/create` and edited whatever the editor
+happened to put on screen -- a different song every run. One run in several has
+no DRUMS at all, so the kit loop had nothing to click and the fixture came back
+with no kit and no wave data. The gate then reported that exports drop data,
+when the truth was the fixture never had any.
+
+It loads a KNOWN song through the URL fragment now (`/create#s=<code>`) with
+melody, bass and drums in it, and waits for the editor's panel instead of racing
+an 80ms timer. Three consecutive runs return byte-identical fixture counts.

@@ -45,6 +45,12 @@
     PHRASE_ALLOC: 0x3E82, CHAIN_ALLOC: 0x3EA2,
     TEMPO: 0x3FB4, TRANSPOSE: 0x3FB5,
     PHRASE_COMMANDS: 0x4000, PHRASE_COMMAND_VALUES: 0x4FF0,
+    // WAVES, found by looking rather than by guessing: the default wave appears
+    // in the empty song at exactly 256 contiguous 16-byte slots from 0x6000 to
+    // 0x6FF0, which is the whole of the gap our field map had. Confirmed on the
+    // machine -- a marker table planted at frame 0 comes back out of LSDj's wave
+    // RAM byte for byte.
+    WAVES: 0x6000,
     PHRASE_INSTRUMENTS: 0x7000, FORMAT_VERSION: 0x7FFF
   };
   var NO_NOTE = 0, NO_INSTRUMENT = 0xFF, NO_CHAIN = 0xFF, NO_PHRASE = 0xFF;
@@ -219,6 +225,26 @@
   // rather than by bars keeps the export structurally correct either way, and
   // the caller is warned when the two stop coinciding.
   var PHRASE_STEPS = 16;
+
+  // OUR wave tables, packed the way the hardware wants them: 32 four-bit samples
+  // into 16 bytes, high nibble first. The slots come from the same bank the
+  // browser plays, so the table LSDj loads is the one you heard.
+  var WAVE_SLOT = { bassg: 1, cello: 4 };          // saw (buzzy), sine (mellow)
+  function waveTableFor(stamp) {
+    var HW = (typeof require !== 'undefined' && typeof module !== 'undefined')
+      ? require('./gb-hardware.js') : G.CT_GB;
+    var CI = (typeof require !== 'undefined' && typeof module !== 'undefined')
+      ? require('./chip-instruments.js') : G.CT_CHIP_INSTRUMENTS;
+    if (!HW || !CI || !HW.buildBank) return null;
+    var slot = WAVE_SLOT[stamp];
+    if (slot == null) return null;
+    var tables = HW.buildBank(CI.patches).waveTables;
+    var t = tables && tables[slot];
+    if (!t || t.length < 32) return null;
+    var out = [];
+    for (var i = 0; i < 16; i++) out.push(((t[i * 2] & 0xF) << 4) | (t[i * 2 + 1] & 0xF));
+    return out;
+  }
 
   function laneOfCell(x, melRows) {
     if (x.r >= melRows) return 3;                        // drum rows
@@ -488,14 +514,39 @@
       song[at + 1] = (Math.max(0, Math.min(15, inst.vol)) << 4);
       if (inst.type === INST_TYPE.PULSE) song[at + 7] = (inst.duty << 6) | 0x03;
       else song[at + 7] = (song[at + 7] & 0xFC) | 0x03;
+      // A WAVE INSTRUMENT'S TIMBRE IS ITS TABLE, so pin it to the frame we
+      // wrote ours into. Left alone, LSDj ANIMATES through a run of frames --
+      // that is its wave synth, and it is a lovely thing that is not what our
+      // bass sounds like. Byte 9 = 0x03 holds it on frame 0; measured.
+      if (inst.type === INST_TYPE.WAVE) song[at + 9] = 0x03;
       song[O.INSTRUMENT_ALLOC + i] = 1;
       for (var nm = 0; nm < 5; nm++) {
         var chr = inst.name.charCodeAt(nm);
         song[O.INSTRUMENT_NAMES + i * 5 + nm] = chr ? chr : 0;
       }
     }
-    warn.push('instruments carry the duty and volume this song plays; LSDj\'s own ' +
-              'envelope shapes are left plain, so voicing is still yours to finish');
+    // ---- and the wave the bass is actually made of -------------------------
+    // Everything above carries the pulse and noise voices. The WAVE voice's
+    // whole timbre is its 32-nibble table, and without writing it the export
+    // handed LSDj a bass playing the right notes through LSDj's default
+    // waveform -- the correct tune in somebody else's voice.
+    var waveStamps = {};
+    st.cells.forEach(function (x) { if (laneOfCell(x, melRows) === 2 && x.st) waveStamps[x.st] = 1; });
+    var usedWaves = Object.keys(waveStamps);
+    if (usedWaves.length) {
+      var table = waveTableFor(usedWaves[0]);
+      if (table) for (i = 0; i < 16; i++) song[O.WAVES + i] = table[i];
+      // ⚠️ ONE FRAME. Pinning is what stops LSDj animating through its synth,
+      // and the pin found on the machine holds frame 0 specifically -- so a song
+      // using two different wave voices has to share one table. Said out loud
+      // rather than left for somebody to notice by ear.
+      if (usedWaves.length > 1)
+        warn.push('this song uses ' + usedWaves.length + ' wave voices (' + usedWaves.join(', ') +
+                  ') and a pinned LSDj instrument holds one table, so they share ' +
+                  usedWaves[0] + '\'s');
+    }
+    warn.push('instruments carry the duty, volume and wave table this song plays; ' +
+              'LSDj\'s own envelope shapes are left plain, so voicing is still yours to finish');
     warn.push('drums are on the noise channel: a .sav cannot carry kit samples, which live in the ROM');
 
     // ---- tempo and groove --------------------------------------------------
@@ -671,6 +722,7 @@
     { k: 'transpose',         at: O.TRANSPOSE,             n: 1,   w: 1 },
     { k: 'phraseCommands',    at: O.PHRASE_COMMANDS,       n: 255, w: 16 },
     { k: 'phraseCommandVals', at: O.PHRASE_COMMAND_VALUES, n: 255, w: 16 },
+    { k: 'waves',             at: O.WAVES,                 n: 256, w: 16 },
     { k: 'phraseInstruments', at: O.PHRASE_INSTRUMENTS,    n: 255, w: 16 },
     { k: 'formatVersion',     at: O.FORMAT_VERSION,        n: 1,   w: 1 }
   ];

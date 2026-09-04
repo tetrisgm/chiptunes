@@ -212,6 +212,41 @@ for (const [ch, name] of [[0, 'PU1'], [1, 'PU2'], [2, 'WAV']]) {
      [...colours].map(v => '0x' + v.toString(16)).join(' ') + ')');
 }
 
+// ---- AND THE BASS IS MADE OF OUR WAVE -------------------------------------
+//
+// A wave voice's whole timbre is its 32-nibble table. Without writing it, the
+// export handed LSDj a bass playing the right notes through LSDj's DEFAULT
+// waveform -- the correct tune in somebody else's voice, and a register trace
+// limited to NR10..NR51 could never have said so, because the pitch was right.
+//
+// Left alone LSDj also ANIMATES through a run of frames -- that is its wave
+// synth. Byte 9 pins the instrument to one frame, and that frame is ours.
+{
+  const bj = { title: 'Bass', grid: 16, bpm: 128, bars: 2, notes: [] };
+  for (let s = 0; s < 8; s++)
+    bj.notes.push({ lane: 'Bass', step: s * 4, note: NOTE(36 + s), len: 3, stamp: 'bassg' });
+  const doc = api.fromJSON(bj);
+  const cart = api.toLsdjSav([doc]);
+  const savPath = path.join(TMP, 'wave.sav');
+  fs.writeFileSync(savPath, Buffer.from(cart.bytes));
+
+  const ours = Array.from(L.readSong(new Uint8Array(
+    cart.bytes.buffer, cart.bytes.byteOffset, L.SONG_BYTES)).waves[0]);
+
+  const out = cp.execFileSync(TRACE, [ROM, savPath, '420', '200'],
+    { maxBuffer: 1 << 26, stdio: ['ignore', 'pipe', 'ignore'] }).toString();
+  const lines = out.split('\n').filter(l => /^(frame,|\d+,)/.test(l));
+  const head = lines[0].split(','), w0 = head.indexOf('W0');
+  const loaded = new Set();
+  for (const l of lines.slice(1)) {
+    const r = l.split(',').map(Number);
+    loaded.add(r.slice(w0, w0 + 16).join(','));
+  }
+  ok(w0 >= 0 && loaded.has(ours.join(',')),
+     'the wave channel is loaded with OUR table, not LSDj\'s default ' +
+     '(' + loaded.size + ' distinct waveform' + (loaded.size === 1 ? '' : 's') + ' seen)');
+}
+
 try { fs.rmSync(TMP, { recursive: true, force: true }); } catch (e) { /* scratch only */ }
 
 console.log('\nverify-lsdj-emulator: ' + (fail ? fail + ' FAILED' : 'LSDj plays what we wrote, at the tempo we wrote it'));

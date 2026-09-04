@@ -47,7 +47,21 @@ const shape = song => ({
   // Build a real edited song containing both movement and a sampled drum, then
   // exercise the actual Create download buttons.
   const create = await browser.newPage({ viewport: { width: 1380, height: 900 }, acceptDownloads: true });
-  await create.goto(`http://127.0.0.1:${host.port}/create`, { waitUntil: 'domcontentloaded' });
+  // ⚠️ LOAD A KNOWN SONG. This opened bare /create and edited whatever the
+  // editor happened to put there -- a different song every run, and one run in
+  // several has no DRUMS at all, so the kit loop had nothing to click and the
+  // fixture came back without kit or wave data. The gate then reported that
+  // exports drop data, when the truth was that the fixture never had any.
+  const api = require(path.join(__dirname, '..', 'src', 'api.js'));
+  const NOTE = n => ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'][n % 12] + (Math.floor(n / 12) - 1);
+  const fixture = { title: 'Boundaries', grid: 16, bpm: 128, bars: 4, notes: [] };
+  for (let s = 0; s < 16; s++) {
+    fixture.notes.push({ lane: 'Melody', step: s * 4, note: NOTE(60 + (s % 12)), len: 2 });
+    fixture.notes.push({ lane: 'Bass', step: s * 4, note: NOTE(36 + (s % 7)), len: 3 });
+    fixture.notes.push({ lane: 'Drums', step: s * 4, drum: ['kick', 'hat', 'snare', 'hat'][s % 4] });
+  }
+  const code = api.fromJSON(fixture);
+  await create.goto(`http://127.0.0.1:${host.port}/create#s=${code}`, { waitUntil: 'domcontentloaded' });
   await create.waitForFunction(() => document.querySelector('#createscreen.show'), null, { timeout: 40000 });
   await wait(3500);
   const prepared = await create.evaluate(async () => {

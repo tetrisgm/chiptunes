@@ -43,7 +43,11 @@
  * but never compared -- a trace that included it would differ on timing noise
  * that no listener can hear. */
 #define REG_FIRST 0xFF10
-#define REG_LAST  0xFF25
+/* ...through wave RAM. FF30..FF3F is the 32-nibble waveform channel 3 plays,
+ * and without it a trace can say the wave channel sounded the right PITCH while
+ * saying nothing about what it sounded LIKE -- which is the whole question for
+ * an instrument whose timbre IS that table. */
+#define REG_LAST  0xFF3F
 #define NREG (REG_LAST - REG_FIRST + 1)
 
 static const char* NAMES[NREG] = {
@@ -51,7 +55,8 @@ static const char* NAMES[NREG] = {
 	"NR21","NR22","NR23","NR24",
 	"NR30","NR31","NR32","NR33","NR34","FF1F",
 	"NR41","NR42","NR43","NR44",
-	"NR50","NR51"
+	"NR50","NR51","NR52","FF27","FF28","FF29","FF2A","FF2B","FF2C","FF2D","FF2E","FF2F",
+	"W0","W1","W2","W3","W4","W5","W6","W7","W8","W9","WA","WB","WC","WD","WE","WF"
 };
 
 int main(int argc, char** argv) {
