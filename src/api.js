@@ -443,8 +443,29 @@ function fromLsdsng(bytes, opts) {
   var parsed = b.length >= LSDJ.SAV_SIZE ? LSDJ.parseSav(b) : LSDJ.parseLsdsng(b);
   var model = LSDJ.readSong(parsed.song);
   var out = LSDJ.toSongJSON(model, { name: (opts && opts.name) || parsed.name });
+  var doc = fromJSON(out.json);
+  // A TABLE IS PLAYED OUT INTO NOTES, one per tick, at the pitch and the frame
+  // each tick sounds. The document is row-based, but a cell carries `of` (frames
+  // off the grid), `midi` and `lf` (an exact length in frames), which between
+  // them can put a note wherever the machine can -- the same mechanism a
+  // composed song already uses to survive import at frame resolution.
+  //
+  // So a table plays EXACTLY, and no new document format was needed for it.
+  if (out.tableNotes && out.tableNotes.length) {
+    var st = CT_CREATE.docState(doc);
+    var melRows = T.melodicRows || 15;
+    var laneRow = function (x) {
+      return x.r >= melRows ? 3
+        : (x.ch === 0 || x.ch === 1) ? x.ch
+        : (x.st === 'bassg' || x.st === 'cello') ? 2 : 0;
+    };
+    if (st && LSDJ.expandTables(model, st, out.tableNotes, laneRow)) {
+      var grown = CT_CREATE.docFromState(st);
+      if (grown) doc = grown;
+    }
+  }
   return {
-    doc: fromJSON(out.json), title: out.json.title, bpm: out.json.bpm,
+    doc: doc, title: out.json.title, bpm: out.json.bpm,
     groove: out.groove, notes: out.json.notes.length, warnings: out.warnings
   };
 }

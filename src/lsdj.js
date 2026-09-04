@@ -922,6 +922,66 @@
     for (var i = 0; i < 5; i++) { var c = m.instrumentNames[slot][i]; if (c) s += String.fromCharCode(c); }
     return s.toLowerCase();
   }
+  // A TABLE, PLAYED EXACTLY, in cells rather than as an approximation.
+  //
+  // A table steps every TICK -- six to a row -- and transposes the note. Our
+  // document is row-based, which is why this first arrived as "call it an
+  // arpeggio and warn"; but a cell also carries `of` (an offset in FRAMES),
+  // `midi` (an exact pitch) and `lf` (an exact length in frames), which between
+  // them can put a note anywhere the machine can. That is the same mechanism a
+  // composed song already uses to survive import at frame resolution.
+  //
+  // So a note running a table becomes one cell per tick, each at the frame that
+  // tick starts on and at the pitch that tick sounds. Nothing is approximated
+  // and nothing needed a new document format.
+  function expandTables(m, st, tableNotes, laneRow) {
+    var H = (typeof require !== 'undefined' && typeof module !== 'undefined')
+      ? require('./gb-hardware.js') : G.CT_GB;
+    if (!H || !H.lsdjRowFrame) return 0;
+    var ticks = [], t;
+    for (t = 0; t < 16 && m.grooves[0][t]; t++) ticks.push(m.grooves[0][t]);
+    if (!ticks.length) ticks = [6];
+    var perRow = 0;
+    for (t = 0; t < ticks.length; t++) perRow += ticks[t];
+    perRow = perRow / ticks.length;                       // ticks in a row
+    var tempo = Math.max(1, m.tempo || 128), added = 0, out = [];
+
+    // which (lane, step) pairs run a table, from the model rather than the doc
+    var want = {};
+    tableNotes.forEach(function (n) { want[n.lane + ':' + n.step] = n; });
+
+    st.cells.forEach(function (x) {
+      out.push(x);
+      var hit = x.midi == null ? null : want[laneRow(x) + ':' + (x.c | 0)];
+      if (!hit) return;
+      var rows = m.tables0[hit.table];
+      if (!rows) return;
+      var startRow = x.c | 0, lenRows = Math.max(1, x.len | 0 || 1);
+      var startTick = Math.round(startRow * perRow);
+      var totalTicks = Math.max(1, Math.round(lenRows * perRow));
+      var frame0 = H.lsdjTickFrame(tempo, startTick);
+      // the first tick is the note itself; give it the table's row 0 and an
+      // exact one-tick length, then lay the rest out beside it
+      var tickFrame = function (j) { return H.lsdjTickFrame(tempo, startTick + j); };
+      x.midi = (x.midi | 0) + ((rows[0] << 24) >> 24);
+      x.lf = Math.max(1, tickFrame(1) - tickFrame(0));
+      for (var j = 1; j < totalTicks; j++) {
+        var tr = (rows[j % 16] << 24) >> 24;
+        var f = tickFrame(j);
+        out.push({
+          c: startRow, r: x.r, st: x.st, ch: x.ch, inst: x.inst, vel: x.vel,
+          midi: (x.midi | 0) - ((rows[0] << 24) >> 24) + tr,
+          of: f - frame0,                                  // frames past the row
+          lf: Math.max(1, tickFrame(j + 1) - f),
+          len: 1
+        });
+        added++;
+      }
+    });
+    st.cells = out;
+    return added;
+  }
+
   function toSongJSON(m, opts) {
     opts = opts || {};
     var warn = [], notes = [], ch, i;
@@ -934,7 +994,7 @@
     var tSum = 0;
     for (t = 0; t < ticks.length; t++) tSum += ticks[t];
     var rowFrames = (tSum / ticks.length) * 149.31875 / Math.max(1, m.tempo || 128);
-    var lastRow = 0, unnamedDrums = 0;
+    var lastRow = 0, unnamedDrums = 0, tableNotes = [];
     for (ch = 0; ch < 4; ch++) {
       var played = playedNotes(m, ch), kills = killRows(m, ch);
       for (i = 0; i < played.length; i++) {
@@ -983,7 +1043,8 @@
           // far more than an arpeggio, and ours runs at the renderer's own rate
           // rather than the table's, because our document is ROW-based and a
           // table is per-TICK. It gets the character; it does not get the table.
-          else if (tableOf(m, n.instrument) != null) note.motion = 'arp';
+          var tbl = tableOf(m, n.instrument);
+          if (tbl != null) tableNotes.push({ lane: ch, step: n.row, table: tbl, len: len });
           // ...and a sweep is a fall or a rise, read off the instrument's NR10.
           // Bit 3 set means the frequency decreases, which is the pitch falling.
           else if (p && p[4]) note.motion = (p[4] & 0x08) ? 'fall' : 'rise';
@@ -1012,9 +1073,8 @@
     });
     var tableCount = Object.keys(tablesUsed).length;
     if (tableCount) warn.push(tableCount + ' LSDj table' + (tableCount > 1 ? 's' : '') +
-      ' came back as arpeggios. A table moves the pitch every TICK, six to a row, ' +
-      'and this document is row-based -- so the character survives and the table ' +
-      'itself does not');
+      ' played out into notes, one per tick, at the pitch and the frame each tick ' +
+      'sounds -- so they play exactly rather than approximately');
     // Commands we do not act on, counted rather than silently dropped.
     var unknownCmds = {};
     for (ch = 0; ch < 4; ch++) playedNotes(m, ch).forEach(function (n) {
@@ -1032,7 +1092,7 @@
         bars: Math.max(1, Math.ceil((lastRow + 1) / 16)),
         notes: notes
       },
-      groove: ticks, tempo: m.tempo, warnings: warn
+      groove: ticks, tempo: m.tempo, warnings: warn, tableNotes: tableNotes
     };
   }
 
@@ -1050,6 +1110,7 @@
     compress: compress, decompress: decompress, emptySong: emptySong,
     fromDocument: fromDocument, lsdsng: lsdsng,
     readSong: readSong, writeSong: writeSong, coverage: coverage, playedNotes: playedNotes,
+    expandTables: expandTables, tableOf: tableOf,
     parseLsdsng: parseLsdsng, parseSav: parseSav, toSongJSON: toSongJSON
   };
   G.CT_LSDJ = API;

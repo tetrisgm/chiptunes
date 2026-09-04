@@ -3355,17 +3355,25 @@ Verified: a table of [0,2,4,5,7,9,11,12] on a MIDI 72 note plays
 72,74,76,77,79,81,83,84 and loops, one step every 2.49 frames at tempo 60 --
 which is exactly a tick.
 
-**A pitch-moving table now imports as an ARPEGGIO**, which is a thing our
-document can say, and the warning states that it is an approximation. A table
-does more than an arpeggio, and ours runs at the renderer's rate rather than the
-table's.
+### And they play EXACTLY
 
-⚠️ **THE EXACT THING IS A DOCUMENT-FORMAT CHANGE, NOT A BUG.** A table moves the
-pitch every TICK and our document is ROW-based -- six ticks to a row -- so there
-is nowhere to put the intermediate steps. Carrying a table exactly means adding a
-per-note transpose sequence to the document, and teaching create.js and audio.js
-to run it. That is the one remaining piece, and it is a feature rather than a
-fix. Our own songs never use tables, so EXPORT is unaffected either way.
+The first attempt called a table an arpeggio and warned that it was an
+approximation, on the reasoning that a table steps every TICK while the document
+is ROW-based, so there was nowhere to put the intermediate steps. **That was
+wrong, and the thing that makes it wrong was already in the format.**
+
+A cell carries `of` -- an offset in FRAMES -- alongside `midi` (an exact pitch)
+and `lf` (an exact length in frames). Between them they can put a note wherever
+the machine can, and that is the same mechanism a composed song already uses to
+survive import at frame resolution.
+
+So a note running a table is played OUT into notes, one per tick, each at the
+pitch that tick sounds and the frame that tick starts on. Verified: transposes
+[0,4,7,12] on a MIDI 60 note give 60,64,67,72,60,64 at frames 0,1,2,3,5,6 --
+1.167 frames a tick at tempo 128, which is the tick.
+
+**No document format change and no audio-engine change was needed.** The
+approximation had been justified by a limit the format did not actually have.
 
 ## The other two gaps are closed
 

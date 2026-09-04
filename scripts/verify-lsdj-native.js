@@ -335,14 +335,36 @@ Object.keys(IMAGES).forEach(name => {
   ok(foreign.warnings.some(w => /table/.test(w)) && foreign.warnings.some(w => /command/.test(w)),
      'and a foreign song says what it uses that we do not play (' +
      foreign.warnings.length + ' warnings)');
-  // ⚠️ AN APPROXIMATION, and the warning has to say so. A table does far more
-  // than an arpeggio, and ours runs at the renderer's rate rather than the
-  // table's. Silently keeping the notes and dropping the movement would be the
-  // worse failure -- every note arrives and the song is still wrong.
-  ok(foreign.json.notes.filter(n => n.note).some(n => n.motion === 'arp') &&
-     foreign.warnings.some(w => /character survives/.test(w)),
-     'and a pitch-moving table arrives as the arpeggio it sounds like, said to be ' +
-     'an approximation rather than passed off as the table');
+  // AND A TABLE PLAYS EXACTLY. A table steps every TICK -- six to a row -- and
+  // this document is row-based, which is why it first arrived as "call it an
+  // arpeggio and warn". But a cell carries `of` (frames off the grid), `midi`
+  // and `lf` (an exact length in frames), which is enough to put a note wherever
+  // the machine can. So the table is played OUT into notes, one per tick, at the
+  // pitch and the frame each tick sounds.
+  {
+    const tj = { title: 'Table', grid: 16, bpm: 128, bars: 2,
+                 notes: [{ lane: 'Melody', step: 0, note: nm(60), len: 4 }] };
+    const timg = L.readSong(L.parseLsdsng(api.toLsdsng(api.fromJSON(tj)).bytes).song);
+    timg.instrumentParams[0][6] = 0x20;                         // table 0 on
+    for (let i = 0; i < 16; i++) timg.tables0[0][i] = [0, 4, 7, 12][i % 4];
+    const body = L.compress(L.writeSong(timg), 1);
+    const file = new Uint8Array(9 + body.length);
+    file.set(body, 9);
+    const tb = api.fromLsdsng(file);
+    const CT0 = require(path.join(ROOT, 'src', 'create.js'));
+    const sc = CT0.songOf(tb.doc);
+    const lead = ((sc && (sc.notes || (sc.gb && sc.gb.notes))) || []).filter(n => n.ch === 0);
+    // the transposes are 0,4,7,12 on a MIDI 60 note, one per tick
+    const want = [60, 64, 67, 72, 60, 64];
+    const got = lead.slice(0, 6).map(n => n.midi);
+    ok(JSON.stringify(got) === JSON.stringify(want),
+       'a table plays out one note per tick at the right pitch (' + got.join(',') + ')');
+    // ...and each lands on its own frame, ~1.17 of them at this tempo
+    const frames = lead.slice(0, 6).map(n => n.frame);
+    const rising = frames.every((f, i) => i === 0 || f > frames[i - 1]);
+    ok(rising && frames[5] - frames[0] <= 8,
+       'each on the frame that tick starts (' + frames.join(',') + ')');
+  }
 }
 
 // How much of a song we UNDERSTAND rather than carry verbatim. A ratchet the
