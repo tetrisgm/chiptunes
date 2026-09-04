@@ -857,6 +857,18 @@
   // exactly "where it stops", and that is a row we wrote. Read the K and the
   // length survives; with no K the note really does run to the next note, and
   // the reconstructed gap is the truth rather than a guess.
+  // LSDJ'S ENVELOPE, MEASURED. Byte 1 is volume<<4 | shape, and the shape is a
+  // HOLD IN FRAMES before the note is cut -- not a decay curve. Index 0 sustains
+  // until something else stops the note, which is what a tracker uses and what
+  // we write; 1..f hold for these many frames. Read off the real ROM one value
+  // at a time, with notes retriggering so the steps land on separate frames.
+  //
+  // On the way IN this is how long an imported note lasts, which is a thing our
+  // document already knows how to say. A foreign instrument with shape 9 is a
+  // four-frame note, and without reading it that note would sustain to the next
+  // one -- audibly wrong, and silently so.
+  var ENVELOPE_HOLD = [0, 1, 1, 1, 1, 1, 2, 2, 3, 4, 5, 6, 8, 11, 15, 20];
+
   // The rows a channel is told to STOP on. Same walk as playedNotes, but K
   // commands sit on rows with no note, so that walk cannot see them.
   function killRows(m, ch) {
@@ -888,6 +900,11 @@
     for (t = 0; t < 16 && m.grooves[0][t]; t++) ticks.push(m.grooves[0][t]);
     if (!ticks.length) ticks = [6];
     var known = { hat: 1, snare: 1, kick: 1 };
+    // How long a row lasts on this machine, so an envelope hold measured in
+    // FRAMES can be turned into the row count our document speaks in.
+    var tSum = 0;
+    for (t = 0; t < ticks.length; t++) tSum += ticks[t];
+    var rowFrames = (tSum / ticks.length) * 149.31875 / Math.max(1, m.tempo || 128);
     var lastRow = 0, unnamedDrums = 0;
     for (ch = 0; ch < 4; ch++) {
       var played = playedNotes(m, ch), kills = killRows(m, ch);
@@ -900,6 +917,15 @@
         for (var ki = 0; ki < kills.length; ki++)
           if (kills[ki] > n.row && kills[ki] < stop) { stop = kills[ki]; break; }
         var len = Math.max(1, Math.min(16, stop - n.row));
+        // ...and an instrument with a HOLD ends the note sooner than either.
+        // LSDj's envelope cuts it after that many frames whatever the phrase
+        // says, so the shorter of the two is what a listener hears.
+        var ip = m.instrumentParams[n.instrument];
+        if (ip && (ip[1] & 0x0F)) {
+          var holdFrames = ENVELOPE_HOLD[ip[1] & 0x0F];
+          var rowsHeld = Math.max(1, Math.round(holdFrames / rowFrames));
+          if (rowsHeld < len) len = rowsHeld;
+        }
         if (n.row > lastRow) lastRow = n.row;
         if (ch === 3) {
           var nm2 = instrumentName(m, n.instrument);

@@ -181,6 +181,58 @@ for (const [ch, name] of [[0, 'PU1'], [1, 'PU2'], [2, 'WAV']]) {
     (agreed ? ' (three octaves apart all agree)' : ' -- the three probes disagreed: ' + JSON.stringify(bases)));
 }
 
+// ---- ROW BY ROW, NOT JUST ON AVERAGE ---------------------------------------
+//
+// Matching the average row length is the easy half: it only says the song ends
+// at the right time. LSDj reaches a tempo between two whole frame counts with an
+// ACCUMULATOR, so at tempo 120 its rows come out 7,8,7,8,7,7,8..., and two
+// players agreeing on the mean while disagreeing about WHICH rows get the spare
+// frame do not sound the same.
+//
+// The constant here is measured, not derived. 15 x FPS = 895.9125 is the
+// physical value and it disagreed with LSDj on up to 20% of rows; fitting the
+// real thing over eight tempi and a hundred gaps each lands on round(k *
+// 895.88 / TEMPO), which reproduces 796 of 800.
+{
+  const H = globalThis.CT_GB_HARDWARE || globalThis.CT_GB;
+  let differ = 0, total = 0, perfect = 0, cases = 0;
+  for (const bpm of [128, 120, 135, 110]) {
+    const doc = ruler(bpm, 128);
+    const cart = api.toLsdjSav([doc]);
+    const savPath = path.join(TMP, 'rows-' + bpm + '.sav');
+    fs.writeFileSync(savPath, Buffer.from(cart.bytes));
+    const out = cp.execFileSync(TRACE, [ROM, savPath, '420', '1400'],
+      { maxBuffer: 1 << 26, stdio: ['ignore', 'pipe', 'ignore'] }).toString();
+    const lines = out.split('\n').filter(l => /^(frame,|\d+,)/.test(l));
+    const head = lines[0].split(','), lo = head.indexOf('NR13'), hi = head.indexOf('NR14');
+    const ev = [];
+    let last = -1;
+    for (const l of lines.slice(1)) {
+      const r = l.split(',').map(Number), p = r[lo] | ((r[hi] & 7) << 8);
+      if (p !== last) { ev.push(r[0]); last = p; }
+    }
+    // drop two: the trace starts mid-row
+    const obs = ev.slice(2).map((f, i) => f - ev[i + 1]).filter(x => x > 0).slice(0, 80);
+    if (obs.length < 40) continue;
+    const m = L.readSong(new Uint8Array(cart.bytes.buffer, cart.bytes.byteOffset, L.SONG_BYTES));
+    const ticks = Array.from(m.grooves[0]).filter(x => x > 0);
+    const mine = [];
+    for (let k = 0; k < obs.length + 40; k++)
+      mine.push(H.lsdjRowFrame(m.tempo, ticks, k + 1) - H.lsdjRowFrame(m.tempo, ticks, k));
+    let bad = Infinity;
+    for (let p = 0; p < 40; p++) {
+      let x = 0;
+      for (let i = 0; i < obs.length; i++) if (obs[i] !== mine[i + p]) x++;
+      bad = Math.min(bad, x);
+    }
+    differ += bad; total += obs.length; cases++;
+    if (bad === 0) perfect++;
+  }
+  ok(cases > 0 && total > 0 && differ / total <= 0.02,
+     'our clock puts the spare frames where LSDj does (' + (total - differ) + ' of ' + total +
+     ' row gaps identical, ' + perfect + ' of ' + cases + ' tempi exact)');
+}
+
 // ---- AND THE DRUMS MAKE A SOUND -------------------------------------------
 //
 // ⚠️ A NOISE NOTE IS A PITCH, AND THE WRONG ONE IS SILENCE. Every drum used to

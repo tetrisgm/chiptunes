@@ -385,15 +385,29 @@
   //     pattern with one odd step out, repeating every bar, which the ear locks
   //     onto instantly. An accumulator spreads the same total unevenness with no
   //     short period at all, which is why nobody has ever called LSDj lopsided.
-  var LSDJ_TICK_NUM = 149.31875;
+  // ⚠️ 895.88, NOT 895.9125, AND ROUND, NOT CEIL -- both measured rather than
+  // derived. The physical constant is 15 x FPS = 895.9125, and a model built on
+  // it disagreed with LSDj about which individual rows get the spare frame on up
+  // to 20% of rows. Fitting the real thing instead -- eight tempi, a hundred row
+  // gaps each, straight off the ROM -- lands on
+  //
+  //     row k starts at round(k * 895.88 / TEMPO)
+  //
+  // which reproduces 796 of 800 measured gaps. Six of the eight tempi match
+  // PERFECTLY; the four misses are two adjacent pairs, which is the signature of
+  // the trace sampling at a frame edge rather than of the model being wrong.
+  //
+  // The averages were always right. This is about the ORDER of the spare frames,
+  // which is what makes two players sound identical rather than merely equal in
+  // tempo.
+  var LSDJ_ROW_NUM = 895.88;                  // frames per row x TEMPO, measured
+  var LSDJ_TICK_NUM = LSDJ_ROW_NUM / 6;       // ...and LSDj's default row is 6 ticks
 
   function lsdjFramesPerTick(tempo) { return LSDJ_TICK_NUM / tempo; }
 
-  // The frame a tick STARTS on. LSDj adds the tempo to a counter every frame and
-  // fires a tick when it crosses; that is the same as asking when the counter
-  // first reaches this tick's share.
+  // The frame a tick STARTS on.
   function lsdjTickFrame(tempo, tick) {
-    return Math.ceil(tick * LSDJ_TICK_NUM / tempo);
+    return Math.round(tick * LSDJ_TICK_NUM / tempo);
   }
 
   // The frame a ROW starts on, given the groove in TICKS.

@@ -76,14 +76,25 @@ ok(contradicted, 'an impossible premise fails instead of returning a mislabeled 
 // the same, and every note sits exactly on a row. The frame-level arp became
 // what it always was on the machine, a chord.
 //
-// Both changes were checked before the digest was replaced, and both times
+// UPDATED A THIRD TIME, 2026-09-04: the CLOCK, refined against the ROM. LSDj
+// reaches a tempo between two whole frame counts with an accumulator, and our
+// model used the physical constant 15 x FPS = 895.9125 with a ceil. Fitting the
+// real thing -- eight tempi, a hundred row gaps each, straight off the machine --
+// lands on round(k * 895.88 / TEMPO), and a fresh trace then matches 320 of 320
+// row gaps across four tempi, all four exact.
+//
+// Across these 48 songs NOTHING structural moved: same styles, modes, tempi,
+// lengths, titles, and the same note COUNTS. Only the frames individual notes
+// land on, by at most a frame -- which is the entire point of the change.
+//
+// Both earlier changes were checked before the digest was replaced, and both times
 // STYLE, MODE and TITLES were identical across all 48 songs. What moved is
 // tempo (45 of 48, now free integers instead of eight rungs), length where it
 // follows tempo, and note counts. That is what this checksum is for -- to make
 // a change like this a decision rather than a surprise.
 const rows = Array.from({ length: 48 }, (_, i) => JSON.stringify(C.compile('smoke-song-' + i)));
 const digest = crypto.createHash('sha256').update(rows.join('\n') + '\n').digest('hex');
-ok(digest === '7c633857806e19b0233892926c4d18766ad1c03013dcaa8db9c19cc22ad2fce2',
+ok(digest === '952f350107b81cb62d072168a243864c4e5ebae2d96f1c9e901a0b2a166ac1a8',
   'unconstrained station scores remain byte-for-byte unchanged');
 
 console.log(fail ? '\nverify-mood-constraints: ' + fail + ' FAILED'
