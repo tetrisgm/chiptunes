@@ -134,7 +134,24 @@ console.log('every note arrives');
     }
   }
   ok(!lost, 'no note is dropped or clamped, across ' + checked + ' songs' + (worst ? ' -- ' + worst : ''));
-  ok(shifted > 0, 'and octave shifting is doing real work (' + shifted + '/' + checked + ' needed it)');
+  // AND NOTHING NEEDS SHIFTING AT ALL. That is the tell that the note base is
+  // right: with one constant for every channel, six or seven of these songs had
+  // to be transposed to escape the floor. Per channel, none do -- because the
+  // bass sits in the wave channel's range on the hardware exactly as it does in
+  // the file. If this starts firing again, the table below is wrong.
+  ok(!shifted, 'and none of them needs an octave shift (' + shifted + '/' + checked + ')');
+
+  // The note base is DERIVED from the machine, so it is checked against the
+  // machine rather than against a comment. gb-hardware knows what each family
+  // can hold; LSDj's byte 1 is the bottom of it.
+  const HW = require(path.join(__dirname, '..', 'src', 'gb-hardware.js'));
+  const floorOf = (family) => { for (let m = 0; m < 127; m++) if (HW.inRange(m, family)) return m; return -1; };
+  ok(L.NOTE_BASE[0] === floorOf('pulse') && L.NOTE_BASE[1] === floorOf('pulse'),
+     'the pulse channels start at the lowest note a pulse can hold (' + floorOf('pulse') + ')');
+  ok(L.NOTE_BASE[2] === floorOf('wave'),
+     'and the wave channel an octave below it, as the hardware does (' + floorOf('wave') + ')');
+  ok(floorOf('pulse') - floorOf('wave') === 12,
+     'which is exactly the octave the DMG puts between them');
 
   // THE COUNT THAT ARRIVES, FOLLOWED THROUGH THE SEQUENCE. Comparing against
   // the unique-phrase count was wrong and made a 217-note song look like a

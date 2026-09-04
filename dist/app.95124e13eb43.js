@@ -8681,14 +8681,26 @@ const Radio=(()=>{
               M: 10, O: 11, P: 12, R: 13, S: 14, T: 15, V: 16, W: 17, Z: 18 };
   var INST_TYPE = { PULSE: 0, WAVE: 1, KIT: 2, NOISE: 3 };
 
-  // ⚠️ THE ONE CONSTANT THIS CANNOT PROVE. Every other field is checked by
-  // reading the file back with liblsdj, but liblsdj reports the note BYTE and
-  // never claims which pitch it sounds -- only LSDj itself knows that. This is
-  // the community convention (note 1 is the bottom of the range, twelve to an
-  // octave) and it is the single thing to confirm by ear on hardware. It is a
-  // named constant, not a magic number buried in a loop, so that check has one
-  // place to land.
-  var NOTE_ZERO_MIDI = 36;                      // MIDI 36 (C2) is LSDj note 1
+  // THE NOTE BYTE IS AN INDEX INTO WHAT THAT CHANNEL CAN PLAY, and it is
+  // therefore a different pitch on each one. This was a single constant and a
+  // guess; it is now derived from the machine, which is the only place the
+  // answer was ever going to come from.
+  //
+  // The DMG computes pulse frequency as 131072/(2048-x) and wave frequency as
+  // half that, so the lowest note a pulse channel can hold is about 65.4 Hz and
+  // the wave channel reaches a full octave below it. Our own register-level
+  // hardware model agrees exactly: pulse spans MIDI 36..108, wave 24..96.
+  //
+  // Two lines of LSDj's manual confirm the rest. Pressing A on an empty step
+  // enters "C-2" -- and C2 is 65.41 Hz, the bottom of the pulse range to the
+  // decimal. And the noise kick recipe says to "play the note at C-0", which is
+  // below pulse's floor: proof that the note NAMES differ per channel rather
+  // than one absolute scale being shared. So byte 1 is the bottom of whatever
+  // channel it sits on.
+  //
+  // What is left to confirm on hardware is now one octave on one channel, not
+  // the whole mapping, and a wrong answer moves a number in this table.
+  var NOTE_BASE = [36, 36, 24, 36];             // PU1, PU2, WAV, NOI
   var NOTE_MAX = 0x6F;
 
   var RLE = 0xC0, SA = 0xE0, DEF_WAVE = 0xF0, DEF_INST = 0xF1, EOF_BLOCK = 0xFF;
@@ -8849,10 +8861,13 @@ const Radio=(()=>{
       if (lowest === null || m < lowest) lowest = m;
       if (highest === null || m > highest) highest = m;
     });
+    // With a per-channel base the bass no longer collides with the floor, so
+    // this is a safety net rather than the load-bearing part it used to be.
     var octaves = 0;
     if (lowest !== null) {
-      while (lowest + octaves * 12 < NOTE_ZERO_MIDI) octaves++;
-      while (highest + octaves * 12 - NOTE_ZERO_MIDI + 1 > NOTE_MAX && octaves > 0) octaves--;
+      var floorBase = Math.min.apply(null, NOTE_BASE);
+      while (lowest + octaves * 12 < floorBase) octaves++;
+      while (highest + octaves * 12 - floorBase + 1 > NOTE_MAX && octaves > 0) octaves--;
     }
     if (octaves) warn.push('transposed up ' + octaves + ' octave' + (octaves > 1 ? 's' : '') +
                            ' so the low notes fit LSDj\'s range; transpose it back down if you want');
@@ -8864,9 +8879,9 @@ const Radio=(()=>{
       if (lane === 3) {
         // Drums land on the noise channel: a .sav cannot carry the samples our
         // kits are made of, because in LSDj those live in the ROM.
-        slot.note = 60 - NOTE_ZERO_MIDI + 1;   // a plain mid note; noise pitch is not melodic
+        slot.note = 60 - NOTE_BASE[3] + 1;     // a plain mid note; noise pitch is not melodic
       } else if (x.midi != null) {
-        var n = (x.midi | 0) + octaves * 12 - NOTE_ZERO_MIDI + 1;
+        var n = (x.midi | 0) + octaves * 12 - NOTE_BASE[lane] + 1;
         // A note that STILL does not fit after the octave shift is dropped
         // rather than clamped: a missing note reads as a rest, a clamped one
         // reads as a mistake somebody made on purpose.
@@ -9078,7 +9093,7 @@ const Radio=(()=>{
   var API = {
     SONG_BYTES: SONG_BYTES, SAV_SIZE: SAV_SIZE, SAV_PROJECTS: SAV_PROJECTS,
     OFFSETS: O, COMMANDS: CMD, sav: sav,
-    NOTE_ZERO_MIDI: NOTE_ZERO_MIDI, PHRASE_STEPS: PHRASE_STEPS,
+    NOTE_BASE: NOTE_BASE.slice(), PHRASE_STEPS: PHRASE_STEPS,
     compress: compress, decompress: decompress, emptySong: emptySong,
     fromDocument: fromDocument, lsdsng: lsdsng
   };

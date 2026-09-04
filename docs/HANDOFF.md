@@ -2771,3 +2771,29 @@ writes down to MIDI 24 and LSDj's note 1 sits higher. **A clamped note is worse
 than a missing one** — it is a wrong note that looks deliberate. The export
 shifts by whole octaves instead, keeping every interval and pitch class, and
 says so. Across 32 songs: nothing lost, seven transposed.
+
+### The note base, resolved from the hardware rather than guessed
+
+I shipped `NOTE_ZERO_MIDI = 36` as one constant for every channel and flagged it
+as the thing only a real Game Boy could settle. It was wrong, and the machine
+settled it without one.
+
+The DMG computes pulse frequency as `131072/(2048-x)` and wave as half that, so
+the lowest note a pulse can hold is 65.41 Hz and the wave channel reaches a full
+octave below. `gb-hardware` agrees exactly: **pulse spans MIDI 36..108, wave
+24..96.** Two lines of Kotlinski's manual finish it — pressing A on an empty
+step enters **"C-2"**, and C2 is 65.41 Hz to the decimal; and the noise kick
+recipe says to play at **"C-0"**, below pulse's floor, which proves the note
+NAMES are per channel rather than one shared absolute scale.
+
+So the byte is an index into what THAT channel can play: `NOTE_BASE = [36, 36,
+24, 36]`.
+
+The corroboration is that a workaround disappeared. With one constant, six or
+seven songs in every 32 had to be transposed by an octave to escape the floor.
+Per channel, **none do** — the bass sits in the wave channel's range in the file
+exactly as it does on the hardware. `verify-lsdj` now asserts the table against
+`gb-hardware.inRange()` directly, and that no song needs a shift; if either
+starts firing, the table is wrong.
+
+What is left for a real Game Boy is one octave on one channel, not the mapping.
