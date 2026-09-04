@@ -317,23 +317,23 @@
         cand.push([lng, Math.max(2, pair - lng)]);
       }
     } else {
+      // STRAIGHT, FULL STOP. An uneven groove is a FEEL, and a feel nobody asked
+      // for is a defect however small it is -- that is what put a limp on the
+      // station, and a 9-18% shuffle on a quarter of songs was the same mistake
+      // wearing a nicer name. Swing is reachable, but only by asking.
+      //
+      // The tempo variety this used to buy is bought properly instead: the
+      // STYLES table in composer.js now spans two or three rungs per style, so
+      // the ladder is wide where it needs to be rather than being bent.
       for (var base = Math.max(2, Math.floor(want) - 1); base <= Math.floor(want) + 1; base++)
-        for (k = 0; k <= 2; k++) cand.push(grooveSpread(base, k));
+        cand.push([base]);
     }
-    // AND EVEN WINS UNLESS IT IS REALLY WRONG. A shuffle on every song is still
-    // a feel nobody asked for, so an alternation has to be worth at least 3% of
-    // tempo before it is preferred to a straight one.
-    var EVEN_MARGIN = 0.03;
-    var bestEven = null;
     for (i = 0; i < cand.length; i++) {
       b = bpmOfGroove(cand[i], stepsPerBar);
       if (b < 70 || b > 180) continue;                  // the header cannot carry it
       var d = Math.abs(b - bpm);
       if (!best || d < best.d) best = { g: cand[i], d: d };
-      if (cand[i].length === 1 && (!bestEven || d < bestEven.d)) bestEven = { g: cand[i], d: d };
     }
-    if (bestEven && (!best || bestEven.d <= bpm * EVEN_MARGIN || bestEven.d - best.d < bpm * EVEN_MARGIN))
-      return bestEven.g;
     return best ? best.g : [Math.max(2, Math.round(want))];
   }
   function groove() {

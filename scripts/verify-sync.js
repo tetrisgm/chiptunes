@@ -64,7 +64,14 @@ function server() {
     const t0 = performance.now();
     // sample only when a stat has JUST arrived: comparing a fresh clock against
     // a stat that may be a report-interval old measures the interval, not the lag
-    while (performance.now() - t0 < 7000) {
+    //
+    // COLLECT A SAMPLE, don't run a stopwatch. This was a flat 7-second window,
+    // which is ~60 reports on an idle machine and was 7 on a loaded one -- and
+    // every number below it is a MEDIAN, so a seven-point sample did not fail
+    // because the playhead had drifted, it failed because there was nothing to
+    // take a median of. Stopping at 40 also makes the idle case quicker than
+    // the window it replaces.
+    while (performance.now() - t0 < 25000 && raws.length < 40) {
       const c = window.__rrrChip;
       if (c && c.frame !== last) {
         last = c.frame;

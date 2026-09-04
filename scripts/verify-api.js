@@ -120,15 +120,26 @@ function mcp(messages) {
   // asking the document to store a tempo it does not play.
   {
     const ladder = api.capabilities().tempo.reachable;
-    // 16 rungs, not the 32 this once asserted. Reaching any tempo needed
-    // four-step grooves with one odd step out, which is a limp you hear on
-    // every bar; what is left is even steps plus a symmetric shuffle. Fewer
-    // tempi is the honest cost of not imposing a feel nobody asked for.
-    ok(ladder.length >= 12 && ladder.indexOf(back.bpm) >= 0,
+    // EIGHT RUNGS, and that is the whole ladder: a step lasts a whole number of
+    // frames, so 179.2, 149.3, 128.0, 112.0, 99.5, 89.6, 81.4 and 74.7 are the
+    // tempi this machine has. Reaching anything between them needs an uneven
+    // groove, which is a FEEL, and a feel nobody asked for is a defect -- that
+    // was the limp. Variety comes from the styles spanning several rungs now,
+    // not from bending the grid.
+    ok(ladder.length >= 6 && ladder.indexOf(back.bpm) >= 0,
        'and a tempo from the reachable ladder (' + hand.bpm + ' -> ' + back.bpm +
        ', ' + ladder.length + ' rungs)');
-    const nearest = ladder.reduce((a, b) => Math.abs(b - hand.bpm) < Math.abs(a - hand.bpm) ? b : a);
-    ok(back.bpm === nearest, 'which is the NEAREST rung, not merely a legal one (nearest ' + nearest + ')');
+    // NEAREST, stated as "nothing is closer" rather than as one chosen number,
+    // because 120 is a TIE: it sits exactly 8 bpm from 112 and from 128. Naming
+    // a winner here just encodes a tie-break, and the two sides broke it in
+    // opposite directions -- the search walks candidates fastest-first and keeps
+    // the faster rung, this line's reduce kept the slower. Either is a fine
+    // answer; picking a rung that something else beats is not.
+    const gap = Math.abs(back.bpm - hand.bpm);
+    const closest = ladder.reduce((a, b) => Math.abs(b - hand.bpm) < Math.abs(a - hand.bpm) ? b : a);
+    ok(ladder.every(t => Math.abs(t - hand.bpm) >= gap),
+       'which is a NEAREST rung, not merely a legal one (' + hand.bpm + ' -> ' + back.bpm +
+       ', ' + gap + ' away; closest is ' + Math.abs(closest - hand.bpm) + ')');
     ok(ladder.every(t => api.toJSON(api.fromJSON(Object.assign({}, hand, {bpm: t}))).bpm === t),
        'and every rung survives a round trip unchanged');
   }

@@ -125,7 +125,12 @@ const SCENARIOS = {
       if (c) c.click();
     });
     await wait(3200);
-    const after = await peak(p, 2500);
+    // POLL UNTIL AUDIBLE, don't race a fixed window. This was one 2.5s sample
+    // while every other level in the file waits up to ten seconds, so on a busy
+    // machine it read 0.000 and reported the station dead when it was merely
+    // slow to come back. The assertion is unchanged in what it can catch: a
+    // station that never returns still never becomes audible.
+    const after = await audiblePeak(p);
     // and the transport still works afterwards
     await p.keyboard.press('Space'); await wait(1000);
     await p.keyboard.press('Space'); await wait(1800);
