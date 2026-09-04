@@ -3147,44 +3147,59 @@ what is not, because the difference matters more than the progress.
   "fix" this by flattening the music, which was the first instinct and was
   backwards.
 
-### ⚠️ The envelope needs a better instrument than we have
+### The envelope, MEASURED (2026-09-04, later)
 
-Byte 1's low nibble is LSDj's envelope shape and it is NOT reverse-engineered.
-What is known:
+Byte 1 is `volume<<4 | shape`, and both halves are measured off the ROM.
 
-- low nibble 0 -> a static volume, the high nibble, written once as
-  `volume<<4 | 8` (pace 0, so the HARDWARE envelope is off and LSDj is driving
-  the volume itself).
-- any non-zero low nibble -> the trace only ever catches volume 1, whatever the
-  high nibble says.
-- with notes retriggering, NR12 was seen going 1 -> full -> 1 with the time at
-  full growing with the low bits (0x8 about 2 frames, 0xA about 4, 0xF about 19).
+- **High nibble is the initial volume.** 0x3F sounds volume 3, 0x7F sounds 7,
+  0xBF sounds 11, 0xFF sounds 15.
+- **Low nibble is a HOLD, in frames, before the note is cut.** 0 sustains
+  forever; 1..f hold for 1, 1, 1, 1, 1, 2, 2, 3, 4, 5, 6, 8, 11, 15, 20 frames.
 
-**Why it did not resolve: `tools/lsdjtrace.c` samples the registers once per
-frame, at frame end, and prints only changes.** An envelope that steps faster
-than that -- and the DMG envelope unit steps every 1/64s, which is under a
-frame -- is invisible to it. The single-note runs above are not evidence that
-LSDj writes volume 1 and stops; they are evidence that whatever it wrote in
-between had finished before the next sample.
+So LSDj's envelope is not a decay curve, it is "this loud, for this long". Shape
+0 -- sustain until something stops the note -- is what a tracker uses and what we
+write.
 
-The fix is a different tool: hook mGBA's memory WRITE path for 0xFF10..0xFF25
-and log every write with its cycle, instead of sampling state. Do that before
-drawing any conclusion about envelope shapes.
+**How it was finally measured, after two failures.** Notes RETRIGGERING every few
+rows, at tempo 40 with 15-tick rows, traced per frame. mGBA's `io[]` entry for
+NR12 tracks the LIVE volume rather than only the last write, so a per-frame trace
+of it IS the envelope -- as long as the note lasts long enough for the steps to
+land on different frames. A single note at a normal tempo shows one value and
+reads as "LSDj wrote 1 and stopped". That is the trace being too coarse, not LSDj
+being silent.
 
-**Do not guess this one from the sampled trace.** The same instrument said
-NOTE_BASE was an octave low, twice, with clean believable numbers, and it was
-wrong both times -- caught only by re-measuring with a single note. A confident
-wrong envelope table would be worse than none.
+⚠️ **Two tools were built and deleted on the way. Do not rebuild them.**
 
-**Attempted and abandoned, so nobody repeats it:** a `tools/lsdjenv.c` that
-stepped the core one instruction at a time (`core->step`) and watched NR12.
-`core->step` did not advance the GB core in mGBA 0.10.5 in this setup -- the
-tool produced an empty trace on a song that was audibly playing. Two traps
-inside that one attempt, both of which produce a believable empty result:
-`core->frameCounter()` does not count frames the way the name suggests, so a
-frame-budgeted loop exits after a few dozen instructions; and an empty trace
-reads exactly like "LSDj wrote nothing".
+- An instruction-stepping probe. `core->step` does not advance the GB core in
+  mGBA 0.10.5 here, and `core->frameCounter()` does not count frames the way the
+  name suggests, so a frame-budgeted loop ends after a few dozen instructions.
+- A PCM dumper. mGBA emitted digital silence of exactly the right length through
+  both the polled blip buffers and an `mAVStream` callback, with the core volume
+  options and the APU's own `masterVolume` set. Whatever is missing was not
+  found.
 
-The next attempt should hook mGBA's memory WRITE path for 0xFF10..0xFF25
-directly rather than stepping and polling, and should first prove the hook fires
-at all on a song known to be playing.
+**Both failed by producing a plausible EMPTY result, which reads identically to
+"LSDj does nothing here".** That is the shape of every wrong answer this
+measurement produces, including the two that said NOTE_BASE was an octave low.
+
+## Note length survives now, and it was the audible gap
+
+LSDj stores no note length -- a note runs until the next note or a `K` command --
+so ours were dropped, and every staccato note exported as a SUSTAINED one. That
+is a different piece of music, and it was audible on anything with space in it.
+
+The envelope cannot fix it: the hold tops out at twenty frames and belongs to the
+instrument rather than the note. A tracker says it with a command, so the export
+writes `K` on the row a note stops and the import reads the length back off it.
+
+Verified in mGBA: with the KILL the volume drops one row after the note; without
+it, it held to the next one.
+
+⚠️ **Not on drums** -- they are one-shots and killing them cuts the sample short.
+And only where the row is FREE, because a row holds one command and an arpeggio
+already sitting there is the more musical thing to keep.
+
+### So the round trip now preserves
+
+tempo, groove, pitch, lane, step, which drum it was, and how long each note
+lasted. The last of those was written down as unrecoverable two commits earlier.
