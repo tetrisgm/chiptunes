@@ -271,6 +271,64 @@ console.log('a cartridge full of starting points');
   }
 }
 
+/* ------------------------------------------ and LSDj ITSELF, in an emulator */
+// The last thing liblsdj cannot tell you: whether LSDj ACCEPTS the save and
+// plays it. This boots the real ROM in mGBA with one of our .sav files, presses
+// START, and compares the pitches the APU is told to make against the notes in
+// the document.
+//
+// Optional, because neither mGBA nor the LSDj ROM can live in this repository:
+// LSDj is Johan Kotlinski's and its licence forbids redistribution. Point it at
+// your own copy. Skipped loudly rather than silently, like the liblsdj check.
+//
+//   brew install mgba
+//   clang -I$(brew --prefix)/include -L$(brew --prefix)/lib -lmgba \
+//         -o /tmp/lsdjplay tools/lsdjplay.c
+//   LSDJPLAY=/tmp/lsdjplay LSDJ_ROM=~/lsdj.gb npm run test:lsdj
+console.log('played by LSDj itself');
+{
+  const player = process.env.LSDJPLAY || '/tmp/lsdjplay';
+  const romPath = process.env.LSDJ_ROM || '';
+  if (!fs.existsSync(player) || !romPath || !fs.existsSync(romPath)) {
+    console.log('  ..     SKIPPED: needs mGBA and your own LSDj ROM.');
+    console.log('  ..     Everything above proves the FILE is right. This is the only check');
+    console.log('  ..     that proves LSDj plays it. See the header of this section.');
+  } else {
+    const doc = api.brief({ scene: 'battle', seconds: 30, token: '7f3a12bc55de90aa' }).doc;
+    const st3 = CT.docState(doc);
+    const melRows2 = CT.tables().melodicRows;
+    const laneOf = (x) => {
+      if (x.r >= melRows2) return 3;
+      if (x.ch === 0 || x.ch === 1) return x.ch;
+      if (x.rch != null) return x.rch;
+      if (x.st === 'bassg' || x.st === 'cello') return 2;
+      return 0;
+    };
+    const expected = [...new Set(st3.cells.filter(c => laneOf(c) !== 3 && c.midi != null)
+                                          .map(c => c.midi | 0))].sort((a, b) => a - b);
+    const tmp = path.join(os.tmpdir(), 'ct-play-' + process.pid + '.sav');
+    fs.writeFileSync(tmp, Buffer.from(api.toLsdjSav([doc], { name: 'TEST' }).bytes));
+    let rep = '';
+    try { rep = execFileSync(player, [romPath, tmp, '400', '2400'], { stdio: ['ignore', 'pipe', 'ignore'] }).toString(); }
+    catch (e) { rep = 'PLAYER_FAILED ' + e.message; }
+    fs.unlinkSync(tmp);
+    const toMidi = (f) => Math.round(69 + 12 * Math.log2(f / 440));
+    const lines = rep.split('\n');
+    const heard = new Set(lines.filter(l => l.startsWith('HZ ')).map(l => toMidi(+l.slice(3))));
+    const noteOn = new Set(lines.filter(l => l.startsWith('TRIG ')).map(l => toMidi(+l.slice(5))));
+    ok(!/FAILED/.test(rep) && heard.size > 0, 'LSDj boots with our save and plays it');
+    const missing = expected.filter(m => !heard.has(m));
+    ok(!missing.length, 'every note in the document is played (' +
+       (expected.length - missing.length) + '/' + expected.length +
+       (missing.length ? ', missing ' + missing.join(', ') : '') + ')');
+    // The note-on set is smaller but everything in it is real, so it is the one
+    // to check for notes LSDj plays that we never wrote.
+    const wrong = [...noteOn].filter(m => !expected.includes(m));
+    ok(!wrong.length, 'and nothing is played that we did not write' +
+       (wrong.length ? ' -- ' + wrong.join(', ') : ' (' + noteOn.size + ' note-ons checked)'));
+  }
+}
+
 /* --------------------------------------------------------- it is repeatable */
 console.log('and it is deterministic, like everything else here');
 {

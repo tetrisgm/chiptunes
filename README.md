@@ -169,8 +169,10 @@ them by ear:
 - **Instruments are stock defaults, one per channel.** Deliberately: voicing is
   the part an LSDj composer enjoys and is better at than a translator would be.
 
-`npm run test:lsdj` checks the output by **reading it back with liblsdj itself**
-where that library is present, rather than with our own reader — the same
+`npm run test:lsdj` reads the output back with **liblsdj itself**, and, given a
+copy of the LSDj ROM, **boots it in mGBA and checks the pitches LSDj actually
+plays** — every note in the document is played, and nothing is played that we
+did not write. Neither check uses our own reader — the same
 mistake that once let a WebMCP registration ship against the wrong API is
 exactly what a self-round-trip would repeat.
 

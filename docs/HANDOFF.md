@@ -2830,3 +2830,34 @@ identify it and did not.
 personal and educational use and its licence forbids copying or distributing it.
 What is recorded above is two frequencies and a count -- measurements, not
 content. The ROM stayed in a scratch directory outside the checkout.
+
+### LSDj actually plays it (mGBA, 2026-09-03)
+
+The last unverified claim -- that LSDj ACCEPTS the save and plays it -- is now
+checked. Our own `gb-cpu.js` cannot do it (no MBC, no PPU, and it throws on any
+opcode our driver does not emit), so this uses **mGBA's library** headlessly:
+boot the real ROM with one of our `.sav` files, press START, and read the
+decoded channel state.
+
+**Result: every note in the document is played, and nothing is played that we
+did not write.**
+
+Two gotchas worth keeping:
+
+- **mGBA faults without a video buffer and without `mCoreInitConfig`.** Both
+  crash in `reset` with SIGBUS and no message.
+- **NR13/NR23/NR33 are WRITE-ONLY.** Reading them back through `busRead8`
+  returns nothing (mGBA says so on stderr). Read `gb->audio.chN.control.frequency`
+  instead.
+
+The harness reports two sets because neither is complete alone. `HZ` samples
+every frame regardless of channel state: it catches every note, and also idle
+channels and mid-transition reads, so it is the set to check for MISSING notes.
+`TRIG` samples only while a channel reports playing: it misses notes, but what
+it reports is real, so it is the set to check for WRONG ones. Gating on the
+playing flag alone found 9 of 12 -- a fault in the observer, which is why both
+are kept.
+
+`tools/lsdjplay.c` is committed; **the ROM is not and must not be**. Run it with
+`LSDJPLAY=/tmp/lsdjplay LSDJ_ROM=~/lsdj.gb npm run test:lsdj`; without both the
+gate skips loudly.
