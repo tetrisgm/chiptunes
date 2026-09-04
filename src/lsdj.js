@@ -1030,6 +1030,7 @@
     for (t = 0; t < ticks.length; t++) tSum += ticks[t];
     var rowFrames = (tSum / ticks.length) * 149.31875 / Math.max(1, m.tempo || 128);
     var lastRow = 0, unnamedDrums = 0, tableNotes = [], vibratoNotes = [], patches = [];
+    var tempoAt = [], master = null;
     for (ch = 0; ch < 4; ch++) {
       var played = playedNotes(m, ch), kills = killRows(m, ch);
       var chLastRow = Math.max(channelRows(m, ch) - 1,
@@ -1109,6 +1110,11 @@
           // distinct pitches to 112 with shorter gaps, which is the slide
           // filling in between. The document calls it a glide.
           else if (n.command === CMD.L) patches.push({ lane: ch, step: n.row, f: { gl: 1 } });
+          // T and M are SONG-WIDE, not a note's: T changes the tempo from here
+          // on (measured with a ruler -- 100 rows became 56 and the mean gap
+          // went 6.98 -> 12.32), and M sets NR50, the master volume.
+          else if (n.command === CMD.T && n.value >= 40) tempoAt.push([n.row, n.value]);
+          else if (n.command === CMD.M) master = n.value & 0xFF;
           var tbl = tableOf(m, n.instrument);
           if (tbl != null) tableNotes.push({ lane: ch, step: n.row, table: tbl, len: len });
           // ...and a sweep is a fall or a rise, read off the instrument's NR10.
@@ -1147,13 +1153,13 @@
       if (n.command && n.command !== CMD.C && n.command !== CMD.R &&
           n.command !== CMD.K && n.command !== CMD.V && n.command !== CMD.E &&
           n.command !== CMD.O && n.command !== CMD.S && n.command !== CMD.P &&
-          n.command !== CMD.L)
+          n.command !== CMD.L && n.command !== CMD.T && n.command !== CMD.M)
         unknownCmds[n.command] = (unknownCmds[n.command] || 0) + 1;
     });
     var unknownTotal = Object.keys(unknownCmds).reduce(function (a, k) { return a + unknownCmds[k]; }, 0);
     if (unknownTotal) warn.push(unknownTotal + ' notes carry an LSDj command this app does not ' +
       'play; the notes arrive, the effect does not. C, R, K, V, E, O, S, P ' +
-      'and L are understood, and the rest moved nothing measurable');
+      'L, T and M are understood, and the rest moved nothing measurable');
     notes.sort(function (a, b) { return a.step - b.step; });
     return {
       json: {
@@ -1163,7 +1169,8 @@
         notes: notes
       },
       groove: ticks, tempo: m.tempo, warnings: warn,
-      tableNotes: tableNotes, vibratoNotes: vibratoNotes, patches: patches
+      tableNotes: tableNotes, vibratoNotes: vibratoNotes, patches: patches,
+      tempoAt: tempoAt.sort(function (a, b) { return a[0] - b[0]; }), master: master
     };
   }
 

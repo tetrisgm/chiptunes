@@ -3416,12 +3416,36 @@ A D F G H L T W Z  moved no register at all in that measurement
 So every command that made the chip do something has a home in the document
 already, and none of them is reported as unplayable any more.
 
-⚠️ **M is the honest exception.** It moves NR50, the master volume, which is a
-song-wide setting rather than a note's. The document has no field for it. It is
-one byte and it would need a document format change to carry.
+### Following that caveat through
 
-⚠️ **And the nine that moved nothing were measured with ONE value (0x40) on a
-sustained note.** Several of them are structural -- H hops, T changes tempo, G
-changes groove -- and would show up in a test that watched the song's SHAPE
-rather than one note's registers. They are listed as "moved no register" because
-that is what was measured, not because they do nothing.
+The nine "moved nothing" were measured with one value on a sustained note, and
+several are structural. Re-measured with a RULER -- a note on every row, watching
+the song's SHAPE -- two of them move plenty:
+
+```
+L  100 rows -> 112, mean gap 6.98 -> 6.23    a pitch SLIDE, filling in between
+T  100 rows ->  56, mean gap 6.98 -> 12.32   a mid-song TEMPO change
+```
+
+So **every command that does anything measurable is now carried**:
+
+```
+L -> the cell's `gl` (glide)
+T -> the document's tempoAt list, and colFrame integrates across it
+M -> the document's master, which leaves as the score's gainScalar
+```
+
+A D F G H W Z still moved nothing on either test at either value. G is
+groove-select and H is a hop, so both likely need a target that exists. They are
+recorded as MEASURED, not as proven inert.
+
+### Document version 14
+
+`tempoAt` (a list of [row, tempo]) and `master` (one byte) are song-level fields
+added for T and M. ⚠️ **A document using neither still encodes as v13** -- the
+version byte is only raised when one of them is present -- so nothing composed
+here grew by a character.
+
+`colFrame` is PIECEWISE now: with no tempo changes it is the single call it
+always was, and with them the frame of a row is the sum over the segments before
+it. Verified: halving the tempo at row 32 makes every later gap exactly 2.00x.

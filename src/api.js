@@ -464,6 +464,20 @@ function fromLsdsng(bytes, opts) {
       if (grown) doc = grown;
     }
   }
+  // T and M are SONG-WIDE. T changes the tempo from a row onward and M sets the
+  // master volume; the document carries both as of version 14, and a song using
+  // neither still encodes exactly as it did before.
+  if ((out.tempoAt && out.tempoAt.length) || out.master != null) {
+    var stt = CT_CREATE.docState(doc);
+    if (stt) {
+      if (out.tempoAt && out.tempoAt.length) stt.tempoAt = out.tempoAt.slice();
+      // NR50 is (left << 4) | right, each 0..7; the loudest side is the level.
+      if (out.master != null)
+        stt.master = Math.max((out.master >> 4) & 7, out.master & 7) * 2 + 1;
+      var gt = CT_CREATE.docFromState(stt);
+      if (gt) doc = gt;
+    }
+  }
   // The commands that MOVE A REGISTER and have a home in the document: E is a
   // volume, O a pan, S a sweep, P a pitch bend read as a detune. Each was
   // measured by playing it and watching the chip.

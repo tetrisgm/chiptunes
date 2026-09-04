@@ -368,6 +368,35 @@ Object.keys(IMAGES).forEach(name => {
        'and none of them is reported as unplayable any more');
   }
 
+  // T AND M ARE SONG-WIDE, not a note's: T changes the tempo from a row onward,
+  // M sets NR50, the master volume. The document carries both as of version 14,
+  // and a song using neither encodes exactly as it did before.
+  {
+    const CT3 = require(path.join(ROOT, 'src', 'create.js'));
+    const tj2 = { title: 'TM', grid: 16, bpm: 128, bars: 5, notes: [] };
+    for (let k = 0; k < 5; k++) tj2.notes.push({ lane: 'Melody', step: k * 16, note: nm(60 + k), len: 2 });
+    const timg2 = L.readSong(L.parseLsdsng(api.toLsdsng(api.fromJSON(tj2)).bytes).song);
+    timg2.phraseCommands[2][0] = L.COMMANDS.T; timg2.phraseCommandVals[2][0] = 64;   // half at row 32
+    timg2.phraseCommands[0][0] = L.COMMANDS.M; timg2.phraseCommandVals[0][0] = 0x33; // master 3
+    const tb2 = L.compress(L.writeSong(timg2), 1);
+    const tf2 = new Uint8Array(9 + tb2.length);
+    tf2.set(tb2, 9);
+    const tback = api.fromLsdsng(tf2);
+    const tst = CT3.docState(tback.doc);
+    ok(JSON.stringify(tst.tempoAt) === '[[32,64]]',
+       'a mid-song tempo change survives (' + JSON.stringify(tst.tempoAt) + ')');
+    const tsc = CT3.songOf(tback.doc);
+    const tfr = ((tsc && tsc.gb && tsc.gb.notes) || []).filter(n => n.ch === 0)
+      .sort((a, b) => a.frame - b.frame).map(n => n.frame);
+    // rows are 16 apart; after the change each gap should be twice the one before
+    const before = tfr[1] - tfr[0], after = tfr[4] - tfr[3];
+    ok(before > 0 && Math.abs(after / before - 2) < 0.05,
+       'and the clock actually bends (' + tfr.slice(0, 5).join(' ') + ', ' +
+       (after / before).toFixed(2) + 'x after the change)');
+    ok(tsc.gb.gainScalar === 0.5,
+       'and the master volume arrives as the score\'s gain (' + tsc.gb.gainScalar + ')');
+  }
+
   // WHAT WE CANNOT PLAY, SAID OUT LOUD. LSDj tables are a per-instrument
   // modulation sequence and nothing here runs one; most of its commands are
   // likewise unread. Our own songs use neither, so this only ever fires on

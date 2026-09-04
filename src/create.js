@@ -243,8 +243,13 @@
   // asks spb() now, because a bar is not a fixed number of columns any more.
   var GRIDS = [16, 24, 32];
   function freshState() {
+    // `tempoAt` is a list of [row, tempo] -- LSDj's T command, a tempo change
+    // partway through a song. `master` is its M command, NR50's master volume,
+    // which is song-wide rather than a note's. Both are empty for anything this
+    // app composes; they exist so a song somebody else wrote survives import.
     return { key: 0, minor: 0, bars: 4, bpm: 128, swing: 0, grid: 16,
-             cells: [], cur: 'piano', cmd: 0, wob: 0, title: '' };
+             cells: [], cur: 'piano', cmd: 0, wob: 0, title: '',
+             tempoAt: [], master: null };
   }
   function spb() { return (S && S.grid) || 16; }
   function cols() { return S.bars * spb(); }
@@ -331,7 +336,21 @@
   var groove = grooveTicks;
   // frames in ONE STEP -- the average over the groove, for note lengths
   function framesPer16() { return G.CT_GB.lsdjFramesPerRow(S.bpm, grooveTicks()); }
-  function colFrame(c) { return G.CT_GB.lsdjRowFrame(S.bpm, grooveTicks(), c); }
+  // ⚠️ PIECEWISE, because the tempo can change partway through. With no changes
+  // this is one call and behaves exactly as it always did; with them the frame
+  // of a row is the sum over the segments before it. LSDj's T command is the
+  // only thing that produces them, so nothing this app composes takes the slow
+  // path.
+  function colFrame(c) {
+    var g = grooveTicks(), chg = S.tempoAt;
+    if (!chg || !chg.length) return G.CT_GB.lsdjRowFrame(S.bpm, g, c);
+    var f = 0, cur = S.bpm, at = 0, i;
+    for (i = 0; i < chg.length && chg[i][0] < c; i++) {
+      f += G.CT_GB.lsdjRowFrame(cur, g, chg[i][0] - at);
+      cur = chg[i][1]; at = chg[i][0];
+    }
+    return f + G.CT_GB.lsdjRowFrame(cur, g, c - at);
+  }
   // WHERE A NOTE ACTUALLY STARTS. The grid is where you place notes by hand;
   // a note may also carry an offset in frames, which is how a composed song
   // survives being imported -- the composer writes at frame resolution and
@@ -550,7 +569,11 @@
                }, 0);
     moves.auto.sort(function (a, b) { return a.f - b.f; });
     var total = Math.round(cols() * per);
+    // M, LSDj's master volume, arrives as a document field and leaves as the
+    // score's gain -- the same knob the player already honours for a composed
+    // score, so nothing downstream needed teaching.
     return { notes: notes, bank: songBank || BANK, totalFrames: total,
+             gainScalar: S.master == null ? undefined : Math.max(0.05, Math.min(1, (S.master + 1) / 16)),
              auto: moves.auto, vibOff: moves.vibOff, waveLoads: moves.waveLoads,
              kit: moves.kit, loopFrames: total };
   }
@@ -599,12 +622,27 @@
     // proved that wrong: it accumulates, so every integer tempo is playable and
     // the rows come out as a mix of two frame counts. Nothing to snap to.
     var bpm = Math.max(70, Math.min(180, S.bpm | 0));
-    var out = [13, S.key, S.minor, S.bars & 63, (bpm - 70) & 63,
+    // v14: a tempo-change list and a master volume, so a song that uses LSDj's
+    // T or M commands survives import. Both are empty for anything composed
+    // here, and a document with neither encodes IDENTICALLY to v13 apart from
+    // the version byte -- so the new fields cost nothing when they are unused.
+    var tAt = (S.tempoAt || []).filter(function (p2) {
+      return p2 && p2.length === 2 && p2[0] > 0 && p2[1] >= 40 && p2[1] <= 255;
+    }).slice(0, 63);
+    var out = [tAt.length || S.master != null ? 14 : 13,
+               S.key, S.minor, S.bars & 63, (bpm - 70) & 63,
                S.swing | (((bpm - 70) >> 6) << 1), (S.bars >> 6) & 63,
                Math.max(0, GRIDS.indexOf(spb()))];
     var t = String(S.title || '').slice(0, 48);
     out.push(t.length & 63);
     for (var ti = 0; ti < t.length; ti++) out.push(TITLE_A.indexOf(t.charAt(ti)) + 1 & 63);
+    if (out[0] === 14) {
+      out.push((S.master == null ? 0 : (S.master & 15) + 1) & 63);
+      out.push(tAt.length & 63);
+      for (var qi = 0; qi < tAt.length; qi++)
+        out.push(tAt[qi][0] & 63, (tAt[qi][0] >> 6) & 63,       // row, 12 bits
+                 tAt[qi][1] & 63, (tAt[qi][1] >> 6) & 3);       // tempo, 8 bits
+    }
     S.cells.forEach(function (x) {
       var st = x.r >= MEL_ROWS ? 15 : (x.st && x.st.charAt(0) === 'i' ? 14 : Math.max(0, ids.indexOf(x.st)));
       var ext = x.inst != null || x.vel != null || x.midi != null || (x.len || 1) > 1 || x.sweep != null || x.ch != null;
@@ -642,7 +680,7 @@
     try {
       var v = []; for (var i = 0; i < str.length; i++) { var ix = B64.indexOf(str[i]); if (ix < 0) return null; v.push(ix); }
       var ver = v[0];
-      if (ver < 1 || ver > 13) return null;
+      if (ver < 1 || ver > 14) return null;
       var st2 = freshState();
       st2.key = v[1] % 12; st2.minor = v[2] & 1;
       st2.bars = ver === 1 ? ([2, 4, 8].indexOf(v[3]) >= 0 ? v[3] : 4)
@@ -673,6 +711,22 @@
         }
         st2.title = tt.trim();
         head += 1 + tn;
+      }
+      // v14's two extra song-level fields, after the title and before the cells.
+      // A v13 document simply has neither, which is why the version guards the
+      // read rather than a flag inside it.
+      if (ver >= 14) {
+        var mv = v[head] | 0;
+        st2.master = mv > 0 ? (mv - 1) & 15 : null;
+        var tc2 = v[head + 1] | 0;
+        head += 2;
+        st2.tempoAt = [];
+        for (var qj = 0; qj < tc2; qj++) {
+          var row = (v[head] | 0) | ((v[head + 1] | 0) << 6);
+          var tmp = (v[head + 2] | 0) | (((v[head + 3] | 0) & 3) << 6);
+          if (row > 0 && tmp >= 40 && tmp <= 255) st2.tempoAt.push([row, tmp]);
+          head += 4;
+        }
       }
       var ids = STAMPS.map(function (s) { return s.id; });
       if (ver === 1) {
