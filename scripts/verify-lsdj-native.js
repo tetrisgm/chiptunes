@@ -297,6 +297,22 @@ Object.keys(IMAGES).forEach(name => {
   const sentM = mj.notes.map(n => n.motion).join(' ');
   const gotM = mBack.map(n => n.motion || 'plain').join(' ');
   ok(sentM === gotM, 'and the gesture it was played with (' + gotM + ')');
+
+  // AN ECHO IS TWO NOTES, and LSDj has no flag for it. Ours renders as the note
+  // shortened to a row plus a quieter repeat one row later, so that is what gets
+  // written -- and a musician opening the file sees the repeat, which is what is
+  // actually happening. Written as a flag it was simply lost.
+  const ej = { title: 'Echo', grid: 16, bpm: 128, bars: 2, notes: [
+    { lane: 'Melody', step: 0, note: nm(60), len: 2, motion: 'echo' },
+    { lane: 'Melody', step: 8, note: nm(64), len: 2, motion: 'plain' }
+  ] };
+  const eBack = api.toJSON(api.fromLsdsng(api.toLsdsng(api.fromJSON(ej)).bytes).doc)
+    .notes.filter(n => n.note);
+  const echoed = eBack.length === 3 &&
+    eBack[0].step === 0 && eBack[1].step === 1 &&
+    eBack[1].note === eBack[0].note && eBack[1].velocity < eBack[0].velocity;
+  ok(echoed, 'and an echo arrives as the quieter repeat it is (' +
+     eBack.map(n => n.step + ':' + n.note + '@' + n.velocity.toFixed(2)).join(' ') + ')');
 }
 
 // How much of a song we UNDERSTAND rather than carry verbatim. A ratchet the

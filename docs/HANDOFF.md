@@ -3287,3 +3287,43 @@ when the truth was the fixture never had any.
 It loads a KNOWN song through the URL fragment now (`/create#s=<code>`) with
 melody, bass and drums in it, and waits for the editor's panel instead of racing
 an 80ms timer. Three consecutive runs return byte-identical fixture counts.
+
+
+## Every gesture now carries (2026-09-04, end)
+
+The document's six motions, and where each lives in LSDj:
+
+```
+plain   nothing
+arp     command C
+roll    command R
+fall    instrument byte 4 = NR10, bit 3 set   (frequency decreases)
+rise    instrument byte 4 = NR10, bit 3 clear
+echo    TWO NOTES -- LSDj has no echo flag
+```
+
+`fall` and `rise` are a hardware SWEEP, and the sweep unit belongs to PU1 alone,
+so only the Melody lane can carry them. That is the machine's limit, not one we
+added.
+
+`echo` is the interesting one. Ours renders as the note shortened to a row plus
+a quieter repeat one row later on the same channel -- so that is what gets
+written, rather than a flag LSDj has no way to store. Both play the same thing,
+and a musician opening the file sees the repeat, which is what is actually
+happening.
+
+### The full list of what survives a round trip
+
+tempo, groove, pitch, lane, step, note length, which drum it was, the timbre,
+the loudness, and the gesture. All of it verified against the real ROM in mGBA.
+
+### And what still does not
+
+- **LSDj's envelope SHAPES.** Byte 1's low nibble is a hold in frames; we write 0
+  (sustain), which is what a tracker uses, and say where a note stops with a KILL
+  instead. Its other shapes are unused. This is a thing LSDj can do that we do
+  not, not a thing we do that it cannot.
+- **TABLES.** LSDj's 32 tables are a per-instrument modulation sequence.
+  Nothing here writes or reads one, so importing a foreign song that uses them
+  loses the modulation.
+- **Row-by-row frame pattern**, within one frame. Averages agree to 0.01%.

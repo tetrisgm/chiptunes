@@ -405,6 +405,18 @@
       if (grid[lane][step]) dropped++;
       slot.len = Math.max(1, x.len | 0 || 1);
       grid[lane][step] = slot;
+
+      // AN ECHO IS TWO NOTES, and that is all it ever was. Our renderer plays it
+      // as the note shortened to a row and a quieter repeat one row later on the
+      // same channel; LSDj has no echo flag, so writing it as the flag lost it
+      // entirely. Written out, both play the same thing -- and a musician
+      // opening the file sees the repeat, which is what is actually happening.
+      if (x.f && lane !== 3 && slot.note && !grid[lane][step + 1] && step + 1 < steps) {
+        var quiet = Object.assign({}, x, { vel: (x.vel != null ? x.vel : 0.8) * 0.6 });
+        grid[lane][step] = Object.assign({}, slot, { len: 1 });
+        grid[lane][step + 1] = { note: slot.note, cmd: CMD.NONE, val: 0,
+                                 inst: instrumentFor(quiet, lane), len: 1 };
+      }
     });
     if (outOfRange) warn.push(outOfRange + ' notes were still outside LSDj\'s range after transposing and were left out');
     if (dropped) warn.push(dropped + ' notes shared a step with another on the same channel and were replaced');
