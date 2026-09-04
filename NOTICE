@@ -9,3 +9,9 @@ This repository vendors third-party work under its own terms:
 The Apache-2.0 shader pipeline is vendored unmodified. Its own LICENSE and
 NOTICE files, and the attribution headers in the .slang sources, must stay
 where they are.
+
+The LSDj export in src/lsdj.js implements the .lsdsng song format from liblsdj
+(MIT, Stijn Frishert with Johan Kotlinski) and from Johan Kotlinski's lsdj-doc.
+The embedded empty-song image is liblsdj's, under that MIT licence. LSDj itself
+is Johan Kotlinski's and is not included here; this project is not affiliated
+with it.

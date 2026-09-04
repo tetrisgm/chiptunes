@@ -222,6 +222,19 @@ const TOOLS = [
     run: (a) => writeFileArg(a.path, api.toMidi(resolveDoc(a.song)), 'MIDI')
   },
   {
+    name: 'export_lsdsng',
+    description: 'Write the song as an LSDj .lsdsng -- one song, the unit LSDj musicians pass around. Notes arrive laid out in phrases and chains with the tempo and the groove, so somebody who writes on a Game Boy gets an arrangement to build on instead of a blank screen. Relay the `warnings`: they say what did NOT survive the trip (drums move to the noise channel, and instrument voicing is left stock on purpose).',
+    inputSchema: { type: 'object', properties: { song: { type: 'string' }, path: { type: 'string' }, name: { type: 'string', description: 'up to 8 characters, LSDj\'s own alphabet' } }, required: ['song', 'path'], additionalProperties: false },
+    run: (a) => {
+      const r = api.toLsdsng(resolveDoc(a.song), { name: a.name });
+      const w = writeFileArg(a.path, r.bytes, 'LSDj song');
+      return Object.assign({}, w, {
+        phrases: r.phrases, chains: r.chains, notes: r.notes,
+        tempo: r.tempo, groove: r.groove, warnings: r.warnings
+      });
+    }
+  },
+  {
     name: 'variations',
     description: 'Compose n different songs for the same brief and return them all, UNRANKED and unselected, in the order composed. Nothing scores them for you: pick with describe(), or play them. Composition is about 1.6 ms, so asking for twenty is reasonable.',
     inputSchema: {

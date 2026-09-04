@@ -371,11 +371,11 @@
     },
     {
       name: 'chiptunes_export',
-      description: 'Take the music away: a share link that carries the whole arrangement in the URL, a Standard MIDI file, or a 32 KB .gb cartridge that boots on real Game Boy hardware. The link needs no server and stores nothing; the files are built in the page and handed straight to the user.',
+      description: 'Take the music away: a share link that carries the whole arrangement in the URL, a Standard MIDI file, a 32 KB .gb cartridge that boots on real Game Boy hardware, or an LSDj .lsdsng the user can drop into their save and keep writing. The link needs no server and stores nothing; the files are built in the page and handed straight to the user.',
       inputSchema: {
         type: 'object',
         properties: {
-          format: { type: 'string', enum: ['link', 'midi', 'rom'] },
+          format: { type: 'string', enum: ['link', 'midi', 'rom', 'lsdsng'] },
           document: { type: 'string', description: 'omit to export whatever is on air' }
         },
         required: ['format']
@@ -391,6 +391,14 @@
             note: 'The whole song is in the fragment, which browsers never send to a server.' };
           var name = safe(function () { return (G.CT_API.describe(doc).title || 'song'); }, 'song')
                        .replace(/[^A-Za-z0-9 _-]+/g, '').trim() || 'song';
+          if (fmt === 'lsdsng') {
+            var ls = G.CT_API.toLsdsng(doc, { name: name });
+            var okL = download(ls.bytes, ls.filename, 'application/octet-stream');
+            return { ok: okL, filename: ls.filename, bytes: ls.bytes.length,
+                     phrases: ls.phrases, chains: ls.chains, tempo: ls.tempo, groove: ls.groove,
+                     warnings: ls.warnings,
+                     note: 'One LSDj song. Drop it into a .sav with lsdsng-import, or copy it onto a cart, and keep writing. Tell the user the warnings: they are what does NOT survive the trip.' };
+          }
           var bytes = fmt === 'midi' ? G.CT_API.toMidi(doc) : G.CT_API.buildCartridge(doc);
           var saved = download(bytes, name + (fmt === 'midi' ? '.mid' : '.gb'),
                                fmt === 'midi' ? 'audio/midi' : 'application/octet-stream');

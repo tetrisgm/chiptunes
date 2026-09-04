@@ -1309,6 +1309,21 @@
     } catch (e) { if (G._toast) G._toast('MIDI export failed: ' + (e && e.message || e)); }
   }
 
+  // AN ARRANGEMENT TO KEEP WRITING, not a finished file to admire. What lands
+  // in LSDj is the notes, the phrases, the chains, the tempo and the groove; the
+  // voicing is deliberately left stock, because that is the part the musician
+  // receiving it is better at than we are. The toast says what did not survive
+  // rather than leaving it to be found by ear.
+  function exportLsdsng() {
+    try {
+      if (!G.CT_API || !G.CT_API.toLsdsng) { if (G._toast) G._toast('LSDj export is unavailable in this build'); return; }
+      var r = G.CT_API.toLsdsng(encode(), { name: (S.title || 'CHIPTUNE') });
+      _saveBlob(new Blob([r.bytes], { type: 'application/octet-stream' }), r.filename);
+      if (G._toast) G._toast('Downloaded ' + r.filename + ' \u2014 ' + r.phrases +
+        ' phrases, tempo ' + r.tempo + '. Drums move to noise; instruments are stock.', { ms: 4200 });
+    } catch (e) { if (G._toast) G._toast('LSDj export failed: ' + (e && e.message || e)); }
+  }
+
   // ---- hints + tour --------------------------------------------------------
   var hintTimer = 0, hintedSulk = false;
   var HINT_IDLE = 'Click empty space in a lane to place a note at that height; hover or click a note to hear it.';
@@ -2227,6 +2242,9 @@
         '<button type="button" class="cr-btn cr-dl" data-cr="share">' + _ic('share') + 'Copy link</button>' +
         '<button type="button" class="cr-btn cr-dl" data-cr="wav">' + _ic('wave') + 'Download WAV</button>' +
         '<button type="button" class="cr-btn cr-dl" data-cr="rom">' + _ic('rom') + 'Download ROM</button>' +
+        // For the people who write on the hardware: an arrangement to open in
+        // LSDj and keep working on, rather than a finished thing to admire.
+        '<button type="button" class="cr-btn cr-dl" data-cr="lsdsng" title="One LSDj song: notes, phrases, chains, tempo and groove, ready to keep writing">' + _ic('rom') + 'Download LSDj</button>' +
         '<button type="button" class="cr-btn cr-dl" data-cr="midi" title="Standard MIDI, one track per voice">' + _ic('wave') + 'Download MIDI</button>' +
       '</div>' +
       // CLOSE IS AN X IN THE CORNER, not a labelled button in the utility row.
@@ -2757,6 +2775,7 @@
       else if (k === 'share') { shareSong(b); }
       else if (k === 'wav') { exportWav(); }
       else if (k === 'rom') { exportRom(); }
+      else if (k === 'lsdsng') { exportLsdsng(); }
       else if (k === 'midi') { exportMidi(); }
     });
     root.addEventListener('input', function (ev) {

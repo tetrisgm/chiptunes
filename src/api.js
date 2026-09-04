@@ -46,6 +46,7 @@ var Song = _req ? _req('./seed.js') : _G.Song;
 var composer = _req ? _req('./composer.js')
                     : ((_G.CT_COMPOSERS && _G.CT_COMPOSERS.rrr_core) || null);
 var REF = _req ? _req('./reference-styles.js') : _G.CT_REFERENCE_STYLES;
+var LSDJ = _req ? _req('./lsdj.js') : _G.CT_LSDJ;
 var CT_CREATE = _req ? _req('./create.js') : _G.CT_CREATE;
 var GB_ROM = _req ? _req('./gb-rom.js') : _G.CT_GB_ROM;
 var GB_APU = _req ? _req('./gb-apu.js') : _G.CT_GB_APU;
@@ -121,6 +122,10 @@ function capabilities() {
     gameGenres: Object.keys(WORD_GAME_GENRES),
     forms: Object.keys(WORD_FORMS),
     techniques: Object.keys(WORD_TECHNIQUES),
+    exports: {
+      formats: ['share link', 'wav', 'stems', 'midi', 'gb cartridge', 'lsdsng'],
+      lsdsng: 'One LSDj song, the unit LSDj musicians pass around. Notes arrive laid out in phrases and chains with the tempo and the groove, so somebody who writes on a Game Boy gets an arrangement to build on. Drums move to the noise channel (a .sav cannot carry kit samples, which live in the ROM) and instrument voicing is left stock on purpose. toLsdsng() returns those caveats as `warnings`; relay them.'
+    },
     tempo: {
       reachable: CT_CREATE.tempos ? CT_CREATE.tempos(16) : [],
       note: 'A ladder, not a range. A step lasts a WHOLE number of frames on this hardware, so only these tempi exist; asking for one in between gives you the nearest rung. The gaps widen as it gets faster, which is a property of the machine rather than a choice.',
@@ -401,6 +406,24 @@ function load(doc) {
 
 // A shareable link. The document rides in the FRAGMENT, which browsers never
 // send to a server, so this needs no backend and stores nothing.
+// A SONG AN LSDJ COMPOSER CAN OPEN AND KEEP WRITING. `.lsdsng` is the unit
+// LSDj users pass around -- one song, droppable into a save. What arrives is
+// the arrangement: notes laid out in phrases and chains, the tempo, the groove.
+// What does not arrive is the voicing, on purpose; see src/lsdj.js.
+//
+// Returns the file AND the warnings, because every one of them is something the
+// receiving musician would otherwise discover by ear.
+function toLsdsng(doc, opts) {
+  if (!LSDJ) throw new Error('toLsdsng: lsdj.js is not loaded');
+  var r = LSDJ.lsdsng(typeof doc === 'string' ? doc : fromJSON(doc), opts || {});
+  return {
+    bytes: r.file, filename: (((opts && opts.name) || r.title || 'chiptune')
+      .replace(/[^A-Za-z0-9 _-]/g, '').trim() || 'chiptune') + '.lsdsng',
+    phrases: r.phrases, chains: r.chains, notes: r.notes,
+    tempo: r.tempo, groove: r.groove, warnings: r.warnings
+  };
+}
+
 function shareUrl(doc, base) {
   return (base || 'https://chiptunes.app') + '/#s=' + String(typeof doc === 'string' ? doc : fromJSON(doc));
 }
@@ -1998,7 +2021,7 @@ var EXPORTS = {
   toJSON: toJSON,
   fromJSON: fromJSON,
   validate: validate,
-  describe: describe, analyse: analyse,
+  describe: describe, analyse: analyse, toLsdsng: toLsdsng,
   buildCartridge: buildCartridge,
   renderWav: renderWav,
   shareUrl: shareUrl,

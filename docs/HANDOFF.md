@@ -2670,3 +2670,70 @@ playing yet".
 
 Still not applicable: the Next.js `<head>` crash, and ref-authoritative state
 (no framework; tools read the audio deck synchronously).
+
+# 2026-09-03 — Time is ticks, and LSDj composers can open our songs
+
+Two changes, and the first is what makes the second honest.
+
+## Time
+
+`framesPer16()` returned a float and `colFrame()` rounded the running total, so
+a "6.27 frame step" was really some steps of 6 frames and some of 7 in whatever
+pattern the rounding produced. Unintentional swing that drifted with tempo.
+Measured across 40 songs, **only 7 sat within a tenth of a frame of an integer
+step** — our tempi were not reachable on the machine at all.
+
+A step now lasts a whole number of frames and the unevenness is a **groove**: a
+short repeating list of tick counts, capped at four steps. That one mechanism
+reaches the tempi between the rungs AND carries swing, which is why trackers
+work this way.
+
+- **32 playable tempi** at a 16th grid; the composer reaches **27** of them. I
+  expected to lose most of the range and lost almost none, because grooves give
+  quarter-frame resolution.
+- The groove is chosen by **constrained search**, not arithmetic. Rounding put
+  70bpm on a 32nd grid at 68.9 — below the storable minimum — where the header
+  wrote a negative offset that wrapped through the mask and returned 179.
+- Tempo snaps on **write** as well as read, so the round trip is a fixed point.
+  Verified across 3 grids x 2 feels x 111 tempi.
+- `describe()` reports the groove; `capabilities().tempo` publishes the ladder.
+
+Two gates were asserting properties the hardware does not have. Tempo spread
+wanted 40% distinct of 30 on a *continuum*; it now checks a floor of 8 plus a
+real spread across the ladder. The per-scene uniqueness check wanted 30/30 from
+a random draw, where the measured collision rate over a pool of 2400 boss cues
+gives a batch of thirty a **0.8% chance** of one pair.
+
+## The LSDj export
+
+`src/lsdj.js` writes a `.lsdsng` — one song, the unit LSDj musicians pass
+around. Reachable from `api.toLsdsng()`, `npx chiptunes lsdsng`, the tracker's
+*Download LSDj* button, the MCP `export_lsdsng` tool and `chiptunes_export`
+with `format: "lsdsng"`.
+
+It is faithful rather than converted, and only because of the work above: a bar
+IS a phrase (16 steps), channels map one-to-one, and the groove goes across
+intact. An arpeggio exports as a `C` command because the document carries the
+gesture as a flag and only the player expands it — so the phrase is readable
+rather than 300 rows of spelled-out notes.
+
+**What does not survive, stated in `warnings` rather than discovered by ear:**
+drums move to the noise channel (a `.sav` cannot carry kit samples, which live
+in the ROM), and instruments are stock defaults one per channel, on purpose.
+
+### The gate, and why it is shaped like this
+
+`scripts/verify-lsdj.js` reads the output back with **liblsdj itself** and
+compares counts. A self round-trip — our compressor feeding our decompressor —
+would repeat the WebMCP mistake exactly: code and test agreeing with each other
+and both wrong. Build the reader with the two commands in that file's header;
+without it the gate runs the structural checks and says loudly that the strong
+check was skipped.
+
+⚠️ **One constant it cannot prove.** `NOTE_ZERO_MIDI` maps MIDI 36 to LSDj note
+1. liblsdj reports the note BYTE and never claims which pitch it sounds — only
+LSDj does. It is a named constant for exactly that reason: **confirm it once by
+ear on hardware**, and if it is off, one number moves.
+
+`tools/lsdjcheck.c` is the reader harness. liblsdj is MIT and attributed in
+NOTICE along with the embedded empty-song image.

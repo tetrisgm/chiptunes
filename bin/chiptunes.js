@@ -18,6 +18,7 @@ const USAGE = `chiptunes — make Game Boy songs from the command line
   transform <doc|file> --ops '[{"op":"tempo","percent":-10}]' [--out FILE]
   stems <doc|file> --out DIR
   midi <doc|file> --out FILE          format 1, one track per voice
+  lsdsng <doc|file> --out FILE        one LSDj song, to drop into a .sav and keep writing
   layers <doc|file> --out DIR         base / mid / full, for adaptive audio
   variations --scene S [--n 5] --out DIR   n songs, unranked
   guide
@@ -147,6 +148,15 @@ try {
       break;
     }
     case 'midi': outBin(api.toMidi(readDoc(process.argv[3]))); break;
+    case 'lsdsng': {
+      var ls = api.toLsdsng(readDoc(process.argv[3]), { name: arg('name') });
+      // The warnings go to stderr, not stdout, so `> song.lsdsng` still works --
+      // and so a musician is told what did NOT make the trip before they open it.
+      ls.warnings.forEach(function (w) { process.stderr.write('note: ' + w + '\n'); });
+      process.stderr.write('note: ' + ls.phrases + ' phrases, ' + ls.chains + ' chains, tempo ' +
+                           ls.tempo + ', groove [' + ls.groove + ']\n');
+      outBin(ls.bytes); break;
+    }
     case 'layers': {
       const dir = arg('out');
       if (!dir) die('layers writes several files; pass --out DIR');
