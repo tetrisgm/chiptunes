@@ -3435,9 +3435,16 @@ T -> the document's tempoAt list, and colFrame integrates across it
 M -> the document's master, which leaves as the score's gainScalar
 ```
 
-A D F G H W Z still moved nothing on either test at either value. G is
-groove-select and H is a hop, so both likely need a target that exists. They are
-recorded as MEASURED, not as proven inert.
+A D F G H W Z moved nothing on either test. G, H and W were then given valid
+TARGETS -- G pointed at a groove 1 defined as [10,2], H hopping to sequence row
+0, W on an actual wave instrument -- and still moved neither the registers nor
+the song's shape.
+
+⚠️ **That is three measurements saying nothing happened, which is not the same
+as proving nothing happens.** Each of these was set up from the outside, by
+writing bytes into a song; if the command needs a condition this harness does
+not reproduce, the result looks identical to the command doing nothing. Treat
+"no effect measured" as the state of the evidence, not as a fact about LSDj.
 
 ### Document version 14
 
