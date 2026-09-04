@@ -313,6 +313,23 @@ Object.keys(IMAGES).forEach(name => {
     eBack[1].note === eBack[0].note && eBack[1].velocity < eBack[0].velocity;
   ok(echoed, 'and an echo arrives as the quieter repeat it is (' +
      eBack.map(n => n.step + ':' + n.note + '@' + n.velocity.toFixed(2)).join(' ') + ')');
+
+  // WHAT WE CANNOT PLAY, SAID OUT LOUD. LSDj tables are a per-instrument
+  // modulation sequence and nothing here runs one; most of its commands are
+  // likewise unread. Our own songs use neither, so this only ever fires on
+  // somebody else's file -- which is exactly the case where silence would be
+  // worst, because every note arrives and the song is still wrong.
+  const own = api.fromLsdsng(api.toLsdsng(api.brief({ scene: 'battle', seconds: 30, token: 'warn-own' }).doc).bytes);
+  ok(own.warnings.length === 0,
+     'importing our own song warns about nothing (' + JSON.stringify(own.warnings) + ')');
+
+  const img = L.readSong(L.parseLsdsng(api.toLsdsng(api.fromJSON(mj)).bytes).song);
+  img.tableAlloc[0] = 1; img.tableAlloc[1] = 1;
+  img.phraseCommands[0][0] = L.COMMANDS.H;          // one we do not play
+  const foreign = L.toSongJSON(L.readSong(L.writeSong(img)), { name: 'Foreign' });
+  ok(foreign.warnings.some(w => /table/.test(w)) && foreign.warnings.some(w => /command/.test(w)),
+     'and a foreign song says what it uses that we do not play (' +
+     foreign.warnings.length + ' warnings)');
 }
 
 // How much of a song we UNDERSTAND rather than carry verbatim. A ratchet the

@@ -934,6 +934,26 @@
     }
     if (unnamedDrums) warn.push(unnamedDrums + ' drums came back as kicks: their instrument was ' +
                                 'not one this app names, and the noise channel cannot say which drum it was');
+    // ⚠️ TABLES ARE NOT PLAYED. An LSDj table is a per-instrument modulation
+    // sequence -- a transpose and two commands per tick -- and nothing here
+    // reads or runs one. A song of ours never uses them, so this only fires on
+    // a song somebody else wrote, and it is exactly the case where staying
+    // quiet would be worst: the notes would all arrive and the song would still
+    // be wrong, with nothing saying why.
+    var tablesUsed = 0, ti;
+    for (ti = 0; ti < 32; ti++) if (m.tableAlloc[ti]) tablesUsed++;
+    if (tablesUsed) warn.push('this song uses ' + tablesUsed + ' LSDj table' +
+      (tablesUsed > 1 ? 's' : '') + ', and tables are not played here -- the notes arrive but ' +
+      'their per-tick transposes and commands do not');
+    // Commands we do not act on, counted rather than silently dropped.
+    var unknownCmds = {};
+    for (ch = 0; ch < 4; ch++) playedNotes(m, ch).forEach(function (n) {
+      if (n.command && n.command !== CMD.C && n.command !== CMD.R && n.command !== CMD.K)
+        unknownCmds[n.command] = (unknownCmds[n.command] || 0) + 1;
+    });
+    var unknownTotal = Object.keys(unknownCmds).reduce(function (a, k) { return a + unknownCmds[k]; }, 0);
+    if (unknownTotal) warn.push(unknownTotal + ' notes carry an LSDj command this app does not ' +
+      'play (only C, R and K are understood); the notes arrive, the effect does not');
     notes.sort(function (a, b) { return a.step - b.step; });
     return {
       json: {
