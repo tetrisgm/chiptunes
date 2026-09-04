@@ -278,6 +278,20 @@ Object.keys(IMAGES).forEach(name => {
   });
   ok(voiceOk, 'and each one keeps its timbre and its loudness (' +
      vj.notes.map(n => { const g = find(n.lane, n.step); return g ? g.stamp + '@' + g.velocity.toFixed(2) : '?'; }).join(' ') + ')');
+
+  // AND THE GESTURE. An arpeggio is the C command and a roll is R; the export
+  // wrote both and the import read neither, so a song came home with its
+  // gestures flattened by the very round trip that had just written them.
+  const mj = { title: 'Motion', grid: 16, bpm: 128, bars: 2, notes: [
+    { lane: 'Melody', step: 0,  note: nm(60), len: 2, motion: 'arp' },
+    { lane: 'Melody', step: 4,  note: nm(62), len: 2, motion: 'roll' },
+    { lane: 'Melody', step: 8,  note: nm(64), len: 2, motion: 'plain' },
+    { lane: 'Melody', step: 12, note: nm(65), len: 2, motion: 'arp' }
+  ] };
+  const mBack = api.toJSON(api.fromLsdsng(api.toLsdsng(api.fromJSON(mj)).bytes).doc).notes.filter(n => n.note);
+  const sentM = mj.notes.map(n => n.motion).join(' ');
+  const gotM = mBack.map(n => n.motion || 'plain').join(' ');
+  ok(sentM === gotM, 'and the gesture it was played with (' + gotM + ')');
 }
 
 // How much of a song we UNDERSTAND rather than carry verbatim. A ratchet the

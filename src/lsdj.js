@@ -879,6 +879,12 @@
           // volume, byte 7's top two bits are the duty.
           var p = m.instrumentParams[n.instrument];
           var note = { lane: LANES[ch], step: n.row, note: noteName(n.midi), len: len };
+          // THE COMMAND IS PART OF THE NOTE. An arpeggio is C and a roll is R on
+          // the way out; without reading them back, a song exported with either
+          // came home plain, and the round trip quietly flattened the gestures
+          // it had just written.
+          if (n.command === CMD.C) note.motion = 'arp';
+          else if (n.command === CMD.R) note.motion = 'roll';
           if (p) {
             note.velocity = Math.max(0.05, Math.min(1, (p[1] >> 4) / 15));
             // 75% duty is 25% inverted -- the same timbre on this chip -- so it
