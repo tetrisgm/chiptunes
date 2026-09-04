@@ -3471,3 +3471,24 @@ here grew by a character.
 `colFrame` is PIECEWISE now: with no tempo changes it is the single call it
 always was, and with them the frame of a row is the sum over the segments before
 it. Verified: halving the tempo at row 32 makes every later gap exactly 2.00x.
+
+# 2026-09-04 — Post-Claude repository audit
+
+- `main` is clean, matches `origin/main`, and ends at `53c5b1d`. The focused
+  `scripts/verify-lsdj-native.js` gate passes there.
+- Production is **not** at `main`: `chiptunes.app` serves
+  `app.73c91fbe2963.js`, introduced by `b66f4f1`; HEAD builds
+  `app.8b4ba419a9a2.js`. There are 30 commits between those revisions. Nothing
+  from this audit was deployed.
+- The final measurement corrected a repeated false negative: W is carried as
+  `dy`, while H, D and F demonstrably affect playback but are still only
+  detected/reported, not translated into the document. A, G and Z are the only
+  commands that remained inert across the measured contexts.
+- `src/lsdj.js` still contains stale explanatory comments saying tables are an
+  approximation and that A/D/F/G/H/L/T/W/Z moved no register. Later code and
+  the final measurements contradict both comments. Clean those comments before
+  using the file as an implementation guide.
+- Safe next checkpoint: define and independently measure H, D and F semantics,
+  add fixtures that prove their audible/register behavior, then translate only
+  what those fixtures establish. Run the full suite before considering the
+  30-commit production deployment.
