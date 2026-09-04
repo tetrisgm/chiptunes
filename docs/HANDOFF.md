@@ -3090,3 +3090,59 @@ the bytes were valid, they just meant something else.
 own ROM (`LSDJ_ROM=...`), and SKIPS loudly without them. **The ROM is Johan
 Kotlinski's, freeware for personal and educational use, and must never enter
 this repository.**
+
+## Where LSDj parity actually stands (2026-09-04, end of session)
+
+Owner's bar: *"It needs to sound exactly the same. It needs to behave exactly
+the same. It cannot have more stuff or less stuff."* Here is what is true and
+what is not, because the difference matters more than the progress.
+
+### Proved against the real ROM in mGBA
+
+- **Tempo.** LSDj plays 9.955, 8.000, 7.000 and 5.970 frames a row where we
+  predict 9.955, 7.999, 6.999 and 5.973.
+- **Pitch.** `NOTE_BASE` measured, not believed: byte 1 sounds MIDI 36 on both
+  pulses and 24 on the wave.
+- **Instrument bytes.** Byte 0 type, byte 1 high nibble volume, byte 3 length,
+  byte 4 sweep, byte 7 duty and pan, byte 11 transpose -- each found by varying
+  one byte and watching which APU register moved.
+
+### Proved in the suite
+
+- The codec is lossless on random bytes, escape bytes, long runs and the default
+  wave, not just on the empty song.
+- A song image survives read -> write byte-for-byte; 71.5% of it is understood
+  by name and the rest is carried verbatim.
+- Export -> import returns the same tempo, groove, and every pitched note on the
+  same lane at the same step at the same pitch; importing again changes nothing.
+- A kick comes back a kick.
+
+### NOT parity yet, in the order it matters
+
+1. **LSDj's envelope is SOFTWARE.** It rewrites NR12 as a note plays rather than
+   setting the hardware pace once, so byte 1's low nibble is LSDj's own envelope
+   shape and not a DMG field. We write a plain sustain. Matching its characters
+   means reproducing its per-tick stepping. **This is the biggest remaining
+   audible difference.**
+2. **Kits.** The owner chose kits read from his own ROM, with noise-only as the
+   fallback. We still write NOISE instruments for drums. They survive a round
+   trip by name, but they do not sound like LSDj's kits, and nothing reads the
+   ROM's samples yet.
+3. **Tables and commands.** LSDj's 32 tables and most of its command set are
+   unused. We emit C, R and V only.
+4. **Wave instruments.** LSDj's wave voices use its own soft-synth; ours use our
+   wave tables. The channel is right, the timbre is ours.
+5. **Row-by-row frame pattern**, within one frame -- see the tempo section
+   above. Inaudible, but not identity.
+
+### What is NOT a gap, checked so it does not get re-litigated
+
+- **The renderer is already register-level.** The chip worklet connects straight
+  to gain with no filters between; `verify-rom` proves every note reaches the
+  hardware as the APU would write it. The biquads in `audio.js` are on other
+  paths, not the GB one.
+- **Per-note volume is not un-LSDj.** Volume lives in the instrument, so an
+  accent is a different instrument -- and LSDj has 64 slots for exactly that.
+  The export writes one per (voice, level); real songs use about 11. Do not
+  "fix" this by flattening the music, which was the first instinct and was
+  backwards.

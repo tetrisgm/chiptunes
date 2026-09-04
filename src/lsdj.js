@@ -283,18 +283,41 @@
     // drum lanes under the melodic ones, so row - melodicRows is the index into
     // the drum list. Reading it is what lets a kick come back as a kick.
     var DRUM_IDS = (CT_CREATE.tables && CT_CREATE.tables().drums) || ['hat', 'snare', 'kick'];
+    // ⚠️ VOLUME IS PART OF THE INSTRUMENT'S IDENTITY, because in LSDj it has
+    // nowhere else to live -- there is no per-note volume column. Our renderer
+    // plays an accent by making one note louder, and a single instrument per
+    // voice could not carry that: the export flattened every accent.
+    //
+    // The LSDj answer is not to flatten the music, it is to have MORE
+    // INSTRUMENTS -- which is what an LSDj musician does, and what the 64 slots
+    // are for. A voice at four playing levels is four instruments. We use around
+    // thirty of the sixty-four, and the accents survive.
     function instrumentFor(x, lane) {
       var isDrum = lane === 3;
       var drum = isDrum ? (DRUM_IDS[(x.r | 0) - melRows] || 'kick') : null;
-      var id = isDrum ? ('drum:' + drum) : (lane + ':' + (x.st || 'piano'));
-      if (instOf[id] != null) return instOf[id];
-      if (instruments.length >= MAX_INSTRUMENTS) return lane;      // fall back to the lane
       var vol = Math.max(1, Math.min(15, Math.round((x.vel != null ? x.vel : 0.8) * 15)));
+      var id = (isDrum ? ('drum:' + drum) : (lane + ':' + (x.st || 'piano'))) + ':v' + vol;
+      if (instOf[id] != null) return instOf[id];
+      // Out of slots: reuse the nearest instrument for this voice rather than
+      // dropping to the lane default, so the timbre survives even when the
+      // loudness has to be approximated.
+      if (instruments.length >= MAX_INSTRUMENTS) {
+        var stem = id.slice(0, id.lastIndexOf(':v')), best = lane, bd = 99;
+        for (var q2 = 0; q2 < instruments.length; q2++) {
+          if (instruments[q2].stem !== stem) continue;
+          var d2 = Math.abs(instruments[q2].vol - vol);
+          if (d2 < bd) { bd = d2; best = q2; }
+        }
+        return best;
+      }
       var type = isDrum ? INST_TYPE.NOISE : lane === 2 ? INST_TYPE.WAVE : INST_TYPE.PULSE;
       var duty = DUTY_INDEX[STAMP_DUTY[x.st]] != null ? DUTY_INDEX[STAMP_DUTY[x.st]] : 2;
-      var name = String(id.replace(/^\d+:|^drum:/, '')).toUpperCase().slice(0, 5);
+      // The NAME is the voice without the volume, so LSDj shows PIANO for every
+      // loudness of piano and import can still read the drum back off it.
+      var stem2 = id.slice(0, id.lastIndexOf(':v'));
+      var name = String(stem2.replace(/^\d+:|^drum:/, '')).toUpperCase().slice(0, 5);
       instOf[id] = instruments.length;
-      instruments.push({ type: type, vol: vol, duty: duty, name: name });
+      instruments.push({ type: type, vol: vol, duty: duty, name: name, stem: stem2 });
       return instOf[id];
     }
 

@@ -119,14 +119,36 @@ ok(maxRows <= 256 * 16,
   'longest channel: ' + maxRows + ' rows (LSDj holds 256 chain rows of 16)');
 
 // ---- and the one that is not a count, but a MODEL difference. --------------
-// LSDj has no per-note volume column. Volume is the instrument's envelope, and
-// changing it mid-phrase costs the row's one command. Every distinct velocity
-// we emit past the first is either an instrument LSDj would need a slot for or
-// a command we have not written.
+// LSDj HAS NO PER-NOTE VOLUME COLUMN. Volume lives in the instrument, so an
+// accent is not a louder note -- it is a different instrument.
+//
+// This used to be a ceiling on how many volumes we emit, which was the wrong
+// way round: it asked the music to be simpler. The LSDj answer is to have MORE
+// INSTRUMENTS, which is what the 64 slots are for and what a musician does by
+// hand. So the check is that every distinct (voice, volume) a song plays gets
+// its own slot and they all FIT -- the accents survive the export instead of
+// being flattened into one level.
 console.log('');
+{
+  const NAMES2 = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  const L0 = require(path.join(ROOT, 'src', 'lsdj.js'));
+  let worst = 0, capped = 0, checked = 0;
+  for (let i = 0; i < 12; i++) {
+    const made = api.brief({ scene: ['battle', 'cave', 'title', 'boss'][i % 4], seconds: 40, token: 'inst-' + i });
+    const m = L0.readSong(L0.parseLsdsng(api.toLsdsng(made.doc).bytes).song);
+    let n = 0;
+    for (let k = 0; k < 64; k++) if (m.instrumentAlloc[k]) n++;
+    worst = Math.max(worst, n);
+    if (n >= 64) capped++;
+    checked++;
+  }
+  ok(checked === 12 && capped === 0,
+     'every voice and every playing level gets its own instrument, and they fit (' +
+     worst + ' of 64 at worst across ' + checked + ' songs)');
+}
 ok(maxVolPerCh <= 24,
-  'distinct note volumes on one channel: ' + maxVolPerCh + ' (ceiling 24; LSDj ' +
-  'keeps volume in the INSTRUMENT, so each one is a slot or a command)');
+  'distinct note volumes on one channel: ' + maxVolPerCh + ' (ceiling 24, which is ' +
+  'what still fits in 64 slots alongside the other voices)');
 
 // ---- THE FORMAT ITSELF, both directions -----------------------------------
 // Parity is a round trip, not an export. These check the codec and the model on
