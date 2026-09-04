@@ -97,7 +97,7 @@ console.log('the structure inside');
   for (const p of usedPhrases) for (let k = 0; k < 16; k++) {
     const n = s[O.PHRASE_NOTES + p * 16 + k];
     if (n === 0) continue;
-    if (n > 0x6F) bad++;
+    if (n > L.NOTE_MAX) bad++;
     if (s[O.PHRASE_INSTRUMENTS + p * 16 + k] === 0xFF) orphan++;
   }
   ok(!bad, 'every note is inside LSDj\'s range (' + bad + ' out)');
@@ -152,6 +152,15 @@ console.log('every note arrives');
      'and the wave channel an octave below it, as the hardware does (' + floorOf('wave') + ')');
   ok(floorOf('pulse') - floorOf('wave') === 12,
      'which is exactly the octave the DMG puts between them');
+
+  // MEASURED FROM LSDj 9.4.2's OWN PERIOD TABLE, not inferred: note 1 sounds
+  // 65.41 Hz on a pulse (C2, 0.0 cents) and 32.70 Hz on the wave channel (C1),
+  // and the table stops climbing after 89 entries. The highest note we can write
+  // must stay inside that, or the index lands on whatever bytes follow.
+  const ceilOf = (family) => { let hi = -1; for (let m = 0; m < 127; m++) if (HW.inRange(m, family)) hi = m; return hi; };
+  const topIndex = Math.max(ceilOf('pulse') - L.NOTE_BASE[0], ceilOf('wave') - L.NOTE_BASE[2]) + 1;
+  ok(topIndex <= 89, 'our highest note is index ' + topIndex + ', inside LSDj\'s 89-entry table');
+  ok(L.NOTE_MAX === 89, 'and NOTE_MAX is that measured length, not a round number (' + L.NOTE_MAX + ')');
 
   // THE COUNT THAT ARRIVES, FOLLOWED THROUGH THE SEQUENCE. Comparing against
   // the unique-phrase count was wrong and made a 217-note song look like a

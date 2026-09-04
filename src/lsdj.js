@@ -54,27 +54,30 @@
               M: 10, O: 11, P: 12, R: 13, S: 14, T: 15, V: 16, W: 17, Z: 18 };
   var INST_TYPE = { PULSE: 0, WAVE: 1, KIT: 2, NOISE: 3 };
 
-  // THE NOTE BYTE IS AN INDEX INTO WHAT THAT CHANNEL CAN PLAY, and it is
-  // therefore a different pitch on each one. This was a single constant and a
-  // guess; it is now derived from the machine, which is the only place the
-  // answer was ever going to come from.
+  // THE NOTE BYTE IS AN INDEX INTO WHAT THAT CHANNEL CAN PLAY, and it is a
+  // different pitch on each one. This started as one constant and a guess. It
+  // is now MEASURED: LSDj 9.4.2 carries a table of 16-bit DMG period values,
+  // and reading it says exactly what every note index sounds like.
   //
-  // The DMG computes pulse frequency as 131072/(2048-x) and wave frequency as
-  // half that, so the lowest note a pulse channel can hold is about 65.4 Hz and
-  // the wave channel reaches a full octave below it. Our own register-level
-  // hardware model agrees exactly: pulse spans MIDI 36..108, wave 24..96.
+  //   note 1 through 131072/(2048-x)  ->  65.41 Hz  =  C2, MIDI 36, 0.0 cents
+  //   note 1 through  65536/(2048-x)  ->  32.70 Hz  =  C1, MIDI 24, 0.0 cents
   //
-  // Two lines of LSDj's manual confirm the rest. Pressing A on an empty step
-  // enters "C-2" -- and C2 is 65.41 Hz, the bottom of the pulse range to the
-  // decimal. And the noise kick recipe says to "play the note at C-0", which is
-  // below pulse's floor: proof that the note NAMES differ per channel rather
-  // than one absolute scale being shared. So byte 1 is the bottom of whatever
-  // channel it sits on.
+  // One table serves both, and the wave channel's halved frequency formula puts
+  // it an octave below the pulses -- which is why the base differs per channel
+  // rather than per song. Our own register-level model agrees to the note:
+  // gb-hardware holds pulse at MIDI 36..108 and wave at 24..96, and
+  // verify-lsdj asserts this table against it so the two can never drift.
   //
-  // What is left to confirm on hardware is now one octave on one channel, not
-  // the whole mapping, and a wrong answer moves a number in this table.
+  // The table runs to 89 entries before it stops climbing. Our composer's
+  // highest pulse note is MIDI 108, which is index 73, so everything we write
+  // fits with room to spare -- but NOTE_MAX is the measured length rather than
+  // a comfortable round number, because an index past the end of a period table
+  // is not a wrong note, it is whatever bytes happen to be next.
+  //
+  // (LSDj is Johan Kotlinski's and is freeware for personal and educational use;
+  // nothing from the ROM is copied here. These are two frequencies and a count.)
   var NOTE_BASE = [36, 36, 24, 36];             // PU1, PU2, WAV, NOI
-  var NOTE_MAX = 0x6F;
+  var NOTE_MAX = 89;
 
   var RLE = 0xC0, SA = 0xE0, DEF_WAVE = 0xF0, DEF_INST = 0xF1, EOF_BLOCK = 0xFF;
   var BLOCK = 0x200, BLOCK_COUNT = 191;
@@ -466,7 +469,7 @@
   var API = {
     SONG_BYTES: SONG_BYTES, SAV_SIZE: SAV_SIZE, SAV_PROJECTS: SAV_PROJECTS,
     OFFSETS: O, COMMANDS: CMD, sav: sav,
-    NOTE_BASE: NOTE_BASE.slice(), PHRASE_STEPS: PHRASE_STEPS,
+    NOTE_BASE: NOTE_BASE.slice(), NOTE_MAX: NOTE_MAX, PHRASE_STEPS: PHRASE_STEPS,
     compress: compress, decompress: decompress, emptySong: emptySong,
     fromDocument: fromDocument, lsdsng: lsdsng
   };

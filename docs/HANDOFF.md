@@ -2797,3 +2797,36 @@ exactly as it does on the hardware. `verify-lsdj` now asserts the table against
 starts firing, the table is wrong.
 
 What is left for a real Game Boy is one octave on one channel, not the mapping.
+
+### Measured, not inferred (LSDj 9.4.2 ROM)
+
+The owner downloaded LSDj and asked to settle the octave in the emulator. Our
+emulator cannot run it -- `gb-cpu.js` is 192 lines with no MBC and no PPU, and
+LSDj is a 1 MB MBC5 application with a UI. Building one that could is a project,
+not a check.
+
+It did not need running. LSDj must carry a table of 16-bit DMG period values to
+play a note at all, so the answer is static: scan the ROM for a long monotonic
+run in [0,2047] whose implied frequencies step by a semitone. One table, at
+0x40FA in 9.4.2:
+
+    note 1 through 131072/(2048-x)  ->  65.41 Hz  =  C2, MIDI 36, 0.0 cents
+    note 1 through  65536/(2048-x)  ->  32.70 Hz  =  C1, MIDI 24, 0.0 cents
+
+One table serves both channels; the wave channel's halved formula puts it an
+octave down. `NOTE_BASE = [36, 36, 24, 36]` confirmed exactly, and it agrees
+with `gb-hardware`'s own floors to the note.
+
+**And it caught a real bug.** `NOTE_MAX` was 0x6F (111), a round number I
+invented. The table stops climbing after **89** entries. Our highest note is
+index 73 so nothing was ever wrong in practice, but an index past the end of a
+period table is not a wrong note -- it is whatever bytes follow it. NOTE_MAX is
+the measured length now, and `verify-lsdj` checks our range against it.
+
+A second table sits at 0x41D2, consistently ~40 cents flat. We did not need to
+identify it and did not.
+
+⚠️ **The ROM is not in this repository and must not be.** LSDj is freeware for
+personal and educational use and its licence forbids copying or distributing it.
+What is recorded above is two frequencies and a count -- measurements, not
+content. The ROM stayed in a scratch directory outside the checkout.
