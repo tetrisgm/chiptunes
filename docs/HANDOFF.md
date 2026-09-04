@@ -3492,3 +3492,23 @@ it. Verified: halving the tempo at row 32 makes every later gap exactly 2.00x.
   add fixtures that prove their audible/register behavior, then translate only
   what those fixtures establish. Run the full suite before considering the
   30-commit production deployment.
+
+## Owner correction: the objective is a byte-matching LSDj decompilation
+
+The owner clarified after this audit that the intended work is a
+**byte-matching decompilation of LSDj**, not merely a Chiptunes document model
+that approximates or translates to LSDj. Earlier handoff language saying that
+the translation layer or an "LSDj-shaped" model is the end state changed the
+objective and must not be treated as a product decision.
+
+The existing probes, field map, compressor, liblsdj checks, mGBA harness and
+register traces are useful reverse-engineering evidence. `src/lsdj.js` is also
+useful as a compatibility layer. Neither constitutes the requested
+decompilation, and passing its round-trip tests is not proof of byte identity
+with LSDj's program.
+
+The decompilation must be developed and verified from the owner's own LSDj ROM.
+The ROM itself remains outside this repository. Progress is measured by
+reassembling the recovered program and comparing its bytes against that local
+reference, with explicitly identified data/assets or unavoidable relocation
+differences accounted for rather than waved away.
