@@ -139,8 +139,18 @@ const pixels = p => p.evaluate(() => {
   ok(drawn >= Math.min(3, sounding),
      'each voice is drawn in its own editor colour (' + drawn + ' of ' + sounding +
      ' sounding voices found: ' + voices.hit.join('/') + ')');
+  // THIS IS ABOUT THE DRAWING, NOT THE SONG. The check above is the real one --
+  // three or more voices each painted in their own colour. This one exists to
+  // catch a ribbon painted entirely in ONE colour, which the counts above could
+  // in principle miss.
+  //
+  // It was set at 75%, which measured the composition rather than the renderer:
+  // the station serves a random song, and a legitimately drum-heavy one puts 77%
+  // of the lit pixels on the noise voice. That is a real song, not a bug. 90%
+  // still catches a strip drawn in a single colour and never fails on a
+  // perfectly good arrangement.
   const tot = voices.hit.reduce((a, c) => a + c, 0) || 1;
-  ok(Math.max(...voices.hit) / tot < 0.75,
+  ok(Math.max(...voices.hit) / tot < 0.90,
      'and no single voice swamps the strip (' + (100 * Math.max(...voices.hit) / tot).toFixed(0) + '% at most)');
 
   const a = await pixels(p);

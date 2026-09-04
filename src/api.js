@@ -425,6 +425,30 @@ function toLsdsng(doc, opts) {
   };
 }
 
+// THE OTHER DIRECTION. A song written in LSDj, opened here.
+//
+// Export alone is half a relationship: it makes this app a place songs leave.
+// Reading LSDj's own files is what makes it a place they can come back to, and
+// it is the same walk LSDj does -- sequence to chains to phrases to rows.
+//
+// Accepts a `.lsdsng` (a name, a version byte and the compressed song) or a
+// `.sav` (whose working-memory song sits uncompressed at offset 0). Returns the
+// document plus `warnings` for anything the format genuinely cannot carry back.
+function fromLsdsng(bytes, opts) {
+  if (!LSDJ) throw new Error('fromLsdsng: lsdj.js is not loaded');
+  var b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  // A .sav is 128 KB and starts with a whole song; a .lsdsng is small and starts
+  // with an 8-byte name. Telling them apart by SIZE is the reliable way -- the
+  // name bytes are arbitrary text and cannot be used as a signature.
+  var parsed = b.length >= LSDJ.SAV_SIZE ? LSDJ.parseSav(b) : LSDJ.parseLsdsng(b);
+  var model = LSDJ.readSong(parsed.song);
+  var out = LSDJ.toSongJSON(model, { name: (opts && opts.name) || parsed.name });
+  return {
+    doc: fromJSON(out.json), title: out.json.title, bpm: out.json.bpm,
+    groove: out.groove, notes: out.json.notes.length, warnings: out.warnings
+  };
+}
+
 // A WHOLE CART. `.lsdsng` is one song and still needs importing; a `.sav` IS
 // the cartridge -- copy it to a flash cart and every slot has something in it.
 // This is the fastest way from "I want to write something" to "I am writing".
@@ -2040,6 +2064,7 @@ var EXPORTS = {
   fromJSON: fromJSON,
   validate: validate,
   describe: describe, analyse: analyse, toLsdsng: toLsdsng, toLsdjSav: toLsdjSav,
+  fromLsdsng: fromLsdsng,
   buildCartridge: buildCartridge,
   renderWav: renderWav,
   shareUrl: shareUrl,

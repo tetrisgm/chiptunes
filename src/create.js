@@ -2927,9 +2927,6 @@
       } catch (e) { out = null; }
       return out;
     },
-    // WHAT TEMPI EXIST. Not a range: a ladder. A step lasts a whole number of
-    // frames, so only some tempi are playable, and a caller that asks for one
-    // between the rungs gets the nearest rung rather than an error.
     // EVERY INTEGER, because that is what LSDj plays. This used to return eight
     // values -- the tempi whose rows divide evenly into whole frames -- and call
     // them the ladder the machine imposes. Measuring the real ROM showed LSDj

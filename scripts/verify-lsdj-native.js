@@ -31,6 +31,7 @@ const ROOT = path.join(__dirname, '..');
 ['gb-hardware', 'gb-apu', 'gb-voices', 'chip-instruments', 'melody', 'style-corpus']
   .forEach(m => require(path.join(ROOT, 'src', m + '.js')));
 const C = require(path.join(ROOT, 'src', 'composer.js'));
+const api = require(path.join(ROOT, 'src', 'api.js'));
 const FPS = (globalThis.CT_GB_HARDWARE || globalThis.CT_GB).FPS;
 
 let fail = 0;
@@ -162,6 +163,51 @@ Object.keys(IMAGES).forEach(name => {
   ok(chain < 0, 'and survives the model round trip: ' + name +
     (chain < 0 ? '' : ' (first difference at 0x' + chain.toString(16) + ')'));
 });
+
+// ---- AND BACK AGAIN: import ------------------------------------------------
+// Export alone makes this a place songs leave. Reading LSDj's own files is what
+// lets them come back, and it is the same walk LSDj does -- sequence to chains
+// to phrases to rows. The test is not "it parsed" but that the song SURVIVES:
+// same notes, same tempo, same groove, and importing twice changes nothing.
+{
+  const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  const nm = n => NAMES[n % 12] + (Math.floor(n / 12) - 1);
+  const j = { title: 'RoundTrip', grid: 16, bpm: 131, bars: 6, notes: [] };
+  for (let s = 0; s < 80; s++) j.notes.push({ lane: 'Melody', step: s, note: nm(60 + (s % 13)), len: 1 });
+  for (let s = 0; s < 24; s++) j.notes.push({ lane: 'Bass', step: s * 3, note: nm(36 + (s % 7)), len: 2 });
+  const doc = api.fromJSON(j);
+  const sng = api.toLsdsng(doc);
+  const back = api.fromLsdsng(sng.bytes);
+
+  ok(back.bpm === j.bpm, 'an exported song comes back at the tempo it left (' + back.bpm + ')');
+  ok(JSON.stringify(back.groove) === JSON.stringify(sng.groove),
+     'and with its groove (' + JSON.stringify(back.groove) + ' ticks)');
+
+  // Compare as SETS of (lane, step, pitch). The two lists are ordered
+  // differently -- what we sent is grouped by lane, what comes back is sorted by
+  // step across all of them -- and comparing them positionally tests the sort,
+  // not the song.
+  const key = n => n.lane + '|' + n.step + '|' + n.note;
+  const sent = j.notes.filter(n => n.note).map(key).sort();
+  const got = api.toJSON(back.doc).notes.filter(n => n.note).map(key).sort();
+  ok(got.length === sent.length,
+     'and every pitched note (' + got.length + '/' + sent.length + ')');
+  const missing = sent.filter(k => got.indexOf(k) < 0);
+  ok(missing.length === 0,
+     'on the same lane, at the same step, at the same pitch' +
+     (missing.length ? ' -- ' + missing.length + ' missing, first ' + missing[0] : ''));
+
+  // A FIXED POINT, which is the property that makes import safe to use twice.
+  // If importing changed the song a little, every round trip would drift.
+  const back2 = api.fromLsdsng(api.toLsdsng(back.doc).bytes);
+  ok(JSON.stringify(api.toJSON(back.doc).notes) === JSON.stringify(api.toJSON(back2.doc).notes),
+     'and importing it again changes nothing at all');
+
+  // The .sav path reads the working-memory song, which is what a cart opens on.
+  const cart = api.fromLsdsng(api.toLsdjSav([doc]).bytes);
+  ok(cart.notes === back.notes && cart.bpm === back.bpm,
+     'a whole .sav imports the same way a .lsdsng does (' + cart.notes + ' notes)');
+}
 
 // How much of a song we UNDERSTAND rather than carry verbatim. A ratchet the
 // other way up: this may rise and must not fall.

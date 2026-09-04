@@ -5679,9 +5679,6 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       } catch (e) { out = null; }
       return out;
     },
-    // WHAT TEMPI EXIST. Not a range: a ladder. A step lasts a whole number of
-    // frames, so only some tempi are playable, and a caller that asks for one
-    // between the rungs gets the nearest rung rather than an error.
     // EVERY INTEGER, because that is what LSDj plays. This used to return eight
     // values -- the tempi whose rows divide evenly into whole frames -- and call
     // them the ladder the machine imposes. Measuring the real ROM showed LSDj
@@ -9505,6 +9502,67 @@ const Radio=(()=>{
     return out;
   }
 
+  /* -------------------------------------------------------------- import --- */
+  // A .lsdsng is a name, a version byte, and the compressed song.
+  function parseLsdsng(bytes) {
+    if (!bytes || bytes.length < 10) throw new Error('lsdj: not a .lsdsng');
+    var name = '';
+    for (var i = 0; i < 8 && bytes[i]; i++) name += String.fromCharCode(bytes[i]);
+    return { name: name, song: decompress(bytes.subarray(9), 1) };
+  }
+
+  // The working-memory song of a .sav is UNCOMPRESSED at offset 0 -- it is what
+  // the cart opens on, and what LSDj plays when you press START.
+  function parseSav(bytes) {
+    if (!bytes || bytes.length < SONG_BYTES) throw new Error('lsdj: not a .sav');
+    return { song: Uint8Array.from(bytes.subarray(0, SONG_BYTES)) };
+  }
+
+  var LANES = ['Melody', 'Harmony', 'Bass', 'Drums'];
+  var NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  function noteName(m) { return NAMES[((m % 12) + 12) % 12] + (Math.floor(m / 12) - 1); }
+
+  // An LSDj song as the plain JSON our own editor speaks. This is the whole
+  // import: walk the sequence the way LSDj walks it, and write down what sounds.
+  //
+  // ⚠️ WHAT CANNOT COME BACK, said here rather than discovered by ear:
+  //   * WHICH DRUM. Every drum leaves on the noise channel as the same note,
+  //     because a .sav cannot carry kit samples -- they live in the ROM. So a
+  //     kick and a hat are the same byte coming back, and import cannot tell
+  //     them apart. Kit instruments fix this and are the next piece of work.
+  //   * NOTE LENGTH, which LSDj does not store at all: a note runs until the
+  //     next one or a KILL command, so length is reconstructed as the gap.
+  function toSongJSON(m, opts) {
+    opts = opts || {};
+    var warn = [], notes = [], ch, i;
+    var ticks = [], t;
+    for (t = 0; t < 16 && m.grooves[0][t]; t++) ticks.push(m.grooves[0][t]);
+    if (!ticks.length) ticks = [6];
+    var lastRow = 0, sawDrums = false;
+    for (ch = 0; ch < 4; ch++) {
+      var played = playedNotes(m, ch);
+      for (i = 0; i < played.length; i++) {
+        var n = played[i], next = played[i + 1];
+        var len = next ? Math.max(1, Math.min(16, next.row - n.row)) : 1;
+        if (n.row > lastRow) lastRow = n.row;
+        if (ch === 3) { sawDrums = true; notes.push({ lane: 'Drums', step: n.row, drum: 'kick', len: 1 }); }
+        else notes.push({ lane: LANES[ch], step: n.row, note: noteName(n.midi), len: len });
+      }
+    }
+    if (sawDrums) warn.push('every drum came back as a kick: a .sav carries no kit samples, ' +
+                            'so the noise channel cannot say which drum it was');
+    notes.sort(function (a, b) { return a.step - b.step; });
+    return {
+      json: {
+        title: (opts.name || 'Imported').slice(0, 48),
+        grid: 16, bpm: Math.max(70, Math.min(180, m.tempo || 128)),
+        bars: Math.max(1, Math.ceil((lastRow + 1) / 16)),
+        notes: notes
+      },
+      groove: ticks, tempo: m.tempo, warnings: warn
+    };
+  }
+
   // How much of a song image the map above accounts for, as bytes and percent.
   function coverage() {
     var seen = 0, i, f;
@@ -9518,7 +9576,8 @@ const Radio=(()=>{
     NOTE_BASE: NOTE_BASE.slice(), NOTE_MAX: NOTE_MAX, PHRASE_STEPS: PHRASE_STEPS,
     compress: compress, decompress: decompress, emptySong: emptySong,
     fromDocument: fromDocument, lsdsng: lsdsng,
-    readSong: readSong, writeSong: writeSong, coverage: coverage, playedNotes: playedNotes
+    readSong: readSong, writeSong: writeSong, coverage: coverage, playedNotes: playedNotes,
+    parseLsdsng: parseLsdsng, parseSav: parseSav, toSongJSON: toSongJSON
   };
   G.CT_LSDJ = API;
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
@@ -10234,6 +10293,30 @@ function toLsdsng(doc, opts) {
       .replace(/[^A-Za-z0-9 _-]/g, '').trim() || 'chiptune') + '.lsdsng',
     phrases: r.phrases, chains: r.chains, notes: r.notes, sequencedNotes: r.sequencedNotes,
     tempo: r.tempo, groove: r.groove, framesPerRow: r.framesPerRow, warnings: r.warnings
+  };
+}
+
+// THE OTHER DIRECTION. A song written in LSDj, opened here.
+//
+// Export alone is half a relationship: it makes this app a place songs leave.
+// Reading LSDj's own files is what makes it a place they can come back to, and
+// it is the same walk LSDj does -- sequence to chains to phrases to rows.
+//
+// Accepts a `.lsdsng` (a name, a version byte and the compressed song) or a
+// `.sav` (whose working-memory song sits uncompressed at offset 0). Returns the
+// document plus `warnings` for anything the format genuinely cannot carry back.
+function fromLsdsng(bytes, opts) {
+  if (!LSDJ) throw new Error('fromLsdsng: lsdj.js is not loaded');
+  var b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  // A .sav is 128 KB and starts with a whole song; a .lsdsng is small and starts
+  // with an 8-byte name. Telling them apart by SIZE is the reliable way -- the
+  // name bytes are arbitrary text and cannot be used as a signature.
+  var parsed = b.length >= LSDJ.SAV_SIZE ? LSDJ.parseSav(b) : LSDJ.parseLsdsng(b);
+  var model = LSDJ.readSong(parsed.song);
+  var out = LSDJ.toSongJSON(model, { name: (opts && opts.name) || parsed.name });
+  return {
+    doc: fromJSON(out.json), title: out.json.title, bpm: out.json.bpm,
+    groove: out.groove, notes: out.json.notes.length, warnings: out.warnings
   };
 }
 
@@ -11852,6 +11935,7 @@ var EXPORTS = {
   fromJSON: fromJSON,
   validate: validate,
   describe: describe, analyse: analyse, toLsdsng: toLsdsng, toLsdjSav: toLsdjSav,
+  fromLsdsng: fromLsdsng,
   buildCartridge: buildCartridge,
   renderWav: renderWav,
   shareUrl: shareUrl,
