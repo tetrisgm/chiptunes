@@ -14,15 +14,27 @@
 // frames with a groove for the rest. So a bar IS a phrase. Nothing is
 // quantised on the way out and nothing is approximated.
 //
-// WHAT IT DOES NOT CARRY, said here rather than discovered later:
-//   * DRUMS. Ours are 4-bit PCM streamed into wave RAM -- the same technique
-//     LSDj kits use -- but a .sav cannot carry samples, because kits live in
-//     the ROM. Drums are written to the noise channel, which is a real loss and
-//     the reason `warnings` exists.
-//   * INSTRUMENT VOICING. One default instrument per channel is written rather
-//     than a translation of our DMG registers. That is deliberate: dialling in
-//     instruments is the part an LSDj composer enjoys and is best at, and a
-//     half-right translation would be worse than an honest blank.
+// WHAT SURVIVES A ROUND TRIP, all of it verified against the real ROM in mGBA
+// by scripts/verify-lsdj-emulator.js: tempo, groove, pitch, lane, step, note
+// LENGTH (LSDj stores none, so the export says where a note stops with a KILL),
+// which drum it was, the timbre, the loudness, and the gesture.
+//
+// ⚠️ THE OLD VERSION OF THIS NOTE WAS WRONG ABOUT OUR OWN DRUMS. It said "ours
+// are 4-bit PCM streamed into wave RAM -- the same technique LSDj kits use", and
+// they are not: the composer puts drums on CHANNEL 3, NOISE, with no kit data on
+// the score at all. That stale claim made "drums are a real loss" look
+// inevitable and sent a whole session looking at kits. LSDj noise plays noise;
+// drums-on-noise is an ordinary LSDj arrangement, and kits would cost the WAVE
+// channel, which is where the bass lives.
+//
+// WHAT STILL DOES NOT CARRY, said here rather than discovered later:
+//   * ECHO. Our echo is a delayed repeat and no single LSDj command says that.
+//   * LSDJ'S ENVELOPE SHAPES. Byte 1's low nibble is a HOLD in frames before the
+//     note is cut (measured: 0 sustains, 1..f hold 1,1,1,1,1,2,2,3,4,5,6,8,11,
+//     15,20). We write 0 -- sustain -- which is what a tracker uses, and say
+//     where a note stops with a KILL instead. Its other shapes are unused.
+//   * TABLES. LSDj's 32 tables are a per-instrument modulation sequence and
+//     nothing here writes or reads one.
 //
 // The format is implemented from liblsdj (MIT, Stijn Frishert with Johan
 // Kotlinski) and Kotlinski's own lsdj-doc. scripts/verify-lsdj.js checks the
@@ -325,7 +337,15 @@
       var isDrum = lane === 3;
       var drum = isDrum ? (DRUM_IDS[(x.r | 0) - melRows] || 'kick') : null;
       var vol = Math.max(1, Math.min(15, Math.round((x.vel != null ? x.vel : 0.8) * 15)));
-      var id = (isDrum ? ('drum:' + drum) : (lane + ':' + (x.st || 'piano'))) + ':v' + vol;
+      // A FALL AND A RISE ARE A HARDWARE SWEEP, and the sweep unit belongs to
+      // PU1 alone -- so only the first pulse lane can carry them, which is the
+      // same limit the machine has. NR10 is pace<<4 | direction<<3 | shift, and
+      // direction 1 means the frequency DECREASES, which is the pitch falling.
+      var sweep = 0;
+      if (lane === 0 && x.z) sweep = 0x3E;              // pace 3, down, shift 6
+      else if (lane === 0 && x.u) sweep = 0x36;         // pace 3, up,   shift 6
+      var id = (isDrum ? ('drum:' + drum) : (lane + ':' + (x.st || 'piano'))) +
+               (sweep ? ':s' + sweep : '') + ':v' + vol;
       if (instOf[id] != null) return instOf[id];
       // Out of slots: reuse the nearest instrument for this voice rather than
       // dropping to the lane default, so the timbre survives even when the
@@ -346,7 +366,7 @@
       var stem2 = id.slice(0, id.lastIndexOf(':v'));
       var name = String(stem2.replace(/^\d+:|^drum:/, '')).toUpperCase().slice(0, 5);
       instOf[id] = instruments.length;
-      instruments.push({ type: type, vol: vol, duty: duty, name: name, stem: stem2 });
+      instruments.push({ type: type, vol: vol, duty: duty, name: name, stem: stem2, sweep: sweep });
       return instOf[id];
     }
 
@@ -519,6 +539,8 @@
       // that is its wave synth, and it is a lovely thing that is not what our
       // bass sounds like. Byte 9 = 0x03 holds it on frame 0; measured.
       if (inst.type === INST_TYPE.WAVE) song[at + 9] = 0x03;
+      // byte 4 is NR10, measured. Zero is "no sweep", which is the default.
+      if (inst.sweep) song[at + 4] = inst.sweep & 0xFF;
       song[O.INSTRUMENT_ALLOC + i] = 1;
       for (var nm = 0; nm < 5; nm++) {
         var chr = inst.name.charCodeAt(nm);
@@ -885,6 +907,9 @@
           // it had just written.
           if (n.command === CMD.C) note.motion = 'arp';
           else if (n.command === CMD.R) note.motion = 'roll';
+          // ...and a sweep is a fall or a rise, read off the instrument's NR10.
+          // Bit 3 set means the frequency decreases, which is the pitch falling.
+          else if (p && p[4]) note.motion = (p[4] & 0x08) ? 'fall' : 'rise';
           if (p) {
             note.velocity = Math.max(0.05, Math.min(1, (p[1] >> 4) / 15));
             // 75% duty is 25% inverted -- the same timbre on this chip -- so it

@@ -282,11 +282,16 @@ Object.keys(IMAGES).forEach(name => {
   // AND THE GESTURE. An arpeggio is the C command and a roll is R; the export
   // wrote both and the import read neither, so a song came home with its
   // gestures flattened by the very round trip that had just written them.
-  const mj = { title: 'Motion', grid: 16, bpm: 128, bars: 2, notes: [
+  const mj = { title: 'Motion', grid: 16, bpm: 128, bars: 3, notes: [
     { lane: 'Melody', step: 0,  note: nm(60), len: 2, motion: 'arp' },
     { lane: 'Melody', step: 4,  note: nm(62), len: 2, motion: 'roll' },
     { lane: 'Melody', step: 8,  note: nm(64), len: 2, motion: 'plain' },
-    { lane: 'Melody', step: 12, note: nm(65), len: 2, motion: 'arp' }
+    { lane: 'Melody', step: 12, note: nm(65), len: 2, motion: 'arp' },
+    // A fall and a rise are a hardware SWEEP, and the sweep unit belongs to PU1
+    // alone -- so only this lane can carry them, which is the machine's own
+    // limit rather than one we added. NR10 rides in instrument byte 4.
+    { lane: 'Melody', step: 16, note: nm(67), len: 2, motion: 'fall' },
+    { lane: 'Melody', step: 20, note: nm(69), len: 2, motion: 'rise' }
   ] };
   const mBack = api.toJSON(api.fromLsdsng(api.toLsdsng(api.fromJSON(mj)).bytes).doc).notes.filter(n => n.note);
   const sentM = mj.notes.map(n => n.motion).join(' ');
