@@ -1104,6 +1104,11 @@
           else if (n.command === CMD.O) patches.push({ lane: ch, step: n.row, f: { pn: n.value & 3 } });
           else if (n.command === CMD.S) patches.push({ lane: ch, step: n.row, f: { sweep: n.value & 0xFF } });
           else if (n.command === CMD.P) patches.push({ lane: ch, step: n.row, f: { dt: ((n.value << 24) >> 24) } });
+          // L is a pitch SLIDE. One note cannot show it -- the pitch is right
+          // either way -- but a ruler with a note on every row goes from 100
+          // distinct pitches to 112 with shorter gaps, which is the slide
+          // filling in between. The document calls it a glide.
+          else if (n.command === CMD.L) patches.push({ lane: ch, step: n.row, f: { gl: 1 } });
           var tbl = tableOf(m, n.instrument);
           if (tbl != null) tableNotes.push({ lane: ch, step: n.row, table: tbl, len: len });
           // ...and a sweep is a fall or a rise, read off the instrument's NR10.
@@ -1141,13 +1146,14 @@
     for (ch = 0; ch < 4; ch++) playedNotes(m, ch).forEach(function (n) {
       if (n.command && n.command !== CMD.C && n.command !== CMD.R &&
           n.command !== CMD.K && n.command !== CMD.V && n.command !== CMD.E &&
-          n.command !== CMD.O && n.command !== CMD.S && n.command !== CMD.P)
+          n.command !== CMD.O && n.command !== CMD.S && n.command !== CMD.P &&
+          n.command !== CMD.L)
         unknownCmds[n.command] = (unknownCmds[n.command] || 0) + 1;
     });
     var unknownTotal = Object.keys(unknownCmds).reduce(function (a, k) { return a + unknownCmds[k]; }, 0);
     if (unknownTotal) warn.push(unknownTotal + ' notes carry an LSDj command this app does not ' +
-      'play; the notes arrive, the effect does not. C, R, K, V, E, O, S and P ' +
-      'are understood, and the rest moved no register at all when measured');
+      'play; the notes arrive, the effect does not. C, R, K, V, E, O, S, P ' +
+      'and L are understood, and the rest moved nothing measurable');
     notes.sort(function (a, b) { return a.step - b.step; });
     return {
       json: {

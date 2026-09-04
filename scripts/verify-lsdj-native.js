@@ -339,25 +339,31 @@ Object.keys(IMAGES).forEach(name => {
   // bend, read as a detune). Each has a home in the document already.
   {
     const CT2 = require(path.join(ROOT, 'src', 'create.js'));
-    const cj = { title: 'Cmds', grid: 16, bpm: 128, bars: 2, notes: [] };
-    for (let k = 0; k < 4; k++) cj.notes.push({ lane: 'Melody', step: k * 4, note: nm(60 + k), len: 2 });
+    const cj = { title: 'Cmds', grid: 16, bpm: 128, bars: 3, notes: [] };
+    for (let k = 0; k < 5; k++) cj.notes.push({ lane: 'Melody', step: k * 4, note: nm(60 + k), len: 2 });
     const cimg = L.readSong(L.parseLsdsng(api.toLsdsng(api.fromJSON(cj)).bytes).song);
-    [['E', 0x60], ['O', 0x02], ['S', 0x3E], ['P', 0x05]].forEach(([c, v], k) => {
-      cimg.phraseCommands[0][k * 4] = L.COMMANDS[c];
-      cimg.phraseCommandVals[0][k * 4] = v;
+    // ⚠️ A PHRASE IS SIXTEEN ROWS, so the fifth note at step 16 lives in phrase
+    // ONE, not off the end of phrase zero. Writing it at [0][16] put the command
+    // nowhere and the check failed on the test rather than on the code.
+    [['E', 0x60], ['O', 0x02], ['S', 0x3E], ['P', 0x05], ['L', 0x40]].forEach(([c, v], k) => {
+      const step = k * 4, ph = Math.floor(step / 16), row = step % 16;
+      cimg.phraseCommands[ph][row] = L.COMMANDS[c];
+      cimg.phraseCommandVals[ph][row] = v;
     });
     const cbody = L.compress(L.writeSong(cimg), 1);
     const cfile = new Uint8Array(9 + cbody.length);
     cfile.set(cbody, 9);
     const cb = api.fromLsdsng(cfile);
-    const cc = CT2.docState(cb.doc).cells.filter(x => x.midi != null).slice(0, 4);
+    const cc = CT2.docState(cb.doc).cells.filter(x => x.midi != null).slice(0, 5);
     const okE = cc[0] && Math.abs(cc[0].vel - 6 / 15) < 0.02;
     const okO = cc[1] && cc[1].pn === 2;
     const okS = cc[2] && cc[2].sweep === 0x3E;
     const okP = cc[3] && cc[3].dt === 5;
-    ok(okE && okO && okS && okP,
-       'a volume, a pan, a sweep and a bend all land where the document keeps them (' +
-       ['E' + (okE ? '' : '!'), 'O' + (okO ? '' : '!'), 'S' + (okS ? '' : '!'), 'P' + (okP ? '' : '!')].join(' ') + ')');
+    const okL = cc[4] && cc[4].gl === 1;
+    ok(okE && okO && okS && okP && okL,
+       'a volume, a pan, a sweep, a bend and a slide all land where the document ' +
+       'keeps them (' + ['E' + (okE ? '' : '!'), 'O' + (okO ? '' : '!'), 'S' + (okS ? '' : '!'),
+       'P' + (okP ? '' : '!'), 'L' + (okL ? '' : '!')].join(' ') + ')');
     ok(cb.warnings.every(w => !/command/.test(w)),
        'and none of them is reported as unplayable any more');
   }
