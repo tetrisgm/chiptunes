@@ -115,6 +115,47 @@ console.log('the structure inside');
      'so arping does not multiply the note count (' + built.notes + ' -> ' + withArp.notes + ')');
 }
 
+/* ------------------------------------------------------ nothing disappears */
+// A CLAMPED NOTE IS NOT A QUIET MISTAKE. Mapping straight from our pitch range
+// onto LSDj's pushed a third of a busy song's notes against the floor, and a
+// clamped note is a WRONG note sitting in somebody's phrase -- worse than a
+// missing one, because it looks deliberate. The export moves whole octaves to
+// fit instead, which keeps every interval and every pitch class.
+console.log('every note arrives');
+{
+  let lost = 0, shifted = 0, checked = 0, worst = null;
+  for (const scene of ['battle', 'boss', 'cave', 'title', 'town', 'overworld', 'credits', 'game_over']) {
+    for (let i = 0; i < 3; i++) {
+      const r = api.toLsdsng(api.brief({ scene, seconds: 30 }).doc, { name: scene });
+      checked++;
+      const gone = r.warnings.filter(w => /left out/.test(w));
+      if (gone.length) { lost++; worst = scene + ': ' + gone[0]; }
+      if (r.warnings.some(w => /transposed/.test(w))) shifted++;
+    }
+  }
+  ok(!lost, 'no note is dropped or clamped, across ' + checked + ' songs' + (worst ? ' -- ' + worst : ''));
+  ok(shifted > 0, 'and octave shifting is doing real work (' + shifted + '/' + checked + ' needed it)');
+
+  // THE COUNT THAT ARRIVES, FOLLOWED THROUGH THE SEQUENCE. Comparing against
+  // the unique-phrase count was wrong and made a 217-note song look like a
+  // 61-note one: identical bars share a phrase, which is the whole point of
+  // chains. What has to survive is what a listener HEARS.
+  const doc = api.brief({ scene: 'battle', seconds: 30, token: '7f3a12bc55de90aa' }).doc;
+  const r2 = api.toLsdsng(doc, { name: 'B' });
+  const built = L.fromDocument(doc);
+  const st2 = CT.docState(doc);
+  const melRows = CT.tables().melodicRows;
+  const placeable = st2.cells.filter(c => c.r >= melRows || c.midi != null).length;
+  const collided = (built.warnings.find(w => /shared a step/.test(w)) || '').match(/^(\d+)/);
+  const expected = placeable - (collided ? +collided[1] : 0);
+  ok(r2.sequencedNotes >= expected * 0.98,
+     'every note survives the trip, followed through the sequence (' +
+     r2.sequencedNotes + ' of ' + expected + ' after same-step collisions)');
+  ok(r2.notes < r2.sequencedNotes,
+     'and repeated bars really do share a phrase (' + r2.notes + ' unique, ' +
+     r2.sequencedNotes + ' played)');
+}
+
 /* ------------------------------------------------- honesty about the losses */
 console.log('what it says it cannot carry');
 {

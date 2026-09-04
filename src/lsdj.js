@@ -208,6 +208,28 @@
     var grid = [[], [], [], []];
     for (ch = 0; ch < 4; ch++) for (i = 0; i < steps; i++) grid[ch].push(null);
 
+    // FIT THE RANGE BY MOVING WHOLE OCTAVES, NEVER BY CLAMPING. Our composer
+    // writes down to MIDI 24 and LSDj's note 1 sits higher than that, so a
+    // straight mapping pushed a third of the notes of a busy song against the
+    // floor -- and a clamped note is not a quiet mistake, it is a WRONG note
+    // sitting in somebody's phrase. Shifting by octaves keeps every interval
+    // and every pitch class; the musician undoes it with one transpose if they
+    // want it lower, and the warning tells them it happened.
+    var lowest = null, highest = null;
+    st.cells.forEach(function (x) {
+      if (laneOfCell(x, melRows) === 3 || x.midi == null) return;
+      var m = x.midi | 0;
+      if (lowest === null || m < lowest) lowest = m;
+      if (highest === null || m > highest) highest = m;
+    });
+    var octaves = 0;
+    if (lowest !== null) {
+      while (lowest + octaves * 12 < NOTE_ZERO_MIDI) octaves++;
+      while (highest + octaves * 12 - NOTE_ZERO_MIDI + 1 > NOTE_MAX && octaves > 0) octaves--;
+    }
+    if (octaves) warn.push('transposed up ' + octaves + ' octave' + (octaves > 1 ? 's' : '') +
+                           ' so the low notes fit LSDj\'s range; transpose it back down if you want');
+
     var outOfRange = 0, dropped = 0;
     st.cells.forEach(function (x) {
       var lane = laneOfCell(x, melRows), step = x.c | 0;
@@ -215,10 +237,13 @@
       if (lane === 3) {
         // Drums land on the noise channel: a .sav cannot carry the samples our
         // kits are made of, because in LSDj those live in the ROM.
-        slot.note = 60 - NOTE_ZERO_MIDI + 1;
+        slot.note = 60 - NOTE_ZERO_MIDI + 1;   // a plain mid note; noise pitch is not melodic
       } else if (x.midi != null) {
-        var n = (x.midi | 0) - NOTE_ZERO_MIDI + 1;
-        if (n < 1 || n > NOTE_MAX) { outOfRange++; n = Math.max(1, Math.min(NOTE_MAX, n)); }
+        var n = (x.midi | 0) + octaves * 12 - NOTE_ZERO_MIDI + 1;
+        // A note that STILL does not fit after the octave shift is dropped
+        // rather than clamped: a missing note reads as a rest, a clamped one
+        // reads as a mistake somebody made on purpose.
+        if (n < 1 || n > NOTE_MAX) { outOfRange++; return; }
         slot.note = n;
       } else return;
       // An arpeggio is a COMMAND here, not three notes. Our document carries the
@@ -231,7 +256,7 @@
       if (grid[lane][step]) dropped++;
       grid[lane][step] = slot;
     });
-    if (outOfRange) warn.push(outOfRange + ' notes were outside LSDj\'s range and were clamped');
+    if (outOfRange) warn.push(outOfRange + ' notes were still outside LSDj\'s range after transposing and were left out');
     if (dropped) warn.push(dropped + ' notes shared a step with another on the same channel and were replaced');
 
     // ---- phrases, deduplicated --------------------------------------------
@@ -324,9 +349,27 @@
     return {
       bytes: song, warnings: warn,
       phrases: phrases.length, chains: chains.length, rows: Math.min(rows, 255),
+      // TWO COUNTS, BECAUSE THEY ARE DIFFERENT QUESTIONS. `notes` is what lives
+      // in the unique phrases -- what LSDj shows, and what liblsdj counts, since
+      // identical bars share one phrase. `sequencedNotes` is what a listener
+      // hears, following the sequence through its chains. Reporting only the
+      // first made a 217-note song look like a 61-note one.
       notes: phrases.reduce(function (a, ph) {
         return a + ph.slots.filter(function (s4) { return s4 && s4.note !== NO_NOTE; }).length;
       }, 0),
+      sequencedNotes: (function () {
+        var total = 0;
+        for (var r2 = 0; r2 < Math.min(rows, 255); r2++) for (var c2 = 0; c2 < 4; c2++) {
+          var cid = seq[c2][r2];
+          if (cid == null || cid === NO_CHAIN) continue;
+          for (var q2 = 0; q2 < 16; q2++) {
+            var pid = chains[cid][q2];
+            if (pid === NO_PHRASE) continue;
+            total += phrases[pid].slots.filter(function (s5) { return s5 && s5.note !== NO_NOTE; }).length;
+          }
+        }
+        return total;
+      })(),
       tempo: song[O.TEMPO], groove: gr.slice(), title: st.title || ''
     };
   }
