@@ -2737,3 +2737,37 @@ ear on hardware**, and if it is off, one number moves.
 
 `tools/lsdjcheck.c` is the reader harness. liblsdj is MIT and attributed in
 NOTICE along with the embedded empty-song image.
+
+## And a whole cart (same day)
+
+`.lsdsng` is one song and still needs importing. **`.sav` IS the cartridge**, so
+`api.toLsdjSav()` writes up to 32 songs into one file: copy it to a flash cart
+and every slot already holds an arrangement. Ten songs take about 40 ms.
+
+Reachable from `npx chiptunes lsdjcart`, the MCP `export_lsdj_cart` tool, and
+`chiptunes_lsdj_cart` in the page — which is the one an LSDj musician actually
+wants, because it is one sentence to an agent and a cart full of starting
+points.
+
+Layout: the working-memory song (which is song 0, so the cart opens on
+something), a 512-byte header, then 191 blocks of 512. **Blocks are numbered
+from 1 and block N lives at (N-1)*512** — that is the off-by-one, and the gate
+checks the block table accounts for exactly the blocks used and points only at
+slots that exist. The `jk` marker at header+318 is what tells LSDj this is a
+save rather than 128 KB of noise.
+
+### Two counts, because they answer different questions
+
+`notes` is what lives in the unique phrases — what LSDj shows, and what liblsdj
+counts, since identical bars share a phrase. `sequencedNotes` follows the
+sequence through its chains and counts what a listener hears. Reporting only the
+first made a 217-note song look like a 61-note one and made the gate assert the
+wrong thing.
+
+### Range
+
+A straight pitch mapping clamped 111 notes of a busy boss cue: our composer
+writes down to MIDI 24 and LSDj's note 1 sits higher. **A clamped note is worse
+than a missing one** — it is a wrong note that looks deliberate. The export
+shifts by whole octaves instead, keeping every interval and pitch class, and
+says so. Across 32 songs: nothing lost, seven transposed.

@@ -191,6 +191,38 @@ console.log('read back by liblsdj itself');
   }
 }
 
+/* ------------------------------------------------------------- a whole cart */
+// A .lsdsng is one song and still needs importing. A .sav IS the cartridge, and
+// that is the difference between "here is a file" and "every slot on your Game
+// Boy already has something in it".
+console.log('a cartridge full of starting points');
+{
+  const scenes = ['title', 'overworld', 'battle', 'boss', 'cave', 'town', 'victory', 'game_over'];
+  const docs = scenes.map(scene => api.brief({ scene, seconds: 30 }).doc);
+  const cart = api.toLsdjSav(docs, { name: 'CART' });
+  ok(cart.bytes.length === L.SAV_SIZE, 'a save is ' + L.SAV_SIZE + ' bytes (' + cart.bytes.length + ')');
+  ok(cart.songs === scenes.length, 'every song got a slot (' + cart.songs + '/' + scenes.length + ')');
+  ok(cart.blocksFree > 0, 'and there is room left to keep writing (' + cart.blocksFree + ' blocks free)');
+  ok(cart.titles.every(t => t && t.length), 'each slot is named (' + cart.titles.slice(0, 2).join(', ') + '...)');
+
+  // The header markers are what tell LSDj this is a save at all rather than
+  // 128 KB of noise, and the block table is the off-by-one to get wrong.
+  const H = L.SONG_BYTES;
+  ok(cart.bytes[H + 256 + 32 + 30] === 0x6A && cart.bytes[H + 256 + 32 + 31] === 0x6B,
+     "the 'jk' marker LSDj looks for is in place");
+  const table = cart.bytes.slice(H + 256 + 32 + 33, H + 256 + 32 + 33 + 191);
+  const owned = table.filter(v => v !== 0xFF).length;
+  ok(owned === cart.blocksUsed, 'the block table accounts for every block used (' + owned + ')');
+  const maxOwner = Math.max.apply(null, Array.from(table).filter(v => v !== 0xFF));
+  ok(maxOwner === cart.songs - 1, 'and points only at slots that exist (highest ' + maxOwner + ')');
+
+  // 32 is the ceiling, and going over must not corrupt the file.
+  const many = api.toLsdjSav(scenes.concat(scenes, scenes, scenes, scenes)
+    .map(scene => api.brief({ scene, seconds: 20 }).doc), {});
+  ok(many.bytes.length === L.SAV_SIZE && many.songs <= 32,
+     'asking for more than 32 songs still writes a valid save (' + many.songs + ' slots)');
+}
+
 /* --------------------------------------------------------- it is repeatable */
 console.log('and it is deterministic, like everything else here');
 {

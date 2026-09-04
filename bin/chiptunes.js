@@ -19,6 +19,7 @@ const USAGE = `chiptunes — make Game Boy songs from the command line
   stems <doc|file> --out DIR
   midi <doc|file> --out FILE          format 1, one track per voice
   lsdsng <doc|file> --out FILE        one LSDj song, to drop into a .sav and keep writing
+  lsdjcart --scenes a,b,c --out FILE  a whole LSDj .sav: one starting point per slot
   layers <doc|file> --out DIR         base / mid / full, for adaptive audio
   variations --scene S [--n 5] --out DIR   n songs, unranked
   guide
@@ -148,6 +149,18 @@ try {
       break;
     }
     case 'midi': outBin(api.toMidi(readDoc(process.argv[3]))); break;
+    case 'lsdjcart': {
+      var scenes = (arg('scenes') || 'title,overworld,battle,boss,cave,town,shop,victory,game_over,credits')
+        .split(',').map(function (x) { return x.trim(); }).filter(Boolean);
+      var secs = +(arg('seconds') || 30);
+      var docs = scenes.map(function (sc) { return api.brief({ scene: sc, seconds: secs }).doc; });
+      var cart = api.toLsdjSav(docs, { name: arg('name') });
+      cart.warnings.forEach(function (w) { process.stderr.write('note: ' + w + '\n'); });
+      process.stderr.write('note: ' + cart.songs + ' songs, ' + cart.blocksUsed +
+                           ' blocks used, ' + cart.blocksFree + ' free\n');
+      cart.titles.forEach(function (t, i) { process.stderr.write('  slot ' + i + ': ' + t + '\n'); });
+      outBin(cart.bytes); break;
+    }
     case 'lsdsng': {
       var ls = api.toLsdsng(readDoc(process.argv[3]), { name: arg('name') });
       // The warnings go to stderr, not stdout, so `> song.lsdsng` still works --

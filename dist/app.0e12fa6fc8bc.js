@@ -9022,8 +9022,62 @@ const Radio=(()=>{
     return built;
   }
 
+  /* --------------------------------------------------------- a whole cart */
+  // THE THING THAT ACTUALLY SAVES TIME. A `.lsdsng` is one song and still needs
+  // importing; a `.sav` IS the cartridge. Generate a dozen starting points,
+  // write one file, copy it to a flash cart, and every slot on the machine has
+  // something in it to argue with.
+  //
+  // Layout: the working-memory song, a 512-byte header, then 191 blocks of 512.
+  // The block allocation table says which project owns each block, and blocks
+  // are numbered from 1 -- block N lives at (N-1)*512 in the block area, which
+  // is the off-by-one to get wrong.
+  var SAV_SIZE = 0x20000, SAV_PROJECTS = 32, SAV_HEADER = SONG_BYTES;
+  var BLOCK_AREA = SAV_HEADER + 0x200, EMPTY_BLOCK = 0xFF;
+
+  function sav(docs, opts) {
+    opts = opts || {};
+    var list = [].concat(docs || []).slice(0, SAV_PROJECTS);
+    if (!list.length) throw new Error('lsdj: a save needs at least one song');
+    var out = new Uint8Array(SAV_SIZE);
+    var names = [], built = [], warnings = [], i;
+
+    var blockCursor = 1;                       // blocks are 1-based
+    var alloc = new Uint8Array(191); alloc.fill(EMPTY_BLOCK);
+    for (i = 0; i < list.length; i++) {
+      var b = fromDocument(list[i], opts);
+      var body = compress(b.bytes, blockCursor);
+      var blocks = body.length / BLOCK;
+      if (blockCursor - 1 + blocks > 191) {
+        warnings.push('the save filled up after ' + i + ' songs; the rest were left out');
+        break;
+      }
+      out.set(body, BLOCK_AREA + (blockCursor - 1) * BLOCK);
+      for (var k = 0; k < blocks; k++) alloc[blockCursor - 1 + k] = i;
+      blockCursor += blocks;
+      names.push(projectName((opts.names && opts.names[i]) || b.title));
+      built.push(b);
+      b.warnings.forEach(function (w) { if (warnings.indexOf(w) < 0) warnings.push(w); });
+    }
+
+    // The working-memory song is what the cart opens on, so it is the first one
+    // rather than a blank screen.
+    out.set(built[0].bytes, 0);
+    for (i = 0; i < names.length; i++) out.set(names[i], SAV_HEADER + i * 8);
+    for (i = 0; i < names.length; i++) out[SAV_HEADER + 256 + i] = 0;   // project version
+    out[SAV_HEADER + 256 + 32 + 30] = 0x6A;                             // 'j'
+    out[SAV_HEADER + 256 + 32 + 31] = 0x6B;                             // 'k'
+    out[SAV_HEADER + 256 + 32 + 32] = 0;                                // active project
+    out.set(alloc, SAV_HEADER + 256 + 32 + 33);
+
+    return { bytes: out, songs: built.length, warnings: warnings,
+             blocksUsed: blockCursor - 1, blocksFree: 191 - (blockCursor - 1),
+             titles: built.map(function (b2) { return b2.title; }) };
+  }
+
   var API = {
-    SONG_BYTES: SONG_BYTES, OFFSETS: O, COMMANDS: CMD,
+    SONG_BYTES: SONG_BYTES, SAV_SIZE: SAV_SIZE, SAV_PROJECTS: SAV_PROJECTS,
+    OFFSETS: O, COMMANDS: CMD, sav: sav,
     NOTE_ZERO_MIDI: NOTE_ZERO_MIDI, PHRASE_STEPS: PHRASE_STEPS,
     compress: compress, decompress: decompress, emptySong: emptySong,
     fromDocument: fromDocument, lsdsng: lsdsng
@@ -9443,8 +9497,9 @@ function capabilities() {
     forms: Object.keys(WORD_FORMS),
     techniques: Object.keys(WORD_TECHNIQUES),
     exports: {
-      formats: ['share link', 'wav', 'stems', 'midi', 'gb cartridge', 'lsdsng'],
-      lsdsng: 'One LSDj song, the unit LSDj musicians pass around. Notes arrive laid out in phrases and chains with the tempo and the groove, so somebody who writes on a Game Boy gets an arrangement to build on. Drums move to the noise channel (a .sav cannot carry kit samples, which live in the ROM) and instrument voicing is left stock on purpose. toLsdsng() returns those caveats as `warnings`; relay them.'
+      formats: ['share link', 'wav', 'stems', 'midi', 'gb cartridge', 'lsdsng', 'lsdj sav'],
+      lsdsng: 'One LSDj song, the unit LSDj musicians pass around. Notes arrive laid out in phrases and chains with the tempo and the groove, so somebody who writes on a Game Boy gets an arrangement to build on. Drums move to the noise channel (a .sav cannot carry kit samples, which live in the ROM) and instrument voicing is left stock on purpose. toLsdsng() returns those caveats as `warnings`; relay them.',
+      sav: 'toLsdjSav() writes a whole LSDj cartridge -- up to 32 songs in one .sav, ready to copy onto a flash cart. That is the fastest route from \'I want to write something\' to actually writing: every slot on the machine already has a starting point in it.'
     },
     tempo: {
       reachable: CT_CREATE.tempos ? CT_CREATE.tempos(16) : [],
@@ -9741,6 +9796,23 @@ function toLsdsng(doc, opts) {
       .replace(/[^A-Za-z0-9 _-]/g, '').trim() || 'chiptune') + '.lsdsng',
     phrases: r.phrases, chains: r.chains, notes: r.notes, sequencedNotes: r.sequencedNotes,
     tempo: r.tempo, groove: r.groove, warnings: r.warnings
+  };
+}
+
+// A WHOLE CART. `.lsdsng` is one song and still needs importing; a `.sav` IS
+// the cartridge -- copy it to a flash cart and every slot has something in it.
+// This is the fastest way from "I want to write something" to "I am writing".
+function toLsdjSav(docs, opts) {
+  if (!LSDJ) throw new Error('toLsdjSav: lsdj.js is not loaded');
+  var list = [].concat(docs || []).map(function (d) {
+    return typeof d === 'string' ? d : fromJSON(d);
+  });
+  var r = LSDJ.sav(list, opts || {});
+  return {
+    bytes: r.bytes,
+    filename: (((opts && opts.name) || 'chiptunes').replace(/[^A-Za-z0-9 _-]/g, '').trim() || 'chiptunes') + '.sav',
+    songs: r.songs, titles: r.titles,
+    blocksUsed: r.blocksUsed, blocksFree: r.blocksFree, warnings: r.warnings
   };
 }
 
@@ -11341,7 +11413,7 @@ var EXPORTS = {
   toJSON: toJSON,
   fromJSON: fromJSON,
   validate: validate,
-  describe: describe, analyse: analyse, toLsdsng: toLsdsng,
+  describe: describe, analyse: analyse, toLsdsng: toLsdsng, toLsdjSav: toLsdjSav,
   buildCartridge: buildCartridge,
   renderWav: renderWav,
   shareUrl: shareUrl,
@@ -11452,6 +11524,8 @@ var EXPORTS = {
     '- "Make it gloomier" — chiptunes_variant recomposes the exact song on air.',
     '- "I will take it as a cartridge" — chiptunes_export hands back a share link,',
     '  a MIDI file, or a 32 KB .gb ROM that boots on real hardware.',
+    '- "Fill a cartridge for me" \u2014 chiptunes_lsdj_cart writes an LSDj .sav with',
+    '  a starting point in every slot, ready to copy onto a flash cart.',
     '- chiptunes_transport, chiptunes_play_song and chiptunes_screen operate the',
     '  session the user is listening to right now, so they hear you work.',
     '',
@@ -11610,6 +11684,42 @@ var EXPORTS = {
     // tab can write music with no key, no quota, no account and no cost. A
     // song is 1.6 ms, so an agent can afford to generate twenty, measure them
     // and keep one -- a loop that is unaffordable against a hosted model.
+    {
+      name: 'chiptunes_lsdj_cart',
+      description: 'Fill a Game Boy cartridge with starting points. Writes an LSDj .sav -- up to 32 songs in one file -- and hands it to the user to copy onto a flash cart. This is the fastest route from "I want to write something" to actually writing, because every slot on the machine already has an arrangement in it to argue with. Say the warnings out loud: drums move to the noise channel and instruments are left stock on purpose.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          scenes: { type: 'array', items: { type: 'string' },
+                    description: 'one song per scene: title, menu, overworld, town, shop, cave, battle, boss, victory, game_over, credits' },
+          seconds: { type: 'number' },
+          key: { type: 'string' },
+          name: { type: 'string', description: 'the .sav filename' }
+        }
+      },
+      run: function (a) {
+        if (!api()) return { ok: false, error: 'the composer is not loaded' };
+        a = a || {};
+        var scenes = (a.scenes && a.scenes.length) ? a.scenes
+          : ['title', 'overworld', 'battle', 'boss', 'cave', 'town', 'shop', 'victory', 'game_over', 'credits'];
+        var started = safe(function () { return Date.now(); }, 0), docs = [];
+        try {
+          for (var i = 0; i < scenes.length && i < 32; i++) {
+            var spec = { scene: String(scenes[i]) };
+            if (a.seconds) spec.seconds = a.seconds;
+            if (a.key) spec.key = a.key;
+            docs.push(G.CT_API.brief(spec).doc);
+          }
+          var cart = G.CT_API.toLsdjSav(docs, { name: a.name });
+          var saved = download(cart.bytes, cart.filename, 'application/octet-stream');
+          return { ok: saved, filename: cart.filename, songs: cart.songs, titles: cart.titles,
+                   blocksUsed: cart.blocksUsed, blocksFree: cart.blocksFree,
+                   tookMs: safe(function () { return Date.now() - started; }, null),
+                   warnings: cart.warnings,
+                   note: 'An LSDj save. Copy it onto a flash cart, or merge the slots into an existing .sav, and start writing.' };
+        } catch (e) { return { ok: false, error: e && e.message ? e.message : String(e) }; }
+      }
+    },
     {
       name: 'chiptunes_capabilities',
       description: 'Every word this understands and every knob it has: scenes, moods, musical genres, game genres, forms, techniques, the hundred-odd game titles it can read as a style, the transform operations, and the things it deliberately cannot do. Read this BEFORE composing rather than guessing at vocabulary.',
@@ -11837,7 +11947,8 @@ var EXPORTS = {
     chiptunes_play_song: function () { return 'put a song on the deck'; },
     chiptunes_now_playing: function () { return 'checked what is playing'; },
     chiptunes_current_song: function () { return 'took a copy of the song'; },
-    what_can_i_do_here: function () { return 'asked what this page can do'; }
+    what_can_i_do_here: function () { return 'asked what this page can do'; },
+    chiptunes_lsdj_cart: function (a) { return 'filled a cartridge with ' + ((a && a.scenes && a.scenes.length) || 10) + ' songs'; }
   };
   function narrate(t, args, bad) {
     try {

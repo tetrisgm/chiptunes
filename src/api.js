@@ -123,8 +123,9 @@ function capabilities() {
     forms: Object.keys(WORD_FORMS),
     techniques: Object.keys(WORD_TECHNIQUES),
     exports: {
-      formats: ['share link', 'wav', 'stems', 'midi', 'gb cartridge', 'lsdsng'],
-      lsdsng: 'One LSDj song, the unit LSDj musicians pass around. Notes arrive laid out in phrases and chains with the tempo and the groove, so somebody who writes on a Game Boy gets an arrangement to build on. Drums move to the noise channel (a .sav cannot carry kit samples, which live in the ROM) and instrument voicing is left stock on purpose. toLsdsng() returns those caveats as `warnings`; relay them.'
+      formats: ['share link', 'wav', 'stems', 'midi', 'gb cartridge', 'lsdsng', 'lsdj sav'],
+      lsdsng: 'One LSDj song, the unit LSDj musicians pass around. Notes arrive laid out in phrases and chains with the tempo and the groove, so somebody who writes on a Game Boy gets an arrangement to build on. Drums move to the noise channel (a .sav cannot carry kit samples, which live in the ROM) and instrument voicing is left stock on purpose. toLsdsng() returns those caveats as `warnings`; relay them.',
+      sav: 'toLsdjSav() writes a whole LSDj cartridge -- up to 32 songs in one .sav, ready to copy onto a flash cart. That is the fastest route from \'I want to write something\' to actually writing: every slot on the machine already has a starting point in it.'
     },
     tempo: {
       reachable: CT_CREATE.tempos ? CT_CREATE.tempos(16) : [],
@@ -421,6 +422,23 @@ function toLsdsng(doc, opts) {
       .replace(/[^A-Za-z0-9 _-]/g, '').trim() || 'chiptune') + '.lsdsng',
     phrases: r.phrases, chains: r.chains, notes: r.notes, sequencedNotes: r.sequencedNotes,
     tempo: r.tempo, groove: r.groove, warnings: r.warnings
+  };
+}
+
+// A WHOLE CART. `.lsdsng` is one song and still needs importing; a `.sav` IS
+// the cartridge -- copy it to a flash cart and every slot has something in it.
+// This is the fastest way from "I want to write something" to "I am writing".
+function toLsdjSav(docs, opts) {
+  if (!LSDJ) throw new Error('toLsdjSav: lsdj.js is not loaded');
+  var list = [].concat(docs || []).map(function (d) {
+    return typeof d === 'string' ? d : fromJSON(d);
+  });
+  var r = LSDJ.sav(list, opts || {});
+  return {
+    bytes: r.bytes,
+    filename: (((opts && opts.name) || 'chiptunes').replace(/[^A-Za-z0-9 _-]/g, '').trim() || 'chiptunes') + '.sav',
+    songs: r.songs, titles: r.titles,
+    blocksUsed: r.blocksUsed, blocksFree: r.blocksFree, warnings: r.warnings
   };
 }
 
@@ -2021,7 +2039,7 @@ var EXPORTS = {
   toJSON: toJSON,
   fromJSON: fromJSON,
   validate: validate,
-  describe: describe, analyse: analyse, toLsdsng: toLsdsng,
+  describe: describe, analyse: analyse, toLsdsng: toLsdsng, toLsdjSav: toLsdjSav,
   buildCartridge: buildCartridge,
   renderWav: renderWav,
   shareUrl: shareUrl,

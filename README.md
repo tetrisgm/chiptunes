@@ -22,7 +22,7 @@ frames, in the same order.
 
 The composer, a register-level Game Boy sound chip, the MIDI writer and the
 cartridge builder are **already running in the tab**, because the website needs
-them. `src/webmcp.js` exposes them as **15 tools** on `document.modelContext`.
+them. `src/webmcp.js` exposes them as **16 tools** on `document.modelContext`.
 So an agent that can open a tab can write music — **no server, no API key, no
 account, nothing metered.**
 
@@ -34,6 +34,7 @@ account, nothing metered.**
 | get **twelve complete, different songs in ~70 ms**, unranked | `chiptunes_variations` |
 | recompose the exact song on air: *"make it gloomier"* | `chiptunes_variant` |
 | hand over a share link, a MIDI file, a **32 KB `.gb` cartridge**, or an **LSDj `.lsdsng`** | `chiptunes_export` |
+| **fill a Game Boy cartridge** with a starting point in every slot | `chiptunes_lsdj_cart` |
 | drive the session the user is watching — play, skip, screen, tracker | 8 more |
 
 Three things follow that a hosted model behind a key cannot do:
@@ -137,8 +138,17 @@ music is not.)
 
 ## For people who write on the hardware
 
-**`npx chiptunes lsdsng song.doc --out song.lsdsng`** — or the *Download LSDj*
-button in the tracker, or `chiptunes_export` with `format: "lsdsng"`.
+```bash
+npx chiptunes lsdjcart --scenes title,overworld,battle,boss,cave --out cart.sav
+npx chiptunes lsdsng song.doc --out song.lsdsng
+```
+
+**A `.sav` is the cartridge.** Copy it to a flash cart and every slot already
+has an arrangement in it to argue with — up to 32 of them, written in about
+40 ms. That is the shortest distance between *"I want to write something"* and
+actually writing. An agent can do it in one call (`chiptunes_lsdj_cart`), and
+`.lsdsng` is there for one song at a time, from the CLI, the *Download LSDj*
+button in the tracker, or `chiptunes_export`.
 
 It is one LSDj song, the unit LSDj musicians pass around. What arrives is an
 **arrangement to keep writing**: the notes laid out in phrases and chains, the
@@ -177,7 +187,7 @@ once wrong, and the comment above each one says what went wrong.
 | `test:sync` | the picture sits on the sound, corrected for measured output latency | yes |
 | `test:screens` | all three screen faces actually draw, and sleeping one frees its GPU targets | yes |
 | `test:language` | every claim the prompt parser makes about a sentence is true, and every title composes with the genre it named | yes |
-| `test:webmcp` | the tools register on `document.modelContext` and all 15 work, called for real against the built bundle | yes |
+| `test:webmcp` | the tools register on `document.modelContext` and all 16 work, called for real against the built bundle | yes |
 | `test:lsdj` | the `.lsdsng` export opens in LSDj, checked by reading it back with liblsdj | yes |
 | `test:rom-audio` | browser chip vs. the ROM executing on the emulated CPU, spectrally | run on its own |
 | `test:kit` | sampled drums match across both paths; the sample and refill clocks are in step | run on its own |

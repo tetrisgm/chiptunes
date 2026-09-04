@@ -395,8 +395,62 @@
     return built;
   }
 
+  /* --------------------------------------------------------- a whole cart */
+  // THE THING THAT ACTUALLY SAVES TIME. A `.lsdsng` is one song and still needs
+  // importing; a `.sav` IS the cartridge. Generate a dozen starting points,
+  // write one file, copy it to a flash cart, and every slot on the machine has
+  // something in it to argue with.
+  //
+  // Layout: the working-memory song, a 512-byte header, then 191 blocks of 512.
+  // The block allocation table says which project owns each block, and blocks
+  // are numbered from 1 -- block N lives at (N-1)*512 in the block area, which
+  // is the off-by-one to get wrong.
+  var SAV_SIZE = 0x20000, SAV_PROJECTS = 32, SAV_HEADER = SONG_BYTES;
+  var BLOCK_AREA = SAV_HEADER + 0x200, EMPTY_BLOCK = 0xFF;
+
+  function sav(docs, opts) {
+    opts = opts || {};
+    var list = [].concat(docs || []).slice(0, SAV_PROJECTS);
+    if (!list.length) throw new Error('lsdj: a save needs at least one song');
+    var out = new Uint8Array(SAV_SIZE);
+    var names = [], built = [], warnings = [], i;
+
+    var blockCursor = 1;                       // blocks are 1-based
+    var alloc = new Uint8Array(191); alloc.fill(EMPTY_BLOCK);
+    for (i = 0; i < list.length; i++) {
+      var b = fromDocument(list[i], opts);
+      var body = compress(b.bytes, blockCursor);
+      var blocks = body.length / BLOCK;
+      if (blockCursor - 1 + blocks > 191) {
+        warnings.push('the save filled up after ' + i + ' songs; the rest were left out');
+        break;
+      }
+      out.set(body, BLOCK_AREA + (blockCursor - 1) * BLOCK);
+      for (var k = 0; k < blocks; k++) alloc[blockCursor - 1 + k] = i;
+      blockCursor += blocks;
+      names.push(projectName((opts.names && opts.names[i]) || b.title));
+      built.push(b);
+      b.warnings.forEach(function (w) { if (warnings.indexOf(w) < 0) warnings.push(w); });
+    }
+
+    // The working-memory song is what the cart opens on, so it is the first one
+    // rather than a blank screen.
+    out.set(built[0].bytes, 0);
+    for (i = 0; i < names.length; i++) out.set(names[i], SAV_HEADER + i * 8);
+    for (i = 0; i < names.length; i++) out[SAV_HEADER + 256 + i] = 0;   // project version
+    out[SAV_HEADER + 256 + 32 + 30] = 0x6A;                             // 'j'
+    out[SAV_HEADER + 256 + 32 + 31] = 0x6B;                             // 'k'
+    out[SAV_HEADER + 256 + 32 + 32] = 0;                                // active project
+    out.set(alloc, SAV_HEADER + 256 + 32 + 33);
+
+    return { bytes: out, songs: built.length, warnings: warnings,
+             blocksUsed: blockCursor - 1, blocksFree: 191 - (blockCursor - 1),
+             titles: built.map(function (b2) { return b2.title; }) };
+  }
+
   var API = {
-    SONG_BYTES: SONG_BYTES, OFFSETS: O, COMMANDS: CMD,
+    SONG_BYTES: SONG_BYTES, SAV_SIZE: SAV_SIZE, SAV_PROJECTS: SAV_PROJECTS,
+    OFFSETS: O, COMMANDS: CMD, sav: sav,
     NOTE_ZERO_MIDI: NOTE_ZERO_MIDI, PHRASE_STEPS: PHRASE_STEPS,
     compress: compress, decompress: decompress, emptySong: emptySong,
     fromDocument: fromDocument, lsdsng: lsdsng

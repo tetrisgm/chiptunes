@@ -78,6 +78,8 @@
     '- "Make it gloomier" — chiptunes_variant recomposes the exact song on air.',
     '- "I will take it as a cartridge" — chiptunes_export hands back a share link,',
     '  a MIDI file, or a 32 KB .gb ROM that boots on real hardware.',
+    '- "Fill a cartridge for me" \u2014 chiptunes_lsdj_cart writes an LSDj .sav with',
+    '  a starting point in every slot, ready to copy onto a flash cart.',
     '- chiptunes_transport, chiptunes_play_song and chiptunes_screen operate the',
     '  session the user is listening to right now, so they hear you work.',
     '',
@@ -236,6 +238,42 @@
     // tab can write music with no key, no quota, no account and no cost. A
     // song is 1.6 ms, so an agent can afford to generate twenty, measure them
     // and keep one -- a loop that is unaffordable against a hosted model.
+    {
+      name: 'chiptunes_lsdj_cart',
+      description: 'Fill a Game Boy cartridge with starting points. Writes an LSDj .sav -- up to 32 songs in one file -- and hands it to the user to copy onto a flash cart. This is the fastest route from "I want to write something" to actually writing, because every slot on the machine already has an arrangement in it to argue with. Say the warnings out loud: drums move to the noise channel and instruments are left stock on purpose.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          scenes: { type: 'array', items: { type: 'string' },
+                    description: 'one song per scene: title, menu, overworld, town, shop, cave, battle, boss, victory, game_over, credits' },
+          seconds: { type: 'number' },
+          key: { type: 'string' },
+          name: { type: 'string', description: 'the .sav filename' }
+        }
+      },
+      run: function (a) {
+        if (!api()) return { ok: false, error: 'the composer is not loaded' };
+        a = a || {};
+        var scenes = (a.scenes && a.scenes.length) ? a.scenes
+          : ['title', 'overworld', 'battle', 'boss', 'cave', 'town', 'shop', 'victory', 'game_over', 'credits'];
+        var started = safe(function () { return Date.now(); }, 0), docs = [];
+        try {
+          for (var i = 0; i < scenes.length && i < 32; i++) {
+            var spec = { scene: String(scenes[i]) };
+            if (a.seconds) spec.seconds = a.seconds;
+            if (a.key) spec.key = a.key;
+            docs.push(G.CT_API.brief(spec).doc);
+          }
+          var cart = G.CT_API.toLsdjSav(docs, { name: a.name });
+          var saved = download(cart.bytes, cart.filename, 'application/octet-stream');
+          return { ok: saved, filename: cart.filename, songs: cart.songs, titles: cart.titles,
+                   blocksUsed: cart.blocksUsed, blocksFree: cart.blocksFree,
+                   tookMs: safe(function () { return Date.now() - started; }, null),
+                   warnings: cart.warnings,
+                   note: 'An LSDj save. Copy it onto a flash cart, or merge the slots into an existing .sav, and start writing.' };
+        } catch (e) { return { ok: false, error: e && e.message ? e.message : String(e) }; }
+      }
+    },
     {
       name: 'chiptunes_capabilities',
       description: 'Every word this understands and every knob it has: scenes, moods, musical genres, game genres, forms, techniques, the hundred-odd game titles it can read as a style, the transform operations, and the things it deliberately cannot do. Read this BEFORE composing rather than guessing at vocabulary.',
@@ -463,7 +501,8 @@
     chiptunes_play_song: function () { return 'put a song on the deck'; },
     chiptunes_now_playing: function () { return 'checked what is playing'; },
     chiptunes_current_song: function () { return 'took a copy of the song'; },
-    what_can_i_do_here: function () { return 'asked what this page can do'; }
+    what_can_i_do_here: function () { return 'asked what this page can do'; },
+    chiptunes_lsdj_cart: function (a) { return 'filled a cartridge with ' + ((a && a.scenes && a.scenes.length) || 10) + ' songs'; }
   };
   function narrate(t, args, bad) {
     try {

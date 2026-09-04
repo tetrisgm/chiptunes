@@ -235,6 +235,27 @@ const TOOLS = [
     }
   },
   {
+    name: 'export_lsdj_cart',
+    description: 'Fill a Game Boy cartridge with starting points: an LSDj .sav holding up to 32 songs, ready to copy onto a flash cart. The fastest route from wanting to write something to actually writing, because every slot already has an arrangement in it. Relay the warnings.',
+    inputSchema: { type: 'object', properties: {
+      songs: { type: 'array', items: { type: 'string' }, description: 'song ids or documents' },
+      scenes: { type: 'array', items: { type: 'string' }, description: 'or compose one per scene' },
+      seconds: { type: 'number' }, path: { type: 'string' }
+    }, required: ['path'], additionalProperties: false },
+    run: (a) => {
+      const docs = (a.songs && a.songs.length)
+        ? a.songs.map(resolveDoc)
+        : (a.scenes || ['title', 'overworld', 'battle', 'boss', 'cave', 'town', 'victory', 'game_over'])
+            .map(scene => api.brief({ scene, seconds: a.seconds || 30 }).doc);
+      const cart = api.toLsdjSav(docs, {});
+      const w = writeFileArg(a.path, cart.bytes, 'LSDj save');
+      return Object.assign({}, w, {
+        songs: cart.songs, titles: cart.titles,
+        blocksUsed: cart.blocksUsed, blocksFree: cart.blocksFree, warnings: cart.warnings
+      });
+    }
+  },
+  {
     name: 'variations',
     description: 'Compose n different songs for the same brief and return them all, UNRANKED and unselected, in the order composed. Nothing scores them for you: pick with describe(), or play them. Composition is about 1.6 ms, so asking for twenty is reasonable.',
     inputSchema: {
