@@ -1029,7 +1029,7 @@
     var tSum = 0;
     for (t = 0; t < ticks.length; t++) tSum += ticks[t];
     var rowFrames = (tSum / ticks.length) * 149.31875 / Math.max(1, m.tempo || 128);
-    var lastRow = 0, unnamedDrums = 0, tableNotes = [], vibratoNotes = [];
+    var lastRow = 0, unnamedDrums = 0, tableNotes = [], vibratoNotes = [], patches = [];
     for (ch = 0; ch < 4; ch++) {
       var played = playedNotes(m, ch), kills = killRows(m, ch);
       var chLastRow = Math.max(channelRows(m, ch) - 1,
@@ -1089,6 +1089,21 @@
           // document carries it as a cell flag rather than a motion, so it is
           // set in the state pass alongside the tables.
           else if (n.command === CMD.V) vibratoNotes.push({ lane: ch, step: n.row });
+          // ...and the rest of the commands that MOVE A REGISTER, each measured
+          // by playing it and watching the chip:
+          //
+          //   E -> NR12   the envelope, so a volume
+          //   O -> NR51   panning
+          //   S -> NR10   the sweep, which is what a fall or a rise is
+          //   P -> NR13   a pitch bend, which lands as a detune
+          //
+          // Each has a home in the document already, so each is carried rather
+          // than counted as unplayable. What is left over -- A, D, F, G, H, L,
+          // T, W, Z -- moved no register at all in that measurement.
+          if (n.command === CMD.E) patches.push({ lane: ch, step: n.row, f: { vel: Math.max(0.05, Math.min(1, (n.value >> 4) / 15)) } });
+          else if (n.command === CMD.O) patches.push({ lane: ch, step: n.row, f: { pn: n.value & 3 } });
+          else if (n.command === CMD.S) patches.push({ lane: ch, step: n.row, f: { sweep: n.value & 0xFF } });
+          else if (n.command === CMD.P) patches.push({ lane: ch, step: n.row, f: { dt: ((n.value << 24) >> 24) } });
           var tbl = tableOf(m, n.instrument);
           if (tbl != null) tableNotes.push({ lane: ch, step: n.row, table: tbl, len: len });
           // ...and a sweep is a fall or a rise, read off the instrument's NR10.
@@ -1125,12 +1140,14 @@
     var unknownCmds = {};
     for (ch = 0; ch < 4; ch++) playedNotes(m, ch).forEach(function (n) {
       if (n.command && n.command !== CMD.C && n.command !== CMD.R &&
-          n.command !== CMD.K && n.command !== CMD.V)
+          n.command !== CMD.K && n.command !== CMD.V && n.command !== CMD.E &&
+          n.command !== CMD.O && n.command !== CMD.S && n.command !== CMD.P)
         unknownCmds[n.command] = (unknownCmds[n.command] || 0) + 1;
     });
     var unknownTotal = Object.keys(unknownCmds).reduce(function (a, k) { return a + unknownCmds[k]; }, 0);
     if (unknownTotal) warn.push(unknownTotal + ' notes carry an LSDj command this app does not ' +
-      'play (C, R, K and V are understood); the notes arrive, the effect does not');
+      'play; the notes arrive, the effect does not. C, R, K, V, E, O, S and P ' +
+      'are understood, and the rest moved no register at all when measured');
     notes.sort(function (a, b) { return a.step - b.step; });
     return {
       json: {
@@ -1140,7 +1157,7 @@
         notes: notes
       },
       groove: ticks, tempo: m.tempo, warnings: warn,
-      tableNotes: tableNotes, vibratoNotes: vibratoNotes
+      tableNotes: tableNotes, vibratoNotes: vibratoNotes, patches: patches
     };
   }
 

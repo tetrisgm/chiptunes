@@ -464,6 +464,27 @@ function fromLsdsng(bytes, opts) {
       if (grown) doc = grown;
     }
   }
+  // The commands that MOVE A REGISTER and have a home in the document: E is a
+  // volume, O a pan, S a sweep, P a pitch bend read as a detune. Each was
+  // measured by playing it and watching the chip.
+  if (out.patches && out.patches.length) {
+    var stp = CT_CREATE.docState(doc);
+    var melP = T.melodicRows || 15;
+    var laneP = function (x) {
+      return x.r >= melP ? 3 : (x.ch === 0 || x.ch === 1) ? x.ch
+        : (x.st === 'bassg' || x.st === 'cello') ? 2 : 0;
+    };
+    var byKey = {};
+    out.patches.forEach(function (p) { byKey[p.lane + ':' + p.step] = p.f; });
+    var hit = 0;
+    if (stp) stp.cells.forEach(function (x) {
+      var f = x.midi == null ? null : byKey[laneP(x) + ':' + (x.c | 0)];
+      if (!f) return;
+      for (var k in f) x[k] = f[k];
+      hit++;
+    });
+    if (hit) { var gp = CT_CREATE.docFromState(stp); if (gp) doc = gp; }
+  }
   // VIBRATO rides as a cell flag rather than a motion, so it is set here for the
   // same reason -- it was written on the way out and dropped on the way in.
   if (out.vibratoNotes && out.vibratoNotes.length) {

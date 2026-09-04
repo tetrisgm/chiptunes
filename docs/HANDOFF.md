@@ -3392,3 +3392,36 @@ and a fresh trace matches **320 of 320 row gaps across four tempi, all four
 exact**. The averages were always right -- this is about the ORDER of the spare
 frames, which is what makes two players sound identical rather than merely equal
 in tempo.
+
+
+## Every LSDj command that moves a register (2026-09-04, last)
+
+Measured by playing each one and watching the chip -- one run per command,
+comparing against the same song with no command:
+
+```
+C -> NR13          chord / arpeggio      carried as motion 'arp'
+R -> NR12, NR14    retrig                carried as motion 'roll'
+V -> NR13          vibrato               carried as the cell's `vb`
+K -> (none)        kill                  carried as the note's LENGTH
+E -> NR12          envelope, a volume    carried as `vel`
+O -> NR51          panning               carried as `pn`
+S -> NR10, NR14    sweep                 carried as `sweep`
+P -> NR13, NR14    pitch bend            carried as `dt`
+M -> NR50          MASTER volume         not carried: it is global, and the
+                                         document has no per-song master
+A D F G H L T W Z  moved no register at all in that measurement
+```
+
+So every command that made the chip do something has a home in the document
+already, and none of them is reported as unplayable any more.
+
+⚠️ **M is the honest exception.** It moves NR50, the master volume, which is a
+song-wide setting rather than a note's. The document has no field for it. It is
+one byte and it would need a document format change to carry.
+
+⚠️ **And the nine that moved nothing were measured with ONE value (0x40) on a
+sustained note.** Several of them are structural -- H hops, T changes tempo, G
+changes groove -- and would show up in a test that watched the song's SHAPE
+rather than one note's registers. They are listed as "moved no register" because
+that is what was measured, not because they do nothing.

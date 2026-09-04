@@ -333,6 +333,35 @@ Object.keys(IMAGES).forEach(name => {
        'and the vibrato it was played with (' + gotV + ')');
   }
 
+  // THE COMMANDS THAT MOVE A REGISTER. Measured by playing each one and
+  // watching the chip: E moves NR12 (a volume), O moves NR51 (panning), S moves
+  // NR10 (the sweep, which is what a fall or a rise is), P moves NR13 (a pitch
+  // bend, read as a detune). Each has a home in the document already.
+  {
+    const CT2 = require(path.join(ROOT, 'src', 'create.js'));
+    const cj = { title: 'Cmds', grid: 16, bpm: 128, bars: 2, notes: [] };
+    for (let k = 0; k < 4; k++) cj.notes.push({ lane: 'Melody', step: k * 4, note: nm(60 + k), len: 2 });
+    const cimg = L.readSong(L.parseLsdsng(api.toLsdsng(api.fromJSON(cj)).bytes).song);
+    [['E', 0x60], ['O', 0x02], ['S', 0x3E], ['P', 0x05]].forEach(([c, v], k) => {
+      cimg.phraseCommands[0][k * 4] = L.COMMANDS[c];
+      cimg.phraseCommandVals[0][k * 4] = v;
+    });
+    const cbody = L.compress(L.writeSong(cimg), 1);
+    const cfile = new Uint8Array(9 + cbody.length);
+    cfile.set(cbody, 9);
+    const cb = api.fromLsdsng(cfile);
+    const cc = CT2.docState(cb.doc).cells.filter(x => x.midi != null).slice(0, 4);
+    const okE = cc[0] && Math.abs(cc[0].vel - 6 / 15) < 0.02;
+    const okO = cc[1] && cc[1].pn === 2;
+    const okS = cc[2] && cc[2].sweep === 0x3E;
+    const okP = cc[3] && cc[3].dt === 5;
+    ok(okE && okO && okS && okP,
+       'a volume, a pan, a sweep and a bend all land where the document keeps them (' +
+       ['E' + (okE ? '' : '!'), 'O' + (okO ? '' : '!'), 'S' + (okS ? '' : '!'), 'P' + (okP ? '' : '!')].join(' ') + ')');
+    ok(cb.warnings.every(w => !/command/.test(w)),
+       'and none of them is reported as unplayable any more');
+  }
+
   // WHAT WE CANNOT PLAY, SAID OUT LOUD. LSDj tables are a per-instrument
   // modulation sequence and nothing here runs one; most of its commands are
   // likewise unread. Our own songs use neither, so this only ever fires on
