@@ -53,7 +53,14 @@ async function colours(p, tag) {
   // A 3200x2000 headed Metal capture occasionally finishes just beyond
   // Playwright's 30s action default even though the page and fonts are ready.
   // Keep the real-GPU assertion; give the actual pixel readback enough time.
-  await p.screenshot({ path: f, timeout: 60000 });
+  //
+  // 60s was not enough either: a full suite run on a busy machine (load average
+  // 19, which this one reaches just by running the rest of the suite) timed the
+  // capture out and took the whole run down with it -- reported as an uncaught
+  // TimeoutError with no failing assertion, which is the least useful way for a
+  // gate to fail. What is being asserted is that the face DRAWS, not that it
+  // draws inside a minute, so the limit is generous on purpose.
+  await p.screenshot({ path: f, timeout: 180000 });
   const png = PNG.sync.read(fs.readFileSync(f));
   const s = new Set();
   for (let i = 0; i < png.data.length; i += 4 * 97) s.add((png.data[i] << 16) | (png.data[i + 1] << 8) | png.data[i + 2]);
