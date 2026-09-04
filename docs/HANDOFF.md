@@ -3146,3 +3146,32 @@ what is not, because the difference matters more than the progress.
   The export writes one per (voice, level); real songs use about 11. Do not
   "fix" this by flattening the music, which was the first instinct and was
   backwards.
+
+### ⚠️ The envelope needs a better instrument than we have
+
+Byte 1's low nibble is LSDj's envelope shape and it is NOT reverse-engineered.
+What is known:
+
+- low nibble 0 -> a static volume, the high nibble, written once as
+  `volume<<4 | 8` (pace 0, so the HARDWARE envelope is off and LSDj is driving
+  the volume itself).
+- any non-zero low nibble -> the trace only ever catches volume 1, whatever the
+  high nibble says.
+- with notes retriggering, NR12 was seen going 1 -> full -> 1 with the time at
+  full growing with the low bits (0x8 about 2 frames, 0xA about 4, 0xF about 19).
+
+**Why it did not resolve: `tools/lsdjtrace.c` samples the registers once per
+frame, at frame end, and prints only changes.** An envelope that steps faster
+than that -- and the DMG envelope unit steps every 1/64s, which is under a
+frame -- is invisible to it. The single-note runs above are not evidence that
+LSDj writes volume 1 and stops; they are evidence that whatever it wrote in
+between had finished before the next sample.
+
+The fix is a different tool: hook mGBA's memory WRITE path for 0xFF10..0xFF25
+and log every write with its cycle, instead of sampling state. Do that before
+drawing any conclusion about envelope shapes.
+
+**Do not guess this one from the sampled trace.** The same instrument said
+NOTE_BASE was an octave low, twice, with clean believable numbers, and it was
+wrong both times -- caught only by re-measuring with a single note. A confident
+wrong envelope table would be worse than none.
