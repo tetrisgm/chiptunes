@@ -1,7 +1,7 @@
 # Chiptunes.app and WebMCP
 
 **Live:** <https://chiptunes.app> · **Repo:** this one, MIT licensed ·
-**Tools:** 15, registered on `document.modelContext` and `navigator.modelContext`
+**Tools:** 16, registered on `document.modelContext` and `navigator.modelContext`
 
 A register-level Game Boy sound chip, a deterministic composer, and a
 music studio that an agent can drive from inside the page — with no
@@ -115,7 +115,12 @@ document.modelContext.registerTool({
   answers on a cold load** — the text is a constant carried by the inline
   registrar, because the tool most likely to be called first must never reply
   "still loading". Gated with the bundle deliberately delayed 9 s.
-- **14 more**, in two groups. *Operating the session:* `now_playing`,
+- **`chiptunes_lsdj_cart`** — fills a Game Boy cartridge. Writes an LSDj `.sav`
+  with up to 32 songs, phrases and chains and groove intact, ready to copy onto
+  a flash cart. About 60 ms for eight songs, measured in the page. For somebody
+  who writes on the hardware this is the whole offer: not a finished track, but
+  a starting point in every slot.
+- **15 more**, in two groups. *Operating the session:* `now_playing`,
   `play_mood`, `transport`, `current_song`, `play_song`, `editor`, `variant`,
   `screen`. *Composing without a server:* `capabilities`, `ask`, `compose`,
   `variations`, `analyse`, `export`.
@@ -249,7 +254,7 @@ npm run test:webmcp:live                     # ...against the DEPLOYED site
 ```
 
 `verify-webmcp` installs the spec's `document.modelContext` before any page
-script (as an agent browser does), calls all 15 tools for real, and additionally
+script (as an agent browser does), calls all 16 tools for real, and additionally
 proves: the orientation tool answers with the bundle 9 s away; a host injected
 *after* load is picked up within 1.5 s and its tools work; agent calls are
 narrated on screen and human clicks are not; the explainer yields in agent mode.

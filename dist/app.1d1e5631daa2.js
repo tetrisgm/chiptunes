@@ -34837,6 +34837,9 @@ if(typeof VisualizerGame !== 'undefined' && typeof CT_GAMES !== 'undefined' && C
     'Write me a dungeon theme like Castlevania, 40 seconds, no drums.',
     'Is that actually in a minor key? How busy is it?',
     'Give me a dozen boss themes to choose from, then play the third one.',
+    // The one that matters to somebody who writes on the hardware: a cart full
+    // of starting points is a different offer from a finished track.
+    'I write in LSDj. Fill a cartridge with starting points for me.',
     'Make it gloomier, then hand me the cartridge.'
   ];
 
@@ -34888,6 +34891,9 @@ if(typeof VisualizerGame !== 'undefined' && typeof CT_GAMES !== 'undefined' && C
       'The composer and a register-level Game Boy sound chip are already running in this page. ' +
       'That means an agent can write music here with no API key, no account and nothing metered — ' +
       'and a song takes 1.6 ms, so it can afford to write twenty and let you pick.'));
+    wrap.appendChild(el('p', null,
+      'If you write in LSDj: it exports .lsdsng, and it will fill a whole .sav — a starting point ' +
+      'in every slot, phrases and chains and groove intact, ready to copy onto a flash cart.'));
     wrap.appendChild(el('p', null,
       'The station is playing behind this panel. Close it at any time; every tool below moves that same ' +
       'session, so you and the agent are never looking at different things.'));
@@ -35044,6 +35050,9 @@ if(typeof VisualizerGame !== 'undefined' && typeof CT_GAMES !== 'undefined' && C
       ['make it gloomier', 'chiptunes_variant', { mood: 'darker' }],
       ['share link', 'chiptunes_export', { format: 'link' }],
       ['.gb cartridge', 'chiptunes_export', { format: 'rom' }],
+      ['LSDj song', 'chiptunes_export', { format: 'lsdsng' }],
+      ['LSDj cartridge (8 songs)', 'chiptunes_lsdj_cart',
+       { scenes: ['title', 'overworld', 'battle', 'boss', 'cave', 'town', 'victory', 'game_over'], seconds: 30 }],
       ['MIDI file', 'chiptunes_export', { format: 'midi' }],
       ['now playing', 'chiptunes_now_playing', {}]
     ].forEach(function (spec) {
@@ -36901,7 +36910,7 @@ function buildRadioUI(){
           '<span class="rmood-section"><strong>CREATE OR LISTEN.</strong><p>Choose a mood and Chiptunes composes complete Game Boy songs for you, automatically, one after another. Or open the tracker and write your own \u2014 or let an AI agent drive it, through 15 <a class="rmood-link" href="/webmcp">WebMCP tools</a>.</p></span>'+
           '<span class="rmood-section"><strong>COMPLETE SONGS.</strong><p>The composer writes full arrangements, not loops, from pulse and wave instruments, noise and sampled drums.</p></span>'+
           '<span class="rmood-section"><strong>AUTHENTIC HARDWARE.</strong><p>Every note runs through register-level emulation of the original four-channel sound chip. Download a cartridge that boots on a real Game Boy.</p></span>'+
-          '<span class="rmood-section"><strong>MAKE IT YOURS.</strong><p>Edit every note, instrument and effect. Share it as a link, WAV or cartridge.</p></span>'+
+          '<span class="rmood-section"><strong>MAKE IT YOURS.</strong><p>Edit every note, instrument and effect. Share it as a link, WAV, ROM or LSDj save.</p></span>'+
           '<small class="rmood-legal">Game Boy is a trademark of Nintendo. Independent project; not affiliated with or endorsed by Nintendo.</small>'+
         '</span>';
       row.appendChild(brand);

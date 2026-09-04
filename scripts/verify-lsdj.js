@@ -247,6 +247,28 @@ console.log('a cartridge full of starting points');
     .map(scene => api.brief({ scene, seconds: 20 }).doc), {});
   ok(many.bytes.length === L.SAV_SIZE && many.songs <= 32,
      'asking for more than 32 songs still writes a valid save (' + many.songs + ' slots)');
+
+  // AND THE CART READ BACK BY LIBLSDJ, not by us. The .sav is the flagship --
+  // it is what somebody copies onto a flash cart -- so it gets the same
+  // treatment as the single song rather than being trusted because the single
+  // song passed.
+  const reader = process.env.LSDJCHECK || '/tmp/lsdjcheck';
+  if (!fs.existsSync(reader)) {
+    console.log('  ..     SKIPPED the independent read of the cart: no reader at ' + reader);
+  } else {
+    const tmp = path.join(os.tmpdir(), 'ct-cart-' + process.pid + '.sav');
+    fs.writeFileSync(tmp, Buffer.from(cart.bytes));
+    let rep = '';
+    try { rep = execFileSync(reader, [tmp]).toString(); }
+    catch (e) { rep = 'READER_FAILED ' + e.message; }
+    fs.unlinkSync(tmp);
+    const slots = (rep.match(/^slot /gm) || []).length;
+    const projects = (rep.match(/projects=(\d+)/) || [, -1])[1];
+    ok(!/SAV_READ_FAILED|READER_FAILED/.test(rep), 'liblsdj opens the cartridge we wrote');
+    ok(+projects === cart.songs, 'and finds every slot (' + projects + '/' + cart.songs + ')');
+    ok(slots === cart.songs, 'each one named and readable (' + slots + ')');
+    ok(/active=0/.test(rep), 'with the first song in working memory, so the cart opens on something');
+  }
 }
 
 /* --------------------------------------------------------- it is repeatable */
