@@ -314,6 +314,25 @@ Object.keys(IMAGES).forEach(name => {
   ok(echoed, 'and an echo arrives as the quieter repeat it is (' +
      eBack.map(n => n.step + ':' + n.note + '@' + n.velocity.toFixed(2)).join(' ') + ')');
 
+  // VIBRATO, which was written on the way out and dropped on the way in -- the
+  // same one-way asymmetry the arpeggio and the roll had. It rides as a cell
+  // flag rather than a motion, so it is checked through the state.
+  {
+    const CT1 = require(path.join(ROOT, 'src', 'create.js'));
+    const vjj = { title: 'Vib', grid: 16, bpm: 128, bars: 2, notes: [
+      { lane: 'Melody', step: 0, note: nm(60), len: 4 },
+      { lane: 'Melody', step: 8, note: nm(64), len: 4 }
+    ] };
+    const vst = CT1.docState(api.fromJSON(vjj));
+    vst.cells[0].vb = 1;
+    const vdoc = CT1.docFromState(vst);
+    const vback = CT1.docState(api.fromLsdsng(api.toLsdsng(vdoc).bytes).doc);
+    const sentV = CT1.docState(vdoc).cells.map(c => (c.vb ? 1 : 0)).join('');
+    const gotV = vback.cells.map(c => (c.vb ? 1 : 0)).join('');
+    ok(sentV === gotV && /1/.test(gotV),
+       'and the vibrato it was played with (' + gotV + ')');
+  }
+
   // WHAT WE CANNOT PLAY, SAID OUT LOUD. LSDj tables are a per-instrument
   // modulation sequence and nothing here runs one; most of its commands are
   // likewise unread. Our own songs use neither, so this only ever fires on

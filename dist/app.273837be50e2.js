@@ -9889,7 +9889,7 @@ const Radio=(()=>{
     var tSum = 0;
     for (t = 0; t < ticks.length; t++) tSum += ticks[t];
     var rowFrames = (tSum / ticks.length) * 149.31875 / Math.max(1, m.tempo || 128);
-    var lastRow = 0, unnamedDrums = 0, tableNotes = [];
+    var lastRow = 0, unnamedDrums = 0, tableNotes = [], vibratoNotes = [];
     for (ch = 0; ch < 4; ch++) {
       var played = playedNotes(m, ch), kills = killRows(m, ch);
       for (i = 0; i < played.length; i++) {
@@ -9938,6 +9938,11 @@ const Radio=(()=>{
           // far more than an arpeggio, and ours runs at the renderer's own rate
           // rather than the table's, because our document is ROW-based and a
           // table is per-TICK. It gets the character; it does not get the table.
+          // VIBRATO is written on the way out and was dropped on the way in --
+          // the same one-way asymmetry the arpeggio and the roll had. The
+          // document carries it as a cell flag rather than a motion, so it is
+          // set in the state pass alongside the tables.
+          else if (n.command === CMD.V) vibratoNotes.push({ lane: ch, step: n.row });
           var tbl = tableOf(m, n.instrument);
           if (tbl != null) tableNotes.push({ lane: ch, step: n.row, table: tbl, len: len });
           // ...and a sweep is a fall or a rise, read off the instrument's NR10.
@@ -9973,12 +9978,13 @@ const Radio=(()=>{
     // Commands we do not act on, counted rather than silently dropped.
     var unknownCmds = {};
     for (ch = 0; ch < 4; ch++) playedNotes(m, ch).forEach(function (n) {
-      if (n.command && n.command !== CMD.C && n.command !== CMD.R && n.command !== CMD.K)
+      if (n.command && n.command !== CMD.C && n.command !== CMD.R &&
+          n.command !== CMD.K && n.command !== CMD.V)
         unknownCmds[n.command] = (unknownCmds[n.command] || 0) + 1;
     });
     var unknownTotal = Object.keys(unknownCmds).reduce(function (a, k) { return a + unknownCmds[k]; }, 0);
     if (unknownTotal) warn.push(unknownTotal + ' notes carry an LSDj command this app does not ' +
-      'play (only C, R and K are understood); the notes arrive, the effect does not');
+      'play (C, R, K and V are understood); the notes arrive, the effect does not');
     notes.sort(function (a, b) { return a.step - b.step; });
     return {
       json: {
@@ -9987,7 +9993,8 @@ const Radio=(()=>{
         bars: Math.max(1, Math.ceil((lastRow + 1) / 16)),
         notes: notes
       },
-      groove: ticks, tempo: m.tempo, warnings: warn, tableNotes: tableNotes
+      groove: ticks, tempo: m.tempo, warnings: warn,
+      tableNotes: tableNotes, vibratoNotes: vibratoNotes
     };
   }
 
@@ -10763,6 +10770,23 @@ function fromLsdsng(bytes, opts) {
       var grown = CT_CREATE.docFromState(st);
       if (grown) doc = grown;
     }
+  }
+  // VIBRATO rides as a cell flag rather than a motion, so it is set here for the
+  // same reason -- it was written on the way out and dropped on the way in.
+  if (out.vibratoNotes && out.vibratoNotes.length) {
+    var st2 = CT_CREATE.docState(doc);
+    var mel2 = T.melodicRows || 15;
+    var lane2 = function (x) {
+      return x.r >= mel2 ? 3 : (x.ch === 0 || x.ch === 1) ? x.ch
+        : (x.st === 'bassg' || x.st === 'cello') ? 2 : 0;
+    };
+    var wantV = {};
+    out.vibratoNotes.forEach(function (n) { wantV[n.lane + ':' + n.step] = 1; });
+    var touched = 0;
+    if (st2) st2.cells.forEach(function (x) {
+      if (x.midi != null && wantV[lane2(x) + ':' + (x.c | 0)]) { x.vb = 1; touched++; }
+    });
+    if (touched) { var g2 = CT_CREATE.docFromState(st2); if (g2) doc = g2; }
   }
   return {
     doc: doc, title: out.json.title, bpm: out.json.bpm,

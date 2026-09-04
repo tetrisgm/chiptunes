@@ -464,6 +464,23 @@ function fromLsdsng(bytes, opts) {
       if (grown) doc = grown;
     }
   }
+  // VIBRATO rides as a cell flag rather than a motion, so it is set here for the
+  // same reason -- it was written on the way out and dropped on the way in.
+  if (out.vibratoNotes && out.vibratoNotes.length) {
+    var st2 = CT_CREATE.docState(doc);
+    var mel2 = T.melodicRows || 15;
+    var lane2 = function (x) {
+      return x.r >= mel2 ? 3 : (x.ch === 0 || x.ch === 1) ? x.ch
+        : (x.st === 'bassg' || x.st === 'cello') ? 2 : 0;
+    };
+    var wantV = {};
+    out.vibratoNotes.forEach(function (n) { wantV[n.lane + ':' + n.step] = 1; });
+    var touched = 0;
+    if (st2) st2.cells.forEach(function (x) {
+      if (x.midi != null && wantV[lane2(x) + ':' + (x.c | 0)]) { x.vb = 1; touched++; }
+    });
+    if (touched) { var g2 = CT_CREATE.docFromState(st2); if (g2) doc = g2; }
+  }
   return {
     doc: doc, title: out.json.title, bpm: out.json.bpm,
     groove: out.groove, notes: out.json.notes.length, warnings: out.warnings
