@@ -120,7 +120,11 @@ function mcp(messages) {
   // asking the document to store a tempo it does not play.
   {
     const ladder = api.capabilities().tempo.reachable;
-    ok(ladder.length >= 20 && ladder.indexOf(back.bpm) >= 0,
+    // 16 rungs, not the 32 this once asserted. Reaching any tempo needed
+    // four-step grooves with one odd step out, which is a limp you hear on
+    // every bar; what is left is even steps plus a symmetric shuffle. Fewer
+    // tempi is the honest cost of not imposing a feel nobody asked for.
+    ok(ladder.length >= 12 && ladder.indexOf(back.bpm) >= 0,
        'and a tempo from the reachable ladder (' + hand.bpm + ' -> ' + back.bpm +
        ', ' + ladder.length + ' rungs)');
     const nearest = ladder.reduce((a, b) => Math.abs(b - hand.bpm) < Math.abs(a - hand.bpm) ? b : a);

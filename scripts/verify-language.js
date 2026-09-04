@@ -191,9 +191,16 @@ console.log("the user's own adjectives reach the notes");
      api.describe(made.doc).bpm + ' vs ' + plainCave.bpm + ' bpm)');
 
   // a tempo the sentence asked for is not compounded by a mood's own tempo
-  const f = api.ask('a cheerful fast platformer', { brief: { token: '7f3a12bc55de90aa' } });
-  ok(f.ok && api.describe(f.doc).bpm <= 175,
-     'an explicit "fast" is not compounded by cheerful\'s own +8% (' + api.describe(f.doc).bpm + ' bpm)');
+  // COMPARED AGAINST "fast" ALONE, not against a number. This asserted bpm <=
+  // 175 and started failing at 179 -- which is not compounding, it is the top
+  // rung of the tempo ladder, and a fixed ceiling cannot tell those apart. The
+  // property is that adding "cheerful" does not make it faster than "fast" did.
+  const tok = { brief: { token: '7f3a12bc55de90aa' } };
+  const fastOnly = api.describe(api.ask('a fast platformer', tok).doc).bpm;
+  const f = api.ask('a cheerful fast platformer', tok);
+  ok(f.ok && api.describe(f.doc).bpm <= fastOnly,
+     'an explicit "fast" is not compounded by cheerful\'s own +8% (' +
+     api.describe(f.doc).bpm + ' bpm, same as "fast" alone at ' + fastOnly + ')');
 }
 
 /* -------------------------------------------------------- reading a title in */

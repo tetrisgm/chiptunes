@@ -2861,3 +2861,60 @@ are kept.
 `tools/lsdjplay.c` is committed; **the ROM is not and must not be**. Run it with
 `LSDJPLAY=/tmp/lsdjplay LSDJ_ROM=~/lsdj.gb npm run test:lsdj`; without both the
 gate skips loudly.
+
+# 2026-09-03 — The groove regression, and what it taught
+
+The owner reported the station sounding "lower quality, very noisy" after the
+tick rewrite. It was not noise and it was not the engine: **51 songs in 60 had
+picked up an audible limp.**
+
+Ruled out first, with measurements rather than guesses: no clipping, no sample
+discontinuities, per-channel levels identical to the previous build to within
+0.5%, high-frequency content identical, render parity 1.000000, and the kit gate
+still at 0.9918 correlation.
+
+The cause was my own groove selection. To reach any tempo it made k of every
+four steps one tick longer -- [6,7,7,7], [5,5,5,6] -- one step up to **19% off
+the average, repeating every four steps, forever**. The float rounding it
+replaced spread the same total error quasi-randomly, so it never formed a
+pattern and never became audible. **The thing worth preserving was not the
+drift; it was the absence of a repeating shape.** The ear locks onto anything
+that repeats every bar.
+
+Grooves are now [n] or [n, n+1] only -- even, or a symmetric shuffle, which is a
+feel a musician would choose. Even wins unless it would miss the target tempo by
+more than 3%. Result: 60 straight, 20 shuffled, **0 lopsided** out of 80.
+
+## The constraint underneath, which is the hardware's
+
+At fast tempos the even rungs are far apart -- 179.2, 149.3, 128.0, 112.0 -- and
+the tempi that fill the gaps carry 9-18% swing. **On this machine you cannot
+have both fine tempo and a straight feel up there.** The ladder went from 32
+rungs to 16, and that is the honest price of not imposing a feel nobody asked
+for.
+
+⚠️ **One consequence to weigh:** a style's bpm window is narrow, and some windows
+now contain exactly one rung. `title` is anthem and arcade, 140-158, which holds
+only 149.3 -- so every title cue has the same tempo. If that becomes the next
+complaint, the fix is to widen the STYLES bpm ranges in composer.js so each
+spans two rungs, which keeps everything straight. It changes each style's tempo
+character, so it is the owner's call.
+
+## Three gates were asserting numbers instead of properties
+
+All three failed on this change and all three were wrong, not the code:
+
+- `verify-diversity` demanded three tempi per scene. On a quantised ladder some
+  scenes can only reach one. It checks that a scene's tempi are real rungs now,
+  and that the spread holds across scenes.
+- `verify-api` required at least 20 rungs. There are 16.
+- `verify-language` asserted "a cheerful fast platformer" stays under 175 bpm. It
+  came out at 179 -- not compounding, just the top rung. It compares against
+  "a fast platformer" alone now, which is the property it meant.
+
+And two gates were failing on machine load alone. `verify-screens` timed a
+3200x2000 capture out at 60s and took the whole run down as an uncaught error
+with no failing assertion; it has 180s now, because the assertion is that a face
+DRAWS. `verify-sync` compared two independently sampled latencies against a flat
+160ms, which cannot hold when the quantity ranges from 20ms to over 1000ms; the
+tolerance scales with the magnitude now.

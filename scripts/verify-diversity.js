@@ -91,8 +91,14 @@ console.log('free composition');
   // within any one batch of 30 the measured spread is 10 to 19 distinct, median
   // 13. A floor of 8 fails long before the composer has collapsed, and never on
   // an unlucky draw.
-  ok(b.tempos >= 8, 'tempo is spread across the ladder, not collapsed (' +
-     b.tempos + ' distinct of ' + b.n + ', floor 8)');
+  // The ladder shrank when lopsided grooves were removed -- a four-step pattern
+  // with one odd step out reaches any tempo, and is a LIMP you can hear on every
+  // bar. What is left is even steps plus a symmetric shuffle, which is eight
+  // even rungs and seven shuffled ones. Measured over 25 batches of 30: 6 to 10
+  // distinct, median 8. A floor of 5 fails long before the composer has
+  // collapsed and never on an unlucky draw.
+  ok(b.tempos >= 5, 'tempo is spread across the ladder, not collapsed (' +
+     b.tempos + ' distinct of ' + b.n + ', floor 5)');
   // ...and spread ACROSS it rather than bunched on neighbouring rungs, which a
   // count alone cannot tell you.
   ok(b.bpmMax / b.bpmMin >= 1.5, 'and reaches both ends of it (' +
@@ -103,6 +109,15 @@ console.log('free composition');
 // A scene NARROWS the composer on purpose -- that is what asking for a boss
 // theme means. It must not narrow it to one song.
 console.log('scenes narrow without collapsing');
+const LADDER = (function () {
+  const seen = {}, out = [];
+  for (let i = 0; i < 400; i++) {
+    const t = CT.docState(api.compose({}).doc).bpm;
+    if (!seen[t]) { seen[t] = 1; out.push(t); }
+  }
+  return out;
+})();
+const sceneTempos = {};
 for (const scene of ['boss', 'title', 'cave']) {
   const b = batch(Array.from({ length: N }, () => api.brief({ scene, seconds: 30 }).doc));
   // ONE COLLISION IS ALLOWED, AND THE NUMBER IS MEASURED. Over a pool of 2400
@@ -115,7 +130,23 @@ for (const scene of ['boss', 'title', 'cave']) {
   ok(b.openings >= b.n - 1, scene + ': every cue is a different song (' +
      b.openings + '/' + b.n + ', floor ' + (b.n - 1) + ')');
   ok(b.similarity < 0.6, scene + ': still varied harmonically (' + b.similarity.toFixed(3) + ', ceiling 0.6)');
-  ok(b.tempos >= 3, scene + ': more than a couple of tempos (' + b.tempos + ')');
+  // NOT A FIXED COUNT ANY MORE, because that was asserting variety the machine
+  // cannot supply. A scene's styles span a narrow bpm window, and on a quantised
+  // ladder some windows contain exactly one rung -- `title` is anthem and arcade,
+  // 140-158, which holds only 149.3. Demanding three tempi there is demanding
+  // the hardware be something else. What IS meaningful: every tempo is a real
+  // rung, and the cues are different songs, which the assertion above checks.
+  ok(LADDER.indexOf(b.bpmMin) >= 0 && LADDER.indexOf(b.bpmMax) >= 0,
+     scene + ': its tempi are real rungs (' + b.bpmMin + '-' + b.bpmMax + ')');
+  sceneTempos[scene] = b.tempos;
+}
+
+// Across scenes there must still be real spread, even where any one scene is
+// pinned to a single rung by its own styles.
+{
+  const all = Object.values(sceneTempos).reduce((a, b2) => a + b2, 0);
+  ok(all >= 5, 'and across the scenes the tempi still spread (' +
+     Object.entries(sceneTempos).map(([k, v]) => k + ':' + v).join(' ') + ')');
 }
 
 // The one that matters most: two DIFFERENT soundtracks must share nothing.

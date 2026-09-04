@@ -2847,14 +2847,25 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   // a-frame resolution on tempo, which is finer than the ear, and it stays a
   // pattern you could read off a screen. Eight would reach finer tempi and start
   // to sound like a limp.
-  // k of the four steps are one tick longer, spread rather than bunched.
+  // ⚠️ ONLY TWO SHAPES ARE ALLOWED, AND THAT IS THE WHOLE POINT.
+  //
+  // The first version of this reached any tempo by making k of every four steps
+  // one tick longer, which is arithmetically neat and musically wrong. A
+  // four-step pattern with one odd step out -- [6,7,7,7], [5,5,5,6] -- is a
+  // LIMP, and the ear locks onto anything that repeats every bar. It landed on
+  // 51 songs out of 60, one step up to 19% off the average, and it is what made
+  // the station sound worse after the tick rewrite than before it.
+  //
+  // The float rounding it replaced spread the same total error quasi-randomly
+  // across steps, so it never formed a pattern and never became audible. That is
+  // the thing to preserve: not the drift, but the absence of a repeating shape.
+  //
+  // So: [n] is even, and [n, n+1] is a symmetric alternation -- a mild shuffle,
+  // which is a real feel a musician would choose. Nothing lopsided.
   function grooveSpread(base, k) {
     if (k <= 0) return [base];
-    if (k >= 4) return [base + 1];
-    var g = [];
-    for (var i = 0; i < 4; i++)
-      g.push(Math.floor((i * k) / 4) !== Math.floor(((i + 1) * k) / 4) ? base + 1 : base);
-    return g;
+    if (k >= 2) return [base + 1];
+    return [base, base + 1];
   }
   // CHOSEN BY SEARCH, not by arithmetic, because the answer has to be a tempo
   // the DOCUMENT can hold as well as one the machine can play. Rounding
@@ -2876,14 +2887,22 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       }
     } else {
       for (var base = Math.max(2, Math.floor(want) - 1); base <= Math.floor(want) + 1; base++)
-        for (k = 0; k <= 4; k++) cand.push(grooveSpread(base, k));
+        for (k = 0; k <= 2; k++) cand.push(grooveSpread(base, k));
     }
+    // AND EVEN WINS UNLESS IT IS REALLY WRONG. A shuffle on every song is still
+    // a feel nobody asked for, so an alternation has to be worth at least 3% of
+    // tempo before it is preferred to a straight one.
+    var EVEN_MARGIN = 0.03;
+    var bestEven = null;
     for (i = 0; i < cand.length; i++) {
       b = bpmOfGroove(cand[i], stepsPerBar);
       if (b < 70 || b > 180) continue;                  // the header cannot carry it
       var d = Math.abs(b - bpm);
       if (!best || d < best.d) best = { g: cand[i], d: d };
+      if (cand[i].length === 1 && (!bestEven || d < bestEven.d)) bestEven = { g: cand[i], d: d };
     }
+    if (bestEven && (!best || bestEven.d <= bpm * EVEN_MARGIN || bestEven.d - best.d < bpm * EVEN_MARGIN))
+      return bestEven.g;
     return best ? best.g : [Math.max(2, Math.round(want))];
   }
   function groove() {
