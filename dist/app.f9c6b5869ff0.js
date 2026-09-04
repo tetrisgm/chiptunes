@@ -9164,6 +9164,9 @@ const Radio=(()=>{
     // drum lanes under the melodic ones, so row - melodicRows is the index into
     // the drum list. Reading it is what lets a kick come back as a kick.
     var DRUM_IDS = (CT_CREATE.tables && CT_CREATE.tables().drums) || ['hat', 'snare', 'kick'];
+    // Measured note bytes, one note per song, read off NR43: 33 -> divisor 6,
+    // 49 -> divisor 3, 61 -> divisor 1. Higher divisor is a lower noise pitch.
+    var DRUM_NOTE = { kick: 33, snare: 49, hat: 61 };
     // ⚠️ VOLUME IS PART OF THE INSTRUMENT'S IDENTITY, because in LSDj it has
     // nowhere else to live -- there is no per-note volume column. Our renderer
     // plays an accent by making one note louder, and a single instrument per
@@ -9207,9 +9210,18 @@ const Radio=(()=>{
       var lane = laneOfCell(x, melRows), step = x.c | 0;
       var slot = { note: NO_NOTE, cmd: CMD.NONE, val: 0, inst: instrumentFor(x, lane) };
       if (lane === 3) {
-        // Drums land on the noise channel: a .sav cannot carry the samples our
-        // kits are made of, because in LSDj those live in the ROM.
-        slot.note = 60 - NOTE_BASE[3] + 1;     // a plain mid note; noise pitch is not melodic
+        // ⚠️ A NOISE NOTE IS A PITCH, AND THE WRONG ONE IS SILENCE. This wrote
+        // note 25 for every drum, on the reasoning that noise is not melodic.
+        // Measured against the ROM one note at a time: LSDj writes nothing to
+        // NR43 for any noise note below 33, so every drum this project ever
+        // exported was SILENT -- and had they sounded, all three would have been
+        // the same pitch anyway, because they shared the one note.
+        //
+        // These values are measured, and the divisor is the pitch: note 33 is
+        // divisor 6 (low), 49 is divisor 3, 61 is divisor 1 (high). Kick low,
+        // snare in the middle, hat on top -- what the kit sounds like, and what
+        // an LSDj musician would have typed.
+        slot.note = DRUM_NOTE[DRUM_IDS[(x.r | 0) - melRows]] || 49;
       } else if (x.midi != null) {
         var n = (x.midi | 0) + octaves * 12 - NOTE_BASE[lane] + 1;
         // A note that STILL does not fit after the octave shift is dropped

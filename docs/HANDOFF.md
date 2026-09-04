@@ -3203,3 +3203,51 @@ already sitting there is the more musical thing to keep.
 
 tempo, groove, pitch, lane, step, which drum it was, and how long each note
 lasted. The last of those was written down as unrecoverable two commits earlier.
+
+
+## Every exported drum was SILENT (2026-09-04)
+
+A noise note is a PITCH, and the wrong one is silence. The export wrote note 25
+for every drum, on the reasoning that noise is not melodic. Measured against the
+ROM one note at a time: **LSDj writes nothing to NR43 for any noise note below
+33**, so every drum this project ever exported made no sound -- and had they
+sounded, all three would have been the same pitch, because they shared the note.
+
+Measured note bytes, and the divisor is the pitch:
+
+```
+note 33 -> NR43 0xde   divisor 6   low    -> kick
+note 49 -> NR43 0xdb   divisor 3   middle -> snare
+note 61 -> NR43 0xd1   divisor 1   high   -> hat
+```
+
+Confirmed in mGBA: three distinct NR43 values where there had been none.
+
+⚠️ **And the header of `src/lsdj.js` was wrong about our drums.** It said "ours
+are 4-bit PCM streamed into wave RAM -- the same technique LSDj kits use", and
+they are not: the composer puts drums on CHANNEL 3, NOISE, with `midi: null` and
+no kit data on the score at all. That stale claim is what made "drums are a real
+loss" look inevitable and sent this session looking at kits. Kits are not needed
+-- LSDj noise plays noise, and drums-on-noise is an ordinary LSDj arrangement.
+Kits would cost the WAVE channel, which is where the bass lives.
+
+## Three gates were measuring badly, not measuring something bad
+
+Worth reading together, because they fail the same way: the measurement moves,
+the thing being measured does not.
+
+- **verify-sync** compared a single instantaneous `lag`, read after the sampling
+  loop, against a MEDIAN of `raw` taken across it -- two samples of a moving
+  quantity from different moments. The tolerance was widened twice and it still
+  failed a fourth run, at 418 against 642. Both sides are medians over the same
+  window now: 629 against 601, and the allowance could go back DOWN.
+- **verify-export-boundaries** drove the editor on flat 80ms delays. Idle, fine;
+  loaded, the picker had not opened, the click landed on nothing, and the
+  fixture came back with no kit and no wave load -- reporting that the editor was
+  broken when it was merely slower than the test's stopwatch. It waits for the
+  panel now.
+- **verify-latency** pinned the scheduler lead to 0.18 exactly, which is computed
+  from two clock reads and arrives as 0.17999999999999972.
+
+The pattern: **a gate that races a stopwatch is measuring the machine's mood.**
+Wait for the condition, or compare like with like.

@@ -181,6 +181,37 @@ for (const [ch, name] of [[0, 'PU1'], [1, 'PU2'], [2, 'WAV']]) {
     (agreed ? ' (three octaves apart all agree)' : ' -- the three probes disagreed: ' + JSON.stringify(bases)));
 }
 
+// ---- AND THE DRUMS MAKE A SOUND -------------------------------------------
+//
+// ⚠️ A NOISE NOTE IS A PITCH, AND THE WRONG ONE IS SILENCE. Every drum used to
+// be exported as note 25, on the reasoning that noise is not melodic. LSDj
+// writes nothing to NR43 for any noise note below 33, so every drum this
+// project ever exported was SILENT -- and nothing caught it, because the file
+// was structurally perfect and our own reader agreed with every byte.
+//
+// The three drums must sound, and must sound DIFFERENT.
+{
+  const dj = { title: 'Kit', grid: 16, bpm: 128, bars: 2, notes: [] };
+  ['kick', 'snare', 'hat', 'hat', 'kick', 'snare', 'hat', 'hat']
+    .forEach((d, i) => dj.notes.push({ lane: 'Drums', step: i * 4, drum: d }));
+  const cart = api.toLsdjSav([api.fromJSON(dj)]);
+  const savPath = path.join(TMP, 'kit.sav');
+  fs.writeFileSync(savPath, Buffer.from(cart.bytes));
+
+  const out = cp.execFileSync(TRACE, [ROM, savPath, '420', '260'],
+    { maxBuffer: 1 << 26, stdio: ['ignore', 'pipe', 'ignore'] }).toString();
+  const lines = out.split('\n').filter(l => /^(frame,|\d+,)/.test(l));
+  const head = lines[0].split(','), i43 = head.indexOf('NR43');
+  const colours = new Set();
+  for (const l of lines.slice(1)) {
+    const v = l.split(',').map(Number)[i43];
+    if (v) colours.add(v);
+  }
+  ok(colours.size >= 3,
+     'the drums reach the noise channel, in three different colours (' +
+     [...colours].map(v => '0x' + v.toString(16)).join(' ') + ')');
+}
+
 try { fs.rmSync(TMP, { recursive: true, force: true }); } catch (e) { /* scratch only */ }
 
 console.log('\nverify-lsdj-emulator: ' + (fail ? fail + ' FAILED' : 'LSDj plays what we wrote, at the tempo we wrote it'));

@@ -52,15 +52,28 @@ const shape = song => ({
   await wait(3500);
   const prepared = await create.evaluate(async () => {
     const delay = ms => new Promise(r => setTimeout(r, ms));
+    // ⚠️ WAIT FOR THE PANEL, don't race a timer. This drove the editor on flat
+    // 80ms delays: fine idle, and on a loaded machine the picker had not opened
+    // yet, so the click landed on nothing and the fixture came back with no kit
+    // and no wave load. It then failed for being "not rich enough" -- a gate
+    // reporting that the editor is broken when the editor was merely slower than
+    // the test's stopwatch.
+    const until = async (fn, ms) => {
+      const t0 = Date.now();
+      while (Date.now() - t0 < (ms || 4000)) { if (fn()) return true; await delay(25); }
+      return false;
+    };
     const tour = document.querySelector('.cr-tour'); if (tour) tour.remove();
     const pulseCount = document.querySelectorAll('.n-note[data-ch="0"],.n-note[data-ch="1"]').length;
     for (let i = 0; i < pulseCount; i++) {
       const pulse = document.querySelectorAll('.n-note[data-ch="0"],.n-note[data-ch="1"]')[i];
       if (!pulse) break;
-      pulse.click(); await delay(80);
+      pulse.click();
+      await until(() => document.querySelector('[data-ed="mvvb"]'));
       const wobble = document.querySelector('[data-ed="mvvb"]'); if (wobble && !wobble.classList.contains('on')) wobble.click();
-      await delay(80);
+      await until(() => CT_CREATE._score().auto.length && CT_CREATE._score().vibOff.length, 1500);
       const close = document.querySelector('.n-pclose'); if (close) close.click();
+      await until(() => !document.querySelector('.n-pick'), 1500);
       const probe = CT_CREATE._score();
       if (probe.auto.length && probe.vibOff.length) break;
     }
@@ -68,10 +81,12 @@ const shape = song => ({
     for (let i = 0; i < drumCount; i++) {
       const drum = document.querySelectorAll('.n-note[data-ch="3"]')[i];
       if (!drum) break;
-      drum.click(); await delay(80);
+      drum.click();
+      await until(() => document.querySelector('.n-pick [data-full="Kick"]'));
       const kick = document.querySelector('.n-pick [data-full="Kick"]'); if (kick && !kick.classList.contains('on')) kick.click();
-      await delay(80);
+      await until(() => CT_CREATE._score().kit.length && CT_CREATE._score().waveLoads.length, 1500);
       const close = document.querySelector('.n-pclose'); if (close) close.click();
+      await until(() => !document.querySelector('.n-pick'), 1500);
       const probe = CT_CREATE._score();
       if (probe.kit.length && probe.waveLoads.length) break;
     }

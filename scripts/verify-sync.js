@@ -59,7 +59,7 @@ function server() {
 
   const r = await p.evaluate(async () => {
     const FPS = (typeof CT_GB_HARDWARE !== 'undefined') ? CT_GB_HARDWARE.FPS : 59.7275;
-    const raws = [], cors = [];
+    const raws = [], cors = [], lags = [];
     let last = -1;
     const t0 = performance.now();
     // sample only when a stat has JUST arrived: comparing a fresh clock against
@@ -76,12 +76,22 @@ function server() {
       if (c && c.frame !== last) {
         last = c.frame;
         const raw = Audio.deckPosition(), aud = Audio.audiblePosition();
-        if (raw && aud) { raws.push(raw.sec * FPS - c.frame); cors.push(aud.sec * FPS - c.frame); }
+        if (raw && aud) {
+          raws.push(raw.sec * FPS - c.frame); cors.push(aud.sec * FPS - c.frame);
+          // ⚠️ SAMPLE THE LAG IN HERE TOO. It used to be read ONCE, after the
+          // loop, and then compared against a median taken across the whole
+          // window -- two numbers from different moments, of a quantity that
+          // moves. That is why this gate kept failing on load and kept having
+          // its tolerance widened: the tolerance was never the problem, the
+          // measurement was. Both are medians over the same window now.
+          lags.push((Audio.audibleLag ? Audio.audibleLag() : 0) * FPS);
+        }
       }
       await new Promise(x => setTimeout(x, 3));
     }
     const med = a => { const x = a.slice().sort((u, v) => u - v); return x.length ? x[Math.floor(x.length / 2)] : 0; };
     return { n: raws.length, raw: med(raws) / FPS * 1000, cor: med(cors) / FPS * 1000,
+             lagMed: med(lags) / FPS * 1000,
              lag: (Audio.audibleLag ? Audio.audibleLag() : 0) * 1000,
              hasApi: typeof Audio.audiblePosition === 'function' };
   });
@@ -95,17 +105,17 @@ function server() {
      'ms (the chip reports ~9 times a second, so ~107ms is the floor)');
   ok(Math.abs(r.cor) <= Math.abs(r.raw) + 40,
      'and is never worse than the raw clock (' + r.cor.toFixed(0) + 'ms vs ' + r.raw.toFixed(0) + 'ms)');
-  // RELATIVE AS WELL AS ABSOLUTE, because the quantity being compared is not a
-  // fixed size. The deck can run anywhere from 20ms to over 1000ms ahead of the
-  // chip, and `lag` and `raw` are sampled at different instants, so the skew
-  // between them scales with the magnitude. A flat 160ms held fine at 200ms and
-  // failed at 912ms with a 197ms difference -- 21%, which is sampling drift on a
-  // busy machine rather than a correction that has stopped tracking. This gate
-  // has now failed three full-suite runs on load alone, which is how a real gate
-  // gets a reputation it does not deserve.
-  var tol = Math.max(160, Math.abs(r.raw) * 0.25);
-  ok(Math.abs(r.lag - r.raw) < tol,
-     'the correction it applied matches what was measured (' + r.lag.toFixed(0) + 'ms vs ' +
+  // ⚠️ COMPARE TWO MEDIANS OVER THE SAME WINDOW. This compared a single
+  // instantaneous `lag`, read after the loop, against a median of `raw` taken
+  // across it -- two samples of a moving quantity, from different moments. The
+  // tolerance was widened twice to cover the gap and the gate still failed a
+  // fourth full-suite run on load, at 418 against 642. The tolerance was never
+  // the problem. Both sides are medians over the same window now, and the
+  // allowance can go back to something that would actually catch a correction
+  // that had stopped tracking.
+  var tol = Math.max(120, Math.abs(r.raw) * 0.20);
+  ok(Math.abs(r.lagMed - r.raw) < tol,
+     'the correction it applied matches what was measured (' + r.lagMed.toFixed(0) + 'ms vs ' +
      r.raw.toFixed(0) + 'ms, tolerance ' + tol.toFixed(0) + 'ms)');
   ok(!errs.length, 'no page errors' + (errs.length ? ' -- ' + errs[0] : ''));
 
