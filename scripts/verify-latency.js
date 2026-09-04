@@ -118,8 +118,20 @@ function server() {
   }
   ok(presses.every(n => n === 1),
      'one press of Next starts exactly one track (' + presses.join(', ') + ')');
-  ok(await p.evaluate(() => window.__plays.every(x => Math.abs(x.lead - 0.18) < 1e-6)),
-     'and the chip is still told the scheduler\'s 180ms lead, not the corrected one');
+  // ⚠️ NOT `=== 0.18`. The lead is computed as `origin - currentTime` from two
+  // separate clock reads, so it arrives as 0.17999999999999972; and when a track
+  // ends NATURALLY during the test the next deck opens with whatever is left of
+  // its lead, which is a smaller number and perfectly correct. Pinning the value
+  // failed on a legitimate track change.
+  //
+  // What this guards against is the chip being handed the SYNC-CORRECTED
+  // playhead instead of the scheduler's lead -- which is hundreds of
+  // milliseconds, not a rounding difference. A ceiling catches that and nothing
+  // else.
+  const leads = await p.evaluate(() => window.__plays.map(x => x.lead));
+  ok(leads.every(x => x >= 0 && x <= 0.185),
+     'and the chip is still told the scheduler\'s lead, not the corrected playhead (' +
+     leads.map(x => Math.round(x * 1000) + 'ms').join(', ') + ')');
 
   ok(errs.length === 0, 'no page errors' + (errs.length ? ': ' + errs[0] : ''));
   await b.close(); h.s.close();

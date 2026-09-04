@@ -230,7 +230,14 @@ console.log('read back by liblsdj itself');
     ok(num('phrases') === out.phrases, 'the same phrase count (' + num('phrases') + ')');
     ok(num('chains') === out.chains, 'the same chain count (' + num('chains') + ')');
     ok(num('notes') === out.notes, 'the same note count (' + num('notes') + ')');
-    ok(num('instruments') === 4, 'and four instruments, one per channel (' + num('instruments') + ')');
+    // ONE PER VOICE, not one per channel. This said four, because the export
+    // used to write a stock blank per channel and leave the voicing to the
+    // person receiving it. It writes real instruments now -- a stamp is a duty
+    // crossed with an envelope, and so is a drum -- which is what an LSDj
+    // musician would do by hand, and is also the only thing in the file that can
+    // tell a kick from a hat when they come back.
+    ok(num('instruments') >= 4 && num('instruments') <= 64,
+       'and one instrument per voice it uses, inside LSDj\'s 64 (' + num('instruments') + ')');
     ok(/name=BATTLE/.test(report), 'under the name we gave it');
   }
 }

@@ -9152,10 +9152,37 @@ const Radio=(()=>{
     if (octaves) warn.push('transposed up ' + octaves + ' octave' + (octaves > 1 ? 's' : '') +
                            ' so the low notes fit LSDj\'s range; transpose it back down if you want');
 
+    // ---- one instrument per voice the song uses ----------------------------
+    // A stamp IS an instrument -- a duty crossed with an envelope character --
+    // and so is a drum. Giving each its own slot is both what an LSDj musician
+    // would do and what makes the song survive a round trip: with one shared
+    // noise instrument, a kick and a hat come back indistinguishable.
+    var DUTY_INDEX = { 0.125: 0, 0.25: 1, 0.5: 2, 0.75: 3 };
+    var STAMP_DUTY = { piano: 0.5, trumpet: 0.25, flute: 0.5, bell: 0.125 };
+    var instruments = [], instOf = {};
+    // WHICH DRUM lives in the cell's ROW, not in a field: the editor stacks the
+    // drum lanes under the melodic ones, so row - melodicRows is the index into
+    // the drum list. Reading it is what lets a kick come back as a kick.
+    var DRUM_IDS = (CT_CREATE.tables && CT_CREATE.tables().drums) || ['hat', 'snare', 'kick'];
+    function instrumentFor(x, lane) {
+      var isDrum = lane === 3;
+      var drum = isDrum ? (DRUM_IDS[(x.r | 0) - melRows] || 'kick') : null;
+      var id = isDrum ? ('drum:' + drum) : (lane + ':' + (x.st || 'piano'));
+      if (instOf[id] != null) return instOf[id];
+      if (instruments.length >= MAX_INSTRUMENTS) return lane;      // fall back to the lane
+      var vol = Math.max(1, Math.min(15, Math.round((x.vel != null ? x.vel : 0.8) * 15)));
+      var type = isDrum ? INST_TYPE.NOISE : lane === 2 ? INST_TYPE.WAVE : INST_TYPE.PULSE;
+      var duty = DUTY_INDEX[STAMP_DUTY[x.st]] != null ? DUTY_INDEX[STAMP_DUTY[x.st]] : 2;
+      var name = String(id.replace(/^\d+:|^drum:/, '')).toUpperCase().slice(0, 5);
+      instOf[id] = instruments.length;
+      instruments.push({ type: type, vol: vol, duty: duty, name: name });
+      return instOf[id];
+    }
+
     var outOfRange = 0, dropped = 0;
     st.cells.forEach(function (x) {
       var lane = laneOfCell(x, melRows), step = x.c | 0;
-      var slot = { note: NO_NOTE, cmd: CMD.NONE, val: 0 };
+      var slot = { note: NO_NOTE, cmd: CMD.NONE, val: 0, inst: instrumentFor(x, lane) };
       if (lane === 3) {
         // Drums land on the noise channel: a .sav cannot carry the samples our
         // kits are made of, because in LSDj those live in the ROM.
@@ -9193,8 +9220,11 @@ const Radio=(()=>{
           slots.push(s);
         }
         if (!any) { chainsOf[ch].push(NO_PHRASE); continue; }
+        // THE INSTRUMENT IS PART OF THE PHRASE. Leaving it out of the key merges
+        // two bars that play the same notes on different voices into one phrase,
+        // and the second one silently changes instrument.
         var key = slots.map(function (s2) {
-          return s2 ? s2.note + ':' + s2.cmd + ':' + s2.val : '-';
+          return s2 ? s2.note + ':' + s2.cmd + ':' + s2.val + ':' + s2.inst : '-';
         }).join(',');
         if (byKey[key] == null) {
           if (phrases.length >= MAX_PHRASES) { chainsOf[ch].push(NO_PHRASE); continue; }
@@ -9227,7 +9257,7 @@ const Radio=(()=>{
       for (var k = 0; k < PHRASE_STEPS; k++) {
         var sl = phrases[i].slots[k];
         song[O.PHRASE_NOTES + base + k] = sl ? sl.note : NO_NOTE;
-        song[O.PHRASE_INSTRUMENTS + base + k] = sl ? phrases[i].ch : NO_INSTRUMENT;
+        song[O.PHRASE_INSTRUMENTS + base + k] = sl ? (sl.inst != null ? sl.inst : phrases[i].ch) : NO_INSTRUMENT;
         song[O.PHRASE_COMMANDS + base + k] = sl ? sl.cmd : CMD.NONE;
         song[O.PHRASE_COMMAND_VALUES + base + k] = sl ? sl.val : 0;
       }
@@ -9245,22 +9275,40 @@ const Radio=(()=>{
       for (ch = 0; ch < 4; ch++)
         song[O.SEQUENCE + r * 4 + ch] = seq[ch][r] == null ? NO_CHAIN : seq[ch][r];
 
-    // ONE INSTRUMENT PER CHANNEL, of the right type and otherwise stock. See the
-    // note at the top: a half-right translation of our DMG registers would be
-    // worse for the person receiving this than an honest blank they can voice.
-    var types = [INST_TYPE.PULSE, INST_TYPE.PULSE, INST_TYPE.WAVE, INST_TYPE.NOISE];
-    var names = ['MELODY', 'HARMONY', 'BASS', 'DRUMS'];
-    for (i = 0; i < 4; i++) {
-      for (var b2 = 0; b2 < 16; b2++)
-        song[O.INSTRUMENT_PARAMS + i * 16 + b2] = DEFAULT_INSTRUMENT[b2];
-      song[O.INSTRUMENT_PARAMS + i * 16] = types[i];
+    // ONE INSTRUMENT PER VOICE THE SONG ACTUALLY USES, carrying our own duty and
+    // volume rather than a stock blank.
+    //
+    // The byte layout is MEASURED, not looked up -- vary one byte of instrument
+    // 0, play one note, read the APU, and whatever moves is what that byte
+    // means (scripts/verify-lsdj-emulator.js keeps it honest):
+    //
+    //   byte 0   type: 0 pulse, 1 wave, 2 kit, 3 noise
+    //   byte 1   high nibble is VOLUME -> NR12 as volume<<4 | 8
+    //   byte 3   length
+    //   byte 4   sweep, channel 1 only -> NR10
+    //   byte 7   bits 6-7 DUTY -> NR11; bits 0-1 pan -> NR51 (3 is both sides)
+    //   byte 11  transpose / finetune -> NR13, NR14
+    //
+    // ⚠️ LSDJ'S ENVELOPE IS SOFTWARE. It writes NR12 repeatedly as a note plays
+    // rather than setting the hardware pace once, so byte 1's low nibble is
+    // LSDj's own envelope shape and not a DMG field. We write a plain sustain
+    // there; matching its shapes means reproducing its stepping, which is not
+    // done and is the honest edge of sound parity today.
+    for (i = 0; i < instruments.length && i < MAX_INSTRUMENTS; i++) {
+      var inst = instruments[i], at = O.INSTRUMENT_PARAMS + i * 16;
+      for (var b2 = 0; b2 < 16; b2++) song[at + b2] = DEFAULT_INSTRUMENT[b2];
+      song[at] = inst.type;
+      song[at + 1] = (Math.max(0, Math.min(15, inst.vol)) << 4);
+      if (inst.type === INST_TYPE.PULSE) song[at + 7] = (inst.duty << 6) | 0x03;
+      else song[at + 7] = (song[at + 7] & 0xFC) | 0x03;
       song[O.INSTRUMENT_ALLOC + i] = 1;
       for (var nm = 0; nm < 5; nm++) {
-        var chr = names[i].charCodeAt(nm);
+        var chr = inst.name.charCodeAt(nm);
         song[O.INSTRUMENT_NAMES + i * 5 + nm] = chr ? chr : 0;
       }
     }
-    warn.push('instruments are stock LSDj defaults, one per channel, for you to voice');
+    warn.push('instruments carry the duty and volume this song plays; LSDj\'s own ' +
+              'envelope shapes are left plain, so voicing is still yours to finish');
     warn.push('drums are on the noise channel: a .sav cannot carry kit samples, which live in the ROM');
 
     // ---- tempo and groove --------------------------------------------------
@@ -9525,32 +9573,44 @@ const Radio=(()=>{
   // An LSDj song as the plain JSON our own editor speaks. This is the whole
   // import: walk the sequence the way LSDj walks it, and write down what sounds.
   //
-  // ⚠️ WHAT CANNOT COME BACK, said here rather than discovered by ear:
-  //   * WHICH DRUM. Every drum leaves on the noise channel as the same note,
-  //     because a .sav cannot carry kit samples -- they live in the ROM. So a
-  //     kick and a hat are the same byte coming back, and import cannot tell
-  //     them apart. Kit instruments fix this and are the next piece of work.
-  //   * NOTE LENGTH, which LSDj does not store at all: a note runs until the
-  //     next one or a KILL command, so length is reconstructed as the gap.
+  // WHICH DRUM comes back from the INSTRUMENT, not the note. Every drum sounds
+  // on the noise channel as the same pitch -- a .sav carries no kit samples,
+  // they live in the ROM -- so the note byte cannot tell a kick from a hat. The
+  // instrument slot can, because each drum is written to its own, which is also
+  // what an LSDj musician would do by hand.
+  //
+  // ⚠️ NOTE LENGTH still cannot come back, and never will: LSDj does not store
+  // one. A note runs until the next note or a KILL command, so length is
+  // reconstructed as the gap to the next note on that channel.
+  function instrumentName(m, slot) {
+    if (slot == null || slot === NO_INSTRUMENT || !m.instrumentNames[slot]) return '';
+    var s = '';
+    for (var i = 0; i < 5; i++) { var c = m.instrumentNames[slot][i]; if (c) s += String.fromCharCode(c); }
+    return s.toLowerCase();
+  }
   function toSongJSON(m, opts) {
     opts = opts || {};
     var warn = [], notes = [], ch, i;
     var ticks = [], t;
     for (t = 0; t < 16 && m.grooves[0][t]; t++) ticks.push(m.grooves[0][t]);
     if (!ticks.length) ticks = [6];
-    var lastRow = 0, sawDrums = false;
+    var known = { hat: 1, snare: 1, kick: 1 };
+    var lastRow = 0, unnamedDrums = 0;
     for (ch = 0; ch < 4; ch++) {
       var played = playedNotes(m, ch);
       for (i = 0; i < played.length; i++) {
         var n = played[i], next = played[i + 1];
         var len = next ? Math.max(1, Math.min(16, next.row - n.row)) : 1;
         if (n.row > lastRow) lastRow = n.row;
-        if (ch === 3) { sawDrums = true; notes.push({ lane: 'Drums', step: n.row, drum: 'kick', len: 1 }); }
-        else notes.push({ lane: LANES[ch], step: n.row, note: noteName(n.midi), len: len });
+        if (ch === 3) {
+          var nm2 = instrumentName(m, n.instrument);
+          if (!known[nm2]) { unnamedDrums++; nm2 = 'kick'; }
+          notes.push({ lane: 'Drums', step: n.row, drum: nm2, len: 1 });
+        } else notes.push({ lane: LANES[ch], step: n.row, note: noteName(n.midi), len: len });
       }
     }
-    if (sawDrums) warn.push('every drum came back as a kick: a .sav carries no kit samples, ' +
-                            'so the noise channel cannot say which drum it was');
+    if (unnamedDrums) warn.push(unnamedDrums + ' drums came back as kicks: their instrument was ' +
+                                'not one this app names, and the noise channel cannot say which drum it was');
     notes.sort(function (a, b) { return a.step - b.step; });
     return {
       json: {

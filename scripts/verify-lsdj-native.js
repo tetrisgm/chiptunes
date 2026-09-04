@@ -207,6 +207,20 @@ Object.keys(IMAGES).forEach(name => {
   const cart = api.fromLsdsng(api.toLsdjSav([doc]).bytes);
   ok(cart.notes === back.notes && cart.bpm === back.bpm,
      'a whole .sav imports the same way a .lsdsng does (' + cart.notes + ' notes)');
+
+  // AND WHICH DRUM IT WAS. Every drum sounds on the noise channel as the same
+  // pitch, because a .sav carries no kit samples -- they live in the ROM -- so
+  // for a while a kick and a hat came back indistinguishable. Each drum gets its
+  // own instrument slot now, which is both what an LSDj musician does by hand
+  // and the only thing in the file that can still tell them apart.
+  const dj = { title: 'Kit', grid: 16, bpm: 128, bars: 2, notes: [] };
+  ['kick', 'hat', 'snare', 'hat', 'kick', 'hat', 'snare', 'hat']
+    .forEach((d, i) => dj.notes.push({ lane: 'Drums', step: i * 4, drum: d }));
+  for (let s = 0; s < 8; s++) dj.notes.push({ lane: 'Melody', step: s * 4, note: nm(60 + s), len: 2 });
+  const dBack = api.fromLsdsng(api.toLsdsng(api.fromJSON(dj)).bytes);
+  const sentD = dj.notes.filter(x => x.drum).map(x => x.step + ':' + x.drum).join(' ');
+  const gotD = api.toJSON(dBack.doc).notes.filter(x => x.drum).map(x => x.step + ':' + x.drum).join(' ');
+  ok(sentD === gotD, 'and a kick comes back a kick, a hat a hat (' + gotD + ')');
 }
 
 // How much of a song we UNDERSTAND rather than carry verbatim. A ratchet the
