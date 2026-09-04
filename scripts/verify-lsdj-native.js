@@ -122,5 +122,48 @@ ok(maxVolPerCh <= 24,
   'distinct note volumes on one channel: ' + maxVolPerCh + ' (ceiling 24; LSDj ' +
   'keeps volume in the INSTRUMENT, so each one is a slot or a command)');
 
+// ---- THE FORMAT ITSELF, both directions -----------------------------------
+// Parity is a round trip, not an export. These check the codec and the model on
+// data chosen to break them, because the only thing ever round-tripped through
+// here before was the EMPTY SONG -- which compresses to under one block and so
+// never took a block jump. The reader jumped to `a * 512` instead of
+// (a-1) * 512 and silently lost 512 bytes at every boundary; a real song is
+// five blocks, so it was wrong on everything anyone would actually export.
+console.log('');
+const L = require(path.join(ROOT, 'src', 'lsdj.js'));
+
+const rnd = s => { let a = s; return () => { a = (a * 1103515245 + 12345) & 0x7fffffff; return (a >>> 16) & 0xff; }; };
+const DEF_WAVE = [0x8E, 0xCD, 0xCC, 0xBB, 0xAA, 0xA9, 0x99, 0x88, 0x87, 0x76, 0x66, 0x55, 0x54, 0x43, 0x32, 0x31];
+const IMAGES = {
+  'the empty song': () => L.emptySong(),
+  'random bytes': () => { const r = rnd(7), b = new Uint8Array(L.SONG_BYTES); for (let i = 0; i < b.length; i++) b[i] = r(); return b; },
+  // 0xC0 and 0xE0 are the two escapes, so a buffer made of them is the worst
+  // case for the encoder and the one that first exposed the block bug.
+  'nothing but escapes': () => { const b = new Uint8Array(L.SONG_BYTES); for (let i = 0; i < b.length; i++) b[i] = [0xC0, 0xE0, 0xFF, 0x00][i & 3]; return b; },
+  'long runs': () => { const b = new Uint8Array(L.SONG_BYTES); for (let i = 0; i < b.length; i++) b[i] = (i >> 5) & 0xff; return b; },
+  'the default wave, repeated': () => { const b = new Uint8Array(L.SONG_BYTES); for (let i = 0; i < b.length; i++) b[i] = DEF_WAVE[i & 15]; return b; }
+};
+const firstDiff = (a, b) => { for (let i = 0; i < L.SONG_BYTES; i++) if (a[i] !== b[i]) return i; return -1; };
+
+Object.keys(IMAGES).forEach(name => {
+  const img = IMAGES[name]();
+  const codec = firstDiff(img, L.decompress(L.compress(img, 1)));
+  ok(codec < 0, 'compress then decompress returns ' + name + ' unchanged' +
+    (codec < 0 ? '' : ' (first difference at 0x' + codec.toString(16) + ')'));
+  // The whole chain a real import takes: bytes off disk, into the model, back
+  // out. If this is exact then nothing an LSDj song carries is lost by passing
+  // through us, whether we understand the field or merely keep it.
+  const chain = firstDiff(img, L.writeSong(L.readSong(L.decompress(L.compress(img, 1)))));
+  ok(chain < 0, 'and survives the model round trip: ' + name +
+    (chain < 0 ? '' : ' (first difference at 0x' + chain.toString(16) + ')'));
+});
+
+// How much of a song we UNDERSTAND rather than carry verbatim. A ratchet the
+// other way up: this may rise and must not fall.
+const cov = L.coverage();
+ok(cov.percent >= 71.5,
+  'the field map understands ' + cov.bytes + ' of ' + cov.total + ' song bytes (' +
+  cov.percent.toFixed(1) + '%, floor 71.5); the rest round-trips verbatim');
+
 console.log('\nverify-lsdj-native: ' + (fail ? fail + ' FAILED' : 'the distance from LSDj is not growing'));
 process.exit(fail ? 1 : 0);

@@ -12,6 +12,12 @@
 (function (G) {
   'use strict';
 
+  // The groove maths lives in gb-hardware, and this file reads it at load time,
+  // so under Node it has to be pulled in HERE rather than left to whichever
+  // gate happened to require it first. It always was ordered that way by luck;
+  // the luck ran out the moment anything required create.js on its own.
+  if (typeof module !== 'undefined' && module.exports && !G.CT_GB) require('./gb-hardware.js');
+
   var FPS = 59.7275;
   var FRAME_CYCLES = 70224;               // master cycles in one LCD frame
   var MAJOR = [0, 2, 4, 5, 7, 9, 11];

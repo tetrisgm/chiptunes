@@ -2685,6 +2685,12 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
 (function (G) {
   'use strict';
 
+  // The groove maths lives in gb-hardware, and this file reads it at load time,
+  // so under Node it has to be pulled in HERE rather than left to whichever
+  // gate happened to require it first. It always was ordered that way by luck;
+  // the luck ran out the moment anything required create.js on its own.
+  if (typeof module !== 'undefined' && module.exports && !G.CT_GB) require('./gb-hardware.js');
+
   var FPS = 59.7275;
   var FRAME_CYCLES = 70224;               // master cycles in one LCD frame
   var MAJOR = [0, 2, 4, 5, 7, 9, 11];
@@ -8933,8 +8939,18 @@ const Radio=(()=>{
     if (size > 0) { size += 2; while (size < BLOCK) { out.push(0); size++; } }
     return Uint8Array.from(out);
   }
-  function decompress(bytes) {
-    var out = [], i = 0, j;
+  // ⚠️ BLOCKS ARE NUMBERED FROM 1, so block N begins at (N - base) * 512 in this
+  // buffer -- the same off-by-one the .sav block table has. This read `a * BLOCK`
+  // and so landed one whole block past every jump. It went unnoticed because the
+  // only thing ever round-tripped through here was the empty song, which
+  // compresses to well under 512 bytes and therefore never jumps at all. On
+  // anything with real note data the codec silently lost 512 bytes per block.
+  //
+  // `base` is the block number this buffer STARTS at: 1 for a bare song, and
+  // the project's first block inside a .sav, where jumps are absolute.
+  function decompress(bytes, base) {
+    base = base == null ? 1 : base;
+    var out = [], i = 0, j, k;
     while (i < bytes.length && out.length < SONG_BYTES) {
       var b = bytes[i++];
       if (b === RLE) {
@@ -8944,10 +8960,10 @@ const Radio=(()=>{
       } else if (b === SA) {
         var a = bytes[i++];
         if (a === SA) out.push(SA);
-        else if (a === DEF_WAVE) { var wc = bytes[i++]; for (j = 0; j < wc; j++) out = out.concat(DEFAULT_WAVE); }
-        else if (a === DEF_INST) { var ic = bytes[i++]; for (j = 0; j < ic; j++) out = out.concat(DEFAULT_INSTRUMENT); }
+        else if (a === DEF_WAVE) { var wc = bytes[i++]; for (j = 0; j < wc; j++) for (k = 0; k < 16; k++) out.push(DEFAULT_WAVE[k]); }
+        else if (a === DEF_INST) { var ic = bytes[i++]; for (j = 0; j < ic; j++) for (k = 0; k < 16; k++) out.push(DEFAULT_INSTRUMENT[k]); }
         else if (a === EOF_BLOCK) break;
-        else i = a * BLOCK;                    // jump to the next block
+        else i = (a - base) * BLOCK;           // jump to that block, 1-based
       } else out.push(b);
     }
     var song = new Uint8Array(SONG_BYTES);
@@ -9239,12 +9255,81 @@ const Radio=(()=>{
              titles: built.map(function (b2) { return b2.title; }) };
   }
 
+  /* ------------------------------------------------------- reading a song --- */
+  // THE SONG IMAGE, UNDERSTOOD RATHER THAN COPIED.
+  //
+  // Export alone never needed this: `fromDocument` starts from the empty song
+  // and writes fields into it. Import does, and so does the claim that we can
+  // hold everything LSDj can -- which is only true if a song LSDj wrote survives
+  // being read into our model and written back out UNCHANGED, byte for byte.
+  //
+  // The map below is the part we UNDERSTAND. Everything outside it is carried in
+  // `raw` verbatim, so a round trip is exact from the first day rather than once
+  // the last field is done. `coverage()` says how much is understood, and that
+  // number is the honest measure of how much of LSDj we actually model. It is
+  // meant to go up; the round trip is exact either way.
+  var FIELDS = [
+    { k: 'phraseNotes',       at: O.PHRASE_NOTES,          n: 255, w: 16 },
+    { k: 'grooves',           at: O.GROOVES,               n: 32,  w: 16 },
+    { k: 'sequence',          at: O.SEQUENCE,              n: 4,   w: 256 },
+    { k: 'instrumentNames',   at: O.INSTRUMENT_NAMES,      n: 64,  w: 5 },
+    { k: 'tableAlloc',        at: O.TABLE_ALLOC,           n: 1,   w: 32 },
+    { k: 'instrumentAlloc',   at: O.INSTRUMENT_ALLOC,      n: 1,   w: 64 },
+    { k: 'chainPhrases',      at: O.CHAIN_PHRASES,         n: 128, w: 16 },
+    { k: 'chainTranspose',    at: O.CHAIN_TRANSPOSE,       n: 128, w: 16 },
+    { k: 'instrumentParams',  at: O.INSTRUMENT_PARAMS,     n: 64,  w: 16 },
+    { k: 'phraseAlloc',       at: O.PHRASE_ALLOC,          n: 1,   w: 32 },
+    { k: 'chainAlloc',        at: O.CHAIN_ALLOC,           n: 1,   w: 16 },
+    { k: 'tempo',             at: O.TEMPO,                 n: 1,   w: 1 },
+    { k: 'transpose',         at: O.TRANSPOSE,             n: 1,   w: 1 },
+    { k: 'phraseCommands',    at: O.PHRASE_COMMANDS,       n: 255, w: 16 },
+    { k: 'phraseCommandVals', at: O.PHRASE_COMMAND_VALUES, n: 255, w: 16 },
+    { k: 'phraseInstruments', at: O.PHRASE_INSTRUMENTS,    n: 255, w: 16 },
+    { k: 'formatVersion',     at: O.FORMAT_VERSION,        n: 1,   w: 1 }
+  ];
+
+  function readSong(song) {
+    if (!song || song.length < SONG_BYTES) throw new Error('lsdj: not a song image');
+    var m = { raw: Uint8Array.from(song.subarray(0, SONG_BYTES)) }, i, j, f;
+    for (i = 0; i < FIELDS.length; i++) {
+      f = FIELDS[i];
+      if (f.n === 1 && f.w === 1) { m[f.k] = song[f.at]; continue; }
+      var rows = [];
+      for (j = 0; j < f.n; j++) rows.push(Uint8Array.from(song.subarray(f.at + j * f.w, f.at + (j + 1) * f.w)));
+      m[f.k] = f.n === 1 ? rows[0] : rows;
+    }
+    return m;
+  }
+
+  function writeSong(m) {
+    // Start from the bytes we were given, so anything the map does not name
+    // survives untouched. A field we DO understand is written back from the
+    // model, which is what makes an edit to the model actually take effect.
+    var song = Uint8Array.from(m.raw || emptySong()), i, j, f, v;
+    for (i = 0; i < FIELDS.length; i++) {
+      f = FIELDS[i]; v = m[f.k];
+      if (v == null) continue;
+      if (f.n === 1 && f.w === 1) { song[f.at] = v & 0xFF; continue; }
+      var rows = f.n === 1 ? [v] : v;
+      for (j = 0; j < rows.length && j < f.n; j++) song.set(rows[j].subarray(0, f.w), f.at + j * f.w);
+    }
+    return song;
+  }
+
+  // How much of a song image the map above accounts for, as bytes and percent.
+  function coverage() {
+    var seen = 0, i, f;
+    for (i = 0; i < FIELDS.length; i++) { f = FIELDS[i]; seen += f.n * f.w; }
+    return { bytes: seen, total: SONG_BYTES, percent: 100 * seen / SONG_BYTES };
+  }
+
   var API = {
     SONG_BYTES: SONG_BYTES, SAV_SIZE: SAV_SIZE, SAV_PROJECTS: SAV_PROJECTS,
-    OFFSETS: O, COMMANDS: CMD, sav: sav,
+    OFFSETS: O, COMMANDS: CMD, sav: sav, FIELDS: FIELDS,
     NOTE_BASE: NOTE_BASE.slice(), NOTE_MAX: NOTE_MAX, PHRASE_STEPS: PHRASE_STEPS,
     compress: compress, decompress: decompress, emptySong: emptySong,
-    fromDocument: fromDocument, lsdsng: lsdsng
+    fromDocument: fromDocument, lsdsng: lsdsng,
+    readSong: readSong, writeSong: writeSong, coverage: coverage
   };
   G.CT_LSDJ = API;
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
