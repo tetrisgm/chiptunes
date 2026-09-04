@@ -757,6 +757,22 @@
     { k: 'phraseCommands',    at: O.PHRASE_COMMANDS,       n: 255, w: 16 },
     { k: 'phraseCommandVals', at: O.PHRASE_COMMAND_VALUES, n: 255, w: 16 },
     { k: 'waves',             at: O.WAVES,                 n: 256, w: 16 },
+    // TABLES: five 512-byte regions, 32 tables of 16 rows each, found by
+    // probing rather than by reading a header. What is measured so far:
+    //   * INSTRUMENT BYTE 6 = 0x20 turns a table on. The default is 0x03 and
+    //     nothing runs; with 0x20 a held note starts moving.
+    //   * The data is in 0x3480..0x3E80 and nowhere else -- filling every other
+    //     unmapped gap in the song changes nothing.
+    //   * Regions 3 and 4 (0x3A80 and 0x3C80) are the command/value pair: a
+    //     table runs with those two alone and with no other combination.
+    // ⚠️ NOTHING PLAYS THESE YET. They are named so they are addressable and so
+    // the coverage number stops flattering us; `toSongJSON` warns when an
+    // imported song uses one.
+    { k: 'tables0',           at: 0x3480,                  n: 32,  w: 16 },
+    { k: 'tables1',           at: 0x3680,                  n: 32,  w: 16 },
+    { k: 'tables2',           at: 0x3880,                  n: 32,  w: 16 },
+    { k: 'tableCommands',     at: 0x3A80,                  n: 32,  w: 16 },
+    { k: 'tableValues',       at: 0x3C80,                  n: 32,  w: 16 },
     { k: 'phraseInstruments', at: O.PHRASE_INSTRUMENTS,    n: 255, w: 16 },
     { k: 'formatVersion',     at: O.FORMAT_VERSION,        n: 1,   w: 1 }
   ];

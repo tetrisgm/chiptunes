@@ -335,9 +335,9 @@ Object.keys(IMAGES).forEach(name => {
 // How much of a song we UNDERSTAND rather than carry verbatim. A ratchet the
 // other way up: this may rise and must not fall.
 const cov = L.coverage();
-ok(cov.percent >= 84.0,
+ok(cov.percent >= 91.8,
   'the field map understands ' + cov.bytes + ' of ' + cov.total + ' song bytes (' +
-  cov.percent.toFixed(1) + '%, floor 84.0); the rest round-trips verbatim');
+  cov.percent.toFixed(1) + '%, floor 91.8); the rest round-trips verbatim');
 
 console.log('\nverify-lsdj-native: ' + (fail ? fail + ' FAILED' : 'the distance from LSDj is not growing'));
 process.exit(fail ? 1 : 0);

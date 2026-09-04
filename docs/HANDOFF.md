@@ -3327,3 +3327,42 @@ the loudness, and the gesture. All of it verified against the real ROM in mGBA.
   Nothing here writes or reads one, so importing a foreign song that uses them
   loses the modulation.
 - **Row-by-row frame pattern**, within one frame. Averages agree to 0.01%.
+
+
+## Tables: located, not yet played (2026-09-04)
+
+Found by probing the running ROM, not by reading a header:
+
+- **Instrument byte 6 = 0x20 turns a table on.** The default is 0x03 and nothing
+  runs; with 0x20 a held note starts moving in pitch.
+- **The data is in 0x3480..0x3E80**, five 512-byte regions of 32 tables x 16
+  rows. Filling every OTHER unmapped gap in the song changes nothing.
+- **Regions 3 and 4 (0x3A80, 0x3C80) are the command/value pair.** A table runs
+  with those two and with no other pairing.
+
+Named in the field map now, which took coverage 84.0% -> 91.9% and leaves the
+round trip exact. `toSongJSON` warns when an imported song uses one.
+
+⚠️ **NOTHING PLAYS THEM.** A table is a per-tick modulation sequence and our
+renderer has no such loop. Our own songs never use one, so export is unaffected;
+what is affected is importing a song somebody else wrote with tables in it --
+the notes arrive and the modulation does not. That is the one remaining gap, and
+the starting point above is precise.
+
+## The other two gaps are closed
+
+**The envelope** carries on import. Byte 1's low nibble is a hold in FRAMES --
+measured 0 sustains, 1..f hold 1,1,1,1,1,2,2,3,4,5,6,8,11,15,20 -- and reading it
+as a note length (which our document already speaks) makes a shape-9 instrument a
+1-row note at 128bpm instead of one sustaining to the next note.
+
+**The clock** puts the spare frames where LSDj puts them. The physical constant
+15 x FPS = 895.9125 with a ceil disagreed on up to 20% of rows; fitting the real
+thing over eight tempi and a hundred gaps each gives
+
+    row k starts at round(k * 895.88 / TEMPO)
+
+and a fresh trace matches **320 of 320 row gaps across four tempi, all four
+exact**. The averages were always right -- this is about the ORDER of the spare
+frames, which is what makes two players sound identical rather than merely equal
+in tempo.
