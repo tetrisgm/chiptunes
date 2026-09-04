@@ -323,13 +323,26 @@ Object.keys(IMAGES).forEach(name => {
   ok(own.warnings.length === 0,
      'importing our own song warns about nothing (' + JSON.stringify(own.warnings) + ')');
 
+  // A TABLE THAT MOVES THE PITCH IS AN ARPEGGIO, and that our document can say.
+  // Measured: instrument byte 6 = 0x20 | index turns one on, the transposes are
+  // at 0x3480 + table*16 + row, and a row runs every TICK -- six to a row --
+  // looping through all sixteen.
   const img = L.readSong(L.parseLsdsng(api.toLsdsng(api.fromJSON(mj)).bytes).song);
-  img.tableAlloc[0] = 1; img.tableAlloc[1] = 1;
+  img.instrumentParams[0][6] = 0x20;
+  [0, 4, 7, 12, 0, 4, 7, 12].forEach((v, i) => { img.tables0[0][i] = v; });
   img.phraseCommands[0][0] = L.COMMANDS.H;          // one we do not play
   const foreign = L.toSongJSON(L.readSong(L.writeSong(img)), { name: 'Foreign' });
   ok(foreign.warnings.some(w => /table/.test(w)) && foreign.warnings.some(w => /command/.test(w)),
      'and a foreign song says what it uses that we do not play (' +
      foreign.warnings.length + ' warnings)');
+  // ⚠️ AN APPROXIMATION, and the warning has to say so. A table does far more
+  // than an arpeggio, and ours runs at the renderer's rate rather than the
+  // table's. Silently keeping the notes and dropping the movement would be the
+  // worse failure -- every note arrives and the song is still wrong.
+  ok(foreign.json.notes.filter(n => n.note).some(n => n.motion === 'arp') &&
+     foreign.warnings.some(w => /character survives/.test(w)),
+     'and a pitch-moving table arrives as the arpeggio it sounds like, said to be ' +
+     'an approximation rather than passed off as the table');
 }
 
 // How much of a song we UNDERSTAND rather than carry verbatim. A ratchet the

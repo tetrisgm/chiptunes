@@ -9798,6 +9798,19 @@ const Radio=(()=>{
     return out;
   }
 
+  // The table an instrument runs, or null. Byte 6 is 0x20 | index when a table
+  // is on and 0x03 by default; only a table whose transposes actually MOVE is
+  // worth reporting, because an all-zero table sounds like no table at all.
+  function tableOf(m, slot) {
+    if (slot == null || slot === NO_INSTRUMENT) return null;
+    var p = m.instrumentParams[slot];
+    if (!p || (p[6] & 0xE0) !== 0x20) return null;
+    var idx = p[6] & 0x1F, rows = m.tables0[idx], i;
+    if (!rows) return null;
+    for (i = 0; i < 16; i++) if (rows[i]) return idx;
+    return null;
+  }
+
   function instrumentName(m, slot) {
     if (slot == null || slot === NO_INSTRUMENT || !m.instrumentNames[slot]) return '';
     var s = '';
@@ -9856,6 +9869,16 @@ const Radio=(()=>{
           // it had just written.
           if (n.command === CMD.C) note.motion = 'arp';
           else if (n.command === CMD.R) note.motion = 'roll';
+          // A TABLE THAT MOVES THE PITCH IS AN ARPEGGIO, and that is a thing our
+          // document can say. Measured: instrument byte 6 = 0x20 | index turns
+          // one on, the transposes live at 0x3480 + table*16 + row, and a row
+          // runs every TICK -- six to a row -- looping through all sixteen.
+          //
+          // ⚠️ THIS IS AN APPROXIMATION AND THE WARNING SAYS SO. A table can do
+          // far more than an arpeggio, and ours runs at the renderer's own rate
+          // rather than the table's, because our document is ROW-based and a
+          // table is per-TICK. It gets the character; it does not get the table.
+          else if (tableOf(m, n.instrument) != null) note.motion = 'arp';
           // ...and a sweep is a fall or a rise, read off the instrument's NR10.
           // Bit 3 set means the frequency decreases, which is the pitch falling.
           else if (p && p[4]) note.motion = (p[4] & 0x08) ? 'fall' : 'rise';
@@ -9877,11 +9900,16 @@ const Radio=(()=>{
     // a song somebody else wrote, and it is exactly the case where staying
     // quiet would be worst: the notes would all arrive and the song would still
     // be wrong, with nothing saying why.
-    var tablesUsed = 0, ti;
-    for (ti = 0; ti < 32; ti++) if (m.tableAlloc[ti]) tablesUsed++;
-    if (tablesUsed) warn.push('this song uses ' + tablesUsed + ' LSDj table' +
-      (tablesUsed > 1 ? 's' : '') + ', and tables are not played here -- the notes arrive but ' +
-      'their per-tick transposes and commands do not');
+    var tablesUsed = {}, ti;
+    for (ch = 0; ch < 4; ch++) playedNotes(m, ch).forEach(function (n) {
+      var t = tableOf(m, n.instrument);
+      if (t != null) tablesUsed[t] = 1;
+    });
+    var tableCount = Object.keys(tablesUsed).length;
+    if (tableCount) warn.push(tableCount + ' LSDj table' + (tableCount > 1 ? 's' : '') +
+      ' came back as arpeggios. A table moves the pitch every TICK, six to a row, ' +
+      'and this document is row-based -- so the character survives and the table ' +
+      'itself does not');
     // Commands we do not act on, counted rather than silently dropped.
     var unknownCmds = {};
     for (ch = 0; ch < 4; ch++) playedNotes(m, ch).forEach(function (n) {

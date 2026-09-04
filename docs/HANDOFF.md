@@ -3343,11 +3343,29 @@ Found by probing the running ROM, not by reading a header:
 Named in the field map now, which took coverage 84.0% -> 91.9% and leaves the
 round trip exact. `toSongJSON` warns when an imported song uses one.
 
-⚠️ **NOTHING PLAYS THEM.** A table is a per-tick modulation sequence and our
-renderer has no such loop. Our own songs never use one, so export is unaffected;
-what is affected is importing a song somebody else wrote with tables in it --
-the notes arrive and the modulation does not. That is the one remaining gap, and
-the starting point above is precise.
+### The full table spec, measured
+
+```
+instrument byte 6 = 0x20 | index    turns table `index` on (default 0x03, off)
+transposes        0x3480 + table*16 + row      signed semitones
+one row per TICK  six to a row, looping through all sixteen
+```
+
+Verified: a table of [0,2,4,5,7,9,11,12] on a MIDI 72 note plays
+72,74,76,77,79,81,83,84 and loops, one step every 2.49 frames at tempo 60 --
+which is exactly a tick.
+
+**A pitch-moving table now imports as an ARPEGGIO**, which is a thing our
+document can say, and the warning states that it is an approximation. A table
+does more than an arpeggio, and ours runs at the renderer's rate rather than the
+table's.
+
+⚠️ **THE EXACT THING IS A DOCUMENT-FORMAT CHANGE, NOT A BUG.** A table moves the
+pitch every TICK and our document is ROW-based -- six ticks to a row -- so there
+is nowhere to put the intermediate steps. Carrying a table exactly means adding a
+per-note transpose sequence to the document, and teaching create.js and audio.js
+to run it. That is the one remaining piece, and it is a feature rather than a
+fix. Our own songs never use tables, so EXPORT is unaffected either way.
 
 ## The other two gaps are closed
 
