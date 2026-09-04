@@ -2918,3 +2918,101 @@ with no failing assertion; it has 180s now, because the assertion is that a face
 DRAWS. `verify-sync` compared two independently sampled latencies against a flat
 160ms, which cannot hold when the quantity ranges from 20ms to over 1000ms; the
 tolerance scales with the magnitude now.
+
+## LSDj is the model now, not the export format (2026-09-04)
+
+Owner, this day: *"I need our entire way of working to be entirely compatible
+and indistinguishable from LSDJ... if I export what I've made in this app to
+the LSDJ format, it will have no difference whatsoever. And if I decide later
+to recreate something that I made in LSDJ here, there's no difference. And if
+later we decide to do an import feature, there's no difference either."*
+
+That is a change of relationship, not a feature. `lsdj.js` TRANSLATES: it takes
+whatever the composer wrote, finds the nearest LSDj-shaped thing, and reports
+what it lost in `warnings`. As long as translation is the relationship, round
+trip cannot be identity. The end state is that the LSDj document IS the song --
+the composer writes one, the web player renders one, and `lsdj.js` only
+serialises it -- and then export, import and round trip are all identity for
+free, because there is nothing left to translate.
+
+### Two decisions the owner made, so they do not get relitigated
+
+- **Drums are kits, read from the owner's own LSDj ROM**, with noise-only as the
+  fallback when no ROM is loaded. Kits live in the ROM and a `.sav` only
+  references them by index, so the export is correct for anyone with LSDj; the
+  web player needs the samples to match, and the only lawful source is the
+  user's own copy. Never vendor them.
+- **The back catalogue just changes.** Every seed re-composes under the LSDj
+  model and old shared links will sound different. No second renderer, no
+  document version flag -- a second code path is exactly how the player and the
+  exporter drifted apart in the first place.
+
+### `verify-lsdj-native` is the distance, and it is a RATCHET
+
+Every check is a thing LSDj cannot hold, counted over 60 songs. Ceilings are
+whatever it measured that day and may only fall. **Never raise one to make a
+change fit** -- a raise means the export moved further from LSDj, which is the
+whole thing the file exists to catch.
+
+Where it started, and where it is after the first pass:
+
+```
+notes not on a phrase row     11.83%  ->  0.00%   (locked at 0)
+notes closer than one row      4.31%  ->  0.00%   (locked at 0)
+two notes on one channel+row   1.17%  ->  0.00%   (locked at 0)
+instruments in one song            7      inside LSDj's 64
+longest channel             895 rows      inside 256 chain rows of 16
+note volumes on a channel         10      STILL OPEN -- see below
+```
+
+### Swing was 92% of it, and it was one line
+
+`sw8()` slid every offbeat eighth late by a fraction of a beat. It sounds right
+and it cannot be written down: **LSDj has no position between two rows**, so
+4514 of our 4894 un-exportable notes were that one nudge.
+
+A tracker swings by making the ROWS uneven -- a long-short pair of tick counts,
+which is a groove. Same feel, every note still exactly on a row. What comes out
+is what an LSDj musician would have typed: `[8,6]` for house at 128, `[12,8]`
+for boombap at 90, `[n]` for everything straight. The remaining 380 were the
+frame-level arp, three notes 0.05 beats apart -- a chord on the machine and a
+chord in LSDj, so it is written as one note with an arpeggio now.
+
+⚠️ **The groove travels on the score (`s.groove`, and `s.gb.groove`).** With
+swing the rows are deliberately uneven, so "which row is this note on" is
+unanswerable without it. Any reader that divides the bar into equal slices --
+exporter, player, or gate -- measures the swing as error: the conformance gate
+did exactly that on its first run and reported a song sitting perfectly on the
+grid as 62% off it.
+
+⚠️ **The groove maths lives in `gb-hardware.js`** (`grooveFor`, `bpmOfGroove`,
+`rowFrame`, `framesPerRow`, `grooveSpread`) and `create.js` holds handles on it.
+It used to be written out in the editor as well. Two copies of a clock is how a
+player comes to disagree with its own exporter, and the composer needed the same
+maths the moment swing became a groove.
+
+### What is still not LSDj, in the order it matters
+
+1. **Per-note velocity does not exist in LSDj.** Volume is the instrument's
+   envelope; changing it mid-phrase spends the row's one command. We emit up to
+   10 distinct volumes per channel. This is the one that will MOVE THE SOUND
+   when it is fixed, and it is not a count to grind down -- it is the instrument
+   model arriving.
+2. **The instrument model itself.** `chip-instruments.js` has things a DMG never
+   had, including a low-pass cutoff. LSDj instruments are pulse (duty, envelope,
+   sweep, phase, table, vibrato, transpose), wave (synth or drawn frames, play
+   mode, length, repeat), kit and noise. Ours has to become exactly that set.
+3. **Note length.** LSDj stores none -- a note runs until the next one or a KILL
+   command. Ours carries `frames`, which is a rendering detail today and has to
+   become a command or an envelope.
+4. **Import.** Once the model is the document this is a parser and two identity
+   gates: parse -> serialise is byte-identical, and compose -> serialise ->
+   parse -> serialise is byte-identical.
+
+### The proof, when it comes, is not ours to mark
+
+`tools/lsdjplay.c` already boots the real ROM in mGBA and reads the APU
+registers frame by frame. Render the same song through our player and through
+LSDj itself, diff the two register streams, and that is what indistinguishable
+MEANS. Anything short of it is our code agreeing with our code -- the WebMCP
+mistake, which this repository has already made once.

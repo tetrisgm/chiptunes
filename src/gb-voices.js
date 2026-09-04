@@ -15,12 +15,30 @@
   var H = (typeof require !== 'undefined' && typeof module !== 'undefined')
     ? require('./gb-hardware.js') : G.CT_GB;
 
-  function Voices(bpm) {
+  function Voices(bpm, groove) {
     this.bpm = bpm;
+    this.groove = (groove && groove.length) ? groove : null;
     this.lanes = [[], [], [], []];
   }
 
-  Voices.prototype.frameOf = function (beat) { return H.beatToFrame(beat, this.bpm); };
+  // A NOTE STARTS ON A ROW. Not a fraction of the way between two -- LSDj has
+  // no such place and neither does any other tracker, so a note written there
+  // cannot survive an export. With a groove the row boundaries are integers by
+  // construction, which is also where SWING lives: the rows are uneven and the
+  // note still sits exactly on one.
+  Voices.prototype.frameOf = function (beat) {
+    if (this.groove) return H.rowFrame(this.groove, Math.round(beat * 4));
+    return H.beatToFrame(beat, this.bpm);
+  };
+  // LENGTH is not a row count. A staccato kick is a couple of frames and
+  // rounding it up to a row would make every drum a whole sixteenth long. LSDj
+  // does not store a length at all -- a note runs until the next one or a KILL
+  // -- so this is the envelope we RENDER, not something an export carries.
+  Voices.prototype.framesFor = function (durBeats) {
+    var perBeat = this.groove ? H.framesPerRow(this.groove) * 4
+                              : H.beatToFrame(1, this.bpm);
+    return Math.max(1, Math.round(durBeats * perBeat));
+  };
 
   // Notes arrive in whatever order the composer thinks of them (drums come in
   // three passes, melody later still), so placement records intent and the

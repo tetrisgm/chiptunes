@@ -472,13 +472,99 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     return Math.min(WAVE_SLOTS - 1, rec[0] & 0xFF);
   }
 
+  // ---- GROOVE: the only clock a tracker has --------------------------------
+  //
+  // A row lasts a whole number of frames, and a GROOVE is the short repeating
+  // list of those tick counts. It does two jobs with one mechanism: it reaches
+  // tempi between the rungs of the ladder, and it is where SWING lives.
+  //
+  // That second job is why this moved here from the editor. Swing used to be a
+  // fractional nudge applied to each offbeat note -- which is not a thing LSDj
+  // can hold, because LSDj has no position between two rows. It put 92% of our
+  // off-grid notes off the grid. Expressed as a groove instead, the ROWS are
+  // uneven and every note still sits exactly on one, which is both what a
+  // tracker does and what the hardware does.
+  //
+  // ⚠️ ONLY TWO SHAPES, and that is the whole point. The first version reached
+  // any tempo by making k of every four rows one tick longer -- [6,7,7,7],
+  // [5,5,5,6] -- which is arithmetically neat and musically a LIMP; the ear
+  // locks onto anything repeating every bar. So: [n] is even, [n,n+1] is a
+  // symmetric alternation (a mild shuffle, a feel a musician would choose), and
+  // a swing groove is an explicit long-short PAIR. Nothing lopsided.
+  function grooveSpread(base, k) {
+    if (k <= 0) return [base];
+    if (k >= 2) return [base + 1];
+    return [base, base + 1];
+  }
+  // CHOSEN BY SEARCH, not by arithmetic, because the answer has to be a tempo
+  // the DOCUMENT can hold as well as one the machine can play. Rounding
+  // straight to the nearest groove put bpm 70 on a 32nd grid at 68.9, below the
+  // storable minimum -- the header wrote a negative offset, it wrapped through
+  // the mask, and the song came back at 179. So: enumerate the grooves around
+  // the target, discard any whose tempo cannot be represented, keep the closest.
+  function grooveFor(bpm, swing, stepsPerBar) {
+    var want = (60 / bpm) * 4 / stepsPerBar * FPS;      // frames per row, real
+    var best = null, cand = [], i, b;
+    if (swing) {
+      // A shuffle is a long-short PAIR, defined on the pair rather than on the
+      // average, so it keeps its character at every tempo.
+      // `swing` may arrive as a RATIO (0.56 -- how much of the pair the long
+      // half takes) or as a bare flag from the editor, which means the default
+      // shuffle. Anything outside a sane ratio is treated as the flag, so a
+      // `true` cannot silently become a pair of [pair, 2].
+      var ratio = (typeof swing === 'number' && swing > 0.5 && swing < 0.8) ? swing : 0.62;
+      for (i = -1; i <= 1; i++) {
+        var pair = Math.max(4, Math.round(want * 2) + i);
+        var lng = Math.max(2, Math.round(pair * ratio));
+        cand.push([lng, Math.max(2, pair - lng)]);
+      }
+    } else {
+      for (var base = Math.max(2, Math.floor(want) - 1); base <= Math.floor(want) + 1; base++)
+        cand.push([base]);
+    }
+    for (i = 0; i < cand.length; i++) {
+      b = bpmOfGroove(cand[i], stepsPerBar);
+      if (b < 70 || b > 180) continue;                  // the header cannot carry it
+      var d = Math.abs(b - bpm);
+      if (!best || d < best.d) best = { g: cand[i], d: d };
+    }
+    return best ? best.g : [Math.max(2, Math.round(want))];
+  }
+  // The TRUE tempo of a groove, which is what the song actually plays at. A
+  // document may carry any bpm; what it gets is the nearest one the machine can
+  // hold, and reporting the asked-for number instead of the played one is how a
+  // player comes to disagree with its own clock.
+  function bpmOfGroove(g, stepsPerBar) {
+    var sum = 0;
+    for (var i = 0; i < g.length; i++) sum += g[i];
+    return (240 * FPS) / (stepsPerBar * (sum / g.length));
+  }
+  // The frame a ROW starts on: sum the groove around the loop. Integer by
+  // construction, which is the point -- there is no rounding here to drift.
+  function rowFrame(g, row) {
+    var n = g.length, sum = 0, i;
+    for (i = 0; i < n; i++) sum += g[i];
+    row = row | 0;
+    var f = Math.floor(row / n) * sum, rem = row % n;
+    for (i = 0; i < rem; i++) f += g[i];
+    return f;
+  }
+  // frames in ONE row -- the average over the groove, for note lengths
+  function framesPerRow(g) {
+    var sum = 0;
+    for (var i = 0; i < g.length; i++) sum += g[i];
+    return sum / g.length;
+  }
+
   var API = {
     FPS: FPS, CH: CH, DUTIES: DUTIES, WAVE_LEVELS: WAVE_LEVELS,
     noteRegisters: noteRegisters, waveSlotOf: waveSlotOf,
     NOISE_DIVISORS: NOISE_DIVISORS, RANGE: RANGE, WAVE_SLOTS: WAVE_SLOTS,
     midiToHz: midiToHz, midiToPeriod: midiToPeriod, inRange: inRange,
     beatToFrame: beatToFrame, frameToSec: frameToSec,
-    quantDuty: quantDuty, patchToInstrument: patchToInstrument, buildBank: buildBank
+    quantDuty: quantDuty, patchToInstrument: patchToInstrument, buildBank: buildBank,
+    grooveSpread: grooveSpread, grooveFor: grooveFor, bpmOfGroove: bpmOfGroove,
+    rowFrame: rowFrame, framesPerRow: framesPerRow
   };
   G.CT_GB = API;
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
@@ -502,12 +588,30 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   var H = (typeof require !== 'undefined' && typeof module !== 'undefined')
     ? require('./gb-hardware.js') : G.CT_GB;
 
-  function Voices(bpm) {
+  function Voices(bpm, groove) {
     this.bpm = bpm;
+    this.groove = (groove && groove.length) ? groove : null;
     this.lanes = [[], [], [], []];
   }
 
-  Voices.prototype.frameOf = function (beat) { return H.beatToFrame(beat, this.bpm); };
+  // A NOTE STARTS ON A ROW. Not a fraction of the way between two -- LSDj has
+  // no such place and neither does any other tracker, so a note written there
+  // cannot survive an export. With a groove the row boundaries are integers by
+  // construction, which is also where SWING lives: the rows are uneven and the
+  // note still sits exactly on one.
+  Voices.prototype.frameOf = function (beat) {
+    if (this.groove) return H.rowFrame(this.groove, Math.round(beat * 4));
+    return H.beatToFrame(beat, this.bpm);
+  };
+  // LENGTH is not a row count. A staccato kick is a couple of frames and
+  // rounding it up to a row would make every drum a whole sixteenth long. LSDj
+  // does not store a length at all -- a note runs until the next one or a KILL
+  // -- so this is the envelope we RENDER, not something an export carries.
+  Voices.prototype.framesFor = function (durBeats) {
+    var perBeat = this.groove ? H.framesPerRow(this.groove) * 4
+                              : H.beatToFrame(1, this.bpm);
+    return Math.max(1, Math.round(durBeats * perBeat));
+  };
 
   // Notes arrive in whatever order the composer thinks of them (drums come in
   // three passes, melody later still), so placement records intent and the
@@ -2862,11 +2966,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   //
   // So: [n] is even, and [n, n+1] is a symmetric alternation -- a mild shuffle,
   // which is a real feel a musician would choose. Nothing lopsided.
-  function grooveSpread(base, k) {
-    if (k <= 0) return [base];
-    if (k >= 2) return [base + 1];
-    return [base, base + 1];
-  }
+  var grooveSpread = G.CT_GB.grooveSpread;
   // CHOSEN BY SEARCH, not by arithmetic, because the answer has to be a tempo
   // the DOCUMENT can hold as well as one the machine can play. Rounding
   // straight to the nearest groove put bpm 70 on a 32nd grid at 68.9, which is
@@ -2874,65 +2974,21 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   // through the mask, and the song came back at 179. So: enumerate the grooves
   // around the target, discard any whose tempo cannot be represented, and keep
   // the closest of what remains.
-  function grooveFor(bpm, swing, stepsPerBar) {
-    var want = (60 / bpm) * 4 / stepsPerBar * FPS;      // frames per step, real
-    var best = null, cand = [], i, k, b;
-    if (swing) {
-      // A shuffle is a long-short PAIR, defined on the pair rather than on the
-      // average, so it keeps its character at every tempo.
-      for (i = -1; i <= 1; i++) {
-        var pair = Math.max(4, Math.round(want * 2) + i);
-        var lng = Math.max(2, Math.round(pair * 0.62));
-        cand.push([lng, Math.max(2, pair - lng)]);
-      }
-    } else {
-      // STRAIGHT, FULL STOP. An uneven groove is a FEEL, and a feel nobody asked
-      // for is a defect however small it is -- that is what put a limp on the
-      // station, and a 9-18% shuffle on a quarter of songs was the same mistake
-      // wearing a nicer name. Swing is reachable, but only by asking.
-      //
-      // The tempo variety this used to buy is bought properly instead: the
-      // STYLES table in composer.js now spans two or three rungs per style, so
-      // the ladder is wide where it needs to be rather than being bent.
-      for (var base = Math.max(2, Math.floor(want) - 1); base <= Math.floor(want) + 1; base++)
-        cand.push([base]);
-    }
-    for (i = 0; i < cand.length; i++) {
-      b = bpmOfGroove(cand[i], stepsPerBar);
-      if (b < 70 || b > 180) continue;                  // the header cannot carry it
-      var d = Math.abs(b - bpm);
-      if (!best || d < best.d) best = { g: cand[i], d: d };
-    }
-    return best ? best.g : [Math.max(2, Math.round(want))];
-  }
+  // ⚠️ ALL FOUR LIVE IN gb-hardware.js NOW, and these are the editor's handles
+  // on them. They used to be written out here as well, which is two
+  // implementations of the clock -- and the composer needed the same maths the
+  // moment swing stopped being a nudge and became a groove. Two copies of a
+  // clock is how a player comes to disagree with its own exporter.
+  var grooveFor = G.CT_GB.grooveFor;
+  var bpmOfGroove = G.CT_GB.bpmOfGroove;
   function groove() {
     if (!S._groove || S._groove.bpm !== S.bpm || S._groove.sw !== S.swing || S._groove.spb !== spb())
       S._groove = { bpm: S.bpm, sw: S.swing, spb: spb(), g: grooveFor(S.bpm, S.swing, spb()) };
     return S._groove.g;
   }
-  // The TRUE tempo of a groove, which is what the song actually plays at. A
-  // document may carry any bpm; what it gets is the nearest one the machine can
-  // hold, and reporting the asked-for number instead of the played one is how a
-  // player comes to disagree with its own clock.
-  function bpmOfGroove(g, stepsPerBar) {
-    var sum = 0;
-    for (var i = 0; i < g.length; i++) sum += g[i];
-    return (240 * FPS) / (stepsPerBar * (sum / g.length));
-  }
   // frames in ONE STEP -- the average over the groove, for note lengths
-  function framesPer16() {
-    var g = groove(), sum = 0;
-    for (var i = 0; i < g.length; i++) sum += g[i];
-    return sum / g.length;
-  }
-  function colFrame(c) {
-    var g = groove(), n = g.length, sum = 0, i;
-    for (i = 0; i < n; i++) sum += g[i];
-    c = c | 0;
-    var f = Math.floor(c / n) * sum, rem = c % n;
-    for (i = 0; i < rem; i++) f += g[i];
-    return f;                                            // already an integer
-  }
+  function framesPer16() { return G.CT_GB.framesPerRow(groove()); }
+  function colFrame(c) { return G.CT_GB.rowFrame(groove(), c); }
   // WHERE A NOTE ACTUALLY STARTS. The grid is where you place notes by hand;
   // a note may also carry an offset in frames, which is how a composed song
   // survives being imported -- the composer writes at frame resolution and
@@ -6048,20 +6104,29 @@ function compile(token,rawPremise){
   // nothing downstream ever removes anything and the browser and the ROM are
   // playing the same piece rather than two versions of it.
   var PLAN=PLANS[hash(token+':plan')%PLANS.length],GBB=pickBank(token,style);
-  // SWING. Half the station shuffles: every offbeat eighth slides late by a
-  // fixed fraction of the beat. It is the single cheapest unit of fun the
-  // grid owns, and the NES songbook leaned on it constantly.
-  var SW=style.sw||0;
-  function sw8(t){ if(!SW)return t; var f=t-Math.floor(t); return Math.abs(f-0.5)<0.03?t+(SW-0.5):t; }
-  var V=(G.CT_GB_VOICES&&GBB)?new G.CT_GB_VOICES.Voices(bpm):null;
+  // SWING IS THE GROOVE, not a nudge. Half the station shuffles, and this used
+  // to do it by sliding every offbeat eighth late by a fraction of a beat --
+  // which sounds right and cannot be written down. LSDj has no position between
+  // two rows, so 4514 of our 4894 un-exportable notes were this one line.
+  //
+  // A tracker swings by making the rows themselves uneven: a long-short pair of
+  // tick counts. Same feel, and every note still lands exactly on a row. The
+  // groove is the clock now, so the frames below are integers by construction.
+  var tickGroove=G.CT_GB?G.CT_GB.grooveFor(bpm,style.sw||0,16):[Math.round(895.9125/bpm)];
+  // ...and the tempo we report is the one the groove actually plays. A swung
+  // pair does not average to the straight rung it started from, and reporting
+  // the asked-for number instead of the played one is exactly how the player
+  // came to disagree with its own clock the last time.
+  if(G.CT_GB)bpm=Math.round(G.CT_GB.bpmOfGroove(tickGroove,16));
+  var V=(G.CT_GB_VOICES&&GBB)?new G.CT_GB_VOICES.Voices(bpm,tickGroove):null;
   var CH={lead:PLAN.mel,extra:PLAN.mel,arp:PLAN.harm>=0?PLAN.harm:PLAN.mel,
           pad:PLAN.harm,echo:PLAN.harm,bass:PLAN.bass,kick:3,snare:3,hat:3};
   var PRI={kick:9,snare:7,hat:3,lead:8,extra:6,arp:4,echo:3,pad:2,bass:5};
   var INS=GBB?{lead:GBB.inst.lead,extra:GBB.inst.lead,arp:GBB.inst.harm,pad:GBB.inst.harm,
                echo:GBB.inst.lead,bass:GBB.inst.bass,kick:GBB.inst.kick,snare:GBB.inst.snare,hat:GBB.inst.hat}:{};
-  function add(t,dur,ch,note,vel,artic,extra,instOv,sweep){t=sw8(t);var e={tBeat:round(t),dur:round(dur),ch:ch,vel:round(vel),seed:hash(token+':event:'+ordinal++)};
+  function add(t,dur,ch,note,vel,artic,extra,instOv,sweep){var e={tBeat:round(t),dur:round(dur),ch:ch,vel:round(vel),seed:hash(token+':event:'+ordinal++)};
     if(note!=null)e.midi=Math.round(note);if(artic)e.artic=artic;if(extra)Object.assign(e,extra);events.push(e);
-    if(V){var c=CH[ch];if(c!=null&&c>=0){var f=V.frameOf(t),fr=Math.max(1,V.frameOf(t+dur)-f);
+    if(V){var c=CH[ch];if(c!=null&&c>=0){var f=V.frameOf(t),fr=V.framesFor(dur);
       var ins=instOv!=null?instOv:INS[ch];
       // A plan can route harmony to the WAVE channel, and that role carries a
       // pulse instrument -- whose byte0 is a duty, not a wave slot. It played
@@ -6158,8 +6223,15 @@ function compile(token,rawPremise){
     // anchor walks per firing instead; the texture survives, the bar breathes.
     var fire=hash(token+':arpat:'+Math.floor(bar/2));
     if(VC.arp&&bar%(heat<0.45?4:2)===0){
+      // A CHORD, not three notes a frame and a half apart. This was written as
+      // three separate notes 0.05 beats apart -- which is a frame-rate stab, the
+      // right SOUND, but LSDj cannot hold two notes inside one row, let alone
+      // three. It is a chord there: one note, arpeggiated by the instrument.
+      // That is also what the machine does, so this is the same stab written
+      // the way the machine and the tracker both already understood it.
       if(gesture===0){var a0=[1.5,2.5,1.5,3.5][fire%4];
-        [0,2,4].forEach(function(d,i){add(bar*4+a0+i*.05,.32,'arp',midi(root+d,key,mode.scale,48),.095);});}
+        add(bar*4+a0,.32,'arp',midi(root,key,mode.scale,48),.095,null,
+            {arp:[0,mode.scale[2],mode.scale[4]]});}
       else if(gesture===1)add(bar*4+.5,1.25,'arp',midi(root,key,mode.scale,48),.1,{arp:[0,mode.scale[2],mode.scale[4],12]});
       else if(gesture===2){var a2=[0,0,.5,.25][fire%4],sp=fire%3===2?.75:.5;
         [0,2,4].forEach(function(d,i){add(bar*4+a2+i*sp,.28,'arp',midi(root+d,key,mode.scale,48),.09);});}
@@ -6227,8 +6299,12 @@ function compile(token,rawPremise){
   var lastN=gbNotes.length?gbNotes[gbNotes.length-1]:null;
   var tracker={format:'CTRACK-1',hardware:'CHIP',mode:mode.name,trainedModel:trained.id,instrumentBank:G.CT_CHIP_INSTRUMENTS&&G.CT_CHIP_INSTRUMENTS.corpusFingerprint||''};
   if(premise)tracker.premise={styles:premise.styles?premise.styles.slice():null,mode:premise.mode,bpmMin:premise.bpmMin,bpmMax:premise.bpmMax};
-  return{v:4,composerRevision:REV,token:token,bpm:bpm,
-    gb:{plan:PLAN.id,fps:(G.CT_GB?G.CT_GB.FPS:59.7275),notes:gbNotes,
+  // THE GROOVE TRAVELS WITH THE SONG. It is the clock: with swing the rows are
+  // uneven, so "which row is this note on" is unanswerable without it, and any
+  // reader that assumes a uniform row -- exporter, player, gate -- gets a
+  // different piece of music than the one that was written.
+  return{v:4,composerRevision:REV,token:token,bpm:bpm,groove:tickGroove.slice(),
+    gb:{plan:PLAN.id,fps:(G.CT_GB?G.CT_GB.FPS:59.7275),notes:gbNotes,groove:tickGroove.slice(),
         bank:GBB?GBB.bank:null,instruments:GBB?GBB.inst:null,
         totalFrames:lastN?lastN.frame+lastN.frames:0},beatsPerBar:4,totalBars:bars,endsCleanAtBeat:end,transitionTailBeats:1.25,
     gainScalar:.76,palette:palette(token,trained.id),sections:form,musical:{scale:mode.scale.slice(),rootMidi:60+key,motifDegs:leadMotif.degrees.slice(),leadHint:'lead'},

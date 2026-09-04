@@ -61,13 +61,21 @@ ok(contradicted, 'an impossible premise fails instead of returning a mislabeled 
 // the lead channel -- which was 76% of every repeated bar in the arrangement.
 // The figure still holds for the block; its anchor walks.
 //
-// The change was checked before this digest was replaced: style and mode
-// selection are identical in all 48 songs, and the differences are tempo,
-// length, and everything measured in frames. That is what this checksum is for
-// -- to make a change like this a decision rather than a surprise.
+// UPDATED AGAIN, 2026-09-04, moving time onto rows. Swing was a fractional
+// nudge on every offbeat -- a position LSDj has no way to write down, and 92%
+// of everything in our output that could not survive an export. It is a GROOVE
+// now: the rows themselves are a long-short pair of tick counts, the feel is
+// the same, and every note sits exactly on a row. The frame-level arp became
+// what it always was on the machine, a chord.
+//
+// The change was checked before this digest was replaced: style, mode, TEMPO,
+// length and titles are identical in all 48 songs. Only note counts moved --
+// three arp notes became one chord, and swung notes landed on their rows.
+// That is what this checksum is for -- to make a change like this a decision
+// rather than a surprise.
 const rows = Array.from({ length: 48 }, (_, i) => JSON.stringify(C.compile('smoke-song-' + i)));
 const digest = crypto.createHash('sha256').update(rows.join('\n') + '\n').digest('hex');
-ok(digest === 'c8b33746636731a848e06313f4b098d13845b59f0c2be211e9ce6c0d690cdd79',
+ok(digest === '7ad2a2251a19af80a066c6261543d051cf8fb6c00e1d23f6c29cecec3c024fd1',
   'unconstrained station scores remain byte-for-byte unchanged');
 
 console.log(fail ? '\nverify-mood-constraints: ' + fail + ' FAILED'

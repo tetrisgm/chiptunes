@@ -455,20 +455,29 @@ function compile(token,rawPremise){
   // nothing downstream ever removes anything and the browser and the ROM are
   // playing the same piece rather than two versions of it.
   var PLAN=PLANS[hash(token+':plan')%PLANS.length],GBB=pickBank(token,style);
-  // SWING. Half the station shuffles: every offbeat eighth slides late by a
-  // fixed fraction of the beat. It is the single cheapest unit of fun the
-  // grid owns, and the NES songbook leaned on it constantly.
-  var SW=style.sw||0;
-  function sw8(t){ if(!SW)return t; var f=t-Math.floor(t); return Math.abs(f-0.5)<0.03?t+(SW-0.5):t; }
-  var V=(G.CT_GB_VOICES&&GBB)?new G.CT_GB_VOICES.Voices(bpm):null;
+  // SWING IS THE GROOVE, not a nudge. Half the station shuffles, and this used
+  // to do it by sliding every offbeat eighth late by a fraction of a beat --
+  // which sounds right and cannot be written down. LSDj has no position between
+  // two rows, so 4514 of our 4894 un-exportable notes were this one line.
+  //
+  // A tracker swings by making the rows themselves uneven: a long-short pair of
+  // tick counts. Same feel, and every note still lands exactly on a row. The
+  // groove is the clock now, so the frames below are integers by construction.
+  var tickGroove=G.CT_GB?G.CT_GB.grooveFor(bpm,style.sw||0,16):[Math.round(895.9125/bpm)];
+  // ...and the tempo we report is the one the groove actually plays. A swung
+  // pair does not average to the straight rung it started from, and reporting
+  // the asked-for number instead of the played one is exactly how the player
+  // came to disagree with its own clock the last time.
+  if(G.CT_GB)bpm=Math.round(G.CT_GB.bpmOfGroove(tickGroove,16));
+  var V=(G.CT_GB_VOICES&&GBB)?new G.CT_GB_VOICES.Voices(bpm,tickGroove):null;
   var CH={lead:PLAN.mel,extra:PLAN.mel,arp:PLAN.harm>=0?PLAN.harm:PLAN.mel,
           pad:PLAN.harm,echo:PLAN.harm,bass:PLAN.bass,kick:3,snare:3,hat:3};
   var PRI={kick:9,snare:7,hat:3,lead:8,extra:6,arp:4,echo:3,pad:2,bass:5};
   var INS=GBB?{lead:GBB.inst.lead,extra:GBB.inst.lead,arp:GBB.inst.harm,pad:GBB.inst.harm,
                echo:GBB.inst.lead,bass:GBB.inst.bass,kick:GBB.inst.kick,snare:GBB.inst.snare,hat:GBB.inst.hat}:{};
-  function add(t,dur,ch,note,vel,artic,extra,instOv,sweep){t=sw8(t);var e={tBeat:round(t),dur:round(dur),ch:ch,vel:round(vel),seed:hash(token+':event:'+ordinal++)};
+  function add(t,dur,ch,note,vel,artic,extra,instOv,sweep){var e={tBeat:round(t),dur:round(dur),ch:ch,vel:round(vel),seed:hash(token+':event:'+ordinal++)};
     if(note!=null)e.midi=Math.round(note);if(artic)e.artic=artic;if(extra)Object.assign(e,extra);events.push(e);
-    if(V){var c=CH[ch];if(c!=null&&c>=0){var f=V.frameOf(t),fr=Math.max(1,V.frameOf(t+dur)-f);
+    if(V){var c=CH[ch];if(c!=null&&c>=0){var f=V.frameOf(t),fr=V.framesFor(dur);
       var ins=instOv!=null?instOv:INS[ch];
       // A plan can route harmony to the WAVE channel, and that role carries a
       // pulse instrument -- whose byte0 is a duty, not a wave slot. It played
@@ -565,8 +574,15 @@ function compile(token,rawPremise){
     // anchor walks per firing instead; the texture survives, the bar breathes.
     var fire=hash(token+':arpat:'+Math.floor(bar/2));
     if(VC.arp&&bar%(heat<0.45?4:2)===0){
+      // A CHORD, not three notes a frame and a half apart. This was written as
+      // three separate notes 0.05 beats apart -- which is a frame-rate stab, the
+      // right SOUND, but LSDj cannot hold two notes inside one row, let alone
+      // three. It is a chord there: one note, arpeggiated by the instrument.
+      // That is also what the machine does, so this is the same stab written
+      // the way the machine and the tracker both already understood it.
       if(gesture===0){var a0=[1.5,2.5,1.5,3.5][fire%4];
-        [0,2,4].forEach(function(d,i){add(bar*4+a0+i*.05,.32,'arp',midi(root+d,key,mode.scale,48),.095);});}
+        add(bar*4+a0,.32,'arp',midi(root,key,mode.scale,48),.095,null,
+            {arp:[0,mode.scale[2],mode.scale[4]]});}
       else if(gesture===1)add(bar*4+.5,1.25,'arp',midi(root,key,mode.scale,48),.1,{arp:[0,mode.scale[2],mode.scale[4],12]});
       else if(gesture===2){var a2=[0,0,.5,.25][fire%4],sp=fire%3===2?.75:.5;
         [0,2,4].forEach(function(d,i){add(bar*4+a2+i*sp,.28,'arp',midi(root+d,key,mode.scale,48),.09);});}
@@ -634,8 +650,12 @@ function compile(token,rawPremise){
   var lastN=gbNotes.length?gbNotes[gbNotes.length-1]:null;
   var tracker={format:'CTRACK-1',hardware:'CHIP',mode:mode.name,trainedModel:trained.id,instrumentBank:G.CT_CHIP_INSTRUMENTS&&G.CT_CHIP_INSTRUMENTS.corpusFingerprint||''};
   if(premise)tracker.premise={styles:premise.styles?premise.styles.slice():null,mode:premise.mode,bpmMin:premise.bpmMin,bpmMax:premise.bpmMax};
-  return{v:4,composerRevision:REV,token:token,bpm:bpm,
-    gb:{plan:PLAN.id,fps:(G.CT_GB?G.CT_GB.FPS:59.7275),notes:gbNotes,
+  // THE GROOVE TRAVELS WITH THE SONG. It is the clock: with swing the rows are
+  // uneven, so "which row is this note on" is unanswerable without it, and any
+  // reader that assumes a uniform row -- exporter, player, gate -- gets a
+  // different piece of music than the one that was written.
+  return{v:4,composerRevision:REV,token:token,bpm:bpm,groove:tickGroove.slice(),
+    gb:{plan:PLAN.id,fps:(G.CT_GB?G.CT_GB.FPS:59.7275),notes:gbNotes,groove:tickGroove.slice(),
         bank:GBB?GBB.bank:null,instruments:GBB?GBB.inst:null,
         totalFrames:lastN?lastN.frame+lastN.frames:0},beatsPerBar:4,totalBars:bars,endsCleanAtBeat:end,transitionTailBeats:1.25,
     gainScalar:.76,palette:palette(token,trained.id),sections:form,musical:{scale:mode.scale.slice(),rootMidi:60+key,motifDegs:leadMotif.degrees.slice(),leadHint:'lead'},

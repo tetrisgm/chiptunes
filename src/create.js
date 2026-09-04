@@ -293,11 +293,7 @@
   //
   // So: [n] is even, and [n, n+1] is a symmetric alternation -- a mild shuffle,
   // which is a real feel a musician would choose. Nothing lopsided.
-  function grooveSpread(base, k) {
-    if (k <= 0) return [base];
-    if (k >= 2) return [base + 1];
-    return [base, base + 1];
-  }
+  var grooveSpread = G.CT_GB.grooveSpread;
   // CHOSEN BY SEARCH, not by arithmetic, because the answer has to be a tempo
   // the DOCUMENT can hold as well as one the machine can play. Rounding
   // straight to the nearest groove put bpm 70 on a 32nd grid at 68.9, which is
@@ -305,65 +301,21 @@
   // through the mask, and the song came back at 179. So: enumerate the grooves
   // around the target, discard any whose tempo cannot be represented, and keep
   // the closest of what remains.
-  function grooveFor(bpm, swing, stepsPerBar) {
-    var want = (60 / bpm) * 4 / stepsPerBar * FPS;      // frames per step, real
-    var best = null, cand = [], i, k, b;
-    if (swing) {
-      // A shuffle is a long-short PAIR, defined on the pair rather than on the
-      // average, so it keeps its character at every tempo.
-      for (i = -1; i <= 1; i++) {
-        var pair = Math.max(4, Math.round(want * 2) + i);
-        var lng = Math.max(2, Math.round(pair * 0.62));
-        cand.push([lng, Math.max(2, pair - lng)]);
-      }
-    } else {
-      // STRAIGHT, FULL STOP. An uneven groove is a FEEL, and a feel nobody asked
-      // for is a defect however small it is -- that is what put a limp on the
-      // station, and a 9-18% shuffle on a quarter of songs was the same mistake
-      // wearing a nicer name. Swing is reachable, but only by asking.
-      //
-      // The tempo variety this used to buy is bought properly instead: the
-      // STYLES table in composer.js now spans two or three rungs per style, so
-      // the ladder is wide where it needs to be rather than being bent.
-      for (var base = Math.max(2, Math.floor(want) - 1); base <= Math.floor(want) + 1; base++)
-        cand.push([base]);
-    }
-    for (i = 0; i < cand.length; i++) {
-      b = bpmOfGroove(cand[i], stepsPerBar);
-      if (b < 70 || b > 180) continue;                  // the header cannot carry it
-      var d = Math.abs(b - bpm);
-      if (!best || d < best.d) best = { g: cand[i], d: d };
-    }
-    return best ? best.g : [Math.max(2, Math.round(want))];
-  }
+  // ⚠️ ALL FOUR LIVE IN gb-hardware.js NOW, and these are the editor's handles
+  // on them. They used to be written out here as well, which is two
+  // implementations of the clock -- and the composer needed the same maths the
+  // moment swing stopped being a nudge and became a groove. Two copies of a
+  // clock is how a player comes to disagree with its own exporter.
+  var grooveFor = G.CT_GB.grooveFor;
+  var bpmOfGroove = G.CT_GB.bpmOfGroove;
   function groove() {
     if (!S._groove || S._groove.bpm !== S.bpm || S._groove.sw !== S.swing || S._groove.spb !== spb())
       S._groove = { bpm: S.bpm, sw: S.swing, spb: spb(), g: grooveFor(S.bpm, S.swing, spb()) };
     return S._groove.g;
   }
-  // The TRUE tempo of a groove, which is what the song actually plays at. A
-  // document may carry any bpm; what it gets is the nearest one the machine can
-  // hold, and reporting the asked-for number instead of the played one is how a
-  // player comes to disagree with its own clock.
-  function bpmOfGroove(g, stepsPerBar) {
-    var sum = 0;
-    for (var i = 0; i < g.length; i++) sum += g[i];
-    return (240 * FPS) / (stepsPerBar * (sum / g.length));
-  }
   // frames in ONE STEP -- the average over the groove, for note lengths
-  function framesPer16() {
-    var g = groove(), sum = 0;
-    for (var i = 0; i < g.length; i++) sum += g[i];
-    return sum / g.length;
-  }
-  function colFrame(c) {
-    var g = groove(), n = g.length, sum = 0, i;
-    for (i = 0; i < n; i++) sum += g[i];
-    c = c | 0;
-    var f = Math.floor(c / n) * sum, rem = c % n;
-    for (i = 0; i < rem; i++) f += g[i];
-    return f;                                            // already an integer
-  }
+  function framesPer16() { return G.CT_GB.framesPerRow(groove()); }
+  function colFrame(c) { return G.CT_GB.rowFrame(groove(), c); }
   // WHERE A NOTE ACTUALLY STARTS. The grid is where you place notes by hand;
   // a note may also carry an offset in frames, which is how a composed song
   // survives being imported -- the composer writes at frame resolution and

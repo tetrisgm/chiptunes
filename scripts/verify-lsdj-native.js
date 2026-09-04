@@ -46,14 +46,29 @@ const offByCh = [0, 0, 0, 0], subByCh = [0, 0, 0, 0];
 
 for (let i = 0; i < SONGS; i++) {
   const s = C.compile('lsdj-native-' + i);
-  const rowFrames = (60 / s.bpm) * FPS / 4;          // one phrase row, in frames
+  // ASK THE SONG WHERE ITS ROWS ARE. A swung song's rows are deliberately
+  // uneven, so dividing the bar into equal slices measures the swing as error
+  // and reports a song that is exactly on the grid as 62% off it.
+  const H = globalThis.CT_GB_HARDWARE || globalThis.CT_GB;
+  const g = s.groove && s.groove.length ? s.groove : null;
+  const rowFrames = g ? H.framesPerRow(g) : (60 / s.bpm) * FPS / 4;
+  const rowOf = f => {
+    if (!g) return f / rowFrames;
+    const lo = Math.max(0, Math.floor(f / rowFrames) - 2);
+    let best = lo, bd = Infinity;
+    for (let r = lo; r <= lo + 4; r++) {
+      const d = Math.abs(H.rowFrame(g, r) - f);
+      if (d < bd) { bd = d; best = r; }
+    }
+    return best + (f - H.rowFrame(g, best)) / rowFrames;   // integer when on a row
+  };
   const perCh = [[], [], [], []];
   const inst = new Set(), vol = [new Set(), new Set(), new Set(), new Set()];
   (s.gb.notes || []).forEach(n => {
     notes++;
     inst.add(n.ch + ':' + n.inst);
     vol[n.ch].add(Math.round(n.vel * 100));
-    const r = n.frame / rowFrames;
+    const r = rowOf(n.frame);
     if (Math.abs(r - Math.round(r)) * rowFrames > ROW_TOL) { offRow++; offByCh[n.ch]++; }
     perCh[n.ch].push({ row: Math.round(r), frame: n.frame });
   });
@@ -65,9 +80,11 @@ for (let i = 0; i < SONGS; i++) {
     for (let j = 0; j < perCh[c].length; j++) {
       if (seen.has(perCh[c][j].row)) rowClash++;
       seen.add(perCh[c][j].row);
-      if (j && perCh[c][j].frame - perCh[c][j - 1].frame < rowFrames - ROW_TOL) {
-        subRow++; subByCh[c]++;
-      }
+      // IN ROWS, NOT IN FRAMES. Comparing frame gaps against the average row
+      // measures the swing: a [8,5] groove really does put some notes 5 frames
+      // apart, and they are exactly on their rows. Two notes are too close only
+      // if they want the SAME row, which is a thing LSDj cannot hold.
+      if (j && perCh[c][j].row - perCh[c][j - 1].row < 1) { subRow++; subByCh[c]++; }
     }
     if (perCh[c].length) maxRows = Math.max(maxRows, perCh[c][perCh[c].length - 1].row + 1);
   }
@@ -80,14 +97,14 @@ console.log('         %d songs, %d notes\n', SONGS, notes);
 // Lower one whenever the composer gets closer; never raise one to make a change
 // fit. A raise means the export got further from LSDj, which is the whole thing
 // this file exists to stop.
-ok(pct(offRow) <= 12.0,
-  'notes that do not sit on a phrase row: ' + pct(offRow).toFixed(2) + '% (ceiling 12.0) ' +
+ok(pct(offRow) === 0,
+  'notes that do not sit on a phrase row: ' + pct(offRow).toFixed(2) + '% (must be 0) ' +
   CH.map((n, i) => n + '=' + offByCh[i]).join(' '));
-ok(pct(subRow) <= 4.4,
-  'notes closer together than one row: ' + pct(subRow).toFixed(2) + '% (ceiling 4.4) ' +
+ok(pct(subRow) === 0,
+  'notes closer together than one row: ' + pct(subRow).toFixed(2) + '% (must be 0) ' +
   CH.map((n, i) => n + '=' + subByCh[i]).join(' '));
-ok(pct(rowClash) <= 1.2,
-  'two notes on one channel and row: ' + pct(rowClash).toFixed(2) + '% (ceiling 1.2)');
+ok(pct(rowClash) === 0,
+  'two notes on one channel and row: ' + pct(rowClash).toFixed(2) + '% (must be 0)');
 
 // ---- limits that are hard: over these, a song does not FIT. ----------------
 ok(maxInstPerSong <= 64,
