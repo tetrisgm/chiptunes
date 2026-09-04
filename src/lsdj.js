@@ -1115,6 +1115,11 @@
           // went 6.98 -> 12.32), and M sets NR50, the master volume.
           else if (n.command === CMD.T && n.value >= 40) tempoAt.push([n.row, n.value]);
           else if (n.command === CMD.M) master = n.value & 0xFF;
+          // W is the DUTY. Value 1, 2 and 3 set NR11's duty bits directly, which
+          // the document keeps as `dy`. I first recorded W as doing nothing --
+          // that was a flawed measurement watching only channel 1's PITCH
+          // registers, where a duty change is invisible.
+          else if (n.command === CMD.W && (n.value & 3)) patches.push({ lane: ch, step: n.row, f: { dy: n.value & 3 } });
           var tbl = tableOf(m, n.instrument);
           if (tbl != null) tableNotes.push({ lane: ch, step: n.row, table: tbl, len: len });
           // ...and a sweep is a fall or a rise, read off the instrument's NR10.
@@ -1153,13 +1158,14 @@
       if (n.command && n.command !== CMD.C && n.command !== CMD.R &&
           n.command !== CMD.K && n.command !== CMD.V && n.command !== CMD.E &&
           n.command !== CMD.O && n.command !== CMD.S && n.command !== CMD.P &&
-          n.command !== CMD.L && n.command !== CMD.T && n.command !== CMD.M)
+          n.command !== CMD.L && n.command !== CMD.T && n.command !== CMD.M &&
+          n.command !== CMD.W)
         unknownCmds[n.command] = (unknownCmds[n.command] || 0) + 1;
     });
     var unknownTotal = Object.keys(unknownCmds).reduce(function (a, k) { return a + unknownCmds[k]; }, 0);
     if (unknownTotal) warn.push(unknownTotal + ' notes carry an LSDj command this app does not ' +
       'play; the notes arrive, the effect does not. C, R, K, V, E, O, S, P ' +
-      'L, T and M are understood, and the rest moved nothing measurable');
+      'L, T, M and W are understood; D, F and H are seen but not carried');
     notes.sort(function (a, b) { return a.step - b.step; });
     return {
       json: {

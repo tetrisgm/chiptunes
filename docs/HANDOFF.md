@@ -3435,16 +3435,31 @@ T -> the document's tempoAt list, and colFrame integrates across it
 M -> the document's master, which leaves as the score's gainScalar
 ```
 
-A D F G H W Z moved nothing on either test. G, H and W were then given valid
-TARGETS -- G pointed at a groove 1 defined as [10,2], H hopping to sequence row
-0, W on an actual wave instrument -- and still moved neither the registers nor
-the song's shape.
+### ⚠️ "A D F G H W Z moved nothing" WAS WRONG. Four of them move.
 
-⚠️ **That is three measurements saying nothing happened, which is not the same
-as proving nothing happens.** Each of these was set up from the outside, by
-writing bytes into a song; if the command needs a condition this harness does
-not reproduce, the result looks identical to the command doing nothing. Treat
-"no effect measured" as the state of the evidence, not as a fact about LSDj.
+That claim was committed three times and it came from a flawed measurement: the
+probe watched **channel 1's PITCH registers only**. A duty change, a wave-RAM
+change, or anything on the wave or noise channel was invisible to it by
+construction. Re-run across all four channels, comparing every register plus the
+pitch SEQUENCE:
+
+```
+W  sets NR11's duty. Value 1, 2, 3 -> duty 1, 2, 3, directly.   CARRIED as `dy`
+H  changes the pitch SEQUENCE on every channel -- a hop, so the
+   song plays a different order                                 not carried
+D  shortens the sequence, and on WAV rewrites ALL of wave RAM    not carried
+F  moves NR13, but only on a dense phrase (a note every row)     not carried
+A G Z  still nothing, on either test, on any channel
+```
+
+**The lesson is the measurement, not the commands.** Three separate write-ups
+said those seven did nothing, each one repeating the first probe's blind spot. A
+negative result from a probe that cannot see the effect looks exactly like a
+negative result from a command that has none.
+
+H is a HOP and the document has no jump; D touches wave RAM and looks
+kit-related; F needs a denser context than one note per four rows to show what it
+is. All three are SEEN and named as unread rather than claimed inert.
 
 ### Document version 14
 
