@@ -109,7 +109,16 @@ console.log('free composition');
 // A scene NARROWS the composer on purpose -- that is what asking for a boss
 // theme means. It must not narrow it to one song.
 console.log('scenes narrow without collapsing');
+// ASK THE COMPOSER WHAT IT CAN PLAY, do not go looking for it. This used to
+// build the ladder by composing 400 random songs and collecting the tempi that
+// turned up, then assert each scene's tempi were in that set -- which fails
+// whenever a rung is simply RARE. 75 bpm is one style's floor and comes up in
+// well under 1% of songs, so a 400-song sample misses it about one run in
+// sixteen, and the gate then reports a perfectly good tempo as not a real rung.
+// The composer publishes its ladder; that is the authority.
 const LADDER = (function () {
+  const C = require(path.join(__dirname, '..', 'src', 'composer.js'));
+  if (C.tempos) return C.tempos();
   const seen = {}, out = [];
   for (let i = 0; i < 400; i++) {
     const t = CT.docState(api.compose({}).doc).bpm;

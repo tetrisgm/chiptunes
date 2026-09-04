@@ -61,8 +61,30 @@ const out = api.toLsdsng(made.doc, { name: 'BATTLE' });
   // The tempo and groove are the point of the tick rewrite; they must survive.
   const st = CT.docState(made.doc);
   ok(out.tempo === st.bpm, 'the tempo is the one the song plays (' + out.tempo + ')');
-  ok(JSON.stringify(out.groove) === JSON.stringify(st.groove),
-     'and the groove goes with it ([' + out.groove + '])');
+  // ⚠️ AN LSDJ GROOVE IS IN TICKS AND OURS IS IN FRAMES, so this used to assert
+  // the two lists were EQUAL and was asserting a bug: writing frame counts into
+  // the tick field made LSDj play a 7-frame row as 8.17 frames -- 17% slow on
+  // every song we exported. Measured in mGBA; see verify-lsdj-emulator.
+  //
+  // What has to hold is the ROW LENGTH, and LSDj's own arithmetic decides it:
+  //   frames per row = ticks x 149.31875 / TEMPO
+  // The check is that the row we asked for is the row LSDj will play.
+  {
+    const ticks = out.groove.filter(t => t > 0);
+    const frames = st.groove && st.groove.length ? st.groove : [6];
+    const avgTicks = ticks.reduce((a, b) => a + b, 0) / ticks.length;
+    const avgFrames = frames.reduce((a, b) => a + b, 0) / frames.length;
+    const willPlay = avgTicks * 149.31875 / out.tempo;
+    ok(Math.abs(willPlay - avgFrames) / avgFrames < 0.02,
+       'and the groove says the same row length in LSDj\'s units ([' + ticks +
+       '] ticks at tempo ' + out.tempo + ' = ' + willPlay.toFixed(2) +
+       ' frames a row; we wrote ' + avgFrames.toFixed(2) + ')');
+    // ...and the SHAPE survives too: an even groove stays even, a shuffle stays
+    // a shuffle in the same proportion.
+    const shape = a => a.map(v => (v / (a.reduce((x, y) => x + y, 0) / a.length)).toFixed(2)).join(',');
+    ok(ticks.length === 1 || shape(ticks) === shape(frames),
+       'and its shape is unchanged (' + shape(frames) + ' -> ' + shape(ticks) + ')');
+  }
 }
 
 /* ------------------------------------------- structure, read from the bytes */

@@ -8853,6 +8853,19 @@ const Radio=(()=>{
   // a comfortable round number, because an index past the end of a period table
   // is not a wrong note, it is whatever bytes happen to be next.
   //
+  // ✅ CONFIRMED ON THE MACHINE, 2026-09-04. This carried a warning for a while
+  // saying it could not be proved from a file and had to be heard: liblsdj
+  // reports the note BYTE and never claims which pitch it sounds. LSDj itself
+  // now answers, in mGBA -- `scripts/verify-lsdj-emulator.js` plays a song with
+  // ONE note in it and reads the pitch off the APU. Byte 1 sounds MIDI 36 on
+  // both pulses and MIDI 24 on the wave, and bytes 13 and 25 agree an octave and
+  // two octaves up. These numbers are right.
+  //
+  // ⚠️ It has to be ONE note. The first attempt used an ascending ruler, which
+  // repeats -- the trace starts mid-phrase, the sequences line up three notches
+  // out, and the result is a clean, believable, WRONG answer: it reported every
+  // base an octave low and would have had us "fix" a constant that was correct.
+  //
   // (LSDj is Johan Kotlinski's and is freeware for personal and educational use;
   // nothing from the ROM is copied here. These are two frequencies and a count.)
   var NOTE_BASE = [36, 36, 24, 36];             // PU1, PU2, WAV, NOI
@@ -9149,9 +9162,41 @@ const Radio=(()=>{
     warn.push('drums are on the noise channel: a .sav cannot carry kit samples, which live in the ROM');
 
     // ---- tempo and groove --------------------------------------------------
-    song[O.TEMPO] = Math.max(40, Math.min(255, st.bpm | 0));
-    var gr = st.groove && st.groove.length ? st.groove : [6];
-    for (i = 0; i < 16; i++) song[O.GROOVES + i] = i < gr.length ? (gr[i] & 0xFF) : 0;
+    // ⚠️ AN LSDJ GROOVE IS IN TICKS, NOT FRAMES, and this wrote our frame counts
+    // straight into it. Measured against the real ROM in mGBA: a song we
+    // exported as 128 bpm with a 7-frame row played at 8.17 frames a row, which
+    // is 110 bpm -- 17% slow, on every song we ever exported.
+    //
+    // What LSDj actually does, measured the same way across tempo 60..255 with
+    // a one-note-per-row ruler song:
+    //
+    //   ticks per second = 0.4 x TEMPO
+    //   frames per tick  = 149.31875 / TEMPO          (149.31875 = 2.5 x FPS)
+    //   frames per row   = ticks x 149.31875 / TEMPO
+    //
+    // so the DEFAULT groove of 6 ticks makes a row 895.9125/TEMPO frames, and
+    // TEMPO is then bpm in the ordinary sense with four rows to the beat. That
+    // is exactly our own constant, which is the good news: TEMPO carries the
+    // tempo unchanged, and the groove only has to carry the SHAPE.
+    var FR_PER_TICK_NUM = 149.31875;
+    var bpm = Math.max(40, Math.min(255, st.bpm | 0));
+    song[O.TEMPO] = bpm;
+    var gr = st.groove && st.groove.length ? st.groove : null;
+    var ticks;
+    if (!gr) ticks = [6];
+    else {
+      // Our groove is a list of FRAME counts. Convert each to the tick count
+      // that produces it at this tempo, which is the same list scaled so that
+      // the average lands on 6 -- an even groove becomes LSDj's [6], and a
+      // long-short shuffle becomes something like [7,5], which is what an LSDj
+      // musician writes by hand for the same feel.
+      var sum = 0;
+      for (i = 0; i < gr.length; i++) sum += gr[i];
+      var avg = sum / gr.length;
+      ticks = [];
+      for (i = 0; i < gr.length; i++) ticks.push(Math.max(1, Math.min(0xFF, Math.round(6 * gr[i] / avg))));
+    }
+    for (i = 0; i < 16; i++) song[O.GROOVES + i] = i < ticks.length ? (ticks[i] & 0xFF) : 0;
 
     return {
       bytes: song, warnings: warn,
@@ -9177,7 +9222,7 @@ const Radio=(()=>{
         }
         return total;
       })(),
-      tempo: song[O.TEMPO], groove: gr.slice(), title: st.title || ''
+      tempo: song[O.TEMPO], groove: ticks.slice(), grooveFrames: gr?gr.slice():null, title: st.title || ''
     };
   }
 
@@ -9271,7 +9316,12 @@ const Radio=(()=>{
   var FIELDS = [
     { k: 'phraseNotes',       at: O.PHRASE_NOTES,          n: 255, w: 16 },
     { k: 'grooves',           at: O.GROOVES,               n: 32,  w: 16 },
-    { k: 'sequence',          at: O.SEQUENCE,              n: 4,   w: 256 },
+    // ⚠️ ROW-MAJOR: the sequence is 256 ROWS of four channels, at
+    // SEQUENCE + row*4 + channel -- not four channel-length columns. Both
+    // readings round-trip byte-for-byte, so identity cannot catch this; what
+    // catches it is that the wrong one hands channel 0 every channel's chains
+    // interleaved and leaves the other three empty, which is what it did.
+    { k: 'sequence',          at: O.SEQUENCE,              n: 256, w: 4 },
     { k: 'instrumentNames',   at: O.INSTRUMENT_NAMES,      n: 64,  w: 5 },
     { k: 'tableAlloc',        at: O.TABLE_ALLOC,           n: 1,   w: 32 },
     { k: 'instrumentAlloc',   at: O.INSTRUMENT_ALLOC,      n: 1,   w: 64 },
@@ -9316,6 +9366,40 @@ const Radio=(()=>{
     return song;
   }
 
+  // THE NOTES A SONG ACTUALLY PLAYS, in the order LSDj plays them.
+  //
+  // This is the import path, and it is also the only way to check what we wrote
+  // against what LSDj does with it: walk the sequence, follow each chain to its
+  // phrases, and read the rows. Row numbers are absolute from the start of the
+  // song, so they line up with a register trace off the emulator.
+  //
+  // `note` is LSDj's note BYTE, which is an index into what that channel can
+  // play and therefore a different pitch on each one -- NOTE_BASE turns it into
+  // MIDI. Zero means no note, and is not a rest you can hear.
+  function playedNotes(m, ch) {
+    var out = [], row = 0, s, cr, st;
+    for (s = 0; s < 256; s++) {
+      var chain = m.sequence[s][ch];
+      if (chain === NO_CHAIN) continue;
+      for (cr = 0; cr < 16; cr++) {
+        var ph = m.chainPhrases[chain][cr];
+        if (ph === NO_PHRASE) { continue; }
+        var tr = m.chainTranspose[chain][cr];
+        for (st = 0; st < 16; st++) {
+          var n = m.phraseNotes[ph][st];
+          if (n !== NO_NOTE) out.push({
+            row: row + st, note: n, transpose: tr,
+            midi: NOTE_BASE[ch] + (n - 1) + (tr << 24 >> 24),
+            instrument: m.phraseInstruments[ph][st],
+            command: m.phraseCommands[ph][st], value: m.phraseCommandVals[ph][st]
+          });
+        }
+        row += 16;
+      }
+    }
+    return out;
+  }
+
   // How much of a song image the map above accounts for, as bytes and percent.
   function coverage() {
     var seen = 0, i, f;
@@ -9329,7 +9413,7 @@ const Radio=(()=>{
     NOTE_BASE: NOTE_BASE.slice(), NOTE_MAX: NOTE_MAX, PHRASE_STEPS: PHRASE_STEPS,
     compress: compress, decompress: decompress, emptySong: emptySong,
     fromDocument: fromDocument, lsdsng: lsdsng,
-    readSong: readSong, writeSong: writeSong, coverage: coverage
+    readSong: readSong, writeSong: writeSong, coverage: coverage, playedNotes: playedNotes
   };
   G.CT_LSDJ = API;
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
