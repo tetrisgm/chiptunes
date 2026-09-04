@@ -440,7 +440,12 @@
         var here = grid[ch][gs];
         if (!here || !here.note) continue;
         var endsAt = gs + here.len;
-        if (endsAt >= steps) continue;
+        // ⚠️ THE PHRASE GRID IS PADDED TO A MULTIPLE OF SIXTEEN, and the KILL
+        // may live in the padding. Bounding this by `steps` -- the last column
+        // that holds a note -- dropped the kill for the LAST note of a song
+        // exactly when its end landed on that boundary, so the final note
+        // sustained on import instead of stopping where it was written.
+        if (endsAt >= Math.ceil(steps / PHRASE_STEPS) * PHRASE_STEPS) continue;
         // find the next note on this channel
         var nxt = -1;
         for (var gt = gs + 1; gt < steps; gt++) if (grid[ch][gt] && grid[ch][gt].note) { nxt = gt; break; }
@@ -885,6 +890,20 @@
   // one -- audibly wrong, and silently so.
   var ENVELOPE_HOLD = [0, 1, 1, 1, 1, 1, 2, 2, 3, 4, 5, 6, 8, 11, 15, 20];
 
+  // How many rows a channel actually covers -- every phrase its chains name,
+  // sixteen rows each. A note with nothing after it sustains to the end of THAT,
+  // not to the end of itself.
+  function channelRows(m, ch) {
+    var rows = 0, s, cr;
+    for (s = 0; s < 256; s++) {
+      var chain = m.sequence[s][ch];
+      if (chain === NO_CHAIN) continue;
+      for (cr = 0; cr < 16; cr++)
+        if (m.chainPhrases[chain][cr] !== NO_PHRASE) rows += 16;
+    }
+    return rows;
+  }
+
   // The rows a channel is told to STOP on. Same walk as playedNotes, but K
   // commands sit on rows with no note, so that walk cannot see them.
   function killRows(m, ch) {
@@ -945,6 +964,10 @@
     for (t = 0; t < ticks.length; t++) perRow += ticks[t];
     perRow = perRow / ticks.length;                       // ticks in a row
     var tempo = Math.max(1, m.tempo || 128), added = 0, out = [];
+    var melodicRows = (CT_CREATE.tables && CT_CREATE.tables().melodicRows) || 15;
+    // every (column, row) already spoken for, so nothing overwrites anything
+    var taken = {};
+    st.cells.forEach(function (c0) { taken[(c0.c | 0) + ':' + (c0.r | 0)] = 1; });
 
     // which (lane, step) pairs run a table, from the model rather than the doc
     var want = {};
@@ -959,21 +982,33 @@
       var startRow = x.c | 0, lenRows = Math.max(1, x.len | 0 || 1);
       var startTick = Math.round(startRow * perRow);
       var totalTicks = Math.max(1, Math.round(lenRows * perRow));
-      var frame0 = H.lsdjTickFrame(tempo, startTick);
-      // the first tick is the note itself; give it the table's row 0 and an
-      // exact one-tick length, then lay the rest out beside it
       var tickFrame = function (j) { return H.lsdjTickFrame(tempo, startTick + j); };
-      x.midi = (x.midi | 0) + ((rows[0] << 24) >> 24);
+      var baseMidi = x.midi | 0;
+      x.midi = baseMidi + ((rows[0] << 24) >> 24);
       x.lf = Math.max(1, tickFrame(1) - tickFrame(0));
+      taken[startRow + ':' + x.r] = 1;
+
+      // ⚠️ EACH TICK GOES IN THE COLUMN NEAREST ITS OWN FRAME, on a free row.
+      // Piling them all onto the starting cell fails twice over: `of` is a
+      // SIGNED SIX-BIT field, so it clips past +-32 frames and a long note's
+      // later ticks land in the wrong place; and cells are keyed by (column,
+      // row), so they overwrite each other and only a handful survive -- which
+      // looked right for four ticks and silently truncated everything after.
       for (var j = 1; j < totalTicks; j++) {
         var tr = (rows[j % 16] << 24) >> 24;
         var f = tickFrame(j);
+        var col = Math.max(0, Math.round((startTick + j) / perRow));
+        var off = f - H.lsdjRowFrame(tempo, ticks, col);
+        if (off > 31 || off < -32) continue;               // cannot be placed
+        var row = -1;
+        for (var rr = 0; rr < melodicRows; rr++)
+          if (!taken[col + ':' + rr]) { row = rr; break; }
+        if (row < 0) continue;                             // column is full
+        taken[col + ':' + row] = 1;
         out.push({
-          c: startRow, r: x.r, st: x.st, ch: x.ch, inst: x.inst, vel: x.vel,
-          midi: (x.midi | 0) - ((rows[0] << 24) >> 24) + tr,
-          of: f - frame0,                                  // frames past the row
-          lf: Math.max(1, tickFrame(j + 1) - f),
-          len: 1
+          c: col, r: row, st: x.st, ch: x.ch, inst: x.inst, vel: x.vel,
+          midi: baseMidi + tr, of: off,
+          lf: Math.max(1, tickFrame(j + 1) - f), len: 1
         });
         added++;
       }
@@ -997,12 +1032,18 @@
     var lastRow = 0, unnamedDrums = 0, tableNotes = [], vibratoNotes = [];
     for (ch = 0; ch < 4; ch++) {
       var played = playedNotes(m, ch), kills = killRows(m, ch);
+      var chLastRow = Math.max(channelRows(m, ch) - 1,
+                               played.length ? played[played.length - 1].row : 0);
       for (i = 0; i < played.length; i++) {
         var n = played[i], next = played[i + 1];
         // Where does this note STOP? A KILL before the next note is the answer
         // and is exact; otherwise it runs to the next note, which is also exact
         // because that is what LSDj does.
-        var stop = next ? next.row : n.row + 1;
+        // ⚠️ THE LAST NOTE ON A CHANNEL SUSTAINS. With no next note and no KILL,
+        // LSDj holds it -- so giving it one row was simply wrong, and on a song
+        // whose instrument runs a table it also cut the table off after a sixth
+        // of a row. It runs to the end of what the channel plays.
+        var stop = next ? next.row : Math.max(n.row + 1, chLastRow + 1);
         for (var ki = 0; ki < kills.length; ki++)
           if (kills[ki] > n.row && kills[ki] < stop) { stop = kills[ki]; break; }
         var len = Math.max(1, Math.min(16, stop - n.row));
