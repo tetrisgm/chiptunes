@@ -43,14 +43,13 @@ function mutateRows(r,rows,amount){var out=rows.slice();if(chance(r,amount)&&out
 // two-step break for dnb, boom-bap swing, backbeat rock, funk syncopation).
 // Fourteen styles crossed with progression, rhythm-cell, pad and kit
 // variation puts the distinct-basis count in the hundreds.
-// ⚠️ THESE WINDOWS MUST EACH CONTAIN MORE THAN ONE RUNG OF THE TEMPO LADDER.
-// A step lasts a whole number of frames, so the playable tempi are 179.2,
-// 149.3, 128.0, 112.0, 99.5, 89.6, 81.4 and 74.7 -- and nothing between. These
-// ranges were written for a continuum: `anthem` at 140-152 contained exactly one
-// rung, so every anthem song came out at 149.3 forever, and trance, dnb, rock
-// and punk contained NONE, so they snapped outward to whatever was nearest.
-// Widened so each style spans two or three, which is where tempo variety comes
-// from now that it cannot come from bending the grid.
+// These windows are a CONTINUUM again, and every integer inside one is
+// reachable. They were briefly widened to span several rungs of a tempo ladder
+// -- eight tempi whose rows divide evenly into whole frames -- on the belief
+// that the machine had nothing in between. The real LSDj disagreed when it was
+// finally asked: it runs an accumulator, reaches every integer tempo, and pays
+// for it with a mix of two whole frame counts per row. The widening did no harm
+// and the ladder is gone.
 var STYLES=[
  {id:'anthem', w:9,bpm:[128,152],sw:0,   kick:'four',    hats:'off8',   bass:'pump',   pads:'arp16', modes:'maj',prog:'anthem',mel:1.0},
  {id:'house',  w:7,bpm:[112,128],sw:0.56,kick:'four',    hats:'off8',   bass:'offbeat',pads:'arp8',  modes:'maj',prog:'vamp2', mel:0.8},
@@ -402,19 +401,22 @@ function pickBank(token,style){
 }
 // The tempi a whole number of frames per step can hold, at the sixteenth grid
 // the composer writes on. Derived, not typed: 240*FPS/(16*ticks).
-var TICK_FPS=59.7275;
-function playableBpms(){
-  var out=[];
-  for(var n=5;n<=12;n++){var b=Math.round(240*TICK_FPS/(16*n));if(b>=70&&b<=180)out.push(b);}
+// EVERY INTEGER TEMPO IN THE BAND, because that is what LSDj plays.
+//
+// There was a ladder here -- playableBpms() returned the eight tempi whose rows
+// divide evenly into whole frames, and nearestPlayableBpm() snapped every song
+// onto one. Measuring the real ROM in mGBA killed both: LSDj runs an
+// accumulator and reaches all of them, spending the remainder as a mix of two
+// whole frame counts. The ladder was ours, and it offered 8 tempi where the
+// machine offers 111.
+//
+// What is reported now is simply the reachable set -- the union of the style
+// bands, which is what a caller actually wants to know.
+function reachableBpms(){
+  var lo=999,hi=0,out=[],i;
+  for(i=0;i<STYLES.length;i++){lo=Math.min(lo,STYLES[i].bpm[0]);hi=Math.max(hi,STYLES[i].bpm[1]);}
+  for(i=lo;i<=hi;i++)out.push(i);
   return out;
-}
-function nearestPlayableBpm(want,lo,hi){
-  var all=playableBpms();
-  var inside=all.filter(function(b){return b>=lo-0.5&&b<=hi+0.5;});
-  var pool=inside.length?inside:all;
-  var best=pool[0];
-  for(var i=1;i<pool.length;i++) if(Math.abs(pool[i]-want)<Math.abs(best-want)) best=pool[i];
-  return best;
 }
 
 function compile(token,rawPremise){
@@ -429,16 +431,23 @@ function compile(token,rawPremise){
   // the style owns its tempo band; heat leans toward its top
   var bpmLo=style.bpm[0],bpmHi=style.bpm[1];
   if(premise){var lo=Math.max(bpmLo,premise.bpmMin),hi=Math.min(bpmHi,premise.bpmMax);if(lo<=hi){bpmLo=lo;bpmHi=hi;}}
-  // ⚠️ PICKED FROM THE LADDER, NOT FROM THE RANGE. A step lasts a whole number
-  // of frames on this machine, so only these tempi exist -- 179.2, 149.3, 128.0,
-  // 112.0, 99.5, 89.6, 81.4, 74.7 -- and anything between them has to be faked
-  // with an uneven groove, which is a FEEL nobody asked for. Choosing freely and
-  // snapping at playback meant the composer wrote for one tempo and the player
-  // played another, up to 7% apart. Choosing from the ladder here means they are
-  // the same number everywhere, and the style windows above are wide enough that
-  // each one still reaches two or three of them.
+  // ANY INTEGER IN THE BAND. There was a ladder here -- eight tempi whose rows
+  // divide evenly into whole frames -- on the reasoning that a row has to be a
+  // whole number of frames and everything between had to be faked with an uneven
+  // groove nobody asked for.
+  //
+  // The first half of that is true and the conclusion was wrong, and the real
+  // LSDj settled it. Measured off the ROM in mGBA: LSDj runs an ACCUMULATOR, so
+  // at tempo 120 its rows come out as 7 frames and 8 frames interleaved, and it
+  // reaches every integer tempo that way. It has done this for twenty years and
+  // nobody has ever called it lopsided, because an accumulator has no short
+  // period -- unlike the four-step pattern with one odd step out that this
+  // project shipped briefly and that was audible on every bar.
+  //
+  // So the ladder was ours, not the machine's, and it offered 8 tempi where the
+  // machine offers 111. Parity means we do not get to be more restrictive than
+  // the thing we are matching.
   var bpm=Math.round(bpmLo+(bpmHi-bpmLo)*(((hash(token+':bpmf')%100)/100)*0.6+heat*0.4));
-  bpm=nearestPlayableBpm(bpm,bpmLo,bpmHi);
   // "Tracks too long, sections too long": ~85 seconds, not two minutes.
   // LENGTH MUST NOT BE A PURE FUNCTION OF TEMPO. This was a flat 88 seconds
   // converted to bars, which was fine while tempo was continuous and became a
@@ -461,14 +470,14 @@ function compile(token,rawPremise){
   // two rows, so 4514 of our 4894 un-exportable notes were this one line.
   //
   // A tracker swings by making the rows themselves uneven: a long-short pair of
-  // tick counts. Same feel, and every note still lands exactly on a row. The
-  // groove is the clock now, so the frames below are integers by construction.
-  var tickGroove=G.CT_GB?G.CT_GB.grooveFor(bpm,style.sw||0,16):[Math.round(895.9125/bpm)];
-  // ...and the tempo we report is the one the groove actually plays. A swung
-  // pair does not average to the straight rung it started from, and reporting
-  // the asked-for number instead of the played one is exactly how the player
-  // came to disagree with its own clock the last time.
-  if(G.CT_GB)bpm=Math.round(G.CT_GB.bpmOfGroove(tickGroove,16));
+  // TICKS, summing to twice the base so the tempo does not move. [7,5] is the
+  // mild shuffle an LSDj musician reaches for, [8,4] the hard one, and those are
+  // the only shapes on offer because they are the only ones LSDj has.
+  //
+  // The tempo needs no adjusting: a shuffle keeps the same total, so bpm still
+  // means bpm. This is the whole reason to work in LSDj's units -- the number we
+  // write is the number it plays, with nothing converted on the way.
+  var tickGroove=G.CT_GB?G.CT_GB.lsdjGrooveTicks(style.sw||0,16):[6];
   var V=(G.CT_GB_VOICES&&GBB)?new G.CT_GB_VOICES.Voices(bpm,tickGroove):null;
   var CH={lead:PLAN.mel,extra:PLAN.mel,arp:PLAN.harm>=0?PLAN.harm:PLAN.mel,
           pad:PLAN.harm,echo:PLAN.harm,bass:PLAN.bass,kick:3,snare:3,hat:3};
@@ -669,6 +678,6 @@ function duration(token){var s=compile(token);return s.totalBars*4*60/s.bpm;}
 // pool -- and the caller's fallback then drops the styles, which is the one
 // part of the request it was least entitled to throw away.
 function styles(){return STYLES.map(function(s){return {id:s.id,bpm:s.bpm.slice(),modes:s.modes};});}
-var API={V:3,id:'rrr_core',revision:REV,compile:compile,duration:duration,styles:styles,tempos:playableBpms};
+var API={V:3,id:'rrr_core',revision:REV,compile:compile,duration:duration,styles:styles,tempos:reachableBpms};
 G.CT_COMPOSERS=G.CT_COMPOSERS||{};G.CT_COMPOSERS.rrr_core=API;if(typeof module!=='undefined'&&module.exports)module.exports=API;
 })();

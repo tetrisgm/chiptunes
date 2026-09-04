@@ -364,6 +364,77 @@
     return sum / g.length;
   }
 
+  // ---- LSDJ'S OWN CLOCK ----------------------------------------------------
+  //
+  // Measured off the real ROM in mGBA with a one-note-per-row ruler song, tempo
+  // 60 to 255 (scripts/verify-lsdj-emulator.js):
+  //
+  //   ticks per second = 0.4 x TEMPO
+  //   frames per tick  = 149.31875 / TEMPO        (149.31875 = 2.5 x FPS)
+  //
+  // A GROOVE is how many ticks each row lasts, default 6 -- which makes a row
+  // 895.9125/TEMPO frames, so TEMPO is bpm with four rows to the beat.
+  //
+  // ⚠️ FRAMES PER TICK IS FRACTIONAL AND LSDJ DOES NOT ROUND IT. It runs an
+  // accumulator, so rows come out as a MIX of two whole frame counts -- at tempo
+  // 120 the trace is 7s and 8s interleaved. That matters twice over:
+  //
+  //   * it is why LSDj reaches every tempo and our eight-rung ladder did not.
+  //     The ladder was our invention, and it offers LESS than the machine.
+  //   * it is NOT the limp this project removed earlier. That was a four-step
+  //     pattern with one odd step out, repeating every bar, which the ear locks
+  //     onto instantly. An accumulator spreads the same total unevenness with no
+  //     short period at all, which is why nobody has ever called LSDj lopsided.
+  var LSDJ_TICK_NUM = 149.31875;
+
+  function lsdjFramesPerTick(tempo) { return LSDJ_TICK_NUM / tempo; }
+
+  // The frame a tick STARTS on. LSDj adds the tempo to a counter every frame and
+  // fires a tick when it crosses; that is the same as asking when the counter
+  // first reaches this tick's share.
+  function lsdjTickFrame(tempo, tick) {
+    return Math.ceil(tick * LSDJ_TICK_NUM / tempo);
+  }
+
+  // The frame a ROW starts on, given the groove in TICKS.
+  function lsdjRowFrame(tempo, ticks, row) {
+    var n = ticks.length, sum = 0, i;
+    for (i = 0; i < n; i++) sum += ticks[i];
+    row = row | 0;
+    var whole = Math.floor(row / n), rem = row % n, t = whole * sum;
+    for (i = 0; i < rem; i++) t += ticks[i];
+    return lsdjTickFrame(tempo, t);
+  }
+
+  function lsdjFramesPerRow(tempo, ticks) {
+    return framesPerRow(ticks) * LSDJ_TICK_NUM / tempo;
+  }
+
+  // The tempo whose default 6-tick row is closest to this many frames. Integer,
+  // because LSDj cannot store a fractional tempo either -- that is a limit we
+  // SHARE with it rather than one we add.
+  function lsdjTempoForRow(frames) {
+    return Math.max(40, Math.min(255, Math.round(6 * LSDJ_TICK_NUM / frames)));
+  }
+
+  // THE GROOVE, IN LSDJ'S UNITS. Six ticks a row is LSDj's default and makes
+  // TEMPO mean bpm; a shuffle keeps the same total so the tempo does not move,
+  // and moves the beat inside it. [7,5] is the mild swing an LSDj musician
+  // reaches for, [8,4] the hard one.
+  //
+  // These are the only shapes on offer because they are the only ones LSDj has:
+  // whole ticks, and a pair that sums to twice the base. Our old frame-groove
+  // could express ratios between them, which sounds like more and is really
+  // just a number the machine cannot hold.
+  function lsdjGrooveTicks(swing, stepsPerBar) {
+    var base = Math.max(1, Math.round(6 * 16 / (stepsPerBar || 16)));
+    if (!swing) return [base];
+    var lng = Math.max(1, Math.min(2 * base - 1, Math.round(2 * base * (
+      typeof swing === 'number' && swing > 0.5 && swing < 0.8 ? swing : 0.583))));
+    return [lng, 2 * base - lng];
+  }
+  var LSDJ_TEMPO_MIN = 40, LSDJ_TEMPO_MAX = 255;
+
   var API = {
     FPS: FPS, CH: CH, DUTIES: DUTIES, WAVE_LEVELS: WAVE_LEVELS,
     noteRegisters: noteRegisters, waveSlotOf: waveSlotOf,
@@ -372,7 +443,12 @@
     beatToFrame: beatToFrame, frameToSec: frameToSec,
     quantDuty: quantDuty, patchToInstrument: patchToInstrument, buildBank: buildBank,
     grooveSpread: grooveSpread, grooveFor: grooveFor, bpmOfGroove: bpmOfGroove,
-    rowFrame: rowFrame, framesPerRow: framesPerRow
+    rowFrame: rowFrame, framesPerRow: framesPerRow,
+    LSDJ_TICK_NUM: LSDJ_TICK_NUM, lsdjFramesPerTick: lsdjFramesPerTick,
+    lsdjTickFrame: lsdjTickFrame, lsdjRowFrame: lsdjRowFrame,
+    lsdjFramesPerRow: lsdjFramesPerRow, lsdjTempoForRow: lsdjTempoForRow,
+    lsdjGrooveTicks: lsdjGrooveTicks,
+    LSDJ_TEMPO_MIN: LSDJ_TEMPO_MIN, LSDJ_TEMPO_MAX: LSDJ_TEMPO_MAX
   };
   G.CT_GB = API;
   if (typeof module !== 'undefined' && module.exports) module.exports = API;

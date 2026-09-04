@@ -145,8 +145,14 @@ for (const scene of ['boss', 'title', 'cave']) {
   // 140-158, which holds only 149.3. Demanding three tempi there is demanding
   // the hardware be something else. What IS meaningful: every tempo is a real
   // rung, and the cues are different songs, which the assertion above checks.
+  // TEMPI THE COMPOSER CAN ACTUALLY REACH. This said "real rungs" and meant a
+  // ladder of eight; there is no ladder any more, because LSDj plays every
+  // integer tempo and matching it means we do too. What is still worth checking
+  // is that a scene stays inside the band its styles declare rather than
+  // drifting somewhere nothing can play it.
   ok(LADDER.indexOf(b.bpmMin) >= 0 && LADDER.indexOf(b.bpmMax) >= 0,
-     scene + ': its tempi are real rungs (' + b.bpmMin + '-' + b.bpmMax + ')');
+     scene + ': its tempi are ones the composer reaches (' + b.bpmMin + '-' + b.bpmMax +
+     ', inside ' + LADDER[0] + '-' + LADDER[LADDER.length - 1] + ')');
   sceneTempos[scene] = b.tempos;
 }
 

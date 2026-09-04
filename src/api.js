@@ -421,7 +421,7 @@ function toLsdsng(doc, opts) {
     bytes: r.file, filename: (((opts && opts.name) || r.title || 'chiptune')
       .replace(/[^A-Za-z0-9 _-]/g, '').trim() || 'chiptune') + '.lsdsng',
     phrases: r.phrases, chains: r.chains, notes: r.notes, sequencedNotes: r.sequencedNotes,
-    tempo: r.tempo, groove: r.groove, warnings: r.warnings
+    tempo: r.tempo, groove: r.groove, framesPerRow: r.framesPerRow, warnings: r.warnings
   };
 }
 

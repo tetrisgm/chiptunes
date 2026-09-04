@@ -49,18 +49,23 @@ for (let i = 0; i < SONGS; i++) {
   // ASK THE SONG WHERE ITS ROWS ARE. A swung song's rows are deliberately
   // uneven, so dividing the bar into equal slices measures the swing as error
   // and reports a song that is exactly on the grid as 62% off it.
+  // ⚠️ THE GROOVE IS IN LSDJ TICKS, so the row boundaries come from LSDj's own
+  // clock -- ticks x 149.31875 / TEMPO, accumulated. Measuring against evenly
+  // divided frames instead reports a song sitting perfectly on the grid as 83%
+  // off it, which is exactly what happened the first time and again when the
+  // units changed underneath. Ask the clock, never the average.
   const H = globalThis.CT_GB_HARDWARE || globalThis.CT_GB;
   const g = s.groove && s.groove.length ? s.groove : null;
-  const rowFrames = g ? H.framesPerRow(g) : (60 / s.bpm) * FPS / 4;
+  const rowFrames = g ? H.lsdjFramesPerRow(s.bpm, g) : (60 / s.bpm) * FPS / 4;
   const rowOf = f => {
     if (!g) return f / rowFrames;
     const lo = Math.max(0, Math.floor(f / rowFrames) - 2);
     let best = lo, bd = Infinity;
     for (let r = lo; r <= lo + 4; r++) {
-      const d = Math.abs(H.rowFrame(g, r) - f);
+      const d = Math.abs(H.lsdjRowFrame(s.bpm, g, r) - f);
       if (d < bd) { bd = d; best = r; }
     }
-    return best + (f - H.rowFrame(g, best)) / rowFrames;   // integer when on a row
+    return best + (f - H.lsdjRowFrame(s.bpm, g, best)) / rowFrames;  // integer on a row
   };
   const perCh = [[], [], [], []];
   const inst = new Set(), vol = [new Set(), new Set(), new Set(), new Set()];

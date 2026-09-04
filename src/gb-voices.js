@@ -27,7 +27,10 @@
   // construction, which is also where SWING lives: the rows are uneven and the
   // note still sits exactly on one.
   Voices.prototype.frameOf = function (beat) {
-    if (this.groove) return H.rowFrame(this.groove, Math.round(beat * 4));
+    // The groove is in LSDJ TICKS and the clock is LSDj's accumulator, so this
+    // is the same arithmetic the real machine does -- not our approximation of
+    // it. Four rows to the beat at a sixteenth grid.
+    if (this.groove) return H.lsdjRowFrame(this.bpm, this.groove, Math.round(beat * 4));
     return H.beatToFrame(beat, this.bpm);
   };
   // LENGTH is not a row count. A staccato kick is a couple of frames and
@@ -35,7 +38,7 @@
   // does not store a length at all -- a note runs until the next one or a KILL
   // -- so this is the envelope we RENDER, not something an export carries.
   Voices.prototype.framesFor = function (durBeats) {
-    var perBeat = this.groove ? H.framesPerRow(this.groove) * 4
+    var perBeat = this.groove ? H.lsdjFramesPerRow(this.bpm, this.groove) * 4
                               : H.beatToFrame(1, this.bpm);
     return Math.max(1, Math.round(durBeats * perBeat));
   };

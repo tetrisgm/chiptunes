@@ -402,21 +402,12 @@
     var FR_PER_TICK_NUM = 149.31875;
     var bpm = Math.max(40, Math.min(255, st.bpm | 0));
     song[O.TEMPO] = bpm;
-    var gr = st.groove && st.groove.length ? st.groove : null;
-    var ticks;
-    if (!gr) ticks = [6];
-    else {
-      // Our groove is a list of FRAME counts. Convert each to the tick count
-      // that produces it at this tempo, which is the same list scaled so that
-      // the average lands on 6 -- an even groove becomes LSDj's [6], and a
-      // long-short shuffle becomes something like [7,5], which is what an LSDj
-      // musician writes by hand for the same feel.
-      var sum = 0;
-      for (i = 0; i < gr.length; i++) sum += gr[i];
-      var avg = sum / gr.length;
-      ticks = [];
-      for (i = 0; i < gr.length; i++) ticks.push(Math.max(1, Math.min(0xFF, Math.round(6 * gr[i] / avg))));
-    }
+    // NOTHING IS CONVERTED HERE ANY MORE. The document's groove is already in
+    // LSDj ticks, because the composer and the editor both run LSDj's clock --
+    // which is the point of the whole exercise. A conversion step is a place for
+    // the two sides to disagree, and this one did: it wrote frame counts into
+    // the tick field and made every export play 17% slow.
+    var ticks = st.groove && st.groove.length ? st.groove.slice() : [6];
     for (i = 0; i < 16; i++) song[O.GROOVES + i] = i < ticks.length ? (ticks[i] & 0xFF) : 0;
 
     return {
@@ -443,7 +434,16 @@
         }
         return total;
       })(),
-      tempo: song[O.TEMPO], groove: ticks.slice(), grooveFrames: gr?gr.slice():null, title: st.title || ''
+      // `groove` is TICKS, LSDj's own unit. `framesPerRow` is what that works
+      // out to on the machine at this tempo, reported so a caller never has to
+      // rediscover the conversion -- which is where the 17% error lived.
+      tempo: song[O.TEMPO], groove: ticks.slice(),
+      framesPerRow: (function () {
+        var s = 0;
+        for (var t = 0; t < ticks.length; t++) s += ticks[t];
+        return (s / ticks.length) * FR_PER_TICK_NUM / bpm;
+      })(),
+      title: st.title || ''
     };
   }
 

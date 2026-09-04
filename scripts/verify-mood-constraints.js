@@ -61,21 +61,29 @@ ok(contradicted, 'an impossible premise fails instead of returning a mislabeled 
 // the lead channel -- which was 76% of every repeated bar in the arrangement.
 // The figure still holds for the block; its anchor walks.
 //
-// UPDATED AGAIN, 2026-09-04, moving time onto rows. Swing was a fractional
+// UPDATED AGAIN, 2026-09-04, TWICE. First moving time onto rows; then
+// removing the tempo ladder outright, because the real LSDj says there is no
+// such thing. Measured off the ROM in mGBA: LSDj runs an ACCUMULATOR and plays
+// every integer tempo, spending the remainder as a mix of two whole frame
+// counts. Our eight rungs were ours, not the machine's, and offered 8 tempi
+// where it offers 111. Across these 48 songs the distinct tempi went 7 -> 37;
+// style, mode and titles are untouched.
+//
+// The first change, kept for the record: Swing was a fractional
 // nudge on every offbeat -- a position LSDj has no way to write down, and 92%
 // of everything in our output that could not survive an export. It is a GROOVE
 // now: the rows themselves are a long-short pair of tick counts, the feel is
 // the same, and every note sits exactly on a row. The frame-level arp became
 // what it always was on the machine, a chord.
 //
-// The change was checked before this digest was replaced: style, mode, TEMPO,
-// length and titles are identical in all 48 songs. Only note counts moved --
-// three arp notes became one chord, and swung notes landed on their rows.
-// That is what this checksum is for -- to make a change like this a decision
-// rather than a surprise.
+// Both changes were checked before the digest was replaced, and both times
+// STYLE, MODE and TITLES were identical across all 48 songs. What moved is
+// tempo (45 of 48, now free integers instead of eight rungs), length where it
+// follows tempo, and note counts. That is what this checksum is for -- to make
+// a change like this a decision rather than a surprise.
 const rows = Array.from({ length: 48 }, (_, i) => JSON.stringify(C.compile('smoke-song-' + i)));
 const digest = crypto.createHash('sha256').update(rows.join('\n') + '\n').digest('hex');
-ok(digest === '7ad2a2251a19af80a066c6261543d051cf8fb6c00e1d23f6c29cecec3c024fd1',
+ok(digest === '7c633857806e19b0233892926c4d18766ad1c03013dcaa8db9c19cc22ad2fce2',
   'unconstrained station scores remain byte-for-byte unchanged');
 
 console.log(fail ? '\nverify-mood-constraints: ' + fail + ' FAILED'

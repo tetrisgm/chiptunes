@@ -314,14 +314,24 @@
   // clock is how a player comes to disagree with its own exporter.
   var grooveFor = G.CT_GB.grooveFor;
   var bpmOfGroove = G.CT_GB.bpmOfGroove;
-  function groove() {
+  // ⚠️ THE CLOCK IS LSDJ'S NOW, and a groove is in TICKS. Measured off the real
+  // ROM: ticks per second = 0.4 x TEMPO, so six ticks a row makes TEMPO ordinary
+  // bpm with four rows to the beat, and a shuffle is a pair summing to twelve.
+  //
+  // What this replaces is a groove measured in FRAMES plus an eight-rung ladder
+  // of the tempi that divide evenly into frames. LSDj has no such ladder: it
+  // runs an accumulator and reaches every integer tempo, spending the leftover
+  // as a mix of two whole frame counts. Our ladder was therefore offering LESS
+  // than the machine, which is the one thing parity does not allow.
+  function grooveTicks() {
     if (!S._groove || S._groove.bpm !== S.bpm || S._groove.sw !== S.swing || S._groove.spb !== spb())
-      S._groove = { bpm: S.bpm, sw: S.swing, spb: spb(), g: grooveFor(S.bpm, S.swing, spb()) };
+      S._groove = { bpm: S.bpm, sw: S.swing, spb: spb(), g: G.CT_GB.lsdjGrooveTicks(S.swing, spb()) };
     return S._groove.g;
   }
+  var groove = grooveTicks;
   // frames in ONE STEP -- the average over the groove, for note lengths
-  function framesPer16() { return G.CT_GB.framesPerRow(groove()); }
-  function colFrame(c) { return G.CT_GB.rowFrame(groove(), c); }
+  function framesPer16() { return G.CT_GB.lsdjFramesPerRow(S.bpm, grooveTicks()); }
+  function colFrame(c) { return G.CT_GB.lsdjRowFrame(S.bpm, grooveTicks(), c); }
   // WHERE A NOTE ACTUALLY STARTS. The grid is where you place notes by hand;
   // a note may also carry an offset in frames, which is how a composed song
   // survives being imported -- the composer writes at frame resolution and
@@ -583,11 +593,12 @@
     // v13: the TITLE rides inside the document. Names are derived from a token
     // and a document has no token, so without this a song opens under a
     // different name than the one the sender was looking at when they shared it.
-    // A DOCUMENT IS BORN ON THE LADDER. Snapping only on the way in would mean
-    // encode(decode(x)) !== x for anything written with a tempo the machine
-    // cannot hold -- the document would keep changing every time it was opened.
-    // Snapping here makes the round trip a fixed point instead.
-    var bpm = Math.round(bpmOfGroove(grooveFor(S.bpm, S.swing, spb()), spb()));
+    // The round trip is a fixed point because the tempo is simply CARRIED now.
+    // It used to be snapped on both sides -- a document was born on an
+    // eight-rung ladder, because a row had to be a whole number of frames. LSDj
+    // proved that wrong: it accumulates, so every integer tempo is playable and
+    // the rows come out as a mix of two frame counts. Nothing to snap to.
+    var bpm = Math.max(70, Math.min(180, S.bpm | 0));
     var out = [13, S.key, S.minor, S.bars & 63, (bpm - 70) & 63,
                S.swing | (((bpm - 70) >> 6) << 1), (S.bars >> 6) & 63,
                Math.max(0, GRIDS.indexOf(spb()))];
@@ -646,8 +657,13 @@
       // and the state has to report the tempo it PLAYS rather than the one it was
       // asked for. Reporting the asked-for number is how a player comes to
       // disagree with its own clock.
-      st2.groove = grooveFor(st2.bpm, st2.swing, st2.grid);
-      st2.bpm = Math.round(bpmOfGroove(st2.groove, st2.grid));
+      // ⚠️ NO LONGER SNAPPED. A document used to be pulled onto an eight-rung
+      // ladder of tempi whose rows divide evenly into frames, on the way in AND
+      // on the way out, so the round trip stayed a fixed point. LSDj has no such
+      // ladder -- it runs an accumulator and plays every integer tempo -- so the
+      // snap was throwing away 103 of the 111 tempi in our own range and telling
+      // the user it was a hardware limit. It was ours.
+      st2.groove = G.CT_GB.lsdjGrooveTicks(st2.swing, st2.grid);
       var head = ver >= 12 ? 8 : ver >= 9 ? 7 : 6;
       if (ver >= 13) {                       // the title block, then the cells
         var tn = v[head] | 0, tt = '';
@@ -2914,19 +2930,20 @@
     // WHAT TEMPI EXIST. Not a range: a ladder. A step lasts a whole number of
     // frames, so only some tempi are playable, and a caller that asks for one
     // between the rungs gets the nearest rung rather than an error.
+    // EVERY INTEGER, because that is what LSDj plays. This used to return eight
+    // values -- the tempi whose rows divide evenly into whole frames -- and call
+    // them the ladder the machine imposes. Measuring the real ROM showed LSDj
+    // accumulates instead, spending the remainder as a mix of two frame counts,
+    // so it reaches all of them. The eight were ours, not the machine's.
     tempos: function (grid) {
-      grid = GRIDS.indexOf(grid | 0) >= 0 ? (grid | 0) : 16;
-      var seen = {}, out = [];
-      for (var b = 70; b <= 180; b++) {
-        var t = Math.round(bpmOfGroove(grooveFor(b, 0, grid), grid));
-        if (!seen[t]) { seen[t] = 1; out.push(t); }
-      }
-      return out.sort(function (a, b2) { return a - b2; });
+      var out = [];
+      for (var b = 70; b <= 180; b++) out.push(b);
+      return out;
     },
-    // The groove a tempo resolves to: the tick count of each step, repeating.
+    // The groove a tempo resolves to, in LSDJ TICKS: how long each row lasts.
     grooveOf: function (bpm, swing, grid) {
       grid = GRIDS.indexOf(grid | 0) >= 0 ? (grid | 0) : 16;
-      return grooveFor(Math.max(70, Math.min(180, bpm | 0)), swing ? 1 : 0, grid).slice();
+      return G.CT_GB.lsdjGrooveTicks(swing ? 1 : 0, grid).slice();
     },
     // the tables an agent has to obey, read off the same constants the editor uses
     tables: function () {

@@ -3016,3 +3016,77 @@ registers frame by frame. Render the same song through our player and through
 LSDj itself, diff the two register streams, and that is what indistinguishable
 MEANS. Anything short of it is our code agreeing with our code -- the WebMCP
 mistake, which this repository has already made once.
+
+## There was never a tempo ladder (2026-09-04, later)
+
+This session invented one and spent a long time defending it. The reasoning was
+that a row lasts a whole number of frames, so only tempi whose rows divide
+evenly are playable -- 179.2, 149.3, 128.0, 112.0, 99.5, 89.6, 81.4, 74.7 -- and
+anything between has to be faked with an uneven groove, which is a feel nobody
+asked for. The STYLES windows were widened to span several rungs to buy back the
+variety the snap had taken away.
+
+**The first half is true and the conclusion was wrong.** Asked directly, in
+mGBA, LSDj plays tempo 120 as rows of 7 frames and 8 frames INTERLEAVED. It runs
+an accumulator, reaches every integer tempo, and spends the remainder as a mix of
+two whole frame counts. It has done this for twenty years and nobody calls it
+lopsided, because an accumulator has no short period.
+
+What DID sound like a limp -- and did, on 51 of 60 songs -- was a four-step
+pattern with one step out, `[6,7,7,7]`, repeating every bar. The ear locks onto
+that instantly. **Uneven rows were never the problem; a repeating shape was.**
+
+So the ladder was ours, not the machine's, and it offered 8 tempi where LSDj
+offers 111. Parity does not allow being more restrictive than the thing you are
+matching, and the ladder is gone: `reachableBpms()` returns every integer in the
+style bands, and `create.js` no longer snaps on encode or decode.
+
+### The numbers, measured off the ROM
+
+```
+ticks per second = 0.4 x TEMPO
+frames per tick  = 149.31875 / TEMPO        (149.31875 = 2.5 x FPS)
+frames per row   = ticks x 149.31875 / TEMPO
+```
+
+LSDj's default groove of 6 ticks makes a row `895.9125/TEMPO` frames, so TEMPO
+is ordinary bpm with four rows to the beat -- our own constant. `gb-hardware.js`
+holds this as `lsdjRowFrame`, `lsdjFramesPerRow`, `lsdjTempoForRow` and
+`lsdjGrooveTicks`; the composer, the editor and the exporter all read it.
+
+⚠️ **A GROOVE IS IN TICKS.** We were writing FRAME counts into that field, so a
+song exported as 128 bpm with a 7-frame row played at 8.17 frames a row -- 110
+bpm, 17% slow, on every song this project ever exported. Nothing could have
+caught it from inside: reading our own file back agreed with us perfectly
+because both sides shared the assumption, and liblsdj would have agreed too --
+the bytes were valid, they just meant something else.
+
+### What is proved, and what is only close
+
+- **Tempo**: exact. LSDj plays 9.955, 8.000, 7.000 and 5.970 frames a row where
+  we predict 9.955, 7.999, 6.999 and 5.973.
+- **Pitch**: exact. `NOTE_BASE` is CONFIRMED rather than believed -- byte 1
+  sounds MIDI 36 on both pulses and 24 on the wave.
+- **Row-by-row frame pattern**: within ONE FRAME, not identical. Our accumulator
+  and LSDj's disagree about which individual rows get the spare frame, on 0-20%
+  of rows depending on tempo. The averages match to 0.01%. Bit-exactness would
+  need LSDj's integer arithmetic, which was not recovered; a search over
+  fixed-point shifts got to 12.5% mismatch and no further. **Do not claim
+  bit-identical timing.** It is inaudible sub-17ms jitter of the same kind LSDj
+  itself produces, ordered differently.
+
+### ⚠️ Two traps this cost real time to learn
+
+- **Anything that can be misaligned will be.** A ruler song of ascending notes
+  repeats, the trace starts mid-phrase, and the sequences line up three notches
+  out -- which reported every NOTE_BASE an octave low, twice, and would have had
+  us "fix" a constant that was right. Measure pitch with ONE note in the song.
+- **A gate that divides the bar into equal slices measures the swing as error.**
+  Both conformance gates did this, once when swing became a groove and again
+  when the groove changed units, each time reporting a song sitting perfectly on
+  the grid as 62% and then 83% off it. Ask the clock, never the average.
+
+`scripts/verify-lsdj-emulator.js` is the harness. It needs mGBA and the owner's
+own ROM (`LSDJ_ROM=...`), and SKIPS loudly without them. **The ROM is Johan
+Kotlinski's, freeware for personal and educational use, and must never enter
+this repository.**
