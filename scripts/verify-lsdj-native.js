@@ -258,6 +258,26 @@ Object.keys(IMAGES).forEach(name => {
   const sentL = lj.notes.map(n => n.len).join(' ');
   const gotL = api.toJSON(lBack.doc).notes.filter(n => n.note).map(n => n.len).join(' ');
   ok(sentL === gotL, 'and every note lasts as long as it did (' + gotL + ')');
+
+  // AND THE VOICE IT WAS PLAYED WITH. Without this an imported song comes back
+  // in OUR default timbre at OUR default loudness -- the app performing somebody
+  // else's notes rather than playing their song. The instrument in the file says
+  // both: byte 1's high nibble is the volume, byte 7's top bits are the duty.
+  const vj = { title: 'Voices', grid: 16, bpm: 128, bars: 2, notes: [
+    { lane: 'Melody', step: 0, note: nm(60), len: 2, velocity: 0.40, stamp: 'bell' },
+    { lane: 'Melody', step: 4, note: nm(62), len: 2, velocity: 0.93, stamp: 'trumpet' },
+    { lane: 'Melody', step: 8, note: nm(64), len: 2, velocity: 0.67, stamp: 'piano' },
+    { lane: 'Bass',   step: 0, note: nm(36), len: 4, velocity: 0.80, stamp: 'bassg' }
+  ] };
+  const vBack = api.toJSON(api.fromLsdsng(api.toLsdsng(api.fromJSON(vj)).bytes).doc).notes;
+  const find = (lane, step) => vBack.find(n => n.lane === lane && n.step === step);
+  const voiceOk = vj.notes.every(n => {
+    const g = find(n.lane, n.step);
+    // a 15th is LSDj's own volume resolution, so that is the tolerance
+    return g && g.stamp === n.stamp && Math.abs(g.velocity - n.velocity) <= 1 / 15;
+  });
+  ok(voiceOk, 'and each one keeps its timbre and its loudness (' +
+     vj.notes.map(n => { const g = find(n.lane, n.step); return g ? g.stamp + '@' + g.velocity.toFixed(2) : '?'; }).join(' ') + ')');
 }
 
 // How much of a song we UNDERSTAND rather than carry verbatim. A ratchet the

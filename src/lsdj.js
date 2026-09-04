@@ -807,7 +807,22 @@
           var nm2 = instrumentName(m, n.instrument);
           if (!known[nm2]) { unnamedDrums++; nm2 = 'kick'; }
           notes.push({ lane: 'Drums', step: n.row, drum: nm2, len: 1 });
-        } else notes.push({ lane: LANES[ch], step: n.row, note: noteName(n.midi), len: len });
+        } else {
+          // ...AND THE VOICE IT WAS PLAYED WITH. Without this an imported song
+          // plays back in OUR default timbre at OUR default loudness, which is
+          // the app performing somebody else's notes rather than their song.
+          // The instrument in the file says both: byte 1's high nibble is the
+          // volume, byte 7's top two bits are the duty.
+          var p = m.instrumentParams[n.instrument];
+          var note = { lane: LANES[ch], step: n.row, note: noteName(n.midi), len: len };
+          if (p) {
+            note.velocity = Math.max(0.05, Math.min(1, (p[1] >> 4) / 15));
+            // 75% duty is 25% inverted -- the same timbre on this chip -- so it
+            // shares a stamp rather than inventing one that sounds identical.
+            note.stamp = ch === 2 ? 'bassg' : ['bell', 'trumpet', 'piano', 'trumpet'][(p[7] >> 6) & 3];
+          }
+          notes.push(note);
+        }
       }
     }
     if (unnamedDrums) warn.push(unnamedDrums + ' drums came back as kicks: their instrument was ' +
