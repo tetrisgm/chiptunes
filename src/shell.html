@@ -314,8 +314,9 @@
      grey-green oval sits in the middle of a grey-green screen looking like a
      rendering fault. A CARD has an edge, and an edge is what makes something
      read as deliberate. See #rmoods below. */
-  body.awaiting-mood #presets{ top:0; bottom:0; align-items:center;
-    padding-bottom:calc(var(--ribh,44px) + 96px);
+  body.awaiting-mood{ overflow-y:auto; }
+  body.awaiting-mood #presets{ position:relative; inset:auto; min-height:calc(100dvh - 140px);
+    height:auto; align-items:center; padding:24px 14px; overflow:visible; pointer-events:auto;
     opacity:1 !important; transition:opacity .35s ease; }
   body.awaiting-mood #presets .rbtn{ pointer-events:auto; }
   /* THE HERO IS A SCREEN IN A BEZEL.
@@ -522,13 +523,11 @@
   body:not(.awaiting-mood) #madeby .plink svg{ width:19px; height:19px; }
   @media (max-width:1100px){
     body:not(.awaiting-mood) #madeby{ right:0; flex-wrap:wrap; } }
-  body.awaiting-mood #madeby{ top:18px; bottom:auto; left:26px; right:auto; transform:none;
-    justify-content:flex-start; max-width:calc(100vw - 52px); opacity:1 !important; pointer-events:auto; }
-  body.awaiting-mood #madeby .plmade-row{ flex-wrap:nowrap; }
+  body.awaiting-mood #madeby{ position:relative; inset:auto; transform:none; margin:0 auto 24px;
+    justify-content:center; width:calc(100% - 32px); max-width:1100px; opacity:1 !important; pointer-events:auto; }
+  body.awaiting-mood #madeby .plmade-line{ flex-wrap:wrap; justify-content:center; white-space:normal; }
+  body.awaiting-mood #madeby .plmade-row{ flex-wrap:wrap; justify-content:center; }
   body.awaiting-mood #madeby .plmade-name{ display:none; }
-  @media (max-width:1100px){
-    body.awaiting-mood #madeby{ position:fixed; top:18px; bottom:auto;
-      max-width:calc(100vw - 36px); flex-wrap:nowrap; } }
   #presets .rbtn.rmood-scratch{ border-color:rgba(123,220,160,.45); color:#bfe9cf; }
   /* How it works is a SELECT-key control, like Start from scratch: it is not one
      of the "write me a song" answers, so it does not wear the A/B burgundy. */
@@ -997,10 +996,11 @@
   /* the ask is the first row now, and it leaves room for the corner X */
   #createscreen .n-moodrow{ flex:0 0 auto; display:flex; align-items:center; gap:10px;
     min-height:var(--cr-row1,56px); box-sizing:border-box;
-    padding:8px var(--cr-closew,52px) 8px 18px; overflow-x:auto; scrollbar-width:none; }
+    margin-right:var(--cr-closew,52px); min-width:0;
+    padding:8px 8px 8px 18px; overflow-x:auto; scrollbar-width:none; }
   #createscreen .n-moodrow::-webkit-scrollbar{ display:none; }
   #createscreen .n-moodlab{ flex:0 0 auto; font:700 17px/1.2 var(--ui); color:var(--ink); letter-spacing:-.01em; }
-  #createscreen .n-moodchips{ display:flex; gap:7px; }
+  #createscreen .n-moodchips{ display:flex; flex:0 0 auto; gap:7px; }
   #createscreen .n-prompt{ display:flex; flex:0 0 auto; gap:8px; padding:0 18px 6px; }
   #createscreen .n-prompt .cr-mood{ flex:1; min-width:0; width:auto; }
   #createscreen .n-prompt-result{ flex:0 0 auto; max-height:3.8em; overflow:auto;
@@ -1019,9 +1019,9 @@
     padding:0 10px; cursor:pointer; border-top:1px solid rgba(255,255,255,.05); color:var(--vc,#fff); }
   #createscreen .n-lane b{ font:800 12px var(--ui); }
   /* the lane says which sound the next note there will use, and changes it */
-  #createscreen .n-lsnd{ justify-self:start; height:19px; padding:0 7px; border-radius:6px; cursor:pointer;
+  #createscreen .n-lsnd{ justify-self:start; min-height:24px; max-width:100%; padding:3px 6px; border-radius:6px; cursor:pointer;
     background:rgba(255,255,255,.06); border:1px solid var(--mat-edge); color:var(--ink-2);
-    font:700 10px var(--ui); }
+    font:700 10px/1.25 var(--ui); }
   #createscreen .n-lsnd:hover{ border-color:var(--mat-edge-hi); color:var(--ink); }
   #createscreen .n-lane.pen{ background:rgba(255,255,255,.06); }
   #createscreen .n-lane.muted b{ opacity:.4; text-decoration:line-through; }
@@ -1150,7 +1150,7 @@
     gap:14px; padding:10px 14px 14px; border-top:1px solid var(--mat-edge-hi);
     background:rgba(255,255,255,.03); }
   /* the same transport the player uses at the bottom of the screen */
-  #createscreen .n-tctrl{ display:flex; align-items:center; gap:8px; }
+  #createscreen .n-tctrl{ display:flex; flex:0 0 auto; align-items:center; gap:8px; }
   #createscreen .n-tbtn{ background:none; border:none; color:var(--ink); cursor:pointer;
     display:inline-flex; align-items:center; justify-content:center; width:38px; height:38px;
     border-radius:50%; touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
@@ -1219,9 +1219,13 @@
     #createscreen .n-pick{ padding:9px; gap:5px; max-width:94vw; }
     #createscreen .n-pn{ min-width:38px; height:34px; font-size:11px; padding:0 5px; }
     #createscreen .n-pv{ font-size:10px; padding:0 6px; }
-    #createscreen .n-transport{ gap:8px; padding:8px; }
-
-    #createscreen .n-transport input[type=range]{ width:96px; }
+    #createscreen .n-transport{ display:grid; grid-template-columns:auto auto minmax(0,1fr);
+      gap:6px; padding:8px 8px max(8px, env(safe-area-inset-bottom)); }
+    #createscreen .n-tctrl{ grid-column:1; grid-row:1; }
+    #createscreen .n-tfollow{ justify-self:start; grid-column:2; grid-row:1; padding:0 10px; }
+    #createscreen .n-transport > label.cr-lab{ grid-column:1 / -1; grid-row:2; min-width:0; }
+    #createscreen .n-transport input[type=range]{ flex:1; min-width:60px; width:auto; }
+    #createscreen .n-transport .n-gridpick{ grid-column:3; grid-row:1; justify-self:end; gap:4px; }
     #createscreen .n-spk{ width:16px; height:16px; font-size:10px; }
     #createscreen .n-hb{ font-size:9px; padding:0 3px; height:32px; }
     #createscreen .n-edit{ gap:10px; padding:6px 10px; }
@@ -2428,7 +2432,8 @@
     text-shadow:0 1px 0 rgba(255,255,255,.22); max-width:none; }
   body.awaiting-mood #rmoods .rmood-brand.landing-copy{
     display:flex; flex-direction:column; align-items:stretch;
-    justify-content:flex-start; padding:22px 24px; text-align:left; }
+    justify-content:flex-start; width:100%; min-width:0; box-sizing:border-box;
+    padding:22px 24px; text-align:left; }
   body.awaiting-mood #rmoods .landing-copy .rmood-title{
     flex:0 0 auto; display:block; text-align:center; }
   body.awaiting-mood #rmoods .landing-copy .rmood-copy{
@@ -2550,32 +2555,24 @@
     body.awaiting-mood #rmoods .rmood-brand{ min-height:160px; padding:14px 16px; }
     body.awaiting-mood #rmoods .rmood-brand i{ font-size:13px !important; line-height:1.7 !important; } }
 
-  /* On a tall desktop the credit becomes the footer and the console uses the
-     column it leaves behind. The LCD grows with the case, so opening the
-     explanation never changes the Game Boy's dimensions. */
+  /* A taller desktop can use a wider case. Content controls its height;
+     the page scrolls instead of cropping the screen or its buttons. */
   @media (min-width:1200px) and (min-height:901px){
-    body.awaiting-mood{ --landing-vspace:24px; }
-    body.awaiting-mood #presets{
-      align-items:flex-start; padding:var(--landing-vspace) 8px 96px; }
     body.awaiting-mood #rmoods{
-      width:min(600px,93vw); height:calc(100vh - 120px); min-height:0;
+      width:min(600px,93vw); height:auto; min-height:0;
       justify-content:flex-start; flex-wrap:nowrap; }
     body.awaiting-mood #rmoods .rmood-brand{
-      flex:0 0 auto; width:100%; min-height:0; aspect-ratio:47 / 43; }
+      flex:0 0 auto; width:100%; min-height:0; }
     body.awaiting-mood #rmoods .landing-copy p{
       font-size:16px; line-height:1.4; }
     body.awaiting-mood #rmoods .landing-copy .rmood-section strong{
       font-size:18px; line-height:1.3; }
     body.awaiting-mood #rmoods .rmood-ask{
-      margin-top:84px; padding-left:14px; padding-right:14px; row-gap:14px; }
+      margin-top:26px; padding-left:14px; padding-right:14px; row-gap:14px; }
     body.awaiting-mood #rmoods .rmood-ask .rmood-pills{
       column-gap:12px; row-gap:12px; }
     body.awaiting-mood #presets .rbtn.rmood-scratch{
       margin-top:20px; }
-    body.awaiting-mood #madeby{
-      top:auto; bottom:var(--landing-vspace); left:50%; right:auto;
-      transform:translateX(-50%); justify-content:center;
-      max-width:calc(100vw - 36px); }
   }
 
   /* Give the two control rows more air when the case has room for it. Keeping
@@ -2773,7 +2770,7 @@
       padding:18px 16px !important;
     }
     body.awaiting-mood #rmoods .landing-copy .rmood-title{
-      font-size:clamp(19px,6.6vw,27px) !important; margin-bottom:18px !important;
+      font-size:clamp(17px,5.5vw,25px) !important; margin-bottom:12px !important;
     }
     body.awaiting-mood #rmoods .landing-copy .rmood-copy{ gap:10px !important; }
     body.awaiting-mood #rmoods .landing-copy .rmood-section strong{

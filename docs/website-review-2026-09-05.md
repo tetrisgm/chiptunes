@@ -69,7 +69,65 @@ Each contains `landing.png` and `create.png`.
    tools; browser tool discovery returns 16. This is secondary to layout and
    fidelity, but counts should come from the actual registry or be omitted.
 
-No visual fix landed during this review. The native arrangement verification
-was kept separate from UI changes. Next UI work should start with layout
-reproductions and visible interaction checks at both viewport sizes, then
-review a playing song and a populated Create document, not only blank state.
+No visual fix landed in the original arrangement checkpoint. The subsequent
+local UI pass below addresses part of this review; deployment remains separate.
+
+## Subsequent local responsive pass
+
+The landing now uses a content-sized, normal-flow card and footer instead of
+centering a tall fixed card above the viewport. Tall-desktop fixed heights and
+fixed attribution placement were removed. The screen panel has a bounded
+width, the phone title fits its interior, and shorter copy retains the product
+explanation while stating that some LSDj sounds/effects still differ. The
+hardcoded WebMCP tool count was removed rather than replaced with another
+eventually stale number.
+
+The landing also receives pointer input instead of allowing wheel events to
+hit the fixed game canvas behind the card. This matters independently of
+whether the document has a large `scrollHeight`: visible wheel-input checks
+revealed the form, and clicking the empty “Make it” control focused its field.
+
+Create's mood viewport physically stops before its corner close button; a
+padding-only reserve allowed scrolling content underneath that button. Phone
+transport uses two rows: rewind/play/follow/grid, then speed. Sound labels
+grow vertically instead of spilling out of fixed-height buttons. Play/pause
+now exposes its current action and state to assistive technology.
+
+`scripts/verify-responsive-layout.js` covers 1280×900, 900×650, narrow-desktop
+390×844, 320×568, and iPhone 13 emulation at 390×844. It uses correct asset MIME
+types, waits for fonts and the startup overlay to retire, captures screenshots,
+uses wheel input and actual clicks, generates a populated editor, checks
+play/pause state, reveals the last utility action, and enters the player.
+The initial sidecar test had incorrect bounding-box properties and grid IDs;
+main corrected these before using its results as evidence. Another initial
+wheel test hit the retiring `#hometiles` startup overlay, so the final test
+explicitly waits for that overlay to disappear. Neither error was treated as
+proof that the layout was wrong or right.
+
+Reviewed final focused screenshots:
+`/var/folders/tq/_6yt1vp555qcj2jwgxmz060w0000gn/T/chiptunes-responsive-371FcH`.
+This includes populated Create and player views, not only blank grids. All
+five focused cases passed. Full-suite results are recorded in HANDOFF.md.
+The final local JavaScript artifact is `app.34e325846018.js`; its accompanying
+`dist/index.html` SHA-256 is
+`798f84c724bb51172a5cdaadf8c023f7f7ab4edfd04944ba9a6fe68c263739a8`.
+The JavaScript filename alone does not identify CSS changes in the HTML shell.
+An eventual Safari deployment check still needs a visible full-build identity.
+
+Remaining review points:
+
+- Native macOS Safari pointer/trackpad verification of an explicitly deployed,
+  visibly versioned build has not occurred. Chromium input tests and WebKit
+  engine tests are not substitutes; no Safari interaction fix is claimed.
+- Close from a cold-start Create session returns to the prior landing context,
+  not an implicit handoff of the edited song to the player. This existing
+  behavior was preserved; a clearer “listen to this edit” workflow remains a
+  product-level improvement to consider.
+- At 1280 pixels, the player capture appears to crowd/truncate its duration
+  label near the volume area. This needs a focused layout reproduction and
+  visible check, beyond the existing wider-player gate.
+- The prompt interpretation is verbose on phones and uses a short scrollable
+  status region. A concise primary interpretation plus expandable technical
+  details would be easier to read; no such redesign has landed.
+- No change here establishes native instrument, table, command or editing
+  parity, or an aesthetic listening verdict for the composition changes.

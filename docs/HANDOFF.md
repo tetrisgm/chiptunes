@@ -3,6 +3,79 @@
 Plain, current working notes for whoever (or whatever) picks the project up
 next. Infrastructure and operations live outside this repository.
 
+## 2026-09-05 — local landing and Create responsive correction
+
+The follow-up to `91b63b9` changes the shared UI, not the musical path.
+Landing uses normal document flow with a content-sized card and attribution
+footer, replacing fixed desktop centering that clipped its top. The screen
+panel's width and mobile title size now fit the case. Concise product copy
+keeps the automatic-song/composition/hardware explanation, removes the stale
+WebMCP count, and explicitly says some LSDj sounds/effects still differ.
+This is disclosure of unfinished parity, not a substitute objective.
+
+The landing must receive pointer input: when its container retained
+`pointer-events:none`, wheel events could target the fixed game canvas and
+miss the body's scroll chain. The local Chromium check now scrolls with real
+browser wheel input, captures the revealed action, and clicks it. No native
+Safari interaction claim follows from this evidence.
+
+Create's scrolling mood viewport ends physically before the close control.
+Phone transport is a two-row grid with rewind/play/follow/grid on the first
+row and speed on the second. Sound labels have content-sized heights; the
+old 19-pixel buttons spilled wrapped pulse labels outside their surfaces.
+The play control now reports Play/Pause and pressed state through ARIA.
+Close semantics are unchanged: a cold-start Create session returns to the
+prior landing context, not an implicit player handoff of the edited song.
+
+`verify-responsive-layout.js` is part of `npm test`: 1280×900, 900×650,
+narrow desktop 390×844, 320×568, and iPhone 13 emulation at 390×844. It checks
+visible controls, actual wheel/click input, successful prompt generation and
+rendered notes, play/pause state, the final horizontally scrolled utility
+action, and a playing page. Its asset server supplies correct MIME types.
+The authorized Luna sidecar supplied the initial script; main corrected its
+bounding-box/property errors, nonexistent grid IDs, horizontal close-reserve
+assertion, and note-render assertion before trusting it. Main added smaller
+viewports, visible wheel checks and player captures. Initial wheel failures
+also exposed a test timing issue: the retiring startup overlay received the
+event. The final test waits until that overlay is hidden, then tests input.
+All five focused cases passed. Screenshot review and remaining findings are
+in `docs/website-review-2026-09-05.md`; final focused images are under
+`/var/folders/tq/_6yt1vp555qcj2jwgxmz060w0000gn/T/chiptunes-responsive-371FcH`.
+
+Full `npm test` finished with exit 0, including the new five-viewport checks,
+owner-ROM fixtures, 48 deterministic songs and all 14 games
+(`/tmp/chiptunes-responsive-full.log`). Browser/broadcast render parity also
+finished with exit 0: 10/10, minimum correlation 1.000000, zero sample lag,
+maximum absolute RMS difference 0.175 dB
+(`/tmp/chiptunes-responsive-render-parity.log`).
+No deployment, app restart, infrastructure change or decompilation occurred.
+Native sound/editing parity, real deployed Safari interaction verification,
+listening-quality evidence and broader composition overhaul remain incomplete.
+
+### Next sound-parity evidence: the envelope hold table is wrong
+
+A read-only probe during this UI verification varied pulse instrument byte 1
+through `80..8F`, with byte 3 zero, C4 at row 6, no phrase commands/KILL, two
+declared bars, 128 BPM, and the owner ROM in the volume-aware mGBA harness.
+`/tmp/chiptunes-envelope-probe.js` generated exclusive temporary SAV files;
+results are in `/tmp/chiptunes-envelope-probe.log`, with fixtures under
+`/var/folders/tq/_6yt1vp555qcj2jwgxmz060w0000gn/T/chiptunes-envelope-shapes-6TIA6x`.
+
+The imported projection's `ENVELOPE_HOLD` assumption is contradicted, not just
+approximately timed: byte `88` sustained volume 8 throughout frames 19..179,
+but imports as a one-row note. Byte `89` rose from volume 8 at frame 19 through
+9/10/11/12/13/14/15 at frames 20..26 and then sustained; it also imports as a
+one-row note. `8A..8F` likewise rose to 15 at different rates, while the
+projection shortened them to 1..3 rows. `80` sustained as expected; `81..87`
+dropped to zero at frame offsets 1/2/2/3/4/6/6 in this particular harness.
+These results do not yet establish decay semantics on every hardware model,
+tempo dependence, or modern-format instrument migration. They DO disprove the
+existing claim that every nonzero low nibble is a finite hold followed by cut.
+No envelope implementation changed during the frozen UI build. Next native
+work should preserve/execute envelope direction and rate, with multi-tempo,
+volume/register and format-upgrade fixtures, rather than revising one more
+fixed hold-length lookup table.
+
 ## 2026-09-05 — reachable native arrangements and declared duration
 
 `src/lsdj.js` now separates structural inspection (`sequenceRows` and legacy

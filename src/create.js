@@ -1566,6 +1566,8 @@
     var b = root.querySelector('[data-cr="play"]');
     if (b) {
       b.innerHTML = _pb(playing ? 'pause' : 'play');
+      b.setAttribute('aria-label', playing ? 'Pause song' : 'Play song');
+      b.setAttribute('aria-pressed', String(playing));
       b.classList.toggle('waiting', !playing && wantStart);
     }
   }
@@ -2284,7 +2286,7 @@
       '<div class="n-transport">' +
         '<div class="n-tctrl">' +
           '<button type="button" class="n-tbtn" data-cr="rewind" title="Back to the start">' + _pb('prev') + '</button>' +
-          '<button type="button" class="n-tbtn n-play" data-cr="play" title="Play / Pause">' + _pb('play') + '</button>' +
+          '<button type="button" class="n-tbtn n-play" data-cr="play" title="Play / Pause" aria-label="Play song" aria-pressed="false">' + _pb('play') + '</button>' +
         '</div>' +
         '<button type="button" class="n-tfollow' + (camFollow ? ' on' : '') + '" data-cr="follow" ' +
           'title="Keep the view on the music">Follow</button>' +

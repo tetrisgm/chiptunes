@@ -4391,6 +4391,8 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     var b = root.querySelector('[data-cr="play"]');
     if (b) {
       b.innerHTML = _pb(playing ? 'pause' : 'play');
+      b.setAttribute('aria-label', playing ? 'Pause song' : 'Play song');
+      b.setAttribute('aria-pressed', String(playing));
       b.classList.toggle('waiting', !playing && wantStart);
     }
   }
@@ -5109,7 +5111,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       '<div class="n-transport">' +
         '<div class="n-tctrl">' +
           '<button type="button" class="n-tbtn" data-cr="rewind" title="Back to the start">' + _pb('prev') + '</button>' +
-          '<button type="button" class="n-tbtn n-play" data-cr="play" title="Play / Pause">' + _pb('play') + '</button>' +
+          '<button type="button" class="n-tbtn n-play" data-cr="play" title="Play / Pause" aria-label="Play song" aria-pressed="false">' + _pb('play') + '</button>' +
         '</div>' +
         '<button type="button" class="n-tfollow' + (camFollow ? ' on' : '') + '" data-cr="follow" ' +
           'title="Keep the view on the music">Follow</button>' +
@@ -38217,10 +38219,10 @@ function buildRadioUI(){
       var brand=document.createElement('span'); brand.className='rmood-brand landing-copy';
       brand.innerHTML='<b class="rmood-title">Chiptunes.app</b>'+ 
         '<span class="rmood-copy">'+
-          '<span class="rmood-section"><strong>CREATE OR LISTEN.</strong><p>Choose a mood and Chiptunes composes complete Game Boy songs for you, automatically, one after another. Or open the tracker and write your own \u2014 or let an AI agent drive it, through 15 <a class="rmood-link" href="/webmcp">WebMCP tools</a>.</p></span>'+
-          '<span class="rmood-section"><strong>COMPLETE SONGS.</strong><p>The composer writes full arrangements, not loops, from pulse and wave instruments, noise and sampled drums.</p></span>'+
-          '<span class="rmood-section"><strong>AUTHENTIC HARDWARE.</strong><p>Every note runs through register-level emulation of the original four-channel sound chip. Download a cartridge that boots on a real Game Boy.</p></span>'+
-          '<span class="rmood-section"><strong>MAKE IT YOURS.</strong><p>Edit every note, instrument and effect. Share it as a link, WAV, ROM or LSDj save.</p></span>'+
+          '<span class="rmood-section"><strong>CREATE OR LISTEN.</strong><p>Choose a mood for complete Game Boy songs, automatically, one after another. Or start from scratch.</p></span>'+
+          '<span class="rmood-section"><strong>COMPLETE SONGS.</strong><p>Full arrangements, not loops: pulse, wave and drums.</p></span>'+
+          '<span class="rmood-section"><strong>AUTHENTIC HARDWARE.</strong><p>Register-level chip emulation. Export a cartridge for a real Game Boy.</p></span>'+
+          '<span class="rmood-section"><strong>MAKE IT YOURS.</strong><p>Edit notes and sounds. Share a link or export audio. LSDj export is available; some sounds and effects still differ. AI agents can use <a class="rmood-link" href="/webmcp">WebMCP tools</a>.</p></span>'+
           '<small class="rmood-legal">Game Boy is a trademark of Nintendo. Independent project; not affiliated with or endorsed by Nintendo.</small>'+
         '</span>';
       row.appendChild(brand);

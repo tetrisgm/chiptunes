@@ -50,6 +50,12 @@ See `scripts/verify-lsdj-arrangement.js` for bounded native-ROM evidence.
 
 ## Important preservation boundaries
 
+* The pulse `ENVELOPE_HOLD` lookup is now contradicted by a volume-aware ROM
+  probe, not merely unverified. At initial volume 8, byte `88` sustains and
+  `89..8F` rise toward volume 15 and sustain, but import shortens these to
+  1..3 rows. See the latest envelope evidence in `docs/HANDOFF.md`. No native
+  envelope-direction/rate implementation has landed; do not treat the older
+  measured-hold comments as authoritative sound semantics.
 * A native import can be byte-preserved by the codec while still losing
   authoring semantics when converted to Create. `raw` is the safety net for a
   native model round trip, not for a Create edit.
