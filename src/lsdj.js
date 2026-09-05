@@ -342,7 +342,8 @@
       // same limit the machine has. NR10 is pace<<4 | direction<<3 | shift, and
       // direction 1 means the frequency DECREASES, which is the pitch falling.
       var sweep = 0;
-      if (lane === 0 && x.z) sweep = 0x3E;              // pace 3, down, shift 6
+      if (lane === 0 && x.sweep != null) sweep = x.sweep & 0x7F;
+      else if (lane === 0 && x.z) sweep = 0x3E;         // pace 3, down, shift 6
       else if (lane === 0 && x.u) sweep = 0x36;         // pace 3, up,   shift 6
       var id = (isDrum ? ('drum:' + drum) : (lane + ':' + (x.st || 'piano'))) +
                (sweep ? ':s' + sweep : '') + ':v' + vol;
@@ -535,7 +536,7 @@
     //   byte 0   type: 0 pulse, 1 wave, 2 kit, 3 noise
     //   byte 1   high nibble is VOLUME -> NR12 as volume<<4 | 8
     //   byte 3   length
-    //   byte 4   sweep, channel 1 only -> NR10
+    //   byte 4   complemented sweep, channel 1 only -> NR10
     //   byte 7   bits 6-7 DUTY -> NR11; bits 0-1 pan -> NR51 (3 is both sides)
     //   byte 11  transpose / finetune -> NR13, NR14
     //
@@ -556,8 +557,10 @@
       // that is its wave synth, and it is a lovely thing that is not what our
       // bass sounds like. Byte 9 = 0x03 holds it on frame 0; measured.
       if (inst.type === INST_TYPE.WAVE) song[at + 9] = 0x03;
-      // byte 4 is NR10, measured. Zero is "no sweep", which is the default.
-      if (inst.sweep) song[at + 4] = inst.sweep & 0xFF;
+      // LSDj complements this byte before writing NR10. 00 enabled an
+      // unintended 7/7 downward sweep on every plain note; FF disables it.
+      // Real-ROM plain/fall/rise fixtures verify the resulting register.
+      if (inst.type === INST_TYPE.PULSE) song[at + 4] = (inst.sweep ^ 0xFF) & 0xFF;
       song[O.INSTRUMENT_ALLOC + i] = 1;
       for (var nm = 0; nm < 5; nm++) {
         var chr = inst.name.charCodeAt(nm);
@@ -1122,9 +1125,13 @@
           else if (n.command === CMD.W && (n.value & 3)) patches.push({ lane: ch, step: n.row, f: { dy: n.value & 3 } });
           var tbl = tableOf(m, n.instrument);
           if (tbl != null) tableNotes.push({ lane: ch, step: n.row, table: tbl, len: len });
-          // ...and a sweep is a fall or a rise, read off the instrument's NR10.
-          // Bit 3 set means the frequency decreases, which is the pitch falling.
-          else if (p && p[4]) note.motion = (p[4] & 0x08) ? 'fall' : 'rise';
+          // Instrument sweep is stored complemented, not as raw NR10.
+          // Preserve its exact hardware value unless the row overrides it.
+          else if (ch === 0 && p && p[0] === INST_TYPE.PULSE && ((p[4] ^ 0xFF) & 0x7F)) {
+            var instrumentSweep = (p[4] ^ 0xFF) & 0x7F;
+            note.motion = (instrumentSweep & 0x08) ? 'fall' : 'rise';
+            if (n.command !== CMD.S) patches.push({ lane: ch, step: n.row, f: { sweep: instrumentSweep } });
+          }
           if (p) {
             note.velocity = Math.max(0.05, Math.min(1, (p[1] >> 4) / 15));
             // 75% duty is 25% inverted -- the same timbre on this chip -- so it

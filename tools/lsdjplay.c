@@ -55,6 +55,7 @@ int main(int argc, char** argv) {
 	if (argc < 3) { printf("usage: lsdjplay ROM SAV [bootFrames] [playFrames]\n"); return 2; }
 	int bootFrames = argc > 3 ? atoi(argv[3]) : 400;
 	int playFrames = argc > 4 ? atoi(argv[4]) : 900;
+	int tracePitch = getenv("LSDJ_TRACE_PITCH") != NULL;
 
 	struct mCore* core = mCoreFind(argv[1]);
 	if (!core) { printf("NO_CORE\n"); return 1; } core->init(core);
@@ -100,6 +101,7 @@ int main(int argc, char** argv) {
 		   pitch we have already seen, and the comparison is over SETS. */
 		int on[3] = { gb->audio.playingCh1, gb->audio.playingCh2, gb->audio.playingCh3 };
 		for (int c = 0; c < 3; c++) {
+			if (tracePitch) printf("PITCH %d %d %d %d\n", f, c, per[c], on[c]);
 			double hz = c == 2 ? wave_hz(per[c]) : pulse_hz(per[c]);
 			if (hz < 20 || hz > 20000) continue;
 			if (on[c]) { int d2 = 0; for (int k = 0; k < ntrig; k++) if (trigs[k] > hz*0.997 && trigs[k] < hz*1.003) { d2 = 1; break; }

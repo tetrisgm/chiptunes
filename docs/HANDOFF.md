@@ -55,6 +55,31 @@ do not treat the focused passes above as permission to push a red suite.
 
 ## Where the music stands (musician-11)
 
+### 2026-09-05 — unintended LSDj pulse sweep fixed
+
+The real-ROM pitch failure above was an export defect, not just an observer
+problem. Instrument byte 4 is complemented before LSDj writes NR10. Writing
+zero for a plain pulse produced NR10=255 (active bits 127), sweeping the first
+A5 through MIDI 79, 78, 77 and 75. A controlled change of that instrument byte
+to 255 produced NR10=0 and removed all four unexpected pitches. Changing byte
+13 alone had no effect. Falls and rises were inverted too: old exports wrote
+active NR10 values 65 and 73 instead of 62 and 54.
+
+The exporter now complements pulse sweep values, including exact per-cell
+sweep values. Import decodes the complement and preserves the exact value
+unless a row S command overrides it. Real-ROM plain/fall/rise fixtures failed
+before this correction and pass afterward; the original `verify-lsdj.js`
+real-ROM assertion passes without modification. Added a custom-sweep register
+fixture and round-trip regression as well.
+
+`tools/lsdjplay.c` has opt-in `LSDJ_TRACE_PITCH` frame/channel/period/active
+output. `scripts/diagnose-lsdj-pitches.js` compares sampled active pitch sets
+against the browser, with optional private-save-only instrument-byte probes.
+It is diagnostic, NOT proof of timing, timbre or full playback parity. A fresh
+harness was built in a unique temporary directory, leaving `/tmp/lsdjplay`
+untouched. The separate entry and Create-handover tests both passed for the
+shared-prompt changes. Full-suite verification of the combined work follows.
+
 ### 2026-09-05 — shared prompt implementation checkpoint
 
 Create now has a text prompt and persistent, accessible interpretation feedback.

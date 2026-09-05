@@ -86,6 +86,30 @@ function rowFramesFromEmulator(savPath, playFrames) {
 
 console.log('         ROM: ' + path.basename(ROM) + '\n');
 
+// Pulse sweep bytes in the file are complemented by LSDj before NR10.
+// Verify at the real register: a file round trip cannot catch a shared error.
+for (const [motion, expected, custom] of [['plain', 0], ['fall', 0x3E], ['rise', 0x36], ['plain', 0x12, true]]) {
+  let doc = api.fromJSON({ title: 'Sweep', bpm: 128, bars: 2, notes: [
+    { lane: 'Melody', step: 6, note: 'A5', len: 8, motion }
+  ] });
+  if (custom) {
+    const state = require('../src/create.js').docState(doc);
+    state.cells[0].sweep = expected;
+    doc = require('../src/create.js').docFromState(state);
+  }
+  const savPath = path.join(TMP, 'sweep-' + motion + '-' + expected + '.sav');
+  fs.writeFileSync(savPath, Buffer.from(api.toLsdjSav([doc]).bytes));
+  const rows = cp.execFileSync(TRACE, [ROM, savPath, '400', '80'], {
+    stdio: ['ignore', 'pipe', 'ignore'], encoding: 'utf8', maxBuffer: 1 << 20
+  }).split('\n').filter(l => /^(frame,|\d+,)/.test(l));
+  const header = rows.shift().split(',');
+  const sweep = header.indexOf('NR10'), volume = header.indexOf('NR12');
+  const seen = [...new Set(rows.map(l => l.split(',').map(Number))
+    .filter(r => r[volume] > 0).map(r => r[sweep] & 0x7F))];
+  ok(seen.length > 0 && seen.every(v => v === expected),
+    motion + ' reaches NR10 as ' + expected + ' (observed ' + seen.join(',') + ')');
+}
+
 // LSDj's own timing, measured rather than assumed:
 //   ticks per second = 0.4 x TEMPO,  frames per tick = 149.31875 / TEMPO
 // so a row of `ticks` lasts ticks * 149.31875 / TEMPO frames, and the default

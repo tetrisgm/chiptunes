@@ -297,6 +297,14 @@ Object.keys(IMAGES).forEach(name => {
   const sentM = mj.notes.map(n => n.motion).join(' ');
   const gotM = mBack.map(n => n.motion || 'plain').join(' ');
   ok(sentM === gotM, 'and the gesture it was played with (' + gotM + ')');
+  const sweepCreate = require('../src/create.js');
+  const customSweep = sweepCreate.docState(api.fromJSON({ bars: 1, notes: [
+    { lane: 'Melody', step: 0, note: 'C4', len: 4 }
+  ] }));
+  customSweep.cells[0].sweep = 0x12;
+  const sweepBack = api.fromLsdsng(api.toLsdsng(sweepCreate.docFromState(customSweep)).bytes).doc;
+  ok(sweepCreate.docState(sweepBack).cells[0].sweep === 0x12,
+    'an exact custom sweep survives the complemented LSDj instrument byte');
 
   // AN ECHO IS TWO NOTES, and LSDj has no flag for it. Ours renders as the note
   // shortened to a row plus a quieter repeat one row later, so that is what gets
