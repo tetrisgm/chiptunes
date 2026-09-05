@@ -3,10 +3,10 @@
 //
 // Every other check in this repository is us reading our own bytes. This one
 // boots the REAL LSDj ROM in mGBA, presses START, and watches the sound chip.
-// The APU registers are the entire interface between a Game Boy program and the
-// noise it makes, so two programs that write the same bytes on the same frames
-// are indistinguishable to the hardware. That is the only definition of "sounds
-// the same" that is not an opinion.
+// The observer samples frame-end register shadows and decoded emulator state.
+// It does not see every write or its sub-frame timing, and emulator behavior
+// can differ from hardware (notably software envelopes). These bounded checks
+// establish the properties asserted below, not full sound parity.
 //
 // It found the thing nothing else could: an LSDj GROOVE IS IN TICKS, and we
 // were writing frame counts into it. A song exported as 128 bpm with a 7-frame

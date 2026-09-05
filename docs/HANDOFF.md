@@ -3,6 +3,95 @@
 Plain, current working notes for whoever (or whatever) picks the project up
 next. Infrastructure and operations live outside this repository.
 
+## 2026-09-05 — envelope evidence and immutable native probes
+
+The envelope investigation uncovered an observer problem before a playback
+fix: both C probes used `mCoreLoadSaveFile(..., false)`, which lets LSDj's
+upgrader rewrite the input SAV. Previously played temporary fixtures from
+`chiptunes-envelope-shapes-6TIA6x` now contain format 22, not their originally
+generated format 7. Do not reinterpret those current files as pristine inputs.
+The earlier logged projections were computed from an in-memory pre-run model;
+the observed rise/hold counterexamples remain valid, but replay provenance was
+not protected. `tools/lsdj-probe-save.h` now loads a read-only input into an
+owned in-memory VFile for both probes. Only explicit exclusive `LSDJ_BOOT_SONG`
+output persists an upgrade. Missing save paths fail without creating files.
+
+Fresh owner-ROM 9.4.2 fixtures measure v7 -> v22 envelope migration. Holding
+initial volume 8, legacy rates 0..7 become modern byte-1 low nibbles
+`0,5,7,8,9,A,B,B`. Legacy direction is moved into the target: byte 9 becomes
+`F0` for shapes 9..F and `00` otherwise; byte A is zero. Legacy 8 becomes
+modern 0 (hold). Modern byte 1 is therefore NOT the same direction/rate field
+as legacy byte 1 or Create's `fd`. The official 8.5.1 manual describes three
+amplitude/speed stages, with direction inferred from their levels:
+https://www.littlesounddj.com/latest/documentation/LSDj_8_5_1.pdf (2.6.2).
+These are measured migration cases, not a full modern ADSR decoder or timing
+specification. Local liblsdj also exposes stage bytes 1, 9 and A, and treats
+the first rate as four bits from format 13 onward; its setters/getters are
+not sufficient proof of owner-ROM behavior.
+
+`lsdjtrace` now accepts only `LSDJ_MODEL=DMG|CGB` (or omitted auto-detection),
+reports the actual model on stderr, and documents that CSV data is frame-end
+internal IO shadows plus emulator volume, NOT a complete bus-write trace.
+Repeated/intermediate writes disappear; equal snapshots alone cannot prove
+equal sound. A temporary 24-case probe at 80/128/180 BPM exposed divergent
+decay behavior: legacy 81 at volume 8 rose 8..15 then wrapped to zero in mGBA
+DMG, but dropped to zero on the first update in CGB. Legacy 89 rose to 15 in
+both. Those decay outputs are not a native musical specification. mGBA
+0.10.5 `src/gb/audio.c` `_writeEnvelope` explicitly has incomplete zombie-mode
+handling with different DMG/CGB paths:
+https://github.com/mgba-emu/mgba/blob/0.10.5/src/gb/audio.c#L831
+Do not reproduce those artifacts as intended LSDj envelopes in our player.
+No mGBA installation, infrastructure, ROM or production APU was modified.
+
+A temporary CPU store callback, preserving and forwarding the original
+`SM83Core.memory.store8`, observes what frame snapshots missed. On fresh
+legacy 81 at 128 BPM, CGB: frame 19 writes NR12=88, NR14=86 then 06;
+frames 20..27 each write NR12=09,11,18 in order. There is no new trigger
+for those eight envelope updates. `/tmp/chiptunes-envelope-write-trace.c`
+and `/tmp/chiptunes-envelope-write-events.log` retain this probe (the log's
+event separators in that first log are literal escaped newlines). The trace is not yet a
+cycle-accurate validated oracle. It provides a concrete next observer change:
+record ALL sound-register writes in order, not only their frame-end values.
+Pan Docs' Audio details / Obscure Behavior describes model-dependent NRx2
+write effects and the portable +1 via 08 (15 such writes decrement by one):
+https://github.com/gbdev/pandocs/blob/master/src/Audio_details.md
+Our APU `_env` currently changes only initial volume/rate/DAC state, so it
+does not implement manual mid-note volume updates at all. An automation list
+alone cannot fix this; the hardware boundary also needs verified semantics.
+
+A further temporary modern-rate sweep (`/tmp/chiptunes-modern-envelope-rate-audit.js`,
+`/tmp/chiptunes-modern-envelope-rate.log`) varies format-22 first-stage rates
+0..F, initial level 8, target F, later rates zero. Rate 1 performs four 08
+writes in the trigger's frame and three in the following frame; rate 5 takes
+seven updates at offsets 1..7 frames, rate F at 19/38/57/76/96/115/134.
+The store callback now also logs `mTimingGlobalTime` and `doubleSpeed` (1 in
+this CGB run). Thus frame-only automation is insufficient for the faster
+native envelopes even with correct direction. Cycle-delta observations are
+retained in the log, not promoted to a universal timing formula; later stages,
+phase, model and tempo still need controlled write-level fixtures.
+
+`verify-lsdj-envelope-fixtures.js` adds owner-ROM checks for input immutability,
+16 independently expected migrations and old/upgraded snapshot equivalence,
+plus 36 rise cases across both pulse channels, two hardware models, three
+tempos and initial volumes 1/8/14. This is observer/migration evidence, not
+full envelope parity. The existing fixed `ENVELOPE_HOLD` importer is still
+wrong and the exporter still drops shape. Next implementation needs an
+explicit version-aware multi-stage envelope representation shared by native
+import/export, Create and playback; a raw four-bit `fd` alias would conflate
+different semantics. A reliable software-envelope write/timing observer (or
+independent hardware-validated emulator) is needed before asserting decay
+volume correctness. This does not block unrelated composition/UI work.
+
+The focused fixture run passed, then full `npm test` finished with exit 0
+using freshly compiled `/tmp/chiptunes-envelope-safe.rNmG2i/{lsdjplay,lsdjtrace}`.
+Log: `/tmp/chiptunes-envelope-observer-full.log`. The full run includes all
+new envelope checks, existing owner-ROM cases, five responsive viewports,
+48 deterministic finite songs and all 14 games. No production source or
+generated artifact changed; no release, deployment or app restart occurred.
+Render parity also finished with exit 0: 10/10, minimum correlation 1.000000,
+zero sample lag, maximum absolute RMS difference 0.175 dB
+(`/tmp/chiptunes-envelope-observer-parity.log`).
+
 ## 2026-09-05 — local landing and Create responsive correction
 
 The follow-up to `91b63b9` changes the shared UI, not the musical path.

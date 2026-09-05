@@ -25,6 +25,7 @@
  * Kotlinski's, freeware for personal and educational use, and its licence
  * forbids redistribution. Point this at your own copy.
  */
+#include "lsdj-probe-save.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -70,7 +71,7 @@ int main(int argc, char** argv) {
 	color_t* video = calloc((size_t)vw * vh, sizeof(color_t));
 	core->setVideoBuffer(core, video, vw);
 	if (!mCoreLoadFile(core, argv[1])) { printf("ROM_LOAD_FAILED\n"); return 1; }
-	if (!mCoreLoadSaveFile(core, argv[2], false)) { printf("SAV_LOAD_FAILED\n"); return 1; }
+	if (!lsdjProbeLoadSave(core, argv[2])) { printf("SAV_LOAD_FAILED\n"); return 1; }
 	core->reset(core);
 
 	/* LSDj boots, reads the save, and lands on the song screen. */

@@ -2,11 +2,10 @@
  *
  * `lsdjplay` answered "does LSDj play our notes" by watching decoded pitches.
  * That is enough to prove a note sounded and nothing more. Parity is a stronger
- * claim -- the same song has to SOUND the same -- and the only place that claim
- * is decidable is the APU registers, because they are the entire interface
- * between a Game Boy program and the noise it makes. Two programs that write
- * the same bytes to NR10..NR51 on the same frames are, to the hardware,
- * indistinguishable.
+ * claim -- the same song has to SOUND the same. Frame-end register snapshots
+ * are useful evidence, but NOT a complete write trace: repeated writes and
+ * intermediate values within a frame disappear. Hardware model and emulator
+ * accuracy also matter, particularly software-envelope ("zombie") writes.
  *
  * So this dumps a per-frame register trace as CSV:
  *
@@ -16,18 +15,21 @@
  * between writes and a full dump is 60 lines a second of nothing.
  *
  * The comparison this feeds is against our own engine's trace of the same song.
- * Anything that differs is a real difference in what the two make the chip do.
+ * A difference needs investigation; equality is not full sound-parity proof.
  *
  * Build (needs mGBA's library -- `brew install mgba`):
  *   clang -I$(brew --prefix)/include -L$(brew --prefix)/lib -lmgba \
  *         -o /tmp/lsdjtrace tools/lsdjtrace.c
  *
  * Run:  lsdjtrace LSDJ.gb OUR.sav [bootFrames] [playFrames]
+ * Optional LSDJ_MODEL=DMG or CGB selects a model; actual model is on stderr.
+ * Input saves are never modified.
  *
  * The LSDj ROM is NOT in this repository and must not be: it is Johan
  * Kotlinski's, freeware for personal and educational use, and its licence
  * forbids redistribution. Point this at your own copy.
  */
+#include "lsdj-probe-save.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -69,13 +71,22 @@ int main(int argc, char** argv) {
 	if (!core) { fprintf(stderr, "NO_CORE\n"); return 1; }
 	core->init(core);
 	mCoreInitConfig(core, NULL);
+	const char* model = getenv("LSDJ_MODEL");
+	if (model && strcmp(model, "DMG") && strcmp(model, "CGB")) {
+		fprintf(stderr, "LSDJ_MODEL must be DMG or CGB\n"); return 2;
+	}
+	if (model) {
+		const char* keys[] = {"gb.model", "sgb.model", "cgb.model", "cgb.hybridModel", "cgb.sgbModel"};
+		for (int k = 0; k < 5; k++) mCoreConfigSetValue(&core->config, keys[k], model);
+	}
 	unsigned vw = 0, vh = 0;
 	core->desiredVideoDimensions(core, &vw, &vh);
 	color_t* video = calloc((size_t)vw * vh, sizeof(color_t));
 	core->setVideoBuffer(core, video, vw);
 	if (!mCoreLoadFile(core, argv[1])) { fprintf(stderr, "ROM_LOAD_FAILED\n"); return 1; }
-	if (!mCoreLoadSaveFile(core, argv[2], false)) { fprintf(stderr, "SAV_LOAD_FAILED\n"); return 1; }
+	if (!lsdjProbeLoadSave(core, argv[2])) { fprintf(stderr, "SAV_LOAD_FAILED\n"); return 1; }
 	core->reset(core);
+	fprintf(stderr, "MODEL=%s\n", GBModelToName(((struct GB*) core->board)->model));
 
 	for (int i = 0; i < bootFrames; i++) core->runFrame(core);
 
@@ -96,9 +107,8 @@ int main(int argc, char** argv) {
 	for (int f = 0; f < playFrames; f++) {
 		core->runFrame(core);
 		uint8_t cur[NREG + 6];
-		/* The audio registers live in the IO block; reading them back through the
-		 * memory map returns the OR-masks the hardware applies, which is exactly
-		 * what another implementation would have to match to be indistinguishable. */
+		/* Internal IO shadows, not CPU bus reads with hardware read masks.
+		 * These retain only the final value seen at this frame boundary. */
 		for (int r = 0; r < NREG; r++) cur[r] = gb->memory.io[(REG_FIRST + r) - 0xFF00];
 		cur[NREG] = gb->audio.playingCh1;
 		cur[NREG + 1] = gb->audio.playingCh2;
