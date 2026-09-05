@@ -55,6 +55,45 @@ do not treat the focused passes above as permission to push a red suite.
 
 ## Where the music stands (musician-11)
 
+### 2026-09-05 — soundtrack diversity diagnosis and seed separation
+
+The preceding diversity failure mixed a valid product bug with an invalid
+measurement: every tested soundtrack explicitly requested D, while the gate
+penalized shared pitch classes. Honoring the key correctly makes that histogram
+similarity expected; it does not establish that phrases or rhythms are alike.
+Independently, soundtrack() also defaulted EVERY unrequested key to D.
+
+Unconstrained soundtracks now inherit their first cue's generated key; explicit
+keys are still honored. Each cue gets a distinct seed derived from the returned
+soundtrack token, cue index and scene. Reusing one supplied token unchanged
+previously duplicated openings across overlapping scene constraints. This is
+still one composition per cue, with no best-of-N or production scoring.
+
+The diversity gate now uses fixed tokens for twenty soundtracks, separates
+unconstrained harmonic diversity (same 0.65 ceiling, measured 0.286) from
+same-key phrase/rhythm variety (10/10 openings, 9/10 rhythms), checks all twenty
+games for within-game opening duplication, and verifies returned-token replay,
+distinct cue seeds and actual document keys. These are symbolic checks, not
+an audition or evidence of complete composition quality. The broader musical
+and LSDj-parity objective remains open. Focused diversity and the fresh full
+npm test run PASS with the private ROM and rebuilt harnesses, including the
+previously unreached latency, screen, 48-song smoke and all 14 game checks.
+Full output: /tmp/chiptunes-soundtrack-full-test.log (temporary local evidence).
+This supersedes the push blocker in the preceding checkpoint. No deployment,
+release or app restart was performed.
+
+Next native-import evidence: blank instrument fields are stateful, not merely
+missing labels. A two-note PU1 fixture (C4 at row 0, KILL at row 8, E4 at row
+10, trumpet duty and volume 6) was traced in real LSDj. Changing only the
+second instrument field to FF retains duty and changes pitch but keeps volume
+zero after KILL; explicitly selecting the instrument restores volume 6. The
+importer currently drops stamp/velocity on that second note and materializes a
+fresh default voice. Copying the preceding instrument would also be wrong:
+it would incorrectly retrigger after KILL. Native import needs explicit
+instrument/trigger/envelope state, with fixtures for both contiguous notes and
+notes after KILL, plus instrument-only rows. This behavior was measured, not
+fixed in the soundtrack checkpoint. Private diagnostic SAVs were removed.
+
 ### 2026-09-05 — exported pulse duration and observer correction
 
 Pulse instrument byte 3 was FF, enabling a hardware length counter that cut

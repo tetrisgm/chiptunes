@@ -18,7 +18,8 @@
 //     actually uses. High similarity across a batch means one harmonic world.
 //   * TEMPO SPREAD -- a generator collapsing onto one tempo is the first sign.
 //   * ACROSS vs WITHIN -- cues inside ONE soundtrack are meant to be related.
-//     Two DIFFERENT soundtracks sharing anything is the actual bug.
+//     Different soundtracks must not collapse to one composition; explicitly
+//     requested common constraints (such as D major) are not collapse.
 'use strict';
 const path = require('path');
 const api = require(path.join(__dirname, '..', 'src', 'api.js'));
@@ -164,18 +165,39 @@ for (const scene of ['boss', 'title', 'cave']) {
      Object.entries(sceneTempos).map(([k, v]) => k + ':' + v).join(' ') + ')');
 }
 
-// The one that matters most: two DIFFERENT soundtracks must share nothing.
-console.log('soundtracks do not share across games');
+// Stable tokens make regressions reproducible without selecting candidates.
+// Check free harmony separately from an explicit shared-key request: a pitch
+// histogram cannot distinguish two different pieces in the same scale.
+console.log('soundtracks remain varied across games');
 {
-  const osts = Array.from({ length: 10 }, () => api.soundtrack({ scenes: ['title', 'battle', 'boss'], key: 'D' }));
+  const tokens = Array.from({ length: 10 }, (_, i) => require('crypto')
+    .createHash('sha256').update('soundtrack-diversity-' + i).digest('hex').slice(0, 16));
+  const osts = tokens.map(token => api.soundtrack({ scenes: ['title', 'battle', 'boss'], token }));
   const first = batch(osts.map(o => o.cues[0].doc));
   ok(first.openings === first.n, 'ten different games, ten different title themes (' + first.openings + '/' + first.n + ')');
-  ok(first.similarity < 0.65, 'and they are not one sound (' + first.similarity.toFixed(3) + ', ceiling 0.65)');
+  ok(first.similarity < 0.65, 'unconstrained games do not share one harmonic world (' + first.similarity.toFixed(3) + ', ceiling 0.65)');
+  ok(osts.every(o => o.cues.every(c => CT.docState(c.doc).key === api.midiOf(o.key + '4') % 12)),
+     'each soundtrack reports and consistently uses its generated key');
+  ok(osts.every(o => o.cues[0].doc === api.brief({ scene: 'title', token: o.cues[0].token }).doc),
+     'the default key preserves the first cue without an extra transposition');
+  const replay = api.soundtrack({ scenes: ['title', 'battle', 'boss'], token: osts[0].token });
+  ok(replay.cues.every((c, i) => c.doc === osts[0].cues[i].doc),
+     'the returned soundtrack token reproduces every cue');
+  ok(osts.every(o => new Set(o.cues.map(c => c.token)).size === o.cues.length),
+     'each cue has a distinct derived seed, without candidate selection');
+  const keyed = tokens.map(token => api.soundtrack({ scenes: ['title', 'battle', 'boss'], token, key: 'D' }));
+  ok(keyed.every(o => o.cues.every(c => CT.docState(c.doc).key === 2)),
+     'an explicit D request is honored by every cue');
+  const fixed = batch(keyed.map(o => o.cues[0].doc));
+  ok(fixed.openings === fixed.n, 'same-key games still have distinct openings (' + fixed.openings + '/' + fixed.n + ')');
+  ok(fixed.rhythms >= fixed.n * 0.75, 'same-key games retain rhythmic variety (' + fixed.rhythms + '/' + fixed.n + ', floor 8)');
 
   // Within one soundtrack, cues are ALLOWED to be related -- that is the point.
   // They must still be different pieces of music.
-  const within = batch(osts[0].cues.map(c => c.doc));
-  ok(within.openings === within.n, 'inside one game the cues are still distinct songs');
+  ok(osts.concat(keyed).every(o => {
+    const within = batch(o.cues.map(c => c.doc));
+    return within.openings === within.n;
+  }), 'inside each of twenty seeded games the cues are still distinct songs');
 
   // motif:true is the strongest cohesion device here. It must relate the cues
   // without making them the same, and it is OFF unless asked for.

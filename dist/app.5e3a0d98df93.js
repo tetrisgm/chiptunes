@@ -10549,7 +10549,7 @@ function capabilities() {
                  'shape', 'fade', 'chordtones', 'arc', 'smooth', 'accent'],
     writing: 'chordtones, arc, smooth and accent are the operations that change how the music is WRITTEN rather than how it is set: consonance against the chord underneath, the rise or fall of a phrase, leaps turned into steps, and emphasis on the beat. analyse() measures all four so a caller can check a word did what it said.',
     layers: LAYER_SETS.map(function (l) { return { name: l.name, lanes: l.keep, use: l.use }; }),
-    variety: 'Cohesion devices are opt-in on purpose. soundtrack() shares a KEY by default, which costs no variety; a shared motif needs motif:true and is transposed per cue rather than copied. Nothing is shared between two different soundtracks.',
+    variety: 'soundtrack() shares the requested key, or its first cue\'s generated key. A shared motif needs motif:true and is varied per cue. A shared key constrains harmony; different soundtracks still need distinct phrases and rhythms.',
     limits: { maxTitle: 48 }
   };
 }
@@ -11514,14 +11514,24 @@ function soundtrack(b) {
     if (!SCENES[s]) throw new Error('soundtrack: unknown scene ' + JSON.stringify(s) +
                                     '. Known: ' + Object.keys(SCENES).join(', '));
   });
-  var rootName = b.key || 'D';
-  var root = midiOf(rootName + '4');
-  if (root == null) throw new Error('soundtrack: ' + JSON.stringify(rootName) + ' is not a key, e.g. "D"');
-  var targetKey = ((root % 12) + 12) % 12;
-  var cues = list.map(function (name) {
-    var cue = brief(Object.assign({}, b, { scene: name, scenes: undefined }));
+  var rootName = b.key || null;
+  var root = rootName == null ? null : midiOf(rootName + '4');
+  if (rootName != null && root == null) throw new Error('soundtrack: ' + JSON.stringify(rootName) + ' is not a key, e.g. "D"');
+  var targetKey = root == null ? null : ((root % 12) + 12) % 12;
+  var soundtrackToken = b.token ? String(b.token) : Song.mint();
+  var cues = list.map(function (name, index) {
+    // One deterministic composition per cue. Reusing the same seed for every
+    // scene can clone a phrase when their style constraints overlap.
+    var cueToken = soundtrackToken + '-cue-' + index + '-' + name;
+    var cue = brief(Object.assign({}, b, { scene: name, scenes: undefined, token: cueToken }));
     // pull every cue into the same key, so they belong together
     var st = CT_CREATE.docState(cue.doc);
+    // Cohesion within a game does not require every game to default to D.
+    // Use the first composition's own key unless the caller chose one.
+    if (targetKey == null) {
+      targetKey = st.key | 0;
+      rootName = NOTE_NAMES[targetKey];
+    }
     var shift = ((targetKey - (st.key | 0)) % 12 + 12) % 12;
     if (shift > 6) shift -= 12;
     if (shift) {
@@ -11539,7 +11549,7 @@ function soundtrack(b) {
   // ⚠️ A SHARED MOTIF IS OFF BY DEFAULT, and that is a deliberate reversal.
   // Cohesion devices are exactly how a generator starts sounding the same, and
   // the owner has been burned by that repeatedly. Shared KEY already makes cues
-  // belong together and costs no variety; a recurring figure is a stronger,
+  // belong together but constrains harmonic variety; a recurring figure is a stronger,
   // riskier claim, so it is opt-in with `motif: true`.
   //
   // And when it is on, the figure is VARIED rather than copied: each cue gets it
@@ -11608,7 +11618,7 @@ function soundtrack(b) {
       }
     }
   }
-  return { key: rootName, mode: b.mode || null, motif: motif,
+  return { token: soundtrackToken, key: rootName, mode: b.mode || null, motif: motif,
            motifSkipped: (b.motif === true && !motif) ? why : undefined, cues: cues };
 }
 
