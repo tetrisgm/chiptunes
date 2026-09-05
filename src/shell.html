@@ -1001,6 +1001,11 @@
   #createscreen .n-moodrow::-webkit-scrollbar{ display:none; }
   #createscreen .n-moodlab{ flex:0 0 auto; font:700 17px/1.2 var(--ui); color:var(--ink); letter-spacing:-.01em; }
   #createscreen .n-moodchips{ display:flex; gap:7px; }
+  #createscreen .n-prompt{ display:flex; flex:0 0 auto; gap:8px; padding:0 18px 6px; }
+  #createscreen .n-prompt .cr-mood{ flex:1; min-width:0; width:auto; }
+  #createscreen .n-prompt-result{ flex:0 0 auto; max-height:3.8em; overflow:auto;
+    padding:0 18px 6px; color:var(--ink); font:12px/1.5 var(--ui); }
+  #createscreen .n-prompt-result:empty{ display:none; }
   #createscreen .cr-chip{ height:36px; padding:0 16px; border-radius:999px; cursor:pointer; flex:0 0 auto;
     background:rgba(255,255,255,.08); border:1px solid var(--mat-edge-hi); color:var(--ink); font:700 13px var(--ui); }
   #createscreen .cr-chip:hover{ background:rgba(123,220,160,.2); border-color:rgba(123,220,160,.6); }

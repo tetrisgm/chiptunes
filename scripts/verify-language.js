@@ -564,5 +564,37 @@ console.log('the bundle');
      (leaked.length ? ' -- ' + leaked.join(', ') : ''));
 }
 
+console.log('Create and the API share one interpreter');
+const create = require('../src/create.js');
+const composer = require('../src/composer.js');
+for (let i = 0; i < 12; i++) {
+  const score = composer.compile('key-metadata-' + i);
+  const doc = create.songFrom(score).code;
+  ok(create.docState(doc).key === score.musical.rootMidi % 12,
+    'a composed document retains its actual tonic (' + i + ')');
+}
+const keyC = api.toJSON(api.brief({ token: 'key-direction', key: 'C' }).doc);
+const keyD = api.toJSON(api.brief({ token: 'key-direction', key: 'D' }).doc);
+ok(keyC.key === 0 && keyD.key === 2, 'a requested key reaches the song document');
+const cState = create.docState(api.brief({ token: 'key-direction', key: 'C' }).doc);
+const dState = create.docState(api.brief({ token: 'key-direction', key: 'D' }).doc);
+ok(cState.cells.length === dState.cells.length && cState.cells.every((n, i) =>
+  n.midi == null || dState.cells[i].midi - n.midi === 2 || dState.cells[i].midi - n.midi === -10),
+  'key changes transpose every pitched note, not just the label');
+for (const prompt of create.moods().concat(['a dreamy cave in D minor, no drums', 'like Metroid', 'happy glorb'])) {
+  const token = 'shared-prompt-' + prompt;
+  const expected = api.ask(prompt, { brief: { token } });
+  const actual = create.moodSong(prompt, { token });
+  ok(expected.ok && actual && actual.code === expected.doc,
+    JSON.stringify(prompt) + ' gives Create exactly the API document');
+  ok(actual && actual.reading.startsWith('Read as:'), 'the interpretation is available to show');
+  if (prompt === 'happy glorb') ok(actual && actual.reading.includes('glorb'), 'unknown words are reported');
+}
+ok(create.moodSong('glorb blarg', { token: 'invalid-prompt' }) === null,
+  'unrecognized prompts do not produce an unrelated song');
+ok(api.compose({ mood: 'happy', token: 'seeded-mood' }).doc ===
+   api.compose({ mood: 'happy', token: 'seeded-mood' }).doc,
+   'the mood composition entry point honors its token');
+
 console.log(fail ? '\nverify-language: ' + fail + ' FAILED' : '\nverify-language: it understands the sentence');
 process.exit(fail ? 1 : 0);

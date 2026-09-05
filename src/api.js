@@ -153,14 +153,13 @@ function compose(opts) {
   opts = opts || {};
   var score, token;
   if (opts.mood) {
-    // moodSong composes SOMETHING for any string -- an unrecognised word just
-    // leaves the composer unconstrained -- which would hand an agent a song it
-    // did not ask for and no way to tell. Check the word first.
+    // This entry point accepts the published mood chips. Free-text requests
+    // use ask(); both ultimately share that interpreter and document path.
     var known = CT_CREATE.moods();
     if (known.indexOf(String(opts.mood)) < 0)
       throw new Error('compose: no song for mood ' + JSON.stringify(opts.mood) +
                       '. Known moods: ' + known.join(', '));
-    var m = CT_CREATE.moodSong(String(opts.mood));
+    var m = CT_CREATE.moodSong(String(opts.mood), opts.token ? { token: String(opts.token) } : {});
     if (!m) throw new Error('compose: no song for mood ' + JSON.stringify(opts.mood) +
                             '. Known moods: ' + CT_CREATE.moods().join(', '));
     return { doc: m.code, title: m.title, bpm: m.bpm, bars: m.bars, mood: String(opts.mood) };
@@ -1049,6 +1048,14 @@ function brief(b) {
   }
 
   var ops = [];
+  if (spec.key != null) {
+    var targetKey = midiOf(String(spec.key) + '4');
+    if (targetKey == null) throw new Error('brief: unknown key ' + JSON.stringify(spec.key));
+    var sourceKey = CT_CREATE.docState(made.doc).key;
+    var shift = ((targetKey - sourceKey) % 12 + 12) % 12;
+    if (shift > 6) shift -= 12;
+    if (shift) ops.push({ op: 'transpose', semitones: shift });
+  }
   if (spec.exclude) [].concat(spec.exclude).forEach(function (l) { ops.push({ op: 'drop', lane: l }); });
   if (spec.intensity > 0) ops.push({ op: 'velocity', delta: 0.1 });
   // SCENES has carried `resolve: true` on victory and game_over since scenes
@@ -1329,10 +1336,10 @@ var WORD_MOODS = {
 // a genre word onto them is a true statement about what the machine will do --
 // unlike a franchise name, which could only be a guess wearing a trademark.
 var WORD_GENRES = {
-  anthem: ['anthem'], anthemic: ['anthem'],
+  anthem: ['anthem'], anthemic: ['anthem'], epic: ['anthem'],
   house: ['house'], techno: ['techno'], trance: ['trance'],
   dnb: ['dnb'], jungle: ['dnb'], breakbeat: ['breaks'], breaks: ['breaks'],
-  arcade: ['arcade'], rock: ['rock'], punk: ['punk'], hardcore: ['punk'],
+  arcade: ['arcade'], retro: ['arcade'], rock: ['rock'], punk: ['punk'], hardcore: ['punk'],
   funk: ['funk'], funky: ['funk'], groovy: ['funk'],
   hiphop: ['boombap'], boombap: ['boombap'], lofi: ['boombap', 'chill'],
   ambient: ['drone', 'chill'], drone: ['drone'],

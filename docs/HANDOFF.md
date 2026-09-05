@@ -55,6 +55,42 @@ do not treat the focused passes above as permission to push a red suite.
 
 ## Where the music stands (musician-11)
 
+### 2026-09-05 — shared prompt implementation checkpoint
+
+Create now has a text prompt and persistent, accessible interpretation feedback.
+The editor and station mood chips use `CT_API.ask` through `moodSong`; the
+duplicate Create dictionary is removed. All ten chips and tested free-text
+briefs produce exactly the same document as the API for a fixed token.
+Unknown requests return no song and leave the editor document untouched.
+`epic` and `retro` now name anthem and arcade in the shared genre vocabulary.
+
+Two correctness fixes accompany that integration: composed documents retain
+their real tonic instead of always reporting C, and `brief({key})` transposes
+the notes into that key (it previously reported the request without applying
+it). The editor's speed label/slider now show the post-transform tempo; the
+slider accepts every integer, not just even values. Scratch composition no
+longer writes its intermediate tempo into the live editor's controls.
+
+Language, API and native structural suites passed after these changes. Added
+browser regressions for prompt/document identity, key/no-drums, tempo controls
+and rejection preservation to `verify-song-document.js`; its rerun passed,
+including 100% frame-exact note retention for all 12 fixture songs. Entry and
+Create-handover suites are running against the rebuilt artifact. Local browser interaction and desktop/390px layout
+inspection confirmed the prompt, feedback, requested-key notes, empty drum
+lane, matching tempo display and unchanged song link after an invalid prompt.
+Mobile transport still clips at the left edge; this remains a layout target.
+No listening audition or real Safari interaction certification was performed.
+
+The earlier full suite is terminal RED at `verify-lsdj.js`, with the explicit
+private-ROM path: all 12 expected pitches occur, but its `TRIG` set also contains
+MIDI 79, 78, 77 and 75. Reproduced identically by loading the committed
+`b54eb63` versions of create.js and api.js in an isolated Node process. This is
+not introduced by the prompt changes. `tools/lsdjplay.c` samples playing-channel
+frequencies every frame, not actual note-on events; determine whether these
+are intended modulation or a genuine exported-pitch mismatch against the
+browser APU schedule. Do not drop the assertion or omit the ROM to get green.
+Push remains withheld under the no-red-push contract.
+
 - One deterministic composer (`src/composer.js`): a token maps to the same
   song forever. No randomness, time, DOM, or network in the musical path.
 - Fourteen style archetypes (anthem, house, trance, techno, dnb, breaks,

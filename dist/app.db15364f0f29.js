@@ -3793,70 +3793,12 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       Audio.playCreate({ notes: [], bank: BANK, totalFrames: 0x7fffffff }, 0);
   }
 
-  // ---- moods: words -> the composer's own dials ----------------------------
-  var MOOD = {
-    happy: { mode: 'maj', bpmMin: 110 }, cheerful: { mode: 'maj', bpmMin: 110 }, joyful: { mode: 'maj', bpmMin: 110 },
-    sunny: { mode: 'maj', bpmMin: 104 }, bright: { mode: 'maj', bpmMin: 104 }, fun: { mode: 'maj', bpmMin: 110 },
-    sad: { mode: 'min' }, melancholy: { mode: 'min' }, blue: { mode: 'min' },
-    gloomy: { mode: 'min' }, lonely: { mode: 'min' }, moody: { mode: 'min' },
-    dark: { mode: 'min', styles: ['techno', 'dnb', 'funk', 'boombap'] },
-    spooky: { mode: 'min', styles: ['techno', 'funk', 'boombap', 'ballad'] },
-    creepy: { mode: 'min', styles: ['techno', 'funk', 'boombap', 'ballad'] },
-    scary: { mode: 'min', styles: ['techno', 'dnb', 'punk'] },
-    haunted: { mode: 'min', styles: ['ballad', 'drone', 'techno'] },
-    fast: { bpmMin: 145 }, quick: { bpmMin: 145 }, hyper: { bpmMin: 155 },
-    frantic: { bpmMin: 155 }, racing: { bpmMin: 150 }, speedy: { bpmMin: 150 },
-    slow: { bpmMax: 100 }, lazy: { bpmMax: 100 }, sleepy: { bpmMax: 92 },
-    upbeat: { bpmMin: 124, mode: 'maj' }, energetic: { bpmMin: 132 },
-    party: { styles: ['house', 'trance', 'anthem'] },
-    dance: { styles: ['house', 'trance', 'anthem', 'techno'] },
-    bouncy: { styles: ['house', 'breaks', 'funk'] },
-    chill: { styles: ['chill', 'ballad'] }, calm: { styles: ['chill', 'ballad', 'drone'] },
-    relaxed: { styles: ['chill', 'ballad'] }, mellow: { styles: ['chill', 'ballad'] },
-    peaceful: { styles: ['chill', 'ballad', 'drone'] }, cozy: { styles: ['chill', 'boombap'] },
-    dreamy: { styles: ['drone', 'ballad', 'trance'] }, ambient: { styles: ['drone'] },
-    floaty: { styles: ['drone', 'trance'] },
-    epic: { styles: ['anthem'] }, heroic: { styles: ['anthem'], mode: 'maj' },
-    triumphant: { styles: ['anthem'], mode: 'maj' },
-    retro: { styles: ['arcade'] }, arcade: { styles: ['arcade'] }, game: { styles: ['arcade'] },
-    rock: { styles: ['rock', 'punk'] }, punk: { styles: ['punk'] }, metal: { styles: ['punk', 'rock'] },
-    funky: { styles: ['funk', 'boombap'] }, groovy: { styles: ['funk', 'house', 'boombap'] },
-    swing: { styles: ['funk', 'boombap', 'house', 'breaks'] },
-    jazzy: { styles: ['funk', 'boombap', 'chill'], mode: 'min' },
-    battle: { styles: ['dnb', 'punk', 'techno'], mode: 'min' },
-    boss: { styles: ['dnb', 'techno', 'punk'], mode: 'min' },
-    intense: { bpmMin: 140, mode: 'min' },
-    house: { styles: ['house'] }, trance: { styles: ['trance'] }, techno: { styles: ['techno'] },
-    dnb: { styles: ['dnb'] }, drum: { styles: ['dnb'] }, breaks: { styles: ['breaks'] },
-    anthem: { styles: ['anthem'] }, boombap: { styles: ['boombap'] }, hiphop: { styles: ['boombap'] },
-    ballad: { styles: ['ballad'] }, drone: { styles: ['drone'] }, funk: { styles: ['funk'] }
-  };
-  function parseMood(text) {
-    var want = { styles: null, mode: null, bpmMin: 0, bpmMax: 999 };
-    String(text || '').toLowerCase().split(/[^a-z]+/).forEach(function (w) {
-      var m = MOOD[w]; if (!m) return;
-      if (m.mode) want.mode = m.mode;
-      if (m.bpmMin) want.bpmMin = Math.max(want.bpmMin, m.bpmMin);
-      if (m.bpmMax) want.bpmMax = Math.min(want.bpmMax, m.bpmMax);
-      if (m.styles) {
-        if (!want.styles) want.styles = m.styles.slice();
-        else {
-          var both = want.styles.filter(function (x) { return m.styles.indexOf(x) >= 0; });
-          want.styles = both.length ? both : want.styles.concat(m.styles);
-        }
-      }
-    });
-    return want;
-  }
-  function composeMood(moodText) {
-    var C = (G.CT_COMPOSERS && G.CT_COMPOSERS.rrr_core) || null;
-    if (!C || typeof C.compile !== 'function') return null;
-    var tok = (G.Song && G.Song.mint) ? G.Song.mint() : Math.random().toString(36).slice(2, 18);
-    var score = null;
-    try { score = C.compile(tok, parseMood(moodText)); } catch (e) { return null; }
-    if (!score || !score.gb || !score.gb.notes || !score.gb.notes.length) return null;
-    score._tok = tok;
-    return score;
+  // Mood chips and written prompts share the public interpreter. A failed
+  // request is reported before replacing the current document.
+  var promptError = '';
+  function promptFeedback(text) {
+    var el = root && root.querySelector('.n-prompt-result');
+    if (el) el.textContent = text || '';
   }
 
   // The dice and the mood box compose a REAL track: the same composer the
@@ -3867,17 +3809,19 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   // with the editor; importScore fills whatever state is current, so the
   // radio can materialise a song without the editor being open at all.
   function composeIntoGrid(moodText, auto) {
+    var made = moodSong(moodText);
+    var st = made && decode(made.code);
+    if (!st) { promptFeedback(promptError || 'Could not compose that request. Your song is unchanged.'); return false; }
     if (!auto) tourAdvance(3);
     if (auto) dropLiveScore(); else snapshot();
     resolveBank();
-    var score = composeMood(moodText);
-    var gb = score && score.gb;
-    if (!gb || !gb.notes || !gb.notes.length) return;
-    importScore(score, moodText);
-    var capF = Math.round(S.bars * spb() * framesPer16());   // the verbatim score, same length
-    liveScore = { notes: gb.notes.filter(function (n) { return n.frame < capF; }),
-                  bank: gb.bank, totalFrames: Math.min(gb.totalFrames, capF), loopFrames: 0 };
-    liveBpm = score.bpm || S.bpm;
+    S = st; order = S.cells.length;
+    liveScore = made.gb;
+    liveBpm = made.bpm;
+    var bpmLabel = root && root.querySelector('.n-bpmval');
+    var bpmSlider = root && root.querySelector('[data-cr="bpm"]');
+    if (bpmLabel) bpmLabel.textContent = S.bpm;
+    if (bpmSlider) bpmSlider.value = S.bpm;
     liveMood = String(moodText || '');
     try { buildSong(); } catch (e) {}          // resolve channel marks
     loopBar = -1; queuedBar = null;
@@ -3887,6 +3831,8 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     dirty();
     startPlayback(0);   // after dirty: its clearTimeout cancels the queued repost,
                         // which used to seek past the song's first notes
+    promptFeedback(made.reading);
+    return true;
   }
   // Fill the CURRENT state from a composed Score. Everything here reads S, so
   // withState() is how it is pointed at a scratch song instead of the editor's.
@@ -3935,13 +3881,11 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     // of loss when a composed song came in -- a hundred notes of a long song
     // simply gone. Playback has no reason to stop at a bar count; only the
     // cartridge does, and checkRoom() says so while there is time to act.
-    S.key = 0; S.minor = scl.indexOf(3) >= 0 ? 1 : 0;
+    S.key = ((keyRoot % 12) + 12) % 12; S.minor = scl.indexOf(3) >= 0 ? 1 : 0;
     S.bars = Math.max(1, Math.ceil((gb.totalFrames || winF) / (spb() * per16f)));
     // the EXACT tempo, not the nearest even one: rounding it moved every note
     // in the song, which is most of why an imported song stopped matching
     S.bpm = Math.max(70, Math.min(180, Math.round(score.bpm || 120)));
-    var bv0 = root && root.querySelector('.n-bpmval');
-    if (bv0) { bv0.textContent = S.bpm; var sl0 = root.querySelector('[data-cr="bpm"]'); if (sl0) sl0.value = S.bpm; }
     S.cells = []; order = 0;
     var sorted = gb.notes.slice().sort(function (a, b) { return a.frame - b.frame || (b.pri || 0) - (a.pri || 0); });
     var LANE = { 9: 2, 7: 1, 3: 0 };           // kick / snare / hat, by note priority
@@ -4019,18 +3963,26 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     });
     return (out && out.gb && out.gb.notes && out.gb.notes.length) ? out : null;
   }
-  // A MOOD, STRAIGHT TO A SONG, with no editor open. The station's mood buttons
-  // and the editor's are the same act on the same machinery -- constrain one
-  // composition with the word, then materialise it as a document, which is
-  // what both views play. Exposed rather than duplicated so the two can never
-  // drift into meaning different things by the same name.
-  function moodSong(moodText) {
+  // The station, editor chips, and written briefs use the same interpretation
+  // and resulting document. Optional token support makes this path reproducible
+  // without opening an editor or minting a different song for each caller.
+  function moodSong(moodText, opts) {
     resolveBank();
-    var score = composeMood(moodText);
-    if (!score) return null;
-    var nm = '';
-    try { nm = (G.Song && G.Song.title) ? G.Song.title(score._tok || '') : ''; } catch (e) {}
-    return songFrom(score, nm);
+    promptError = '';
+    try {
+      var api = G.CT_API;
+      if (!api || !api.ask) throw new Error('The song interpreter is unavailable in this build.');
+      var r = api.ask(String(moodText || ''), { brief: opts || {} });
+      if (!r.ok) { promptError = r.error; return null; }
+      var made = songOf(r.doc);
+      if (!made) throw new Error('That request produced no playable notes.');
+      made.reading = 'Read as: ' + r.applied.join('; ');
+      var gaps = (r.skipped || []).concat(r.notUnderstood || []);
+      (r.unsupported || []).forEach(function (u) { gaps.push(u.asked + ': ' + u.why); });
+      if (gaps.length) made.reading += '. Not applied: ' + gaps.join('; ');
+      made.interpretation = r;
+      return made;
+    } catch (e) { promptError = String(e.message || e); return null; }
   }
   function songFrom(score, title) {
     resolveBank();
@@ -5045,6 +4997,9 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
         '<span class="n-moodchips">' +
         CHIPS.map(function (c) { return '<button type="button" class="cr-chip" data-mood="' + c + '">' + c + '</button>'; }).join('') +
         '</span></div>' +
+      '<form class="n-prompt"><input class="cr-mood" aria-label="Describe your song" maxlength="500" placeholder="A dreamy cave theme in D minor, no drums" autocomplete="off">' +
+        '<button type="submit" class="cr-btn">Write song</button></form>' +
+      '<div class="n-prompt-result" role="status" aria-live="polite"></div>' +
       // ONE ROW THAT SCROLLS, not a wrapping block. Five pills do not fit
       // across a phone, and wrapping them cost a whole line of a screen that
       // is mostly song. This is the same nowrap + overflow-x treatment the
@@ -5090,7 +5045,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
         '<button type="button" class="n-tfollow' + (camFollow ? ' on' : '') + '" data-cr="follow" ' +
           'title="Keep the view on the music">Follow</button>' +
         '<label class="cr-lab">Speed <b class="n-bpmval">' + S.bpm + '</b> BPM' +
-        '<input type="range" min="70" max="180" step="2" value="' + S.bpm + '" data-cr="bpm"></label>' +
+        '<input type="range" min="70" max="180" step="1" value="' + S.bpm + '" data-cr="bpm"></label>' +
         '<span class="cr-lab n-gridpick">Grid' + GRIDS.map(function (g) {
           return '<button type="button" class="n-gbtn" data-cr="grid' + g + '">' + g + '</button>';
         }).join('') + '</span>' +
@@ -5287,6 +5242,12 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   }
 
   function wireEvents() {
+    root.querySelector('.n-prompt').addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      gestured = true; wantStart = false;
+      try { if (typeof Audio !== 'undefined' && Audio.resume) Audio.resume(true); } catch (e) {}
+      composeIntoGrid(root.querySelector('.cr-mood').value);
+    });
     // Space plays/pauses
     document.addEventListener('keydown', function (ev) {
       if (ev.code !== 'Space' || !isOpen() || ev.metaKey || ev.altKey || ev.ctrlKey) return;
@@ -10591,14 +10552,13 @@ function compose(opts) {
   opts = opts || {};
   var score, token;
   if (opts.mood) {
-    // moodSong composes SOMETHING for any string -- an unrecognised word just
-    // leaves the composer unconstrained -- which would hand an agent a song it
-    // did not ask for and no way to tell. Check the word first.
+    // This entry point accepts the published mood chips. Free-text requests
+    // use ask(); both ultimately share that interpreter and document path.
     var known = CT_CREATE.moods();
     if (known.indexOf(String(opts.mood)) < 0)
       throw new Error('compose: no song for mood ' + JSON.stringify(opts.mood) +
                       '. Known moods: ' + known.join(', '));
-    var m = CT_CREATE.moodSong(String(opts.mood));
+    var m = CT_CREATE.moodSong(String(opts.mood), opts.token ? { token: String(opts.token) } : {});
     if (!m) throw new Error('compose: no song for mood ' + JSON.stringify(opts.mood) +
                             '. Known moods: ' + CT_CREATE.moods().join(', '));
     return { doc: m.code, title: m.title, bpm: m.bpm, bars: m.bars, mood: String(opts.mood) };
@@ -11487,6 +11447,14 @@ function brief(b) {
   }
 
   var ops = [];
+  if (spec.key != null) {
+    var targetKey = midiOf(String(spec.key) + '4');
+    if (targetKey == null) throw new Error('brief: unknown key ' + JSON.stringify(spec.key));
+    var sourceKey = CT_CREATE.docState(made.doc).key;
+    var shift = ((targetKey - sourceKey) % 12 + 12) % 12;
+    if (shift > 6) shift -= 12;
+    if (shift) ops.push({ op: 'transpose', semitones: shift });
+  }
   if (spec.exclude) [].concat(spec.exclude).forEach(function (l) { ops.push({ op: 'drop', lane: l }); });
   if (spec.intensity > 0) ops.push({ op: 'velocity', delta: 0.1 });
   // SCENES has carried `resolve: true` on victory and game_over since scenes
@@ -11767,10 +11735,10 @@ var WORD_MOODS = {
 // a genre word onto them is a true statement about what the machine will do --
 // unlike a franchise name, which could only be a guess wearing a trademark.
 var WORD_GENRES = {
-  anthem: ['anthem'], anthemic: ['anthem'],
+  anthem: ['anthem'], anthemic: ['anthem'], epic: ['anthem'],
   house: ['house'], techno: ['techno'], trance: ['trance'],
   dnb: ['dnb'], jungle: ['dnb'], breakbeat: ['breaks'], breaks: ['breaks'],
-  arcade: ['arcade'], rock: ['rock'], punk: ['punk'], hardcore: ['punk'],
+  arcade: ['arcade'], retro: ['arcade'], rock: ['rock'], punk: ['punk'], hardcore: ['punk'],
   funk: ['funk'], funky: ['funk'], groovy: ['funk'],
   hiphop: ['boombap'], boombap: ['boombap'], lofi: ['boombap', 'chill'],
   ambient: ['drone', 'chill'], drone: ['drone'],

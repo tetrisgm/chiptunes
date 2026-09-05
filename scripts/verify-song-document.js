@@ -121,6 +121,41 @@ function server() {
   ok(!!onAir.doc, 'the song on air has a document behind it' + (onAir.doc ? ' (' + (onAir.doc.length / 1024).toFixed(1) + ' KB)' : ''));
   ok(onAir.peak > 0.02, 'and it is sounding (' + onAir.peak.toFixed(3) + ')');
   ok(onAir.route === '/', 'the address bar stays at the permanent root (' + onAir.route + ')');
+  // Written briefs and the mood chips must drive the same document machinery.
+  await p.evaluate(() => {
+    localStorage.setItem('ct-create-tour', '1');
+    CT_CREATE.openBlank();
+    Song.mint = () => 'create-prompt-check';
+  });
+  await p.getByRole('textbox', { name: 'Describe your song' }).fill('a dreamy cave in D minor, no drums');
+  await p.getByRole('button', { name: 'Write song', exact: true }).click();
+  await p.waitForFunction(() => {
+    const st = CT_CREATE.docState(location.hash.slice(3));
+    return st && st.key === 2 && document.querySelector('.n-prompt-result').textContent.includes('key: D');
+  });
+  const promptState = await p.evaluate(() => {
+    const code = location.hash.slice(3);
+    const st = CT_CREATE.docState(code);
+    const notes = CT_API.toJSON(code).notes;
+    return { code, key: st.key, bpm: st.bpm,
+      expected: CT_API.ask('a dreamy cave in D minor, no drums', { brief: { token: 'create-prompt-check' } }).doc,
+      drums: notes.filter(n => n.lane === 'Drums').length,
+      label: +document.querySelector('.n-bpmval').textContent,
+      slider: +document.querySelector('[data-cr="bpm"]').value,
+      reading: document.querySelector('.n-prompt-result').textContent };
+  });
+  ok(promptState.code === promptState.expected, 'Create submits the written brief through the shared interpreter');
+  ok(promptState.key === 2 && promptState.drums === 0, 'the requested key and missing drums reach the document');
+  ok(promptState.label === promptState.bpm && promptState.slider === promptState.bpm,
+    'the tempo label and slider show the transformed tempo, including odd BPM');
+  ok(promptState.reading.includes('Read as:') && promptState.reading.includes('key: D'),
+    'Create visibly explains how it read the prompt');
+  await p.getByRole('textbox', { name: 'Describe your song' }).fill('glorb blarg');
+  await p.getByRole('button', { name: 'Write song', exact: true }).click();
+  const rejected = await p.evaluate(() => ({ code: location.hash.slice(3),
+    message: document.querySelector('.n-prompt-result').textContent }));
+  ok(rejected.code === promptState.code && rejected.message.includes('did not recognise'),
+    'an unrecognized prompt reports failure without replacing the current song');
   ok(!errs.length, 'no page errors' + (errs.length ? ' -- ' + errs[0] : ''));
 
   await b.close(); h.s.close();
