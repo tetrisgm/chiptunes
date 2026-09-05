@@ -92,9 +92,14 @@ ok(contradicted, 'an impossible premise fails instead of returning a mislabeled 
 // tempo (45 of 48, now free integers instead of eight rungs), length where it
 // follows tempo, and note counts. That is what this checksum is for -- to make
 // a change like this a decision rather than a surprise.
+// 2026-09-05: musician-13 replaces prefix melody rationing with whole-song,
+// section-aligned phrase allocation. Lead/echo events and phrase metadata
+// deliberately change. verify-melody-allocation independently pins the old
+// style/tempo/key/form/palette/accompaniment projection across these 48 seeds;
+// the old random streams are retained rather than globally reseeded.
 const rows = Array.from({ length: 48 }, (_, i) => JSON.stringify(C.compile('smoke-song-' + i)));
 const digest = crypto.createHash('sha256').update(rows.join('\n') + '\n').digest('hex');
-ok(digest === '952f350107b81cb62d072168a243864c4e5ebae2d96f1c9e901a0b2a166ac1a8',
+ok(digest === 'a9c9f60785d3102354960485d568e4821007dd2b88e3c4c5c1272096ce732161',
   'unconstrained station scores remain byte-for-byte unchanged');
 
 console.log(fail ? '\nverify-mood-constraints: ' + fail + ' FAILED'

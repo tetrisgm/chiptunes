@@ -38,6 +38,51 @@ function sectionFingerprint(bars, section) {
   return fingerprint(bars.slice(section.startBar, section.startBar + section.bars));
 }
 
+function plannedPhraseAnalysis(score, bars) {
+  const plan = score.musical && Array.isArray(score.musical.phrasePlan)
+    ? score.musical.phrasePlan : [];
+  const phrases = plan.map((p, index) => {
+    const startBar = Number.isInteger(p.startBar) ? p.startBar : 0;
+    const spanBars = Number.isInteger(p.bars) ? p.bars : 0;
+    const fp = fingerprint(bars.slice(startBar, startBar + spanBars));
+    return {
+      index,
+      startBar,
+      bars: spanBars,
+      role: p.role,
+      sectionIndex: p.sectionIndex,
+      letter: p.letter,
+      noOnsets: fp.noOnsets,
+      fingerprint: fp
+    };
+  });
+  const groups = Object.create(null);
+  phrases.forEach((p, index) => {
+    if (!p.letter) return;
+    const key = `${p.letter}|${p.bars}`;
+    (groups[key] || (groups[key] = [])).push(index);
+  });
+  const repeated = [];
+  Object.entries(groups).forEach(([key, indices]) => {
+    if (indices.length < 2) return;
+    for (let i = 0; i < indices.length; i++) for (let j = i + 1; j < indices.length; j++) {
+      const a = phrases[indices[i]], b = phrases[indices[j]];
+      repeated.push({
+        letter: a.letter,
+        bars: a.bars,
+        first: { startBar: a.startBar, sectionIndex: a.sectionIndex },
+        later: { startBar: b.startBar, sectionIndex: b.sectionIndex },
+        exactVaries: a.fingerprint.exact !== b.fingerprint.exact,
+        pitchVaries: a.fingerprint.pitches !== b.fingerprint.pitches,
+        rhythmVaries: a.fingerprint.rhythm !== b.fingerprint.rhythm,
+        contourVaries: a.fingerprint.contour !== b.fingerprint.contour,
+        bothWithoutLeadOnsets: a.noOnsets && b.noOnsets
+      });
+    }
+  });
+  return { phrases, repeatedSameLetterSpan: repeated };
+}
+
 function songResult(token, score) {
   const bars = barData(score);
   const barFingerprints = bars.map(b => fingerprint([b]));
@@ -75,7 +120,8 @@ function songResult(token, score) {
     leadBarFingerprints: barFingerprints,
     exactPhraseRepetition: { windowBars: 4, groups: repeatedPhraseGroups, instances: repeatedPhraseInstances,
       excludedOnsetFreeWindows: onsetFreePhraseWindows },
-    laterRepeatedSections
+    laterRepeatedSections,
+    plannedPhraseAnalysis: plannedPhraseAnalysis(score, bars)
   };
 }
 
@@ -116,6 +162,23 @@ function selfTest() {
   assert(fingerprint(leap).contour === 'start,12', 'cross-bar leap in contour');
   const silentPhrase = fingerprint([[], [], [], []]);
   assert(silentPhrase.noOnsets, 'onset-free phrase window');
+  const plannedScore = {
+    musical: { phrasePlan: [
+      { startBar: 1, bars: 2, role: 'theme', sectionIndex: 1, letter: 'A' },
+      { startBar: 5, bars: 2, role: 'theme', sectionIndex: 3, letter: 'A' },
+      { startBar: 0, bars: 3, role: 'bridge', sectionIndex: 0, letter: 'B' }
+    ] }
+  };
+  const plannedBars = [[], [{ p: 60, t: 0, d: 1 }], [{ p: 64, t: 0, d: 1 }], [],
+    [], [{ p: 60, t: 0, d: 2 }], [{ p: 64, t: 0, d: 1 }]];
+  const planned = plannedPhraseAnalysis(plannedScore, plannedBars);
+  assert(planned.phrases[0].bars === 2 && planned.phrases[0].startBar === 1, 'non-four-bar planned span');
+  assert(planned.phrases[2].bars === 3, 'three-bar planned span');
+  assert(planned.phrases[0].letter === 'A' && planned.phrases[1].letter === 'A', 'planned theme letters');
+  assert(planned.repeatedSameLetterSpan.length === 1, 'repeated same-letter same-span phrase');
+  assert(planned.repeatedSameLetterSpan[0].rhythmVaries, 'rhythm-only variation');
+  assert(!planned.repeatedSameLetterSpan[0].pitchVaries, 'rhythm-only change is not pitch variation');
+  assert(plannedPhraseAnalysis({}, plannedBars).phrases.length === 0, 'absent metadata defaults empty');
   process.stdout.write('diagnose-composition-form self-test: ok\n');
 }
 

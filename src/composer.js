@@ -2,14 +2,16 @@
 // selection, critics, candidates, templates, and taste models do not.
 (function(){
 'use strict';
-var G=typeof globalThis!=='undefined'?globalThis:window,REV='musician-12';
+var G=typeof globalThis!=='undefined'?globalThis:window,REV='musician-13',SEED_REV='musician-12';
 if(typeof module!=='undefined'&&!G.CT_STYLE_CORPUS){try{require('./style-corpus.js');}catch(e){}}
 if(typeof module!=='undefined'&&module.exports&&!G.CT_CHIP_INSTRUMENTS)require('./chip-instruments.js');
 if(typeof module!=='undefined'&&module.exports&&!G.CT_MELODY)require('./melody.js');
 if(typeof module!=='undefined'&&module.exports&&!G.CT_GB)require('./gb-hardware.js');
 if(typeof module!=='undefined'&&module.exports&&!G.CT_GB_VOICES)require('./gb-voices.js');
 function hash(s){s=String(s);var h=2166136261>>>0;for(var i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
-function rng(seed,label){var a=hash(REV+':'+seed+':'+label);return function(){a=(a+0x6D2B79F5)|0;var t=Math.imul(a^(a>>>15),1|a);t=(t+Math.imul(t^(t>>>7),61|t))^t;return((t^(t>>>14))>>>0)/4294967296;};}
+// Report the new composition revision without reseeding unrelated style,
+// harmony, form and accompaniment streams during a melodic-writing change.
+function rng(seed,label){var a=hash(SEED_REV+':'+seed+':'+label);return function(){a=(a+0x6D2B79F5)|0;var t=Math.imul(a^(a>>>15),1|a);t=(t+Math.imul(t^(t>>>7),61|t))^t;return((t^(t>>>14))>>>0)/4294967296;};}
 function pick(r,a){return a[Math.floor(r()*a.length)%a.length];}function ri(r,a,b){return a+Math.floor(r()*(b-a+1));}
 function chance(r,p){return r()<p;}function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
 function mod(v,n){return((v%n)+n)%n;}function round(v){return Math.round(v*1000)/1000;}
@@ -667,7 +669,8 @@ function compile(token,rawPremise){
     gb:{plan:PLAN.id,fps:(G.CT_GB?G.CT_GB.FPS:59.7275),notes:gbNotes,groove:tickGroove.slice(),
         bank:GBB?GBB.bank:null,instruments:GBB?GBB.inst:null,
         totalFrames:lastN?lastN.frame+lastN.frames:0},beatsPerBar:4,totalBars:bars,endsCleanAtBeat:end,transitionTailBeats:1.25,
-    gainScalar:.76,palette:palette(token,trained.id),sections:form,musical:{scale:mode.scale.slice(),rootMidi:60+key,motifDegs:leadMotif.degrees.slice(),leadHint:'lead'},
+    gainScalar:.76,palette:palette(token,trained.id),sections:form,musical:{scale:mode.scale.slice(),rootMidi:60+key,motifDegs:leadMotif.degrees.slice(),leadHint:'lead',
+      phrasePlan:mel && mel.phrasePlan ? mel.phrasePlan : []},
     form:form.formId,style:style.id,tracker:tracker,background:{attentionBudget:.1},events:events};
 }
 function duration(token){var s=compile(token);return s.totalBars*4*60/s.bpm;}

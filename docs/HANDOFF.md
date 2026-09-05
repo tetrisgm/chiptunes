@@ -3,6 +3,98 @@
 Plain, current working notes for whoever (or whatever) picks the project up
 next. Infrastructure and operations live outside this repository.
 
+## 2026-09-05 — musician-13: section-aware melodic allocation
+
+The prefix-ratio limiter in `melody.write` forced zero lead onsets in
+zero-based bars 4..11 for all 32 `composition-form-00`..`-31` scores. Replacing
+that with `allocatePhraseGroups` budgets selected phrase spans over the whole
+song (maximum 64%), establishes an early body statement and reserves a later
+return when affordable, then distributes remaining spans among sections.
+This plans slots within one composition; it does not generate/select candidate
+songs. All randomness remains token-derived and deterministic.
+
+Phrase starts follow actual section boundaries. One-, two- and three-bar
+fragments retain cadence material rather than clipping a four-bar theme or
+discarding short sections. Cached A/B/C material is adjusted to each bar's
+local harmony, and a returning theme keeps its statement anchor. New phrases
+do not start in resolve sections; sustained cadence tails may cross a boundary.
+The public Score exposes selected spans as `musical.phrasePlan` for inspection.
+
+Composer revision is now musician-13, but its random-stream namespace stays
+musician-12 deliberately: an independent 48-score before/after comparison
+found style, tempo, key/scale, form/sections, palette and accompaniment events
+unchanged (excluding event seed IDs after the changed lead count). Only melodic
+writing, its echo and metadata are intentionally different. The whole-score
+checksum was updated with this evidence, and a separate pinned backing digest
+in `verify-melody-allocation.js` guards against accidental global reseeding.
+
+Measured on the same 32 seeds: early eight-bar lead gaps went 32 -> 0; bars
+with lead onsets went 544 -> 547 out of 1,496, so this is redistribution rather
+than simply more melody. The cohort uses 42 short fragments. These are onset
+statistics, NOT silence or listening-quality measurements. The 200-song rhythm
+gate still passes; its effective bar-rhythm vocabulary is 171.5 (previously
+183.7), so not every variety statistic increased.
+
+`verify-melody-allocation.js` tests odd section boundaries, spans 1..4, budget,
+determinism, retained cadences, A statement anchors, B development and 200
+production plans. It is part of `npm test`. The owner-authorized Luna sidecar
+extended `diagnose-composition-form.js` with separate planned-phrase fingerprints
+and same-letter/same-span comparisons; the old fixed-four-bar statistics remain
+unchanged for comparison. Main reviewed the patch and reran its self-tests.
+
+Listening material was rendered with `scripts/render-composition-comparison.js`
+from `/tmp/chiptunes-melody-scores-before.json`: rock `smoke-song-0` and ballad
+`smoke-song-21`, 45 seconds each before/after, same production APU and fixed
+0.8 gain. They omit the player's post-processing and are dry mono. WAV paths
+are in `/tmp/chiptunes-melody-listening-manifest.json`; previews are under
+`/var/folders/tq/_6yt1vp555qcj2jwgxmz060w0000gn/T/chiptunes-melody-listening-cEm7Qa`.
+No listening verdict has been obtained. The old `audition-generated-music.js`
+does not render audio despite the package's `--render` alias and still uses a
+stale 14% lead cap; do not treat it as an audition or the current product gate.
+
+Focused allocation, smoke, rhythm, mood/language, diagnostic and native
+structural checks passed. The corrected full `npm test` finished with exit 0,
+including new allocation and sparse-gap fixtures, all prior real-ROM checks,
+48 deterministic songs and all 14 games. Log:
+`/tmp/chiptunes-melody-allocation-verified.log`. Browser/broadcast render parity
+also passed 10/10, minimum correlation 1.000000, zero sample lag and maximum
+absolute RMS difference 0.175 dB (`/tmp/chiptunes-melody-allocation-render-parity.log`).
+This checkpoint is ready for the owner-requested commit/push. No deployment,
+app restart, or decompilation work occurred.
+Full LSDj sound/control-flow/edit parity, broader composition/keyword critique,
+actual UI review and listening verification remain incomplete.
+
+### Compatibility fix: sparse phrase holes (ROM-confirmed)
+
+A separate read-only probe during verification constructed a 128-BPM pulse
+part with C4 at row 6 and G4 at row 54, both four rows long. `fromDocument`
+emits chain slots `[phrase0, FF, FF, phrase1]`. The structural importer reports
+rows 6/22, already losing the intended 48-row gap. The ROM result is worse:
+over 600 observed frames it repeats C4 at frames 19, 131, 243, 355, 467, 579
+and never reaches G4; intended inter-note distance is 336 frames. FF cannot
+serve as an empty, timed phrase, and the structural walk's `continue` past it
+is not proof of native traversal. This defect predates the melody rewrite.
+
+Probe: `/tmp/chiptunes-version-fixtures.e2ILOJ/sparse-gap-probe.js`; latest SAV:
+`/var/folders/tq/_6yt1vp555qcj2jwgxmz060w0000gn/T/chiptunes-sparse-gap-iClJbh/sparse.sav`.
+The full run then failed `verify-lsdj` on the newly arranged battle fixture:
+only 5/12 expected pitches reached LSDj. Verification was terminal (exit 1),
+not restarted on a timeout. `fromDocument` now emits real, deduplicated empty
+phrases for every gap on active channels through the shared material end;
+wholly unused channels remain absent. Tempo-only channels use the same path.
+The failing battle fixture now plays 12/12 expected pitches.
+
+`verify-lsdj-sparse-phrases.js` is wired into both full and native suites.
+Independent ROM fixtures cover both pulse channels, split-channel leading and
+trailing gaps, and a whole-chain gap: observed note spacing is exactly 336 or
+2,128 frames, with no premature loop retriggers. This does not prove all native
+chain/control-flow semantics or preservation of declared trailing document
+duration. Import of arbitrary native chain data still needs execution-aware
+handling rather than treating the structural walk as playback authority.
+The first full log is `/tmp/chiptunes-melody-allocation-full.log`; corrected
+full-suite verification passed, as recorded above. Listening feedback on the
+equal-gain previews has been requested but not yet received.
+
 ## 2026-09-05 — native command identities and tempo round trips
 
 The ROM now supplies the modern-format test fixture: `LSDJ_BOOT_SONG` in

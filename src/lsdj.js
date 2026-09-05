@@ -482,9 +482,8 @@
     }
 
     // Tempo changes belong to the whole song. Put T on an available command
-    // column without replacing a note effect or KILL. A command-only channel
-    // needs explicit empty phrases before it: FF phrases are skipped by LSDj,
-    // not waited through, so otherwise a late T executes at the song's start.
+    // column without replacing a note effect or KILL. The phrase pass below
+    // preserves empty time before a command-only channel starts.
     (st.tempoAt || []).forEach(function (change) {
       var step = change[0], tempo = change[1], lane = -1;
       if (!Number.isInteger(step) || step < 0 || !Number.isInteger(tempo) || tempo < 40 || tempo > 255)
@@ -496,11 +495,6 @@
       var slot = grid[lane][step];
       if (!slot) slot = grid[lane][step] = { note:NO_NOTE, inst:NO_INSTRUMENT, len:1 };
       slot.cmd = CMD.T; slot.val = tempo;
-      for (var base = 0; base < step; base += PHRASE_STEPS) {
-        var exists = false;
-        for (var tr = base; tr < base + PHRASE_STEPS; tr++) if (grid[lane][tr]) { exists = true; break; }
-        if (!exists) grid[lane][base] = {note:NO_NOTE, inst:NO_INSTRUMENT, cmd:CMD.NONE, val:0, len:1};
-      }
       steps = Math.max(steps, step + 1);
     });
 
@@ -508,6 +502,7 @@
     var phrases = [], byKey = {}, chainsOf = [[], [], [], []];
     var full = Math.ceil(steps / PHRASE_STEPS);
     for (ch = 0; ch < 4; ch++) {
+      var channelUsed = grid[ch].some(function (slot) { return !!slot; });
       for (var p = 0; p < full; p++) {
         var slots = [], any = false;
         for (i = 0; i < PHRASE_STEPS; i++) {
@@ -515,7 +510,11 @@
           if (s) any = true;
           slots.push(s);
         }
-        if (!any) { chainsOf[ch].push(NO_PHRASE); continue; }
+        // FF ends a native chain; it is not sixteen rows of silence. Every
+        // active channel needs actual empty phrases for gaps and trailing time
+        // up to the shared material end. Empty phrases deduplicate normally.
+        // A wholly unused channel stays absent instead of consuming chains.
+        if (!any && !channelUsed) { chainsOf[ch].push(NO_PHRASE); continue; }
         // THE INSTRUMENT IS PART OF THE PHRASE. Leaving it out of the key merges
         // two bars that play the same notes on different voices into one phrase,
         // and the second one silently changes instrument.

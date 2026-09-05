@@ -784,20 +784,74 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
 /* ===== src/melody.js ===== */
 // Melodic writing: phrases that answer each other.
 //
-// The previous generator picked ONE learned interval cell and cycled it for the
-// whole song, so the tune was periodic by construction -- and because the
-// learned cells are dominated by "0,0,0,0" (162,831 hits vs 9,100 for the next,
-// an artefact of counting sustained notes as zero-intervals), the common case
-// was a single pitch repeated. Same for rhythm: "1-1-1-1" outweighs everything.
-//
-// Those statistics are a DISTRIBUTION to sample, not a riff to loop. Here each
-// note draws its own interval, steered by a contour plan, and phrases are
-// written in question/answer pairs where the answer TRANSFORMS the question
-// (sequence, inversion, or a re-harmonised ending) instead of repeating it.
+// A section-aware whole-song plan allocates a restrained melody budget.
+// Cached A/B/C motifs supply statements, varied returns and cadences; short
+// sections receive fitted fragments rather than an accidentally cut phrase.
 (function (G) {
   'use strict';
 
   var CONTOURS = ['arch', 'rise', 'fall', 'wave', 'valley'];
+
+  // Plan phrase positions once, before writing any notes. The old prefix
+  // ratio forced groups two and three off after an opening statement, making
+  // every seed share an eight-bar early gap. A whole-song budget has no such
+  // debt. This selects structural slots, not candidates from generated songs.
+  function allocatePhraseGroups(opts) {
+    var bars = opts.bars, sections = opts.sections || [], hash = opts.hash;
+    var candidates = [], picked = [], covered = 0;
+    var density = opts.melDensity == null ? 1 : opts.melDensity;
+    var presence = Math.min(0.64, (0.28 + hash(opts.token + ':mel-presence') % 37 / 100)
+      * Math.min(1.15, Math.max(0.55, density)));
+    var budget = Math.floor(bars * presence);
+    sections.forEach(function (section, index) {
+      var end = Math.min(bars, section.startBar + section.bars);
+      if (section.role === 'resolve') return;
+      for (var start = Math.max(0, section.startBar); start < end; start += 4)
+        candidates.push({startBar:start, bars:Math.min(4, end-start),
+          role:section.role, sectionIndex:index});
+    });
+    function jitter(c, label) { return (hash(opts.token + ':mel-' + label + ':' + c.startBar) >>> 0) / 4294967296; }
+    function take(c) { if (!c) return; picked.push(c); covered += c.bars; }
+    function available(c) { return picked.indexOf(c) < 0 && covered + c.bars <= budget; }
+    // Establish a statement in the first body section, with seed-dependent
+    // placement within it. Short openings may carry an additional fragment,
+    // but do not consume a mandatory quota before the body has even arrived.
+    var body = candidates.filter(function (c) { return c.role !== 'opening'; });
+    var first = body.length ? body[0].sectionIndex : candidates.length ? candidates[0].sectionIndex : -1;
+    var early = candidates.filter(function (c) { return c.sectionIndex === first && available(c); });
+    early.sort(function (a,b) { return jitter(a,'entry')-jitter(b,'entry') || a.startBar-b.startBar; });
+    take(early[0]);
+    // Reserve a return in the latter part when the budget can afford one,
+    // before filling intermediate slots. This prevents all melody spending
+    // from accumulating at the beginning of an otherwise long arrangement.
+    var later = candidates.filter(function (c) { return c.startBar >= bars * 0.55 && available(c); });
+    later.sort(function (a,b) { return b.sectionIndex-a.sectionIndex || jitter(a,'return')-jitter(b,'return') || a.startBar-b.startBar; });
+    take(later[0]);
+    var weights = {opening:0.6, flow:0.9, groove:1, lift:1.1, drive:1,
+      break:1.2, hush:1.2, build:1, drop:0.8};
+    function priority(c) {
+      var distance = bars, represented = false;
+      picked.forEach(function (p) {
+        represented = represented || p.sectionIndex === c.sectionIndex;
+        distance = Math.min(distance, Math.max(0, c.startBar-(p.startBar+p.bars), p.startBar-(c.startBar+c.bars)));
+      });
+      return (weights[c.role] || 1) + (represented ? 0 : 2)
+        + Math.min(8,distance)/8 + jitter(c,'slot');
+    }
+    while (true) {
+      var remaining = candidates.filter(available);
+      if (!remaining.length) break;
+      remaining.sort(function (a,b) { return priority(b)-priority(a) || a.startBar-b.startBar; });
+      take(remaining[0]);
+    }
+    picked.sort(function (a,b) { return a.startBar-b.startBar; });
+    picked.forEach(function (c,i) {
+      c.letter = ['A','A','B','A','C','C','B','A'][i % 8];
+      if (picked.length === 3 && i === 1) c.letter = 'B';
+      if (i === picked.length-1) c.letter = 'A';
+    });
+    return picked;
+  }
 
   // Flatten learned 4-note cells into a weighted pool of single intervals.
   // Zero-motion is kept but heavily discounted: real melodies do repeat notes,
@@ -877,20 +931,11 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     var rcells = lead.rhythmCells || [];
     var out = [];
 
-    // This is radio you put on behind something, not an album. A tune that
-    // never stops takes the attention; real background game music states an
-    // idea, leaves, and comes back. So melody arrives in EPISODES -- a couple
-    // of phrase groups on, then a stretch off -- and how melodic a given song
-    // is at all varies from song to song, so some tracks are carried by texture
-    // and some by a hook.
-    // THE THEME RETURNS. The old writer generated brand-new material for every
-    // 4-bar group -- new contour, new span, new rhythm -- and its answer rule
-    // said "never repeat". A song where nothing recurs is noodling: repetition
-    // is what turns a phrase into a tune (Margulis' On Repeat experiments --
-    // splicing literal repeats into even atonal music made listeners rate it
-    // more enjoyable and more human). So a song now owns TWO phrases, A and B,
-    // written once and restated in an AABA rotation, transposed diatonically to
-    // sit on the local chord. The cadence note still re-resolves per return.
+    // Melody presence varies by seed and style; accompaniment can carry the
+    // intervals between phrases. Up to three cached themes recur, adjusted
+    // to each bar's harmony. The allocation ends with an A return when there
+    // is room for more than one statement; this is a writing choice, not proof
+    // of perceived musical quality.
     // MOTIF-BUILT, not walked. The owner's verdict on the walk was exact:
     // "the overall patterns of when notes play sound mostly correct" but the
     // pitches read as random. A random walk IS random -- steering it toward a
@@ -1073,69 +1118,47 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       cad.forEach(function (p, i) {
         notes.push({ rb: 3, pos16: p, deg: goal + (2 - i), accent: false, answer: i === 2 });
       });
-      return { notes: notes, homeRoot: homeRoot };
+      return { notes: notes, homeRoot: homeRoot,
+        roots:[rootAt(bar),rootAt(bar+1),rootAt(bar+2),rootAt(bar+3)] };
     }
 
-    // Capped at .64: the smoke contract holds the lead under 72% of bars (this
-    // is background radio), and the AABA rotation plus the sparse-section
-    // override lands above that when presence runs to .75.
-    var presence = (0.28 + (hash(opts.token + ':mel-presence') % 37) / 100)
-                 * Math.min(1.15, Math.max(0.55, opts.melDensity == null ? 1 : opts.melDensity));
-    var onRun  = 1 + hash(opts.token + ':mel-onrun') % 2;                    // 1-2 groups
-    var offRun = Math.max(1, Math.round(onRun * (1 - presence) / Math.max(0.2, presence)));
-    var cycle = onRun + offRun;
-    var group = 0, played = 0, eligible = 0;
-    for (var bar = 0; bar < bars; bar += 4, group++) {
-      var sec = null;
-      for (var s = 0; s < sections.length; s++) {
-        if (bar >= sections[s].startBar && bar < sections[s].startBar + sections[s].bars) sec = sections[s];
-      }
-      var role = sec ? sec.role : 'drop';
-      if (role === 'resolve') continue;
-      // When the texture thins out, the tune is what is left holding the song
-      // up -- that is what a break is FOR. So the episode rest is suspended in
-      // sparse sections rather than compounding their silence.
-      var sparse = role === 'break' || role === 'hush' || role === 'opening';
-      eligible++;
-      // HARD budget, not a probabilistic one. The sparse-section override plays
-      // unconditionally, so a song whose form is mostly breaks and hushes blew
-      // straight through the presence dice -- 78% of bars carried lead against
-      // the 72% attention contract. Whatever the dice say, the lead stops when
-      // it has already had two thirds of the song.
-      if (played > 0 && (played + 1) / eligible > 0.62) continue;
-      if (!sparse && (group % cycle) >= onRun) continue;
-      if (!sparse && hash(opts.token + ':mel-skip:' + group) % 9 === 0) continue;
-
-      // "Keeps playing the same sections over and over": two phrases for a
-      // whole song was too few. Three now, rotating AABA CCBA -- the back half
-      // opens with NEW material (C) before the theme comes home, so the second
-      // minute is not a rerun of the first.
-      var letter = ['A','A','B','A','C','C','B','A'][played % 8];
-      played++;
+    var plan = allocatePhraseGroups(opts), returns = {};
+    for (var group = 0; group < plan.length; group++) {
+      var phrase = plan[group], bar = phrase.startBar, role = phrase.role;
+      var letter = phrase.letter;
       if (!themes[letter]) themes[letter] = materialize(letter, bar, role);
       var th = themes[letter];
-      var lift = rootAt(bar) - th.homeRoot;          // diatonic transposition onto the local chord
-      var firstReturn = played <= 1 || letter === 'B';
+      var firstReturn = !returns[letter];
+      returns[letter] = (returns[letter] || 0) + 1;
+      // Fit statement/restatement/cadence material to the actual section span,
+      // retaining its ending rather than clipping a four-bar phrase halfway.
+      var sourceBars = phrase.bars === 1 ? [3] : phrase.bars === 2 ? [0,3]
+        : phrase.bars === 3 ? [0,1,3] : [0,1,2,3];
       var lastIdx = -1;
       th.notes.forEach(function (n, ix) {
-        var ob = bar + n.rb;
+        var local = sourceBars.indexOf(n.rb);
+        if (local < 0) return;
+        var ob = bar + local;
         if (ob >= bars) return;
         // A return is the same phrase BREATHING, not a stamp: after the first
         // statement, one note in seven sits out. Enough that no two returns
         // are byte-identical, never enough to lose the tune.
         if (!firstReturn && !n.accent && !n.answer
-            && hash(opts.token + ':mel-var:' + group + ':' + ix) % 7 === 0) return;
+            && hash(opts.token + ':mel-var:' + bar + ':' + ix) % 7 === 0) return;
+        var lift = rootAt(ob) - th.roots[n.rb];
         out.push({ bar: ob, pos16: n.pos16, degree: n.deg + lift,
                    accent: n.accent, answer: !!n.answer });
         if (n.answer) lastIdx = out.length - 1;
       });
       // the cadence still lands on the chord that is coming, every time
-      if (lastIdx >= 0) out[lastIdx].degree = rootAt(Math.min(bars - 1, bar + 4));
+      if (lastIdx >= 0) out[lastIdx].degree = rootAt(Math.min(bars - 1, bar + phrase.bars));
     }
+    out.phrasePlan = plan;
     return out;
   }
 
-  var API = { write: write, CONTOURS: CONTOURS, intervalPool: intervalPool };
+  var API = { write: write, allocatePhraseGroups: allocatePhraseGroups,
+    CONTOURS: CONTOURS, intervalPool: intervalPool };
   G.CT_MELODY = API;
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
 })(typeof globalThis !== 'undefined' ? globalThis : window);
@@ -5825,14 +5848,16 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
 // selection, critics, candidates, templates, and taste models do not.
 (function(){
 'use strict';
-var G=typeof globalThis!=='undefined'?globalThis:window,REV='musician-12';
+var G=typeof globalThis!=='undefined'?globalThis:window,REV='musician-13',SEED_REV='musician-12';
 if(typeof module!=='undefined'&&!G.CT_STYLE_CORPUS){try{require('./style-corpus.js');}catch(e){}}
 if(typeof module!=='undefined'&&module.exports&&!G.CT_CHIP_INSTRUMENTS)require('./chip-instruments.js');
 if(typeof module!=='undefined'&&module.exports&&!G.CT_MELODY)require('./melody.js');
 if(typeof module!=='undefined'&&module.exports&&!G.CT_GB)require('./gb-hardware.js');
 if(typeof module!=='undefined'&&module.exports&&!G.CT_GB_VOICES)require('./gb-voices.js');
 function hash(s){s=String(s);var h=2166136261>>>0;for(var i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
-function rng(seed,label){var a=hash(REV+':'+seed+':'+label);return function(){a=(a+0x6D2B79F5)|0;var t=Math.imul(a^(a>>>15),1|a);t=(t+Math.imul(t^(t>>>7),61|t))^t;return((t^(t>>>14))>>>0)/4294967296;};}
+// Report the new composition revision without reseeding unrelated style,
+// harmony, form and accompaniment streams during a melodic-writing change.
+function rng(seed,label){var a=hash(SEED_REV+':'+seed+':'+label);return function(){a=(a+0x6D2B79F5)|0;var t=Math.imul(a^(a>>>15),1|a);t=(t+Math.imul(t^(t>>>7),61|t))^t;return((t^(t>>>14))>>>0)/4294967296;};}
 function pick(r,a){return a[Math.floor(r()*a.length)%a.length];}function ri(r,a,b){return a+Math.floor(r()*(b-a+1));}
 function chance(r,p){return r()<p;}function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
 function mod(v,n){return((v%n)+n)%n;}function round(v){return Math.round(v*1000)/1000;}
@@ -6490,7 +6515,8 @@ function compile(token,rawPremise){
     gb:{plan:PLAN.id,fps:(G.CT_GB?G.CT_GB.FPS:59.7275),notes:gbNotes,groove:tickGroove.slice(),
         bank:GBB?GBB.bank:null,instruments:GBB?GBB.inst:null,
         totalFrames:lastN?lastN.frame+lastN.frames:0},beatsPerBar:4,totalBars:bars,endsCleanAtBeat:end,transitionTailBeats:1.25,
-    gainScalar:.76,palette:palette(token,trained.id),sections:form,musical:{scale:mode.scale.slice(),rootMidi:60+key,motifDegs:leadMotif.degrees.slice(),leadHint:'lead'},
+    gainScalar:.76,palette:palette(token,trained.id),sections:form,musical:{scale:mode.scale.slice(),rootMidi:60+key,motifDegs:leadMotif.degrees.slice(),leadHint:'lead',
+      phrasePlan:mel && mel.phrasePlan ? mel.phrasePlan : []},
     form:form.formId,style:style.id,tracker:tracker,background:{attentionBudget:.1},events:events};
 }
 function duration(token){var s=compile(token);return s.totalBars*4*60/s.bpm;}
@@ -9434,9 +9460,8 @@ const Radio=(()=>{
     }
 
     // Tempo changes belong to the whole song. Put T on an available command
-    // column without replacing a note effect or KILL. A command-only channel
-    // needs explicit empty phrases before it: FF phrases are skipped by LSDj,
-    // not waited through, so otherwise a late T executes at the song's start.
+    // column without replacing a note effect or KILL. The phrase pass below
+    // preserves empty time before a command-only channel starts.
     (st.tempoAt || []).forEach(function (change) {
       var step = change[0], tempo = change[1], lane = -1;
       if (!Number.isInteger(step) || step < 0 || !Number.isInteger(tempo) || tempo < 40 || tempo > 255)
@@ -9448,11 +9473,6 @@ const Radio=(()=>{
       var slot = grid[lane][step];
       if (!slot) slot = grid[lane][step] = { note:NO_NOTE, inst:NO_INSTRUMENT, len:1 };
       slot.cmd = CMD.T; slot.val = tempo;
-      for (var base = 0; base < step; base += PHRASE_STEPS) {
-        var exists = false;
-        for (var tr = base; tr < base + PHRASE_STEPS; tr++) if (grid[lane][tr]) { exists = true; break; }
-        if (!exists) grid[lane][base] = {note:NO_NOTE, inst:NO_INSTRUMENT, cmd:CMD.NONE, val:0, len:1};
-      }
       steps = Math.max(steps, step + 1);
     });
 
@@ -9460,6 +9480,7 @@ const Radio=(()=>{
     var phrases = [], byKey = {}, chainsOf = [[], [], [], []];
     var full = Math.ceil(steps / PHRASE_STEPS);
     for (ch = 0; ch < 4; ch++) {
+      var channelUsed = grid[ch].some(function (slot) { return !!slot; });
       for (var p = 0; p < full; p++) {
         var slots = [], any = false;
         for (i = 0; i < PHRASE_STEPS; i++) {
@@ -9467,7 +9488,11 @@ const Radio=(()=>{
           if (s) any = true;
           slots.push(s);
         }
-        if (!any) { chainsOf[ch].push(NO_PHRASE); continue; }
+        // FF ends a native chain; it is not sixteen rows of silence. Every
+        // active channel needs actual empty phrases for gaps and trailing time
+        // up to the shared material end. Empty phrases deduplicate normally.
+        // A wholly unused channel stays absent instead of consuming chains.
+        if (!any && !channelUsed) { chainsOf[ch].push(NO_PHRASE); continue; }
         // THE INSTRUMENT IS PART OF THE PHRASE. Leaving it out of the key merges
         // two bars that play the same notes on different voices into one phrase,
         // and the second one silently changes instrument.
