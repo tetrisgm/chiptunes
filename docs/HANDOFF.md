@@ -3,6 +3,67 @@
 Plain, current working notes for whoever (or whatever) picks the project up
 next. Infrastructure and operations live outside this repository.
 
+## 2026-09-05 — reachable native arrangements and declared duration
+
+`src/lsdj.js` now separates structural inspection (`sequenceRows` and legacy
+`playedNotes`) from `arrangementRows`: canonical row-zero traversal stops at
+NO_CHAIN and chain end markers, including an empty first phrase. Stored
+references after those markers remain available to raw inspection but do not
+become ghost notes, tempo commands or playback warnings on import.
+
+Channels loop independently. Import repeats each nonempty channel cycle to
+the least common arrangement length; a one-phrase C4 part beside a two-phrase
+E4/G4 part now imports C4 at both rows 6 and 22. Source phrase/chain addresses
+remain on the repeated arrangement rows. This is arrangement interpretation,
+NOT a full native executor: H/G jumps, tick effects, groove phase and persistent
+instrument/tempo state across the final loop boundary remain unproven.
+In particular, a matching fixed-tempo trace does not prove arbitrary T-command
+state across loop restarts.
+
+Export includes declared `bars * grid`, not just the last note or T command.
+Import derives duration from arrangement rows, so a four-bar document with
+only one short note no longer returns as one bar. A completely blank document
+uses one channel of genuinely empty timing phrases; the other channels remain
+absent. This preserves declared duration, not an extra tail beyond the existing
+browser loop. Twelve generated-document fixtures check the same boundary.
+
+The document's bar count has 12 bits, but **cell and tempo row addresses also
+have only 12 bits**. A common cycle over 4,096 rows now rejects explicitly
+instead of wrapping later notes to the beginning during encoding. More than
+63 expanded tempo commands also rejects instead of silently dropping the
+rest. These are current projection limits, not LSDj limits or completion of
+the requested parity; the raw codec still retains the native image.
+
+`verify-lsdj-arrangement.js` is in both native and full suites. The authorized
+Luna agent wrote its initial fixture set; main reviewed it, corrected the
+description of per-frame sound-state comparisons (not all were onsets), and
+added populated trailing silence, generated durations, repeated reachable T,
+native end-marker cases, and a true 17/19-phrase oversized-LCM case. Real-ROM
+fixtures establish C4-only repetition beyond chain/sequence ends, silence for
+leading/empty-first-chain cases, and normal repetition when an empty later
+chain is encountered. Unequal-cycle import/re-export matches every sounding
+frame's channel, period and volume over 600 frames. A four-bar trailing-silence
+fixture restarts after exactly 448 frames. No ROM bytes entered the repo.
+The older structural fixture's T/warning expectations were corrected because
+they had treated stored occurrences after end markers as reachable playback.
+
+Focused native and new arrangement verification passed. Full `npm test`
+finished with exit 0, including owner-ROM fixtures, 48 deterministic songs,
+and all 14 games (`/tmp/chiptunes-arrangement-full.log`). The final added
+63/64-tempo-command boundary assertions passed in a separate rerun of the
+arrangement script with the owner ROM. Browser/broadcast render parity also
+finished with exit 0: 10/10, minimum correlation 1.000000, zero sample lag,
+maximum absolute RMS difference 0.175 dB
+(`/tmp/chiptunes-arrangement-render-parity.log`).
+
+An actual rendered website review also ran during verification; see
+`docs/website-review-2026-09-05.md` for build IDs, screenshot paths, desktop and
+mobile observations. It found desktop landing clipping/overlap, mobile form
+overflow and clipped Create transport. A preliminary mid-transition capture
+was discarded as layout evidence. No UI fix or deployment occurred. Next UI
+work needs visible layout and interaction verification, including populated
+Create and player views; native Safari cursor/gesture claims remain unverified.
+
 ## 2026-09-05 — pushed checkpoint and next import checks
 
 `7512284` is committed and pushed to `origin/main`; the checkout was clean

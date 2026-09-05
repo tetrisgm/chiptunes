@@ -300,7 +300,7 @@
     (st.tempoAt || []).forEach(function (change) {
       if (change[0] > lastStep) lastStep = change[0];
     }); // include command-only tail before deciding which note-offs fit
-    var steps = lastStep + 1;
+    var steps = Math.max(lastStep + 1, st.bars * (st.grid || 16));
     var grid = [[], [], [], []];
     for (ch = 0; ch < 4; ch++) for (i = 0; i < steps; i++) grid[ch].push(null);
 
@@ -501,8 +501,13 @@
     // ---- phrases, deduplicated --------------------------------------------
     var phrases = [], byKey = {}, chainsOf = [[], [], [], []];
     var full = Math.ceil(steps / PHRASE_STEPS);
+    var silentDocument = !grid.some(function (channel) {
+      return channel.some(function (slot) { return !!slot; });
+    });
     for (ch = 0; ch < 4; ch++) {
-      var channelUsed = grid[ch].some(function (slot) { return !!slot; });
+      // A wholly blank document still has a declared loop duration. Give it
+      // one silent timing channel; leave the other three absent.
+      var channelUsed = (silentDocument && ch === 0) || grid[ch].some(function (slot) { return !!slot; });
       for (var p = 0; p < full; p++) {
         var slots = [], any = false;
         for (i = 0; i < PHRASE_STEPS; i++) {
@@ -512,7 +517,7 @@
         }
         // FF ends a native chain; it is not sixteen rows of silence. Every
         // active channel needs actual empty phrases for gaps and trailing time
-        // up to the shared material end. Empty phrases deduplicate normally.
+        // through the declared document end. Empty phrases deduplicate normally.
         // A wholly unused channel stays absent instead of consuming chains.
         if (!any && !channelUsed) { chainsOf[ch].push(NO_PHRASE); continue; }
         // THE INSTRUMENT IS PART OF THE PHRASE. Leaving it out of the key merges
@@ -864,15 +869,16 @@
   // This is NOT a native execution engine: H/G/control flow, tick effects and
   // cross-channel timing still require interpretation. Keep the raw commands
   // so a note-only projection cannot silently erase their existence.
-  function walkSequenceRows(m, ch, visit) {
+  function walkSequenceRows(m, ch, visit, stopAtEnds) {
     if (ch !== (ch | 0) || ch < 0 || ch > 3) throw new Error('lsdj: channel must be 0..3');
     var row = 0, s, cr, st;
     for (s = 0; s < 256; s++) {
       var chain = m.sequence[s][ch];
-      if (chain === NO_CHAIN) continue;
+      if (chain === NO_CHAIN) { if (stopAtEnds) break; continue; }
+      if (stopAtEnds && m.chainPhrases[chain][0] === NO_PHRASE) break;
       for (cr = 0; cr < 16; cr++) {
         var ph = m.chainPhrases[chain][cr];
-        if (ph === NO_PHRASE) { continue; }
+        if (ph === NO_PHRASE) { if (stopAtEnds) break; continue; }
         var tr = m.chainTranspose[chain][cr];
         for (st = 0; st < 16; st++) {
           visit({
@@ -896,12 +902,41 @@
     return out;
   }
 
+  // Canonical row-zero, end-marker arrangement cycle. Channels loop
+  // independently, so repeat their rows to the common arrangement period.
+  // This does not execute H/G or model persistent tick/instrument state.
+  function arrangementRows(m) {
+    var channels = [], period = 0;
+    function gcd(a, b) { while (b) { var r = a % b; a = b; b = r; } return a; }
+    for (var ch = 0; ch < 4; ch++) {
+      var rows = [];
+      walkSequenceRows(m, ch, function (r) { rows.push(r); }, true);
+      channels.push(rows);
+      if (rows.length) period = period ? period / gcd(period, rows.length) * rows.length : rows.length;
+      // Cell and tempo row addresses still have 12 bits even though the bar
+      // count has 12 bits too. Do not let encoding wrap later notes to row 0.
+      if (period > 4096)
+        throw new Error('lsdj: independent channel arrangement cycle exceeds the document\'s 4096-row address limit');
+    }
+    return channels.map(function (cycle) {
+      if (!cycle.length) return [];
+      var out = [];
+      for (var row = 0; row < period; row++)
+        out.push(Object.assign({}, cycle[row % cycle.length], { row: row }));
+      return out;
+    });
+  }
+
   // Legacy note projection over the shared structural walk. A zero note byte
   // means no new pitch, not an audible rest. Raw and selected instruments stay
   // separate because selecting an instrument and triggering it are different.
   function playedNotes(m, ch) {
+    return notesFromRows(sequenceRows(m, ch), ch);
+  }
+
+  function notesFromRows(rows, ch) {
     var out = [], instrument = NO_INSTRUMENT, selectedOnEmptyRow = false;
-    walkSequenceRows(m, ch, function (r) {
+    rows.forEach(function (r) {
       if (r.instrument !== NO_INSTRUMENT) {
         if (r.note !== NO_NOTE) selectedOnEmptyRow = false;
         else if (r.instrument !== instrument) selectedOnEmptyRow = true;
@@ -938,8 +973,8 @@
   var NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
   function noteName(m) { return NAMES[((m % 12) + 12) % 12] + (Math.floor(m / 12) - 1); }
 
-  // An LSDj song as the plain JSON our own editor speaks. This is the whole
-  // import: walk the sequence the way LSDj walks it, and write down what sounds.
+  // A partial LSDj-to-editor projection. Arrangement end markers and channel
+  // cycle lengths are interpreted, but jumps and many sound effects are not.
   //
   // WHICH DRUM comes back from the INSTRUMENT, not the note. Every drum sounds
   // on the noise channel as the same pitch -- a .sav carries no kit samples,
@@ -963,21 +998,6 @@
   // four-frame note, and without reading it that note would sustain to the next
   // one -- audibly wrong, and silently so.
   var ENVELOPE_HOLD = [0, 1, 1, 1, 1, 1, 2, 2, 3, 4, 5, 6, 8, 11, 15, 20];
-
-  // How many rows a channel actually covers -- every phrase its chains name,
-  // sixteen rows each. A note with nothing after it sustains to the end of THAT,
-  // not to the end of itself.
-  function channelRows(m, ch) {
-    return walkSequenceRows(m, ch, function () {});
-  }
-
-  // The rows a channel is told to STOP on. Same walk as playedNotes, but K
-  // commands sit on rows with no note, so that walk cannot see them.
-  function killRows(m, ch) {
-    var out = [];
-    walkSequenceRows(m, ch, function (r) { if (r.commandId === CMD.K) out.push(r.row); });
-    return out;
-  }
 
   // The transpose-table subset handled by this projection. Command/envelope
   // tables with all-zero transposes are NOT detected here; that is a remaining
@@ -1076,6 +1096,7 @@
   function toSongJSON(m, opts) {
     opts = opts || {};
     var warn = [], notes = [], ch, i;
+    var arrangement = arrangementRows(m);
     if (m.formatVersion > 22) warn.push('native format ' + m.formatVersion +
       ' is not recognized; command bytes are preserved in the raw model but not interpreted');
     else if (m.formatVersion !== 7) warn.push('native format ' + m.formatVersion +
@@ -1092,7 +1113,7 @@
     var lastRow = 0, unnamedDrums = 0, tableNotes = [], vibratoNotes = [], patches = [];
     var tempoAt = [], master = null, pendingInstrumentNotes = 0;
     var tempoByRow = {};
-    for (ch = 0; ch < 4; ch++) walkSequenceRows(m, ch, function (r) {
+    for (ch = 0; ch < 4; ch++) arrangement[ch].forEach(function (r) {
       if (r.commandId !== CMD.T || r.value < 40) return; // lower values are not interpreted as BPM here
       if (tempoByRow[r.row] != null && tempoByRow[r.row] !== r.value)
         throw new Error('lsdj: conflicting tempo commands at row ' + r.row + ' are not supported');
@@ -1100,10 +1121,15 @@
       if (r.row > lastRow) lastRow = r.row;
     });
     Object.keys(tempoByRow).forEach(function (row) { tempoAt.push([+row, tempoByRow[row]]); });
+    if (tempoAt.length > 63)
+      throw new Error('lsdj: arrangement exceeds the document\'s 63 tempo-command limit');
     for (ch = 0; ch < 4; ch++) {
-      var played = playedNotes(m, ch), kills = killRows(m, ch);
-      var chLastRow = Math.max(channelRows(m, ch) - 1,
+      var played = notesFromRows(arrangement[ch], ch), kills = arrangement[ch].filter(function (r) {
+        return r.commandId === CMD.K;
+      }).map(function (r) { return r.row; });
+      var chLastRow = Math.max(arrangement[ch].length - 1,
                                played.length ? played[played.length - 1].row : 0);
+      lastRow = Math.max(lastRow, chLastRow);
       for (i = 0; i < played.length; i++) {
         var n = played[i], next = played[i + 1];
         if (n.instrumentOnlyChange) pendingInstrumentNotes++;
@@ -1214,14 +1240,10 @@
                                 'not one this app names, and the noise channel cannot say which drum it was');
     if (pendingInstrumentNotes) warn.push(pendingInstrumentNotes +
       ' notes follow instrument-only changes on empty rows; this latched instrument state is not fully reproduced');
-    // ⚠️ TABLES ARE NOT PLAYED. An LSDj table is a per-instrument modulation
-    // sequence -- a transpose and two commands per tick -- and nothing here
-    // reads or runs one. A song of ours never uses them, so this only fires on
-    // a song somebody else wrote, and it is exactly the case where staying
-    // quiet would be worst: the notes would all arrive and the song would still
-    // be wrong, with nothing saying why.
+    // Tables are only a transpose-row approximation here, not a native
+    // per-instrument modulation engine. Make that limitation visible.
     var tablesUsed = {}, ti;
-    for (ch = 0; ch < 4; ch++) playedNotes(m, ch).forEach(function (n) {
+    for (ch = 0; ch < 4; ch++) notesFromRows(arrangement[ch], ch).forEach(function (n) {
       var t = tableOf(m, n.instrument);
       if (t != null) tablesUsed[t] = 1;
     });
@@ -1231,7 +1253,7 @@
       'groove timing and note retriggers are not fully preserved');
     // Commands we do not act on, counted rather than silently dropped.
     var unknownCmds = {}, emptyCommands = {};
-    for (ch = 0; ch < 4; ch++) walkSequenceRows(m, ch, function (n) {
+    for (ch = 0; ch < 4; ch++) arrangement[ch].forEach(function (n) {
       if (n.note === NO_NOTE) {
         if (n.command && n.commandId !== CMD.K && !(n.commandId === CMD.T && n.value >= 40))
           emptyCommands[n.command] = (emptyCommands[n.command] || 0) + 1;
@@ -1286,7 +1308,8 @@
     compress: compress, decompress: decompress, emptySong: emptySong,
     fromDocument: fromDocument, lsdsng: lsdsng,
     readSong: readSong, writeSong: writeSong, coverage: coverage, playedNotes: playedNotes,
-    sequenceRows: sequenceRows, decodeCommand: decodeCommand, encodeCommand: encodeCommand,
+    sequenceRows: sequenceRows, arrangementRows: arrangementRows,
+    decodeCommand: decodeCommand, encodeCommand: encodeCommand,
     expandTables: expandTables, tableOf: tableOf,
     parseLsdsng: parseLsdsng, parseSav: parseSav, toSongJSON: toSongJSON
   };

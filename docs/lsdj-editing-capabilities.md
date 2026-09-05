@@ -22,6 +22,16 @@ bytes. The public native import path is `api.fromLsdsng` -> `toSongJSON` ->
 have no cell equivalent are warned about or expanded where explicitly
 supported.
 
+The arrangement projection now uses canonical row-zero end-marker traversal,
+not every stored reference: `arrangementRows` stops at sequence/chain ends,
+and repeats independent channel cycles to their common period. Declared empty
+tails survive document export and import, including wholly blank documents.
+Raw `sequenceRows` and legacy `playedNotes` remain structural inspection APIs.
+This does not interpret jumps or establish persistent sound/tempo state at the
+final loop boundary. The flat document still limits row addresses to 4,096
+and tempo commands to 63; imports exceeding those limits reject explicitly.
+See `scripts/verify-lsdj-arrangement.js` for bounded native-ROM evidence.
+
 ## Capability matrix
 
 | Area | Native/raw model | JSON / projection | Create control and edit preservation |

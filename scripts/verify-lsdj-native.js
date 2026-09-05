@@ -498,10 +498,10 @@ console.log('structural row events, not just note-on rows');
   ok(ns.length === 2 && ns[0].midi === 63 && ns[1].midi === 58,
      'the note projection still applies signed chain transpose per occurrence');
   const report = L.toSongJSON(model);
-  ok(JSON.stringify(report.tempoAt) === JSON.stringify([[9,80],[41,80]]),
-     'command-only T is applied at each repeated occurrence');
-  ok(report.warnings.some(w => /2 command-only rows.*03/.test(w)),
-     'unapplied command-only events are reported, including each repeated occurrence');
+  ok(JSON.stringify(report.tempoAt) === JSON.stringify([[9,80]]),
+     'import applies reachable T, not a stored occurrence beyond end markers');
+  ok(report.warnings.some(w => /1 command-only rows.*03/.test(w)),
+     'unapplied command-only warnings count reachable events only');
   ok(rows[21].command === L.COMMANDS.K && rows[21].note === 0,
      'KILL remains a command-only event rather than a fabricated note');
   ok(Buffer.from(L.writeSong(model)).equals(Buffer.from(before)), 'row inspection does not mutate the native image');
