@@ -55,6 +55,41 @@ do not treat the focused passes above as permission to push a red suite.
 
 ## Where the music stands (musician-11)
 
+### 2026-09-05 — exported pulse duration and observer correction
+
+Pulse instrument byte 3 was FF, enabling a hardware length counter that cut
+held notes short. Export now writes zero for pulse instruments only; note
+replacement and KILL schedule their duration. No noise/wave length settings
+or command encoding were changed. Real LSDj 9.4.2 fixtures for both pulse
+channels now sound for 56 frames against the browser's 55-frame note, within
+the one-frame legato tolerance. Both fixtures failed before the correction.
+
+The trace harness now records decoded channel activity AND current volume.
+Activity alone can remain set after KILL; a retained pitch register is not
+evidence of an audible note. The diagnostic also reports the loaded song
+format: LSDj upgrades this format-7 export to format 22 at boot.
+
+Restoring sustain exposed an observer defect in the older aggregate pitch
+gate: its TRIG records are active-channel samples, not note-on events, and
+legitimate sweeps traverse pitches absent from the base-note list. That gate
+now compares with frame-sampled browser APU pitches. A regression verifies
+that the previously erroneous MIDI 79/78/77/75 remain outside the reference.
+This is not full timing, envelope, timbre or arbitrary-import parity.
+
+Rebuild tools/lsdjtrace.c for the added ON/VOL columns before running the
+emulator suite. Use LSDJ_TRACE and LSDJPLAY for the rebuilt private temporary
+harnesses and LSDJ_ROM for the owner's external ROM. No ROM is distributed.
+The final combined npm test run FAILED in verify-diversity.js: cross-game
+title-theme similarity was 0.734 against a ceiling of 0.65. All preceding
+suites, including export/native/real-ROM checks and both sustain fixtures,
+passed. Later latency, screens and smoke/game checks were not reached.
+Full output is temporarily available at /tmp/chiptunes-final-verification.log.
+The focused verify-lsdj.js run also passed independently. Do not weaken the
+diversity threshold to get a push through: investigate the soundtrack
+similarity regression, then rerun the full suite. The checkpoint is committed
+locally, with push withheld under the green-tests rule. No deployment or
+release has been performed; the broader objective above remains incomplete.
+
 ### 2026-09-05 — unintended LSDj pulse sweep fixed
 
 The real-ROM pitch failure above was an export defect, not just an observer

@@ -6,13 +6,12 @@
  * every pitch the APU is told to make.
  *
  * Two sets come out, because neither measurement is complete alone:
- *   HZ   -- sampled every frame regardless of channel state. Catches every note
- *           LSDj plays, and also picks up idle channels and mid-transition
- *           reads, so it is the set to check for MISSING notes.
- *   TRIG -- sampled only while the channel reports playing. Misses notes, but
- *           what it does report is real, so it is the set to check for WRONG
- *           notes.
- * Together: everything we wrote is played, and nothing we did not write is.
+ *   HZ   -- sampled every frame regardless of channel state; includes idle
+ *           channels and mid-transition reads, and can miss sub-frame notes.
+ *   TRIG -- sampled while the channel reports playing, NOT note-on events.
+ *           Includes sweep intermediates and possibly zero-volume channels.
+ * These sets check pitch coverage, not audible duration or playback parity.
+ * LSDJ_TRACE_PITCH adds frame/channel/period/active/volume samples for diagnosis.
  *
  * Build (needs mGBA's library -- `brew install mgba`):
  *   clang -I$(brew --prefix)/include -L$(brew --prefix)/lib -lmgba \
@@ -74,6 +73,10 @@ int main(int argc, char** argv) {
 
 	/* LSDj boots, reads the save, and lands on the song screen. */
 	for (int i = 0; i < bootFrames; i++) core->runFrame(core);
+	if (tracePitch) {
+		struct GB* booted = (struct GB*) core->board;
+		printf("SONG_FORMAT %u\n", booted->memory.sram[0x7FFF]);
+	}
 	shot(getenv("LSDJ_SHOT"), video, vw, vh);
 
 	/* START. mGBA's GB key order is A,B,Select,Start,Right,Left,Up,Down. */
@@ -100,8 +103,9 @@ int main(int argc, char** argv) {
 		   observer, not in what LSDj was playing. A stale period just repeats a
 		   pitch we have already seen, and the comparison is over SETS. */
 		int on[3] = { gb->audio.playingCh1, gb->audio.playingCh2, gb->audio.playingCh3 };
+		int volume[3] = { gb->audio.ch1.envelope.currentVolume, gb->audio.ch2.envelope.currentVolume, gb->audio.ch3.volume };
 		for (int c = 0; c < 3; c++) {
-			if (tracePitch) printf("PITCH %d %d %d %d\n", f, c, per[c], on[c]);
+			if (tracePitch) printf("PITCH %d %d %d %d %d\n", f, c, per[c], on[c], volume[c]);
 			double hz = c == 2 ? wave_hz(per[c]) : pulse_hz(per[c]);
 			if (hz < 20 || hz > 20000) continue;
 			if (on[c]) { int d2 = 0; for (int k = 0; k < ntrig; k++) if (trigs[k] > hz*0.997 && trigs[k] < hz*1.003) { d2 = 1; break; }

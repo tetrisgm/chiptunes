@@ -86,6 +86,32 @@ function rowFramesFromEmulator(savPath, playFrames) {
 
 console.log('         ROM: ' + path.basename(ROM) + '\n');
 
+// A period register can retain a note long after its hardware length counter
+// silences it. Measure decoded active AND nonzero volume state, including KILL.
+for (const [lane, channel] of [['Melody', 1], ['Harmony', 2]]) {
+  const doc = api.fromJSON({ title: 'Sustain', bpm: 128, bars: 2, notes: [
+    { lane, step: 6, note: 'C4', len: 8, stamp: 'flute' }
+  ] });
+  const savPath = path.join(TMP, 'duration-' + channel + '.sav');
+  fs.writeFileSync(savPath, Buffer.from(api.toLsdjSav([doc]).bytes));
+  const rows = cp.execFileSync(TRACE, [ROM, savPath, '400', '110'], {
+    stdio: ['ignore', 'pipe', 'ignore'], encoding: 'utf8', maxBuffer: 1 << 20
+  }).split('\n').filter(l => /^(frame,|\d+,)/.test(l));
+  const header = rows.shift().split(',');
+  const on = header.indexOf('ON' + channel), vol = header.indexOf('VOL' + channel);
+  if (on < 0 || vol < 0) throw new Error('Rebuild tools/lsdjtrace.c: decoded activity and volume columns are required');
+  let start = null, end = null;
+  for (const line of rows) {
+    const r = line.split(',').map(Number), sounding = r[on] && r[vol] > 0;
+    if (start == null && sounding) start = r[0];
+    else if (start != null && !sounding) { end = r[0]; break; }
+  }
+  const note = require('../src/create.js').songOf(doc).gb.notes.find(n => n.ch === channel - 1);
+  ok(start != null && end != null && Math.abs(end - start - note.frames) <= 1,
+    lane + ' sustains until KILL (' + (end == null || start == null ? 'no complete sounding span' : end - start) +
+    ' frames; browser ' + note.frames + ')');
+}
+
 // Pulse sweep bytes in the file are complemented by LSDj before NR10.
 // Verify at the real register: a file round trip cannot catch a shared error.
 for (const [motion, expected, custom] of [['plain', 0], ['fall', 0x3E], ['rise', 0x36], ['plain', 0x12, true]]) {

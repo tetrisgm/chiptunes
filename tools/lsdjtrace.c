@@ -87,22 +87,28 @@ int main(int argc, char** argv) {
 
 	printf("frame");
 	for (int r = 0; r < NREG; r++) printf(",%s", NAMES[r]);
-	printf("\n");
+	printf(",ON1,ON2,ON3,VOL1,VOL2,VOL3\n");
 
 	struct GB* gb = (struct GB*) core->board;
-	uint8_t prev[NREG];
+	uint8_t prev[NREG + 6];
 	memset(prev, 0, sizeof prev);
 	int first = 1;
 	for (int f = 0; f < playFrames; f++) {
 		core->runFrame(core);
-		uint8_t cur[NREG];
+		uint8_t cur[NREG + 6];
 		/* The audio registers live in the IO block; reading them back through the
 		 * memory map returns the OR-masks the hardware applies, which is exactly
 		 * what another implementation would have to match to be indistinguishable. */
 		for (int r = 0; r < NREG; r++) cur[r] = gb->memory.io[(REG_FIRST + r) - 0xFF00];
+		cur[NREG] = gb->audio.playingCh1;
+		cur[NREG + 1] = gb->audio.playingCh2;
+		cur[NREG + 2] = gb->audio.playingCh3;
+		cur[NREG + 3] = gb->audio.ch1.envelope.currentVolume;
+		cur[NREG + 4] = gb->audio.ch2.envelope.currentVolume;
+		cur[NREG + 5] = gb->audio.ch3.volume;
 		if (first || memcmp(cur, prev, sizeof cur) != 0) {
 			printf("%d", f);
-			for (int r = 0; r < NREG; r++) printf(",%u", cur[r]);
+			for (int r = 0; r < NREG + 6; r++) printf(",%u", cur[r]);
 			printf("\n");
 			memcpy(prev, cur, sizeof cur);
 			first = 0;

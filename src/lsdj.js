@@ -550,6 +550,9 @@
       for (var b2 = 0; b2 < 16; b2++) song[at + b2] = DEFAULT_INSTRUMENT[b2];
       song[at] = inst.type;
       song[at + 1] = (Math.max(0, Math.min(15, inst.vol)) << 4);
+      // Pulse durations are scheduled by the next note/KILL, not the DMG
+      // length counter. FF enabled a one-tick counter and truncated held notes.
+      if (inst.type === INST_TYPE.PULSE) song[at + 3] = 0;
       if (inst.type === INST_TYPE.PULSE) song[at + 7] = (inst.duty << 6) | 0x03;
       else song[at + 7] = (song[at + 7] & 0xFC) | 0x03;
       // A WAVE INSTRUMENT'S TIMBRE IS ITS TABLE, so pin it to the frame we

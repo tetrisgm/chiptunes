@@ -14,7 +14,10 @@ const APU = require('../src/gb-apu.js');
 const L = require('../src/lsdj.js');
 const rom = process.env.LSDJ_ROM, player = process.env.LSDJPLAY;
 if (!rom || !player) throw new Error('Set LSDJ_ROM and LSDJPLAY; this diagnostic must run both engines.');
-const doc = api.brief({ scene: 'battle', seconds: 30, token: '7f3a12bc55de90aa' }).doc;
+const sustain = process.env.LSDJ_PITCH_FIXTURE === 'sustain';
+const doc = sustain ? api.fromJSON({ title: 'Sustain', bpm: 128, bars: 2,
+  notes: [{ lane: 'Melody', step: 6, note: 'C4', len: 8, stamp: 'flute' }] })
+  : api.brief({ scene: 'battle', seconds: 30, token: '7f3a12bc55de90aa' }).doc;
 const song = create.songOf(doc);
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'chiptunes-pitches-'));
 const sav = path.join(tmp, 'fixture.sav');
@@ -29,14 +32,21 @@ for (let f = 0; f < 2400; f++) {
 }
 try {
   const bytes = Buffer.from(api.toLsdjSav([doc], { name: 'TEST' }).bytes);
+  if (sustain && process.env.LSDJ_DIAGNOSTIC_COMMAND != null) {
+    const command = Number(process.env.LSDJ_DIAGNOSTIC_COMMAND);
+    if (!Number.isInteger(command) || command < 0 || command > 255) throw new Error('Invalid diagnostic command byte');
+    bytes[L.OFFSETS.PHRASE_COMMANDS + 14] = command;
+    console.log('Diagnostic stop command byte = ' + command);
+  }
   // Optional controlled intervention in the first pulse instrument only.
   // This changes the private diagnostic save, never the document or export.
   if (process.argv.length > 2) {
     const offset = Number(process.argv[2]), value = Number(process.argv[3]);
     if (!Number.isInteger(offset) || offset < 0 || offset > 15 ||
         !Number.isInteger(value) || value < 0 || value > 255) throw new Error('Expected byte offset 0..15 and value 0..255');
-    bytes[L.OFFSETS.INSTRUMENT_PARAMS + 16 + offset] = value;
-    console.log('Diagnostic instrument 1 byte ' + offset + ' = ' + value);
+    const instrument = sustain ? 0 : 1;
+    bytes[L.OFFSETS.INSTRUMENT_PARAMS + instrument * 16 + offset] = value;
+    console.log('Diagnostic instrument ' + instrument + ' byte ' + offset + ' = ' + value);
   }
   fs.writeFileSync(sav, bytes);
   if (process.env.LSDJ_TRACE) {
@@ -54,14 +64,22 @@ try {
     stdio: ['ignore', 'pipe', 'ignore'], encoding: 'utf8'
   });
   const rows = output.split('\n').filter(l => l.startsWith('PITCH ')).map(l => l.split(' ').slice(1).map(Number));
+  console.log(output.split('\n').find(l => l.startsWith('SONG_FORMAT ')) || 'SONG_FORMAT unavailable in this harness');
   if (!rows.length) throw new Error('No PITCH samples; rebuild tools/lsdjplay.c.');
   for (let ch = 0; ch < 3; ch++) {
     const active = rows.filter(r => r[1] === ch && r[3]);
     const actual = new Set(active.map(r => midi(r[2], ch)));
     const extra = [...actual].filter(n => !browser[ch].has(n));
+    const spans = [];
+    active.filter(r => r[4] > 0).forEach(r => {
+      const last = spans[spans.length - 1];
+      if (last && last[1] === r[0]) last[1]++;
+      else spans.push([r[0], r[0] + 1]);
+    });
     console.log(JSON.stringify({ channel: ch, written: [...intended[ch]],
       browserActivePitches: [...browser[ch]], lsdjActivePitches: [...actual],
       lsdjOnlyPitches: extra,
+      firstNonzeroVolumeSpans: spans.slice(0, 8),
       firstUnexpectedSamples: active.filter(r => extra.includes(midi(r[2], ch))).slice(0, 12)
     }));
   }

@@ -340,17 +340,31 @@ console.log('played by LSDj itself');
     const toMidi = (f) => Math.round(69 + 12 * Math.log2(f / 440));
     const lines = rep.split('\n');
     const heard = new Set(lines.filter(l => l.startsWith('HZ ')).map(l => toMidi(+l.slice(3))));
-    const noteOn = new Set(lines.filter(l => l.startsWith('TRIG ')).map(l => toMidi(+l.slice(5))));
+    const activePitches = new Set(lines.filter(l => l.startsWith('TRIG ')).map(l => toMidi(+l.slice(5))));
     ok(!/FAILED/.test(rep) && heard.size > 0, 'LSDj boots with our save and plays it');
     const missing = expected.filter(m => !heard.has(m));
     ok(!missing.length, 'every note in the document is played (' +
        (expected.length - missing.length) + '/' + expected.length +
        (missing.length ? ', missing ' + missing.join(', ') : '') + ')');
-    // The note-on set is smaller but everything in it is real, so it is the one
-    // to check for notes LSDj plays that we never wrote.
-    const wrong = [...noteOn].filter(m => !expected.includes(m));
-    ok(!wrong.length, 'and nothing is played that we did not write' +
-       (wrong.length ? ' -- ' + wrong.join(', ') : ' (' + noteOn.size + ' note-ons checked)'));
+    // TRIG samples active channels, not note-on events. Intended hardware
+    // sweeps traverse pitches absent from the document's base-note list.
+    // Compare with the browser APU's performance, not a sweep allowlist.
+    // This aggregate check does not establish timing, volume or timbre parity.
+    const APU = require('../src/gb-apu.js');
+    const seq = new APU.Sequencer(CT.songOf(doc).gb, 44100);
+    const buffer = new Float32Array(Math.round(seq.samplesPerFrame));
+    const browserPitches = new Set();
+    for (let frame = 0; frame < 2400; frame++) {
+      seq.render(buffer, 0, buffer.length);
+      seq.apu.ch.slice(0, 3).forEach((ch, i) => {
+        if (ch.on) browserPitches.add(toMidi((i === 2 ? 65536 : 131072) / (2048 - ch.freq)));
+      });
+    }
+    ok([79, 78, 77, 75].every(m => !browserPitches.has(m)),
+       'the reference still rejects the erroneous complemented-sweep pitches');
+    const wrong = [...activePitches].filter(m => !browserPitches.has(m));
+    ok(!wrong.length, 'all sampled active pitches occur in the browser performance' +
+       (wrong.length ? ' -- ' + wrong.join(', ') : ' (' + activePitches.size + ' pitches checked)'));
   }
 }
 
