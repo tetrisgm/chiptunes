@@ -3,6 +3,56 @@
 Plain, current working notes for whoever (or whatever) picks the project up
 next. Infrastructure and operations live outside this repository.
 
+## 2026-09-05 — LSDj parity and composition overhaul audit
+
+Active objective: postpone decompilation; review website, player and Create;
+achieve bidirectional LSDj instrument/sound and import/export parity without
+extra Chiptunes-only musical capabilities; substantially improve composition
+and mood/keyword direction. This objective is NOT complete.
+
+Baseline inspected on main at `9e49cca`, clean checkout, pull up to date:
+
+- `node scripts/verify-lsdj-native.js` passed: 60 songs, 40,863 notes,
+  zero off-row notes, sub-row collisions or channel/row clashes. These are
+  generated-song structural checks, not proof of arbitrary LSDj playback.
+- Default `verify-lsdj-emulator.js` SKIPPED because its Downloads ROM path
+  does not exist. Re-running with `LSDJ_ROM` pointing to the existing private
+  `../lsdj-decomp/baserom.gb` passed using `/tmp/lsdjtrace`: four tempo
+  measurements, pulse/wave pitch bases, 320/320 row gaps, three noise colours
+  and a single waveform. No ROM was copied or added to this repository.
+  This test does not verify every command, instrument parameter or sound.
+- `src/lsdj.js:toSongJSON` substitutes unnamed noise instruments with kicks,
+  caps imported note lengths at 16 rows, and maps instrument parameters onto
+  a small stamp palette. `tableOf` ignores enabled tables with zero transpose
+  even if they contain other modulation. `expandTables` uses average groove
+  length to locate ticks, retriggers notes, and silently skips cells when
+  offsets or available rows cannot represent them. Its exact-playback wording
+  is not supported by these implementations or the emulator test's scope.
+- Import command handling walks `playedNotes`; audit command-only rows and
+  stateful effects before claiming command support. Raw-byte preservation is
+  distinct from playback preservation and from preservation after editing.
+- Create's `parseMood` is a separate word dictionary from `api.interpret`.
+  It ignores negation, takes the last mode word, and can create contradictory
+  tempo bounds. `composeMood` catches compilation failures and returns null.
+  It now compiles once; the older handoff claim of searching 140 seeds is stale.
+
+Next implementation priorities: establish native song/command/instrument
+execution and edit-preservation fixtures against real LSDj, replace lossy
+projections as playback authority, and unify prompt interpretation with visible
+conflict/unsupported feedback. Expand emulator coverage beyond ruler songs.
+Review actual website/player/Create interactions and audition arrangements;
+neither visual review nor listening has been completed in this checkpoint.
+Composition evaluation must cover motif development, phrase/section contrast,
+cadences and audible mood separation, not merely metadata or seed diversity.
+No deployment, release, infrastructure change or decompilation work is implied.
+
+Verification follow-up: mood-constraints and language suites passed, including
+the API's measurable happy/sad separation. Full `npm test` initially stopped
+at the missing Playwright Chromium binary. Installed the project's pinned
+Chromium with `npx playwright install chromium` and restarted the full suite
+with the explicit private-ROM path. Full-suite completion remains pending;
+do not treat the focused passes above as permission to push a red suite.
+
 ## Where the music stands (musician-11)
 
 - One deterministic composer (`src/composer.js`): a token maps to the same
