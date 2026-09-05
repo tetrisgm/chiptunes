@@ -818,18 +818,13 @@
     return song;
   }
 
-  // THE NOTES A SONG ACTUALLY PLAYS, in the order LSDj plays them.
-  //
-  // This is the import path, and it is also the only way to check what we wrote
-  // against what LSDj does with it: walk the sequence, follow each chain to its
-  // phrases, and read the rows. Row numbers are absolute from the start of the
-  // song, so they line up with a register trace off the emulator.
-  //
-  // `note` is LSDj's note BYTE, which is an index into what that channel can
-  // play and therefore a different pitch on each one -- NOTE_BASE turns it into
-  // MIDI. Zero means no note, and is not a rest you can hear.
-  function playedNotes(m, ch) {
-    var out = [], row = 0, s, cr, st, instrument = NO_INSTRUMENT, selectedOnEmptyRow = false;
+  // Structural sequence order, including empty-note rows and source addresses.
+  // This is NOT a native execution engine: H/G/control flow, tick effects and
+  // cross-channel timing still require interpretation. Keep the raw commands
+  // so a note-only projection cannot silently erase their existence.
+  function walkSequenceRows(m, ch, visit) {
+    if (ch !== (ch | 0) || ch < 0 || ch > 3) throw new Error('lsdj: channel must be 0..3');
+    var row = 0, s, cr, st;
     for (s = 0; s < 256; s++) {
       var chain = m.sequence[s][ch];
       if (chain === NO_CHAIN) continue;
@@ -838,25 +833,44 @@
         if (ph === NO_PHRASE) { continue; }
         var tr = m.chainTranspose[chain][cr];
         for (st = 0; st < 16; st++) {
-          var n = m.phraseNotes[ph][st];
-          var selected = m.phraseInstruments[ph][st];
-          if (selected !== NO_INSTRUMENT) {
-            if (n !== NO_NOTE) selectedOnEmptyRow = false;
-            else if (selected !== instrument) selectedOnEmptyRow = true;
-            instrument = selected;
-          }
-          if (n !== NO_NOTE) out.push({
-            row: row + st, note: n, transpose: tr,
-            midi: NOTE_BASE[ch] + (n - 1) + (tr << 24 >> 24),
+          visit({
+            row: row + st, channel: ch, sequenceRow: s,
+            chain: chain, chainRow: cr, phrase: ph, phraseRow: st,
+            note: m.phraseNotes[ph][st], transpose: tr,
             instrument: m.phraseInstruments[ph][st],
-            effectiveInstrument: instrument,
-            instrumentOnlyChange: selectedOnEmptyRow,
             command: m.phraseCommands[ph][st], value: m.phraseCommandVals[ph][st]
           });
         }
         row += 16;
       }
     }
+    return row;
+  }
+
+  function sequenceRows(m, ch) {
+    var out = [];
+    walkSequenceRows(m, ch, function (r) { out.push(r); });
+    return out;
+  }
+
+  // Legacy note projection over the shared structural walk. A zero note byte
+  // means no new pitch, not an audible rest. Raw and selected instruments stay
+  // separate because selecting an instrument and triggering it are different.
+  function playedNotes(m, ch) {
+    var out = [], instrument = NO_INSTRUMENT, selectedOnEmptyRow = false;
+    walkSequenceRows(m, ch, function (r) {
+      if (r.instrument !== NO_INSTRUMENT) {
+        if (r.note !== NO_NOTE) selectedOnEmptyRow = false;
+        else if (r.instrument !== instrument) selectedOnEmptyRow = true;
+        instrument = r.instrument;
+      }
+      if (r.note !== NO_NOTE) out.push({
+        row: r.row, note: r.note, transpose: r.transpose,
+        midi: NOTE_BASE[ch] + (r.note - 1) + (r.transpose << 24 >> 24),
+        instrument: r.instrument, effectiveInstrument: instrument,
+        instrumentOnlyChange: selectedOnEmptyRow, command: r.command, value: r.value
+      });
+    });
     return out;
   }
 
@@ -910,31 +924,14 @@
   // sixteen rows each. A note with nothing after it sustains to the end of THAT,
   // not to the end of itself.
   function channelRows(m, ch) {
-    var rows = 0, s, cr;
-    for (s = 0; s < 256; s++) {
-      var chain = m.sequence[s][ch];
-      if (chain === NO_CHAIN) continue;
-      for (cr = 0; cr < 16; cr++)
-        if (m.chainPhrases[chain][cr] !== NO_PHRASE) rows += 16;
-    }
-    return rows;
+    return walkSequenceRows(m, ch, function () {});
   }
 
   // The rows a channel is told to STOP on. Same walk as playedNotes, but K
   // commands sit on rows with no note, so that walk cannot see them.
   function killRows(m, ch) {
-    var out = [], row = 0, s, cr, st;
-    for (s = 0; s < 256; s++) {
-      var chain = m.sequence[s][ch];
-      if (chain === NO_CHAIN) continue;
-      for (cr = 0; cr < 16; cr++) {
-        var ph = m.chainPhrases[chain][cr];
-        if (ph === NO_PHRASE) continue;
-        for (st = 0; st < 16; st++)
-          if (m.phraseCommands[ph][st] === CMD.K) out.push(row + st);
-        row += 16;
-      }
-    }
+    var out = [];
+    walkSequenceRows(m, ch, function (r) { if (r.command === CMD.K) out.push(r.row); });
     return out;
   }
 
@@ -1036,6 +1033,8 @@
   function toSongJSON(m, opts) {
     opts = opts || {};
     var warn = [], notes = [], ch, i;
+    if (m.formatVersion !== 7) warn.push('native format ' + m.formatVersion +
+      ' command semantics are not fully interpreted by this format-7 document projection');
     var ticks = [], t;
     for (t = 0; t < 16 && m.grooves[0][t]; t++) ticks.push(m.grooves[0][t]);
     if (!ticks.length) ticks = [6];
@@ -1178,8 +1177,12 @@
       ' played out into notes, one per tick, at the pitch and the frame each tick ' +
       'sounds -- so they play exactly rather than approximately');
     // Commands we do not act on, counted rather than silently dropped.
-    var unknownCmds = {};
-    for (ch = 0; ch < 4; ch++) playedNotes(m, ch).forEach(function (n) {
+    var unknownCmds = {}, emptyCommands = {};
+    for (ch = 0; ch < 4; ch++) walkSequenceRows(m, ch, function (n) {
+      if (n.note === NO_NOTE) {
+        if (n.command && n.command !== CMD.K) emptyCommands[n.command] = (emptyCommands[n.command] || 0) + 1;
+        return;
+      }
       if (n.command && n.command !== CMD.C && n.command !== CMD.R &&
           n.command !== CMD.K && n.command !== CMD.V && n.command !== CMD.E &&
           n.command !== CMD.O && n.command !== CMD.S && n.command !== CMD.P &&
@@ -1191,6 +1194,16 @@
     if (unknownTotal) warn.push(unknownTotal + ' notes carry an LSDj command this app does not ' +
       'play; the notes arrive, the effect does not. C, R, K, V, E, O, S, P ' +
       'L, T, M and W are understood; D, F and H are seen but not carried');
+    var emptyTotal = Object.keys(emptyCommands).reduce(function (a, k) { return a + emptyCommands[k]; }, 0);
+    if (emptyTotal) {
+      // Command letters depend on the native format version; report raw bytes
+      // rather than mislabel newer files with this exporter's format-7 enum.
+      var commandBytes = Object.keys(emptyCommands).map(function (value) {
+        return ('0' + (+value).toString(16).toUpperCase()).slice(-2);
+      });
+      warn.push(emptyTotal + ' command-only rows are not applied (command bytes ' + commandBytes.join(', ') +
+        '); their native effects are not preserved in document playback');
+    }
     notes.sort(function (a, b) { return a.step - b.step; });
     return {
       json: {
@@ -1219,6 +1232,7 @@
     compress: compress, decompress: decompress, emptySong: emptySong,
     fromDocument: fromDocument, lsdsng: lsdsng,
     readSong: readSong, writeSong: writeSong, coverage: coverage, playedNotes: playedNotes,
+    sequenceRows: sequenceRows,
     expandTables: expandTables, tableOf: tableOf,
     parseLsdsng: parseLsdsng, parseSav: parseSav, toSongJSON: toSongJSON
   };

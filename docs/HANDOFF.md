@@ -55,6 +55,62 @@ do not treat the focused passes above as permission to push a red suite.
 
 ## Where the music stands (musician-11)
 
+### 2026-09-05 — shared native structural row traversal
+
+`sequenceRows(model, channel)` retains every row of each referenced phrase,
+including blank pitches, instrument-only selections and command-only events.
+Each snapshot includes sequence/chain/phrase source coordinates, so repeated
+phrase occurrences are distinguishable. `playedNotes`, channel length, KILL
+discovery and command-loss reporting now share the same traversal instead of
+maintaining separate walks. This is structural sequence order, NOT execution
+of H/G jumps, tick effects or cross-channel timing; it must not be presented
+as a complete native sequencer.
+
+Import now warns about dropped command-only rows (raw command bytes are named
+because letters depend on format version) and about non-format-7 command
+semantics. Previously these rows escaped loss reporting because warnings
+looked only at notes. No new effects have been claimed as implemented.
+
+Focused structural fixtures cover reused phrase source addresses, signed chain
+transpose, instrument-only/T/K rows, independent channels and non-mutating
+snapshots. Native and all eight real-ROM pulse-trigger fixtures pass. A
+differential check against fdc1f57 found identical note projections and
+generated-song imports for 64 fixed seeds, 256 channels and 44,499 notes.
+The first full npm test run ended in a Chromium page crash entering the Create
+handover checks, rather than a failed music assertion. The isolated handover
+rerun passed all cases. The second full run stopped at verify-sync: raw deck
+clock was 27 ms ahead of the reported chip frame, corrected position was
+-173 ms, and total correction was 201 ms. Output-device latency and chip lag
+were not logged separately. `audiblePosition` subtracts both, while verify-sync
+compares to the render-frame report; inspect that observer mismatch AND the
+timestamp-based output-latency estimate before changing code or tolerances.
+Full log: /tmp/chiptunes-native-row-events-verified.log. No push is permitted
+until verification is green. This checkpoint is local only; no deployment or
+release. Next immediate task is player synchronization diagnosis, not another
+blind full-suite retry.
+
+Three owner-requested Luna subagents produced sidecar work, reviewed and refined
+by the main agent before integration:
+
+- `docs/lsdj-native-command-layout.md`: pinned primary-source mapping for
+  format-8+ phrase/table commands and table field offsets. Main review found
+  and documented the inspected upstream setter's A/B asymmetry; do not copy
+  its setter as a round-trip oracle. Version-aware command interpretation and
+  the table envelope region at 0x1690 are concrete next native-model work.
+- `docs/lsdj-editing-capabilities.md`: distinguishes raw fields, document
+  projection and actual Create controls, including authoring/preservation gaps.
+- `scripts/diagnose-composition-form.js`: deterministic offline lead-event
+  diagnostic, not a quality score or production selector. Exact fingerprints
+  include pitch/timing/duration; pitch, contour and rhythm variation are
+  separate. Synthetic self-tests and two byte-identical runs passed. In 32
+  fixed songs (1,496 bars), 952 bars lack lead onsets; this does NOT mean the
+  song is silent, because other voices and earlier sustained notes are not
+  counted. The 238 onset-free four-bar windows are excluded from repetition
+  counts. No exact nonempty four-bar repeats were found; 12 of 17 repeated
+  same-role/same-length section comparisons varied pitch/contour/rhythm.
+  These measurements are an audition starting point, not evidence of good or
+  bad musical quality. No production composition algorithm changed here.
+
 ### 2026-09-05 — native pulse trigger state carried end to end
 
 Native pulse imports now distinguish an explicit instrument trigger from a

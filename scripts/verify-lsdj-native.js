@@ -458,6 +458,54 @@ Object.keys(IMAGES).forEach(name => {
   }
 }
 
+console.log('structural row events, not just note-on rows');
+{
+  const model = L.readSong(L.emptySong());
+  model.sequence.forEach(r => r.fill(255));
+  model.chainPhrases.forEach(r => r.fill(255));
+  model.phraseNotes.forEach(r => r.fill(0));
+  model.phraseInstruments.forEach(r => r.fill(255));
+  model.phraseCommands.forEach(r => r.fill(0));
+  model.phraseCommandVals.forEach(r => r.fill(0));
+  model.sequence[0][0] = 0;
+  model.sequence[3][0] = 2;
+  model.chainPhrases[0][0] = 0;
+  model.chainPhrases[0][4] = 1;
+  model.chainPhrases[2][5] = 0;
+  model.chainTranspose[0][0] = 3;
+  model.chainTranspose[2][5] = 254;
+  model.phraseNotes[0][0] = 25; // C4 on a pulse before chain transpose
+  model.phraseInstruments[0][0] = 0;
+  model.phraseInstruments[0][4] = 7; // select on an empty-note row
+  model.phraseCommands[0][9] = L.COMMANDS.T;
+  model.phraseCommandVals[0][9] = 80;
+  model.phraseCommands[1][5] = L.COMMANDS.K;
+  model.phraseCommandVals[1][5] = 0;
+  const before = L.writeSong(model);
+  const rows = L.sequenceRows(model, 0);
+  ok(rows.length === 48 && rows.every((r, i) => r.row === i),
+     'all rows of referenced phrases survive, including empty-note rows');
+  ok(rows[4].note === 0 && rows[4].instrument === 7,
+     'an instrument-only row stays a distinct raw event');
+  ok(rows[9].command === L.COMMANDS.T && rows[9].value === 80 && rows[9].note === 0,
+     'a command-only tempo row is visible without inventing a note');
+  ok(rows[32].sequenceRow === 3 && rows[32].chain === 2 && rows[32].chainRow === 5 &&
+     rows[32].phrase === 0 && rows[32].phraseRow === 0,
+     'reused phrases retain each occurrence\'s sequence and chain source address');
+  const ns = L.playedNotes(model, 0);
+  ok(ns.length === 2 && ns[0].midi === 63 && ns[1].midi === 58,
+     'the note projection still applies signed chain transpose per occurrence');
+  const report = L.toSongJSON(model);
+  ok(report.warnings.some(w => /2 command-only rows.*0F/.test(w)),
+     'unapplied command-only events are reported, including each repeated occurrence');
+  ok(rows[21].command === L.COMMANDS.K && rows[21].note === 0,
+     'KILL remains a command-only event rather than a fabricated note');
+  ok(Buffer.from(L.writeSong(model)).equals(Buffer.from(before)), 'row inspection does not mutate the native image');
+  rows[0].note = 88;
+  ok(model.phraseNotes[0][0] === 25, 'row snapshots do not alias mutable native phrase storage');
+  ok(!L.sequenceRows(model, 1).length, 'channels remain independent');
+}
+
 // How much of a song we UNDERSTAND rather than carry verbatim. A ratchet the
 // other way up: this may rise and must not fall.
 const cov = L.coverage();
