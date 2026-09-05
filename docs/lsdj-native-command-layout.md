@@ -1,8 +1,11 @@
 # Native command storage: verified source findings
 
-This is a storage map, not proof of command execution semantics. The current
-document projection still uses its format-7 command indexes; native format-22
-playback is not established by the existing format-7 export fixtures.
+This is a storage map, not proof of every command's execution semantics.
+`decodeCommand`/`encodeCommand` separate canonical identity from stored bytes.
+Structural rows and note projections retain raw `command` and expose a
+separate `commandId`; unknown bytes and future formats are not guessed.
+The document projection uses normalized identities, but most native effects
+and instrument capabilities still lack complete playback/edit preservation.
 
 ## Version-dependent identity
 
@@ -23,6 +26,26 @@ not reliable round-trip oracles for A in this pinned revision. A writer using
 the getter-defined layout must explicitly encode A as raw 2, B as raw 1 and
 NONE as raw 0; other defined nonzero commands shift by one. Verify this with
 independent native fixtures rather than copying the setter branch.
+
+## ROM-upgraded fixture evidence (2026-09-05)
+
+`scripts/verify-lsdj-command-versions.js` boots the owner's LSDj 9.4.2 ROM with
+a generated format-7 song and captures its upgraded working song using the
+optional `LSDJ_BOOT_SONG` output in `tools/lsdjplay.c`. This captures 32 KiB of
+song SRAM, never ROM data, and refuses to overwrite an existing target.
+
+The ROM produces format 22 and changes 151 song bytes in this fixture, so
+changing only the format marker would not be an equivalent native migration.
+The pre/post-upgrade saves produce identical frame/register/volume traces.
+KILL (raw 8 -> 9) and tempo T (15 -> 16) now survive document import and native
+re-export, including T on a command-only row. Browser pulse state matches the
+native fixtures with the existing one-frame sampling allowance.
+
+Unused phrase and both table command columns verify the ROM's byte migration:
+raw 2..16 become 3..17, but **raw 1 remains 1**. Consequently, this upgrader is
+not an A/B semantic equivalence oracle. Canonical A/B encoding above follows
+the pinned getter layout; execution of either command remains unimplemented.
+Do not infer full command or table parity from these K/T fixtures.
 
 ## Table field addresses
 

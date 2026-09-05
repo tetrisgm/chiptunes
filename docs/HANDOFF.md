@@ -3,6 +3,78 @@
 Plain, current working notes for whoever (or whatever) picks the project up
 next. Infrastructure and operations live outside this repository.
 
+## 2026-09-05 — native command identities and tempo round trips
+
+The ROM now supplies the modern-format test fixture: `LSDJ_BOOT_SONG` in
+`tools/lsdjplay.c` captures the working song after boot, before playback. It
+writes only 32 KiB of song SRAM to an exclusive new file, never ROM data.
+LSDj 9.4.2 upgrades the format-7 fixture to format 22, changing 151 bytes.
+Original and upgraded saves give identical frame/register/volume CSV traces.
+Before the fix, importing the upgraded fixture lost KILL and T: note lengths
+6/6/6 became 10/8/8 and the tempo timeline disappeared.
+
+`decodeCommand`/`encodeCommand` now separate canonical IDs from raw storage
+for known layouts through format 22. Structural rows and `playedNotes` retain
+raw `command` and add `commandId`; unknown bytes remain untouched, and future
+formats are not guessed. The importer dispatches on normalized identities.
+Canonical identity is not proof of full effect support. The ROM leaves raw 1
+unchanged during upgrade, so the native test deliberately does not claim A/B
+semantic equivalence; see `docs/lsdj-native-command-layout.md`.
+
+The test exposed another loss: even format-7 T survived document import but
+was discarded on export. Export now places the document's tempo changes in
+free command columns without replacing effects/KILL. Explicit empty phrases
+keep commands on otherwise empty channels at their intended row. An occupied
+four-channel command row is an explicit export error, not a silent overwrite.
+Import also reads command-only T (BPM values >=40) across all channels, dedups
+matching simultaneous values, and explicitly rejects conflicting values whose
+execution order has not been established. Lower T values remain unsupported.
+
+`scripts/verify-lsdj-command-versions.js` is included in `npm test` and
+`test:lsdj`. Focused checks pass: formats 7/8/22 encoding, raw preservation,
+unknown values, command allocation, and two ROM-upgraded K/T fixtures (T with
+a note and T mid-note on an empty row). Native re-export pulse transitions and
+frame timing match exactly in these fixtures; browser volume/duty/pitch match
+with the existing one-frame transition sampling allowance. Table migration is
+checked structurally in both command columns, not claimed as table playback.
+Misleading exact-table warnings/comments now describe the known approximation.
+
+Boundary review before verification also fixed two tempo-path cases: a
+command-only tail is included before computing which KILL rows fit, and the
+document codec now retains T at row zero instead of filtering it out. The
+native suite has three fixtures (T at rows 0, 16 and 20), all passing browser
+and native re-export checks. The first full run was deliberately stopped after
+finding the tail issue; its browser-closed message is cancellation, not a new
+browser defect. The corrected-build full `npm test` finished with exit 0:
+`/tmp/chiptunes-command-versions-verified.log`, including all three native
+version fixtures, the eight pulse-trigger fixtures, 48 deterministic songs
+and all 14 game checks. Explicit native-T conflict and saturated export-column
+checks were subsequently made permanent in the focused suite and passed on a
+fresh real-ROM rerun. Browser/broadcast render parity also passed 10/10,
+minimum correlation 1.000000, zero sample lag, maximum absolute RMS difference
+0.175 dB (`/tmp/chiptunes-command-versions-render-parity.log`). This checkpoint
+is ready for the owner-requested commit/push; nothing was deployed.
+
+Scope of the new native playback proof: pulse channel 1, K00, base tempo 128
+and T80, placed at rows 0/16/20. This does not establish all K/T values, every
+channel, arbitrary tempo maps or native control flow. Existing browser frames
+can differ from the sampled native transition by one frame, as noted above.
+
+Use the newly built harness for this run:
+`LSDJPLAY=/tmp/chiptunes-version-fixtures.e2ILOJ/lsdjplay`, alongside the existing
+private ROM and volume-aware `LSDJ_TRACE` paths. Older binaries lack the new
+capture option and fail this gate explicitly. No deployment or app restart.
+Full instrument/table/control-flow parity, edit preservation, the composition
+overhaul (including the forced early melody gap), UI and listening reviews
+remain incomplete.
+
+Read-only Luna melody review confirmed another design constraint for the next
+composition change: sections can start at bars 2 or 3, while melody allocation
+currently steps globally by four. Any section-aware replacement must handle
+short/partial phrases explicitly, not simply discard short openings or assume
+every four-bar group has one section role. Keep motif materialization separate
+from whole-song allocation, and verify theme returns, density and listening.
+
 ## 2026-09-05 — separate render synchronization from device latency
 
 The sync failure at checkpoint `3f4e080` compared a speaker-corrected position

@@ -479,6 +479,8 @@ console.log('structural row events, not just note-on rows');
   model.phraseInstruments[0][4] = 7; // select on an empty-note row
   model.phraseCommands[0][9] = L.COMMANDS.T;
   model.phraseCommandVals[0][9] = 80;
+  model.phraseCommands[0][10] = L.COMMANDS.D;
+  model.phraseCommandVals[0][10] = 2;
   model.phraseCommands[1][5] = L.COMMANDS.K;
   model.phraseCommandVals[1][5] = 0;
   const before = L.writeSong(model);
@@ -496,7 +498,9 @@ console.log('structural row events, not just note-on rows');
   ok(ns.length === 2 && ns[0].midi === 63 && ns[1].midi === 58,
      'the note projection still applies signed chain transpose per occurrence');
   const report = L.toSongJSON(model);
-  ok(report.warnings.some(w => /2 command-only rows.*0F/.test(w)),
+  ok(JSON.stringify(report.tempoAt) === JSON.stringify([[9,80],[41,80]]),
+     'command-only T is applied at each repeated occurrence');
+  ok(report.warnings.some(w => /2 command-only rows.*03/.test(w)),
      'unapplied command-only events are reported, including each repeated occurrence');
   ok(rows[21].command === L.COMMANDS.K && rows[21].note === 0,
      'KILL remains a command-only event rather than a fabricated note');

@@ -632,7 +632,7 @@
     // here, and a document with neither encodes IDENTICALLY to v13 apart from
     // the version byte -- so the new fields cost nothing when they are unused.
     var tAt = (S.tempoAt || []).filter(function (p2) {
-      return p2 && p2.length === 2 && p2[0] > 0 && p2[1] >= 40 && p2[1] <= 255;
+      return p2 && p2.length === 2 && p2[0] >= 0 && p2[1] >= 40 && p2[1] <= 255;
     }).slice(0, 63);
     // v15 carries native pulse trigger state; ordinary documents stay v13/14.
     var nativeTriggers = S.cells.some(function (x) { return !!x.nt; });
@@ -732,7 +732,7 @@
         for (var qj = 0; qj < tc2; qj++) {
           var row = (v[head] | 0) | ((v[head + 1] | 0) << 6);
           var tmp = (v[head + 2] | 0) | (((v[head + 3] | 0) & 3) << 6);
-          if (row > 0 && tmp >= 40 && tmp <= 255) st2.tempoAt.push([row, tmp]);
+          if (tmp >= 40 && tmp <= 255) st2.tempoAt.push([row, tmp]);
           head += 4;
         }
       }

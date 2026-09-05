@@ -69,7 +69,24 @@
   var MAX_PHRASES = 255, MAX_CHAINS = 128, MAX_INSTRUMENTS = 64;
   // command indices, from liblsdj's command.h
   var CMD = { NONE: 0, A: 1, C: 2, D: 3, E: 4, F: 5, G: 6, H: 7, K: 8, L: 9,
-              M: 10, O: 11, P: 12, R: 13, S: 14, T: 15, V: 16, W: 17, Z: 18 };
+              M: 10, O: 11, P: 12, R: 13, S: 14, T: 15, V: 16, W: 17, Z: 18,
+              N: 19, X: 20, Q: 21, Y: 22, B: 23 };
+  // Canonical identities are separate from stored bytes. Native format 8
+  // inserts B at raw 1 and moves A to raw 2. This identifies commands; it does
+  // not claim their execution semantics are supported. Unknown bytes/versions
+  // return null and remain untouched by readSong/writeSong.
+  function decodeCommand(raw, version) {
+    if (!Number.isInteger(raw) || raw < 0 || raw > 255 ||
+        !Number.isInteger(version) || version < 0 || version > 22) return null;
+    if (version < 8) return raw <= 22 ? raw : null;
+    return raw === 0 ? CMD.NONE : raw === 1 ? CMD.B : raw <= 23 ? raw - 1 : null;
+  }
+  function encodeCommand(id, version) {
+    if (!Number.isInteger(id) || id < 0 || id > CMD.B ||
+        !Number.isInteger(version) || version < 0 || version > 22 ||
+        (version < 8 && id === CMD.B)) throw new Error('lsdj: command cannot be encoded in this format');
+    return version < 8 || id === CMD.NONE ? id : id === CMD.B ? 1 : id + 1;
+  }
   var INST_TYPE = { PULSE: 0, WAVE: 1, KIT: 2, NOISE: 3 };
 
   // THE NOTE BYTE IS AN INDEX INTO WHAT THAT CHANNEL CAN PLAY, and it is a
@@ -280,6 +297,9 @@
     // ---- lay the notes out per channel, one slot per step ------------------
     var lastStep = 0;
     st.cells.forEach(function (x) { if ((x.c | 0) > lastStep) lastStep = x.c | 0; });
+    (st.tempoAt || []).forEach(function (change) {
+      if (change[0] > lastStep) lastStep = change[0];
+    }); // include command-only tail before deciding which note-offs fit
     var steps = lastStep + 1;
     var grid = [[], [], [], []];
     for (ch = 0; ch < 4; ch++) for (i = 0; i < steps; i++) grid[ch].push(null);
@@ -460,6 +480,29 @@
         kills++;
       }
     }
+
+    // Tempo changes belong to the whole song. Put T on an available command
+    // column without replacing a note effect or KILL. A command-only channel
+    // needs explicit empty phrases before it: FF phrases are skipped by LSDj,
+    // not waited through, so otherwise a late T executes at the song's start.
+    (st.tempoAt || []).forEach(function (change) {
+      var step = change[0], tempo = change[1], lane = -1;
+      if (!Number.isInteger(step) || step < 0 || !Number.isInteger(tempo) || tempo < 40 || tempo > 255)
+        throw new Error('lsdj: invalid tempo change');
+      for (var tc = 0; tc < 4; tc++) {
+        if (!grid[tc][step] || grid[tc][step].cmd === CMD.NONE) { lane = tc; break; }
+      }
+      if (lane < 0) throw new Error('lsdj: no free command column for tempo change at row ' + step);
+      var slot = grid[lane][step];
+      if (!slot) slot = grid[lane][step] = { note:NO_NOTE, inst:NO_INSTRUMENT, len:1 };
+      slot.cmd = CMD.T; slot.val = tempo;
+      for (var base = 0; base < step; base += PHRASE_STEPS) {
+        var exists = false;
+        for (var tr = base; tr < base + PHRASE_STEPS; tr++) if (grid[lane][tr]) { exists = true; break; }
+        if (!exists) grid[lane][base] = {note:NO_NOTE, inst:NO_INSTRUMENT, cmd:CMD.NONE, val:0, len:1};
+      }
+      steps = Math.max(steps, step + 1);
+    });
 
     // ---- phrases, deduplicated --------------------------------------------
     var phrases = [], byKey = {}, chainsOf = [[], [], [], []];
@@ -838,7 +881,8 @@
             chain: chain, chainRow: cr, phrase: ph, phraseRow: st,
             note: m.phraseNotes[ph][st], transpose: tr,
             instrument: m.phraseInstruments[ph][st],
-            command: m.phraseCommands[ph][st], value: m.phraseCommandVals[ph][st]
+            command: m.phraseCommands[ph][st], value: m.phraseCommandVals[ph][st],
+            commandId: decodeCommand(m.phraseCommands[ph][st], m.formatVersion)
           });
         }
         row += 16;
@@ -868,7 +912,8 @@
         row: r.row, note: r.note, transpose: r.transpose,
         midi: NOTE_BASE[ch] + (r.note - 1) + (r.transpose << 24 >> 24),
         instrument: r.instrument, effectiveInstrument: instrument,
-        instrumentOnlyChange: selectedOnEmptyRow, command: r.command, value: r.value
+        instrumentOnlyChange: selectedOnEmptyRow, command: r.command, value: r.value,
+        commandId: r.commandId
       });
     });
     return out;
@@ -931,13 +976,13 @@
   // commands sit on rows with no note, so that walk cannot see them.
   function killRows(m, ch) {
     var out = [];
-    walkSequenceRows(m, ch, function (r) { if (r.command === CMD.K) out.push(r.row); });
+    walkSequenceRows(m, ch, function (r) { if (r.commandId === CMD.K) out.push(r.row); });
     return out;
   }
 
-  // The table an instrument runs, or null. Byte 6 is 0x20 | index when a table
-  // is on and 0x03 by default; only a table whose transposes actually MOVE is
-  // worth reporting, because an all-zero table sounds like no table at all.
+  // The transpose-table subset handled by this projection. Command/envelope
+  // tables with all-zero transposes are NOT detected here; that is a remaining
+  // import gap, not evidence that those tables sound like no table at all.
   function tableOf(m, slot) {
     if (slot == null || slot === NO_INSTRUMENT) return null;
     var p = m.instrumentParams[slot];
@@ -954,7 +999,7 @@
     for (var i = 0; i < 5; i++) { var c = m.instrumentNames[slot][i]; if (c) s += String.fromCharCode(c); }
     return s.toLowerCase();
   }
-  // A TABLE, PLAYED EXACTLY, in cells rather than as an approximation.
+  // Approximate a table's transpose column using document cells.
   //
   // A table steps every TICK -- six to a row -- and transposes the note. Our
   // document is row-based, which is why this first arrived as "call it an
@@ -963,9 +1008,8 @@
   // them can put a note anywhere the machine can. That is the same mechanism a
   // composed song already uses to survive import at frame resolution.
   //
-  // So a note running a table becomes one cell per tick, each at the frame that
-  // tick starts on and at the pitch that tick sounds. Nothing is approximated
-  // and nothing needed a new document format.
+  // This does not execute table commands/envelopes. Average groove positioning,
+  // retriggered cells and representability limits below prevent exact parity.
   function expandTables(m, st, tableNotes, laneRow) {
     var H = (typeof require !== 'undefined' && typeof module !== 'undefined')
       ? require('./gb-hardware.js') : G.CT_GB;
@@ -1033,8 +1077,10 @@
   function toSongJSON(m, opts) {
     opts = opts || {};
     var warn = [], notes = [], ch, i;
-    if (m.formatVersion !== 7) warn.push('native format ' + m.formatVersion +
-      ' command semantics are not fully interpreted by this format-7 document projection');
+    if (m.formatVersion > 22) warn.push('native format ' + m.formatVersion +
+      ' is not recognized; command bytes are preserved in the raw model but not interpreted');
+    else if (m.formatVersion !== 7) warn.push('native format ' + m.formatVersion +
+      ' has normalized command identities but its full instrument/effect semantics are not verified by this document projection');
     var ticks = [], t;
     for (t = 0; t < 16 && m.grooves[0][t]; t++) ticks.push(m.grooves[0][t]);
     if (!ticks.length) ticks = [6];
@@ -1046,6 +1092,15 @@
     var rowFrames = (tSum / ticks.length) * 149.31875 / Math.max(1, m.tempo || 128);
     var lastRow = 0, unnamedDrums = 0, tableNotes = [], vibratoNotes = [], patches = [];
     var tempoAt = [], master = null, pendingInstrumentNotes = 0;
+    var tempoByRow = {};
+    for (ch = 0; ch < 4; ch++) walkSequenceRows(m, ch, function (r) {
+      if (r.commandId !== CMD.T || r.value < 40) return; // lower values are not interpreted as BPM here
+      if (tempoByRow[r.row] != null && tempoByRow[r.row] !== r.value)
+        throw new Error('lsdj: conflicting tempo commands at row ' + r.row + ' are not supported');
+      tempoByRow[r.row] = r.value;
+      if (r.row > lastRow) lastRow = r.row;
+    });
+    Object.keys(tempoByRow).forEach(function (row) { tempoAt.push([+row, tempoByRow[row]]); });
     for (ch = 0; ch < 4; ch++) {
       var played = playedNotes(m, ch), kills = killRows(m, ch);
       var chLastRow = Math.max(channelRows(m, ch) - 1,
@@ -1091,8 +1146,8 @@
           // the way out; without reading them back, a song exported with either
           // came home plain, and the round trip quietly flattened the gestures
           // it had just written.
-          if (n.command === CMD.C) note.motion = 'arp';
-          else if (n.command === CMD.R) note.motion = 'roll';
+          if (n.commandId === CMD.C) note.motion = 'arp';
+          else if (n.commandId === CMD.R) note.motion = 'roll';
           // A TABLE THAT MOVES THE PITCH IS AN ARPEGGIO, and that is a thing our
           // document can say. Measured: instrument byte 6 = 0x20 | index turns
           // one on, the transposes live at 0x3480 + table*16 + row, and a row
@@ -1106,7 +1161,7 @@
           // the same one-way asymmetry the arpeggio and the roll had. The
           // document carries it as a cell flag rather than a motion, so it is
           // set in the state pass alongside the tables.
-          else if (n.command === CMD.V) vibratoNotes.push({ lane: ch, step: n.row });
+          else if (n.commandId === CMD.V) vibratoNotes.push({ lane: ch, step: n.row });
           // ...and the rest of the commands that MOVE A REGISTER, each measured
           // by playing it and watching the chip:
           //
@@ -1115,28 +1170,27 @@
           //   S -> NR10   the sweep, which is what a fall or a rise is
           //   P -> NR13   a pitch bend, which lands as a detune
           //
-          // Each has a home in the document already, so each is carried rather
-          // than counted as unplayable. What is left over -- A, D, F, G, H, L,
-          // T, W, Z -- moved no register at all in that measurement.
-          if (n.command === CMD.E) patches.push({ lane: ch, step: n.row, f: { vel: Math.max(0.05, Math.min(1, (n.value >> 4) / 15)) } });
-          else if (n.command === CMD.O) patches.push({ lane: ch, step: n.row, f: { pn: n.value & 3 } });
-          else if (n.command === CMD.S) patches.push({ lane: ch, step: n.row, f: { sweep: n.value & 0xFF } });
-          else if (n.command === CMD.P) patches.push({ lane: ch, step: n.row, f: { dt: ((n.value << 24) >> 24) } });
+          // These have document projections. Register observations on a simple
+          // ruler do not prove all values or stateful contexts are equivalent.
+          // In particular D/F/H were later observed to act, but are not carried.
+          if (n.commandId === CMD.E) patches.push({ lane: ch, step: n.row, f: { vel: Math.max(0.05, Math.min(1, (n.value >> 4) / 15)) } });
+          else if (n.commandId === CMD.O) patches.push({ lane: ch, step: n.row, f: { pn: n.value & 3 } });
+          else if (n.commandId === CMD.S) patches.push({ lane: ch, step: n.row, f: { sweep: n.value & 0xFF } });
+          else if (n.commandId === CMD.P) patches.push({ lane: ch, step: n.row, f: { dt: ((n.value << 24) >> 24) } });
           // L is a pitch SLIDE. One note cannot show it -- the pitch is right
           // either way -- but a ruler with a note on every row goes from 100
           // distinct pitches to 112 with shorter gaps, which is the slide
           // filling in between. The document calls it a glide.
-          else if (n.command === CMD.L) patches.push({ lane: ch, step: n.row, f: { gl: 1 } });
+          else if (n.commandId === CMD.L) patches.push({ lane: ch, step: n.row, f: { gl: 1 } });
           // T and M are SONG-WIDE, not a note's: T changes the tempo from here
           // on (measured with a ruler -- 100 rows became 56 and the mean gap
           // went 6.98 -> 12.32), and M sets NR50, the master volume.
-          else if (n.command === CMD.T && n.value >= 40) tempoAt.push([n.row, n.value]);
-          else if (n.command === CMD.M) master = n.value & 0xFF;
+          else if (n.commandId === CMD.M) master = n.value & 0xFF;
           // W is the DUTY. Value 1, 2 and 3 set NR11's duty bits directly, which
           // the document keeps as `dy`. I first recorded W as doing nothing --
           // that was a flawed measurement watching only channel 1's PITCH
           // registers, where a duty change is invisible.
-          else if (n.command === CMD.W && (n.value & 3)) patches.push({ lane: ch, step: n.row, f: { dy: n.value & 3 } });
+          else if (n.commandId === CMD.W && (n.value & 3)) patches.push({ lane: ch, step: n.row, f: { dy: n.value & 3 } });
           var tbl = tableOf(m, n.instrument);
           if (tbl != null) tableNotes.push({ lane: ch, step: n.row, table: tbl, len: len });
           // Instrument sweep is stored complemented, not as raw NR10.
@@ -1144,7 +1198,7 @@
           else if (ch === 0 && p && p[0] === INST_TYPE.PULSE && ((p[4] ^ 0xFF) & 0x7F)) {
             var instrumentSweep = (p[4] ^ 0xFF) & 0x7F;
             note.motion = (instrumentSweep & 0x08) ? 'fall' : 'rise';
-            if (n.command !== CMD.S) patches.push({ lane: ch, step: n.row, f: { sweep: instrumentSweep } });
+            if (n.commandId !== CMD.S) patches.push({ lane: ch, step: n.row, f: { sweep: instrumentSweep } });
           }
           if (p) {
             note.velocity = Math.max(ch < 2 ? 0 : 0.05, Math.min(1, (p[1] >> 4) / 15));
@@ -1174,20 +1228,21 @@
     });
     var tableCount = Object.keys(tablesUsed).length;
     if (tableCount) warn.push(tableCount + ' LSDj table' + (tableCount > 1 ? 's' : '') +
-      ' played out into notes, one per tick, at the pitch and the frame each tick ' +
-      'sounds -- so they play exactly rather than approximately');
+      ' projected approximately from transpose rows; table commands, envelopes, ' +
+      'groove timing and note retriggers are not fully preserved');
     // Commands we do not act on, counted rather than silently dropped.
     var unknownCmds = {}, emptyCommands = {};
     for (ch = 0; ch < 4; ch++) walkSequenceRows(m, ch, function (n) {
       if (n.note === NO_NOTE) {
-        if (n.command && n.command !== CMD.K) emptyCommands[n.command] = (emptyCommands[n.command] || 0) + 1;
+        if (n.command && n.commandId !== CMD.K && !(n.commandId === CMD.T && n.value >= 40))
+          emptyCommands[n.command] = (emptyCommands[n.command] || 0) + 1;
         return;
       }
-      if (n.command && n.command !== CMD.C && n.command !== CMD.R &&
-          n.command !== CMD.K && n.command !== CMD.V && n.command !== CMD.E &&
-          n.command !== CMD.O && n.command !== CMD.S && n.command !== CMD.P &&
-          n.command !== CMD.L && n.command !== CMD.T && n.command !== CMD.M &&
-          n.command !== CMD.W)
+      if ((n.command && n.commandId !== CMD.C && n.commandId !== CMD.R &&
+          n.commandId !== CMD.K && n.commandId !== CMD.V && n.commandId !== CMD.E &&
+          n.commandId !== CMD.O && n.commandId !== CMD.S && n.commandId !== CMD.P &&
+          n.commandId !== CMD.L && n.commandId !== CMD.T && n.commandId !== CMD.M &&
+          n.commandId !== CMD.W) || (n.commandId === CMD.T && n.value < 40))
         unknownCmds[n.command] = (unknownCmds[n.command] || 0) + 1;
     });
     var unknownTotal = Object.keys(unknownCmds).reduce(function (a, k) { return a + unknownCmds[k]; }, 0);
@@ -1232,7 +1287,7 @@
     compress: compress, decompress: decompress, emptySong: emptySong,
     fromDocument: fromDocument, lsdsng: lsdsng,
     readSong: readSong, writeSong: writeSong, coverage: coverage, playedNotes: playedNotes,
-    sequenceRows: sequenceRows,
+    sequenceRows: sequenceRows, decodeCommand: decodeCommand, encodeCommand: encodeCommand,
     expandTables: expandTables, tableOf: tableOf,
     parseLsdsng: parseLsdsng, parseSav: parseSav, toSongJSON: toSongJSON
   };

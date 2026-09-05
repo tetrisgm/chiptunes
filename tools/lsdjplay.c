@@ -12,6 +12,8 @@
  *           Includes sweep intermediates and possibly zero-volume channels.
  * These sets check pitch coverage, not audible duration or playback parity.
  * LSDJ_TRACE_PITCH adds frame/channel/period/active/volume samples for diagnosis.
+ * LSDJ_BOOT_SONG writes the 32 KiB working song AFTER the ROM upgrades it on
+ * boot, before playback. The target must not exist. This is song SRAM, not ROM.
  *
  * Build (needs mGBA's library -- `brew install mgba`):
  *   clang -I$(brew --prefix)/include -L$(brew --prefix)/lib -lmgba \
@@ -73,6 +75,15 @@ int main(int argc, char** argv) {
 
 	/* LSDj boots, reads the save, and lands on the song screen. */
 	for (int i = 0; i < bootFrames; i++) core->runFrame(core);
+	const char* songPath = getenv("LSDJ_BOOT_SONG");
+	if (songPath) {
+		FILE* songFile = fopen(songPath, "wbx");
+		if (!songFile) { perror("LSDJ_BOOT_SONG"); core->deinit(core); free(video); return 1; }
+		struct GB* booted = (struct GB*) core->board;
+		size_t written = fwrite(booted->memory.sram, 1, 0x8000, songFile);
+		int closed = fclose(songFile);
+		if (written != 0x8000 || closed) { fprintf(stderr, "LSDJ_BOOT_SONG write failed\n"); core->deinit(core); free(video); return 1; }
+	}
 	if (tracePitch) {
 		struct GB* booted = (struct GB*) core->board;
 		printf("SONG_FORMAT %u\n", booted->memory.sram[0x7FFF]);
