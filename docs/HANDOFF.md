@@ -3,6 +3,39 @@
 Plain, current working notes for whoever (or whatever) picks the project up
 next. Infrastructure and operations live outside this repository.
 
+## 2026-09-05 — pushed checkpoint and next import checks
+
+`7512284` is committed and pushed to `origin/main`; the checkout was clean
+and `git pull --ff-only` reported already up to date before this notes-only
+update. Its full-suite and render-parity evidence is recorded below. No
+deployment occurred. The broader parity/composition goal remains incomplete.
+
+Read-only ROM probes after that checkpoint establish a further importer gap.
+At 128 BPM, a chain containing C4, an FF end marker, and a stale G4 phrase
+plays only C4 (onsets at frames 19, 131, 243, 355, 467, 579). The current
+structural `playedNotes` projection incorrectly includes G4. Putting an E4
+chain on the next sequence row makes native playback alternate C4/E4 at
+112-frame intervals; an intervening NO_CHAIN sequence row instead leaves C4
+repeating. Starting channel 1 on NO_CHAIN with its material on sequence row 1
+was silent in the solo-channel fixture. These are bounded observations, not
+proof of all channel-loop or jump semantics. Keep raw structural inspection
+distinct from execution-aware import; no importer fix has landed yet.
+The temporary probe is
+`/tmp/chiptunes-version-fixtures.e2ILOJ/chain-end-probe.js` (subsequently
+extended with multi-channel and empty-first-chain cases; their results still
+need review before drawing conclusions).
+
+The read-only Luna duration review also found a reproducible remaining gap:
+a four-bar document containing one note at row 0 plays four bars in Create,
+but exports one 16-row native phrase and reimports as one bar. Create uses
+`bars * grid` for its loop duration; `fromDocument` derives export duration
+from the last cell/tempo command and ignores declared bars. KILL insertion
+handles note sustain separately and does not preserve the empty tail.
+Next implementation needs declared-tail export and import tests, generated
+song duration checks, and native timing verification. Merely extending the
+exporter's `steps` is insufficient if import still infers bars only from
+note/tempo material. No duration fix or new regression test has landed yet.
+
 ## 2026-09-05 — musician-13: section-aware melodic allocation
 
 The prefix-ratio limiter in `melody.write` forced zero lead onsets in
