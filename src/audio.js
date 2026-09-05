@@ -400,34 +400,31 @@ const Audio = (()=>{
   // a device the games and the playhead ran exactly that far ahead of the
   // music -- which reads, correctly, as "the audio is late".
   //
-  // getOutputTimestamp().contextTime is the context time of the sample being
-  // played out RIGHT NOW, so the difference from currentTime is the true
-  // latency. It is the only measurement of this that Safari has: WebKit has
-  // never shipped AudioContext.outputLatency, so on the browser where this
-  // matters most, ctx.outputLatency is undefined and the old code had no way
-  // to know. Fall back to it where it exists, then to baseLatency.
+  // Prefer the browser's outputLatency. The Web Audio specification explicitly
+  // warns that currentTime - timestamp.contextTime is NOT reliable latency:
+  // currentTime advances in uneven increments, and timestamps can be old.
+  // https://webaudio.github.io/web-audio-api/#dom-audiocontext-getoutputtimestamp
+  // Without that API, use a bounded, age-adjusted timestamp approximation,
+  // then a baseLatency heuristic. Neither fallback proves speaker timing.
   var _outLat = 0, _outLatSeen = 0;
   function outLatency(){
     if(!ctx) return 0;
-    // The LARGER of the two signals, not the first that answers. WebKit returns
-    // a getOutputTimestamp whose contextTime equals currentTime -- a latency of
-    // exactly zero, which no real output has -- while its ctx.outputLatency
-    // reports 15.8ms. A zero from a timestamp that is not actually trailing is
-    // a non-measurement, and preferring it threw away the only real number on
-    // the engine this correction exists for.
-    var raw = -1;
+    var reported = ctx.outputLatency;
+    var raw = Number.isFinite(reported) && reported >= 0 ? reported : -1;
     try{
-      if(ctx.getOutputTimestamp){
+      if(raw < 0 && ctx.getOutputTimestamp){
         var ts = ctx.getOutputTimestamp();
-        if(ts && ts.contextTime > 0) raw = Math.max(raw, ctx.currentTime - ts.contextTime);
+        var age = ts ? (performance.now() - ts.performanceTime) / 1000 : NaN;
+        if(ts && Number.isFinite(ts.contextTime) && ts.contextTime > 0 &&
+           Number.isFinite(age) && age >= 0 && age <= 0.25){
+          var estimate = ctx.currentTime - ts.contextTime - age;
+          if(Number.isFinite(estimate) && estimate > 0 && estimate <= 0.5) raw = estimate;
+        }
       }
     }catch(e){}
-    if(typeof ctx.outputLatency === 'number') raw = Math.max(raw, ctx.outputLatency);
-    if(!(raw > 0)) raw = (ctx.baseLatency || 0) * 2;
-    // half a second is already absurd for a local device; beyond that we are
-    // reading a stalled timestamp, not a buffer, and shifting the picture by it
-    // would be worse than the thing being fixed
-    raw = Math.max(0, Math.min(0.5, raw));
+    if(raw < 0) raw = Number.isFinite(ctx.baseLatency) ? Math.max(0, Math.min(0.5, ctx.baseLatency * 2)) : 0;
+    // Bound uncertain fallback estimates, not an explicit device report:
+    // wireless outputs can legitimately have more than half a second of delay.
     var a = _outLatSeen < 8 ? 0.4 : 0.05;      // settle fast, then hold
     _outLatSeen++;
     _outLat += (raw - _outLat) * a;
@@ -2010,9 +2007,8 @@ const Audio = (()=>{
                lag:lag, next:deckNext?deckNext.tok:null }; },
     audibleLag(){ var FPS=(typeof CT_GB_HARDWARE!=='undefined')?CT_GB_HARDWARE.FPS:59.7275;
       return _chipLag/FPS/Math.max(0.25,chipRate()) + outLatency(); },
-    // Readable in a real browser's console, which is the only place the Safari
-    // number can be read at all: outMs is what this machine's output actually
-    // costs, and `src` says whether the browser told us or we had to measure it.
+    // outMs is the applied estimate; timestampMs is the raw clock difference
+    // for diagnosis only, NOT an independent measurement of speaker latency.
     latencyDiag(){
       if(!ctx) return null;
       var ts=null; try{ ts=ctx.getOutputTimestamp?ctx.getOutputTimestamp():null; }catch(e){}

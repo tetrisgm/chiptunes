@@ -59,7 +59,7 @@ function server() {
 
   const r = await p.evaluate(async () => {
     const FPS = (typeof CT_GB_HARDWARE !== 'undefined') ? CT_GB_HARDWARE.FPS : 59.7275;
-    const raws = [], cors = [], lags = [];
+    const raws = [], cors = [], lags = [], outputs = [], chips = [], audibleErrors = [];
     let last = -1;
     const t0 = performance.now();
     // sample only when a stat has JUST arrived: comparing a fresh clock against
@@ -77,14 +77,20 @@ function server() {
         last = c.frame;
         const raw = Audio.deckPosition(), aud = Audio.audiblePosition();
         if (raw && aud) {
-          raws.push(raw.sec * FPS - c.frame); cors.push(aud.sec * FPS - c.frame);
+          const diag = Audio.latencyDiag();
+          raws.push(raw.sec * FPS - c.frame);
+          // The chip report describes rendered audio, not what is at the
+          // speakers. Undo ONLY the separate device delay for this comparison.
+          cors.push((aud.sec + diag.outMs / 1000) * FPS - c.frame);
+          outputs.push(diag.outMs); chips.push(diag.chipLagMs);
+          audibleErrors.push(Math.abs((raw.sec-aud.sec)*1000-diag.chipLagMs-diag.outMs));
           // ⚠️ SAMPLE THE LAG IN HERE TOO. It used to be read ONCE, after the
           // loop, and then compared against a median taken across the whole
           // window -- two numbers from different moments, of a quantity that
           // moves. That is why this gate kept failing on load and kept having
           // its tolerance widened: the tolerance was never the problem, the
           // measurement was. Both are medians over the same window now.
-          lags.push((Audio.audibleLag ? Audio.audibleLag() : 0) * FPS);
+          lags.push(diag.chipLagMs / 1000 * FPS);
         }
       }
       await new Promise(x => setTimeout(x, 3));
@@ -92,6 +98,7 @@ function server() {
     const med = a => { const x = a.slice().sort((u, v) => u - v); return x.length ? x[Math.floor(x.length / 2)] : 0; };
     return { n: raws.length, raw: med(raws) / FPS * 1000, cor: med(cors) / FPS * 1000,
              lagMed: med(lags) / FPS * 1000,
+             outMs:med(outputs), chipMs:med(chips), audibleError:med(audibleErrors),
              lag: (Audio.audibleLag ? Audio.audibleLag() : 0) * 1000,
              hasApi: typeof Audio.audiblePosition === 'function' };
   });
@@ -100,8 +107,10 @@ function server() {
   ok(r.n > 15, 'measured against ' + r.n + ' fresh reports from the chip');
   console.log('         deck clock ran ' + r.raw.toFixed(0) + 'ms ahead of the chip this session' +
               ' (it varies: 20ms, 206ms and 1026ms all observed)');
+  console.log('         chip lag '+r.chipMs.toFixed(1)+'ms; output delay '+r.outMs.toFixed(1)+'ms');
+  ok(r.audibleError < 10, 'audible position subtracts both chip lag and output delay');
   ok(Math.abs(r.cor) < 150,
-     'the corrected playhead sits on the sound to within ' + Math.abs(r.cor).toFixed(0) +
+     'the render-aligned playhead matches the chip to within ' + Math.abs(r.cor).toFixed(0) +
      'ms (the chip reports ~9 times a second, so ~107ms is the floor)');
   ok(Math.abs(r.cor) <= Math.abs(r.raw) + 40,
      'and is never worse than the raw clock (' + r.cor.toFixed(0) + 'ms vs ' + r.raw.toFixed(0) + 'ms)');
@@ -121,6 +130,6 @@ function server() {
 
   await b.close(); h.s.close();
   console.log(fail ? '\nverify-sync: ' + fail + ' FAILED'
-                   : '\nverify-sync: the picture sits on the sound');
+                   : '\nverify-sync: render alignment and separate output correction pass');
   process.exit(fail ? 1 : 0);
 })().catch(e => { console.error(e.message); process.exit(1); });

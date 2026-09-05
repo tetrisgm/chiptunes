@@ -3,6 +3,64 @@
 Plain, current working notes for whoever (or whatever) picks the project up
 next. Infrastructure and operations live outside this repository.
 
+## 2026-09-05 — separate render synchronization from device latency
+
+The sync failure at checkpoint `3f4e080` compared a speaker-corrected position
+against a chip render-frame report. A fresh browser measurement reports 168 ms
+of output latency, independently of chip scheduling lag. `verify-sync` now
+compares like clocks by removing that separate device correction, logs both
+components, and checks their sum is applied to the audible playhead. Existing
+render error tolerances are unchanged. This is not a physical listening test.
+
+The player also incorrectly took the maximum of reported output latency and
+`currentTime - timestamp.contextTime`. The Web Audio specification explicitly
+rejects the latter as a reliable latency measurement. `outLatency` now prefers
+finite nonnegative `outputLatency`, without capping legitimate long device
+delays. Only when unavailable does it use a fresh, age-adjusted timestamp
+approximation, then the existing bounded base-latency heuristic. Those
+fallbacks remain estimates, not hardware calibration.
+
+Synthetic browser API fixtures failed on the old player for stale timestamp
+precedence (400 vs 32 ms), long reported delay (500 vs 800 ms), and timestamp
+age (140 vs 40 ms). The patched player passes these and high-latency, stalled
+timestamp and invalid-value cases, checking both diagnostics and actual
+audible-position adjustment. Focused sync and latency tests passed. Explicit
+zero and future-timestamp cases also pass in the full run. Full `npm test`
+finished with exit 0, including the real-ROM pulse/tempo checks, all eight
+latency fixtures, 48 deterministic seed checks and all 14 game checks. Log:
+`/tmp/chiptunes-sync-latency-full.log`. The earlier red checkpoint is now
+covered by this green run. The separate browser/broadcast render-parity check
+also passed 10/10, minimum correlation 1.000000, zero sample lag and maximum
+absolute RMS difference 0.175 dB. Log:
+`/tmp/chiptunes-sync-latency-render-parity.log`. No deployment or app restart
+occurred. These changes and the earlier native-row checkpoint are ready for
+the owner-requested push; the next implementation work is native versioned
+command interpretation and section-aware melodic phrase allocation.
+
+The broader LSDj parity and composition objective remains incomplete. Native
+command version normalization, tables, instrument-only latches, full sound
+capabilities, UI review and listening verification still require work; this
+player fix is not a substitute for them.
+
+Read-only composition follow-up: all 32 `composition-form-00` through `-31`
+scores have zero `events` lead onsets in zero-based bars 4 through 11. In
+`src/melody.js:write`, after the first group plays, `(played + 1) / eligible >
+0.62` rejects groups two and three even before section/presence decisions.
+This creates an eight-bar early lead gap shared across styles and forms;
+accompaniment can still sound, so it is not eight bars of silence. Replace the
+prefix-ratio budgeting with whole-song, section-aware phrase allocation and
+verify phrasing and listening, not simply more notes or a loosened smoke cap.
+
+A read-only Luna fixture review identified existing `nativeState` in
+`verify-lsdj-trigger-state.js` as reusable for K-off timing and period-change
+timing. Main review confirms the underlying CSV already includes frame
+numbers; no new harness is needed merely to observe T timing. Format-7 K/T
+bytes are 8/15; format-22 bytes are 9/16. Preserve structural raw `command`
+fields and add distinct normalized identities, rather than replacing raw
+bytes as the draft suggestion proposed. Do not assume changing only the
+format marker creates an otherwise valid newer-format song: establish the
+ROM's upgrade effects/fixture validity independently before comparing versions.
+
 ## 2026-09-05 — LSDj parity and composition overhaul audit
 
 Active objective: postpone decompilation; review website, player and Create;

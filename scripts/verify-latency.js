@@ -78,6 +78,7 @@ function server() {
     return out;
   });
   ok(!!d.diag, 'the latency is exposed for reading in a real browser (Audio.latencyDiag)');
+  console.log('         latency diagnostics: ' + JSON.stringify(d));
   ok(d.diag && d.diag.outMs > 0 && d.diag.outMs <= 500,
      'and it measures a sane output latency (' + (d.diag && d.diag.outMs) + 'ms)');
   // Cross-check: where the browser reports outputLatency itself, our measured
@@ -133,6 +134,44 @@ function server() {
      'and the chip is still told the scheduler\'s lead, not the corrected playhead (' +
      leads.map(x => Math.round(x * 1000) + 'ms').join(', ') + ')');
 
+  // Synthetic API readings exercise the actual player estimator. These do not
+  // simulate physical speakers or prove hardware/listening synchronization.
+  const fixtures = await p.evaluate(() => {
+    const ctx = Audio.audioCtx(), results = [];
+    const names = ['outputLatency', 'baseLatency', 'getOutputTimestamp'];
+    const saved = names.map(k => Object.getOwnPropertyDescriptor(ctx, k));
+    try {
+      for (const f of [
+        {name:'reported latency beats stale timestamp', output:0.032, age:0, gap:0.4, want:32},
+        {name:'high device latency is retained', output:0.25, age:0, gap:0.01, want:250},
+        {name:'long device latency is not capped', output:0.8, age:0, gap:0.01, want:800},
+        {name:'explicit zero latency is respected', output:0, age:0, gap:0.4, want:0},
+        {name:'timestamp fallback accounts for sample age', output:undefined, age:100, gap:0.14, want:40},
+        {name:'stalled timestamp falls back to base estimate', output:NaN, age:2000, gap:2.1, want:20},
+        {name:'future timestamp falls back to base estimate', output:Infinity, age:-100, gap:0.14, want:20},
+        {name:'invalid readings fall back to base estimate', output:-1, age:0, gap:NaN, want:20}
+      ]) {
+        Object.defineProperty(ctx, 'outputLatency', {configurable:true, value:f.output});
+        Object.defineProperty(ctx, 'baseLatency', {configurable:true, value:0.01});
+        Object.defineProperty(ctx, 'getOutputTimestamp', {configurable:true, value:() => ({
+          contextTime:ctx.currentTime-f.gap, performanceTime:performance.now()-f.age
+        })});
+        let diag;
+        for(let i=0;i<400;i++) diag=Audio.latencyDiag();
+        const raw=Audio.deckPosition(), audible=Audio.audiblePosition();
+        results.push({name:f.name, want:f.want, got:diag.outMs,
+          applied:raw && audible ? (raw.sec-audible.sec)*1000-diag.chipLagMs : null});
+      }
+    } finally {
+      names.forEach((k,i) => { if(saved[i]) Object.defineProperty(ctx,k,saved[i]); else delete ctx[k]; });
+    }
+    return results;
+  });
+  for(const f of fixtures) {
+    ok(Math.abs(f.got-f.want)<1, f.name+' ('+f.got+'ms, expected '+f.want+'ms)');
+    ok(f.applied!==null && Math.abs(f.applied-f.want)<10,
+      'audible playhead applies the independent '+f.want+'ms output correction');
+  }
   ok(errs.length === 0, 'no page errors' + (errs.length ? ': ' + errs[0] : ''));
   await b.close(); h.s.close();
   console.log(fail ? '\nFAILED (' + fail + ')' : '\nall good');
