@@ -522,9 +522,24 @@ console.log('the composing operations');
   ok(keyKept, 'and it does not detune the tune');
 
   const smoothed = after({ op: 'smooth', lane: 'Melody' });
-  ok(avg(smoothed, x => x.melody.stepRatio) > avg(docs, x => x.melody.stepRatio),
-     'smooth turns leaps into steps (' + avg(docs, x => x.melody.stepRatio).toFixed(2) + ' -> ' +
-     avg(smoothed, x => x.melody.stepRatio).toFixed(2) + ')');
+  const melody = d => api.toJSON(d).notes.filter(n => n.lane === 'Melody' && n.note)
+    .sort((a, b) => a.step - b.step).map(n => api.midiOf(n.note));
+  const meanLeap = d => {
+    const ns = melody(d);
+    return ns.slice(1).reduce((sum, n, i) => sum + Math.abs(n - ns[i]), 0) / Math.max(1, ns.length - 1);
+  };
+  ok(smoothed.every((d, i) => meanLeap(d) <= meanLeap(docs[i]) + 1e-9),
+     'octave smoothing never increases the generated melodies\' mean leap');
+  // Random songs can already contain only compact intervals. A deliberate
+  // fixture catches a no-op without requiring octave folding to change thirds
+  // into seconds, which is mathematically impossible with fixed pitch classes.
+  const angular = api.fromJSON({ bpm: 128, bars: 1, notes: ['C4', 'G5', 'D4', 'F5'].map((note, i) =>
+    ({ lane: 'Melody', step: i * 4, note, len: 2 })) });
+  const folded = api.transform(angular, [{ op: 'smooth', lane: 'Melody' }]).doc;
+  ok(meanLeap(folded) < meanLeap(angular) / 2,
+     'smooth substantially reduces deliberate large leaps (' + meanLeap(angular).toFixed(2) + ' -> ' + meanLeap(folded).toFixed(2) + ')');
+  ok(melody(folded).every((n, i) => n % 12 === melody(angular)[i] % 12),
+     'octave smoothing preserves every pitch class');
 
   // accent must emphasise the beat WITHOUT silencing anything: velocity 0 is a
   // rest and is dropped from the song entirely.

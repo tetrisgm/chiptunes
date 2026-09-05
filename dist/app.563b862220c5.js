@@ -428,8 +428,10 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     // written; that is what gives one instrument its dynamics. Neither the
     // cartridge nor the APU can multiply at play time, so it is baked in here.
     var v0 = (rec[1] >> 4) & 15;
-    var vol = Math.max(0, Math.min(15, Math.round(v0 * (0.35 + 0.65 * (n.vel == null ? 1 : n.vel)))));
-    var nrx1, nrx2 = (vol << 4) | (rec[1] & 0x0F), nrx3, nrx4, p;
+    var nativePulse = ch < 2 && n.trigger != null;
+    var vol = Math.max(0, Math.min(15, Math.round(nativePulse ? 15 * (n.vel == null ? 1 : n.vel)
+      : v0 * (0.35 + 0.65 * (n.vel == null ? 1 : n.vel)))));
+    var nrx1, nrx2 = (vol << 4) | (nativePulse ? 8 : rec[1] & 0x0F), nrx3, nrx4, p;
     // A note may ask for a period the twelve-tone table has no name for: det
     // shifts it by whole period units. That is what detuning two channels
     // against each other is, and there is no other way to say it.
@@ -470,6 +472,24 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     var rec = (inst || [])[index];
     if (!rec || !(rec[3] & 1)) return 0;
     return Math.min(WAVE_SLOTS - 1, rec[0] & 0xFF);
+  }
+
+  // A native pitch-only row continues the current voice, including its silent
+  // state after KILL. Suppress a note-off at the continuation boundary (also
+  // accepting the legacy one-frame articulation gap); longer gaps still cut.
+  // Shared by browser and cartridge scheduling.
+  function noteOffFrames(notes) {
+    var order = notes.map(function (n, i) { return { n: n, i: i }; });
+    order.sort(function (a, b) { return a.n.frame - b.n.frame || a.i - b.i; });
+    var next = [], off = [];
+    for (var i = order.length - 1; i >= 0; i--) {
+      var item = order[i], n = item.n, ch = n.ch | 0;
+      var end = (n.frame | 0) + Math.max(1, n.frames | 0), following = next[ch];
+      off[item.i] = following && following.trigger === false &&
+        Math.abs(following.frame - end) <= 1 ? null : end;
+      next[ch] = n;
+    }
+    return off;
   }
 
   // ---- GROOVE: the only clock a tracker has --------------------------------
@@ -643,7 +663,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
 
   var API = {
     FPS: FPS, CH: CH, DUTIES: DUTIES, WAVE_LEVELS: WAVE_LEVELS,
-    noteRegisters: noteRegisters, waveSlotOf: waveSlotOf,
+    noteRegisters: noteRegisters, waveSlotOf: waveSlotOf, noteOffFrames: noteOffFrames,
     NOISE_DIVISORS: NOISE_DIVISORS, RANGE: RANGE, WAVE_SLOTS: WAVE_SLOTS,
     midiToHz: midiToHz, midiToPeriod: midiToPeriod, inRange: inRange,
     beatToFrame: beatToFrame, frameToSec: frameToSec,
@@ -1509,10 +1529,11 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     this.kit = null; this.kitPos = 0; this.kitLeft = 0; this.kitCyc = 0;
     var byFrame = this.byFrame = {};
     var inst = (this.bank && this.bank.instruments) || [];
-    (gb && gb.notes || []).forEach(function (n) {
-      var f = n.frame | 0, off = f + Math.max(1, n.frames | 0);
+    var scoreNotes = gb && gb.notes || [], offFrames = H.noteOffFrames(scoreNotes);
+    scoreNotes.forEach(function (n, index) {
+      var f = n.frame | 0, off = offFrames[index];
       (byFrame[f] = byFrame[f] || []).push({ t: 1, n: n });
-      (byFrame[off] = byFrame[off] || []).push({ t: 0, ch: n.ch | 0 });
+      if (off != null) (byFrame[off] = byFrame[off] || []).push({ t: 0, ch: n.ch | 0 });
     });
     Object.keys(byFrame).forEach(function (k) {
       byFrame[k].sort(function (a, b) { return a.t - b.t; });
@@ -1594,6 +1615,13 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
         continue;
       }
       note = e.n; g = 1;
+      if (note.trigger === false && (note.ch | 0) < 2) {
+        r = H.noteRegisters(note, this.bank);
+        this.apu.write(base + 2, r[2]);
+        this.apu.write(base + 3, r[3] & 7);
+        this.vib[note.ch | 0].on = false;
+        continue;
+      }
       // live channel mute (the Create editor's lanes): skip the trigger, let
       // note-offs still run. Never set on the radio or offline paths.
       if (this.chMute && this.chMute[note.ch | 0]) continue;
@@ -1620,7 +1648,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
         var vst = this.vib[note.ch | 0];
         vst.base = ((r[3] & 7) << 8) | r[2];
         vst.age = 0;
-        vst.on = !((note.ch | 0) === 0 && note.sweep);
+        vst.on = note.trigger == null && !((note.ch | 0) === 0 && note.sweep);
       }
     }
     // ...then this frame's automation, after the note-ons it belongs to
@@ -2321,15 +2349,23 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     var inst = (gb.bank && gb.bank.instruments) || [];
     var evs = [];
 
-    gb.notes.forEach(function (n) {
+    var offFrames = HW.noteOffFrames(gb.notes);
+    gb.notes.forEach(function (n, index) {
       var ch = n.ch | 0;
       var regs = HW.noteRegisters(n, gb.bank);
+
+      if (ch < 2 && n.trigger === false) {
+        evs.push({ f: n.frame | 0, ch: ch, type: 4, d: [0x13 + ch * 5, regs[2]] });
+        evs.push({ f: n.frame | 0, ch: ch, type: 4, d: [0x14 + ch * 5, regs[3] & 7] });
+        if (offFrames[index] != null) evs.push({ f: offFrames[index], ch: ch, type: 0, d: [] });
+        return;
+      }
 
       // channel 1's sweep byte rides ahead of every note-on (zero clears), the
       // exact write the browser Sequencer makes -- the two cannot disagree
       if (ch === 0) evs.push({ f: n.frame | 0, ch: 0, type: 3, d: [(n.sweep || 0) & 0xFF] });
       evs.push({ f: n.frame | 0, ch: ch, type: 1, d: regs });
-      evs.push({ f: (n.frame | 0) + Math.max(1, n.frames | 0), ch: ch, type: 0, d: [] });
+      if (offFrames[index] != null) evs.push({ f: offFrames[index], ch: ch, type: 0, d: [] });
     });
 
     // Channel 3 needs a table in wave RAM before it can make a sound. Pick the
@@ -3233,7 +3269,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       var here = byCol[c] || [];
       here.sort(function (a, b) { return (a.t || 0) - (b.t || 0); });
       here.forEach(function (x) {
-        if (x.vel === 0) { x.rch = x.r >= MEL_ROWS ? 3 : x.rch; return; }   // volume zero: a rest that keeps its place
+        if (x.vel === 0 && !x.nt) { x.rch = x.r >= MEL_ROWS ? 3 : x.rch; return; }   // native zero-volume triggers still change state
         if (x.r >= MEL_ROWS) {                              // drum lane
           var d = DRUMS[x.r - MEL_ROWS];
           var dF = cellFrame(x), dLen = Math.max(2, Math.round(per * (x.len || 0.6)));
@@ -3274,11 +3310,13 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
         if (!voice || voice === 'noise') { x.x = 1; return; }
         var steps = x.len ? x.len : (x.w ? 8 : 0.96);
         var totalF = x.lf ? Math.max(1, x.lf | 0) : Math.max(2, Math.round(per * steps) - 1);
+        if (x.nt && !x.lf) totalF = Math.max(1, colFrame(c + steps) - cellFrame(x));
         var mInst = instOf(x, voice === 'wave' ? 2 : (x.ch === 1 ? 1 : 0));
         var note = { frame: cellFrame(x), frames: totalF, det: x.dt | 0,
                      midi: x.midi != null ? x.midi : rowMidi(x.r),
                      inst: mInst != null ? mInst : (x.inst != null ? x.inst : INSTOF[x.st]),
                      vel: x.vel != null ? x.vel : 0.8, pri: 5 };
+        if (x.nt) note.trigger = x.nt === 1;
         if (voice === 'wave') {
           if (!voiceFree(2, note.frame, note.frame + totalF)) { x.x = 1; return; }
           claim(2, note.frame, note.frame + totalF); note.ch = 2; x.rch = 2;
@@ -3323,6 +3361,9 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       });
     }
     notes.sort(function (a, b) { return a.frame - b.frame; });
+    notes.forEach(function (n) {
+      if (n.trigger != null && n.ch < 2) moves.vibOff.push({ f: n.frame, ch: n.ch });
+    });
     panWrites(moves.pan, moves.auto);
     // What this song would cost a 32KB cartridge. The export throws when it
     // does not fit, and a toast after the click is a poor way to learn.
@@ -3395,14 +3436,16 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     var tAt = (S.tempoAt || []).filter(function (p2) {
       return p2 && p2.length === 2 && p2[0] > 0 && p2[1] >= 40 && p2[1] <= 255;
     }).slice(0, 63);
-    var out = [tAt.length || S.master != null ? 14 : 13,
+    // v15 carries native pulse trigger state; ordinary documents stay v13/14.
+    var nativeTriggers = S.cells.some(function (x) { return !!x.nt; });
+    var out = [nativeTriggers ? 15 : tAt.length || S.master != null ? 14 : 13,
                S.key, S.minor, S.bars & 63, (bpm - 70) & 63,
                S.swing | (((bpm - 70) >> 6) << 1), (S.bars >> 6) & 63,
                Math.max(0, GRIDS.indexOf(spb()))];
     var t = String(S.title || '').slice(0, 48);
     out.push(t.length & 63);
     for (var ti = 0; ti < t.length; ti++) out.push(TITLE_A.indexOf(t.charAt(ti)) + 1 & 63);
-    if (out[0] === 14) {
+    if (out[0] >= 14) {
       out.push((S.master == null ? 0 : (S.master & 15) + 1) & 63);
       out.push(tAt.length & 63);
       for (var qi = 0; qi < tAt.length; qi++)
@@ -3414,8 +3457,9 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       var ext = x.inst != null || x.vel != null || x.midi != null || (x.len || 1) > 1 || x.sweep != null || x.ch != null;
       var snd = x.dy != null || x.fd != null || x.wv != null || x.nz != null || x.ns != null;
       var mov = !!(x.vb || x.sq || x.mp || x.pn || x.gl || x.kt || x.dt || x.of || x.lf);
-      var cmd = (x.u ? 1 : x.q ? 2 : x.g ? 3 : x.f ? 4 : 0) | (snd ? 8 : 0) | (mov ? 16 : 0);
+      var cmd = (x.u ? 1 : x.q ? 2 : x.g ? 3 : x.f ? 4 : 0) | (snd ? 8 : 0) | (mov ? 16 : 0) | (x.nt ? 32 : 0);
       out.push(x.c & 63, (x.c >> 6) & 63, x.r | (x.z ? 32 : 0), st | (x.w ? 16 : 0) | (ext ? 32 : 0), cmd);
+      if (x.nt) out.push(x.nt & 3);
       if (ext) {
         var ip1 = x.inst != null ? x.inst + 1 : 0;           // 0 = no exact instrument
         var midi = x.midi != null ? (x.midi | 0) : 0;
@@ -3446,7 +3490,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     try {
       var v = []; for (var i = 0; i < str.length; i++) { var ix = B64.indexOf(str[i]); if (ix < 0) return null; v.push(ix); }
       var ver = v[0];
-      if (ver < 1 || ver > 14) return null;
+      if (ver < 1 || ver > 15) return null;
       var st2 = freshState();
       st2.key = v[1] % 12; st2.minor = v[2] & 1;
       st2.bars = ver === 1 ? ([2, 4, 8].indexOf(v[3]) >= 0 ? v[3] : 4)
@@ -3518,6 +3562,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
             if (cc && r2 < MEL_ROWS + DRUM_LANES) cell2[cc] = 1;
             k += 1;
           }
+          if (ver >= 15 && (cmdRaw & 32)) cell2.nt = v[k++] & 3;
           if (ver >= 3 && (b2 & 32) && k + 5 < v.length + 1) {
             var e1 = v[k + 1];
             var rawInst = v[k] | ((e1 & 3) << 6);
@@ -3599,6 +3644,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       var m = { ch: n.ch, frame: n.frame - f0, frames: Math.min(n.frames, f1 - n.frame),
                 midi: n.midi, inst: n.inst, vel: n.vel, pri: n.pri };
       if (n.sweep) m.sweep = n.sweep;
+      if (n.trigger != null) m.trigger = n.trigger;
       notes.push(m);
     });
     return { notes: notes, bank: song.bank, totalFrames: f1 - f0, loopFrames: f1 - f0 };
@@ -9246,7 +9292,7 @@ const Radio=(()=>{
     function instrumentFor(x, lane) {
       var isDrum = lane === 3;
       var drum = isDrum ? (DRUM_IDS[(x.r | 0) - melRows] || 'kick') : null;
-      var vol = Math.max(1, Math.min(15, Math.round((x.vel != null ? x.vel : 0.8) * 15)));
+      var vol = Math.max(x.nt ? 0 : 1, Math.min(15, Math.round((x.vel != null ? x.vel : 0.8) * 15)));
       // A FALL AND A RISE ARE A HARDWARE SWEEP, and the sweep unit belongs to
       // PU1 alone -- so only the first pulse lane can carry them, which is the
       // same limit the machine has. NR10 is pace<<4 | direction<<3 | shift, and
@@ -9256,7 +9302,7 @@ const Radio=(()=>{
       else if (lane === 0 && x.z) sweep = 0x3E;         // pace 3, down, shift 6
       else if (lane === 0 && x.u) sweep = 0x36;         // pace 3, up,   shift 6
       var id = (isDrum ? ('drum:' + drum) : (lane + ':' + (x.st || 'piano'))) +
-               (sweep ? ':s' + sweep : '') + ':v' + vol;
+               (sweep ? ':s' + sweep : '') + (lane < 2 && x.dy != null ? ':d' + (x.dy & 3) : '') + ':v' + vol;
       if (instOf[id] != null) return instOf[id];
       // Out of slots: reuse the nearest instrument for this voice rather than
       // dropping to the lane default, so the timbre survives even when the
@@ -9272,6 +9318,7 @@ const Radio=(()=>{
       }
       var type = isDrum ? INST_TYPE.NOISE : lane === 2 ? INST_TYPE.WAVE : INST_TYPE.PULSE;
       var duty = DUTY_INDEX[STAMP_DUTY[x.st]] != null ? DUTY_INDEX[STAMP_DUTY[x.st]] : 2;
+      if (lane < 2 && x.dy != null) duty = x.dy & 3;
       // The NAME is the voice without the volume, so LSDj shows PIANO for every
       // loudness of piano and import can still read the drum back off it.
       var stem2 = id.slice(0, id.lastIndexOf(':v'));
@@ -9284,7 +9331,8 @@ const Radio=(()=>{
     var outOfRange = 0, dropped = 0;
     st.cells.forEach(function (x) {
       var lane = laneOfCell(x, melRows), step = x.c | 0;
-      var slot = { note: NO_NOTE, cmd: CMD.NONE, val: 0, inst: instrumentFor(x, lane) };
+      var slot = { note: NO_NOTE, cmd: CMD.NONE, val: 0,
+        inst: lane < 2 && x.nt === 2 ? NO_INSTRUMENT : instrumentFor(x, lane) };
       if (lane === 3) {
         // ⚠️ A NOISE NOTE IS A PITCH, AND THE WRONG ONE IS SILENCE. This wrote
         // note 25 for every drum, on the reasoning that noise is not melodic.
@@ -9737,7 +9785,7 @@ const Radio=(()=>{
   // play and therefore a different pitch on each one -- NOTE_BASE turns it into
   // MIDI. Zero means no note, and is not a rest you can hear.
   function playedNotes(m, ch) {
-    var out = [], row = 0, s, cr, st;
+    var out = [], row = 0, s, cr, st, instrument = NO_INSTRUMENT, selectedOnEmptyRow = false;
     for (s = 0; s < 256; s++) {
       var chain = m.sequence[s][ch];
       if (chain === NO_CHAIN) continue;
@@ -9747,10 +9795,18 @@ const Radio=(()=>{
         var tr = m.chainTranspose[chain][cr];
         for (st = 0; st < 16; st++) {
           var n = m.phraseNotes[ph][st];
+          var selected = m.phraseInstruments[ph][st];
+          if (selected !== NO_INSTRUMENT) {
+            if (n !== NO_NOTE) selectedOnEmptyRow = false;
+            else if (selected !== instrument) selectedOnEmptyRow = true;
+            instrument = selected;
+          }
           if (n !== NO_NOTE) out.push({
             row: row + st, note: n, transpose: tr,
             midi: NOTE_BASE[ch] + (n - 1) + (tr << 24 >> 24),
             instrument: m.phraseInstruments[ph][st],
+            effectiveInstrument: instrument,
+            instrumentOnlyChange: selectedOnEmptyRow,
             command: m.phraseCommands[ph][st], value: m.phraseCommandVals[ph][st]
           });
         }
@@ -9946,13 +10002,14 @@ const Radio=(()=>{
     for (t = 0; t < ticks.length; t++) tSum += ticks[t];
     var rowFrames = (tSum / ticks.length) * 149.31875 / Math.max(1, m.tempo || 128);
     var lastRow = 0, unnamedDrums = 0, tableNotes = [], vibratoNotes = [], patches = [];
-    var tempoAt = [], master = null;
+    var tempoAt = [], master = null, pendingInstrumentNotes = 0;
     for (ch = 0; ch < 4; ch++) {
       var played = playedNotes(m, ch), kills = killRows(m, ch);
       var chLastRow = Math.max(channelRows(m, ch) - 1,
                                played.length ? played[played.length - 1].row : 0);
       for (i = 0; i < played.length; i++) {
         var n = played[i], next = played[i + 1];
+        if (n.instrumentOnlyChange) pendingInstrumentNotes++;
         // Where does this note STOP? A KILL before the next note is the answer
         // and is exact; otherwise it runs to the next note, which is also exact
         // because that is what LSDj does.
@@ -9967,7 +10024,7 @@ const Radio=(()=>{
         // ...and an instrument with a HOLD ends the note sooner than either.
         // LSDj's envelope cuts it after that many frames whatever the phrase
         // says, so the shorter of the two is what a listener hears.
-        var ip = m.instrumentParams[n.instrument];
+        var ip = m.instrumentParams[n.effectiveInstrument];
         if (ip && (ip[1] & 0x0F)) {
           var holdFrames = ENVELOPE_HOLD[ip[1] & 0x0F];
           var rowsHeld = Math.max(1, Math.round(holdFrames / rowFrames));
@@ -9984,8 +10041,9 @@ const Radio=(()=>{
           // the app performing somebody else's notes rather than their song.
           // The instrument in the file says both: byte 1's high nibble is the
           // volume, byte 7's top two bits are the duty.
-          var p = m.instrumentParams[n.instrument];
+          var p = m.instrumentParams[n.effectiveInstrument];
           var note = { lane: LANES[ch], step: n.row, note: noteName(n.midi), len: len };
+          if (ch < 2) note.trigger = n.instrument !== NO_INSTRUMENT;
           // THE COMMAND IS PART OF THE NOTE. An arpeggio is C and a roll is R on
           // the way out; without reading them back, a song exported with either
           // came home plain, and the round trip quietly flattened the gestures
@@ -10046,7 +10104,8 @@ const Radio=(()=>{
             if (n.command !== CMD.S) patches.push({ lane: ch, step: n.row, f: { sweep: instrumentSweep } });
           }
           if (p) {
-            note.velocity = Math.max(0.05, Math.min(1, (p[1] >> 4) / 15));
+            note.velocity = Math.max(ch < 2 ? 0 : 0.05, Math.min(1, (p[1] >> 4) / 15));
+            if (ch < 2) note.sound = { shape: (p[7] >> 6) & 3 };
             // 75% duty is 25% inverted -- the same timbre on this chip -- so it
             // shares a stamp rather than inventing one that sounds identical.
             note.stamp = ch === 2 ? 'bassg' : ['bell', 'trumpet', 'piano', 'trumpet'][(p[7] >> 6) & 3];
@@ -10057,6 +10116,8 @@ const Radio=(()=>{
     }
     if (unnamedDrums) warn.push(unnamedDrums + ' drums came back as kicks: their instrument was ' +
                                 'not one this app names, and the noise channel cannot say which drum it was');
+    if (pendingInstrumentNotes) warn.push(pendingInstrumentNotes +
+      ' notes follow instrument-only changes on empty rows; this latched instrument state is not fully reproduced');
     // ⚠️ TABLES ARE NOT PLAYED. An LSDj table is a per-instrument modulation
     // sequence -- a transpose and two commands per tick -- and nothing here
     // reads or runs one. A song of ours never uses them, so this only fires on
@@ -10614,6 +10675,7 @@ function toJSON(doc) {
     var motion = x.u ? 'rise' : x.z ? 'fall' : x.q ? 'arp' : x.g ? 'roll' : x.f ? 'echo' : null;
     if (motion) n.motion = motion;
     if (x.inst != null) n.instrument = x.inst;
+    if (x.nt) n.trigger = x.nt === 1;
     if (x.st) n.stamp = x.st;
     // the chip settings, when the note carries its own rather than the lane's
     var snd = {};
@@ -10668,6 +10730,7 @@ function fromJSON(obj) {
     }
     if (cell.ch === undefined) delete cell.ch;
     if (n.instrument != null) cell.inst = n.instrument;
+    if (n.trigger != null) cell.nt = n.trigger ? 1 : 2;
     switch (n.motion) {
       case 'rise': cell.u = 1; break;
       case 'fall': cell.z = 1; break;
@@ -10710,6 +10773,8 @@ function validate(obj) {
     var lane = LANES.indexOf(n.lane);
     if (lane < 0) { errors.push(at + ': unknown lane ' + JSON.stringify(n.lane) + '. Use ' + LANES.join(', ')); return; }
     if ((n.step | 0) < 0) errors.push(at + ': step must be 0 or more');
+    if (n.trigger != null && (typeof n.trigger !== 'boolean' || lane > 1))
+      errors.push(at + ': native trigger state is a boolean on a pulse lane');
     if (lane === 3) {
       if (n.drum && DRUMS.indexOf(n.drum) < 0)
         errors.push(at + ': unknown drum ' + JSON.stringify(n.drum) + '. Use ' + DRUMS.join(', '));
@@ -11362,9 +11427,9 @@ function transform(doc, ops) {
                      Math.max(1, (o.bars || 2)) + ' bars (' + arcMoved + ' notes)'); break;
       }
       case 'smooth': {
-        // Stepwise motion, by octave displacement -- which keeps the pitch
-        // class, so the harmony is untouched and only the line becomes
-        // singable. This is what makes a lullaby a lullaby.
+        // Reduce large leaps by octave displacement, preserving pitch classes.
+        // This cannot turn every interval into a step (a third remains a
+        // third), or guarantee a limit below the nearest octave equivalent.
         var maxLeap = o.maxLeap != null ? (o.maxLeap | 0) : 5;
         var seq = st.cells.filter(function (c) { return pick(c) && !isDrum(c) && c.midi != null; })
                           .sort(function (a, b) { return (a.c | 0) - (b.c | 0); });
@@ -11378,7 +11443,7 @@ function transform(doc, ops) {
           }
           cur2.r = rowFor(cur2.midi);
         }
-        applied.push('smoothed ' + smoothed + ' leaps into steps'); break;
+        applied.push('reduced large leaps with ' + smoothed + ' octave shifts'); break;
       }
       case 'accent': {
         // Metric emphasis: the downbeat loudest, the half-bar next, the

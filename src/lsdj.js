@@ -336,7 +336,7 @@
     function instrumentFor(x, lane) {
       var isDrum = lane === 3;
       var drum = isDrum ? (DRUM_IDS[(x.r | 0) - melRows] || 'kick') : null;
-      var vol = Math.max(1, Math.min(15, Math.round((x.vel != null ? x.vel : 0.8) * 15)));
+      var vol = Math.max(x.nt ? 0 : 1, Math.min(15, Math.round((x.vel != null ? x.vel : 0.8) * 15)));
       // A FALL AND A RISE ARE A HARDWARE SWEEP, and the sweep unit belongs to
       // PU1 alone -- so only the first pulse lane can carry them, which is the
       // same limit the machine has. NR10 is pace<<4 | direction<<3 | shift, and
@@ -346,7 +346,7 @@
       else if (lane === 0 && x.z) sweep = 0x3E;         // pace 3, down, shift 6
       else if (lane === 0 && x.u) sweep = 0x36;         // pace 3, up,   shift 6
       var id = (isDrum ? ('drum:' + drum) : (lane + ':' + (x.st || 'piano'))) +
-               (sweep ? ':s' + sweep : '') + ':v' + vol;
+               (sweep ? ':s' + sweep : '') + (lane < 2 && x.dy != null ? ':d' + (x.dy & 3) : '') + ':v' + vol;
       if (instOf[id] != null) return instOf[id];
       // Out of slots: reuse the nearest instrument for this voice rather than
       // dropping to the lane default, so the timbre survives even when the
@@ -362,6 +362,7 @@
       }
       var type = isDrum ? INST_TYPE.NOISE : lane === 2 ? INST_TYPE.WAVE : INST_TYPE.PULSE;
       var duty = DUTY_INDEX[STAMP_DUTY[x.st]] != null ? DUTY_INDEX[STAMP_DUTY[x.st]] : 2;
+      if (lane < 2 && x.dy != null) duty = x.dy & 3;
       // The NAME is the voice without the volume, so LSDj shows PIANO for every
       // loudness of piano and import can still read the drum back off it.
       var stem2 = id.slice(0, id.lastIndexOf(':v'));
@@ -374,7 +375,8 @@
     var outOfRange = 0, dropped = 0;
     st.cells.forEach(function (x) {
       var lane = laneOfCell(x, melRows), step = x.c | 0;
-      var slot = { note: NO_NOTE, cmd: CMD.NONE, val: 0, inst: instrumentFor(x, lane) };
+      var slot = { note: NO_NOTE, cmd: CMD.NONE, val: 0,
+        inst: lane < 2 && x.nt === 2 ? NO_INSTRUMENT : instrumentFor(x, lane) };
       if (lane === 3) {
         // ⚠️ A NOISE NOTE IS A PITCH, AND THE WRONG ONE IS SILENCE. This wrote
         // note 25 for every drum, on the reasoning that noise is not melodic.
@@ -827,7 +829,7 @@
   // play and therefore a different pitch on each one -- NOTE_BASE turns it into
   // MIDI. Zero means no note, and is not a rest you can hear.
   function playedNotes(m, ch) {
-    var out = [], row = 0, s, cr, st;
+    var out = [], row = 0, s, cr, st, instrument = NO_INSTRUMENT, selectedOnEmptyRow = false;
     for (s = 0; s < 256; s++) {
       var chain = m.sequence[s][ch];
       if (chain === NO_CHAIN) continue;
@@ -837,10 +839,18 @@
         var tr = m.chainTranspose[chain][cr];
         for (st = 0; st < 16; st++) {
           var n = m.phraseNotes[ph][st];
+          var selected = m.phraseInstruments[ph][st];
+          if (selected !== NO_INSTRUMENT) {
+            if (n !== NO_NOTE) selectedOnEmptyRow = false;
+            else if (selected !== instrument) selectedOnEmptyRow = true;
+            instrument = selected;
+          }
           if (n !== NO_NOTE) out.push({
             row: row + st, note: n, transpose: tr,
             midi: NOTE_BASE[ch] + (n - 1) + (tr << 24 >> 24),
             instrument: m.phraseInstruments[ph][st],
+            effectiveInstrument: instrument,
+            instrumentOnlyChange: selectedOnEmptyRow,
             command: m.phraseCommands[ph][st], value: m.phraseCommandVals[ph][st]
           });
         }
@@ -1036,13 +1046,14 @@
     for (t = 0; t < ticks.length; t++) tSum += ticks[t];
     var rowFrames = (tSum / ticks.length) * 149.31875 / Math.max(1, m.tempo || 128);
     var lastRow = 0, unnamedDrums = 0, tableNotes = [], vibratoNotes = [], patches = [];
-    var tempoAt = [], master = null;
+    var tempoAt = [], master = null, pendingInstrumentNotes = 0;
     for (ch = 0; ch < 4; ch++) {
       var played = playedNotes(m, ch), kills = killRows(m, ch);
       var chLastRow = Math.max(channelRows(m, ch) - 1,
                                played.length ? played[played.length - 1].row : 0);
       for (i = 0; i < played.length; i++) {
         var n = played[i], next = played[i + 1];
+        if (n.instrumentOnlyChange) pendingInstrumentNotes++;
         // Where does this note STOP? A KILL before the next note is the answer
         // and is exact; otherwise it runs to the next note, which is also exact
         // because that is what LSDj does.
@@ -1057,7 +1068,7 @@
         // ...and an instrument with a HOLD ends the note sooner than either.
         // LSDj's envelope cuts it after that many frames whatever the phrase
         // says, so the shorter of the two is what a listener hears.
-        var ip = m.instrumentParams[n.instrument];
+        var ip = m.instrumentParams[n.effectiveInstrument];
         if (ip && (ip[1] & 0x0F)) {
           var holdFrames = ENVELOPE_HOLD[ip[1] & 0x0F];
           var rowsHeld = Math.max(1, Math.round(holdFrames / rowFrames));
@@ -1074,8 +1085,9 @@
           // the app performing somebody else's notes rather than their song.
           // The instrument in the file says both: byte 1's high nibble is the
           // volume, byte 7's top two bits are the duty.
-          var p = m.instrumentParams[n.instrument];
+          var p = m.instrumentParams[n.effectiveInstrument];
           var note = { lane: LANES[ch], step: n.row, note: noteName(n.midi), len: len };
+          if (ch < 2) note.trigger = n.instrument !== NO_INSTRUMENT;
           // THE COMMAND IS PART OF THE NOTE. An arpeggio is C and a roll is R on
           // the way out; without reading them back, a song exported with either
           // came home plain, and the round trip quietly flattened the gestures
@@ -1136,7 +1148,8 @@
             if (n.command !== CMD.S) patches.push({ lane: ch, step: n.row, f: { sweep: instrumentSweep } });
           }
           if (p) {
-            note.velocity = Math.max(0.05, Math.min(1, (p[1] >> 4) / 15));
+            note.velocity = Math.max(ch < 2 ? 0 : 0.05, Math.min(1, (p[1] >> 4) / 15));
+            if (ch < 2) note.sound = { shape: (p[7] >> 6) & 3 };
             // 75% duty is 25% inverted -- the same timbre on this chip -- so it
             // shares a stamp rather than inventing one that sounds identical.
             note.stamp = ch === 2 ? 'bassg' : ['bell', 'trumpet', 'piano', 'trumpet'][(p[7] >> 6) & 3];
@@ -1147,6 +1160,8 @@
     }
     if (unnamedDrums) warn.push(unnamedDrums + ' drums came back as kicks: their instrument was ' +
                                 'not one this app names, and the noise channel cannot say which drum it was');
+    if (pendingInstrumentNotes) warn.push(pendingInstrumentNotes +
+      ' notes follow instrument-only changes on empty rows; this latched instrument state is not fully reproduced');
     // ⚠️ TABLES ARE NOT PLAYED. An LSDj table is a per-instrument modulation
     // sequence -- a transpose and two commands per tick -- and nothing here
     // reads or runs one. A song of ours never uses them, so this only fires on

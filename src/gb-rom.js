@@ -609,15 +609,23 @@
     var inst = (gb.bank && gb.bank.instruments) || [];
     var evs = [];
 
-    gb.notes.forEach(function (n) {
+    var offFrames = HW.noteOffFrames(gb.notes);
+    gb.notes.forEach(function (n, index) {
       var ch = n.ch | 0;
       var regs = HW.noteRegisters(n, gb.bank);
+
+      if (ch < 2 && n.trigger === false) {
+        evs.push({ f: n.frame | 0, ch: ch, type: 4, d: [0x13 + ch * 5, regs[2]] });
+        evs.push({ f: n.frame | 0, ch: ch, type: 4, d: [0x14 + ch * 5, regs[3] & 7] });
+        if (offFrames[index] != null) evs.push({ f: offFrames[index], ch: ch, type: 0, d: [] });
+        return;
+      }
 
       // channel 1's sweep byte rides ahead of every note-on (zero clears), the
       // exact write the browser Sequencer makes -- the two cannot disagree
       if (ch === 0) evs.push({ f: n.frame | 0, ch: 0, type: 3, d: [(n.sweep || 0) & 0xFF] });
       evs.push({ f: n.frame | 0, ch: ch, type: 1, d: regs });
-      evs.push({ f: (n.frame | 0) + Math.max(1, n.frames | 0), ch: ch, type: 0, d: [] });
+      if (offFrames[index] != null) evs.push({ f: offFrames[index], ch: ch, type: 0, d: [] });
     });
 
     // Channel 3 needs a table in wave RAM before it can make a sound. Pick the

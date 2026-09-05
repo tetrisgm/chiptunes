@@ -467,7 +467,7 @@
       var here = byCol[c] || [];
       here.sort(function (a, b) { return (a.t || 0) - (b.t || 0); });
       here.forEach(function (x) {
-        if (x.vel === 0) { x.rch = x.r >= MEL_ROWS ? 3 : x.rch; return; }   // volume zero: a rest that keeps its place
+        if (x.vel === 0 && !x.nt) { x.rch = x.r >= MEL_ROWS ? 3 : x.rch; return; }   // native zero-volume triggers still change state
         if (x.r >= MEL_ROWS) {                              // drum lane
           var d = DRUMS[x.r - MEL_ROWS];
           var dF = cellFrame(x), dLen = Math.max(2, Math.round(per * (x.len || 0.6)));
@@ -508,11 +508,13 @@
         if (!voice || voice === 'noise') { x.x = 1; return; }
         var steps = x.len ? x.len : (x.w ? 8 : 0.96);
         var totalF = x.lf ? Math.max(1, x.lf | 0) : Math.max(2, Math.round(per * steps) - 1);
+        if (x.nt && !x.lf) totalF = Math.max(1, colFrame(c + steps) - cellFrame(x));
         var mInst = instOf(x, voice === 'wave' ? 2 : (x.ch === 1 ? 1 : 0));
         var note = { frame: cellFrame(x), frames: totalF, det: x.dt | 0,
                      midi: x.midi != null ? x.midi : rowMidi(x.r),
                      inst: mInst != null ? mInst : (x.inst != null ? x.inst : INSTOF[x.st]),
                      vel: x.vel != null ? x.vel : 0.8, pri: 5 };
+        if (x.nt) note.trigger = x.nt === 1;
         if (voice === 'wave') {
           if (!voiceFree(2, note.frame, note.frame + totalF)) { x.x = 1; return; }
           claim(2, note.frame, note.frame + totalF); note.ch = 2; x.rch = 2;
@@ -557,6 +559,9 @@
       });
     }
     notes.sort(function (a, b) { return a.frame - b.frame; });
+    notes.forEach(function (n) {
+      if (n.trigger != null && n.ch < 2) moves.vibOff.push({ f: n.frame, ch: n.ch });
+    });
     panWrites(moves.pan, moves.auto);
     // What this song would cost a 32KB cartridge. The export throws when it
     // does not fit, and a toast after the click is a poor way to learn.
@@ -629,14 +634,16 @@
     var tAt = (S.tempoAt || []).filter(function (p2) {
       return p2 && p2.length === 2 && p2[0] > 0 && p2[1] >= 40 && p2[1] <= 255;
     }).slice(0, 63);
-    var out = [tAt.length || S.master != null ? 14 : 13,
+    // v15 carries native pulse trigger state; ordinary documents stay v13/14.
+    var nativeTriggers = S.cells.some(function (x) { return !!x.nt; });
+    var out = [nativeTriggers ? 15 : tAt.length || S.master != null ? 14 : 13,
                S.key, S.minor, S.bars & 63, (bpm - 70) & 63,
                S.swing | (((bpm - 70) >> 6) << 1), (S.bars >> 6) & 63,
                Math.max(0, GRIDS.indexOf(spb()))];
     var t = String(S.title || '').slice(0, 48);
     out.push(t.length & 63);
     for (var ti = 0; ti < t.length; ti++) out.push(TITLE_A.indexOf(t.charAt(ti)) + 1 & 63);
-    if (out[0] === 14) {
+    if (out[0] >= 14) {
       out.push((S.master == null ? 0 : (S.master & 15) + 1) & 63);
       out.push(tAt.length & 63);
       for (var qi = 0; qi < tAt.length; qi++)
@@ -648,8 +655,9 @@
       var ext = x.inst != null || x.vel != null || x.midi != null || (x.len || 1) > 1 || x.sweep != null || x.ch != null;
       var snd = x.dy != null || x.fd != null || x.wv != null || x.nz != null || x.ns != null;
       var mov = !!(x.vb || x.sq || x.mp || x.pn || x.gl || x.kt || x.dt || x.of || x.lf);
-      var cmd = (x.u ? 1 : x.q ? 2 : x.g ? 3 : x.f ? 4 : 0) | (snd ? 8 : 0) | (mov ? 16 : 0);
+      var cmd = (x.u ? 1 : x.q ? 2 : x.g ? 3 : x.f ? 4 : 0) | (snd ? 8 : 0) | (mov ? 16 : 0) | (x.nt ? 32 : 0);
       out.push(x.c & 63, (x.c >> 6) & 63, x.r | (x.z ? 32 : 0), st | (x.w ? 16 : 0) | (ext ? 32 : 0), cmd);
+      if (x.nt) out.push(x.nt & 3);
       if (ext) {
         var ip1 = x.inst != null ? x.inst + 1 : 0;           // 0 = no exact instrument
         var midi = x.midi != null ? (x.midi | 0) : 0;
@@ -680,7 +688,7 @@
     try {
       var v = []; for (var i = 0; i < str.length; i++) { var ix = B64.indexOf(str[i]); if (ix < 0) return null; v.push(ix); }
       var ver = v[0];
-      if (ver < 1 || ver > 14) return null;
+      if (ver < 1 || ver > 15) return null;
       var st2 = freshState();
       st2.key = v[1] % 12; st2.minor = v[2] & 1;
       st2.bars = ver === 1 ? ([2, 4, 8].indexOf(v[3]) >= 0 ? v[3] : 4)
@@ -752,6 +760,7 @@
             if (cc && r2 < MEL_ROWS + DRUM_LANES) cell2[cc] = 1;
             k += 1;
           }
+          if (ver >= 15 && (cmdRaw & 32)) cell2.nt = v[k++] & 3;
           if (ver >= 3 && (b2 & 32) && k + 5 < v.length + 1) {
             var e1 = v[k + 1];
             var rawInst = v[k] | ((e1 & 3) << 6);
@@ -833,6 +842,7 @@
       var m = { ch: n.ch, frame: n.frame - f0, frames: Math.min(n.frames, f1 - n.frame),
                 midi: n.midi, inst: n.inst, vel: n.vel, pri: n.pri };
       if (n.sweep) m.sweep = n.sweep;
+      if (n.trigger != null) m.trigger = n.trigger;
       notes.push(m);
     });
     return { notes: notes, bank: song.bank, totalFrames: f1 - f0, loopFrames: f1 - f0 };

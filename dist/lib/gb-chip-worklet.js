@@ -238,8 +238,10 @@
     // written; that is what gives one instrument its dynamics. Neither the
     // cartridge nor the APU can multiply at play time, so it is baked in here.
     var v0 = (rec[1] >> 4) & 15;
-    var vol = Math.max(0, Math.min(15, Math.round(v0 * (0.35 + 0.65 * (n.vel == null ? 1 : n.vel)))));
-    var nrx1, nrx2 = (vol << 4) | (rec[1] & 0x0F), nrx3, nrx4, p;
+    var nativePulse = ch < 2 && n.trigger != null;
+    var vol = Math.max(0, Math.min(15, Math.round(nativePulse ? 15 * (n.vel == null ? 1 : n.vel)
+      : v0 * (0.35 + 0.65 * (n.vel == null ? 1 : n.vel)))));
+    var nrx1, nrx2 = (vol << 4) | (nativePulse ? 8 : rec[1] & 0x0F), nrx3, nrx4, p;
     // A note may ask for a period the twelve-tone table has no name for: det
     // shifts it by whole period units. That is what detuning two channels
     // against each other is, and there is no other way to say it.
@@ -280,6 +282,24 @@
     var rec = (inst || [])[index];
     if (!rec || !(rec[3] & 1)) return 0;
     return Math.min(WAVE_SLOTS - 1, rec[0] & 0xFF);
+  }
+
+  // A native pitch-only row continues the current voice, including its silent
+  // state after KILL. Suppress a note-off at the continuation boundary (also
+  // accepting the legacy one-frame articulation gap); longer gaps still cut.
+  // Shared by browser and cartridge scheduling.
+  function noteOffFrames(notes) {
+    var order = notes.map(function (n, i) { return { n: n, i: i }; });
+    order.sort(function (a, b) { return a.n.frame - b.n.frame || a.i - b.i; });
+    var next = [], off = [];
+    for (var i = order.length - 1; i >= 0; i--) {
+      var item = order[i], n = item.n, ch = n.ch | 0;
+      var end = (n.frame | 0) + Math.max(1, n.frames | 0), following = next[ch];
+      off[item.i] = following && following.trigger === false &&
+        Math.abs(following.frame - end) <= 1 ? null : end;
+      next[ch] = n;
+    }
+    return off;
   }
 
   // ---- GROOVE: the only clock a tracker has --------------------------------
@@ -453,7 +473,7 @@
 
   var API = {
     FPS: FPS, CH: CH, DUTIES: DUTIES, WAVE_LEVELS: WAVE_LEVELS,
-    noteRegisters: noteRegisters, waveSlotOf: waveSlotOf,
+    noteRegisters: noteRegisters, waveSlotOf: waveSlotOf, noteOffFrames: noteOffFrames,
     NOISE_DIVISORS: NOISE_DIVISORS, RANGE: RANGE, WAVE_SLOTS: WAVE_SLOTS,
     midiToHz: midiToHz, midiToPeriod: midiToPeriod, inRange: inRange,
     beatToFrame: beatToFrame, frameToSec: frameToSec,
@@ -857,10 +877,11 @@
     this.kit = null; this.kitPos = 0; this.kitLeft = 0; this.kitCyc = 0;
     var byFrame = this.byFrame = {};
     var inst = (this.bank && this.bank.instruments) || [];
-    (gb && gb.notes || []).forEach(function (n) {
-      var f = n.frame | 0, off = f + Math.max(1, n.frames | 0);
+    var scoreNotes = gb && gb.notes || [], offFrames = H.noteOffFrames(scoreNotes);
+    scoreNotes.forEach(function (n, index) {
+      var f = n.frame | 0, off = offFrames[index];
       (byFrame[f] = byFrame[f] || []).push({ t: 1, n: n });
-      (byFrame[off] = byFrame[off] || []).push({ t: 0, ch: n.ch | 0 });
+      if (off != null) (byFrame[off] = byFrame[off] || []).push({ t: 0, ch: n.ch | 0 });
     });
     Object.keys(byFrame).forEach(function (k) {
       byFrame[k].sort(function (a, b) { return a.t - b.t; });
@@ -942,6 +963,13 @@
         continue;
       }
       note = e.n; g = 1;
+      if (note.trigger === false && (note.ch | 0) < 2) {
+        r = H.noteRegisters(note, this.bank);
+        this.apu.write(base + 2, r[2]);
+        this.apu.write(base + 3, r[3] & 7);
+        this.vib[note.ch | 0].on = false;
+        continue;
+      }
       // live channel mute (the Create editor's lanes): skip the trigger, let
       // note-offs still run. Never set on the radio or offline paths.
       if (this.chMute && this.chMute[note.ch | 0]) continue;
@@ -968,7 +996,7 @@
         var vst = this.vib[note.ch | 0];
         vst.base = ((r[3] & 7) << 8) | r[2];
         vst.age = 0;
-        vst.on = !((note.ch | 0) === 0 && note.sweep);
+        vst.on = note.trigger == null && !((note.ch | 0) === 0 && note.sweep);
       }
     }
     // ...then this frame's automation, after the note-ons it belongs to

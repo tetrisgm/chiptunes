@@ -55,6 +55,64 @@ do not treat the focused passes above as permission to push a red suite.
 
 ## Where the music stands (musician-11)
 
+### 2026-09-05 — native pulse trigger state carried end to end
+
+Native pulse imports now distinguish an explicit instrument trigger from a
+blank-instrument pitch change. `playedNotes` exposes the effective instrument
+without overwriting the raw instrument field. JSON notes carry `trigger`;
+document v15 stores it as cell `nt` (1 explicit, 2 pitch-only). Existing
+documents without this field retain their v13/v14 encoding and behavior.
+
+The browser and generated cartridge use shared note-off scheduling so a
+contiguous pitch-only row does not cut/retrigger the held voice. A real gap
+still cuts; a pitch-only row after KILL stays silent until an explicit trigger.
+Native pulse volume uses the actual 0..15 level, including zero, and does not
+acquire the default player's unsolicited vibrato. Pulse duty settings survive
+export, including 75% rather than replacing it with 25%. The sustain envelope
+register path is covered; arbitrary native envelopes/effects are NOT proven.
+
+New `verify-lsdj-trigger-state.js` is wired into npm test and test:lsdj. Eight
+fixtures cover both pulse channels with hold, KILL/pitch-only, explicit restart
+and zero-volume scenarios. Checks include JSON/document round-trip, transpose
+editing, browser volume/pitch/duty, executed cartridge trigger bits, and real
+LSDj original/re-export traces. Frame comparisons align the first sounding
+note and sample away from boundaries; this is not cycle-accurate audio parity.
+All eight focused fixtures passed with the private ROM. Native-format, API and
+cartridge tests also passed. Headless Chromium loaded and played a v15 shared
+document with both trigger values retained and no page errors. Broadcast
+render parity passed 10/10 samples, minimum correlation 1.000000.
+
+The first full run stopped on a pre-existing randomized language assertion:
+smooth left the step ratio unchanged at 0.34. Smooth octave-folds while keeping
+pitch classes, so it cannot turn every third/fourth into a second. Its test now
+checks non-increasing mean leap on generated melodies plus a deliberate angular
+fixture (17.00 -> 4.33 semitones) and exact pitch-class preservation. The user
+feedback now says octave shifts rather than falsely claiming every leap became
+a step. The transformation algorithm itself is unchanged. Focused language
+passes. The final fresh full-suite run PASSED, including all eight real-ROM
+trigger fixtures, existing LSDj checks, diversity, latency, screen tests,
+48 deterministic finite-song smoke cases and all 14 games. Local full output:
+`/tmp/chiptunes-native-trigger-verified.log`; render-parity output:
+`/tmp/chiptunes-native-trigger-render.log`. These temporary logs are supporting
+evidence, not prerequisites for future runs; the fixtures are in the repo.
+
+Additional real-ROM probe: an instrument-only row makes no immediate register
+change in the tested pulse fixture, but its selected settings can take effect
+at the following blank-instrument note (duty changed while volume did not
+retrigger). Therefore it must NOT be ignored by instrument selection tracking.
+The importer retains that selected instrument and now explicitly warns when
+notes depend on this unsupported latch sequence. The eight passing pulse
+fixtures do not include this sequence as supported playback. Two in-progress
+full runs were deliberately stopped while resolving this additional evidence;
+they are not verification passes.
+
+Still open: instrument-only and command-only rows, wave/noise trigger behavior,
+arbitrary envelopes, table execution, full groove/tempo handling, lossless
+native structural editing and native control UI. Bar-only audition does not
+reconstruct preceding native channel state; score-to-document ingestion paths
+also need explicit native-field coverage. Do not describe this checkpoint as
+full LSDj instrument/sound parity. Nothing was deployed or released.
+
 ### 2026-09-05 — soundtrack diversity diagnosis and seed separation
 
 The preceding diversity failure mixed a valid product bug with an invalid

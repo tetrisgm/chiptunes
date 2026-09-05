@@ -205,6 +205,7 @@ function toJSON(doc) {
     var motion = x.u ? 'rise' : x.z ? 'fall' : x.q ? 'arp' : x.g ? 'roll' : x.f ? 'echo' : null;
     if (motion) n.motion = motion;
     if (x.inst != null) n.instrument = x.inst;
+    if (x.nt) n.trigger = x.nt === 1;
     if (x.st) n.stamp = x.st;
     // the chip settings, when the note carries its own rather than the lane's
     var snd = {};
@@ -259,6 +260,7 @@ function fromJSON(obj) {
     }
     if (cell.ch === undefined) delete cell.ch;
     if (n.instrument != null) cell.inst = n.instrument;
+    if (n.trigger != null) cell.nt = n.trigger ? 1 : 2;
     switch (n.motion) {
       case 'rise': cell.u = 1; break;
       case 'fall': cell.z = 1; break;
@@ -301,6 +303,8 @@ function validate(obj) {
     var lane = LANES.indexOf(n.lane);
     if (lane < 0) { errors.push(at + ': unknown lane ' + JSON.stringify(n.lane) + '. Use ' + LANES.join(', ')); return; }
     if ((n.step | 0) < 0) errors.push(at + ': step must be 0 or more');
+    if (n.trigger != null && (typeof n.trigger !== 'boolean' || lane > 1))
+      errors.push(at + ': native trigger state is a boolean on a pulse lane');
     if (lane === 3) {
       if (n.drum && DRUMS.indexOf(n.drum) < 0)
         errors.push(at + ': unknown drum ' + JSON.stringify(n.drum) + '. Use ' + DRUMS.join(', '));
@@ -953,9 +957,9 @@ function transform(doc, ops) {
                      Math.max(1, (o.bars || 2)) + ' bars (' + arcMoved + ' notes)'); break;
       }
       case 'smooth': {
-        // Stepwise motion, by octave displacement -- which keeps the pitch
-        // class, so the harmony is untouched and only the line becomes
-        // singable. This is what makes a lullaby a lullaby.
+        // Reduce large leaps by octave displacement, preserving pitch classes.
+        // This cannot turn every interval into a step (a third remains a
+        // third), or guarantee a limit below the nearest octave equivalent.
         var maxLeap = o.maxLeap != null ? (o.maxLeap | 0) : 5;
         var seq = st.cells.filter(function (c) { return pick(c) && !isDrum(c) && c.midi != null; })
                           .sort(function (a, b) { return (a.c | 0) - (b.c | 0); });
@@ -969,7 +973,7 @@ function transform(doc, ops) {
           }
           cur2.r = rowFor(cur2.midi);
         }
-        applied.push('smoothed ' + smoothed + ' leaps into steps'); break;
+        applied.push('reduced large leaps with ' + smoothed + ' octave shifts'); break;
       }
       case 'accent': {
         // Metric emphasis: the downbeat loudest, the half-bar next, the

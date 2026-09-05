@@ -236,8 +236,10 @@
     // written; that is what gives one instrument its dynamics. Neither the
     // cartridge nor the APU can multiply at play time, so it is baked in here.
     var v0 = (rec[1] >> 4) & 15;
-    var vol = Math.max(0, Math.min(15, Math.round(v0 * (0.35 + 0.65 * (n.vel == null ? 1 : n.vel)))));
-    var nrx1, nrx2 = (vol << 4) | (rec[1] & 0x0F), nrx3, nrx4, p;
+    var nativePulse = ch < 2 && n.trigger != null;
+    var vol = Math.max(0, Math.min(15, Math.round(nativePulse ? 15 * (n.vel == null ? 1 : n.vel)
+      : v0 * (0.35 + 0.65 * (n.vel == null ? 1 : n.vel)))));
+    var nrx1, nrx2 = (vol << 4) | (nativePulse ? 8 : rec[1] & 0x0F), nrx3, nrx4, p;
     // A note may ask for a period the twelve-tone table has no name for: det
     // shifts it by whole period units. That is what detuning two channels
     // against each other is, and there is no other way to say it.
@@ -278,6 +280,24 @@
     var rec = (inst || [])[index];
     if (!rec || !(rec[3] & 1)) return 0;
     return Math.min(WAVE_SLOTS - 1, rec[0] & 0xFF);
+  }
+
+  // A native pitch-only row continues the current voice, including its silent
+  // state after KILL. Suppress a note-off at the continuation boundary (also
+  // accepting the legacy one-frame articulation gap); longer gaps still cut.
+  // Shared by browser and cartridge scheduling.
+  function noteOffFrames(notes) {
+    var order = notes.map(function (n, i) { return { n: n, i: i }; });
+    order.sort(function (a, b) { return a.n.frame - b.n.frame || a.i - b.i; });
+    var next = [], off = [];
+    for (var i = order.length - 1; i >= 0; i--) {
+      var item = order[i], n = item.n, ch = n.ch | 0;
+      var end = (n.frame | 0) + Math.max(1, n.frames | 0), following = next[ch];
+      off[item.i] = following && following.trigger === false &&
+        Math.abs(following.frame - end) <= 1 ? null : end;
+      next[ch] = n;
+    }
+    return off;
   }
 
   // ---- GROOVE: the only clock a tracker has --------------------------------
@@ -451,7 +471,7 @@
 
   var API = {
     FPS: FPS, CH: CH, DUTIES: DUTIES, WAVE_LEVELS: WAVE_LEVELS,
-    noteRegisters: noteRegisters, waveSlotOf: waveSlotOf,
+    noteRegisters: noteRegisters, waveSlotOf: waveSlotOf, noteOffFrames: noteOffFrames,
     NOISE_DIVISORS: NOISE_DIVISORS, RANGE: RANGE, WAVE_SLOTS: WAVE_SLOTS,
     midiToHz: midiToHz, midiToPeriod: midiToPeriod, inRange: inRange,
     beatToFrame: beatToFrame, frameToSec: frameToSec,

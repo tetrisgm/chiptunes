@@ -273,10 +273,11 @@
     this.kit = null; this.kitPos = 0; this.kitLeft = 0; this.kitCyc = 0;
     var byFrame = this.byFrame = {};
     var inst = (this.bank && this.bank.instruments) || [];
-    (gb && gb.notes || []).forEach(function (n) {
-      var f = n.frame | 0, off = f + Math.max(1, n.frames | 0);
+    var scoreNotes = gb && gb.notes || [], offFrames = H.noteOffFrames(scoreNotes);
+    scoreNotes.forEach(function (n, index) {
+      var f = n.frame | 0, off = offFrames[index];
       (byFrame[f] = byFrame[f] || []).push({ t: 1, n: n });
-      (byFrame[off] = byFrame[off] || []).push({ t: 0, ch: n.ch | 0 });
+      if (off != null) (byFrame[off] = byFrame[off] || []).push({ t: 0, ch: n.ch | 0 });
     });
     Object.keys(byFrame).forEach(function (k) {
       byFrame[k].sort(function (a, b) { return a.t - b.t; });
@@ -358,6 +359,13 @@
         continue;
       }
       note = e.n; g = 1;
+      if (note.trigger === false && (note.ch | 0) < 2) {
+        r = H.noteRegisters(note, this.bank);
+        this.apu.write(base + 2, r[2]);
+        this.apu.write(base + 3, r[3] & 7);
+        this.vib[note.ch | 0].on = false;
+        continue;
+      }
       // live channel mute (the Create editor's lanes): skip the trigger, let
       // note-offs still run. Never set on the radio or offline paths.
       if (this.chMute && this.chMute[note.ch | 0]) continue;
@@ -384,7 +392,7 @@
         var vst = this.vib[note.ch | 0];
         vst.base = ((r[3] & 7) << 8) | r[2];
         vst.age = 0;
-        vst.on = !((note.ch | 0) === 0 && note.sweep);
+        vst.on = note.trigger == null && !((note.ch | 0) === 0 && note.sweep);
       }
     }
     // ...then this frame's automation, after the note-ons it belongs to
