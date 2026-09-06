@@ -3,6 +3,50 @@
 Plain, current working notes for whoever (or whatever) picks the project up
 next. Infrastructure and operations live outside this repository.
 
+## 2026-09-07 — Composition fixes completed
+
+Owner requested the composition fixes specifically. Restored only the
+composition/API/melody portions of the saved Claude draft; the native-editor
+draft remains deferred. The archive is retained unchanged for provenance.
+
+- Optional bounded energy/density/motion premises now affect section intensity,
+  lead/bass onset count and melodic/bass range before generation. Absent/zero
+  dials preserve the unprompted station byte-for-byte; non-finite values are
+  neutral and finite out-of-range values clamp to [-1,1].
+- New-song mood mode respects an explicit mode or scene. Existing-song edits
+  with explicit edit wording transpose/recolour the current document without
+  regenerating its arrangement. Reference character fills only unowned axes;
+  a user's axes that cancel to zero remain owned. Melody/bass density is not
+  thinned/subdivided a second time after its premise is applied.
+- Caller tempo ranges suppress later mood/reference/absolute/multiplier tempo
+  operations. A one-sided caller range does not inherit the other endpoint
+  from a reference. Spoken tempo operations also block reference tempo hints.
+- `reference.uses` records surviving operation indices and premise axes.
+  Character words are labelled as partial hints with their actual surviving
+  dimensions. `ask().understood` and `applied` remove overridden reference
+  style/mode/range claims and report effective caller key/mode/tempo/style;
+  `spec` remains the parsed request. Unmet styles are reported rather than
+  retained as successful genre claims.
+- `composer.canCompose()` shares the composer's own eligibility logic without
+  generating a score. `brief()` uses it to resolve the existing style fallback
+  before generation, avoiding a second compile and no longer catching unrelated
+  composer exceptions as style conflicts. An impossible direct composer premise
+  still fails. This is constraint resolution, not candidate scoring.
+
+Focused character, mood-constraint and language tests passed. All 345 published
+reference-title × neutral/cheerful/calm combinations preserved caller house,
+major and 120 BPM settings in exactly one compile. The character tests are in
+`npm test`; the bundled-browser API test also checks the caller precedence and
+readback. Render parity passed 10/10, correlation 1.000000, lag 0, max RMS
+delta 0.175 dB. The full `npm test` suite exited 0, including the local-ROM
+native checks (not skipped). The final `verify-api.js` rerun also exited 0,
+including exact Node/browser document identity for the same prompt, token and
+character premise. Logs: `/tmp/chiptunes-composition-fix.AnT2XH/` (`full.log`,
+`parity.log`, `api-final.log`, focused logs). Verified local artifact:
+`dist/app.32bcc1826b40.js`. The previous native-editor/playback and Safari
+release-acceptance work remains separate and unfinished.
+No deployment, release, app restart or native-playback implementation occurred.
+
 ## 2026-09-07 — Native foundation and measured-envelope checkpoint
 
 Owner clarified that using Claude was intended to spend the available credits

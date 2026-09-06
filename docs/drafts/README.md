@@ -11,8 +11,12 @@ session allowance. It is **not production source or an approved patch**.
 - The tested native-document foundation, bounded parser and observer are
   separately committed source; do not replace them with an older draft.
 
-Known remaining issues: caller-pinned tempo can be changed by later mood ops;
-reference readback can claim overridden traits. The first native UI lacks
+Historical composition issues (fixed in the 2026-09-07 composition checkpoint;
+see `docs/HANDOFF.md`): caller-pinned tempo can be changed by later mood ops;
+reference readback can claim overridden traits. The archive remains unchanged
+as a source snapshot; production composition code supersedes it.
+
+Still deferred: the first native UI lacks
 keyboard isolation and atomic staged-row controls. Its later rewrite improves
 staging/resume but duplicates an unsafe decoder, interpolates invalid draft
 text into HTML, fails to consume Escape, and replaces unsaved state without

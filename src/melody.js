@@ -163,6 +163,10 @@
     // everything between moves by step; the motif's own rhythm stamps all
     // four bars, which is what makes it register as a motif at all.
     var scaleLen = opts.scaleLen || 7;
+    // MOTION widens (or narrows) the intervallic reach of each phrase. It scales
+    // the motif's contour offsets and its development lift. Zero is a no-op, so
+    // an unprompted song is byte-identical and the pinned digests cannot move.
+    var motion = opts.motion == null ? 0 : opts.motion;
     // Snap a degree offset onto the TRIAD, in any octave. Rounding to even
     // degrees is wrong past the fifth: +6 is the seventh and +8 wraps to the
     // second. The chord-tone set is {0,2,4} modulo the scale length.
@@ -288,6 +292,7 @@
         for (var i = 0; i < use.length; i++) {
           var off = shape[i % shape.length];
           if (inv) off = -off;
+          if (motion) off = Math.round(off * (1 + motion * 0.5));
           var d = anchor + off;
           // the mid-bar strong beat is a chord tone too, not just the downbeat:
           // round its distance from the chord root onto the triad (even degrees)
@@ -317,7 +322,8 @@
       // ones brood. And it is where the RHYTHM moves too, not only the pitch.
       var dev = hash(opts.token + ':mtf-dev:' + letter) % 3 < 2;
       var devKind = hash(opts.token + ':mtf-vary:' + letter) % 5;
-      state(2, rootAt(bar + 2) + anchorOff + (dev ? 2 : 0), !dev, rootAt(bar + 2),
+      var devLift = dev ? (motion ? Math.max(1, Math.round(2 * (1 + motion * 0.5))) : 2) : 0;
+      state(2, rootAt(bar + 2) + anchorOff + devLift, !dev, rootAt(bar + 2),
             varyRh(rh, devKind));
       // cadence: a stepwise 3-2-1 run that LANDS ON THE ROOT. The old goal was
       // the 2nd degree -- the unresolved tone, which is the sound of longing.

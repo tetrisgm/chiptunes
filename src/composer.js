@@ -87,6 +87,8 @@ function pickPair(r,rows){
   for(i=0;i<rows.length;i++){at-=rows[i][1];if(at<=0)return rows[i][0];}
   return rows[rows.length-1][0];
 }
+// Bounded premise dials are clamped to [-1,1]; a non-finite value reads as 0.
+function premiseDial(v){return Number.isFinite(v)?Math.max(-1,Math.min(1,v)):0;}
 function normalizedPremise(raw){
   if(!raw||typeof raw!=='object')return null;
   var known={};STYLES.forEach(function(s){known[s.id]=1;});
@@ -94,9 +96,15 @@ function normalizedPremise(raw){
   var mode=raw.mode==='maj'||raw.mode==='min'?raw.mode:null;
   var bpmMin=Number.isFinite(raw.bpmMin)?Math.max(0,Math.round(raw.bpmMin)):0;
   var bpmMax=Number.isFinite(raw.bpmMax)?Math.max(0,Math.round(raw.bpmMax)):999;
+  // energy/density/motion are BOUNDED CHARACTER DIALS applied before generation:
+  // energy leans section intensity (never the tempo the band and caller already
+  // own), density scales how many melody and bass onsets are written, and motion
+  // widens or narrows the composed motif contour. All-zero is indistinguishable
+  // from no premise, so the unprompted station stays byte-for-byte identical.
+  var energy=premiseDial(raw.energy),density=premiseDial(raw.density),motion=premiseDial(raw.motion);
   if(!styles||!styles.length)styles=null;
-  if(!styles&&!mode&&bpmMin<=0&&bpmMax>=999)return null;
-  return{styles:styles,mode:mode,bpmMin:bpmMin,bpmMax:bpmMax};
+  if(!styles&&!mode&&bpmMin<=0&&bpmMax>=999&&!energy&&!density&&!motion)return null;
+  return{styles:styles,mode:mode,bpmMin:bpmMin,bpmMax:bpmMax,energy:energy,density:density,motion:motion};
 }
 function styleModes(style){
   if(style&&style.modes==='maj')return MODES.filter(function(m){return MAJ_MODES[m.name];});
@@ -426,6 +434,10 @@ function reachableBpms(){
 
 function compile(token,rawPremise){
   var premise=normalizedPremise(rawPremise);
+  // Pulled out once so the generation body can read them. Each is 0 for an
+  // ordinary premise, which is exactly what keeps the unprompted score
+  // identical: nothing below fires on a zero.
+  var pEnergy=premise?premise.energy:0,pDensity=premise?premise.density:0,pMotion=premise?premise.motion:0;
   token=String(token||'chiptunes');var pr=rng(token,'premise'),trained=trainedModel(pr),model=trained.model;
   var style=pickStyle(token,premise);
   if(!style)throw new Error('No composer style satisfies this premise');
@@ -453,6 +465,10 @@ function compile(token,rawPremise){
   // machine offers 111. Parity means we do not get to be more restrictive than
   // the thing we are matching.
   var bpm=Math.round(bpmLo+(bpmHi-bpmLo)*(((hash(token+':bpmf')%100)/100)*0.6+heat*0.4));
+  // ENERGY leans the intensity used for form, drums and accompaniment AFTER the
+  // tempo is fixed, so the band and caller keep sole ownership of bpm and no
+  // dimension is processed twice. Zero energy leaves heat exactly as drawn.
+  if(pEnergy)heat=clamp(heat+pEnergy*0.35,0.05,0.98);
   // "Tracks too long, sections too long": ~85 seconds, not two minutes.
   // LENGTH MUST NOT BE A PURE FUNCTION OF TEMPO. This was a flat 88 seconds
   // converted to bars, which was fine while tempo was continuous and became a
@@ -464,6 +480,18 @@ function compile(token,rawPremise){
   var wantSecs=80+(hash(token+':length')%17);
   var bars=clamp(Math.round((wantSecs*bpm/240)/4)*4,36,56),form=makeForm(token,bars,model,bpm,heat),harm=makeHarmony(token,model,mode,style),groove=makeGroove(token,model,heat,style);
   var bassMotif=makeMotif(token,'bass-motif',3,6,model,'bass'),leadMotif=makeMotif(token,'lead-motif',5,10,model,'lead'),events=[],ordinal=0;
+  // DENSITY scales how many onsets are written; MOTION widens the composed
+  // contour. Both are post-draw transforms of deterministic values, so they
+  // never disturb the RNG streams -- a neutral dial reproduces the unprompted
+  // melody budget, bass onset count and motif exactly. The lead's own motion is
+  // carried into CT_MELODY.write below (the walking bass reads bassMotif here).
+  var melDensity=style.mel;
+  if(pDensity)melDensity=clamp(melDensity*(1+pDensity*0.5),0.2,1.6);
+  var bassCap=clamp((heat<0.5?3:4)+Math.round(pDensity*2),1,6);
+  if(pMotion){
+    var stretch=function(d){return clamp(Math.round(d*(1+pMotion*0.7)),-7,11);};
+    bassMotif={steps:bassMotif.steps,degrees:bassMotif.degrees.map(stretch),gaps:bassMotif.gaps};
+  }
   // The composer writes ONTO THE MACHINE. Every note is placed on one of the
   // four channels as it is thought of; a channel cannot hold two notes, so
   // nothing downstream ever removes anything and the browser and the ROM are
@@ -573,8 +601,8 @@ function compile(token,rawPremise){
     // half of walking basses stride on onsets mined from real VGM bass lines
     var minedBass=(hash(token+':bass-mined')%2===0)?(function(){var B2=corpusBucket(style);
       var m=B2?pickPair(rng(token,'bass-mask'),B2.bass):null;
-      return m?maskRows(m).slice(0,heat<0.5?3:4):null;})():null;
-    var bassRows=!VC.bass?[]:FEEL==='half'?[0,8]:thin?[0]:(minedBass&&minedBass.length?minedBass:bassMotif.steps.map(function(x){return mod(x*2,16);}).filter(function(x,i,a){return a.indexOf(x)===i;}).sort(function(a,b){return a-b;}).slice(0,heat<0.5?3:4));
+      return m?maskRows(m).slice(0,bassCap):null;})():null;
+    var bassRows=!VC.bass?[]:FEEL==='half'?[0,8]:thin?[0]:(minedBass&&minedBass.length?minedBass:bassMotif.steps.map(function(x){return mod(x*2,16);}).filter(function(x,i,a){return a.indexOf(x)===i;}).sort(function(a,b){return a-b;}).slice(0,bassCap));
     bassRows.forEach(function(row,i){var md=bassMotif.degrees[i%bassMotif.degrees.length],degree=root+(i===bassRows.length-1&&row>=12?mod(nextRoot-root+3,SLEN)-3:md);
       var next=i+1<bassRows.length?bassRows[i+1]:16,art=i&&Math.abs(md-bassMotif.degrees[(i-1)%bassMotif.degrees.length])>2?{from:midi(root,key,mode.scale,36)}:null;
       add(bar*4+row/4,clamp((next-row)/4-.04,.1,1.7),'bass',midi(degree,key,mode.scale,36),.43+(sec.e-5)*.012,art);});
@@ -609,7 +637,7 @@ function compile(token,rawPremise){
     var rootFor=function(b){var ph=Math.floor(b/harm.roots.length),rr=ph%3===2?harm.altered:harm.roots;return rr[b%rr.length];};
     var mel=G.CT_MELODY.write({token:token,rng:rng(token,'melody'),hash:hash,model:model,
       semiDegree:semiDegree,bars:bars,sections:form,rootAt:rootFor,scaleLen:SLEN,
-      melDensity:style.mel});
+      melDensity:melDensity,motion:pMotion});
     var mr2=rng(token,'melody-art');
     // Three LSDJ habits land here. LEGATO: a note holds until the next one
     // arrives instead of stabbing and dying, which is most of the difference
@@ -663,7 +691,12 @@ function compile(token,rawPremise){
   var gbNotes=V?V.collect():[];
   var lastN=gbNotes.length?gbNotes[gbNotes.length-1]:null;
   var tracker={format:'CTRACK-1',hardware:'CHIP',mode:mode.name,trainedModel:trained.id,instrumentBank:G.CT_CHIP_INSTRUMENTS&&G.CT_CHIP_INSTRUMENTS.corpusFingerprint||''};
-  if(premise)tracker.premise={styles:premise.styles?premise.styles.slice():null,mode:premise.mode,bpmMin:premise.bpmMin,bpmMax:premise.bpmMax};
+  if(premise){tracker.premise={styles:premise.styles?premise.styles.slice():null,mode:premise.mode,bpmMin:premise.bpmMin,bpmMax:premise.bpmMax};
+    // Only surface the new dials when they are actually engaged, so a plain
+    // {styles,mode,bpmMin,bpmMax} premise still records exactly those four keys.
+    if(premise.energy)tracker.premise.energy=premise.energy;
+    if(premise.density)tracker.premise.density=premise.density;
+    if(premise.motion)tracker.premise.motion=premise.motion;}
   // THE GROOVE TRAVELS WITH THE SONG. It is the clock: with swing the rows are
   // uneven, so "which row is this note on" is unanswerable without it, and any
   // reader that assumes a uniform row -- exporter, player, gate -- gets a
@@ -685,6 +718,7 @@ function duration(token){var s=compile(token);return s.totalBars*4*60/s.bpm;}
 // part of the request it was least entitled to throw away.
 // `modes` describes defaults; an explicit named-style premise can override it.
 function styles(){return STYLES.map(function(s){return {id:s.id,bpm:s.bpm.slice(),modes:s.modes};});}
-var API={V:3,id:'rrr_core',revision:REV,compile:compile,duration:duration,styles:styles,tempos:reachableBpms};
+function canCompose(rawPremise){return !!pickStyle('',normalizedPremise(rawPremise));}
+var API={V:3,id:'rrr_core',revision:REV,compile:compile,canCompose:canCompose,duration:duration,styles:styles,tempos:reachableBpms};
 G.CT_COMPOSERS=G.CT_COMPOSERS||{};G.CT_COMPOSERS.rrr_core=API;if(typeof module!=='undefined'&&module.exports)module.exports=API;
 })();

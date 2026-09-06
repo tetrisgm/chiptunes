@@ -660,6 +660,21 @@ function mcp(messages) {
              canGoBack: !!r.previous && r.previous === before };
   });
   ok(inPage.api, 'the API is reachable in the page as CT_API');
+  const pinnedComposition = await p.evaluate(() => {
+    const r = CT_API.ask('a cheerful song like castlevania, 100 bpm', {
+      brief: { token: 'browser-pinned-composition', mode: 'major', bpmMin: 150, bpmMax: 150 }
+    });
+    return { doc: r.doc, bpm: CT_API.describe(r.doc).bpm, mode: CT_API.analyse(r.doc).mode,
+      line: r.understood.find(s => /^like /.test(s)), uses: r.reference.uses,
+      staleTempo: r.understood.some(s => /^tempo: 100/.test(s)) };
+  });
+  ok(pinnedComposition.bpm === 150 && pinnedComposition.mode === 'major',
+     'the bundled browser API preserves caller tempo/mode against sentence, mood and reference');
+  ok(pinnedComposition.doc === api.ask('a cheerful song like castlevania, 100 bpm', {
+    brief: { token: 'browser-pinned-composition', mode: 'major', bpmMin: 150, bpmMax: 150 }
+  }).doc, 'the same prompt, token and character premise produce identical documents in Node and the browser');
+  ok(!pinnedComposition.staleTempo && !pinnedComposition.uses.some(u => u.kind === 'mode' || u.kind === 'tempo'),
+     'the bundled browser reading does not claim discarded reference or sentence settings');
   ok(inPage.ok && inPage.applied.some(x => /minor/.test(x)),
      'a variant of the song on air is composed in the browser (' + (inPage.applied || []).join('; ') + ')');
   ok(inPage.changed && inPage.canGoBack,
