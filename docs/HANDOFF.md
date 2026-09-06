@@ -3,6 +3,139 @@
 Plain, current working notes for whoever (or whatever) picks the project up
 next. Infrastructure and operations live outside this repository.
 
+## 2026-09-05 — portable manual envelope playback primitive
+
+`src/gb-apu.js` now executes the portable held-increase NRx2 operation: while
+the channel is active and its envelope is unlocked, an x8 -> x8 register
+write increments live volume modulo 16 without a trigger. Fifteen such
+increments decrement by one. Pulse 1, pulse 2 and noise share this behavior;
+wave does not have this envelope unit. Automatic hardware envelopes now
+retain an explicit active/overflow-lock state, released by a new trigger.
+DAC re-enable without a trigger does not restart a killed voice.
+
+This implements only the common manual operation, not all model-specific
+NRx2 transitions. In particular, the owner's LSDj ROM's optimized 09/11/18
+decrement is NOT yet implemented. Pan Docs documents the portable operation
+and revision-dependent alternatives (Audio details / Obscure Behavior):
+https://github.com/gbdev/pandocs/blob/master/src/Audio_details.md
+SameBoy's `nrx2_glitch` also distinguishes pre-CGB-D and later revisions:
+https://github.com/LIJI32/SameBoy/blob/master/Core/apu.c
+No external emulator source was copied into production, and mGBA's faulty
+decay behavior was not adopted. Full chip-revision/cycle accuracy is not
+established by this increment primitive.
+
+`verify-apu-manual-envelope.js` adds 54 channel/initial-volume/overflow-lock
+cases plus initial-volume reload checks. It checks all 16 initial levels,
+modulo wrap, repeated decrement writes, DAC-off/re-enable, unchanged oscillator
+and timer state, sustained pace-zero output and overflow locking/retrigger.
+Three integration cases route a manual increment and 15 identical decrement
+writes through the browser sequencer and actual generated cartridge CPU;
+both retain every write and reach the expected live volumes. Both paths use
+our APU, so these checks establish transport/order, not independent hardware
+validation. The new check is part of full `npm test`.
+
+A read-only comparison against `75878a9` found identical PCM for the first
+20 seconds of each of 48 generated smoke songs (not their entire duration):
+`/tmp/chiptunes-manual-envelope-baseline.js`. The focused automation check
+and `verify-rom-audio.js` also passed. This is no listening-quality verdict.
+
+The native import/export envelope gap is still open: `ENVELOPE_HOLD` remains
+wrong, export still discards shape, native stage/version fields are not a
+shared authoring representation, and fast modern rates require sub-frame
+timing beyond current automation. The portable primitive now gives that
+future scheduler a manual volume operation; it does not by itself repair
+an imported song or expose native ADSR in Create. Earlier statements below
+that `_env` implements no manual volume writes describe the prior checkpoint.
+
+Scheduler constraints confirmed in this checkout: `Sequencer` indexes auto
+events with `w.f | 0`; its speed setting scales only the music/frame clock,
+while hardware envelopes remain real-time. Pre-expanding envelopes into that
+lane would both lose fast updates and incorrectly speed them up with tempo.
+The sample renderer already splits APU advancement for kit refills; a native
+envelope clock must coexist with that split. Cartridge automation is likewise
+integer-frame scheduled. Its timer ISR currently serves kit refills, and
+`kitStop` disables the timer, so a shared real-time envelope scheduler must
+not steal or inadvertently disable kit timing. These are integration gaps,
+not reasons to fork behavior between website and cartridge.
+
+Every package.json test command has now passed on the current build across
+three segments: the successful prefix through `verify-create-handover.js`
+in `full-v2`, the isolated pacing rerun, and the exact remaining suite command
+tail from `verify-share.js` onward, which finished with exit 0 in
+`/tmp/chiptunes-manual-envelope-suite-tail.log`. This includes the fixed motif
+regression, native envelope/arrangement checks, five responsive viewports,
+48 finite generated songs and all 14 games. This is NOT a claim that the
+uninterrupted `npm test` invocation passed; its intermittent pacing failure
+is retained below. No deployment or desktop app restart occurred.
+Browser/broadcast render parity finished with exit 0: 10/10, minimum
+correlation 1.000000, zero sample lag, maximum absolute RMS difference
+0.175 dB (`/tmp/chiptunes-manual-envelope-parity.log`). The shared artifact
+is `app.4bed86848176.js`, including the updated worklet APU.
+
+Verification history must not be summarized as an uninterrupted green run:
+`/tmp/chiptunes-manual-envelope-full.log` stopped at the motif collision below.
+After that correction, `/tmp/chiptunes-manual-envelope-full-v2.log` stopped
+at frame pacing: draws were observed but the refresh estimate stayed zero,
+so both the measured-tick and ratio assertions failed. No runtime pacing code
+was changed. An isolated rerun on the same artifact passed with an 8.32 ms
+estimate and ratio 2 (`/tmp/chiptunes-frame-pacing-recheck.log`). Cause of the
+zero estimate is unproven; this is an unresolved intermittent test/runtime
+observation, not a claimed pacing fix. Remaining commands were resumed
+from `verify-share.js` using the exact tail of package.json's test command.
+
+### Full-suite failure exposed a motif-picker collision
+
+The first full run stopped in `verify-diversity.js`: two randomly minted
+soundtracks returned the same eight-pitch motif preview. The random test did
+not log replay tokens. A separate fixed-seed audit reproduced a stronger
+collision: `f6c94f818d131520` and `bf7f5ae2f36b6741`, scenes title/battle/boss,
+key D, motif true, both selected the identical 15-note D4/F#4/A4/D5 arpeggio
+at bar 0 with two-row lengths/onsets. This is independent of the APU change;
+the API and composer at the failed build were still unchanged.
+
+The soundtrack picker now skips mechanically repeated 1..4-note cells with
+matching pitch, duration and inter-onset pattern, including a last partial
+repeat. It sorts candidate cells by onset and keeps looking within the SAME
+already composed cue, then the other pulse lane. It does not recompose,
+rank candidate songs or add an alternate musical pipeline. With no eligible
+phrase it reports why rather than inventing a motif. This is a bounded
+selection correction, not a claim that repetition is bad music or that the
+new selection is always the best theme.
+
+The motif regression now uses those two fixed formerly-colliding tokens,
+retains the requirement that their pitch previews differ, and checks that a
+clipped repetition is not selected as a new phrase. Other diversity batches
+retain their existing coverage and thresholds. Focused diversity and API
+checks passed (`/tmp/chiptunes-motif-diversity-focused.log`,
+`/tmp/chiptunes-motif-api-focused.log`). A 100-token exploratory audit still
+found some common short figures and some identical pitch previews with
+different rhythms; global motif uniqueness and quality are NOT established.
+The broader pre-composition mood/semantic overhaul below remains needed.
+The same updated regression run against the prior `75878a9` API fails exactly
+the two new motif checks (exit 1; `/tmp/chiptunes-motif-counterfactual.log`),
+confirming that the fixed tokens exercise the old defect rather than merely
+choosing examples that already passed.
+
+### Composition follow-up identified during verification
+
+The authorized read-only Luna audit identified a concrete next composition
+change, and main checked the relevant source: `brief()` passes styles/mode/
+tempo into `compose()`, while `ask()` blends mood recipes only afterward as
+document transforms (`src/api.js`, `brief`, `ask`). Thus mood cannot directly
+condition initial rhythm/bass/accompaniment selection. `interpret()` also
+guards all reference-title character traits with `!moods.length`: one explicit
+mood suppresses every inferred trait, not just conflicts. A canonical semantic
+recipe should merge orthogonal traits and feed compositional premises before
+the one deterministic composition, retaining post-transforms for actual edits.
+Test fixed-token prompt pairs and control paths, not merely different hashes
+or note counts; listening evidence is still required for a quality claim.
+
+The audit also flagged mixed understood/unsupported prompts returning `ok:true`.
+`ask()` does retain `unsupported` in its returned reading, so this is not yet
+proof of silent loss in the UI. Review how partial fulfillment is presented
+before changing this into a blanket refusal policy; no new refusal rule or
+composer change was implemented in this APU checkpoint.
+
 ## 2026-09-05 — envelope evidence and immutable native probes
 
 The envelope investigation uncovered an observer problem before a playback

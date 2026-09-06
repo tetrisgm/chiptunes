@@ -1160,6 +1160,26 @@ function soundtrack(b) {
     // all -- which read as the feature being broken rather than the cue being
     // sparse there.
     var figure = [], motifBar = 0, motifLane = 0, why = null;
+    // A mechanically repeated short cell is accompaniment, not a distinctive
+    // soundtrack figure. The first eligible window used to pick the same
+    // tonic arpeggio across unrelated games in a shared key. Search the existing
+    // cue for a phrase instead; never compose replacement candidates.
+    function shortLoop(notes) {
+      // Include a final partial repetition: trimming a two-bar window must not
+      // turn the same arpeggio into a "new phrase" by dropping its last note.
+      for (var period = 1; period <= 4 && notes.length >= Math.max(2, period * 2 - 1); period++) {
+        var repeated = true;
+        for (var ni = period; ni < notes.length; ni++) {
+          var a = notes[ni], b = notes[ni - period];
+          if (a.midi !== b.midi || (a.len || 1) !== (b.len || 1) ||
+              (ni > period && a.c - notes[ni - 1].c !== b.c - notes[ni - period - 1].c)) {
+            repeated = false; break;
+          }
+        }
+        if (repeated) return true;
+      }
+      return false;
+    }
     // Search the WHOLE cue, and take Harmony if Melody has nothing: both are
     // pulse voices, and a figure stated on the second pulse is an ordinary
     // thing for this hardware. Some cues genuinely have no melodic phrase at
@@ -1170,8 +1190,8 @@ function soundtrack(b) {
         var lo = w * grid0, hi = lo + grid0 * 2;
         var got = src.cells.filter(function (c) {
           return !isDrum(c) && c.midi != null && laneOf(c) === ln && (c.c | 0) >= lo && (c.c | 0) < hi;
-        });
-        if (got.length >= 3) {
+        }).sort(function (a, b) { return a.c - b.c; });
+        if (got.length >= 3 && !shortLoop(got)) {
           motifBar = w; motifLane = ln;
           figure = got.map(function (c) {
             var cp = JSON.parse(JSON.stringify(c)); cp.c = (c.c | 0) - lo; return cp;
@@ -1179,7 +1199,7 @@ function soundtrack(b) {
         }
       }
     }
-    if (figure.length < 2) why = 'the first cue has no melodic phrase to build on';
+    if (figure.length < 2) why = 'the first cue has no non-repeating melodic phrase to build on';
     if (figure.length >= 2) {
       motif = { notes: figure.length, bars: 2, fromBar: motifBar,
                 lane: LANES[motifLane],

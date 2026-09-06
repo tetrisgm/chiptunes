@@ -662,10 +662,10 @@
     this.nr50 = 0x77; this.nr51 = 0xFF; this.power = true;
     this.hp = 0;                           // DC blocker (the DMG's output capacitor)
     this.ch = [
-      { dac:false, on:false, freq:0, duty:2, pos:0, t:0, vol:0, vol0:0, dir:0, pace:0, ec:0 },
-      { dac:false, on:false, freq:0, duty:2, pos:0, t:0, vol:0, vol0:0, dir:0, pace:0, ec:0 },
+      { dac:false, on:false, freq:0, duty:2, pos:0, t:0, vol:0, vol0:0, dir:0, pace:0, ec:0, envActive:false },
+      { dac:false, on:false, freq:0, duty:2, pos:0, t:0, vol:0, vol0:0, dir:0, pace:0, ec:0, envActive:false },
       { dac:false, on:false, freq:0, pos:0, t:0, level:0 },
-      { dac:false, on:false, lfsr:0x7FFF, width:0, div:8, shift:0, t:0, vol:0, vol0:0, dir:0, pace:0, ec:0 }
+      { dac:false, on:false, lfsr:0x7FFF, width:0, div:8, shift:0, t:0, vol:0, vol0:0, dir:0, pace:0, ec:0, envActive:false }
     ];
   };
 
@@ -707,6 +707,13 @@
   // NRx2. The upper five bits are the DAC: all zero and the channel is not
   // merely quiet, it is switched off. That is precisely how a note ends.
   Apu.prototype._env = function (ch, val) {
+    // Portable manual volume control: an unlocked, held increasing envelope
+    // increments modulo 16 when another x8 value is written, without a trigger.
+    // Pan Docs, Audio details / Obscure Behavior. This is the common operation
+    // across tested DMG/CGB units; arbitrary NRx2 transitions are model-specific
+    // and are NOT implemented here (including LSDj's shorter 09/11/18 decrement).
+    if (ch.on && ch.envActive && ch.pace === 0 && ch.dir === 1 && (val & 15) === 8)
+      ch.vol = (ch.vol + 1) & 15;
     ch.vol0 = (val >> 4) & 15;
     ch.dir = (val >> 3) & 1;
     ch.pace = val & 7;
@@ -717,6 +724,7 @@
   Apu.prototype._trigger = function (i) {
     var ch = this.ch[i];
     ch.on = ch.dac;                        // triggering a dead DAC does nothing
+    if (i !== 2) ch.envActive = ch.on;
     if (i === 2) { ch.pos = 0; ch.t = (2048 - ch.freq) * 2; }
     else if (i === 3) { ch.lfsr = 0x7FFF; ch.t = ch.div << ch.shift; ch.vol = ch.vol0; ch.ec = ch.pace; }
     else { ch.t = (2048 - ch.freq) * 4; ch.vol = ch.vol0; ch.ec = ch.pace; }
@@ -750,11 +758,12 @@
     var idx = [0, 1, 3], k, ch, v;
     for (k = 0; k < 3; k++) {
       ch = this.ch[idx[k]];
-      if (!ch.pace || !ch.on) continue;
+      if (!ch.pace || !ch.on || !ch.envActive) continue;
       if (--ch.ec > 0) continue;
       ch.ec = ch.pace;
       v = ch.vol + (ch.dir ? 1 : -1);
       if (v >= 0 && v <= 15) ch.vol = v;
+      else ch.envActive = false;           // overflow stops updates until trigger
     }
   };
 

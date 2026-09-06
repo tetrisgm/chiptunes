@@ -1337,10 +1337,10 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     this.nr50 = 0x77; this.nr51 = 0xFF; this.power = true;
     this.hp = 0;                           // DC blocker (the DMG's output capacitor)
     this.ch = [
-      { dac:false, on:false, freq:0, duty:2, pos:0, t:0, vol:0, vol0:0, dir:0, pace:0, ec:0 },
-      { dac:false, on:false, freq:0, duty:2, pos:0, t:0, vol:0, vol0:0, dir:0, pace:0, ec:0 },
+      { dac:false, on:false, freq:0, duty:2, pos:0, t:0, vol:0, vol0:0, dir:0, pace:0, ec:0, envActive:false },
+      { dac:false, on:false, freq:0, duty:2, pos:0, t:0, vol:0, vol0:0, dir:0, pace:0, ec:0, envActive:false },
       { dac:false, on:false, freq:0, pos:0, t:0, level:0 },
-      { dac:false, on:false, lfsr:0x7FFF, width:0, div:8, shift:0, t:0, vol:0, vol0:0, dir:0, pace:0, ec:0 }
+      { dac:false, on:false, lfsr:0x7FFF, width:0, div:8, shift:0, t:0, vol:0, vol0:0, dir:0, pace:0, ec:0, envActive:false }
     ];
   };
 
@@ -1382,6 +1382,13 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   // NRx2. The upper five bits are the DAC: all zero and the channel is not
   // merely quiet, it is switched off. That is precisely how a note ends.
   Apu.prototype._env = function (ch, val) {
+    // Portable manual volume control: an unlocked, held increasing envelope
+    // increments modulo 16 when another x8 value is written, without a trigger.
+    // Pan Docs, Audio details / Obscure Behavior. This is the common operation
+    // across tested DMG/CGB units; arbitrary NRx2 transitions are model-specific
+    // and are NOT implemented here (including LSDj's shorter 09/11/18 decrement).
+    if (ch.on && ch.envActive && ch.pace === 0 && ch.dir === 1 && (val & 15) === 8)
+      ch.vol = (ch.vol + 1) & 15;
     ch.vol0 = (val >> 4) & 15;
     ch.dir = (val >> 3) & 1;
     ch.pace = val & 7;
@@ -1392,6 +1399,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   Apu.prototype._trigger = function (i) {
     var ch = this.ch[i];
     ch.on = ch.dac;                        // triggering a dead DAC does nothing
+    if (i !== 2) ch.envActive = ch.on;
     if (i === 2) { ch.pos = 0; ch.t = (2048 - ch.freq) * 2; }
     else if (i === 3) { ch.lfsr = 0x7FFF; ch.t = ch.div << ch.shift; ch.vol = ch.vol0; ch.ec = ch.pace; }
     else { ch.t = (2048 - ch.freq) * 4; ch.vol = ch.vol0; ch.ec = ch.pace; }
@@ -1425,11 +1433,12 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     var idx = [0, 1, 3], k, ch, v;
     for (k = 0; k < 3; k++) {
       ch = this.ch[idx[k]];
-      if (!ch.pace || !ch.on) continue;
+      if (!ch.pace || !ch.on || !ch.envActive) continue;
       if (--ch.ec > 0) continue;
       ch.ec = ch.pace;
       v = ch.vol + (ch.dir ? 1 : -1);
       if (v >= 0 && v <= 15) ch.vol = v;
+      else ch.envActive = false;           // overflow stops updates until trigger
     }
   };
 
@@ -11745,6 +11754,26 @@ function soundtrack(b) {
     // all -- which read as the feature being broken rather than the cue being
     // sparse there.
     var figure = [], motifBar = 0, motifLane = 0, why = null;
+    // A mechanically repeated short cell is accompaniment, not a distinctive
+    // soundtrack figure. The first eligible window used to pick the same
+    // tonic arpeggio across unrelated games in a shared key. Search the existing
+    // cue for a phrase instead; never compose replacement candidates.
+    function shortLoop(notes) {
+      // Include a final partial repetition: trimming a two-bar window must not
+      // turn the same arpeggio into a "new phrase" by dropping its last note.
+      for (var period = 1; period <= 4 && notes.length >= Math.max(2, period * 2 - 1); period++) {
+        var repeated = true;
+        for (var ni = period; ni < notes.length; ni++) {
+          var a = notes[ni], b = notes[ni - period];
+          if (a.midi !== b.midi || (a.len || 1) !== (b.len || 1) ||
+              (ni > period && a.c - notes[ni - 1].c !== b.c - notes[ni - period - 1].c)) {
+            repeated = false; break;
+          }
+        }
+        if (repeated) return true;
+      }
+      return false;
+    }
     // Search the WHOLE cue, and take Harmony if Melody has nothing: both are
     // pulse voices, and a figure stated on the second pulse is an ordinary
     // thing for this hardware. Some cues genuinely have no melodic phrase at
@@ -11755,8 +11784,8 @@ function soundtrack(b) {
         var lo = w * grid0, hi = lo + grid0 * 2;
         var got = src.cells.filter(function (c) {
           return !isDrum(c) && c.midi != null && laneOf(c) === ln && (c.c | 0) >= lo && (c.c | 0) < hi;
-        });
-        if (got.length >= 3) {
+        }).sort(function (a, b) { return a.c - b.c; });
+        if (got.length >= 3 && !shortLoop(got)) {
           motifBar = w; motifLane = ln;
           figure = got.map(function (c) {
             var cp = JSON.parse(JSON.stringify(c)); cp.c = (c.c | 0) - lo; return cp;
@@ -11764,7 +11793,7 @@ function soundtrack(b) {
         }
       }
     }
-    if (figure.length < 2) why = 'the first cue has no melodic phrase to build on';
+    if (figure.length < 2) why = 'the first cue has no non-repeating melodic phrase to build on';
     if (figure.length >= 2) {
       motif = { notes: figure.length, bars: 2, fromBar: motifBar,
                 lane: LANES[motifLane],

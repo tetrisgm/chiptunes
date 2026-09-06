@@ -203,14 +203,12 @@ console.log('soundtracks remain varied across games');
   // without making them the same, and it is OFF unless asked for.
   const off = api.soundtrack({ scenes: ['title', 'battle', 'boss'], key: 'D' });
   ok(!off.motif, 'a shared motif is opt-in, not the default');
-  // Ask a few times: a cue with no melodic phrase at all is a real outcome, and
-  // the API says so rather than sharing silence. What must never happen is a
-  // motif that is shared but identical across cues.
-  let on = null;
-  for (let i = 0; i < 5 && !(on && on.motif); i++) {
-    on = api.soundtrack({ scenes: ['title', 'battle', 'boss'], key: 'D', motif: true });
-    if (!on.motif) ok(!!on.motifSkipped, 'when there is no phrase to share it says why (' + on.motifSkipped + ')');
-  }
+  // Fixed regression tokens, discovered by a reproducible collision audit.
+  // Both previously selected the identical D/F#/A/D tonic arpeggio at bar 0.
+  // Random pair selection hid that bug on most runs and gave no replay token
+  // when it failed. This pair must continue to exercise it, not be re-minted.
+  const on = api.soundtrack({ scenes: ['title', 'battle', 'boss'], key: 'D', motif: true,
+    token: 'f6c94f818d131520' });
   ok(!!on.motif, 'and motif:true does share one (' + (on.motif ? on.motif.pitches.slice(0, 4).join(' ') + ' on ' + on.motif.lane : '') + ')');
   const withMotif = batch(on.cues.map(c => c.doc));
   ok(withMotif.openings === withMotif.n,
@@ -218,11 +216,12 @@ console.log('soundtracks remain varied across games');
   const shifts = on.cues.slice(1).map(c => c.motif && c.motif.transposedBy);
   ok(shifts.every(x => typeof x === 'number'), 'and each cue reports where it heard the figure (' + shifts.join(', ') + ')');
 
-  // and two different games asking for a motif must not get the SAME motif
-  let on2 = null;
-  for (let i = 0; i < 5 && !(on2 && on2.motif); i++) on2 = api.soundtrack({ scenes: ['title', 'battle', 'boss'], key: 'D', motif: true });
+  const on2 = api.soundtrack({ scenes: ['title', 'battle', 'boss'], key: 'D', motif: true,
+    token: 'bf7f5ae2f36b6741' });
   ok(on.motif && on2.motif && on.motif.pitches.join(',') !== on2.motif.pitches.join(','),
-     'two games asking for a motif get different motifs');
+     'the two arpeggio-collision regression games select different figures');
+  ok(on.motif && (on.motif.lane !== 'Melody' || on.motif.fromBar > 1),
+     'a clipped final repetition is not mistaken for a new motif');
 }
 
 // Mood recipes are transforms, so they must move the music without flattening
