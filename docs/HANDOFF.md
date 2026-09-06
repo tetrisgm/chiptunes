@@ -3,6 +3,41 @@
 Plain, current working notes for whoever (or whatever) picks the project up
 next. Infrastructure and operations live outside this repository.
 
+## 2026-09-05 — explicit genre/mode checkpoint
+
+Named composer styles now accept either explicit major or minor. The style's
+`modes` metadata remains its default preference, not a restriction when styles
+and mode are both supplied. Mode-only premises retain the previous genre pool;
+unprompted composition and random streams are unchanged.
+
+Previously `brief({styles:['rock'], mode:'minor'})` exhausted the eligible
+style pool, caught the error and retried after discarding rock. This combination
+now succeeds on its first compile. Focused coverage exercises both polarities
+for all 14 styles, counts one compile for the API regression, retains rejection
+of impossible style/tempo combinations, and pins the existing 48-song complete
+score digest. Named multi-style premises may now select formerly excluded
+genres (for example minor punk in the battle pool); that is intentional.
+
+This is not the mood-driven composition overhaul. Reference-title modes still
+use their existing post-compose transform path; the historical explanation in
+`src/api.js` about rock/minor being impossible is now obsolete. Explicit mood
+versus typed-mode precedence, energy/density/motion before note generation,
+remaining native LSDj parity, and the UI/Safari checks remain open. No cloud
+task was dispatched and no ROM was uploaded.
+
+Verification: the full `npm test` run passed through latency, then stopped in
+`verify-screens.js` on a 180-second screenshot timeout after fonts loaded
+(`/tmp/chiptunes-explicit-mode-full.log`). On the unchanged build the isolated
+screen retry passed, followed by all three remaining smoke/audit commands
+and render parity (10/10, correlation 1.000000, zero sample lag, maximum
+absolute RMS difference 0.175 dB). Logs are
+`/tmp/chiptunes-explicit-mode-screens-retry.log`,
+`/tmp/chiptunes-explicit-mode-smoke.log`, and
+`/tmp/chiptunes-explicit-mode-parity.log`. Every package test command passed
+across those segments; this was not an uninterrupted green full-suite run.
+The screenshot timeout's cause is not established or claimed fixed.
+Shared artifact: `app.fdaafc91525b.js`. Nothing deployed or restarted.
+
 ## 2026-09-05 — portable manual envelope playback primitive
 
 `src/gb-apu.js` now executes the portable held-increase NRx2 operation: while

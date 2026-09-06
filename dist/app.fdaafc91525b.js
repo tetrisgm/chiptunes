@@ -5962,7 +5962,10 @@ function styleModes(style){
 }
 function styleAnswers(style,p){
   if(p.styles&&p.styles.indexOf(style.id)<0)return false;
-  if(p.mode&&!styleModes(style).some(function(m){return (p.mode==='maj')===!!MAJ_MODES[m.name];}))return false;
+  // A named genre's mode set is a default, not a prohibition on explicit
+  // requests such as minor rock. Mode-only station premises retain their
+  // existing genre preferences.
+  if(p.mode&&!p.styles&&!styleModes(style).some(function(m){return (p.mode==='maj')===!!MAJ_MODES[m.name];}))return false;
   return Math.max(style.bpm[0],p.bpmMin)<=Math.min(style.bpm[1],p.bpmMax);
 }
 function pickStyle(token,premise){
@@ -5982,7 +5985,7 @@ var MODES=[
 var MAJ_MODES={ionian:1,mixolydian:1,lydian:1,'pent-major':1};
 function pickMode(r,style,premise){
   var pool=styleModes(style);
-  if(premise&&premise.mode){var constrained=pool.filter(function(m){return (premise.mode==='maj')===!!MAJ_MODES[m.name];});if(constrained.length)pool=constrained;}
+  if(premise&&premise.mode){var constrained=(premise.styles?MODES:pool).filter(function(m){return (premise.mode==='maj')===!!MAJ_MODES[m.name];});if(constrained.length)pool=constrained;}
   var t=0,i;for(i=0;i<pool.length;i++)t+=pool[i].w;var at=r()*t;
   for(i=0;i<pool.length;i++){at-=pool[i].w;if(at<=0)return pool[i];}return pool[0];}
 // Sections used to differ only in drum-mutation rate and a velocity nudge, so
@@ -6537,6 +6540,7 @@ function duration(token){var s=compile(token);return s.totalBars*4*60/s.bpm;}
 // with an incompatible mode or tempo band leaves pickStyle() with an empty
 // pool -- and the caller's fallback then drops the styles, which is the one
 // part of the request it was least entitled to throw away.
+// `modes` describes defaults; an explicit named-style premise can override it.
 function styles(){return STYLES.map(function(s){return {id:s.id,bpm:s.bpm.slice(),modes:s.modes};});}
 var API={V:3,id:'rrr_core',revision:REV,compile:compile,duration:duration,styles:styles,tempos:reachableBpms};
 G.CT_COMPOSERS=G.CT_COMPOSERS||{};G.CT_COMPOSERS.rrr_core=API;if(typeof module!=='undefined'&&module.exports)module.exports=API;

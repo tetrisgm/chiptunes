@@ -31,10 +31,37 @@ constrained('523e26qcl13jeeuu',
   s => s.style === 'anthem', 'epic');
 constrained('1nxedqps6or4ys5s',
   { styles: ['dnb', 'punk', 'techno'], mode: 'min', bpmMin: 0, bpmMax: 999 },
-  s => ['dnb', 'techno'].includes(s.style) && !major.has(s.tracker.mode), 'battle');
+  s => ['dnb', 'punk', 'techno'].includes(s.style) && !major.has(s.tracker.mode), 'battle');
 constrained('64r1urcc5i1lsarc',
   { styles: null, mode: 'maj', bpmMin: 110, bpmMax: 999 },
   s => major.has(s.tracker.mode) && s.bpm >= 110, 'happy');
+
+// Every named genre can answer either explicit polarity without losing its
+// rhythm/style identity. This must happen in the first compile, not a retry.
+for (const style of C.styles()) {
+  for (const mode of ['maj', 'min']) {
+    constrained('explicit-mode-' + style.id,
+      { styles: [style.id], mode, bpmMin: 0, bpmMax: 999 },
+      s => s.style === style.id && major.has(s.tracker.mode) === (mode === 'maj'),
+      style.id + ' / ' + mode);
+  }
+}
+const api = require('../src/api.js');
+const compile = C.compile;
+let calls = [];
+C.compile = function (token, premise) {
+  calls.push(premise);
+  return compile.apply(this, arguments);
+};
+try {
+  const made = api.brief({token: 'minor-rock-regression', styles: ['rock'], mode: 'minor'});
+  ok(calls.length === 1 && calls[0].styles[0] === 'rock' && calls[0].mode === 'min',
+    'minor rock reaches the composer once with both constraints intact');
+  ok(!made.unmet.includes('style constraint could not be met'),
+    'minor rock no longer falls back to an unrelated genre');
+} finally {
+  C.compile = compile;
+}
 
 let contradicted = false;
 try { C.compile('conflicting-premise', { styles: ['drone'], mode: null, bpmMin: 160, bpmMax: 999 }); }
