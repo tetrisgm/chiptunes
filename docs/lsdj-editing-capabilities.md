@@ -13,6 +13,14 @@ identical for fields outside the edit model as well as for mapped fields
 `scripts/verify-lsdj-native.js`). That is preservation of bytes, not
 proof that the browser can expose or play every field.
 
+The additional `src/lsdj-native-document.js` foundation keeps that native image
+as its authority while offering validated edits, bounded undo/redo and checked
+diff/full sharing. Tests exercise untouched-byte retention and hostile shares.
+It is not yet bundled into the browser or exposed as an approved editor. The
+provisional native UI remains deferred after data-safety review; see the latest
+handoff and `docs/drafts/README.md`. Thus the Create control limitations below
+still apply. Byte-preserving authoring machinery is not native playback parity.
+
 Create is a cell/grid editor. Its picker exposes named sound presets and a
 small set of per-cell fields; it does not expose native phrase/chain editing,
 raw command editing, instrument-slot editing, or arbitrary native instrument

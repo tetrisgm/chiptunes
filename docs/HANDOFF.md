@@ -3,6 +3,103 @@
 Plain, current working notes for whoever (or whatever) picks the project up
 next. Infrastructure and operations live outside this repository.
 
+## 2026-09-07 — Native foundation and measured-envelope checkpoint
+
+Owner clarified that using Claude was intended to spend the available credits
+and make progress, not establish a permanent model restriction. Parallel Claude
+workers prepared implementation patches; Codex reviewed/applied them and ran
+tests centrally. Claude recovered at its 23:20 Europe/Paris reset, then returned
+HTTP 429 with a new reported reset of 04:20 Europe/Paris. Composition and
+envelope-review calls confirmed the limit. A final editor retry produced no
+output and was stopped; no Claude workers from this task remain running.
+
+### Verified changes
+
+- `src/lsdj-native-document.js`: authoritative native image plus private edit
+  state, bounded undo/redo, atomic phrase-row editing, copies at public read
+  boundaries, frozen descriptors, exact untouched-byte retention, checked diff
+  and standalone full JSON serialization. Oversized diffs fall back to full
+  shares. FNV-1a is an accidental-corruption checksum, not authentication.
+  This is a module foundation, **not bundled or exposed as a finished UI**.
+  Its tests cover every mapped field's final byte, invalid edits/atomicity,
+  hostile shares, 12 high-entropy songs, worst-case escaping and whole-song
+  full-share fallback. An additional check edited all 30,099 mapped bytes.
+- Shared foreign-file decompression now rejects cycles, invalid jumps/bases,
+  missing operands/EOF, early EOF and output overrun instead of hanging,
+  zero-padding or truncating. Valid full-length backward/noncontiguous acyclic
+  layouts remain accepted; foreign files do not require canonical recompression.
+  Focused parser tests and 128 additional random image round trips passed.
+- Write observer checks BOTH forwarded callback values and adds stderr timing
+  calibration over the play window, frame counts, min/max raw ticks, reduced
+  ticks/frame ratio and frame-boundary double-speed transitions. DMG and CGB
+  observer checks passed with a freshly compiled `lsdjwrites-calibrated`.
+- Envelope analyzer preserves ordered same-frame writes, excludes next-onset
+  setup, distinguishes interruption/truncation from completion, validates CSV
+  and bounds fixture matrices. 352 actual ROM cases completed across first,
+  second, third and edge/zero-turn experiments. No native sound implementation
+  landed. See `docs/lsdj-envelope-write-evidence.md` for counts, limitations
+  and report paths. Cadence remains a hypothesis, not a physical-volume oracle.
+- Native-document, parser-bound and analyzer selftests are included in both
+  `npm test` and `test:lsdj`.
+
+### Deferred work is preserved, not silently shipped
+
+`docs/drafts/claude-2026-09-07.json` retains the provisional composition/editor
+diff, three new source/test files and two later Claude review proposals.
+`docs/drafts/README.md` identifies how those alternatives relate. Temporary
+originals also remain under `/tmp/chiptunes-claude-52kTdZ/`.
+
+The composition draft passed focused character/language/API/mood/melody tests
+and kept neutral digests, but review found caller-pinned 150 BPM becoming 132
+for calm or 162 for cheerful, and reference summaries claiming overridden
+traits. Earlier edits fixed mood/reference mode precedence and edit-in-place
+transposition, but the final result/provenance corrections are unfinished.
+The first native editor passed basic exact-byte exports and desktop/phone
+layout checks; later draft review found staging loss, modal keyboard leakage,
+replacement without confirmation, unsafe duplicate decompression and unescaped
+invalid draft values. These drafts were removed from product source/build
+before the checkpoint. Their passing focused tests do not certify readiness.
+
+Next: finish those bounded fixes from the saved drafts; then native command,
+table, multi-stage envelope and kit execution/parity remain substantial work.
+Real deployed Safari acceptance still requires an owner-authorized release.
+No deployment, store upload, app restart, ROM upload, cloud task or persistent
+job was created. This is not completion of the overall goal.
+
+### Checkpoint verification
+
+Focused native-document, parser-bound and analyzer selftests passed (exit 0).
+Calibration passed on both models: `/tmp/chiptunes-claude-52kTdZ/timing-calibration-test.log`.
+Every command in the 42-command `npm test` sequence passed across the following
+runs, with explicit owner ROM, `LSDJPLAY`/`LSDJ_TRACE` from
+`/tmp/chiptunes-envelope-safe.rNmG2i/`, and
+`LSDJ_WRITES=/tmp/chiptunes-claude-52kTdZ/lsdjwrites-calibrated`:
+
+- `full-native-checkpoint.log`: build through song-document checks passed;
+  the subsequent Create-handover browser process stalled before its first
+  assertion and was stopped. This `npm test` invocation did not exit zero.
+- `handover-retry.log`: the unchanged Create-handover test passed on a fresh
+  browser retry (exit 0); diagnostic logging was enabled only for this run.
+- `full-native-tail.log`: every remaining package test command, starting at
+  frame pacing, passed in sequence (orchestrator exit 0), with a 240-second
+  timeout per command. Native observer/ROM cases were exercised, not skipped.
+- `parity-native-checkpoint.log`: separate render-parity check exited 0,
+  10/10, minimum correlation 1.000000, zero-sample lag, max RMS delta 0.175 dB.
+
+These logs are in `/tmp/chiptunes-claude-52kTdZ/`. An earlier mixed-state
+`full-interim-sep7.log` run was deliberately stopped and is not a suite pass.
+Verified local artifact: `dist/app.83c94db404c3.js`; nothing was deployed.
+The durable draft archive was compared byte-for-byte with its saved snapshots.
+
+All prompts/results/logs remain under `/tmp/chiptunes-claude-52kTdZ/`.
+Another task, `01a078a8-cce4-7512-805e-52788a5ae6c3`, accidentally terminated
+this task's live composition and envelope Claude workers. Both exited 143 and
+were resumed in their same Claude sessions; no shared files were altered by
+that task. Its owner has the separate byte-matching decompilation request in
+`/Users/shokunin/dev/lsdj-decomp`; this task does not edit that repository, only
+uses the owner's ROM there for immutable local probes. The other task
+confirmed it will leave this task's files and processes alone.
+
 ## 2026-09-06 — Claude-coordinated UI and native-observer checkpoint
 
 Owner requested the remaining work through Claude using parallel workers.
