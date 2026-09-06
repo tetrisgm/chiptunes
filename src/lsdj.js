@@ -999,16 +999,42 @@
   // one -- audibly wrong, and silently so.
   var ENVELOPE_HOLD = [0, 1, 1, 1, 1, 1, 2, 2, 3, 4, 5, 6, 8, 11, 15, 20];
 
-  // The transpose-table subset handled by this projection. Command/envelope
-  // tables with all-zero transposes are NOT detected here; that is a remaining
-  // import gap, not evidence that those tables sound like no table at all.
-  function tableOf(m, slot) {
+  // AN ENABLED TABLE IS PRESENT WHETHER OR NOT IT TRANSPOSES. Instrument byte 6
+  // = 0x20 | index turns a table on; the index selects one of 32 tables whose
+  // columns the model reads as tables0 (transpose), tables1, tables2 and the
+  // tableCommands/tableValues command pair. This USED to test only the
+  // transpose column, so a table that moved nothing but ran volume or duty
+  // commands was classified absent -- no note carried it, no warning named it,
+  // and the song came back looking as if it used no table at all (HANDOFF
+  // 2026-09-05). Detection now asks whether the referenced table carries ANY
+  // data in ANY column. This does NOT execute the table; the caller decides
+  // the transpose approximation separately, and only for a table that
+  // actually transposes -- expanding a command-only table would fabricate
+  // pitch motion and per-tick retriggers the file never asked for.
+  function tableIndex(m, slot) {
     if (slot == null || slot === NO_INSTRUMENT) return null;
     var p = m.instrumentParams[slot];
     if (!p || (p[6] & 0xE0) !== 0x20) return null;
-    var idx = p[6] & 0x1F, rows = m.tables0[idx], i;
-    if (!rows) return null;
-    for (i = 0; i < 16; i++) if (rows[i]) return idx;
+    return p[6] & 0x1F;
+  }
+  function rowsNonZero(rows) {
+    if (!rows) return false;
+    for (var i = 0; i < 16; i++) if (rows[i]) return true;
+    return false;
+  }
+  // Whether the table's TRANSPOSE column moves the pitch. Only this column has
+  // a document projection (the arpeggio approximation in expandTables); the
+  // other columns are detected but not executed.
+  function tableTransposes(m, idx) {
+    return idx != null && rowsNonZero(m.tables0 && m.tables0[idx]);
+  }
+  function tableOf(m, slot) {
+    var idx = tableIndex(m, slot);
+    if (idx == null) return null;
+    var regions = [m.tables0, m.tables1, m.tables2, m.tableCommands, m.tableValues], r;
+    for (r = 0; r < regions.length; r++)
+      if (rowsNonZero(regions[r] && regions[r][idx])) return idx;
+    // Enabled but wholly empty: honestly absent, not a phantom table.
     return null;
   }
 
@@ -1217,7 +1243,11 @@
           // registers, where a duty change is invisible.
           else if (n.commandId === CMD.W && (n.value & 3)) patches.push({ lane: ch, step: n.row, f: { dy: n.value & 3 } });
           var tbl = tableOf(m, n.instrument);
-          if (tbl != null) tableNotes.push({ lane: ch, step: n.row, table: tbl, len: len });
+          // Only a table whose TRANSPOSE column actually moves the pitch is
+          // approximated as an arpeggio. A command/volume-only table is present
+          // (and warned about below) but expanding it here would fabricate
+          // pitch motion and per-tick retriggers the table does not ask for.
+          if (tbl != null && tableTransposes(m, tbl)) tableNotes.push({ lane: ch, step: n.row, table: tbl, len: len });
           // Instrument sweep is stored complemented, not as raw NR10.
           // Preserve its exact hardware value unless the row overrides it.
           else if (ch === 0 && p && p[0] === INST_TYPE.PULSE && ((p[4] ^ 0xFF) & 0x7F)) {
@@ -1241,16 +1271,23 @@
     if (pendingInstrumentNotes) warn.push(pendingInstrumentNotes +
       ' notes follow instrument-only changes on empty rows; this latched instrument state is not fully reproduced');
     // Tables are only a transpose-row approximation here, not a native
-    // per-instrument modulation engine. Make that limitation visible.
-    var tablesUsed = {}, ti;
+    // per-instrument modulation engine. Make that limitation visible, and
+    // separate the tables we approximate (transpose) from the ones we merely
+    // detect (volume/command only) so neither is claimed to play.
+    var projectedTables = {}, detectedOnlyTables = {};
     for (ch = 0; ch < 4; ch++) notesFromRows(arrangement[ch], ch).forEach(function (n) {
       var t = tableOf(m, n.instrument);
-      if (t != null) tablesUsed[t] = 1;
+      if (t == null) return;
+      if (tableTransposes(m, t)) projectedTables[t] = 1; else detectedOnlyTables[t] = 1;
     });
-    var tableCount = Object.keys(tablesUsed).length;
-    if (tableCount) warn.push(tableCount + ' LSDj table' + (tableCount > 1 ? 's' : '') +
+    var projectedCount = Object.keys(projectedTables).length;
+    if (projectedCount) warn.push(projectedCount + ' LSDj table' + (projectedCount > 1 ? 's' : '') +
       ' projected approximately from transpose rows; table commands, envelopes, ' +
       'groove timing and note retriggers are not fully preserved');
+    var detectedOnlyCount = Object.keys(detectedOnlyTables).length;
+    if (detectedOnlyCount) warn.push(detectedOnlyCount + ' enabled LSDj table' +
+      (detectedOnlyCount > 1 ? 's' : '') + ' carry only volume/command modulation with no ' +
+      'transpose; they are detected but not executed by this document projection');
     // Commands we do not act on, counted rather than silently dropped.
     var unknownCmds = {}, emptyCommands = {};
     for (ch = 0; ch < 4; ch++) arrangement[ch].forEach(function (n) {
@@ -1310,7 +1347,7 @@
     readSong: readSong, writeSong: writeSong, coverage: coverage, playedNotes: playedNotes,
     sequenceRows: sequenceRows, arrangementRows: arrangementRows,
     decodeCommand: decodeCommand, encodeCommand: encodeCommand,
-    expandTables: expandTables, tableOf: tableOf,
+    expandTables: expandTables, tableOf: tableOf, tableTransposes: tableTransposes,
     parseLsdsng: parseLsdsng, parseSav: parseSav, toSongJSON: toSongJSON
   };
   G.CT_LSDJ = API;

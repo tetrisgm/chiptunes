@@ -131,3 +131,28 @@ Remaining review points:
   details would be easier to read; no such redesign has landed.
 - No change here establishes native instrument, table, command or editing
   parity, or an aesthetic listening verdict for the composition changes.
+
+## 2026-09-06 follow-through
+
+The duration overlap above is now reproduced and fixed locally. The relevant
+control is the visible `.pb-voldial`, not hidden legacy `#pbVolume`. The final
+CSS rules forced an LCD minimum width larger than its grid track; at 1280px
+the volume pill painted over the duration. Removing that minimum lets the LCD
+shrink inside its track. The new `verify-player-readability.js` checks 1200,
+1280, 1440 and 1600px and captures screenshots. Before/after 1280px screenshots
+were inspected; the full duration is now visible to the left of the dial.
+
+Create now has a two-line primary interpretation, a native disclosure retaining
+the complete reading, and a count of unapplied requests visible even while
+details are closed. The disclosure body scrolls independently. A long phone
+prompt is tested with keyboard-open and click-close, while the transport stays
+on screen. Compact visible text explains in-editor Play and the Copy link
+listening/sharing path; closing still returns to the prior context.
+
+Focused screenshots: `/tmp` resolves to the session paths printed by the tests;
+this run used
+`/var/folders/tq/_6yt1vp555qcj2jwgxmz060w0000gn/T/chiptunes-player-read-wBheng`
+and the final full-suite captures used
+`/var/folders/tq/_6yt1vp555qcj2jwgxmz060w0000gn/T/chiptunes-player-read-w7QRix`.
+These are local Chromium results, not real phone or native Safari verification.
+Deployed Safari acceptance and native sound/editing parity remain pending.

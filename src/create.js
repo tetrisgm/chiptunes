@@ -1040,9 +1040,34 @@
   // Mood chips and written prompts share the public interpreter. A failed
   // request is reported before replacing the current document.
   var promptError = '';
-  function promptFeedback(text) {
+  // The reading arrives as two parts: the interpretation the writer asked for,
+  // which they want to see, and the caveats about what could NOT be applied,
+  // which they want only when something reads wrong. One 3.8em scroll box on a
+  // phone buried the first behind the second. Show the primary line always and
+  // fold the caveats into an expandable summary. A plain string -- an error,
+  // say -- is shown as the primary line alone, unchanged from before.
+  function promptFeedback(msg) {
     var el = root && root.querySelector('.n-prompt-result');
-    if (el) el.textContent = text || '';
+    if (!el) return;
+    el.textContent = '';
+    if (!msg) return;
+    var primary = typeof msg === 'string' ? msg : (msg.primary || '');
+    var detail = typeof msg === 'string' ? '' : (msg.detail || '');
+    var p = document.createElement('p');
+    p.className = 'npr-primary';
+    p.textContent = primary;
+    el.appendChild(p);
+    if (detail) {
+      var d = document.createElement('details');
+      d.className = 'npr-more';
+      var sm = document.createElement('summary');
+      sm.textContent = (typeof msg === 'string' ? '' : msg.summary) || 'Full interpretation';
+      var body = document.createElement('p');
+      body.className = 'npr-detail';
+      body.textContent = detail;
+      d.appendChild(sm); d.appendChild(body);
+      el.appendChild(d);
+    }
   }
 
   // The dice and the mood box compose a REAL track: the same composer the
@@ -1075,7 +1100,7 @@
     dirty();
     startPlayback(0);   // after dirty: its clearTimeout cancels the queued repost,
                         // which used to seek past the song's first notes
-    promptFeedback(made.reading);
+    promptFeedback({ primary: made.readingPrimary || made.reading, detail: made.readingDetail || '', summary: made.readingSummary });
     return true;
   }
   // Fill the CURRENT state from a composed Score. Everything here reads S, so
@@ -1220,10 +1245,26 @@
       if (!r.ok) { promptError = r.error; return null; }
       var made = songOf(r.doc);
       if (!made) throw new Error('That request produced no playable notes.');
-      made.reading = 'Read as: ' + r.applied.join('; ');
+      // Split the reading so the panel shows a concise interpretation first and
+      // the rest on demand: a long brief (many traits + unsupported words) must
+      // not grow the status panel until it pushes the transport off a phone.
+      // The primary names the first few traits with a "+N more" count; the full
+      // list and the caveats live in the disclosure. `reading` stays the
+      // one-line form other callers (and existing tests) already read.
+      var applied = r.applied || [];
+      var shown = applied.slice(0, 3);
+      var extra = applied.length - shown.length;
+      made.readingPrimary = 'Read as: ' + shown.join(', ') + (extra > 0 ? ' +' + extra + ' more' : '');
       var gaps = (r.skipped || []).concat(r.notUnderstood || []);
       (r.unsupported || []).forEach(function (u) { gaps.push(u.asked + ': ' + u.why); });
-      if (gaps.length) made.reading += '. Not applied: ' + gaps.join('; ');
+      var detailBits = [];
+      // Always retain the full reading: even one long reference description
+      // can exceed the primary's two-line display on a phone.
+      if (applied.length) detailBits.push('Read as: ' + applied.join('; '));
+      if (gaps.length) detailBits.push('Not applied: ' + gaps.join('; '));
+      made.readingDetail = detailBits.join('. ');
+      made.readingSummary = gaps.length ? gaps.length + ' not applied · full interpretation' : 'Full interpretation';
+      made.reading = 'Read as: ' + applied.join('; ') + (gaps.length ? '. Not applied: ' + gaps.join('; ') : '');
       made.interpretation = r;
       return made;
     } catch (e) { promptError = String(e.message || e); return null; }
@@ -2253,7 +2294,10 @@
       '<div class="n-utils">' +
         '<button type="button" class="cr-btn" data-cr="undo">↩ Undo</button>' +
         '<button type="button" class="cr-btn" data-cr="redo">↪ Redo</button>' +
-        '<button type="button" class="cr-btn cr-dl" data-cr="share">' + _ic('share') + 'Copy link</button>' +
+        // The link is how a song made here is kept and heard elsewhere: closing
+        // the editor returns to the game/landing rather than handing this edit
+        // to the station, so the durable "listen to this" path is the link.
+        '<button type="button" class="cr-btn cr-dl" data-cr="share" aria-describedby="n-listenhelp" title="Copy a link that plays this exact song \u2014 how you keep it and listen anywhere">' + _ic('share') + 'Copy link</button>' +
         '<button type="button" class="cr-btn cr-dl" data-cr="wav">' + _ic('wave') + 'Download WAV</button>' +
         '<button type="button" class="cr-btn cr-dl" data-cr="rom">' + _ic('rom') + 'Download ROM</button>' +
         // For the people who write on the hardware: an arrangement to open in
@@ -2261,6 +2305,10 @@
         '<button type="button" class="cr-btn cr-dl" data-cr="lsdsng" title="One LSDj song: notes, phrases, chains, tempo and groove, ready to keep writing">' + _ic('rom') + 'Download LSDj</button>' +
         '<button type="button" class="cr-btn cr-dl" data-cr="midi" title="Standard MIDI, one track per voice">' + _ic('wave') + 'Download MIDI</button>' +
       '</div>' +
+      // COMPACT VISIBLE LISTEN HELP. A tooltip does not show on a touch screen,
+      // so the two ways to hear or keep a song are stated as plain, visible
+      // text. This changes no close/play behaviour; it only names them.
+      '<p class="n-listenhelp" id="n-listenhelp">\u25B6 plays this song here. <b>Copy link</b> keeps it to play or share anywhere.</p>' +
       // CLOSE IS AN X IN THE CORNER, not a labelled button in the utility row.
       // It is the one control that LEAVES, every sheet puts it top-right, and
       // as a worded pill it read as one more export action. Outside both rows
@@ -2286,7 +2334,7 @@
       '<div class="n-transport">' +
         '<div class="n-tctrl">' +
           '<button type="button" class="n-tbtn" data-cr="rewind" title="Back to the start">' + _pb('prev') + '</button>' +
-          '<button type="button" class="n-tbtn n-play" data-cr="play" title="Play / Pause" aria-label="Play song" aria-pressed="false">' + _pb('play') + '</button>' +
+          '<button type="button" class="n-tbtn n-play" data-cr="play" title="Play this song / Pause" aria-label="Play song" aria-pressed="false">' + _pb('play') + '</button>' +
         '</div>' +
         '<button type="button" class="n-tfollow' + (camFollow ? ' on' : '') + '" data-cr="follow" ' +
           'title="Keep the view on the music">Follow</button>' +

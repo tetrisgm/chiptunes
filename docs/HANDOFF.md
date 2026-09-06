@@ -3,6 +3,121 @@
 Plain, current working notes for whoever (or whatever) picks the project up
 next. Infrastructure and operations live outside this repository.
 
+## 2026-09-06 — Claude-coordinated UI and native-observer checkpoint
+
+Owner requested the remaining work through Claude using parallel workers.
+Five local Claude Code workers prepared patches/reviews; Codex reviewed and
+applied them centrally in this shared checkout. Initial OAuth failures and a
+GitHub connection reset cleared on recheck; the pull then reported up to date.
+Claude later returned `You've hit your session limit`, reset reported as
+23:20 Europe/Paris. No cloud task, ROM upload, deployment, app restart,
+infrastructure change, or persistent job was created.
+
+### Ready changes
+
+- The visible player volume control is `.pb-voldial`, NOT the hidden legacy
+  `#pbVolume` button. The duration was visibly occluded at 1280px because the
+  LCD's 420px minimum width (300px in a narrower rule) overflowed its grid
+  track. Both floors are now zero; the flex item can shrink inside its track.
+  `verify-player-readability.js` checks the actual visible control at 1200,
+  1280, 1440 and 1600px. Before/after screenshots were inspected, not merely
+  bounding boxes. This was local Chromium, not deployed/native Safari proof.
+- Create prompt feedback shows a bounded primary interpretation and an
+  expandable full reading. Unapplied requests are counted in the disclosure
+  label even when additional successful traits are also collapsed. Every
+  full reading remains available, including a single long reference that
+  exceeds two phone lines. The legacy `reading` string remains intact for
+  API consumers. Visible listen/copy-link help replaces tooltip-only guidance.
+  The new browser test exercises a long phone prompt, keyboard/click disclosure,
+  visible transport and cold Create close returning to landing. It does not
+  introduce a new handoff-to-player behavior or implicit playback on close.
+- `tableOf` detects enabled table data across all five mapped columns, not
+  just transpose. `tableTransposes` separately gates the existing approximate
+  arpeggio projection. Command-only/other non-transpose tables are warned as
+  detected but not executed. Empty-table handling is unchanged; this does not
+  establish that a native enabled all-zero table is semantically inert.
+  `verify-lsdj-table-detection.js` covers disabled, command-only, transpose,
+  empty and table-free cases and verifies projection does not mutate input.
+- `tools/lsdjwrites.c` wraps AND forwards mGBA's CPU `store8` to record every
+  FF10..FF3F store in order, with a uint64 global timestamp, frame index and
+  double-speed flag. It attaches after boot but before START so onset writes
+  are included. It uses the immutable save helper, restores the callback
+  before deinit, validates model/frame arguments, and exits nonzero on capture
+  overflow. Synthetic selftests cover recorder order, >2^32 timestamps,
+  overflow flagging and basic hook forwarding/filtering. The hook selftest
+  checks the final forwarded event, not every forwarded value.
+  `verify-lsdj-write-observer.js` additionally captures the owner's ROM's
+  same-frame NR12 09/11/18 sequence after onset on DMG AND CGB, with no
+  retrigger within that burst; checks CSV ordering/format, input immutability,
+  missing-save behavior and invalid arguments. This proves observed driver
+  write order, NOT correct physical envelope volume or cycle accuracy. The
+  mGBA decay-volume limitation remains; no native-envelope mapping landed.
+
+The new tests are included in `npm test`; both native tests are also in
+`test:lsdj`. The write observer uses optional `LSDJ_WRITES` and `LSDJ_ROM`;
+explicitly supplied unusable paths fail (the binary selftest runs before the
+ROM check). This session compiled the observer with installed mGBA headers:
+`/tmp/chiptunes-claude-52kTdZ/lsdjwrites`.
+
+### Verification of this checkpoint
+
+The full `npm test` run completed with exit 0, including the native observer
+on both DMG and CGB (not skipped). Environment used the owner's local ROM,
+`LSDJPLAY` and `LSDJ_TRACE` from `/tmp/chiptunes-envelope-safe.rNmG2i/`, and
+`LSDJ_WRITES=/tmp/chiptunes-claude-52kTdZ/lsdjwrites`. Complete log:
+`/tmp/chiptunes-claude-52kTdZ/full-ready.log`. The separate broadcast render
+parity check also exited 0: 10/10, minimum correlation 1.000000, zero-sample
+lag, maximum absolute RMS difference 0.175 dB. Log:
+`/tmp/chiptunes-claude-52kTdZ/parity-ready.log`.
+
+Verified local artifact: `dist/app.02d62de91078.js`. Nothing was deployed.
+Final player/prompt screenshots are in
+`/var/folders/tq/_6yt1vp555qcj2jwgxmz060w0000gn/T/chiptunes-player-read-w7QRix/`;
+responsive screenshots are in the sibling `chiptunes-responsive-Dntkn8/`.
+These temporary screenshots and logs are not durable repository artifacts.
+
+### Deferred Claude drafts — not in the product or claimed complete
+
+Session files, proposals and review requests are under
+`/tmp/chiptunes-claude-52kTdZ/`. These are temporary; this handoff records the
+substantive blockers so resumption does not depend on those files surviving.
+
+1. Composition worker `9c81e763-f240-497f-a1ee-0a63e1a680eb` proposed energy,
+   density and motion premise dials. Neutral output and existing language/API
+   tests passed, but the new test failed for bare `a sparse song`: interpreter
+   classified it as a change with no document, bypassing the premise. Motion
+   changed legacy lead-motif metadata and walking bass, not the actual modern
+   lead generator. Zero-valued cancelling explicit axes were wrongly treated
+   as unowned, and reference transforms still vanished wholesale when explicit
+   moods were present. The D-minor mood-override fix covered only briefs, not
+   all actual new-song/existing-edit paths. Requested revision includes actual
+   `src/melody.js` generation, axis-presence tracking, semantic reference merge,
+   explicit typed constraints and deterministic fixed-token tests. Claude hit
+   its limit before returning that revision. ALL provisional composer/API
+   changes and the new character test were removed from the checkout; HEAD's
+   previously verified genre/mode fix remains. No mood overhaul has landed.
+2. Native-document worker `2ef67966-afd6-4ccf-935b-49fa22171fe2` proposed a
+   private raw-slot authoring model, atomic edits/undo and versioned shares.
+   Reviewed revisions added strict index validation and a bounded canonical
+   compressed-stream decoder, because the old codec decoder can loop forever
+   on hostile block jumps and pads truncated output. Generic hardware-envelope
+   behavior and structural byte coverage must never be labelled native playback
+   support. The final draft passed focused tests and 12 extra high-entropy full
+   share roundtrips, but a valid large diff serialized to 318819 characters and
+   failed its own 262144-character input limit. Requested full-share fallback
+   plus worst-case escaping/large-edit tests was blocked by Claude's limit.
+   Module and test are preserved as `deferred-lsdj-native-document.js` and
+   `deferred-verify-lsdj-native-document.js` outside the repo, NOT integrated.
+   Next integration must keep actual native state authoritative; retaining an
+   original image beside an independently editable flattened doc would export
+   stale data. Phrase/chain/table/instrument UI and playback remain open.
+
+Remaining full objective: mood/keyword composition overhaul and listening
+review; complete native sound, sequencing, editing and lossless edit/export
+parity; no extra Chiptunes-only musical capabilities; final UI/Safari acceptance.
+Byte-matching decompilation remains postponed. Do not conflate this checkpoint
+with that final objective.
+
 ## 2026-09-05 — explicit genre/mode checkpoint
 
 Named composer styles now accept either explicit major or minor. The style's

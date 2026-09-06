@@ -1003,9 +1003,34 @@
   #createscreen .n-moodchips{ display:flex; flex:0 0 auto; gap:7px; }
   #createscreen .n-prompt{ display:flex; flex:0 0 auto; gap:8px; padding:0 18px 6px; }
   #createscreen .n-prompt .cr-mood{ flex:1; min-width:0; width:auto; }
-  #createscreen .n-prompt-result{ flex:0 0 auto; max-height:3.8em; overflow:auto;
-    padding:0 18px 6px; color:var(--ink); font:12px/1.5 var(--ui); }
+  /* THE READING IS TWO THINGS: the interpretation a person asked for, which
+     they want to see, and the caveats about what could not be applied, which
+     they want only when something reads wrong. One 3.8em scroll box buried the
+     first behind the second on a phone. The primary line now stays in view; the
+     caveats fold into an expandable summary with its own bounded scroll. */
+  #createscreen .n-prompt-result{ flex:0 0 auto; padding:0 18px 6px;
+    color:var(--ink); font:12px/1.5 var(--ui); }
   #createscreen .n-prompt-result:empty{ display:none; }
+  /* The primary reading is bounded to two lines so a long brief (many traits
+     plus unsupported words) cannot grow the status panel until it pushes the
+     transport off a phone. The full list and the caveats live in the
+     disclosure below, which has its own bounded scroll. */
+  #createscreen .npr-primary{ margin:0; display:-webkit-box; -webkit-line-clamp:2;
+    -webkit-box-orient:vertical; overflow:hidden; }
+  #createscreen .npr-more{ margin-top:3px; }
+  #createscreen .npr-more > summary{ cursor:pointer; color:var(--ink-2);
+    font-weight:600; list-style:none; }
+  #createscreen .npr-more > summary::-webkit-details-marker{ display:none; }
+  #createscreen .npr-more > summary::before{ content:'\25B8  '; }
+  #createscreen .npr-more[open] > summary::before{ content:'\25BE  '; }
+  #createscreen .npr-detail{ margin:3px 0 0; max-height:3.8em; overflow:auto;
+    color:var(--ink-2); }
+  /* Compact, always-visible listen help: a tooltip does not appear on touch,
+     so the way to hear or keep a song is stated as plain text. Muted and
+     one-line; the flex column's #createscreen .n-mid absorbs its height. */
+  #createscreen .n-listenhelp{ flex:0 0 auto; margin:0; padding:0 18px 6px;
+    color:var(--ink-2); font:500 11px/1.4 var(--ui); }
+  #createscreen .n-listenhelp b{ color:var(--ink); font-weight:650; }
   #createscreen .cr-chip{ height:36px; padding:0 16px; border-radius:999px; cursor:pointer; flex:0 0 auto;
     background:rgba(255,255,255,.08); border:1px solid var(--mat-edge-hi); color:var(--ink); font:700 13px var(--ui); }
   #createscreen .cr-chip:hover{ background:rgba(123,220,160,.2); border-color:rgba(123,220,160,.6); }
@@ -2709,7 +2734,11 @@
   body.ai-visual #playbar .pb-center .pb-ctrl{
     position:static !important; order:2; left:auto !important; bottom:auto !important;
     transform:none !important; width:auto !important; flex:1 1 auto;
-    min-width:420px !important; opacity:1 !important;
+    min-width:0 !important; opacity:1 !important;   /* NOT 420: a hard floor here
+      pushed the LCD wider than its grid column at ~1280, so the total-time
+      label overflowed rightward and printed under the opaque volume dial.
+      flex-grow already fills the column; 0 lets it also shrink to fit, which
+      keeps #pbTotal inside the column and clear of .pb-voldial. */
     background:var(--mat) !important; border:1px solid var(--mat-edge) !important;
     box-shadow:var(--mat-shadow) !important;
     backdrop-filter:var(--mat-blur) !important;
@@ -2738,7 +2767,7 @@
     body.ai-visual #playbar .pb-right .pb-voldial input[type=range]{ display:block !important; width:105px !important; min-width:105px; }
     body.ai-visual #playbar .pb-left{ width:min(320px,28vw); }
     body.ai-visual #playbar.show{ grid-template-columns:minmax(260px,320px) minmax(0,1fr) auto !important; column-gap:10px !important; }
-    body.ai-visual #playbar .pb-center .pb-ctrl{ min-width:300px !important; }
+    body.ai-visual #playbar .pb-center .pb-ctrl{ min-width:0 !important; }
   }
 
   /* Phone layout. These rules deliberately live last: the desktop player has
