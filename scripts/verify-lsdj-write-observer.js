@@ -96,6 +96,19 @@ function parse(stdout) {
   }
   return rows;
 }
+// Timing diagnostics parser: stderr carries key=value TIMING lines; stdout CSV is
+// parsed separately by parse() above and is unaffected.
+function parseTiming(stderr) {
+  const t = {};
+  for (const line of stderr.split('\n')) {
+    if (!line.startsWith('TIMING ')) continue;
+    for (const kv of line.slice(7).trim().split(/\s+/)) {
+      const eq = kv.indexOf('=');
+      if (eq !== -1) t[kv.slice(0, eq)] = kv.slice(eq + 1);
+    }
+  }
+  return t;
+}
 // The measured legacy-81 manual update is a model-independent write sequence:
 // the ROM emits the same NR12 09/11/18 triple whether or not the model's decay
 // interprets it the same way, so require it under BOTH models.
@@ -136,9 +149,70 @@ function check(model) {
   // volume update, not a re-onset.
   for (let i = lo; i <= hi; i++)
     assert(!(rows[i].reg === 0x14 && (rows[i].val & 0x80)), 'no retrigger within the manual-update burst');
+
+  // Timing calibration diagnostics live on stderr; the stdout CSV above is
+  // unchanged. Verify they are well-formed and model-consistent, then return the
+  // measured ticks-per-frame for the empirical cross-model comparison below.
+  const t = parseTiming(res.stderr);
+  assert.strictEqual(t.model, actual, 'timing diagnostics must report the actual model');
+  const field = (k) => { assert(/^\d+$/.test(t[k]), 'timing ' + k + ' must be an integer: ' + t[k]); return Number(t[k]); };
+  const freq = field('freq'), frameCycles = field('frameCycles');
+  assert(freq > 0 && frameCycles > 0, 'freq and frameCycles must be positive');
+  const leadFrames = field('leadFrames'), playFramesReported = field('playFrames');
+  const captureFrames = field('captureFrames'), windowFrames = field('windowFrames');
+  assert.strictEqual(playFramesReported, 240, 'reported playFrames must match the request');
+  assert.strictEqual(windowFrames, 240, 'stable window must span the play phase');
+  assert(windowFrames >= 60, 'stable window must be at least 60 frames');
+  assert.strictEqual(captureFrames, leadFrames + playFramesReported, 'captureFrames must equal lead + play');
+  // The measured lead is what the analyzer should consume instead of hardcoding 24.
+  assert(leadFrames > 0, 'measured lead must be positive');
+  assert.strictEqual(leadFrames, 24, 'current press/release schedule leads by 24 frames');
+  // Raw ticks must be nondecreasing across the capture and telescope exactly.
+  const startTick = BigInt(t.captureStartTick), playTick = BigInt(t.playStartTick), endTick = BigInt(t.captureEndTick);
+  assert(playTick >= startTick && endTick >= playTick, 'raw ticks must be nondecreasing across the capture');
+  assert.strictEqual(BigInt(t.captureTickDelta), endTick - startTick, 'captureTickDelta must be end-start');
+  assert.strictEqual(BigInt(t.windowTickDelta), endTick - playTick, 'windowTickDelta must span the play phase');
+  // Empirical ticks per video frame: min <= ratio <= max, all positive.
+  const tpfMin = BigInt(t.ticksPerFrameMin), tpfMax = BigInt(t.ticksPerFrameMax);
+  assert(tpfMin > 0n && tpfMax >= tpfMin, 'ticks-per-frame bounds must be positive and ordered');
+  const parts = t.ticksPerFrameRatio.split('/');
+  assert.strictEqual(parts.length, 2, 'ticksPerFrameRatio must be a rational num/den: ' + t.ticksPerFrameRatio);
+  const rn = BigInt(parts[0]), rd = BigInt(parts[1]);
+  assert(rn > 0n && rd > 0n, 'ticks-per-frame ratio must be a positive rational');
+  const tpf = Number(rn) / Number(rd);
+  assert(tpf >= Number(tpfMin) - 1 && tpf <= Number(tpfMax) + 1, 'ratio must lie within the observed min/max');
+  // ds must be model-consistent: DMG never enters double-speed.
+  const dsFirst = field('dsFirst'), dsLast = field('dsLast'), dsChanges = field('dsChanges');
+  assert(dsFirst === 0 || dsFirst === 1, 'dsFirst must be a flag');
+  assert(dsLast === 0 || dsLast === 1, 'dsLast must be a flag');
+  const firstDsChangeFrame = Number(t.firstDsChangeFrame);
+  assert(Number.isInteger(firstDsChangeFrame) && firstDsChangeFrame >= -1 && firstDsChangeFrame < captureFrames,
+    'firstDsChangeFrame must be -1 or a valid frame index');
+  if (actual === 'DMG') {
+    assert(dsFirst === 0 && dsLast === 0 && dsChanges === 0, 'DMG must never enter double-speed');
+    assert.strictEqual(firstDsChangeFrame, -1, 'DMG must report no ds transition');
+  }
+  return { actual, freq, frameCycles, tpf, dsWindow: dsLast, impliedFps: freq / frameCycles };
 }
-check('DMG');
-check('CGB');
+const dmg = check('DMG');
+const cgb = check('CGB');
+
+// Cross-model calibration: compare the two models EMPIRICALLY instead of
+// hardcoding a physical tick unit from the double-speed flag. Physically the raw
+// mTiming ticks per video frame can differ only by a small GB clock rational, so
+// we assert the ratio is ~1 or ~2 and REPORT which -- together with the observed
+// ds -- so the unit is labeled from BOTH models, never claimed cycle-exact from a
+// single flag. Whether the flag changes the tick UNIT is exactly what one flag
+// cannot prove, so no coupling between ds and the ratio is asserted here.
+const near = (a, b, tol) => Math.abs(a - b) <= tol;
+const ratio = cgb.tpf / dmg.tpf;
+assert(isFinite(ratio) && ratio > 0, 'cross-model ticks-per-frame ratio must be finite and positive');
+const isOne = near(ratio, 1, 0.02), isTwo = near(ratio, 2, 0.05);
+assert(isOne || isTwo, 'cross-model ticks/frame ratio must be a GB clock rational (~1 or ~2): ' + ratio);
+const unit = isTwo ? '2x between models (CPU-clock-like)' : '1x between models (video-clock-like)';
+console.log('TIMING cross-model: DMG tpf=' + dmg.tpf + ' ds=' + dmg.dsWindow +
+  ', CGB tpf=' + cgb.tpf + ' ds=' + cgb.dsWindow + ', ratio=' + ratio.toFixed(4) +
+  ' -> raw mTiming ticks scale ' + unit + ', inferred from BOTH models not the ds flag');
 
 // Negative and malformed frame arguments must exit 2 (parsed before the ROM).
 for (const arg of ['-5', '12x', '', '1e3', '99999999999999999999']) {
@@ -160,6 +234,7 @@ const bad = cp.spawnSync(writes, [rom, file, '400', '1'], {
 });
 assert.strictEqual(bad.status, 2);
 
-console.log('PASS write observer: self-test, DMG+CGB 09/11/18 same-frame burst after onset with no retrigger, ' +
-  'strict CSV, contiguous indices, ordered time, nondecreasing frames, model-consistent ds, ' +
+console.log('PASS write observer: self-test (recorder/hook-forward-both/timing), DMG+CGB 09/11/18 same-frame ' +
+  'burst after onset with no retrigger, strict CSV, contiguous indices, ordered time, nondecreasing frames, ' +
+  'model-consistent ds, well-formed timing diagnostics, empirical cross-model tick ratio, ' +
   'immutable/missing/invalid-model/bad-frame-args; ' + dir);

@@ -219,25 +219,67 @@
   // the project's first block inside a .sav, where jumps are absolute.
   function decompress(bytes, base) {
     base = base == null ? 1 : base;
+    // The base is the 1-based block this buffer starts at (1 for a bare song,
+    // the project's first block inside a .sav). It drives the jump arithmetic,
+    // so a bad base would silently relocate every jump; reject it up front.
+    if (!Number.isInteger(base) || base < 1 || base > BLOCK_COUNT)
+      throw new Error('lsdj: decompress base out of range');
     var out = [], i = 0, j, k;
-    while (i < bytes.length && out.length < SONG_BYTES) {
+    // Hostile or corrupt input must terminate and be rejected, never hang or pad
+    // silently. Real block jumps -- especially inside a .sav, where they are
+    // absolute -- may be noncontiguous or point at an earlier block, so a jump is
+    // not wrong for going backward, for skipping a block number, or for not
+    // matching our own compressor's contiguous block+1 output. What a valid
+    // stream never does is re-enter a block it has already been in: the chain of
+    // blocks is a finite simple path that ends in EOF. Recording every block we
+    // enter -- the starting block (offset 0) included -- rejects exactly the
+    // cyclic streams the old decoder looped forever on, and leaves every acyclic
+    // layout untouched.
+    var visited = { 0: 1 }, ended = false, truncated = false;
+    while (i < bytes.length) {
       var b = bytes[i++];
       if (b === RLE) {
+        if (i >= bytes.length) { truncated = true; break; }
         var v = bytes[i++];
         if (v === RLE) out.push(RLE);
-        else { var cnt = bytes[i++]; for (j = 0; j < cnt; j++) out.push(v); }
+        else {
+          if (i >= bytes.length) { truncated = true; break; }
+          var cnt = bytes[i++]; for (j = 0; j < cnt; j++) out.push(v);
+        }
       } else if (b === SA) {
+        if (i >= bytes.length) { truncated = true; break; }
         var a = bytes[i++];
         if (a === SA) out.push(SA);
-        else if (a === DEF_WAVE) { var wc = bytes[i++]; for (j = 0; j < wc; j++) for (k = 0; k < 16; k++) out.push(DEFAULT_WAVE[k]); }
-        else if (a === DEF_INST) { var ic = bytes[i++]; for (j = 0; j < ic; j++) for (k = 0; k < 16; k++) out.push(DEFAULT_INSTRUMENT[k]); }
-        else if (a === EOF_BLOCK) break;
-        else i = (a - base) * BLOCK;           // jump to that block, 1-based
+        else if (a === DEF_WAVE) {
+          if (i >= bytes.length) { truncated = true; break; }
+          var wc = bytes[i++]; for (j = 0; j < wc; j++) for (k = 0; k < 16; k++) out.push(DEFAULT_WAVE[k]);
+        } else if (a === DEF_INST) {
+          if (i >= bytes.length) { truncated = true; break; }
+          var ic = bytes[i++]; for (j = 0; j < ic; j++) for (k = 0; k < 16; k++) out.push(DEFAULT_INSTRUMENT[k]);
+        } else if (a === EOF_BLOCK) { ended = true; break; }
+        else {
+          var target = (a - base) * BLOCK;           // jump to that block, 1-based
+          if (target < 0 || target >= bytes.length)
+            throw new Error('lsdj: block jump out of range');
+          if (visited[target]) throw new Error('lsdj: cyclic block jump');
+          visited[target] = 1;
+          i = target;
+        }
       } else out.push(b);
+      // An event that writes past the song is corrupt. Slicing it to fit would
+      // silently accept that corruption, so reject the overrun instead.
+      if (out.length > SONG_BYTES)
+        throw new Error('lsdj: decompressed output overruns a song image');
     }
-    var song = new Uint8Array(SONG_BYTES);
-    song.set(out.slice(0, SONG_BYTES));
-    return song;
+    // A complete song is exactly SONG_BYTES followed by an EOF marker -- which is
+    // what our compressor (and liblsdj's) emit. A stream that ran out mid-operand
+    // or without an EOF is truncated; an EOF that arrives before the song is full
+    // is short. Neither is accepted merely because the old decoder padded it.
+    if (truncated || !ended)
+      throw new Error('lsdj: truncated compressed stream');
+    if (out.length !== SONG_BYTES)
+      throw new Error('lsdj: compressed stream ended at ' + out.length + ' of ' + SONG_BYTES + ' bytes');
+    return Uint8Array.from(out);
   }
 
   function emptySong() { return decompress(b64bytes(EMPTY_B64)); }
