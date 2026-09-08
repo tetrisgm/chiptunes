@@ -12,6 +12,22 @@ to that project. TextText's database was not used. Clerk Hobby installation is
 blocked on marketplace terms acceptance; the owner has been given the acceptance
 link. No terms were accepted by the agent and no paid plan was selected.
 Production deployment remains disabled pending real Clerk setup and acceptance.
+The shared Create artifact is deployed at
+https://chiptunes-agent-gateway.vercel.app/create#music (deployment
+dpl_GEk6xpFvsXgEHqy9Zgs8y41R3kfj). Agent APIs deliberately return 503 without
+Clerk. Public HTTP checks confirm Create 200/no-store and both protected endpoints
+503/no-store. This is hosting verification, not completed OAuth acceptance.
+Deployed Chromium smoke passed with visible build fde1f8c919a3 and an honest
+unconfigured Connect state. No native Safari or real OAuth acceptance is claimed.
+`.vercelignore` is a deny-by-default upload allowlist, dry-run verified as 201
+files / 5,093,996 bytes with required sources present and private/local artifacts
+excluded. The initial oversized upload was interrupted; a subsequent overly
+restrictive allowlist failed before build, then the corrected allowlist deployed.
+Final local packaging excludes stale dist/lib files that are neither source-backed
+nor declared build outputs; local and deployed public manifests now match (25
+files). This packaging-only follow-up does not change the deployed app artifact.
+Implementation checkpoint is 1701dfb on origin/main. TextText private draft
+Notes/Chiptunes changelog.textpack records that checkpoint exactly once.
 
 Clerk SDK authentication now uses standard OAuth identities, not a custom song
 grant claim. Durable connection lifecycle and opt-in browser Connect controller

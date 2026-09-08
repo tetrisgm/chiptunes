@@ -20,6 +20,12 @@ async function copy(relative){
   if(stat.isSymbolicLink())throw Error('Refusing symlink in studio assets');
   if(stat.isDirectory()){for(const child of await fs.readdir(source))await copy(relative+'/'+child);return;}
   if(!stat.isFile())throw Error('Unexpected studio asset');
+  // Old local dist/lib files are not build inputs. Only source-backed libraries
+  // and the three generated compiler/worklet outputs belong in this artifact.
+  if(relative.startsWith('lib/')&&!['lib/music-code-editor.js','lib/music-code-editor.LICENSE.txt','lib/gb-chip-worklet.js'].includes(relative)){
+    try{const input=await fs.lstat(path.join(root,'src',relative));if(!input.isFile()||input.isSymbolicLink())return;}
+    catch(e){if(e.code==='ENOENT')return;throw e;}
+  }
   await fs.mkdir(path.dirname(target),{recursive:true});
   try{await fs.copyFile(source,target,fs.constants.COPYFILE_EXCL);}catch(e){throw Error('Refusing to overwrite non-generated studio asset: '+relative);}
   files.push(relative);
