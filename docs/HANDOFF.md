@@ -3,6 +3,42 @@
 Plain, current working notes for whoever (or whatever) picks the project up
 next. Infrastructure and operations live outside this repository.
 
+## 2026-09-08 — Source-backed Create workspace (implementation in progress)
+
+Owner's complete request is retained in `docs/create-workspace-plan.md`.
+The fidelity audit reproduces losses in readable/packed legacy representations;
+the new restricted language preserves the concrete performance instead of
+round-tripping it through those representations. `music-language.js` and
+`music-project.js` provide bounded parsing, exact events/assets, shorthand
+patterns, source mapping, atomic revisions/recovery, scoped proposals and locks.
+No arbitrary source execution or second composer/runtime was added.
+
+Focused checks: 18 fidelity characterization groups, 16 language groups and 19
+project groups pass. Generated concrete source is readable one-event/asset-row
+per line; a representative song is 83,097 characters / 816 lines. Compiler
+limits are 1,048,576 UTF-16 characters and 216,000 GB frames. Source mapping uses
+indexed line lookup, and compilation/Notes/boundaries use a shared clock.
+
+CodeMirror 6 is locally bundled under MIT with transitive dependency licenses.
+Initial browser flow passed invalid-draft reload, editing, revision undo/redo,
+Notes mapping, actual playback acknowledgment and mobile layout. Additional
+live/proposal/share browser checks and final regressions are still running.
+Native Playwright `fill`/`insertText` on a large multiline contenteditable can
+stall Chromium native layout; actual clipboard paste goes through CodeMirror's
+bounded document transaction. Do not mistake the former for the latter.
+
+Real Chat remains owner-gated: there is no selected authorized model provider,
+API billing account, production authentication or public abuse/spend policy.
+`server/music-chat-handler.js` is a deny-by-default integration boundary, not a
+configured live service. Test adapters are fixtures, not real model acceptance.
+Consumer subscription credits have not been used or assumed to fund API calls.
+No deployment, release, infrastructure changes or app restart was performed.
+Listening and owner-authorized deployed real-Safari acceptance remain pending.
+
+Historical test clarification: the earlier native session's nested “all good”
+output did not establish a full `npm test` success. A fresh full suite is running
+for this workspace work; only its actual exit status will establish that gate.
+
 ## 2026-09-08 — Native structural editor completed
 
 The native LSDj structure editor is bundled and reachable from Create via Open
