@@ -7,6 +7,8 @@ const path = require('node:path');
 const E = require('../src/music-exports.js');
 const A = require('../src/gb-apu.js');
 const R = require('../src/gb-rom.js');
+const H = require('../src/gb-hardware.js');
+const CPU = require('../src/gb-cpu.js');
 const fixture = () => ({ gb: {
   totalFrames: 120,
   notes: [{ ch: 0, frame: 3, frames: 17, midi: 60, inst: 0, vel: 0.8 }],
@@ -58,6 +60,58 @@ async function main() {
   assert.deepEqual(rom.bytes, R.buildRom({ gb: c.gb })); assert.equal(rom.bytes.length, 32768);
   let checksum = 0; for (let i = 0x134; i <= 0x14c; i++) checksum = (checksum - rom.bytes[i] - 1) & 255;
   assert.equal(rom.bytes[0x14d], checksum);
+  // Real Create may append to the default 128-entry bank. Neither the WAV
+  // renderer nor ROM note encoding stores an instrument index in seven bits.
+  const appended = fixture();
+  appended.gb.auto = []; appended.gb.vibOff = []; appended.gb.waveLoads = []; appended.gb.kit = [];
+  appended.gb.bank.instruments = Array.from({ length: 129 }, () => [0, 0, 255, 0]);
+  appended.gb.bank.instruments[128] = [128, 240, 255, 0];
+  appended.gb.notes = [{ ch: 0, frame: 3, frames: 17, midi: 60, inst: 128, vel: 1, trigger: true }];
+  assert.equal(E.inspect(appended, 'wav').ok, true);
+  const appendedWav = await E.exportRevision(revision(appended), 'wav', { sampleRate: sr });
+  const appendedPcm = new Float32Array(pcm.length);
+  new A.Sequencer(appended.gb, sr).render(appendedPcm, 0, appendedPcm.length);
+  const av = new DataView(appendedWav.bytes.buffer);
+  assert(appendedPcm.some(x => x !== 0), 'index 128 must sound, not fall back to silent index 0/127');
+  appendedPcm.forEach((x, i) => { const s = Math.max(-1, Math.min(1, x)); assert.equal(av.getInt16(44 + i * 2, true), Math.round(s * (s < 0 ? 32768 : 32767)) || 0); });
+  assert.equal(E.inspect(appended, 'rom').ok, true);
+  const appendedRom = await E.exportRevision(revision(appended), 'rom');
+  assert.deepEqual(appendedRom.bytes, R.buildRom({ gb: appended.gb }));
+  const writes = [], cpu = new CPU.Cpu(appendedRom.bytes, { onIo: (reg, val) => writes.push([reg, val]) });
+  while (cpu.frame < 30) cpu.step();
+  const expected = H.noteRegisters(appended.gb.notes[0], appended.gb.bank);
+  assert(writes.some((w, i) => w[0] === 0x11 && expected.every((value, j) => writes[i + j] && writes[i + j][0] === 0x11 + j && writes[i + j][1] === value)), 'actual ROM CPU writes the appended instrument register tuple');
+  const missingInst = structuredClone(appended); missingInst.gb.notes[0].inst = 129;
+  assert.equal(E.inspect(missingInst, 'wav').ok, false, 'missing bank entries still rejected');
+  const noise = structuredClone(appended); noise.gb.notes[0].ch = 3; delete noise.gb.notes[0].midi;
+  assert.equal(E.inspect(noise, 'wav').ok, true);
+  assert.equal(E.inspect(noise, 'rom').ok, true);
+  noise.gb.notes[0].midi = null;
+  assert.equal(E.inspect(noise, 'wav').ok, true, 'explicit null noise pitch supported');
+  assert.match(E.inspect(noise, 'midi').errors.join(';'), /no MIDI pitch/);
+  await assert.rejects(E.exportRevision(revision(noise), 'midi', { allowLosses: true }), /no MIDI pitch/);
+  const overEnd = structuredClone(appended);
+  overEnd.gb.gainScalar = undefined;
+  overEnd.gb.notes[0].frames = 130;
+  overEnd.gb.vibOff = [{ f: 11.25, ch: 0 }, { f: 120, ch: 0 }];
+  assert.equal(E.inspect(overEnd, 'wav').ok, true);
+  assert.match(E.inspect(overEnd, 'rom').errors.join(';'), /beyond finite song end/);
+  await assert.rejects(E.exportRevision(revision(overEnd), 'rom'), /beyond finite song end/);
+  const endWav = await E.exportRevision(revision(overEnd), 'wav', { sampleRate: sr });
+  assert.equal(endWav.bytes.length, appendedWav.bytes.length, 'finite duration preserved without rewriting held note');
+  const endPcm = new Float32Array(pcm.length);
+  new A.Sequencer(overEnd.gb, sr).render(endPcm, 0, endPcm.length);
+  const ev = new DataView(endWav.bytes.buffer);
+  endPcm.forEach((x, i) => { const s = Math.max(-1, Math.min(1, x)); assert.equal(ev.getInt16(44 + i * 2, true), Math.round(s * (s < 0 ? 32768 : 32767)) || 0); });
+  const endMidi = await E.exportRevision(revision(overEnd), 'midi', { allowLosses: true });
+  assert(endMidi.warnings.some(w => /note-offs are capped/.test(w)));
+  assert.equal(overEnd.gb.notes[0].frames, 130, 'export does not mutate note lengths');
+  const extraWave = fixture(), romSlots = Math.max(16, H.WAVE_SLOTS || 16);
+  extraWave.gb.bank.waveTables = Array.from({ length: romSlots + 1 }, () => Array(32).fill(8));
+  extraWave.gb.waveLoads = [{ f: 15, slot: romSlots }];
+  assert.equal(E.inspect(extraWave, 'wav').ok, true);
+  assert.match(E.inspect(extraWave, 'rom').errors.join(';'), /stored wave slots/);
+  await assert.rejects(E.exportRevision(revision(extraWave), 'rom', { allowLosses: true }), /stored wave slots/);
   assert.equal(E.inspect(c, 'lsdsng').ok, false);
   const lsdjReport = E.inspect(c, 'lsdsng');
   assert(lsdjReport.errors.some(e => /automation/.test(e)));
@@ -107,9 +161,29 @@ async function main() {
   for (const file of ['gb-hardware.js', 'gb-kits.js', 'gb-apu.js', 'gb-rom.js', 'music-exports.js']) vm.runInContext(fs.readFileSync(path.join(__dirname, '../src', file), 'utf8'), ctx);
   const browserWav = await ctx.CT_MUSIC_EXPORTS.exportRevision(revision(fixture()), 'wav', { sampleRate: sr });
   assert.deepEqual(browserWav.bytes, wav.bytes);
+  const browserAppended = await ctx.CT_MUSIC_EXPORTS.exportRevision(revision(appended), 'wav', { sampleRate: sr });
+  assert.deepEqual(browserAppended.bytes, appendedWav.bytes);
   const browserMidi = await ctx.CT_MUSIC_EXPORTS.exportRevision(revision(fixture()), 'midi', { allowLosses: true });
   assert.deepEqual(browserMidi.bytes, mid.bytes);
   assert.equal(ctx.CT_MUSIC_EXPORTS.inspect(plain, 'lsdsng').ok, false);
+  // Regression against actual generated Create data, not sanitized JSON copies:
+  // specifically exercises optional undefined metadata and appended instruments.
+  const api = require('../src/api.js'), CT = require('../src/create.js');
+  const prompts = ['chill', 'happy', 'boss', 'cave', 'sad', 'title', 'battle', 'peaceful', 'fast', 'no drums'];
+  const stats = { songs: 0, maxBank: 0, noiseWithoutMidi: 0, overEndNotes: 0 };
+  for (let i = 0; i < 100; i++) {
+    const prompt = prompts[i % prompts.length], token = 'music-exports-real-' + String(i).padStart(3, '0');
+    const made = api.ask(prompt, { brief: { token } }), song = CT.songOf(made.doc);
+    assert(song && song.gb, prompt + '/' + token + ': actual song required');
+    const compiled = { gb: song.gb, settings: { tempo: song.bpm, bars: song.bars } };
+    const report = E.inspect(compiled, 'wav');
+    assert.equal(report.ok, true, prompt + '/' + token + ': ' + report.errors.join(';'));
+    assert.equal(ctx.CT_MUSIC_EXPORTS.inspect(compiled, 'wav').ok, true, 'browser accepts same generated score');
+    stats.songs++; stats.maxBank = Math.max(stats.maxBank, song.gb.bank.instruments.length);
+    stats.noiseWithoutMidi += song.gb.notes.filter(n => n.ch === 3 && n.midi == null).length;
+    stats.overEndNotes += song.gb.notes.filter(n => n.frame + n.frames > song.gb.totalFrames).length;
+  }
+  console.log('actual Create WAV inspection: ' + JSON.stringify(stats));
   console.log('verify-music-exports: PCM parity, MIDI frame times, ROM bytes, capabilities, revision isolation and bounds passed');
 }
 main().catch(e => { console.error(e); process.exitCode = 1; });

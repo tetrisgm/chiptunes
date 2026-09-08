@@ -6,6 +6,7 @@
  * gives EXACT 70224/4194304 second frame times, including compiled tempo maps.
  * Chip registers, timbres, envelopes, detune/sweep/vibrato, trigger suppression,
  * wave changes and PCM kits cannot be represented faithfully by these notes.
+ * MIDI note-offs beyond totalFrames are capped at the finite song boundary.
  * WAV is mono PCM16, clipped/rounded from the shared Sequencer, ending at the
  * finite totalFrames boundary (no added tail). opts: sampleRate (8000..96000),
  * allowLosses (strict true), yield (optional async callback between PCM chunks).
@@ -40,7 +41,7 @@
   var R = node ? require('./gb-rom.js') : G.CT_GB_ROM;
   var FPS = 4194304 / 70224;
   var LIMITS = Object.freeze({ seconds: 600, samples: 28800000, events: 100000, nodes: 1000000 });
-  var LOSS = 'MIDI preserves note frame times only: chip timbres, envelopes, noise pitch, detune, sweep, vibrato, trigger state, register automation, wave loads and PCM kits are not reproduced; velocity is quantized to MIDI.';
+  var LOSS = 'MIDI preserves note frame times only: chip timbres, envelopes, noise pitch, detune, sweep, vibrato, trigger state, register automation, wave loads and PCM kits are not reproduced; velocity is quantized to MIDI and note-offs are capped at the finite totalFrames boundary.';
   function fail(message) { throw new Error('music-exports: ' + message); }
   function integer(x, lo, hi) { return Number.isInteger(x) && x >= lo && x <= hi; }
   function lsdjErrors(g) {
@@ -59,7 +60,9 @@
     var count = 0, seen = new Set();
     function copy(v, depth) {
       if (++count > LIMITS.nodes || depth > 32) fail('compiled allocation limit');
-      if (v === null || typeof v === 'boolean') return v;
+      // CT.songOf includes optional gainScalar: undefined. Preserve that value
+      // instead of rejecting otherwise valid renderer input or JSON-coercing it.
+      if (v === undefined || v === null || typeof v === 'boolean') return v;
       if (typeof v === 'number' && Number.isFinite(v)) return v;
       if (typeof v === 'string' && v.length <= 65536) return v;
       if (!v || typeof v !== 'object' || seen.has(v)) fail('compiled data must be finite acyclic data');
@@ -91,14 +94,19 @@
       count += (g[k] || []).length;
     });
     if (count > LIMITS.events) fail('event limit');
+    // 128 is the default bank size, not an instrument-address limit. Appended
+    // Create instruments (including index 128+) are resolved by both shared
+    // renderers before register encoding. The snapshot budget bounds the bank.
     g.bank.instruments.forEach(function (r) { if (!Array.isArray(r) || r.length !== 4 || !r.every(function (v) { return integer(v, 0, 255); })) fail('invalid instrument'); });
     g.bank.waveTables.forEach(function (r) { if (!Array.isArray(r) || r.length !== 32 || !r.every(function (v) { return integer(v, 0, 15); })) fail('invalid wave table'); });
     g.notes.forEach(function (n) {
-      if (!integer(n.ch, 0, 3) || !integer(n.frame, 0, g.totalFrames - 1) || !integer(n.frames, 1, g.totalFrames - n.frame) || !integer(n.midi, 0, 127) || !integer(n.inst, 0, g.bank.instruments.length - 1)) fail('invalid note');
+      // A generated held note can extend past the finite render boundary. WAV
+      // renders the untouched score through totalFrames; ROM checks this below.
+      if (!integer(n.ch, 0, 3) || !integer(n.frame, 0, g.totalFrames - 1) || !integer(n.frames, 1, Math.floor(FPS * LIMITS.seconds)) || !(n.ch === 3 || integer(n.midi, 0, 127)) || !integer(n.inst, 0, g.bank.instruments.length - 1)) fail('invalid note');
       if (n.vel != null && !(Number.isFinite(n.vel) && n.vel >= 0 && n.vel <= 1)) fail('invalid velocity');
     });
     ['auto', 'vibOff', 'waveLoads', 'kit'].forEach(function (k) { (g[k] || []).forEach(function (e) {
-      if (!integer(e.f, 0, g.totalFrames - 1)) fail('invalid ' + k + ' frame');
+      if (!(Number.isFinite(e.f) && e.f >= 0 && e.f <= g.totalFrames)) fail('invalid ' + k + ' frame');
       if (k === 'auto' && (!integer(e.r, 0x10, 0x3f) || !integer(e.v, 0, 255))) fail('invalid register write');
       if (k === 'vibOff' && !integer(e.ch, 0, 1)) fail('invalid vibrato channel');
       if (k === 'waveLoads' && !integer(e.slot, 0, g.bank.waveTables.length - 1)) fail('invalid wave slot');
@@ -110,9 +118,17 @@
     try {
       validate(c);
       if (format === 'wav') { if (!A || !A.Sequencer) fail('shared APU unavailable'); }
-      else if (format === 'midi') losses.push(LOSS);
+      else if (format === 'midi') {
+        if (c.gb.notes.some(function (n) { return !integer(n.midi, 0, 127); })) fail('MIDI capability unavailable: noise note has no MIDI pitch in 0..127; no faithful percussion mapping is defined');
+        losses.push(LOSS);
+      }
       else if (format === 'rom') {
         if (!R || !H) fail('shared ROM exporter unavailable');
+        if (c.gb.notes.some(function (n) { return n.frame + n.frames > c.gb.totalFrames; })) fail('ROM capability unavailable: note extends beyond finite song end; shared exporter would encode its late note-off');
+        // waveBytes serializes exactly this many slots; explicit reloads are
+        // byte-addressed by ROM but the offline Sequencer can read larger banks.
+        var romWaveSlots = Math.max(16, H.WAVE_SLOTS || 16);
+        if ((c.gb.waveLoads || []).some(function (w) { return w.slot >= romWaveSlots; })) fail('ROM capability unavailable: wave load exceeds ' + romWaveSlots + ' stored wave slots');
         R.buildRom({ gb: c.gb }); // Capacity and encoding checked by the shared exporter.
       } else if (format === 'lsdsng') errors = lsdjErrors(c.gb);
       else fail('unsupported format: ' + format);
@@ -127,7 +143,7 @@
     var events = [], track = [0, 255, 81, 3, 0, 244, 36]; // 62500 us/qn
     g.notes.forEach(function (n, i) {
       events.push({ f: n.frame, off: false, n: n, i: i });
-      events.push({ f: n.frame + n.frames, off: true, n: n, i: i });
+      events.push({ f: Math.min(g.totalFrames, n.frame + n.frames), off: true, n: n, i: i });
     });
     events.sort(function (a, b) { return a.f - b.f || Number(b.off) - Number(a.off) || a.i - b.i; });
     function vlq(v) { var b = [v & 127]; while ((v = Math.floor(v / 128))) b.unshift((v & 127) | 128); track.push.apply(track, b); }
