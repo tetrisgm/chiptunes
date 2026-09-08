@@ -95,7 +95,7 @@ test('undefined metadata normalizes as JSON without losing values', () => {
 test('bank shapes and kit IDs are bounded and typed', () => {
   for (const value of [[Array(33).fill(0)], [Array(32).fill(16)], ['bad'], Array(33).fill(Array(32).fill(0))])
     invalid('song({totalFrames:1});waves(' + JSON.stringify(value) + ')');
-  for (const value of [[[1, 2]], [[0, 0, 255, 'x']], Array(129).fill([0, 0, 255, 0])])
+  for (const value of [[[1, 2]], [[0, 0, 255, 'x']], Array(L.LIMITS.instruments + 1).fill([0, 0, 255, 0])])
     invalid('song({totalFrames:1});instruments(' + JSON.stringify(value) + ')');
   invalid('song({totalFrames:1});kit({f:0,id:255})');
 });
@@ -156,5 +156,34 @@ test('compact materialization uses readable event/asset rows and labeled blocks'
   const generated = L.materialize(composer.compile('music-language-fidelity').gb);
   assert.ok(generated.length < 98000, 'representative generated song stays below context target');
   console.log('  representative source: ' + generated.length + ' chars / ' + generated.split('\n').length + ' lines');
+});
+test('expanded banks, metadata indices and flag bytes preserve actual array addresses', () => {
+  const gb = { totalFrames: 10, notes: [{ ch:0,frame:0,frames:10,midi:60,inst:256 }], bank: {
+    instruments: Array.from({length:257}, () => [128,240,255,254]),
+    meta: Array.from({length:257}, (_,index) => ({index,type:'pulse',name:'variant-'+index})),
+    waveTables: [], arpTables: [], _by: {'128,240,255,254':256}
+  } };
+  const source = L.materialize(gb); assert.deepEqual(valid(source).gb, gb);
+  const apu = require('../src/gb-apu.js'); assert.deepEqual(apu.render(gb,8000), apu.render(valid(source).gb,8000));
+  const bad = structuredClone(gb); bad.bank.meta[256].index=257; assert.throws(()=>L.materialize(bad), /metadata/);
+  bad.bank.meta[256].index=256; bad.notes[0].inst=257; assert.throws(()=>L.materialize(bad), /instrument/);
+});
+test('100 deterministic seeds by four moods preserve every concrete bank and event', () => {
+  const api = require('../src/api.js'), create = require('../src/create.js');
+  let expanded=0, maxBank=0, maxMeta=0, maxInst=0; const flags=new Set();
+  for(let i=0;i<100;i++) for(const mood of ['chill','happy','dreamy','funky']) {
+    const token=i===99?'ThunderFalconX':'music-language-matrix-'+i;
+    const answer=api.ask(mood,{brief:{token}}); assert.ok(answer.doc, token+' '+mood);
+    const gb=create.songOf(answer.doc).gb;
+    const source=L.materialize(gb), back=valid(source).gb;
+    assert.deepEqual(back, JSON.parse(JSON.stringify(gb)), token+' '+mood);
+    assert.equal(L.materialize(back),source,'stable materialization '+token+' '+mood);
+    if(gb.bank.instruments.length>128)expanded++;
+    maxBank=Math.max(maxBank,gb.bank.instruments.length); maxMeta=Math.max(maxMeta,gb.bank.meta.length);
+    for(const n of gb.notes)maxInst=Math.max(maxInst,n.inst);
+    for(const r of gb.bank.instruments)flags.add(r[3]);
+  }
+  assert.ok(expanded>0 && maxInst>=128,'matrix must exercise appended records');
+  console.log('  400 cases; expanded='+expanded+' maxBank='+maxBank+' maxMeta='+maxMeta+' maxInst='+maxInst+' flags='+[...flags].sort().join(','));
 });
 console.log('music-language: ' + checks + ' groups passed');

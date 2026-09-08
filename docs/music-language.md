@@ -260,11 +260,18 @@ The compiler does not validate every advanced field's hardware meaning:
 retaining an unknown property is not a promise that playback or an exporter
 implements it. Use the existing player/export capability checks.
 
-`instruments([...])` defines `bank.instruments`: at most 128 records, exactly
+`instruments([...])` defines `bank.instruments`: at most 50,128 records, exactly
 four integer bytes per record. The hardware layout is
 `[dutyOrWaveSlotOrNoisePolynomial, envelope, arpId, flags]`.
 `waves([...])` defines `bank.waveTables`: at most 32 tables, each exactly
 32 integer nibbles (0–15). These are literal arrays, not encoded blobs.
+
+The stock bank has 128 records, but Create appends records for sound variants.
+Those indices are ordinary array addresses, not seven-bit IDs. The bound allows
+the stock bank plus one record for each of the 50,000 permitted notes; source
+and data limits still apply. No records are truncated, renumbered, or deduplicated.
+All four bytes, including flags, preserve the full 0–255 range. Metadata need
+not exist for appended records, and `_by` variant lookup metadata is preserved.
 
 `performance({...})` preserves remaining GB fields, including `gainScalar`,
 top-level instrument-role metadata, provenance, and asset descriptions.
@@ -272,7 +279,8 @@ Its optional `bank` object holds everything except `instruments` and
 `waveTables`, which must use their dedicated calls. Known bank fields validate:
 
 - `arpTables`: at most 256 arrays, at most 256 integers −128–255 per array.
-- `meta`: at most 128 objects; integer `index` 0–127; `type` is `pulse`, `wave`,
+- `meta`: at most as many objects as instrument records; integer `index` must
+  address an existing instrument record; `type` is `pulse`, `wave`,
   or `noise`; optional `patch` is an object. A patch's `table4bit`, if present,
   is exactly 32 nibbles. Other finite JSON metadata is retained.
 
@@ -329,6 +337,7 @@ Mapping supports selection; it does not implement localized rewriting.
 | Data nesting | Depth 32; root literal depth 0 |
 | Parsed data values | 500,000 |
 | Combined explicit and generated events | 50,000 |
+| Instrument records | 50,128; metadata entries at most the actual record count |
 | Maximum frame coordinate / total frames | 216,000 (aligned with the engine; about 3,616 seconds) |
 | Repeat count per play | 4,096 |
 | Tokens / cumulative steps per played pattern | 65,536 each |
@@ -376,3 +385,10 @@ composer score, and that score imported through Create. Their full 8 kHz APU
 renders, plus an advanced-event fixture, are byte-identical before/after the
 no-op round-trip. This is a deterministic renderer check, not listening
 acceptance, browser interaction acceptance, or proof of live handover behavior.
+
+The generated-bank regression matrix additionally covers 100 deterministic
+tokens across all four moods (`chill`, `happy`, `dreamy`, `funky`): 400 complete
+Create-to-source-to-GB round trips, including `ThunderFalconX`. It asserts that
+appended records and indices above 127 are actually exercised, and reports
+observed record/metadata/index maxima and flags. A synthetic 257-record bank
+also verifies metadata/index boundaries and no-op waveform preservation.

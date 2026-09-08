@@ -24,7 +24,7 @@
   var H = typeof module !== 'undefined' && module.exports ? require('./gb-hardware.js') : G.CT_GB;
   var K = typeof module !== 'undefined' && module.exports ? require('./gb-kits.js') : G.CT_GB_KITS;
   var LIMITS = Object.freeze({ source: 1048576, depth: 32, nodes: 500000, events: 50000,
-    frames: 216000, repeats: 4096, steps: 65536, work: 2000000 });
+    frames: 216000, repeats: 4096, steps: 65536, work: 2000000, instruments: 50128 });
   var own = function (o, k) { return Object.prototype.hasOwnProperty.call(o, k); };
   function fail(message, at) { var e = new Error(message); e.at = at || 0; throw e; }
   function object(v) { return v !== null && typeof v === 'object' && !Array.isArray(v); }
@@ -197,10 +197,12 @@
       if (own(gb, 'loopFrames')) need(num(gb.loopFrames, 0, gb.totalFrames, true), 'Invalid loopFrames');
       if (gb.bank) {
         var b = gb.bank;
-        if (own(b, 'instruments')) need(Array.isArray(b.instruments) && b.instruments.length <= 128 && b.instruments.every(function (r) { return Array.isArray(r) && r.length === 4 && r.every(function (v) { return num(v, 0, 255, true); }); }), 'Invalid instrument bank: at most 128 four-byte records');
+        // Create appends sound variants to the 128 stock records. Indices are
+        // array addresses, not seven-bit hardware IDs; ROM emits registers.
+        if (own(b, 'instruments')) need(Array.isArray(b.instruments) && b.instruments.length <= LIMITS.instruments && b.instruments.every(function (r) { return Array.isArray(r) && r.length === 4 && r.every(function (v) { return num(v, 0, 255, true); }); }), 'Invalid instrument bank: at most ' + LIMITS.instruments + ' four-byte records');
         if (own(b, 'waveTables')) need(Array.isArray(b.waveTables) && b.waveTables.length <= H.WAVE_SLOTS && b.waveTables.every(function (r) { return Array.isArray(r) && r.length === 32 && r.every(function (v) { return num(v, 0, 15, true); }); }), 'Invalid wave bank: at most 32 tables of 32 nibbles');
         if (own(b, 'arpTables')) need(Array.isArray(b.arpTables) && b.arpTables.length <= 256 && b.arpTables.every(function (r) { return Array.isArray(r) && r.length <= 256 && r.every(function (v) { return num(v, -128, 255, true); }); }), 'Invalid arpeggio tables');
-        if (own(b, 'meta')) need(Array.isArray(b.meta) && b.meta.length <= 128 && b.meta.every(function (m) { return object(m) && num(m.index, 0, 127, true) && ['pulse', 'wave', 'noise'].includes(m.type) && (!own(m, 'patch') || object(m.patch) && (!own(m.patch, 'table4bit') || Array.isArray(m.patch.table4bit) && m.patch.table4bit.length === 32 && m.patch.table4bit.every(function (v) { return num(v, 0, 15, true); }))); }), 'Invalid bank metadata');
+        if (own(b, 'meta')) need(Array.isArray(b.meta) && b.meta.length <= ((b.instruments || []).length) && b.meta.every(function (m) { return object(m) && num(m.index, 0, (b.instruments || []).length - 1, true) && ['pulse', 'wave', 'noise'].includes(m.type) && (!own(m, 'patch') || object(m.patch) && (!own(m.patch, 'table4bit') || Array.isArray(m.patch.table4bit) && m.patch.table4bit.length === 32 && m.patch.table4bit.every(function (v) { return num(v, 0, 15, true); }))); }), 'Invalid bank metadata');
       }
       var lanes = { lead: 0, pulse1: 0, arp: 1, pad: 1, pulse2: 1, bass: 2, wave: 2, drums: 3, noise: 3 };
       function instrument(v, at) {
