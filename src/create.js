@@ -870,6 +870,7 @@
   // The editor owns the address bar while it is open: a refresh has to land
   // back here, with the song intact.
   function ownRoute(enc) {
+    if(G.CT_MUSIC_WORKSPACE&&G.CT_MUSIC_WORKSPACE.isOpen())return;
     var want = '/create' + (enc ? '#s=' + enc : (location.hash || ''));
     if (location.pathname + location.hash === want) return;
     try { history.replaceState(null, '', want); } catch (e) {}
@@ -2324,6 +2325,7 @@
         '<button type="button" class="cr-btn" data-cr="opennative" title="Open a local .lsdsng or .sav and edit its native LSDj structure (no playback yet)">' + _ic('rom') + 'Open LSDj</button>' +
         '<button type="button" class="cr-btn" data-cr="opennativejson">Open native JSON</button>' +
         '<button type="button" class="cr-btn" data-cr="resumenative">Resume LSDj edit</button>' +
+        '<button type="button" class="cr-btn" data-cr="workspace">Chat / Code / Notes</button>' +
       '</div>' +
       // COMPACT VISIBLE LISTEN HELP. A tooltip does not show on a touch screen,
       // so the two ways to hear or keep a song are stated as plain, visible
@@ -2566,6 +2568,7 @@
     document.addEventListener('keydown', function (ev) {
       if (ev.code !== 'Space' || !isOpen() || ev.metaKey || ev.altKey || ev.ctrlKey) return;
       if (G.CT_LSDJ_NATIVE_EDITOR && G.CT_LSDJ_NATIVE_EDITOR.isOpen()) return;
+      if (G.CT_MUSIC_WORKSPACE && G.CT_MUSIC_WORKSPACE.isOpen()) return;
       var tag = (ev.target && ev.target.tagName) || '';
       if (/^(INPUT|TEXTAREA|SELECT)$/.test(tag)) return;
       ev.preventDefault(); ev.stopPropagation();
@@ -2869,6 +2872,9 @@
       else if (k === 'opennative') { openNative(); }
       else if (k === 'opennativejson') { openNativeJson(); }
       else if (k === 'resumenative') { resumeNative(); }
+      else if (k === 'workspace') {
+        G.CT_MUSIC_WORKSPACE.open({gb:liveScore||buildSong(),settings:{tempo:S.bpm,bars:S.bars,title:S.title,tempoAt:S.tempoAt||[],grid:spb()}}).catch(function(e){if(G._toast)G._toast(e.message);});
+      }
     });
     root.addEventListener('input', function (ev) {
       var b = ev.target.closest('[data-cr="bpm"]'); if (!b) return;

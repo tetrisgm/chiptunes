@@ -1,3 +1,6 @@
+globalThis.CT_MUSIC_ASSETS_VERSION="5fba76c2aeb5e170";
+globalThis.CT_MUSIC_EDITOR_VERSION="85d43ca2c55e";
+globalThis.CT_MUSIC_BUILD_VERSION="b7fb989e9c3f";
 /* ===== src/seed.js ===== */
 // ===== seed.js — deterministic generated-track identity. =====
 // Loads FIRST (before composer.js/audio.js) so any composer can seed itself from a URL token.
@@ -1539,6 +1542,8 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     this.sr = sampleRate;
     this.samplesPerFrame = sampleRate / (MASTER / FRAME_CYCLES);
     this.rate = 1;               // tempo scale: pinned bpm / native bpm
+    this.gainScalar = gb && gb.gainScalar != null ? gb.gainScalar : 1;
+    if(!Number.isFinite(this.gainScalar) || this.gainScalar<0 || this.gainScalar>1) throw new Error('Invalid gb.gainScalar');
     this.mix = null;             // {kick,snare,hat,bass,lead,arp,pad} in 0..3
     this.vib = [{ on: false, base: 0, age: 0 }, { on: false, base: 0, age: 0 }];
     this.frame = 0; this.acc = 0;
@@ -1614,7 +1619,8 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   Sequencer.prototype._kitStart = function (id) {
     var K = G.CT_GB_KITS;
     if (!K) return;
-    var k = K.byId(id);
+    var k = this.kitBank ? this.kitBank[id] : K.byId(id);
+    if(!k) return;
     this.kit = k.data; this.kitPos = 0; this.kitLeft = k.buffers;
     this.apu.write(0x1C, 0x20);              // NR32: full output
     this.apu.write(0x1D, K.PERIOD & 0xFF);   // NR33: 8192 samples a second
@@ -1736,6 +1742,33 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     this.acc = 0;
   };
 
+  // Prepared on the page, never in the render callback. Structured-cloneable
+  // sequencers retain schedules; only prototypes need restoring in the worklet.
+  Sequencer.restore = function (data) {
+    Object.setPrototypeOf(data, Sequencer.prototype);
+    Object.setPrototypeOf(data.apu, Apu.prototype);
+    return data;
+  };
+  Sequencer.prototype.handover = function (old, preserve, preserveGlobal) {
+    var fresh = this.apu, apu = old.apu;
+    for (var ch = 0; ch < 4; ch++) {
+      if (preserve[ch]) {
+        if (ch < 2) this.vib[ch] = old.vib[ch];
+      } else apu.ch[ch] = fresh.ch[ch];
+    }
+    if (!preserve[0]) {
+      ['swPace','swDir','swShift','swShadow','swTimer','swEnabled'].forEach(function(k){ apu[k] = fresh[k]; });
+    }
+    if (preserve[2]) {
+      this.waveSlot = old.waveSlot;
+      this.kit = old.kit; this.kitPos = old.kitPos;
+      this.kitLeft = old.kitLeft; this.kitCyc = old.kitCyc;
+    } else apu.wave = fresh.wave;
+    if(!preserveGlobal) { apu.nr50 = fresh.nr50; apu.nr51 = fresh.nr51; apu.power = fresh.power; }
+    this.apu = apu; this.acc = old.acc;
+    this.chMute = old.chMute; this.mix = old.mix; this.rate = old.rate;
+  };
+
   Sequencer.prototype.render = function (out, from, count) {
     // rate scales the FRAME clock only: a pinned tempo plays the score faster
     // or slower without touching pitch, exactly like a tracker's speed setting.
@@ -1755,7 +1788,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       }
       if (this.kit) this.kitCyc -= cy;
       this.apu._advance(cy);
-      out[from + i] = this.apu._mix();
+      out[from + i] = this.apu._mix() * this.gainScalar;
     }
   };
 
@@ -3710,6 +3743,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   // The editor owns the address bar while it is open: a refresh has to land
   // back here, with the song intact.
   function ownRoute(enc) {
+    if(G.CT_MUSIC_WORKSPACE&&G.CT_MUSIC_WORKSPACE.isOpen())return;
     var want = '/create' + (enc ? '#s=' + enc : (location.hash || ''));
     if (location.pathname + location.hash === want) return;
     try { history.replaceState(null, '', want); } catch (e) {}
@@ -5164,6 +5198,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
         '<button type="button" class="cr-btn" data-cr="opennative" title="Open a local .lsdsng or .sav and edit its native LSDj structure (no playback yet)">' + _ic('rom') + 'Open LSDj</button>' +
         '<button type="button" class="cr-btn" data-cr="opennativejson">Open native JSON</button>' +
         '<button type="button" class="cr-btn" data-cr="resumenative">Resume LSDj edit</button>' +
+        '<button type="button" class="cr-btn" data-cr="workspace">Chat / Code / Notes</button>' +
       '</div>' +
       // COMPACT VISIBLE LISTEN HELP. A tooltip does not show on a touch screen,
       // so the two ways to hear or keep a song are stated as plain, visible
@@ -5406,6 +5441,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     document.addEventListener('keydown', function (ev) {
       if (ev.code !== 'Space' || !isOpen() || ev.metaKey || ev.altKey || ev.ctrlKey) return;
       if (G.CT_LSDJ_NATIVE_EDITOR && G.CT_LSDJ_NATIVE_EDITOR.isOpen()) return;
+      if (G.CT_MUSIC_WORKSPACE && G.CT_MUSIC_WORKSPACE.isOpen()) return;
       var tag = (ev.target && ev.target.tagName) || '';
       if (/^(INPUT|TEXTAREA|SELECT)$/.test(tag)) return;
       ev.preventDefault(); ev.stopPropagation();
@@ -5709,6 +5745,9 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       else if (k === 'opennative') { openNative(); }
       else if (k === 'opennativejson') { openNativeJson(); }
       else if (k === 'resumenative') { resumeNative(); }
+      else if (k === 'workspace') {
+        G.CT_MUSIC_WORKSPACE.open({gb:liveScore||buildSong(),settings:{tempo:S.bpm,bars:S.bars,title:S.title,tempoAt:S.tempoAt||[],grid:spb()}}).catch(function(e){if(G._toast)G._toast(e.message);});
+      }
     });
     root.addEventListener('input', function (ev) {
       var b = ev.target.closest('[data-cr="bpm"]'); if (!b) return;
@@ -7105,6 +7144,7 @@ const Audio = (()=>{
       gbNode = new AudioWorkletNode(ctx, GB_WORKLET_NAME, {numberOfInputs:0, numberOfOutputs:1, outputChannelCount:[2]});
       gbNode.connect(gbChipGain);
       gbNode.port.onmessage = function(ev){
+        if(ev.data && ev.data.type==='musicState') musicAck(ev.data);
         if(ev.data && ev.data.type==='stat' && typeof window!=='undefined'){
           window.__rrrChip = ev.data;
           // WHERE THE MUSIC ACTUALLY IS. The deck opens 0.18s in the future and
@@ -7119,6 +7159,10 @@ const Audio = (()=>{
         }
         if(ev.data && ev.data.type==='msgError'){ try{ console.error('[chiptunes] chip message failed:', ev.data.in, ev.data.message); }catch(_){} }
       };
+      gbNode.onprocessorerror=function(){ musicEmit({type:'musicState',status:'error',revision:musicCurrent?musicCurrent.revision:null,frame:0,message:'Audio processor failed'}); };
+      ctx.addEventListener('statechange',function(){
+        if(chipOwner==='create' && (musicCurrent||musicPending)) musicEmit({type:'musicState',status:ctx.state==='running'?'resumed':'suspended',revision:musicCurrent?musicCurrent.revision:null,frame:window.__rrrChip?window.__rrrChip.frame:0});
+      });
       // A track may have started before the module finished loading; play it now.
       if(gbPending){ gbNode.port.postMessage(gbPending); gbPending=null; }
       if(typeof document!=='undefined' && document.documentElement) document.documentElement.dataset.rrrChip='gb';
@@ -7139,6 +7183,165 @@ const Audio = (()=>{
   // holds the chip, those reposts must bounce off or the radio steals the
   // speaker back mid-composition.
   var chipOwner='radio';
+  var musicListeners=new Set(), musicEpoch=0, musicRequest=0, musicActivation=0, musicCurrent=null, musicPending=null, musicRevisions=new Map(), musicIdentities=new Map();
+  function musicEmit(state){ musicListeners.forEach(function(fn){ try{ fn(state); }catch(_){} }); }
+  function musicAck(state){
+    if(state.epoch!==musicEpoch) return;
+    if(state.status==='playing' && !musicRevisions.has(state.activation)) return;
+    if(state.status==='position' && (!musicCurrent||state.activation!==musicCurrent.activation)) return;
+    if(state.status==='playing' && musicRevisions.get(state.activation)){
+      var previous=musicCurrent;
+      musicCurrent=musicRevisions.get(state.activation);
+      if(previous && previous.activation!==state.activation) musicRevisions.delete(previous.activation);
+      if(musicPending && state.activation===musicPending.activation) musicPending=null;
+    }
+    if(['cancelled','superseded','stale'].includes(state.status)) {
+      musicRevisions.delete(state.activation);
+      if(musicPending&&musicPending.activation===state.activation)musicPending=null;
+    }
+    musicEmit(state);
+  }
+  function musicPost(message){
+    if(!gbNode) throw new Error('Music engine unavailable');
+    gbNode.port.postMessage(Object.assign({epoch:musicEpoch},message));
+  }
+  function musicInvalidate(reason){
+    musicEpoch++; musicRequest++; musicPending=null; musicCurrent=null; musicRevisions.clear(); musicIdentities.clear(); gbPending=null;
+    if(gbNode) musicPost({type:'musicStop',reason:reason||'stop'});
+  }
+  function musicPrepare(gb, options, base){
+    var G=globalThis.CT_GB_APU;
+    if(!G) throw new Error('GB sequencer unavailable');
+    if(!gb || !Number.isInteger(gb.totalFrames) || gb.totalFrames<1 || gb.totalFrames>216000)
+      throw new Error('Music length must be 1..216000 frames');
+    var revision=options.revision;
+    if(!((typeof revision==='string' && revision.length>0 && revision.length<=128) ||
+         (typeof revision==='number' && Number.isSafeInteger(revision)))) throw new Error('Invalid revision');
+    var count=['notes','auto','vibOff','waveLoads','kit'].reduce(function(n,k){return n+(gb[k]||[]).length;},0);
+    if(count>50000) throw new Error('Music event limit exceeded');
+    if(JSON.stringify(gb).length>8000000) throw new Error('Music asset limit exceeded');
+    gb=structuredClone(gb);
+    var boundaries=options.boundaries==null?[]:Array.from(options.boundaries);
+    if(boundaries.length>256 || boundaries.some(function(f,i){return !Number.isInteger(f)||f<0||f>216000||(i&&f<=boundaries[i-1]);}))
+      throw new Error('Boundaries must be at most 256 ascending GB frames');
+    var seq=new G.Sequencer(gb,ctx.sampleRate), changed=[Infinity,Infinity,Infinity,Infinity,Infinity];
+    seq.setMix(MIX);
+    seq.kitBank={};
+    (gb.kit||[]).forEach(function(k){
+      if(!Number.isInteger(k.id)||k.id<0||k.id>127||!globalThis.CT_GB_KITS) throw new Error('Invalid kit asset');
+      seq.kitBank[k.id]=globalThis.CT_GB_KITS.byId(k.id);
+    });
+    var density={};
+    ['byFrame','auto','vibOffAt','waveAt','kitAt'].forEach(function(k){Object.keys(seq[k]).forEach(function(f){
+      if(+f<0 || +f>216000) throw new Error('Event frame outside music limits');
+      density[f]=(density[f]||0)+(Array.isArray(seq[k][f])?seq[k][f].length:1);
+      if(density[f]>128) throw new Error('Music frame event limit exceeded');
+    });});
+    // Exact serialized event histories, including resolved instrument/wave data.
+    // This comparison and register replay run on the page, never the audio thread.
+    function history(s){
+      var h=[{}, {}, {}, {}, {}];
+      function add(ch,f,value){(h[ch][f]||(h[ch][f]=[])).push(value);}
+      Object.keys(s.byFrame).forEach(function(f){s.byFrame[f].forEach(function(e){
+        var ch=e.t?e.n.ch:e.ch, n=e.n;
+        var event=e;
+        if(n){ var note=Object.assign({},n); delete note.frames; event={t:e.t,n:note}; }
+        var slot=n&&ch===2?(globalThis.CT_GB_HARDWARE||globalThis.CT_GB).waveSlotOf(s.inst,n.inst):0;
+        add(ch,f,[event,n?s.inst[n.inst]:null,n&&ch===2?(s.bank.waveTables||[])[slot]:null]);
+      });});
+      Object.keys(s.auto).forEach(function(f){s.auto[f].forEach(function(w){
+        var ch=w.r>=0x10&&w.r<=0x14?0:w.r<=0x19&&w.r>=0x16?1:w.r>=0x1a&&w.r<=0x1e?2:w.r>=0x20&&w.r<=0x23?3:-1;
+        if(w.r>=0x30&&w.r<=0x3f) ch=2;
+        if(ch<0) for(var c=0;c<5;c++) add(c,f,w); else add(ch,f,w);
+      });});
+      Object.keys(s.vibOffAt).forEach(function(f){s.vibOffAt[f].forEach(function(ch){add(ch,f,'vibOff');});});
+      Object.keys(s.waveAt).forEach(function(f){add(2,f,['wave',s.waveAt[f],(s.bank.waveTables||[])[s.waveAt[f]]]);});
+      Object.keys(s.kitAt).forEach(function(f){add(2,f,['kit',s.kitAt[f]]);});
+      return h;
+    }
+    if(base){
+      var a=history(base.schedule), b=history(seq);
+      for(var ch=0;ch<5;ch++) new Set(Object.keys(a[ch]).concat(Object.keys(b[ch]))).forEach(function(f){
+        if(JSON.stringify(a[ch][f])!==JSON.stringify(b[ch][f])) changed[ch]=Math.min(changed[ch],+f);
+      });
+      boundaries=boundaries.filter(function(f){return f<=base.totalFrames;});
+      if(!boundaries.includes(base.totalFrames)) boundaries.push(base.totalFrames);
+    }
+    var offset=options.offsetFrames==null?0:options.offsetFrames;
+    if(!Number.isInteger(offset)||offset<0) throw new Error('Invalid offsetFrames');
+    var targets=base?boundaries:[Math.min(offset,gb.totalFrames)];
+    var snapshots=targets.map(function(f){
+      var target=Math.min(f,gb.totalFrames); seq.seek(target);
+      var state={};
+      ['apu','vib','frame','acc','waveSlot','kit','kitPos','kitLeft','kitCyc'].forEach(function(k){state[k]=structuredClone(seq[k]);});
+      return {at:f,state:state,preserve:changed.slice(0,4).map(function(first){return f===target&&first>=target;}),preserveGlobal:f===target&&changed[4]>=target};
+    });
+    // Schedules are sent once; snapshots contain only bounded chip state.
+    var schedule={};
+    ['sr','samplesPerFrame','rate','gainScalar','mix','bank','inst','auto','vibOffAt','waveAt','kitAt','kitBank','byFrame'].forEach(function(k){schedule[k]=seq[k];});
+    return {revision:revision,activation:++musicActivation,totalFrames:gb.totalFrames,loop:!!options.loop,schedule:schedule,snapshots:snapshots};
+  }
+  function musicIdentity(gb){
+    return JSON.stringify(gb,function(k,v){
+      if(v && typeof v==='object' && !Array.isArray(v) && !ArrayBuffer.isView(v)){
+        var sorted={}; Object.keys(v).sort().forEach(function(key){sorted[key]=v[key];}); return sorted;
+      } return v;
+    });
+  }
+  // Boundary selection only. The language compiler owns the sole conversion.
+  function musicBoundaries(compiled,options){
+    options=options||{};
+    var s=compiled.settings||{}, gb=compiled.gb, language=globalThis.CT_MUSIC_LANGUAGE;
+    if(!gb || !Number.isInteger(gb.totalFrames)||gb.totalFrames<1) throw new Error('Compiled music required');
+    if(!language || !language.createClock) throw new Error('Shared music clock unavailable');
+    var from=options.fromFrame==null?0:options.fromFrame, limit=options.limit==null?256:options.limit;
+    if(!Number.isInteger(from)||from<0||!Number.isInteger(limit)||limit<1||limit>256) throw new Error('Invalid boundary range');
+    var clock=language.createClock(s);
+    function at(bar){return clock(bar*4);}
+    var lo=0, hi=65536;
+    while(lo<hi){var mid=(lo+hi)>>1;if(at(mid)<from)lo=mid+1;else hi=mid;}
+    var out=[];
+    for(var bar=lo;bar<=65536 && out.length<limit;bar++){
+      var frame=at(bar);if(frame>=gb.totalFrames)break;
+      if(!out.length||frame>out[out.length-1])out.push(frame);
+    }
+    if(out.length<limit && gb.totalFrames>=from)out.push(gb.totalFrames);
+    return out;
+  }
+  async function musicPlay(gb,options){
+    options=options||{};
+    startAudio(true); chipOwner='create';
+    var request=++musicRequest;
+    await ensureGbChip();
+    if(request!==musicRequest || chipOwner!=='create') return false;
+    if(!gbNode) throw new Error('Music engine unavailable');
+    var prepared=musicPrepare(gb,options,null);
+    musicEpoch++; musicCurrent=null; musicPending=null; musicRevisions.clear(); musicIdentities.clear();
+    musicPending=prepared;
+    musicRevisions.set(prepared.activation,prepared); musicIdentities.set(prepared.revision,musicIdentity(gb));
+    gbActive=true; gbPending=null;
+    gbSynthGain.gain.setTargetAtTime(0.0001,ctx.currentTime,0.01);
+    gbChipGain.gain.setTargetAtTime(1,ctx.currentTime,0.01);
+    musicPost({type:'musicPlay',prepared:prepared});
+    if(ctx.state!=='running') await ctx.resume();
+    return true;
+  }
+  function musicQueue(gb,options){
+    options=options||{};
+    if(!musicCurrent || chipOwner!=='create' || options.baseRevision!==musicCurrent.revision)
+      throw new Error('Stale music base revision');
+    if(Array.from(musicRevisions.values()).filter(Boolean).length>=8) throw new Error('Music engine acknowledgment backlog');
+    var prepared=musicPrepare(gb,Object.assign({},options,{loop:musicCurrent.loop}),musicCurrent);
+    var identity=musicIdentity(gb), known=musicIdentities.get(options.revision);
+    if(known!=null && known!==identity) throw new Error('Revision ID reused with different music');
+    if(known==null && Array.from(musicIdentities.values()).reduce(function(n,s){return n+s.length;},identity.length)>16000000)
+      throw new Error('Music revision identity budget exceeded; restart playback');
+    musicIdentities.set(options.revision,identity);
+    musicPending=prepared;
+    musicRevisions.set(prepared.activation,prepared);
+    musicPost({type:'musicQueue',baseRevision:options.baseRevision,baseActivation:musicCurrent.activation,prepared:prepared});
+    return true;
+  }
   function gbPlay(score, offsetFrames, paused, leadSec){
     if(chipOwner!=='radio') return false;
     var gb = score && score.gb;
@@ -7153,7 +7356,7 @@ const Audio = (()=>{
     if(!on){ if(gbNode) gbNode.port.postMessage({type:'stop'}); return false; }
     // the WHOLE song: automation, wave swaps, vibrato hand-offs and kit hits are
     // as much the music as the note-ons (playCreate had the same omission)
-    var msg = {type:'play', gb:{notes:gb.notes, bank:gb.bank, totalFrames:gb.totalFrames,
+    var msg = {type:'play', gb:{notes:gb.notes, bank:gb.bank, totalFrames:gb.totalFrames,gainScalar:gb.gainScalar,
                                 auto:gb.auto||null, vibOff:gb.vibOff||null,
                                 waveLoads:gb.waveLoads||null, kit:gb.kit||null},
                offsetFrames:Math.max(0, offsetFrames|0), paused:!!paused,
@@ -8707,6 +8910,18 @@ const Audio = (()=>{
   }
 
   return {
+    musicPlay:musicPlay, musicQueue:musicQueue, musicBoundaries:musicBoundaries,
+    musicCancel(revision){ musicPost({type:'musicCancel',revision:revision}); if(musicPending&&musicPending.revision===revision) musicPending=null; },
+    musicPause(paused){ musicPost({type:'musicPause',paused:!!paused}); },
+    musicSeek(frame){
+      if(!musicCurrent) return false;
+      if(!Number.isInteger(frame)||frame<0) throw new Error('Invalid seek frame');
+      var s=musicCurrent.schedule, seq=new globalThis.CT_GB_APU.Sequencer(null,ctx.sampleRate);
+      Object.assign(seq,s); seq.seek(Math.min(frame,musicCurrent.totalFrames));
+      musicPending=null; musicPost({type:'musicSeek',state:seq}); return true;
+    },
+    musicStop(){ musicInvalidate('stop'); },
+    onMusicState(listener){ musicListeners.add(listener); return function(){musicListeners.delete(listener);}; },
     init,
     resume(force){ return resumeCtx(!!force); },
     running(){ return !!(ctx && ctx.state==='running' && !transportPaused); },        // is audio actually sounding (autoplay gate cleared)?
@@ -8803,17 +9018,19 @@ const Audio = (()=>{
     currentScore(){ return deckCur ? deckCur.score : null; },
     // on=true runs the exported cartridge; on=false returns to the composition
     // at the position the track has reached.
-    playRom(bytes){ return gbPlayRom(bytes); },
-    playScore(){ if(gbNode) gbNode.port.postMessage({type:'chmute', mask:null}); chipOwner='radio'; return gbPlayScore(); },
+    playRom(bytes){ musicInvalidate('ownerreturn'); return gbPlayRom(bytes); },
+    playScore(){ musicInvalidate('ownerreturn'); if(gbNode) gbNode.port.postMessage({type:'chmute', mask:null}); chipOwner='radio'; return gbPlayScore(); },
     // CREATE editor: loop a user-authored gb song on the chip. Shares the
     // radio's chip node; playScore() hands it back afterwards.
     // Entering the editor: the radio goes quiet NOW, not at first play.
     enterCreate(){
+      musicInvalidate('enter');
       chipOwner='create';
       if(gbNode) gbNode.port.postMessage({type:'stop'});
     },
     playCreate(gb, loopFrames, offsetFrames){
       if(!gb || !gb.notes){ return false; }
+      musicInvalidate('legacy');
       startAudio(true); if(this.resume) this.resume(true);
       chipOwner='create';
       gbActive=true;
@@ -8829,7 +9046,7 @@ const Audio = (()=>{
       // hand-offs and kit hits are as much the music as the note-ons, and
       // leaving them out here meant the cartridge played things the browser
       // never did.
-      var msg={type:'play', gb:{notes:gb.notes, bank:gb.bank, totalFrames:gb.totalFrames,
+      var msg={type:'play', gb:{notes:gb.notes, bank:gb.bank, totalFrames:gb.totalFrames,gainScalar:gb.gainScalar,
                                 auto:gb.auto||null, vibOff:gb.vibOff||null,
                                 waveLoads:gb.waveLoads||null, kit:gb.kit||null},
                offsetFrames:off, paused:false, loopFrames:loopFrames|0, rate:1,
@@ -8844,7 +9061,7 @@ const Audio = (()=>{
       if(gbNode) gbNode.port.postMessage({type:'kit', id:id|0}); },
     stopPoke(ch){ if(gbNode) gbNode.port.postMessage({type:'pokeoff', ch:(ch==null?null:ch|0)}); },
     setChipMute(mask){ ensureGbChip(); if(gbNode) gbNode.port.postMessage({type:'chmute', mask:mask||null}); },
-    stopCreate(){ if(gbNode) gbNode.port.postMessage({type:'stop'}); },  // editor stop: chip quiet, ownership stays; playScore() is the way back
+    stopCreate(){ musicInvalidate('stop'); if(gbNode) gbNode.port.postMessage({type:'stop'}); },  // editor stop: chip quiet, ownership stays; playScore() is the way back
     romMode(){ return gbRomMode; },
     // the song on air, as a Create document -- this is what makes "edit what I
     // am hearing" the same song rather than a near-enough copy of it
@@ -14170,6 +14387,1421 @@ var EXPORTS = {
   if (typeof module !== 'undefined' && module.exports) module.exports = EXPORTS;
   try { _G.CT_API = EXPORTS; } catch (e) {}
 })(typeof globalThis !== 'undefined' ? globalThis : window);
+
+/* ===== src/music-language.js ===== */
+/* Restricted music source v1. No JavaScript evaluation.
+ * Explicit mode is lossless for finite JSON data (including extra note/bank
+ * fields). Undefined object properties are omitted by JSON normalization;
+ * undefined array entries, sparse arrays, class instances and cycles fail.
+ * song({totalFrames,loopFrames?,settings?}) selects exact mode; song({tempo,
+ * bars,...}) selects shorthand defaults. performance({bank:{...},...}) supplies
+ * other GB fields, never notes or the dedicated event arrays. Empty optional
+ * arrays are declared with performance({auto:[]}) etc. Calls are order-stable.
+ * notes accepts space-separated pitches/rests, optionally C4:2@0.5 (step length,
+ * velocity); chains: stepsPerBar, gate, velocity, transpose, register (octave).
+ * register preserves pitch class at that point in the ordered transformation.
+ * Tracks: lead/pulse1=0, arp/pad/pulse2=1, bass/wave=2, drums/noise=3.
+ * Instrument names are bank.meta name/id/patch.authored; wave-bass aliases
+ * w-triangle. No pitch clamping, truncation, sorting or overlap suppression.
+ * Mapping indexes gb.notes; span is definition/event, occurrenceSpan is play.
+ * Each span has start/end {offset,line,column}: UTF-16 offsets, exclusive end,
+ * one-based line/column. tempoAt:[[row,tempo],...] opts into Create's LSDj
+ * segment clock; rows use settings.stepsPerBar (16 default), swing uses the
+ * shared groove. Fractional gate rows interpolate adjacent boundary frames.
+ * Resource limits are deterministic operation/data budgets, not wall time.
+ */
+(function (G) {
+  'use strict';
+  var H = typeof module !== 'undefined' && module.exports ? require('./gb-hardware.js') : G.CT_GB;
+  var K = typeof module !== 'undefined' && module.exports ? require('./gb-kits.js') : G.CT_GB_KITS;
+  var LIMITS = Object.freeze({ source: 1048576, depth: 32, nodes: 500000, events: 50000,
+    frames: 216000, repeats: 4096, steps: 65536, work: 2000000, instruments: 50128 });
+  var own = function (o, k) { return Object.prototype.hasOwnProperty.call(o, k); };
+  function fail(message, at) { var e = new Error(message); e.at = at || 0; throw e; }
+  function object(v) { return v !== null && typeof v === 'object' && !Array.isArray(v); }
+  function num(v, lo, hi, integer) { return typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi && (!integer || Number.isInteger(v)); }
+  function need(ok, message, at) { if (!ok) fail(message, at); }
+  // The one clock used by compilation and host bar-boundary calculations.
+  // Snapshot settings into segments so callers may reuse a clock efficiently.
+  function createClock(settings) {
+    settings = settings == null ? {} : settings;
+    need(object(settings), 'Clock settings must be an object');
+    need(H && H.beatToFrame, 'CT_GB hardware dependency is required');
+    var tempo = settings.tempo == null ? 120 : settings.tempo;
+    var grid = settings.stepsPerBar == null ? 16 : settings.stepsPerBar;
+    need(num(tempo, 1, 1000), 'Invalid tempo');
+    need(num(grid, 1, 256, true), 'Invalid settings.stepsPerBar');
+    var changes = settings.tempoAt, ticks, segments = [{ row: 0, frame: 0, tempo: tempo }];
+    if (changes != null) {
+      need(Array.isArray(changes) && changes.length <= 4096 && num(tempo, 40, 255, true), 'Invalid tempoAt clock');
+      need(settings.swing == null || typeof settings.swing === 'boolean' || num(settings.swing, 0.5, 0.8), 'Invalid swing');
+      ticks = H.lsdjGrooveTicks(settings.swing, grid);
+      var prevRow = -1;
+      changes.forEach(function (pair) {
+        need(Array.isArray(pair) && pair.length === 2 && num(pair[0], 0, LIMITS.steps, true) && pair[0] > prevRow && num(pair[1], 40, 255, true), 'tempoAt requires increasing [row, tempo] pairs');
+        var prev = segments[segments.length - 1];
+        segments.push({ row: pair[0], tempo: pair[1], frame: prev.frame + H.lsdjRowFrame(prev.tempo, ticks, pair[0] - prev.row) });
+        prevRow = pair[0];
+      });
+    }
+    return function (beat) {
+      // The largest allowed arrangement can have 65536 bars plus 4096
+      // repetitions of 65536 steps at one step/bar. Reject unsafe row math.
+      need(num(beat, 0, 4 * (65536 + 4096 * 65536)), 'Invalid beat position');
+      if (!ticks) return H.beatToFrame(beat, tempo);
+      var row = beat * grid / 4;
+      need(row < 2147483647, 'Clock row limit');
+      var lo = 0, hi = segments.length;
+      while (lo + 1 < hi) { var mid = (lo + hi) >> 1; if (segments[mid].row <= row) lo = mid; else hi = mid; }
+      var seg = segments[lo], relative = row - seg.row, floor = Math.floor(relative);
+      var start = H.lsdjRowFrame(seg.tempo, ticks, floor);
+      return Math.round(seg.frame + start + (relative - floor) * (H.lsdjRowFrame(seg.tempo, ticks, floor + 1) - start));
+    };
+  }
+  function beatToFrame(settings, beat) { return createClock(settings)(beat); }
+  function Parser(s) { this.s = s; this.i = 0; this.nodes = 0; }
+  Parser.prototype.skip = function () {
+    var s = this.s;
+    while (this.i < s.length) {
+      if (/\s/.test(s[this.i])) { this.i++; continue; }
+      if (s.slice(this.i, this.i + 2) === '//') { while (this.i < s.length && s[this.i] !== '\n') this.i++; continue; }
+      if (s.slice(this.i, this.i + 2) === '/*') { var end = s.indexOf('*/', this.i + 2); need(end >= 0, 'Unclosed comment', this.i); this.i = end + 2; continue; }
+      break;
+    }
+  };
+  Parser.prototype.take = function (c) { this.skip(); if (this.s[this.i] === c) { this.i++; return true; } return false; };
+  Parser.prototype.expect = function (c) { need(this.take(c), 'Expected ' + c, this.i); };
+  Parser.prototype.id = function () { this.skip(); var m = /^[A-Za-z_][A-Za-z_0-9]*/.exec(this.s.slice(this.i)); need(m, 'Expected name', this.i); this.i += m[0].length; return m[0]; };
+  Parser.prototype.string = function () {
+    this.skip(); var start = this.i, quote = this.s[this.i++], out = '';
+    while (this.i < this.s.length) {
+      var c = this.s[this.i++];
+      if (c === quote) return out;
+      need(c.charCodeAt(0) >= 32, 'Control character in string', this.i - 1);
+      if (c === '\\') {
+        c = this.s[this.i++];
+        var escapes = { '"': '"', "'": "'", '\\': '\\', '/': '/', b: '\b', f: '\f', n: '\n', r: '\r', t: '\t' };
+        if (c === 'u') { var h = this.s.slice(this.i, this.i + 4); need(/^[0-9a-fA-F]{4}$/.test(h), 'Invalid Unicode escape', this.i); out += String.fromCharCode(parseInt(h, 16)); this.i += 4; }
+        else { need(own(escapes, c), 'Invalid escape', this.i); out += escapes[c]; }
+      } else out += c;
+    }
+    fail('Unclosed string', start);
+  };
+  Parser.prototype.value = function (depth) {
+    need(depth <= LIMITS.depth && ++this.nodes <= LIMITS.nodes, 'Data resource limit', this.i);
+    this.skip(); var c = this.s[this.i], v, k;
+    if (c === '"' || c === "'") return this.string();
+    if (c === '{' || c === '[') {
+      this.i++; var arr = c === '[', close = arr ? ']' : '}'; v = arr ? [] : {};
+      if (this.take(close)) return v;
+      do {
+        if (arr) v.push(this.value(depth + 1));
+        else {
+          this.skip(); k = /['"]/.test(this.s[this.i] || ' ') ? this.string() : this.id();
+          need(!['__proto__', 'constructor', 'prototype'].includes(k) && !own(v, k), 'Forbidden or duplicate key', this.i);
+          this.expect(':'); v[k] = this.value(depth + 1);
+        }
+        if (this.take(close)) return v;
+        this.expect(',');
+      } while (true);
+    }
+    var m = /^-?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?/.exec(this.s.slice(this.i));
+    if (m) { this.i += m[0].length; v = Number(m[0]); need(Number.isFinite(v), 'Non-finite number', this.i); return v; }
+    k = this.id(); if (k === 'true') return true; if (k === 'false') return false; if (k === 'null') return null;
+    fail('Only literal data is allowed', this.i - k.length);
+  };
+  Parser.prototype.args = function () { var a = []; this.expect('('); if (!this.take(')')) { do { a.push(this.value(0)); } while (this.take(',')); this.expect(')'); } return a; };
+  Parser.prototype.chain = function () { var a = []; while (this.take('.')) { var at = this.i; a.push({ name: this.id(), args: this.args(), at: at }); } return a; };
+  function compile(source) {
+    var settings = {}, mapping = [], diagnostics = [], p, gb = null;
+    var lines = [0];
+    function pos(offset) { var lo = 0, hi = lines.length; while (lo + 1 < hi) { var mid = (lo + hi) >> 1; if (lines[mid] <= offset) lo = mid; else hi = mid; } return { offset: offset, line: lo + 1, column: offset - lines[lo] + 1 }; }
+    function span(a, b) { return { start: pos(a), end: pos(b) }; }
+    try {
+      need(typeof source === 'string' && source.length <= LIMITS.source, 'Source size limit');
+      for (var li = 0; li < source.length; li++) if (source[li] === '\n') lines.push(li + 1);
+      need(H && H.beatToFrame, 'CT_GB hardware dependency is required');
+      p = new Parser(source); var patterns = Object.create(null), plays = [], seen = Object.create(null), eventCount = 0, eventSpans = {}, work = 0;
+      function spend(n, at) { work += n; need(work <= LIMITS.work, 'Compilation work limit', at); }
+      gb = { notes: [] };
+      function add(key, value, at, end) {
+        need(object(value), key + ' requires an object', at);
+        need(++eventCount <= LIMITS.events, 'Event expansion limit', at);
+        if (!own(gb, key)) gb[key] = [];
+        gb[key].push(value);
+        (eventSpans[key] || (eventSpans[key] = [])).push(at);
+        if (key === 'notes') mapping.push({ noteIndex: gb.notes.length - 1, span: span(at, end), pattern: null, occurrence: null });
+      }
+      while (true) {
+        p.skip(); if (p.i === source.length) break;
+        var at = p.i, name = p.id(), args, chains;
+        if (name === 'pattern') {
+          p.expect('('); var pn = p.value(0); need(typeof pn === 'string' && !own(patterns, pn), 'Invalid or duplicate pattern name', at);
+          p.expect(','); need(p.id() === 'notes', 'Pattern requires notes()', p.i); args = p.args(); chains = p.chain(); p.expect(')');
+          need(args.length === 1 && typeof args[0] === 'string', 'notes requires a string', at);
+          chains.forEach(function (c) {
+            var bounds = { stepsPerBar: [1, 256, true], gate: [0.001, 1, false], velocity: [0, 1, false], transpose: [-128, 128, true], register: [-128, 128, true] };
+            need(own(bounds, c.name), 'Unknown notes transformation', c.at);
+            var b = bounds[c.name]; need(c.args.length === 1 && num(c.args[0], b[0], b[1], b[2]), 'Invalid notes transformation argument', c.at);
+          });
+          patterns[pn] = { text: args[0], chains: chains, at: at, end: p.i };
+        } else {
+          args = p.args(); chains = p.chain();
+          need(args.length === 1, name + ' requires one argument', at);
+          var v = args[0];
+          if (name === 'track') { need(typeof v === 'string', 'Track requires a lane name', at); plays.push({ lane: v, chains: chains, at: at, end: p.i }); }
+          else {
+            need(chains.length === 0, 'Unsupported chain', at);
+            var eventNames = { event: 'notes', automation: 'auto', vibratoOff: 'vibOff', waveLoad: 'waveLoads', kit: 'kit' };
+            var key = own(eventNames, name) ? eventNames[name] : null;
+            if (key) add(key, v, at, p.i);
+            else if (['song', 'instruments', 'waves', 'performance'].includes(name)) {
+              need(!seen[name], 'Duplicate ' + name, at); seen[name] = true;
+              if (name === 'song') {
+                need(object(v), 'song requires settings', at);
+                if (own(v, 'totalFrames')) { need(Object.keys(v).every(function (k) { return ['totalFrames', 'loopFrames', 'settings'].includes(k); }), 'Exact song accepts totalFrames, loopFrames, settings', at); settings = v.settings || {}; need(object(settings), 'Invalid settings', at); gb.totalFrames = v.totalFrames; if (own(v, 'loopFrames')) gb.loopFrames = v.loopFrames; }
+                else { settings = v; }
+              } else if (name === 'performance') {
+                need(object(v), 'performance requires an object', at);
+                Object.keys(v).forEach(function (k) {
+                  need(!['notes', 'totalFrames', 'loopFrames'].includes(k), 'Reserved performance field ' + k, at);
+                  if (['auto', 'vibOff', 'waveLoads', 'kit'].includes(k)) need(Array.isArray(v[k]) && !v[k].length, 'Use individual event calls for ' + k, at);
+                  if (k === 'bank') { need(object(v[k]) && !own(v[k], 'instruments') && !own(v[k], 'waveTables'), 'Use instruments() and waves() for bank assets', at); gb.bank = Object.assign(gb.bank || {}, v[k]); }
+                  else { need(!own(gb, k), 'Duplicate performance field', at); gb[k] = v[k]; }
+                });
+              } else { need(Array.isArray(v), name + ' requires an array', at); gb.bank = gb.bank || {}; gb.bank[name === 'waves' ? 'waveTables' : 'instruments'] = v; }
+            } else fail('Unknown call ' + name, at);
+          }
+        }
+        p.take(';');
+      }
+      need(seen.song, 'song() is required');
+      var tempo = settings.tempo == null ? 120 : settings.tempo;
+      var changes = settings.tempoAt, time = createClock(settings);
+      if (!own(gb, 'totalFrames') || plays.length) {
+        need(num(tempo, 1, 1000), 'Invalid tempo');
+        need(settings.beatsPerBar == null || settings.beatsPerBar === 4, 'Only four beats per bar are supported');
+        if (!own(gb, 'totalFrames')) { need(num(settings.bars, 1, 65536, true), 'Finite bars required'); gb.totalFrames = time(settings.bars * 4); gb.loopFrames = gb.totalFrames; }
+        if (!gb.bank) gb.bank = H.buildBank([]);
+      }
+      need(num(gb.totalFrames, 0, LIMITS.frames, true), 'Invalid totalFrames');
+      if (own(gb, 'loopFrames')) need(num(gb.loopFrames, 0, gb.totalFrames, true), 'Invalid loopFrames');
+      if (gb.bank) {
+        var b = gb.bank;
+        // Create appends sound variants to the 128 stock records. Indices are
+        // array addresses, not seven-bit hardware IDs; ROM emits registers.
+        if (own(b, 'instruments')) need(Array.isArray(b.instruments) && b.instruments.length <= LIMITS.instruments && b.instruments.every(function (r) { return Array.isArray(r) && r.length === 4 && r.every(function (v) { return num(v, 0, 255, true); }); }), 'Invalid instrument bank: at most ' + LIMITS.instruments + ' four-byte records');
+        if (own(b, 'waveTables')) need(Array.isArray(b.waveTables) && b.waveTables.length <= H.WAVE_SLOTS && b.waveTables.every(function (r) { return Array.isArray(r) && r.length === 32 && r.every(function (v) { return num(v, 0, 15, true); }); }), 'Invalid wave bank: at most 32 tables of 32 nibbles');
+        if (own(b, 'arpTables')) need(Array.isArray(b.arpTables) && b.arpTables.length <= 256 && b.arpTables.every(function (r) { return Array.isArray(r) && r.length <= 256 && r.every(function (v) { return num(v, -128, 255, true); }); }), 'Invalid arpeggio tables');
+        if (own(b, 'meta')) need(Array.isArray(b.meta) && b.meta.length <= ((b.instruments || []).length) && b.meta.every(function (m) { return object(m) && num(m.index, 0, (b.instruments || []).length - 1, true) && ['pulse', 'wave', 'noise'].includes(m.type) && (!own(m, 'patch') || object(m.patch) && (!own(m.patch, 'table4bit') || Array.isArray(m.patch.table4bit) && m.patch.table4bit.length === 32 && m.patch.table4bit.every(function (v) { return num(v, 0, 15, true); }))); }), 'Invalid bank metadata');
+      }
+      var lanes = { lead: 0, pulse1: 0, arp: 1, pad: 1, pulse2: 1, bass: 2, wave: 2, drums: 3, noise: 3 };
+      function instrument(v, at) {
+        if (typeof v === 'string') {
+          if (v === 'wave-bass') v = 'w-triangle';
+          var matches = ((gb.bank || {}).meta || []).filter(function (m) { return m.name === v || m.id === v || m.patch && m.patch.authored === v; });
+          need(matches.length === 1, 'Unknown or ambiguous instrument ' + v, at); v = matches[0].index;
+        }
+        need(num(v, 0, ((gb.bank || {}).instruments || []).length - 1, true), 'Invalid instrument', at); return v;
+      }
+      plays.forEach(function (t) {
+        need(own(lanes, t.lane), 'Unknown track lane', t.at); var inst = null, transforms = [];
+        t.chains.forEach(function (c) {
+          if (c.name === 'instrument') { need(c.args.length === 1, 'instrument requires one argument', c.at); inst = instrument(c.args[0], c.at); return; }
+          if (c.name === 'transpose' || c.name === 'register') { need(c.args.length === 1 && num(c.args[0], -128, 128, true), 'Invalid pitch transformation', c.at); transforms.push(c); return; }
+          need(c.name === 'play' && c.args.length >= 1 && c.args.length <= 2, 'Unsupported track operation', c.at);
+          need(inst !== null, 'Set instrument before play', c.at);
+          need(typeof c.args[0] === 'string', 'play requires a pattern name', c.at);
+          var pat = patterns[c.args[0]], opt = c.args.length === 2 ? c.args[1] : {};
+          need(pat && object(opt) && Object.keys(opt).every(function (k) { return ['atBar', 'repeat'].includes(k); }), 'Invalid pattern or play options', c.at);
+          var atBar = opt.atBar == null ? 0 : opt.atBar, repeat = opt.repeat == null ? 1 : opt.repeat;
+          need(num(atBar, 0, 65536) && num(repeat, 1, LIMITS.repeats, true), 'Invalid arrangement bounds', c.at);
+          var tokens = pat.text.trim() ? pat.text.trim().split(/\s+/) : [], step = 0, rows = [], spb = 16, gate = 1;
+          spend(tokens.length * (1 + pat.chains.length + transforms.length), c.at);
+          need(tokens.length > 0 && tokens.length <= LIMITS.steps, 'Pattern step limit', pat.at);
+          tokens.forEach(function (token) {
+            var m = /^(\.|[A-Ga-g][#b]?-?\d+)(?::(\d+(?:\.\d+)?))?(?:@(\d+(?:\.\d+)?))?$/.exec(token);
+            need(m, 'Invalid note token ' + token, pat.at); var length = m[2] == null ? 1 : Number(m[2]), vel = m[3] == null ? 1 : Number(m[3]);
+            need(num(length, 0.001, LIMITS.steps) && num(vel, 0, 1), 'Invalid length or velocity', pat.at);
+            if (m[1] !== '.') { var pitch = /^([A-Ga-g])([#b]?)(-?\d+)$/.exec(m[1]); rows.push({ step: step, length: length, midi: (Number(pitch[3]) + 1) * 12 + { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }[pitch[1].toUpperCase()] + (pitch[2] === '#' ? 1 : pitch[2] === 'b' ? -1 : 0), vel: vel }); }
+            step += length; need(step <= LIMITS.steps, 'Pattern length limit', pat.at);
+          });
+          pat.chains.concat(transforms).forEach(function (x) {
+            var n = x.args[0]; need(x.args.length === 1, 'Transformation requires one argument', x.at);
+            if (x.name === 'stepsPerBar') { need(num(n, 1, 256, true), 'Invalid stepsPerBar', x.at); spb = n; }
+            else if (x.name === 'gate') { need(num(n, 0.001, 1), 'Invalid gate', x.at); gate = n; }
+            else if (x.name === 'velocity') { need(num(n, 0, 1), 'Invalid velocity', x.at); rows.forEach(function (r) { r.vel = n; }); }
+            else if (x.name === 'transpose' || x.name === 'register') { need(num(n, -128, 128, true), 'Invalid pitch transformation', x.at); rows.forEach(function (r) { r.midi = x.name === 'transpose' ? r.midi + n : (n + 1) * 12 + ((r.midi % 12) + 12) % 12; }); }
+            else fail('Unknown notes transformation', x.at);
+          });
+          need(eventCount + rows.length * repeat <= LIMITS.events, 'Event expansion limit', c.at);
+          spend(repeat * (1 + rows.length * (1 + (changes ? changes.length : 0))), c.at);
+          for (var rep = 0; rep < repeat; rep++) rows.forEach(function (r, ri) {
+            var beat = atBar * 4 + (rep * step + r.step) * 4 / spb, frame = time(beat);
+            add('notes', { ch: lanes[t.lane], frame: frame, frames: Math.max(1, time(beat + r.length * gate * 4 / spb) - frame), midi: r.midi, inst: inst, vel: r.vel }, pat.at, pat.end);
+            Object.assign(mapping[mapping.length - 1], { pattern: c.args[0], occurrence: rep, patternNote: ri, track: t.lane, occurrenceSpan: span(c.at, t.end) });
+          });
+        });
+      });
+      gb.notes.forEach(function (n, i) {
+        var at = mapping[i].span.start.offset;
+        need(num(n.ch, 0, 3, true) && num(n.frame, 0, LIMITS.frames, true) && num(n.frames, 1, LIMITS.frames, true), 'Invalid note channel or timing', at);
+        need(n.frame < gb.totalFrames, 'Note starts at or beyond song end', at);
+        need(n.frame + n.frames <= LIMITS.frames, 'Note end exceeds global frame limit', at);
+        if (n.frame + n.frames > gb.totalFrames) {
+          need(mapping[i].pattern === null, 'Note extends beyond song end', at);
+          diagnostics.push({ severity: 'warning', code: 'SONG_END_CUT',
+            message: 'Finite song end cuts this exact event; its source duration is preserved',
+            span: mapping[i].span, noteIndex: i, cutFrame: gb.totalFrames,
+            noteEndFrame: n.frame + n.frames });
+        }
+        need(typeof n.inst === 'number', 'Explicit event inst must be an index', at);
+        instrument(n.inst, at);
+        if (n.ch !== 3) need(num(n.midi, 0, 127, true) && H.inRange(n.midi, n.ch === 2 ? 'wave' : 'pulse'), 'Pitch outside chip range', at);
+        if (own(n, 'vel')) need(num(n.vel, 0, 1), 'Invalid velocity', at);
+        if (own(n, 'trigger')) need(typeof n.trigger === 'boolean', 'Invalid trigger state', at);
+      });
+      ['auto', 'vibOff', 'waveLoads', 'kit'].forEach(function (k) {
+        (gb[k] || []).forEach(function (e, i) {
+          var at = eventSpans[k][i];
+          need(num(e.f, 0, gb.totalFrames), 'Invalid ' + k + ' frame', at);
+          if (k === 'auto') need(num(e.r, 16, 63, true) && num(e.v, 0, 255, true), 'Invalid register write', at);
+          if (k === 'vibOff') need(num(e.ch, 0, 1, true), 'Invalid vibrato channel', at);
+          if (k === 'waveLoads') need(num(e.slot, 0, ((gb.bank || {}).waveTables || []).length - 1, true), 'Invalid wave slot', at);
+          if (k === 'kit') need(num(e.id, 0, 255, true) && K && K.kits().some(function (kit) { return kit.id === e.id; }), 'Unknown kit id or missing CT_GB_KITS', at);
+        });
+      });
+      var ends = [-1, -1, -1, -1];
+      gb.notes.map(function (n, i) { return { n: n, i: i }; }).sort(function (a, b) { return a.n.frame - b.n.frame || a.i - b.i; }).forEach(function (item) {
+        var n = item.n;
+        if (n.frame < ends[n.ch]) diagnostics.push({ severity: 'warning', code: 'CHIP_OVERLAP', message: 'Overlapping notes on chip channel ' + n.ch, span: mapping[item.i].span, noteIndex: item.i });
+        ends[n.ch] = Math.max(ends[n.ch], n.frame + n.frames);
+      });
+      return { gb: gb, settings: settings, mapping: mapping, diagnostics: diagnostics };
+    } catch (e) { return { gb: null, settings: settings, mapping: [], diagnostics: [{ severity: 'error', code: 'INVALID_SOURCE', message: e.message, span: span(e.at == null ? p ? p.i : 0 : e.at, e.at == null ? p ? p.i : 0 : e.at) }] }; }
+  }
+  function materialize(gb, meta) {
+    var nodes = 0, active = new Set();
+    function check(v, depth) {
+      need(depth <= LIMITS.depth && ++nodes <= LIMITS.nodes, 'Data resource limit');
+      if (v === null || typeof v === 'string' || typeof v === 'boolean' || typeof v === 'number' && Number.isFinite(v)) return;
+      need(typeof v === 'object' && v && !active.has(v), 'Only acyclic finite JSON data is supported');
+      need(Array.isArray(v) || Object.getPrototypeOf(v) === Object.prototype || Object.getPrototypeOf(v) === null, 'Only plain data is supported');
+      active.add(v);
+      if (Array.isArray(v)) need(Object.keys(v).length === v.length, 'Sparse or decorated arrays are unsupported');
+      Object.keys(v).forEach(function (k) { need(!['__proto__', 'constructor', 'prototype'].includes(k), 'Forbidden data key'); var d = Object.getOwnPropertyDescriptor(v, k); need(d && own(d, 'value'), 'Accessors are unsupported'); if (d.value !== undefined || Array.isArray(v)) check(d.value, depth + 1); });
+      need(Object.getOwnPropertySymbols(v).length === 0, 'Symbol fields are unsupported'); active.delete(v);
+    }
+    check(gb, 0); check(meta || {}, 0); need(object(gb) && Array.isArray(gb.notes), 'GB notes required');
+    var out = [], song = { totalFrames: gb.totalFrames, settings: meta || {} }, extra = {};
+    if (own(gb, 'loopFrames')) song.loopFrames = gb.loopFrames;
+    function emit(name, v) {
+      if (name === 'song') out.push('// Song and source settings\n' + name + '(' + JSON.stringify(v, null, 2) + ');');
+      else if (name === 'instruments' || name === 'waves') out.push('// ' + (name === 'instruments' ? 'Instrument records' : 'Wave tables (32 nibbles each)') + '\n' + name + '([\n' + v.map(function (row) { return '  ' + JSON.stringify(row); }).join(',\n') + '\n]);');
+      else if (name === 'performance') out.push('// Performance and bank metadata\nperformance(' + JSON.stringify(v) + ');');
+      else out.push(name + '(' + JSON.stringify(v) + ');');
+    }
+    emit('song', song);
+    if (gb.bank) {
+      if (own(gb.bank, 'instruments')) emit('instruments', gb.bank.instruments);
+      if (own(gb.bank, 'waveTables')) emit('waves', gb.bank.waveTables);
+      extra.bank = {}; Object.keys(gb.bank).forEach(function (k) { if (!['instruments', 'waveTables'].includes(k)) extra.bank[k] = gb.bank[k]; });
+    }
+    Object.keys(gb).forEach(function (k) { if (!['notes', 'bank', 'totalFrames', 'loopFrames', 'auto', 'vibOff', 'waveLoads', 'kit'].includes(k)) extra[k] = gb[k]; });
+    var calls = { notes: 'event', auto: 'automation', vibOff: 'vibratoOff', waveLoads: 'waveLoad', kit: 'kit' };
+    Object.keys(calls).forEach(function (k) { if (own(gb, k) && k !== 'notes' && gb[k].length === 0) extra[k] = []; });
+    if (Object.keys(extra).length) emit('performance', extra);
+    Object.keys(calls).forEach(function (k) { if (own(gb, k)) { need(Array.isArray(gb[k]), 'Expected event array'); if (gb[k].length) out.push('\n// ' + { notes: 'Note events', auto: 'Register automation', vibOff: 'Vibrato off', waveLoads: 'Wave loads', kit: 'Kit events' }[k]); gb[k].forEach(function (e) { emit(calls[k], e); }); } });
+    var source = out.join('\n') + '\n', result = compile(source);
+    need(result.gb, result.diagnostics.map(function (d) { return d.message; }).join('; '));
+    function canonical(v) { if (Array.isArray(v)) return v.map(canonical); if (object(v)) { var o = {}; Object.keys(v).sort().forEach(function (k) { o[k] = canonical(v[k]); }); return o; } return v; }
+    need(JSON.stringify(canonical(result.gb)) === JSON.stringify(canonical(gb)), 'Unsupported GB representation');
+    return source;
+  }
+  var API = Object.freeze({ VERSION: '1', LIMITS: LIMITS, compile: compile, materialize: materialize,
+    beatToFrame: beatToFrame, createClock: createClock });
+  G.CT_MUSIC_LANGUAGE = API;
+  if (typeof module !== 'undefined' && module.exports) module.exports = API;
+})(typeof globalThis !== 'undefined' ? globalThis : window);
+
+/* ===== src/music-project.js ===== */
+/* Revision authority for Code/Notes. No audio or storage side effects on create/apply.
+ * UMD, synchronous compiler injection: compile(source) -> {gb,settings,mapping,diagnostics}.
+ * All returned data is detached. Source offsets are UTF-16, ranges half-open.
+ * Locks use chip channel numbers, never model-provided track names or summaries.
+ * Unknown GB fields and shared registers are conservatively global for constraints.
+ */
+(function (root, factory) {
+  var api = factory(root);
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  else root.CT_MUSIC_PROJECT = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (root) {
+  'use strict';
+  var FORMAT = 'ct-music-project', VERSION = 1;
+  var sessionCounter = 0;
+  var LIMITS = { source: 1048576, record: 8388608, provenance: 65536, edits: 256, history: 64, requests: 1024 };
+  function fail(code, message) { return { ok: false, code: code, message: message || code }; }
+  function assert(ok, message) { if (!ok) throw new Error(message); }
+  // Preserve typed instrument banks in memory; compiled artifacts are never persisted.
+  function copy(value, depth) {
+    depth = depth || 0;
+    assert(depth < 100, 'Data nesting limit');
+    if (value == null || typeof value === 'string' || typeof value === 'boolean') return value;
+    if (typeof value === 'number') { assert(Number.isFinite(value), 'Non-finite data'); return value; }
+    if (ArrayBuffer.isView(value)) {
+      assert(!(value instanceof DataView), 'Unsupported DataView');
+      return new value.constructor(value);
+    }
+    assert(typeof value === 'object', 'Non-data value');
+    var result = Array.isArray(value) ? [] : {};
+    Object.keys(value).forEach(function (key) {
+      assert(key !== '__proto__' && key !== 'constructor' && key !== 'prototype', 'Unsafe data key');
+      var descriptor = Object.getOwnPropertyDescriptor(value, key);
+      assert(descriptor && 'value' in descriptor, 'Accessor data');
+      if (descriptor.value !== undefined) result[key] = copy(descriptor.value, depth + 1);
+    });
+    return result;
+  }
+  function stable(value) {
+    if (value === undefined) return 'undefined';
+    if (value === null || typeof value !== 'object') return JSON.stringify(value);
+    if (ArrayBuffer.isView(value)) return value.constructor.name + ':' + stable(Array.from(value));
+    if (Array.isArray(value)) return '[' + value.map(stable).join(',') + ']';
+    return '{' + Object.keys(value).sort().map(function (k) { return JSON.stringify(k) + ':' + stable(value[k]); }).join(',') + '}';
+  }
+  function equal(a, b) { return stable(a) === stable(b); }
+  function sourceOK(source) { return typeof source === 'string' && source.length <= LIMITS.source; }
+  function provenanceData(value) {
+    var data = copy(value == null ? null : value);
+    assert(JSON.stringify(data).length <= LIMITS.provenance, 'Provenance limit');
+    return data;
+  }
+  function channels(tracks) {
+    assert(Array.isArray(tracks) && tracks.length > 0 && tracks.length <= 4 && tracks.every(function (t) {
+      return Number.isInteger(t) && t >= 0 && t <= 3;
+    }), 'tracks must contain chip channels 0–3');
+    return tracks;
+  }
+  function minus(a, b) {
+    var counts = new Map();
+    b.forEach(function (n) { var k = stable(n); counts.set(k, (counts.get(k) || 0) + 1); });
+    return a.filter(function (n) { var k = stable(n), c = counts.get(k) || 0; if (c) { counts.set(k, c - 1); return false; } return true; });
+  }
+  function musicalDiff(before, after) {
+    var a = before.gb, b = after.gb, removed = minus(a.notes, b.notes), added = minus(b.notes, a.notes);
+    var fields = Array.from(new Set(Object.keys(a).concat(Object.keys(b)))).filter(function (k) {
+      return k !== 'notes' && !equal(a[k], b[k]);
+    }).sort();
+    // Ordering of surviving events matters for same-frame register/trigger priority,
+    // including when an unrelated addition/removal accompanies the reorder.
+    var orderChanged = !equal(minus(a.notes, removed), minus(b.notes, added));
+    var settingsChanged = !equal(before.settings, after.settings);
+    return copy({ added: added, removed: removed, changedFields: fields, orderChanged: orderChanged,
+      settingsChanged: settingsChanged, unchanged: !added.length && !removed.length && !fields.length && !orderChanged && !settingsChanged,
+      summary: added.length + ' notes added; ' + removed.length + ' notes removed' +
+        (fields.length ? '; GB fields changed: ' + fields.join(', ') : '') +
+        (orderChanged ? '; note ordering changed' : '') + (settingsChanged ? '; song settings changed' : '') });
+  }
+  function projection(gb, tracks, type) {
+    var notes = gb.notes.filter(function (n) { return tracks.indexOf(n.ch) !== -1; });
+    if (type === 'track') return notes;
+    // Anchor each assignment to its channel/start and occurrence order. Pitch,
+    // velocity and gate edits remain possible; moving/adding/removing assignments
+    // needs an unlocked instrument lane because correspondence is ambiguous.
+    if (type === 'instrument') return notes.map(function (n) { return { ch: n.ch, frame: n.frame, inst: n.inst }; });
+    return notes.map(function (n) {
+      if (type === 'arrangement') return { ch: n.ch, frame: n.frame, frames: n.frames };
+      var p = copy(n); delete p.inst; delete p.vel; delete p.pri; return p;
+    });
+  }
+  function usedBank(gb, tracks) {
+    var bank = gb.bank || {}, used = {}, waves = {}, arps = {}, unknown = {};
+    gb.notes.forEach(function (n) {
+      if (tracks.indexOf(n.ch) === -1) return;
+      var record = (bank.instruments || [])[n.inst];
+      used[n.inst] = { record: record, meta: (bank.meta || [])[n.inst] };
+      if (record && record[2] !== undefined && record[2] !== 255) arps[record[2]] = (bank.arpTables || [])[record[2]];
+      if (n.ch === 2) {
+        var hw = root.CT_GB_HARDWARE;
+        var slot = hw && hw.waveSlotOf ? hw.waveSlotOf(bank.instruments, n.inst) :
+          (!record || !(record[3] & 1) ? 0 : Math.min(31, record[0] & 255));
+        waves[slot] = (bank.waveTables || [])[slot];
+      }
+    });
+    if (tracks.indexOf(2) !== -1) (gb.waveLoads || []).forEach(function (w) { waves[w.slot] = (bank.waveTables || [])[w.slot]; });
+    Object.keys(bank).forEach(function (k) {
+      if (['instruments', 'waveTables', 'arpTables', 'meta'].indexOf(k) === -1) unknown[k] = bank[k];
+    });
+    return { used: used, waves: waves, arps: arps, unknown: unknown };
+  }
+  function checkConstraints(before, after, constraints) {
+    constraints = copy(constraints || {});
+    assert(Object.keys(constraints).every(function (k) { return k === 'locks' || k === 'scope'; }), 'Unknown constraint');
+    var locks = constraints.locks || [], scope = constraints.scope, diff = musicalDiff(before, after);
+    assert(Array.isArray(locks) && locks.length <= 32, 'Invalid locks');
+    locks.forEach(function (lock) {
+      assert(['track', 'pitchrhythm', 'instrument', 'arrangement'].indexOf(lock.type) !== -1, 'Unknown lock');
+      assert(Object.keys(lock).every(function (k) { return k === 'type' || k === 'tracks'; }), 'Unknown lock field');
+      var tracks = channels(lock.tracks || [0, 1, 2, 3]);
+      // Shared automation can change held notes and instruments without a note edit.
+      var globalFields = diff.changedFields.filter(function (field) { return field !== 'bank'; });
+      assert(!diff.settingsChanged && !globalFields.length && !diff.orderChanged, 'Lock conflicts with global/shared musical changes');
+      if (diff.changedFields.indexOf('bank') !== -1)
+        assert(equal(usedBank(before.gb, tracks), usedBank(after.gb, tracks)), 'Lock conflicts with used instrument-bank assets');
+      assert(equal(projection(before.gb, tracks, lock.type), projection(after.gb, tracks, lock.type)), lock.type + ' lock violated');
+    });
+    if (scope) {
+      assert(Object.keys(scope).every(function (k) { return ['tracks', 'fromFrame', 'toFrame'].indexOf(k) !== -1; }), 'Unknown scope field');
+      var tracks = channels(scope.tracks || [0, 1, 2, 3]);
+      var from = scope.fromFrame === undefined ? 0 : scope.fromFrame;
+      var to = scope.toFrame === undefined ? Number.MAX_SAFE_INTEGER : scope.toFrame;
+      assert(Number.isSafeInteger(from) && Number.isSafeInteger(to) && from >= 0 && to > from, 'Invalid frame scope');
+      assert(!diff.settingsChanged && !diff.changedFields.length && !diff.orderChanged, 'Scope conflicts with global/shared musical changes');
+      diff.added.concat(diff.removed).forEach(function (n) {
+        assert(tracks.indexOf(n.ch) !== -1 && n.frame >= from && n.frame < to &&
+          Number.isFinite(n.frames) && n.frames >= 0 && n.frame + n.frames <= to, 'Change outside requested track/region');
+      });
+    }
+    return diff;
+  }
+  function create(source, options) {
+    options = options || {};
+    assert(sourceOK(source), 'Invalid or oversized source');
+    var language = root.CT_MUSIC_LANGUAGE;
+    var compiler = options.compile || (language && language.compile && language.compile.bind(language));
+    assert(typeof compiler === 'function', 'A synchronous music compiler is required');
+    var versions = { language: options.languageVersion || (language && language.VERSION) || '1',
+      compiler: options.compilerVersion || (language && language.COMPILER_VERSION) || '1', assets: options.assetsVersion || 'unspecified' };
+    versions = copy(versions);
+    var metadata = copy({ seeds: options.seeds || [], assets: options.assets || [] });
+    var privateData = copy({ chat: options.chat || [], provenance: provenanceData(options.provenance) });
+    var draft = source, draftEpoch = 0, history = [], cursor = -1, serial = 0, queueSerial = 0;
+    var sessionId = ++sessionCounter;
+    var playing = null, pending = null, diagnostics = [], active = null, requests = new Map();
+    function current() { return history[cursor] || null; }
+    function compile(text) {
+      try {
+        var c = compiler(text);
+        assert(c && typeof c.then !== 'function', 'Compiler must be synchronous');
+        c = copy(c);
+        var ds = c.diagnostics || [];
+        assert(Array.isArray(ds), 'Invalid diagnostics');
+        if (c.ok === false || ds.some(function (d) { return d && (d.severity === 'error' || d.level === 'error'); })) return { ok: false, code: 'invalid', diagnostics: ds };
+        assert(c.gb && Array.isArray(c.gb.notes), 'Compiler did not produce GB notes');
+        assert(c.gb.notes.length <= 200000, 'Compiled event limit');
+        c.gb.notes.forEach(function (n) {
+          assert(Number.isInteger(n.ch) && n.ch >= 0 && n.ch <= 3 && Number.isFinite(n.frame) && n.frame >= 0 &&
+            Number.isFinite(n.frames) && n.frames >= 0, 'Invalid compiled note timing/channel');
+        });
+        return { ok: true, compiled: { gb: c.gb, settings: c.settings || {}, mapping: c.mapping || [], diagnostics: ds }, diagnostics: ds };
+      } catch (e) { return { ok: false, code: 'invalid', diagnostics: [{ severity: 'error', message: String(e.message || e) }] }; }
+    }
+    function supersede() {
+      if (active) { requests.set(active, { id: active, status: 'superseded' }); active = null; }
+    }
+    function install(text, compiled) {
+      var previous = pending;
+      supersede(); pending = null;
+      history = history.slice(0, cursor + 1);
+      var revision = { id: 'r' + (++serial), source: text, compiled: copy(compiled) };
+      history.push(revision);
+      if (history.length > LIMITS.history) history.shift();
+      cursor = history.length - 1; draft = text; draftEpoch++; diagnostics = copy(compiled.diagnostics);
+      return { ok: true, revision: copy(revision), superseded: copy(previous) };
+    }
+    function validate() {
+      var result = compile(draft); diagnostics = copy(result.diagnostics);
+      return copy(result);
+    }
+    function move(delta) {
+      var next = cursor + delta;
+      if (next < 0 || next >= history.length) return fail('history-boundary');
+      var previous = pending;
+      supersede(); pending = null; cursor = next; draft = current().source; draftEpoch++;
+      diagnostics = copy(current().compiled.diagnostics);
+      return { ok: true, revision: copy(current()), superseded: copy(previous) };
+    }
+    var project = {
+      snapshot: function () { return copy({ draft: draft, draftEpoch: draftEpoch, validated: current(),
+        playing: playing, pending: pending, diagnostics: diagnostics, versions: versions,
+        canUndo: cursor > 0, canRedo: cursor + 1 < history.length,
+        request: active ? { id: active, status: requests.get(active).status } : null }); },
+      editDraft: function (text) {
+        if (!sourceOK(text)) return fail('source-limit');
+        if (text !== draft) { supersede(); draft = text; draftEpoch++; diagnostics = []; }
+        return { ok: true, draftEpoch: draftEpoch };
+      },
+      validate: validate,
+      // Call after a generated composition is applied to an existing project.
+      // Private provenance is persisted only with serialize/save includePrivate.
+      setProvenance: function (value) {
+        try { privateData.provenance = provenanceData(value); return { ok: true }; }
+        catch (e) { return fail('invalid-provenance', String(e.message || e)); }
+      },
+      applyDraft: function () {
+        var result = validate(); if (!result.ok) return result;
+        if (current() && current().source === draft && equal(current().compiled, result.compiled)) return { ok: true, revision: copy(current()), unchanged: true };
+        return install(draft, result.compiled);
+      },
+      undo: function () { return move(-1); }, redo: function () { return move(1); },
+      queue: function (revisionId) {
+        if (!current() || revisionId !== current().id) return fail('stale-revision');
+        var previous = pending;
+        pending = { revisionId: revisionId, queueId: 'q' + sessionId + '-' + (++queueSerial) };
+        return { ok: true, pending: copy(pending), superseded: copy(previous) };
+      },
+      ack: function (revisionId, queueId) {
+        if (!pending || pending.revisionId !== revisionId || pending.queueId !== queueId) return fail('stale-ack');
+        playing = revisionId; pending = null; return { ok: true, playing: playing };
+      },
+      cancel: function (queueId) {
+        if (!pending || pending.queueId !== queueId) return fail('stale-queue');
+        pending = null; return { ok: true };
+      },
+      stop: function () { playing = null; pending = null; return { ok: true }; },
+      beginRequest: function (id) {
+        if (typeof id !== 'string' || !id.length || id.length > 128) return fail('invalid-request-id');
+        if (requests.has(id)) return fail('duplicate-request');
+        if (active) return fail('request-active', 'Cancel or apply the active request before starting another');
+        // Do not evict tombstones and accidentally admit replay. Start a new project session at the cap.
+        if (requests.size >= LIMITS.requests) return fail('request-limit');
+        if (!current() || draft !== current().source) return fail('unapplied-draft');
+        active = id;
+        var request = { id: id, status: 'proposed', baseRevision: current().id, baseSource: draft, epoch: draftEpoch };
+        requests.set(id, request); return copy({ ok: true, id: id, baseRevision: request.baseRevision, baseSource: request.baseSource });
+      },
+      cancelRequest: function (id) {
+        if (active !== id) return fail('stale-request');
+        requests.set(id, { id: id, status: 'cancelled' }); active = null; return { ok: true };
+      },
+      validateProposal: function (proposal, constraints) {
+        var request;
+        try {
+          proposal = copy(proposal);
+          assert(proposal && typeof proposal.id === 'string', 'Missing proposal id');
+          request = requests.get(proposal.id);
+          if (!request || active !== proposal.id) return fail('stale-request');
+          if (request.status !== 'proposed') return fail('duplicate-response');
+          // A response is consumed even when malformed/invalid; retries require a new request id.
+          request.status = 'invalid';
+          assert(Object.keys(proposal).every(function (k) { return ['id', 'baseRevision', 'baseSource', 'edits'].indexOf(k) !== -1; }), 'Unknown proposal field');
+          assert(current() && proposal.baseRevision === current().id && proposal.baseRevision === request.baseRevision &&
+            proposal.baseSource === draft && draft === request.baseSource && request.epoch === draftEpoch, 'Stale proposal base');
+          assert(Array.isArray(proposal.edits) && proposal.edits.length > 0 && proposal.edits.length <= LIMITS.edits, 'Invalid edit count');
+          var edits = proposal.edits.slice().sort(function (a, b) { return a.from - b.from || a.to - b.to; });
+          var end = -1, lastFrom = -1, text = '', pos = 0;
+          edits.forEach(function (e) {
+            assert(Object.keys(e).every(function (k) { return ['from', 'to', 'text'].indexOf(k) !== -1; }), 'Unknown edit field');
+            assert(Number.isSafeInteger(e.from) && Number.isSafeInteger(e.to) && e.from >= 0 && e.to >= e.from && e.to <= draft.length &&
+              e.from >= end && e.from !== lastFrom && sourceOK(e.text), 'Invalid/overlapping edit');
+            text += draft.slice(pos, e.from) + e.text; pos = e.to; end = e.to; lastFrom = e.from;
+            assert(text.length <= LIMITS.source, 'Source limit');
+          });
+          text += draft.slice(pos); assert(sourceOK(text), 'Source limit');
+          var result = compile(text);
+          if (!result.ok) return result;
+          var diff = checkConstraints(current().compiled, result.compiled, constraints);
+          request.status = 'ready'; request.source = text; request.compiled = result.compiled; request.diff = diff;
+          return copy({ ok: true, id: proposal.id, source: text, compiled: result.compiled, diff: diff, status: 'ready' });
+        } catch (e) { return fail('invalid-proposal', String(e.message || e)); }
+      },
+      applyProposal: function (id) {
+        var request = requests.get(id);
+        if (!request || active !== id || request.status !== 'ready') return fail('stale-request');
+        if (!current() || request.baseRevision !== current().id || request.baseSource !== draft || request.epoch !== draftEpoch) return fail('stale-base');
+        var result = install(request.source, request.compiled); request.status = 'applied';
+        requests.set(id, { id: id, status: 'applied' }); result.diff = copy(request.diff); return result;
+      },
+      serialize: function (opts) {
+        var record = { format: FORMAT, version: VERSION, versions: versions, metadata: metadata,
+          draft: draft, lastValid: current() ? { id: current().id, source: current().source } : null, revisionCounter: serial };
+        if (opts && opts.includePrivate) record.private = privateData;
+        var text = JSON.stringify(record); assert(text.length <= LIMITS.record, 'Project record limit'); return text;
+      }
+    };
+    Object.defineProperties(project, {
+      draft: { enumerable: true, get: function () { return draft; } },
+      validated: { enumerable: true, get: function () { return copy(current()); } },
+      pending: { enumerable: true, get: function () { return copy(pending); } },
+      playing: { enumerable: true, get: function () { return playing; } }
+    });
+    project.propose = project.validateProposal;
+    var initial = compile(source); diagnostics = copy(initial.diagnostics);
+    if (initial.ok) install(source, initial.compiled);
+    // Private recovery entry point, not exposed on the project API.
+    if (options._restore) {
+      var saved = options._restore;
+      if (saved.lastValid) {
+        assert(current(), 'Saved validated source no longer compiles');
+        current().id = saved.lastValid.id;
+      }
+      serial = saved.revisionCounter;
+      draft = saved.draft; draftEpoch++;
+      diagnostics = copy(compile(draft).diagnostics);
+    }
+    return project;
+  }
+  function restore(serialized, options) {
+    try {
+      assert(typeof serialized === 'string' && serialized.length <= LIMITS.record, 'Project record limit');
+      var saved = copy(JSON.parse(serialized));
+      assert(saved.format === FORMAT && saved.version === VERSION, 'Unsupported project format/version');
+      assert(saved.versions && saved.metadata && sourceOK(saved.draft), 'Malformed project');
+      assert(Number.isSafeInteger(saved.revisionCounter) && saved.revisionCounter >= 0, 'Invalid revision counter');
+      assert(saved.lastValid === null || (saved.lastValid && sourceOK(saved.lastValid.source) && /^r[1-9][0-9]*$/.test(saved.lastValid.id) &&
+        Number(saved.lastValid.id.slice(1)) <= saved.revisionCounter), 'Invalid validated revision');
+      options = Object.assign({}, options || {});
+      var language = root.CT_MUSIC_LANGUAGE;
+      var expected = { language: options.languageVersion || (language && language.VERSION) || '1',
+        compiler: options.compilerVersion || (language && language.COMPILER_VERSION) || '1', assets: options.assetsVersion || 'unspecified' };
+      assert(equal(saved.versions, expected), 'Incompatible language/compiler/instrument assets versions');
+      options.seeds = saved.metadata.seeds; options.assets = saved.metadata.assets;
+      if (saved.private) { options.chat = saved.private.chat; options.provenance = saved.private.provenance; }
+      options._restore = saved;
+      var project = create(saved.lastValid ? saved.lastValid.source : saved.draft, options);
+      return { ok: true, project: project };
+    } catch (e) { return { ok: false, code: 'incompatible-project', message: String(e.message || e), original: serialized }; }
+  }
+  /* One setItem writes draft + valid source atomically. Baseline comparison detects
+   * observed external writes. localStorage has no compare-and-swap: simultaneous
+   * read/write races require host coordination (e.g. Web Locks), not a false CAS claim.
+   * load first; a failed save never advances this adapter's baseline.
+   */
+  function createStorageAdapter(storage, key) {
+    assert(storage && typeof storage.getItem === 'function' && typeof storage.setItem === 'function' && typeof key === 'string' && key.length, 'Invalid storage adapter');
+    var baseline, loaded = false;
+    return {
+      load: function () {
+        try { baseline = storage.getItem(key); loaded = true; return { ok: true, serialized: baseline }; }
+        catch (e) { return fail('storage-error', String(e.message || e)); }
+      },
+      save: function (project, options) {
+        if (!loaded) return fail('baseline-required');
+        try {
+          if (storage.getItem(key) !== baseline) return fail('storage-conflict');
+          var serialized = project.serialize(options);
+          if (serialized !== baseline) storage.setItem(key, serialized);
+          if (storage.getItem(key) !== serialized) return fail('storage-conflict');
+          baseline = serialized; return { ok: true };
+        } catch (e) { return fail('storage-error', String(e.message || e)); }
+      }
+    };
+  }
+  return { FORMAT: FORMAT, VERSION: VERSION, LIMITS: copy(LIMITS), create: create, restore: restore,
+    musicalDiff: musicalDiff, checkConstraints: checkConstraints, createStorageAdapter: createStorageAdapter };
+});
+
+/* ===== src/music-chat.js ===== */
+// Transport only. A configured server authenticates and bills model requests.
+// Source/comments are data; the only accepted result is a localized proposal.
+(function(G){
+  'use strict';
+  var LIMIT=1024*1024;
+  function exact(o,fields){return o&&typeof o==='object'&&!Array.isArray(o)&&Object.keys(o).length===fields.length&&fields.every(function(k){return Object.prototype.hasOwnProperty.call(o,k);});}
+  function unicode(s){
+    for(var i=0;i<s.length;i++){
+      var c=s.charCodeAt(i);
+      if(c>=0xD800&&c<=0xDBFF){var n=s.charCodeAt(++i);if(!(n>=0xDC00&&n<=0xDFFF))return false;}
+      else if(c>=0xDC00&&c<=0xDFFF)return false;
+    }return true;
+  }
+  function boundary(s,i){return !(i>0&&i<s.length&&/[\uD800-\uDBFF]/.test(s[i-1])&&/[\uDC00-\uDFFF]/.test(s[i]));}
+  function cancelStream(stream){try{if(stream&&stream.cancel)Promise.resolve(stream.cancel()).catch(function(){});}catch(e){}}
+  function validate(value,context){
+    function need(ok){if(!ok)throw Error('Invalid chat proposal response');}
+    need(exact(value,['id','baseRevision','edits','explanation']));
+    need(value.id===context.id&&value.baseRevision===context.baseRevision&&
+      typeof value.explanation==='string'&&value.explanation.length<=5000&&unicode(value.explanation));
+    need(Array.isArray(value.edits)&&value.edits.length>0&&value.edits.length<=32);
+    var end=0,previous=-1,inserted=0,removed=0,candidate='',encoder=new TextEncoder();
+    value.edits.forEach(function(e){
+      need(exact(e,['from','to','text']));
+      need(Number.isSafeInteger(e.from)&&Number.isSafeInteger(e.to)&&e.from>=end&&e.from>previous&&
+        e.to>=e.from&&e.to<=context.source.length&&typeof e.text==='string'&&unicode(e.text));
+      need(boundary(context.source,e.from)&&boundary(context.source,e.to));
+      need(!(e.from===0&&e.to===context.source.length));
+      inserted+=encoder.encode(e.text).length;removed+=encoder.encode(context.source.slice(e.from,e.to)).length;
+      need(inserted<=16384&&removed<=16384);
+      candidate+=context.source.slice(end,e.from)+e.text;end=e.to;previous=e.from;
+    });
+    candidate+=context.source.slice(end);
+    need(candidate!==context.source&&encoder.encode(candidate).length<=524288&&removed<encoder.encode(context.source).length);
+  }
+  function Client(options){
+    options=options||{};
+    this.endpoint=options.endpoint||'/api/music/chat';
+    if(!/^\/api\/[a-z0-9/_-]+$/i.test(this.endpoint)) throw Error('Chat endpoint must be a same-origin API path');
+    this.fetch=options.fetch||(G.fetch&&G.fetch.bind(G)); this.active=null; this.serial=0;this.requests=new Set();
+  }
+  Client.prototype.cancel=function(){
+    if(this.active){this.active.stop('Chat request cancelled');this.active=null;}
+    this.serial++;
+  };
+  Client.prototype.request=async function(context){
+    if(this.active) throw Error('A chat request is already active');
+    if(!context||typeof context.request!=='string'||context.request.length>2000) throw Error('Request must be at most 2000 characters');
+    var body=JSON.stringify(context);
+    if(new TextEncoder().encode(body).length>LIMIT) throw Error('Chat context is too large');
+    // Snapshot the exact wire base: caller mutation while fetch is pending must
+    // not change the identity or offsets against which the reply is checked.
+    context=JSON.parse(body);
+    if(!/^[A-Za-z0-9_-]{1,128}$/.test(context.id||'')||typeof context.id!=='string'||
+       typeof context.baseRevision!=='string'||!/^[A-Za-z0-9_-]{1,128}$/.test(context.baseRevision)||
+       typeof context.source!=='string'||!unicode(context.source))throw Error('Invalid chat context');
+    if(this.requests.has(context.id))throw Error('Duplicate chat request');
+    if(this.requests.size>=1024)throw Error('Chat request limit reached');
+    this.requests.add(context.id); // Keep tombstones on every outcome; never evict.
+    var seq=++this.serial,controller=new AbortController(),self=this;
+    var rejection,stopped=null,reader=null,response=null,complete=false;
+    var aborted=new Promise(function(_,reject){rejection=reject;});aborted.catch(function(){});
+    function stop(message){if(stopped)return;stopped=Error(message);rejection(stopped);controller.abort();cancelStream(reader||response&&response.body);}
+    function run(fn){return stopped?Promise.reject(stopped):Promise.race([Promise.resolve().then(function(){if(stopped)throw stopped;return fn();}),aborted]);}
+    this.active={seq:seq,controller:controller,stop:stop};
+    var timer=setTimeout(function(){stop('Chat request timed out');},30000);
+    try{
+      response=await run(async function(){
+        var result=await self.fetch(self.endpoint,{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:body,signal:controller.signal});
+        if(stopped)cancelStream(result&&result.body);
+        return result;
+      });
+      if(!response.ok) throw Error(response.status===404||response.status===503?'Chat provider is not configured. Code and playback remain available.':response.status===429?'Chat is rate limited. Try again later.':'Chat request failed ('+response.status+')');
+      var length=+(response.headers.get('content-length')||0);
+      if(length>LIMIT) throw Error('Chat response is too large');
+      reader=response.body&&response.body.getReader();var raw='';
+      if(reader){
+        var decoder=new TextDecoder('utf-8',{fatal:true}),bytes=0;
+        while(true){
+          var chunk=await run(function(){return reader.read();}); if(chunk.done){complete=true;break;}
+          bytes+=chunk.value.length;
+          if(bytes>LIMIT)throw Error('Chat response is too large');
+          raw+=decoder.decode(chunk.value,{stream:true});
+        }
+        raw+=decoder.decode();
+      }else{raw=await run(function(){return response.text();});if(new TextEncoder().encode(raw).length>LIMIT)throw Error('Chat response is too large');complete=true;}
+      if(seq!==this.serial||controller.signal.aborted)throw Error('Chat request cancelled');
+      var value=JSON.parse(raw);
+      validate(value,context);
+      return value;
+    }finally{
+      clearTimeout(timer);controller.abort();if(!complete)cancelStream(reader||response&&response.body);
+      if(reader)try{reader.releaseLock();}catch(e){}
+      if(self.active&&self.active.seq===seq)self.active=null;
+    }
+  };
+  var api={Client:Client}; G.CT_MUSIC_CHAT=api;
+  if(typeof module!=='undefined'&&module.exports)module.exports=api;
+})(typeof globalThis!=='undefined'?globalThis:window);
+
+/* ===== src/music-exports.js ===== */
+/* Compiled revision export boundary; no compiler or native-import conversion.
+ * Input: {id: nonempty string, validated: true, compiled: {gb, settings}}.
+ * settings are compilation metadata: timing/master register writes MUST already
+ * be in gb. No transport rate, mixer or audition state is applied here.
+ * MIDI is a note sketch: fixed 62500 us/quarter, 16384 PPQN, 4389 ticks/frame
+ * gives EXACT 70224/4194304 second frame times, including compiled tempo maps.
+ * Chip registers, timbres, envelopes, detune/sweep/vibrato, trigger suppression,
+ * wave changes and PCM kits cannot be represented faithfully by these notes.
+ * MIDI note-offs beyond totalFrames are capped at the finite song boundary.
+ * WAV is mono PCM16, clipped/rounded from the shared Sequencer, ending at the
+ * finite totalFrames boundary (no added tail). opts: sampleRate (8000..96000),
+ * allowLosses (strict true), yield (optional async callback between PCM chunks).
+ * revision in the result is the selected id, not a mutable revision object.
+ *
+ * LSDj capability audit (2026-09-08): no certified exact subset THROUGH THE
+ * EXISTING EXPORTER. This is not a claim that the LSDj format cannot express
+ * a subset. src/lsdj.js fromDocument/lsdsng takes CT_CREATE document cells,
+ * not gb; it schedules c/len and ignores the exact of/lf timing fields.
+ * instrumentFor rebuilds stamp/velocity instruments (and silently reuses a
+ * nearest-volume instrument at 64 slots); the instrument writer uses plain
+ * software sustain rather than arbitrary bank envelope bytes. waveTableFor
+ * selects stock stamp tables, with multiple wave voices sharing one table.
+ * Arbitrary auto/vibOff/waveLoads/kit arrays have no input mapping. Phrase
+ * padding and omitted boundary KILLs do not certify totalFrames/song-end state.
+ * readSong/writeSong prove native byte preservation, not gb equivalence;
+ * toSongJSON is a document projection with additional semantic limitations.
+ * Even the plain pulse/no-automation candidate lacks a certified start phase,
+ * frame clock and finite end: verify-lsdj-emulator permits +/-1 frame note
+ * lengths and <=2% row-gap mismatch after searching 40 phase offsets.
+ * Enabling a subset requires a gb->native mapping, fail-closed capacity checks,
+ * and an independent target-version execution comparison of exact event times,
+ * relevant chip state and finite end. Neither installing CT_LSDJ nor accepting
+ * losses supplies that proof. Native byte passthrough remains out of scope.
+ */
+(function (G) {
+  'use strict';
+  var node = typeof module !== 'undefined' && module.exports;
+  var H = node ? require('./gb-hardware.js') : G.CT_GB_HARDWARE;
+  if (node) require('./gb-kits.js');
+  var A = node ? require('./gb-apu.js') : G.CT_GB_APU;
+  var R = node ? require('./gb-rom.js') : G.CT_GB_ROM;
+  var FPS = 4194304 / 70224;
+  var LIMITS = Object.freeze({ seconds: 600, samples: 28800000, events: 100000, nodes: 1000000 });
+  var LOSS = 'MIDI preserves note frame times only: chip timbres, envelopes, noise pitch, detune, sweep, vibrato, trigger state, register automation, wave loads and PCM kits are not reproduced; velocity is quantized to MIDI and note-offs are capped at the finite totalFrames boundary.';
+  function fail(message) { throw new Error('music-exports: ' + message); }
+  function integer(x, lo, hi) { return Number.isInteger(x) && x >= lo && x <= hi; }
+  function lsdjErrors(g) {
+    var errors = [
+      'LSDj capability unavailable: no verified exact compiled-gb conversion. Existing fromDocument/lsdsng accepts document rows, not gb frame events.',
+      'LSDj exact timing/end unverified even for plain pulse notes: document of/lf are ignored; phrase padding and boundary KILL omission cannot certify totalFrames. Existing emulator checks tolerate timing differences; native byte roundtrip is not playback equivalence.'
+    ];
+    if (g.notes.length) errors.push('LSDj instrument mapping unverified: exporter rebuilds stamp/velocity instruments with plain software sustain, not the compiled bank; instrument exhaustion can silently approximate volume.');
+    if ((g.auto || []).length || (g.vibOff || []).length) errors.push('LSDj register automation/vibrato handoff has no exact compiled-event mapping.');
+    if ((g.waveLoads || []).length || g.notes.some(function (n) { return n.ch === 2; })) errors.push('LSDj compiled wave tables/reloads have no exact mapping: existing exporter selects stock stamp waves and shares one pinned table.');
+    if ((g.kit || []).length) errors.push('LSDj PCM kit data requires compatible target ROM assets; existing document exporter does not serialize compiled kits.');
+    return errors;
+  }
+  // Bound and copy before the first await: edits while a WAV yields cannot change it.
+  function snapshot(value) {
+    var count = 0, seen = new Set();
+    function copy(v, depth) {
+      if (++count > LIMITS.nodes || depth > 32) fail('compiled allocation limit');
+      // CT.songOf includes optional gainScalar: undefined. Preserve that value
+      // instead of rejecting otherwise valid renderer input or JSON-coercing it.
+      if (v === undefined || v === null || typeof v === 'boolean') return v;
+      if (typeof v === 'number' && Number.isFinite(v)) return v;
+      if (typeof v === 'string' && v.length <= 65536) return v;
+      if (!v || typeof v !== 'object' || seen.has(v)) fail('compiled data must be finite acyclic data');
+      seen.add(v);
+      var out;
+      if (Array.isArray(v) || ArrayBuffer.isView(v) && !(v instanceof DataView)) {
+        if (v.length > LIMITS.nodes) fail('compiled allocation limit');
+        out = Array.from(v, function (x) { return copy(x, depth + 1); });
+      } else {
+        out = {};
+        Object.keys(v).forEach(function (k) {
+          if (k === '__proto__' || k === 'constructor') fail('invalid data key');
+          out[k] = copy(v[k], depth + 1);
+        });
+      }
+      seen.delete(v); return out;
+    }
+    return copy(value, 0);
+  }
+  function validate(c) {
+    if (!c || !c.gb || c.native || c.nativeDocument || c.gb.native) fail('compiled gb required; native imports unsupported');
+    if (c.diagnostics && (!Array.isArray(c.diagnostics) || c.diagnostics.some(function (d) { return d.severity === 'error'; }))) fail('compiled revision has error diagnostics');
+    var g = c.gb;
+    if (!integer(g.totalFrames, 1, Math.floor(FPS * LIMITS.seconds))) fail('duration limit (1 frame to 600 seconds)');
+    if (!Array.isArray(g.notes) || !g.bank || !Array.isArray(g.bank.instruments) || !Array.isArray(g.bank.waveTables)) fail('notes and instrument/wave bank required');
+    var count = g.notes.length;
+    ['auto', 'vibOff', 'waveLoads', 'kit'].forEach(function (k) {
+      if (g[k] != null && !Array.isArray(g[k])) fail('invalid ' + k);
+      count += (g[k] || []).length;
+    });
+    if (count > LIMITS.events) fail('event limit');
+    // 128 is the default bank size, not an instrument-address limit. Appended
+    // Create instruments (including index 128+) are resolved by both shared
+    // renderers before register encoding. The snapshot budget bounds the bank.
+    g.bank.instruments.forEach(function (r) { if (!Array.isArray(r) || r.length !== 4 || !r.every(function (v) { return integer(v, 0, 255); })) fail('invalid instrument'); });
+    g.bank.waveTables.forEach(function (r) { if (!Array.isArray(r) || r.length !== 32 || !r.every(function (v) { return integer(v, 0, 15); })) fail('invalid wave table'); });
+    g.notes.forEach(function (n) {
+      // A generated held note can extend past the finite render boundary. WAV
+      // renders the untouched score through totalFrames; ROM checks this below.
+      if (!integer(n.ch, 0, 3) || !integer(n.frame, 0, g.totalFrames - 1) || !integer(n.frames, 1, Math.floor(FPS * LIMITS.seconds)) || !(n.ch === 3 || integer(n.midi, 0, 127)) || !integer(n.inst, 0, g.bank.instruments.length - 1)) fail('invalid note');
+      if (n.vel != null && !(Number.isFinite(n.vel) && n.vel >= 0 && n.vel <= 1)) fail('invalid velocity');
+    });
+    ['auto', 'vibOff', 'waveLoads', 'kit'].forEach(function (k) { (g[k] || []).forEach(function (e) {
+      if (!(Number.isFinite(e.f) && e.f >= 0 && e.f <= g.totalFrames)) fail('invalid ' + k + ' frame');
+      if (k === 'auto' && (!integer(e.r, 0x10, 0x3f) || !integer(e.v, 0, 255))) fail('invalid register write');
+      if (k === 'vibOff' && !integer(e.ch, 0, 1)) fail('invalid vibrato channel');
+      if (k === 'waveLoads' && !integer(e.slot, 0, g.bank.waveTables.length - 1)) fail('invalid wave slot');
+      if (k === 'kit' && (!integer(e.id, 0, 7) || !G.CT_GB_KITS)) fail('kit capability unavailable');
+    }); });
+  }
+  function check(c, format) {
+    var errors = [], losses = [];
+    try {
+      validate(c);
+      if (format === 'wav') { if (!A || !A.Sequencer) fail('shared APU unavailable'); }
+      else if (format === 'midi') {
+        if (c.gb.notes.some(function (n) { return !integer(n.midi, 0, 127); })) fail('MIDI capability unavailable: noise note has no MIDI pitch in 0..127; no faithful percussion mapping is defined');
+        losses.push(LOSS);
+      }
+      else if (format === 'rom') {
+        if (!R || !H) fail('shared ROM exporter unavailable');
+        if (c.gb.notes.some(function (n) { return n.frame + n.frames > c.gb.totalFrames; })) fail('ROM capability unavailable: note extends beyond finite song end; shared exporter would encode its late note-off');
+        // waveBytes serializes exactly this many slots; explicit reloads are
+        // byte-addressed by ROM but the offline Sequencer can read larger banks.
+        var romWaveSlots = Math.max(16, H.WAVE_SLOTS || 16);
+        if ((c.gb.waveLoads || []).some(function (w) { return w.slot >= romWaveSlots; })) fail('ROM capability unavailable: wave load exceeds ' + romWaveSlots + ' stored wave slots');
+        R.buildRom({ gb: c.gb }); // Capacity and encoding checked by the shared exporter.
+      } else if (format === 'lsdsng') errors = lsdjErrors(c.gb);
+      else fail('unsupported format: ' + format);
+    } catch (e) { errors.push(e.message); }
+    return { ok: errors.length === 0, losses: losses, errors: errors };
+  }
+  function inspect(c, format) {
+    try { return check(snapshot(c), format); }
+    catch (e) { return { ok: false, losses: [], errors: [e.message] }; }
+  }
+  function midi(g) {
+    var events = [], track = [0, 255, 81, 3, 0, 244, 36]; // 62500 us/qn
+    g.notes.forEach(function (n, i) {
+      events.push({ f: n.frame, off: false, n: n, i: i });
+      events.push({ f: Math.min(g.totalFrames, n.frame + n.frames), off: true, n: n, i: i });
+    });
+    events.sort(function (a, b) { return a.f - b.f || Number(b.off) - Number(a.off) || a.i - b.i; });
+    function vlq(v) { var b = [v & 127]; while ((v = Math.floor(v / 128))) b.unshift((v & 127) | 128); track.push.apply(track, b); }
+    var last = 0;
+    events.forEach(function (e) {
+      vlq((e.f - last) * 4389); last = e.f;
+      track.push((e.off ? 128 : 144) | e.n.ch, e.n.midi, e.off ? 0 : Math.max(1, Math.round((e.n.vel == null ? 1 : e.n.vel) * 127)));
+    });
+    vlq((g.totalFrames - last) * 4389); track.push(255, 47, 0);
+    var bytes = new Uint8Array(22 + track.length), v = new DataView(bytes.buffer);
+    bytes.set([77,84,104,100,0,0,0,6,0,0,0,1,64,0,77,84,114,107]);
+    v.setUint32(18, track.length); bytes.set(track, 22); return bytes;
+  }
+  async function wav(g, opts) {
+    var sr = opts.sampleRate == null ? 44100 : opts.sampleRate;
+    if (!integer(sr, 8000, 96000)) fail('sampleRate must be an integer from 8000 to 96000');
+    var length = Math.ceil(g.totalFrames / FPS * sr);
+    if (length > LIMITS.samples) fail('sample allocation limit');
+    var bytes = new Uint8Array(44 + length * 2), v = new DataView(bytes.buffer);
+    bytes.set([82,73,70,70]); v.setUint32(4, bytes.length - 8, true);
+    bytes.set([87,65,86,69,102,109,116,32], 8); v.setUint32(16, 16, true);
+    v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, sr, true);
+    v.setUint32(28, sr * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+    bytes.set([100,97,116,97], 36); v.setUint32(40, length * 2, true);
+    var seq = new A.Sequencer(g, sr), chunk = new Float32Array(8192);
+    for (var at = 0; at < length; at += chunk.length) {
+      var n = Math.min(chunk.length, length - at); seq.render(chunk, 0, n);
+      for (var j = 0; j < n; j++) { var s = Math.max(-1, Math.min(1, chunk[j])); v.setInt16(44 + (at + j) * 2, Math.round(s * (s < 0 ? 32768 : 32767)), true); }
+      if (opts.yield && at + n < length) await opts.yield();
+    }
+    return bytes;
+  }
+  async function exportRevision(revision, format, opts) {
+    opts = Object.assign({}, opts || {});
+    if (!revision || revision.validated !== true || typeof revision.id !== 'string' || !/^[A-Za-z0-9._:-]{1,128}$/.test(revision.id)) fail('validated revision with stable id required');
+    var id = revision.id, c = snapshot(revision.compiled), report = check(c, format);
+    if (!report.ok) fail(report.errors.join('; '));
+    if (report.losses.length && opts.allowLosses !== true) fail('explicit allowLosses: true required: ' + report.losses.join('; '));
+    if (opts.yield != null && typeof opts.yield !== 'function') fail('yield must be a function');
+    var bytes = format === 'wav' ? await wav(c.gb, opts) : format === 'midi' ? midi(c.gb) : R.buildRom({ gb: c.gb });
+    var ext = { wav: 'wav', midi: 'mid', rom: 'gb' }[format];
+    return { bytes: bytes, mime: { wav: 'audio/wav', midi: 'audio/midi', rom: 'application/octet-stream' }[format], name: 'revision-' + id.replace(/[^A-Za-z0-9._-]/g, '_') + '.' + ext, warnings: report.losses.slice(), revision: id };
+  }
+  var API = { inspect: inspect, exportRevision: exportRevision, limits: LIMITS };
+  G.CT_MUSIC_EXPORTS = API;
+  if (node) module.exports = API;
+})(typeof globalThis !== 'undefined' ? globalThis : window);
+
+/* ===== src/music-workspace.js ===== */
+// One source authority. Notes and exports use validated revisions; typing never
+// changes audio. Legacy and native editors retain their own document boundaries.
+(function(G){
+  'use strict';
+  var root,editor,project,storage,client,sourceLoading=false,saveTimer,queueTokens={},queueRevisions={},queueActivations={},playingRevision=null,audioState={status:'stopped',frame:0};
+  var selection=null,proposal=null,requestId=null,serial=0,previousFocus,inerted=[],conflict=false,unsub=null;
+  var unsaved=false,saveEpoch=0,editorLoading=null,previousRoute=null;
+  var KEY='ct-music-workspace-v1',ASSETS=G.CT_MUSIC_ASSETS_VERSION||'ct-gb-bank-1',view='notes';
+  var $=function(s){return root.querySelector(s);};
+  function api(){return G.CT_MUSIC_PROJECT;}
+  function engine(){return Audio;}
+  function opts(){return {compile:G.CT_MUSIC_LANGUAGE.compile,assetsVersion:ASSETS};}
+  function snap(){return project.snapshot();}
+  function status(text){$('.mw-status').textContent=text;}
+  function check(result){if(!result||!result.ok)throw Error(result&&result.message||result&&result.code||'Operation failed');return result;}
+  function announceError(e){status(e.message||String(e));}
+  function diagnostics(items){
+    items=items||[];
+    $('.mw-diagnostics').textContent=items.map(function(d){return (d.severity||'error')+': '+d.message;}).join('\n');
+    if(editor)editor.diagnostics(items.map(function(d){return Object.assign({},d,{from:d.span&&d.span.start.offset||d.from||0,to:d.span&&d.span.end.offset||d.to||0});}));
+  }
+  function scheduleSave(){unsaved=true;saveEpoch++;clearTimeout(saveTimer);saveTimer=setTimeout(save,250);}
+  async function save(){
+    clearTimeout(saveTimer);saveTimer=null;
+    if(!storage||conflict){unsaved=true;return;}
+    var p=project,epoch=saveEpoch;
+    var write=function(){
+      if(p!==project)return;
+      var result=storage.save(p,{includePrivate:true});
+      if(!result.ok){unsaved=true;conflict=result.code==='storage-conflict';status(conflict?'Another tab changed this project. Download your project before reloading.':'Draft could not be saved locally. Download a project file to keep it.');}
+      else if(epoch===saveEpoch)unsaved=false;
+    };
+    try{if(G.navigator&&navigator.locks)await navigator.locks.request(KEY,write);else write();}
+    catch(e){if(p===project){unsaved=true;status('Draft could not be saved locally. Download a project file to keep it.');}}
+  }
+  function cancelChat(state){
+    if(client)client.cancel();
+    var active=project&&snap().request;
+    if(active)project.cancelRequest(active.id);
+    requestId=null;
+    if(proposal&&(proposal.status==='ready'||proposal.status==='proposed'))proposal.status=state||'superseded';
+  }
+  function resetAudio(){
+    try{engine().musicStop();}
+    finally{
+      if(project)project.stop();queueTokens={};queueRevisions={};queueActivations={};playingRevision=null;
+      audioState={status:'stopped',frame:0};
+      if(root){$('.mw-seek').value='0';var cursor=$('.mw-playhead');if(cursor)cursor.style.left='0px';}
+    }
+  }
+  function sourceChanged(text){
+    if(sourceLoading)return;
+    var result=project.editDraft(text);if(!result.ok){announceError(result);return;}
+    cancelChat('superseded');renderProposal();renderState();scheduleSave();
+  }
+  async function ensureEditor(){
+    if(editor)return;
+    if(editorLoading)return editorLoading;
+    editorLoading=(async function(){
+    if(!G.CT_MUSIC_CODE_EDITOR){
+      await new Promise(function(resolve,reject){
+        var script=document.createElement('script');script.src='/lib/music-code-editor.js?v='+encodeURIComponent(G.CT_MUSIC_EDITOR_VERSION||'1');
+        script.onload=resolve;script.onerror=function(){script.remove();reject(Error('Code editor could not load'));};document.head.appendChild(script);
+      });
+    }
+    editor=G.CT_MUSIC_CODE_EDITOR.mount($('.mw-code'),snap().draft,sourceChanged);
+    $('.mw-help pre').textContent=Object.values(G.CT_MUSIC_CODE_EDITOR.help).join('\n');
+    })();
+    try{await editorLoading;}finally{editorLoading=null;}
+  }
+  function syncEditor(){if(editor){sourceLoading=true;editor.set(snap().draft);sourceLoading=false;}}
+  function selectView(next,focusCode){
+    view=next;root.dataset.view=next;
+    $('.mw-notes').hidden=next==='code';$('.mw-code').hidden=next!=='code';
+    root.querySelectorAll('[data-view]').forEach(function(b){b.setAttribute('aria-selected',String(b.dataset.view===next));b.tabIndex=b.dataset.view===next?0:-1;});
+    if(next==='code')ensureEditor().then(function(){if(focusCode!==false&&!root.hidden&&view==='code')editor.focus();}).catch(announceError);
+  }
+  function renderState(){
+    var s=snap(),v=s.validated;
+    $('.mw-state').textContent='Draft '+(v&&s.draft===v.source?'validated':'edited')+' · Valid '+(v?v.id:'none')+
+      ' · Queued '+(s.pending?s.pending.revisionId:'none')+' · Playing '+(s.playing||'none')+' · '+audioState.status+(audioState.suspended?' (audio suspended)':'');
+    $('[data-action=undo]').disabled=!s.canUndo;$('[data-action=redo]').disabled=!s.canRedo;
+    $('[data-action=play]').disabled=!v;
+    $('.mw-seek').max=v?Math.max(0,v.compiled.gb.totalFrames-1):0;
+    $('.mw-context').textContent='Base '+(v?v.id:'none')+' · '+(selection?['Melody','Harmony','Bass','Drums'][selection.ch]+' · frames '+selection.fromFrame+'–'+selection.toFrame:'Whole song');
+    $('[data-action=cancel]').disabled=!requestId;
+  }
+  function renderNotes(){
+    var s=snap(),v=s.validated,pane=$('.mw-notes');pane.replaceChildren();
+    if(!v){pane.textContent='Apply valid code to see notes.';return;}
+    var gb=v.compiled.gb,settings=v.compiled.settings||{},bars=settings.bars||Math.max(1,Math.ceil(gb.totalFrames/120));
+    var width=Math.max(pane.clientWidth-28,Math.min(12000,bars*80)),total=gb.totalFrames||1;
+    var inner=document.createElement('div');inner.style.width=width+'px';inner.style.position='relative';
+    var ruler=document.createElement('div');ruler.className='mw-bar-ruler';ruler.setAttribute('aria-label','Bar boundaries on the compiled song clock');
+    ruler.style.cssText='height:26px;position:relative;font-size:11px;color:#b6bfd5';
+    inner.appendChild(ruler);
+    // Reuse the compiler clock. Thin labels (not timing) to at most 256 marks;
+    // label indices remain absolute, including after a tempo-map segment.
+    try{
+      var clock=G.CT_MUSIC_LANGUAGE.createClock(settings),lo=0,hi=65536;
+      while(lo<hi){var mid=(lo+hi)>>1;if(clock(mid*4)<total)lo=mid+1;else hi=mid;}
+      var stride=Math.max(1,Math.ceil(lo/255));
+      for(var i=0;i<lo;i+=stride){
+        var frame=clock(i*4);
+        var mark=document.createElement('span');mark.textContent='Bar '+(i+1);mark.title='Frame '+frame;
+        mark.style.cssText='position:absolute;white-space:nowrap;top:0;left:'+(frame/total*width)+'px';ruler.appendChild(mark);
+        var line=document.createElement('div');line.setAttribute('aria-hidden','true');
+        line.style.cssText='position:absolute;pointer-events:none;top:26px;bottom:0;border-left:1px solid #ffffff12;z-index:1;left:'+(frame/total*width)+'px';inner.appendChild(line);
+      }
+      var end=document.createElement('span');end.textContent='End';end.title='Frame '+total;
+      end.style.cssText='position:absolute;right:0;top:0';ruler.appendChild(end);
+    }catch(e){ruler.textContent='Bar clock unavailable: '+e.message;}
+    ['Melody','Harmony','Bass','Drums'].forEach(function(name,ch){
+      var lane=document.createElement('div');lane.className='mw-lane';lane.setAttribute('aria-label',name);
+      lane.style.background='#10121b';
+      var label=document.createElement('div');label.className='mw-lane-label';label.textContent=name;lane.appendChild(label);
+      gb.notes.forEach(function(n,i){
+        if(n.ch!==ch)return;
+        var b=document.createElement('button');b.className='mw-note';b.type='button';
+        b.style.left=(n.frame/total*width)+'px';b.style.width=Math.max(6,Math.min(n.frames,total-n.frame)/total*width)+'px';
+        b.style.top=(28+(ch===3?12:Math.max(0,50-((n.midi||36)-24)*0.55)))+'px';
+        b.setAttribute('aria-label',name+' note '+(n.midi==null?'noise':n.midi)+' frame '+n.frame+' length '+n.frames);
+        b.setAttribute('aria-pressed','false');b.dataset.note=String(i);
+        if((v.compiled.diagnostics||[]).some(function(d){return d.code==='CHIP_OVERLAP'&&d.noteIndex===i;})){b.style.background='#c46a54';b.title='Chip overlap: inspect diagnostics';}
+        if(n.frame+n.frames>total){b.style.background='#c46a54';b.title='Finite song end cuts this event; source duration is retained.';}
+        b.addEventListener('click',function(){
+          selection={ch:ch,fromFrame:n.frame,toFrame:n.frame+n.frames};
+          pane.querySelectorAll('.mw-note').forEach(function(el){el.setAttribute('aria-pressed',String(el===b));});
+          var m=v.compiled.mapping.find(function(x){return x.noteIndex===i;});
+          $('.mw-selection').textContent='Selected '+name+' · '+(m&&m.pattern?'pattern '+m.pattern+', occurrence '+m.occurrence:'explicit event')+' · frames '+n.frame+'–'+(n.frame+n.frames);
+          renderState();
+          if(m){selectView('code');ensureEditor().then(function(){editor.select(m.span.start.offset,m.span.end.offset);}).catch(announceError);}
+        });lane.appendChild(b);
+      });inner.appendChild(lane);
+    });
+    var cursor=document.createElement('div');cursor.className='mw-playhead';cursor.style.left=Math.max(0,(audioState.frame||0)/total*width)+'px';inner.appendChild(cursor);pane.appendChild(inner);
+  }
+  function boundaries(revision){
+    if(typeof engine().musicBoundaries!=='function')throw Error('Tempo-aware audio boundaries are unavailable');
+    // Activation is scheduled on the sounding revision's clock, not the draft's.
+    // Reserve one slot for musicPrepare's terminal boundary (engine cap: 256).
+    return engine().musicBoundaries(revision.compiled,{fromFrame:Math.max(0,Math.ceil(audioState.frame||0)),limit:255});
+  }
+  function onAudio(e){
+    if(!root||root.hidden||!project)return;
+    var proposalStatus=proposal&&proposal.status;
+    if(e.status==='suspended')audioState.suspended=true;
+    if(e.status==='resumed')audioState.suspended=false;
+    // Notifications describe an event, not a transport mode. In particular a
+    // queued/prepared revision must not turn a paused transport into playing.
+    if(['playing','paused','stopped','ended','error'].indexOf(e.status)!==-1)
+      audioState.status=e.status==='ended'?'stopped':e.status;
+    if(e.frame!=null&&['position','loop','playing','paused'].indexOf(e.status)!==-1)audioState.frame=e.frame;
+    if(e.status==='prepared'&&queueTokens[e.revision])queueActivations[e.revision]=e.activation;
+    if(e.status==='playing'&&e.reason==='activate'&&e.revision&&queueTokens[e.revision]){
+      var ack=project.ack(e.revision,queueTokens[e.revision]);
+      if(ack.ok){playingRevision=queueRevisions[e.revision];if(proposal&&proposal.revision===e.revision)proposal.status='playing';}
+      delete queueTokens[e.revision];delete queueRevisions[e.revision];delete queueActivations[e.revision];
+    }
+    if(['cancelled','superseded','stale'].indexOf(e.status)!==-1&&queueTokens[e.revision]&&
+      (queueActivations[e.revision]==null||queueActivations[e.revision]===e.activation)){
+      project.cancel(queueTokens[e.revision]);delete queueTokens[e.revision];delete queueRevisions[e.revision];delete queueActivations[e.revision];
+      if(proposal&&proposal.revision===e.revision)proposal.status=e.status==='stale'?'superseded':e.status;
+    }
+    if(e.status==='stopped'||e.status==='ended'||e.status==='error'){
+      project.stop();queueTokens={};queueRevisions={};queueActivations={};playingRevision=null;audioState.frame=0;
+      if(e.status==='error')status(e.message||'Audio engine failed');
+    }
+    renderState();if(proposalStatus!==(proposal&&proposal.status))renderProposal();
+    var v=snap().validated,cursor=$('.mw-playhead');
+    if(v&&cursor){var inner=cursor.parentElement;cursor.style.left=(Math.max(0,audioState.frame||0)/(v.compiled.gb.totalFrames||1)*inner.clientWidth)+'px';}
+    $('.mw-seek').value=String(audioState.frame||0);
+  }
+  function activate(revision,forcePlay){
+    if(!revision)throw Error('Apply valid code before playing');
+    var previous=Object.keys(queueTokens);
+    // An Apply while musicPlay awaits initialization supersedes that start too.
+    if(previous.length&&!playingRevision){resetAudio();forcePlay=true;previous=[];}
+    previous.forEach(function(id){if(engine().musicCancel)engine().musicCancel(id);project.cancel(queueTokens[id]);});queueTokens={};queueRevisions={};queueActivations={};
+    if(forcePlay||audioState.status==='playing'||audioState.status==='paused'){
+      var owner=project,queued=check(project.queue(revision.id)),token=queued.pending.queueId;
+      queueTokens[revision.id]=token;queueRevisions[revision.id]=revision;
+      function rejected(error){
+        if(project!==owner||queueTokens[revision.id]!==token)return;
+        owner.cancel(token);delete queueTokens[revision.id];delete queueRevisions[revision.id];delete queueActivations[revision.id];
+        if(proposal&&proposal.revision===revision.id)proposal.status='validated';
+        try{if(forcePlay)resetAudio();else if(engine().musicCancel)engine().musicCancel(revision.id);}catch(_){}
+        announceError(error);renderState();renderProposal();
+      }
+      try{
+        var settings={revision:revision.id,baseRevision:snap().playing,boundaries:forcePlay?[]:boundaries(playingRevision||revision),loop:$('.mw-loop').checked};
+        var result=forcePlay?engine().musicPlay(revision.compiled.gb,settings):engine().musicQueue(revision.compiled.gb,settings);
+        if(result&&typeof result.then==='function')Promise.resolve(result).then(function(value){
+          if(value===false||value&&value.ok===false)rejected(Error(value&&value.message||'Audio revision rejected'));
+        },rejected);
+        else if(result===false||result&&result.ok===false)throw Error(result&&result.message||'Audio revision rejected');
+      }catch(e){rejected(e);throw e;}
+    }
+    renderState();
+  }
+  function applied(result){
+    check(result);cancelChat('superseded');syncEditor();renderNotes();diagnostics(result.revision.compiled.diagnostics);scheduleSave();activate(result.revision,false);
+    status(result.unchanged?'Source is already validated':'Validated '+result.revision.id);renderState();
+  }
+  function download(bytes,name,mime){
+    var blob=new Blob([bytes],{type:mime||'application/octet-stream'}),url=URL.createObjectURL(blob),a=document.createElement('a');
+    a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(url);},4000);
+  }
+  function createSource(text,provenance){
+    var next=api().create(text,Object.assign(opts(),{provenance:provenance}));
+    if(!next.snapshot().validated)throw Error(next.snapshot().diagnostics.map(function(d){return d.message;}).join('\n'));
+    cancelChat();resetAudio();project=next;selection=null;proposal=null;
+    syncEditor();renderNotes();renderProposal();renderState();scheduleSave();
+  }
+  function generate(){
+    var request=$('.mw-generate-text').value.trim();if(!request)throw Error('Describe the song to generate');
+    var current=snap();
+    if(current.validated&&current.draft!==current.validated.source&&!G.confirm('Replace the unfinished draft with a generated song? Download the project first to keep the draft.'))return;
+    var token=Song.mint(),result=G.CT_API.ask(request,{brief:{token:token}});
+    if(!result.ok)throw Error(result.error||'Could not interpret that musical request');
+    var song=G.CT_CREATE.songOf(result.doc);
+    var source=G.CT_MUSIC_LANGUAGE.materialize(song.gb,{title:song.title,tempo:song.bpm,bars:song.bars});
+    if(snap().validated){
+      check(project.editDraft(source));var revision=check(project.applyDraft());
+      check(project.setProvenance({prompt:request,seed:token}));applied(revision);
+    }
+    else createSource(source,{prompt:request,seed:token});
+    status('Generated once. '+(result.applied||[]).join('; '));selectView('code');
+  }
+  async function requestChat(){
+    var s=snap(),text=$('.mw-chat-input').value.trim();if(!text)throw Error('Write a musical request');
+    var owner=project,id='request-'+crypto.randomUUID(),req=check(project.beginRequest(id));requestId=id;
+    proposal={status:'proposed'};renderProposal();renderState();
+    var tracks=+$('.mw-scope').value,constraints={locks:[]};
+    if($('.mw-lock').value!=='none')constraints.locks.push({type:$('.mw-lock').value,tracks:[0]});
+    if(/\bkeep (?:the )?melody\b/i.test(text)&&!constraints.locks.some(function(lock){return lock.type==='track';}))constraints.locks.push({type:'track',tracks:[0]});
+    if(tracks>=0)constraints.scope={tracks:[tracks]};
+    // This explicit intent is narrower than the default Whole song selector.
+    if(tracks<0&&/\bsimplify\s+(?:the\s+)?drums\b/i.test(text)&&/\bkeep\s+(?:the\s+)?melody\b/i.test(text))constraints.scope={tracks:[3]};
+    if($('.mw-region').checked&&selection)constraints.scope={tracks:[selection.ch],fromFrame:selection.fromFrame,toFrame:selection.toFrame};
+    try{
+      var response=await client.request({id:id,request:text,source:req.baseSource,baseRevision:req.baseRevision,selection:selection,
+        constraints:constraints,language:{version:G.CT_MUSIC_LANGUAGE.VERSION,help:G.CT_MUSIC_CODE_EDITOR&&G.CT_MUSIC_CODE_EDITOR.help||{}},diagnostics:(s.diagnostics||[]).slice(0,32)});
+      if(project!==owner||requestId!==id)return;
+      if(response.id!==id)throw Error('Chat response belongs to another request');
+      var validated=project.validateProposal({id:id,baseRevision:response.baseRevision,baseSource:req.baseSource,edits:response.edits},constraints);
+      check(validated);
+      proposal={id:id,status:'ready',explanation:response.explanation,edits:response.edits,diff:validated.diff};
+    }catch(e){
+      if(project!==owner||requestId!==id)return;
+      owner.cancelRequest(id);proposal={status:'invalid',explanation:e.message};status(e.message);
+    }
+    finally{if(project===owner&&requestId===id){requestId=null;renderProposal();renderState();}}
+  }
+  function renderProposal(){
+    var el=$('.mw-proposals');el.replaceChildren();if(!proposal)return;
+    var box=document.createElement('div');box.className='mw-proposal';
+    var title=document.createElement('b');title.textContent=proposal.status;box.appendChild(title);
+    var p=document.createElement('p');p.textContent=proposal.explanation||'Requesting a musical edit…';box.appendChild(p);
+    if(proposal.diff){var summary=document.createElement('p');summary.textContent=proposal.diff.summary;box.appendChild(summary);}
+    (proposal.edits||[]).forEach(function(edit){
+      var diff=document.createElement('pre'),source=snap().draft;
+      diff.textContent='− '+source.slice(edit.from,edit.to)+'\n+ '+edit.text;box.appendChild(diff);
+    });
+    if(proposal.status==='ready'){
+      ['Apply','Reject'].forEach(function(label){
+        var b=document.createElement('button');b.type='button';b.textContent=label;
+        b.addEventListener('click',function(){try{
+          if(label==='Apply'){var r=check(project.applyProposal(proposal.id));proposal.revision=r.revision.id;proposal.status='queued';applied(r);if(!snap().pending)proposal.status='validated';status(r.diff.summary);}
+          else{project.cancelRequest(proposal.id);proposal.status='rejected';}
+          renderProposal();
+        }catch(e){proposal.status='superseded';announceError(e);renderProposal();}});
+        box.appendChild(b);
+      });
+    }el.appendChild(box);
+  }
+  function build(){
+    root=document.createElement('section');root.id='musicworkspace';root.hidden=true;root.setAttribute('aria-label','Create music workspace');
+    root.innerHTML='<header class="mw-top"><h1>Create · Music workspace</h1><button data-action="close">Back</button></header>'+
+      '<div class="mw-transport"><button data-action="play">▶ Play</button><button data-action="pause">Pause</button><button data-action="stop">■ Stop</button>'+
+      '<label><input type="checkbox" class="mw-loop"> Audition loop</label><input class="mw-seek" type="range" min="0" max="0" value="0" aria-label="Seek frame">'+
+      '<button class="mw-primary" data-action="apply">Apply code</button><button data-action="undo">Undo revision</button><button data-action="redo">Redo revision</button></div>'+
+      '<div class="mw-state" aria-live="polite"></div>'+
+      '<nav class="mw-tabs" role="tablist" aria-label="Workspace view"><button role="tab" data-view="notes">Notes</button><button role="tab" data-view="code">Code</button><button role="tab" class="mw-mobile-chat" data-view="chat">Chat</button></nav>'+
+      '<div class="mw-body"><main class="mw-main"><div class="mw-selection">Notes show the validated revision. Select a note to locate its source.</div><div class="mw-mainview mw-notes"></div><div class="mw-mainview mw-code" hidden></div>'+
+      '<div class="mw-diagnostics" role="status"></div><details class="mw-help"><summary>Music function help</summary><pre></pre></details></main>'+
+      '<aside class="mw-chat" aria-label="Musical collaboration"><h2>Chat</h2><p class="mw-context"></p>'+
+      '<label>Generate with the composer<input class="mw-generate-text" maxlength="500" placeholder="Make something happy"></label><button data-action="generate">Generate song</button>'+
+      '<label>Ask a musical agent<textarea class="mw-chat-input" maxlength="2000" placeholder="Simplify the drums, keep the melody"></textarea></label><small>Chat requires an authorized backend. Code and playback work without it.</small>'+
+      '<label>Edit scope <select class="mw-scope"><option value="-1">Whole song</option><option value="0">Melody</option><option value="1">Harmony</option><option value="2">Bass</option><option value="3">Drums</option></select></label>'+
+      '<label>Melody lock <select class="mw-lock"><option value="none">Unlocked</option><option value="track">Whole track</option><option value="pitchrhythm">Pitch and rhythm</option><option value="instrument">Instrument</option><option value="arrangement">Arrangement</option></select></label>'+
+      '<label><input class="mw-region" type="checkbox"> Restrict to selected note region</label>'+
+      '<div class="mw-actions"><button data-action="chat">Request proposal</button><button data-action="cancel">Cancel request</button></div><div class="mw-proposals" aria-live="polite"></div></aside></div>'+
+      '<footer class="mw-actions"><button data-action="save">Save draft locally</button><button data-action="download">Download project</button><button data-action="open">Open project</button><button data-action="share">Copy project link</button>'+
+      '<select class="mw-format" aria-label="Export format"><option value="wav">WAV</option><option value="midi">MIDI</option><option value="rom">Game Boy ROM</option><option value="lsdsng">LSDj</option></select><button data-action="export">Export validated revision</button><small class="mw-build"></small></footer>'+
+      '<p class="mw-status" role="status" aria-live="polite"></p>';
+    document.body.appendChild(root);
+    $('.mw-build').textContent='Music v'+G.CT_MUSIC_LANGUAGE.VERSION+' · '+(G.CT_MUSIC_BUILD_VERSION||'development');
+    root.addEventListener('keydown',function(e){
+      if(e.defaultPrevented){e.stopPropagation();return;}
+      if(e.key==='Tab'&&!e.defaultPrevented){
+        var focusable=Array.from(root.querySelectorAll('button,input,select,textarea,a[href],[tabindex],[contenteditable=true],summary')).filter(function(el){
+          return !el.disabled&&el.tabIndex>=0&&!el.closest('[hidden],[inert]')&&el.getClientRects().length>0;
+        });
+        var first=focusable[0],last=focusable[focusable.length-1];
+        if(first&&((e.shiftKey&&document.activeElement===first)||(!e.shiftKey&&document.activeElement===last))){e.preventDefault();(e.shiftKey?last:first).focus();}
+      }
+      var tab=e.target.closest('[role=tab]');
+      if(tab&&['ArrowLeft','ArrowRight','Home','End'].indexOf(e.key)!==-1){
+        var tabs=Array.from(root.querySelectorAll('[role=tab]')).filter(function(el){return el.getClientRects().length>0;});
+        var index=tabs.indexOf(tab),next=e.key==='Home'?0:e.key==='End'?tabs.length-1:(index+(e.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;
+        e.preventDefault();selectView(tabs[next].dataset.view,false);tabs[next].focus();
+      }
+      if(e.key==='Escape'&&!e.ctrlKey&&!e.metaKey){e.preventDefault();e.stopImmediatePropagation();close();return;}
+      if(e.code==='Space'&&!e.target.closest('input,textarea,select,button,[contenteditable=true]')){
+        e.preventDefault();try{if(audioState.status==='playing')engine().musicPause(true);else if(snap().validated)activate(snap().validated,true);}catch(error){announceError(error);}
+      }
+      e.stopPropagation();
+    });
+    root.addEventListener('click',function(e){
+      var tab=e.target.closest('button[data-view]');if(tab){selectView(tab.dataset.view);return;}
+      var b=e.target.closest('[data-action]');if(!b)return;
+      Promise.resolve().then(function(){return action(b.dataset.action);}).catch(announceError);
+    });
+    $('.mw-seek').addEventListener('change',function(){engine().musicSeek(+this.value);});
+    G.addEventListener('storage',function(e){if(e.key===KEY&&root&&!root.hidden){conflict=true;status('Another tab changed this project. Download this draft before reloading.');}});
+    G.addEventListener('beforeunload',function(e){if(conflict||saveTimer||unsaved){save();e.preventDefault();e.returnValue='';}});
+  }
+  async function action(name){
+    if(name==='apply'){var r=project.applyDraft();diagnostics(r.diagnostics);applied(r);}
+    else if(name==='undo'||name==='redo')applied(project[name]());
+    else if(name==='play'){var v=snap().validated;if(v)activate(v,true);}
+    else if(name==='pause')engine().musicPause(audioState.status!=='paused');
+    else if(name==='stop'){resetAudio();renderState();}
+    else if(name==='close')close();
+    else if(name==='generate')generate();
+    else if(name==='chat')await requestChat();
+    else if(name==='cancel'){cancelChat('rejected');proposal={status:'rejected',explanation:'Request cancelled'};renderProposal();renderState();}
+    else if(name==='save')await save();
+    else if(name==='download')download(project.serialize({includePrivate:true}),'chiptunes-project.json','application/json');
+    else if(name==='share'){
+      var text=project.serialize(),bytes=new TextEncoder().encode(text);
+      if(bytes.length>12000)throw Error('Project is too large for a self-contained link. Download a project file.');
+      var binary='';bytes.forEach(function(b){binary+=String.fromCharCode(b);});
+      var link=location.origin+'/create#music='+encodeURIComponent(btoa(binary));
+      await navigator.clipboard.writeText(link);status('Copied project link. Chat and private provenance excluded; opening does not play.');
+    }else if(name==='open'){
+      var input=document.createElement('input');input.type='file';input.accept='.json,application/json';
+      input.onchange=async function(){try{
+        var owner=project,file=input.files[0];if(!file)return;if(file.size>8388608)throw Error('Project file is too large');
+        var loaded=check(api().restore(await file.text(),opts()));
+        if(project!==owner||root.hidden)return;
+        if(!G.confirm('Replace this workspace? Download the current project first to keep a copy.'))return;
+        cancelChat();resetAudio();project=loaded.project;selection=null;proposal=null;
+        syncEditor();renderNotes();renderProposal();renderState();diagnostics(snap().diagnostics);scheduleSave();
+      }catch(e){announceError(e);}};input.click();
+    }else if(name==='export'){
+      var v=snap().validated;if(!v)throw Error('Apply valid code before exporting');
+      var format=$('.mw-format').value,report=G.CT_MUSIC_EXPORTS.inspect(v.compiled,format);
+      if(!report.ok)throw Error((report.errors||report.losses||[]).join('\n')||'This revision cannot be exported to '+format);
+      var allowLosses=false;
+      if(report.losses&&report.losses.length){allowLosses=G.confirm(report.losses.join('\n')+'\nExport with these limitations?');if(!allowLosses)return;}
+      status('Rendering '+v.id+'…');
+      var output=await G.CT_MUSIC_EXPORTS.exportRevision(Object.assign({validated:true},v),format,{allowLosses:allowLosses});
+      download(output.bytes,output.name,output.mime);status('Exported validated '+v.id+(output.warnings&&output.warnings.length?' · '+output.warnings.join('; '):''));
+    }
+  }
+  async function open(initial){
+    if(!root)build();
+    if(!root.hidden)return;
+    previousFocus=document.activeElement;
+    previousRoute=location.pathname+location.search+location.hash;
+    if(!project){
+      client=new G.CT_MUSIC_CHAT.Client();
+      try{
+        storage=api().createStorageAdapter(localStorage,KEY);var saved=storage.load();
+        if(!saved.ok)throw Error(saved.message||'Storage unavailable');
+        // Legacy entry supplies the current radio song as a fallback, not an
+        // explicit import. Recovery wins; #music and file imports override below.
+        if(saved.serialized){var restored=api().restore(saved.serialized,opts());if(restored.ok)project=restored.project;else{conflict=true;status(restored.message+' · Original saved project preserved');}}
+      }catch(e){storage=null;status('Local storage unavailable. Download a project file to keep your work.');}
+      if(!project){
+        var initialSettings=Object.assign({},initial&&initial.settings||{});
+        if(initialSettings.stepsPerBar==null&&initialSettings.grid!=null)initialSettings.stepsPerBar=initialSettings.grid;
+        var source=initial?G.CT_MUSIC_LANGUAGE.materialize(initial.gb,initialSettings):'song({tempo:128,bars:4})\n\n// Write patterns here, or generate a song from Chat.\n';
+        project=api().create(source,opts());unsaved=true;
+      }
+      var shared=location.hash.match(/^#music=(.+)$/);
+      if(shared){try{
+        if(shared[1].length>20000)throw Error('Share is too large');
+        var decoded=atob(decodeURIComponent(shared[1])),bytes=Uint8Array.from(decoded,function(c){return c.charCodeAt(0);});
+        var imported=check(api().restore(new TextDecoder().decode(bytes),opts()));project=imported.project;unsaved=true;
+        if(saved&&saved.serialized){conflict=true;status('Shared project opened separately. Your existing local draft is preserved; download this project to keep it.');}
+      }catch(e){announceError(e);}}
+    }
+    if(G.CT_CREATE.stopForNative)G.CT_CREATE.stopForNative();engine().enterCreate();
+    if(!/^#music(?:=|$)/.test(location.hash))history.replaceState(null,'','/create#music');
+    root.hidden=false;inerted=[];
+    Array.from(document.body.children).forEach(function(el){if(el!==root&&!el.hasAttribute('inert')){el.setAttribute('inert','');inerted.push(el);}});
+    if(!unsub)unsub=engine().onMusicState(onAudio);
+    renderNotes();renderProposal();renderState();diagnostics(snap().diagnostics);selectView(view);
+    $('[data-action=play]').focus();
+    await ensureEditor();syncEditor();if(unsaved&&!conflict)scheduleSave();
+  }
+  function close(){
+    if(!root||root.hidden)return;
+    save();cancelChat('superseded');try{resetAudio();}catch(e){announceError(e);}
+    root.hidden=true;inerted.forEach(function(el){el.removeAttribute('inert');});inerted=[];
+    if(previousRoute)history.replaceState(null,'',previousRoute);
+    if(unsub){unsub();unsub=null;}
+    if(previousFocus&&previousFocus.isConnected)previousFocus.focus();
+  }
+  G.CT_MUSIC_WORKSPACE={open:open,close:close,isOpen:function(){return !!root&&!root.hidden;},snapshot:function(){return project&&snap();}};
+})(typeof globalThis!=='undefined'?globalThis:window);
 
 /* ===== src/webmcp.js ===== */
 // THE PAGE, DRIVEN BY AN AGENT.
@@ -39191,6 +40823,7 @@ function watchOnlyToast(){
   if(typeof _toast==='function') _toast('The games are the visualiser \u2014 they play themselves, to the music. Nothing to control: sit back and listen \ud83c\udfa7', { big:true, ms:dur });
 }
 function shortcutTargetBlocked(ev){
+  if(typeof CT_MUSIC_WORKSPACE!=='undefined' && CT_MUSIC_WORKSPACE.isOpen()) return true;
   if(typeof CT_LSDJ_NATIVE_EDITOR!=='undefined' && CT_LSDJ_NATIVE_EDITOR.isOpen()) return true;
   var el=ev&&ev.target;
   if(!el) return false;
@@ -39222,6 +40855,12 @@ function panelVisible(id){
   return !!(el && el.style.display!=='none' && !el.hidden && !el.classList.contains('hidden'));
 }
 function handleEscapeShortcut(ev){
+  if(ev && ev.key==='Escape' && !ev.metaKey && !ev.altKey && !ev.ctrlKey &&
+     typeof CT_MUSIC_WORKSPACE!=='undefined' && CT_MUSIC_WORKSPACE.isOpen()){
+    // CodeMirror gets first refusal for completion/search popovers. Unhandled
+    // Escape bubbles to the workspace, which still closes the modal normally.
+    if(ev.target&&ev.target.closest&&ev.target.closest('.cm-editor'))return false;
+    CT_MUSIC_WORKSPACE.close(); consumeKeyEvent(ev); return true; }
   if(ev && ev.key==='Escape' && !ev.metaKey && !ev.altKey && !ev.ctrlKey &&
      typeof CT_LSDJ_NATIVE_EDITOR!=='undefined' && CT_LSDJ_NATIVE_EDITOR.isOpen()){
     CT_LSDJ_NATIVE_EDITOR.close(); consumeKeyEvent(ev); return true; }
@@ -39965,6 +41604,13 @@ function _openCreate(blank){
   };
   // hand the editor the song that is playing, if there is one -- unless the
   // whole point was to start from nothing
+  // Shared source projects must never briefly start a generated/legacy song.
+  // Keep a silent legacy view underneath so Back retains the normal radio handoff.
+  if(/^#music(?:=|$)/.test(location.hash)&&typeof CT_MUSIC_WORKSPACE!=='undefined'){
+    CT_CREATE.openBlank();
+    CT_MUSIC_WORKSPACE.open().catch(function(e){console.error('Music workspace:',e.message);});
+    return;
+  }
   if(blank){ try{ CT_CREATE.openBlank(); }catch(e){ CT_CREATE.open(''); } return; }
   var _doc=null;
   try{ if(typeof Audio!=='undefined'&&Audio.currentDoc) _doc=Audio.currentDoc(); }catch(e){}

@@ -255,7 +255,15 @@
       gb.notes.forEach(function (n, i) {
         var at = mapping[i].span.start.offset;
         need(num(n.ch, 0, 3, true) && num(n.frame, 0, LIMITS.frames, true) && num(n.frames, 1, LIMITS.frames, true), 'Invalid note channel or timing', at);
-        need(n.frame + n.frames <= gb.totalFrames, 'Note extends beyond song end', at);
+        need(n.frame < gb.totalFrames, 'Note starts at or beyond song end', at);
+        need(n.frame + n.frames <= LIMITS.frames, 'Note end exceeds global frame limit', at);
+        if (n.frame + n.frames > gb.totalFrames) {
+          need(mapping[i].pattern === null, 'Note extends beyond song end', at);
+          diagnostics.push({ severity: 'warning', code: 'SONG_END_CUT',
+            message: 'Finite song end cuts this exact event; its source duration is preserved',
+            span: mapping[i].span, noteIndex: i, cutFrame: gb.totalFrames,
+            noteEndFrame: n.frame + n.frames });
+        }
         need(typeof n.inst === 'number', 'Explicit event inst must be an index', at);
         instrument(n.inst, at);
         if (n.ch !== 3) need(num(n.midi, 0, 127, true) && H.inRange(n.midi, n.ch === 2 ? 'wave' : 'pulse'), 'Pitch outside chip range', at);

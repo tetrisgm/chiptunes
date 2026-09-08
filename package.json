@@ -19,6 +19,7 @@
     "health": "node scripts/health/run.js",
     "test:render-parity": "node build.js && node scripts/verify-broadcast-render-parity.js",
     "test:worklet-boundary": "node scripts/verify-worklet-boundary.js",
+    "test:music-workspace": "node build.js && node scripts/verify-create-fidelity.js && node scripts/verify-music-language.js && node scripts/verify-music-project.js && node scripts/verify-music-live.js && node scripts/verify-music-exports.js && node scripts/verify-music-chat.js && node scripts/verify-music-workspace.js && node scripts/verify-music-editor.js paste 1048576 --pretty",
     "test:youtube-self-heal": "node scripts/test-youtube-self-heal.js",
     "smoke": "node scripts/smoke-generated-seeds.js && node scripts/smoke-games.js",
     "validate:games": "node scripts/audit-music-driven.js",
@@ -51,7 +52,7 @@
     "test:generated-transitions": "node scripts/verify-generated-transitions.js",
     "test:sync": "node scripts/verify-sync.js",
     "test:chrome": "node scripts/verify-chrome.js",
-    "test": "node build.js && node scripts/verify-automation.js && node scripts/verify-apu-manual-envelope.js && node scripts/verify-rom.js && node scripts/verify-song-document.js && node scripts/verify-create-handover.js && node scripts/verify-frame-pacing.js && node scripts/verify-share.js && node scripts/verify-rhythm.js && node scripts/verify-melody-allocation.js && node scripts/verify-ribbon.js && node scripts/verify-mood-constraints.js && node scripts/verify-composition-character.js && node scripts/verify-export-boundaries.js && node scripts/verify-entry.js && node scripts/verify-radio-promotion.js && node scripts/verify-generated-transitions.js && node scripts/verify-sync.js && node scripts/verify-chrome.js && node scripts/verify-responsive-layout.js && node scripts/verify-player-readability.js && node scripts/verify-api.js && node scripts/verify-language.js && node scripts/verify-lsdj.js && node scripts/verify-lsdj-native.js && node scripts/verify-lsdj-native-document.js && node scripts/verify-lsdj-native-editor.js && node scripts/verify-lsdj-parser-bounds.js && node scripts/analyze-lsdj-envelope-writes.js --selftest && node scripts/verify-lsdj-table-detection.js && node scripts/verify-lsdj-write-observer.js && node scripts/verify-lsdj-trigger-state.js && node scripts/verify-lsdj-command-versions.js && node scripts/verify-lsdj-sparse-phrases.js && node scripts/verify-lsdj-arrangement.js && node scripts/verify-lsdj-envelope-fixtures.js && node scripts/verify-lsdj-emulator.js && node scripts/verify-webmcp.js && node scripts/verify-diversity.js && node scripts/verify-latency.js && node scripts/verify-screens.js && node scripts/smoke-generated-seeds.js && node scripts/smoke-games.js && node scripts/audit-music-driven.js",
+    "test": "node build.js && node scripts/verify-automation.js && node scripts/verify-apu-manual-envelope.js && node scripts/verify-rom.js && node scripts/verify-song-document.js && node scripts/verify-create-handover.js && node scripts/verify-frame-pacing.js && node scripts/verify-share.js && node scripts/verify-rhythm.js && node scripts/verify-melody-allocation.js && node scripts/verify-ribbon.js && node scripts/verify-mood-constraints.js && node scripts/verify-composition-character.js && node scripts/verify-export-boundaries.js && node scripts/verify-entry.js && node scripts/verify-radio-promotion.js && node scripts/verify-generated-transitions.js && node scripts/verify-sync.js && node scripts/verify-chrome.js && node scripts/verify-responsive-layout.js && node scripts/verify-player-readability.js && node scripts/verify-api.js && node scripts/verify-language.js && node scripts/verify-lsdj.js && node scripts/verify-lsdj-native.js && node scripts/verify-lsdj-native-document.js && node scripts/verify-lsdj-native-editor.js && node scripts/verify-lsdj-parser-bounds.js && node scripts/analyze-lsdj-envelope-writes.js --selftest && node scripts/verify-lsdj-table-detection.js && node scripts/verify-lsdj-write-observer.js && node scripts/verify-lsdj-trigger-state.js && node scripts/verify-lsdj-command-versions.js && node scripts/verify-lsdj-sparse-phrases.js && node scripts/verify-lsdj-arrangement.js && node scripts/verify-lsdj-envelope-fixtures.js && node scripts/verify-lsdj-emulator.js && node scripts/verify-webmcp.js && node scripts/verify-diversity.js && node scripts/verify-latency.js && node scripts/verify-screens.js && node scripts/smoke-generated-seeds.js && node scripts/smoke-games.js && node scripts/audit-music-driven.js && npm run test:music-workspace",
     "test:latency": "node scripts/verify-latency.js",
     "test:screens": "node scripts/verify-screens.js",
     "test:api": "node scripts/verify-api.js",
@@ -65,6 +66,11 @@
     "node-web-audio-api": "2.0.0"
   },
   "devDependencies": {
+    "@codemirror/autocomplete": "6.20.3",
+    "@codemirror/lang-javascript": "6.2.5",
+    "@codemirror/lint": "6.9.7",
+    "codemirror": "6.0.2",
+    "esbuild": "0.28.2",
     "pixelmatch": "^7.2.0",
     "playwright": "^1.61.1",
     "pngjs": "^7.0.0"

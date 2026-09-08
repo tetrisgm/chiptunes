@@ -3,7 +3,7 @@
 Plain, current working notes for whoever (or whatever) picks the project up
 next. Infrastructure and operations live outside this repository.
 
-## 2026-09-08 — Source-backed Create workspace (implementation in progress)
+## 2026-09-08 — Source-backed Create workspace (live provider still pending)
 
 Owner's complete request is retained in `docs/create-workspace-plan.md`.
 The fidelity audit reproduces losses in readable/packed legacy representations;
@@ -13,19 +13,45 @@ round-tripping it through those representations. `music-language.js` and
 patterns, source mapping, atomic revisions/recovery, scoped proposals and locks.
 No arbitrary source execution or second composer/runtime was added.
 
-Focused checks: 18 fidelity characterization groups, 16 language groups and 19
+Focused checks: 18 fidelity characterization groups, 20 language groups and 19
 project groups pass. Generated concrete source is readable one-event/asset-row
 per line; a representative song is 83,097 characters / 816 lines. Compiler
 limits are 1,048,576 UTF-16 characters and 216,000 GB frames. Source mapping uses
 indexed line lookup, and compilation/Notes/boundaries use a shared clock.
 
 CodeMirror 6 is locally bundled under MIT with transitive dependency licenses.
-Initial browser flow passed invalid-draft reload, editing, revision undo/redo,
-Notes mapping, actual playback acknowledgment and mobile layout. Additional
-live/proposal/share browser checks and final regressions are still running.
+Browser checks pass automatic invalid-draft reload, editing, revision undo/redo,
+Notes mapping, actual playback acknowledgment, live Apply/undo, paused queues,
+real AudioContext suspension/resume, scoped fixture proposals, silent shared
+projects, two-tab conflicts, mobile layout and return to radio ownership/audio.
+The fixture is not a real-model acceptance test. Shared projects protect an
+existing local draft. Legacy `#s=` projects and native byte editing stay separate.
 Native Playwright `fill`/`insertText` on a large multiline contenteditable can
 stall Chromium native layout; actual clipboard paste goes through CodeMirror's
-bounded document transaction. Do not mistake the former for the latter.
+bounded document transaction. A 1 MiB/88,299-line clipboard paste and a 1 MiB
+single-line paste pass exact-text and edit/undo under a two-second budget.
+Do not mistake native insertion for clipboard behavior.
+
+Live engine checks (29) preserve unchanged/future-only waveforms exactly and
+cover stale/superseded revisions, undo/redo activation IDs, finite ends, loops,
+seeking, ownership, instrument/wave changes, sample clocks and output gain.
+Changed voices reset explicitly; a 64-sample output correction removes the
+instantaneous activation step, not the need for listening acceptance.
+
+Generated bank expansion is real: the 400 seed/mood language matrix reaches
+130 records/index 129. No source truncation is used. The additional 100-song
+export matrix includes 17,297 pitchless noise notes and five over-end notes.
+Exact source retains over-end durations with `SONG_END_CUT`; Notes shows the
+finite audible extent. WAV renders through the finite end. MIDI refuses an
+undefined noise pitch, and ROM rejects late note-offs/unsupported wave slots.
+Source-to-LSDj conversion stays rejected with specific capability reasons,
+not silently flattened through legacy grid export.
+
+Verification: the existing full `npm test` run exited 0; the new complete
+`test:music-workspace` suite also exited 0. A combined final npm run is underway.
+The private-ROM `npm run test:lsdj` run exited 0 with existing local harnesses,
+including real emulator/command/envelope checks skipped in the default setup.
+Render parity passed 10/10, min correlation 1.000000, max RMS delta 0.175 dB.
 
 Real Chat remains owner-gated: there is no selected authorized model provider,
 API billing account, production authentication or public abuse/spend policy.
@@ -34,10 +60,15 @@ configured live service. Test adapters are fixtures, not real model acceptance.
 Consumer subscription credits have not been used or assumed to fund API calls.
 No deployment, release, infrastructure changes or app restart was performed.
 Listening and owner-authorized deployed real-Safari acceptance remain pending.
+`scripts/audition-music-workspace.js` regenerates local original/manual-bass/
+simplified-drums WAV/source examples without playing or uploading. The workspace
+footer exposes a content-based build ID for the future manual Safari check.
+Behavior is documented in `docs/music-workspace.md`, `docs/music-language.md`,
+`docs/music-live-playback.md` and `docs/music-chat-backend.md`.
 
 Historical test clarification: the earlier native session's nested “all good”
-output did not establish a full `npm test` success. A fresh full suite is running
-for this workspace work; only its actual exit status will establish that gate.
+output did not establish a full `npm test` success. The fresh exit-0 result above
+is actual full-suite evidence for this workspace work.
 
 ## 2026-09-08 — Native structural editor completed
 

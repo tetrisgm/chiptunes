@@ -57,6 +57,11 @@ const ORDER = [
   'src/lsdj-native-editor.js',   // user-facing native structure editor (structural, no playback)
   'src/reference-styles.js',  // "like Castlevania" -> genre dials, read back out loud
   'src/api.js',         // the agent API, also reachable in the page as CT_API
+  'src/music-language.js',
+  'src/music-project.js',
+  'src/music-chat.js',
+  'src/music-exports.js',
+  'src/music-workspace.js',
   'src/webmcp.js',      // window.chiptunes + WebMCP tools: an agent driving the live page
   'src/helpers.js',
   'src/visualizer.js',
@@ -76,14 +81,22 @@ const ORDER = [
 
 const shellPath = path.join(ROOT, 'src', 'shell.html');
 if (!fs.existsSync(shellPath)) die('missing src/shell.html (the HTML template with the __SCRIPTS__ marker)');
-const shell = fs.readFileSync(shellPath, 'utf8');
+const shell = fs.readFileSync(shellPath, 'utf8').replace('</style>',
+  fs.readFileSync(path.join(ROOT, 'src/music-workspace.css'), 'utf8') + '\n</style>');
 if (!shell.includes('__SCRIPTS__')) die('src/shell.html has no __SCRIPTS__ marker');
 
-const js = ORDER.map(f => {
+const musicAssetVersion = crypto.createHash('sha256');
+for (const file of ['src/gb-hardware.js','src/gb-kits.js','src/gb-apu.js']) musicAssetVersion.update(fs.readFileSync(path.join(ROOT,file)));
+const musicEditorVersion = crypto.createHash('sha256').update(fs.readFileSync(path.join(ROOT,'src/music-code-editor.mjs'))).update(fs.readFileSync(path.join(ROOT,'package-lock.json'))).digest('hex').slice(0,12);
+const appSources = ORDER.map(f => {
   const p = path.join(ROOT, f);
   if (!fs.existsSync(p)) die('missing source ' + f);
   return '/* ===== ' + f + ' ===== */\n' + fs.readFileSync(p, 'utf8');
 }).join('\n');
+const musicBuildVersion = crypto.createHash('sha256').update(appSources).update(shell).update(musicEditorVersion).digest('hex').slice(0,12);
+const js = 'globalThis.CT_MUSIC_ASSETS_VERSION="'+musicAssetVersion.digest('hex').slice(0,16)+'";\n'+
+  'globalThis.CT_MUSIC_EDITOR_VERSION="'+musicEditorVersion+'";\n'+
+  'globalThis.CT_MUSIC_BUILD_VERSION="'+musicBuildVersion+'";\n'+appSources;
 
 // fail loud before writing if the bundle doesn't parse
 try { new Function(js); } catch (e) { die('ABORTED — bundle syntax error: ' + e.message); }
@@ -91,6 +104,24 @@ try { new Function(js); } catch (e) { die('ABORTED — bundle syntax error: ' + 
 // ---- publish dist/ — the ONLY directory the dev server exposes ----
 const DIST = path.join(ROOT, 'dist');
 fs.mkdirSync(path.join(DIST, 'lib'), { recursive: true });
+// Lazy-loaded editor component: one locally bundled dependency, same artifact
+// for every surface. Retain the licenses of all shipped editor dependencies.
+require('esbuild').buildSync({
+  entryPoints:[path.join(ROOT,'src/music-code-editor.mjs')],
+  outfile:path.join(DIST,'lib/music-code-editor.js'),bundle:true,format:'iife',
+  platform:'browser',target:'es2020',minify:true,legalComments:'inline'
+});
+const editorLicenses=[], editorSeen=new Set();
+function editorLicense(name) {
+  if(editorSeen.has(name)) return; editorSeen.add(name);
+  const dir=path.join(ROOT,'node_modules',name), pkg=JSON.parse(fs.readFileSync(path.join(dir,'package.json'),'utf8'));
+  const file=['LICENSE','LICENSE.txt','LICENSE.md'].map(n=>path.join(dir,n)).find(p=>fs.existsSync(p));
+  if(!file) die('editor dependency has no license file: '+name);
+  editorLicenses.push(name+' '+pkg.version+' ('+pkg.license+')\n'+fs.readFileSync(file,'utf8'));
+  Object.keys(pkg.dependencies||{}).forEach(editorLicense);
+}
+['codemirror','@codemirror/lang-javascript','@codemirror/autocomplete','@codemirror/lint'].forEach(editorLicense);
+fs.writeFileSync(path.join(DIST,'lib/music-code-editor.LICENSE.txt'),editorLicenses.join('\n\n'));
 // A FUNCTION, not a string. String.replace treats $', $`, $& and $$ in the
 // replacement as special patterns, so any source containing one of them is
 // silently corrupted -- and the corruption is not local: `$'` splices in

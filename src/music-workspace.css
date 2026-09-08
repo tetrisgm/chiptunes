@@ -1,0 +1,52 @@
+#musicworkspace{position:fixed;inset:0;z-index:85;background:#0b0d14;color:#e7eaf4;display:flex;flex-direction:column;font:14px/1.5 var(--ui,system-ui);padding:16px;gap:12px}
+#musicworkspace[hidden]{display:none}
+#musicworkspace *{box-sizing:border-box}
+#musicworkspace button,#musicworkspace select,#musicworkspace input,#musicworkspace textarea{font:inherit;color:inherit;background:#202534;border:1px solid #3d455a;border-radius:8px;padding:8px 12px}
+#musicworkspace button{cursor:pointer;white-space:nowrap}
+#musicworkspace button:hover{background:#30394c}
+#musicworkspace button:disabled{opacity:.45;cursor:default}
+#musicworkspace :focus-visible{outline:2px solid #b9d968;outline-offset:2px}
+#musicworkspace .mw-top,#musicworkspace .mw-transport,#musicworkspace .mw-tabs,#musicworkspace .mw-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+#musicworkspace h1{font-size:20px;margin:0 auto 0 0}
+#musicworkspace .mw-primary{background:#b9d968;color:#182009;border-color:#b9d968}
+#musicworkspace .mw-state{font:12px/1.5 ui-monospace,monospace;color:#b6bfd5}
+#musicworkspace .mw-body{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:12px;min-height:0;flex:1}
+#musicworkspace .mw-main,#musicworkspace .mw-chat{min-height:0;border:1px solid #303748;border-radius:12px;overflow:hidden;background:#10121b;display:flex;flex-direction:column}
+#musicworkspace .mw-mainview{flex:1;min-height:0;overflow:auto}
+#musicworkspace [hidden]{display:none!important}
+#musicworkspace .mw-tabs{padding:8px;border-bottom:1px solid #303748}
+#musicworkspace [aria-selected=true]{border-color:#b9d968;color:#d4efa3}
+#musicworkspace .mw-notes{position:relative;min-height:360px;overflow:auto;padding:12px}
+#musicworkspace .mw-lane{position:relative;height:94px;border-top:1px solid #343b4e;background:repeating-linear-gradient(90deg,transparent,transparent 79px,#ffffff09 80px)}
+#musicworkspace .mw-lane-label{position:sticky;left:0;z-index:2;font-size:12px;background:#10121bdd;width:90px;padding:3px}
+#musicworkspace .mw-note{position:absolute;height:16px;min-width:6px;padding:0;border-radius:3px;background:#83a75a;border-color:#adc98b;overflow:hidden;font-size:10px}
+#musicworkspace .mw-note[aria-pressed=true]{outline:2px solid #fff}
+#musicworkspace .mw-playhead{position:absolute;top:0;bottom:0;width:2px;background:#f8d36e;pointer-events:none;z-index:3}
+#musicworkspace .mw-diagnostics,#musicworkspace .mw-selection{padding:6px 12px;white-space:pre-wrap;font-size:12px;flex-shrink:0}
+#musicworkspace .mw-diagnostics{max-height:100px;overflow:auto}
+#musicworkspace .mw-status{max-height:80px;overflow:auto;flex-shrink:0}
+#musicworkspace .mw-diagnostics:empty{display:none}
+#musicworkspace .mw-chat{padding:12px;gap:10px;overflow:auto}
+#musicworkspace .mw-chat h2{font-size:16px;margin:0}
+#musicworkspace .mw-chat textarea{width:100%;min-height:80px;resize:vertical}
+#musicworkspace .mw-chat label{display:block}
+#musicworkspace .mw-chat pre{font:12px/1.5 ui-monospace,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
+#musicworkspace .mw-proposal{padding:10px;border:1px solid #46503a;border-radius:8px}
+#musicworkspace .mw-status{min-height:22px;margin:0;font-size:13px;white-space:pre-wrap}
+#musicworkspace .mw-help{font-size:12px;padding:6px 12px;border-top:1px solid #303748;color:#bdc5d8}
+#musicworkspace .mw-help pre{white-space:pre-wrap}
+#musicworkspace .mw-mobile-chat{display:none}
+#musicworkspace .mw-seek{flex:1;min-width:80px;max-width:260px}
+@media(max-width:760px){
+  #musicworkspace{padding:8px;gap:8px}
+  #musicworkspace .mw-body{display:flex;flex-direction:column}
+  #musicworkspace .mw-main{flex:1}
+  #musicworkspace .mw-chat{display:none;flex:1}
+  #musicworkspace[data-view=chat] .mw-chat{display:flex}
+  #musicworkspace[data-view=chat] .mw-main{display:none}
+  #musicworkspace .mw-mobile-chat{display:inline-block}
+  #musicworkspace .mw-top{flex-wrap:nowrap}
+  #musicworkspace h1{font-size:18px}
+  #musicworkspace .mw-transport{gap:5px}
+  #musicworkspace button{padding:7px 9px}
+}

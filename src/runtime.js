@@ -1382,6 +1382,7 @@ function watchOnlyToast(){
   if(typeof _toast==='function') _toast('The games are the visualiser \u2014 they play themselves, to the music. Nothing to control: sit back and listen \ud83c\udfa7', { big:true, ms:dur });
 }
 function shortcutTargetBlocked(ev){
+  if(typeof CT_MUSIC_WORKSPACE!=='undefined' && CT_MUSIC_WORKSPACE.isOpen()) return true;
   if(typeof CT_LSDJ_NATIVE_EDITOR!=='undefined' && CT_LSDJ_NATIVE_EDITOR.isOpen()) return true;
   var el=ev&&ev.target;
   if(!el) return false;
@@ -1413,6 +1414,12 @@ function panelVisible(id){
   return !!(el && el.style.display!=='none' && !el.hidden && !el.classList.contains('hidden'));
 }
 function handleEscapeShortcut(ev){
+  if(ev && ev.key==='Escape' && !ev.metaKey && !ev.altKey && !ev.ctrlKey &&
+     typeof CT_MUSIC_WORKSPACE!=='undefined' && CT_MUSIC_WORKSPACE.isOpen()){
+    // CodeMirror gets first refusal for completion/search popovers. Unhandled
+    // Escape bubbles to the workspace, which still closes the modal normally.
+    if(ev.target&&ev.target.closest&&ev.target.closest('.cm-editor'))return false;
+    CT_MUSIC_WORKSPACE.close(); consumeKeyEvent(ev); return true; }
   if(ev && ev.key==='Escape' && !ev.metaKey && !ev.altKey && !ev.ctrlKey &&
      typeof CT_LSDJ_NATIVE_EDITOR!=='undefined' && CT_LSDJ_NATIVE_EDITOR.isOpen()){
     CT_LSDJ_NATIVE_EDITOR.close(); consumeKeyEvent(ev); return true; }
@@ -2156,6 +2163,13 @@ function _openCreate(blank){
   };
   // hand the editor the song that is playing, if there is one -- unless the
   // whole point was to start from nothing
+  // Shared source projects must never briefly start a generated/legacy song.
+  // Keep a silent legacy view underneath so Back retains the normal radio handoff.
+  if(/^#music(?:=|$)/.test(location.hash)&&typeof CT_MUSIC_WORKSPACE!=='undefined'){
+    CT_CREATE.openBlank();
+    CT_MUSIC_WORKSPACE.open().catch(function(e){console.error('Music workspace:',e.message);});
+    return;
+  }
   if(blank){ try{ CT_CREATE.openBlank(); }catch(e){ CT_CREATE.open(''); } return; }
   var _doc=null;
   try{ if(typeof Audio!=='undefined'&&Audio.currentDoc) _doc=Audio.currentDoc(); }catch(e){}

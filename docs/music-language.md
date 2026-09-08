@@ -150,7 +150,13 @@ the prior segment ends; positions after it use the new tempo. Fractional rows
 (for positions or gates) interpolate adjacent integer row frames, then round.
 Thus this clock is not interchangeable with the default beat formula.
 
-Notes extending beyond `totalFrames` are errors; they are never truncated.
+Shorthand notes extending beyond `totalFrames` are errors. Exact `event()`
+notes may start before the finite end and sustain beyond it: compilation
+preserves their full `frame` and `frames` and emits `SONG_END_CUT`. The finite
+player end cuts playback, not the source event. Notes starting at or after
+the finite end are errors in both forms. No source duration is truncated.
+Every scheduled note end (`frame + frames`) must still be at most 216,000,
+including exact tails, to respect the engine's global scheduled-frame bound.
 Trailing rests in a pattern create no events and do not independently fail
 the song-end check. Explicit auxiliary events may occur at `totalFrames`.
 
@@ -315,6 +321,13 @@ are not overlaps. This check covers notes, not kit/wave/automation collisions.
 Notes consumers should visibly mark conflicts rather than draw all overlapping
 events as independently playable.
 
+Exact-event tails use `SONG_END_CUT`, severity `warning`, with `noteIndex`,
+the source `span`, `cutFrame` (the finite song end), and `noteEndFrame` (the
+unmodified event end). Notes should visually clamp to the finite end and mark
+the cut while preserving the source duration. This warning does not make an
+overlong event exportable to every format: WAV remains finite, MIDI may report
+capped note-offs, and ROM capability checks may reject the tail.
+
 Every mapping entry has `noteIndex`, `span`, `pattern`, and `occurrence`.
 Explicit events use null pattern/occurrence and span their event call.
 Shorthand entries also have `patternNote` (index among sounding tokens),
@@ -392,3 +405,9 @@ Create-to-source-to-GB round trips, including `ThunderFalconX`. It asserts that
 appended records and indices above 127 are actually exercised, and reports
 observed record/metadata/index maxima and flags. A synthetic 257-record bank
 also verifies metadata/index boundaries and no-op waveform preservation.
+
+The language verifier also shares the export scan's 100 deterministic source
+IDs `music-exports-real-000` through `music-exports-real-099`, cycling `chill`,
+`happy`, `boss`, `cave`, `sad`, `title`, `battle`, `peaceful`, `fast`, and
+`no drums`. Every actual Create GB must materialize without failure and remain
+JSON-normalized deep-equal; every exact tail must have a matching `SONG_END_CUT`.

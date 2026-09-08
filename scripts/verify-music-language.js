@@ -186,4 +186,39 @@ test('100 deterministic seeds by four moods preserve every concrete bank and eve
   assert.ok(expanded>0 && maxInst>=128,'matrix must exercise appended records');
   console.log('  400 cases; expanded='+expanded+' maxBank='+maxBank+' maxMeta='+maxMeta+' maxInst='+maxInst+' flags='+[...flags].sort().join(','));
 });
+test('exact tails retain timing with SONG_END_CUT; shorthand tails remain errors', () => {
+  const gb = { totalFrames:20,bank:{instruments:[[128,240,255,0]]},notes:[{ch:0,frame:5,frames:30,midi:60,inst:0}] };
+  const result = valid(L.materialize(gb)); assert.deepEqual(result.gb,gb);
+  const warning = result.diagnostics.find(d=>d.code==='SONG_END_CUT');
+  assert.equal(warning.severity,'warning'); assert.equal(warning.noteIndex,0);
+  assert.equal(warning.cutFrame,20); assert.equal(warning.noteEndFrame,35);
+  assert.deepEqual(warning.span,result.mapping[0].span);
+  const apu=require('../src/gb-apu.js'), before=new Float32Array(2000),after=new Float32Array(2000);
+  new apu.Sequencer(gb,8000).render(before,0,before.length);
+  new apu.Sequencer(result.gb,8000).render(after,0,after.length);
+  assert.deepEqual(after,before,'retained tail does not rewrite waveform');
+  invalid('song({tempo:120,bars:1});pattern("p",notes("C2:8").stepsPerBar(4));track("bass").instrument("wave-bass").play("p")');
+  const late=structuredClone(gb);late.notes[0].frame=20;assert.throws(()=>L.materialize(late),/starts at or beyond/);
+  const limit=structuredClone(gb);limit.totalFrames=L.LIMITS.frames-1;limit.notes[0].frame=L.LIMITS.frames-2;limit.notes[0].frames=2;
+  assert.equal(valid(L.materialize(limit)).diagnostics[0].code,'SONG_END_CUT');
+  limit.notes[0].frames=3;assert.throws(()=>L.materialize(limit),/global frame limit/);
+});
+test('same 100 generated source IDs as export scan materialize without failure', () => {
+  // Keep these IDs aligned with scripts/verify-music-exports.js actual-data scan.
+  const api=require('../src/api.js'),CT=require('../src/create.js');
+  const prompts=['chill','happy','boss','cave','sad','title','battle','peaceful','fast','no drums'];
+  let tails=0;const affected=[];
+  for(let i=0;i<100;i++){
+    const prompt=prompts[i%prompts.length],token='music-exports-real-'+String(i).padStart(3,'0');
+    const song=CT.songOf(api.ask(prompt,{brief:{token}}).doc);
+    assert.ok(song&&song.gb,prompt+'/'+token);
+    const result=valid(L.materialize(song.gb,{tempo:song.bpm,bars:song.bars}));
+    assert.deepEqual(result.gb,JSON.parse(JSON.stringify(song.gb)),prompt+'/'+token);
+    const indices=song.gb.notes.flatMap((n,j)=>n.frame+n.frames>song.gb.totalFrames?[j]:[]);
+    assert.deepEqual(result.diagnostics.filter(d=>d.code==='SONG_END_CUT').map(d=>d.noteIndex),indices);
+    tails+=indices.length;if(indices.length)affected.push(token+':'+prompt);
+  }
+  assert.ok(tails>0,'export matrix must exercise exact tails');
+  console.log('  100 export fixtures; tail notes='+tails+' affected='+affected.join(', '));
+});
 console.log('music-language: ' + checks + ' groups passed');
