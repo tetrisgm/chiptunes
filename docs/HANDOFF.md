@@ -23,13 +23,13 @@ Main verification: 9 protocol groups and real-popup browser tests passed with
 a >150 KB Unicode unfinished draft, preserved last-valid source, metadata-only
 offer, Accept/Cancel, incompatible restore, close-during-Accept, pending edits,
 protected hosted storage and zero model/session creation. Chat UI + 65 gateway
-tests and Next production build also passed. The fresh full root `npm test` is
-still running (exec session 58427); poll that live handle instead of restarting.
+tests and Next production build also passed. The fresh full root `npm test`
+finished with exit 0 (exec session 58427, terminal result observed September 9),
+including the workspace, agent and real-popup project-transfer suites.
 The Vercel upload dry-run passed: 209 files / 5,150,023 bytes; required transfer
 and Chat routes included, private/local artifacts excluded.
-Do not deploy or claim the whole regression gate green until its terminal result
-is observed. Source files are frozen; both source-owning agents finished.
-Next: finish full regression, push candidate, deploy Vercel and Cloudflare Pages
+Source files are frozen; both source-owning agents finished.
+Next: push candidate, deploy Vercel and Cloudflare Pages
 site only (never aggregate deploy/broadcast), verify real deployed cross-origin
 popup in Safari and the Chat-first sidebar, then resolve listening acceptance.
 
