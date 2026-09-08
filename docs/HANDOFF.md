@@ -14,6 +14,13 @@ The rendered sidebar exposed a real usability defect: unconfigured optional MCP
 setup consumed the visible area before built-in Chat. The local fix places
 built-in Chat first and external MCP in a collapsed details section at the bottom;
 pending the next deliberate deployment and native layout recheck.
+The sidebar checkpoint is 51cd5f0 on origin/main; main reran Chat/web gateway,
+workspace, workspace-agent, and external-connection tests successfully. Native
+Safari also mapped a clicked bass note to Code with explicit frames 0–47.
+The ten-song browser/broadcast render comparison passed: min correlation
+1.000000, maximum absolute RMS difference 0.175 dB, exceeding the 0.995 gate.
+Listening variants (original, bass edit, simplified drums) were rendered locally
+with scripts/audition-music-workspace.js; no listening acceptance is claimed.
 
 The owner clarified the primary web path: built-in Chat beside Code/Notes,
 funded by their OpenAI and Anthropic API keys. Clerk and external MCP are optional
