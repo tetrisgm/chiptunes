@@ -1382,6 +1382,7 @@ function watchOnlyToast(){
   if(typeof _toast==='function') _toast('The games are the visualiser \u2014 they play themselves, to the music. Nothing to control: sit back and listen \ud83c\udfa7', { big:true, ms:dur });
 }
 function shortcutTargetBlocked(ev){
+  if(typeof CT_LSDJ_NATIVE_EDITOR!=='undefined' && CT_LSDJ_NATIVE_EDITOR.isOpen()) return true;
   var el=ev&&ev.target;
   if(!el) return false;
   if(el.closest && el.closest('input,textarea,select,[contenteditable=""],[contenteditable="true"],[role="textbox"],[data-shortcuts-off]')) return true;
@@ -1412,6 +1413,9 @@ function panelVisible(id){
   return !!(el && el.style.display!=='none' && !el.hidden && !el.classList.contains('hidden'));
 }
 function handleEscapeShortcut(ev){
+  if(ev && ev.key==='Escape' && !ev.metaKey && !ev.altKey && !ev.ctrlKey &&
+     typeof CT_LSDJ_NATIVE_EDITOR!=='undefined' && CT_LSDJ_NATIVE_EDITOR.isOpen()){
+    CT_LSDJ_NATIVE_EDITOR.close(); consumeKeyEvent(ev); return true; }
   if(!ev || ev.key!=='Escape' || shortcutTargetBlocked(ev) || ev.metaKey || ev.altKey || ev.ctrlKey) return false;
   if(typeof CT_CREATE!=='undefined' && CT_CREATE.isOpen()){
     // the editor's own panels close first; Escape only leaves once nothing is open

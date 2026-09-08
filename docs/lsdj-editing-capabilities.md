@@ -16,10 +16,27 @@ proof that the browser can expose or play every field.
 The additional `src/lsdj-native-document.js` foundation keeps that native image
 as its authority while offering validated edits, bounded undo/redo and checked
 diff/full sharing. Tests exercise untouched-byte retention and hostile shares.
-It is not yet bundled into the browser or exposed as an approved editor. The
-provisional native UI remains deferred after data-safety review; see the latest
-handoff and `docs/drafts/README.md`. Thus the Create control limitations below
-still apply. Byte-preserving authoring machinery is not native playback parity.
+It is bundled with a separate raw-byte structure editor, reached through
+Create's Open LSDj / Open native JSON controls. Sequence, chains, phrases,
+instrument parameters/names, all five table regions, grooves, waves, allocation
+bytes, tempo and transpose are editable; format version is read-only. Rows are
+staged and applied atomically, with undo/redo. Pending edits survive navigation
+and closing; Resume LSDj edit reopens them within the same tab. Replacement
+requires confirmation when edits exist, and a beforeunload handler warns about
+leaving modified session work. There is no durable autosave: download before
+leaving, especially on mobile where the OS can terminate a tab.
+
+This path never projects through the flattened Create score. Its .lsdsng
+export retains the imported nine-byte name/version header; .sav export is
+available only for an imported 128 KiB .sav and changes working memory only,
+preserving the rest. Standalone native JSON retains song bytes, not the .sav
+container or original .lsdsng header. Save native JSON is a file to reopen,
+not a playable link. Downloads do not clear the conservative replacement/exit
+warning because their completion cannot be confirmed by the page.
+
+The matrix below describes the **flattened Create controls**, not the separate
+raw-byte editor. Byte-preserving authoring is not native playback parity:
+native commands, envelopes, tables and kits are not executed by this editor.
 
 Create is a cell/grid editor. Its picker exposes named sound presets and a
 small set of per-cell fields; it does not expose native phrase/chain editing,

@@ -3,6 +3,36 @@
 Plain, current working notes for whoever (or whatever) picks the project up
 next. Infrastructure and operations live outside this repository.
 
+## 2026-09-08 — Native structural editor completed
+
+The native LSDj structure editor is bundled and reachable from Create via Open
+LSDj, Open native JSON, and Resume LSDj edit. It edits the authoritative 32 KiB
+NativeDocument directly: sequence, chains, phrases, instrument
+parameters/names, all five table regions, grooves, waves, allocation bytes,
+tempo and transpose; format version is read-only. Edits are staged in a
+persistent field/slot/row map and applied atomically through bounded
+`setBytes()`, with undo/redo. Pending edits survive navigation, closing and
+render/history operations; invalid drafts are escaped in the DOM and block
+exports rather than being dropped. Replacement requires confirmation, the
+shared strict .lsdsng parser is used, in-flight imports are cancelled by a
+generation token, and a beforeunload warning covers dirty edits while the
+panel is open or suspended.
+
+Exports were checked against actual byte offsets: .lsdsng retains its imported
+name/version header; .sav changes only the first 32768 working-memory bytes;
+native JSON is a standalone structure share. Keyboard modality is checked with
+Tab wrapping, Escape isolation, Space isolation, category navigation, focus
+restoration after Apply and mobile layout. The browser regression checks
+malformed streams, cyclic input, invalid drafts, replacement confirmation,
+close/resume, slow/fast import races, and blocked exports. The focused native
+editor suite passed all checks.
+
+This remains a structure editor, not a player: native command/table execution,
+multi-stage envelope behavior, kit execution and native sound parity remain
+unfinished. No deployment or app restart occurred. The full suite reached its
+final all-good checks but the long npm wrapper did not exit cleanly; focused
+native-document, parser-bound and editor suites passed.
+
 ## 2026-09-07 — Composition fixes completed
 
 Owner requested the composition fixes specifically. Restored only the

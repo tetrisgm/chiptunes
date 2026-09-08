@@ -1374,6 +1374,20 @@
     } catch (e) { if (G._toast) G._toast('LSDj export failed: ' + (e && e.message || e)); }
   }
 
+  // ---- native LSDj structural editing (a separate authority) ---------------
+  // The native editor owns an imported .lsdsng/.sav as a NativeDocument; it does
+  // not read or write this Create document. Opening it stops Create's playback.
+  function openNative() {
+    if (!G.CT_LSDJ_NATIVE_EDITOR || !G.CT_LSDJ_NATIVE_EDITOR.pick) {
+      if (G._toast) G._toast('Native LSDj editing is unavailable in this build'); return;
+    }
+    try { G.CT_LSDJ_NATIVE_EDITOR.pick(); }
+    catch (e) { if (G._toast) G._toast('Could not open the file picker'); }
+  }
+  function stopForNative() { try { if (playing) pausePlayback(); } catch (e) {} }
+  function openNativeJson() { G.CT_LSDJ_NATIVE_EDITOR.pickJson(); }
+  function resumeNative() { G.CT_LSDJ_NATIVE_EDITOR.resume(); }
+
   // ---- hints + tour --------------------------------------------------------
   var hintTimer = 0, hintedSulk = false;
   var HINT_IDLE = 'Click empty space in a lane to place a note at that height; hover or click a note to hear it.';
@@ -2304,6 +2318,12 @@
         // LSDj and keep working on, rather than a finished thing to admire.
         '<button type="button" class="cr-btn cr-dl" data-cr="lsdsng" title="One LSDj song: notes, phrases, chains, tempo and groove, ready to keep writing">' + _ic('rom') + 'Download LSDj</button>' +
         '<button type="button" class="cr-btn cr-dl" data-cr="midi" title="Standard MIDI, one track per voice">' + _ic('wave') + 'Download MIDI</button>' +
+        // OPEN, not download: a local .lsdsng or .sav whose NATIVE structure you
+        // edit byte-for-byte. Separate authority from this flattened score; it
+        // does not touch or re-export the document you are composing here.
+        '<button type="button" class="cr-btn" data-cr="opennative" title="Open a local .lsdsng or .sav and edit its native LSDj structure (no playback yet)">' + _ic('rom') + 'Open LSDj</button>' +
+        '<button type="button" class="cr-btn" data-cr="opennativejson">Open native JSON</button>' +
+        '<button type="button" class="cr-btn" data-cr="resumenative">Resume LSDj edit</button>' +
       '</div>' +
       // COMPACT VISIBLE LISTEN HELP. A tooltip does not show on a touch screen,
       // so the two ways to hear or keep a song are stated as plain, visible
@@ -2545,6 +2565,7 @@
     // Space plays/pauses
     document.addEventListener('keydown', function (ev) {
       if (ev.code !== 'Space' || !isOpen() || ev.metaKey || ev.altKey || ev.ctrlKey) return;
+      if (G.CT_LSDJ_NATIVE_EDITOR && G.CT_LSDJ_NATIVE_EDITOR.isOpen()) return;
       var tag = (ev.target && ev.target.tagName) || '';
       if (/^(INPUT|TEXTAREA|SELECT)$/.test(tag)) return;
       ev.preventDefault(); ev.stopPropagation();
@@ -2845,6 +2866,9 @@
       else if (k === 'rom') { exportRom(); }
       else if (k === 'lsdsng') { exportLsdsng(); }
       else if (k === 'midi') { exportMidi(); }
+      else if (k === 'opennative') { openNative(); }
+      else if (k === 'opennativejson') { openNativeJson(); }
+      else if (k === 'resumenative') { resumeNative(); }
     });
     root.addEventListener('input', function (ev) {
       var b = ev.target.closest('[data-cr="bpm"]'); if (!b) return;
@@ -2979,6 +3003,8 @@
     return false;
   }
   G.CT_CREATE = { open: open, close: close, isOpen: isOpen, togglePlay: togglePlay, escape: escape,
+    // Entering the native structure editor silences Create's own playback.
+    stopForNative: stopForNative,
     // THE STATION'S SONGS ARE CREATE'S SONGS. songFrom() turns a composed Score
     // into a Create document -- a playable gb and the code that opens it in the
     // editor -- without the editor being open, so the radio can play documents

@@ -828,6 +828,66 @@
     :root{ --fade-out:.25s ease; --fade-in:.12s ease-out; }
   }
 
+  /* THE NATIVE LSDj STRUCTURE EDITOR is its own bottom sheet, above Create.
+     Byte-level, keyboard-reachable, phone-sized. It states plainly that it does
+     not play; the banner is not decoration. */
+  #nativeeditor{ position:fixed; inset:auto 0 0; height:96dvh; max-height:calc(100dvh - 16px);
+    z-index:90; display:none; flex-direction:column; overflow:hidden;
+    background:#080610; border:1px solid rgba(255,255,255,.14); border-bottom:0;
+    border-radius:20px 20px 0 0; box-shadow:0 -28px 80px rgba(0,0,0,.6);
+    color:var(--ink); font-family:var(--ui); }
+  #nativeeditor.show{ display:flex; }
+  #nativeeditor .ne-top{ flex:0 0 auto; display:flex; align-items:center; gap:12px;
+    padding:12px 16px; border-bottom:1px solid var(--mat-edge); }
+  #nativeeditor .ne-title b{ font:700 18px/1 var(--ui); }
+  #nativeeditor .ne-name{ color:var(--ink-2); font:500 14px/1 var(--ui); }
+  #nativeeditor .ne-close{ margin-left:auto; width:40px; height:40px; border-radius:999px; cursor:pointer;
+    border:1px solid var(--mat-edge); background:rgba(255,255,255,.06); color:var(--ink); font-size:16px; }
+  #nativeeditor .ne-close:hover{ background:rgba(255,255,255,.12); }
+  #nativeeditor .ne-banner{ flex:0 0 auto; margin:0; padding:8px 16px; font:600 12.5px/1.4 var(--ui);
+    color:#ffd9a8; background:rgba(255,170,60,.12); border-bottom:1px solid var(--mat-edge); }
+  #nativeeditor .ne-banner b{ color:#ffb454; }
+  #nativeeditor .ne-cats{ flex:0 0 auto; display:flex; gap:6px; padding:10px 16px 0; overflow-x:auto; }
+  #nativeeditor .ne-cat{ flex:0 0 auto; height:34px; padding:0 12px; border-radius:999px; cursor:pointer;
+    border:1px solid var(--mat-edge); background:rgba(255,255,255,.05); color:var(--ink-2); font:600 13px/1 var(--ui); }
+  #nativeeditor .ne-cat.on{ background:rgba(155,188,15,.18); border-color:rgba(155,188,15,.6); color:var(--ink); }
+  #nativeeditor .ne-bar{ flex:0 0 auto; display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:10px 16px; }
+  #nativeeditor .ne-slotlab{ display:inline-flex; align-items:center; gap:8px; font:600 13px/1 var(--ui); color:var(--ink); }
+  #nativeeditor .ne-slot{ width:84px; height:34px; padding:0 8px; border-radius:8px;
+    border:1px solid var(--mat-edge); background:rgba(255,255,255,.05); color:var(--ink); font:600 14px var(--mono); }
+  #nativeeditor .ne-slothex{ font:600 12px/1 var(--mono); color:var(--ink-2); }
+  #nativeeditor .ne-sp{ flex:1 1 8px; min-width:8px; }
+  #nativeeditor .ne-btn{ height:34px; padding:0 12px; border-radius:999px; cursor:pointer;
+    border:1px solid var(--mat-edge); background:rgba(255,255,255,.06); color:var(--ink); font:600 13px/1 var(--ui); }
+  #nativeeditor .ne-btn:hover{ background:rgba(255,255,255,.12); }
+  #nativeeditor .ne-btn:disabled{ opacity:.4; cursor:default; }
+  #nativeeditor .ne-grid{ flex:1 1 auto; min-height:0; overflow:auto; padding:6px 16px 16px; }
+  #nativeeditor .ne-table{ border-collapse:collapse; width:auto; }
+  #nativeeditor .ne-table th{ position:sticky; top:0; background:#0d0a18; color:var(--ink-2);
+    font:600 11px/1 var(--ui); padding:6px 8px; text-align:center; }
+  #nativeeditor .ne-table th.ne-rh{ left:0; z-index:2; font-family:var(--mono); }
+  #nativeeditor .ne-table td{ padding:2px; }
+  #nativeeditor .ne-byte{ width:44px; height:34px; text-align:center; text-transform:uppercase;
+    border:1px solid var(--mat-edge); border-radius:6px; background:rgba(255,255,255,.04);
+    color:var(--ink); font:600 14px/1 var(--mono); }
+  #nativeeditor .ne-byte:focus{ outline:2px solid rgba(155,188,15,.75); outline-offset:0; }
+  #nativeeditor .ne-byte[readonly]{ opacity:.55; }
+  #nativeeditor .ne-apply{ height:34px; padding:0 10px; border-radius:8px; cursor:pointer;
+    border:1px solid var(--mat-edge); background:rgba(255,255,255,.06); color:var(--ink-2); font:600 11px/1 var(--ui); }
+  #nativeeditor .ne-apply:disabled{ opacity:.4; cursor:default; }
+  #nativeeditor .ne-apply.staged{ background:rgba(155,188,15,.22); border-color:rgba(155,188,15,.65); color:var(--ink); }
+  #nativeeditor tr.staged .ne-byte{ border-color:rgba(155,188,15,.6); }
+  #nativeeditor tr.invalid .ne-byte{ border-color:rgba(248,120,120,.75); }
+  #nativeeditor .ne-rowname{ font:600 11px/1 var(--mono); color:var(--ink-2); white-space:nowrap; padding:0 8px; text-align:left; }
+  #nativeeditor :focus-visible{ outline:2px solid #9bbc0f; outline-offset:2px; }
+  #nativeeditor .ne-status{ flex:0 0 auto; margin:0; padding:8px 16px; min-height:20px;
+    font:500 12px/1.4 var(--ui); color:var(--ink-2); border-top:1px solid var(--mat-edge); }
+  @media (max-width:560px){
+    #nativeeditor{ height:100dvh; max-height:100dvh; border-radius:0; }
+    #nativeeditor .ne-byte{ width:40px; height:38px; font-size:15px; }
+    #nativeeditor .ne-bar{ gap:6px; }
+  }
+
   /* CREATE is a tall bottom sheet. Its exposed strip keeps the game visibly
      behind it, while its own transport and actions remain self-contained. */
   #createscreen{ position:fixed; inset:auto 0 0; height:93dvh; max-height:calc(100dvh - 28px);

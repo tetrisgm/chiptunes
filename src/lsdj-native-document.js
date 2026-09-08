@@ -242,6 +242,24 @@
     return self;
   }
 
+  // One bounded transaction of { key, i, j, value } byte writes. Snapshot
+  // caller-owned entries before commit validates every address/value and applies
+  // any changes. A song-sized bound also caps work before inspecting entries.
+  P.setBytes = function (writes) {
+    if (!Array.isArray(writes)) throw new TypeError('lsdj-native-document: writes must be an array');
+    var length = writes.length;
+    validateInt(length, 1, SONG_BYTES, 'writes length');
+    var list = [];
+    for (var n = 0; n < length; n++) {
+      var w = writes[n];
+      if (!w || typeof w !== 'object' || Array.isArray(w))
+        throw new TypeError('lsdj-native-document: each write must be an object');
+      var key = w.key;
+      if (typeof key !== 'string') throw new TypeError('lsdj-native-document: write key must be a string');
+      list.push({ key: key, i: w.i, j: w.j, value: w.value });
+    }
+    return commit(this, list);
+  };
   P.setFieldByte = function (key, i, j, value) { return commit(this, [{ key: key, i: i, j: j, value: value }]); };
   P.setScalar = function (key, value) {
     var f = FIELD[key];

@@ -87,6 +87,69 @@ ok(!isMapped(KNOWN_UNMAPPED), 'the sentinel offset is genuinely unmapped by the 
   ok(doc.undoDepth() === depth, 'writing the same value records no history entry');
 }
 
+// 5b. bounded mixed-field byte transactions
+{
+  const base = baseImage(), doc = NativeDocument.fromSong(base);
+  const writes = [
+    { key: 'phraseNotes', i: 3, j: 4, value: 0 },
+    { key: 'instrumentAlloc', i: 0, j: 5, value: 255 },
+    { key: 'tempo', i: 0, j: 0, value: 0 }
+  ];
+  const expected = Uint8Array.from(base);
+  for (const w of writes) {
+    const f = LSDJ.FIELDS.find(f => f.k === w.key), offset = f.at + w.i * f.w + w.j;
+    w.value = base[offset] === 0 ? 255 : 0;
+    expected[offset] = w.value;
+  }
+  ok(doc.setBytes(writes) === doc && same(doc.toSong(), expected), 'setBytes is chainable and changes exactly the requested mixed-field bytes');
+  ok(doc.undoDepth() === 1 && doc.dirtyFields().length === 3, 'mixed scalar, single-row and multi-row writes create one undo entry');
+  writes[0].value = 42;
+  ok(doc.undo() && same(doc.toSong(), base) && doc.undoDepth() === 0, 'one undo restores the whole transaction');
+  ok(doc.redo() && same(doc.toSong(), expected), 'one redo restores the transaction independently of caller mutation');
+  doc.undo();
+  const dirty = JSON.stringify(doc.dirtyFields());
+  const valid = { key: 'phraseNotes', i: 1, j: 2, value: 5 };
+  const invalid = [
+    null, [], {}, { ...valid, key: 'unknown' }, { ...valid, key: 1 },
+    { ...valid, i: -1 }, { ...valid, i: 255 }, { ...valid, i: 0.5 },
+    { ...valid, j: 16 }, { ...valid, j: '2' },
+    { key: 'tempo', i: 1, j: 0, value: 120 },
+    { key: 'tempo', i: 0, j: 1, value: 120 },
+    { key: 'instrumentAlloc', i: 1, j: 0, value: 1 },
+    { ...valid, value: -1 }, { ...valid, value: 256 },
+    { ...valid, value: 1.5 }, { ...valid, value: NaN },
+    { ...valid, value: Infinity }, { ...valid, value: '5' },
+    { ...valid, value: undefined }
+  ];
+  ok(invalid.every(w => threw(() => doc.setBytes([valid, { key: 'tempo', i: 0, j: 0, value: 120 }, w])) &&
+    same(doc.toSong(), base) && doc.undoDepth() === 0 && doc.redoDepth() === 1 && JSON.stringify(doc.dirtyFields()) === dirty),
+  'invalid trailing writes roll back mixed fields without changing bytes, dirty tracking, undo or redo');
+  ok(threw(() => doc.setBytes([valid, { ...valid }])) &&
+    threw(() => doc.setBytes([valid, { ...valid, value: 6 }])), 'duplicate targets are rejected for equal and different values');
+  let inspected = false;
+  const oversized = new Array(SONG + 1);
+  Object.defineProperty(oversized, 0, { get() { inspected = true; return valid; } });
+  ok([null, {}, 'writes', [], new Array(1), oversized].every(w => threw(() => doc.setBytes(w))) && !inspected,
+    'non-arrays, empty, sparse and oversized lists are rejected; oversized entries are never inspected');
+  ok(same(doc.toSong(), base) && doc.undoDepth() === 0 && doc.redoDepth() === 1 && JSON.stringify(doc.dirtyFields()) === dirty,
+    'rejected list shapes and duplicates preserve document and history');
+  const noOp = { key: 'tempo', i: 0, j: 0, value: doc.tempo() };
+  doc.setBytes([noOp]);
+  ok(doc.undoDepth() === 0 && doc.redoDepth() === 1, 'an all-no-op transaction preserves history and redo');
+  doc.setBytes([valid, noOp]);
+  ok(doc.undoDepth() === 1 && doc.redoDepth() === 0 && doc.undo() && same(doc.toSong(), base),
+    'a transaction containing a no-op records one entry and clears redo');
+  const allWrites = [], allExpected = Uint8Array.from(base);
+  for (const f of LSDJ.FIELDS) for (let i = 0; i < f.n; i++) for (let j = 0; j < f.w; j++) {
+    const offset = f.at + i * f.w + j, value = base[offset] ^ 255;
+    allWrites.push({ key: f.k, i, j, value });
+    allExpected[offset] = value;
+  }
+  doc.setBytes(allWrites);
+  ok(same(doc.toSong(), allExpected) && doc.undoDepth() === 1 && doc.undo() && same(doc.toSong(), base),
+    'all addressable song bytes can be edited and undone in one bounded transaction');
+}
+
 // 6. bounded history & redo invalidation
 {
   const doc = NativeDocument.fromSong(baseImage(), { historyLimit: 3 });

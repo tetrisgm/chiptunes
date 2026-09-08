@@ -53,6 +53,8 @@ const ORDER = [
   'src/audio.js',
   'src/radio.js',
   'src/lsdj.js',              // .lsdsng export: a song an LSDj composer can keep writing
+  'src/lsdj-native-document.js', // authoritative editable native model (byte-honest)
+  'src/lsdj-native-editor.js',   // user-facing native structure editor (structural, no playback)
   'src/reference-styles.js',  // "like Castlevania" -> genre dials, read back out loud
   'src/api.js',         // the agent API, also reachable in the page as CT_API
   'src/webmcp.js',      // window.chiptunes + WebMCP tools: an agent driving the live page

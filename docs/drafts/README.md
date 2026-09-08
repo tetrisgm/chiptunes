@@ -16,10 +16,12 @@ see `docs/HANDOFF.md`): caller-pinned tempo can be changed by later mood ops;
 reference readback can claim overridden traits. The archive remains unchanged
 as a source snapshot; production composition code supersedes it.
 
-Still deferred: the first native UI lacks
+Historical native UI issues (addressed by the September 8 editor work;
+see the latest handoff): the first native UI lacks
 keyboard isolation and atomic staged-row controls. Its later rewrite improves
 staging/resume but duplicates an unsafe decoder, interpolates invalid draft
 text into HTML, fails to consume Escape, and replaces unsaved state without
-confirmation. The shared parser is already strict: reuse it, do not resurrect
-the duplicated decoder. No native playback or sound parity exists in these
-drafts. `docs/HANDOFF.md` records the focused tests and remaining work.
+confirmation. Production now reuses the shared strict parser and supersedes
+these proposals; do not resurrect the duplicated decoder. No native playback
+or sound parity exists in these drafts or in the structure-only editor.
+`docs/HANDOFF.md` records verification and remaining work.
