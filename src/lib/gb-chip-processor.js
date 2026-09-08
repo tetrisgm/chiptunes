@@ -25,10 +25,16 @@ class GbChipProcessor extends AudioWorkletProcessor {
         // an exception here would otherwise vanish: the handler dies silently
         // and the chip just never plays. Say what happened.
         this.port.postMessage({ type: 'msgError', message: String((e && e.message) || e), in: (ev.data || {}).type });
+        if(this.music) this.musicState('error',this.music.revision,{message:String(e.message||e)});
       }
     };
     this._onmsg = (ev) => {
       const m = ev.data || {};
+      if (m.type.startsWith('music')) { this.musicMessage(m); return; }
+      if (['play','stop','rom'].includes(m.type) && this.music) {
+        this.musicState('stopped',this.music.revision,{reason:'ownerreturn'});
+        this.music=null; this.musicQueued=null;
+      }
       if (m.type === 'play') {
         var prevSeq = this.seq;
         this.gb = m.gb || null;
@@ -147,6 +153,104 @@ class GbChipProcessor extends AudioWorkletProcessor {
       }
     };
   }
+  musicState(status, revision, extra) {
+    this.port.postMessage(Object.assign({type:'musicState',status:status,revision:revision,
+      frame:this.seq?this.seq.frame:0,epoch:this.musicEpoch,activation:this.music?this.music.activation:null},extra||{}));
+  }
+  musicMessage(m) {
+    if(m.epoch < (this.musicEpoch||0)) return;
+    if(m.type==='musicStop') {
+      this.musicEpoch=m.epoch;
+      if(this.musicQueued) this.musicState('cancelled',this.musicQueued.revision,{reason:m.reason,activation:this.musicQueued.activation});
+      this.musicQueued=null;
+      this.musicState('stopped',this.music?this.music.revision:null,{reason:m.reason});
+      this.music=null; this.seq=null; this.gb=null; return;
+    }
+    if(m.type==='musicPlay') {
+      if(m.epoch===this.musicEpoch && m.prepared.activation<=this.musicSeen) return;
+      this.musicSeen=m.prepared.activation;
+      this.musicEpoch=m.epoch; this.musicQueued=null; this.mode='score';
+      this.music=m.prepared; this.paused=false; this.lead=0; this.loopFrames=0;
+      this.musicState('prepared',m.prepared.revision);
+      this.musicActivate(m.prepared,m.prepared.snapshots[0],false); return;
+    }
+    if(m.epoch!==this.musicEpoch || !this.music) return;
+    if(m.type==='musicQueue') {
+      if(m.prepared.activation<=this.musicSeen) return;
+      this.musicSeen=m.prepared.activation;
+      if(m.baseRevision!==this.music.revision || (m.baseActivation!=null && m.baseActivation!==this.music.activation)) {
+        this.musicState('stale',m.prepared.revision,{activation:m.prepared.activation}); return;
+      }
+      if(this.musicQueued) this.musicState('superseded',this.musicQueued.revision,{activation:this.musicQueued.activation});
+      this.musicQueued=m.prepared;
+      this.musicState('prepared',m.prepared.revision,{activation:m.prepared.activation});
+      this.musicState('queued',m.prepared.revision,{activation:m.prepared.activation}); return;
+    }
+    if(m.type==='musicCancel') {
+      if(this.musicQueued && this.musicQueued.revision===m.revision) {
+        const activation=this.musicQueued.activation;
+        this.musicQueued=null; this.musicState('cancelled',m.revision,{activation:activation});
+      }
+      return;
+    }
+    if(m.type==='musicPause') {
+      this.paused=m.paused; this.musicState(this.paused?'paused':'playing',this.music.revision); return;
+    }
+    if(m.type==='musicSeek') {
+      if(this.musicQueued) this.musicState('cancelled',this.musicQueued.revision,{reason:'seek',activation:this.musicQueued.activation});
+      this.musicQueued=null;
+      const old=this.seq;
+      this.seq=globalThis.CT_GB_APU.Sequencer.restore(m.state);
+      this.seq.mix=old.mix; this.seq.chMute=old.chMute; this.seq.rate=old.rate;
+      this.musicDeclickLeft=0; this.musicDeclickStart=false; this.musicLastSample=null;
+      this.musicState(this.paused?'paused':'playing',this.music.revision,{reason:'seek',resetChannels:[0,1,2,3]});
+    }
+  }
+  musicActivate(prepared,snapshot,live) {
+    const seq=globalThis.CT_GB_APU.Sequencer.restore(Object.assign({},prepared.schedule,snapshot.state));
+    const declick=live && this.musicLastSample!=null &&
+      (snapshot.preserve.some(keep=>!keep) || seq.gainScalar!==this.seq.gainScalar);
+    if(!live) { this.musicDeclickLeft=0; this.musicDeclickStart=false; this.musicLastSample=null; }
+    if(declick) this.musicDeclickStart=true;
+    if(live) seq.handover(this.seq,snapshot.preserve,snapshot.preserveGlobal);
+    this.seq=seq; this.music=prepared; this.musicQueued=null; this.pokeOffs=null;
+    this.musicState('playing',prepared.revision,{reason:'activate',declickSamples:declick?64:0,
+      resetChannels:live?[0,1,2,3].filter(ch=>!snapshot.preserve[ch]):[0,1,2,3]});
+  }
+  musicRender(L) {
+    // At most one boundary decision per chip frame. Never compile, seek,
+    // compare histories or replay audio here; the page supplied ready states.
+    for(let i=0;i<L.length;i++) {
+      if(this.seq.acc<=0) {
+        const pending=this.musicQueued;
+        if(pending) {
+          const snapshot=pending.snapshots.find(s=>s.at>=this.seq.frame);
+          if(snapshot && snapshot.at===this.seq.frame) this.musicActivate(pending,snapshot,true);
+        }
+        if(this.seq.frame>=this.music.totalFrames) {
+          if(this.music.loop) { this.seq.rewind(); this.musicState('loop',this.music.revision); }
+          else {
+            this.seq.cutNotes(); this.paused=true;
+            this.musicState('ended',this.music.revision); L.fill(0,i); return;
+          }
+        }
+      }
+      this.seq.render(L,i,1);
+      // Output-only correction: retain every APU/sample clock and event. The
+      // first changed sample meets the previous output exactly; the offset
+      // reaches zero on sample 64. No-op activations never start a correction.
+      if(this.musicDeclickStart) {
+        this.musicDeclickOffset=this.musicLastSample-L[i];
+        this.musicDeclickLeft=64; this.musicDeclickStart=false;
+      }
+      if(this.musicDeclickLeft>0) {
+        L[i]=this.musicDeclickLeft===64 ? this.musicLastSample :
+          L[i]+this.musicDeclickOffset*(this.musicDeclickLeft-1)/63;
+        this.musicDeclickLeft--;
+      }
+      this.musicLastSample=L[i];
+    }
+  }
   // Report the level back about twice a second. Silence that should not be
   // silent is the failure mode this whole change guards against, and it is
   // invisible from the page otherwise.
@@ -157,6 +261,7 @@ class GbChipProcessor extends AudioWorkletProcessor {
     this.blocks = (this.blocks || 0) + 1;
     if (this.blocks >= 40) {
       this.port.postMessage({ type: 'stat', peak: this.peak, frame: frame, mode: this.mode });
+      if(this.music) this.musicState('position',this.music.revision);
       this.peak = 0; this.blocks = 0;
     }
   }
@@ -184,6 +289,11 @@ class GbChipProcessor extends AudioWorkletProcessor {
       return true;
     }
     if (!this.seq || this.paused) { L.fill(0); if (R) R.fill(0); return true; }
+    if(this.music) {
+      try { this.musicRender(L); }
+      catch(e) { this.paused=true; L.fill(0); this.musicState('error',this.music.revision,{message:String(e.message||e)}); }
+      if(R) R.set(L); this.report(L,this.seq.frame); return true;
+    }
     if (this.loopFrames && this.seq.frame >= this.loopFrames) this.seq.rewind();
     if (this.pokeOffs) {
       for (var pc = 0; pc < 4; pc++) {

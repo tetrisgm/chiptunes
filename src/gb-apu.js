@@ -254,6 +254,8 @@
     this.sr = sampleRate;
     this.samplesPerFrame = sampleRate / (MASTER / FRAME_CYCLES);
     this.rate = 1;               // tempo scale: pinned bpm / native bpm
+    this.gainScalar = gb && gb.gainScalar != null ? gb.gainScalar : 1;
+    if(!Number.isFinite(this.gainScalar) || this.gainScalar<0 || this.gainScalar>1) throw new Error('Invalid gb.gainScalar');
     this.mix = null;             // {kick,snare,hat,bass,lead,arp,pad} in 0..3
     this.vib = [{ on: false, base: 0, age: 0 }, { on: false, base: 0, age: 0 }];
     this.frame = 0; this.acc = 0;
@@ -329,7 +331,8 @@
   Sequencer.prototype._kitStart = function (id) {
     var K = G.CT_GB_KITS;
     if (!K) return;
-    var k = K.byId(id);
+    var k = this.kitBank ? this.kitBank[id] : K.byId(id);
+    if(!k) return;
     this.kit = k.data; this.kitPos = 0; this.kitLeft = k.buffers;
     this.apu.write(0x1C, 0x20);              // NR32: full output
     this.apu.write(0x1D, K.PERIOD & 0xFF);   // NR33: 8192 samples a second
@@ -451,6 +454,33 @@
     this.acc = 0;
   };
 
+  // Prepared on the page, never in the render callback. Structured-cloneable
+  // sequencers retain schedules; only prototypes need restoring in the worklet.
+  Sequencer.restore = function (data) {
+    Object.setPrototypeOf(data, Sequencer.prototype);
+    Object.setPrototypeOf(data.apu, Apu.prototype);
+    return data;
+  };
+  Sequencer.prototype.handover = function (old, preserve, preserveGlobal) {
+    var fresh = this.apu, apu = old.apu;
+    for (var ch = 0; ch < 4; ch++) {
+      if (preserve[ch]) {
+        if (ch < 2) this.vib[ch] = old.vib[ch];
+      } else apu.ch[ch] = fresh.ch[ch];
+    }
+    if (!preserve[0]) {
+      ['swPace','swDir','swShift','swShadow','swTimer','swEnabled'].forEach(function(k){ apu[k] = fresh[k]; });
+    }
+    if (preserve[2]) {
+      this.waveSlot = old.waveSlot;
+      this.kit = old.kit; this.kitPos = old.kitPos;
+      this.kitLeft = old.kitLeft; this.kitCyc = old.kitCyc;
+    } else apu.wave = fresh.wave;
+    if(!preserveGlobal) { apu.nr50 = fresh.nr50; apu.nr51 = fresh.nr51; apu.power = fresh.power; }
+    this.apu = apu; this.acc = old.acc;
+    this.chMute = old.chMute; this.mix = old.mix; this.rate = old.rate;
+  };
+
   Sequencer.prototype.render = function (out, from, count) {
     // rate scales the FRAME clock only: a pinned tempo plays the score faster
     // or slower without touching pitch, exactly like a tracker's speed setting.
@@ -470,7 +500,7 @@
       }
       if (this.kit) this.kitCyc -= cy;
       this.apu._advance(cy);
-      out[from + i] = this.apu._mix();
+      out[from + i] = this.apu._mix() * this.gainScalar;
     }
   };
 

@@ -327,6 +327,7 @@ const Audio = (()=>{
       gbNode = new AudioWorkletNode(ctx, GB_WORKLET_NAME, {numberOfInputs:0, numberOfOutputs:1, outputChannelCount:[2]});
       gbNode.connect(gbChipGain);
       gbNode.port.onmessage = function(ev){
+        if(ev.data && ev.data.type==='musicState') musicAck(ev.data);
         if(ev.data && ev.data.type==='stat' && typeof window!=='undefined'){
           window.__rrrChip = ev.data;
           // WHERE THE MUSIC ACTUALLY IS. The deck opens 0.18s in the future and
@@ -341,6 +342,10 @@ const Audio = (()=>{
         }
         if(ev.data && ev.data.type==='msgError'){ try{ console.error('[chiptunes] chip message failed:', ev.data.in, ev.data.message); }catch(_){} }
       };
+      gbNode.onprocessorerror=function(){ musicEmit({type:'musicState',status:'error',revision:musicCurrent?musicCurrent.revision:null,frame:0,message:'Audio processor failed'}); };
+      ctx.addEventListener('statechange',function(){
+        if(chipOwner==='create' && (musicCurrent||musicPending)) musicEmit({type:'musicState',status:ctx.state==='running'?'resumed':'suspended',revision:musicCurrent?musicCurrent.revision:null,frame:window.__rrrChip?window.__rrrChip.frame:0});
+      });
       // A track may have started before the module finished loading; play it now.
       if(gbPending){ gbNode.port.postMessage(gbPending); gbPending=null; }
       if(typeof document!=='undefined' && document.documentElement) document.documentElement.dataset.rrrChip='gb';
@@ -361,6 +366,165 @@ const Audio = (()=>{
   // holds the chip, those reposts must bounce off or the radio steals the
   // speaker back mid-composition.
   var chipOwner='radio';
+  var musicListeners=new Set(), musicEpoch=0, musicRequest=0, musicActivation=0, musicCurrent=null, musicPending=null, musicRevisions=new Map(), musicIdentities=new Map();
+  function musicEmit(state){ musicListeners.forEach(function(fn){ try{ fn(state); }catch(_){} }); }
+  function musicAck(state){
+    if(state.epoch!==musicEpoch) return;
+    if(state.status==='playing' && !musicRevisions.has(state.activation)) return;
+    if(state.status==='position' && (!musicCurrent||state.activation!==musicCurrent.activation)) return;
+    if(state.status==='playing' && musicRevisions.get(state.activation)){
+      var previous=musicCurrent;
+      musicCurrent=musicRevisions.get(state.activation);
+      if(previous && previous.activation!==state.activation) musicRevisions.delete(previous.activation);
+      if(musicPending && state.activation===musicPending.activation) musicPending=null;
+    }
+    if(['cancelled','superseded','stale'].includes(state.status)) {
+      musicRevisions.delete(state.activation);
+      if(musicPending&&musicPending.activation===state.activation)musicPending=null;
+    }
+    musicEmit(state);
+  }
+  function musicPost(message){
+    if(!gbNode) throw new Error('Music engine unavailable');
+    gbNode.port.postMessage(Object.assign({epoch:musicEpoch},message));
+  }
+  function musicInvalidate(reason){
+    musicEpoch++; musicRequest++; musicPending=null; musicCurrent=null; musicRevisions.clear(); musicIdentities.clear(); gbPending=null;
+    if(gbNode) musicPost({type:'musicStop',reason:reason||'stop'});
+  }
+  function musicPrepare(gb, options, base){
+    var G=globalThis.CT_GB_APU;
+    if(!G) throw new Error('GB sequencer unavailable');
+    if(!gb || !Number.isInteger(gb.totalFrames) || gb.totalFrames<1 || gb.totalFrames>216000)
+      throw new Error('Music length must be 1..216000 frames');
+    var revision=options.revision;
+    if(!((typeof revision==='string' && revision.length>0 && revision.length<=128) ||
+         (typeof revision==='number' && Number.isSafeInteger(revision)))) throw new Error('Invalid revision');
+    var count=['notes','auto','vibOff','waveLoads','kit'].reduce(function(n,k){return n+(gb[k]||[]).length;},0);
+    if(count>50000) throw new Error('Music event limit exceeded');
+    if(JSON.stringify(gb).length>8000000) throw new Error('Music asset limit exceeded');
+    gb=structuredClone(gb);
+    var boundaries=options.boundaries==null?[]:Array.from(options.boundaries);
+    if(boundaries.length>256 || boundaries.some(function(f,i){return !Number.isInteger(f)||f<0||f>216000||(i&&f<=boundaries[i-1]);}))
+      throw new Error('Boundaries must be at most 256 ascending GB frames');
+    var seq=new G.Sequencer(gb,ctx.sampleRate), changed=[Infinity,Infinity,Infinity,Infinity,Infinity];
+    seq.setMix(MIX);
+    seq.kitBank={};
+    (gb.kit||[]).forEach(function(k){
+      if(!Number.isInteger(k.id)||k.id<0||k.id>127||!globalThis.CT_GB_KITS) throw new Error('Invalid kit asset');
+      seq.kitBank[k.id]=globalThis.CT_GB_KITS.byId(k.id);
+    });
+    var density={};
+    ['byFrame','auto','vibOffAt','waveAt','kitAt'].forEach(function(k){Object.keys(seq[k]).forEach(function(f){
+      if(+f<0 || +f>216000) throw new Error('Event frame outside music limits');
+      density[f]=(density[f]||0)+(Array.isArray(seq[k][f])?seq[k][f].length:1);
+      if(density[f]>128) throw new Error('Music frame event limit exceeded');
+    });});
+    // Exact serialized event histories, including resolved instrument/wave data.
+    // This comparison and register replay run on the page, never the audio thread.
+    function history(s){
+      var h=[{}, {}, {}, {}, {}];
+      function add(ch,f,value){(h[ch][f]||(h[ch][f]=[])).push(value);}
+      Object.keys(s.byFrame).forEach(function(f){s.byFrame[f].forEach(function(e){
+        var ch=e.t?e.n.ch:e.ch, n=e.n;
+        var event=e;
+        if(n){ var note=Object.assign({},n); delete note.frames; event={t:e.t,n:note}; }
+        var slot=n&&ch===2?(globalThis.CT_GB_HARDWARE||globalThis.CT_GB).waveSlotOf(s.inst,n.inst):0;
+        add(ch,f,[event,n?s.inst[n.inst]:null,n&&ch===2?(s.bank.waveTables||[])[slot]:null]);
+      });});
+      Object.keys(s.auto).forEach(function(f){s.auto[f].forEach(function(w){
+        var ch=w.r>=0x10&&w.r<=0x14?0:w.r<=0x19&&w.r>=0x16?1:w.r>=0x1a&&w.r<=0x1e?2:w.r>=0x20&&w.r<=0x23?3:-1;
+        if(w.r>=0x30&&w.r<=0x3f) ch=2;
+        if(ch<0) for(var c=0;c<5;c++) add(c,f,w); else add(ch,f,w);
+      });});
+      Object.keys(s.vibOffAt).forEach(function(f){s.vibOffAt[f].forEach(function(ch){add(ch,f,'vibOff');});});
+      Object.keys(s.waveAt).forEach(function(f){add(2,f,['wave',s.waveAt[f],(s.bank.waveTables||[])[s.waveAt[f]]]);});
+      Object.keys(s.kitAt).forEach(function(f){add(2,f,['kit',s.kitAt[f]]);});
+      return h;
+    }
+    if(base){
+      var a=history(base.schedule), b=history(seq);
+      for(var ch=0;ch<5;ch++) new Set(Object.keys(a[ch]).concat(Object.keys(b[ch]))).forEach(function(f){
+        if(JSON.stringify(a[ch][f])!==JSON.stringify(b[ch][f])) changed[ch]=Math.min(changed[ch],+f);
+      });
+      boundaries=boundaries.filter(function(f){return f<=base.totalFrames;});
+      if(!boundaries.includes(base.totalFrames)) boundaries.push(base.totalFrames);
+    }
+    var offset=options.offsetFrames==null?0:options.offsetFrames;
+    if(!Number.isInteger(offset)||offset<0) throw new Error('Invalid offsetFrames');
+    var targets=base?boundaries:[Math.min(offset,gb.totalFrames)];
+    var snapshots=targets.map(function(f){
+      var target=Math.min(f,gb.totalFrames); seq.seek(target);
+      var state={};
+      ['apu','vib','frame','acc','waveSlot','kit','kitPos','kitLeft','kitCyc'].forEach(function(k){state[k]=structuredClone(seq[k]);});
+      return {at:f,state:state,preserve:changed.slice(0,4).map(function(first){return f===target&&first>=target;}),preserveGlobal:f===target&&changed[4]>=target};
+    });
+    // Schedules are sent once; snapshots contain only bounded chip state.
+    var schedule={};
+    ['sr','samplesPerFrame','rate','gainScalar','mix','bank','inst','auto','vibOffAt','waveAt','kitAt','kitBank','byFrame'].forEach(function(k){schedule[k]=seq[k];});
+    return {revision:revision,activation:++musicActivation,totalFrames:gb.totalFrames,loop:!!options.loop,schedule:schedule,snapshots:snapshots};
+  }
+  function musicIdentity(gb){
+    return JSON.stringify(gb,function(k,v){
+      if(v && typeof v==='object' && !Array.isArray(v) && !ArrayBuffer.isView(v)){
+        var sorted={}; Object.keys(v).sort().forEach(function(key){sorted[key]=v[key];}); return sorted;
+      } return v;
+    });
+  }
+  // Boundary selection only. The language compiler owns the sole conversion.
+  function musicBoundaries(compiled,options){
+    options=options||{};
+    var s=compiled.settings||{}, gb=compiled.gb, language=globalThis.CT_MUSIC_LANGUAGE;
+    if(!gb || !Number.isInteger(gb.totalFrames)||gb.totalFrames<1) throw new Error('Compiled music required');
+    if(!language || !language.createClock) throw new Error('Shared music clock unavailable');
+    var from=options.fromFrame==null?0:options.fromFrame, limit=options.limit==null?256:options.limit;
+    if(!Number.isInteger(from)||from<0||!Number.isInteger(limit)||limit<1||limit>256) throw new Error('Invalid boundary range');
+    var clock=language.createClock(s);
+    function at(bar){return clock(bar*4);}
+    var lo=0, hi=65536;
+    while(lo<hi){var mid=(lo+hi)>>1;if(at(mid)<from)lo=mid+1;else hi=mid;}
+    var out=[];
+    for(var bar=lo;bar<=65536 && out.length<limit;bar++){
+      var frame=at(bar);if(frame>=gb.totalFrames)break;
+      if(!out.length||frame>out[out.length-1])out.push(frame);
+    }
+    if(out.length<limit && gb.totalFrames>=from)out.push(gb.totalFrames);
+    return out;
+  }
+  async function musicPlay(gb,options){
+    options=options||{};
+    startAudio(true); chipOwner='create';
+    var request=++musicRequest;
+    await ensureGbChip();
+    if(request!==musicRequest || chipOwner!=='create') return false;
+    if(!gbNode) throw new Error('Music engine unavailable');
+    var prepared=musicPrepare(gb,options,null);
+    musicEpoch++; musicCurrent=null; musicPending=null; musicRevisions.clear(); musicIdentities.clear();
+    musicPending=prepared;
+    musicRevisions.set(prepared.activation,prepared); musicIdentities.set(prepared.revision,musicIdentity(gb));
+    gbActive=true; gbPending=null;
+    gbSynthGain.gain.setTargetAtTime(0.0001,ctx.currentTime,0.01);
+    gbChipGain.gain.setTargetAtTime(1,ctx.currentTime,0.01);
+    musicPost({type:'musicPlay',prepared:prepared});
+    if(ctx.state!=='running') await ctx.resume();
+    return true;
+  }
+  function musicQueue(gb,options){
+    options=options||{};
+    if(!musicCurrent || chipOwner!=='create' || options.baseRevision!==musicCurrent.revision)
+      throw new Error('Stale music base revision');
+    if(Array.from(musicRevisions.values()).filter(Boolean).length>=8) throw new Error('Music engine acknowledgment backlog');
+    var prepared=musicPrepare(gb,Object.assign({},options,{loop:musicCurrent.loop}),musicCurrent);
+    var identity=musicIdentity(gb), known=musicIdentities.get(options.revision);
+    if(known!=null && known!==identity) throw new Error('Revision ID reused with different music');
+    if(known==null && Array.from(musicIdentities.values()).reduce(function(n,s){return n+s.length;},identity.length)>16000000)
+      throw new Error('Music revision identity budget exceeded; restart playback');
+    musicIdentities.set(options.revision,identity);
+    musicPending=prepared;
+    musicRevisions.set(prepared.activation,prepared);
+    musicPost({type:'musicQueue',baseRevision:options.baseRevision,baseActivation:musicCurrent.activation,prepared:prepared});
+    return true;
+  }
   function gbPlay(score, offsetFrames, paused, leadSec){
     if(chipOwner!=='radio') return false;
     var gb = score && score.gb;
@@ -375,7 +539,7 @@ const Audio = (()=>{
     if(!on){ if(gbNode) gbNode.port.postMessage({type:'stop'}); return false; }
     // the WHOLE song: automation, wave swaps, vibrato hand-offs and kit hits are
     // as much the music as the note-ons (playCreate had the same omission)
-    var msg = {type:'play', gb:{notes:gb.notes, bank:gb.bank, totalFrames:gb.totalFrames,
+    var msg = {type:'play', gb:{notes:gb.notes, bank:gb.bank, totalFrames:gb.totalFrames,gainScalar:gb.gainScalar,
                                 auto:gb.auto||null, vibOff:gb.vibOff||null,
                                 waveLoads:gb.waveLoads||null, kit:gb.kit||null},
                offsetFrames:Math.max(0, offsetFrames|0), paused:!!paused,
@@ -1929,6 +2093,18 @@ const Audio = (()=>{
   }
 
   return {
+    musicPlay:musicPlay, musicQueue:musicQueue, musicBoundaries:musicBoundaries,
+    musicCancel(revision){ musicPost({type:'musicCancel',revision:revision}); if(musicPending&&musicPending.revision===revision) musicPending=null; },
+    musicPause(paused){ musicPost({type:'musicPause',paused:!!paused}); },
+    musicSeek(frame){
+      if(!musicCurrent) return false;
+      if(!Number.isInteger(frame)||frame<0) throw new Error('Invalid seek frame');
+      var s=musicCurrent.schedule, seq=new globalThis.CT_GB_APU.Sequencer(null,ctx.sampleRate);
+      Object.assign(seq,s); seq.seek(Math.min(frame,musicCurrent.totalFrames));
+      musicPending=null; musicPost({type:'musicSeek',state:seq}); return true;
+    },
+    musicStop(){ musicInvalidate('stop'); },
+    onMusicState(listener){ musicListeners.add(listener); return function(){musicListeners.delete(listener);}; },
     init,
     resume(force){ return resumeCtx(!!force); },
     running(){ return !!(ctx && ctx.state==='running' && !transportPaused); },        // is audio actually sounding (autoplay gate cleared)?
@@ -2025,17 +2201,19 @@ const Audio = (()=>{
     currentScore(){ return deckCur ? deckCur.score : null; },
     // on=true runs the exported cartridge; on=false returns to the composition
     // at the position the track has reached.
-    playRom(bytes){ return gbPlayRom(bytes); },
-    playScore(){ if(gbNode) gbNode.port.postMessage({type:'chmute', mask:null}); chipOwner='radio'; return gbPlayScore(); },
+    playRom(bytes){ musicInvalidate('ownerreturn'); return gbPlayRom(bytes); },
+    playScore(){ musicInvalidate('ownerreturn'); if(gbNode) gbNode.port.postMessage({type:'chmute', mask:null}); chipOwner='radio'; return gbPlayScore(); },
     // CREATE editor: loop a user-authored gb song on the chip. Shares the
     // radio's chip node; playScore() hands it back afterwards.
     // Entering the editor: the radio goes quiet NOW, not at first play.
     enterCreate(){
+      musicInvalidate('enter');
       chipOwner='create';
       if(gbNode) gbNode.port.postMessage({type:'stop'});
     },
     playCreate(gb, loopFrames, offsetFrames){
       if(!gb || !gb.notes){ return false; }
+      musicInvalidate('legacy');
       startAudio(true); if(this.resume) this.resume(true);
       chipOwner='create';
       gbActive=true;
@@ -2051,7 +2229,7 @@ const Audio = (()=>{
       // hand-offs and kit hits are as much the music as the note-ons, and
       // leaving them out here meant the cartridge played things the browser
       // never did.
-      var msg={type:'play', gb:{notes:gb.notes, bank:gb.bank, totalFrames:gb.totalFrames,
+      var msg={type:'play', gb:{notes:gb.notes, bank:gb.bank, totalFrames:gb.totalFrames,gainScalar:gb.gainScalar,
                                 auto:gb.auto||null, vibOff:gb.vibOff||null,
                                 waveLoads:gb.waveLoads||null, kit:gb.kit||null},
                offsetFrames:off, paused:false, loopFrames:loopFrames|0, rate:1,
@@ -2066,7 +2244,7 @@ const Audio = (()=>{
       if(gbNode) gbNode.port.postMessage({type:'kit', id:id|0}); },
     stopPoke(ch){ if(gbNode) gbNode.port.postMessage({type:'pokeoff', ch:(ch==null?null:ch|0)}); },
     setChipMute(mask){ ensureGbChip(); if(gbNode) gbNode.port.postMessage({type:'chmute', mask:mask||null}); },
-    stopCreate(){ if(gbNode) gbNode.port.postMessage({type:'stop'}); },  // editor stop: chip quiet, ownership stays; playScore() is the way back
+    stopCreate(){ musicInvalidate('stop'); if(gbNode) gbNode.port.postMessage({type:'stop'}); },  // editor stop: chip quiet, ownership stays; playScore() is the way back
     romMode(){ return gbRomMode; },
     // the song on air, as a Create document -- this is what makes "edit what I
     // am hearing" the same song rather than a near-enough copy of it
