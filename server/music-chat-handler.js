@@ -120,7 +120,8 @@ function contextOf(v) {
     ['id', 'request', 'source', 'baseRevision']));
   need(identifier(v.id) && identifier(v.baseRevision));
   need(typeof v.request === 'string' && v.request.trim().length > 0 && v.request.length <= 2000);
-  need(typeof v.source === 'string' && bytes(v.source) <= LIMITS.sourceBytes);
+  need(typeof v.source === 'string');
+  need(bytes(v.source) <= LIMITS.sourceBytes, 413, 'source_too_large');
   if (v.selection != null) {
     const s = v.selection;
     need(keys(s, ['ch', 'fromFrame', 'toFrame']) && Number.isInteger(s.ch) && s.ch >= 0 && s.ch < 4 &&

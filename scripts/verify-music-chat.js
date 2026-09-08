@@ -92,7 +92,23 @@ test('backend bounded incoming bytes, malformed UTF-8, nested JSON and unsafe ke
   await status(configured(), context(), 400, { body: '['.repeat(40) + '0' + ']'.repeat(40) });
   await status(configured(), context(), 400, { body: '{"__proto__":{}}' });
   await status(configured(), context(), 413, { headers: { 'content-length': String(LIMITS.requestBytes + 1) } });
-  await status(configured(), { ...context(), source: '🎵'.repeat(LIMITS.sourceBytes / 4 + 1) }, 400);
+  await status(configured(), { ...context(), source: '🎵'.repeat(LIMITS.sourceBytes / 4 + 1) }, 413);
+});
+test('oversized valid source is explicit and never reserves or invokes paid inference', async () => {
+  const c = { ...context(), source: source + '// ' + 'x'.repeat(LIMITS.sourceBytes) };
+  assert(language.compile(c.source).gb, 'source remains a valid editable project');
+  let reservations = 0, calls = 0;
+  const h = configured({ reserveRequest: async () => { reservations++; return { ok: true }; },
+    adapter: { authorized: true, propose() { calls++; } } });
+  const r = await status(h, c, 413);
+  assert.deepEqual(await r.json(), { error: 'source_too_large' });
+  assert.equal(reservations, 0); assert.equal(calls, 0);
+  const client = new Client({ fetch() { calls++; } });
+  await assert.rejects(client.request(c), /512 KiB UTF-8.*no request was sent/);
+  assert.equal(calls, 0); assert.equal(client.active, null); assert.equal(client.requests.size, 0);
+  const unicode = { ...context(), source: source + '// ' + '🎵'.repeat(LIMITS.sourceBytes / 4) };
+  assert(unicode.source.length < LIMITS.sourceBytes, 'limit counts UTF-8 bytes, not JS length');
+  await assert.rejects(client.request(unicode), /512 KiB UTF-8/); assert.equal(calls, 0);
 });
 test('backend strict localized response rejects malformed edits, wrong ids, tools and invalid music', async () => {
   const variants = [

@@ -1,6 +1,6 @@
 globalThis.CT_MUSIC_ASSETS_VERSION="5fba76c2aeb5e170";
 globalThis.CT_MUSIC_EDITOR_VERSION="85d43ca2c55e";
-globalThis.CT_MUSIC_BUILD_VERSION="93fb190587e0";
+globalThis.CT_MUSIC_BUILD_VERSION="eb6281febd20";
 /* ===== src/seed.js ===== */
 // ===== seed.js — deterministic generated-track identity. =====
 // Loads FIRST (before composer.js/audio.js) so any composer can seed itself from a URL token.
@@ -15096,7 +15096,7 @@ var EXPORTS = {
 // Source/comments are data; the only accepted result is a localized proposal.
 (function(G){
   'use strict';
-  var LIMIT=1024*1024;
+  var LIMIT=1024*1024,SOURCE_LIMIT=524288;
   function exact(o,fields){return o&&typeof o==='object'&&!Array.isArray(o)&&Object.keys(o).length===fields.length&&fields.every(function(k){return Object.prototype.hasOwnProperty.call(o,k);});}
   function unicode(s){
     for(var i=0;i<s.length;i++){
@@ -15125,7 +15125,7 @@ var EXPORTS = {
       candidate+=context.source.slice(end,e.from)+e.text;end=e.to;previous=e.from;
     });
     candidate+=context.source.slice(end);
-    need(candidate!==context.source&&encoder.encode(candidate).length<=524288&&removed<encoder.encode(context.source).length);
+    need(candidate!==context.source&&encoder.encode(candidate).length<=SOURCE_LIMIT&&removed<encoder.encode(context.source).length);
   }
   function Client(options){
     options=options||{};
@@ -15143,6 +15143,8 @@ var EXPORTS = {
     if(['openai','anthropic'].indexOf(provider)===-1)throw Error('Unknown chat provider');
     if(this.active) throw Error('A chat request is already active');
     if(!context||typeof context.request!=='string'||context.request.length>2000) throw Error('Request must be at most 2000 characters');
+    if(typeof context.source==='string'&&new TextEncoder().encode(context.source).length>SOURCE_LIMIT)
+      throw Error('Source too large for Chat: limit is 512 KiB UTF-8. This project remains editable and downloadable; no request was sent.');
     var body=JSON.stringify(context);
     if(new TextEncoder().encode(body).length>LIMIT) throw Error('Chat context is too large');
     // Snapshot the exact wire base: caller mutation while fetch is pending must
@@ -15703,6 +15705,8 @@ var EXPORTS = {
   var unsaved=false,saveEpoch=0,editorLoading=null,previousRoute=null;
   var agentInstance=null,agentRecords=new Map(),policyEpoch=0;
   var connection=null;
+  var mainSite=location.origin==='https://chiptunes.app',lastMainView='notes';
+  var mobileView=G.matchMedia('(max-width:760px)');
   var outboundTransfer=null,inboundTransfer=null,transferProtected=false,transferBase=null;
   function sendProject(){
     var transport=G.CT_MUSIC_PROJECT_TRANSFER;
@@ -15777,6 +15781,7 @@ var EXPORTS = {
     if(message)$('.mw-chat-access-status').textContent=message;
   }
   async function updateChatAccess(method){
+    if(mainSite)return;
     if(chatAccessBusy)return;
     var password=$('.mw-owner-password').value;$('.mw-owner-password').value='';
     if(method==='POST'&&!password){renderChatAccess('Enter the owner password.');return;}
@@ -15951,8 +15956,12 @@ var EXPORTS = {
   }
   function syncEditor(){if(editor){sourceLoading=true;editor.set(snap().draft);sourceLoading=false;}}
   function selectView(next,focusCode){
+    if(next==='chat'&&!mobileView.matches)next=lastMainView;
+    if(next!=='chat')lastMainView=next;
     view=next;root.dataset.view=next;
-    $('.mw-notes').hidden=next==='code';$('.mw-code').hidden=next!=='code';
+    $('.mw-notes').hidden=next!=='notes';$('.mw-code').hidden=next!=='code';
+    $('.mw-chat').setAttribute('role',mobileView.matches?'tabpanel':'complementary');
+    if(mobileView.matches)$('.mw-chat').setAttribute('aria-labelledby','mw-tab-chat');else $('.mw-chat').removeAttribute('aria-labelledby');
     root.querySelectorAll('[data-view]').forEach(function(b){b.setAttribute('aria-selected',String(b.dataset.view===next));b.tabIndex=b.dataset.view===next?0:-1;});
     if(next==='code')ensureEditor().then(function(){if(focusCode!==false&&!root.hidden&&view==='code')editor.focus();}).catch(announceError);
   }
@@ -16013,7 +16022,15 @@ var EXPORTS = {
           var m=v.compiled.mapping.find(function(x){return x.noteIndex===i;});
           $('.mw-selection').textContent='Selected '+name+' · '+(m&&m.pattern?'pattern '+m.pattern+', occurrence '+m.occurrence:'explicit event')+' · frames '+n.frame+'–'+(n.frame+n.frames);
           renderState();
-          if(m){selectView('code');ensureEditor().then(function(){editor.select(m.span.start.offset,m.span.end.offset);}).catch(announceError);}
+          if(m){
+            var mappingOwner=project,selected=selection;
+            if(snap().draft!==v.source){$('.mw-selection').textContent+=' · Source navigation unavailable while the draft differs from the validated revision.';return;}
+            selectView('code');ensureEditor().then(function(){
+              if(root.hidden||project!==mappingOwner||selection!==selected)return;
+              if(snap().draft!==v.source||snap().validated.id!==v.id){$('.mw-selection').textContent+=' · Source navigation unavailable while the draft differs from the validated revision.';return;}
+              editor.select(m.span.start.offset,m.span.end.offset);
+            }).catch(announceError);
+          }
         });lane.appendChild(b);
       });inner.appendChild(lane);
     });
@@ -16112,6 +16129,7 @@ var EXPORTS = {
     status('Generated once. '+(result.applied||[]).join('; '));selectView('code');
   }
   async function requestChat(){
+    if(mainSite)throw Error('Web Chat runs in the hosted workspace. Open this project there to request a proposal.');
     if(!chatUnlocked||chatAccessBusy||!chatProviders.some(function(p){return p.id===$('.mw-chat-provider').value;}))throw Error('Unlock chat and select an available provider.');
     client.provider=$('.mw-chat-provider').value;
     var s=snap(),text=$('.mw-chat-input').value.trim();if(!text)throw Error('Write a musical request');
@@ -16173,16 +16191,16 @@ var EXPORTS = {
       '<label><input type="checkbox" class="mw-loop"> Audition loop</label><input class="mw-seek" type="range" min="0" max="0" value="0" aria-label="Seek frame">'+
       '<button class="mw-primary" data-action="apply">Apply code</button><button data-action="undo">Undo revision</button><button data-action="redo">Redo revision</button></div>'+
       '<div class="mw-state" aria-live="polite"></div>'+
-      '<nav class="mw-tabs" role="tablist" aria-label="Workspace view"><button role="tab" data-view="notes">Notes</button><button role="tab" data-view="code">Code</button><button role="tab" class="mw-mobile-chat" data-view="chat">Chat</button></nav>'+
-      '<div class="mw-body"><main class="mw-main"><div class="mw-selection">Notes show the validated revision. Select a note to locate its source.</div><div class="mw-mainview mw-notes"></div><div class="mw-mainview mw-code" hidden></div>'+
-      '<div class="mw-diagnostics" role="status"></div><details class="mw-help"><summary>Music function help</summary><pre></pre></details></main>'+
-      '<aside class="mw-chat" aria-label="Musical collaboration"><h2>Chat</h2><p class="mw-context"></p>'+
-      '<section class="mw-project-handoff" hidden><button data-action="project-handoff">Open this project in web Chat</button><p>Copies your draft and last validated revision to web Chat without private chat or provenance. Accept in the new window; your original project stays here.</p></section>'+
+      '<nav class="mw-tabs" role="tablist" aria-label="Workspace view"><button id="mw-tab-notes" role="tab" aria-controls="mw-panel-notes" data-view="notes">Notes</button><button id="mw-tab-code" role="tab" aria-controls="mw-panel-code" data-view="code">Code</button><button id="mw-tab-chat" role="tab" aria-controls="mw-panel-chat" class="mw-mobile-chat" data-view="chat">Chat</button></nav>'+
+      '<div class="mw-body"><main class="mw-main"><div class="mw-selection" role="status">Notes show the validated revision. Select a note to locate its source.</div><div id="mw-panel-notes" role="tabpanel" aria-labelledby="mw-tab-notes" class="mw-mainview mw-notes"></div><div id="mw-panel-code" role="tabpanel" aria-labelledby="mw-tab-code" class="mw-mainview mw-code" hidden></div>'+
+      '<div class="mw-diagnostics" role="status"></div><details class="mw-help"><summary>Music help and limits</summary><pre></pre><p>Audio/file exports are limited to 10 minutes; project downloads preserve longer songs.</p></details></main>'+
+      '<aside id="mw-panel-chat" class="mw-chat" aria-label="Musical collaboration"><h2>Chat</h2><p class="mw-context"></p>'+
+      '<section class="mw-project-handoff" hidden><p>Web Chat runs in the hosted workspace. Open this project there to unlock Chat and request proposals.</p><button data-action="project-handoff">Open this project in web Chat</button><p>Copies your draft and last validated revision to web Chat without private chat or provenance. Accept in the new window; your original project stays here.</p></section>'+
       '<section class="mw-transfer-offer" aria-label="Incoming project" hidden><p class="mw-transfer-description" role="status"></p><div class="mw-actions"><button data-action="transfer-accept" disabled>Accept</button><button data-action="transfer-cancel">Cancel</button></div></section>'+
       '<section class="mw-chat-access" aria-label="Built-in chat access"><h2>Built-in chat</h2><p>Use the owner password, not an API key. Request proposal sends your music source and request to the selected provider. Unlocking makes no model call.</p>'+
       '<label>Provider<select class="mw-chat-provider" aria-label="Chat provider"></select></label><label>Owner password<input class="mw-owner-password" type="password" autocomplete="off" maxlength="1024"></label>'+
       '<div class="mw-actions"><button data-action="chat-unlock">Unlock chat</button><button data-action="chat-logout" disabled>Lock chat</button><button data-action="chat-access-refresh">Refresh access</button></div><p class="mw-chat-access-status" role="status">Checking chat access…</p></section>'+
-      '<label>Ask a musical agent<textarea class="mw-chat-input" maxlength="2000" placeholder="Simplify the drums, keep the melody"></textarea></label><small>Code and playback work without chat. Proposals require Apply.</small>'+
+      '<label>Ask a musical agent<textarea class="mw-chat-input" maxlength="2000" placeholder="Simplify the drums, keep the melody"></textarea></label><small>Code and playback work without chat. Proposals require Apply. Chat supports source up to 512 KiB UTF-8; larger projects remain editable and downloadable.</small>'+
       '<label>Edit scope <select class="mw-scope"><option value="-1">Whole song</option><option value="0">Melody</option><option value="1">Harmony</option><option value="2">Bass</option><option value="3">Drums</option></select></label>'+
       '<label>Melody lock <select class="mw-lock"><option value="none">Unlocked</option><option value="track">Whole track</option><option value="pitchrhythm">Pitch and rhythm</option><option value="instrument">Instrument</option><option value="arrangement">Arrangement</option></select></label>'+
       '<label><input class="mw-region" type="checkbox"> Restrict to selected note region</label>'+
@@ -16198,6 +16216,16 @@ var EXPORTS = {
       '<select class="mw-format" aria-label="Export format"><option value="wav">WAV</option><option value="midi">MIDI</option><option value="rom">Game Boy ROM</option><option value="lsdsng">LSDj</option></select><button data-action="export">Export validated revision</button><small class="mw-build"></small></footer>'+
       '<p class="mw-status" role="status" aria-live="polite"></p>';
     document.body.appendChild(root);
+    if(mainSite){
+      $('.mw-chat-access').hidden=true;$('.mw-chat-input').closest('label').hidden=true;
+      $('.mw-chat-input').closest('label').nextElementSibling.hidden=true;
+      $('[data-action=chat]').parentElement.hidden=true;
+    }
+    mobileView.addEventListener('change',function(){
+      var focusHiddenTab=document.activeElement===$('#mw-tab-chat')&&!mobileView.matches;
+      selectView(view,false);
+      if(focusHiddenTab&&!root.hidden)$('[data-view='+view+']').focus();
+    });
     $('.mw-project-handoff').hidden=!G.CT_MUSIC_PROJECT_TRANSFER||location.origin!==G.CT_MUSIC_PROJECT_TRANSFER.SENDER_ORIGIN;
     $('.mw-build').textContent='Music v'+G.CT_MUSIC_LANGUAGE.VERSION+' · '+(G.CT_MUSIC_BUILD_VERSION||'development');
     root.addEventListener('keydown',function(e){

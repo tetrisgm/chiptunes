@@ -18,6 +18,17 @@ artifact; do not create a second composer or audio pipeline.
 
 ## Remaining release sequence and evidence
 
+September 9 release update: full root tests exited 0, candidate pushed as
+0f9d576 and deployed to both first-party origins with the same
+`app.5d7aa87e1f8a.js` / visible Music build `93fb190587e0`. Gateway access
+reports both providers while locked, and anonymous Chat is denied with 401.
+Native Safari private-window verification passed main-site popup handoff,
+244363-byte explicit consent, accepted validated song without autoplay,
+explicit confirmed local save and reload, bass-note-to-Code navigation,
+acknowledged playback and Stop. Screenshot confirms Chat before collapsed MCP.
+This completes the handoff and native layout checks, not listening acceptance
+or every original-plan requirement. Full-plan source/test audit is in progress.
+
 Checkpoint: steps 1–3 completed at 5439dc8; deployed Chromium verifies step 4's
 real-provider proposal/Apply/playback acknowledgment/undo path. Listening remains
 unverified. Native Safari on macOS showed build 7fe57941c401, generated concrete

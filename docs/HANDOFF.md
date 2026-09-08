@@ -3,10 +3,54 @@
 Plain, current working notes for whoever (or whatever) picks the project up
 next. Infrastructure and operations live outside this repository.
 
-## 2026-09-09 — Built-in web Chat deployed; native acceptance pending
+## 2026-09-09 — Web handoff deployed and verified in native Safari
 
-Current release candidate: main-site -> hosted project handoff is implemented
-locally, not yet deployed. `src/music-project-transfer.js` uses exact first-party
+Release checkpoint 0f9d576 is pushed. Vercel deployment
+`dpl_8VoxpJXVAEPVrTKiWt3cPeboFxda` is READY at the canonical gateway;
+Cloudflare Pages deployment `0aa56abb.retro-rave-radio.pages.dev` is live on
+chiptunes.app. Both /create routes serve `app.5d7aa87e1f8a.js`, visible
+`Music v1 · 93fb190587e0`. Only the gateway and Pages site were deployed;
+no broadcast, desktop, store, infrastructure or recurring-job changes.
+Production access returns locked with OpenAI/Claude available; anonymous Chat
+POST returns 401. Neither origin sets Cross-Origin-Opener-Policy.
+
+Native macOS Safari verification used a fresh private window, leaving normal
+saved projects untouched: generated a 53-bar test song, clicked the main-site
+handoff, saw metadata-only consent for 244363 bytes, accepted, and observed
+validated r2 with no queued/playing revision. Explicit Save opened a native
+replacement confirmation; confirming saved the test-owned copy. Reload restored
+the song at r2 without autoplay. Selecting bass note 42 at frame 0 located Code
+at frames 0–41; Play acknowledged playing r2 and Stop returned to playing none.
+Screenshot
+confirms the built-in Chat panel precedes collapsed optional external MCP.
+Listening and full original-plan completion audit remain outstanding. The main
+site still renders unavailable local Chat controls below its working handoff;
+this clarity issue is included in the UI audit. The private TextText changelog
+records release 0f9d576 once (read back after an ambiguous write response).
+
+Post-release audit found two concrete UI correctness bugs: validated Notes
+offsets were applied to an edited draft, and a mobile Chat selection could leave
+desktop tabs with no keyboard focus target after resizing. Pauli owns their
+fixes and the main-site unavailable-controls cleanup; main owns the Chat source
+preflight. The existing 512 KiB UTF-8 Chat bound is now rejected locally before
+fetch with an actionable explanation, and server rejection is 413
+source_too_large before paid reservation/provider invocation. Its 29 Chat tests
+pass. These follow-up changes are not yet deployed. Herschel owns additional
+real-processor tempo-map replacement coverage. Do not conflate these in-flight
+fixes with the deployed 93fb190587e0 acceptance above.
+All follow-up source owners are now finished/frozen. Main reran the complete
+music-workspace suite (including the new UI test), Chat/provider/gateway suite
+and Next production build: exit 0 (session 47360). The live tests now contain
+31 checks, including sample-exact future tempo-map replacement and late delivery
+on the next sounding-map boundary. Root `npm test` is running as session 27680;
+poll that handle until terminal, do not restart on a quiet interval. Do not
+push/deploy this follow-up until the full regression terminal result is green.
+`docs/create-workspace-acceptance.md` records the original-plan evidence map,
+explicit capability limits and remaining listening/native follow-up gates.
+
+Earlier candidate details and verification history follow.
+
+Main-site -> hosted project handoff is deployed. `src/music-project-transfer.js` uses exact first-party
 origins, a 256-bit nonce in the fragment (never source), matching window identity,
 explicit receiver Accept, 8 MiB UTF-8 bounds, 120s expiry, one-shot cleanup, and
 opener removal after the final acknowledgment/cancellation. Module checkpoint
@@ -29,9 +73,8 @@ including the workspace, agent and real-popup project-transfer suites.
 The Vercel upload dry-run passed: 209 files / 5,150,023 bytes; required transfer
 and Chat routes included, private/local artifacts excluded.
 Source files are frozen; both source-owning agents finished.
-Next: push candidate, deploy Vercel and Cloudflare Pages
-site only (never aggregate deploy/broadcast), verify real deployed cross-origin
-popup in Safari and the Chat-first sidebar, then resolve listening acceptance.
+The push, both site-only deployments and native Safari handoff/layout checks
+are now complete as recorded above. Resolve listening and the full-plan audit.
 
 Native Safari follow-up on the deployed build label `Music v1 · 7fe57941c401`:
 opened a fresh tab through native UI, generated "Make something happy", saw

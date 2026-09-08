@@ -64,7 +64,7 @@ test('wave changes explicitly reset wave voice',()=>{
   send(p,'musicQueue',{baseRevision:'a',prepared:prep(next,'b',a)});until(p,32);
   assert.deepEqual(p.messages.find(m=>m.status==='playing'&&m.revision==='b').resetChannels,[2]);
 });
-test('tempo timing edits preserve history before changed events',()=>{
+test('note-duration edit preserves history before its changed note-off',()=>{
   const gb=song(),{p,a}=start(gb);until(p,20);const next=structuredClone(gb);next.notes[1].frames=100;
   send(p,'musicQueue',{baseRevision:'a',prepared:prep(next,'b',a)});until(p,32);
   assert.deepEqual(p.messages.find(m=>m.status==='playing'&&m.revision==='b').resetChannels,[]);
@@ -193,6 +193,66 @@ test('shared hardware tempo-map boundaries agree with compiled note frames',()=>
   assert.equal(actual[3],H.lsdjRowFrame(120,ticks,19)+H.lsdjRowFrame(180,ticks,24)+H.lsdjRowFrame(90,ticks,5));
   assert.equal(actual.at(-1),c.gb.totalFrames);
   assert.deepEqual(Audio.musicBoundaries(c,{fromFrame:actual[2]+1,limit:2}),actual.slice(3,5));
+});
+function tempoSong(map){
+  const source=`song({tempo:120,bars:4,stepsPerBar:16,tempoAt:${JSON.stringify(map)}});
+    pattern('p',notes('C3 D3 E3 G3').stepsPerBar(4).gate(0.9));
+    track('bass').instrument('wave-bass').play('p',{repeat:4});`;
+  const compiled=sandbox.CT_MUSIC_LANGUAGE.compile(source);
+  assert.ok(compiled.gb,JSON.stringify(compiled.diagnostics));return compiled;
+}
+test('future tempo-map replacement keeps PCM continuous and plays the retimed schedule',()=>{
+  const before=tempoSong([[0,120]]),after=tempoSong([[0,120],[32,180]]);
+  const boundaries=Audio.musicBoundaries(before);
+  assert.notEqual(after.gb.totalFrames,before.gb.totalFrames);
+  assert.notDeepEqual(after.gb.notes.map(n=>n.frame),before.gb.notes.map(n=>n.frame));
+  const {p,a}=start(before.gb),{p:old}=start(before.gb),{p:replacement}=start(after.gb);
+  const prefix=render(p,8000);
+  assert.deepEqual(prefix,render(old,8000));assert.deepEqual(prefix,render(replacement,8000));
+  const boundary=boundaries.find(f=>f>p.seq.frame);
+  const prepared=prep(after.gb,'tempo-future',a,boundaries.filter(f=>f>=boundary));
+  send(p,'musicQueue',{baseRevision:'a',prepared});
+  assert.equal(p.music.revision,'a');
+  assert.equal(p.messages.some(m=>m.revision==='tempo-future'&&m.status==='playing'),false);
+  // Compare every sample, including activation and the first retimed events.
+  const samples=Math.floor((after.gb.totalFrames-2)*70224/4194304*48000)-8000;
+  const actual=render(p,samples),expected=render(replacement,samples),unchanged=render(old,samples);
+  assert.deepEqual(actual,expected,'replacement map has the exact independently rendered waveform');
+  assert.notDeepEqual(actual,unchanged,'test must reach audible events retimed by the new map');
+  assert.equal(p.seq.frame,replacement.seq.frame);assert.equal(p.seq.acc,replacement.seq.acc);
+  const acks=p.messages.filter(m=>m.status==='playing'&&m.revision==='tempo-future');
+  assert.equal(acks.length,1);assert.equal(acks[0].frame,boundary);
+  assert.deepEqual(acks[0].resetChannels,[]);assert.equal(acks[0].declickSamples,0);
+});
+test('late tempo-map replacement uses the next sounding-map boundary without resetting the frame clock',()=>{
+  const before=tempoSong([[0,120]]),after=tempoSong([[0,180],[32,90]]);
+  const boundaries=Audio.musicBoundaries(before),newBoundaries=Audio.musicBoundaries(after);
+  const {p,a}=start(before.gb),{p:control}=start(before.gb);
+  // Preparation happens before the deadline; delivery misses its first boundary.
+  const prepared=prep(after.gb,'tempo-late',a,boundaries.slice(1));
+  while(p.seq.frame<=boundaries[1]){
+    assert.deepEqual(render(p,128),render(control,128));
+  }
+  const next=boundaries[2];
+  assert.notEqual(next,newBoundaries[2],'old and replacement bar clocks must differ');
+  send(p,'musicQueue',{baseRevision:'a',prepared});
+  let activated=false;
+  const maxSamples=Math.ceil((next-p.seq.frame+2)*70224/4194304*48000);
+  for(let i=0;i<maxSamples;i++){
+    const actual=render(p,1),expected=render(control,1);
+    assert.equal(p.seq.frame,control.seq.frame,'activation must retain the absolute frame');
+    assert.equal(p.seq.acc,control.seq.acc,'activation must retain the subframe sample clock');
+    if(p.music.revision==='tempo-late'){activated=true;break;}
+    assert.deepEqual(actual,expected,'old revision sounds until the eligible boundary');
+    assert.equal(p.messages.some(m=>m.status==='playing'&&m.revision==='tempo-late'),false);
+  }
+  assert.ok(activated,'replacement must activate within the bounded sample run');
+  const acks=p.messages.filter(m=>m.status==='playing'&&m.revision==='tempo-late');
+  assert.equal(acks.length,1);assert.equal(acks[0].frame,next);
+  assert.equal(acks[0].activation,prepared.activation);
+  assert.equal(p.music.totalFrames,after.gb.totalFrames);
+  assert.ok(render(p,10000).some(x=>x!==0),'replacement remains audible');
+  assert.equal(p.messages.filter(m=>m.status==='playing'&&m.revision==='tempo-late').length,1);
 });
 test('duplicate activation messages cannot restart or replace playing revision',()=>{
   const {p,a}=start(song());const b=prep(song(),'b',a,[10]);

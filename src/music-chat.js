@@ -2,7 +2,7 @@
 // Source/comments are data; the only accepted result is a localized proposal.
 (function(G){
   'use strict';
-  var LIMIT=1024*1024;
+  var LIMIT=1024*1024,SOURCE_LIMIT=524288;
   function exact(o,fields){return o&&typeof o==='object'&&!Array.isArray(o)&&Object.keys(o).length===fields.length&&fields.every(function(k){return Object.prototype.hasOwnProperty.call(o,k);});}
   function unicode(s){
     for(var i=0;i<s.length;i++){
@@ -31,7 +31,7 @@
       candidate+=context.source.slice(end,e.from)+e.text;end=e.to;previous=e.from;
     });
     candidate+=context.source.slice(end);
-    need(candidate!==context.source&&encoder.encode(candidate).length<=524288&&removed<encoder.encode(context.source).length);
+    need(candidate!==context.source&&encoder.encode(candidate).length<=SOURCE_LIMIT&&removed<encoder.encode(context.source).length);
   }
   function Client(options){
     options=options||{};
@@ -49,6 +49,8 @@
     if(['openai','anthropic'].indexOf(provider)===-1)throw Error('Unknown chat provider');
     if(this.active) throw Error('A chat request is already active');
     if(!context||typeof context.request!=='string'||context.request.length>2000) throw Error('Request must be at most 2000 characters');
+    if(typeof context.source==='string'&&new TextEncoder().encode(context.source).length>SOURCE_LIMIT)
+      throw Error('Source too large for Chat: limit is 512 KiB UTF-8. This project remains editable and downloadable; no request was sent.');
     var body=JSON.stringify(context);
     if(new TextEncoder().encode(body).length>LIMIT) throw Error('Chat context is too large');
     // Snapshot the exact wire base: caller mutation while fetch is pending must

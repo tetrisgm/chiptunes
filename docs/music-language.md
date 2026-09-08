@@ -365,8 +365,13 @@ the host must schedule it away from the audio render thread. Bounded internal
 parser recursion handles literal data; source-defined recursion is impossible.
 The 600-second export capability cap is separate and may reject an otherwise
 valid longer composition. Source limits do not guarantee that a whole backend
-request fits a smaller context budget: integrations need at least 1 MB of source
-capacity plus protocol/settings/proposal overhead. Compact materialization aims
+request fits a smaller context budget. Built-in Chat currently accepts at most
+512 KiB of UTF-8 source and 1 MiB of total request JSON, independently of the
+compiler's UTF-16 limit. Oversized source is rejected before upload or paid
+inference; Code, playback and downloadable projects remain available. An
+integration accepting the entire compiler range would need the corresponding
+UTF-8 capacity plus escaped JSON/settings/proposal overhead, not merely 1 MB.
+Compact materialization aims
 to keep typical generated songs below 98,000 characters; longer songs/assets
 remain legitimate and must not be truncated to that target.
 
