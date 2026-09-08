@@ -26,6 +26,9 @@ real AudioContext suspension/resume, scoped fixture proposals, silent shared
 projects, two-tab conflicts, mobile layout and return to radio ownership/audio.
 The fixture is not a real-model acceptance test. Shared projects protect an
 existing local draft. Legacy `#s=` projects and native byte editing stay separate.
+The UI generation check verifies exactly one composition for “Make something
+happy” and recovery of its explicit seed/prompt provenance. Escape dismisses
+CodeMirror completion before closing the workspace.
 Native Playwright `fill`/`insertText` on a large multiline contenteditable can
 stall Chromium native layout; actual clipboard paste goes through CodeMirror's
 bounded document transaction. A 1 MiB/88,299-line clipboard paste and a 1 MiB
@@ -47,8 +50,9 @@ undefined noise pitch, and ROM rejects late note-offs/unsupported wave slots.
 Source-to-LSDj conversion stays rejected with specific capability reasons,
 not silently flattened through legacy grid export.
 
-Verification: the existing full `npm test` run exited 0; the new complete
-`test:music-workspace` suite also exited 0. A combined final npm run is underway.
+Verification: the final combined `npm test` run exited 0, including the appended
+complete `test:music-workspace` suite. Its 1 MiB/88,299-line clipboard paste took
+79 ms and edit/undo took 191 ms. Earlier separate full/focused runs also exited 0.
 The private-ROM `npm run test:lsdj` run exited 0 with existing local harnesses,
 including real emulator/command/envelope checks skipped in the default setup.
 Render parity passed 10/10, min correlation 1.000000, max RMS delta 0.175 dB.
