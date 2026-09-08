@@ -5,6 +5,29 @@ next. Infrastructure and operations live outside this repository.
 
 ## 2026-09-09 — Built-in web Chat deployed; native acceptance pending
 
+Current release candidate: main-site -> hosted project handoff is implemented
+locally, not yet deployed. `src/music-project-transfer.js` uses exact first-party
+origins, a 256-bit nonce in the fragment (never source), matching window identity,
+explicit receiver Accept, 8 MiB UTF-8 bounds, 120s expiry, one-shot cleanup, and
+opener removal after the final acknowledgment/cancellation. Module checkpoint
+5809e43 is pushed. The workspace retains the original source tab and excludes
+private chat/provenance. Accepted copies are temporary: existing hosted storage
+is protected, and Save explains that a download is required to retain that copy.
+Edits while consent is open cancel import; pending original saves are preserved.
+No model call, playback, Apply or MCP connection is started by a transfer.
+
+Main verification: 9 protocol groups and real-popup browser tests passed with
+a >150 KB Unicode unfinished draft, preserved last-valid source, metadata-only
+offer, Accept/Cancel, incompatible restore, close-during-Accept, pending edits,
+protected hosted storage and zero model/session creation. Chat UI + 65 gateway
+tests and Next production build also passed. The fresh full root `npm test` is
+still running (exec session 58427); poll that live handle instead of restarting.
+Do not deploy or claim the whole regression gate green until its terminal result
+is observed. Source files are frozen; both source-owning agents finished.
+Next: finish full regression, push candidate, deploy Vercel and Cloudflare Pages
+site only (never aggregate deploy/broadcast), verify real deployed cross-origin
+popup in Safari and the Chat-first sidebar, then resolve listening acceptance.
+
 Native Safari follow-up on the deployed build label `Music v1 · 7fe57941c401`:
 opened a fresh tab through native UI, generated "Make something happy", saw
 concrete source and corresponding Notes, clicked Play, observed `Playing r2`

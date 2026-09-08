@@ -43,6 +43,9 @@
 #musicworkspace .mw-chat-access{border:1px solid #3d455a;border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:8px}
 #musicworkspace .mw-chat-access p{margin:0;font-size:12px}
 #musicworkspace .mw-chat-access input,#musicworkspace .mw-chat-provider{display:block;width:100%}
+#musicworkspace .mw-project-handoff,#musicworkspace .mw-transfer-offer{border:1px solid #46503a;border-radius:8px;padding:10px}
+#musicworkspace .mw-project-handoff p,#musicworkspace .mw-transfer-offer p{font-size:12px;margin:6px 0}
+#musicworkspace .mw-project-handoff button{white-space:normal;width:100%}
 #musicworkspace .mw-status{min-height:22px;margin:0;font-size:13px;white-space:pre-wrap}
 #musicworkspace .mw-help{font-size:12px;padding:6px 12px;border-top:1px solid #303748;color:#bdc5d8}
 #musicworkspace .mw-help pre{white-space:pre-wrap}

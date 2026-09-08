@@ -1,6 +1,6 @@
 globalThis.CT_MUSIC_ASSETS_VERSION="5fba76c2aeb5e170";
 globalThis.CT_MUSIC_EDITOR_VERSION="85d43ca2c55e";
-globalThis.CT_MUSIC_BUILD_VERSION="0ae976feff8a";
+globalThis.CT_MUSIC_BUILD_VERSION="97d49b0b5dbe";
 /* ===== src/seed.js ===== */
 // ===== seed.js — deterministic generated-track identity. =====
 // Loads FIRST (before composer.js/audio.js) so any composer can seed itself from a URL token.
@@ -15564,6 +15564,135 @@ var EXPORTS = {
   G.CT_MUSIC_AGENT_CONNECTION={create:create};
 })(typeof globalThis!=='undefined'?globalThis:window);
 
+/* ===== src/music-project-transfer.js ===== */
+/* Explicit, one-shot project transfer. No import, storage, fetch or model calls.
+ * send(project.serialize()) MUST run inside the user's click handler.
+ * receive().offer resolves to metadata; only an explicit UI Accept calls accept().
+ * Message nonce is a capability; in URLs it appears ONLY in the initial fragment.
+ * Do not log messages or persist nonce/source. COOP must preserve window.opener.
+ */
+(function (root, factory) {
+  var api = factory(root);
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  else root.CT_MUSIC_PROJECT_TRANSFER = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (root) {
+  'use strict';
+  var SENDER = 'https://chiptunes.app', RECEIVER = 'https://chiptunes-agent-gateway.vercel.app';
+  var MAX_BYTES = 8 * 1024 * 1024, TIMEOUT_MS = 120000, PROTOCOL = 'ct-project-transfer-v1';
+  var seen = new WeakMap();
+  function deferred() { var resolve; var promise = new Promise(function (r) { resolve = r; }); return { promise: promise, resolve: resolve }; }
+  function error(code) { return { ok: false, code: code }; }
+  function validate(serialized) {
+    if (typeof serialized !== 'string' || serialized.length > MAX_BYTES) throw Error('project_limit');
+    var bytes = new TextEncoder().encode(serialized).byteLength;
+    if (bytes > MAX_BYTES) throw Error('project_limit');
+    var value;
+    try { value = JSON.parse(serialized); } catch (_) { throw Error('invalid_json'); }
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw Error('invalid_json');
+    return bytes;
+  }
+  function environment(options, origin) {
+    var win = options.window || root, ms = options.timeoutMs == null ? TIMEOUT_MS : options.timeoutMs;
+    if (win.location.origin !== origin) throw Error('wrong_origin');
+    if (!Number.isInteger(ms) || ms < 1 || ms > TIMEOUT_MS) throw Error('invalid_timeout');
+    return { win: win, ms: ms };
+  }
+  // All deadlines use local monotonic time. Timers are session-local and removed
+  // on every terminal path; delayed event dispatch cannot revive an expired offer.
+  function channel(win, peer, origin, nonce, ms, onMessage, onEnd) {
+    var active = true, expires = win.performance.now() + ms;
+    function post(type, extra) {
+      if (!active) return false;
+      try { peer.postMessage(Object.assign({ protocol: PROTOCOL, nonce: nonce, type: type }, extra || {}), origin); return true; }
+      catch (_) { finish(error('peer_unavailable')); return false; }
+    }
+    function finish(result, notify) {
+      if (!active) return;
+      if (notify) { try { peer.postMessage({ protocol: PROTOCOL, nonce: nonce, type: 'cancel' }, origin); } catch (_) {} }
+      active = false; win.clearTimeout(timer);
+      win.removeEventListener('message', message); win.removeEventListener('pagehide', leave);
+      onEnd(result);
+    }
+    function live() {
+      if (active && win.performance.now() >= expires) finish(error('expired'), true);
+      return active;
+    }
+    function message(event) {
+      if (!live() || event.origin !== origin || event.source !== peer) return;
+      var data = event.data;
+      if (!data || typeof data !== 'object' || data.protocol !== PROTOCOL || data.nonce !== nonce) return;
+      if (data.type === 'cancel') return finish(error('cancelled'));
+      onMessage(data);
+    }
+    function leave() { finish(error('cancelled'), true); }
+    var timer = win.setTimeout(function () { finish(error('expired'), true); }, ms);
+    win.addEventListener('message', message); win.addEventListener('pagehide', leave);
+    return { post: post, finish: finish, live: live, cancel: leave };
+  }
+  function send(serialized, options) {
+    options = options || {};
+    var env = environment(options, SENDER), win = env.win, bytes = validate(serialized);
+    var random = new Uint8Array(32);
+    win.crypto.getRandomValues(random);
+    var nonce = Array.from(random, function (b) { return b.toString(16).padStart(2, '0'); }).join('');
+    var done = deferred(), phase = 'hello', ch;
+    // An opener is required; do not use noopener or a reusable named window.
+    var popup = win.open(RECEIVER + '/create#music-transfer=' + nonce, '_blank');
+    if (!popup) return Object.freeze({ result: Promise.resolve(error('popup_blocked')), cancel: function () {} });
+    ch = channel(win, popup, RECEIVER, nonce, env.ms, function (data) {
+      if (phase === 'hello' && data.type === 'hello') {
+        phase = 'accept'; ch.post('offer', { bytes: bytes });
+      } else if (phase === 'accept' && data.type === 'accept') {
+        phase = 'ack';
+        ch.post('project', { serialized: serialized });
+        serialized = null;
+      } else if (phase === 'ack' && data.type === 'received') {
+        ch.finish({ ok: true, code: 'received' });
+      }
+    }, function (result) { serialized = null; done.resolve(result); });
+    return Object.freeze({ result: done.promise, cancel: ch.cancel });
+  }
+  function receive(options) {
+    options = options || {};
+    var env = environment(options, RECEIVER), win = env.win;
+    var match = /^#music-transfer=([0-9a-f]{64})$/.exec(win.location.hash);
+    if (!match) return null;
+    var nonce = match[1], peer = win.opener;
+    // Remove capability from browser history before displaying the offer.
+    win.history.replaceState(null, '', win.location.pathname + win.location.search + '#music');
+    var used = seen.get(win);
+    if (!used) { used = new Set(); seen.set(win, used); }
+    if (!peer || peer === win || used.has(nonce) || used.size >= 64) return null;
+    used.add(nonce);
+    var offer = deferred(), done = deferred(), phase = 'offer', bytes, ch;
+    ch = channel(win, peer, SENDER, nonce, env.ms, function (data) {
+      if (phase === 'offer' && data.type === 'offer') {
+        if (!Number.isSafeInteger(data.bytes) || data.bytes < 2 || data.bytes > MAX_BYTES) return ch.finish(error('project_limit'), true);
+        bytes = data.bytes; phase = 'consent'; offer.resolve({ ok: true, bytes: bytes });
+      } else if (phase === 'project' && data.type === 'project') {
+        try {
+          if (validate(data.serialized) !== bytes) throw Error('size_mismatch');
+        } catch (e) { return ch.finish(error(e.message), true); }
+        if (!ch.live()) return;
+        if (ch.post('received')) ch.finish({ ok: true, serialized: data.serialized });
+      }
+    }, function (result) {
+      // Terminal protocol ack/cancel has already been sent. Release only this
+      // receiver's opener capability; never close or navigate either window.
+      try { win.opener = null; } catch (_) {}
+      phase = 'done'; offer.resolve(result); done.resolve(result);
+    });
+    ch.post('hello');
+    return Object.freeze({ offer: offer.promise, result: done.promise,
+      accept: function () {
+        if (ch.live() && phase === 'consent') { phase = 'project'; ch.post('accept'); }
+        return done.promise;
+      }, cancel: ch.cancel });
+  }
+  return Object.freeze({ send: send, receive: receive, MAX_BYTES: MAX_BYTES, TIMEOUT_MS: TIMEOUT_MS,
+    SENDER_ORIGIN: SENDER, RECEIVER_ORIGIN: RECEIVER });
+});
+
 /* ===== src/music-workspace.js ===== */
 // One source authority. Notes and exports use validated revisions; typing never
 // changes audio. Legacy and native editors retain their own document boundaries.
@@ -15574,6 +15703,63 @@ var EXPORTS = {
   var unsaved=false,saveEpoch=0,editorLoading=null,previousRoute=null;
   var agentInstance=null,agentRecords=new Map(),policyEpoch=0;
   var connection=null;
+  var outboundTransfer=null,inboundTransfer=null,transferProtected=false,transferBase=null;
+  function sendProject(){
+    var transport=G.CT_MUSIC_PROJECT_TRANSFER;
+    if(!transport||location.origin!==transport.SENDER_ORIGIN)return;
+    if(outboundTransfer)outboundTransfer.cancel();
+    // Must stay synchronous inside the real click, before the action Promise.
+    var sent=outboundTransfer=transport.send(project.serialize());
+    status('Web Chat opened. Accept the copy in the new window.');
+    sent.result.then(function(result){if(outboundTransfer!==sent)return;outboundTransfer=null;
+      status(result.ok?'Project sent. Review it in web Chat. Original remains here.':'Project transfer ended ('+result.code+'). Your original project is unchanged.');});
+  }
+  function stageTransfer(received){
+    inboundTransfer=received;$('.mw-transfer-offer').hidden=false;
+    transferBase={owner:project,epoch:snap().draftEpoch,instance:agentInstance};
+    $('[data-action=transfer-cancel]').textContent='Cancel';
+    $('.mw-transfer-description').textContent='Waiting for the project offer…';
+    $('[data-action=transfer-accept]').disabled=true;
+    received.offer.then(function(offer){
+      if(inboundTransfer!==received)return;
+      if(!offer.ok){$('.mw-transfer-description').textContent='Transfer ended ('+offer.code+').';return;}
+      $('.mw-transfer-description').textContent='Accept '+offer.bytes+' bytes from chiptunes.app? This copies the draft and last validated revision, without private chat or provenance. Your hosted saved project stays intact. The accepted copy is temporary; download it to keep it.';
+      $('[data-action=transfer-accept]').disabled=false;
+    });
+    received.result.then(function(result){if(inboundTransfer===received&&!result.ok){inboundTransfer=null;
+      $('.mw-transfer-description').textContent='Transfer ended ('+result.code+'). Your hosted project is unchanged.';
+      $('[data-action=transfer-accept]').disabled=true;}});
+  }
+  async function acceptTransfer(){
+    var received=inboundTransfer;if(!received||$('[data-action=transfer-accept]').disabled)return;
+    var owner=transferBase.owner,epoch=transferBase.epoch,instance=transferBase.instance;
+    if(project!==owner||snap().draftEpoch!==epoch||agentInstance!==instance){
+      received.cancel();inboundTransfer=null;$('.mw-transfer-description').textContent='Workspace changed while the offer was open. Import cancelled; your edits are kept. Send a fresh copy.';return;
+    }
+    $('[data-action=transfer-accept]').disabled=true;
+    if(unsaved){
+      await save();
+      if(inboundTransfer!==received||root.hidden)return;
+      if(unsaved||project!==owner||snap().draftEpoch!==epoch||agentInstance!==instance){
+        received.cancel();inboundTransfer=null;$('.mw-transfer-description').textContent='Hosted edits could not be saved safely. Import cancelled; download or save your current project first.';return;
+      }
+    }
+    var result=await received.accept();
+    if(inboundTransfer!==received||root.hidden)return;
+    inboundTransfer=null;
+    if(!result.ok)return;
+    if(project!==owner||snap().draftEpoch!==epoch||agentInstance!==instance){$('.mw-transfer-description').textContent='Workspace changed during transfer. Import cancelled; send a fresh copy.';return;}
+    // Restore only after explicit Accept; never route through applied()/play.
+    var loaded=api().restore(result.serialized,opts());
+    if(!loaded.ok){$('.mw-transfer-description').textContent='Project is incompatible. Hosted project unchanged.';return;}
+    clearTimeout(saveTimer);saveTimer=null;saveEpoch++;transferProtected=true;
+    if(connection)connection.disconnect();cancelChat('superseded');resetAudio();
+    project=loaded.project;selection=null;proposal=null;agentInstance=G.crypto.randomUUID();unsaved=true;
+    syncEditor();renderNotes();renderProposal();renderState();diagnostics(snap().diagnostics);
+    $('.mw-transfer-description').textContent='Project accepted as a temporary copy. Hosted saved project preserved. Download this project to keep your edits; Apply and playback remain explicit.';
+    $('[data-action=transfer-cancel]').textContent='Dismiss';
+    status('Transferred draft and last validated revision restored. Nothing was applied or played.');
+  }
   var chatAccess=null,chatAccessEpoch=0,chatUnlocked=false,chatAccessBusy=false,chatProviders=[];
   function renderChatAccess(message){
     var select=$('.mw-chat-provider'),chosen=select.value;
@@ -15717,10 +15903,10 @@ var EXPORTS = {
   function scheduleSave(){unsaved=true;saveEpoch++;clearTimeout(saveTimer);saveTimer=setTimeout(save,250);}
   async function save(){
     clearTimeout(saveTimer);saveTimer=null;
-    if(!storage||conflict){unsaved=true;return;}
+    if(!storage||conflict||transferProtected){unsaved=true;return;}
     var p=project,epoch=saveEpoch;
     var write=function(){
-      if(p!==project)return;
+      if(p!==project||transferProtected)return;
       var result=storage.save(p,{includePrivate:true});
       if(!result.ok){unsaved=true;conflict=result.code==='storage-conflict';status(conflict?'Another tab changed this project. Download your project before reloading.':'Draft could not be saved locally. Download a project file to keep it.');}
       else if(epoch===saveEpoch)unsaved=false;
@@ -15991,6 +16177,8 @@ var EXPORTS = {
       '<div class="mw-body"><main class="mw-main"><div class="mw-selection">Notes show the validated revision. Select a note to locate its source.</div><div class="mw-mainview mw-notes"></div><div class="mw-mainview mw-code" hidden></div>'+
       '<div class="mw-diagnostics" role="status"></div><details class="mw-help"><summary>Music function help</summary><pre></pre></details></main>'+
       '<aside class="mw-chat" aria-label="Musical collaboration"><h2>Chat</h2><p class="mw-context"></p>'+
+      '<section class="mw-project-handoff" hidden><button data-action="project-handoff">Open this project in web Chat</button><p>Copies your draft and last validated revision to web Chat without private chat or provenance. Accept in the new window; your original project stays here.</p></section>'+
+      '<section class="mw-transfer-offer" aria-label="Incoming project" hidden><p class="mw-transfer-description" role="status"></p><div class="mw-actions"><button data-action="transfer-accept" disabled>Accept</button><button data-action="transfer-cancel">Cancel</button></div></section>'+
       '<section class="mw-chat-access" aria-label="Built-in chat access"><h2>Built-in chat</h2><p>Use the owner password, not an API key. Request proposal sends your music source and request to the selected provider. Unlocking makes no model call.</p>'+
       '<label>Provider<select class="mw-chat-provider" aria-label="Chat provider"></select></label><label>Owner password<input class="mw-owner-password" type="password" autocomplete="off" maxlength="1024"></label>'+
       '<div class="mw-actions"><button data-action="chat-unlock">Unlock chat</button><button data-action="chat-logout" disabled>Lock chat</button><button data-action="chat-access-refresh">Refresh access</button></div><p class="mw-chat-access-status" role="status">Checking chat access…</p></section>'+
@@ -16010,6 +16198,7 @@ var EXPORTS = {
       '<select class="mw-format" aria-label="Export format"><option value="wav">WAV</option><option value="midi">MIDI</option><option value="rom">Game Boy ROM</option><option value="lsdsng">LSDj</option></select><button data-action="export">Export validated revision</button><small class="mw-build"></small></footer>'+
       '<p class="mw-status" role="status" aria-live="polite"></p>';
     document.body.appendChild(root);
+    $('.mw-project-handoff').hidden=!G.CT_MUSIC_PROJECT_TRANSFER||location.origin!==G.CT_MUSIC_PROJECT_TRANSFER.SENDER_ORIGIN;
     $('.mw-build').textContent='Music v'+G.CT_MUSIC_LANGUAGE.VERSION+' · '+(G.CT_MUSIC_BUILD_VERSION||'development');
     root.addEventListener('keydown',function(e){
       if(e.defaultPrevented){e.stopPropagation();return;}
@@ -16035,6 +16224,7 @@ var EXPORTS = {
     root.addEventListener('click',function(e){
       var tab=e.target.closest('button[data-view]');if(tab){selectView(tab.dataset.view);return;}
       var b=e.target.closest('[data-action]');if(!b)return;
+      if(b.dataset.action==='project-handoff'){try{sendProject();}catch(error){status('Project transfer could not start. Check project size and popup permissions.');}return;}
       Promise.resolve().then(function(){return action(b.dataset.action);}).catch(announceError);
     });
     $('.mw-seek').addEventListener('change',function(){engine().musicSeek(+this.value);});
@@ -16044,7 +16234,11 @@ var EXPORTS = {
     G.addEventListener('beforeunload',function(e){if(conflict||saveTimer||unsaved){save();e.preventDefault();e.returnValue='';}});
   }
   async function action(name){
-    if(name==='chat-unlock')await updateChatAccess('POST');
+    if(name==='transfer-accept')await acceptTransfer();
+    else if(name==='transfer-cancel'){
+      if(inboundTransfer)inboundTransfer.cancel();inboundTransfer=null;$('.mw-transfer-offer').hidden=true;
+    }
+    else if(name==='chat-unlock')await updateChatAccess('POST');
     else if(name==='chat-logout')await updateChatAccess('DELETE');
     else if(name==='chat-access-refresh')await updateChatAccess('GET');
     else if(name==='copy-mcp'){
@@ -16063,7 +16257,10 @@ var EXPORTS = {
     else if(name==='generate')generate();
     else if(name==='chat')await requestChat();
     else if(name==='cancel'){cancelChat('rejected');proposal={status:'rejected',explanation:'Request cancelled'};renderProposal();renderState();}
-    else if(name==='save')await save();
+    else if(name==='save'){
+      if(transferProtected)status('This is a temporary transferred copy. Download this project to keep your edits; the hosted saved project is preserved.');
+      else await save();
+    }
     else if(name==='download')download(project.serialize({includePrivate:true}),'chiptunes-project.json','application/json');
     else if(name==='share'){
       var text=project.serialize(),bytes=new TextEncoder().encode(text);
@@ -16095,6 +16292,9 @@ var EXPORTS = {
   async function open(initial){
     if(!root)build();
     if(!root.hidden)return;
+    var received=null,transport=G.CT_MUSIC_PROJECT_TRANSFER;
+    // receive() must consume the capability before any workspace hash rewrite.
+    if(transport&&location.origin===transport.RECEIVER_ORIGIN&&/^#music-transfer=/.test(location.hash))received=transport.receive();
     previousFocus=document.activeElement;
     previousRoute=location.pathname+location.search+location.hash;
     if(!project){
@@ -16126,7 +16326,8 @@ var EXPORTS = {
     if(!chatAccess)chatAccess=new G.CT_MUSIC_CHAT.Access();
     chatUnlocked=false;updateChatAccess('GET');
     if(!connection&&G.CT_MUSIC_AGENT_CONNECTION)connection=G.CT_MUSIC_AGENT_CONNECTION.create({workspace:G.CT_MUSIC_WORKSPACE,onChange:renderConnection});
-    if(connection)connection.open();
+    if(connection&&!received)connection.open();
+    if(received)stageTransfer(received);
     Array.from(document.body.children).forEach(function(el){if(el!==root&&!el.hasAttribute('inert')){el.setAttribute('inert','');inerted.push(el);}});
     if(!unsub)unsub=engine().onMusicState(onAudio);
     renderNotes();renderProposal();renderState();diagnostics(snap().diagnostics);selectView(view);
@@ -16135,6 +16336,8 @@ var EXPORTS = {
   }
   function close(){
     if(!root||root.hidden)return;
+    if(outboundTransfer)outboundTransfer.cancel();outboundTransfer=null;
+    if(inboundTransfer)inboundTransfer.cancel();inboundTransfer=null;$('.mw-transfer-offer').hidden=true;
     chatAccessEpoch++;chatAccessBusy=false;chatUnlocked=false;$('.mw-owner-password').value='';if(chatAccess)chatAccess.cancel();
     if(connection)connection.close();
     save();cancelChat('superseded');try{resetAudio();}catch(e){announceError(e);}
@@ -41950,7 +42153,7 @@ function _openCreate(blank){
   // whole point was to start from nothing
   // Shared source projects must never briefly start a generated/legacy song.
   // Keep a silent legacy view underneath so Back retains the normal radio handoff.
-  if(/^#music(?:=|$)/.test(location.hash)&&typeof CT_MUSIC_WORKSPACE!=='undefined'){
+  if(/^#music(?:=|$|-transfer=[0-9a-f]{64}$)/.test(location.hash)&&typeof CT_MUSIC_WORKSPACE!=='undefined'){
     CT_CREATE.openBlank();
     CT_MUSIC_WORKSPACE.open().catch(function(e){console.error('Music workspace:',e.message);});
     return;

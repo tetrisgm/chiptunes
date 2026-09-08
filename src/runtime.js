@@ -2165,7 +2165,7 @@ function _openCreate(blank){
   // whole point was to start from nothing
   // Shared source projects must never briefly start a generated/legacy song.
   // Keep a silent legacy view underneath so Back retains the normal radio handoff.
-  if(/^#music(?:=|$)/.test(location.hash)&&typeof CT_MUSIC_WORKSPACE!=='undefined'){
+  if(/^#music(?:=|$|-transfer=[0-9a-f]{64}$)/.test(location.hash)&&typeof CT_MUSIC_WORKSPACE!=='undefined'){
     CT_CREATE.openBlank();
     CT_MUSIC_WORKSPACE.open().catch(function(e){console.error('Music workspace:',e.message);});
     return;
