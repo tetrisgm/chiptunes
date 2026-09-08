@@ -1,4 +1,11 @@
-Paste this into the main task:
+## September 8 extension: bring your existing agent
+
+The implementation sequence now includes [the complete web agent connection
+pipeline](agent-connection-plan.md). External-agent MCP connection is the primary
+agent onboarding path; embedded paid-model Chat is no longer a prerequisite.
+The same source, proposal validation, explicit Apply and audio engine remain.
+
+Original plan follows:
 
 ---
 
