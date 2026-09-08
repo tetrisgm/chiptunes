@@ -16,6 +16,13 @@ const server=http.createServer((req,res)=>res.end('<!doctype html><body></body>'
       window.Audio={musicStop(){},enterCreate(){},onMusicState(){return ()=>{};}};
       window.CT_CREATE={};
       window.fetch=async(url,options)=>{
+        if(options.credentials!=='same-origin')throw Error('Fixture requires same-origin credentials');
+        // Explicit owner-session fixture; production still requires unlock.
+        if(url==='/api/music/chat/access'){
+          if(options.method!=='GET')throw Error('Unexpected access mutation');
+          return new Response(JSON.stringify({ok:true,authenticated:true,providers:[{id:'openai',label:'OpenAI'}],limits:{dailyCalls:20}}));
+        }
+        if(url!=='/api/music/chat'||options.headers['X-Music-Provider']!=='openai')throw Error('Unexpected chat request');
         const request=JSON.parse(options.body);
         return new Promise(resolve=>{window.finishChat=()=>resolve(new Response(JSON.stringify({id:request.id,baseRevision:request.baseRevision,
           edits:[{from:0,to:0,text:'// chat\n'}],explanation:'Local Chat comment'}),{status:200}));});
@@ -26,6 +33,7 @@ const server=http.createServer((req,res)=>res.end('<!doctype html><body></body>'
     });
     await page.addScriptTag({path:path.join(__dirname,'../src/music-workspace.js')});
     await page.evaluate(()=>CT_MUSIC_WORKSPACE.open());
+    await page.waitForFunction(()=>document.querySelector('.mw-chat-access-status').textContent.startsWith('Unlocked.'));
     const result=await page.evaluate(async()=>{
       const w=CT_MUSIC_WORKSPACE,checks=[];
       function check(value,label){if(!value)throw Error(label);checks.push(label);}
@@ -91,8 +99,18 @@ const server=http.createServer((req,res)=>res.end('<!doctype html><body></body>'
       check(w.agentProposalStatus('selection').status==='superseded','note selection invalidates');
       check(w.agentContext().policy.selection.ch===0,'context includes selected region');
       async function startChat(){
+        const deadline=Date.now()+2000;
+        while(document.querySelector('[data-action=chat]').disabled){
+          if(Date.now()>deadline)throw Error('Authenticated chat fixture did not become ready');
+          await new Promise(r=>setTimeout(r,0));
+        }
+        window.finishChat=null;
         document.querySelector('.mw-chat-input').value='Add a comment';
-        document.querySelector('[data-action=chat]').click();await Promise.resolve();await Promise.resolve();
+        document.querySelector('[data-action=chat]').click();
+        while(!window.finishChat){
+          if(Date.now()>deadline)throw Error('Chat fixture was not called');
+          await new Promise(r=>setTimeout(r,0));
+        }
       }
       async function finishChat(){window.finishChat();for(let i=0;i<30;i++)await new Promise(r=>setTimeout(r,0));}
       function proposalState(){return document.querySelector('.mw-proposal b').textContent;}

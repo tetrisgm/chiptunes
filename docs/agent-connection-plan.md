@@ -1,5 +1,10 @@
 # Bring your agent to Chiptunes
 
+2026-09-09 priority correction: the owner wants built-in web Chat using their
+OpenAI/Anthropic API keys first. `web-chat-plan.md` tracks that release path.
+The external MCP path below remains optional; its Clerk setup does not block
+built-in Chat and must not be presented as the web prerequisite.
+
 Updated 2026-09-08. Extension of `create-workspace-plan.md`, not a replacement
 for the compiler, project revisions, audio engine or exports.
 

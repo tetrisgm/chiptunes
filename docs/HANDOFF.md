@@ -3,6 +3,40 @@
 Plain, current working notes for whoever (or whatever) picks the project up
 next. Infrastructure and operations live outside this repository.
 
+## 2026-09-09 — Built-in web Chat takes priority (not deployed yet)
+
+The owner clarified the primary web path: built-in Chat beside Code/Notes,
+funded by their OpenAI and Anthropic API keys. Clerk and external MCP are optional
+and are not prerequisites for this path. See `docs/web-chat-plan.md` for remaining
+acceptance gates. Earlier Clerk-blocked language below applies only to external
+MCP authentication, not built-in Chat.
+
+Implemented server-only REST providers, provider selection, private owner unlock,
+and durable PostgreSQL paid-call admission. Keys are production environment
+secrets, never browser inputs. The unlock secret is in the owner's login Keychain
+under service `chiptunes-chat-owner`; no secret value belongs in working notes.
+Canonical origin is https://chiptunes-agent-gateway.vercel.app. Production envs
+and the dedicated Neon chat schema are provisioned; the new routes have NOT yet
+been deployed. Defaults: gpt-5.4-mini-2026-03-17 and claude-sonnet-4-6.
+
+Paid admission is 20 calls per UTC day, 2 per fixed UTC minute (not rolling),
+one 45-second lease, and permanent request-ID replay rejection across instances.
+Failures do not refund quota. Uncertain provider cancellation retains the lease;
+only fully consumed responses release it early. Durable admission replaces the
+standalone handler's lifetime in-memory replay capacity. Fixed error codes map
+conflicts to 409, quota to 429, and unavailable admission to 503.
+
+Both real providers returned a validated single-edit proposal in a synthetic
+tempo-change check. This is not browser/audio acceptance. Gateway tests: 65 pass,
+including real isolated PostgreSQL and explicitly mocked model HTTP. Frontend
+provider fixture and existing Chat/workspace integration tests pass. Full root
+`npm test` exited 0; ROM-dependent emulator/fixture gates explicitly skipped
+because the reference ROM was absent. `npm run test:music-chat-web` and the Next
+production build also exited 0. Vercel dry-run: 208 files / 5,129,964 bytes,
+new chat routes present and credentials/local caches excluded.
+Deployment, real provider browser Apply/playback/undo, and native Safari
+acceptance remain unverified. No release is claimed by this entry.
+
 ## 2026-09-08 — Web agent connection pipeline (implementation underway)
 
 Current continuation: owner approved completing the proposed free-tier setup.

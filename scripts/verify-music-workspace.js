@@ -3,6 +3,14 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
 const {chromium}=require('playwright');
 const root=path.join(__dirname,'../dist');
 const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'chiptunes-workspace-'));
+async function fixtureChatAccess(target){
+  // Explicit owner-session fixture, never a production auth bypass.
+  await target.route('**/api/music/chat/access',async route=>{
+    assert.equal(route.request().method(),'GET');
+    await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,authenticated:true,
+      providers:[{id:'openai',label:'OpenAI'}],limits:{dailyCalls:20}})});
+  });
+}
 const server=http.createServer((req,res)=>{
   let file=path.join(root,new URL(req.url,'http://local').pathname);
   if(!file.startsWith(root)||!fs.existsSync(file)||fs.statSync(file).isDirectory())file=path.join(root,'index.html');
@@ -13,6 +21,7 @@ async function run(){
  const browser=await chromium.launch({headless:true,args:['--autoplay-policy=no-user-gesture-required']});
  try{
   const context=await browser.newContext({viewport:{width:1280,height:900},acceptDownloads:true,permissions:['clipboard-read','clipboard-write']});
+  await fixtureChatAccess(context);
   const page=await context.newPage(),errors=[];
   page.on('pageerror',e=>{errors.push(e.message);console.error('browser:',e.message);});
   await page.addInitScript(()=>localStorage.setItem('ct-create-tour','1'));
@@ -118,12 +127,14 @@ async function run(){
   await page.click('#musicworkspace [data-action=apply]');
   // Test-only response fixture: verifies proposal plumbing, not a real model.
   await page.route('**/api/music/chat',async route=>{
+    assert.equal(route.request().headers()['x-music-provider'],'openai');
     const c=route.request().postDataJSON(),from=c.source.lastIndexOf('event('),to=c.source.indexOf(';',from)+1;
     assert.deepEqual(c.constraints.scope,{tracks:[3]});
     assert(c.constraints.locks.some(l=>l.type==='track'&&l.tracks[0]===0));
     await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({id:c.id,baseRevision:c.baseRevision,edits:[{from,to,text:''}],explanation:'Suggested removal of one drum hit.'})});
   });
   await page.locator('.mw-chat-input').fill('simplify the drums, keep the melody');
+  await page.waitForFunction(()=>document.querySelector('.mw-chat-access-status').textContent.startsWith('Unlocked.'));
   await page.click('#musicworkspace [data-action=chat]');
   await page.waitForFunction(()=>document.querySelector('.mw-proposal b')?.textContent==='ready');
   await page.getByRole('button',{name:'Apply',exact:true}).click();
@@ -139,6 +150,7 @@ async function run(){
   });
   assert(!shared.includes('excluded'));
   const sharedPage=await browser.newPage();
+  await fixtureChatAccess(sharedPage);
   await sharedPage.goto('http://127.0.0.1:'+server.address().port+'/create#music='+encodeURIComponent(Buffer.from(shared).toString('base64')));
   await sharedPage.waitForSelector('#musicworkspace:not([hidden])');
   assert.equal((await sharedPage.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot())).draft,small,'shared project route opens exact source');

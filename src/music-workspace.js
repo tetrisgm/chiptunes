@@ -7,6 +7,39 @@
   var unsaved=false,saveEpoch=0,editorLoading=null,previousRoute=null;
   var agentInstance=null,agentRecords=new Map(),policyEpoch=0;
   var connection=null;
+  var chatAccess=null,chatAccessEpoch=0,chatUnlocked=false,chatAccessBusy=false,chatProviders=[];
+  function renderChatAccess(message){
+    var select=$('.mw-chat-provider'),chosen=select.value;
+    if(Array.from(select.options).map(function(o){return o.value;}).join(',')!==chatProviders.map(function(p){return p.id;}).join(',')){
+      select.replaceChildren();
+      chatProviders.forEach(function(p){var option=document.createElement('option');option.value=p.id;option.textContent=p.id==='openai'?'OpenAI':'Claude';select.appendChild(option);});
+      if(chatProviders.some(function(p){return p.id===chosen;}))select.value=chosen;
+    }
+    select.disabled=chatAccessBusy||!!requestId||!chatProviders.length;
+    $('[data-action=chat]').disabled=!chatUnlocked||chatAccessBusy||!chatProviders.length||!!requestId;
+    $('[data-action=chat-unlock]').disabled=chatAccessBusy||chatUnlocked;
+    $('[data-action=chat-logout]').disabled=chatAccessBusy||!chatUnlocked;
+    $('[data-action=chat-access-refresh]').disabled=chatAccessBusy;
+    $('.mw-owner-password').disabled=chatAccessBusy||chatUnlocked;
+    if(message)$('.mw-chat-access-status').textContent=message;
+  }
+  async function updateChatAccess(method){
+    if(chatAccessBusy)return;
+    var password=$('.mw-owner-password').value;$('.mw-owner-password').value='';
+    if(method==='POST'&&!password){renderChatAccess('Enter the owner password.');return;}
+    var run=++chatAccessEpoch;chatAccessBusy=true;
+    if(method==='DELETE'){cancelChat('cancelled');chatUnlocked=false;renderProposal();}
+    renderChatAccess('Checking chat access…');
+    try{
+      if(method!=='GET')await chatAccess.request(method,password);
+      password='';if(run!==chatAccessEpoch)return;
+      var result=await chatAccess.request('GET');if(run!==chatAccessEpoch)return;
+      if(typeof result.authenticated!=='boolean'||!Array.isArray(result.providers)||!result.limits||!Number.isSafeInteger(result.limits.dailyCalls)||result.limits.dailyCalls<1)throw Error('Chat access is unavailable.');
+      chatProviders=result.providers.filter(function(p){return p&&['openai','anthropic'].indexOf(p.id)!==-1;});chatUnlocked=result.authenticated;
+      renderChatAccess(!chatProviders.length?'Chat providers are unavailable.':(chatUnlocked?'Unlocked.':'Locked. Enter the owner password to use chat.')+' Daily limit: '+result.limits.dailyCalls+' calls.');
+    }catch(e){if(run!==chatAccessEpoch)return;chatUnlocked=false;renderChatAccess(e.message);}
+    finally{password='';if(run===chatAccessEpoch){chatAccessBusy=false;renderChatAccess();}}
+  }
   function renderConnection(s){
     $('.mw-connect-status').textContent=s.message;
     var gateway=location.protocol==='https:'&&s.available;
@@ -171,6 +204,7 @@
     if(next==='code')ensureEditor().then(function(){if(focusCode!==false&&!root.hidden&&view==='code')editor.focus();}).catch(announceError);
   }
   function renderState(){
+    renderChatAccess();
     if(connection)connection.contextChanged();
     var s=snap(),v=s.validated;
     $('.mw-state').textContent='Draft '+(v&&s.draft===v.source?'validated':'edited')+' · Valid '+(v?v.id:'none')+
@@ -325,6 +359,8 @@
     status('Generated once. '+(result.applied||[]).join('; '));selectView('code');
   }
   async function requestChat(){
+    if(!chatUnlocked||chatAccessBusy||!chatProviders.some(function(p){return p.id===$('.mw-chat-provider').value;}))throw Error('Unlock chat and select an available provider.');
+    client.provider=$('.mw-chat-provider').value;
     var s=snap(),text=$('.mw-chat-input').value.trim();if(!text)throw Error('Write a musical request');
     var capturedContext=agentContext();
     var owner=project,id='request-'+crypto.randomUUID(),req=check(project.beginRequest(id));requestId=id;
@@ -347,6 +383,7 @@
       proposal={id:id,status:'ready',capturedContext:capturedContext,explanation:response.explanation,edits:response.edits,diff:validated.diff};
     }catch(e){
       if(project!==owner||requestId!==id)return;
+      if(e.code==='locked'){chatUnlocked=false;renderChatAccess(e.message);}
       owner.cancelRequest(id);proposal={status:'invalid',explanation:e.message};status(e.message);
     }
     finally{if(project===owner&&requestId===id){requestId=null;renderProposal();renderState();}}
@@ -394,7 +431,10 @@
       '<label>Agent client<select class="mw-client"><option value="">Choose an authorized client</option></select></label><div class="mw-actions"><button data-action="refresh-clients">Refresh clients</button><button data-action="connect" disabled>Connect</button><button data-action="disconnect" disabled>Disconnect</button></div>'+
       '<p class="mw-connect-status" role="status">Connection unavailable in this build.</p><a class="mw-sign-in" href="/sign-in" hidden>Sign in to connect</a></section>'+
       '<label>Generate with the composer<input class="mw-generate-text" maxlength="500" placeholder="Make something happy"></label><button data-action="generate">Generate song</button>'+
-      '<label>Ask a musical agent<textarea class="mw-chat-input" maxlength="2000" placeholder="Simplify the drums, keep the melody"></textarea></label><small>Chat requires an authorized backend. Code and playback work without it.</small>'+
+      '<section class="mw-chat-access" aria-label="Built-in chat access"><h2>Built-in chat</h2><p>Use the owner password, not an API key. Request proposal sends your music source and request to the selected provider. Unlocking makes no model call.</p>'+
+      '<label>Provider<select class="mw-chat-provider" aria-label="Chat provider"></select></label><label>Owner password<input class="mw-owner-password" type="password" autocomplete="off" maxlength="1024"></label>'+
+      '<div class="mw-actions"><button data-action="chat-unlock">Unlock chat</button><button data-action="chat-logout" disabled>Lock chat</button><button data-action="chat-access-refresh">Refresh access</button></div><p class="mw-chat-access-status" role="status">Checking chat access…</p></section>'+
+      '<label>Ask a musical agent<textarea class="mw-chat-input" maxlength="2000" placeholder="Simplify the drums, keep the melody"></textarea></label><small>Code and playback work without chat. Proposals require Apply.</small>'+
       '<label>Edit scope <select class="mw-scope"><option value="-1">Whole song</option><option value="0">Melody</option><option value="1">Harmony</option><option value="2">Bass</option><option value="3">Drums</option></select></label>'+
       '<label>Melody lock <select class="mw-lock"><option value="none">Unlocked</option><option value="track">Whole track</option><option value="pitchrhythm">Pitch and rhythm</option><option value="instrument">Instrument</option><option value="arrangement">Arrangement</option></select></label>'+
       '<label><input class="mw-region" type="checkbox"> Restrict to selected note region</label>'+
@@ -437,7 +477,10 @@
     G.addEventListener('beforeunload',function(e){if(conflict||saveTimer||unsaved){save();e.preventDefault();e.returnValue='';}});
   }
   async function action(name){
-    if(name==='copy-mcp'){
+    if(name==='chat-unlock')await updateChatAccess('POST');
+    else if(name==='chat-logout')await updateChatAccess('DELETE');
+    else if(name==='chat-access-refresh')await updateChatAccess('GET');
+    else if(name==='copy-mcp'){
       if(!connection||!connection.state().available||location.protocol!=='https:')throw Error('MCP endpoint unavailable');
       await navigator.clipboard.writeText(location.origin+'/api/mcp');status('Copied remote MCP endpoint. Add it in your agent, then refresh clients.');
     }
@@ -513,6 +556,8 @@
     if(G.CT_CREATE.stopForNative)G.CT_CREATE.stopForNative();engine().enterCreate();
     if(!/^#music(?:=|$)/.test(location.hash))history.replaceState(null,'','/create#music');
     agentInstance=G.crypto.randomUUID();root.hidden=false;inerted=[];
+    if(!chatAccess)chatAccess=new G.CT_MUSIC_CHAT.Access();
+    chatUnlocked=false;updateChatAccess('GET');
     if(!connection&&G.CT_MUSIC_AGENT_CONNECTION)connection=G.CT_MUSIC_AGENT_CONNECTION.create({workspace:G.CT_MUSIC_WORKSPACE,onChange:renderConnection});
     if(connection)connection.open();
     Array.from(document.body.children).forEach(function(el){if(el!==root&&!el.hasAttribute('inert')){el.setAttribute('inert','');inerted.push(el);}});
@@ -523,6 +568,7 @@
   }
   function close(){
     if(!root||root.hidden)return;
+    chatAccessEpoch++;chatAccessBusy=false;chatUnlocked=false;$('.mw-owner-password').value='';if(chatAccess)chatAccess.cancel();
     if(connection)connection.close();
     save();cancelChat('superseded');try{resetAudio();}catch(e){announceError(e);}
     root.hidden=true;inerted.forEach(function(el){el.removeAttribute('inert');});inerted=[];

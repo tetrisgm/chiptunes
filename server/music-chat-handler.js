@@ -19,6 +19,11 @@ The language allows song, instruments, waves, performance, event, automation,
 vibratoOff, waveLoad, kit, pattern(name, notes(...)), and track(...).
 notes chains: stepsPerBar, gate, velocity, transpose, register.
 Track arrangement uses instrument and play. There is no arbitrary JavaScript.
+Example: song({tempo:120,bars:4}); pattern('p',notes('C2 . G2:2@0.5').stepsPerBar(8).gate(0.7));
+track('bass').instrument('wave-bass').play('p',{atBar:0,repeat:2});
+Channels: lead/pulse1=0, arp/pad/pulse2=1, bass/wave=2, drums/noise=3.
+Exact event mode uses frame/frames/midi/inst fields. Changing tempo metadata alone
+does NOT retime exact event frames. Preserve instruments, assets and finite length.
 Honor the supplied constraints and selection. Explanation is a suggestion, not
 a claim that an edit has been applied or verified. Do not request secrets.`;
 
@@ -174,7 +179,7 @@ function createMusicChatHandler(options = {}) {
     if (!/^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(request.headers.get('content-type') || ''))
       return response(415, { error: 'json_required' });
     const clock = deadline(request.signal, ms);
-    let owner;
+    let owner, reservation, providerFinished = false;
     try {
       const principal = await clock.run(() => authenticate(request, { signal: clock.signal }));
       need(principal && typeof principal.subject === 'string' && principal.subject.length > 0 && principal.subject.length <= 256,
@@ -187,12 +192,25 @@ function createMusicChatHandler(options = {}) {
       need(length == null || (/^\d+$/.test(length) && Number(length) <= LIMITS.requestBytes), 413, 'request_too_large');
       const context = contextOf(json(await readUTF8(request.body, LIMITS.requestBytes, clock, 413, 'invalid_body'), 400, 'invalid_json'));
       const key = JSON.stringify([owner, context.id]);
-      need(!seen.has(key), 409, 'duplicate_request');
-      need(seen.size < LIMITS.rememberedRequests, 503, 'request_capacity');
-      seen.add(key); // Consume even failed/cancelled proposals: no implicit retry.
+      if (!options.reserveRequest) {
+        need(!seen.has(key), 409, 'duplicate_request');
+        need(seen.size < LIMITS.rememberedRequests, 503, 'request_capacity');
+        seen.add(key); // Standalone hosts have no durable replay ledger.
+      }
       const before = compile(context.source, 400, 'invalid_source');
       try { project.checkConstraints(before, before, context.constraints); }
       catch (_) { throw new Rejected(400, 'invalid_constraints'); }
+      // Deployed hosts reserve a durable, globally bounded paid call. Local
+      // active/seen sets alone cannot enforce billing limits across instances.
+      if (options.reserveRequest) {
+        reservation = await clock.run(() => options.reserveRequest(owner, context.id));
+        if (!reservation || reservation.ok !== true) {
+          const code = reservation && reservation.code;
+          if (code === 'duplicate_request' || code === 'request_active') throw new Rejected(409, code);
+          if (code === 'daily_limit' || code === 'minute_limit') throw new Rejected(429, 'rate_limited');
+          throw new Rejected(503, 'access_unavailable');
+        }
+      }
       // Only trusted instructions/capabilities and bounded untrusted input go to
       // the adapter. No HTTP request, principal, credentials, or executable tools.
       const output = await clock.run(async () => {
@@ -207,6 +225,7 @@ function createMusicChatHandler(options = {}) {
         return result;
       });
       const raw = await readUTF8(output, LIMITS.responseBytes, clock, 502, 'invalid_provider_stream');
+      providerFinished = true;
       const proposal = proposalOf(json(raw, 502, 'invalid_proposal'), context, before);
       // Observe cancellation/timeout once more before committing the response.
       return await clock.run(() => response(200, proposal));
@@ -216,6 +235,15 @@ function createMusicChatHandler(options = {}) {
         { error: e instanceof Rejected ? e.code : 'backend_failure' });
     } finally {
       clock.close(); if (owner !== undefined) active.delete(owner);
+      if (providerFinished && reservation && typeof reservation.release === 'function') {
+        // Abort does not prove remote work stopped. Uncertain provider outcomes
+        // retain the bounded lease instead of admitting overlapping paid work.
+        // A lost release leaves only a bounded lease; never refund a paid call.
+        let timer;
+        try { await Promise.race([Promise.resolve().then(() => reservation.release()),
+          new Promise(resolve => { timer = setTimeout(resolve, 2000); })]); }
+        catch (_) {} finally { clearTimeout(timer); }
+      }
     }
   };
 }

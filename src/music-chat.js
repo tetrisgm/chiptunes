@@ -38,12 +38,15 @@
     this.endpoint=options.endpoint||'/api/music/chat';
     if(!/^\/api\/[a-z0-9/_-]+$/i.test(this.endpoint)) throw Error('Chat endpoint must be a same-origin API path');
     this.fetch=options.fetch||(G.fetch&&G.fetch.bind(G)); this.active=null; this.serial=0;this.requests=new Set();
+    this.provider=options.provider||'openai';
   }
   Client.prototype.cancel=function(){
     if(this.active){this.active.stop('Chat request cancelled');this.active=null;}
     this.serial++;
   };
   Client.prototype.request=async function(context){
+    var provider=this.provider;
+    if(['openai','anthropic'].indexOf(provider)===-1)throw Error('Unknown chat provider');
     if(this.active) throw Error('A chat request is already active');
     if(!context||typeof context.request!=='string'||context.request.length>2000) throw Error('Request must be at most 2000 characters');
     var body=JSON.stringify(context);
@@ -66,11 +69,14 @@
     var timer=setTimeout(function(){stop('Chat request timed out');},30000);
     try{
       response=await run(async function(){
-        var result=await self.fetch(self.endpoint,{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:body,signal:controller.signal});
+        var result=await self.fetch(self.endpoint,{method:'POST',headers:{'Content-Type':'application/json','X-Music-Provider':provider},credentials:'same-origin',redirect:'error',body:body,signal:controller.signal});
         if(stopped)cancelStream(result&&result.body);
         return result;
       });
-      if(!response.ok) throw Error(response.status===404||response.status===503?'Chat provider is not configured. Code and playback remain available.':response.status===429?'Chat is rate limited. Try again later.':'Chat request failed ('+response.status+')');
+      if(!response.ok){
+        var error=Error(response.status===401||response.status===403?'Chat is locked. Unlock with the owner password.':response.status===404||response.status===503?'Chat provider is not configured. Code and playback remain available.':response.status===429?'Chat is rate limited. Try again later.':'Chat request failed ('+response.status+')');
+        if(response.status===401||response.status===403)error.code='locked';throw error;
+      }
       var length=+(response.headers.get('content-length')||0);
       if(length>LIMIT) throw Error('Chat response is too large');
       reader=response.body&&response.body.getReader();var raw='';
@@ -94,6 +100,18 @@
       if(self.active&&self.active.seq===seq)self.active=null;
     }
   };
-  var api={Client:Client}; G.CT_MUSIC_CHAT=api;
+  function Access(options){this.fetch=options&&options.fetch||G.fetch.bind(G);this.active=null;}
+  Access.prototype.cancel=function(){if(this.active)this.active.abort();this.active=null;};
+  Access.prototype.request=async function(method,password){
+    this.cancel();var controller=new AbortController(),timer,self=this;this.active=controller;
+    try{return await Promise.race([(async function(){
+      var response=await self.fetch('/api/music/chat/access',{method:method,credentials:'same-origin',cache:'no-store',redirect:'error',signal:controller.signal,
+        headers:method==='POST'?{'Content-Type':'application/json'}:{},body:method==='POST'?JSON.stringify({password:password}):undefined});
+      if(!response.ok)throw Error(response.status===401||response.status===403?'Owner password was not accepted.':response.status===429?'Too many unlock attempts. Try again later.':'Chat access is unavailable.');
+      var result=await response.json();if(!result||result.ok!==true)throw Error('Chat access is unavailable.');return result;
+    })(),new Promise(function(_,reject){controller.signal.addEventListener('abort',function(){reject(Error('Chat access request cancelled or timed out.'));},{once:true});timer=setTimeout(function(){controller.abort();},4000);})]);}
+    finally{clearTimeout(timer);if(this.active===controller)this.active=null;}
+  };
+  var api={Client:Client,Access:Access}; G.CT_MUSIC_CHAT=api;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:window);
