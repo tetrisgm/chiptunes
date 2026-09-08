@@ -1,6 +1,6 @@
 globalThis.CT_MUSIC_ASSETS_VERSION="5fba76c2aeb5e170";
 globalThis.CT_MUSIC_EDITOR_VERSION="85d43ca2c55e";
-globalThis.CT_MUSIC_BUILD_VERSION="97d49b0b5dbe";
+globalThis.CT_MUSIC_BUILD_VERSION="93fb190587e0";
 /* ===== src/seed.js ===== */
 // ===== seed.js — deterministic generated-track identity. =====
 // Loads FIRST (before composer.js/audio.js) so any composer can seed itself from a URL token.
@@ -15723,7 +15723,7 @@ var EXPORTS = {
     received.offer.then(function(offer){
       if(inboundTransfer!==received)return;
       if(!offer.ok){$('.mw-transfer-description').textContent='Transfer ended ('+offer.code+').';return;}
-      $('.mw-transfer-description').textContent='Accept '+offer.bytes+' bytes from chiptunes.app? This copies the draft and last validated revision, without private chat or provenance. Your hosted saved project stays intact. The accepted copy is temporary; download it to keep it.';
+      $('.mw-transfer-description').textContent='Accept '+offer.bytes+' bytes from chiptunes.app? This copies the draft and last validated revision, without private chat or provenance. Your hosted saved project stays intact. Download the copy to keep it, or use Save draft locally to explicitly replace the hosted saved project.';
       $('[data-action=transfer-accept]').disabled=false;
     });
     received.result.then(function(result){if(inboundTransfer===received&&!result.ok){inboundTransfer=null;
@@ -15756,7 +15756,7 @@ var EXPORTS = {
     if(connection)connection.disconnect();cancelChat('superseded');resetAudio();
     project=loaded.project;selection=null;proposal=null;agentInstance=G.crypto.randomUUID();unsaved=true;
     syncEditor();renderNotes();renderProposal();renderState();diagnostics(snap().diagnostics);
-    $('.mw-transfer-description').textContent='Project accepted as a temporary copy. Hosted saved project preserved. Download this project to keep your edits; Apply and playback remain explicit.';
+    $('.mw-transfer-description').textContent='Project accepted as a temporary copy. Hosted saved project preserved. Download to keep your edits, or choose Save draft locally and confirm replacement. Apply and playback remain explicit.';
     $('[data-action=transfer-cancel]').textContent='Dismiss';
     status('Transferred draft and last validated revision restored. Nothing was applied or played.');
   }
@@ -16258,8 +16258,19 @@ var EXPORTS = {
     else if(name==='chat')await requestChat();
     else if(name==='cancel'){cancelChat('rejected');proposal={status:'rejected',explanation:'Request cancelled'};renderProposal();renderState();}
     else if(name==='save'){
-      if(transferProtected)status('This is a temporary transferred copy. Download this project to keep your edits; the hosted saved project is preserved.');
-      else await save();
+      if(transferProtected){
+        if(!storage||conflict){status('Cannot safely replace the saved project. Download this copy to keep your edits.');return;}
+        if(!G.confirm('Replace the saved hosted project with this transferred copy? This replaces its locally saved draft. Cancel and download any project you want to keep first.')){
+          status('This is a temporary transferred copy. Hosted saved project preserved.');return;
+        }
+        var savingProject=project;transferProtected=false;await save();
+        if(project!==savingProject)return;
+        if(unsaved){transferProtected=true;status('The transferred copy could not be fully saved. Download it to keep your latest edits.');}
+        else{
+          $('.mw-transfer-description').textContent='Transferred project saved locally after your confirmation. Reload restores this draft and its last validated revision.';
+          status('Transferred project saved locally.');
+        }
+      }else await save();
     }
     else if(name==='download')download(project.serialize({includePrivate:true}),'chiptunes-project.json','application/json');
     else if(name==='share'){

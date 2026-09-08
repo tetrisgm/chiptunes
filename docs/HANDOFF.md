@@ -11,8 +11,11 @@ origins, a 256-bit nonce in the fragment (never source), matching window identit
 explicit receiver Accept, 8 MiB UTF-8 bounds, 120s expiry, one-shot cleanup, and
 opener removal after the final acknowledgment/cancellation. Module checkpoint
 5809e43 is pushed. The workspace retains the original source tab and excludes
-private chat/provenance. Accepted copies are temporary: existing hosted storage
-is protected, and Save explains that a download is required to retain that copy.
+private chat/provenance. Accepted copies are temporary by default: existing hosted
+storage is protected. Download retains a separate file; Save draft locally asks
+for explicit confirmation before replacing the hosted saved project. Cancelling
+that confirmation preserves the original. Confirmed saves restore draft and
+last-valid source on reload without starting playback (browser regression passed).
 Edits while consent is open cancel import; pending original saves are preserved.
 No model call, playback, Apply or MCP connection is started by a transfer.
 
@@ -22,6 +25,8 @@ offer, Accept/Cancel, incompatible restore, close-during-Accept, pending edits,
 protected hosted storage and zero model/session creation. Chat UI + 65 gateway
 tests and Next production build also passed. The fresh full root `npm test` is
 still running (exec session 58427); poll that live handle instead of restarting.
+The Vercel upload dry-run passed: 209 files / 5,150,023 bytes; required transfer
+and Chat routes included, private/local artifacts excluded.
 Do not deploy or claim the whole regression gate green until its terminal result
 is observed. Source files are frozen; both source-owning agents finished.
 Next: finish full regression, push candidate, deploy Vercel and Cloudflare Pages

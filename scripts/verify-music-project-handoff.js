@@ -70,9 +70,10 @@ const origin='https://chiptunes.app',gateway='https://chiptunes-agent-gateway.ve
     assert.equal(state.draft,JSON.parse(publicCopy).draft);assert.equal(state.validated.source,JSON.parse(publicCopy).lastValid.source);
     assert.equal(state.playing,null);assert.equal(state.pending,null);assert.equal(await accepted.evaluate(()=>handoffPrivate),false);
     assert.equal(await accepted.evaluate(key=>localStorage.getItem(key),key),hosted,'hosted storage not replaced');
+    accepted.once('dialog',dialog=>dialog.dismiss());
     await accepted.locator('[data-action=save]').click();await accepted.waitForTimeout(350);
     assert((await accepted.locator('.mw-status').textContent()).includes('temporary transferred copy'));
-    assert.equal(await accepted.evaluate(key=>localStorage.getItem(key),key),hosted,'explicit save also protects hosted draft');
+    assert.equal(await accepted.evaluate(key=>localStorage.getItem(key),key),hosted,'declined replacement protects hosted draft');
     await accepted.evaluate(()=>CT_MUSIC_WORKSPACE.close());
     assert.equal(await accepted.evaluate(key=>localStorage.getItem(key),key),hosted,'close cannot autosave transferred source');
     await accepted.close();
@@ -104,6 +105,18 @@ const origin='https://chiptunes.app',gateway='https://chiptunes-agent-gateway.ve
     await changed.waitForTimeout(400);
     assert(JSON.parse(await changed.evaluate(key=>localStorage.getItem(key),key)).draft.includes('hosted edit while consent pending'),'declining transfer preserves the pending hosted save');
     await changed.close();
+    const persisted=await popup();
+    await persisted.locator('[data-action=transfer-accept]').click();
+    await persisted.waitForFunction(()=>document.querySelector('.mw-transfer-description').textContent.startsWith('Project accepted'));
+    persisted.once('dialog',dialog=>dialog.accept()); // Explicit replacement of this test-owned fixture only.
+    await persisted.locator('[data-action=save]').click();
+    await persisted.waitForFunction(()=>document.querySelector('.mw-status').textContent==='Transferred project saved locally.');
+    await persisted.reload();
+    await persisted.waitForSelector('#musicworkspace:not([hidden]) .cm-content',{state:'attached'});
+    const recovered=await persisted.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot());
+    assert.equal(recovered.draft,JSON.parse(publicCopy).draft,'confirmed transferred draft survives reload');
+    assert.equal(recovered.validated.source,JSON.parse(publicCopy).lastValid.source,'last valid revision survives reload');
+    assert.equal(recovered.playing,null);await persisted.close();
     assert.equal(modelCalls,0);assert.equal(sessionCreates,0);
     assert.equal(await page.evaluate(key=>localStorage.getItem(key),key),original,'sender private recovery remains local');
     console.log('PASS project handoff browser: exact-origin popup + path normalization, >150KB Unicode, metadata-only consent, draft/lastValid preserved, private excluded, hosted storage/save/close protected, Cancel, incompatible restore, close during Accept, pending edits protected, no automatic model/play/connect');
