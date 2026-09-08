@@ -3,6 +3,57 @@
 Plain, current working notes for whoever (or whatever) picks the project up
 next. Infrastructure and operations live outside this repository.
 
+## 2026-09-08 — Web agent connection pipeline (implementation underway)
+
+The owner wants Pen/Paper-like onboarding for an existing agent on the WEB,
+without requiring Chiptunes desktop or an embedded paid-model API. Updated
+sequence: `docs/agent-connection-plan.md`, linked from the original workspace
+plan. Hosting is not a constraint (owner clarification): Vercel is selected for
+the agent gateway; the existing Pages site/presence are not migrated by this work.
+
+New host-neutral session core tracks snapshot generation, revision and epoch,
+locks, pending claims, replay tombstones, expiry and revocation. Private durable
+state export/import preserves those checks across restarts. The four musical
+tools expose context/help/proposal/status, never automatic Apply or shell/files.
+The broker checks issuer/owner/client or browser-instance ownership inside the
+repository transaction. The Postgres adapter uses a row lock and parameterized
+queries; its migration is for a dedicated Chiptunes database only.
+
+The local browser bridge routes proposals through the existing editor UI and
+explicit Apply; exact context checks include project instance and lock policy,
+not only revision IDs. This is not yet browser-to-hosted-gateway synchronization.
+No source upload starts automatically. Code/audio continue without a connection.
+
+`gateway/` contains the isolated Vercel/Next.js MCP service, with its own pinned
+dependencies, authentication verifier, scoped tool binding and dedicated database
+adapter. Missing configuration fails closed. Do not equate transport tests with
+real identity-provider consent or a functioning public Connect workflow.
+
+Deployment dependencies: Vercel CLI is authenticated as the existing account;
+the in-app Vercel browser was logged out. Clerk + dedicated Postgres free-tier
+provisioning approval was requested, not yet received. No new account/resource,
+OAuth client, secret, domain, persistent job or production deployment was created.
+Do not reuse TextText's Neon production database. Do not run the aggregate deploy
+command: it also changes the broadcast box.
+
+Still required: real login/consent/grant lifecycle, browser session creation and
+delivery, visible Connect panel/client instructions, production retention/rate
+policy, actual two-client OAuth acceptance, listening and real Safari acceptance.
+The optional embedded Chat provider remains separate. Completion must not be
+reported based on fixtures or fail-closed scaffolding.
+
+Verification for this checkpoint: full `npm test` exited 0 including
+`test:music-agent` (23 session groups, tool/broker/SQL-contract checks and 42
+browser-bridge checks). Gateway's eight tests use a real MCP SDK client and
+cryptographically signed test tokens; gateway production build passed. Separate
+`npm run test:music-agent-db` passed against a real isolated local PostgreSQL
+cluster, including concurrent proposal serialization, persisted replay/restart,
+ownership and revoke. The temporary socket-only cluster was shut down and its
+test data removed; no existing database service was touched. Production database
+TLS, identity-provider consent and real external agent acceptance are still
+untested. Security review fixes include terminal grant expiry on clock rollback,
+destroying pooled connections on failed rollback, and MCP error-result labeling.
+
 ## 2026-09-08 — Source-backed Create workspace (live provider still pending)
 
 Owner's complete request is retained in `docs/create-workspace-plan.md`.

@@ -1,6 +1,6 @@
 globalThis.CT_MUSIC_ASSETS_VERSION="5fba76c2aeb5e170";
 globalThis.CT_MUSIC_EDITOR_VERSION="85d43ca2c55e";
-globalThis.CT_MUSIC_BUILD_VERSION="b7fb989e9c3f";
+globalThis.CT_MUSIC_BUILD_VERSION="380197ff4924";
 /* ===== src/seed.js ===== */
 // ===== seed.js — deterministic generated-track identity. =====
 // Loads FIRST (before composer.js/audio.js) so any composer can seed itself from a URL token.
@@ -15395,6 +15395,86 @@ var EXPORTS = {
   var root,editor,project,storage,client,sourceLoading=false,saveTimer,queueTokens={},queueRevisions={},queueActivations={},playingRevision=null,audioState={status:'stopped',frame:0};
   var selection=null,proposal=null,requestId=null,serial=0,previousFocus,inerted=[],conflict=false,unsub=null;
   var unsaved=false,saveEpoch=0,editorLoading=null,previousRoute=null;
+  var agentInstance=null,agentRecords=new Map(),policyEpoch=0;
+  // Local page bridge only: these methods confer no authentication or transport trust.
+  function detached(value){return JSON.parse(JSON.stringify(value));}
+  function validUnicode(s){
+    for(var i=0;i<s.length;i++){var c=s.charCodeAt(i);
+      if(c>=0xD800&&c<=0xDBFF){var n=s.charCodeAt(++i);if(!(n>=0xDC00&&n<=0xDFFF))return false;}
+      else if(c>=0xDC00&&c<=0xDFFF)return false;
+    }return true;
+  }
+  function boundedProposal(input){
+    function need(ok){if(!ok)throw Error('Invalid bounded proposal');}
+    function bytes(s,limit){need(typeof s==='string'&&s.length<=limit&&validUnicode(s));var n=new TextEncoder().encode(s).length;need(n<=limit);return n;}
+    function boundary(s,i){return !(i>0&&i<s.length&&/[\uD800-\uDBFF]/.test(s[i-1])&&/[\uDC00-\uDFFF]/.test(s[i]));}
+    var source=input.context&&input.context.source,sourceBytes=bytes(source,524288);
+    need(validUnicode(input.explanation));
+    need(Array.isArray(input.edits)&&input.edits.length>0&&input.edits.length<=32);
+    var end=0,previous=-1,inserted=0,removed=0,candidate='';
+    input.edits.forEach(function(e){
+      need(e&&Object.keys(e).length===3&&['from','to','text'].every(function(k){return Object.prototype.hasOwnProperty.call(e,k);}));
+      need(Number.isSafeInteger(e.from)&&Number.isSafeInteger(e.to)&&e.from>=end&&e.from>previous&&e.to>=e.from&&e.to<=source.length);
+      need(boundary(source,e.from)&&boundary(source,e.to)&&!(e.from===0&&e.to===source.length));
+      inserted+=bytes(e.text,16384);removed+=new TextEncoder().encode(source.slice(e.from,e.to)).length;
+      need(inserted<=16384&&removed<=16384);
+      candidate+=source.slice(end,e.from)+e.text;end=e.to;previous=e.from;
+    });
+    candidate+=source.slice(end);need(candidate!==source&&removed<sourceBytes);bytes(candidate,524288);
+  }
+  function exactContext(a,b){
+    if(a===b)return true;
+    if(!a||!b||typeof a!=='object'||typeof b!=='object'||Array.isArray(a)!==Array.isArray(b))return false;
+    var keys=Object.keys(a);return keys.length===Object.keys(b).length&&keys.every(function(k){return Object.prototype.hasOwnProperty.call(b,k)&&exactContext(a[k],b[k]);});
+  }
+  function agentContext(){
+    if(!project||!root||root.hidden)return {ok:false,code:'workspace-closed'};
+    var s=snap(),tracks=+$('.mw-scope').value,lock=$('.mw-lock').value,region=$('.mw-region').checked;
+    var constraints={locks:lock==='none'?[]:[{type:lock,tracks:[0]}]};
+    if(tracks>=0)constraints.scope={tracks:[tracks]};
+    if(region&&selection)constraints.scope={tracks:[selection.ch],fromFrame:selection.fromFrame,toFrame:selection.toFrame};
+    return detached({ok:true,projectInstance:agentInstance,draftEpoch:s.draftEpoch,baseRevision:s.validated?s.validated.id:null,source:s.draft,
+      editable:!!s.validated&&s.draft===s.validated.source&&!conflict,
+      policy:{epoch:policyEpoch,scope:tracks,lock:lock,region:region,selection:selection,constraints:constraints}});
+  }
+  function invalidateAgent(){
+    if(proposal&&proposal.capturedContext&&['ready','proposed'].indexOf(proposal.status)!==-1&&!exactContext(proposal.capturedContext,agentContext())){
+      project.cancelRequest(proposal.id);proposal.status='superseded';
+      if(requestId===proposal.id){requestId=null;if(client)client.cancel();}
+      return true;
+    }return false;
+  }
+  function agentPolicyChanged(){policyEpoch++;if(invalidateAgent())renderProposal();renderState();}
+  function agentProposalStatus(id){
+    if(invalidateAgent()){renderProposal();renderState();}
+    var record=agentRecords.get(id);
+    return record?detached({ok:true,id:id,status:record.status,revision:record.revision||null,diff:record.diff||null}):{ok:false,code:'unknown-proposal'};
+  }
+  function agentPropose(input){
+    try{
+      if(!input||Object.keys(input).some(function(k){return ['id','context','edits','explanation'].indexOf(k)===-1;})||
+        typeof input.id!=='string'||!input.id.length||input.id.length>128||typeof input.explanation!=='string'||input.explanation.length>5000)
+        return {ok:false,code:'invalid-proposal'};
+      boundedProposal(input);
+      var context=agentContext();
+      if(!context.ok||!context.editable||!exactContext(input.context,context))return {ok:false,code:'stale-context'};
+      input={id:input.id,explanation:input.explanation,edits:input.edits.map(function(e){return {from:e.from,to:e.to,text:e.text};})};
+      if(agentRecords.has(input.id))return {ok:false,code:'duplicate-request'};
+      if(agentRecords.size>=1024)return {ok:false,code:'request-limit'};
+      var started=project.beginRequest(input.id);if(!started.ok)return started;
+      var result=project.validateProposal({id:input.id,baseRevision:context.baseRevision,baseSource:context.source,edits:input.edits},context.policy.constraints);
+      if(!result.ok){project.cancelRequest(input.id);agentRecords.set(input.id,{status:'invalid'});return result;}
+      proposal={id:input.id,status:'ready',agentContext:context,capturedContext:context,explanation:input.explanation,edits:input.edits,diff:result.diff};
+      agentRecords.set(input.id,proposal);renderProposal();renderState();
+      return agentProposalStatus(input.id);
+    }catch(e){return {ok:false,code:'invalid-proposal'};}
+  }
+  function agentDisconnect(){
+    if(proposal&&proposal.agentContext&&proposal.status==='ready'){project.cancelRequest(proposal.id);proposal.status='cancelled';}
+    agentInstance=G.crypto.randomUUID();
+    if(root&&!root.hidden){renderProposal();renderState();}
+    return {ok:true};
+  }
   var KEY='ct-music-workspace-v1',ASSETS=G.CT_MUSIC_ASSETS_VERSION||'ct-gb-bank-1',view='notes';
   var $=function(s){return root.querySelector(s);};
   function api(){return G.CT_MUSIC_PROJECT;}
@@ -15515,6 +15595,7 @@ var EXPORTS = {
         if(n.frame+n.frames>total){b.style.background='#c46a54';b.title='Finite song end cuts this event; source duration is retained.';}
         b.addEventListener('click',function(){
           selection={ch:ch,fromFrame:n.frame,toFrame:n.frame+n.frames};
+          agentPolicyChanged();
           pane.querySelectorAll('.mw-note').forEach(function(el){el.setAttribute('aria-pressed',String(el===b));});
           var m=v.compiled.mapping.find(function(x){return x.noteIndex===i;});
           $('.mw-selection').textContent='Selected '+name+' · '+(m&&m.pattern?'pattern '+m.pattern+', occurrence '+m.occurrence:'explicit event')+' · frames '+n.frame+'–'+(n.frame+n.frames);
@@ -15599,7 +15680,7 @@ var EXPORTS = {
   function createSource(text,provenance){
     var next=api().create(text,Object.assign(opts(),{provenance:provenance}));
     if(!next.snapshot().validated)throw Error(next.snapshot().diagnostics.map(function(d){return d.message;}).join('\n'));
-    cancelChat();resetAudio();project=next;selection=null;proposal=null;
+    cancelChat();resetAudio();project=next;selection=null;proposal=null;agentInstance=G.crypto.randomUUID();
     syncEditor();renderNotes();renderProposal();renderState();scheduleSave();
   }
   function generate(){
@@ -15619,8 +15700,9 @@ var EXPORTS = {
   }
   async function requestChat(){
     var s=snap(),text=$('.mw-chat-input').value.trim();if(!text)throw Error('Write a musical request');
+    var capturedContext=agentContext();
     var owner=project,id='request-'+crypto.randomUUID(),req=check(project.beginRequest(id));requestId=id;
-    proposal={status:'proposed'};renderProposal();renderState();
+    proposal={id:id,status:'proposed',capturedContext:capturedContext};renderProposal();renderState();
     var tracks=+$('.mw-scope').value,constraints={locks:[]};
     if($('.mw-lock').value!=='none')constraints.locks.push({type:$('.mw-lock').value,tracks:[0]});
     if(/\bkeep (?:the )?melody\b/i.test(text)&&!constraints.locks.some(function(lock){return lock.type==='track';}))constraints.locks.push({type:'track',tracks:[0]});
@@ -15632,10 +15714,11 @@ var EXPORTS = {
       var response=await client.request({id:id,request:text,source:req.baseSource,baseRevision:req.baseRevision,selection:selection,
         constraints:constraints,language:{version:G.CT_MUSIC_LANGUAGE.VERSION,help:G.CT_MUSIC_CODE_EDITOR&&G.CT_MUSIC_CODE_EDITOR.help||{}},diagnostics:(s.diagnostics||[]).slice(0,32)});
       if(project!==owner||requestId!==id)return;
+      if(invalidateAgent()){renderProposal();renderState();return;}
       if(response.id!==id)throw Error('Chat response belongs to another request');
       var validated=project.validateProposal({id:id,baseRevision:response.baseRevision,baseSource:req.baseSource,edits:response.edits},constraints);
       check(validated);
-      proposal={id:id,status:'ready',explanation:response.explanation,edits:response.edits,diff:validated.diff};
+      proposal={id:id,status:'ready',capturedContext:capturedContext,explanation:response.explanation,edits:response.edits,diff:validated.diff};
     }catch(e){
       if(project!==owner||requestId!==id)return;
       owner.cancelRequest(id);proposal={status:'invalid',explanation:e.message};status(e.message);
@@ -15643,6 +15726,7 @@ var EXPORTS = {
     finally{if(project===owner&&requestId===id){requestId=null;renderProposal();renderState();}}
   }
   function renderProposal(){
+    invalidateAgent();
     var el=$('.mw-proposals');el.replaceChildren();if(!proposal)return;
     var box=document.createElement('div');box.className='mw-proposal';
     var title=document.createElement('b');title.textContent=proposal.status;box.appendChild(title);
@@ -15653,10 +15737,12 @@ var EXPORTS = {
       diff.textContent='− '+source.slice(edit.from,edit.to)+'\n+ '+edit.text;box.appendChild(diff);
     });
     if(proposal.status==='ready'){
+      var displayedProposal=proposal;
       ['Apply','Reject'].forEach(function(label){
         var b=document.createElement('button');b.type='button';b.textContent=label;
         b.addEventListener('click',function(){try{
-          if(label==='Apply'){var r=check(project.applyProposal(proposal.id));proposal.revision=r.revision.id;proposal.status='queued';applied(r);if(!snap().pending)proposal.status='validated';status(r.diff.summary);}
+          if(proposal!==displayedProposal)return;
+          if(label==='Apply'){if(proposal.capturedContext&&(invalidateAgent()||proposal.status!=='ready'))throw Error('Proposal context changed; request a new proposal');var r=check(project.applyProposal(proposal.id));proposal.revision=r.revision.id;proposal.status='queued';applied(r);if(!snap().pending)proposal.status='validated';status(r.diff.summary);}
           else{project.cancelRequest(proposal.id);proposal.status='rejected';}
           renderProposal();
         }catch(e){proposal.status='superseded';announceError(e);renderProposal();}});
@@ -15713,7 +15799,8 @@ var EXPORTS = {
       Promise.resolve().then(function(){return action(b.dataset.action);}).catch(announceError);
     });
     $('.mw-seek').addEventListener('change',function(){engine().musicSeek(+this.value);});
-    G.addEventListener('storage',function(e){if(e.key===KEY&&root&&!root.hidden){conflict=true;status('Another tab changed this project. Download this draft before reloading.');}});
+    ['.mw-scope','.mw-lock','.mw-region'].forEach(function(s){$(s).addEventListener('change',agentPolicyChanged);});
+    G.addEventListener('storage',function(e){if(e.key===KEY&&root&&!root.hidden){conflict=true;invalidateAgent();renderProposal();status('Another tab changed this project. Download this draft before reloading.');}});
     G.addEventListener('beforeunload',function(e){if(conflict||saveTimer||unsaved){save();e.preventDefault();e.returnValue='';}});
   }
   async function action(name){
@@ -15741,7 +15828,7 @@ var EXPORTS = {
         var loaded=check(api().restore(await file.text(),opts()));
         if(project!==owner||root.hidden)return;
         if(!G.confirm('Replace this workspace? Download the current project first to keep a copy.'))return;
-        cancelChat();resetAudio();project=loaded.project;selection=null;proposal=null;
+        cancelChat();resetAudio();project=loaded.project;selection=null;proposal=null;agentInstance=G.crypto.randomUUID();
         syncEditor();renderNotes();renderProposal();renderState();diagnostics(snap().diagnostics);scheduleSave();
       }catch(e){announceError(e);}};input.click();
     }else if(name==='export'){
@@ -15785,7 +15872,7 @@ var EXPORTS = {
     }
     if(G.CT_CREATE.stopForNative)G.CT_CREATE.stopForNative();engine().enterCreate();
     if(!/^#music(?:=|$)/.test(location.hash))history.replaceState(null,'','/create#music');
-    root.hidden=false;inerted=[];
+    agentInstance=G.crypto.randomUUID();root.hidden=false;inerted=[];
     Array.from(document.body.children).forEach(function(el){if(el!==root&&!el.hasAttribute('inert')){el.setAttribute('inert','');inerted.push(el);}});
     if(!unsub)unsub=engine().onMusicState(onAudio);
     renderNotes();renderProposal();renderState();diagnostics(snap().diagnostics);selectView(view);
@@ -15800,7 +15887,8 @@ var EXPORTS = {
     if(unsub){unsub();unsub=null;}
     if(previousFocus&&previousFocus.isConnected)previousFocus.focus();
   }
-  G.CT_MUSIC_WORKSPACE={open:open,close:close,isOpen:function(){return !!root&&!root.hidden;},snapshot:function(){return project&&snap();}};
+  G.CT_MUSIC_WORKSPACE={open:open,close:close,isOpen:function(){return !!root&&!root.hidden;},snapshot:function(){return project&&snap();},
+    agentContext:agentContext,agentPropose:agentPropose,agentProposalStatus:agentProposalStatus,agentDisconnect:agentDisconnect};
 })(typeof globalThis!=='undefined'?globalThis:window);
 
 /* ===== src/webmcp.js ===== */
