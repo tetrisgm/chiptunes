@@ -12,6 +12,8 @@
     "node": ">=20.9.0"
   },
   "dependencies": {
+    "@clerk/backend": "3.17.1",
+    "@clerk/nextjs": "7.9.1",
     "@modelcontextprotocol/server": "2.0.0",
     "jose": "6.2.12",
     "mcp-handler": "2.1.1",

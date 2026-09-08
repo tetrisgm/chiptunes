@@ -166,19 +166,22 @@ Implemented development slices (not a production completion claim):
 
 - A: bounded session core, persisted state import/export, four tool specifications,
   scoped transactional broker and replay/ownership tests.
-- B: local workspace context/proposal/status/disconnect bridge; explicit Apply
-  and policy races tested. Connect panel and hosted synchronization still pending.
-- C: signed-token verifier and deny-by-default route tests. Real identity login,
-  consent and grant creation remain pending. Current gateway JWT contract requires
-  a custom music_grant_id; Clerk compatibility needs deliberate mapping or a
-  server-side grant lookup, not merely adding Clerk credentials.
+- B: workspace bridge, opt-in Connect panel and same-origin transport implemented;
+  browser fixtures cover explicit Apply acknowledgments, stale I/O and disconnect.
+  Hosted round-trip acceptance remains pending.
+- C: maintained Clerk SDK authenticates separate browser session and OAuth token
+  types. Standard issuer/subject/client identity maps to durable grants; no custom
+  song token claim. Real Clerk installation requires owner marketplace terms
+  acceptance. Browser session refresh and hosted consent remain under integration.
 - D: Vercel Next.js MCP transport builds and is exercised by the real SDK client;
-  Postgres transaction adapter exists. No database has been provisioned/migrated.
+  Dedicated free-tier Neon database provisioned and schemas migrated over verified
+  TLS. Real isolated PostgreSQL tests cover pairing races, ownership and revoke.
 - E/F: real client onboarding, browser delivery, listening, public deployment and
   real Safari acceptance remain pending.
 
-Vercel is selected. Clerk + dedicated Postgres free-tier provisioning has been
-requested but not authorized yet. No production configuration or accounts changed.
+Vercel project chiptunes-agent-gateway and Neon chiptunes-agent-sessions were
+created with owner approval. No paid plan, legal terms acceptance or persistent
+job was created. Clerk marketplace terms are the external setup gate.
 Existing editor tests are prior evidence, not hosted-pipeline acceptance.
 
 Done means a website user without the desktop app connects a supported existing

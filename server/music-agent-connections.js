@@ -5,7 +5,7 @@
  * authenticateBrowser(request) must use the host's auth SDK and CSRF/origin
  * protection, returning {issuer, subject, browserId} or null. browserId must be
  * bound by the trusted host to this browser, never copied from request JSON.
- * Next routes parse bounded JSON (<= LIMITS.inputBytes), then call
+ * Next routes parse bounded JSON (<= LIMITS.browserBytes), then call
  * service.browser(request, operation, input). Identity is NEVER in input.
  * GET clients: {}; POST consent: {clientId, lifetimeMs} (1..3600000).
  * Consent is an explicit user action after showing the exact observed clientId;
@@ -42,8 +42,20 @@
  * Expiry (including 30s lease) and revoke are terminal; reconnect needs explicit
  * consent and a new UUID. Up to 32 observed clients and 8 active sessions/user.
  * Client tombstones are retained, so the 32-client limit is not reset by revoke.
+ * Revoked, unreferenced session rows are deleted during owner transactions,
+ * including explicit revoke. Idle expired source remains until another owner
+ * request: this is opportunistic lifecycle cleanup, NOT a timed purge guarantee.
+ * There is no scheduled retention job. Agent getContext baseRevision is
+ * SHA256(`${sessionId}:${localBaseRevision}`) hex; propose echoes it unchanged.
+ * The service compares it before mapping to the current local revision, without
+ * refreshing caller generation/draftEpoch. Browser publish/poll/ack stay local.
+ * Admission: 2400 committed owner transactions per 60-second fixed window,
+ * starting at the first admitted request. Includes poll/heartbeat and MCP
+ * preauthorization/tool calls. Up to twice this burst can straddle a boundary.
+ * Counter lives in PostgreSQL, never memory; no reset job. Browser exhaustion
+ * returns rate_limited/429; gateway preauthorization maps store errors to 503.
  */
-const {randomUUID} = require('node:crypto');
+const {randomUUID,createHash} = require('node:crypto');
 const {createMusicAgentSession, LIMITS} = require('./music-agent-session');
 const {createMusicAgentBroker} = require('./music-agent-broker');
 const {createPostgresMusicAgentRepository} = require('./music-agent-postgres');
@@ -52,6 +64,7 @@ const field = v => typeof v === 'string' && v.length > 0 && v.length <= 512;
 const scopes = ['music:read','music:propose'];
 const methods = {getContext:'readContext',propose:'propose',getProposalStatus:'status'};
 const browserMethods = {publish:'publish',heartbeat:'heartbeat',poll:'peek',claim:'claim',ack:'acknowledge',revoke:'revoke'};
+const agentRevision = (sessionId,local) => createHash('sha256').update(sessionId+':'+local).digest('hex');
 function shape(v, keys) {
   return v && Object.getPrototypeOf(v) === Object.prototype &&
     Object.keys(v).length === keys.length && keys.every(k => Object.hasOwn(v,k));
@@ -74,13 +87,27 @@ function createMusicAgentConnectionRepository(pool) {
       await client.query('SELECT subject FROM music_agent_connection_owners WHERE issuer=$1 AND subject=$2 FOR UPDATE', [p.issuer,p.subject]);
       const time = await client.query('SELECT floor(extract(epoch FROM clock_timestamp())*1000)::float8 AS now');
       const now = time.rows[0].now;
+      const admitted = await client.query(`UPDATE music_agent_connection_owners
+        SET rate_count=CASE WHEN rate_window_ms <= $3-60000 THEN 1 ELSE rate_count+1 END,
+          rate_window_ms=CASE WHEN rate_window_ms <= $3-60000 THEN $3 ELSE rate_window_ms END
+        WHERE issuer=$1 AND subject=$2 AND rate_window_ms <= $3
+          AND (rate_window_ms <= $3-60000 OR rate_count < 2400)
+        RETURNING rate_count`, [p.issuer,p.subject,now]);
+      if (!admitted.rows.length) throw Error('rate_limited');
       // Persist terminal expiry before any lookup, consent or publication.
       await client.query(`UPDATE music_agent_sessions s SET record = s.record || '{"revoked":true,"state":null}'::jsonb
         FROM music_agent_connections c WHERE c.issuer=$1 AND c.subject=$2 AND c.session_id=s.id
         AND ((s.record->>'expiresAt')::float8 <= $3 OR (s.record->>'leaseExpiresAt')::float8 <= $3
           OR (s.record->'state'->>'revoked')::boolean = true)`, [p.issuer,p.subject,now]);
-      await client.query(`UPDATE music_agent_connections c SET session_id=NULL FROM music_agent_sessions s
-        WHERE c.issuer=$1 AND c.subject=$2 AND c.session_id=s.id AND (s.record->>'revoked')::boolean=true`, [p.issuer,p.subject]);
+      async function cleanRevoked() {
+        await client.query(`UPDATE music_agent_connections c SET session_id=NULL FROM music_agent_sessions s
+          WHERE c.issuer=$1 AND c.subject=$2 AND c.session_id=s.id AND (s.record->>'revoked')::boolean=true`, [p.issuer,p.subject]);
+        // Owner-scoped deletion only after all active references are gone.
+        await client.query(`DELETE FROM music_agent_sessions s WHERE s.record->>'issuer'=$1
+          AND s.record->>'owner'=$2 AND (s.record->>'revoked')::boolean=true
+          AND NOT EXISTS (SELECT 1 FROM music_agent_connections c WHERE c.session_id=s.id)`, [p.issuer,p.subject]);
+      }
+      await cleanRevoked();
       // Reuse the existing PostgreSQL repository inside this owner transaction.
       // Its transaction is a savepoint, never a second connection/early commit.
       const nestedPool = {connect:async()=>({release(){},query(sql,args) {
@@ -89,11 +116,12 @@ function createMusicAgentConnectionRepository(pool) {
       }})};
       const repository = createPostgresMusicAgentRepository(nestedPool);
       const result = await run({client,repository,now});
+      await cleanRevoked();
       await client.query('COMMIT');
       return result;
-    } catch (_) {
+    } catch (error) {
       try { await client.query('ROLLBACK'); } catch (_) { discard = Error('rollback_failed'); }
-      throw Error('connection_transaction_failed');
+      throw Error(error?.message==='rate_limited'?'rate_limited':'connection_transaction_failed');
     } finally { client.release(discard); }
   }});
 }
@@ -142,7 +170,16 @@ function createMusicAgentConnections({pool, authenticateBrowser}) {
       const result = await connections.withOwner(p,async tx=>{
         const c = await lookup(tx,p);
         if (!c?.session_id) return {ok:false,code:'not_paired'};
-        return executeCore(tx,{...p,kind:'agent'},c.session_id,method,input,scope);
+        if (method==='propose') {
+          const context = await executeCore(tx,{...p,kind:'agent'},c.session_id,'readContext',undefined,'music:read');
+          if (!context.ok) return context;
+          if (input?.baseRevision!==agentRevision(c.session_id,context.baseRevision))
+            return {ok:false,code:'stale_snapshot'};
+          input = {...input,baseRevision:context.baseRevision};
+        }
+        const result = await executeCore(tx,{...p,kind:'agent'},c.session_id,method,input,scope);
+        if (method==='readContext' && result.ok) result.baseRevision = agentRevision(c.session_id,result.baseRevision);
+        return result;
       });
       if (!result.ok) return {ok:false,code:result.code==='not_paired'?'not_paired':'music_operation_failed'};
       const {ok,...data} = result; return data;
@@ -197,7 +234,7 @@ function createMusicAgentConnections({pool, authenticateBrowser}) {
         }
         return result;
       });
-    } catch (_) { return {ok:false,code:'service_unavailable'}; }
+    } catch (error) { return {ok:false,code:error?.message==='rate_limited'?'rate_limited':'service_unavailable'}; }
   }};
   /** Next GET/POST: return service.handleBrowser(request). Node runtime.
    * GET -> clients. POST accepts Pauli's flat {action,...} contract:
@@ -222,7 +259,7 @@ function createMusicAgentConnections({pool, authenticateBrowser}) {
         for (;;) {
           const {done,value}=await reader.read(); if (done) break;
           size+=value.byteLength;
-          if (size>LIMITS.inputBytes) { await reader.cancel(); throw Error('invalid_input'); }
+          if (size>LIMITS.browserBytes) { await reader.cancel(); throw Error('invalid_input'); }
           chunks.push(value);
         }
         const body=JSON.parse(Buffer.concat(chunks).toString('utf8'));
@@ -237,7 +274,7 @@ function createMusicAgentConnections({pool, authenticateBrowser}) {
       } else return Response.json({ok:false,code:'method_not_allowed'},{status:405,headers:{'Cache-Control':'no-store'}});
       result=await service.browser(request,operation,input);
     } catch (_) { result={ok:false,code:'invalid_input'}; }
-    return Response.json(result,{status:result.ok?200:result.code==='service_unavailable'?503:result.code==='access_denied'?403:400,
+    return Response.json(result,{status:result.ok?200:result.code==='rate_limited'?429:result.code==='service_unavailable'?503:result.code==='access_denied'?403:400,
       headers:{'Cache-Control':'no-store'}});
   };
   return Object.freeze(service);

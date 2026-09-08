@@ -6,6 +6,21 @@
   var selection=null,proposal=null,requestId=null,serial=0,previousFocus,inerted=[],conflict=false,unsub=null;
   var unsaved=false,saveEpoch=0,editorLoading=null,previousRoute=null;
   var agentInstance=null,agentRecords=new Map(),policyEpoch=0;
+  var connection=null;
+  function renderConnection(s){
+    $('.mw-connect-status').textContent=s.message;
+    var gateway=location.protocol==='https:'&&s.available;
+    $('.mw-mcp-setup').hidden=!gateway;$('.mw-mcp-unavailable').hidden=gateway;
+    $('.mw-mcp-endpoint').value=gateway?location.origin+'/api/mcp':'';
+    $('.mw-sign-in').hidden=s.phase!=='signed-out'&&s.phase!=='access-denied';
+    var select=$('.mw-client'),chosen=select.value;select.replaceChildren();
+    var placeholder=document.createElement('option');placeholder.value='';placeholder.textContent='Choose an authorized client';select.appendChild(placeholder);
+    s.clients.forEach(function(c){var option=document.createElement('option');option.value=c.clientId;option.textContent=c.clientId;select.appendChild(option);});
+    select.value=chosen;select.disabled=s.phase!=='disconnected';
+    $('[data-action=connect]').disabled=s.phase!=='disconnected'||!select.value;
+    $('[data-action=disconnect]').disabled=!s.connected&&s.phase!=='connecting';
+    $('[data-action=refresh-clients]').disabled=['connecting','connected','checking'].indexOf(s.phase)!==-1;
+  }
   // Local page bridge only: these methods confer no authentication or transport trust.
   function detached(value){return JSON.parse(JSON.stringify(value));}
   function validUnicode(s){
@@ -156,6 +171,7 @@
     if(next==='code')ensureEditor().then(function(){if(focusCode!==false&&!root.hidden&&view==='code')editor.focus();}).catch(announceError);
   }
   function renderState(){
+    if(connection)connection.contextChanged();
     var s=snap(),v=s.validated;
     $('.mw-state').textContent='Draft '+(v&&s.draft===v.source?'validated':'edited')+' · Valid '+(v?v.id:'none')+
       ' · Queued '+(s.pending?s.pending.revisionId:'none')+' · Playing '+(s.playing||'none')+' · '+audioState.status+(audioState.suspended?' (audio suspended)':'');
@@ -371,6 +387,12 @@
       '<div class="mw-body"><main class="mw-main"><div class="mw-selection">Notes show the validated revision. Select a note to locate its source.</div><div class="mw-mainview mw-notes"></div><div class="mw-mainview mw-code" hidden></div>'+
       '<div class="mw-diagnostics" role="status"></div><details class="mw-help"><summary>Music function help</summary><pre></pre></details></main>'+
       '<aside class="mw-chat" aria-label="Musical collaboration"><h2>Chat</h2><p class="mw-context"></p>'+
+      '<section class="mw-connect" aria-label="Connect a music agent"><h2>Connect</h2>'+
+      '<div class="mw-mcp-setup" hidden><p>Add this remote MCP server in your agent, sign in with the same account, then refresh clients. Authorizing a client does not share a song; Connect below does.</p><label>Remote MCP server<input class="mw-mcp-endpoint" type="text" readonly></label><button data-action="copy-mcp">Copy MCP endpoint</button></div>'+
+      '<p class="mw-mcp-unavailable">Remote MCP setup requires the HTTPS gateway and an available connection API. It is unavailable on the Cloudflare site without that API. Sign in if prompted, then refresh clients.</p>'+
+      '<p>Connecting uploads your current music source, selected region, and edit constraints to this service for the client you choose. Validated edits and context changes are shared while connected. Every proposal requires your explicit Apply.</p>'+
+      '<label>Agent client<select class="mw-client"><option value="">Choose an authorized client</option></select></label><div class="mw-actions"><button data-action="refresh-clients">Refresh clients</button><button data-action="connect" disabled>Connect</button><button data-action="disconnect" disabled>Disconnect</button></div>'+
+      '<p class="mw-connect-status" role="status">Connection unavailable in this build.</p><a class="mw-sign-in" href="/sign-in" hidden>Sign in to connect</a></section>'+
       '<label>Generate with the composer<input class="mw-generate-text" maxlength="500" placeholder="Make something happy"></label><button data-action="generate">Generate song</button>'+
       '<label>Ask a musical agent<textarea class="mw-chat-input" maxlength="2000" placeholder="Simplify the drums, keep the melody"></textarea></label><small>Chat requires an authorized backend. Code and playback work without it.</small>'+
       '<label>Edit scope <select class="mw-scope"><option value="-1">Whole song</option><option value="0">Melody</option><option value="1">Harmony</option><option value="2">Bass</option><option value="3">Drums</option></select></label>'+
@@ -409,12 +431,20 @@
       Promise.resolve().then(function(){return action(b.dataset.action);}).catch(announceError);
     });
     $('.mw-seek').addEventListener('change',function(){engine().musicSeek(+this.value);});
+    $('.mw-client').addEventListener('change',function(){if(connection)renderConnection(connection.state());});
     ['.mw-scope','.mw-lock','.mw-region'].forEach(function(s){$(s).addEventListener('change',agentPolicyChanged);});
-    G.addEventListener('storage',function(e){if(e.key===KEY&&root&&!root.hidden){conflict=true;invalidateAgent();renderProposal();status('Another tab changed this project. Download this draft before reloading.');}});
+    G.addEventListener('storage',function(e){if(e.key===KEY&&root&&!root.hidden){conflict=true;invalidateAgent();renderProposal();renderState();status('Another tab changed this project. Download this draft before reloading.');}});
     G.addEventListener('beforeunload',function(e){if(conflict||saveTimer||unsaved){save();e.preventDefault();e.returnValue='';}});
   }
   async function action(name){
-    if(name==='apply'){var r=project.applyDraft();diagnostics(r.diagnostics);applied(r);}
+    if(name==='copy-mcp'){
+      if(!connection||!connection.state().available||location.protocol!=='https:')throw Error('MCP endpoint unavailable');
+      await navigator.clipboard.writeText(location.origin+'/api/mcp');status('Copied remote MCP endpoint. Add it in your agent, then refresh clients.');
+    }
+    else if(name==='connect'){if(connection)await connection.connect($('.mw-client').value);}
+    else if(name==='disconnect'){if(connection)connection.disconnect();}
+    else if(name==='refresh-clients'){if(connection)await connection.refresh();}
+    else if(name==='apply'){var r=project.applyDraft();diagnostics(r.diagnostics);applied(r);}
     else if(name==='undo'||name==='redo')applied(project[name]());
     else if(name==='play'){var v=snap().validated;if(v)activate(v,true);}
     else if(name==='pause')engine().musicPause(audioState.status!=='paused');
@@ -483,6 +513,8 @@
     if(G.CT_CREATE.stopForNative)G.CT_CREATE.stopForNative();engine().enterCreate();
     if(!/^#music(?:=|$)/.test(location.hash))history.replaceState(null,'','/create#music');
     agentInstance=G.crypto.randomUUID();root.hidden=false;inerted=[];
+    if(!connection&&G.CT_MUSIC_AGENT_CONNECTION)connection=G.CT_MUSIC_AGENT_CONNECTION.create({workspace:G.CT_MUSIC_WORKSPACE,onChange:renderConnection});
+    if(connection)connection.open();
     Array.from(document.body.children).forEach(function(el){if(el!==root&&!el.hasAttribute('inert')){el.setAttribute('inert','');inerted.push(el);}});
     if(!unsub)unsub=engine().onMusicState(onAudio);
     renderNotes();renderProposal();renderState();diagnostics(snap().diagnostics);selectView(view);
@@ -491,6 +523,7 @@
   }
   function close(){
     if(!root||root.hidden)return;
+    if(connection)connection.close();
     save();cancelChat('superseded');try{resetAudio();}catch(e){announceError(e);}
     root.hidden=true;inerted.forEach(function(el){el.removeAttribute('inert');});inerted=[];
     if(previousRoute)history.replaceState(null,'',previousRoute);

@@ -1,6 +1,6 @@
 globalThis.CT_MUSIC_ASSETS_VERSION="5fba76c2aeb5e170";
 globalThis.CT_MUSIC_EDITOR_VERSION="85d43ca2c55e";
-globalThis.CT_MUSIC_BUILD_VERSION="380197ff4924";
+globalThis.CT_MUSIC_BUILD_VERSION="fde1f8c919a3";
 /* ===== src/seed.js ===== */
 // ===== seed.js — deterministic generated-track identity. =====
 // Loads FIRST (before composer.js/audio.js) so any composer can seed itself from a URL token.
@@ -15387,6 +15387,165 @@ var EXPORTS = {
   if (node) module.exports = API;
 })(typeof globalThis !== 'undefined' ? globalThis : window);
 
+/* ===== src/music-agent-connection.js ===== */
+// Same-origin browser transport. No credentials or reconnect state are persisted.
+(function(G){
+  'use strict';
+  function create(options){
+    var w=options.workspace,fetcher=options.fetch||G.fetch.bind(G),notify=options.onChange||function(){};
+    var tabNonce=Array.from(G.crypto.getRandomValues(new Uint8Array(32)),function(b){return b.toString(16).padStart(2,'0');}).join('');
+    // An explicit injected fetch is a test boundary; production always bootstraps
+    // same-origin auth. Cache the module, never a session token.
+    var auth=options.tokenProvider||(options.fetch?null:undefined);
+    async function ready(){
+      var controller=new AbortController(),timeout;
+      requests.add(controller);
+      try{
+        await Promise.race([(async function(){
+          if(auth===undefined)auth=await import('/api/auth');
+          if(controller.signal.aborted)throw Error('unavailable');
+          if(auth)await auth.ready();
+        })(),new Promise(function(_,reject){
+          controller.signal.addEventListener('abort',function(){reject(Error('unavailable'));},{once:true});
+          timeout=setTimeout(function(){controller.abort();},15000);
+        })]);
+      }finally{clearTimeout(timeout);requests.delete(controller);}
+    }
+    var opened=false,epoch=0,session=null,base=null,generation=null,pending=null,timer=null;
+    var requests=new Set(),clients=[],phase='closed',message='',available=false;
+    function copy(v){return JSON.parse(JSON.stringify(v));}
+    function same(a,b){return JSON.stringify(a)===JSON.stringify(b);}
+    function snapshot(c){return {source:c.source,baseRevision:c.baseRevision,draftEpoch:c.draftEpoch,selection:c.policy.selection,constraints:c.policy.constraints};}
+    function identity(){return {generation:generation,baseRevision:base.baseRevision,draftEpoch:base.draftEpoch};}
+    function state(){return {phase:phase,message:message,clients:copy(clients),connected:phase==='connected',available:available};}
+    function report(p,m){phase=p;message=m;notify(state());}
+    async function request(body,detached){
+      var controller=new AbortController(),timeout;
+      if(!detached)requests.add(controller);
+      try{
+        // Race explicitly: injected fetch implementations may ignore abort.
+        return await Promise.race([(async function(){
+          var headers={'X-Music-Tab':tabNonce};
+          if(body)headers['Content-Type']='application/json';
+          if(auth){
+            var token=await auth.getSessionToken();
+            if(typeof token!=='string'||!token)throw Error('signed-out');
+            headers.Authorization='Bearer '+token;
+          }
+          if(controller.signal.aborted)throw Error('unavailable');
+          var response=await fetcher('/api/music-agent',{method:body?'POST':'GET',credentials:'same-origin',cache:'no-store',redirect:'error',
+            headers:headers,body:body?JSON.stringify(body):undefined,signal:controller.signal,keepalive:!!detached});
+          if(!response.ok)throw Error(response.status===401?'signed-out':response.status===403?'access-denied':response.status===503?'unconfigured':'unavailable');
+          var result=await response.json();if(!result||result.ok!==true)throw Error('unavailable');return result;
+        })(),new Promise(function(_,reject){
+          controller.signal.addEventListener('abort',function(){reject(Error('unavailable'));},{once:true});
+          timeout=setTimeout(function(){controller.abort();},4000);
+        })]);
+      }finally{clearTimeout(timeout);requests.delete(controller);}
+    }
+    function post(action,input){return request(Object.assign({action:action,sessionId:session},input));}
+    function disconnect(reason){
+      var old=session;epoch++;clearTimeout(timer);timer=null;
+      requests.forEach(function(c){c.abort();});requests.clear();
+      session=null;base=null;generation=null;pending=null;
+      w.agentDisconnect();report(opened?'disconnected':'closed',reason||'Disconnected. Connect explicitly to start a new session.');
+      if(old)request({action:'revoke',sessionId:old},true).catch(function(){});
+    }
+    function fail(e){
+      available=false;
+      disconnect();
+      if(opened)report(e.message==='signed-out'?'signed-out':e.message==='access-denied'?'access-denied':e.message==='unconfigured'?'unconfigured':'unavailable',
+        (e.appliedLocally?'Applied locally; remote acknowledgement could not be confirmed. ':'')+
+        (e.message==='signed-out'?'Sign in to connect.':e.message==='access-denied'?'Access denied. Sign in or check this client’s authorization, then refresh.':e.message==='unconfigured'?'Connection unavailable: gateway authentication is unconfigured.':'Connection unavailable. No active connection.'));
+    }
+    async function refresh(){
+      if(!opened||session||phase==='connecting'||phase==='checking')return;
+      var run=epoch;report('checking','Checking available clients…');
+      try{
+        await ready();if(run!==epoch||!opened)return;
+        var result=await request();if(run!==epoch||!opened)return;
+        if(!Array.isArray(result.clients))throw Error('unavailable');
+        available=true;
+        clients=result.clients.filter(function(c){return c&&typeof c.clientId==='string'&&c.clientId.length>0;}).map(function(c){return {clientId:c.clientId};});
+        report('disconnected',clients.length?'Choose a client, then Connect.':'No authorized clients available.');
+      }catch(e){if(run===epoch)fail(e);}
+    }
+    async function publish(c){
+      var run=epoch,result=await post('publish',{snapshot:snapshot(c)});if(run!==epoch)return;
+      if(!Number.isSafeInteger(result.generation)||result.generation<1)throw Error('unavailable');
+      base=copy(c);generation=result.generation;
+    }
+    async function connect(clientId){
+      if(!opened||phase!=='disconnected'||!clients.some(function(c){return c.clientId===clientId;}))return;
+      var c=w.agentContext();if(!c.ok||!c.editable){report('disconnected','Apply valid code before connecting.');return;}
+      var run=++epoch;report('connecting','Connecting and uploading source…');
+      try{
+        var result=await request({action:'create',clientId:clientId});
+        if(run!==epoch)return;
+        if(typeof result.sessionId!=='string'||!result.sessionId)throw Error('unavailable');
+        session=result.sessionId;await publish(c);if(run!==epoch)return;
+        if(!same(c,w.agentContext())){disconnect('Context changed during connection. Connect again.');return;}
+        report('connected','Connected. Proposals require your explicit Apply.');schedule();
+      }catch(e){if(run===epoch)fail(e);}
+    }
+    function schedule(){if(opened&&session)timer=setTimeout(tick,1000);}
+    function contextChanged(){
+      if(!session||!base)return;
+      var c=w.agentContext();
+      if(!c.ok||!c.editable||c.projectInstance!==base.projectInstance)
+        disconnect('Draft or project changed. Apply valid code and connect again.');
+    }
+    async function tick(){
+      timer=null;var run=epoch;
+      try{
+        var c=w.agentContext();
+        if(!opened||!session)return;
+        if(!c.ok||!c.editable||c.projectInstance!==base.projectInstance){disconnect('Draft or project changed. Apply valid code and connect again.');return;}
+        await post('heartbeat',identity());if(run!==epoch)return;
+        contextChanged();if(run!==epoch)return;c=w.agentContext();
+        if(pending){
+          var s=w.agentProposalStatus(pending.id),ack=null;
+          // ready is validation only; revision evidence comes from the Apply UI.
+          if(s.ok&&s.revision&&s.revision!==base.baseRevision&&c.baseRevision===s.revision&&c.draftEpoch>base.draftEpoch&&
+            ['validated','applied','queued','playing'].indexOf(s.status)!==-1)ack='applied';
+          else if(!same(c,base))ack='failed';
+          else if(!s.ok||['invalid','superseded','cancelled','rejected'].indexOf(s.status)!==-1)ack=s.status==='rejected'?'rejected':'failed';
+          if(ack){
+            var result;
+            try{result=await post('acknowledge',Object.assign(identity(),{id:pending.id,status:ack,snapshot:ack==='applied'?snapshot(c):null}));}
+            catch(e){e.appliedLocally=ack==='applied';throw e;}
+            if(run!==epoch)return;
+            if(ack==='applied'){
+              if(!Number.isSafeInteger(result.generation)||result.generation<=generation)throw Error('unavailable');
+              generation=result.generation;base=copy(c);
+            }
+            pending=null;report('connected',ack==='applied'?'Applied in browser · '+s.status:'Proposal '+ack+'.');
+            schedule();return;
+          }
+        }
+        c=w.agentContext();
+        if(!same(c,base)){await publish(c);if(run!==epoch)return;schedule();return;}
+        if(!pending){
+          var polled=await post('poll',identity());if(run!==epoch)return;
+          var p=polled.proposal;
+          // Reconcile after I/O, before handing any edits to the local validator.
+          if(p){
+            if(!same(base,w.agentContext())||p.generation!==generation||p.baseRevision!==base.baseRevision||p.draftEpoch!==base.draftEpoch){disconnect('Stale proposal discarded. Connect again.');return;}
+            var accepted=w.agentPropose({id:p.id,context:copy(base),edits:p.edits,explanation:p.explanation});
+            pending={id:p.id};
+            if(!accepted.ok){await post('acknowledge',Object.assign(identity(),{id:p.id,status:'failed',snapshot:null}));if(run!==epoch)return;pending=null;}
+            report('connected',accepted.ok?'Proposal ready and validated. Review it below; Apply is required.':'Proposal failed local validation.');
+          }
+        }
+      }catch(e){if(run===epoch)fail(e);}
+      if(run===epoch)schedule();
+    }
+    return {open:function(){if(opened)return;opened=true;available=false;epoch++;refresh();},close:function(){opened=false;disconnect();},
+      connect:connect,disconnect:disconnect,refresh:refresh,state:state,contextChanged:contextChanged};
+  }
+  G.CT_MUSIC_AGENT_CONNECTION={create:create};
+})(typeof globalThis!=='undefined'?globalThis:window);
+
 /* ===== src/music-workspace.js ===== */
 // One source authority. Notes and exports use validated revisions; typing never
 // changes audio. Legacy and native editors retain their own document boundaries.
@@ -15396,6 +15555,21 @@ var EXPORTS = {
   var selection=null,proposal=null,requestId=null,serial=0,previousFocus,inerted=[],conflict=false,unsub=null;
   var unsaved=false,saveEpoch=0,editorLoading=null,previousRoute=null;
   var agentInstance=null,agentRecords=new Map(),policyEpoch=0;
+  var connection=null;
+  function renderConnection(s){
+    $('.mw-connect-status').textContent=s.message;
+    var gateway=location.protocol==='https:'&&s.available;
+    $('.mw-mcp-setup').hidden=!gateway;$('.mw-mcp-unavailable').hidden=gateway;
+    $('.mw-mcp-endpoint').value=gateway?location.origin+'/api/mcp':'';
+    $('.mw-sign-in').hidden=s.phase!=='signed-out'&&s.phase!=='access-denied';
+    var select=$('.mw-client'),chosen=select.value;select.replaceChildren();
+    var placeholder=document.createElement('option');placeholder.value='';placeholder.textContent='Choose an authorized client';select.appendChild(placeholder);
+    s.clients.forEach(function(c){var option=document.createElement('option');option.value=c.clientId;option.textContent=c.clientId;select.appendChild(option);});
+    select.value=chosen;select.disabled=s.phase!=='disconnected';
+    $('[data-action=connect]').disabled=s.phase!=='disconnected'||!select.value;
+    $('[data-action=disconnect]').disabled=!s.connected&&s.phase!=='connecting';
+    $('[data-action=refresh-clients]').disabled=['connecting','connected','checking'].indexOf(s.phase)!==-1;
+  }
   // Local page bridge only: these methods confer no authentication or transport trust.
   function detached(value){return JSON.parse(JSON.stringify(value));}
   function validUnicode(s){
@@ -15546,6 +15720,7 @@ var EXPORTS = {
     if(next==='code')ensureEditor().then(function(){if(focusCode!==false&&!root.hidden&&view==='code')editor.focus();}).catch(announceError);
   }
   function renderState(){
+    if(connection)connection.contextChanged();
     var s=snap(),v=s.validated;
     $('.mw-state').textContent='Draft '+(v&&s.draft===v.source?'validated':'edited')+' · Valid '+(v?v.id:'none')+
       ' · Queued '+(s.pending?s.pending.revisionId:'none')+' · Playing '+(s.playing||'none')+' · '+audioState.status+(audioState.suspended?' (audio suspended)':'');
@@ -15761,6 +15936,12 @@ var EXPORTS = {
       '<div class="mw-body"><main class="mw-main"><div class="mw-selection">Notes show the validated revision. Select a note to locate its source.</div><div class="mw-mainview mw-notes"></div><div class="mw-mainview mw-code" hidden></div>'+
       '<div class="mw-diagnostics" role="status"></div><details class="mw-help"><summary>Music function help</summary><pre></pre></details></main>'+
       '<aside class="mw-chat" aria-label="Musical collaboration"><h2>Chat</h2><p class="mw-context"></p>'+
+      '<section class="mw-connect" aria-label="Connect a music agent"><h2>Connect</h2>'+
+      '<div class="mw-mcp-setup" hidden><p>Add this remote MCP server in your agent, sign in with the same account, then refresh clients. Authorizing a client does not share a song; Connect below does.</p><label>Remote MCP server<input class="mw-mcp-endpoint" type="text" readonly></label><button data-action="copy-mcp">Copy MCP endpoint</button></div>'+
+      '<p class="mw-mcp-unavailable">Remote MCP setup requires the HTTPS gateway and an available connection API. It is unavailable on the Cloudflare site without that API. Sign in if prompted, then refresh clients.</p>'+
+      '<p>Connecting uploads your current music source, selected region, and edit constraints to this service for the client you choose. Validated edits and context changes are shared while connected. Every proposal requires your explicit Apply.</p>'+
+      '<label>Agent client<select class="mw-client"><option value="">Choose an authorized client</option></select></label><div class="mw-actions"><button data-action="refresh-clients">Refresh clients</button><button data-action="connect" disabled>Connect</button><button data-action="disconnect" disabled>Disconnect</button></div>'+
+      '<p class="mw-connect-status" role="status">Connection unavailable in this build.</p><a class="mw-sign-in" href="/sign-in" hidden>Sign in to connect</a></section>'+
       '<label>Generate with the composer<input class="mw-generate-text" maxlength="500" placeholder="Make something happy"></label><button data-action="generate">Generate song</button>'+
       '<label>Ask a musical agent<textarea class="mw-chat-input" maxlength="2000" placeholder="Simplify the drums, keep the melody"></textarea></label><small>Chat requires an authorized backend. Code and playback work without it.</small>'+
       '<label>Edit scope <select class="mw-scope"><option value="-1">Whole song</option><option value="0">Melody</option><option value="1">Harmony</option><option value="2">Bass</option><option value="3">Drums</option></select></label>'+
@@ -15799,12 +15980,20 @@ var EXPORTS = {
       Promise.resolve().then(function(){return action(b.dataset.action);}).catch(announceError);
     });
     $('.mw-seek').addEventListener('change',function(){engine().musicSeek(+this.value);});
+    $('.mw-client').addEventListener('change',function(){if(connection)renderConnection(connection.state());});
     ['.mw-scope','.mw-lock','.mw-region'].forEach(function(s){$(s).addEventListener('change',agentPolicyChanged);});
-    G.addEventListener('storage',function(e){if(e.key===KEY&&root&&!root.hidden){conflict=true;invalidateAgent();renderProposal();status('Another tab changed this project. Download this draft before reloading.');}});
+    G.addEventListener('storage',function(e){if(e.key===KEY&&root&&!root.hidden){conflict=true;invalidateAgent();renderProposal();renderState();status('Another tab changed this project. Download this draft before reloading.');}});
     G.addEventListener('beforeunload',function(e){if(conflict||saveTimer||unsaved){save();e.preventDefault();e.returnValue='';}});
   }
   async function action(name){
-    if(name==='apply'){var r=project.applyDraft();diagnostics(r.diagnostics);applied(r);}
+    if(name==='copy-mcp'){
+      if(!connection||!connection.state().available||location.protocol!=='https:')throw Error('MCP endpoint unavailable');
+      await navigator.clipboard.writeText(location.origin+'/api/mcp');status('Copied remote MCP endpoint. Add it in your agent, then refresh clients.');
+    }
+    else if(name==='connect'){if(connection)await connection.connect($('.mw-client').value);}
+    else if(name==='disconnect'){if(connection)connection.disconnect();}
+    else if(name==='refresh-clients'){if(connection)await connection.refresh();}
+    else if(name==='apply'){var r=project.applyDraft();diagnostics(r.diagnostics);applied(r);}
     else if(name==='undo'||name==='redo')applied(project[name]());
     else if(name==='play'){var v=snap().validated;if(v)activate(v,true);}
     else if(name==='pause')engine().musicPause(audioState.status!=='paused');
@@ -15873,6 +16062,8 @@ var EXPORTS = {
     if(G.CT_CREATE.stopForNative)G.CT_CREATE.stopForNative();engine().enterCreate();
     if(!/^#music(?:=|$)/.test(location.hash))history.replaceState(null,'','/create#music');
     agentInstance=G.crypto.randomUUID();root.hidden=false;inerted=[];
+    if(!connection&&G.CT_MUSIC_AGENT_CONNECTION)connection=G.CT_MUSIC_AGENT_CONNECTION.create({workspace:G.CT_MUSIC_WORKSPACE,onChange:renderConnection});
+    if(connection)connection.open();
     Array.from(document.body.children).forEach(function(el){if(el!==root&&!el.hasAttribute('inert')){el.setAttribute('inert','');inerted.push(el);}});
     if(!unsub)unsub=engine().onMusicState(onAudio);
     renderNotes();renderProposal();renderState();diagnostics(snap().diagnostics);selectView(view);
@@ -15881,6 +16072,7 @@ var EXPORTS = {
   }
   function close(){
     if(!root||root.hidden)return;
+    if(connection)connection.close();
     save();cancelChat('superseded');try{resetAudio();}catch(e){announceError(e);}
     root.hidden=true;inerted.forEach(function(el){el.removeAttribute('inert');});inerted=[];
     if(previousRoute)history.replaceState(null,'',previousRoute);

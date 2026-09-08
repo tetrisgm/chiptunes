@@ -12,11 +12,12 @@ Next traces from the repository root for that reason.
 Required server environment (never supplied by clients):
 
 - `MCP_OAUTH_ISSUER`: exact HTTPS issuer.
-- `MCP_OAUTH_AUDIENCE`: expected JWT audience.
-- `MCP_OAUTH_JWKS_URL`: trusted HTTPS JWKS endpoint; RS256/ES256 only.
+- `CLERK_SECRET_KEY`: server-only Clerk instance key.
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`: public key for the same Clerk instance.
 - `MCP_RESOURCE_URL`: canonical HTTPS URL ending exactly in `/api/mcp`.
 - `DATABASE_URL`: a dedicated Postgres database connection; certificate validation
-  is mandatory. SSL query parameters are rejected to prevent overriding TLS.
+  is mandatory. Supported SSL-mode parameters are removed before enforcing
+  certificate validation; unsafe TLS overrides fail closed.
 - `MCP_DATABASE_DEDICATED=true`: explicit confirmation this database is dedicated.
 
 Missing identity or dedicated database configuration makes `/api/mcp` return 503.
@@ -26,22 +27,21 @@ request grant check. Metadata requires identity config but does not claim an act
 session or database connection. The schema in `../server/music-agent-schema.sql`
 must be applied separately by an authorized operator, never automatically at startup.
 
-Vercel + Clerk + a dedicated Postgres database is the intended integration, not a
-completed connection. Clerk OAuth setup, audience/issuer/JWKS values, and token claim
-mapping remain unconfigured. JWTs currently require `sub`, `client_id`, `exp`, `iat`,
-`scope`, and **custom `music_grant_id`**. That custom claim is NOT a standard Clerk
-OAuth claim. A reviewed issuer mapping or durable grant lookup by issuer/subject/
-client must be implemented before claiming Clerk compatibility. There is no custom
-OAuth issuer, token exchange, login or consent endpoint in this app.
+Clerk's maintained SDK verifies OAuth tokens separately from browser sessions.
+There is no custom song grant claim: issuer/subject/client selects a durable
+connection authorized by explicit browser consent. A verified client may initialize
+and read language help before pairing; musical context remains unavailable until
+the browser connects and publishes. SQL owner locks serialize admission, pairing,
+publication, one-time claim, acknowledgments and revoke. Apply remains exclusively
+a browser action. Both `music-agent-schema.sql` and `music-agent-connections.sql`
+must be applied to the dedicated database before enabling the routes.
 
-`music_grant_id` selects the durable session row, never supplies authority. The
-trusted browser consent integration must create records containing issuer, owner,
-clientId, browserId, expiresAt (milliseconds), revoked, **scopes array**, and serialized
-core state. Records without stored scopes fail closed. Owner/client/issuer, token and
-record expiry, revocation and stored scope are checked in the same locked transaction
-as each core operation. Missing browser publication/heartbeat/consent means no usable
-song session. Browser publication, claim/application and acknowledgments are not
-implemented here. No tool can apply or play a proposal.
+Run `node prepare-studio.mjs` to package the exact shared Create artifact alongside
+the gateway. It copies an explicit public-asset allowlist, not song libraries or
+local configuration. `/create` stays usable without login; `/sign-in` is Clerk's
+login UI. `/api/music-agent` is a separate authenticated browser lifecycle endpoint,
+not an MCP tool. Clerk installation and a real OAuth/browser round trip remain
+deployment acceptance gates; passing mocks does not establish hosted compatibility.
 
 ## HTTP and authorization
 
@@ -66,7 +66,7 @@ JWT verification, grant checks, reads and handler work. The deadline bounds resp
 waiting; it cannot roll back an already issued database operation. SQL uses bounded
 connection/query/lock timeouts. An interrupted proposal may have committed: check
 status using its original id; never retry by minting a different id automatically.
-JWKS cache contains public keys only; transport is stateless, subscriptions disabled.
+Transport is stateless, subscriptions disabled.
 The adapter registers no logging callback and emits no prompts, source or tokens.
 
 ## Verification evidence and limits
@@ -79,8 +79,17 @@ signatures, issuer/audience/expiry/nbf/identity. Transport tests also use real s
 JWTs, not an auth success stub. Stalling functions exist only in deadline tests.
 Tests cover discovery, list/call, proposal CAS forwarding, scope/owner/grant denial,
 revocation, request limits and deadlines. Build verifies the Next routes compile.
-No real identity provider, remote JWKS, Postgres server, Vercel deployment or browser
-song round trip has been exercised.
+Clerk SDK/ClerkJS boundaries use explicitly labeled mocks. Real isolated PostgreSQL
+integration now exercises the production handlers with signed tokens and the real
+MCP client. A dedicated Neon connection and schema migration were verified over TLS.
+These do not prove real Clerk issuance, external-client consent or audible hosted
+round-trip behavior. Those acceptance gates remain pending.
+
+Browser snapshots have a separate 4 MiB JSON envelope while raw source stays
+limited to 512 KiB; MCP requests remain limited to 600,000 bytes. Browser ownership
+combines a verified Clerk session with a hashed, random in-memory tab nonce. Agent
+revision evidence is bound to the pairing incarnation so reconnect cannot revive
+an old proposal. No tab nonce or token is saved in browser storage.
 
 API/version evidence inspected before implementation: npm package metadata and
 installed declarations, [mcp-handler README](https://github.com/vercel/mcp-handler),

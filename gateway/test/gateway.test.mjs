@@ -8,12 +8,13 @@ import { createBrokerStore, configuredStore } from '../lib/postgres-store.mjs';
 
 const env = { MCP_OAUTH_ISSUER: 'https://identity.example', MCP_OAUTH_AUDIENCE: 'music',
   MCP_OAUTH_JWKS_URL: 'https://identity.example/jwks', MCP_RESOURCE_URL: 'https://music.example/api/mcp' };
-const config = readConfig(env);
+// Explicit cryptographic fixture, never production environment configuration.
+const config = {issuer:env.MCP_OAUTH_ISSUER,audience:env.MCP_OAUTH_AUDIENCE,resource:env.MCP_RESOURCE_URL};
 const keys = await generateKeyPair('ES256');
 const jwk = await exportJWK(keys.publicKey);
 const verify = createVerifier(config, createLocalJWKSet({ keys: [{ ...jwk, kid: 'test', alg: 'ES256' }] }));
 async function token(overrides = {}, key = keys.privateKey) {
-  return new SignJWT({ scope: 'music:read music:propose', client_id: 'test-client', music_grant_id: 'grant', ...overrides })
+  return new SignJWT({ scope: 'music:read music:propose', client_id: 'test-client', ...overrides })
     .setProtectedHeader({ alg: 'ES256', kid: 'test' }).setIssuer(overrides.iss ?? config.issuer)
     .setAudience(overrides.aud ?? config.audience).setSubject(overrides.sub ?? 'owner')
     .setIssuedAt().setExpirationTime(overrides.exp ?? '5m').sign(key);
@@ -22,7 +23,7 @@ async function token(overrides = {}, key = keys.privateKey) {
 test('real jose verifier checks signature, issuer, audience, expiry, nbf and identity claims', async () => {
   assert.equal((await verify(await token())).subject, 'owner');
   for (const claims of [{ iss: 'https://evil.example' }, { aud: 'other' }, { exp: 1 },
-    { nbf: Math.floor(Date.now() / 1000) + 600 }, { sub: '' }, { client_id: '' }, { music_grant_id: '' }]) {
+    { nbf: Math.floor(Date.now() / 1000) + 600 }, { sub: '' }, { client_id: '' }]) {
     const signed = await token(claims);
     await assert.rejects(() => verify(signed));
   }
@@ -55,7 +56,7 @@ function fixture() {
   const calls = [];
   const context = { source: 'song({tempo:120,bars:4})', baseRevision: 'r1', generation: 3, draftEpoch: 4 };
   const allowed = (p, scope) => !revoked && p.subject === 'owner' && p.clientId === 'test-client' &&
-    p.grantId === 'grant' && p.issuer === config.issuer && p.scopes.includes(scope);
+    p.issuer === config.issuer && p.scopes.includes(scope);
   return { calls, revoke: () => { revoked = true; }, store: {
     authorize: async (p, scope) => allowed(p, scope),
     execute: async ({ principal, scope, operation, input }) => {
@@ -94,7 +95,7 @@ test('SDK initializes, lists actual registry and calls context/help/proposal/sta
     await assert.rejects(() => client.callTool({ name: 'music_get_context', arguments: {} }));
   } finally { await client.close(); }
 });
-test('read-only token cannot propose; foreign owner or grant cannot connect', async () => {
+test('read-only token cannot propose; foreign owner or client cannot connect', async () => {
   const f = fixture(); const client = await connect(f.store, await token({ scope: 'music:read' }));
   try {
     const result = await client.callTool({ name: 'music_propose_edit', arguments: {
@@ -104,7 +105,7 @@ test('read-only token cannot propose; foreign owner or grant cannot connect', as
     assert.equal(result.isError, true);
     assert.equal(f.calls.length, 0);
   } finally { await client.close(); }
-  for (const claims of [{ sub: 'stranger' }, { music_grant_id: 'wrong' }]) {
+  for (const claims of [{ sub: 'stranger' }, { client_id: 'wrong' }]) {
     const signed = await token(claims);
     await assert.rejects(() => connect(f.store, signed));
   }
@@ -144,7 +145,7 @@ test('total deadline bounds stalled verifier, store and chunked body with stalle
 });
 
 test('broker store requires persisted scope and rechecks revoked grant inside execute transaction', async () => {
-  const principal = await verify(await token());
+  const principal = {...await verify(await token()),grantId:'grant'};
   let record = { issuer: config.issuer, owner: 'owner', clientId: 'test-client',
     revoked: false, expiresAt: Date.now() + 60000, scopes: ['music:read'] };
   // Transaction fixture, not a database persistence test.
@@ -163,7 +164,7 @@ test('broker store requires persisted scope and rechecks revoked grant inside ex
 });
 
 test('grant expiration and invalid clocks persist terminal state before broker, resisting rollback', async () => {
-  const principal = await verify(await token());
+  const principal = {...await verify(await token()),grantId:'grant'};
   for (const operation of ['authorize', 'execute']) {
     for (const expiredTime of [2000, NaN]) {
       let time = expiredTime;

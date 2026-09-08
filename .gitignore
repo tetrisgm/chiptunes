@@ -52,3 +52,5 @@ dist/_paneltest.html
 
 # Gate screenshots, written by scripts/verify-chrome.js for eyeballing.
 .shots/
+.vercel
+.env*

@@ -17,8 +17,10 @@
 // not process uptime. Clock regression/failure permanently revokes the session.
 const project = require('../src/music-project.js');
 const language = require('../src/music-language.js');
-const LIMITS = Object.freeze({ inputBytes: 600000, sourceBytes: 524288,
-  editBytes: 16384, edits: 32, replay: 1024, pending: 1, ttlMs: 30000, storageBytes: 1048576 });
+// Browser snapshots can expand sixfold when control characters are JSON-escaped.
+// Agent proposals retain the smaller independent request/edit limits.
+const LIMITS = Object.freeze({ inputBytes: 600000, browserBytes: 4194304, sourceBytes: 524288,
+  editBytes: 16384, edits: 32, replay: 1024, pending: 1, ttlMs: 30000, storageBytes: 8388608 });
 const bytes = s => Buffer.byteLength(s, 'utf8');
 const need = (ok, code) => { if (!ok) throw new Error(code); };
 const id = s => typeof s === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(s);
@@ -184,7 +186,7 @@ function createMusicAgentSession({ now, compile = language.compile,
       if (saved.snapshot !== null) {
         need(!revoked && generation > 0 && lastTime !== null && typeof saved.expires === 'number' &&
           Number.isFinite(saved.expires) && saved.expires > lastTime && saved.expires <= lastTime + ttlMs, 'invalid_storage');
-        snapshot = checkedSnapshot(data(saved.snapshot)); expires = saved.expires;
+        snapshot = checkedSnapshot(data(saved.snapshot, LIMITS.browserBytes)); expires = saved.expires;
       } else need(saved.expires === null && saved.pending === null, 'invalid_storage');
       if (saved.pending !== null) {
         shape(saved.pending, ['proposal', 'status']);
@@ -216,7 +218,7 @@ function createMusicAgentSession({ now, compile = language.compile,
     publish: input => call(t => {
       // Even a malformed publication invalidates outstanding work fail closed.
       invalidate('superseded'); snapshot = null; expires = null;
-      install(checkedSnapshot(data(input)), t); return { generation, status: 'online' };
+      install(checkedSnapshot(data(input, LIMITS.browserBytes)), t); return { generation, status: 'online' };
     }),
     heartbeat: input => call(t => {
       online(); const v = data(input); shape(v, ['generation', 'baseRevision', 'draftEpoch']); exact(v);
@@ -251,7 +253,7 @@ function createMusicAgentSession({ now, compile = language.compile,
       return { proposal: clone(pending) };
     }),
     acknowledge: input => call(t => {
-      online(); const v = data(input); shape(v, ['id', 'generation', 'baseRevision', 'draftEpoch', 'status', 'snapshot']); exact(v);
+      online(); const v = data(input, LIMITS.browserBytes); shape(v, ['id', 'generation', 'baseRevision', 'draftEpoch', 'status', 'snapshot']); exact(v);
       need(pending && pending.id === v.id && pending.status === 'claimed', 'stale_claim');
       need(['applied', 'rejected', 'failed'].includes(v.status), 'invalid_ack');
       if (v.status === 'applied') {

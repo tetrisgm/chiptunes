@@ -5,6 +5,10 @@ CREATE TABLE IF NOT EXISTS music_agent_connection_owners (
   subject text NOT NULL,
   PRIMARY KEY (issuer, subject)
 );
+-- Re-run explicitly on an existing dedicated DB to add durable admission state.
+ALTER TABLE music_agent_connection_owners
+  ADD COLUMN IF NOT EXISTS rate_window_ms bigint NOT NULL DEFAULT 0 CHECK (rate_window_ms >= 0),
+  ADD COLUMN IF NOT EXISTS rate_count integer NOT NULL DEFAULT 0 CHECK (rate_count BETWEEN 0 AND 2400);
 CREATE TABLE IF NOT EXISTS music_agent_connections (
   issuer text NOT NULL,
   subject text NOT NULL,

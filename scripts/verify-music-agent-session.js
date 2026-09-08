@@ -278,4 +278,14 @@ test('large private source plus maximum replay table remains bounded and restora
   const tooLarge = copy(state); tooLarge.snapshot.source += 'x'.repeat(LIMITS.storageBytes);
   assert.throws(() => restore(tooLarge), /invalid_storage/);
 });
+test('JSON escaping does not reject a source inside the raw-source limit', () => {
+  const { s } = fixture();
+  const large = {...snapshot(), source: source + '\n//' + '"'.repeat(310000)};
+  assert.ok(Buffer.byteLength(JSON.stringify(large)) > LIMITS.inputBytes);
+  assert.ok(Buffer.byteLength(large.source) < LIMITS.sourceBytes);
+  assert.equal(s.publish(large).ok, true);
+  const r = restore(s.exportState());
+  assert.equal(r.readContext().source, large.source);
+  assert.equal(r.serialize().ok, true);
+});
 console.log('Music agent session: ' + count + ' groups passed.');

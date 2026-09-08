@@ -61,6 +61,7 @@ const ORDER = [
   'src/music-project.js',
   'src/music-chat.js',
   'src/music-exports.js',
+  'src/music-agent-connection.js',
   'src/music-workspace.js',
   'src/webmcp.js',      // window.chiptunes + WebMCP tools: an agent driving the live page
   'src/helpers.js',

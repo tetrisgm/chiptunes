@@ -5,6 +5,41 @@ next. Infrastructure and operations live outside this repository.
 
 ## 2026-09-08 — Web agent connection pipeline (implementation underway)
 
+Current continuation: owner approved completing the proposed free-tier setup.
+Created Vercel `chiptunes-agent-gateway` in `shoku-s-projects` and dedicated Neon
+`chiptunes-agent-sessions` (free_v3, Frankfurt, built-in Neon auth off), connected
+to that project. TextText's database was not used. Clerk Hobby installation is
+blocked on marketplace terms acceptance; the owner has been given the acceptance
+link. No terms were accepted by the agent and no paid plan was selected.
+Production deployment remains disabled pending real Clerk setup and acceptance.
+
+Clerk SDK authentication now uses standard OAuth identities, not a custom song
+grant claim. Durable connection lifecycle and opt-in browser Connect controller
+are implemented, including gateway routes and ClerkJS session refresh.
+`gateway/prepare-studio.mjs` packages the same build.js Create artifact
+for first-party hosting, excluding music libraries and secrets. Vercel project
+root is gateway with parent sources enabled. Root .env.local is CLI-generated,
+ignored and mode 0600; never print it. Integration envs are recoverable from Vercel.
+Dedicated Neon schema and durable admission columns were migrated over verified
+TLS. Per-owner admission is 2,400 transactions/minute; 32 clients and 8 active
+sessions are bounded. Revoke deletes its session; owner activity cleans expired
+sessions. An abandoned owner's expired source remains until later owner activity:
+there is no guaranteed timed purge or recurring cleanup job.
+
+Security integration: hashed random tab nonce plus verified Clerk session binds
+browser ownership. Agent-visible revision hashes include pairing UUID, preventing
+stale proposals across reconnect. Browser raw-source limit remains 512 KiB with
+4 MiB JSON envelope; MCP input stays 600,000 bytes. Apply is explicit and lost
+acknowledgments never trigger replay. Auth bootstrap and requests are bounded.
+
+Verification in this continuation: full npm test passed, followed by the updated
+test:music-agent (24 core groups, 42 workspace checks, browser transport/auth
+fixtures and real handleBrowser/Postgres round trips), both isolated DB suites,
+and all 32 gateway tests. Next production build and real local HTTP Create smoke
+passed, with protected APIs honestly returning 503 without Clerk. npm audit reports
+zero production dependency vulnerabilities. Real Clerk, external clients,
+listening and deployed Safari checks remain unverified.
+
 The owner wants Pen/Paper-like onboarding for an existing agent on the WEB,
 without requiring Chiptunes desktop or an embedded paid-model API. Updated
 sequence: `docs/agent-connection-plan.md`, linked from the original workspace
@@ -21,7 +56,7 @@ queries; its migration is for a dedicated Chiptunes database only.
 
 The local browser bridge routes proposals through the existing editor UI and
 explicit Apply; exact context checks include project instance and lock policy,
-not only revision IDs. This is not yet browser-to-hosted-gateway synchronization.
+not only revision IDs. Same-origin browser-to-gateway synchronization now exists.
 No source upload starts automatically. Code/audio continue without a connection.
 
 `gateway/` contains the isolated Vercel/Next.js MCP service, with its own pinned
@@ -29,16 +64,15 @@ dependencies, authentication verifier, scoped tool binding and dedicated databas
 adapter. Missing configuration fails closed. Do not equate transport tests with
 real identity-provider consent or a functioning public Connect workflow.
 
-Deployment dependencies: Vercel CLI is authenticated as the existing account;
-the in-app Vercel browser was logged out. Clerk + dedicated Postgres free-tier
-provisioning approval was requested, not yet received. No new account/resource,
-OAuth client, secret, domain, persistent job or production deployment was created.
+Deployment dependencies: Vercel CLI is authenticated as the existing account.
+Clerk terms acceptance is outstanding; Vercel/Neon provisioning is complete.
 Do not reuse TextText's Neon production database. Do not run the aggregate deploy
 command: it also changes the broadcast box.
 
-Still required: real login/consent/grant lifecycle, browser session creation and
-delivery, visible Connect panel/client instructions, production retention/rate
-policy, actual two-client OAuth acceptance, listening and real Safari acceptance.
+Still required: Clerk installation/configuration after terms acceptance, real
+login/consent, actual two-client OAuth acceptance, listening and real Safari
+acceptance. Hard timed source deletion would require an approved retention
+mechanism; current opportunistic cleanup is documented above.
 The optional embedded Chat provider remains separate. Completion must not be
 reported based on fixtures or fail-closed scaffolding.
 
