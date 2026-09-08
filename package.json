@@ -22,6 +22,7 @@
     "test:music-workspace": "node build.js && node scripts/verify-create-fidelity.js && node scripts/verify-music-language.js && node scripts/verify-music-project.js && node scripts/verify-music-live.js && node scripts/verify-music-exports.js && node scripts/verify-music-chat.js && node scripts/verify-music-workspace.js && node scripts/verify-music-editor.js paste 1048576 --pretty && npm run test:music-agent",
     "test:music-agent": "node scripts/verify-music-agent-session.js && node scripts/verify-music-agent-tools.js && node scripts/verify-music-agent-broker.js && node scripts/verify-music-agent-postgres.js && node scripts/verify-music-workspace-agent.js && node scripts/verify-music-agent-connection.js",
     "test:music-chat-web": "node scripts/verify-music-chat-provider-ui.js && npm test --prefix gateway",
+    "test:music-project-transfer": "node scripts/verify-music-project-transfer.js",
     "test:music-agent-db": "node scripts/verify-music-agent-database.js && node scripts/verify-music-agent-connections.js",
     "test:music-agent-connection": "node scripts/verify-music-agent-connection.js",
     "test:youtube-self-heal": "node scripts/test-youtube-self-heal.js",
