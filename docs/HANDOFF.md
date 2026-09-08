@@ -3,7 +3,7 @@
 Plain, current working notes for whoever (or whatever) picks the project up
 next. Infrastructure and operations live outside this repository.
 
-## 2026-09-09 — Built-in web Chat takes priority (not deployed yet)
+## 2026-09-09 — Built-in web Chat deployed; native acceptance pending
 
 The owner clarified the primary web path: built-in Chat beside Code/Notes,
 funded by their OpenAI and Anthropic API keys. Clerk and external MCP are optional
@@ -16,8 +16,8 @@ and durable PostgreSQL paid-call admission. Keys are production environment
 secrets, never browser inputs. The unlock secret is in the owner's login Keychain
 under service `chiptunes-chat-owner`; no secret value belongs in working notes.
 Canonical origin is https://chiptunes-agent-gateway.vercel.app. Production envs
-and the dedicated Neon chat schema are provisioned; the new routes have NOT yet
-been deployed. Defaults: gpt-5.4-mini-2026-03-17 and claude-sonnet-4-6.
+and the dedicated Neon chat schema are provisioned. Defaults:
+gpt-5.4-mini-2026-03-17 and claude-sonnet-4-6.
 
 Paid admission is 20 calls per UTC day, 2 per fixed UTC minute (not rolling),
 one 45-second lease, and permanent request-ID replay rejection across instances.
@@ -34,8 +34,19 @@ provider fixture and existing Chat/workspace integration tests pass. Full root
 because the reference ROM was absent. `npm run test:music-chat-web` and the Next
 production build also exited 0. Vercel dry-run: 208 files / 5,129,964 bytes,
 new chat routes present and credentials/local caches excluded.
-Deployment, real provider browser Apply/playback/undo, and native Safari
-acceptance remain unverified. No release is claimed by this entry.
+Implementation committed/pushed as 5439dc8. Vercel deployment
+dpl_FumJ4WjPSvviQoqgTUwaicanDBMX is READY at the canonical origin;
+Create serves app.63706cf4a8c5.js / no-store. Access reports both providers,
+locked by default; unauthenticated Chat returns 401. Both real providers passed
+deployed headless Chromium acceptance on a 16-bar wave-bass pattern: request
+C2 E2 G2 E2 -> D2 F2 A2 F2, proposal leaves source unchanged until explicit Apply,
+playback acknowledges the new revision, undo restores the exact original source
+and playback revision. Two paid production calls were made; neither used mocks.
+An earlier browser probe stopped at an invalid test instrument before any paid
+request; the corrected probe used the documented wave-bass instrument.
+Native Safari, listening, and the main-site entry path remain unverified. This
+is a private gateway deployment, not completion of the full Create pipeline.
+TextText private changelog records 5439dc8 once; no public note was published.
 
 ## 2026-09-08 — Web agent connection pipeline (implementation underway)
 
