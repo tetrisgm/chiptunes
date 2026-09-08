@@ -45,7 +45,16 @@ const server=http.createServer((req,res)=>res.end('<!doctype html><body></body>'
       };
     });
     await page.addScriptTag({path:path.join(__dirname,'../src/music-workspace.js')});await page.evaluate(()=>CT_MUSIC_WORKSPACE.open());
+    await page.addStyleTag({path:path.join(__dirname,'../src/music-workspace.css')});
+    await page.setViewportSize({width:1280,height:900});
     await page.waitForFunction(()=>document.querySelector('.mw-chat-access-status').textContent.includes('Locked.'));
+    assert.equal(await page.locator('.mw-external-mcp').evaluate(el=>el.open),false,'external MCP is collapsed by default');
+    assert.equal(await page.locator('.mw-connect').isVisible(),false,'MCP setup does not occupy the sidebar');
+    assert.equal(await page.evaluate(()=>{
+      const sidebar=document.querySelector('.mw-chat'),chat=document.querySelector('.mw-chat-access'),mcp=document.querySelector('.mw-external-mcp');
+      const a=chat.getBoundingClientRect(),b=sidebar.getBoundingClientRect();
+      return sidebar.scrollTop===0&&a.top>=b.top&&a.bottom<=b.bottom&&sidebar.lastElementChild===mcp&&!!(chat.compareDocumentPosition(mcp)&Node.DOCUMENT_POSITION_FOLLOWING);
+    }),true,'built-in Chat is visible first without expanding or scrolling past MCP');
     assert.deepEqual(await page.locator('.mw-chat-provider option').allTextContents(),['OpenAI','Claude']);
     assert.equal(await page.locator('[data-action=chat]').isDisabled(),true);
     await page.locator('.mw-owner-password').fill('wrong-fixture-password');await page.locator('[data-action=chat-unlock]').click();

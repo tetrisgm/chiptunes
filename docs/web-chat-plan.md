@@ -18,6 +18,21 @@ artifact; do not create a second composer or audio pipeline.
 
 ## Remaining release sequence and evidence
 
+Checkpoint: steps 1–3 completed at 5439dc8; deployed Chromium verifies step 4's
+real-provider proposal/Apply/playback acknowledgment/undo path. Listening remains
+unverified. Native Safari on macOS showed build 7fe57941c401, generated concrete
+source, switched Notes/Code, acknowledged playing r2 with an advancing playhead,
+and stopped cleanly. This is partial native evidence, not proof of every gesture,
+model interaction or listening acceptance. Its screenshot also exposed optional
+MCP setup burying built-in Chat below the fold; fix and reverify that layout.
+
+The main-site entry must preserve the current project, including an unfinished
+draft, without auto-submitting it to a model or overwriting an existing hosted
+draft. Existing self-contained share links reject projects over 12 KB; typical
+generated explicit-event sources exceed that. A bare link to a blank hosted
+editor does not meet this handoff requirement. Keep the source tab intact and
+require explicit transfer to the exact first-party hosted origin.
+
 1. Finish full root tests and run `npm run test:music-chat-web`, then the Next
    production build. Record actual terminal results, including skipped ROM gates.
 2. Dry-run Vercel upload and inspect the deny-by-default allowlist: routes and

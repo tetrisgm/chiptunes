@@ -5,6 +5,16 @@ next. Infrastructure and operations live outside this repository.
 
 ## 2026-09-09 — Built-in web Chat deployed; native acceptance pending
 
+Native Safari follow-up on the deployed build label `Music v1 · 7fe57941c401`:
+opened a fresh tab through native UI, generated "Make something happy", saw
+concrete source and corresponding Notes, clicked Play, observed `Playing r2`
+with an advancing playhead, and clicked Stop (`Playing none · stopped`). This
+does not establish listening acceptance or every pointer/trackpad interaction.
+The rendered sidebar exposed a real usability defect: unconfigured optional MCP
+setup consumed the visible area before built-in Chat. The local fix places
+built-in Chat first and external MCP in a collapsed details section at the bottom;
+pending the next deliberate deployment and native layout recheck.
+
 The owner clarified the primary web path: built-in Chat beside Code/Notes,
 funded by their OpenAI and Anthropic API keys. Clerk and external MCP are optional
 and are not prerequisites for this path. See `docs/web-chat-plan.md` for remaining

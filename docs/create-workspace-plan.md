@@ -1,4 +1,10 @@
-## September 8 extension: bring your existing agent
+## September 9 priority: built-in owner-funded web Chat
+
+The owner clarified that embedded Chat using their OpenAI and Anthropic API
+keys is the primary web path. See `web-chat-plan.md`. The external MCP work
+below remains optional and its Clerk setup does not block built-in Chat.
+
+## September 8 extension: bring your existing agent (superseded priority)
 
 The implementation sequence now includes [the complete web agent connection
 pipeline](agent-connection-plan.md). External-agent MCP connection is the primary

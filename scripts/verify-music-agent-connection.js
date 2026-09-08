@@ -127,6 +127,8 @@ async function integrated(browser){
     await page.addScriptTag({path:path.join(__dirname,'../src/music-workspace.js')});
     await page.evaluate(()=>CT_MUSIC_WORKSPACE.open());
     await page.waitForFunction(()=>document.querySelector('.mw-client').options.length===2);
+    assert.equal(await page.locator('.mw-external-mcp').evaluate(el=>el.open),false);
+    await page.locator('.mw-external-mcp > summary').click();
     assert.equal(await page.locator('.mw-mcp-setup').isVisible(),true);
     assert.equal(await page.locator('.mw-mcp-endpoint').inputValue(),'https://gateway.fixture.invalid/api/mcp');
     await page.context().grantPermissions(['clipboard-read','clipboard-write'],{origin:'https://gateway.fixture.invalid'});
@@ -233,6 +235,8 @@ async function integrated(browser){
       await page.waitForFunction(()=>document.querySelector('.mw-connect-status').textContent.startsWith('Connected.'));
     };
     await page.waitForFunction(()=>document.querySelector('.mw-client').options.length===2);
+    assert.equal(await page.locator('.mw-external-mcp').evaluate(el=>el.open),false);
+    await page.locator('.mw-external-mcp > summary').click();
     assert.equal(await page.locator('.mw-mcp-setup').isVisible(),false,'HTTP does not advertise gateway endpoint');
     assert.equal(await page.evaluate(()=>calls.some(c=>c&&c.action==='create')),false,'opt-in before upload');
     await connect();
