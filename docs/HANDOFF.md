@@ -3,6 +3,72 @@
 Plain, current working notes for whoever (or whatever) picks the project up
 next. Infrastructure and operations live outside this repository.
 
+## 2026-09-09 — Actual musical signals for the stage (local checkpoint)
+
+The first three Phase C signal items are implemented. The rolling scheduled-note
+look-back is gone. The real sequencer optionally observes executed note-ons,
+note-offs, pulse continuations, sample starts and authored register writes, with
+original source indices. Loop-boundary note-offs execute before the loop marker.
+Page preparation/seek replay and offline/radio rendering leave observation off.
+Source-index metadata is deliberately excluded from sonic-history comparisons,
+so reordering source indices alone cannot reset held voices on live handover.
+
+The processor batches at most 256 scalar records with audio-context timestamps,
+epoch, activation, revision, loop/seek discontinuity and monotonic source sequence.
+The page validates acknowledgement identity, sequence and source references before
+publishing. src/music-event-stream.js retains 2048 records with independent pull
+readers, detached results, explicit overflow/clear semantics and bounded counters.
+Runtime reads once per draw: at most 512 pending triggers and 64 deliveries,
+dropping events over 250 ms late or from obsolete/paused transport. Positive
+authored NRx4 retriggers are also delivered, retaining kind/register and unknown
+pitch/duration rather than inventing a note. A failed observation delivery does
+not silence PCM. docs/music-signals.md documents the exact API and limitations.
+
+Audio.musicVisualState remains read-only and has no consumable noteOns. It now
+exposes measured RMS/peak, 160 signed waveform samples, 64 averaged frequency
+bins and normalized dB-magnitude bands from the existing INTERNAL PRE-FX master
+analyser. This is before EQ/compression/limiting, not speaker output or per-part
+spectral power. Scratch buffers are independent of the radio onset detector;
+no new AudioContext or microphone request is introduced. Role trigger strength
+is explicitly a semantic chip-level estimate, not an FFT measurement.
+
+Local artifact: app.1ce49d6d016e.js / Music 67cdfdad0f71, 115 sources,
+2,489,033 JS bytes, 229,731 HTML bytes, 14 games. Journal 20/20,
+executed-pipeline 15/15, live 31/31 and presentation 9/9 source checks pass.
+Worklet-boundary, automation, manual-envelope, kit and ROM checks pass.
+Real Chromium signal acceptance passed with 250 matching records, 123 unique
+drawn onsets and 437 snapshot reads, including loops, invalid Run and live
+replacement. It verified one AudioContext, measured nonzero bounded analysis,
+and no external/provider/microphone calls. A separate source-only review found
+no concrete actionable defects under normal bounded execution.
+
+The complete project test command list passed in resumed, ordered segments,
+not one uninterrupted green npm test invocation. The initial segment (82264)
+passed through export boundaries, then verify-entry
+sampled a cached pre-Stop peak immediately after Play/Stop/Close. A targeted real
+browser check showed stopped playback and no restart calls. The fixture now
+waits for the real Stop acknowledgement plus the probe's 100 ms cache and the
+analyser's 2048-sample history, then samples the full silence interval and also
+spies on start/queue calls. It passes at 0.000 peak with no starts (42744).
+The rest of the project sequence, music workspace/agent/project-transfer checks
+and the full unified aggregate exited zero (12577), including 13/13 stage adapter
+checks and CRT/DMG/NES 3/3 real renderer checks. Main's repeated signal browser
+check saw 251 matching records, 123 unique onsets and 438 snapshots. The existing
+private-ROM/harness-dependent LSDj checks reported skips, not proof of those
+unavailable ROMs. No production Stop behavior changed. Render parity passed
+10/10 (38507), minimum correlation 1.000000, maximum absolute RMS delta 0.175 dB.
+
+All owned test browsers/servers and delegated agents are closed. This slice's
+new event acceptance is local Chromium, not a fresh native/deployed Safari or
+physical speaker/trackpad check. The previous Phase B native observations below
+remain historical evidence for their named builds, not for this new artifact.
+
+This is not completion of Phase C or the whole goal. Safe visual evaluation,
+curated editable visual scenes/controls, audiovisual persistence, same-session
+audience output, the bounded Tidal/source-controls work and full performance/
+release acceptance remain. No Hydra dependency, deployment, paid provider call,
+desktop restart or broadcast change occurred. The goal remains active.
+
 ## 2026-09-09 — Music-first entry and persistent visual stage (local checkpoint)
 
 Phase B of algorave-stage-plan.md is implemented. Root and /create enter the

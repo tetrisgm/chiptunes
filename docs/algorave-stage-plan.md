@@ -32,12 +32,14 @@ them displace this main workflow. No autoplay or compulsory second visual progra
 - The earlier presentation was a fullscreen swap. Phase B now mounts the same
   renderer beside music/notes; visual focus and stage-only fullscreen are layout
   changes. This is not yet a separate audience window or visual-code renderer.
-- Audio.musicVisualState reads acknowledged music transport and native schedule
-  events. Its current role bands are semantic note-strength estimates, and its
-  spectrum/waveform arrays are empty. Do not label these FFT measurements.
-- The current recent-note window is a presentation convenience, not yet a
-  stable, timestamped, per-consumer onset stream for VJ routing. Audit identity,
-  overlap, native continuation, loops, seek, late acknowledgements and catch-up.
+- Audio.musicVisualState reads acknowledged transport and measured internal
+  pre-FX master analysis; it never drains onsets. Audio.musicEventReader gives
+  each consumer a bounded cursor over actual sequencer commands. Semantic
+  trigger strength remains distinct from measured master waveform/bands.
+- The rolling recent-note window has been replaced with source-indexed,
+  timestamped executed commands and explicit loop/seek/activation identities.
+  docs/music-signals.md defines scope, loss reporting, catch-up and the fact
+  that audio-render-context timestamps are not speaker-latency measurements.
 - Background rendering currently stops when document.hidden. A popup alone
   cannot be claimed to solve audience output while the editor is backgrounded.
 - Source-linked music controls have a separately tested preparatory module;
@@ -145,11 +147,11 @@ aggregate, all three renderer modes and native local stopped entry/Run/Stop.
 
 ### C. Shared musical signals and safe renderer evaluation
 
-- [ ] Normalize acknowledged transport and stable native onset identity with
+- [x] Normalize acknowledged transport and stable native onset identity with
   source index, frame/time, duration, pitch, channel/part and strength.
-- [ ] Give each visual consumer its own bounded cursor. Handle loop/seek/revision
+- [x] Give each visual consumer its own bounded cursor. Handle loop/seek/revision
   epochs explicitly; no duplicate onsets from a rolling look-back window.
-- [ ] Expose measured internal master waveform/bands/level where available;
+- [x] Expose measured internal master waveform/bands/level where available;
   distinguish measurements from semantic event estimates. No microphone prompt.
 - [ ] Evaluate hydra-synth against the existing artifact: license/dependencies,
   instance isolation, supplied canvas, explicit ticks, memory/GPU load, errors
@@ -163,14 +165,27 @@ Gate: one known note drives a predictable visual event through tempo changes and
 live replacement. Drafts never emit events. A runaway/rejected visual program
 cannot be called isolated merely because it is wrapped in try/catch.
 
-Implementation notes for this next slice: retain native note indices in the
-sequencer schedule and observe executed triggers/continuations/register writes,
-not a reconstructed rolling window. Batch scalar observations from the processor
-with activation, revision, seek/loop discontinuity, sequence and audio-context
-time. The page validates identity before publishing to independent bounded
-readers with explicit overflow. Observation must leave PCM byte-identical.
-Master analysis attaches to the existing output and has its own bounded sampling
-rate; it never requests microphone access or creates another AudioContext.
+Signal implementation: native source indices survive schedule preparation without
+affecting sonic-history comparisons. The processor observes actual triggers,
+note-offs, pulse continuations, sample starts and authored register writes;
+loop-boundary note-offs precede the discontinuity marker. The page checks the
+acknowledged epoch/activation/revision/discontinuity, sequence and source reference
+before publication. The journal retains 2048 records with independent cursors and
+explicit overflow/reset; the runtime consumes once per draw with bounded catch-up.
+Observations leave PCM byte-identical in live source tests, including temporary
+delivery failure. Measured waveform/RMS/peak and normalized dB-bin bands come
+from the existing internal master tap before EQ/compression/limiting, with
+separate analysis buffers. No microphone or extra AudioContext is created.
+The precise API and limits are in docs/music-signals.md. Visual-language choice,
+renderer isolation and the rest of Phase C are still separate unfinished gates.
+
+Local signal acceptance on app.1ce49d6d016e.js / Music 67cdfdad0f71: 20 journal,
+15 executed-pipeline and 31 live-audio source checks pass. Real Chromium checked
+250 matching records across independently drained readers, 123 unique drawn
+onsets and 437 read-only snapshots, including complete loops, invalid Run and
+live replacement. Measured analysis was nonzero and bounded; the check created
+one AudioContext and requested neither microphone nor provider. These are local
+command/render observations, not speaker-latency or deployed/native Safari proof.
 
 Hydra source preflight (not an adoption/performance test) inspected upstream
 commit `9d29a9f4fd8f9081b9759943f38db36f05b9a88f`, manifest 1.4.0. It carries

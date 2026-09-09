@@ -870,8 +870,8 @@
     // is what gets written every frame, not just what a note-on says, so these
     // ride in the score and BOTH players read the same array.
     var auto = this.auto = {}, vibOff = this.vibOffAt = {};
-    (gb && gb.auto || []).forEach(function (w) {
-      (auto[w.f | 0] = auto[w.f | 0] || []).push({ r: w.r & 0xFF, v: w.v & 0xFF });
+    (gb && gb.auto || []).forEach(function (w, index) {
+      (auto[w.f | 0] = auto[w.f | 0] || []).push({ r: w.r & 0xFF, v: w.v & 0xFF, index: index });
     });
     (gb && gb.vibOff || []).forEach(function (w) {
       (vibOff[w.f | 0] = vibOff[w.f | 0] || []).push(w.ch | 0);
@@ -883,16 +883,16 @@
     // KIT SAMPLES: four-bit PCM streamed into wave RAM, buffer by buffer. The
     // cartridge does this from its timer interrupt; here the same writes are
     // made at the same cycle counts, which is what makes the two agree.
-    var ka = this.kitAt = {};
-    (gb && gb.kit || []).forEach(function (k) { ka[k.f | 0] = k.id | 0; });
+    var ka = this.kitAt = {}, ki = this.kitIndexAt = {};
+    (gb && gb.kit || []).forEach(function (k, index) { ka[k.f | 0] = k.id | 0; ki[k.f | 0] = index; });
     this.kit = null; this.kitPos = 0; this.kitLeft = 0; this.kitCyc = 0;
     var byFrame = this.byFrame = {};
     var inst = (this.bank && this.bank.instruments) || [];
     var scoreNotes = gb && gb.notes || [], offFrames = H.noteOffFrames(scoreNotes);
     scoreNotes.forEach(function (n, index) {
       var f = n.frame | 0, off = offFrames[index];
-      (byFrame[f] = byFrame[f] || []).push({ t: 1, n: n });
-      if (off != null) (byFrame[off] = byFrame[off] || []).push({ t: 0, ch: n.ch | 0 });
+      (byFrame[f] = byFrame[f] || []).push({ t: 1, n: n, index: index });
+      if (off != null) (byFrame[off] = byFrame[off] || []).push({ t: 0, ch: n.ch | 0, index: index });
     });
     Object.keys(byFrame).forEach(function (k) {
       byFrame[k].sort(function (a, b) { return a.t - b.t; });
@@ -951,6 +951,25 @@
     var m = this.mix || (this.mix = {});
     for (var k in mix) { var v = +mix[k]; if (isFinite(v)) m[k] = Math.max(0, Math.min(3, v)); }
   };
+  // Optional scalar observation, enabled only by the live-music processor.
+  // No callbacks, source evaluation or register writes. Seek/preparation and
+  // offline renders leave it absent. This reports executed commands, not a
+  // promise that every trigger survives later writes or makes audible PCM.
+  Sequencer.prototype._observe = function (kind, index, ch, note, register, value) {
+    var out=this.observations;
+    if(!out)return;
+    if(!Number.isSafeInteger(out.next)||out.next>=Number.MAX_SAFE_INTEGER){out.exhausted=true;return;}
+    var sequence=out.next++;
+    if(out.events.length>=256){out.dropped++;return;}
+    var voice=this.apu.ch[ch],level=0;
+    if(voice&&voice.on&&voice.dac&&this.apu.power)
+      level=ch===2?([0,1,0.5,0.25][voice.level]||0):(voice.vol||0)/15;
+    out.events.push({sequence:sequence,kind:kind,sourceIndex:Number.isInteger(index)?index:-1,
+      frame:this.frame,contextTime:out.contextTime,channel:ch,
+      midi:note&&Number.isFinite(note.midi)?note.midi:null,
+      durationFrames:note?note.frames:0,velocity:note?(note.vel==null?1:note.vel):null,
+      strength:level,register:register==null?null:register,value:value==null?null:value});
+  };
   Sequencer.prototype._runFrame = function () {
     // Vibrato steps BEFORE this frame's events, exactly like the cartridge
     // driver's frame loop (vblank, draw, vibrato, events) -- the order is what
@@ -972,6 +991,7 @@
       if (e.t === 0) {
         this.apu.write(base + 1, 0x00); this.apu.write(base + 3, 0x80);
         if ((e.ch | 0) < 2) this.vib[e.ch | 0].on = false;
+        if(this.observations)this._observe('noteOff',e.index,e.ch);
         continue;
       }
       note = e.n; g = 1;
@@ -980,6 +1000,7 @@
         this.apu.write(base + 2, r[2]);
         this.apu.write(base + 3, r[3] & 7);
         this.vib[note.ch | 0].on = false;
+        if(this.observations)this._observe('continuation',e.index,note.ch,note);
         continue;
       }
       // live channel mute (the Create editor's lanes): skip the trigger, let
@@ -1004,6 +1025,7 @@
       r = H.noteRegisters(note, this.bank);
       this.apu.write(base, r[0]); this.apu.write(base + 1, r[1]);
       this.apu.write(base + 2, r[2]); this.apu.write(base + 3, r[3]);
+      if(this.observations)this._observe('noteOn',e.index,note.ch,note);
       if ((note.ch | 0) < 2) {
         var vst = this.vib[note.ch | 0];
         vst.base = ((r[3] & 7) << 8) | r[2];
@@ -1017,9 +1039,18 @@
     var wls = this.waveAt[this.frame];
     if (wls != null) this._loadWave(wls);
     var kid = this.kitAt[this.frame];
-    if (kid != null) this._kitStart(kid);
+    if (kid != null) {
+      this._kitStart(kid);
+      if(this.observations&&this.kit)this._observe('sample',this.kitIndexAt&&this.kitIndexAt[this.frame],2,null,null,kid);
+    }
     var aw = this.auto[this.frame];
-    if (aw) for (i = 0; i < aw.length; i++) this.apu.write(aw[i].r, aw[i].v);
+    if (aw) for (i = 0; i < aw.length; i++) {
+      this.apu.write(aw[i].r, aw[i].v);
+      if(this.observations){
+        var reg=aw[i].r,ch=reg>=0x10&&reg<=0x14?0:reg>=0x16&&reg<=0x19?1:reg>=0x1a&&reg<=0x1e||reg>=0x30&&reg<=0x3f?2:reg>=0x20&&reg<=0x23?3:-1;
+        this._observe('register',aw[i].index,ch,null,reg,aw[i].v);
+      }
+    }
     this.frame++;
   };
 
@@ -1045,6 +1076,7 @@
       base = 0x11 + (e.ch | 0) * 5;
       this.apu.write(base + 1, 0x00); this.apu.write(base + 3, 0x80);
       if ((e.ch | 0) < 2) this.vib[e.ch | 0].on = false;
+      if(this.observations)this._observe('noteOff',e.index,e.ch);
     }
     this.frame = 0;
   };
@@ -1474,11 +1506,31 @@ class GbChipProcessor extends AudioWorkletProcessor {
   }
   musicState(status, revision, extra) {
     this.port.postMessage(Object.assign({type:'musicState',status:status,revision:revision,
-      frame:this.seq?this.seq.frame:0,epoch:this.musicEpoch,activation:this.music?this.music.activation:null},extra||{}));
+      frame:this.seq?this.seq.frame:0,epoch:this.musicEpoch,activation:this.music?this.music.activation:null,
+      discontinuity:this.musicDiscontinuity||0,contextTime:typeof currentTime==='number'?currentTime:0},extra||{}));
+  }
+  musicFlushEvents() {
+    const observed=this.seq&&this.seq.observations;
+    if(!this.music||!observed||(!observed.events.length&&!observed.dropped&&(!observed.exhausted||observed.reportedExhausted)))return;
+    try{
+      this.port.postMessage({type:'musicEvents',epoch:this.musicEpoch,activation:this.music.activation,
+        revision:this.music.revision,discontinuity:this.musicDiscontinuity,
+        events:observed.events,dropped:observed.dropped,nextSequence:observed.next,exhausted:!!observed.exhausted});
+      observed.events=[];observed.dropped=0;observed.reportedExhausted=!!observed.exhausted;
+    }catch(_){
+      // Retain the bounded first 256 records for a later delivery attempt;
+      // subsequent observations count as drops, without interrupting PCM.
+    }
+  }
+  musicObserve() {
+    if(this.musicDiscontinuity>=Number.MAX_SAFE_INTEGER){this.seq.observations=null;return;}
+    this.musicDiscontinuity=(this.musicDiscontinuity||0)+1;
+    this.seq.observations={events:[],dropped:0,next:0,contextTime:0};
   }
   musicMessage(m) {
     if(m.epoch < (this.musicEpoch||0)) return;
     if(m.type==='musicStop') {
+      this.musicFlushEvents();
       this.musicEpoch=m.epoch;
       if(this.musicQueued) this.musicState('cancelled',this.musicQueued.revision,{reason:m.reason,activation:this.musicQueued.activation});
       this.musicQueued=null;
@@ -1487,6 +1539,7 @@ class GbChipProcessor extends AudioWorkletProcessor {
     }
     if(m.type==='musicPlay') {
       if(m.epoch===this.musicEpoch && m.prepared.activation<=this.musicSeen) return;
+      this.musicFlushEvents();
       this.musicSeen=m.prepared.activation;
       this.musicEpoch=m.epoch; this.musicQueued=null; this.mode='score';
       this.music=m.prepared; this.paused=false; this.lead=0; this.loopFrames=0;
@@ -1516,16 +1569,19 @@ class GbChipProcessor extends AudioWorkletProcessor {
       this.paused=m.paused; this.musicState(this.paused?'paused':'playing',this.music.revision); return;
     }
     if(m.type==='musicSeek') {
+      this.musicFlushEvents();
       if(this.musicQueued) this.musicState('cancelled',this.musicQueued.revision,{reason:'seek',activation:this.musicQueued.activation});
       this.musicQueued=null;
       const old=this.seq;
       this.seq=globalThis.CT_GB_APU.Sequencer.restore(m.state);
       this.seq.mix=old.mix; this.seq.chMute=old.chMute; this.seq.rate=old.rate;
+      this.musicObserve();
       this.musicDeclickLeft=0; this.musicDeclickStart=false; this.musicLastSample=null;
       this.musicState(this.paused?'paused':'playing',this.music.revision,{reason:'seek',resetChannels:[0,1,2,3]});
     }
   }
-  musicActivate(prepared,snapshot,live) {
+  musicActivate(prepared,snapshot,live,at) {
+    if(live)this.musicFlushEvents();
     const seq=globalThis.CT_GB_APU.Sequencer.restore(Object.assign({},prepared.schedule,snapshot.state));
     const declick=live && this.musicLastSample!=null &&
       (snapshot.preserve.some(keep=>!keep) || seq.gainScalar!==this.seq.gainScalar);
@@ -1533,7 +1589,9 @@ class GbChipProcessor extends AudioWorkletProcessor {
     if(declick) this.musicDeclickStart=true;
     if(live) seq.handover(this.seq,snapshot.preserve,snapshot.preserveGlobal);
     this.seq=seq; this.music=prepared; this.musicQueued=null; this.pokeOffs=null;
+    this.musicObserve();
     this.musicState('playing',prepared.revision,{reason:'activate',declickSamples:declick?64:0,
+      contextTime:at==null?(typeof currentTime==='number'?currentTime:0):at,
       resetChannels:live?[0,1,2,3].filter(ch=>!snapshot.preserve[ch]):[0,1,2,3]});
   }
   musicRender(L) {
@@ -1541,18 +1599,25 @@ class GbChipProcessor extends AudioWorkletProcessor {
     // compare histories or replay audio here; the page supplied ready states.
     for(let i=0;i<L.length;i++) {
       if(this.seq.acc<=0) {
+        const at=(typeof currentTime==='number'?currentTime:0)+i/sampleRate;
         const pending=this.musicQueued;
         if(pending) {
           const snapshot=pending.snapshots.find(s=>s.at>=this.seq.frame);
-          if(snapshot && snapshot.at===this.seq.frame) this.musicActivate(pending,snapshot,true);
+          if(snapshot && snapshot.at===this.seq.frame) this.musicActivate(pending,snapshot,true,at);
         }
         if(this.seq.frame>=this.music.totalFrames) {
-          if(this.music.loop) { this.seq.rewind(); this.musicState('loop',this.music.revision); }
+          if(this.music.loop) {
+            if(this.seq.observations)this.seq.observations.contextTime=at;
+            this.seq.rewind();this.musicFlushEvents();this.musicObserve();
+            this.musicState('loop',this.music.revision,{contextTime:at});
+          }
           else {
+            this.musicFlushEvents();
             this.seq.cutNotes(); this.paused=true;
-            this.musicState('ended',this.music.revision); L.fill(0,i); return;
+            this.musicState('ended',this.music.revision,{contextTime:at}); L.fill(0,i); return;
           }
         }
+        if(this.seq.observations)this.seq.observations.contextTime=at;
       }
       this.seq.render(L,i,1);
       // Output-only correction: retain every APU/sample clock and event. The
@@ -1569,6 +1634,7 @@ class GbChipProcessor extends AudioWorkletProcessor {
       }
       this.musicLastSample=L[i];
     }
+    this.musicFlushEvents();
   }
   // Report the level back about twice a second. Silence that should not be
   // silent is the failure mode this whole change guards against, and it is

@@ -150,6 +150,57 @@ function _musicPresentationState(){
   return state||{paused:true,revision:null,frame:0,status:'stopped',grid:{gstep:0,phase:0,beat:0,bar:0,bpm:120,spb:0.5,step16:0.125,paused:true},
     clock:{paused:true,idle:true,energy:0,energyLevel:0,beat:0,bar:0,phrase:0,beatPulse:0,bands:{},roles:{},noteOns:[],primaryNotes:[]}};
 }
+// One draw consumer, separate from read-only transport/presentation snapshots.
+// Other visual renderers can request independent Audio.musicEventReader cursors.
+// Backlogs are bounded, old/inactive events are discarded explicitly, and one
+// onset cannot reappear merely because two frames examined the same chip frame.
+var _musicDrawReader=null,_musicDrawPending=[],_musicDrawDropped=0;
+function _musicPresentationFrame(state){
+  if(!state){
+    if(_musicDrawReader)_musicDrawReader.close();
+    _musicDrawReader=null;_musicDrawPending=[];_musicDrawDropped=0;return null;
+  }
+  var clock=state.clock,notes=[],roles={};
+  ['lead','counter','bass','perc','noise'].forEach(function(role){
+    roles[role]=Object.assign({},clock.roles[role]||{},{energy:0,onset:0,notes:[]});
+  });
+  var batch=null;
+  if(state.eventStream&&state.eventStream.available){
+    try{
+      if(!_musicDrawReader)_musicDrawReader=Audio.musicEventReader({replay:true});
+      batch=_musicDrawReader.read(512);
+      if(batch.reset){_musicDrawDropped+=_musicDrawPending.length;_musicDrawPending=[];}
+      _musicDrawDropped+=batch.dropped;
+      for(var i=0;i<batch.events.length;i++){
+        var e=batch.events[i];
+        // Authored NRx4 retriggers have no declared pitch/duration. Retain that
+        // honesty (kind/register, midi:null), but don't miss their real onset.
+        var registerTrigger=e.kind==='register'&&[0x14,0x19,0x1e,0x23].includes(e.register)&&(e.value&0x80);
+        if(e.kind!=='noteOn'&&e.kind!=='sample'&&!registerTrigger)continue;
+        if(_musicDrawPending.length===512){_musicDrawPending.shift();_musicDrawDropped++;}
+        _musicDrawPending.push(e);
+      }
+    }catch(_){if(_musicDrawReader)_musicDrawReader.close();_musicDrawReader=null;}
+  }
+  var pending=[];
+  for(var i=0;i<_musicDrawPending.length;i++){
+    var e=_musicDrawPending[i],age=state.renderContextTime-e.contextTime;
+    if(state.paused||e.epoch!==state.epoch||e.activation!==state.activation||e.discontinuity!==state.discontinuity||age>0.25){_musicDrawDropped++;continue;}
+    if(age<0){pending.push(e);continue;}
+    if(e.strength<=0)continue;
+    if(notes.length>=64){_musicDrawDropped++;continue;}
+    var role=e.kind==='sample'?'perc':['lead','counter','bass','noise'][e.channel];
+    if(!role)continue;
+    var note=Object.assign({},e,{hi:Math.max(0,Math.min(1,((e.midi==null?60:e.midi)-24)/84)),
+      mag:e.strength,role:role,source:'music',native:true});
+    notes.push(note);roles[role].notes.push(note);
+    roles[role].energy=Math.max(roles[role].energy,e.strength);roles[role].onset=roles[role].energy;
+  }
+  _musicDrawPending=pending;roles.primary=roles.lead;roles.melody=roles.lead;
+  return Object.assign({},clock,{roles:roles,noteOns:notes,primaryNotes:roles.lead.notes,
+    eventDelivery:{dropped:_musicDrawDropped,pending:pending.length,generation:batch?batch.generation:null},
+    musicActivation:[state.epoch,state.activation,state.discontinuity,_musicPresentationEpoch].join(':')});
+}
 function _syncCreateRendering(){
   var on=_shouldBackgroundAudioOnly();
   if(on!==_bgAudioOnly)lastFrame=_nowMs();
@@ -1087,7 +1138,8 @@ function frame(now){
   // module may have leaked, then restore the base transform — so nothing accumulates across frames.
   for(let i=0;i<8;i++) g.restore();
   g.setTransform(DPR,0,0,DPR,0,0); g.globalAlpha = 1;
-  const RX = musicPresentation?Object.assign({},musicPresentation.clock,{musicActivation:String(musicPresentation.activation)+':'+_musicPresentationEpoch}):(Audio.started && Audio.vis && !silentWatch) ? Audio.vis() : null;
+  const musicFrame=_musicPresentationFrame(musicPresentation);
+  const RX = musicPresentation?musicFrame:(Audio.started && Audio.vis && !silentWatch) ? Audio.vis() : null;
   _frameRX = RX;
   _frameSND = musicPresentation ? {grid:()=>musicPresentation.grid,clock:()=>RX,vis:()=>RX,energy:()=>RX.energy,
     event(){},note(){},lead(){},fx(){},tone(){},drum(){},bass(){},act(){}}

@@ -42,10 +42,12 @@ test('tempo-map clock, loop rewind, pause, suspension and finite end follow ackn
   f.s.musicInvalidate('stop');assert.equal(f.read().revision,null);assert.equal(f.read().status,'stopped');
   f.s.chipOwner='radio';assert.equal(f.read(),null);
 });
-test('native semantic notes and analyser energy come only from acknowledged schedule',()=>{
+test('read-only snapshots never synthesize note onsets from an acknowledged schedule',()=>{
   const f=audioFixture(),a=f.prepare('notes');a.schedule.byFrame[0]=[{t:1,n:{ch:0,midi:72,vel:0.7}},{t:1,n:{ch:2,midi:40,vel:0.5}}];
-  f.ack(a,'playing',0);const result=f.read();assert.equal(result.clock.roles.lead.notes[0].midi,72);assert.equal(result.clock.roles.bass.notes[0].midi,40);assert.equal(result.clock.energy,0.4);
-  result.clock.roles.lead.notes[0].midi=1;assert.equal(f.read().clock.roles.lead.notes[0].midi,72);
+  f.ack(a,'playing',0);const result=f.read();assert.equal(result.clock.roles.lead.notes.length,0);assert.equal(result.clock.roles.bass.notes.length,0);
+  assert.equal(result.clock.energy,0,'without measured audio, do not substitute a semantic estimate');
+  assert.equal(result.clock.analysis.available,false);assert.equal(result.clock.noteOns.length,0);
+  result.clock.roles.lead.notes.push({midi:1});assert.equal(f.read().clock.roles.lead.notes.length,0);
   f.ack(a,'paused',0);assert.equal(f.read().clock.noteOns.length,0);
 });
 test('real source processor acknowledgements drive finite end without presentation commands',()=>{

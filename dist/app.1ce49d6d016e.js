@@ -1,8 +1,8 @@
-globalThis.CT_MUSIC_ASSETS_VERSION="5fba76c2aeb5e170";
+globalThis.CT_MUSIC_ASSETS_VERSION="e84045bcb7186729";
 globalThis.CT_MUSIC_EDITOR_VERSION="70dad5f8cc36";
 globalThis.CT_MUSIC_CHAT_UI_VERSION="904689e8bae1";
 globalThis.CT_MUSIC_PREVIEW_VERSION="21e5e4bcc266";
-globalThis.CT_MUSIC_BUILD_VERSION="a5e7a94fb4e7";
+globalThis.CT_MUSIC_BUILD_VERSION="67cdfdad0f71";
 /* ===== src/seed.js ===== */
 // ===== seed.js — deterministic generated-track identity. =====
 // Loads FIRST (before composer.js/audio.js) so any composer can seed itself from a URL token.
@@ -1556,8 +1556,8 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     // is what gets written every frame, not just what a note-on says, so these
     // ride in the score and BOTH players read the same array.
     var auto = this.auto = {}, vibOff = this.vibOffAt = {};
-    (gb && gb.auto || []).forEach(function (w) {
-      (auto[w.f | 0] = auto[w.f | 0] || []).push({ r: w.r & 0xFF, v: w.v & 0xFF });
+    (gb && gb.auto || []).forEach(function (w, index) {
+      (auto[w.f | 0] = auto[w.f | 0] || []).push({ r: w.r & 0xFF, v: w.v & 0xFF, index: index });
     });
     (gb && gb.vibOff || []).forEach(function (w) {
       (vibOff[w.f | 0] = vibOff[w.f | 0] || []).push(w.ch | 0);
@@ -1569,16 +1569,16 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     // KIT SAMPLES: four-bit PCM streamed into wave RAM, buffer by buffer. The
     // cartridge does this from its timer interrupt; here the same writes are
     // made at the same cycle counts, which is what makes the two agree.
-    var ka = this.kitAt = {};
-    (gb && gb.kit || []).forEach(function (k) { ka[k.f | 0] = k.id | 0; });
+    var ka = this.kitAt = {}, ki = this.kitIndexAt = {};
+    (gb && gb.kit || []).forEach(function (k, index) { ka[k.f | 0] = k.id | 0; ki[k.f | 0] = index; });
     this.kit = null; this.kitPos = 0; this.kitLeft = 0; this.kitCyc = 0;
     var byFrame = this.byFrame = {};
     var inst = (this.bank && this.bank.instruments) || [];
     var scoreNotes = gb && gb.notes || [], offFrames = H.noteOffFrames(scoreNotes);
     scoreNotes.forEach(function (n, index) {
       var f = n.frame | 0, off = offFrames[index];
-      (byFrame[f] = byFrame[f] || []).push({ t: 1, n: n });
-      if (off != null) (byFrame[off] = byFrame[off] || []).push({ t: 0, ch: n.ch | 0 });
+      (byFrame[f] = byFrame[f] || []).push({ t: 1, n: n, index: index });
+      if (off != null) (byFrame[off] = byFrame[off] || []).push({ t: 0, ch: n.ch | 0, index: index });
     });
     Object.keys(byFrame).forEach(function (k) {
       byFrame[k].sort(function (a, b) { return a.t - b.t; });
@@ -1637,6 +1637,25 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     var m = this.mix || (this.mix = {});
     for (var k in mix) { var v = +mix[k]; if (isFinite(v)) m[k] = Math.max(0, Math.min(3, v)); }
   };
+  // Optional scalar observation, enabled only by the live-music processor.
+  // No callbacks, source evaluation or register writes. Seek/preparation and
+  // offline renders leave it absent. This reports executed commands, not a
+  // promise that every trigger survives later writes or makes audible PCM.
+  Sequencer.prototype._observe = function (kind, index, ch, note, register, value) {
+    var out=this.observations;
+    if(!out)return;
+    if(!Number.isSafeInteger(out.next)||out.next>=Number.MAX_SAFE_INTEGER){out.exhausted=true;return;}
+    var sequence=out.next++;
+    if(out.events.length>=256){out.dropped++;return;}
+    var voice=this.apu.ch[ch],level=0;
+    if(voice&&voice.on&&voice.dac&&this.apu.power)
+      level=ch===2?([0,1,0.5,0.25][voice.level]||0):(voice.vol||0)/15;
+    out.events.push({sequence:sequence,kind:kind,sourceIndex:Number.isInteger(index)?index:-1,
+      frame:this.frame,contextTime:out.contextTime,channel:ch,
+      midi:note&&Number.isFinite(note.midi)?note.midi:null,
+      durationFrames:note?note.frames:0,velocity:note?(note.vel==null?1:note.vel):null,
+      strength:level,register:register==null?null:register,value:value==null?null:value});
+  };
   Sequencer.prototype._runFrame = function () {
     // Vibrato steps BEFORE this frame's events, exactly like the cartridge
     // driver's frame loop (vblank, draw, vibrato, events) -- the order is what
@@ -1658,6 +1677,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       if (e.t === 0) {
         this.apu.write(base + 1, 0x00); this.apu.write(base + 3, 0x80);
         if ((e.ch | 0) < 2) this.vib[e.ch | 0].on = false;
+        if(this.observations)this._observe('noteOff',e.index,e.ch);
         continue;
       }
       note = e.n; g = 1;
@@ -1666,6 +1686,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
         this.apu.write(base + 2, r[2]);
         this.apu.write(base + 3, r[3] & 7);
         this.vib[note.ch | 0].on = false;
+        if(this.observations)this._observe('continuation',e.index,note.ch,note);
         continue;
       }
       // live channel mute (the Create editor's lanes): skip the trigger, let
@@ -1690,6 +1711,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       r = H.noteRegisters(note, this.bank);
       this.apu.write(base, r[0]); this.apu.write(base + 1, r[1]);
       this.apu.write(base + 2, r[2]); this.apu.write(base + 3, r[3]);
+      if(this.observations)this._observe('noteOn',e.index,note.ch,note);
       if ((note.ch | 0) < 2) {
         var vst = this.vib[note.ch | 0];
         vst.base = ((r[3] & 7) << 8) | r[2];
@@ -1703,9 +1725,18 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     var wls = this.waveAt[this.frame];
     if (wls != null) this._loadWave(wls);
     var kid = this.kitAt[this.frame];
-    if (kid != null) this._kitStart(kid);
+    if (kid != null) {
+      this._kitStart(kid);
+      if(this.observations&&this.kit)this._observe('sample',this.kitIndexAt&&this.kitIndexAt[this.frame],2,null,null,kid);
+    }
     var aw = this.auto[this.frame];
-    if (aw) for (i = 0; i < aw.length; i++) this.apu.write(aw[i].r, aw[i].v);
+    if (aw) for (i = 0; i < aw.length; i++) {
+      this.apu.write(aw[i].r, aw[i].v);
+      if(this.observations){
+        var reg=aw[i].r,ch=reg>=0x10&&reg<=0x14?0:reg>=0x16&&reg<=0x19?1:reg>=0x1a&&reg<=0x1e||reg>=0x30&&reg<=0x3f?2:reg>=0x20&&reg<=0x23?3:-1;
+        this._observe('register',aw[i].index,ch,null,reg,aw[i].v);
+      }
+    }
     this.frame++;
   };
 
@@ -1731,6 +1762,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       base = 0x11 + (e.ch | 0) * 5;
       this.apu.write(base + 1, 0x00); this.apu.write(base + 3, 0x80);
       if ((e.ch | 0) < 2) this.vib[e.ch | 0].on = false;
+      if(this.observations)this._observe('noteOff',e.index,e.ch);
     }
     this.frame = 0;
   };
@@ -6820,6 +6852,145 @@ if (isNode) module.exports = API;
 return API;
 })();
 
+/* ===== src/music-event-stream.js ===== */
+// Bounded, pull-only journal. Source validation/identity belongs to the caller.
+// CT_MUSIC_EVENT_STREAM.create({capacity=2048}) accepts capacities 1..4096.
+// append(event) -> journal sequence (1-based, never reset by clear). Records
+// have Object.prototype or null prototypes and <=24 own data fields. Keys are
+// 1..64 UTF-16 units; string values are 0..256. Strings must be well-formed and
+// contain no C0/C1 controls. Prototype keys, symbols, accessors, nested values,
+// undefined, functions, bigints and nonfinite numbers are rejected. Other
+// values are strings, booleans or null. No source fields are added/rewritten.
+// clear(reason?) -> new generation (initially 0); an optional bounded string
+// reason is validated but not retained. Deliberately cleared events aren't loss.
+// reader({replay=false}) -> {read(limit=256), close()}; limits are 1..512.
+// read -> {events,dropped,reset,generation,cursor}. Events are detached records;
+// cursor is the last consumed/skipped JOURNAL sequence, not event.sequence.
+// dropped counts unread overflow losses since this reader's last successful
+// read (or creation), including losses before/intervening clears. reset means
+// at least one clear since that read/creation, then recovery at oldest retained.
+// snapshot -> {capacity,size,generation,sequence,overflow}; overflow is lifetime
+// evictions, including already-read entries. All counters are safe integers;
+// exhausted sequence/generation counters throw before changing journal state.
+(function(G){
+  'use strict';
+  var MAX_COUNTER=Number.MAX_SAFE_INTEGER;
+  var hasOwn=Object.prototype.hasOwnProperty;
+
+  function validString(value,max,nonempty){
+    if(typeof value!=='string'||value.length>max||(nonempty&&!value.length))return false;
+    for(var i=0;i<value.length;i++){
+      var code=value.charCodeAt(i);
+      if(code<32||(code>=127&&code<=159))return false;
+      if(code>=0xd800&&code<=0xdbff){
+        var next=value.charCodeAt(++i);
+        if(!(next>=0xdc00&&next<=0xdfff))return false;
+      }else if(code>=0xdc00&&code<=0xdfff)return false;
+    }
+    return true;
+  }
+
+  function copyRecord(record){
+    if(!record||typeof record!=='object'||Array.isArray(record))throw TypeError('Event must be a plain scalar record');
+    var proto=Object.getPrototypeOf(record);
+    if(proto!==null&&proto!==Object.prototype)throw TypeError('Event must have a plain or null prototype');
+    var keys=Reflect.ownKeys(record);
+    if(keys.length>24)throw RangeError('Event must have at most 24 fields');
+    var copy=Object.create(null);
+    for(var i=0;i<keys.length;i++){
+      var key=keys[i];
+      if(!validString(key,64,true)||key==='prototype'||hasOwn.call(Object.prototype,key))throw TypeError('Invalid event field name');
+      // Descriptors also cover nonenumerable fields, without invoking getters.
+      var descriptor=Object.getOwnPropertyDescriptor(record,key);
+      if(!descriptor||!hasOwn.call(descriptor,'value'))throw TypeError('Event accessors are not allowed');
+      var value=descriptor.value,type=typeof value;
+      if(!(value===null||type==='boolean'||(type==='number'&&Number.isFinite(value))||validString(value,256,false)))
+        throw TypeError('Event values must be finite scalars with bounded valid strings');
+      copy[key]=value;
+    }
+    return copy;
+  }
+
+  function option(options,name,fallback){
+    if(options===undefined)return fallback;
+    var copy=copyRecord(options),keys=Object.keys(copy);
+    if(keys.length>1||(keys.length===1&&keys[0]!==name))throw TypeError('Only '+name+' is supported');
+    return keys.length?copy[name]:fallback;
+  }
+
+  function boundedInteger(value,max,name){
+    if(!Number.isInteger(value)||value<1||value>max)throw RangeError(name+' must be an integer from 1 through '+max);
+    return value;
+  }
+
+  function create(options){
+    var capacity=boundedInteger(option(options,'capacity',2048),4096,'Capacity');
+    var slots=new Array(capacity),head=0,size=0,sequence=0,overflow=0;
+    // Readers pin only one tiny scalar record, never a retired ring or a chain
+    // of generations. A clear replaces this record; old readers can still see
+    // precisely where overflow stopped in their original generation.
+    var epoch={generation:0,evictedThrough:0,overflowTotal:0};
+
+    function append(event){
+      var copy=copyRecord(event);
+      if(sequence>=MAX_COUNTER)throw RangeError('Journal sequence exhausted');
+      sequence++;
+      if(size===capacity){
+        slots[head]=copy;
+        head=(head+1)%capacity;
+        overflow++;
+        epoch.evictedThrough=sequence-capacity;
+        epoch.overflowTotal=overflow;
+      }else{
+        slots[(head+size)%capacity]=copy;
+        size++;
+      }
+      return sequence;
+    }
+
+    function clear(reason){
+      if(reason!==undefined&&!validString(reason,256,false))throw TypeError('Clear reason must be a bounded valid string');
+      if(epoch.generation>=MAX_COUNTER)throw RangeError('Journal generation exhausted');
+      slots.fill(undefined);
+      head=0;size=0;
+      epoch={generation:epoch.generation+1,evictedThrough:sequence,overflowTotal:overflow};
+      return epoch.generation;
+    }
+
+    function reader(options){
+      var replay=option(options,'replay',false);
+      if(typeof replay!=='boolean')throw TypeError('Replay must be boolean');
+      var cursor=replay?sequence-size:sequence,seen=epoch,closed=false;
+      function read(limit){
+        if(closed)throw Error('Music event reader is closed');
+        limit=boundedInteger(limit===undefined?256:limit,512,'Read limit');
+        var reset=seen!==epoch;
+        // In the reader's original generation, only evictions AFTER its cursor
+        // were unread. Every later generation's eviction was unread. Cleared
+        // entries never enter either term, however many clears were missed.
+        var dropped=Math.max(0,seen.evictedThrough-cursor)+(overflow-seen.overflowTotal);
+        var base=sequence-size,next=reset?base:Math.max(cursor,base);
+        var count=Math.min(limit,sequence-next),events=[];
+        // Subtract sequence values before adding small ring offsets, so even
+        // the intermediate arithmetic stays exact at MAX_SAFE_INTEGER.
+        for(var i=0;i<count;i++)events.push(Object.assign({},slots[(head+(next-base)+i)%capacity]));
+        cursor=next+count;seen=epoch;
+        return {events:events,dropped:dropped,reset:reset,generation:epoch.generation,cursor:cursor};
+      }
+      function close(){closed=true;seen=null;}
+      return Object.freeze({read:read,close:close});
+    }
+
+    function snapshot(){
+      return {capacity:capacity,size:size,generation:epoch.generation,sequence:sequence,overflow:overflow};
+    }
+    return Object.freeze({append:append,clear:clear,reader:reader,snapshot:snapshot});
+  }
+
+  var api=Object.freeze({create:create});G.CT_MUSIC_EVENT_STREAM=api;
+  if(typeof module!=='undefined'&&module.exports)module.exports=api;
+})(typeof globalThis!=='undefined'?globalThis:this);
+
 /* ===== src/audio.js ===== */
 // AUTO-SPLIT from index.html — classic script, shares global scope (load order matters).
 // The AUDIO ENGINE + PLAYBACK ADAPTER (must load FIRST).
@@ -7151,6 +7322,7 @@ const Audio = (()=>{
       gbNode.connect(gbChipGain);
       gbNode.port.onmessage = function(ev){
         if(ev.data && ev.data.type==='musicState') musicAck(ev.data);
+        if(ev.data && ev.data.type==='musicEvents') musicAcceptEvents(ev.data);
         if(ev.data && ev.data.type==='stat' && typeof window!=='undefined'){
           window.__rrrChip = ev.data;
           // WHERE THE MUSIC ACTUALLY IS. The deck opens 0.18s in the future and
@@ -7191,6 +7363,131 @@ const Audio = (()=>{
   var chipOwner='radio';
   var musicListeners=new Set(), musicEpoch=0, musicRequest=0, musicActivation=0, musicCurrent=null, musicPending=null, musicRevisions=new Map(), musicIdentities=new Map();
   var musicVisualAck={frame:0,status:'stopped'}, musicVisualClocks=new WeakMap();
+  var musicJournal=globalThis.CT_MUSIC_EVENT_STREAM?globalThis.CT_MUSIC_EVENT_STREAM.create():null;
+  var musicObserved={activation:null,discontinuity:0,next:0,dropped:0,rejected:0,contextTime:0,exhausted:false};
+  var musicAnalysisCache=null,musicAnalysisTime=null,musicAnalysisFreq=null;
+  function musicEventReader(options){
+    if(!musicJournal)throw Error('Music event stream unavailable');
+    return musicJournal.reader(options);
+  }
+  function musicClearEvents(reason){
+    musicObserved={activation:null,discontinuity:0,next:0,dropped:0,rejected:0,contextTime:0,exhausted:false};
+    musicClearJournal(reason);
+    musicAnalysisCache=null;
+  }
+  function musicClearJournal(reason){
+    try{if(musicJournal)musicJournal.clear(reason);}catch(_){musicJournal=null;musicObserved.exhausted=true;}
+  }
+  function musicRecord(event){
+    // Visual delivery is optional: a failed observer must never change audio.
+    try{if(musicJournal)musicJournal.append(event);}catch(_){musicObserved.rejected++;}
+  }
+  function musicEventIdentity(){
+    return {epoch:musicEpoch,activation:musicCurrent.activation,revision:musicCurrent.revision,
+      discontinuity:musicObserved.discontinuity};
+  }
+  function musicObserveAck(state){
+    if(!Number.isSafeInteger(state.discontinuity)||state.discontinuity<1)return;
+    var changed=musicObserved.activation!==state.activation||musicObserved.discontinuity!==state.discontinuity;
+    if(changed){
+      if(!['activate','seek'].includes(state.reason)&&state.status!=='loop')return;
+      if(state.reason==='seek')musicClearJournal('seek');
+      musicObserved.activation=state.activation;musicObserved.discontinuity=state.discontinuity;
+      musicObserved.next=0;musicObserved.contextTime=0;musicObserved.exhausted=false;musicAnalysisCache=null;
+    }
+    if(changed||['paused','ended','stopped','error'].includes(state.status)||state.status==='playing'){
+      musicRecord(Object.assign(musicEventIdentity(),{kind:'transport',reason:changed?(state.reason||'loop'):state.status,
+        frame:Number.isFinite(state.frame)?state.frame:0,contextTime:Number.isFinite(state.contextTime)?state.contextTime:0}));
+    }
+  }
+  function musicAcceptEvents(message){
+    if(chipOwner!=='create'||!musicCurrent||message.epoch!==musicEpoch||message.activation!==musicCurrent.activation||
+      message.revision!==musicCurrent.revision||message.discontinuity!==musicObserved.discontinuity||
+      musicObserved.activation!==message.activation)return false;
+    var events=message.events,start=musicObserved.next,lastTime=musicObserved.contextTime;
+    if(!Array.isArray(events)||events.length>256||!Number.isSafeInteger(message.dropped)||message.dropped<0||
+      !Number.isSafeInteger(message.nextSequence)||message.nextSequence<start||
+      (message.nextSequence===start&&!message.exhausted)||
+      message.nextSequence-start!==events.length+message.dropped){musicObserved.rejected++;return false;}
+    // A whole batch is validated before publication. No partial malformed batch,
+    // late activation or duplicate message can mint another onset identity.
+    for(var i=0;i<events.length;i++){
+      var e=events[i];
+      if(!e||!['noteOn','noteOff','continuation','sample','register'].includes(e.kind)||e.sequence!==start+i||
+        !Number.isInteger(e.sourceIndex)||e.sourceIndex<0||e.sourceIndex>=50000||
+        !Number.isInteger(e.frame)||e.frame<0||e.frame>musicCurrent.totalFrames||
+        !Number.isFinite(e.contextTime)||e.contextTime<lastTime||
+        !Number.isInteger(e.channel)||e.channel< -1||e.channel>3||
+        !(e.midi===null||Number.isFinite(e.midi))||
+        !Number.isInteger(e.durationFrames)||e.durationFrames<0||e.durationFrames>216000||
+        !(e.velocity===null||Number.isFinite(e.velocity)&&e.velocity>=0&&e.velocity<=3)||
+        !Number.isFinite(e.strength)||e.strength<0||e.strength>1||
+        !(e.register===null||Number.isInteger(e.register)&&e.register>=0x10&&e.register<=0x3f)||
+        !(e.value===null||Number.isInteger(e.value)&&e.value>=0&&e.value<=255)||!musicEventSourceMatches(e)){
+        musicObserved.rejected++;return false;
+      }
+      lastTime=e.contextTime;
+    }
+    var identity=musicEventIdentity();
+    events.forEach(function(e){
+      musicRecord(Object.assign({},identity,{id:[musicEpoch,message.activation,message.discontinuity,e.sequence].join(':'),
+        sequence:e.sequence,kind:e.kind,sourceIndex:e.sourceIndex,frame:e.frame,contextTime:e.contextTime,
+        channel:e.channel,midi:e.midi,durationFrames:e.durationFrames,velocity:e.velocity,strength:e.strength,
+        register:e.register,value:e.value}));
+    });
+    if(message.dropped)musicRecord(Object.assign({},identity,{kind:'gap',reason:'processor-capacity',count:message.dropped,
+      firstSequence:start+events.length,nextSequence:message.nextSequence,contextTime:lastTime}));
+    musicObserved.next=message.nextSequence;musicObserved.contextTime=lastTime;musicObserved.dropped+=message.dropped;
+    musicObserved.exhausted=!!message.exhausted;
+    return true;
+  }
+  function musicEventSourceMatches(e){
+    var schedule=musicCurrent.schedule;
+    if(e.kind==='sample')return e.channel===2&&schedule.kitIndexAt[e.frame]===e.sourceIndex&&schedule.kitAt[e.frame]===e.value;
+    if(e.kind==='register')return (schedule.auto[e.frame]||[]).some(function(w){return w.index===e.sourceIndex&&w.r===e.register&&w.v===e.value;});
+    return (schedule.byFrame[e.frame]||[]).some(function(command){
+      if(command.index!==e.sourceIndex)return false;
+      if(e.kind==='noteOff')return command.t===0&&command.ch===e.channel;
+      var n=command.n;if(!command.t||!n)return false;
+      var kind=n.trigger===false&&n.ch<2?'continuation':'noteOn';
+      return e.kind===kind&&n.ch===e.channel&&e.midi===(Number.isFinite(n.midi)?n.midi:null)&&e.durationFrames===n.frames;
+    });
+  }
+  // Read the existing INTERNAL master tap, before EQ/compression/limiting. This
+  // is measured audio, not per-role estimates or a measurement at the speakers.
+  // Byte frequency bins encode normalized dB magnitudes, not linear power:
+  // https://developer.mozilla.org/en-US/docs/Web/API/AnalyserNode/getByteFrequencyData
+  // Analysis has separate scratch buffers and never touches radio onset state.
+  function musicAnalysis(paused){
+    var empty={available:false,tap:'internal-master-pre-fx',frequencyScale:'normalized-decibel-magnitude',
+      contextTime:ctx&&Number.isFinite(ctx.currentTime)?ctx.currentTime:0,rms:0,peak:0,
+      bands:{bass:0,mid:0,treble:0},waveform:[],spectrum:[]};
+    if(paused||typeof _masterAna==='undefined'||!_masterAna||!ctx||!Number.isFinite(ctx.currentTime))return empty;
+    try{
+      if(!musicAnalysisCache||ctx.currentTime<musicAnalysisCache.contextTime||ctx.currentTime-musicAnalysisCache.contextTime>=1/30){
+        var size=_masterAna.fftSize,count=_masterAna.frequencyBinCount;
+        if(!Number.isInteger(size)||size<32||size>32768||count!==size/2)return empty;
+        if(!musicAnalysisTime||musicAnalysisTime.length!==size)musicAnalysisTime=new Uint8Array(size);
+        if(!musicAnalysisFreq||musicAnalysisFreq.length!==count)musicAnalysisFreq=new Uint8Array(count);
+        _masterAna.getByteTimeDomainData(musicAnalysisTime);_masterAna.getByteFrequencyData(musicAnalysisFreq);
+        var sum=0,peak=0,waveform=[],spectrum=[];
+        for(var i=0;i<size;i++){var x=(musicAnalysisTime[i]-128)/128;sum+=x*x;peak=Math.max(peak,Math.abs(x));}
+        for(var i=0;i<160;i++)waveform.push((musicAnalysisTime[Math.floor(i*size/160)]-128)/128);
+        function magnitude(from,to){
+          var a=Math.max(0,Math.floor(from)),b=Math.min(count,Math.max(a+1,Math.ceil(to))),total=0;
+          for(var j=a;j<b;j++)total+=musicAnalysisFreq[j];return b>a?total/(255*(b-a)):0;
+        }
+        var hz=ctx.sampleRate/size;
+        for(var i=0;i<64;i++)spectrum.push(magnitude(i*count/64,(i+1)*count/64));
+        musicAnalysisCache=Object.assign({},empty,{available:true,rms:Math.sqrt(sum/size),peak:peak,
+          bands:{bass:magnitude(20/hz,250/hz),mid:magnitude(250/hz,2000/hz),treble:magnitude(2000/hz,16000/hz)},
+          fftSize:size,sampleRate:ctx.sampleRate,spectrumBinHz:ctx.sampleRate/128,
+          minDecibels:_masterAna.minDecibels,maxDecibels:_masterAna.maxDecibels,waveform:waveform,spectrum:spectrum});
+      }
+      return Object.assign({},musicAnalysisCache,{bands:Object.assign({},musicAnalysisCache.bands),
+        waveform:musicAnalysisCache.waveform.slice(),spectrum:musicAnalysisCache.spectrum.slice()});
+    }catch(_){return empty;}
+  }
   // Read-only presentation of the AUDIO-ACKNOWLEDGED activation. Never advances
   // a transport or consults the radio clock; position is held between reports.
   function musicVisualState(){
@@ -7212,32 +7509,27 @@ const Audio = (()=>{
       bpm=60*fps/Math.max(1,clock(Math.floor(step/4)+1)-clock(Math.floor(step/4)));
     }
     var grid={gstep:step,phase:phase,beat:Math.floor(step/4),bar:Math.floor(step/16),bpm:bpm,spb:60/bpm,step16:15/bpm,paused:paused};
-    var roles={lead:_emptyRole(),counter:_emptyRole(),bass:_emptyRole(),perc:_emptyRole(),noise:_emptyRole()},notes=[];
-    // Bounded recent native triggers, not a regenerated score or draft mapping.
-    if(current&&!paused)for(var f=Math.max(0,Math.floor(frame)-7);f<=frame;f++){
-      (current.schedule.byFrame[f]||[]).forEach(function(event){
-        if(!event.t||!event.n||notes.length>=64)return;
-        var n=event.n,role=['lead','counter','bass','noise'][n.ch]||'perc';
-        var note={id:String(current.activation)+':'+f+':'+notes.length,midi:n.midi,hi:Math.max(0,Math.min(1,((n.midi||60)-24)/84)),
-          mag:Math.max(0,Math.min(1,n.vel==null?0.5:n.vel)),channel:n.ch,role:role,source:'music',native:true};
-        notes.push(note);roles[role].notes.push(note);roles[role].energy=Math.max(roles[role].energy,note.mag);roles[role].onset=roles[role].energy;
-      });
-    }
+    // Snapshots never drain events. Each renderer consumes its own cursor once
+    // per draw and adds only newly observed triggers to these empty role lanes.
+    var roles={lead:_emptyRole(),counter:_emptyRole(),bass:_emptyRole(),perc:_emptyRole(),noise:_emptyRole()};
     roles.primary=roles.lead;roles.melody=roles.lead;
-    var energy=paused?0:Math.min(1,outputProbe().signal*4);
+    var analysis=musicAnalysis(paused),energy=paused?0:Math.min(1,analysis.rms*4);
     var barPhase=((step%16)+phase)/16,beatPhase=((step%4)+phase)/4;
     var visual={bpm:bpm,beat:grid.beat,bar:grid.bar,phrase:Math.floor(grid.bar/4),barPhase:barPhase,
       pulse:paused?0:1-beatPhase,beatPulse:paused?0:1-beatPhase,barPulse:paused?0:1-barPhase,
       phrasePulse:paused?0:1-((grid.bar%4+barPhase)/4),energy:energy,energyLevel:energy*10,intensity:energy,
-      bands:{bass:roles.bass.energy,mid:Math.max(roles.lead.energy,roles.counter.energy),treble:roles.noise.energy},
-      roles:roles,noteOns:notes,primaryNotes:roles.lead.notes,section:null,hue:0.5,kick:0,snare:0,hat:0,
-      drop:false,idle:paused,paused:paused,spectrum:[],waveform:[]};
+      bands:analysis.bands,analysis:analysis,roleSignal:'executed-command-strength-estimate',
+      roles:roles,noteOns:[],primaryNotes:[],section:null,hue:0.5,kick:0,snare:0,hat:0,
+      drop:false,idle:paused,paused:paused,spectrum:analysis.spectrum,waveform:analysis.waveform};
     return {revision:current?current.revision:null,activation:current?current.activation:null,frame:frame,status:status,
+      epoch:musicEpoch,discontinuity:musicObserved.discontinuity,renderContextTime:ctx&&Number.isFinite(ctx.currentTime)?ctx.currentTime:0,
+      eventStream:{available:!!musicJournal,nextSequence:musicObserved.next,sourceDropped:musicObserved.dropped,rejectedBatches:musicObserved.rejected,exhausted:musicObserved.exhausted},
       paused:paused,suspended:!!ctx&&ctx.state!=='running',grid:grid,clock:visual};
   }
   function musicEmit(state){ musicListeners.forEach(function(fn){ try{ fn(state); }catch(_){} }); }
   function musicAck(state){
     if(state.epoch!==musicEpoch) return;
+    if(state.activation===musicObserved.activation&&Number.isSafeInteger(state.discontinuity)&&state.discontinuity<musicObserved.discontinuity)return;
     if(state.status==='playing' && !musicRevisions.has(state.activation)) return;
     if(state.status==='playing'&&musicRevisions.get(state.activation).revision!==state.revision)return;
     if(state.status==='position' && (!musicCurrent||state.activation!==musicCurrent.activation)) return;
@@ -7252,6 +7544,7 @@ const Audio = (()=>{
       if(musicPending&&musicPending.activation===state.activation)musicPending=null;
     }
     if(musicCurrent&&state.activation===musicCurrent.activation&&state.revision===musicCurrent.revision){
+      musicObserveAck(state);
       if(['playing','paused','ended','stopped','error'].includes(state.status))musicVisualAck.status=state.status;
       if(['playing','paused','position','loop','ended'].includes(state.status)&&Number.isFinite(state.frame))musicVisualAck.frame=state.frame;
     }
@@ -7262,6 +7555,7 @@ const Audio = (()=>{
     gbNode.port.postMessage(Object.assign({epoch:musicEpoch},message));
   }
   function musicInvalidate(reason){
+    musicClearEvents(reason||'stop');
     musicVisualAck={frame:0,status:'stopped'};
     musicEpoch++; musicRequest++; musicPending=null; musicCurrent=null; musicRevisions.clear(); musicIdentities.clear(); gbPending=null;
     if(gbNode) musicPost({type:'musicStop',reason:reason||'stop'});
@@ -7301,7 +7595,8 @@ const Audio = (()=>{
       function add(ch,f,value){(h[ch][f]||(h[ch][f]=[])).push(value);}
       Object.keys(s.byFrame).forEach(function(f){s.byFrame[f].forEach(function(e){
         var ch=e.t?e.n.ch:e.ch, n=e.n;
-        var event=e;
+        // Source indices describe observations, not a change to the sound.
+        var event={t:e.t,ch:e.ch};
         if(n){ var note=Object.assign({},n); delete note.frames; event={t:e.t,n:note}; }
         var slot=n&&ch===2?(globalThis.CT_GB_HARDWARE||globalThis.CT_GB).waveSlotOf(s.inst,n.inst):0;
         add(ch,f,[event,n?s.inst[n.inst]:null,n&&ch===2?(s.bank.waveTables||[])[slot]:null]);
@@ -7309,7 +7604,8 @@ const Audio = (()=>{
       Object.keys(s.auto).forEach(function(f){s.auto[f].forEach(function(w){
         var ch=w.r>=0x10&&w.r<=0x14?0:w.r<=0x19&&w.r>=0x16?1:w.r>=0x1a&&w.r<=0x1e?2:w.r>=0x20&&w.r<=0x23?3:-1;
         if(w.r>=0x30&&w.r<=0x3f) ch=2;
-        if(ch<0) for(var c=0;c<5;c++) add(c,f,w); else add(ch,f,w);
+        var write={r:w.r,v:w.v};
+        if(ch<0) for(var c=0;c<5;c++) add(c,f,write); else add(ch,f,write);
       });});
       Object.keys(s.vibOffAt).forEach(function(f){s.vibOffAt[f].forEach(function(ch){add(ch,f,'vibOff');});});
       Object.keys(s.waveAt).forEach(function(f){add(2,f,['wave',s.waveAt[f],(s.bank.waveTables||[])[s.waveAt[f]]]);});
@@ -7335,7 +7631,7 @@ const Audio = (()=>{
     });
     // Schedules are sent once; snapshots contain only bounded chip state.
     var schedule={};
-    ['sr','samplesPerFrame','rate','gainScalar','mix','bank','inst','auto','vibOffAt','waveAt','kitAt','kitBank','byFrame'].forEach(function(k){schedule[k]=seq[k];});
+    ['sr','samplesPerFrame','rate','gainScalar','mix','bank','inst','auto','vibOffAt','waveAt','kitAt','kitIndexAt','kitBank','byFrame'].forEach(function(k){schedule[k]=seq[k];});
     return {revision:revision,activation:++musicActivation,totalFrames:gb.totalFrames,loop:!!options.loop,schedule:schedule,snapshots:snapshots,
       visualSettings:structuredClone(options.settings||{})};
   }
@@ -7374,6 +7670,7 @@ const Audio = (()=>{
     if(request!==musicRequest || chipOwner!=='create') return false;
     if(!gbNode) throw new Error('Music engine unavailable');
     var prepared=musicPrepare(gb,options,null);
+    musicClearEvents('play');
     musicEpoch++; musicCurrent=null; musicPending=null; musicRevisions.clear(); musicIdentities.clear();
     musicPending=prepared;
     musicRevisions.set(prepared.activation,prepared); musicIdentities.set(prepared.revision,musicIdentity(gb));
@@ -8972,7 +9269,7 @@ const Audio = (()=>{
   }
 
   return {
-    musicPlay:musicPlay, musicQueue:musicQueue, musicBoundaries:musicBoundaries, musicVisualState:musicVisualState,
+    musicPlay:musicPlay, musicQueue:musicQueue, musicBoundaries:musicBoundaries, musicVisualState:musicVisualState, musicEventReader:musicEventReader,
     musicCancel(revision){ musicPost({type:'musicCancel',revision:revision}); if(musicPending&&musicPending.revision===revision) musicPending=null; },
     musicPause(paused){ musicPost({type:'musicPause',paused:!!paused}); },
     musicSeek(frame){
@@ -41059,6 +41356,57 @@ function _musicPresentationState(){
   return state||{paused:true,revision:null,frame:0,status:'stopped',grid:{gstep:0,phase:0,beat:0,bar:0,bpm:120,spb:0.5,step16:0.125,paused:true},
     clock:{paused:true,idle:true,energy:0,energyLevel:0,beat:0,bar:0,phrase:0,beatPulse:0,bands:{},roles:{},noteOns:[],primaryNotes:[]}};
 }
+// One draw consumer, separate from read-only transport/presentation snapshots.
+// Other visual renderers can request independent Audio.musicEventReader cursors.
+// Backlogs are bounded, old/inactive events are discarded explicitly, and one
+// onset cannot reappear merely because two frames examined the same chip frame.
+var _musicDrawReader=null,_musicDrawPending=[],_musicDrawDropped=0;
+function _musicPresentationFrame(state){
+  if(!state){
+    if(_musicDrawReader)_musicDrawReader.close();
+    _musicDrawReader=null;_musicDrawPending=[];_musicDrawDropped=0;return null;
+  }
+  var clock=state.clock,notes=[],roles={};
+  ['lead','counter','bass','perc','noise'].forEach(function(role){
+    roles[role]=Object.assign({},clock.roles[role]||{},{energy:0,onset:0,notes:[]});
+  });
+  var batch=null;
+  if(state.eventStream&&state.eventStream.available){
+    try{
+      if(!_musicDrawReader)_musicDrawReader=Audio.musicEventReader({replay:true});
+      batch=_musicDrawReader.read(512);
+      if(batch.reset){_musicDrawDropped+=_musicDrawPending.length;_musicDrawPending=[];}
+      _musicDrawDropped+=batch.dropped;
+      for(var i=0;i<batch.events.length;i++){
+        var e=batch.events[i];
+        // Authored NRx4 retriggers have no declared pitch/duration. Retain that
+        // honesty (kind/register, midi:null), but don't miss their real onset.
+        var registerTrigger=e.kind==='register'&&[0x14,0x19,0x1e,0x23].includes(e.register)&&(e.value&0x80);
+        if(e.kind!=='noteOn'&&e.kind!=='sample'&&!registerTrigger)continue;
+        if(_musicDrawPending.length===512){_musicDrawPending.shift();_musicDrawDropped++;}
+        _musicDrawPending.push(e);
+      }
+    }catch(_){if(_musicDrawReader)_musicDrawReader.close();_musicDrawReader=null;}
+  }
+  var pending=[];
+  for(var i=0;i<_musicDrawPending.length;i++){
+    var e=_musicDrawPending[i],age=state.renderContextTime-e.contextTime;
+    if(state.paused||e.epoch!==state.epoch||e.activation!==state.activation||e.discontinuity!==state.discontinuity||age>0.25){_musicDrawDropped++;continue;}
+    if(age<0){pending.push(e);continue;}
+    if(e.strength<=0)continue;
+    if(notes.length>=64){_musicDrawDropped++;continue;}
+    var role=e.kind==='sample'?'perc':['lead','counter','bass','noise'][e.channel];
+    if(!role)continue;
+    var note=Object.assign({},e,{hi:Math.max(0,Math.min(1,((e.midi==null?60:e.midi)-24)/84)),
+      mag:e.strength,role:role,source:'music',native:true});
+    notes.push(note);roles[role].notes.push(note);
+    roles[role].energy=Math.max(roles[role].energy,e.strength);roles[role].onset=roles[role].energy;
+  }
+  _musicDrawPending=pending;roles.primary=roles.lead;roles.melody=roles.lead;
+  return Object.assign({},clock,{roles:roles,noteOns:notes,primaryNotes:roles.lead.notes,
+    eventDelivery:{dropped:_musicDrawDropped,pending:pending.length,generation:batch?batch.generation:null},
+    musicActivation:[state.epoch,state.activation,state.discontinuity,_musicPresentationEpoch].join(':')});
+}
 function _syncCreateRendering(){
   var on=_shouldBackgroundAudioOnly();
   if(on!==_bgAudioOnly)lastFrame=_nowMs();
@@ -41996,7 +42344,8 @@ function frame(now){
   // module may have leaked, then restore the base transform — so nothing accumulates across frames.
   for(let i=0;i<8;i++) g.restore();
   g.setTransform(DPR,0,0,DPR,0,0); g.globalAlpha = 1;
-  const RX = musicPresentation?Object.assign({},musicPresentation.clock,{musicActivation:String(musicPresentation.activation)+':'+_musicPresentationEpoch}):(Audio.started && Audio.vis && !silentWatch) ? Audio.vis() : null;
+  const musicFrame=_musicPresentationFrame(musicPresentation);
+  const RX = musicPresentation?musicFrame:(Audio.started && Audio.vis && !silentWatch) ? Audio.vis() : null;
   _frameRX = RX;
   _frameSND = musicPresentation ? {grid:()=>musicPresentation.grid,clock:()=>RX,vis:()=>RX,energy:()=>RX.energy,
     event(){},note(){},lead(){},fx(){},tone(){},drum(){},bass(){},act(){}}

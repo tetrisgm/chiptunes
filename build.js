@@ -50,6 +50,7 @@ const ORDER = [
   'src/chip-instruments.js',
   'src/composer.js',
   'src/live.js',        // the shared broadcast schedule (pure fn of wall clock; needs Song + CT_COMPOSERS)
+  'src/music-event-stream.js', // bounded independent cursors for actual chip observations
   'src/audio.js',
   'src/radio.js',
   'src/lsdj.js',              // .lsdsng export: a song an LSDj composer can keep writing

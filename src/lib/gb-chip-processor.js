@@ -155,11 +155,31 @@ class GbChipProcessor extends AudioWorkletProcessor {
   }
   musicState(status, revision, extra) {
     this.port.postMessage(Object.assign({type:'musicState',status:status,revision:revision,
-      frame:this.seq?this.seq.frame:0,epoch:this.musicEpoch,activation:this.music?this.music.activation:null},extra||{}));
+      frame:this.seq?this.seq.frame:0,epoch:this.musicEpoch,activation:this.music?this.music.activation:null,
+      discontinuity:this.musicDiscontinuity||0,contextTime:typeof currentTime==='number'?currentTime:0},extra||{}));
+  }
+  musicFlushEvents() {
+    const observed=this.seq&&this.seq.observations;
+    if(!this.music||!observed||(!observed.events.length&&!observed.dropped&&(!observed.exhausted||observed.reportedExhausted)))return;
+    try{
+      this.port.postMessage({type:'musicEvents',epoch:this.musicEpoch,activation:this.music.activation,
+        revision:this.music.revision,discontinuity:this.musicDiscontinuity,
+        events:observed.events,dropped:observed.dropped,nextSequence:observed.next,exhausted:!!observed.exhausted});
+      observed.events=[];observed.dropped=0;observed.reportedExhausted=!!observed.exhausted;
+    }catch(_){
+      // Retain the bounded first 256 records for a later delivery attempt;
+      // subsequent observations count as drops, without interrupting PCM.
+    }
+  }
+  musicObserve() {
+    if(this.musicDiscontinuity>=Number.MAX_SAFE_INTEGER){this.seq.observations=null;return;}
+    this.musicDiscontinuity=(this.musicDiscontinuity||0)+1;
+    this.seq.observations={events:[],dropped:0,next:0,contextTime:0};
   }
   musicMessage(m) {
     if(m.epoch < (this.musicEpoch||0)) return;
     if(m.type==='musicStop') {
+      this.musicFlushEvents();
       this.musicEpoch=m.epoch;
       if(this.musicQueued) this.musicState('cancelled',this.musicQueued.revision,{reason:m.reason,activation:this.musicQueued.activation});
       this.musicQueued=null;
@@ -168,6 +188,7 @@ class GbChipProcessor extends AudioWorkletProcessor {
     }
     if(m.type==='musicPlay') {
       if(m.epoch===this.musicEpoch && m.prepared.activation<=this.musicSeen) return;
+      this.musicFlushEvents();
       this.musicSeen=m.prepared.activation;
       this.musicEpoch=m.epoch; this.musicQueued=null; this.mode='score';
       this.music=m.prepared; this.paused=false; this.lead=0; this.loopFrames=0;
@@ -197,16 +218,19 @@ class GbChipProcessor extends AudioWorkletProcessor {
       this.paused=m.paused; this.musicState(this.paused?'paused':'playing',this.music.revision); return;
     }
     if(m.type==='musicSeek') {
+      this.musicFlushEvents();
       if(this.musicQueued) this.musicState('cancelled',this.musicQueued.revision,{reason:'seek',activation:this.musicQueued.activation});
       this.musicQueued=null;
       const old=this.seq;
       this.seq=globalThis.CT_GB_APU.Sequencer.restore(m.state);
       this.seq.mix=old.mix; this.seq.chMute=old.chMute; this.seq.rate=old.rate;
+      this.musicObserve();
       this.musicDeclickLeft=0; this.musicDeclickStart=false; this.musicLastSample=null;
       this.musicState(this.paused?'paused':'playing',this.music.revision,{reason:'seek',resetChannels:[0,1,2,3]});
     }
   }
-  musicActivate(prepared,snapshot,live) {
+  musicActivate(prepared,snapshot,live,at) {
+    if(live)this.musicFlushEvents();
     const seq=globalThis.CT_GB_APU.Sequencer.restore(Object.assign({},prepared.schedule,snapshot.state));
     const declick=live && this.musicLastSample!=null &&
       (snapshot.preserve.some(keep=>!keep) || seq.gainScalar!==this.seq.gainScalar);
@@ -214,7 +238,9 @@ class GbChipProcessor extends AudioWorkletProcessor {
     if(declick) this.musicDeclickStart=true;
     if(live) seq.handover(this.seq,snapshot.preserve,snapshot.preserveGlobal);
     this.seq=seq; this.music=prepared; this.musicQueued=null; this.pokeOffs=null;
+    this.musicObserve();
     this.musicState('playing',prepared.revision,{reason:'activate',declickSamples:declick?64:0,
+      contextTime:at==null?(typeof currentTime==='number'?currentTime:0):at,
       resetChannels:live?[0,1,2,3].filter(ch=>!snapshot.preserve[ch]):[0,1,2,3]});
   }
   musicRender(L) {
@@ -222,18 +248,25 @@ class GbChipProcessor extends AudioWorkletProcessor {
     // compare histories or replay audio here; the page supplied ready states.
     for(let i=0;i<L.length;i++) {
       if(this.seq.acc<=0) {
+        const at=(typeof currentTime==='number'?currentTime:0)+i/sampleRate;
         const pending=this.musicQueued;
         if(pending) {
           const snapshot=pending.snapshots.find(s=>s.at>=this.seq.frame);
-          if(snapshot && snapshot.at===this.seq.frame) this.musicActivate(pending,snapshot,true);
+          if(snapshot && snapshot.at===this.seq.frame) this.musicActivate(pending,snapshot,true,at);
         }
         if(this.seq.frame>=this.music.totalFrames) {
-          if(this.music.loop) { this.seq.rewind(); this.musicState('loop',this.music.revision); }
+          if(this.music.loop) {
+            if(this.seq.observations)this.seq.observations.contextTime=at;
+            this.seq.rewind();this.musicFlushEvents();this.musicObserve();
+            this.musicState('loop',this.music.revision,{contextTime:at});
+          }
           else {
+            this.musicFlushEvents();
             this.seq.cutNotes(); this.paused=true;
-            this.musicState('ended',this.music.revision); L.fill(0,i); return;
+            this.musicState('ended',this.music.revision,{contextTime:at}); L.fill(0,i); return;
           }
         }
+        if(this.seq.observations)this.seq.observations.contextTime=at;
       }
       this.seq.render(L,i,1);
       // Output-only correction: retain every APU/sample clock and event. The
@@ -250,6 +283,7 @@ class GbChipProcessor extends AudioWorkletProcessor {
       }
       this.musicLastSample=L[i];
     }
+    this.musicFlushEvents();
   }
   // Report the level back about twice a second. Silence that should not be
   // silent is the failure mode this whole change guards against, and it is

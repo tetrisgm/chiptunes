@@ -188,9 +188,31 @@ const audibleWithin = async (p, ms, threshold = 0.02) => {
      'composition opens silently');
   await p.locator('[data-action=play]').click();
   ok((await audibleWithin(p,20000))>.02,'explicit composition Play is audible');
+  await p.evaluate(() => {
+    window.entryCloseStarts=[];window.entryStopAck=null;
+    window.entryStopOff=Audio.onMusicState(state=>{
+      if(state.status==='stopped')entryStopAck={wall:performance.now(),context:Audio.audioCtx().currentTime};
+    });
+    for(const name of ['playScore','playCreate','enterCreate','musicPlay','musicQueue']){
+      const original=Audio[name];
+      Audio[name]=function(...args){entryCloseStarts.push(name);return original.apply(this,args);};
+    }
+  });
   await p.locator('[data-action=stop]').click();
   await p.evaluate(() => CT_MUSIC_WORKSPACE.close());
-  ok((await peak(p,1500))<.02, 'plain composition close never starts the station');
+  // outputProbe caches for 100 ms; the analyser also retains 2048 old samples.
+  // Wait for the real processor Stop acknowledgement and both old-data windows,
+  // then still observe silence for the FULL interval. An immediately cached
+  // pre-Stop peak is not evidence of a new player. The command spy separately
+  // catches any start/queue request, even if it would not sound until later.
+  await p.waitForFunction(()=>entryStopAck&&performance.now()-entryStopAck.wall>100&&
+    Audio.audioCtx().currentTime-entryStopAck.context>2048/Audio.audioCtx().sampleRate,null,{timeout:5000});
+  const closePeak=await peak(p,1500);
+  const closed=await p.evaluate(()=>{
+    entryStopOff();return {calls:entryCloseStarts,open:CT_MUSIC_WORKSPACE.isOpen(),status:Audio.musicVisualState()?.status};
+  });
+  ok(closePeak<.02&&!closed.open&&closed.status==='stopped'&&closed.calls.length===0,
+    'plain composition close never starts the station ('+closePeak.toFixed(3)+', starts: '+closed.calls.join(',')+')');
 
   // The public root is the instrument, not the compatibility listening wall.
   await p.goto(`http://127.0.0.1:${h.port}/`, { waitUntil: 'domcontentloaded' });

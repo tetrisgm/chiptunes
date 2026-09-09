@@ -328,6 +328,7 @@ const Audio = (()=>{
       gbNode.connect(gbChipGain);
       gbNode.port.onmessage = function(ev){
         if(ev.data && ev.data.type==='musicState') musicAck(ev.data);
+        if(ev.data && ev.data.type==='musicEvents') musicAcceptEvents(ev.data);
         if(ev.data && ev.data.type==='stat' && typeof window!=='undefined'){
           window.__rrrChip = ev.data;
           // WHERE THE MUSIC ACTUALLY IS. The deck opens 0.18s in the future and
@@ -368,6 +369,131 @@ const Audio = (()=>{
   var chipOwner='radio';
   var musicListeners=new Set(), musicEpoch=0, musicRequest=0, musicActivation=0, musicCurrent=null, musicPending=null, musicRevisions=new Map(), musicIdentities=new Map();
   var musicVisualAck={frame:0,status:'stopped'}, musicVisualClocks=new WeakMap();
+  var musicJournal=globalThis.CT_MUSIC_EVENT_STREAM?globalThis.CT_MUSIC_EVENT_STREAM.create():null;
+  var musicObserved={activation:null,discontinuity:0,next:0,dropped:0,rejected:0,contextTime:0,exhausted:false};
+  var musicAnalysisCache=null,musicAnalysisTime=null,musicAnalysisFreq=null;
+  function musicEventReader(options){
+    if(!musicJournal)throw Error('Music event stream unavailable');
+    return musicJournal.reader(options);
+  }
+  function musicClearEvents(reason){
+    musicObserved={activation:null,discontinuity:0,next:0,dropped:0,rejected:0,contextTime:0,exhausted:false};
+    musicClearJournal(reason);
+    musicAnalysisCache=null;
+  }
+  function musicClearJournal(reason){
+    try{if(musicJournal)musicJournal.clear(reason);}catch(_){musicJournal=null;musicObserved.exhausted=true;}
+  }
+  function musicRecord(event){
+    // Visual delivery is optional: a failed observer must never change audio.
+    try{if(musicJournal)musicJournal.append(event);}catch(_){musicObserved.rejected++;}
+  }
+  function musicEventIdentity(){
+    return {epoch:musicEpoch,activation:musicCurrent.activation,revision:musicCurrent.revision,
+      discontinuity:musicObserved.discontinuity};
+  }
+  function musicObserveAck(state){
+    if(!Number.isSafeInteger(state.discontinuity)||state.discontinuity<1)return;
+    var changed=musicObserved.activation!==state.activation||musicObserved.discontinuity!==state.discontinuity;
+    if(changed){
+      if(!['activate','seek'].includes(state.reason)&&state.status!=='loop')return;
+      if(state.reason==='seek')musicClearJournal('seek');
+      musicObserved.activation=state.activation;musicObserved.discontinuity=state.discontinuity;
+      musicObserved.next=0;musicObserved.contextTime=0;musicObserved.exhausted=false;musicAnalysisCache=null;
+    }
+    if(changed||['paused','ended','stopped','error'].includes(state.status)||state.status==='playing'){
+      musicRecord(Object.assign(musicEventIdentity(),{kind:'transport',reason:changed?(state.reason||'loop'):state.status,
+        frame:Number.isFinite(state.frame)?state.frame:0,contextTime:Number.isFinite(state.contextTime)?state.contextTime:0}));
+    }
+  }
+  function musicAcceptEvents(message){
+    if(chipOwner!=='create'||!musicCurrent||message.epoch!==musicEpoch||message.activation!==musicCurrent.activation||
+      message.revision!==musicCurrent.revision||message.discontinuity!==musicObserved.discontinuity||
+      musicObserved.activation!==message.activation)return false;
+    var events=message.events,start=musicObserved.next,lastTime=musicObserved.contextTime;
+    if(!Array.isArray(events)||events.length>256||!Number.isSafeInteger(message.dropped)||message.dropped<0||
+      !Number.isSafeInteger(message.nextSequence)||message.nextSequence<start||
+      (message.nextSequence===start&&!message.exhausted)||
+      message.nextSequence-start!==events.length+message.dropped){musicObserved.rejected++;return false;}
+    // A whole batch is validated before publication. No partial malformed batch,
+    // late activation or duplicate message can mint another onset identity.
+    for(var i=0;i<events.length;i++){
+      var e=events[i];
+      if(!e||!['noteOn','noteOff','continuation','sample','register'].includes(e.kind)||e.sequence!==start+i||
+        !Number.isInteger(e.sourceIndex)||e.sourceIndex<0||e.sourceIndex>=50000||
+        !Number.isInteger(e.frame)||e.frame<0||e.frame>musicCurrent.totalFrames||
+        !Number.isFinite(e.contextTime)||e.contextTime<lastTime||
+        !Number.isInteger(e.channel)||e.channel< -1||e.channel>3||
+        !(e.midi===null||Number.isFinite(e.midi))||
+        !Number.isInteger(e.durationFrames)||e.durationFrames<0||e.durationFrames>216000||
+        !(e.velocity===null||Number.isFinite(e.velocity)&&e.velocity>=0&&e.velocity<=3)||
+        !Number.isFinite(e.strength)||e.strength<0||e.strength>1||
+        !(e.register===null||Number.isInteger(e.register)&&e.register>=0x10&&e.register<=0x3f)||
+        !(e.value===null||Number.isInteger(e.value)&&e.value>=0&&e.value<=255)||!musicEventSourceMatches(e)){
+        musicObserved.rejected++;return false;
+      }
+      lastTime=e.contextTime;
+    }
+    var identity=musicEventIdentity();
+    events.forEach(function(e){
+      musicRecord(Object.assign({},identity,{id:[musicEpoch,message.activation,message.discontinuity,e.sequence].join(':'),
+        sequence:e.sequence,kind:e.kind,sourceIndex:e.sourceIndex,frame:e.frame,contextTime:e.contextTime,
+        channel:e.channel,midi:e.midi,durationFrames:e.durationFrames,velocity:e.velocity,strength:e.strength,
+        register:e.register,value:e.value}));
+    });
+    if(message.dropped)musicRecord(Object.assign({},identity,{kind:'gap',reason:'processor-capacity',count:message.dropped,
+      firstSequence:start+events.length,nextSequence:message.nextSequence,contextTime:lastTime}));
+    musicObserved.next=message.nextSequence;musicObserved.contextTime=lastTime;musicObserved.dropped+=message.dropped;
+    musicObserved.exhausted=!!message.exhausted;
+    return true;
+  }
+  function musicEventSourceMatches(e){
+    var schedule=musicCurrent.schedule;
+    if(e.kind==='sample')return e.channel===2&&schedule.kitIndexAt[e.frame]===e.sourceIndex&&schedule.kitAt[e.frame]===e.value;
+    if(e.kind==='register')return (schedule.auto[e.frame]||[]).some(function(w){return w.index===e.sourceIndex&&w.r===e.register&&w.v===e.value;});
+    return (schedule.byFrame[e.frame]||[]).some(function(command){
+      if(command.index!==e.sourceIndex)return false;
+      if(e.kind==='noteOff')return command.t===0&&command.ch===e.channel;
+      var n=command.n;if(!command.t||!n)return false;
+      var kind=n.trigger===false&&n.ch<2?'continuation':'noteOn';
+      return e.kind===kind&&n.ch===e.channel&&e.midi===(Number.isFinite(n.midi)?n.midi:null)&&e.durationFrames===n.frames;
+    });
+  }
+  // Read the existing INTERNAL master tap, before EQ/compression/limiting. This
+  // is measured audio, not per-role estimates or a measurement at the speakers.
+  // Byte frequency bins encode normalized dB magnitudes, not linear power:
+  // https://developer.mozilla.org/en-US/docs/Web/API/AnalyserNode/getByteFrequencyData
+  // Analysis has separate scratch buffers and never touches radio onset state.
+  function musicAnalysis(paused){
+    var empty={available:false,tap:'internal-master-pre-fx',frequencyScale:'normalized-decibel-magnitude',
+      contextTime:ctx&&Number.isFinite(ctx.currentTime)?ctx.currentTime:0,rms:0,peak:0,
+      bands:{bass:0,mid:0,treble:0},waveform:[],spectrum:[]};
+    if(paused||typeof _masterAna==='undefined'||!_masterAna||!ctx||!Number.isFinite(ctx.currentTime))return empty;
+    try{
+      if(!musicAnalysisCache||ctx.currentTime<musicAnalysisCache.contextTime||ctx.currentTime-musicAnalysisCache.contextTime>=1/30){
+        var size=_masterAna.fftSize,count=_masterAna.frequencyBinCount;
+        if(!Number.isInteger(size)||size<32||size>32768||count!==size/2)return empty;
+        if(!musicAnalysisTime||musicAnalysisTime.length!==size)musicAnalysisTime=new Uint8Array(size);
+        if(!musicAnalysisFreq||musicAnalysisFreq.length!==count)musicAnalysisFreq=new Uint8Array(count);
+        _masterAna.getByteTimeDomainData(musicAnalysisTime);_masterAna.getByteFrequencyData(musicAnalysisFreq);
+        var sum=0,peak=0,waveform=[],spectrum=[];
+        for(var i=0;i<size;i++){var x=(musicAnalysisTime[i]-128)/128;sum+=x*x;peak=Math.max(peak,Math.abs(x));}
+        for(var i=0;i<160;i++)waveform.push((musicAnalysisTime[Math.floor(i*size/160)]-128)/128);
+        function magnitude(from,to){
+          var a=Math.max(0,Math.floor(from)),b=Math.min(count,Math.max(a+1,Math.ceil(to))),total=0;
+          for(var j=a;j<b;j++)total+=musicAnalysisFreq[j];return b>a?total/(255*(b-a)):0;
+        }
+        var hz=ctx.sampleRate/size;
+        for(var i=0;i<64;i++)spectrum.push(magnitude(i*count/64,(i+1)*count/64));
+        musicAnalysisCache=Object.assign({},empty,{available:true,rms:Math.sqrt(sum/size),peak:peak,
+          bands:{bass:magnitude(20/hz,250/hz),mid:magnitude(250/hz,2000/hz),treble:magnitude(2000/hz,16000/hz)},
+          fftSize:size,sampleRate:ctx.sampleRate,spectrumBinHz:ctx.sampleRate/128,
+          minDecibels:_masterAna.minDecibels,maxDecibels:_masterAna.maxDecibels,waveform:waveform,spectrum:spectrum});
+      }
+      return Object.assign({},musicAnalysisCache,{bands:Object.assign({},musicAnalysisCache.bands),
+        waveform:musicAnalysisCache.waveform.slice(),spectrum:musicAnalysisCache.spectrum.slice()});
+    }catch(_){return empty;}
+  }
   // Read-only presentation of the AUDIO-ACKNOWLEDGED activation. Never advances
   // a transport or consults the radio clock; position is held between reports.
   function musicVisualState(){
@@ -389,32 +515,27 @@ const Audio = (()=>{
       bpm=60*fps/Math.max(1,clock(Math.floor(step/4)+1)-clock(Math.floor(step/4)));
     }
     var grid={gstep:step,phase:phase,beat:Math.floor(step/4),bar:Math.floor(step/16),bpm:bpm,spb:60/bpm,step16:15/bpm,paused:paused};
-    var roles={lead:_emptyRole(),counter:_emptyRole(),bass:_emptyRole(),perc:_emptyRole(),noise:_emptyRole()},notes=[];
-    // Bounded recent native triggers, not a regenerated score or draft mapping.
-    if(current&&!paused)for(var f=Math.max(0,Math.floor(frame)-7);f<=frame;f++){
-      (current.schedule.byFrame[f]||[]).forEach(function(event){
-        if(!event.t||!event.n||notes.length>=64)return;
-        var n=event.n,role=['lead','counter','bass','noise'][n.ch]||'perc';
-        var note={id:String(current.activation)+':'+f+':'+notes.length,midi:n.midi,hi:Math.max(0,Math.min(1,((n.midi||60)-24)/84)),
-          mag:Math.max(0,Math.min(1,n.vel==null?0.5:n.vel)),channel:n.ch,role:role,source:'music',native:true};
-        notes.push(note);roles[role].notes.push(note);roles[role].energy=Math.max(roles[role].energy,note.mag);roles[role].onset=roles[role].energy;
-      });
-    }
+    // Snapshots never drain events. Each renderer consumes its own cursor once
+    // per draw and adds only newly observed triggers to these empty role lanes.
+    var roles={lead:_emptyRole(),counter:_emptyRole(),bass:_emptyRole(),perc:_emptyRole(),noise:_emptyRole()};
     roles.primary=roles.lead;roles.melody=roles.lead;
-    var energy=paused?0:Math.min(1,outputProbe().signal*4);
+    var analysis=musicAnalysis(paused),energy=paused?0:Math.min(1,analysis.rms*4);
     var barPhase=((step%16)+phase)/16,beatPhase=((step%4)+phase)/4;
     var visual={bpm:bpm,beat:grid.beat,bar:grid.bar,phrase:Math.floor(grid.bar/4),barPhase:barPhase,
       pulse:paused?0:1-beatPhase,beatPulse:paused?0:1-beatPhase,barPulse:paused?0:1-barPhase,
       phrasePulse:paused?0:1-((grid.bar%4+barPhase)/4),energy:energy,energyLevel:energy*10,intensity:energy,
-      bands:{bass:roles.bass.energy,mid:Math.max(roles.lead.energy,roles.counter.energy),treble:roles.noise.energy},
-      roles:roles,noteOns:notes,primaryNotes:roles.lead.notes,section:null,hue:0.5,kick:0,snare:0,hat:0,
-      drop:false,idle:paused,paused:paused,spectrum:[],waveform:[]};
+      bands:analysis.bands,analysis:analysis,roleSignal:'executed-command-strength-estimate',
+      roles:roles,noteOns:[],primaryNotes:[],section:null,hue:0.5,kick:0,snare:0,hat:0,
+      drop:false,idle:paused,paused:paused,spectrum:analysis.spectrum,waveform:analysis.waveform};
     return {revision:current?current.revision:null,activation:current?current.activation:null,frame:frame,status:status,
+      epoch:musicEpoch,discontinuity:musicObserved.discontinuity,renderContextTime:ctx&&Number.isFinite(ctx.currentTime)?ctx.currentTime:0,
+      eventStream:{available:!!musicJournal,nextSequence:musicObserved.next,sourceDropped:musicObserved.dropped,rejectedBatches:musicObserved.rejected,exhausted:musicObserved.exhausted},
       paused:paused,suspended:!!ctx&&ctx.state!=='running',grid:grid,clock:visual};
   }
   function musicEmit(state){ musicListeners.forEach(function(fn){ try{ fn(state); }catch(_){} }); }
   function musicAck(state){
     if(state.epoch!==musicEpoch) return;
+    if(state.activation===musicObserved.activation&&Number.isSafeInteger(state.discontinuity)&&state.discontinuity<musicObserved.discontinuity)return;
     if(state.status==='playing' && !musicRevisions.has(state.activation)) return;
     if(state.status==='playing'&&musicRevisions.get(state.activation).revision!==state.revision)return;
     if(state.status==='position' && (!musicCurrent||state.activation!==musicCurrent.activation)) return;
@@ -429,6 +550,7 @@ const Audio = (()=>{
       if(musicPending&&musicPending.activation===state.activation)musicPending=null;
     }
     if(musicCurrent&&state.activation===musicCurrent.activation&&state.revision===musicCurrent.revision){
+      musicObserveAck(state);
       if(['playing','paused','ended','stopped','error'].includes(state.status))musicVisualAck.status=state.status;
       if(['playing','paused','position','loop','ended'].includes(state.status)&&Number.isFinite(state.frame))musicVisualAck.frame=state.frame;
     }
@@ -439,6 +561,7 @@ const Audio = (()=>{
     gbNode.port.postMessage(Object.assign({epoch:musicEpoch},message));
   }
   function musicInvalidate(reason){
+    musicClearEvents(reason||'stop');
     musicVisualAck={frame:0,status:'stopped'};
     musicEpoch++; musicRequest++; musicPending=null; musicCurrent=null; musicRevisions.clear(); musicIdentities.clear(); gbPending=null;
     if(gbNode) musicPost({type:'musicStop',reason:reason||'stop'});
@@ -478,7 +601,8 @@ const Audio = (()=>{
       function add(ch,f,value){(h[ch][f]||(h[ch][f]=[])).push(value);}
       Object.keys(s.byFrame).forEach(function(f){s.byFrame[f].forEach(function(e){
         var ch=e.t?e.n.ch:e.ch, n=e.n;
-        var event=e;
+        // Source indices describe observations, not a change to the sound.
+        var event={t:e.t,ch:e.ch};
         if(n){ var note=Object.assign({},n); delete note.frames; event={t:e.t,n:note}; }
         var slot=n&&ch===2?(globalThis.CT_GB_HARDWARE||globalThis.CT_GB).waveSlotOf(s.inst,n.inst):0;
         add(ch,f,[event,n?s.inst[n.inst]:null,n&&ch===2?(s.bank.waveTables||[])[slot]:null]);
@@ -486,7 +610,8 @@ const Audio = (()=>{
       Object.keys(s.auto).forEach(function(f){s.auto[f].forEach(function(w){
         var ch=w.r>=0x10&&w.r<=0x14?0:w.r<=0x19&&w.r>=0x16?1:w.r>=0x1a&&w.r<=0x1e?2:w.r>=0x20&&w.r<=0x23?3:-1;
         if(w.r>=0x30&&w.r<=0x3f) ch=2;
-        if(ch<0) for(var c=0;c<5;c++) add(c,f,w); else add(ch,f,w);
+        var write={r:w.r,v:w.v};
+        if(ch<0) for(var c=0;c<5;c++) add(c,f,write); else add(ch,f,write);
       });});
       Object.keys(s.vibOffAt).forEach(function(f){s.vibOffAt[f].forEach(function(ch){add(ch,f,'vibOff');});});
       Object.keys(s.waveAt).forEach(function(f){add(2,f,['wave',s.waveAt[f],(s.bank.waveTables||[])[s.waveAt[f]]]);});
@@ -512,7 +637,7 @@ const Audio = (()=>{
     });
     // Schedules are sent once; snapshots contain only bounded chip state.
     var schedule={};
-    ['sr','samplesPerFrame','rate','gainScalar','mix','bank','inst','auto','vibOffAt','waveAt','kitAt','kitBank','byFrame'].forEach(function(k){schedule[k]=seq[k];});
+    ['sr','samplesPerFrame','rate','gainScalar','mix','bank','inst','auto','vibOffAt','waveAt','kitAt','kitIndexAt','kitBank','byFrame'].forEach(function(k){schedule[k]=seq[k];});
     return {revision:revision,activation:++musicActivation,totalFrames:gb.totalFrames,loop:!!options.loop,schedule:schedule,snapshots:snapshots,
       visualSettings:structuredClone(options.settings||{})};
   }
@@ -551,6 +676,7 @@ const Audio = (()=>{
     if(request!==musicRequest || chipOwner!=='create') return false;
     if(!gbNode) throw new Error('Music engine unavailable');
     var prepared=musicPrepare(gb,options,null);
+    musicClearEvents('play');
     musicEpoch++; musicCurrent=null; musicPending=null; musicRevisions.clear(); musicIdentities.clear();
     musicPending=prepared;
     musicRevisions.set(prepared.activation,prepared); musicIdentities.set(prepared.revision,musicIdentity(gb));
@@ -2149,7 +2275,7 @@ const Audio = (()=>{
   }
 
   return {
-    musicPlay:musicPlay, musicQueue:musicQueue, musicBoundaries:musicBoundaries, musicVisualState:musicVisualState,
+    musicPlay:musicPlay, musicQueue:musicQueue, musicBoundaries:musicBoundaries, musicVisualState:musicVisualState, musicEventReader:musicEventReader,
     musicCancel(revision){ musicPost({type:'musicCancel',revision:revision}); if(musicPending&&musicPending.revision===revision) musicPending=null; },
     musicPause(paused){ musicPost({type:'musicPause',paused:!!paused}); },
     musicSeek(frame){

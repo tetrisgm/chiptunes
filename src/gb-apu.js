@@ -266,8 +266,8 @@
     // is what gets written every frame, not just what a note-on says, so these
     // ride in the score and BOTH players read the same array.
     var auto = this.auto = {}, vibOff = this.vibOffAt = {};
-    (gb && gb.auto || []).forEach(function (w) {
-      (auto[w.f | 0] = auto[w.f | 0] || []).push({ r: w.r & 0xFF, v: w.v & 0xFF });
+    (gb && gb.auto || []).forEach(function (w, index) {
+      (auto[w.f | 0] = auto[w.f | 0] || []).push({ r: w.r & 0xFF, v: w.v & 0xFF, index: index });
     });
     (gb && gb.vibOff || []).forEach(function (w) {
       (vibOff[w.f | 0] = vibOff[w.f | 0] || []).push(w.ch | 0);
@@ -279,16 +279,16 @@
     // KIT SAMPLES: four-bit PCM streamed into wave RAM, buffer by buffer. The
     // cartridge does this from its timer interrupt; here the same writes are
     // made at the same cycle counts, which is what makes the two agree.
-    var ka = this.kitAt = {};
-    (gb && gb.kit || []).forEach(function (k) { ka[k.f | 0] = k.id | 0; });
+    var ka = this.kitAt = {}, ki = this.kitIndexAt = {};
+    (gb && gb.kit || []).forEach(function (k, index) { ka[k.f | 0] = k.id | 0; ki[k.f | 0] = index; });
     this.kit = null; this.kitPos = 0; this.kitLeft = 0; this.kitCyc = 0;
     var byFrame = this.byFrame = {};
     var inst = (this.bank && this.bank.instruments) || [];
     var scoreNotes = gb && gb.notes || [], offFrames = H.noteOffFrames(scoreNotes);
     scoreNotes.forEach(function (n, index) {
       var f = n.frame | 0, off = offFrames[index];
-      (byFrame[f] = byFrame[f] || []).push({ t: 1, n: n });
-      if (off != null) (byFrame[off] = byFrame[off] || []).push({ t: 0, ch: n.ch | 0 });
+      (byFrame[f] = byFrame[f] || []).push({ t: 1, n: n, index: index });
+      if (off != null) (byFrame[off] = byFrame[off] || []).push({ t: 0, ch: n.ch | 0, index: index });
     });
     Object.keys(byFrame).forEach(function (k) {
       byFrame[k].sort(function (a, b) { return a.t - b.t; });
@@ -347,6 +347,25 @@
     var m = this.mix || (this.mix = {});
     for (var k in mix) { var v = +mix[k]; if (isFinite(v)) m[k] = Math.max(0, Math.min(3, v)); }
   };
+  // Optional scalar observation, enabled only by the live-music processor.
+  // No callbacks, source evaluation or register writes. Seek/preparation and
+  // offline renders leave it absent. This reports executed commands, not a
+  // promise that every trigger survives later writes or makes audible PCM.
+  Sequencer.prototype._observe = function (kind, index, ch, note, register, value) {
+    var out=this.observations;
+    if(!out)return;
+    if(!Number.isSafeInteger(out.next)||out.next>=Number.MAX_SAFE_INTEGER){out.exhausted=true;return;}
+    var sequence=out.next++;
+    if(out.events.length>=256){out.dropped++;return;}
+    var voice=this.apu.ch[ch],level=0;
+    if(voice&&voice.on&&voice.dac&&this.apu.power)
+      level=ch===2?([0,1,0.5,0.25][voice.level]||0):(voice.vol||0)/15;
+    out.events.push({sequence:sequence,kind:kind,sourceIndex:Number.isInteger(index)?index:-1,
+      frame:this.frame,contextTime:out.contextTime,channel:ch,
+      midi:note&&Number.isFinite(note.midi)?note.midi:null,
+      durationFrames:note?note.frames:0,velocity:note?(note.vel==null?1:note.vel):null,
+      strength:level,register:register==null?null:register,value:value==null?null:value});
+  };
   Sequencer.prototype._runFrame = function () {
     // Vibrato steps BEFORE this frame's events, exactly like the cartridge
     // driver's frame loop (vblank, draw, vibrato, events) -- the order is what
@@ -368,6 +387,7 @@
       if (e.t === 0) {
         this.apu.write(base + 1, 0x00); this.apu.write(base + 3, 0x80);
         if ((e.ch | 0) < 2) this.vib[e.ch | 0].on = false;
+        if(this.observations)this._observe('noteOff',e.index,e.ch);
         continue;
       }
       note = e.n; g = 1;
@@ -376,6 +396,7 @@
         this.apu.write(base + 2, r[2]);
         this.apu.write(base + 3, r[3] & 7);
         this.vib[note.ch | 0].on = false;
+        if(this.observations)this._observe('continuation',e.index,note.ch,note);
         continue;
       }
       // live channel mute (the Create editor's lanes): skip the trigger, let
@@ -400,6 +421,7 @@
       r = H.noteRegisters(note, this.bank);
       this.apu.write(base, r[0]); this.apu.write(base + 1, r[1]);
       this.apu.write(base + 2, r[2]); this.apu.write(base + 3, r[3]);
+      if(this.observations)this._observe('noteOn',e.index,note.ch,note);
       if ((note.ch | 0) < 2) {
         var vst = this.vib[note.ch | 0];
         vst.base = ((r[3] & 7) << 8) | r[2];
@@ -413,9 +435,18 @@
     var wls = this.waveAt[this.frame];
     if (wls != null) this._loadWave(wls);
     var kid = this.kitAt[this.frame];
-    if (kid != null) this._kitStart(kid);
+    if (kid != null) {
+      this._kitStart(kid);
+      if(this.observations&&this.kit)this._observe('sample',this.kitIndexAt&&this.kitIndexAt[this.frame],2,null,null,kid);
+    }
     var aw = this.auto[this.frame];
-    if (aw) for (i = 0; i < aw.length; i++) this.apu.write(aw[i].r, aw[i].v);
+    if (aw) for (i = 0; i < aw.length; i++) {
+      this.apu.write(aw[i].r, aw[i].v);
+      if(this.observations){
+        var reg=aw[i].r,ch=reg>=0x10&&reg<=0x14?0:reg>=0x16&&reg<=0x19?1:reg>=0x1a&&reg<=0x1e||reg>=0x30&&reg<=0x3f?2:reg>=0x20&&reg<=0x23?3:-1;
+        this._observe('register',aw[i].index,ch,null,reg,aw[i].v);
+      }
+    }
     this.frame++;
   };
 
@@ -441,6 +472,7 @@
       base = 0x11 + (e.ch | 0) * 5;
       this.apu.write(base + 1, 0x00); this.apu.write(base + 3, 0x80);
       if ((e.ch | 0) < 2) this.vib[e.ch | 0].on = false;
+      if(this.observations)this._observe('noteOff',e.index,e.ch);
     }
     this.frame = 0;
   };
