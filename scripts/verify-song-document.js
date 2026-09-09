@@ -91,17 +91,40 @@ function server() {
   const trip = await p.evaluate(() => {
     const score = CT_COMPOSERS.rrr_core.compile('doc-gate-roundtrip');
     const doc = CT_CREATE.songFrom(score);
-    location.hash = '#s=' + doc.code;
-    return { code: doc.code, notes: doc.gb.notes.map(n => [n.frame, n.ch, n.midi, n.frames].join(':')).join(',') };
+    // Musical source is JSON data; absent optional fields and undefined are
+    // equivalent in the native materializer's serialization contract.
+    return { code: doc.code, gb: JSON.parse(JSON.stringify(CT_CREATE.songOf(doc.code).gb)),
+      notes: doc.gb.notes.map(n => [n.frame, n.ch, n.midi, n.frames].join(':')).join(',') };
   });
   await p.goto(`http://127.0.0.1:${h.port}/create#s=${trip.code}`, { waitUntil: 'domcontentloaded' });
-  await p.waitForFunction(() => document.querySelector('#createscreen.show'), null, { timeout: 40000 });
+  await p.waitForFunction(() => window.CT_MUSIC_WORKSPACE && CT_MUSIC_WORKSPACE.isOpen(), null, { timeout: 40000 });
   await wait(3200);
+  const canonical = await p.evaluate(() => ({
+    gb: JSON.parse(JSON.stringify(CT_MUSIC_WORKSPACE.snapshot().validated.compiled.gb)),
+    legacy: CT_CREATE.isOpen(), peak: Audio.outputProbe().peak,
+    playing: CT_MUSIC_WORKSPACE.snapshot().playing,
+    pending: CT_MUSIC_WORKSPACE.snapshot().pending
+  }));
+  ok(require('node:util').isDeepStrictEqual(canonical.gb, trip.gb),
+    'canonical /create#s preserves the entire native score exactly');
+  if (!require('node:util').isDeepStrictEqual(canonical.gb, trip.gb)) {
+    for (const key of new Set([...Object.keys(trip.gb), ...Object.keys(canonical.gb)])) {
+      if (!require('node:util').isDeepStrictEqual(canonical.gb[key], trip.gb[key]))
+        console.log('         score difference: ' + key + ' ' + JSON.stringify({ expected: trip.gb[key], actual: canonical.gb[key] }).slice(0, 1000));
+    }
+  }
+  ok(!canonical.legacy, 'canonical song entry has no legacy editor underneath');
+  ok(canonical.peak === 0 && !canonical.playing && !canonical.pending,
+    'canonical song entry does not start or queue playback');
+
+  // The native editor remains an explicitly opened compatibility surface.
+  await p.evaluate(code => { CT_MUSIC_WORKSPACE.close(); CT_CREATE.open(code); }, trip.code);
+  await p.waitForFunction(() => document.querySelector('#createscreen.show'));
   const back = await p.evaluate(() => {
     const s = CT_CREATE._score();
     return s.notes.map(n => [n.frame, n.ch, n.midi, n.frames].join(':')).join(',');
   });
-  ok(back === trip.notes, 'the document opens in the editor as the same song, note for note');
+  ok(back === trip.notes, 'explicit compatibility editor opens the same song, note for note');
 
   // ---- 3. and the station is playing one ----------------------------------
   await p.goto(`http://127.0.0.1:${h.port}/`, { waitUntil: 'domcontentloaded' });
@@ -121,7 +144,7 @@ function server() {
   ok(!!onAir.doc, 'the song on air has a document behind it' + (onAir.doc ? ' (' + (onAir.doc.length / 1024).toFixed(1) + ' KB)' : ''));
   ok(onAir.peak > 0.02, 'and it is sounding (' + onAir.peak.toFixed(3) + ')');
   ok(onAir.route === '/', 'the address bar stays at the permanent root (' + onAir.route + ')');
-  // Written briefs and the mood chips must drive the same document machinery.
+  // Explicit compatibility prompt controls still use the shared interpreter.
   await p.evaluate(() => {
     localStorage.setItem('ct-create-tour', '1');
     CT_CREATE.openBlank();

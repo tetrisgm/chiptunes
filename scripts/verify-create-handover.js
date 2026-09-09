@@ -103,11 +103,15 @@ const SCENARIOS = {
     // quiet bar as a stopped audio engine.
     const before = await audiblePeak(p);
 
-    await p.evaluate(() => {
-      // the way into the editor is the strip of notes itself now
-      const c = document.getElementById('noteribbon');
-      if (c) c.click();
+    await p.evaluate(async () => {
+      // Establish runtime handback callbacks through canonical entry, then
+      // explicitly select the compatibility editor for native chip scenarios.
+      const code = Audio.currentDoc();
+      await _openCreate();
+      CT_MUSIC_WORKSPACE.close();
+      CT_CREATE.open(code);
     });
+    await p.waitForFunction(() => CT_CREATE.isOpen());
     await wait(4500);
     await p.evaluate(() => { const t = document.querySelector('.cr-tour'); if (t) t.remove(); });
     // The editor opens FOLLOWING what is already sounding, so pressing play
@@ -143,10 +147,21 @@ const SCENARIOS = {
     await p.close();
   }
 
-  // the other way in: /create opened cold, with the station never started
+  // Legacy shell coverage is compatibility-only, never the default /create UI.
   {
     const p = await b.newPage({ viewport: { width: 1380, height: 900 } });
     await p.goto(`http://127.0.0.1:${h.port}/create`, { waitUntil: 'domcontentloaded' });
+    await p.waitForFunction(() => window.CT_MUSIC_WORKSPACE && CT_MUSIC_WORKSPACE.isOpen(), null, { timeout: 40000 });
+    await p.evaluate(() => {
+      // Select the compatibility surface without starting the station during
+      // fixture setup. Restore the real callback before exercising its Close;
+      // canonical Back is tested separately below without this suppression.
+      const handback = window._closeCreateReturn;
+      try { window._closeCreateReturn = () => {}; CT_MUSIC_WORKSPACE.close(); }
+      finally { window._closeCreateReturn = handback; }
+      CT_CREATE.openBlank();
+    });
+    ok(await p.evaluate(() => !Audio.currentDoc()), 'cold compatibility fixture has not started the station');
     await p.waitForFunction(() => document.querySelector('#createscreen.show'), null, { timeout: 40000 });
     await wait(3600);
     const shell = await p.evaluate(() => {
@@ -188,7 +203,40 @@ const SCENARIOS = {
     });
     await wait(4500);
     const started = await peak(p, 3000);
-    ok(started > 0.02, 'opened cold at /create: closing it starts the station (' + started.toFixed(3) + ')');
+    ok(started > 0.02, 'explicit cold compatibility editor: closing it starts the station (' + started.toFixed(3) + ')');
+    await p.close();
+  }
+
+  // Canonical entry owns a single workspace, and must return usable station
+  // playback whether entered cold or from an already sounding station.
+  for (const cold of [true, false]) {
+    const p = await b.newPage({ viewport: { width: 1380, height: 900 } });
+    const errs = [];
+    p.on('pageerror', e => errs.push(String(e).slice(0, 140)));
+    let stationScore;
+    const label = cold ? 'canonical cold /create' : 'canonical station ribbon';
+    await p.goto(`http://127.0.0.1:${h.port}/${cold ? 'create' : ''}`, { waitUntil: 'domcontentloaded' });
+    if (!cold) {
+      await p.locator('.rmood').filter({ hasText: /^chill$/ }).click();
+      await p.waitForFunction(() => !document.querySelector('.rmood.busy'), null, { timeout: 25000 });
+      ok(await audiblePeak(p) > 0.02, label + ': station starts audibly');
+      stationScore = await p.evaluate(() => JSON.parse(JSON.stringify(CT_CREATE.songOf(Audio.currentDoc()).gb)));
+      await p.locator('#noteribbon').click();
+    }
+    await p.waitForFunction(() => window.CT_MUSIC_WORKSPACE && CT_MUSIC_WORKSPACE.isOpen(), null, { timeout: 40000 });
+    ok(await p.evaluate(() => !CT_CREATE.isOpen()), label + ': no legacy editor underneath');
+    const entry = await p.evaluate(() => {
+      const s = CT_MUSIC_WORKSPACE.snapshot();
+      return { playing: s.playing, pending: s.pending, gb: JSON.parse(JSON.stringify(s.validated.compiled.gb)) };
+    });
+    if (!cold) ok(require('node:util').isDeepStrictEqual(entry.gb, stationScore), label + ': preserves the exact station score');
+    ok(await peak(p, 1200) === 0 && !entry.playing && !entry.pending, label + ': entry does not start or queue playback');
+    await p.locator('[data-action="close"]').click();
+    const closed = await p.evaluate(() => ({ workspace: CT_MUSIC_WORKSPACE.isOpen(), legacy: CT_CREATE.isOpen(), route: location.pathname }));
+    ok(!closed.workspace && !closed.legacy && closed.route === '/', label + ': Back returns to root without an editor underneath');
+    const returned = await audiblePeak(p);
+    ok(returned > 0.02, label + ': Back hands audio to station (' + returned.toFixed(3) + ')');
+    ok(!errs.length, label + ': no page errors' + (errs.length ? ' -- ' + errs[0] : ''));
     await p.close();
   }
 
