@@ -1,3 +1,27 @@
+## September 9 correction: standard agent conversation
+
+The owner rejected the account/provider setup bar as the Chat experience.
+Replace the form-first sidebar with a transcript and bottom message composer.
+Questions receive conversational replies without requiring an edit; musical
+changes remain inline proposals with explicit Apply/Reject. Enter sends,
+Shift+Enter inserts a newline, and cancellation remains available.
+
+Access/provider and advanced controls belong in a separate Settings dialog,
+not the conversation. Preserve server-side credentials, owner authentication,
+quotas and same-origin protections. No anonymous paid access is implied.
+Conversation is bounded private project data, excluded from public shares and
+first-party transfers; only a bounded recent history accompanies each request.
+Current source/revision and enforced constraints remain authoritative, not
+assistant history. Restored historical messages never recreate actionable edits.
+
+Verify text-only answers, follow-ups, proposal approval/staleness, cancellation,
+private reload/public exclusion, and dialog/keyboard behavior before committing.
+This is implementation work, not permission to deploy.
+
+Implemented in aa45dcc. Full root regression and dedicated conversation,
+gateway and provider UI gates pass; see create-workspace-acceptance.md.
+Deployment and production acceptance remain separate open steps.
+
 ## September 9 correction: code as a live musical instrument
 
 The owner supplied Speccy as the concrete algorave reference:

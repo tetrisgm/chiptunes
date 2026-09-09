@@ -1,5 +1,11 @@
 # Built-in web Chat release plan
 
+Current correction: replace setup-form-first Chat with a normal conversation,
+message composer, follow-up context and inline edit approvals. Settings are a
+separate dialog. Text-only replies do not modify music. This change and the
+preceding live-coding correction are local/pushed work pending an authorized
+web release; historical release checks below do not prove the new UX shipped.
+
 Owner decision: Chat beside Code/Notes uses owner-funded OpenAI or Anthropic
 inference through a same-origin server endpoint. No Clerk dependency for this
 path. Preserve the optional external MCP implementation and the shared app

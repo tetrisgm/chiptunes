@@ -50,6 +50,19 @@ source evaluation.
 
 ## Chat proposals
 
+Chat is a conversation, with a scrollable transcript and a message composer at
+the bottom. Enter sends; Shift+Enter inserts a newline. Settings opens a separate
+modal for access, provider and edit constraints; Escape closes that modal without
+leaving the workspace. Questions may receive text-only answers. Musical changes
+appear as inline proposals and still need explicit Apply.
+
+The transcript is private project data. Local recovery and full project downloads
+retain a bounded recent history; public links and first-party transfers exclude
+it. Requests include at most 12 recent messages and 16 KiB of conversation text.
+Current source/revision remains authoritative, not statements in past messages.
+Restored messages do not restore actionable proposals. Replies are shown after
+validation; the UI does not pretend that buffered replies are token-streamed.
+
 Hosted Chat uses the owner's configured server-side providers and requires the
 owner unlock. The main website offers a consent-based transfer to hosted Chat.
 An unavailable request reports an error while Code and playback continue

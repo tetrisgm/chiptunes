@@ -1,27 +1,25 @@
-# Music proposal backend contract
+# Music conversation and proposal backend contract
 
 ## Status
 
-`server/music-chat-handler.js` is a functional, provider-neutral, in-process
-Fetch handler factory. **No real provider, account, model, billing arrangement,
-credentials, route deployment, or infrastructure is configured.** Owner approval
-for a real provider/account remains pending. Calling the default handler returns
-HTTP 503 `provider_not_configured`; this work does not make Chat operational on
-the website. Code/playback do not depend on a configured backend.
+`server/music-chat-handler.js` is a provider-neutral Fetch handler factory.
+The hosted gateway integrates owner-funded providers and private authentication;
+the standalone factory still denies unconfigured requests with HTTP 503.
+The conversational extension is implemented locally, not yet deployed.
+Code/playback do not depend on a configured backend.
 
 The module implements the request/response boundary and validates musical edits.
 It never substitutes the deterministic interpreter for a real model. Test
 adapters are named fixtures and exercise the real handler without network calls.
-The follow-up task also hardens `src/music-chat.js`; main owns the workspace UI
-integration. No package edits, jobs, listeners, deployment or commits are part
-of this task.
+`src/music-chat.js` validates the browser boundary; the workspace owns the
+transcript and explicit proposal application.
 
 ## Host and adapter interfaces
 
 CommonJS export: `createMusicChatHandler(options) -> async (Request) -> Response`.
 Node's standard Fetch/ReadableStream interfaces are used. The host must retain
 one factory instance across requests; constructing it per request discards its
-in-flight and replay protection. Mounting a route is future integration work.
+in-flight and replay protection. The gateway mounts this same handler.
 
 Without **all** of the following trusted injections the handler denies requests:
 
@@ -61,21 +59,20 @@ Byte bounds are not token or currency budgets. A 512 KiB source allowance is not
 authorization to pay for that much model context. The adapter must either accept
 the approved complete context or fail honestly; it must not silently truncate a
 song. Provider-specific token counting, account access, pricing and cost limits
-remain unresolved until the owner chooses a provider/account. No paid call can
-be made by this module alone.
+belong to the trusted host integration. No paid call can be made by this module alone.
 
 No HTTP request, principal, credentials, logger, shell, tool implementation or
 provider secrets are passed to the adapter in the musical input. Credentials
-belong inside the future trusted adapter/host, never in browser data. This module
+belong inside the trusted adapter/host, never in browser data. This module
 does not read environment secrets, log source/prompts, or expose exception text.
 The host/adapter must follow the same logging rule; the handler cannot control
 their logging or guarantee cancellation of a non-cooperating remote provider.
 
 ## Wire format and limits
 
-POST JSON to the future same-origin endpoint (client default `/api/music/chat`).
+POST JSON to the same-origin endpoint (client default `/api/music/chat`).
 Request fields are `id`, `request`, `source`, `baseRevision`, with optional
-`selection`, `constraints`, `language`, `diagnostics`. Unknown top-level keys are
+`selection`, `constraints`, `language`, `diagnostics`, `conversation`. Unknown top-level keys are
 rejected. IDs use 1–128 ASCII letters/digits/underscore/hyphen. Nonempty request
 text is limited to 2,000 UTF-16 code units. Selection is null or
 `{ch, fromFrame, toFrame}`. It is context; constraints carry enforceable scope.
@@ -86,12 +83,18 @@ trusted capabilities are the module's `SYSTEM` constant and the actual compiler.
 Changing the language requires reviewing both together. Prompt separation reduces
 instruction confusion; structural and compiler validation enforce the boundary.
 
+Optional `conversation` contains at most 12 `{role,content}` messages, with only
+`user` and `assistant` roles and at most 16,384 UTF-8 content bytes total. These
+are untrusted contextual data inside the provider input, never privileged
+provider messages or evidence that a past suggested edit was applied. The
+current source/revision and constraints remain authoritative.
+
 | Bound | Value and meaning |
 | --- | --- |
 | Incoming HTTP body | 1,048,576 UTF-8 bytes (1 MiB), including JSON escaping and metadata |
 | Source and candidate source | 524,288 UTF-8 bytes (512 KiB); full relevant source allowed |
 | Provider response | 65,536 UTF-8 bytes (64 KiB), consumed incrementally |
-| Proposal | 1–32 ordered localized edits; explanation at most 5,000 UTF-16 code units |
+| Response | 0–32 ordered localized edits; explanation at most 5,000 UTF-16 code units; zero edits means a conversational answer |
 | Changed text | At most 16,384 UTF-8 bytes inserted and 16,384 deleted in aggregate |
 | JSON nesting | 32; unsafe prototype keys and unpaired Unicode surrogates rejected |
 | Deadline | 30 seconds across auth/quota/body/provider/output; optional timeoutMs may only reduce it |
@@ -135,6 +138,12 @@ Whole-source replacement, collective removal of the whole source, unchanged
 output and oversized changes are rejected. This is a bounded textual-locality
 contract, not an AST-locality claim. Unknown response fields, tools, malformed
 JSON or invalid music fail without retry.
+
+For a text-only answer, `edits` is `[]` and `explanation` is the assistant message.
+The UI completes the pending request without creating a revision or offering
+Apply. Responses remain fully buffered and validated, not simulated streaming.
+Private project history keeps a bounded recent transcript (64 messages,
+131,072 UTF-8 JSON bytes); public shares and project transfers omit it.
 
 The original source and edited candidate compile using `src/music-language.js`.
 `src/music-project.js.checkConstraints` checks supplied track/pitchrhythm/

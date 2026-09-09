@@ -1,5 +1,22 @@
 # Create workspace acceptance record
 
+## Latest correction: conversational Chat (not deployed)
+
+The large access form has been replaced by a transcript and bottom composer,
+with access/provider/scope controls in a separate Settings dialog. Text-only
+answers, bounded follow-up history, private persistence and explicit inline
+Apply proposals use the existing secured backend. No token streaming is claimed.
+Local Safari Music 11149101240b verified the rendered layout and Settings
+dismissal retaining the workspace and message. No paid provider call was made.
+The previous release evidence below does not verify this new experience in
+production. Deployment and musical listening acceptance remain open.
+
+Final regression: full root exit 0 (73457), including new conversation,
+livecoding, agent and project-transfer suites, on app.dd33d7943154.js / Music
+fef7cf6ae28c. Gateway 67/67, Chat 35/35, project 20 groups, separate final
+workspace/conversation/provider UI checks and Next production build pass.
+Reference-ROM-dependent checks explicitly skip without their prerequisite.
+
 **Current product acceptance is open:** the owner rejected the event-dump
 interface and supplied Speccy as the algorave reference. The local correction
 now includes a readable three-voice loop, Run shortcut, sounding highlights,

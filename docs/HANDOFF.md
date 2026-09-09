@@ -3,6 +3,52 @@
 Plain, current working notes for whoever (or whatever) picks the project up
 next. Infrastructure and operations live outside this repository.
 
+## 2026-09-09 — Standard conversation, not a connection form
+
+The owner rejected the large Built-in chat/access panel. Chat now has a private
+conversation transcript, bottom message composer, Enter/Shift+Enter, Stop,
+text-only answers and inline explicit-Apply proposals. Provider, owner access,
+scope/locks and optional MCP are in a separate native Settings dialog. The full
+song generator moved out of the sidebar. No auth, quota or source validation
+was bypassed; responses remain buffered and validated, not token-streamed.
+Recent history is bounded to 12 messages / 16 KiB for provider context and is
+untrusted data, never system messages. Saved history is private; public links
+and transfers exclude it, full project downloads include it. Invalid drafts
+still require validation before requesting Chat.
+
+Implementation: aa45dcc. Separate deterministic test correction: bc01dae.
+
+Regression work caught a document-capture Escape handler closing Create ahead
+of Settings, and a resize race where CSS blurred the hidden mobile Chat tab
+before its media-query callback. Both have targeted coverage now. The initial
+full run also exposed an unchanged random soundtrack-test assumption: a valid
+song can have no eligible motif. That test now uses deterministic motif and
+no-motif fixtures; production composition was not changed.
+
+Final full root regression exited 0 (73457), including the new conversation
+suite, livecoding, editor paste/undo, agent/isolated-PostgreSQL integration and
+project transfers. Final artifact: app.dd33d7943154.js / Music fef7cf6ae28c.
+Gateway: 67/67 tests; Chat: 35/35 groups; project: 20 groups. Final built
+workspace UI, conversation and provider UI also passed separately (61493),
+and the Next production build exited 0 (39678). Reference-ROM-dependent tests
+explicitly skipped when their prerequisite was absent; this is not ROM or
+human-listening acceptance.
+
+Local Safari verified Music 11149101240b: compact Chat, bottom composer, Enter
+opening Settings with no model call, and Escape returning to the retained
+message/workspace. Safari password autofill consumed the first Escape when
+focused; the next dismissed Settings. No audio was started; the test tab and
+temporary server were closed. This is local evidence, not deployed acceptance.
+
+This correction and the preceding live-coding work are not deployed. Existing
+public origins remain the earlier release recorded below. No new paid model
+call, desktop restart, deployment or infrastructure change was made.
+
+The project-changelog skill's conditional TextText update again reported a
+concurrent-change/sync conflict; rereading confirmed the entry was absent.
+No forced write or duplicate note was created. This repository is the current
+handoff until that existing sync issue is resolved separately.
+
 ## 2026-09-09 — Product correction: algorave/live-coding experience
 
 The owner rejected the event-dump/single-note-fixture experience and supplied
