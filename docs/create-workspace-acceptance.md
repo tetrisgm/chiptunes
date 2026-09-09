@@ -11,7 +11,8 @@ shared artifact `app.5d7aa87e1f8a.js`, visible Music build `93fb190587e0`.
 Full root tests exited 0 before release. Native Safari transfer/save/reload and
 transport checks passed on that exact build; details are in `HANDOFF.md`.
 
-Follow-up correctness changes are currently under regression, not deployed:
+Follow-up correctness changes passed full root regression (exit 0, session
+27680), the 65-test gateway suite and Next production build, but are not yet deployed:
 stale Notes-to-draft offsets, mobile Chat-to-desktop tab focus/ARIA associations,
 main-site Chat handoff clarity, and oversized Chat source preflight. A new real
 processor test covers actual tempo-map replacement rather than merely changing

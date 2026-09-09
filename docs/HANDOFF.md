@@ -42,9 +42,13 @@ All follow-up source owners are now finished/frozen. Main reran the complete
 music-workspace suite (including the new UI test), Chat/provider/gateway suite
 and Next production build: exit 0 (session 47360). The live tests now contain
 31 checks, including sample-exact future tempo-map replacement and late delivery
-on the next sounding-map boundary. Root `npm test` is running as session 27680;
-poll that handle until terminal, do not restart on a quiet interval. Do not
-push/deploy this follow-up until the full regression terminal result is green.
+on the next sounding-map boundary. Root `npm test` finished with exit 0 (session
+27680, terminal observed September 9), including the new UI regression and
+real-popup transfer tests. Reference-ROM/write-observer/harness-dependent native
+checks explicitly skipped when their local prerequisites were absent. Vercel
+dry-run includes 210 files / 5,165,028 bytes, required updated sources present,
+credentials and local caches excluded. Follow-up 2aaada4 is ready to push and
+deploy; its artifact is app.f715dcc08d84.js / Music build eb6281febd20.
 `docs/create-workspace-acceptance.md` records the original-plan evidence map,
 explicit capability limits and remaining listening/native follow-up gates.
 
