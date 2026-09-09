@@ -3,6 +3,33 @@
 Plain, current working notes for whoever (or whatever) picks the project up
 next. Infrastructure and operations live outside this repository.
 
+## 2026-09-09 — Authorized web release: live coding and conversational Chat
+
+Owner approved deployment after b7a6d0d. Both public /create routes now serve
+app.dd33d7943154.js / Music fef7cf6ae28c, byte-identical to the tested local
+artifact. Pages: 0df515f9.retro-rave-radio.pages.dev; chiptunes.app cache purge
+succeeded. Vercel: dpl_3r4kaQUHgB1LNmwYcWbYnMQ5pRnP, READY and aliased to
+chiptunes-agent-gateway.vercel.app. Upload dry-run allowed 210 source files /
+5,204,307 bytes and excluded local/private inputs. Existing provider settings
+were retained; access lists OpenAI and Claude, and anonymous Chat returns 401.
+
+Native Safari verified the deployed Music fef7cf6ae28c: the setup panel is absent
+from the conversation, the bottom composer opens Settings when locked, and
+Escape returns to the workspace with its typed message intact. Existing exact
+song source was preserved and no autoplay occurred. No paid model call was
+made for this release; text-only/follow-up behavior has automated coverage,
+not new real-provider acceptance. Musical listening acceptance remains open.
+No desktop/broadcast release, restart, persistent job or infrastructure change.
+Full regression and gateway/build results for this unchanged artifact are below.
+
+Main-site native Safari also verified the same visible version, readable starter
+and hosted-chat handoff control. Test tab closed without changing saved projects
+or starting audio. TextText release-note conditional write again conflicted;
+reread confirmed it absent. No forced overwrite or duplicate note was made.
+
+The implementation checkpoints below describe their pre-release status; this
+entry supersedes their statements that deployment is pending.
+
 ## 2026-09-09 — Standard conversation, not a connection form
 
 The owner rejected the large Built-in chat/access panel. Chat now has a private

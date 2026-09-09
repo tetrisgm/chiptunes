@@ -1,5 +1,12 @@
 # Built-in web Chat release plan
 
+Release update: owner authorized deployment of b7a6d0d. Both public origins now
+serve Music fef7cf6ae28c, with compact conversational Chat verified in native
+Safari on the hosted origin. Settings dismissal preserves the message/workspace;
+anonymous model calls remain denied. New live-provider conversation and human
+listening acceptance have not been claimed. This supersedes the pending-release
+status in the implementation checkpoint below.
+
 Current correction: replace setup-form-first Chat with a normal conversation,
 message composer, follow-up context and inline edit approvals. Settings are a
 separate dialog. Text-only replies do not modify music. This change and the

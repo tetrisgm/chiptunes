@@ -1,5 +1,9 @@
 ## September 9 correction: standard agent conversation
 
+Release status: owner approved b7a6d0d for both web origins. Music fef7cf6ae28c
+is live and its hosted chat layout/Settings behavior was verified in native Safari.
+The implementation-time release-pending notes below are historical.
+
 The owner rejected the account/provider setup bar as the Chat experience.
 Replace the form-first sidebar with a transcript and bottom message composer.
 Questions receive conversational replies without requiring an edit; musical

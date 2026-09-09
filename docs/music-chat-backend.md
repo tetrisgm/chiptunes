@@ -5,7 +5,7 @@
 `server/music-chat-handler.js` is a provider-neutral Fetch handler factory.
 The hosted gateway integrates owner-funded providers and private authentication;
 the standalone factory still denies unconfigured requests with HTTP 503.
-The conversational extension is implemented locally, not yet deployed.
+The conversational extension is deployed in web release b7a6d0d.
 Code/playback do not depend on a configured backend.
 
 The module implements the request/response boundary and validates musical edits.

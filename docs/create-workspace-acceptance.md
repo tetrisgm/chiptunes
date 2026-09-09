@@ -1,6 +1,15 @@
 # Create workspace acceptance record
 
-## Latest correction: conversational Chat (not deployed)
+## Latest release: conversational Chat
+
+Owner-approved release b7a6d0d is now deployed on both public origins as
+app.dd33d7943154.js / Music fef7cf6ae28c, verified byte-identical to the tested
+artifact. Native Safari verified the compact hosted Chat and Settings/Escape
+with retained message and source, without autoplay. Anonymous paid requests
+remain denied (401). No new real-provider request or listening acceptance is
+claimed. Earlier pre-release deployment-pending statements below are superseded.
+
+## Correction implementation evidence
 
 The large access form has been replaced by a transcript and bottom composer,
 with access/provider/scope controls in a separate Settings dialog. Text-only
