@@ -15,6 +15,7 @@
 // dead box can never freeze a stale phantom count on the site.
 
 import { DurableObject } from "cloudflare:workers";
+import { proxyMusicChat } from './music-chat-proxy.mjs';
 
 // External counts (youtube + stream) go stale after this long with no reporter
 // POST — a down box then contributes 0 rather than a frozen phantom total. The
@@ -45,6 +46,7 @@ export default {
   async fetch(request, env) {
     try {
       const { pathname } = new URL(request.url);
+      if (pathname === '/api/music/chat' || pathname === '/api/music/chat/access') return await proxyMusicChat(request);
       const origin = request.headers.get("origin") || "";
       const station = () => env.PRESENCE.get(env.PRESENCE.idFromName("station"));
 

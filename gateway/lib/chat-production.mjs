@@ -16,20 +16,35 @@ export function createChatHandlers({env=process.env,pool,fetch}={}){
       return {...reservation,release:reservation.ok?()=>access.release(subject,id):undefined};
     }
   })]));
-  const valid=(request,path)=>{
-    try{const url=new URL(request.url);return url.origin===env.CHAT_ORIGIN&&url.pathname===path&&!url.search&&
-      (!request.headers.has('origin')||request.headers.get('origin')===env.CHAT_ORIGIN);}catch{return false;}
+  const normalize=(request,path)=>{
+    try{
+      const url=new URL(request.url),h=request.headers;
+      const publicOrigin='https://chiptunes.app',transportOrigin='https://chiptunes-agent-gateway.vercel.app';
+      const transport=env.CHAT_ORIGIN===publicOrigin&&url.origin===transportOrigin;
+      if((url.origin!==env.CHAT_ORIGIN&&!transport)||request.url!==url.origin+path||url.username||url.password||url.pathname!==path||url.search||url.hash||
+        h.has('authorization')||h.has('upgrade')||
+        (h.has('origin')&&h.get('origin')!==env.CHAT_ORIGIN)||
+        (request.method!=='GET'&&h.get('origin')!==env.CHAT_ORIGIN)||
+        (h.has('sec-fetch-site')&&h.get('sec-fetch-site')!=='same-origin'))return null;
+      if(!transport)return request;
+      // The fixed transport URL and actual Origin were independently checked.
+      // No Forwarded/X-Forwarded-* value participates in authorization.
+      const headers=new Headers(h);
+      for(const name of [...headers.keys()])if(name==='forwarded'||name==='host'||name.startsWith('x-forwarded-'))headers.delete(name);
+      return new Request(publicOrigin+path,{method:request.method,headers,body:request.body,
+        ...(request.body?{duplex:'half'}:{}),signal:request.signal});
+    }catch{return null;}
   };
   return {
     async chat(request){
       if(!access.configured||!providers.length)return json(503,'provider_not_configured');
-      if(!valid(request,'/api/music/chat'))return json(403,'origin_denied');
+      request=normalize(request,'/api/music/chat');if(!request)return json(403,'origin_denied');
       const handler=handlers.get(request.headers.get('x-music-provider')||'openai');
       return handler?handler(request):json(400,'provider_unavailable');
     },
     async owner(request){
       if(!access.configured||!providers.length)return json(503,'provider_not_configured');
-      if(!valid(request,'/api/music/chat/access'))return json(403,'origin_denied');
+      request=normalize(request,'/api/music/chat/access');if(!request)return json(403,'origin_denied');
       if(request.method==='POST')return access.login(request);
       if(request.method==='DELETE')return access.logout(request);
       if(request.method!=='GET')return json(405,'method_not_allowed');
