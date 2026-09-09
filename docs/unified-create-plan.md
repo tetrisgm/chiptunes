@@ -16,6 +16,58 @@ No hidden agent composition, alternate runtime, duplicated project, or second
 website that the user must visit. Keep finite songs/exports and optional loop
 audition. Preserve the deterministic single composition pipeline and 14 games.
 
+## Primary musical guide: TidalCycles
+
+Owner direction, 2026-09-09: "Use this as our guide https://tidalcycles.org/".
+TidalCycles is now the primary reference for musical concepts, pattern semantics,
+live transformation and learning progression. The Strudel/video references below
+remain the guide for browser presentation, inline feedback and controls. The
+product remains Chiptunes with its current compiler, chip engine and agent sidebar.
+This direction does not select a Haskell/SuperCollider installation or claim
+Tidal source compatibility.
+
+Official references reviewed:
+
+- [Overview](https://tidalcycles.org/docs/) — composing by combining and transforming patterns.
+- [Cycles](https://tidalcycles.org/docs/reference/cycles/) — a shared cycle with independent subdivisions.
+- [Mini notation](https://tidalcycles.org/docs/reference/mini_notation/) — grouping, rests, repetition and alternation.
+- [Pattern model](https://tidalcycles.org/docs/innards/what_is_a_pattern/) — querying events within a musical time interval.
+- [Workshop](https://tidalcycles.org/docs/patternlib/tutorials/workshop/) — small experiments progressing into transformations and variation.
+
+Implementation interpretation, not a claim these features are already present:
+
+- Prioritize compact composable patterns over larger event lists. First define a
+  bounded subset: nested subdivision, repetition, multi-cycle alternation, time
+  scaling, reversal, periodic transformation and Euclidean rhythm. Document each
+  supported operation with a small executable example and exact timing fixture.
+- Keep one phase-preserving musical clock for all tracks. Resolve fractional
+  pattern positions through the existing tempo map/frame conversion. Compare
+  simple three-/four-way subdivisions and nested timing to the documented model;
+  do not introduce per-track timers or accumulate rounding drift across repeats.
+- Preserve existing source semantics. Tidal uses `~` for rests, `.` for grouping,
+  `@` for duration weighting and `:` for sample selection; our existing notes
+  use dot rests, `:length` and `@velocity`. Introduce any cycle notation through
+  an explicit/versioned syntax boundary, not automatic reinterpretation of old
+  notes strings. No promise of full Tidal syntax or unrestricted function support.
+- Treat variation and parameters as musical patterns where chip capabilities
+  permit. Add seeded chance only with explicit source-carried identity and
+  cycle/event indexing; preview, live playback and finite exports must agree.
+  Simultaneous pattern layers still obey the chip's voice limits and existing
+  overlap diagnostics, not an implicit unlimited synthesizer.
+- Reuse one compilation path: musical patterns lower into the existing Score
+  and source maps. Inline rolls and token highlighting show those results;
+  code-linked controls and agent proposals edit that same source. Live audition
+  can loop, while the arrangement and downloads retain a defined finite end.
+- Teach the performance workflow incrementally: one rhythm, one bass pattern,
+  a melody, then a periodic variation and a breakdown. The agent uses the same
+  documented subset as the person, with explicit Apply and no automatic paid
+  retries. Unsupported Tidal features must be explained, never fabricated.
+
+Acceptance adds exact pattern-semantics fixtures and a repeatable live build-up
+exercise to the reference pass below. An attractive editor alone does not close
+this gate. Determine the explicit syntax boundary before adding these operators;
+readable pitch/inline feedback remains the first implementation slice.
+
 ## Owner's live-coding references — 2026-09-09 clarification
 
 After the implementation checkpoint ef9f674, the owner supplied four videos
@@ -65,6 +117,9 @@ implementation gate before calling the owner direction complete.
    Add only the minimal deterministic language support a verified fixture needs;
    preserve finite arrangements/exports and the one chip engine. Do not silently
    import Strudel's unrestricted runtime, external samples or incompatible FX.
+   Follow the TidalCycles guide above: specify the supported pattern subset and
+   its compatibility boundary, then implement operators with exact timing/source-
+   mapping tests before advertising them in completion or agent instructions.
 6. [ ] Acceptance demo: play once, then manually and via reviewed agent proposals
    build and vary a chip track with visible code/notes correspondence, no lost
    playback phase, no navigation and no hidden musical edits. Include invalid

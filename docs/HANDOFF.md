@@ -3,6 +3,18 @@
 Plain, current working notes for whoever (or whatever) picks the project up
 next. Infrastructure and operations live outside this repository.
 
+## 2026-09-09 — TidalCycles is the primary musical guide
+
+Owner explicitly selected https://tidalcycles.org/ as the guide. Read its official
+overview, cycle, mini-notation, pattern-model and workshop documentation. The
+active plan now distinguishes Tidal musical semantics from Strudel's browser UI
+reference and our existing chip runtime. It specifies a bounded pattern subset,
+phase/quantization tests, a backward-compatible syntax boundary and deterministic
+variation/export requirements. Dot, colon and at-sign notation already have
+different meanings in existing Chiptunes source; silently treating old notes as
+Tidal would change saved music. This update changes planning/reference documents
+only; no Tidal runtime install, language implementation or deployment is claimed.
+
 ## 2026-09-09 — Owner clarified the live-coding experience with four videos
 
 The owner followed ef9f674 with "This but for our app" and DJ_Dave, Switch Angel
