@@ -342,7 +342,7 @@ const Audio = (()=>{
         }
         if(ev.data && ev.data.type==='msgError'){ try{ console.error('[chiptunes] chip message failed:', ev.data.in, ev.data.message); }catch(_){} }
       };
-      gbNode.onprocessorerror=function(){ musicEmit({type:'musicState',status:'error',revision:musicCurrent?musicCurrent.revision:null,frame:0,message:'Audio processor failed'}); };
+      gbNode.onprocessorerror=function(){ musicVisualAck.status='error';musicEmit({type:'musicState',status:'error',revision:musicCurrent?musicCurrent.revision:null,frame:0,message:'Audio processor failed'}); };
       ctx.addEventListener('statechange',function(){
         if(chipOwner==='create' && (musicCurrent||musicPending)) musicEmit({type:'musicState',status:ctx.state==='running'?'resumed':'suspended',revision:musicCurrent?musicCurrent.revision:null,frame:window.__rrrChip?window.__rrrChip.frame:0});
       });
@@ -367,10 +367,56 @@ const Audio = (()=>{
   // speaker back mid-composition.
   var chipOwner='radio';
   var musicListeners=new Set(), musicEpoch=0, musicRequest=0, musicActivation=0, musicCurrent=null, musicPending=null, musicRevisions=new Map(), musicIdentities=new Map();
+  var musicVisualAck={frame:0,status:'stopped'}, musicVisualClocks=new WeakMap();
+  // Read-only presentation of the AUDIO-ACKNOWLEDGED activation. Never advances
+  // a transport or consults the radio clock; position is held between reports.
+  function musicVisualState(){
+    if(chipOwner!=='create')return null;
+    var current=musicCurrent,frame=current?Math.min(current.totalFrames,Math.max(0,musicVisualAck.frame||0)):0;
+    var status=current?musicVisualAck.status:'stopped';
+    var paused=status!=='playing'||!ctx||ctx.state!=='running';
+    var settings=current&&current.visualSettings||{},clock=current&&musicVisualClocks.get(current);
+    if(current&&!clock&&globalThis.CT_MUSIC_LANGUAGE){
+      clock=globalThis.CT_MUSIC_LANGUAGE.createClock(settings);musicVisualClocks.set(current,clock);
+    }
+    var step=0,phase=0,bpm=settings.tempo||120;
+    if(clock){
+      var lo=0,hi=1048576;
+      while(lo+1<hi){var mid=Math.floor((lo+hi)/2);if(clock(mid/4)<=frame)lo=mid;else hi=mid;}
+      step=lo;var start=clock(step/4),end=clock((step+1)/4);
+      phase=Math.max(0,Math.min(1,(frame-start)/Math.max(1,end-start)));
+      var fps=(globalThis.CT_GB_HARDWARE||globalThis.CT_GB||{}).FPS||59.727500569606;
+      bpm=60*fps/Math.max(1,clock(Math.floor(step/4)+1)-clock(Math.floor(step/4)));
+    }
+    var grid={gstep:step,phase:phase,beat:Math.floor(step/4),bar:Math.floor(step/16),bpm:bpm,spb:60/bpm,step16:15/bpm,paused:paused};
+    var roles={lead:_emptyRole(),counter:_emptyRole(),bass:_emptyRole(),perc:_emptyRole(),noise:_emptyRole()},notes=[];
+    // Bounded recent native triggers, not a regenerated score or draft mapping.
+    if(current&&!paused)for(var f=Math.max(0,Math.floor(frame)-7);f<=frame;f++){
+      (current.schedule.byFrame[f]||[]).forEach(function(event){
+        if(!event.t||!event.n||notes.length>=64)return;
+        var n=event.n,role=['lead','counter','bass','noise'][n.ch]||'perc';
+        var note={id:String(current.activation)+':'+f+':'+notes.length,midi:n.midi,hi:Math.max(0,Math.min(1,((n.midi||60)-24)/84)),
+          mag:Math.max(0,Math.min(1,n.vel==null?0.5:n.vel)),channel:n.ch,role:role,source:'music',native:true};
+        notes.push(note);roles[role].notes.push(note);roles[role].energy=Math.max(roles[role].energy,note.mag);roles[role].onset=roles[role].energy;
+      });
+    }
+    roles.primary=roles.lead;roles.melody=roles.lead;
+    var energy=paused?0:Math.min(1,outputProbe().signal*4);
+    var barPhase=((step%16)+phase)/16,beatPhase=((step%4)+phase)/4;
+    var visual={bpm:bpm,beat:grid.beat,bar:grid.bar,phrase:Math.floor(grid.bar/4),barPhase:barPhase,
+      pulse:paused?0:1-beatPhase,beatPulse:paused?0:1-beatPhase,barPulse:paused?0:1-barPhase,
+      phrasePulse:paused?0:1-((grid.bar%4+barPhase)/4),energy:energy,energyLevel:energy*10,intensity:energy,
+      bands:{bass:roles.bass.energy,mid:Math.max(roles.lead.energy,roles.counter.energy),treble:roles.noise.energy},
+      roles:roles,noteOns:notes,primaryNotes:roles.lead.notes,section:null,hue:0.5,kick:0,snare:0,hat:0,
+      drop:false,idle:paused,paused:paused,spectrum:[],waveform:[]};
+    return {revision:current?current.revision:null,activation:current?current.activation:null,frame:frame,status:status,
+      paused:paused,suspended:!!ctx&&ctx.state!=='running',grid:grid,clock:visual};
+  }
   function musicEmit(state){ musicListeners.forEach(function(fn){ try{ fn(state); }catch(_){} }); }
   function musicAck(state){
     if(state.epoch!==musicEpoch) return;
     if(state.status==='playing' && !musicRevisions.has(state.activation)) return;
+    if(state.status==='playing'&&musicRevisions.get(state.activation).revision!==state.revision)return;
     if(state.status==='position' && (!musicCurrent||state.activation!==musicCurrent.activation)) return;
     if(state.status==='playing' && musicRevisions.get(state.activation)){
       var previous=musicCurrent;
@@ -382,6 +428,10 @@ const Audio = (()=>{
       musicRevisions.delete(state.activation);
       if(musicPending&&musicPending.activation===state.activation)musicPending=null;
     }
+    if(musicCurrent&&state.activation===musicCurrent.activation&&state.revision===musicCurrent.revision){
+      if(['playing','paused','ended','stopped','error'].includes(state.status))musicVisualAck.status=state.status;
+      if(['playing','paused','position','loop','ended'].includes(state.status)&&Number.isFinite(state.frame))musicVisualAck.frame=state.frame;
+    }
     musicEmit(state);
   }
   function musicPost(message){
@@ -389,6 +439,7 @@ const Audio = (()=>{
     gbNode.port.postMessage(Object.assign({epoch:musicEpoch},message));
   }
   function musicInvalidate(reason){
+    musicVisualAck={frame:0,status:'stopped'};
     musicEpoch++; musicRequest++; musicPending=null; musicCurrent=null; musicRevisions.clear(); musicIdentities.clear(); gbPending=null;
     if(gbNode) musicPost({type:'musicStop',reason:reason||'stop'});
   }
@@ -462,7 +513,8 @@ const Audio = (()=>{
     // Schedules are sent once; snapshots contain only bounded chip state.
     var schedule={};
     ['sr','samplesPerFrame','rate','gainScalar','mix','bank','inst','auto','vibOffAt','waveAt','kitAt','kitBank','byFrame'].forEach(function(k){schedule[k]=seq[k];});
-    return {revision:revision,activation:++musicActivation,totalFrames:gb.totalFrames,loop:!!options.loop,schedule:schedule,snapshots:snapshots};
+    return {revision:revision,activation:++musicActivation,totalFrames:gb.totalFrames,loop:!!options.loop,schedule:schedule,snapshots:snapshots,
+      visualSettings:structuredClone(options.settings||{})};
   }
   function musicIdentity(gb){
     return JSON.stringify(gb,function(k,v){
@@ -2093,7 +2145,7 @@ const Audio = (()=>{
   }
 
   return {
-    musicPlay:musicPlay, musicQueue:musicQueue, musicBoundaries:musicBoundaries,
+    musicPlay:musicPlay, musicQueue:musicQueue, musicBoundaries:musicBoundaries, musicVisualState:musicVisualState,
     musicCancel(revision){ musicPost({type:'musicCancel',revision:revision}); if(musicPending&&musicPending.revision===revision) musicPending=null; },
     musicPause(paused){ musicPost({type:'musicPause',paused:!!paused}); },
     musicSeek(frame){

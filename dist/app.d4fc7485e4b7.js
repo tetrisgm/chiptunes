@@ -1,6 +1,8 @@
 globalThis.CT_MUSIC_ASSETS_VERSION="5fba76c2aeb5e170";
-globalThis.CT_MUSIC_EDITOR_VERSION="f0fdf436411c";
-globalThis.CT_MUSIC_BUILD_VERSION="fef7cf6ae28c";
+globalThis.CT_MUSIC_EDITOR_VERSION="58e1a4542326";
+globalThis.CT_MUSIC_CHAT_UI_VERSION="904689e8bae1";
+globalThis.CT_MUSIC_PREVIEW_VERSION="e64dd6030ead";
+globalThis.CT_MUSIC_BUILD_VERSION="37ea2e2afc2a";
 /* ===== src/seed.js ===== */
 // ===== seed.js — deterministic generated-track identity. =====
 // Loads FIRST (before composer.js/audio.js) so any composer can seed itself from a URL token.
@@ -4104,7 +4106,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
                 title: S.title || '', cells: S.cells.length };
       } catch (e) { out = null; }
     });
-    return (out && out.gb && out.gb.notes && out.gb.notes.length) ? out : null;
+    return (out && out.gb && Array.isArray(out.gb.notes)) ? out : null;
   }
   // The station, editor chips, and written briefs use the same interpretation
   // and resulting document. Optional token support makes this path reproducible
@@ -5180,7 +5182,6 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       // is mostly song. This is the same nowrap + overflow-x treatment the
       // mood row above already uses.
       '<div class="n-utils">' +
-        '<button type="button" class="cr-btn" data-cr="livecoding" title="Open the code workspace and keep this song in the piano roll">Live coding</button>' +
         '<button type="button" class="cr-btn" data-cr="undo">↩ Undo</button>' +
         '<button type="button" class="cr-btn" data-cr="redo">↪ Redo</button>' +
         // The link is how a song made here is kept and heard elsewhere: closing
@@ -5199,7 +5200,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
         '<button type="button" class="cr-btn" data-cr="opennative" title="Open a local .lsdsng or .sav and edit its native LSDj structure (no playback yet)">' + _ic('rom') + 'Open LSDj</button>' +
         '<button type="button" class="cr-btn" data-cr="opennativejson">Open native JSON</button>' +
         '<button type="button" class="cr-btn" data-cr="resumenative">Resume LSDj edit</button>' +
-        '<button type="button" class="cr-btn" data-cr="workspace">Chat / Code / Notes</button>' +
+        '<button type="button" class="cr-btn" data-cr="workspace">Compose</button>' +
       '</div>' +
       // COMPACT VISIBLE LISTEN HELP. A tooltip does not show on a touch screen,
       // so the two ways to hear or keep a song are stated as plain, visible
@@ -5750,7 +5751,8 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
         G.CT_MUSIC_WORKSPACE.open().catch(function(e){if(G._toast)G._toast(e.message);});
       }
       else if (k === 'workspace') {
-        G.CT_MUSIC_WORKSPACE.open({gb:liveScore||buildSong(),settings:{tempo:S.bpm,bars:S.bars,title:S.title,tempoAt:S.tempoAt||[],grid:spb()}}).catch(function(e){if(G._toast)G._toast(e.message);});
+        var source=G.CT_MUSIC_LANGUAGE.materialize(liveScore||buildSong(),{tempo:S.bpm,bars:S.bars,title:S.title,tempoAt:S.tempoAt||[],stepsPerBar:spb()});
+        G.CT_MUSIC_WORKSPACE.open({source:source,explicit:true}).then(function(){if(G.CT_MUSIC_WORKSPACE.isOpen())root.classList.remove('show');}).catch(function(e){if(G._toast)G._toast(e.message);});
       }
     });
     root.addEventListener('input', function (ev) {
@@ -7163,7 +7165,7 @@ const Audio = (()=>{
         }
         if(ev.data && ev.data.type==='msgError'){ try{ console.error('[chiptunes] chip message failed:', ev.data.in, ev.data.message); }catch(_){} }
       };
-      gbNode.onprocessorerror=function(){ musicEmit({type:'musicState',status:'error',revision:musicCurrent?musicCurrent.revision:null,frame:0,message:'Audio processor failed'}); };
+      gbNode.onprocessorerror=function(){ musicVisualAck.status='error';musicEmit({type:'musicState',status:'error',revision:musicCurrent?musicCurrent.revision:null,frame:0,message:'Audio processor failed'}); };
       ctx.addEventListener('statechange',function(){
         if(chipOwner==='create' && (musicCurrent||musicPending)) musicEmit({type:'musicState',status:ctx.state==='running'?'resumed':'suspended',revision:musicCurrent?musicCurrent.revision:null,frame:window.__rrrChip?window.__rrrChip.frame:0});
       });
@@ -7188,10 +7190,56 @@ const Audio = (()=>{
   // speaker back mid-composition.
   var chipOwner='radio';
   var musicListeners=new Set(), musicEpoch=0, musicRequest=0, musicActivation=0, musicCurrent=null, musicPending=null, musicRevisions=new Map(), musicIdentities=new Map();
+  var musicVisualAck={frame:0,status:'stopped'}, musicVisualClocks=new WeakMap();
+  // Read-only presentation of the AUDIO-ACKNOWLEDGED activation. Never advances
+  // a transport or consults the radio clock; position is held between reports.
+  function musicVisualState(){
+    if(chipOwner!=='create')return null;
+    var current=musicCurrent,frame=current?Math.min(current.totalFrames,Math.max(0,musicVisualAck.frame||0)):0;
+    var status=current?musicVisualAck.status:'stopped';
+    var paused=status!=='playing'||!ctx||ctx.state!=='running';
+    var settings=current&&current.visualSettings||{},clock=current&&musicVisualClocks.get(current);
+    if(current&&!clock&&globalThis.CT_MUSIC_LANGUAGE){
+      clock=globalThis.CT_MUSIC_LANGUAGE.createClock(settings);musicVisualClocks.set(current,clock);
+    }
+    var step=0,phase=0,bpm=settings.tempo||120;
+    if(clock){
+      var lo=0,hi=1048576;
+      while(lo+1<hi){var mid=Math.floor((lo+hi)/2);if(clock(mid/4)<=frame)lo=mid;else hi=mid;}
+      step=lo;var start=clock(step/4),end=clock((step+1)/4);
+      phase=Math.max(0,Math.min(1,(frame-start)/Math.max(1,end-start)));
+      var fps=(globalThis.CT_GB_HARDWARE||globalThis.CT_GB||{}).FPS||59.727500569606;
+      bpm=60*fps/Math.max(1,clock(Math.floor(step/4)+1)-clock(Math.floor(step/4)));
+    }
+    var grid={gstep:step,phase:phase,beat:Math.floor(step/4),bar:Math.floor(step/16),bpm:bpm,spb:60/bpm,step16:15/bpm,paused:paused};
+    var roles={lead:_emptyRole(),counter:_emptyRole(),bass:_emptyRole(),perc:_emptyRole(),noise:_emptyRole()},notes=[];
+    // Bounded recent native triggers, not a regenerated score or draft mapping.
+    if(current&&!paused)for(var f=Math.max(0,Math.floor(frame)-7);f<=frame;f++){
+      (current.schedule.byFrame[f]||[]).forEach(function(event){
+        if(!event.t||!event.n||notes.length>=64)return;
+        var n=event.n,role=['lead','counter','bass','noise'][n.ch]||'perc';
+        var note={id:String(current.activation)+':'+f+':'+notes.length,midi:n.midi,hi:Math.max(0,Math.min(1,((n.midi||60)-24)/84)),
+          mag:Math.max(0,Math.min(1,n.vel==null?0.5:n.vel)),channel:n.ch,role:role,source:'music',native:true};
+        notes.push(note);roles[role].notes.push(note);roles[role].energy=Math.max(roles[role].energy,note.mag);roles[role].onset=roles[role].energy;
+      });
+    }
+    roles.primary=roles.lead;roles.melody=roles.lead;
+    var energy=paused?0:Math.min(1,outputProbe().signal*4);
+    var barPhase=((step%16)+phase)/16,beatPhase=((step%4)+phase)/4;
+    var visual={bpm:bpm,beat:grid.beat,bar:grid.bar,phrase:Math.floor(grid.bar/4),barPhase:barPhase,
+      pulse:paused?0:1-beatPhase,beatPulse:paused?0:1-beatPhase,barPulse:paused?0:1-barPhase,
+      phrasePulse:paused?0:1-((grid.bar%4+barPhase)/4),energy:energy,energyLevel:energy*10,intensity:energy,
+      bands:{bass:roles.bass.energy,mid:Math.max(roles.lead.energy,roles.counter.energy),treble:roles.noise.energy},
+      roles:roles,noteOns:notes,primaryNotes:roles.lead.notes,section:null,hue:0.5,kick:0,snare:0,hat:0,
+      drop:false,idle:paused,paused:paused,spectrum:[],waveform:[]};
+    return {revision:current?current.revision:null,activation:current?current.activation:null,frame:frame,status:status,
+      paused:paused,suspended:!!ctx&&ctx.state!=='running',grid:grid,clock:visual};
+  }
   function musicEmit(state){ musicListeners.forEach(function(fn){ try{ fn(state); }catch(_){} }); }
   function musicAck(state){
     if(state.epoch!==musicEpoch) return;
     if(state.status==='playing' && !musicRevisions.has(state.activation)) return;
+    if(state.status==='playing'&&musicRevisions.get(state.activation).revision!==state.revision)return;
     if(state.status==='position' && (!musicCurrent||state.activation!==musicCurrent.activation)) return;
     if(state.status==='playing' && musicRevisions.get(state.activation)){
       var previous=musicCurrent;
@@ -7203,6 +7251,10 @@ const Audio = (()=>{
       musicRevisions.delete(state.activation);
       if(musicPending&&musicPending.activation===state.activation)musicPending=null;
     }
+    if(musicCurrent&&state.activation===musicCurrent.activation&&state.revision===musicCurrent.revision){
+      if(['playing','paused','ended','stopped','error'].includes(state.status))musicVisualAck.status=state.status;
+      if(['playing','paused','position','loop','ended'].includes(state.status)&&Number.isFinite(state.frame))musicVisualAck.frame=state.frame;
+    }
     musicEmit(state);
   }
   function musicPost(message){
@@ -7210,6 +7262,7 @@ const Audio = (()=>{
     gbNode.port.postMessage(Object.assign({epoch:musicEpoch},message));
   }
   function musicInvalidate(reason){
+    musicVisualAck={frame:0,status:'stopped'};
     musicEpoch++; musicRequest++; musicPending=null; musicCurrent=null; musicRevisions.clear(); musicIdentities.clear(); gbPending=null;
     if(gbNode) musicPost({type:'musicStop',reason:reason||'stop'});
   }
@@ -7283,7 +7336,8 @@ const Audio = (()=>{
     // Schedules are sent once; snapshots contain only bounded chip state.
     var schedule={};
     ['sr','samplesPerFrame','rate','gainScalar','mix','bank','inst','auto','vibOffAt','waveAt','kitAt','kitBank','byFrame'].forEach(function(k){schedule[k]=seq[k];});
-    return {revision:revision,activation:++musicActivation,totalFrames:gb.totalFrames,loop:!!options.loop,schedule:schedule,snapshots:snapshots};
+    return {revision:revision,activation:++musicActivation,totalFrames:gb.totalFrames,loop:!!options.loop,schedule:schedule,snapshots:snapshots,
+      visualSettings:structuredClone(options.settings||{})};
   }
   function musicIdentity(gb){
     return JSON.stringify(gb,function(k,v){
@@ -8914,7 +8968,7 @@ const Audio = (()=>{
   }
 
   return {
-    musicPlay:musicPlay, musicQueue:musicQueue, musicBoundaries:musicBoundaries,
+    musicPlay:musicPlay, musicQueue:musicQueue, musicBoundaries:musicBoundaries, musicVisualState:musicVisualState,
     musicCancel(revision){ musicPost({type:'musicCancel',revision:revision}); if(musicPending&&musicPending.revision===revision) musicPending=null; },
     musicPause(paused){ musicPost({type:'musicPause',paused:!!paused}); },
     musicSeek(frame){
@@ -15728,6 +15782,208 @@ var EXPORTS = {
     SENDER_ORIGIN: SENDER, RECEIVER_ORIGIN: RECEIVER });
 });
 
+/* ===== src/music-preview.js ===== */
+// Disposable preview transport. Never installs a revision or touches playback.
+(function(G){
+  'use strict';
+  var SOURCE_LIMIT=1048576,EVENT_LIMIT=50000,FRAME_LIMIT=216000;
+  var DEBOUNCE_MS=250,TIMEOUT_MS=3000;
+  function object(value){return !!value&&typeof value==='object'&&!Array.isArray(value);}
+  function integer(value,max){return Number.isSafeInteger(value)&&value>=0&&value<=max;}
+  function inputOK(value){
+    return object(value)&&typeof value.source==='string'&&value.source.length<=SOURCE_LIMIT&&
+      typeof value.projectId==='string'&&value.projectId.length>0&&value.projectId.length<=128&&
+      integer(value.draftEpoch,Number.MAX_SAFE_INTEGER);
+  }
+  function resultOK(result,source){
+    function span(s){return object(s)&&object(s.start)&&object(s.end)&&
+      integer(s.start.offset,source.length)&&integer(s.end.offset,source.length)&&s.end.offset>=s.start.offset&&
+      integer(s.start.line,SOURCE_LIMIT+1)&&s.start.line>0&&integer(s.end.line,SOURCE_LIMIT+1)&&s.end.line>0&&
+      integer(s.start.column,SOURCE_LIMIT+1)&&s.start.column>0&&integer(s.end.column,SOURCE_LIMIT+1)&&s.end.column>0;}
+    if(!object(result)||!object(result.settings)||!Array.isArray(result.mapping)||!Array.isArray(result.diagnostics)||
+      result.mapping.length>EVENT_LIMIT||result.diagnostics.length>2*EVENT_LIMIT+1)return false;
+    if(!result.diagnostics.every(function(d){return object(d)&&typeof d.message==='string'&&d.message.length<=SOURCE_LIMIT&&
+      ['error','warning','info'].indexOf(d.severity)!==-1&&(!d.span||span(d.span));}))return false;
+    var errors=result.diagnostics.some(function(d){return d.severity==='error';});
+    if(result.gb===null)return errors&&result.mapping.length===0;
+    if(errors||!object(result.gb)||!Array.isArray(result.gb.notes)||result.gb.notes.length>EVENT_LIMIT||
+      !integer(result.gb.totalFrames,FRAME_LIMIT)||result.mapping.length!==result.gb.notes.length)return false;
+    var count=0;
+    if(!['notes','auto','vibOff','waveLoads','kit'].every(function(key){
+      if(result.gb[key]===undefined)return true;
+      if(!Array.isArray(result.gb[key]))return false;count+=result.gb[key].length;return count<=EVENT_LIMIT;
+    }))return false;
+    if(!result.gb.notes.every(function(n){return object(n)&&integer(n.ch,3)&&integer(n.frame,FRAME_LIMIT)&&
+      integer(n.frames,FRAME_LIMIT)&&n.frames>0&&n.frame+n.frames<=FRAME_LIMIT;}))return false;
+    var seen=new Set();
+    return result.mapping.every(function(m){
+      if(!object(m)||!integer(m.noteIndex,result.gb.notes.length-1)||seen.has(m.noteIndex)||!span(m.span)||
+        (m.occurrenceSpan!==undefined&&!span(m.occurrenceSpan)))return false;
+      seen.add(m.noteIndex);return true;
+    });
+  }
+  function create(options){
+    options=options||{};
+    var url=options.workerUrl||'/lib/music-preview-worker.js';
+    // Only bundled same-origin classic workers, optionally cache-versioned.
+    if(typeof url!=='string'||!/^\/lib\/[A-Za-z0-9_/-]+\.js(?:\?[A-Za-z0-9_.~%=&+-]*)?$/.test(url))
+      throw Error('Preview worker must be a same-origin /lib JavaScript asset');
+    var sequence=0,pending=null,worker=null,timer=null,deadline=null,destroyed=false;
+    function clear(){
+      if(timer!==null)G.clearTimeout(timer);if(deadline!==null)G.clearTimeout(deadline);
+      timer=null;deadline=null;
+      if(worker){worker.onmessage=worker.onerror=worker.onmessageerror=null;worker.terminate();worker=null;}
+      pending=null;
+    }
+    function cancel(){sequence++;clear();}
+    function current(capture){return !destroyed&&pending===capture&&capture.sequence===sequence;}
+    function envelope(capture,extra){return Object.assign({},capture,extra);}
+    function fail(capture,code,message){
+      if(!current(capture))return;
+      clear();if(typeof options.onError==='function')options.onError(envelope(capture,{code:code,message:message}));
+    }
+    function start(capture){
+      timer=null;if(!current(capture))return;
+      try{
+        worker=new G.Worker(url);
+        deadline=G.setTimeout(function(){fail(capture,'timeout','Draft preview timed out. Previous chart kept.');},TIMEOUT_MS);
+        worker.onmessage=function(event){
+          if(!current(capture))return;
+          var data=event.data;
+          // A stale/foreign result never changes the latest request's state.
+          if(!object(data)||data.sequence!==capture.sequence||data.projectId!==capture.projectId||data.draftEpoch!==capture.draftEpoch)return;
+          if(data.error){fail(capture,'worker-error','Draft preview is unavailable. Previous chart kept.');return;}
+          if(!resultOK(data.compiled,capture.source)){fail(capture,'invalid-result','Draft preview returned invalid data. Previous chart kept.');return;}
+          clear();if(typeof options.onResult==='function')options.onResult(envelope(capture,{compiled:data.compiled}));
+        };
+        worker.onerror=function(event){if(event&&event.preventDefault)event.preventDefault();fail(capture,'worker-error','Draft preview is unavailable. Previous chart kept.');};
+        worker.onmessageerror=function(){fail(capture,'invalid-result','Draft preview returned unreadable data. Previous chart kept.');};
+        worker.postMessage(envelope(capture));
+      }catch(e){fail(capture,'worker-unavailable','Draft preview is unavailable. Previous chart kept.');}
+    }
+    return {
+      schedule:function(value){
+        if(destroyed)return {ok:false,code:'destroyed'};
+        cancel();
+        if(!inputOK(value)){
+          if(typeof options.onError==='function')options.onError({sequence:sequence,code:'invalid-input',message:'Draft preview input exceeds supported bounds.'});
+          return {ok:false,code:'invalid-input'};
+        }
+        var capture=pending={source:value.source,projectId:value.projectId,draftEpoch:value.draftEpoch,sequence:sequence};
+        timer=G.setTimeout(function(){start(capture);},DEBOUNCE_MS);
+        if(typeof options.onPending==='function')options.onPending(envelope(capture));
+        return {ok:true,sequence:capture.sequence};
+      },
+      cancel:cancel,
+      destroy:function(){if(destroyed)return;destroyed=true;cancel();}
+    };
+  }
+  var api=Object.freeze({create:create});G.CT_MUSIC_PREVIEW=api;
+  if(typeof module!=='undefined'&&module.exports)module.exports=api;
+})(typeof globalThis!=='undefined'?globalThis:window);
+
+/* ===== src/music-chart-index.js ===== */
+// Visual-only index over one immutable compiled note array. No music transforms.
+// create(notes).query({fromFrame,toFrame,channels?,limit=1000}) returns
+// {items:[{note,index}], bins:[], count, overflow}. Note indices always refer to
+// the original array. Notes and query windows are half-open: [start,end).
+// A match requires start < toFrame && end > fromFrame (positive durations).
+// Queries accept fractional frame bounds; compiled note timings are integers.
+// On overflow, items is empty and <=limit nonempty bins cover ALL matches.
+// Bins {channel,fromFrame,toFrame,count} partition max(note.start,query.fromFrame),
+// so counts sum exactly to the total. If limit < occupied channels, one bin has
+// channel:null plus channels and channelCounts:[{channel,count}]. Query a bin's
+// window/channel to drill down: crossing notes from earlier bins also intersect
+// that narrower window, so detail count may exceed the bin's onset count.
+(function(G){
+  'use strict';
+  var MAX_NOTES=50000,MAX_LIMIT=1000;
+  function need(ok,message){if(!ok)throw Error(message);}
+  function finiteFrame(value){return typeof value==='number'&&Number.isFinite(value)&&value>=0&&value<=Number.MAX_SAFE_INTEGER;}
+  function lowerBound(values,value){
+    var lo=0,hi=values.length;
+    while(lo<hi){var mid=(lo+hi)>>>1;if(values[mid]<value)lo=mid+1;else hi=mid;}
+    return lo;
+  }
+  function upperBound(values,value){
+    var lo=0,hi=values.length;
+    while(lo<hi){var mid=(lo+hi)>>>1;if(values[mid]<=value)lo=mid+1;else hi=mid;}
+    return lo;
+  }
+  function create(notes){
+    need(Array.isArray(notes)&&notes.length<=MAX_NOTES,'Chart index requires at most 50000 notes');
+    var lanes=[[],[],[],[]];
+    notes.forEach(function(note,index){
+      need(note&&Number.isInteger(note.ch)&&note.ch>=0&&note.ch<4&&
+        Number.isSafeInteger(note.frame)&&note.frame>=0&&Number.isSafeInteger(note.frames)&&note.frames>0&&
+        Number.isSafeInteger(note.frame+note.frames),'Invalid chart note channel or interval');
+      // Capture timing, but preserve the original note object and array index.
+      // Callers treat compiled notes as immutable and rebuild for a new score.
+      lanes[note.ch].push({note:note,index:index,start:note.frame,end:note.frame+note.frames});
+    });
+    lanes=lanes.map(function(entries){
+      entries.sort(function(a,b){return a.start-b.start||a.index-b.index;});
+      var starts=entries.map(function(e){return e.start;}),ends=entries.map(function(e){return e.end;}).sort(function(a,b){return a-b;});
+      var size=1;while(size<entries.length)size*=2;
+      var maximum=new Float64Array(size*2);
+      entries.forEach(function(e,i){maximum[size+i]=e.end;});
+      for(var i=size-1;i>0;i--)maximum[i]=Math.max(maximum[i*2],maximum[i*2+1]);
+      return {entries:entries,starts:starts,ends:ends,size:size,maximum:maximum};
+    });
+    function count(lane,from,to){return lowerBound(lane.starts,to)-upperBound(lane.ends,from);}
+    function collect(lane,from,to,items){
+      // Augmented interval tree includes old, long notes crossing the viewport.
+      function visit(node,lo,hi){
+        if(lo>=lane.entries.length||lane.starts[lo]>=to||lane.maximum[node]<=from)return;
+        if(hi-lo===1){var e=lane.entries[lo];items.push({note:e.note,index:e.index});return;}
+        var mid=(lo+hi)>>>1;visit(node*2,lo,mid);visit(node*2+1,mid,hi);
+      }
+      visit(1,0,lane.size);
+    }
+    return Object.freeze({
+      query:function(options){
+        options=options||{};
+        var from=options.fromFrame,to=options.toFrame,limit=options.limit===undefined?MAX_LIMIT:options.limit;
+        need(finiteFrame(from)&&finiteFrame(to)&&to>from,'Chart query requires a finite nonempty [fromFrame,toFrame) window');
+        need(Number.isInteger(limit)&&limit>=1&&limit<=MAX_LIMIT,'Chart query limit must be 1 through 1000');
+        var channels=options.channels===undefined?[0,1,2,3]:options.channels;
+        need(Array.isArray(channels)&&channels.length<=4&&channels.every(function(ch){return Number.isInteger(ch)&&ch>=0&&ch<4;}),'Invalid chart channels');
+        channels=Array.from(new Set(channels)).sort(function(a,b){return a-b;});
+        var counts=channels.map(function(ch){return {channel:ch,count:count(lanes[ch],from,to)};}).filter(function(c){return c.count>0;});
+        var total=counts.reduce(function(n,c){return n+c.count;},0);
+        var result={items:[],bins:[],count:total,overflow:total>limit};
+        if(!result.overflow){
+          counts.forEach(function(c){collect(lanes[c.channel],from,to,result.items);});
+          // Deterministic ordering: channel, start frame, then original index.
+          return result;
+        }
+        if(limit<counts.length){
+          // One explicit mixed-channel bin is necessary when even one bin per
+          // occupied channel would exceed the caller's mounted-element budget.
+          result.bins.push({channel:null,channels:counts.map(function(c){return c.channel;}),channelCounts:counts,
+            fromFrame:from,toFrame:to,count:total});return result;
+        }
+        var perChannel=Math.floor(limit/counts.length),extra=limit%counts.length;
+        counts.forEach(function(c,channelIndex){
+          var lane=lanes[c.channel],number=Math.min(c.count,perChannel+(channelIndex<extra?1:0));
+          var expired=upperBound(lane.ends,from);
+          for(var i=0;i<number;i++){
+            var a=from+(to-from)*i/number,b=i===number-1?to:from+(to-from)*(i+1)/number;
+            if(b<=a)continue;
+            // Partition by max(note.start, viewport.from), not by duration.
+            // Thus bins sum exactly to count and spanning notes appear once.
+            var n=lowerBound(lane.starts,b)-(a===from?expired:lowerBound(lane.starts,a));
+            if(n)result.bins.push({channel:c.channel,fromFrame:a,toFrame:b,count:n});
+          }
+        });
+        return result;
+      }
+    });
+  }
+  var api=Object.freeze({create:create});G.CT_MUSIC_CHART_INDEX=api;
+  if(typeof module!=='undefined'&&module.exports)module.exports=api;
+})(typeof globalThis!=='undefined'?globalThis:window);
+
 /* ===== src/music-workspace.js ===== */
 // One source authority. Notes and exports use validated revisions; typing never
 // changes audio. Legacy and native editors retain their own document boundaries.
@@ -15735,12 +15991,45 @@ var EXPORTS = {
   'use strict';
   var root,editor,project,storage,client,sourceLoading=false,saveTimer,queueTokens={},queueRevisions={},queueActivations={},playingRevision=null,audioState={status:'stopped',frame:0};
   var selection=null,proposal=null,requestId=null,serial=0,previousFocus,inerted=[],conflict=false,unsub=null;
-  var unsaved=false,saveEpoch=0,editorLoading=null,previousRoute=null;
+  var unsaved=false,saveEpoch=0,editorLoading=null,previousRoute=null,openEpoch=0;
   var agentInstance=null,agentRecords=new Map(),policyEpoch=0;
   var connection=null;
-  var mainSite=location.origin==='https://chiptunes.app',lastMainView='code';
-  var viewEpoch=0,lastWorkspaceFocus=null;
+  var chatUI=null,chatLoading=null,chatDraft='',chatAccessMessage='Checking chat access…',chatUISignature=null;
+  var viewEpoch=0,chatFocus=null,desktopChatOpen=true,mobileChatOpen=false,chartShare=55;
   var soundingIndex=null,lastHighlight=null;
+  var preview=null,previewChart=null,previewOwner=null,previewStatus='Validated chart';
+  var chartIndex=null,chartRange=null,chartViewportKey='',chartRenderFrame=null;
+  var visualizerOpen=false,presentationOwner=null,presentationFocus=null;
+  function setVisualizer(visible){
+    if(!G.CT_CREATE_PRESENTATION){status('Visualizer is unavailable in this build.');return;}
+    if(visible&&!visualizerOpen)presentationFocus=document.activeElement;
+    visualizerOpen=!!visible;presentationOwner=visible?project:null;
+    root.dataset.presentation=visible?'visualizer':'composition';
+    var button=$('[data-action=visualizer]');button.textContent=visible?'Return to composition':'Visualizer';button.setAttribute('aria-pressed',String(visible));
+    $('[data-action=toggle-chat]').disabled=!!visible;
+    if(visible)button.focus({preventScroll:true});
+    G.CT_CREATE_PRESENTATION.setVisualizer(visualizerOpen);
+    if(!visible&&project)renderNotes();
+    if(!visible&&presentationFocus&&presentationFocus.isConnected&&presentationFocus.getClientRects().length)presentationFocus.focus({preventScroll:true});
+  }
+  function chartContext(s){s=s||snap();return previewOwner===project&&previewChart&&(!s.validated||s.draft!==s.validated.source)?previewChart:s.validated;}
+  function cancelPreview(){if(preview)preview.cancel();previewChart=null;previewOwner=null;previewStatus='Validated chart';}
+  function schedulePreview(){
+    var s=snap();
+    if(s.validated&&s.draft===s.validated.source){cancelPreview();renderNotes();diagnostics(s.diagnostics);return;}
+    if(!G.CT_MUSIC_PREVIEW){previewStatus='Previous chart · preview unavailable';return;}
+    if(!preview)preview=G.CT_MUSIC_PREVIEW.create({workerUrl:'/lib/music-preview-worker.js?v='+(G.CT_MUSIC_PREVIEW_VERSION||'0'),
+      onPending:function(){previewStatus='Previous chart · preview pending';$('.mw-chart-status').textContent=previewStatus;},
+      onResult:function(result){
+        var current=snap();if(root.hidden||result.projectId!==agentInstance||result.draftEpoch!==current.draftEpoch||result.source!==current.draft)return;
+        if(result.compiled.gb){previewOwner=project;previewChart={id:'preview-'+result.sequence,source:result.source,compiled:result.compiled};previewStatus='Draft preview · not applied';}
+        else previewStatus='Previous chart · draft has errors';
+        diagnostics(result.compiled.diagnostics);renderNotes();renderState();
+      },
+      onError:function(result){if(root.hidden||result.projectId!==agentInstance)return;previewStatus=result.message;$('.mw-chart-status').textContent=previewStatus;}
+    });
+    preview.schedule({source:s.draft,projectId:agentInstance,draftEpoch:s.draftEpoch});
+  }
   var mobileView=G.matchMedia('(max-width:760px)');
   var outboundTransfer=null,inboundTransfer=null,transferProtected=false,transferBase=null;
   function sendProject(){
@@ -15809,16 +16098,14 @@ var EXPORTS = {
       if(chatProviders.some(function(p){return p.id===chosen;}))select.value=chosen;
     }
     select.disabled=chatAccessBusy||!!requestId||!chatProviders.length;
-    $('[data-action=chat]').disabled=chatAccessBusy||!!requestId;
-    $('[data-action=chat]').textContent=chatUnlocked&&chatProviders.length?'Send':chatProviders.length?'Unlock to send':'Chat settings';
     $('[data-action=chat-unlock]').disabled=chatAccessBusy||chatUnlocked;
     $('[data-action=chat-logout]').disabled=chatAccessBusy||!chatUnlocked;
     $('[data-action=chat-access-refresh]').disabled=chatAccessBusy;
     $('.mw-owner-password').disabled=chatAccessBusy||chatUnlocked;
-    if(message){$('.mw-chat-access-status').textContent=message;$('.mw-settings-status').textContent=message;}
+    if(message){chatAccessMessage=message;$('.mw-settings-status').textContent=message;}
+    renderChatUI();
   }
   async function updateChatAccess(method){
-    if(mainSite)return;
     if(chatAccessBusy)return;
     var password=$('.mw-owner-password').value;$('.mw-owner-password').value='';
     if(method==='POST'&&!password){renderChatAccess('Enter the owner password.');return;}
@@ -16052,6 +16339,7 @@ var EXPORTS = {
     if(sourceLoading)return;
     var result=project.editDraft(text);if(!result.ok){announceError(result);return;}
     cancelChat('superseded');renderProposal();renderState();scheduleSave();
+    schedulePreview();
   }
   async function ensureEditor(){
     if(editor)return;
@@ -16063,22 +16351,57 @@ var EXPORTS = {
         script.onload=resolve;script.onerror=function(){script.remove();reject(Error('Code editor could not load'));};document.head.appendChild(script);
       });
     }
-    editor=G.CT_MUSIC_CODE_EDITOR.mount($('.mw-code'),snap().draft,sourceChanged);
+    editor=G.CT_MUSIC_CODE_EDITOR.mount($('.mw-code'),snap().draft,sourceChanged,{onSelectionChange:sourceSelected});
     $('.mw-help pre').textContent=Object.values(G.CT_MUSIC_CODE_EDITOR.help).join('\n');
     })();
     try{await editorLoading;}finally{editorLoading=null;}
   }
-  function syncEditor(){if(editor){sourceLoading=true;editor.set(snap().draft);sourceLoading=false;}}
+  function syncEditor(){cancelPreview();if(visualizerOpen&&presentationOwner!==project)setVisualizer(false);if(editor){sourceLoading=true;editor.set(snap().draft);sourceLoading=false;}}
+  function sourceSelected(ranges){
+    if(!project||!root)return;
+    var s=snap(),v=chartContext(s),indices=new Set();
+    if(v&&s.draft===v.source){
+      function overlaps(span){return span&&ranges.some(function(r){
+        var a=span.start.offset,b=span.end.offset;
+        return r.from===r.to?r.from>=a&&r.from<b:r.from<b&&r.to>a;
+      });}
+      v.compiled.mapping.forEach(function(m){if(overlaps(m.span)||overlaps(m.occurrenceSpan))indices.add(m.noteIndex);});
+    }
+    // Cursor movement is visual feedback, never a change to agent edit scope.
+    $('.mw-notes').querySelectorAll('.mw-note').forEach(function(el){el.classList.toggle('mw-source-selected',indices.has(Number(el.dataset.note)));});
+  }
   function selectView(next,focusCode){
     var epoch=++viewEpoch;
-    if(next==='chat'&&!mobileView.matches)next=lastMainView;
-    if(next!=='chat')lastMainView=next;
-    view=next;root.dataset.view=next;
-    $('.mw-notes').hidden=next!=='notes';$('.mw-code').hidden=next!=='code';
-    $('.mw-chat').setAttribute('role',mobileView.matches?'tabpanel':'complementary');
-    if(mobileView.matches)$('.mw-chat').setAttribute('aria-labelledby','mw-tab-chat');else $('.mw-chat').removeAttribute('aria-labelledby');
-    root.querySelectorAll('[data-view]').forEach(function(b){b.setAttribute('aria-selected',String(b.dataset.view===next));b.tabIndex=b.dataset.view===next?0:-1;});
+    // Compatibility for existing callers: reveal/focus, never switch panes.
+    view=next;
+    if(next==='chat'){setChatOpen(true,focusCode!==false);return;}
+    if(next==='notes'&&focusCode!==false)$('.mw-notes').focus({preventScroll:true});
     if(next==='code')ensureEditor().then(function(){if(epoch===viewEpoch&&focusCode!==false&&!root.hidden&&view==='code')editor.focus();}).catch(announceError);
+  }
+  function chatIsOpen(){return mobileView.matches?mobileChatOpen:desktopChatOpen;}
+  function renderChatLayout(){
+    var expanded=chatIsOpen(),panel=$('.mw-chat');
+    if(!expanded&&panel.contains(document.activeElement)){
+      chatFocus=document.activeElement;$('[data-action=toggle-chat]').focus({preventScroll:true});
+    }
+    panel.hidden=!expanded;root.dataset.chatOpen=String(expanded);
+    var button=$('[data-action=toggle-chat]');button.setAttribute('aria-expanded',String(expanded));button.textContent=expanded?'Hide chat':'Show chat';
+  }
+  function setChatOpen(expanded,focus){
+    if(mobileView.matches)mobileChatOpen=expanded;else desktopChatOpen=expanded;
+    renderChatLayout();
+    if(expanded&&focus){
+      var target=chatFocus&&chatFocus.isConnected&&!chatFocus.disabled&&chatFocus.getClientRects().length?chatFocus:
+        null;
+      if(target)target.focus({preventScroll:true});else if(chatUI)chatUI.focus();
+    }
+  }
+  function setChartShare(value){
+    chartShare=Math.max(20,Math.min(75,Math.round(value)));
+    $('.mw-composition').style.setProperty('--chart-share',chartShare+'fr');
+    $('.mw-composition').style.setProperty('--code-share',(100-chartShare)+'fr');
+    $('.mw-splitter').setAttribute('aria-valuenow',String(chartShare));
+    $('.mw-splitter').setAttribute('aria-valuetext','Chart '+chartShare+' percent; code '+(100-chartShare)+' percent');
   }
   function renderState(){
     renderChatAccess();
@@ -16095,16 +16418,34 @@ var EXPORTS = {
     $('[data-action=play]').disabled=!v;
     $('.mw-seek').max=v?Math.max(0,v.compiled.gb.totalFrames-1):0;
     $('.mw-context').textContent='Base '+(v?v.id:'none')+' · '+(selection?['Melody','Harmony','Bass','Drums'][selection.ch]+' · frames '+selection.fromFrame+'–'+selection.toFrame:'Whole song');
-    $('[data-action=cancel]').disabled=!requestId;
+    renderChatUI();
   }
   function renderNotes(){
-    var s=snap(),v=s.validated,pane=$('.mw-notes');pane.replaceChildren();
+    var s=snap(),v=chartContext(s),pane=$('.mw-notes'),scrollTop=pane.scrollTop,scrollLeft=pane.scrollLeft;
+    var focused=pane.contains(document.activeElement)?document.activeElement.dataset.chartKey:null;
+    pane.replaceChildren();
+    $('.mw-chart-status').textContent=previewStatus;
     $('.mw-source-mode').textContent=v&&v.compiled.mapping.some(function(m){return !m.pattern;})?
       'Exact song source preserved. For a readable live-coding sketch, choose New loop above. Download this project first to keep it.':
       'Edit the patterns, then Run (Cmd/Ctrl+Enter). Changes join at a musical boundary while playing.';
     if(!v){pane.textContent='Apply valid code to see notes.';return;}
     var gb=v.compiled.gb,settings=v.compiled.settings||{},bars=settings.bars||Math.max(1,Math.ceil(gb.totalFrames/120));
-    var width=Math.max(pane.clientWidth-28,Math.min(12000,bars*80)),total=gb.totalFrames||1;
+    if(!chartIndex||chartIndex.owner!==project||chartIndex.id!==v.id||chartIndex.source!==v.source){
+      chartIndex={owner:project,id:v.id,source:v.source,index:G.CT_MUSIC_CHART_INDEX&&G.CT_MUSIC_CHART_INDEX.create(gb.notes),
+        mapping:new Map(v.compiled.mapping.map(function(m){return [m.noteIndex,m];})),
+        overlaps:new Set((v.compiled.diagnostics||[]).filter(function(d){return d.code==='CHIP_OVERLAP';}).map(function(d){return d.noteIndex;}))};
+      chartRange=null;scrollLeft=0;
+    }
+    var total=gb.totalFrames||1,rangeStart=chartRange?chartRange.fromFrame:0,rangeEnd=chartRange?chartRange.toFrame:total,span=rangeEnd-rangeStart;
+    var width=Math.max(pane.clientWidth-28,Math.min(12000,bars*80*(span/total)));
+    var from=Math.min(rangeEnd-0.000001,rangeStart+Math.max(0,scrollLeft-80)/width*span),to=Math.min(rangeEnd,rangeStart+(scrollLeft+pane.clientWidth+80)/width*span);
+    var visible=chartIndex.index?chartIndex.index.query({fromFrame:from,toFrame:Math.max(from+0.000001,to),limit:399}):{items:gb.notes.map(function(n,i){return {note:n,index:i};}),bins:[],overflow:false};
+    if(focused&&focused.startsWith('note-')){
+      var pinned=Number(focused.slice(5));
+      if(gb.notes[pinned]&&!visible.items.some(function(item){return item.index===pinned;}))visible.items.push({note:gb.notes[pinned],index:pinned});
+    }
+    $('.mw-chart-reset').hidden=!chartRange;
+    if(visible.overflow)$('.mw-chart-status').textContent=previewStatus+' · Dense region: '+visible.count+' notes shown as counted groups. Select a group to zoom.';
     var inner=document.createElement('div');inner.style.width=width+'px';inner.style.position='relative';
     var ruler=document.createElement('div');ruler.className='mw-bar-ruler';ruler.setAttribute('aria-label','Bar boundaries on the compiled song clock');
     ruler.style.cssText='height:26px;position:relative;font-size:11px;color:#b6bfd5';
@@ -16117,32 +16458,36 @@ var EXPORTS = {
       var stride=Math.max(1,Math.ceil(lo/255));
       for(var i=0;i<lo;i+=stride){
         var frame=clock(i*4);
+        if(frame<rangeStart||frame>=rangeEnd)continue;
         var mark=document.createElement('span');mark.textContent='Bar '+(i+1);mark.title='Frame '+frame;
-        mark.style.cssText='position:absolute;white-space:nowrap;top:0;left:'+(frame/total*width)+'px';ruler.appendChild(mark);
+        mark.style.cssText='position:absolute;white-space:nowrap;top:0;left:'+((frame-rangeStart)/span*width)+'px';ruler.appendChild(mark);
         var line=document.createElement('div');line.setAttribute('aria-hidden','true');
-        line.style.cssText='position:absolute;pointer-events:none;top:26px;bottom:0;border-left:1px solid #ffffff12;z-index:1;left:'+(frame/total*width)+'px';inner.appendChild(line);
+        line.style.cssText='position:absolute;pointer-events:none;top:26px;bottom:0;border-left:1px solid #ffffff12;z-index:1;left:'+((frame-rangeStart)/span*width)+'px';inner.appendChild(line);
       }
-      var end=document.createElement('span');end.textContent='End';end.title='Frame '+total;
+      var end=document.createElement('span');end.textContent=chartRange?'Frame '+Math.ceil(rangeEnd):'End';end.title='Frame '+rangeEnd;
       end.style.cssText='position:absolute;right:0;top:0';ruler.appendChild(end);
     }catch(e){ruler.textContent='Bar clock unavailable: '+e.message;}
     ['Melody','Harmony','Bass','Drums'].forEach(function(name,ch){
       var lane=document.createElement('div');lane.className='mw-lane';lane.setAttribute('aria-label',name);
       lane.style.background='#10121b';
       var label=document.createElement('div');label.className='mw-lane-label';label.textContent=name;lane.appendChild(label);
-      gb.notes.forEach(function(n,i){
+      var laneColor=['#79d59d','#71bbeb','#e8b264','#bf9fde'][ch];label.style.color=laneColor;
+      visible.items.forEach(function(item){var n=item.note,i=item.index;
         if(n.ch!==ch)return;
         var b=document.createElement('button');b.className='mw-note';b.type='button';
-        b.style.left=(n.frame/total*width)+'px';b.style.width=Math.max(6,Math.min(n.frames,total-n.frame)/total*width)+'px';
-        b.style.top=(28+(ch===3?12:Math.max(0,50-((n.midi||36)-24)*0.55)))+'px';
+        b.style.background=['#244d38','#173e59','#553d22','#40304e'][ch];b.style.borderColor=laneColor;
+        b.style.left=((Math.max(n.frame,rangeStart)-rangeStart)/span*width)+'px';b.style.width=Math.max(6,(Math.min(n.frame+n.frames,rangeEnd)-Math.max(n.frame,rangeStart))/span*width)+'px';
+        b.style.top=(22+(ch===3?12:Math.max(0,Math.min(24,(84-(n.midi||36))*0.4))))+'px';
         b.setAttribute('aria-label',name+' note '+(n.midi==null?'noise':n.midi)+' frame '+n.frame+' length '+n.frames);
-        b.setAttribute('aria-pressed','false');b.dataset.note=String(i);
-        if((v.compiled.diagnostics||[]).some(function(d){return d.code==='CHIP_OVERLAP'&&d.noteIndex===i;})){b.style.background='#c46a54';b.title='Chip overlap: inspect diagnostics';}
+        b.textContent=n.midi==null?'Noise':['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'][((n.midi%12)+12)%12]+(Math.floor(n.midi/12)-1);
+        b.setAttribute('aria-pressed','false');b.dataset.note=String(i);b.dataset.chartKey='note-'+i;
+        if(chartIndex.overlaps.has(i)){b.style.background='#c46a54';b.title='Chip overlap: inspect diagnostics';}
         if(n.frame+n.frames>total){b.style.background='#c46a54';b.title='Finite song end cuts this event; source duration is retained.';}
         b.addEventListener('click',function(){
           selection={ch:ch,fromFrame:n.frame,toFrame:n.frame+n.frames};
           agentPolicyChanged();
           pane.querySelectorAll('.mw-note').forEach(function(el){el.setAttribute('aria-pressed',String(el===b));});
-          var m=v.compiled.mapping.find(function(x){return x.noteIndex===i;});
+          var m=chartIndex.mapping.get(i);
           $('.mw-selection').textContent='Selected '+name+' · '+(m&&m.pattern?'pattern '+m.pattern+', occurrence '+m.occurrence:'explicit event')+' · frames '+n.frame+'–'+(n.frame+n.frames);
           renderState();
           if(m){
@@ -16150,14 +16495,29 @@ var EXPORTS = {
             if(snap().draft!==v.source){$('.mw-selection').textContent+=' · Source navigation unavailable while the draft differs from the validated revision.';return;}
             selectView('code');ensureEditor().then(function(){
               if(root.hidden||project!==mappingOwner||selection!==selected)return;
-              if(snap().draft!==v.source||snap().validated.id!==v.id){$('.mw-selection').textContent+=' · Source navigation unavailable while the draft differs from the validated revision.';return;}
+              if(snap().draft!==v.source||!chartContext()||chartContext().id!==v.id){$('.mw-selection').textContent+=' · Source navigation unavailable while the draft differs from the chart.';return;}
               editor.select(m.span.start.offset,m.span.end.offset);
             }).catch(announceError);
           }
         });lane.appendChild(b);
+      });
+      visible.bins.forEach(function(bin){
+        if(bin.channel!==ch)return;
+        var group=document.createElement('button');group.type='button';group.className='mw-note-group';group.textContent=String(bin.count);
+        group.dataset.chartKey='group-'+ch+'-'+bin.fromFrame;group.setAttribute('aria-label',bin.count+' '+name+' notes in frames '+Math.floor(bin.fromFrame)+'–'+Math.ceil(bin.toFrame)+'. Zoom into group');
+        group.style.left=((bin.fromFrame-rangeStart)/span*width)+'px';group.style.width=Math.max(12,(bin.toFrame-bin.fromFrame)/span*width)+'px';
+        group.addEventListener('click',function(){
+          if(bin.toFrame-bin.fromFrame<1){status(bin.count+' simultaneous notes in this region. Inspect their exact events in the code.');selectView('code');return;}
+          chartRange={fromFrame:bin.fromFrame,toFrame:bin.toFrame};pane.scrollLeft=0;renderNotes();
+        });lane.appendChild(group);
       });inner.appendChild(lane);
     });
-    var cursor=document.createElement('div');cursor.className='mw-playhead';cursor.style.left=Math.max(0,(audioState.frame||0)/total*width)+'px';inner.appendChild(cursor);pane.appendChild(inner);
+    var cursor=document.createElement('div');cursor.className='mw-playhead';cursor.style.left=Math.max(0,((audioState.frame||0)-rangeStart)/span*width)+'px';inner.appendChild(cursor);pane.appendChild(inner);
+    cursor.dataset.rangeStart=String(rangeStart);cursor.dataset.rangeEnd=String(rangeEnd);
+    cursor.hidden=!playingRevision||playingRevision.source!==v.source||audioState.frame<rangeStart||audioState.frame>=rangeEnd;
+    pane.scrollTop=scrollTop;pane.scrollLeft=scrollLeft;if(editor&&editor.selection)sourceSelected(editor.selection());
+    chartViewportKey=pane.scrollLeft+':'+pane.clientWidth;
+    if(focused){var retained=Array.from(pane.querySelectorAll('[data-chart-key]')).find(function(el){return el.dataset.chartKey===focused;});if(retained)retained.focus({preventScroll:true});}
   }
   function boundaries(revision){
     if(typeof engine().musicBoundaries!=='function')throw Error('Tempo-aware audio boundaries are unavailable');
@@ -16191,8 +16551,8 @@ var EXPORTS = {
       if(e.status==='error')status(e.message||'Audio engine failed');
     }
     renderState();if(proposalStatus!==(proposal&&proposal.status))renderProposal();
-    var v=snap().validated,cursor=$('.mw-playhead');
-    if(v&&cursor){var inner=cursor.parentElement;cursor.style.left=(Math.max(0,audioState.frame||0)/(v.compiled.gb.totalFrames||1)*inner.clientWidth)+'px';}
+    var v=chartContext(),cursor=$('.mw-playhead');
+    if(v&&cursor){var start=Number(cursor.dataset.rangeStart),end=Number(cursor.dataset.rangeEnd);cursor.hidden=!playingRevision||playingRevision.source!==v.source||audioState.frame<start||audioState.frame>=end;var inner=cursor.parentElement;cursor.style.left=((Math.max(0,audioState.frame||0)-start)/(end-start)*inner.clientWidth)+'px';}
     $('.mw-seek').value=String(audioState.frame||0);
   }
   function activate(revision,forcePlay){
@@ -16212,7 +16572,7 @@ var EXPORTS = {
         announceError(error);renderState();renderProposal();
       }
       try{
-        var settings={revision:revision.id,baseRevision:snap().playing,boundaries:forcePlay?[]:boundaries(playingRevision||revision),loop:$('.mw-loop').checked};
+        var settings={revision:revision.id,baseRevision:snap().playing,boundaries:forcePlay?[]:boundaries(playingRevision||revision),loop:$('.mw-loop').checked,settings:revision.compiled.settings};
         var result=forcePlay?engine().musicPlay(revision.compiled.gb,settings):engine().musicQueue(revision.compiled.gb,settings);
         if(result&&typeof result.then==='function')Promise.resolve(result).then(function(value){
           if(value===false||value&&value.ok===false)rejected(Error(value&&value.message||'Audio revision rejected'));
@@ -16266,30 +16626,54 @@ var EXPORTS = {
     check(project.setChat(boundedChat(project.getChat().concat([{role:role,content:content}]),64,131072)));
     scheduleSave();
   }
-  function renderConversation(){
-    var el=$('.mw-messages'),messages=project.getChat(),signature=JSON.stringify(messages);
-    if(el.dataset.signature===signature)return;
-    el.dataset.signature=signature;el.replaceChildren();
-    messages.forEach(function(m){
-      var item=document.createElement('article');item.className='mw-message';item.dataset.role=m.role;
-      var who=document.createElement('b');who.textContent=m.role==='user'?'You':'Assistant';
-      var text=document.createElement('p');text.textContent=m.content;item.append(who,text);el.appendChild(item);
-    });
-    if(!messages.length){var empty=document.createElement('p');empty.className='mw-chat-empty';empty.textContent='Ask about your music, explore an idea, or request an edit. You decide which changes to apply.';el.appendChild(empty);}
-    $('.mw-chat-log').scrollTop=$('.mw-chat-log').scrollHeight;
+  function renderChatUI(){
+    if(!chatUI||!project)return;
+    var p=proposal,source=p&&p.edits?snap().draft:'';
+    var state={input:chatDraft,messages:project.getChat(),pending:!!requestId,canSend:!chatAccessBusy,
+      accessMessage:chatAccessMessage,suggestions:['A happy four-bar loop','A dreamy cave theme','Simplify the drums, keep the melody'],
+      proposal:p?{id:p.id,status:p.status,canApply:p.status==='ready',
+        summary:p.diff?p.diff.summary:p.explanation||'',
+        preview:(p.edits||[]).map(function(e){return '− '+source.slice(e.from,e.to)+'\n+ '+e.text;}).join('\n')}:null};
+    var signature=JSON.stringify(state);if(signature===chatUISignature)return;
+    chatUISignature=signature;chatUI.update(state);
+  }
+  function resolveChatProposal(id,apply){
+    try{
+      if(!proposal||proposal.id!==id||proposal.status!=='ready')return;
+      if(proposal.capturedContext&&(invalidateAgent()||proposal.status!=='ready'))throw Error('Proposal context changed; request a new proposal');
+      if(apply){var r=check(project.applyProposal(id));proposal.revision=r.revision.id;proposal.status='queued';applied(r);if(!snap().pending)proposal.status='validated';status(r.diff.summary);}
+      else{project.cancelRequest(id);proposal.status='rejected';}
+      renderProposal();
+    }catch(e){if(proposal)proposal.status='superseded';announceError(e);renderProposal();}
+  }
+  async function ensureChat(){
+    if(chatUI)return;if(chatLoading)return chatLoading;
+    chatLoading=(async function(){
+      if(!G.CT_MUSIC_CHAT_UI)await new Promise(function(resolve,reject){
+        var script=document.createElement('script');script.src='/lib/music-chat-ui.js?v='+encodeURIComponent(G.CT_MUSIC_CHAT_UI_VERSION||'1');
+        script.onload=resolve;script.onerror=function(){script.remove();reject(Error('Chat UI could not load. Code and playback remain available.'));};document.head.appendChild(script);
+      });
+      chatUI=G.CT_MUSIC_CHAT_UI.mount($('.mw-chat-island'),{input:chatDraft,messages:[],pending:false,canSend:false},{
+        onInput:function(text){chatDraft=text;renderChatUI();},
+        onSend:function(){requestChat().catch(announceError);},
+        onStop:function(){cancelChat('rejected');proposal={status:'rejected',explanation:'Request cancelled'};renderProposal();renderState();},
+        onApply:function(id){resolveChatProposal(id,true);},onReject:function(id){resolveChatProposal(id,false);},
+        onSettings:function(){$('.mw-chat-settings').showModal();},onHide:function(){setChatOpen(false);}
+      });renderChatUI();
+    })();
+    try{await chatLoading;}finally{chatLoading=null;}
   }
   async function requestChat(){
-    if(mainSite)throw Error('Web Chat runs in the hosted workspace. Open this project there to request a proposal.');
     if(chatAccessBusy)return;
     if(!chatUnlocked||!chatProviders.some(function(p){return p.id===$('.mw-chat-provider').value;})){$('.mw-chat-settings').showModal();return;}
     client.provider=$('.mw-chat-provider').value;
     if(requestId)return;
-    var s=snap(),text=$('.mw-chat-input').value.trim();if(!text)throw Error('Write a musical request');
+    var s=snap(),text=chatDraft.trim();if(!text)throw Error('Write a musical request');
     var conversation=boundedChat(project.getChat(),12,16384);
     var capturedContext=agentContext();
     cancelChat('superseded');
     var owner=project,id='request-'+crypto.randomUUID(),req=check(project.beginRequest(id));requestId=id;
-    appendChat('user',text);$('.mw-chat-input').value='';
+    appendChat('user',text);chatDraft='';
     proposal={id:id,status:'proposed',capturedContext:capturedContext};renderProposal();renderState();
     var tracks=+$('.mw-scope').value,constraints={locks:[]};
     if($('.mw-lock').value!=='none')constraints.locks.push({type:$('.mw-lock').value,tracks:[0]});
@@ -16320,45 +16704,21 @@ var EXPORTS = {
   }
   function renderProposal(){
     invalidateAgent();
-    renderConversation();
-    var el=$('.mw-proposals');el.replaceChildren();if(!proposal)return;
-    var box=document.createElement('div');box.className='mw-proposal';
-    var title=document.createElement('b');title.textContent=proposal.status;box.appendChild(title);
-    var p=document.createElement('p');p.textContent=proposal.chat?'Suggested edit · Apply only if you want this change.':proposal.explanation||'Thinking…';box.appendChild(p);
-    if(proposal.diff){var summary=document.createElement('p');summary.textContent=proposal.diff.summary;box.appendChild(summary);}
-    (proposal.edits||[]).forEach(function(edit){
-      var diff=document.createElement('pre'),source=snap().draft;
-      diff.textContent='− '+source.slice(edit.from,edit.to)+'\n+ '+edit.text;box.appendChild(diff);
-    });
-    if(proposal.status==='ready'){
-      var displayedProposal=proposal;
-      ['Apply','Reject'].forEach(function(label){
-        var b=document.createElement('button');b.type='button';b.textContent=label;
-        b.addEventListener('click',function(){try{
-          if(proposal!==displayedProposal)return;
-          if(label==='Apply'){if(proposal.capturedContext&&(invalidateAgent()||proposal.status!=='ready'))throw Error('Proposal context changed; request a new proposal');var r=check(project.applyProposal(proposal.id));proposal.revision=r.revision.id;proposal.status='queued';applied(r);if(!snap().pending)proposal.status='validated';status(r.diff.summary);}
-          else{project.cancelRequest(proposal.id);proposal.status='rejected';}
-          renderProposal();
-        }catch(e){proposal.status='superseded';announceError(e);renderProposal();}});
-        box.appendChild(b);
-      });
-    }el.appendChild(box);$('.mw-chat-log').scrollTop=$('.mw-chat-log').scrollHeight;
+    renderChatUI();
   }
   function build(){
     root=document.createElement('section');root.id='musicworkspace';root.hidden=true;root.setAttribute('aria-label','Create music workspace');
-    root.innerHTML='<header class="mw-top"><h1>Create · Live code</h1><button data-action="new-loop">New loop</button><button data-action="close">Back</button></header>'+
+    root.innerHTML='<header class="mw-top"><h1>Create · Compose</h1><button data-action="new-loop">New loop</button><button data-action="toggle-chat" aria-controls="mw-panel-chat" aria-expanded="true">Hide chat</button><button data-action="close">Back</button></header>'+
       '<div class="mw-transport"><button data-action="play">▶ Play</button><button data-action="pause">Pause</button><button data-action="stop">■ Stop</button>'+
       '<label><input type="checkbox" class="mw-loop"> Loop</label><input class="mw-seek" type="range" min="0" max="0" value="0" aria-label="Seek frame">'+
       '<button class="mw-primary" data-action="apply" title="Run code (Cmd/Ctrl+Enter)" aria-keyshortcuts="Meta+Enter Control+Enter">Run <kbd>⌘/Ctrl ↵</kbd></button><button data-action="undo">Undo revision</button><button data-action="redo">Redo revision</button></div>'+
       '<div class="mw-live-feedback"><div class="mw-position" aria-live="off">Stopped · Run to hear your code</div><div class="mw-beats" aria-hidden="true"><i></i><i></i><i></i><i></i></div><div class="mw-state" aria-live="polite"></div></div>'+
-      '<nav class="mw-tabs" role="tablist" aria-label="Workspace view"><button id="mw-tab-notes" role="tab" aria-controls="mw-panel-notes" data-view="notes">Notes</button><button id="mw-tab-code" role="tab" aria-controls="mw-panel-code" data-view="code">Code</button><button id="mw-tab-chat" role="tab" aria-controls="mw-panel-chat" class="mw-mobile-chat" data-view="chat">Chat</button></nav>'+
-      '<div class="mw-body"><main class="mw-main"><p class="mw-source-mode"></p><div class="mw-selection" role="status">Notes show the validated revision. Select a note to locate its source.</div><div id="mw-panel-notes" role="tabpanel" aria-labelledby="mw-tab-notes" class="mw-mainview mw-notes"></div><div id="mw-panel-code" role="tabpanel" aria-labelledby="mw-tab-code" class="mw-mainview mw-code" hidden></div>'+
+      '<div class="mw-body"><main class="mw-main" aria-label="Composition"><p class="mw-source-mode"></p><div class="mw-selection" role="status">Notes show the validated revision. Select a note to locate its source.</div><div class="mw-composition"><div id="mw-panel-notes" role="region" aria-label="Note chart" tabindex="0" class="mw-mainview mw-notes"></div><div class="mw-splitter" role="separator" tabindex="0" aria-label="Resize chart and code" aria-orientation="horizontal" aria-controls="mw-panel-notes mw-panel-code" aria-valuemin="20" aria-valuemax="75" aria-valuenow="45" title="Drag or use Up/Down arrows to resize chart and code; Home/End for limits"></div><div id="mw-panel-code" role="region" aria-label="Code editor" class="mw-mainview mw-code"></div></div>'+
       '<div class="mw-diagnostics" role="status"></div><details class="mw-help"><summary>Music help and limits</summary><pre></pre><p>Audio/file exports are limited to 10 minutes; project downloads preserve longer songs.</p></details></main>'+
-      '<aside id="mw-panel-chat" class="mw-chat" aria-label="Musical collaboration"><header class="mw-chat-header"><h2>Chat</h2><button data-action="chat-settings">Settings</button></header><p class="mw-chat-access-status" role="status">Checking chat access…</p>'+
+      '<aside id="mw-panel-chat" class="mw-chat" aria-label="Musical collaboration">'+
       '<section class="mw-project-handoff" hidden><p>Web Chat runs in the hosted workspace. Open this project there to unlock Chat and request proposals.</p><button data-action="project-handoff">Open this project in web Chat</button><p>Copies your draft and last validated revision to web Chat without private chat or provenance. Accept in the new window; your original project stays here.</p></section>'+
       '<section class="mw-transfer-offer" aria-label="Incoming project" hidden><p class="mw-transfer-description" role="status"></p><div class="mw-actions"><button data-action="transfer-accept" disabled>Accept</button><button data-action="transfer-cancel">Cancel</button></div></section>'+
-      '<div class="mw-chat-log" role="log" aria-label="Conversation" aria-live="polite" aria-relevant="additions text"><div class="mw-messages"></div><div class="mw-proposals"></div></div>'+
-      '<div class="mw-composer"><label>Message<textarea class="mw-chat-input" maxlength="2000" rows="2" placeholder="Ask about your music or request an edit"></textarea></label><small>Send shares source, your request, and recent chat with the selected provider. Edits require Apply.</small><div class="mw-actions"><button data-action="chat">Send</button><button data-action="cancel">Stop generation</button></div></div></aside></div>'+
+      '<div class="mw-chat-island"></div></aside></div>'+
       '<dialog class="mw-chat-settings" aria-labelledby="mw-settings-title"><header class="mw-chat-header"><h2 id="mw-settings-title">Chat settings</h2><button data-action="chat-settings-close">Done</button></header><div class="mw-settings-content"><p class="mw-context"></p><section class="mw-chat-access" aria-label="Built-in chat access"><p class="mw-settings-status" role="status">Checking chat access…</p><p>Use the owner password, not an API key. Sending shares your music source, request, and recent conversation with the selected provider. Unlocking makes no model call.</p><p>Saved chat is private: public shares and transfers exclude it. Full project downloads include it.</p>'+
       '<label>Provider<select class="mw-chat-provider" aria-label="Chat provider"></select></label><label>Owner password<input class="mw-owner-password" type="password" autocomplete="off" maxlength="1024"></label>'+
       '<div class="mw-actions"><button data-action="chat-unlock">Unlock chat</button><button data-action="chat-logout" disabled>Lock chat</button><button data-action="chat-access-refresh">Refresh access</button></div></section><small>Chat supports source up to 512 KiB UTF-8; larger projects remain editable and downloadable.</small>'+
@@ -16371,31 +16731,59 @@ var EXPORTS = {
       '<p>Connecting uploads your current music source, selected region, and edit constraints to this service for the client you choose. Validated edits and context changes are shared while connected. Every proposal requires your explicit Apply.</p>'+
       '<label>Agent client<select class="mw-client"><option value="">Choose an authorized client</option></select></label><div class="mw-actions"><button data-action="refresh-clients">Refresh clients</button><button data-action="connect" disabled>Connect</button><button data-action="disconnect" disabled>Disconnect</button></div>'+
       '<p class="mw-connect-status" role="status">Connection unavailable in this build.</p><a class="mw-sign-in" href="/sign-in" hidden>Sign in to connect</a></section></details></div></dialog>'+
-      '<footer class="mw-actions"><button data-action="save">Save draft locally</button><button data-action="download">Download project</button><button data-action="open">Open project</button><button data-action="share">Copy project link</button>'+
+      '<footer class="mw-actions mw-footer"><details class="mw-project-tools"><summary>Project tools</summary><div class="mw-actions"><button data-action="save">Save draft locally</button><button data-action="download">Download project</button><button data-action="open">Open project</button><button data-action="share">Copy project link</button>'+
       '<details class="mw-generate"><summary>Generate a full song (exact source)</summary><label>Describe the song<input class="mw-generate-text" maxlength="500" placeholder="Make something happy"></label><button data-action="generate">Generate song</button></details>'+
-      '<details class="mw-exports"><summary>Export audio / files</summary><div class="mw-actions"><select class="mw-format" aria-label="Export format"><option value="wav">WAV</option><option value="midi">MIDI</option><option value="rom">Game Boy ROM</option><option value="lsdsng">LSDj</option></select><button data-action="export">Export validated revision</button></div></details><small class="mw-build"></small></footer>'+
+      '<details class="mw-exports"><summary>Export audio / files</summary><div class="mw-actions"><select class="mw-format" aria-label="Export format"><option value="wav">WAV</option><option value="midi">MIDI</option><option value="rom">Game Boy ROM</option><option value="lsdsng">LSDj</option></select><button data-action="export">Export validated revision</button></div></details></div></details><small class="mw-build"></small></footer>'+
       '<p class="mw-status" role="status" aria-live="polite"></p>';
     document.body.appendChild(root);
-    root.addEventListener('focusin',function(e){lastWorkspaceFocus=e.target;});
-    root.addEventListener('focusout',function(e){if(e.relatedTarget)lastWorkspaceFocus=e.relatedTarget;});
+    var visualizerButton=document.createElement('button');visualizerButton.dataset.action='visualizer';visualizerButton.textContent='Visualizer';visualizerButton.setAttribute('aria-pressed','false');
+    $('.mw-top').insertBefore(visualizerButton,$('[data-action=toggle-chat]'));
+    var chartStatus=document.createElement('p');chartStatus.className='mw-chart-status';chartStatus.setAttribute('role','status');
+    $('.mw-main').insertBefore(chartStatus,$('.mw-selection'));
+    var chartReset=document.createElement('button');chartReset.className='mw-chart-reset';chartReset.dataset.action='chart-reset';chartReset.textContent='Show full song';chartReset.hidden=true;chartStatus.after(chartReset);
+    function refreshChartViewport(){
+      if(root.hidden||!project||chartViewportKey===$('.mw-notes').scrollLeft+':'+$('.mw-notes').clientWidth||chartRenderFrame)return;
+      chartRenderFrame=requestAnimationFrame(function(){chartRenderFrame=null;if(!root.hidden)renderNotes();});
+    }
+    $('.mw-notes').addEventListener('scroll',refreshChartViewport,{passive:true});
+    if(G.ResizeObserver)new ResizeObserver(refreshChartViewport).observe($('.mw-notes'));
+    $('.mw-help').appendChild($('.mw-source-mode'));
+    var nativeTools=document.createElement('details');nativeTools.className='mw-native-tools';
+    nativeTools.innerHTML='<summary>Native format tools</summary><p>Separate LSDj structure editor; your musical code stays here. No native playback.</p><button data-action="native-pick">Open LSDj</button><button data-action="native-json">Open native JSON</button><button data-action="native-resume">Resume LSDj edit</button>';
+    $('.mw-project-tools>.mw-actions').appendChild(nativeTools);
+    if(location.origin==='https://chiptunes-agent-gateway.vercel.app'){
+      var recovery=document.createElement('p');recovery.className='mw-origin-recovery';
+      recovery.appendChild(document.createTextNode('This is the compatibility address. Your saved draft and private chat remain in this browser origin. Download the project here, then open it in '));
+      var canonical=document.createElement('a');canonical.href='https://chiptunes.app/create';canonical.target='_blank';canonical.rel='noopener';canonical.textContent='Chiptunes Create';recovery.appendChild(canonical);
+      recovery.appendChild(document.createTextNode('. Nothing is moved or deleted automatically.'));$('.mw-project-tools').appendChild(recovery);
+    }
+    $('.mw-chat').addEventListener('focusin',function(e){chatFocus=e.target;});
     $('.mw-chat-settings').addEventListener('close',function(){$('.mw-owner-password').value='';});
     $('.mw-chat-settings').addEventListener('cancel',function(e){
       e.preventDefault();e.stopImmediatePropagation();this.close();
     });
-    if(mainSite){
-      $('.mw-chat-access').hidden=true;$('.mw-composer').hidden=true;
-      $('.mw-chat-access-status').textContent='Chat is available in the hosted workspace.';
-    }
     mobileView.addEventListener('change',function(){
-      var active=document.activeElement,chatTab=$('#mw-tab-chat');
-      // CSS may blur the now-hidden tab to body before matchMedia dispatches.
-      // Restore only that lost focus, never move focus out of a real control.
-      var focusHiddenTab=!mobileView.matches&&(active===chatTab||
-        (active===document.body&&lastWorkspaceFocus===chatTab));
-      selectView(view,false);
-      if(focusHiddenTab&&!root.hidden)$('[role=tab][data-view='+view+']').focus();
+      if(!root.hidden)renderChatLayout();
     });
-    $('.mw-project-handoff').hidden=!G.CT_MUSIC_PROJECT_TRANSFER||location.origin!==G.CT_MUSIC_PROJECT_TRANSFER.SENDER_ORIGIN;
+    var splitter=$('.mw-splitter'),dragPointer=null;
+    setChartShare(chartShare);renderChatLayout();
+    splitter.addEventListener('keydown',function(e){
+      var delta=e.shiftKey?10:5;
+      if(['ArrowUp','ArrowDown','Home','End'].indexOf(e.key)===-1)return;
+      e.preventDefault();e.stopPropagation();setChartShare(e.key==='Home'?20:e.key==='End'?75:chartShare+(e.key==='ArrowUp'?-delta:delta));
+    });
+    splitter.addEventListener('pointerdown',function(e){
+      if(e.button!==0||!e.isPrimary)return;
+      e.preventDefault();splitter.focus({preventScroll:true});dragPointer=e.pointerId;splitter.setPointerCapture(e.pointerId);
+    });
+    splitter.addEventListener('pointermove',function(e){
+      if(e.pointerId!==dragPointer)return;
+      var rect=$('.mw-composition').getBoundingClientRect();setChartShare((e.clientY-rect.top)/rect.height*100);
+    });
+    function endResize(e){if(e.pointerId===dragPointer){dragPointer=null;if(splitter.hasPointerCapture(e.pointerId))splitter.releasePointerCapture(e.pointerId);}}
+    splitter.addEventListener('pointerup',endResize);splitter.addEventListener('pointercancel',endResize);splitter.addEventListener('lostpointercapture',function(){dragPointer=null;});
+    // Legacy transfer recovery remains supported, but normal Chat is same-origin.
+    $('.mw-project-handoff').hidden=true;
     $('.mw-build').textContent='Music v'+G.CT_MUSIC_LANGUAGE.VERSION+' · '+(G.CT_MUSIC_BUILD_VERSION||'development');
     root.addEventListener('keydown',function(e){
       if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)&&!e.altKey&&!e.isComposing&&e.target.closest('.mw-code')){
@@ -16404,9 +16792,7 @@ var EXPORTS = {
     },true);
     root.addEventListener('keydown',function(e){
       if(e.defaultPrevented){e.stopPropagation();return;}
-      if(e.target===$('.mw-chat-input')&&e.key==='Enter'&&!e.shiftKey&&!e.isComposing){
-        e.preventDefault();e.stopPropagation();if(!$('[data-action=chat]').disabled)requestChat().catch(announceError);return;
-      }
+      if(e.key==='Escape'&&visualizerOpen){e.preventDefault();e.stopImmediatePropagation();setVisualizer(false);return;}
       if($('.mw-chat-settings').open){
         // The native modal owns focus trapping; Escape must not close Create.
         if(e.key==='Escape'){e.preventDefault();e.stopImmediatePropagation();$('.mw-chat-settings').close();return;}
@@ -16418,12 +16804,6 @@ var EXPORTS = {
         });
         var first=focusable[0],last=focusable[focusable.length-1];
         if(first&&((e.shiftKey&&document.activeElement===first)||(!e.shiftKey&&document.activeElement===last))){e.preventDefault();(e.shiftKey?last:first).focus();}
-      }
-      var tab=e.target.closest('[role=tab]');
-      if(tab&&['ArrowLeft','ArrowRight','Home','End'].indexOf(e.key)!==-1){
-        var tabs=Array.from(root.querySelectorAll('[role=tab]')).filter(function(el){return el.getClientRects().length>0;});
-        var index=tabs.indexOf(tab),next=e.key==='Home'?0:e.key==='End'?tabs.length-1:(index+(e.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;
-        e.preventDefault();selectView(tabs[next].dataset.view,false);tabs[next].focus();
       }
       if(e.key==='Escape'&&!e.ctrlKey&&!e.metaKey){e.preventDefault();e.stopImmediatePropagation();close();return;}
       if(e.code==='Space'&&!e.target.closest('input,textarea,select,button,[contenteditable=true]')){
@@ -16444,7 +16824,9 @@ var EXPORTS = {
     G.addEventListener('beforeunload',function(e){if(conflict||saveTimer||unsaved){save();e.preventDefault();e.returnValue='';}});
   }
   async function action(name){
-    if(name==='chat-settings')$('.mw-chat-settings').showModal();
+    if(name==='toggle-chat')setChatOpen(!chatIsOpen(),true);
+    else if(name==='hide-chat')setChatOpen(false,false);
+    else if(name==='chat-settings')$('.mw-chat-settings').showModal();
     else if(name==='chat-settings-close')$('.mw-chat-settings').close();
     else if(name==='transfer-accept')await acceptTransfer();
     else if(name==='transfer-cancel'){
@@ -16467,21 +16849,28 @@ var EXPORTS = {
     else if(name==='pause')engine().musicPause(audioState.status!=='paused');
     else if(name==='stop'){resetAudio();renderState();}
     else if(name==='close')close();
+    else if(name==='visualizer')setVisualizer(!visualizerOpen);
+    else if(name==='chart-reset'){chartRange=null;$('.mw-notes').scrollLeft=0;renderNotes();}
+    else if(name==='native-pick'||name==='native-json'||name==='native-resume'){
+      if(!G.CT_LSDJ_NATIVE_EDITOR)throw Error('Native format tools are unavailable');
+      resetAudio();renderState();
+      G.CT_LSDJ_NATIVE_EDITOR[name==='native-pick'?'pick':name==='native-json'?'pickJson':'resume']();
+    }
     else if(name==='generate')generate();
     else if(name==='chat')await requestChat();
     else if(name==='cancel'){cancelChat('rejected');proposal={status:'rejected',explanation:'Request cancelled'};renderProposal();renderState();}
     else if(name==='save'){
       if(transferProtected){
         if(!storage||conflict){status('Cannot safely replace the saved project. Download this copy to keep your edits.');return;}
-        if(!G.confirm('Replace the saved hosted project with this transferred copy? This replaces its locally saved draft. Cancel and download any project you want to keep first.')){
-          status('This is a temporary transferred copy. Hosted saved project preserved.');return;
+        if(!G.confirm('Save this temporary copy as the browser recovery project? Any existing saved draft will be replaced. Cancel and download any project you want to keep first.')){
+          status('This is a temporary copy. Existing saved project preserved.');return;
         }
         var savingProject=project;transferProtected=false;await save();
         if(project!==savingProject)return;
-        if(unsaved){transferProtected=true;status('The transferred copy could not be fully saved. Download it to keep your latest edits.');}
+        if(unsaved){transferProtected=true;status('The temporary copy could not be fully saved. Download it to keep your latest edits.');}
         else{
           $('.mw-transfer-description').textContent='Transferred project saved locally after your confirmation. Reload restores this draft and its last validated revision.';
-          status('Transferred project saved locally.');
+          status('Project saved locally.');
         }
       }else await save();
     }
@@ -16515,13 +16904,31 @@ var EXPORTS = {
     }
   }
   async function open(initial){
+    var opening=++openEpoch;
+    // Validate explicit links before touching recovery, playback or the route.
+    var explicit=initial&&initial.explicit===true,importedProject=null;
+    if(explicit){
+      if(typeof initial.source!=='string')throw Error('An explicit import needs musical source');
+      importedProject=api().create(initial.source,opts());
+      if(!importedProject.snapshot().validated)throw Error('Shared musical source is invalid');
+    }
     if(!root)build();
-    if(!root.hidden)return;
+    var alreadyOpen=!root.hidden;
+    if(alreadyOpen&&!explicit)return;
+    if(explicit&&project&&unsaved){
+      var importOwner=project,importDraft=snap().draftEpoch;
+      await save();
+      if(opening!==openEpoch)return;
+      if(project!==importOwner||snap().draftEpoch!==importDraft)throw Error('The draft changed while opening the song. Open the link again after saving.');
+      if(unsaved)throw Error('Save or download the current draft before opening another song. Your edits are unchanged.');
+    }
     var received=null,transport=G.CT_MUSIC_PROJECT_TRANSFER;
     // receive() must consume the capability before any workspace hash rewrite.
     if(transport&&location.origin===transport.RECEIVER_ORIGIN&&/^#music-transfer=/.test(location.hash))received=transport.receive();
-    previousFocus=document.activeElement;
-    previousRoute=location.pathname+location.search+location.hash;
+    if(!alreadyOpen){
+      previousFocus=document.activeElement;
+      previousRoute=location.pathname==='/create'||/^#s=/.test(location.hash)?'/':location.pathname+location.search+location.hash;
+    }
     if(!project){
       client=new G.CT_MUSIC_CHAT.Client();
       try{
@@ -16531,10 +16938,20 @@ var EXPORTS = {
         // explicit import. Recovery wins; #music and file imports override below.
         if(saved.serialized){var restored=api().restore(saved.serialized,opts());if(restored.ok)project=restored.project;else{conflict=true;status(restored.message+' · Original saved project preserved');}}
       }catch(e){storage=null;status('Local storage unavailable. Download a project file to keep your work.');}
+      if(!project&&!explicit&&!conflict&&G.CT_CREATE&&typeof G.CT_CREATE.songOf==='function')try{
+        var legacy=localStorage.getItem('ct-create-draft');
+        if(legacy){
+          var legacySong=G.CT_CREATE.songOf(legacy),legacyState=G.CT_CREATE.docState(legacy);
+          if(!legacySong||!legacyState)throw Error('Legacy draft could not be decoded');
+          project=api().create(G.CT_MUSIC_LANGUAGE.materialize(legacySong.gb,{tempo:legacySong.bpm,bars:legacySong.bars,title:legacySong.title,
+            tempoAt:legacyState.tempoAt||[],stepsPerBar:legacyState.grid||16}),opts());
+          unsaved=true;status('Recovered your previous composition as exact source. The original legacy draft is preserved.');
+        }
+      }catch(e){status('Previous composition could not be recovered. Its original browser record is preserved.');}
       if(!project){
         // The legacy entry deliberately supplies a song; preserve it exactly.
         // Only a fresh open without an initial song starts authored patterns.
-        if(initial){
+        if(initial&&!explicit){
           var initialSettings=Object.assign({},initial.settings||{});
           if(initialSettings.stepsPerBar==null&&initialSettings.grid!=null)initialSettings.stepsPerBar=initialSettings.grid;
           project=api().create(G.CT_MUSIC_LANGUAGE.materialize(initial.gb,initialSettings),opts());
@@ -16550,22 +16967,35 @@ var EXPORTS = {
       }catch(e){announceError(e);}}
       defaultProjectLoop();
     }
+    if(explicit){
+      clearTimeout(saveTimer);saveTimer=null;saveEpoch++;
+      if(connection)connection.disconnect();cancelChat('superseded');resetAudio();
+      // Opening a link is not permission to overwrite this origin's recovery.
+      transferProtected=true;project=importedProject;selection=null;proposal=null;unsaved=true;
+      defaultProjectLoop();
+      status('Shared song opened as a temporary copy. Existing saved draft preserved. Save draft locally asks before replacing it.');
+    }
     if(G.CT_CREATE.stopForNative)G.CT_CREATE.stopForNative();engine().enterCreate();
     if(!/^#music(?:=|$)/.test(location.hash))history.replaceState(null,'','/create#music');
-    agentInstance=G.crypto.randomUUID();root.hidden=false;inerted=[];
+    agentInstance=G.crypto.randomUUID();root.hidden=false;if(!alreadyOpen)inerted=[];renderChatLayout();
     if(!chatAccess)chatAccess=new G.CT_MUSIC_CHAT.Access();
     chatUnlocked=false;updateChatAccess('GET');
     if(!connection&&G.CT_MUSIC_AGENT_CONNECTION)connection=G.CT_MUSIC_AGENT_CONNECTION.create({workspace:G.CT_MUSIC_WORKSPACE,onChange:renderConnection});
     if(connection&&!received)connection.open();
     if(received)stageTransfer(received);
-    Array.from(document.body.children).forEach(function(el){if(el!==root&&!el.hasAttribute('inert')){el.setAttribute('inert','');inerted.push(el);}});
+    Array.from(document.body.children).forEach(function(el){if(el!==root&&el.id!=='nativeeditor'&&!(el.tagName==='INPUT'&&el.type==='file')&&!el.hasAttribute('inert')){el.setAttribute('inert','');inerted.push(el);}});
     if(!unsub)unsub=engine().onMusicState(onAudio);
     renderNotes();renderProposal();renderState();diagnostics(snap().diagnostics);selectView(view);
     $('[data-action=play]').focus();
     await ensureEditor();syncEditor();if(unsaved&&!conflict)scheduleSave();
+    if(snap().validated&&snap().draft!==snap().validated.source)schedulePreview();
+    try{await ensureChat();}catch(e){announceError(e);}
   }
   function close(){
     if(!root||root.hidden)return;
+    openEpoch++;
+    cancelPreview();
+    if(visualizerOpen)setVisualizer(false);
     if($('.mw-chat-settings').open)$('.mw-chat-settings').close();
     if(outboundTransfer)outboundTransfer.cancel();outboundTransfer=null;
     if(inboundTransfer)inboundTransfer.cancel();inboundTransfer=null;$('.mw-transfer-offer').hidden=true;
@@ -16573,11 +17003,16 @@ var EXPORTS = {
     if(connection)connection.close();
     save();cancelChat('superseded');try{resetAudio();}catch(e){announceError(e);}
     root.hidden=true;inerted.forEach(function(el){el.removeAttribute('inert');});inerted=[];
+    document.body.classList.remove('create-open');
     if(previousRoute)history.replaceState(null,'',previousRoute);
     if(unsub){unsub();unsub=null;}
+    // Canonical entry no longer leaves the legacy editor underneath us to
+    // return chip ownership. Use the existing station handback explicitly.
+    if(typeof G._closeCreateReturn==='function')G._closeCreateReturn();
     if(previousFocus&&previousFocus.isConnected)previousFocus.focus();
   }
   G.CT_MUSIC_WORKSPACE={open:open,close:close,isOpen:function(){return !!root&&!root.hidden;},snapshot:function(){return project&&snap();},
+    isVisualizerOpen:function(){return !!root&&!root.hidden&&visualizerOpen;},
     agentContext:agentContext,agentPropose:agentPropose,agentProposalStatus:agentProposalStatus,agentDisconnect:agentDisconnect};
 })(typeof globalThis!=='undefined'?globalThis:window);
 
@@ -40271,6 +40706,32 @@ let _bgAudioOnlySince=0;
 function _nowMs(){ return (typeof performance!=='undefined'&&performance.now) ? performance.now() : Date.now(); }
 function _backgroundAudioOnlyActive(){ return !!_bgAudioOnly; }
 function _backgroundUiDormant(){ return (typeof _backgroundAudioOnlyActive==='function' && _backgroundAudioOnlyActive()); }
+function _musicWorkspaceOpen(){return typeof CT_MUSIC_WORKSPACE!=='undefined'&&CT_MUSIC_WORKSPACE.isOpen();}
+var _musicPresentationEpoch=0;
+function _musicPresentationState(){
+  if(!_musicWorkspaceOpen())return null;
+  var state=Audio.musicVisualState&&Audio.musicVisualState();
+  return state||{paused:true,revision:null,frame:0,status:'stopped',grid:{gstep:0,phase:0,beat:0,bar:0,bpm:120,spb:0.5,step16:0.125,paused:true},
+    clock:{paused:true,idle:true,energy:0,energyLevel:0,beat:0,bar:0,phrase:0,beatPulse:0,bands:{},roles:{},noteOns:[],primaryNotes:[]}};
+}
+function _syncCreateRendering(){
+  var on=_shouldBackgroundAudioOnly();
+  if(on!==_bgAudioOnly)lastFrame=_nowMs();
+  _bgAudioOnly=on;
+  document.documentElement.classList.toggle('audio-background',on);
+  document.body.classList.toggle('audio-background',on);
+  if(on)_stopFrameLoop();else _scheduleFrameLoop();
+  return on;
+}
+window.CT_CREATE_PRESENTATION=Object.freeze({setVisualizer:function(visible){
+  _musicPresentationEpoch++;
+  visible=!!visible&&_musicWorkspaceOpen();
+  document.body.classList.toggle('create-visualizer',visible);
+  // Workspace owns transparency, panes and focus. The original stage stays in
+  // place (and may remain inert); this API touches no player/project state.
+  if(visible&&!selGame)showGame(_fallbackGameKey()||'random');
+  _syncCreateRendering();return visible;
+}});
 function _shouldBackgroundAudioOnly(){
   if(typeof document==='undefined') return false;
   // Stand down to audio-only ONLY when the page is truly hidden — minimised, another tab, or fully
@@ -40279,6 +40740,7 @@ function _shouldBackgroundAudioOnly(){
   // (Blur was never a reliable "background" signal anyway: touch devices, and any window with a playing
   // media element, report unfocused while fully visible.)
   if(document.hidden) return true;
+  if(_musicWorkspaceOpen())return !(CT_MUSIC_WORKSPACE.isVisualizerOpen&&CT_MUSIC_WORKSPACE.isVisualizerOpen());
   // The Create editor is an opaque full-screen takeover: simulating and painting the stage
   // beneath it is pure waste, and it visibly drags the editor's own frame rate down.
   try{ if(typeof CT_CREATE!=='undefined' && CT_CREATE.isOpen()) return true; }catch(e){}
@@ -40298,6 +40760,7 @@ function _publishAudioOnlyMode(on, reason){
   }catch(e){}
 }
 function _syncBackgroundAudioOnly(){
+  if(_musicWorkspaceOpen())return _syncCreateRendering();
   var on=_shouldBackgroundAudioOnly();
   if(_bgAudioOnly!==on){
     _bgAudioOnly=on;
@@ -40500,7 +40963,10 @@ function makeCachedFrameSND(base, rx){
 function runGame(game, state, dt, U, A, events){
   const paused = (typeof _transportIsPaused === 'function' && _transportIsPaused());
   const snd = _frameSND || (paused ? quietPausedSND() : makeCachedFrameSND(Audio && Audio.SND, _frameRX));
-  if(paused) primePausedGameState(state, snd);
+  if(paused||(_frameRX&&_frameRX.musicActivation!==undefined&&state&&
+    (state._musicActivation!==_frameRX.musicActivation||state._musicStep>snd.grid().gstep))) primePausedGameState(state, snd);
+  if(state&&_frameRX&&_frameRX.musicActivation!==undefined)state._musicActivation=_frameRX.musicActivation;
+  if(state&&_frameRX&&_frameRX.musicActivation!==undefined)state._musicStep=snd.grid().gstep;
   if(state && typeof MV !== 'undefined' && MV.frame){
     state._mvFrame = MV.frame(snd, state, (game && (game.key || game.name)) || 'game');
   }
@@ -40937,7 +41403,7 @@ function _reelStart(){
   _reelTimer=setInterval(function(){
     try{
       if(!document.body || !document.body.classList.contains('awaiting-mood')){ _reelStop(); return; }
-      if(document.hidden) return;            // no work while nobody is looking
+      if(document.hidden||_musicWorkspaceOpen()) return; // workspace owns presentation, not the radio reel
       if(!_reelKeys || !_reelKeys.length){
         _reelKeys=(typeof _pickerGameKeys==='function' ? _pickerGameKeys() : []).filter(function(k){ return k && k!=='random'; });
         // start somewhere other than the top of the list every load
@@ -40950,6 +41416,7 @@ function _reelStart(){
   }, 2000);
 }
 function _syncReel(){
+  if(_musicWorkspaceOpen()){_reelStop();return;}
   var wait = !!(document.body && document.body.classList.contains('awaiting-mood'));
   if(wait) _reelStart(); else _reelStop();
 }
@@ -41158,8 +41625,9 @@ function frame(now){
   // games, and freezing the simulation left every one of them drawing its empty
   // first frame: a flat fill, four colours on the stage, for as long as anybody
   // looked at it. Pausing a SONG stops the games; having no song yet does not.
-  const holding = (function(){ try{ return !!(Audio.isHolding && Audio.isHolding()); }catch(e){ return false; } })();
-  const paused = (typeof _transportIsPaused==='function' && _transportIsPaused()) && !holding;
+  const musicPresentation=_musicPresentationState();
+  const holding = !musicPresentation&&(function(){ try{ return !!(Audio.isHolding && Audio.isHolding()); }catch(e){ return false; } })();
+  const paused = musicPresentation?musicPresentation.paused:(typeof _transportIsPaused==='function' && _transportIsPaused()) && !holding;
   const simDt = paused ? 0 : dt;
   if(paused){
     if(typeof INP!=='undefined') INP.clickPulse = false;
@@ -41168,17 +41636,19 @@ function frame(now){
   const U = _gameUnit(W, H);
   if(_reseatScene){ _reseatScene=false;                    // returned from a long background stint: rebuild the scene so it plays live (no fast-forward catch-up)
     if(sceneKind==='game' && selGame){ try{ selState = selGame.make(fullArea(U), U, selVar); }catch(e){ selState = selState||{}; } } }
-  const silentWatch = !!(_watchOnly && !_watchMicActive);
-  const cur = (Audio.started && !silentWatch) ? Audio.current() : null;
+  const silentWatch = !musicPresentation&&!!(_watchOnly && !_watchMicActive);
+  const cur = musicPresentation?{bpm:musicPresentation.grid.bpm,sect:null}:(Audio.started && !silentWatch) ? Audio.current() : null;
   const bpm = cur?cur.bpm:120, sect = cur?cur.sect:'verse';
-  const events = (!paused && Audio.started && !silentWatch) ? Audio.consumeEvents() : [];
+  const events = (!musicPresentation&&!paused && Audio.started && !silentWatch) ? Audio.consumeEvents() : [];
   // HARD-RESET the context each frame: unwind any unbalanced save()/translate()/clip() a game
   // module may have leaked, then restore the base transform — so nothing accumulates across frames.
   for(let i=0;i<8;i++) g.restore();
   g.setTransform(DPR,0,0,DPR,0,0); g.globalAlpha = 1;
-  const RX = (Audio.started && Audio.vis && !silentWatch) ? Audio.vis() : null;   // the music bus, read ONCE per frame
+  const RX = musicPresentation?Object.assign({},musicPresentation.clock,{musicActivation:String(musicPresentation.activation)+':'+_musicPresentationEpoch}):(Audio.started && Audio.vis && !silentWatch) ? Audio.vis() : null;
   _frameRX = RX;
-  _frameSND = silentWatch ? watchClockSND()                                       // watch mode: wall-clock grid, games play FULLY, no AudioContext
+  _frameSND = musicPresentation ? {grid:()=>musicPresentation.grid,clock:()=>RX,vis:()=>RX,energy:()=>RX.energy,
+    event(){},note(){},lead(){},fx(){},tone(){},drum(){},bass(){},act(){}}
+            : silentWatch ? watchClockSND()                                       // watch mode: wall-clock grid, games play FULLY, no AudioContext
             : (paused ? quietPausedSND() : makeCachedFrameSND(Audio && Audio.SND, RX));
   _writeDiagnostics(RX, paused, now);
   // one field claim per frame (see dmg-palette.js): the pack's first
@@ -41534,6 +42004,7 @@ if(typeof window!=='undefined'){
 // grid clock ran far ahead) flag the scene to re-seat — otherwise the game replays every missed beat-step in a visible fast-forward.
 document.addEventListener('visibilitychange', ()=>{
   if(_syncBackgroundAudioOnly()){ _hiddenAt = _nowMs(); _syncWakeLock(); return; }
+  if(_musicWorkspaceOpen()){_musicPresentationEpoch++;_hiddenAt=0;return;}
   const away = _hiddenAt ? _nowMs()-_hiddenAt : 0;
   lastFrame = _nowMs();
   if(Audio.resume) Audio.resume();                                                    // make sure the context didn't stay suspended
@@ -41550,6 +42021,7 @@ window.addEventListener('blur', function(){
 });
 window.addEventListener('focus', function(){
   if(_syncBackgroundAudioOnly()){ _syncWakeLock(); return; }
+  if(_musicWorkspaceOpen()){_musicPresentationEpoch++;_hiddenAt=0;return;}
   const away = _hiddenAt ? _nowMs()-_hiddenAt : 0;
   lastFrame = _nowMs();
   if(Audio.resume) Audio.resume();
@@ -41634,17 +42106,18 @@ function panelVisible(id){
 }
 function handleEscapeShortcut(ev){
   if(ev && ev.key==='Escape' && !ev.metaKey && !ev.altKey && !ev.ctrlKey &&
+     typeof CT_LSDJ_NATIVE_EDITOR!=='undefined' && CT_LSDJ_NATIVE_EDITOR.isOpen()){
+    CT_LSDJ_NATIVE_EDITOR.close(); consumeKeyEvent(ev); return true; }
+  if(ev && ev.key==='Escape' && !ev.metaKey && !ev.altKey && !ev.ctrlKey &&
      typeof CT_MUSIC_WORKSPACE!=='undefined' && CT_MUSIC_WORKSPACE.isOpen()){
     // Native settings dialogs own Escape before the surrounding workspace.
     // This document-capture handler runs before the workspace's modal handler.
     if(document.querySelector('#musicworkspace dialog[open]'))return false;
+    if(CT_MUSIC_WORKSPACE.isVisualizerOpen&&CT_MUSIC_WORKSPACE.isVisualizerOpen())return false;
     // CodeMirror gets first refusal for completion/search popovers. Unhandled
     // Escape bubbles to the workspace, which still closes the modal normally.
     if(ev.target&&ev.target.closest&&ev.target.closest('.cm-editor'))return false;
     CT_MUSIC_WORKSPACE.close(); consumeKeyEvent(ev); return true; }
-  if(ev && ev.key==='Escape' && !ev.metaKey && !ev.altKey && !ev.ctrlKey &&
-     typeof CT_LSDJ_NATIVE_EDITOR!=='undefined' && CT_LSDJ_NATIVE_EDITOR.isOpen()){
-    CT_LSDJ_NATIVE_EDITOR.close(); consumeKeyEvent(ev); return true; }
   if(!ev || ev.key!=='Escape' || shortcutTargetBlocked(ev) || ev.metaKey || ev.altKey || ev.ctrlKey) return false;
   if(typeof CT_CREATE!=='undefined' && CT_CREATE.isOpen()){
     // the editor's own panels close first; Escape only leaves once nothing is open
@@ -42345,8 +42818,15 @@ function _buildPlayerLinks(){
 // CREATE: the Mario-Paint-spirit editor (src/create.js). Entering hands the
 // chip to the user's song; leaving hands it back to the radio.
 var _createStandalone=false;      // true when /create booted without the radio behind it
+var _createEntryEpoch=0;
+window.addEventListener('popstate',function(){_createEntryEpoch++;});
+window.addEventListener('hashchange',function(){_createEntryEpoch++;});
 function _openCreate(blank){
-  if(typeof CT_CREATE==='undefined') return;
+  if(typeof CT_CREATE==='undefined'||typeof CT_MUSIC_WORKSPACE==='undefined') return;
+  var epoch=++_createEntryEpoch;
+  var route=location.pathname+location.search+location.hash;
+  function current(){return epoch===_createEntryEpoch&&route===location.pathname+location.search+location.hash;}
+  function failed(e){if(current()){if(window._toast)window._toast(e.message);else console.error('Music workspace:',e.message);}}
   if(document.body) document.body.classList.add('ai-visual');
   if(_createStandalone){
     if(typeof _stopHomeBackdrop==='function') _stopHomeBackdrop();
@@ -42383,19 +42863,30 @@ function _openCreate(blank){
     if(sceneKind==='game' && selGame && selState) _reseatScene=true;
     try{ _syncBackgroundAudioOnly(); }catch(e){}
   };
-  // hand the editor the song that is playing, if there is one -- unless the
-  // whole point was to start from nothing
-  // Shared source projects must never briefly start a generated/legacy song.
-  // Keep a silent legacy view underneath so Back retains the normal radio handoff.
-  if(/^#music(?:=|$|-transfer=[0-9a-f]{64}$)/.test(location.hash)&&typeof CT_MUSIC_WORKSPACE!=='undefined'){
-    CT_CREATE.openBlank();
-    CT_MUSIC_WORKSPACE.open().catch(function(e){console.error('Music workspace:',e.message);});
-    return;
+  // Decode without mounting the legacy editor or starting its transport.
+  function songInput(code){
+    var state=CT_CREATE.docState(code),song=state&&CT_CREATE.songOf(code);
+    if(!song)throw Error('Cannot open this song document. Your saved draft is unchanged.');
+    return {gb:song.gb,settings:{tempo:song.bpm,bars:song.bars,title:song.title,
+      tempoAt:state.tempoAt||[],grid:state.grid||16,stepsPerBar:state.grid||16}};
   }
-  if(blank){ try{ CT_CREATE.openBlank(); }catch(e){ CT_CREATE.open(''); } return; }
-  var _doc=null;
-  try{ if(typeof Audio!=='undefined'&&Audio.currentDoc) _doc=Audio.currentDoc(); }catch(e){}
-  CT_CREATE.open(_doc||undefined);
+  var shared=_readSharedDoc();
+  if(shared){
+    return _unpackDoc(shared).then(function(code){
+      if(!current())return;
+      var initial=songInput(code);
+      var source=CT_MUSIC_LANGUAGE.materialize(initial.gb,initial.settings);
+      if(current())return CT_MUSIC_WORKSPACE.open({source:source,explicit:true});
+    }).catch(failed);
+  }
+  try{
+    var initial;
+    if(!blank&&!/^#music(?:=|$|-transfer=)/.test(location.hash)){
+      var code=typeof Audio!=='undefined'&&Audio.currentDoc&&Audio.currentDoc();
+      if(code)initial=songInput(code);
+    }
+    return (initial?CT_MUSIC_WORKSPACE.open(initial):CT_MUSIC_WORKSPACE.open()).catch(failed);
+  }catch(e){failed(e);}
 }
 window._openCreate=_openCreate;
 
@@ -43071,7 +43562,8 @@ function buildPlaybar(){ _pbEl=document.getElementById('playbar'); if(!_pbEl||_p
 }
 function _transportIsGated(){ return !!(_nowSource==='generated' && Audio.running && !Audio.running() && !(Audio.isPaused&&Audio.isPaused())); }
 function _transportNeedsResume(){ return !!(Audio.started && Audio.running && !Audio.running() && !(Audio.isPaused&&Audio.isPaused())); }
-function _transportIsPaused(){ if(_watchOnly && !_watchMicActive) return false;
+function _transportIsPaused(){ var music=_musicPresentationState();if(music)return music.paused;
+  if(_watchOnly && !_watchMicActive) return false;
   // waiting to be asked for a mood is a paused station: nothing is playing, so
   // the button must offer play and the game must not run
   try{ if(Audio.isHolding && Audio.isHolding()) return true; }catch(e){}
@@ -44407,6 +44899,7 @@ function _routeQueryExtras(){                                 // ?game= survives
 }
 function syncRoute(slug){
   if(!slug || typeof history==='undefined' || !history.replaceState) return;
+  if(typeof CT_MUSIC_WORKSPACE!=='undefined'&&CT_MUSIC_WORKSPACE.isOpen())return;
   if(typeof LiveCtl!=='undefined' && LiveCtl.active()) return;   // LIVE owns the /radio route: reload rejoins the broadcast, not a /track replay
   if(Audio.extActive && Audio.extActive()) return;   // an external source (mic/file) owns the URL — don't overwrite it with the generated slug
   try{ if(typeof CT_CREATE!=='undefined' && CT_CREATE.isOpen()) return; }catch(eC){}  // the editor owns /create; a refresh must land back in it
@@ -45095,12 +45588,14 @@ function _productRouteFromPath(path){
   return null;
 }
 window._productRouteTo=function(path, opts){
+  _createEntryEpoch++;
   var r=_productRouteFromPath(path);
   if(!r) return false;
   opts=Object.assign({replace:true}, opts||{});
   if(r.legacy && typeof history!=='undefined' && history.replaceState){ try{ history.replaceState(null,'','/'); }catch(e){} }
   if(r.mode==='gameboy'){ _startEndlessRadio(); _openGameBoyWhenReady(); return true; }
   if(r.mode==='create'){ _createStandalone=true; _openCreate(); return true; }
+  if(r.mode==='radio'&&_readSharedDoc()){_createStandalone=true;_openCreate();return true;}
   if(r.mode==='radio'){ _startEndlessRadio(); return true; }
   if(r.mode==='watch'){ enterWatchMode({noRoute:true}); return true; }
   openProductHome(Object.assign({noRoute:true}, opts));   // already ON /get; do not push it again
@@ -45187,9 +45682,8 @@ if(String(_pathParts(location.pathname||'/')[0]||'').toLowerCase()==='get') buil
   }
   if(head==='gameboy'){ if(document.body) document.body.classList.add('ai-visual');
     startAudio(false); _openGameBoyWhenReady(); return; }
-  // Create is a bottom sheet over the game, including on a direct refresh.
-  if(head==='create'){ if(document.body) document.body.classList.add('ai-visual');
-    startAudio(false);
+  // Shared documents belong to composition, before radio boot can play them.
+  if(head==='create'||(head===''&&_readSharedDoc())){ if(document.body) document.body.classList.add('ai-visual');
     document.body.classList.add('create-open');
     _createStandalone=true; _openCreate(); return; }
   if(head==='get') return;                                       // the platform page; #intro is already up

@@ -52,6 +52,32 @@ let _bgAudioOnlySince=0;
 function _nowMs(){ return (typeof performance!=='undefined'&&performance.now) ? performance.now() : Date.now(); }
 function _backgroundAudioOnlyActive(){ return !!_bgAudioOnly; }
 function _backgroundUiDormant(){ return (typeof _backgroundAudioOnlyActive==='function' && _backgroundAudioOnlyActive()); }
+function _musicWorkspaceOpen(){return typeof CT_MUSIC_WORKSPACE!=='undefined'&&CT_MUSIC_WORKSPACE.isOpen();}
+var _musicPresentationEpoch=0;
+function _musicPresentationState(){
+  if(!_musicWorkspaceOpen())return null;
+  var state=Audio.musicVisualState&&Audio.musicVisualState();
+  return state||{paused:true,revision:null,frame:0,status:'stopped',grid:{gstep:0,phase:0,beat:0,bar:0,bpm:120,spb:0.5,step16:0.125,paused:true},
+    clock:{paused:true,idle:true,energy:0,energyLevel:0,beat:0,bar:0,phrase:0,beatPulse:0,bands:{},roles:{},noteOns:[],primaryNotes:[]}};
+}
+function _syncCreateRendering(){
+  var on=_shouldBackgroundAudioOnly();
+  if(on!==_bgAudioOnly)lastFrame=_nowMs();
+  _bgAudioOnly=on;
+  document.documentElement.classList.toggle('audio-background',on);
+  document.body.classList.toggle('audio-background',on);
+  if(on)_stopFrameLoop();else _scheduleFrameLoop();
+  return on;
+}
+window.CT_CREATE_PRESENTATION=Object.freeze({setVisualizer:function(visible){
+  _musicPresentationEpoch++;
+  visible=!!visible&&_musicWorkspaceOpen();
+  document.body.classList.toggle('create-visualizer',visible);
+  // Workspace owns transparency, panes and focus. The original stage stays in
+  // place (and may remain inert); this API touches no player/project state.
+  if(visible&&!selGame)showGame(_fallbackGameKey()||'random');
+  _syncCreateRendering();return visible;
+}});
 function _shouldBackgroundAudioOnly(){
   if(typeof document==='undefined') return false;
   // Stand down to audio-only ONLY when the page is truly hidden — minimised, another tab, or fully
@@ -60,6 +86,7 @@ function _shouldBackgroundAudioOnly(){
   // (Blur was never a reliable "background" signal anyway: touch devices, and any window with a playing
   // media element, report unfocused while fully visible.)
   if(document.hidden) return true;
+  if(_musicWorkspaceOpen())return !(CT_MUSIC_WORKSPACE.isVisualizerOpen&&CT_MUSIC_WORKSPACE.isVisualizerOpen());
   // The Create editor is an opaque full-screen takeover: simulating and painting the stage
   // beneath it is pure waste, and it visibly drags the editor's own frame rate down.
   try{ if(typeof CT_CREATE!=='undefined' && CT_CREATE.isOpen()) return true; }catch(e){}
@@ -79,6 +106,7 @@ function _publishAudioOnlyMode(on, reason){
   }catch(e){}
 }
 function _syncBackgroundAudioOnly(){
+  if(_musicWorkspaceOpen())return _syncCreateRendering();
   var on=_shouldBackgroundAudioOnly();
   if(_bgAudioOnly!==on){
     _bgAudioOnly=on;
@@ -281,7 +309,10 @@ function makeCachedFrameSND(base, rx){
 function runGame(game, state, dt, U, A, events){
   const paused = (typeof _transportIsPaused === 'function' && _transportIsPaused());
   const snd = _frameSND || (paused ? quietPausedSND() : makeCachedFrameSND(Audio && Audio.SND, _frameRX));
-  if(paused) primePausedGameState(state, snd);
+  if(paused||(_frameRX&&_frameRX.musicActivation!==undefined&&state&&
+    (state._musicActivation!==_frameRX.musicActivation||state._musicStep>snd.grid().gstep))) primePausedGameState(state, snd);
+  if(state&&_frameRX&&_frameRX.musicActivation!==undefined)state._musicActivation=_frameRX.musicActivation;
+  if(state&&_frameRX&&_frameRX.musicActivation!==undefined)state._musicStep=snd.grid().gstep;
   if(state && typeof MV !== 'undefined' && MV.frame){
     state._mvFrame = MV.frame(snd, state, (game && (game.key || game.name)) || 'game');
   }
@@ -718,7 +749,7 @@ function _reelStart(){
   _reelTimer=setInterval(function(){
     try{
       if(!document.body || !document.body.classList.contains('awaiting-mood')){ _reelStop(); return; }
-      if(document.hidden) return;            // no work while nobody is looking
+      if(document.hidden||_musicWorkspaceOpen()) return; // workspace owns presentation, not the radio reel
       if(!_reelKeys || !_reelKeys.length){
         _reelKeys=(typeof _pickerGameKeys==='function' ? _pickerGameKeys() : []).filter(function(k){ return k && k!=='random'; });
         // start somewhere other than the top of the list every load
@@ -731,6 +762,7 @@ function _reelStart(){
   }, 2000);
 }
 function _syncReel(){
+  if(_musicWorkspaceOpen()){_reelStop();return;}
   var wait = !!(document.body && document.body.classList.contains('awaiting-mood'));
   if(wait) _reelStart(); else _reelStop();
 }
@@ -939,8 +971,9 @@ function frame(now){
   // games, and freezing the simulation left every one of them drawing its empty
   // first frame: a flat fill, four colours on the stage, for as long as anybody
   // looked at it. Pausing a SONG stops the games; having no song yet does not.
-  const holding = (function(){ try{ return !!(Audio.isHolding && Audio.isHolding()); }catch(e){ return false; } })();
-  const paused = (typeof _transportIsPaused==='function' && _transportIsPaused()) && !holding;
+  const musicPresentation=_musicPresentationState();
+  const holding = !musicPresentation&&(function(){ try{ return !!(Audio.isHolding && Audio.isHolding()); }catch(e){ return false; } })();
+  const paused = musicPresentation?musicPresentation.paused:(typeof _transportIsPaused==='function' && _transportIsPaused()) && !holding;
   const simDt = paused ? 0 : dt;
   if(paused){
     if(typeof INP!=='undefined') INP.clickPulse = false;
@@ -949,17 +982,19 @@ function frame(now){
   const U = _gameUnit(W, H);
   if(_reseatScene){ _reseatScene=false;                    // returned from a long background stint: rebuild the scene so it plays live (no fast-forward catch-up)
     if(sceneKind==='game' && selGame){ try{ selState = selGame.make(fullArea(U), U, selVar); }catch(e){ selState = selState||{}; } } }
-  const silentWatch = !!(_watchOnly && !_watchMicActive);
-  const cur = (Audio.started && !silentWatch) ? Audio.current() : null;
+  const silentWatch = !musicPresentation&&!!(_watchOnly && !_watchMicActive);
+  const cur = musicPresentation?{bpm:musicPresentation.grid.bpm,sect:null}:(Audio.started && !silentWatch) ? Audio.current() : null;
   const bpm = cur?cur.bpm:120, sect = cur?cur.sect:'verse';
-  const events = (!paused && Audio.started && !silentWatch) ? Audio.consumeEvents() : [];
+  const events = (!musicPresentation&&!paused && Audio.started && !silentWatch) ? Audio.consumeEvents() : [];
   // HARD-RESET the context each frame: unwind any unbalanced save()/translate()/clip() a game
   // module may have leaked, then restore the base transform — so nothing accumulates across frames.
   for(let i=0;i<8;i++) g.restore();
   g.setTransform(DPR,0,0,DPR,0,0); g.globalAlpha = 1;
-  const RX = (Audio.started && Audio.vis && !silentWatch) ? Audio.vis() : null;   // the music bus, read ONCE per frame
+  const RX = musicPresentation?Object.assign({},musicPresentation.clock,{musicActivation:String(musicPresentation.activation)+':'+_musicPresentationEpoch}):(Audio.started && Audio.vis && !silentWatch) ? Audio.vis() : null;
   _frameRX = RX;
-  _frameSND = silentWatch ? watchClockSND()                                       // watch mode: wall-clock grid, games play FULLY, no AudioContext
+  _frameSND = musicPresentation ? {grid:()=>musicPresentation.grid,clock:()=>RX,vis:()=>RX,energy:()=>RX.energy,
+    event(){},note(){},lead(){},fx(){},tone(){},drum(){},bass(){},act(){}}
+            : silentWatch ? watchClockSND()                                       // watch mode: wall-clock grid, games play FULLY, no AudioContext
             : (paused ? quietPausedSND() : makeCachedFrameSND(Audio && Audio.SND, RX));
   _writeDiagnostics(RX, paused, now);
   // one field claim per frame (see dmg-palette.js): the pack's first
@@ -1315,6 +1350,7 @@ if(typeof window!=='undefined'){
 // grid clock ran far ahead) flag the scene to re-seat — otherwise the game replays every missed beat-step in a visible fast-forward.
 document.addEventListener('visibilitychange', ()=>{
   if(_syncBackgroundAudioOnly()){ _hiddenAt = _nowMs(); _syncWakeLock(); return; }
+  if(_musicWorkspaceOpen()){_musicPresentationEpoch++;_hiddenAt=0;return;}
   const away = _hiddenAt ? _nowMs()-_hiddenAt : 0;
   lastFrame = _nowMs();
   if(Audio.resume) Audio.resume();                                                    // make sure the context didn't stay suspended
@@ -1331,6 +1367,7 @@ window.addEventListener('blur', function(){
 });
 window.addEventListener('focus', function(){
   if(_syncBackgroundAudioOnly()){ _syncWakeLock(); return; }
+  if(_musicWorkspaceOpen()){_musicPresentationEpoch++;_hiddenAt=0;return;}
   const away = _hiddenAt ? _nowMs()-_hiddenAt : 0;
   lastFrame = _nowMs();
   if(Audio.resume) Audio.resume();
@@ -1415,17 +1452,18 @@ function panelVisible(id){
 }
 function handleEscapeShortcut(ev){
   if(ev && ev.key==='Escape' && !ev.metaKey && !ev.altKey && !ev.ctrlKey &&
+     typeof CT_LSDJ_NATIVE_EDITOR!=='undefined' && CT_LSDJ_NATIVE_EDITOR.isOpen()){
+    CT_LSDJ_NATIVE_EDITOR.close(); consumeKeyEvent(ev); return true; }
+  if(ev && ev.key==='Escape' && !ev.metaKey && !ev.altKey && !ev.ctrlKey &&
      typeof CT_MUSIC_WORKSPACE!=='undefined' && CT_MUSIC_WORKSPACE.isOpen()){
     // Native settings dialogs own Escape before the surrounding workspace.
     // This document-capture handler runs before the workspace's modal handler.
     if(document.querySelector('#musicworkspace dialog[open]'))return false;
+    if(CT_MUSIC_WORKSPACE.isVisualizerOpen&&CT_MUSIC_WORKSPACE.isVisualizerOpen())return false;
     // CodeMirror gets first refusal for completion/search popovers. Unhandled
     // Escape bubbles to the workspace, which still closes the modal normally.
     if(ev.target&&ev.target.closest&&ev.target.closest('.cm-editor'))return false;
     CT_MUSIC_WORKSPACE.close(); consumeKeyEvent(ev); return true; }
-  if(ev && ev.key==='Escape' && !ev.metaKey && !ev.altKey && !ev.ctrlKey &&
-     typeof CT_LSDJ_NATIVE_EDITOR!=='undefined' && CT_LSDJ_NATIVE_EDITOR.isOpen()){
-    CT_LSDJ_NATIVE_EDITOR.close(); consumeKeyEvent(ev); return true; }
   if(!ev || ev.key!=='Escape' || shortcutTargetBlocked(ev) || ev.metaKey || ev.altKey || ev.ctrlKey) return false;
   if(typeof CT_CREATE!=='undefined' && CT_CREATE.isOpen()){
     // the editor's own panels close first; Escape only leaves once nothing is open
@@ -2126,8 +2164,15 @@ function _buildPlayerLinks(){
 // CREATE: the Mario-Paint-spirit editor (src/create.js). Entering hands the
 // chip to the user's song; leaving hands it back to the radio.
 var _createStandalone=false;      // true when /create booted without the radio behind it
+var _createEntryEpoch=0;
+window.addEventListener('popstate',function(){_createEntryEpoch++;});
+window.addEventListener('hashchange',function(){_createEntryEpoch++;});
 function _openCreate(blank){
-  if(typeof CT_CREATE==='undefined') return;
+  if(typeof CT_CREATE==='undefined'||typeof CT_MUSIC_WORKSPACE==='undefined') return;
+  var epoch=++_createEntryEpoch;
+  var route=location.pathname+location.search+location.hash;
+  function current(){return epoch===_createEntryEpoch&&route===location.pathname+location.search+location.hash;}
+  function failed(e){if(current()){if(window._toast)window._toast(e.message);else console.error('Music workspace:',e.message);}}
   if(document.body) document.body.classList.add('ai-visual');
   if(_createStandalone){
     if(typeof _stopHomeBackdrop==='function') _stopHomeBackdrop();
@@ -2164,19 +2209,30 @@ function _openCreate(blank){
     if(sceneKind==='game' && selGame && selState) _reseatScene=true;
     try{ _syncBackgroundAudioOnly(); }catch(e){}
   };
-  // hand the editor the song that is playing, if there is one -- unless the
-  // whole point was to start from nothing
-  // Shared source projects must never briefly start a generated/legacy song.
-  // Keep a silent legacy view underneath so Back retains the normal radio handoff.
-  if(/^#music(?:=|$|-transfer=[0-9a-f]{64}$)/.test(location.hash)&&typeof CT_MUSIC_WORKSPACE!=='undefined'){
-    CT_CREATE.openBlank();
-    CT_MUSIC_WORKSPACE.open().catch(function(e){console.error('Music workspace:',e.message);});
-    return;
+  // Decode without mounting the legacy editor or starting its transport.
+  function songInput(code){
+    var state=CT_CREATE.docState(code),song=state&&CT_CREATE.songOf(code);
+    if(!song)throw Error('Cannot open this song document. Your saved draft is unchanged.');
+    return {gb:song.gb,settings:{tempo:song.bpm,bars:song.bars,title:song.title,
+      tempoAt:state.tempoAt||[],grid:state.grid||16,stepsPerBar:state.grid||16}};
   }
-  if(blank){ try{ CT_CREATE.openBlank(); }catch(e){ CT_CREATE.open(''); } return; }
-  var _doc=null;
-  try{ if(typeof Audio!=='undefined'&&Audio.currentDoc) _doc=Audio.currentDoc(); }catch(e){}
-  CT_CREATE.open(_doc||undefined);
+  var shared=_readSharedDoc();
+  if(shared){
+    return _unpackDoc(shared).then(function(code){
+      if(!current())return;
+      var initial=songInput(code);
+      var source=CT_MUSIC_LANGUAGE.materialize(initial.gb,initial.settings);
+      if(current())return CT_MUSIC_WORKSPACE.open({source:source,explicit:true});
+    }).catch(failed);
+  }
+  try{
+    var initial;
+    if(!blank&&!/^#music(?:=|$|-transfer=)/.test(location.hash)){
+      var code=typeof Audio!=='undefined'&&Audio.currentDoc&&Audio.currentDoc();
+      if(code)initial=songInput(code);
+    }
+    return (initial?CT_MUSIC_WORKSPACE.open(initial):CT_MUSIC_WORKSPACE.open()).catch(failed);
+  }catch(e){failed(e);}
 }
 window._openCreate=_openCreate;
 
@@ -2852,7 +2908,8 @@ function buildPlaybar(){ _pbEl=document.getElementById('playbar'); if(!_pbEl||_p
 }
 function _transportIsGated(){ return !!(_nowSource==='generated' && Audio.running && !Audio.running() && !(Audio.isPaused&&Audio.isPaused())); }
 function _transportNeedsResume(){ return !!(Audio.started && Audio.running && !Audio.running() && !(Audio.isPaused&&Audio.isPaused())); }
-function _transportIsPaused(){ if(_watchOnly && !_watchMicActive) return false;
+function _transportIsPaused(){ var music=_musicPresentationState();if(music)return music.paused;
+  if(_watchOnly && !_watchMicActive) return false;
   // waiting to be asked for a mood is a paused station: nothing is playing, so
   // the button must offer play and the game must not run
   try{ if(Audio.isHolding && Audio.isHolding()) return true; }catch(e){}
@@ -4188,6 +4245,7 @@ function _routeQueryExtras(){                                 // ?game= survives
 }
 function syncRoute(slug){
   if(!slug || typeof history==='undefined' || !history.replaceState) return;
+  if(typeof CT_MUSIC_WORKSPACE!=='undefined'&&CT_MUSIC_WORKSPACE.isOpen())return;
   if(typeof LiveCtl!=='undefined' && LiveCtl.active()) return;   // LIVE owns the /radio route: reload rejoins the broadcast, not a /track replay
   if(Audio.extActive && Audio.extActive()) return;   // an external source (mic/file) owns the URL — don't overwrite it with the generated slug
   try{ if(typeof CT_CREATE!=='undefined' && CT_CREATE.isOpen()) return; }catch(eC){}  // the editor owns /create; a refresh must land back in it
@@ -4876,12 +4934,14 @@ function _productRouteFromPath(path){
   return null;
 }
 window._productRouteTo=function(path, opts){
+  _createEntryEpoch++;
   var r=_productRouteFromPath(path);
   if(!r) return false;
   opts=Object.assign({replace:true}, opts||{});
   if(r.legacy && typeof history!=='undefined' && history.replaceState){ try{ history.replaceState(null,'','/'); }catch(e){} }
   if(r.mode==='gameboy'){ _startEndlessRadio(); _openGameBoyWhenReady(); return true; }
   if(r.mode==='create'){ _createStandalone=true; _openCreate(); return true; }
+  if(r.mode==='radio'&&_readSharedDoc()){_createStandalone=true;_openCreate();return true;}
   if(r.mode==='radio'){ _startEndlessRadio(); return true; }
   if(r.mode==='watch'){ enterWatchMode({noRoute:true}); return true; }
   openProductHome(Object.assign({noRoute:true}, opts));   // already ON /get; do not push it again
@@ -4968,9 +5028,8 @@ if(String(_pathParts(location.pathname||'/')[0]||'').toLowerCase()==='get') buil
   }
   if(head==='gameboy'){ if(document.body) document.body.classList.add('ai-visual');
     startAudio(false); _openGameBoyWhenReady(); return; }
-  // Create is a bottom sheet over the game, including on a direct refresh.
-  if(head==='create'){ if(document.body) document.body.classList.add('ai-visual');
-    startAudio(false);
+  // Shared documents belong to composition, before radio boot can play them.
+  if(head==='create'||(head===''&&_readSharedDoc())){ if(document.body) document.body.classList.add('ai-visual');
     document.body.classList.add('create-open');
     _createStandalone=true; _openCreate(); return; }
   if(head==='get') return;                                       // the platform page; #intro is already up

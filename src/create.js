@@ -1231,7 +1231,7 @@
                 title: S.title || '', cells: S.cells.length };
       } catch (e) { out = null; }
     });
-    return (out && out.gb && out.gb.notes && out.gb.notes.length) ? out : null;
+    return (out && out.gb && Array.isArray(out.gb.notes)) ? out : null;
   }
   // The station, editor chips, and written briefs use the same interpretation
   // and resulting document. Optional token support makes this path reproducible
@@ -2307,7 +2307,6 @@
       // is mostly song. This is the same nowrap + overflow-x treatment the
       // mood row above already uses.
       '<div class="n-utils">' +
-        '<button type="button" class="cr-btn" data-cr="livecoding" title="Open the code workspace and keep this song in the piano roll">Live coding</button>' +
         '<button type="button" class="cr-btn" data-cr="undo">↩ Undo</button>' +
         '<button type="button" class="cr-btn" data-cr="redo">↪ Redo</button>' +
         // The link is how a song made here is kept and heard elsewhere: closing
@@ -2326,7 +2325,7 @@
         '<button type="button" class="cr-btn" data-cr="opennative" title="Open a local .lsdsng or .sav and edit its native LSDj structure (no playback yet)">' + _ic('rom') + 'Open LSDj</button>' +
         '<button type="button" class="cr-btn" data-cr="opennativejson">Open native JSON</button>' +
         '<button type="button" class="cr-btn" data-cr="resumenative">Resume LSDj edit</button>' +
-        '<button type="button" class="cr-btn" data-cr="workspace">Chat / Code / Notes</button>' +
+        '<button type="button" class="cr-btn" data-cr="workspace">Compose</button>' +
       '</div>' +
       // COMPACT VISIBLE LISTEN HELP. A tooltip does not show on a touch screen,
       // so the two ways to hear or keep a song are stated as plain, visible
@@ -2877,7 +2876,8 @@
         G.CT_MUSIC_WORKSPACE.open().catch(function(e){if(G._toast)G._toast(e.message);});
       }
       else if (k === 'workspace') {
-        G.CT_MUSIC_WORKSPACE.open({gb:liveScore||buildSong(),settings:{tempo:S.bpm,bars:S.bars,title:S.title,tempoAt:S.tempoAt||[],grid:spb()}}).catch(function(e){if(G._toast)G._toast(e.message);});
+        var source=G.CT_MUSIC_LANGUAGE.materialize(liveScore||buildSong(),{tempo:S.bpm,bars:S.bars,title:S.title,tempoAt:S.tempoAt||[],stepsPerBar:spb()});
+        G.CT_MUSIC_WORKSPACE.open({source:source,explicit:true}).then(function(){if(G.CT_MUSIC_WORKSPACE.isOpen())root.classList.remove('show');}).catch(function(e){if(G._toast)G._toast(e.message);});
       }
     });
     root.addEventListener('input', function (ev) {

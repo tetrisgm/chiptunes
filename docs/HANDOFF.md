@@ -3,6 +3,47 @@
 Plain, current working notes for whoever (or whatever) picks the project up
 next. Infrastructure and operations live outside this repository.
 
+## 2026-09-09 — Unified Create implementation in progress
+
+Canonical runtime entry now materializes explicit song links before opening the
+workspace, without starting the legacy editor/player underneath. Explicit source
+imports validate first and use a protected temporary copy rather than replacing
+browser recovery. Chart and code are simultaneously visible with an adjustable
+divider; chat collapses independently. Editor selection notifications highlight
+mapped notes without changing agent scope. Source-loaded entry (8 cases), layout
+(desktop/mobile, import preservation, selection and pending-chat state), and
+isolated editor-selection fixtures passed locally. These are not native Safari
+or deployed acceptance.
+
+Full npm test initially stopped in the old song-document fixture waiting for
+the retired default legacy Create shell. Song-document and handback fixtures
+were updated and pass, preserving explicit legacy fidelity and audible handback.
+Canonical close now calls the existing station handback, formerly left to the
+legacy editor underneath. Remaining UI fixture updates are in progress; no
+green full-suite claim or push yet.
+
+Same-origin transport committed locally as 775e3e4. Gateway suite passes all
+77 tests, including bounded proxy/body/deadline/cancellation and owner checks.
+Presence dispatch has mock DO coverage, not deployed workerd verification.
+The Vercel-derived chat island is integrated using exact React/ReactDOM 19.2.8
+(npm audit: zero vulnerabilities); shared lazy bundle measured 62,070 bytes
+gzip. It keeps vanilla request/project state authoritative, text-only rendering,
+and explicit proposal Apply. Preview uses the existing compiler in a disposable
+worker; 14 lifecycle/parity tests pass. Dense-chart work and real browser preview
+acceptance have progressed: source-loaded Chromium shows 16,384-note preview
+with at most 400 mounted chart items, disclosed grouping and exact-note zoom.
+Local native Safari (Music 0681f655f1d8, before the final dense-index slice)
+showed the existing game, returned via Escape, previewed C4→D4 without Run,
+retained chart on invalid source, and restored validated source with Undo.
+No audio or provider call was made in that native check; test tab/server closed.
+The isolated chat fixture found Stop morphing into submit during synchronous
+React state update; preventDefault plus distinct button keys fixes it and the
+persisted hostile-text/scroll/IME/Send-Stop fixture passes. The unified test
+command passes; whole root suite still needs remaining obsolete share/ribbon
+and UI fixture updates followed by a fresh complete run.
+Production remains the previous release below;
+no deployment/configuration cutover has been performed or newly authorized.
+
 ## 2026-09-09 — New active direction: unified Create
 
 Owner rejected the two-site/two-view product and requested a plan followed by an

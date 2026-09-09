@@ -19,6 +19,8 @@
     "health": "node scripts/health/run.js",
     "test:render-parity": "node build.js && node scripts/verify-broadcast-render-parity.js",
     "test:worklet-boundary": "node scripts/verify-worklet-boundary.js",
+    "test:unified-create": "node scripts/verify-unified-entry.js && node scripts/verify-music-editor-selection.js && node scripts/verify-music-preview.js && node scripts/verify-music-chart-index.js && node scripts/verify-music-chat-ui.js && node scripts/verify-music-presentation.js && node scripts/verify-unified-layout.js",
+    "posttest": "npm run test:unified-create",
     "test:music-workspace": "node build.js && node scripts/verify-create-fidelity.js && node scripts/verify-music-language.js && node scripts/verify-music-project.js && node scripts/verify-music-live.js && node scripts/verify-music-exports.js && node scripts/verify-music-chat.js && node scripts/verify-music-workspace.js && node scripts/verify-music-workspace-ui.js && node scripts/verify-music-conversation.js && node scripts/verify-music-livecoding.js && node scripts/verify-livecoding-entry.js && node scripts/verify-music-editor.js paste 1048576 --pretty && npm run test:music-agent && npm run test:music-project-transfer",
     "test:music-agent": "node scripts/verify-music-agent-session.js && node scripts/verify-music-agent-tools.js && node scripts/verify-music-agent-broker.js && node scripts/verify-music-agent-postgres.js && node scripts/verify-music-workspace-agent.js && node scripts/verify-music-agent-connection.js",
     "test:music-chat-web": "node scripts/verify-music-chat-provider-ui.js && npm test --prefix gateway",
@@ -68,7 +70,9 @@
     "test:diversity": "node scripts/verify-diversity.js"
   },
   "dependencies": {
-    "node-web-audio-api": "2.0.0"
+    "node-web-audio-api": "2.0.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
   },
   "devDependencies": {
     "@codemirror/autocomplete": "6.20.3",

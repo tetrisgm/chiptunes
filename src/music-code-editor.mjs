@@ -59,7 +59,7 @@ const soundingField = StateField.define({
 
 globalThis.CT_MUSIC_CODE_EDITOR = {
   help,
-  mount(parent, source, onChange) {
+  mount(parent, source, onChange, {onSelectionChange} = {}) {
     const view = new EditorView({doc:source,parent,extensions:[
       basicSetup, javascript(), theme, soundingField, EditorView.lineWrapping,
       EditorView.contentAttributes.of({'aria-label':'Musical source code','data-shortcuts-off':''}),
@@ -68,10 +68,15 @@ globalThis.CT_MUSIC_CODE_EDITOR = {
         if (!word || (!ctx.explicit && word.from===word.to)) return null;
         return {from:word.from,options:Object.keys(help).map(label=>({label,type:'function',info:help[label]}))};
       }]}),
-      EditorView.updateListener.of(update=>{if(update.docChanged) onChange(update.state.doc.toString());})
+      EditorView.updateListener.of(update=>{
+        if(update.docChanged) onChange(update.state.doc.toString());
+        if((update.selectionSet||update.docChanged)&&typeof onSelectionChange==='function')
+          onSelectionChange(update.state.selection.ranges.map(r=>({from:r.from,to:r.to})));
+      })
     ]});
     return {
       value:()=>view.state.doc.toString(),
+      selection:()=>view.state.selection.ranges.map(r=>({from:r.from,to:r.to})),
       set(source) { if(source!==view.state.doc.toString()) view.dispatch({changes:{from:0,to:view.state.doc.length,insert:source}}); },
       select(from,to=from) {
         from=Math.max(0,Math.min(view.state.doc.length,from||0)); to=Math.max(from,Math.min(view.state.doc.length,to||from));

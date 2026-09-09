@@ -6,7 +6,7 @@
 #musicworkspace button:hover{background:#30394c}
 #musicworkspace button:disabled{opacity:.45;cursor:default}
 #musicworkspace :focus-visible{outline:2px solid #b9d968;outline-offset:2px}
-#musicworkspace .mw-top,#musicworkspace .mw-transport,#musicworkspace .mw-tabs,#musicworkspace .mw-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+#musicworkspace .mw-top,#musicworkspace .mw-transport,#musicworkspace .mw-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 #musicworkspace h1{font-size:20px;margin:0 auto 0 0}
 #musicworkspace .mw-primary{background:#b9d968;color:#182009;border-color:#b9d968}
 #musicworkspace .mw-state{font:12px/1.5 ui-monospace,monospace;color:#b6bfd5}
@@ -20,15 +20,20 @@
 #musicworkspace .mw-source-mode{font-size:12px;color:#d4efa3;padding:10px 12px;margin:0;border-bottom:1px solid #303748;flex-shrink:0}
 #musicworkspace .mw-exports summary{cursor:pointer;padding:8px;color:#bdc5d8}
 #musicworkspace .mw-exports[open]{flex-basis:100%}
-#musicworkspace[data-view=code] .mw-selection{font-size:11px;color:#929bb4}
-#musicworkspace .mw-body{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:12px;min-height:0;flex:1}
-#musicworkspace .mw-main,#musicworkspace .mw-chat{min-height:0;border:1px solid #303748;border-radius:12px;overflow:hidden;background:#10121b;display:flex;flex-direction:column}
+#musicworkspace .mw-selection{font-size:11px;color:#929bb4}
+#musicworkspace .mw-body{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:12px;min-height:0;min-width:0;flex:1}
+#musicworkspace[data-chat-open=false] .mw-body{grid-template-columns:minmax(0,1fr)}
+#musicworkspace .mw-main,#musicworkspace .mw-chat{min-height:0;min-width:0;border:1px solid #303748;border-radius:12px;overflow:hidden;background:#10121b;display:flex;flex-direction:column}
+#musicworkspace .mw-main{overflow-y:auto}
+#musicworkspace .mw-composition{display:grid;grid-template-rows:minmax(120px,var(--chart-share,45fr)) 16px minmax(160px,var(--code-share,55fr));min-height:360px;min-width:0;flex:1}
+#musicworkspace .mw-composition>*{min-width:0}
+#musicworkspace .mw-splitter{cursor:row-resize;touch-action:none;user-select:none;background:#202534;border-block:1px solid #3d455a;position:relative}
+#musicworkspace .mw-splitter::after{content:'';position:absolute;left:calc(50% - 24px);top:6px;width:48px;border-top:2px solid #929bb4}
+#musicworkspace .mw-splitter:focus-visible{outline-offset:-2px}
 #musicworkspace .mw-mainview{flex:1;min-height:0;overflow:auto}
 #musicworkspace [hidden]{display:none!important}
-#musicworkspace .mw-tabs{padding:8px;border-bottom:1px solid #303748}
-#musicworkspace [aria-selected=true]{border-color:#b9d968;color:#d4efa3}
-#musicworkspace .mw-notes{position:relative;min-height:360px;overflow:auto;padding:12px}
-#musicworkspace .mw-lane{position:relative;height:94px;border-top:1px solid #343b4e;background:repeating-linear-gradient(90deg,transparent,transparent 79px,#ffffff09 80px)}
+#musicworkspace .mw-notes{position:relative;min-height:0;overflow:auto;padding:12px;overscroll-behavior:contain}
+#musicworkspace .mw-lane{position:relative;height:64px;border-top:1px solid #343b4e;background:repeating-linear-gradient(90deg,transparent,transparent 79px,#ffffff09 80px)}
 #musicworkspace .mw-lane-label{position:sticky;left:0;z-index:2;font-size:12px;background:#10121bdd;width:90px;padding:3px}
 #musicworkspace .mw-note{position:absolute;height:16px;min-width:6px;padding:0;border-radius:3px;background:#83a75a;border-color:#adc98b;overflow:hidden;font-size:10px}
 #musicworkspace .mw-note[aria-pressed=true]{outline:2px solid #fff}
@@ -40,6 +45,7 @@
 #musicworkspace .mw-chat{padding:12px;gap:10px;overflow:hidden}
 #musicworkspace .mw-chat>*{flex-shrink:0}
 #musicworkspace .mw-chat-header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+#musicworkspace .mw-chat-header h2{margin-right:auto}
 #musicworkspace .mw-chat-access-status{font-size:12px;color:#bdc5d8;margin:0}
 #musicworkspace .mw-chat-log{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable}
 #musicworkspace .mw-message{padding:10px 12px;margin:0 0 12px;border-radius:10px;overflow-wrap:anywhere;white-space:pre-wrap}
@@ -80,18 +86,29 @@
 #musicworkspace .mw-status{min-height:22px;margin:0;font-size:13px;white-space:pre-wrap}
 #musicworkspace .mw-help{font-size:12px;padding:6px 12px;border-top:1px solid #303748;color:#bdc5d8}
 #musicworkspace .mw-help pre{white-space:pre-wrap}
-#musicworkspace .mw-mobile-chat{display:none}
+#musicworkspace .mw-footer{flex-shrink:0;max-height:25dvh;overflow:auto}
+#musicworkspace .mw-project-tools summary{cursor:pointer;padding:8px;color:#bdc5d8}
+#musicworkspace .mw-project-tools[open]{flex-basis:100%}
+#musicworkspace .mw-project-tools>.mw-actions{padding:8px}
+#musicworkspace .mw-build{font-size:10px;color:#929bb4;overflow-wrap:anywhere}
 #musicworkspace .mw-seek{flex:1;min-width:80px;max-width:260px}
 @media(max-width:760px){
   #musicworkspace{padding:8px;gap:8px}
-  #musicworkspace .mw-body{display:flex;flex-direction:column}
-  #musicworkspace .mw-main{flex:1}
-  #musicworkspace .mw-chat{display:none;flex:1}
-  #musicworkspace[data-view=chat] .mw-chat{display:flex}
-  #musicworkspace[data-view=chat] .mw-main{display:none}
-  #musicworkspace .mw-mobile-chat{display:inline-block}
-  #musicworkspace .mw-top{flex-wrap:nowrap}
-  #musicworkspace h1{font-size:18px}
+  #musicworkspace .mw-body{display:grid;grid-template-columns:minmax(0,1fr)}
+  #musicworkspace .mw-chat{position:absolute;z-index:5;inset:0 0 0 auto;width:min(100%,360px);box-shadow:-12px 0 32px #0009}
+  #musicworkspace .mw-top{gap:6px}
+  #musicworkspace h1{font-size:16px;flex-basis:100%}
+  #musicworkspace .mw-source-mode{font-size:11px;padding:6px 8px}
+  #musicworkspace .mw-state{font-size:10px}
+  #musicworkspace .mw-composition{min-height:320px}
   #musicworkspace .mw-transport{gap:5px}
   #musicworkspace button{padding:7px 9px}
 }
+#musicworkspace .mw-note.mw-source-selected{outline:2px solid #e8efff;outline-offset:1px;filter:brightness(1.25)}
+#musicworkspace .mw-chat-island{flex:1;min-height:0;display:flex;flex-direction:column}
+#musicworkspace .mw-chart-status{margin:0;padding:6px 12px;font-size:12px;color:#b6bfd5}
+#musicworkspace .mw-note-group{position:absolute;top:28px;height:24px;min-width:12px;padding:0;font-size:10px;overflow:hidden;background:#3b4059}
+#musicworkspace .mw-chart-reset{align-self:flex-start;margin:0 12px 4px}
+#musicworkspace[data-presentation=visualizer]{background:transparent;pointer-events:none}
+#musicworkspace[data-presentation=visualizer]>.mw-top,#musicworkspace[data-presentation=visualizer]>.mw-transport{pointer-events:auto;background:#0b0d14ed;border-radius:10px;padding:8px}
+#musicworkspace[data-presentation=visualizer]>.mw-body,#musicworkspace[data-presentation=visualizer]>.mw-footer,#musicworkspace[data-presentation=visualizer]>.mw-live-feedback,#musicworkspace[data-presentation=visualizer]>.mw-status{display:none}

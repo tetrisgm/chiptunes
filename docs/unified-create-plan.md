@@ -62,7 +62,7 @@ source, selection, chat, undo or playback position. No extra composition on togg
 
 ### 1. Canonical entry and preservation
 
-- [ ] Route plain /create, Create actions and existing song links into one workspace.
+- [x] Route plain /create, Create actions and existing song links into one workspace.
 - [ ] Import #s documents through the existing exact materialization path; retain
   timings, instruments, automation, samples, comments and title where represented.
 - [ ] Reuse local recovery without overwriting a saved draft or importing twice.
@@ -75,14 +75,14 @@ all open the unified workspace. No unsolicited autoplay or extra composer call.
 
 ### 2. Shared chart/code composition surface
 
-- [ ] Replace desktop Notes/Code tabs with simultaneous panes and an accessible
+- [x] Replace desktop Notes/Code tabs with simultaneous panes and an accessible
   divider; preserve independent scroll, editor typing undo and source selection.
 - [ ] Render chart from compiler output with readable note names and per-track
   lanes; preserve exact timing and tempo-map positioning, including finite ends.
-- [ ] Clicking a note reveals/selects its actual source without hiding the chart.
+- [x] Clicking a note reveals/selects its actual source without hiding the chart.
   Highlight corresponding occurrences when selecting mapped code; stale mappings
   never select the wrong text after edits.
-- [ ] Use bounded, debounced compilation for draft preview. Mark preview versus
+- [x] Use bounded, debounced compilation for draft preview. Mark preview versus
   queued/playing revision explicitly. Invalid draft retains the last valid chart
   and sound, with diagnostics; a superseded compilation cannot replace newer state.
 - [ ] Run/Cmd-Enter and approved agent changes use existing validation and boundary
@@ -96,7 +96,7 @@ maps and late compilation preserve correct source/chart/audio relationships.
 
 ### 3. Collapsible standard agent chat
 
-- [ ] Mount a single reusable conversation component in the shared web artifact.
+- [x] Mount a single reusable conversation component in the shared web artifact.
   Evaluate Vercel AI Elements Conversation, Message and PromptInput first, using
   a small React boundary rather than rewriting the musical application in Next.
   Inspect license, dependencies and generated CSS before adopting pinned sources.

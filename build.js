@@ -63,6 +63,8 @@ const ORDER = [
   'src/music-exports.js',
   'src/music-agent-connection.js',
   'src/music-project-transfer.js',
+  'src/music-preview.js',
+  'src/music-chart-index.js',
   'src/music-workspace.js',
   'src/webmcp.js',      // window.chiptunes + WebMCP tools: an agent driving the live page
   'src/helpers.js',
@@ -84,20 +86,27 @@ const ORDER = [
 const shellPath = path.join(ROOT, 'src', 'shell.html');
 if (!fs.existsSync(shellPath)) die('missing src/shell.html (the HTML template with the __SCRIPTS__ marker)');
 const shell = fs.readFileSync(shellPath, 'utf8').replace('</style>',
-  fs.readFileSync(path.join(ROOT, 'src/music-workspace.css'), 'utf8') + '\n</style>');
+  fs.readFileSync(path.join(ROOT, 'src/music-workspace.css'), 'utf8') +
+  fs.readFileSync(path.join(ROOT, 'src/music-chat-ui.css'), 'utf8') + '\n</style>');
 if (!shell.includes('__SCRIPTS__')) die('src/shell.html has no __SCRIPTS__ marker');
 
 const musicAssetVersion = crypto.createHash('sha256');
 for (const file of ['src/gb-hardware.js','src/gb-kits.js','src/gb-apu.js']) musicAssetVersion.update(fs.readFileSync(path.join(ROOT,file)));
 const musicEditorVersion = crypto.createHash('sha256').update(fs.readFileSync(path.join(ROOT,'src/music-code-editor.mjs'))).update(fs.readFileSync(path.join(ROOT,'package-lock.json'))).digest('hex').slice(0,12);
+const chatVersion=crypto.createHash('sha256').update(fs.readFileSync(path.join(ROOT,'src/music-chat-ui.jsx'))).update(fs.readFileSync(path.join(ROOT,'package-lock.json'))).digest('hex').slice(0,12);
+const previewHash=crypto.createHash('sha256');
+for(const file of ['music-preview-worker.js','gb-hardware.js','gb-kits.js','music-language.js'])previewHash.update(fs.readFileSync(path.join(ROOT,'src',file)));
+const previewVersion=previewHash.digest('hex').slice(0,12);
 const appSources = ORDER.map(f => {
   const p = path.join(ROOT, f);
   if (!fs.existsSync(p)) die('missing source ' + f);
   return '/* ===== ' + f + ' ===== */\n' + fs.readFileSync(p, 'utf8');
 }).join('\n');
-const musicBuildVersion = crypto.createHash('sha256').update(appSources).update(shell).update(musicEditorVersion).digest('hex').slice(0,12);
+const musicBuildVersion = crypto.createHash('sha256').update(appSources).update(shell).update(musicEditorVersion).update(chatVersion).update(previewVersion).digest('hex').slice(0,12);
 const js = 'globalThis.CT_MUSIC_ASSETS_VERSION="'+musicAssetVersion.digest('hex').slice(0,16)+'";\n'+
   'globalThis.CT_MUSIC_EDITOR_VERSION="'+musicEditorVersion+'";\n'+
+  'globalThis.CT_MUSIC_CHAT_UI_VERSION="'+chatVersion+'";\n'+
+  'globalThis.CT_MUSIC_PREVIEW_VERSION="'+previewVersion+'";\n'+
   'globalThis.CT_MUSIC_BUILD_VERSION="'+musicBuildVersion+'";\n'+appSources;
 
 // fail loud before writing if the bundle doesn't parse
@@ -106,6 +115,10 @@ try { new Function(js); } catch (e) { die('ABORTED — bundle syntax error: ' + 
 // ---- publish dist/ — the ONLY directory the dev server exposes ----
 const DIST = path.join(ROOT, 'dist');
 fs.mkdirSync(path.join(DIST, 'lib'), { recursive: true });
+require('esbuild').buildSync({entryPoints:[path.join(ROOT,'src/music-chat-ui.jsx')],outfile:path.join(DIST,'lib/music-chat-ui.js'),
+  bundle:true,format:'iife',globalName:'CT_MUSIC_CHAT_UI',platform:'browser',target:'es2020',minify:true,legalComments:'inline',define:{'process.env.NODE_ENV':'"production"'}});
+fs.copyFileSync(path.join(ROOT,'src/music-preview-worker.js'),path.join(DIST,'lib/music-preview-worker.js'));
+for(const file of ['gb-hardware.js','gb-kits.js','music-language.js'])fs.copyFileSync(path.join(ROOT,'src',file),path.join(DIST,'lib',file));
 // Lazy-loaded editor component: one locally bundled dependency, same artifact
 // for every surface. Retain the licenses of all shipped editor dependencies.
 require('esbuild').buildSync({
@@ -124,6 +137,9 @@ function editorLicense(name) {
 }
 ['codemirror','@codemirror/lang-javascript','@codemirror/autocomplete','@codemirror/lint'].forEach(editorLicense);
 fs.writeFileSync(path.join(DIST,'lib/music-code-editor.LICENSE.txt'),editorLicenses.join('\n\n'));
+editorLicenses.length=0;editorSeen.clear();['react','react-dom'].forEach(editorLicense);
+fs.writeFileSync(path.join(DIST,'lib/music-chat-ui.LICENSE.txt'),fs.readFileSync(path.join(ROOT,'src/music-chat-ui.LICENSE.txt'),'utf8')+'\n\n'+editorLicenses.join('\n\n'));
+fs.copyFileSync(path.join(ROOT,'src/music-chat-ui.NOTICE.md'),path.join(DIST,'lib/music-chat-ui.NOTICE.md'));
 // A FUNCTION, not a string. String.replace treats $', $`, $& and $$ in the
 // replacement as special patterns, so any source containing one of them is
 // silently corrupted -- and the corruption is not local: `$'` splices in
