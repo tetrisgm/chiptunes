@@ -1,8 +1,8 @@
 globalThis.CT_MUSIC_ASSETS_VERSION="e84045bcb7186729";
-globalThis.CT_MUSIC_EDITOR_VERSION="70dad5f8cc36";
+globalThis.CT_MUSIC_EDITOR_VERSION="eee0afd331f8";
 globalThis.CT_MUSIC_CHAT_UI_VERSION="904689e8bae1";
 globalThis.CT_MUSIC_PREVIEW_VERSION="21e5e4bcc266";
-globalThis.CT_MUSIC_BUILD_VERSION="67cdfdad0f71";
+globalThis.CT_MUSIC_BUILD_VERSION="aa1a525d6edd";
 /* ===== src/seed.js ===== */
 // ===== seed.js — deterministic generated-track identity. =====
 // Loads FIRST (before composer.js/audio.js) so any composer can seed itself from a URL token.
@@ -16310,6 +16310,968 @@ var EXPORTS = {
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:window);
 
+/* ===== src/visual-language.js ===== */
+/* Bounded visual source, version 1. See docs/visual-language.md.
+ * The lexer and parser only construct data; source never becomes JavaScript.
+ * Tokens include punctuation, but exclude comments, whitespace and EOF. Depth
+ * counts nested objects, arrays and reference calls, excluding statement calls.
+ * Diagnostic offsets/columns use UTF-16; lines/columns are one-based, ends
+ * exclusive. Source size is UTF-8, including comments and replacement bytes
+ * for unpaired surrogates. Labels count Unicode code points.
+ */
+(function (root, factory) {
+  'use strict';
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else if (typeof define === 'function' && define.amd) define([], factory);
+  else root.CT_VISUAL_LANGUAGE = factory();
+})(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  function own(object, key) { return Object.prototype.hasOwnProperty.call(object, key); }
+  function freeze(value) {
+    if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+      Object.keys(value).forEach(function (key) { freeze(value[key]); });
+      Object.freeze(value);
+    }
+    return value;
+  }
+
+  var LIMITS = freeze({ sourceBytes: 32768, tokens: 4096, depth: 16, layers: 8,
+    controls: 8, paletteMin: 2, paletteMax: 8, count: 128, totalCount: 512,
+    primitivesPerItem: 4 });
+  var OPERATIONS = freeze(['tunnel', 'tiles', 'orbits', 'ribbons', 'sparks']);
+  var BLENDS = freeze(['source-over', 'lighter', 'screen']);
+  var SIGNALS = freeze(['audio.bass', 'audio.mid', 'audio.treble', 'audio.level',
+    'beat.phase', 'bar.phase', 'lead.hit', 'lead.pitch', 'counter.hit',
+    'counter.pitch', 'bass.hit', 'bass.pitch', 'drums.hit']);
+  // Shared renderer schema: dynamic numeric properties resolve and clamp to
+  // min/max; static fields must already satisfy their range or enum.
+  var LAYER_SCHEMA = freeze({
+    count: { default: 24, min: 1, max: LIMITS.count, integer: true, dynamic: false },
+    size: { default: 0.5, min: 0.01, max: 2, dynamic: true },
+    speed: { default: 0.5, min: -4, max: 4, dynamic: true },
+    spin: { default: 0, min: -4, max: 4, dynamic: true },
+    spread: { default: 0.7, min: 0, max: 2, dynamic: true },
+    hue: { default: 0, min: -8, max: 8, dynamic: true },
+    opacity: { default: 0.8, min: 0, max: 1, dynamic: true },
+    react: { default: 0, min: 0, max: 2, dynamic: true },
+    thickness: { default: 1, min: 0.25, max: 8, dynamic: true },
+    blend: { default: 'source-over', values: BLENDS, dynamic: false }
+  });
+  var VISUAL_DEFAULTS = freeze({ background: '#090615',
+    palette: ['#84f3d5', '#b089ff', '#ffbf69'], feedback: 0.8, seed: 1 });
+  var CONTROL_KEYS = ['label', 'min', 'max', 'step', 'value'];
+  var ESCAPES = { '"': '"', '\\': '\\', '/': '/', b: '\b', f: '\f', n: '\n', r: '\r', t: '\t' };
+
+  function Failure(code, message, at) {
+    this.code = code;
+    this.message = message;
+    this.start = at ? at.start : 0;
+    this.end = at ? at.end : this.start;
+  }
+  function fail(code, message, at) { throw new Failure(code, message, at); }
+  function need(condition, code, message, at) { if (!condition) fail(code, message, at); }
+  function nameText(value) { return JSON.stringify(value.length > 64 ? value.slice(0, 64) + '…' : value); }
+  function newline(c) { return c === '\n' || c === '\r' || c === '\u2028' || c === '\u2029'; }
+  function paired(source, index) {
+    var first = source.charCodeAt(index), second = source.charCodeAt(index + 1);
+    return first >= 0xd800 && first <= 0xdbff && second >= 0xdc00 && second <= 0xdfff;
+  }
+  function sourceBound(source) {
+    // Stop at the first excess byte, even if the supplied string is enormous.
+    var bytes = 0;
+    for (var i = 0; i < source.length; i++) {
+      var code = source.charCodeAt(i), width = paired(source, i) ? 2 : 1;
+      bytes += code < 0x80 ? 1 : code < 0x800 ? 2 : width === 2 ? 4 : 3;
+      need(bytes <= LIMITS.sourceBytes, 'SOURCE_LIMIT', 'Source exceeds 32768 UTF-8 bytes', { start: i, end: i + width });
+      i += width - 1;
+    }
+  }
+  function position(source, offset) {
+    var line = 1, column = 1;
+    for (var i = 0; i < offset; i++) {
+      var c = source[i];
+      if (c === '\r') { line++; column = 1; }
+      else if (c === '\n') { if (source[i - 1] !== '\r') line++; column = 1; }
+      else if (c === '\u2028' || c === '\u2029') { line++; column = 1; }
+      else column++;
+    }
+    return { offset: offset, line: line, column: column };
+  }
+
+  function lex(source) {
+    var tokens = [], i = 0;
+    while (i < source.length) {
+      var c = source[i];
+      if (/\s/.test(c)) { i++; continue; }
+      if (c === '/' && source[i + 1] === '/') {
+        i += 2;
+        while (i < source.length && !newline(source[i])) i++;
+        continue;
+      }
+      var start = i, kind, value;
+      need(tokens.length < LIMITS.tokens, 'TOKEN_LIMIT', 'Source exceeds 4096 tokens', { start: i, end: i + 1 });
+      if ('(){}[],:;'.indexOf(c) !== -1) { kind = c; value = c; i++; }
+      else if (c === '"') {
+        kind = 'string'; value = ''; i++;
+        while (i < source.length && source[i] !== '"') {
+          c = source[i++];
+          need(c.charCodeAt(0) >= 32, 'STRING_SYNTAX', 'Unescaped control character in JSON string', { start: i - 1, end: i });
+          if (c === '\\') {
+            var escapeStart = i - 1, escaped = source[i++];
+            if (escaped === 'u') {
+              var hex = source.slice(i, i + 4);
+              need(/^[0-9a-fA-F]{4}$/.test(hex), 'STRING_SYNTAX', 'Expected four hexadecimal digits after \\u',
+                { start: escapeStart, end: Math.min(i + 4, source.length) });
+              value += String.fromCharCode(parseInt(hex, 16)); i += 4;
+            } else {
+              need(own(ESCAPES, escaped), 'STRING_SYNTAX', 'Invalid JSON string escape',
+                { start: escapeStart, end: Math.min(i, source.length) });
+              value += ESCAPES[escaped];
+            }
+          } else value += c;
+        }
+        need(source[i] === '"', 'STRING_SYNTAX', 'Unterminated JSON string', { start: start, end: source.length });
+        i++;
+      } else if (/[A-Za-z_]/.test(c)) {
+        kind = 'identifier'; i++;
+        while (i < source.length && /[A-Za-z0-9_]/.test(source[i])) i++;
+        value = source.slice(start, i);
+      } else if (/[0-9.\-]/.test(c)) {
+        // Decimal literals, including .5, 1. and exponent notation. No radix
+        // prefixes, leading-zero integers, separators, unary + or expressions.
+        var match = /^-?(?:(?:0|[1-9][0-9]*)(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?/.exec(source.slice(i));
+        need(match, 'NUMBER_SYNTAX', 'Expected a decimal number literal', { start: start, end: start + 1 });
+        i += match[0].length;
+        need(i === source.length || !/[A-Za-z0-9_.$]/.test(source[i]), 'NUMBER_SYNTAX', 'Invalid decimal number literal', { start: start, end: i + 1 });
+        value = Number(match[0]); kind = 'number';
+        need(Number.isFinite(value), 'NUMBER_FINITE', 'Number literals must be finite', { start: start, end: i });
+      } else fail('SYNTAX', 'Unexpected character ' + nameText(c), { start: start, end: start + 1 });
+      tokens.push({ kind: kind, value: value, start: start, end: i });
+    }
+    tokens.push({ kind: 'eof', start: source.length, end: source.length });
+    return tokens;
+  }
+
+  function Parser(tokens) { this.tokens = tokens; this.index = 0; }
+  Parser.prototype.peek = function () { return this.tokens[this.index]; };
+  Parser.prototype.take = function (kind) {
+    if (this.peek().kind !== kind) return null;
+    return this.tokens[this.index++];
+  };
+  Parser.prototype.expect = function (kind) {
+    var token = this.peek();
+    need(token.kind === kind, 'SYNTAX', 'Expected ' + kind, token);
+    this.index++;
+    return token;
+  };
+  Parser.prototype.value = function (depth) {
+    var token = this.peek(), kind = token.kind, node;
+    if (kind === 'number' || kind === 'string') { this.index++; return token; }
+    need(kind === '{' || kind === '[' || (kind === 'identifier' && (token.value === 'param' || token.value === 'signal')),
+      'VALUE_SYNTAX', 'Expected a literal, object, array, param or signal', token);
+    need(depth < LIMITS.depth, 'DEPTH_LIMIT', 'Values exceed nesting depth 16', token);
+    this.index++;
+    node = { kind: kind === '{' ? 'object' : kind === '[' ? 'array' : 'reference', start: token.start };
+    if (kind === '{') {
+      node.fields = Object.create(null);
+      if (this.peek().kind !== '}') {
+        do {
+          var key = this.peek();
+          need(key.kind === 'identifier' || key.kind === 'string', 'SYNTAX', 'Expected an object key', key);
+          this.index++;
+          need(!own(node.fields, key.value), 'DUPLICATE_KEY', 'Duplicate key ' + nameText(key.value), key);
+          this.expect(':');
+          node.fields[key.value] = { key: key, value: this.value(depth + 1) };
+        } while (this.take(','));
+      }
+      node.end = this.expect('}').end;
+    } else {
+      node.items = [];
+      var end = kind === '[' ? ']' : ')';
+      if (kind === 'identifier') { node.name = token.value; this.expect('('); }
+      if (this.peek().kind !== end) {
+        do { node.items.push(this.value(depth + 1)); } while (this.take(','));
+      }
+      node.end = this.expect(end).end;
+    }
+    return node;
+  };
+  Parser.prototype.parse = function () {
+    var statements = [], counts = { visual: 0, control: 0, layer: 0 };
+    while (this.peek().kind !== 'eof') {
+      var token = this.expect('identifier'), name = token.value;
+      need(own(counts, name), 'STATEMENT', 'Unknown statement ' + nameText(name), token);
+      counts[name]++;
+      if (name === 'visual') need(counts.visual === 1, 'DUPLICATE_VISUAL', 'Exactly one visual declaration is allowed', token);
+      if (name === 'control') need(counts.control <= LIMITS.controls, 'CONTROL_LIMIT', 'At most 8 controls are allowed', token);
+      if (name === 'layer') need(counts.layer <= LIMITS.layers, 'LAYER_LIMIT', 'At most 8 layers are allowed', token);
+      this.expect('(');
+      var label = null;
+      if (name !== 'visual') { label = this.expect('string'); this.expect(','); }
+      var value = this.value(0);
+      this.expect(')');
+      this.expect(';');
+      statements.push({ name: name, label: label, value: value, start: token.start, end: value.end });
+    }
+    need(counts.visual === 1, 'MISSING_VISUAL', 'Exactly one visual declaration is required', this.peek());
+    return statements;
+  };
+
+  function fields(node, allowed, required) {
+    need(node.kind === 'object', 'TYPE', 'Expected an object', node);
+    Object.keys(node.fields).forEach(function (key) {
+      need(allowed.indexOf(key) !== -1, 'UNKNOWN_KEY', 'Unknown key ' + nameText(key), node.fields[key].key);
+    });
+    (required || []).forEach(function (key) {
+      need(own(node.fields, key), 'MISSING_KEY', 'Missing required key ' + nameText(key), node);
+    });
+    return node.fields;
+  }
+  function number(node, min, max, integer) {
+    need(node.kind === 'number', 'TYPE', 'Expected a static number', node);
+    need(node.value >= min && node.value <= max && (!integer || Number.isInteger(node.value)), 'RANGE',
+      'Expected ' + (integer ? 'an integer' : 'a number') + ' between ' + min + ' and ' + max, node);
+    return node.value;
+  }
+  function string(node) {
+    need(node.kind === 'string', 'TYPE', 'Expected a double-quoted string', node);
+    return node.value;
+  }
+  function color(node) {
+    var value = string(node);
+    need(/^#[0-9a-fA-F]{6}$/.test(value), 'COLOR', 'Expected a six-digit hex color', node);
+    return value;
+  }
+  function controlName(node) {
+    var value = string(node);
+    need(/^[a-z][a-z0-9_]{0,23}$/.test(value), 'CONTROL_NAME', 'Control names must match [a-z][a-z0-9_]{0,23}', node);
+    return value;
+  }
+  function visual(node) {
+    var f = fields(node, Object.keys(VISUAL_DEFAULTS));
+    var result = { background: VISUAL_DEFAULTS.background, palette: VISUAL_DEFAULTS.palette.slice(),
+      feedback: VISUAL_DEFAULTS.feedback, seed: VISUAL_DEFAULTS.seed };
+    if (own(f, 'background')) result.background = color(f.background.value);
+    if (own(f, 'palette')) {
+      var palette = f.palette.value;
+      need(palette.kind === 'array', 'TYPE', 'Palette must be an array', palette);
+      need(palette.items.length >= LIMITS.paletteMin && palette.items.length <= LIMITS.paletteMax,
+        'PALETTE_LIMIT', 'Palette must contain 2 to 8 colors', palette);
+      result.palette = palette.items.map(color);
+    }
+    if (own(f, 'feedback')) result.feedback = number(f.feedback.value, 0, 0.95);
+    if (own(f, 'seed')) result.seed = number(f.seed.value, 0, 65535, true);
+    return result;
+  }
+  function control(statement) {
+    var name = controlName(statement.label), f = fields(statement.value, CONTROL_KEYS, CONTROL_KEYS);
+    var label = string(f.label.value), length = 0;
+    for (var i = 0; i < label.length && length <= 40; i++, length++) if (paired(label, i)) i++;
+    need(length >= 1 && length <= 40, 'CONTROL_LABEL', 'Control labels must contain 1 to 40 characters', f.label.value);
+    var min = number(f.min.value, -16, 16), max = number(f.max.value, -16, 16);
+    need(min < max, 'CONTROL_RANGE', 'Control min must be less than max', f.max.value);
+    var step = number(f.step.value, 0, max - min);
+    need(step > 0, 'CONTROL_STEP', 'Control step must be greater than zero', f.step.value);
+    return { name: name, label: label, min: min, max: max, step: step, value: number(f.value.value, min, max) };
+  }
+  function dynamic(node, schema, controls) {
+    if (node.kind === 'number') {
+      // A literal is already resolved. Clamp it now; renderers clamp reference
+      // results using this same schema after reading external control/signals.
+      return Math.max(schema.min, Math.min(schema.max, node.value));
+    }
+    need(node.kind === 'reference', 'TYPE', 'Expected a number, param or signal', node);
+    var args = node.items;
+    if (node.name === 'param') {
+      need(args.length === 1, 'ARITY', 'param expects one control name', node);
+      var name = controlName(args[0]);
+      need(own(controls, name), 'UNKNOWN_CONTROL', 'Unknown control ' + nameText(name), args[0]);
+      return { type: 'param', name: name };
+    }
+    need(args.length >= 1 && args.length <= 3, 'ARITY', 'signal expects a name and optional scale, offset', node);
+    var signal = string(args[0]);
+    need(SIGNALS.indexOf(signal) !== -1, 'UNKNOWN_SIGNAL', 'Unknown signal ' + nameText(signal), args[0]);
+    return { type: 'signal', name: signal, scale: args.length > 1 ? number(args[1], -16, 16) : 1,
+      offset: args.length > 2 ? number(args[2], -16, 16) : 0 };
+  }
+  function layer(statement, controls) {
+    var op = string(statement.label);
+    need(OPERATIONS.indexOf(op) !== -1, 'OPERATION', 'Unknown layer operation ' + nameText(op), statement.label);
+    var f = fields(statement.value, Object.keys(LAYER_SCHEMA)), result = { op: op };
+    Object.keys(LAYER_SCHEMA).forEach(function (key) {
+      var schema = LAYER_SCHEMA[key], node = own(f, key) ? f[key].value : null;
+      if (!node) result[key] = schema.default;
+      else if (schema.dynamic) result[key] = dynamic(node, schema, controls);
+      else if (schema.values) {
+        var value = string(node);
+        need(schema.values.indexOf(value) !== -1, 'BLEND', 'Unknown blend ' + nameText(value), node);
+        result[key] = value;
+      } else result[key] = number(node, schema.min, schema.max, schema.integer);
+    });
+    return result;
+  }
+  function build(statements) {
+    var result = { version: 1, visual: null, controls: [], layers: [] }, controls = Object.create(null), total = 0;
+    // Resolve all declarations before references, while preserving layer order.
+    statements.forEach(function (statement) {
+      if (statement.name === 'visual') result.visual = visual(statement.value);
+      if (statement.name === 'control') {
+        var item = control(statement);
+        need(!own(controls, item.name), 'DUPLICATE_CONTROL', 'Duplicate control ' + nameText(item.name), statement.label);
+        controls[item.name] = item;
+        result.controls.push(item);
+      }
+    });
+    statements.forEach(function (statement) {
+      if (statement.name !== 'layer') return;
+      var item = layer(statement, controls);
+      total += item.count;
+      need(total <= LIMITS.totalCount, 'COUNT_LIMIT', 'The sum of layer counts must not exceed 512',
+        own(statement.value.fields, 'count') ? statement.value.fields.count.value : statement.label);
+      result.layers.push(item);
+    });
+    return freeze(result);
+  }
+  function compile(source) {
+    try {
+      need(typeof source === 'string', 'SOURCE_TYPE', 'Source must be a string');
+      sourceBound(source);
+      return { ok: true, program: build(new Parser(lex(source)).parse()), diagnostics: [] };
+    } catch (error) {
+      var known = error instanceof Failure, input = typeof source === 'string' ? source : '';
+      return { ok: false, program: null, diagnostics: [{ severity: 'error',
+        code: known ? error.code : 'INTERNAL', message: known ? error.message : 'Unable to compile visual source',
+        span: { start: position(input, known ? error.start : 0), end: position(input, known ? error.end : 0) } }] };
+    }
+  }
+
+  var PRESETS = freeze([
+    {
+      id: 'visual:neon-tunnel', label: 'Neon Tunnel',
+      source: [
+        '// Bass opens the tunnel; drums scatter bright sparks through its wake.',
+        '// Remix the palette, swap the hit routes, or move a layer to the front.',
+        'visual({',
+        '  background: "#090615",',
+        '  palette: ["#84f3d5", "#b089ff", "#ff729f", "#ffbf69"],',
+        '  feedback: 0.86, seed: 17',
+        '});',
+        'control("motion", {label: "Motion", min: 0, max: 2, step: 0.01, value: 0.82});',
+        'control("glow", {label: "Glow", min: 0, max: 1, step: 0.01, value: 0.72});',
+        'control("twist", {label: "Twist", min: -2, max: 2, step: 0.01, value: 0.08});',
+        '',
+        '// Nested frames give the scene its depth.',
+        'layer("tunnel", {',
+        '  count: 32, size: 1.2, speed: param("motion"), spin: param("twist"),',
+        '  spread: 0.85, hue: signal("lead.pitch", 2), opacity: param("glow"),',
+        '  react: signal("bass.hit", 0.95), thickness: 1.5',
+        '});',
+        '// Broad, slow ribbons cross the tunnel with a soft screen blend.',
+        'layer("ribbons", {',
+        '  count: 5, size: 0.32, speed: -0.25, spin: 0.15, spread: 1.3,',
+        '  hue: 2, opacity: 0.22, react: signal("audio.mid", 1.2),',
+        '  thickness: 2, blend: "screen"',
+        '});',
+        'layer("sparks", {',
+        '  count: 48, size: 0.02, speed: 0.6, spin: 0.2, spread: 1.4,',
+        '  hue: signal("bar.phase", 4), opacity: param("glow"),',
+        '  react: signal("drums.hit", 1.4), thickness: 0.75, blend: "lighter"',
+        '});'
+      ].join('\n')
+    },
+    {
+      id: 'visual:pulse-grid', label: 'Pulse Grid',
+      source: [
+        '// A drum-driven tile field, bass ribbons, and lead accents.',
+        'visual({',
+        '  background: "#06121c",',
+        '  palette: ["#40e0ff", "#ffe082", "#ff648d", "#9b8aff"],',
+        '  feedback: 0.68, seed: 83',
+        '});',
+        'control("motion", {label: "Drift", min: -2, max: 2, step: 0.01, value: 0.25});',
+        'control("cell", {label: "Tile size", min: 0.05, max: 0.6, step: 0.01, value: 0.28});',
+        'control("glow", {label: "Glow", min: 0, max: 1, step: 0.01, value: 0.8});',
+        '',
+        '// Count changes the grid density; cell changes the space between tiles.',
+        'layer("tiles", {',
+        '  count: 64, size: param("cell"), speed: param("motion"), spread: 1.25,',
+        '  hue: signal("beat.phase", 3), opacity: param("glow"),',
+        '  react: signal("drums.hit", 1.7), thickness: 1.5',
+        '});',
+        'layer("ribbons", {',
+        '  count: 6, size: 0.5, speed: -0.3, spin: signal("bass.pitch", 0.5, -0.25),',
+        '  spread: 1.4, hue: 1, opacity: 0.3, react: signal("audio.bass", 1.1),',
+        '  thickness: 2, blend: "screen"',
+        '});',
+        '// Swap lead.hit for counter.hit to move the bright accents to another lane.',
+        'layer("sparks", {',
+        '  count: 24, size: 0.04, speed: 0.9, spin: -0.4, spread: 1.2,',
+        '  hue: 2, opacity: 0.7, react: signal("lead.hit", 1.2), blend: "lighter"',
+        '});'
+      ].join('\n')
+    },
+    {
+      id: 'visual:orbit-loom', label: 'Orbit Loom',
+      source: [
+        '// Two counter-moving orbit fields weave through translucent ribbons.',
+        'visual({',
+        '  background: "#110d20",',
+        '  palette: ["#ffd6a5", "#c8a7ff", "#76e6cc", "#ff8ba7"],',
+        '  feedback: 0.9, seed: 211',
+        '});',
+        'control("motion", {label: "Orbit speed", min: -2, max: 2, step: 0.01, value: 0.4});',
+        'control("twist", {label: "Weave", min: -2, max: 2, step: 0.01, value: 0.3});',
+        'control("glow", {label: "Thread glow", min: 0, max: 1, step: 0.01, value: 0.65});',
+        '',
+        'layer("orbits", {',
+        '  count: 18, size: 0.2, speed: param("motion"), spin: param("twist"),',
+        '  spread: 1.3, hue: signal("lead.pitch", 3), opacity: param("glow"),',
+        '  react: signal("lead.hit", 0.8), thickness: 2, blend: "lighter"',
+        '});',
+        '// Counter pitch bends the ribbons; the measured mid band widens them.',
+        'layer("ribbons", {',
+        '  count: 8, size: 0.6, speed: -0.35, spin: signal("counter.pitch", 0.6, -0.3),',
+        '  spread: 1.1, hue: 1, opacity: 0.38, react: signal("audio.mid", 1.2),',
+        '  thickness: 2, blend: "screen"',
+        '});',
+        '// A smaller reverse orbit makes the bass pulse visible inside the weave.',
+        'layer("orbits", {',
+        '  count: 9, size: 0.08, speed: -0.65, spin: -0.25, spread: 0.7,',
+        '  hue: 2, opacity: param("glow"), react: signal("bass.hit", 0.9),',
+        '  thickness: 1, blend: "lighter"',
+        '});'
+      ].join('\n')
+    }
+  ]);
+
+  return freeze({ compile: compile, PRESETS: PRESETS, LIMITS: LIMITS,
+    LAYER_SCHEMA: LAYER_SCHEMA, OPERATIONS: OPERATIONS, SIGNALS: SIGNALS,
+    BLENDS: BLENDS, VISUAL_DEFAULTS: VISUAL_DEFAULTS });
+});
+
+/* ===== src/visual-renderer.js ===== */
+// Bounded visual IR v1. No clock/transport ownership: the caller supplies one
+// fresh clock.noteOns batch per render. Canvas resources live for this instance.
+(function (G) {
+  'use strict';
+  var TAU = Math.PI * 2, MAX_DT = 0.1, MAX_ITEMS = 512, MAX_EVENTS = 64;
+  var own = Object.prototype.hasOwnProperty;
+  var OPS = ['tunnel', 'tiles', 'orbits', 'ribbons', 'sparks'];
+  var SIGNALS = ['audio.bass', 'audio.mid', 'audio.treble', 'audio.level',
+    'beat.phase', 'bar.phase', 'lead.hit', 'lead.pitch', 'counter.hit',
+    'counter.pitch', 'bass.hit', 'bass.pitch', 'drums.hit'];
+  var PARAMS = {
+    size: [0.5, 0.01, 2], speed: [0.5, -4, 4], spin: [0, -4, 4],
+    spread: [0.7, 0, 2], hue: [0, -8, 8], opacity: [0.8, 0, 1],
+    react: [0, 0, 2], thickness: [1, 0.25, 8]
+  };
+  var PARAM_NAMES = Object.keys(PARAMS);
+  var DEFAULT_PALETTE = ['#84f3d5', '#b089ff', '#ffbf69'];
+
+  function finite(n) { return typeof n === 'number' && Number.isFinite(n); }
+  function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
+  function unit(n) { return finite(n) ? clamp(n, 0, 1) : 0; }
+  function fract(n) { return n - Math.floor(n); }
+  function fail(message) { throw TypeError(message); }
+  function message(error) {
+    try { if (error && typeof error.message === 'string') return error.message.slice(0, 240); } catch (_) {}
+    return 'Visual rendering failed';
+  }
+  function number(n, min, max, label) {
+    if (!finite(n) || n < min || n > max) fail('Invalid ' + label);
+    return n;
+  }
+  function integer(n, min, max, label) {
+    number(n, min, max, label);
+    if (!Number.isInteger(n)) fail('Invalid ' + label);
+    return n;
+  }
+  function color(c) {
+    if (typeof c !== 'string' || c.length !== 7 || !/^#[0-9a-f]{6}$/i.test(c)) fail('Invalid visual color');
+    return c;
+  }
+  function controlName(n) {
+    return typeof n === 'string' && n.length <= 24 && /^[a-z][a-z0-9_]{0,23}$/.test(n);
+  }
+  function validLabel(label) {
+    if (typeof label !== 'string' || !label.length || label.length > 80) return false;
+    var length = 0;
+    for (var i = 0; i < label.length; i++, length++) {
+      var a = label.charCodeAt(i), b = label.charCodeAt(i + 1);
+      if (a >= 0xd800 && a <= 0xdbff && b >= 0xdc00 && b <= 0xdfff) i++;
+    }
+    return length <= 40;
+  }
+  // Only bounded, own data fields are copied. Getters, inherited fields, exotic
+  // prototypes, extra keys and sparse/decorated arrays are not compiled data.
+  function record(input, keys, label) {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) fail('Invalid ' + label);
+    var proto = Object.getPrototypeOf(input);
+    if (proto !== null && proto !== Object.prototype) fail('Invalid ' + label + ' prototype');
+    var names = Reflect.ownKeys(input), out = Object.create(null);
+    if (names.length > keys.length) fail('Too many ' + label + ' fields');
+    for (var i = 0; i < names.length; i++) {
+      var key = names[i], d = Object.getOwnPropertyDescriptor(input, key);
+      if (!keys.includes(key) || !d || !own.call(d, 'value')) fail('Invalid ' + label + ' field');
+      out[key] = d.value;
+    }
+    return out;
+  }
+  function list(input, max, label) {
+    if (!Array.isArray(input)) fail('Invalid ' + label);
+    var length = Object.getOwnPropertyDescriptor(input, 'length').value;
+    integer(length, 0, max, label + ' length');
+    if (Reflect.ownKeys(input).length !== length + 1) fail('Invalid ' + label + ' entries');
+    var out = [];
+    for (var i = 0; i < length; i++) {
+      var d = Object.getOwnPropertyDescriptor(input, String(i));
+      if (!d || !own.call(d, 'value')) fail('Invalid ' + label + ' entry');
+      out.push(d.value);
+    }
+    return out;
+  }
+  function fallback(object, key, value) { return own.call(object, key) ? object[key] : value; }
+  function expression(value, controls) {
+    if (finite(value)) return value;
+    var ref = record(value, ['type', 'name', 'scale', 'offset'], 'reference');
+    if (ref.type === 'param') {
+      if (own.call(ref, 'scale') || own.call(ref, 'offset') || !controlName(ref.name) || !own.call(controls, ref.name))
+        fail('Invalid parameter reference');
+      return { type: 'param', name: ref.name };
+    }
+    if (ref.type !== 'signal' || !SIGNALS.includes(ref.name)) fail('Invalid signal reference');
+    return { type: 'signal', name: ref.name,
+      scale: number(fallback(ref, 'scale', 1), -16, 16, 'signal scale'),
+      offset: number(fallback(ref, 'offset', 0), -16, 16, 'signal offset') };
+  }
+  function validate(input) {
+    var p = record(input, ['version', 'visual', 'controls', 'layers'], 'program');
+    if (p.version !== 1) fail('Unsupported visual program version');
+    var v = record(p.visual, ['background', 'palette', 'feedback', 'seed'], 'visual');
+    var palette = list(fallback(v, 'palette', DEFAULT_PALETTE), 8, 'palette');
+    if (palette.length < 2) fail('Palette needs at least two colors');
+    palette = palette.map(color);
+    var visual = { background: color(fallback(v, 'background', '#090615')), palette: palette,
+      feedback: number(fallback(v, 'feedback', 0.8), 0, 0.95, 'feedback'),
+      seed: integer(fallback(v, 'seed', 1), 0, 65535, 'seed') };
+    var controls = Object.create(null), declarations = list(p.controls, 8, 'controls');
+    for (var i = 0; i < declarations.length; i++) {
+      var c = record(declarations[i], ['name', 'label', 'min', 'max', 'step', 'value'], 'control');
+      if (!controlName(c.name) || own.call(controls, c.name)) fail('Invalid or duplicate control name');
+      if (!validLabel(c.label)) fail('Invalid control label');
+      number(c.min, -16, 16, 'control minimum'); number(c.max, -16, 16, 'control maximum');
+      if (c.min >= c.max || !finite(c.step) || c.step <= 0 || c.step > c.max - c.min) fail('Invalid control range or step');
+      number(c.value, c.min, c.max, 'control value');
+      controls[c.name] = c;
+    }
+    var layers = list(p.layers, 8, 'layers'), count = 0;
+    layers = layers.map(function (input) {
+      var l = record(input, ['op', 'count', 'blend'].concat(PARAM_NAMES), 'layer');
+      if (!OPS.includes(l.op)) fail('Unknown visual operation');
+      var layer = { op: l.op, count: integer(fallback(l, 'count', 24), 1, 128, 'layer count'),
+        blend: fallback(l, 'blend', 'source-over') };
+      if (!['source-over', 'lighter', 'screen'].includes(layer.blend)) fail('Invalid layer blend');
+      count += layer.count;
+      if (count > MAX_ITEMS) fail('Visual item limit exceeded');
+      PARAM_NAMES.forEach(function (name) { layer[name] = expression(fallback(l, name, PARAMS[name][0]), controls); });
+      return layer;
+    });
+    return { visual: visual, controls: controls, layers: layers, count: count,
+      colors: palette.map(function (c) { var n = parseInt(c.slice(1), 16); return [n >>> 16, (n >>> 8) & 255, n & 255]; }) };
+  }
+  function hash(seed, item, salt) {
+    var h = (seed ^ Math.imul(item + 1, 0x9e3779b1) ^ Math.imul(salt + 1, 0x85ebca6b)) >>> 0;
+    h = Math.imul(h ^ (h >>> 16), 0x7feb352d);
+    h = Math.imul(h ^ (h >>> 15), 0x846ca68b);
+    return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+  }
+  function paint(colors, position) {
+    var index = fract(position / colors.length) * colors.length;
+    var a = colors[Math.floor(index)], b = colors[(Math.floor(index) + 1) % colors.length], mix = fract(index);
+    return 'rgb(' + Math.round(a[0] + (b[0] - a[0]) * mix) + ',' +
+      Math.round(a[1] + (b[1] - a[1]) * mix) + ',' + Math.round(a[2] + (b[2] - a[2]) * mix) + ')';
+  }
+  function saved(ctx, draw) { ctx.save(); try { draw(); } finally { ctx.restore(); } }
+  // A primitive means a completed stroke, fill, rect, or image draw. Neon uses
+  // two strokes of the same bounded path, never a blur/filter or extra surface.
+  function neon(ctx, tint, alpha, width) {
+    ctx.strokeStyle = tint; ctx.globalAlpha = alpha * 0.15; ctx.lineWidth = width * 3.5; ctx.stroke();
+    ctx.globalAlpha = alpha; ctx.lineWidth = width; ctx.stroke();
+  }
+  function polygon(ctx, x, y, radius, angle) {
+    ctx.beginPath();
+    for (var k = 0; k < 4; k++) {
+      var a = angle + k * TAU / 4, px = x + Math.cos(a) * radius, py = y + Math.sin(a) * radius;
+      if (!k) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+  }
+  function tunnel(ctx, p, env) {
+    var t = env.phase, s = env.small, turn = t * p.spin * 0.22;
+    var cx = env.width / 2 + Math.sin(t * p.speed * 0.17) * s * 0.12 * p.spread;
+    var cy = env.height / 2 + Math.cos(t * p.speed * 0.13) * s * 0.08 * p.spread;
+    for (var i = 0; i < p.count; i++) {
+      var depth = fract(i / p.count + t * p.speed * 0.14), scale = Math.pow(depth, 2.1);
+      var r = s * (0.012 + scale * 1.6 * p.size) * (1 + p.react * 0.22);
+      var angle = Math.PI / 4 + turn + (1 - depth) * p.spread * 0.9;
+      var alpha = p.opacity * Math.sin(depth * Math.PI) * (0.35 + depth * 0.65);
+      var tint = paint(env.colors, i * 0.16 + p.hue + depth * 1.3);
+      polygon(ctx, cx, cy, r, angle);
+      neon(ctx, tint, alpha, p.thickness * (0.45 + depth * 1.5));
+      // Two short perspective rails share one path: three primitives/item.
+      var farther = Math.max(0, depth - 1 / p.count);
+      var r2 = s * (0.012 + Math.pow(farther, 2.1) * 1.6 * p.size) * (1 + p.react * 0.22);
+      var a2 = Math.PI / 4 + turn + (1 - farther) * p.spread * 0.9;
+      ctx.beginPath();
+      for (var k = 0; k < 2; k++) {
+        var offset = k * Math.PI;
+        ctx.moveTo(cx + Math.cos(angle + offset) * r, cy + Math.sin(angle + offset) * r);
+        ctx.lineTo(cx + Math.cos(a2 + offset) * r2, cy + Math.sin(a2 + offset) * r2);
+      }
+      ctx.globalAlpha = alpha * 0.32; ctx.lineWidth = p.thickness * 0.6; ctx.stroke();
+    }
+  }
+  function tiles(ctx, p, env) {
+    var cols = Math.min(p.count, Math.max(1, Math.ceil(Math.sqrt(p.count * env.width / env.height))));
+    var rows = Math.ceil(p.count / cols), cell = Math.min(env.width / cols, env.height / rows) * (0.45 + p.spread);
+    ctx.translate(env.width / 2, env.height / 2); ctx.rotate(env.phase * p.spin * 0.08);
+    for (var i = 0; i < p.count; i++) {
+      var x = (i % cols - (cols - 1) / 2) * cell, y = (Math.floor(i / cols) - (rows - 1) / 2) * cell;
+      var wave = 0.5 + 0.5 * Math.sin(Math.hypot(x, y) / Math.max(1, cell) * 0.85 - env.phase * p.speed * 2.2);
+      var d = Math.max(0.5, cell * 0.58 * p.size * (0.55 + wave * 0.45 + p.react * 0.35));
+      var left = Math.round(x - d / 2), top = Math.round(y - d / 2);
+      var tint = paint(env.colors, i / cols + wave + p.hue);
+      ctx.fillStyle = tint; ctx.globalAlpha = p.opacity * (0.08 + wave * 0.18);
+      ctx.fillRect(left, top, d, d);
+      ctx.strokeStyle = tint; ctx.lineWidth = p.thickness; ctx.globalAlpha = p.opacity * (0.22 + wave * 0.7);
+      ctx.strokeRect(left, top, d, d);
+      ctx.fillStyle = '#f0fcff'; ctx.globalAlpha = p.opacity * wave * 0.7;
+      var dot = Math.max(0.5, Math.min(d / 3, p.thickness * (1.5 + p.react)));
+      ctx.fillRect(left, top, dot, dot);
+    }
+  }
+  function orbits(ctx, p, env) {
+    for (var i = 0; i < p.count; i++) {
+      var h = hash(env.seed, i, env.layer), u = (i + 0.5) / p.count;
+      var turn = env.phase * p.spin * 0.16 + h * Math.PI;
+      var angle = env.phase * p.speed * (0.45 + h) + u * TAU;
+      var rx = env.small * (0.1 + u * 0.52 * p.spread) * (0.35 + p.size) * (1 + p.react * 0.18);
+      var ry = rx * (0.28 + h * 0.5);
+      var cx = env.width / 2 + Math.cos(h * TAU) * env.small * p.spread * 0.08;
+      var cy = env.height / 2 + Math.sin(h * TAU) * env.small * p.spread * 0.08;
+      var tint = paint(env.colors, u * env.colors.length + p.hue);
+      ctx.strokeStyle = tint; ctx.lineWidth = p.thickness * 0.5; ctx.globalAlpha = p.opacity * 0.1;
+      ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, turn, 0, TAU); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, turn, angle - 0.6 - p.react * 0.5, angle);
+      neon(ctx, tint, p.opacity * (0.5 + h * 0.5), p.thickness);
+      var x = rx * Math.cos(angle), y = ry * Math.sin(angle);
+      ctx.globalAlpha = p.opacity; ctx.fillStyle = '#edffff'; ctx.beginPath();
+      ctx.arc(cx + x * Math.cos(turn) - y * Math.sin(turn), cy + x * Math.sin(turn) + y * Math.cos(turn),
+        Math.max(0.5, p.thickness * (1.25 + p.react)), 0, TAU); ctx.fill();
+    }
+  }
+  function ribbons(ctx, p, env) {
+    var w = env.width, h = env.height, t = env.phase * p.speed;
+    ctx.translate(w / 2, h / 2); ctx.rotate(Math.sin(env.phase * 0.13) * p.spin * 0.24); ctx.translate(-w / 2, -h / 2);
+    for (var i = 0; i < p.count; i++) {
+      var u = (i + 0.5) / p.count, salt = hash(env.seed, i, env.layer);
+      var y = h * (0.5 + (u - 0.5) * p.spread * 1.2);
+      var amplitude = h * 0.3 * p.size * (0.45 + p.react * 0.4);
+      var a = Math.sin(t * 0.73 + u * 4.5), b = Math.cos(t * 0.61 + u * 3.4 + salt * 0.25);
+      var tint = paint(env.colors, u * env.colors.length + p.hue + Math.sin(t * 0.1) * 0.3);
+      ctx.beginPath(); ctx.moveTo(-w * 0.12, y + a * amplitude);
+      ctx.bezierCurveTo(w * 0.1, y - b * amplitude * 1.6, w * 0.32, y + a * amplitude * 1.7, w * 0.5, y);
+      ctx.bezierCurveTo(w * 0.7, y - a * amplitude * 1.7, w * 0.88, y + b * amplitude * 1.6, w * 1.12, y - a * amplitude);
+      neon(ctx, tint, p.opacity * (0.35 + 0.65 * Math.sin(u * Math.PI)), p.thickness * (0.6 + p.size));
+    }
+  }
+  function sparks(ctx, p, env) {
+    var t = env.phase;
+    for (var i = 0; i < p.count; i++) {
+      var salt = hash(env.seed, i, env.layer), jitter = hash(env.seed, i, env.layer + 19);
+      var life = fract(salt + t * p.speed * (0.11 + jitter * 0.1));
+      var angle = jitter * TAU + t * p.spin * 0.2 + life * p.spin * 0.35;
+      var radius = env.small * Math.pow(life, 0.8) * (0.15 + p.spread * 0.8) * (1 + p.react * 0.3);
+      var cx = env.width / 2, cy = env.height / 2;
+      var x = cx + Math.cos(angle) * radius, y = cy + Math.sin(angle) * radius;
+      var trail = env.small * (0.008 + life * 0.04) * p.size * (0.3 + Math.abs(p.speed));
+      var alpha = p.opacity * Math.sin(life * Math.PI) * (0.4 + jitter * 0.6);
+      var tint = paint(env.colors, jitter * env.colors.length + life + p.hue);
+      ctx.beginPath(); ctx.moveTo(x - Math.cos(angle) * trail, y - Math.sin(angle) * trail); ctx.lineTo(x, y);
+      neon(ctx, tint, alpha, p.thickness * (0.5 + p.size * 0.4));
+      var size = Math.max(0.5, (1 + p.size * 2) * (0.5 + jitter) * (1 + p.react * 0.5));
+      ctx.fillStyle = '#f0fcff'; ctx.globalAlpha = alpha; ctx.fillRect(Math.round(x - size / 2), Math.round(y - size / 2), size, size);
+    }
+  }
+  var DRAW = { tunnel: tunnel, tiles: tiles, orbits: orbits, ribbons: ribbons, sparks: sparks };
+
+  function create(options) {
+    options = options || {};
+    if (typeof options.createCanvas !== 'function') fail('createCanvas is required');
+    var width = finite(options.width) ? clamp(Math.floor(options.width), 1, 960) : 960;
+    var height = finite(options.height) ? clamp(Math.floor(options.height), 1, 540) : 540;
+    var front = options.createCanvas(width, height), back = options.createCanvas(width, height);
+    if (!front || !back || front === back) fail('createCanvas must return two distinct canvases');
+    front.width = back.width = width; front.height = back.height = height;
+    var frontCtx = front.getContext('2d'), backCtx = back.getContext('2d');
+    if (!frontCtx || !backCtx || frontCtx === backCtx) fail('Two distinct 2D contexts are required');
+    var program = null, values = Object.create(null), signals = Object.create(null);
+    var phase = 0, frameCount = 0, renderErrors = 0, error = null, lastTime = null, lastIdentity = null;
+    var wasPaused = true, hasFrame = false, feedbackValid = false, dirty = true, dt = 0;
+    var acknowledgedGrid = { gstep: 0, phase: 0, bar: 0, bpm: 120 };
+    SIGNALS.forEach(function (name) { signals[name] = 0; });
+
+    // Invalid Apply throws before any renderer state changes; the stage owns
+    // draft diagnostics. Rendering failures are instead recoverable results.
+    // Explicit values win; otherwise matching saved controls survive an Apply.
+    function apply(input, suppliedValues) {
+      var next = validate(input), names = Object.keys(next.controls);
+      var supplied = suppliedValues === undefined ? Object.create(null) : record(suppliedValues, names, 'control values');
+      var nextValues = Object.create(null);
+      names.forEach(function (name) {
+        var c = next.controls[name], value = own.call(supplied, name) ? supplied[name] :
+          own.call(values, name) ? values[name] : c.value;
+        if (!finite(value)) fail('Invalid saved control value');
+        nextValues[name] = clamp(value, c.min, c.max);
+      });
+      program = next; values = nextValues; dirty = true;
+      return { ok: true, error: null };
+    }
+    function setControl(name, value) {
+      if (!controlName(name) || !program || !own.call(program.controls, name) || !finite(value))
+        return { ok: false, error: 'Invalid control or value' };
+      var c = program.controls[name], next = clamp(value, c.min, c.max);
+      if (values[name] !== next) { values[name] = next; dirty = true; }
+      return { ok: true, value: next, error: null };
+    }
+    function resolve(layer) {
+      var p = { count: layer.count };
+      PARAM_NAMES.forEach(function (name) {
+        var ref = layer[name], v = typeof ref === 'number' ? ref :
+          ref.type === 'param' ? values[ref.name] : signals[ref.name] * ref.scale + ref.offset;
+        p[name] = clamp(v, PARAMS[name][1], PARAMS[name][2]);
+      });
+      return p;
+    }
+    function updateSignals(clock, grid, paused) {
+      // Positive executed events alone trigger role envelopes. Unknown raw MIDI
+      // never overwrites the last known pitch, and semantic role summaries are
+      // deliberately not an onset source. No event ids/history are retained.
+      var roles = ['lead', 'counter', 'bass', 'drums'];
+      for (var i = 0; i < roles.length; i++) {
+        var key = roles[i] + '.hit', hit = signals[key] * Math.exp(-dt * (roles[i] === 'bass' ? 5 : 8));
+        signals[key] = hit < 0.00001 ? 0 : hit;
+      }
+      var notes = clock.noteOns;
+      if (!paused && Array.isArray(notes)) {
+        for (var i = 0, n = Math.min(MAX_EVENTS, notes.length); i < n; i++) {
+          var event = notes[i];
+          if (!event || typeof event !== 'object') continue;
+          if (event.kind !== undefined && !['noteOn', 'sample', 'register'].includes(event.kind)) continue;
+          var role = event.role, strength = finite(event.strength) ? event.strength : event.mag;
+          if (role === 'perc' || role === 'noise') role = 'drums';
+          if (!roles.includes(role) || !finite(strength) || strength <= 0) continue;
+          signals[role + '.hit'] = Math.max(signals[role + '.hit'], unit(strength));
+          if (role !== 'drums' && event.kind !== 'register' && event.kind !== 'sample' && finite(event.midi))
+            signals[role + '.pitch'] = unit((event.midi - 24) / 84);
+        }
+      }
+      var analysis = clock.analysis, measured = !paused && analysis && analysis.available === true;
+      var bands = measured && analysis.bands || {};
+      signals['audio.bass'] = unit(bands.bass); signals['audio.mid'] = unit(bands.mid); signals['audio.treble'] = unit(bands.treble);
+      signals['audio.level'] = measured ? unit(analysis.rms) : 0;
+      var step = finite(grid.gstep) && grid.gstep >= 0 ? Math.floor(grid.gstep) : 0;
+      var fraction = unit(grid.phase);
+      acknowledgedGrid.gstep = step; acknowledgedGrid.phase = fraction;
+      acknowledgedGrid.bar = finite(grid.bar) && grid.bar >= 0 ? Math.floor(grid.bar) : Math.floor(step / 16);
+      acknowledgedGrid.bpm = finite(grid.bpm) && grid.bpm > 0 ? clamp(grid.bpm, 1, 1000) : 120;
+      signals['beat.phase'] = ((step % 4) + fraction) / 4;
+      signals['bar.phase'] = ((step % 16) + fraction) / 16;
+    }
+    function render(input) {
+      try {
+        input = input || {};
+        var time = finite(input.contextTime) && input.contextTime >= 0 ? input.contextTime : null;
+        // Identity is a caller-owned scalar token, never coerced/stringified.
+        // Retaining arbitrary objects here could pin an unbounded transport graph.
+        var id = input.identity;
+        if (!(id == null || typeof id === 'string' && id.length <= 256 || finite(id))) fail('Invalid visual transport identity');
+        id = id == null ? null : id;
+        var paused = input.paused === true, clock = input.clock || {}, grid = input.grid || {};
+        dt = !paused && !wasPaused && id === lastIdentity && time !== null && lastTime !== null ? clamp(time - lastTime, 0, MAX_DT) : 0;
+        lastTime = time; lastIdentity = id; wasPaused = paused;
+        // At most 100 ms of visual catch-up; a backwards/invalid clock only
+        // reanchors. Pause/unfreeze do not replay elapsed wall time or events.
+        phase = (phase + dt) % 1048576;
+        updateSignals(clock, grid, paused);
+        if (paused && hasFrame && !dirty && !error) return { canvas: front, error: null };
+        if (!program) return { canvas: front, error: null };
+        if (front.width !== width || front.height !== height || back.width !== width || back.height !== height)
+          fail('Visual canvas dimensions changed externally');
+        var env = { phase: phase, width: width, height: height, small: Math.min(width, height),
+          colors: program.colors, seed: program.visual.seed, layer: 0 };
+        saved(backCtx, function () {
+          backCtx.setTransform(1, 0, 0, 1, 0, 0); backCtx.globalCompositeOperation = 'source-over';
+          backCtx.globalAlpha = 1; backCtx.shadowBlur = 0; backCtx.lineCap = 'round'; backCtx.lineJoin = 'round';
+          backCtx.fillStyle = program.visual.background; backCtx.fillRect(0, 0, width, height);
+          if (feedbackValid && program.visual.feedback > 0) {
+            // A small outward drift gives motion real trails without allocating
+            // histories, gradients, patterns, images, or per-particle resources.
+            var zoom = 1 + dt * (0.035 + signals['bass.hit'] * 0.025);
+            backCtx.globalAlpha = Math.pow(program.visual.feedback, Math.max(dt, 1 / 60) * 60);
+            backCtx.drawImage(front, (width - width * zoom) / 2, (height - height * zoom) / 2, width * zoom, height * zoom);
+          }
+          program.layers.forEach(function (layer, index) {
+            var p = resolve(layer); env.layer = index;
+            if (p.opacity === 0) return;
+            saved(backCtx, function () {
+              backCtx.globalCompositeOperation = layer.blend;
+              DRAW[layer.op](backCtx, p, env);
+            });
+          });
+        });
+        var swap = front; front = back; back = swap;
+        swap = frontCtx; frontCtx = backCtx; backCtx = swap;
+        hasFrame = feedbackValid = true; dirty = false; error = null;
+        frameCount = Math.min(Number.MAX_SAFE_INTEGER, frameCount + 1);
+        return { canvas: front, error: null };
+      } catch (e) {
+        error = message(e); renderErrors = Math.min(Number.MAX_SAFE_INTEGER, renderErrors + 1);
+        return { canvas: front, error: error };
+      }
+    }
+    function reset() {
+      phase = 0; dt = 0; lastTime = null; lastIdentity = null; wasPaused = true;
+      SIGNALS.forEach(function (name) { signals[name] = 0; });
+      // Invalidate feedback; leave the published pixels intact until the next
+      // complete draw, so even a draw failure just after Reset keeps last-good.
+      feedbackValid = false; dirty = true; error = null;
+      return snapshot();
+    }
+    function snapshot() {
+      return { values: Object.assign({}, values), phase: phase, frames: frameCount,
+        canvasCount: 2, width: width, height: height, error: error, renderErrors: renderErrors,
+        dt: dt, signals: Object.assign({}, signals), grid: Object.assign({}, acknowledgedGrid), layers: program ? program.layers.length : 0,
+        items: program ? program.count : 0, hasFrame: hasFrame };
+    }
+    return Object.freeze({ apply: apply, setControl: setControl, render: render, reset: reset, snapshot: snapshot });
+  }
+  var api = Object.freeze({ create: create }); G.CT_VISUAL_RENDERER = api;
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+/* ===== src/visual-stage.js ===== */
+// Independent visual draft/live state. No music mutation or autonomous clock.
+(function(G,factory){
+  var api=factory();if(typeof module==='object'&&module.exports)module.exports=api;
+  else G.CT_VISUAL_STAGE=api;
+})(typeof globalThis==='object'?globalThis:this,function(){
+  'use strict';
+  function copy(value){return JSON.parse(JSON.stringify(value));}
+  function identity(t){return t?[t.epoch,t.activation,t.revision,t.discontinuity].join(':'):null;}
+  function create(options){
+    options=options||{};
+    var language=options.language,renderer=options.renderer;
+    if(!language||!renderer)throw Error('Visual language and renderer required');
+    var presets=language.PRESETS,scenes=presets.map(function(p){return {id:p.id,label:p.label};}).concat(options.games||[]);
+    var draft=presets[0].source,draftScene=presets[0].id,live=null,pending=null,suspended=null;
+    var error=null,renderError=null,diagnostics=[],notice='',frozen=false,blackout=false,revision=0,reanchor=0,lastFrame=null;
+    function changed(){if(options.onChange)options.onChange();}
+    function find(id){return presets.find(function(p){return p.id===id;});}
+    function isProgram(id){return id.indexOf('visual:')===0;}
+    function snapshot(){
+      var rs=renderer.snapshot();
+      return {scene:live?live.scene:'off',enabled:!!live&&live.scene!=='off',scenes:copy(scenes),
+        draftScene:draftScene,draft:draft,liveSource:live&&live.source||'',revision:revision,
+        state:(error||renderError)?'error':pending?'queued':(!live||draftScene!==live.scene||(isProgram(draftScene)&&draft!==live.source))?'draft':'live',
+        error:error||renderError,diagnostics:copy(diagnostics),notice:notice,frozen:frozen,blackout:blackout,
+        edited:!!live&&!!live.program&&(!find(live.scene)||find(live.scene).source!==live.source),
+        controls:live&&live.program?live.program.controls.map(function(c){return Object.assign({},c,{value:rs.values[c.name]});}):[],
+        pending:pending?{scene:pending.scene,label:label(pending.scene),bar:pending.targetStep/16+1,step:pending.targetStep}:null,
+        renderer:rs};
+    }
+    function label(id){var s=scenes.find(function(s){return s.id===id;});return s?s.label:id==='off'?'Off':'Custom visual';}
+    function candidate(){
+      if(!isProgram(draftScene))return {scene:draftScene,source:'',program:null,values:{}};
+      var compiled=language.compile(draft);
+      if(!compiled.ok){diagnostics=compiled.diagnostics||[];error=diagnostics[0]&&diagnostics[0].message||'Invalid visual program';return null;}
+      var values={},previous=renderer.snapshot().values||{};
+      var same=live&&(draftScene===live.scene||(live.scene==='off'&&suspended&&draftScene===suspended.scene));
+      compiled.program.controls.forEach(function(c){values[c.name]=same&&Object.prototype.hasOwnProperty.call(previous,c.name)?Math.max(c.min,Math.min(c.max,previous[c.name])):c.value;});
+      return {scene:draftScene,source:draft,program:compiled.program,values:values};
+    }
+    function activate(next){
+      // The renderer validates before mutation. Recoverable errors leave live
+      // state and its last complete framebuffer unchanged.
+      try{if(next.program)renderer.apply(next.program,next.values);}
+      catch(e){error='Visual apply failed: '+e.message;return false;}
+      if(next.scene==='off'&&live&&live.scene!=='off')suspended=live;
+      live=next;revision++;pending=null;error=null;renderError=null;diagnostics=[];notice='';reanchor++;
+      return true;
+    }
+    function apply(when,t){
+      if(when!=='now'&&when!=='bar')throw Error('Visual boundary must be now or bar');
+      error=null;diagnostics=[];notice='';var next=candidate();
+      if(!next){changed();return snapshot();}
+      if(when==='bar'){
+        if(!t||t.paused||t.status!=='playing'||!t.grid||!Number.isFinite(t.grid.gstep)){
+          error='Play music before queueing a visual for the next bar.';
+        }else pending=Object.assign(next,{identity:identity(t),targetStep:(Math.floor(t.grid.gstep/16)+1)*16});
+      }else activate(next);
+      changed();return snapshot();
+    }
+    function selectDraft(id){
+      var preset=find(id);
+      if(id!=='off'&&id!=='visual:custom'&&!scenes.some(function(s){return s.id===id;}))throw Error('Unknown visual scene');
+      if(live&&live.scene==='off'&&suspended&&id===suspended.scene&&suspended.program)draft=suspended.source;
+      else if(preset)draft=preset.source;
+      draftScene=id;error=null;diagnostics=[];notice='';changed();return snapshot();
+    }
+    function setDraft(source){
+      if(typeof source!=='string'||source.length>32768)throw Error('Visual source is limited to 32 KiB');
+      draft=source;
+      // Preserve a preset identity while editing it: it is an editable program,
+      // not a preset engine. Switching away and back explicitly reloads it.
+      if(!isProgram(draftScene))draftScene='visual:custom';
+      error=null;diagnostics=[];notice='';changed();return snapshot();
+    }
+    function cancel(reason){pending=null;notice=reason||'Queued visual cancelled.';changed();return snapshot();}
+    function observe(t){
+      if(pending){
+        if(!t||!['playing','paused'].includes(t.status)||identity(t)!==pending.identity)cancel('Queued visual cancelled: music timeline changed.');
+        else if(!t.paused&&t.grid.gstep>=pending.targetStep){activate(pending);changed();}
+      }
+    }
+    function tick(t,clock){
+      observe(t);
+      if(!live||!live.program)return {canvas:null,error:error};
+      if(frozen)return lastFrame||{canvas:null,error:error};
+      var result=renderer.render({contextTime:t&&t.renderContextTime||0,paused:!t||t.paused,
+        identity:identity(t)+':'+reanchor,grid:t&&t.grid||{},clock:clock||{noteOns:[]}});
+      lastFrame=result;
+      var currentError=result.error?String(result.error):null;
+      if(currentError!==renderError){renderError=currentError;changed();}
+      return result;
+    }
+    function setControl(name,value){
+      if(!live||!live.program)throw Error('This scene has no visual program controls');
+      var result=renderer.setControl(name,value);
+      if(result&&result.ok===false)throw Error(result.error||'Invalid visual control');
+      changed();return snapshot();
+    }
+    function freeze(value){frozen=!!value;reanchor++;changed();return snapshot();}
+    function mask(value){blackout=!!value;changed();return snapshot();}
+    function reset(){renderer.reset();lastFrame=null;reanchor++;notice='Visual state reset; music unchanged.';changed();return snapshot();}
+    function panic(){pending=null;blackout=true;notice='Panic: visual output blacked out.';changed();return snapshot();}
+    activate(candidate());
+    return {snapshot:snapshot,setDraft:setDraft,selectDraft:selectDraft,apply:apply,cancel:cancel,observe:observe,tick:tick,
+      setScene:function(id,t){selectDraft(id);return apply('now',t);},setControl:setControl,
+      freeze:freeze,blackout:mask,reset:reset,panic:panic};
+  }
+  return Object.freeze({create:create});
+});
+
 /* ===== src/music-workspace.js ===== */
 // One source authority. Notes and exports use validated revisions; typing never
 // changes audio. Legacy and native editors retain their own document boundaries.
@@ -16328,19 +17290,65 @@ var EXPORTS = {
   var inlineContext=null;
   var CHART_GUTTER=68,NOTE_ROW=14,LANE_HEADER=25;
   var visualizerOpen=false,presentationOwner=null,presentationFocus=null,stageError='';
+  var visualEditor=null,visualEditorLoading=false,visualControlSignature='',visualRenderQueued=false;
+  function visualAdapter(){return G.CT_CREATE_PRESENTATION;}
+  function renderVisualEditor(state){
+    $('.mw-visual-authoring').hidden=!state;
+    $('.mw-visual-performance').hidden=!state;
+    if(!state)return;
+    if(visualEditor&&visualEditor.value()!==state.draft){visualEditorLoading=true;visualEditor.set(state.draft);visualEditorLoading=false;}
+    if(visualEditor)visualEditor.diagnostics((state.diagnostics||[]).map(function(d){return {
+      from:d.span&&d.span.start?d.span.start.offset:0,to:d.span&&d.span.end?d.span.end.offset:0,message:d.message,severity:d.severity};}));
+    $('[data-action=visual-cancel]').hidden=!state.pending;
+    $('[data-action=visual-apply]').textContent=state.pending?'Replace queued visual':'Apply visuals';
+    $('[data-action=visual-freeze]').textContent=state.frozen?'Unfreeze':'Freeze';
+    $('[data-action=visual-freeze]').setAttribute('aria-pressed',String(state.frozen));
+    $('[data-action=visual-blackout]').setAttribute('aria-pressed',String(state.blackout));
+    var signature=JSON.stringify(state.controls.map(function(c){return [c.name,c.label,c.min,c.max,c.step];}));
+    if(signature!==visualControlSignature){
+      visualControlSignature=signature;var host=$('.mw-visual-parameters');host.replaceChildren();
+      state.controls.forEach(function(c){
+        var label=document.createElement('label'),title=document.createElement('span'),value=document.createElement('output'),input=document.createElement('input');
+        title.textContent=c.label;value.dataset.controlOutput=c.name;input.type='range';input.min=c.min;input.max=c.max;input.step=c.step;
+        input.dataset.visualControl=c.name;input.setAttribute('aria-label',c.label+' (visual)');
+        label.append(title,value,input);host.appendChild(label);
+        input.addEventListener('input',function(){try{visualAdapter().setVisualControl(c.name,+this.value);}catch(e){status(e.message);}});
+      });
+    }
+    state.controls.forEach(function(c){
+      var input=root.querySelector('[data-visual-control="'+c.name+'"]'),output=root.querySelector('[data-control-output="'+c.name+'"]');
+      input.value=c.value;output.value=String(Math.round(c.value*1000)/1000);
+    });
+    $('.mw-visual-code-disclosure').hidden=state.draftScene.indexOf('visual:')!==0;
+  }
+  function ensureVisualEditor(){
+    if(visualEditor||!G.CT_MUSIC_CODE_EDITOR)return;
+    var state=visualAdapter().snapshot().visual;if(!state)return;
+    visualEditor=G.CT_MUSIC_CODE_EDITOR.mount($('.mw-visual-code'),state.draft,function(source){
+      if(!visualEditorLoading)try{visualAdapter().setVisualDraft(source);}catch(e){status(e.message);}
+    },{dialect:'visual',onLimit:status});
+  }
   function renderStage(){
     if(!root)return;
     var adapter=G.CT_CREATE_PRESENTATION,scene=$('.mw-scene'),state=adapter&&adapter.snapshot&&adapter.snapshot();
     if(state&&state.mounted){
       var options=[{id:'off',label:'Off'}].concat(state.scenes||[]);
+      if(state.visual&&state.visual.draftScene==='visual:custom')options.push({id:'visual:custom',label:'Custom visual'});
       if(Array.from(scene.options).map(function(o){return o.value;}).join(',')!==options.map(function(o){return o.id;}).join(',')){
         scene.replaceChildren();options.forEach(function(item){var option=document.createElement('option');option.value=item.id;option.textContent=item.label;scene.appendChild(option);});
       }
-      scene.value=state.enabled?state.scene:'off';scene.disabled=false;
+      scene.value=state.visual?state.visual.draftScene:state.enabled?state.scene:'off';scene.disabled=false;
       $('.mw-stage-empty').hidden=!!state.enabled;
       $('.mw-stage-empty').textContent='Visuals off';
       $('.mw-visuals').dataset.enabled=String(!!state.enabled);
       $('.mw-stage-status').textContent=!state.enabled?'Visuals off · music is independent':audioState.status==='playing'?'Following live music':audioState.status==='paused'?'Music paused':'Ready · Run your music to drive this scene';
+      if(state.visual){
+        var v=state.visual,liveLabel=options.find(function(o){return o.id===state.scene;});
+        var pendingLabel=v.pending?'Queued '+v.pending.label+' · bar '+v.pending.bar:'';
+        $('.mw-stage-status').textContent=(v.error?'Error · '+v.error+' · Last working visual retained.'+(pendingLabel?' · '+pendingLabel:''):pendingLabel|| (v.state==='draft'?'Draft · Apply visuals to update the stage':v.notice||'Live · '+(liveLabel?liveLabel.label:'Custom visual')+(v.edited?' (edited)':'')))+(v.frozen?' · Frozen':'')+(v.blackout?' · Blackout':'');
+        $('.mw-stage-status').dataset.state=v.state;
+      }
+      renderVisualEditor(state.visual);
     }else{
       scene.disabled=true;$('.mw-stage-empty').hidden=false;
       $('.mw-stage-empty').textContent='Visual stage unavailable';
@@ -17215,7 +18223,9 @@ var EXPORTS = {
       '<section id="mw-panel-visuals" class="mw-visuals" aria-label="Visual stage"><header class="mw-visual-header"><h2>Visuals</h2><button data-action="stage-fullscreen" title="Show only this visual output in fullscreen">Fullscreen</button></header>'+
       '<div class="mw-stage-viewport" role="img" aria-label="Music-driven visual output"><p class="mw-stage-empty">Preparing the visual stage…</p></div>'+
       '<div class="mw-scene-controls"><label for="mw-scene">Scene</label><select id="mw-scene" class="mw-scene" aria-label="Visual scene" disabled></select></div>'+
-      '<p class="mw-stage-status" role="status">Preparing the visual stage…</p><p class="mw-stage-help">Code makes the music. The scene follows it.</p></section></div>'+
+      '<div class="mw-visual-authoring" hidden><div class="mw-visual-parameters" aria-label="Live visual controls"></div><div class="mw-visual-apply"><select class="mw-visual-boundary" aria-label="Visual activation boundary"><option value="now">Now</option><option value="bar">Next bar</option></select><button data-action="visual-apply">Apply visuals</button><button data-action="visual-cancel" hidden>Cancel queued</button></div>'+
+      '<details class="mw-visual-code-disclosure"><summary>Visual code <small>⌘/Ctrl ↵ applies visuals only</small></summary><div class="mw-visual-code" role="region" aria-label="Visual editor"></div><p class="mw-visual-reference">Compose layers: tunnel, tiles, orbits, ribbons, sparks. Read named controls with param("motion"), music with signal("bass.hit") or signal("audio.bass"). This bounded language does not run JavaScript.</p></details></div>'+
+      '<p class="mw-stage-status" role="status">Preparing the visual stage…</p><div class="mw-visual-performance" hidden><button data-action="visual-freeze" aria-pressed="false" title="Hold visual state; music continues">Freeze</button><button data-action="visual-blackout" aria-pressed="false" title="Mask output; music and visual state continue">Blackout</button><button data-action="visual-reset" title="Clear visual feedback and phase only">Reset visuals</button><button data-action="visual-panic" title="Stop music, cancel queued visuals and black out output">Panic</button></div><p class="mw-stage-help">Code makes the music. The scene follows it. Visual edits are session-only until audiovisual saving is added.</p></section></div>'+
       '<aside id="mw-panel-chat" class="mw-chat" aria-label="Musical collaboration">'+
       '<section class="mw-project-handoff" hidden><p>Web Chat runs in the hosted workspace. Open this project there to unlock Chat and request proposals.</p><button data-action="project-handoff">Open this project in web Chat</button><p>Copies your draft and last validated revision to web Chat without private chat or provenance. Accept in the new window; your original project stays here.</p></section>'+
       '<div class="mw-chat-island"></div></aside></div>'+
@@ -17312,12 +18322,25 @@ var EXPORTS = {
     function endStageResize(e){if(e.pointerId===stagePointer){stagePointer=null;if(stageSplitter.hasPointerCapture(e.pointerId))stageSplitter.releasePointerCapture(e.pointerId);}}
     stageSplitter.addEventListener('pointerup',endStageResize);stageSplitter.addEventListener('pointercancel',endStageResize);stageSplitter.addEventListener('lostpointercapture',function(){stagePointer=null;});
     $('.mw-scene').addEventListener('change',function(){
-      try{G.CT_CREATE_PRESENTATION.setScene(this.value);renderStage();}catch(e){status('This visual scene could not be selected. Music is unchanged.');renderStage();}
+      try{
+        var a=visualAdapter();if(a.snapshot().visual)a.selectVisualDraft(this.value);else a.setScene(this.value);
+        renderStage();
+      }catch(e){status('This visual scene could not be selected. Music is unchanged.');renderStage();}
+    });
+    $('.mw-visual-code-disclosure').addEventListener('toggle',function(){if(this.open)ensureVisualEditor();});
+    G.addEventListener('ct-visual-state',function(){
+      // CodeMirror change listeners run during an editor update. UI/diagnostic
+      // synchronization must not dispatch another transaction reentrantly.
+      if(visualRenderQueued)return;visualRenderQueued=true;
+      queueMicrotask(function(){visualRenderQueued=false;if(root&&!root.hidden)renderStage();});
     });
     // Legacy transfer recovery remains supported, but normal Chat is same-origin.
     $('.mw-project-handoff').hidden=true;
     $('.mw-build').textContent='Music v'+G.CT_MUSIC_LANGUAGE.VERSION+' · '+(G.CT_MUSIC_BUILD_VERSION||'development');
     root.addEventListener('keydown',function(e){
+      if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)&&!e.altKey&&!e.isComposing&&e.target.closest('.mw-visual-code')){
+        e.preventDefault();e.stopImmediatePropagation();try{visualAdapter().applyVisual($('.mw-visual-boundary').value);}catch(error){announceError(error);}return;
+      }
       if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)&&!e.altKey&&!e.isComposing&&e.target.closest('.mw-code')){
         e.preventDefault();e.stopImmediatePropagation();try{runDraft();}catch(error){announceError(error);}return;
       }
@@ -17390,6 +18413,12 @@ var EXPORTS = {
     else if(name==='close')close();
     else if(name==='listen')close({listen:true});
     else if(name==='visualizer')setVisualizer(!visualizerOpen);
+    else if(name==='visual-apply')visualAdapter().applyVisual($('.mw-visual-boundary').value);
+    else if(name==='visual-cancel')visualAdapter().cancelVisual();
+    else if(name==='visual-freeze')visualAdapter().freezeVisuals(!visualAdapter().snapshot().visual.frozen);
+    else if(name==='visual-blackout')visualAdapter().blackoutVisuals(!visualAdapter().snapshot().visual.blackout);
+    else if(name==='visual-reset')visualAdapter().resetVisuals();
+    else if(name==='visual-panic'){visualAdapter().panicVisuals();resetAudio();renderState();}
     else if(name==='chart-reset'){chartRange=null;$('.mw-notes').scrollLeft=0;renderNotes();}
     else if(name==='native-pick'||name==='native-json'||name==='native-resume'){
       if(!G.CT_LSDJ_NATIVE_EDITOR)throw Error('Native format tools are unavailable');
@@ -41261,6 +42290,36 @@ function _backgroundUiDormant(){ return (typeof _backgroundAudioOnlyActive==='fu
 function _musicWorkspaceOpen(){return typeof CT_MUSIC_WORKSPACE!=='undefined'&&CT_MUSIC_WORKSPACE.isOpen();}
 var _musicPresentationEpoch=0;
 var _visualMount=null, _visualEnabled=true;
+var _visualSession=null;
+function _syncVisualSession(){
+  if(!_visualSession)return;
+  var state=_visualSession.snapshot();_visualEnabled=state.enabled;
+  if(state.enabled&&state.scene.indexOf('visual:')!==0){
+    randomMode=false;
+    if(!selGame||curGameKey!==state.scene)showGame(state.scene);
+  }
+  if(_visualMount){
+    _visualMount.clip.hidden=!state.enabled;
+    _visualMount.mask.hidden=!state.blackout;
+  }
+  // A stopped native panel must still display an explicit visual edit/reset.
+  if(typeof _pnlHold!=='undefined')_pnlHold=3;
+  _syncCreateRendering();
+  window.dispatchEvent(new CustomEvent('ct-visual-state'));
+}
+function _ensureVisualSession(){
+  if(!_visualSession&&typeof CT_VISUAL_STAGE!=='undefined'&&typeof CT_VISUAL_LANGUAGE!=='undefined'&&typeof CT_VISUAL_RENDERER!=='undefined'){
+    _visualSession=CT_VISUAL_STAGE.create({language:CT_VISUAL_LANGUAGE,
+      renderer:CT_VISUAL_RENDERER.create({createCanvas:function(){return document.createElement('canvas');},width:960,height:540}),
+      games:GAMES.filter(function(g){return !g.hiddenFromRandom;}).map(function(g){return {id:g.key,label:g.name||g.key};}),
+      onChange:_syncVisualSession});
+    // Boundary/cancellation state follows acknowledgements even while drawing
+    // is hidden/Off. This listener neither renders nor creates a second clock.
+    if(Audio.onMusicState)Audio.onMusicState(function(){_visualSession.observe(_musicPresentationState());});
+    _syncVisualSession();
+  }
+  return _visualSession;
+}
 // A stable presentation viewport, not a second simulation. Native panels and
 // the stage sizing code use this while host/layout changes only scale the group.
 window.__ctVisualViewport=function(kind){
@@ -41292,8 +42351,9 @@ function _fitVisualSurface(){
   v.surface.style.transform='translate('+((w-v.width*scale)/2)+'px,'+((h-v.height*scale)/2)+'px) scale('+scale+')';
 }
 function _visualSnapshot(){
-  return {mounted:!!_visualMount,enabled:_visualEnabled,scene:_visualEnabled?(typeof curGameKey==='string'?curGameKey:'off'):'off',
-    scenes:GAMES.filter(function(g){return !g.hiddenFromRandom;}).map(function(g){return {id:g.key,label:g.name||g.key};}),
+  var visual=_visualSession&&_visualSession.snapshot();
+  return {mounted:!!_visualMount,enabled:_visualEnabled,scene:visual?visual.scene:_visualEnabled?(typeof curGameKey==='string'?curGameKey:'off'):'off',
+    scenes:visual?visual.scenes:GAMES.filter(function(g){return !g.hiddenFromRandom;}).map(function(g){return {id:g.key,label:g.name||g.key};}),visual:visual,
     width:_visualMount?_visualMount.width:(typeof W==='number'?W:0),height:_visualMount?_visualMount.height:(typeof H==='number'?H:0)};
 }
 function _mountVisual(host){
@@ -41313,8 +42373,10 @@ function _mountVisual(host){
   surface.className='ct-visual-surface';
   surface.style.cssText='position:absolute;left:0;top:0;transform-origin:0 0;width:'+width+'px;height:'+height+'px;overflow:hidden;isolation:isolate;--barh:0px';
   style.textContent='.ct-visual-surface > #stage,.ct-visual-surface > .crt{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;pointer-events:none!important}';
-  clip.appendChild(style);clip.appendChild(surface);
-  _visualMount={host:host,clip:clip,surface:surface,origin:stage.parentNode,layers:[],width:width,height:height,dpr:window.devicePixelRatio||1,stageDpr:live?DPR:null,panels:{},stageStyle:{width:stage.style.width,height:stage.style.height}};
+  var mask=document.createElement('div');mask.className='ct-visual-blackout';mask.hidden=true;
+  mask.style.cssText='position:absolute;inset:0;background:#000;z-index:100;pointer-events:none';
+  clip.appendChild(style);clip.appendChild(surface);clip.appendChild(mask);
+  _visualMount={host:host,clip:clip,surface:surface,mask:mask,origin:stage.parentNode,layers:[],width:width,height:height,dpr:window.devicePixelRatio||1,stageDpr:live?DPR:null,panels:{},stageStyle:{width:stage.style.width,height:stage.style.height}};
   if(live){
     if(typeof _dmg!=='undefined'&&_dmg&&_dmg.vw)_visualMount.panels.dmg={width:_dmg.vw,height:_dmg.vh};
     if(typeof _nes!=='undefined'&&_nes&&_nes.vw)_visualMount.panels.nes={width:_nes.vw,height:_nes.vh};
@@ -41338,11 +42400,13 @@ function _mountVisual(host){
     resize();
   }
   if(!selGame)showGame(_fallbackGameKey()||'random');
+  _ensureVisualSession();_syncVisualSession();
   if(window.__rrrCrtBuild)window.__rrrCrtBuild();
   _syncCreateRendering();return _visualSnapshot();
 }
 function _unmountVisual(){
   var v=_visualMount;if(!v)return _visualSnapshot();
+  if(_visualSession)_visualSession.observe(null);
   if(v.observer)v.observer.disconnect();
   v.layers.forEach(function(r){if(r.marker.parentNode){r.marker.parentNode.replaceChild(r.node,r.marker);}});
   var stage=document.getElementById('stage');stage.style.width=v.stageStyle.width;stage.style.height=v.stageStyle.height;
@@ -41417,12 +42481,25 @@ function _syncCreateRendering(){
   return on;
 }
 window.CT_CREATE_PRESENTATION=Object.freeze({mount:_mountVisual,unmount:_unmountVisual,snapshot:_visualSnapshot,setScene:function(id){
+  if(_ensureVisualSession()){_visualSession.setScene(id,_musicPresentationState());return _visualSnapshot();}
   if(id!=='off'&&!GAMES.some(function(g){return g.key===id&&!g.hiddenFromRandom;}))throw Error('Unknown visual scene');
   _visualEnabled=id!=='off';
   if(_visualEnabled){randomMode=false;if(!selGame||curGameKey!==id)showGame(id);}
   if(_visualMount)_visualMount.clip.hidden=!_visualEnabled;
   _syncCreateRendering();return _visualSnapshot();
-},setVisualizer:function(visible){
+},setVisualDraft:function(source){return _ensureVisualSession().setDraft(source);},
+  selectVisualDraft:function(id){return _ensureVisualSession().selectDraft(id);},
+  applyVisual:function(when){return _ensureVisualSession().apply(when||'now',_musicPresentationState());},
+  cancelVisual:function(){return _ensureVisualSession().cancel();},
+  setVisualControl:function(name,value){return _ensureVisualSession().setControl(name,value);},
+  freezeVisuals:function(value){return _ensureVisualSession().freeze(value);},
+  blackoutVisuals:function(value){return _ensureVisualSession().blackout(value);},
+  resetVisuals:function(){
+    var s=_ensureVisualSession();s.reset();
+    if(s.snapshot().scene.indexOf('visual:')!==0&&selGame){selState=_safeMake(selGame,fullArea(_gameUnit(W,H)),_gameUnit(W,H),selVar);gameT=0;}
+    return _visualSnapshot();
+  },panicVisuals:function(){return _ensureVisualSession().panic();},
+  setVisualizer:function(visible){
   visible=!!visible&&_musicWorkspaceOpen();
   document.body.classList.toggle('create-visualizer',visible);
   // Workspace owns transparency, panes and focus. The original stage stays in
@@ -42346,6 +43423,12 @@ function frame(now){
   g.setTransform(DPR,0,0,DPR,0,0); g.globalAlpha = 1;
   const musicFrame=_musicPresentationFrame(musicPresentation);
   const RX = musicPresentation?musicFrame:(Audio.started && Audio.vis && !silentWatch) ? Audio.vis() : null;
+  const visualOutput=musicPresentation&&_visualSession?_visualSession.tick(musicPresentation,musicFrame):null;
+  const visualState=musicPresentation&&_visualSession?_visualSession.snapshot():null;
+  const procedural=!!visualState&&visualState.scene.indexOf('visual:')===0;
+  const visualFrozen=!!visualState&&visualState.frozen;
+  const visualFailed=procedural&&visualOutput&&visualOutput.error;
+  const visualHeld=visualFrozen||visualFailed;
   _frameRX = RX;
   _frameSND = musicPresentation ? {grid:()=>musicPresentation.grid,clock:()=>RX,vis:()=>RX,energy:()=>RX.energy,
     event(){},note(){},lead(){},fx(){},tone(){},drum(){},bass(){},act(){}}
@@ -42355,6 +43438,11 @@ function frame(now){
   // one field claim per frame (see dmg-palette.js): the pack's first
   // screen-covering fill is the Game Boy's reflector, the rest are art
   if(_panelMode() && typeof CT_PAL!=='undefined') CT_PAL.beginFrame();
+  if(!visualHeld&&procedural){
+    g.fillStyle='#000';g.fillRect(0,0,W,H);
+    if(visualOutput&&visualOutput.canvas)g.drawImage(visualOutput.canvas,0,0,W,H);
+  }
+  if(!visualHeld&&!procedural){
   if(RX && !paused) _beatPump(RX);                                // no camera pump while paused; games may still draw subtle idle state
   scnGame(simDt,U,bpm,sect,events);   // single scene path — games are always available; the no-game case renders black
   if(RX){ g.restore(); g.setTransform(DPR,0,0,DPR,0,0); g.globalAlpha=1;
@@ -42381,6 +43469,7 @@ function frame(now){
   if(flash>0.01 && !_panelMode()){ g.fillStyle=`rgba(${flashColor},${0.10*flash})`; g.fillRect(0,0,W,H); }
   if(flash>0.01) flash=Math.max(0,flash-dt*3);
   if(!paused) drawParts(dt);
+  }
   var _pnl = _panel();
   if(_pnl){
     // the panel decides the framebuffer size; the stage follows it
@@ -42391,9 +43480,9 @@ function frame(now){
     // so the little that still moves while paused -- a decaying particle, a
     // flash tailing off -- flips whole blocks of output and the picture reads
     // as alive. Two more frames after the pause settle the tail, then hold.
-    if(!paused) _pnlHold = 2;
+    if(!paused&&!visualHeld) _pnlHold = 2;
     else if(_pnlHold > 0) _pnlHold--;
-    if(!paused || _pnlHold > 0){
+    if(!visualFailed&&((!paused&&!visualFrozen) || _pnlHold > 0)){
       try{ _pnl.frame(); }catch(e){ _screenMode='crt'; _applyScreenMode(); }
     }
   }

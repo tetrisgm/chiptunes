@@ -2,7 +2,7 @@
 // host's restricted parser handles draft previews and explicit Run/Apply.
 import { EditorView, basicSetup } from 'codemirror';
 import { Decoration } from '@codemirror/view';
-import { StateEffect, StateField } from '@codemirror/state';
+import { EditorState, StateEffect, StateField } from '@codemirror/state';
 import { javascript } from '@codemirror/lang-javascript';
 import { autocompletion } from '@codemirror/autocomplete';
 import { setDiagnostics } from '@codemirror/lint';
@@ -28,6 +28,13 @@ const help = {
   stepsPerBar: 'stepsPerBar(count) — finite pattern resolution.',
   play: 'play("pattern", {atBar:0,repeat:1}) — finite pattern occurrence.',
   instrument: 'instrument(index) — select an instrument in this song bank.'
+};
+const visualHelp = {
+  visual:'visual({background:"#090615",palette:["#84f3d5","#b089ff"],feedback:0.84,seed:17});',
+  control:'control("motion",{label:"Motion",min:0,max:2,step:0.01,value:0.8}); — named saved value, separate from source.',
+  layer:'layer("tunnel",{count:24,speed:param("motion"),react:signal("bass.hit")}); — tunnel, tiles, orbits, ribbons, sparks.',
+  param:'param("motion") — read a declared control; sliders do not rewrite code.',
+  signal:'signal("drums.hit",1,0) — audio.bass/mid/treble/level; beat.phase/bar.phase; lead/counter/bass.hit or .pitch; drums.hit.'
 };
 const theme = EditorView.theme({
   '&': {height:'100%',backgroundColor:'#10121b',color:'#e7eaf4',fontSize:'14px'},
@@ -60,15 +67,21 @@ const soundingField = StateField.define({
 
 globalThis.CT_MUSIC_CODE_EDITOR = {
   help,
-  mount(parent, source, onChange, {onSelectionChange,onNoteSelect} = {}) {
-    const rolls=inlineRolls({onNoteSelect});
+  mount(parent, source, onChange, {onSelectionChange,onNoteSelect,dialect,onLimit} = {}) {
+    const visual=dialect==='visual',completionHelp=visual?visualHelp:help;
+    const rolls=visual?{extensions:[],attach(){},destroy(){},setContext(){},setPlayback(){}}:inlineRolls({onNoteSelect});
     const view = new EditorView({doc:source,parent,extensions:[
       basicSetup, javascript(), theme, soundingField, rolls.extensions, EditorView.lineWrapping,
-      EditorView.contentAttributes.of({'aria-label':'Musical source code','data-shortcuts-off':''}),
+      EditorView.contentAttributes.of({'aria-label':visual?'Visual source code':'Musical source code','data-shortcuts-off':''}),
+      ...(visual?[EditorState.transactionFilter.of(tr=>{
+        if(tr.newDoc.length<=32768)return tr;
+        if(onLimit)onLimit('Visual code is limited to 32 KiB; this edit was not inserted.');
+        return [];
+      })]:[]),
       autocompletion({override:[ctx=>{
         const word=ctx.matchBefore(/\w*/);
         if (!word || (!ctx.explicit && word.from===word.to)) return null;
-        return {from:word.from,options:Object.keys(help).map(label=>({label,type:'function',info:help[label]}))};
+        return {from:word.from,options:Object.keys(completionHelp).map(label=>({label,type:'function',info:completionHelp[label]}))};
       }]}),
       EditorView.updateListener.of(update=>{
         if(update.docChanged) onChange(update.state.doc.toString());

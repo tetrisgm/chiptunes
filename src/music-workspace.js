@@ -15,19 +15,65 @@
   var inlineContext=null;
   var CHART_GUTTER=68,NOTE_ROW=14,LANE_HEADER=25;
   var visualizerOpen=false,presentationOwner=null,presentationFocus=null,stageError='';
+  var visualEditor=null,visualEditorLoading=false,visualControlSignature='',visualRenderQueued=false;
+  function visualAdapter(){return G.CT_CREATE_PRESENTATION;}
+  function renderVisualEditor(state){
+    $('.mw-visual-authoring').hidden=!state;
+    $('.mw-visual-performance').hidden=!state;
+    if(!state)return;
+    if(visualEditor&&visualEditor.value()!==state.draft){visualEditorLoading=true;visualEditor.set(state.draft);visualEditorLoading=false;}
+    if(visualEditor)visualEditor.diagnostics((state.diagnostics||[]).map(function(d){return {
+      from:d.span&&d.span.start?d.span.start.offset:0,to:d.span&&d.span.end?d.span.end.offset:0,message:d.message,severity:d.severity};}));
+    $('[data-action=visual-cancel]').hidden=!state.pending;
+    $('[data-action=visual-apply]').textContent=state.pending?'Replace queued visual':'Apply visuals';
+    $('[data-action=visual-freeze]').textContent=state.frozen?'Unfreeze':'Freeze';
+    $('[data-action=visual-freeze]').setAttribute('aria-pressed',String(state.frozen));
+    $('[data-action=visual-blackout]').setAttribute('aria-pressed',String(state.blackout));
+    var signature=JSON.stringify(state.controls.map(function(c){return [c.name,c.label,c.min,c.max,c.step];}));
+    if(signature!==visualControlSignature){
+      visualControlSignature=signature;var host=$('.mw-visual-parameters');host.replaceChildren();
+      state.controls.forEach(function(c){
+        var label=document.createElement('label'),title=document.createElement('span'),value=document.createElement('output'),input=document.createElement('input');
+        title.textContent=c.label;value.dataset.controlOutput=c.name;input.type='range';input.min=c.min;input.max=c.max;input.step=c.step;
+        input.dataset.visualControl=c.name;input.setAttribute('aria-label',c.label+' (visual)');
+        label.append(title,value,input);host.appendChild(label);
+        input.addEventListener('input',function(){try{visualAdapter().setVisualControl(c.name,+this.value);}catch(e){status(e.message);}});
+      });
+    }
+    state.controls.forEach(function(c){
+      var input=root.querySelector('[data-visual-control="'+c.name+'"]'),output=root.querySelector('[data-control-output="'+c.name+'"]');
+      input.value=c.value;output.value=String(Math.round(c.value*1000)/1000);
+    });
+    $('.mw-visual-code-disclosure').hidden=state.draftScene.indexOf('visual:')!==0;
+  }
+  function ensureVisualEditor(){
+    if(visualEditor||!G.CT_MUSIC_CODE_EDITOR)return;
+    var state=visualAdapter().snapshot().visual;if(!state)return;
+    visualEditor=G.CT_MUSIC_CODE_EDITOR.mount($('.mw-visual-code'),state.draft,function(source){
+      if(!visualEditorLoading)try{visualAdapter().setVisualDraft(source);}catch(e){status(e.message);}
+    },{dialect:'visual',onLimit:status});
+  }
   function renderStage(){
     if(!root)return;
     var adapter=G.CT_CREATE_PRESENTATION,scene=$('.mw-scene'),state=adapter&&adapter.snapshot&&adapter.snapshot();
     if(state&&state.mounted){
       var options=[{id:'off',label:'Off'}].concat(state.scenes||[]);
+      if(state.visual&&state.visual.draftScene==='visual:custom')options.push({id:'visual:custom',label:'Custom visual'});
       if(Array.from(scene.options).map(function(o){return o.value;}).join(',')!==options.map(function(o){return o.id;}).join(',')){
         scene.replaceChildren();options.forEach(function(item){var option=document.createElement('option');option.value=item.id;option.textContent=item.label;scene.appendChild(option);});
       }
-      scene.value=state.enabled?state.scene:'off';scene.disabled=false;
+      scene.value=state.visual?state.visual.draftScene:state.enabled?state.scene:'off';scene.disabled=false;
       $('.mw-stage-empty').hidden=!!state.enabled;
       $('.mw-stage-empty').textContent='Visuals off';
       $('.mw-visuals').dataset.enabled=String(!!state.enabled);
       $('.mw-stage-status').textContent=!state.enabled?'Visuals off · music is independent':audioState.status==='playing'?'Following live music':audioState.status==='paused'?'Music paused':'Ready · Run your music to drive this scene';
+      if(state.visual){
+        var v=state.visual,liveLabel=options.find(function(o){return o.id===state.scene;});
+        var pendingLabel=v.pending?'Queued '+v.pending.label+' · bar '+v.pending.bar:'';
+        $('.mw-stage-status').textContent=(v.error?'Error · '+v.error+' · Last working visual retained.'+(pendingLabel?' · '+pendingLabel:''):pendingLabel|| (v.state==='draft'?'Draft · Apply visuals to update the stage':v.notice||'Live · '+(liveLabel?liveLabel.label:'Custom visual')+(v.edited?' (edited)':'')))+(v.frozen?' · Frozen':'')+(v.blackout?' · Blackout':'');
+        $('.mw-stage-status').dataset.state=v.state;
+      }
+      renderVisualEditor(state.visual);
     }else{
       scene.disabled=true;$('.mw-stage-empty').hidden=false;
       $('.mw-stage-empty').textContent='Visual stage unavailable';
@@ -902,7 +948,9 @@
       '<section id="mw-panel-visuals" class="mw-visuals" aria-label="Visual stage"><header class="mw-visual-header"><h2>Visuals</h2><button data-action="stage-fullscreen" title="Show only this visual output in fullscreen">Fullscreen</button></header>'+
       '<div class="mw-stage-viewport" role="img" aria-label="Music-driven visual output"><p class="mw-stage-empty">Preparing the visual stage…</p></div>'+
       '<div class="mw-scene-controls"><label for="mw-scene">Scene</label><select id="mw-scene" class="mw-scene" aria-label="Visual scene" disabled></select></div>'+
-      '<p class="mw-stage-status" role="status">Preparing the visual stage…</p><p class="mw-stage-help">Code makes the music. The scene follows it.</p></section></div>'+
+      '<div class="mw-visual-authoring" hidden><div class="mw-visual-parameters" aria-label="Live visual controls"></div><div class="mw-visual-apply"><select class="mw-visual-boundary" aria-label="Visual activation boundary"><option value="now">Now</option><option value="bar">Next bar</option></select><button data-action="visual-apply">Apply visuals</button><button data-action="visual-cancel" hidden>Cancel queued</button></div>'+
+      '<details class="mw-visual-code-disclosure"><summary>Visual code <small>⌘/Ctrl ↵ applies visuals only</small></summary><div class="mw-visual-code" role="region" aria-label="Visual editor"></div><p class="mw-visual-reference">Compose layers: tunnel, tiles, orbits, ribbons, sparks. Read named controls with param("motion"), music with signal("bass.hit") or signal("audio.bass"). This bounded language does not run JavaScript.</p></details></div>'+
+      '<p class="mw-stage-status" role="status">Preparing the visual stage…</p><div class="mw-visual-performance" hidden><button data-action="visual-freeze" aria-pressed="false" title="Hold visual state; music continues">Freeze</button><button data-action="visual-blackout" aria-pressed="false" title="Mask output; music and visual state continue">Blackout</button><button data-action="visual-reset" title="Clear visual feedback and phase only">Reset visuals</button><button data-action="visual-panic" title="Stop music, cancel queued visuals and black out output">Panic</button></div><p class="mw-stage-help">Code makes the music. The scene follows it. Visual edits are session-only until audiovisual saving is added.</p></section></div>'+
       '<aside id="mw-panel-chat" class="mw-chat" aria-label="Musical collaboration">'+
       '<section class="mw-project-handoff" hidden><p>Web Chat runs in the hosted workspace. Open this project there to unlock Chat and request proposals.</p><button data-action="project-handoff">Open this project in web Chat</button><p>Copies your draft and last validated revision to web Chat without private chat or provenance. Accept in the new window; your original project stays here.</p></section>'+
       '<div class="mw-chat-island"></div></aside></div>'+
@@ -999,12 +1047,25 @@
     function endStageResize(e){if(e.pointerId===stagePointer){stagePointer=null;if(stageSplitter.hasPointerCapture(e.pointerId))stageSplitter.releasePointerCapture(e.pointerId);}}
     stageSplitter.addEventListener('pointerup',endStageResize);stageSplitter.addEventListener('pointercancel',endStageResize);stageSplitter.addEventListener('lostpointercapture',function(){stagePointer=null;});
     $('.mw-scene').addEventListener('change',function(){
-      try{G.CT_CREATE_PRESENTATION.setScene(this.value);renderStage();}catch(e){status('This visual scene could not be selected. Music is unchanged.');renderStage();}
+      try{
+        var a=visualAdapter();if(a.snapshot().visual)a.selectVisualDraft(this.value);else a.setScene(this.value);
+        renderStage();
+      }catch(e){status('This visual scene could not be selected. Music is unchanged.');renderStage();}
+    });
+    $('.mw-visual-code-disclosure').addEventListener('toggle',function(){if(this.open)ensureVisualEditor();});
+    G.addEventListener('ct-visual-state',function(){
+      // CodeMirror change listeners run during an editor update. UI/diagnostic
+      // synchronization must not dispatch another transaction reentrantly.
+      if(visualRenderQueued)return;visualRenderQueued=true;
+      queueMicrotask(function(){visualRenderQueued=false;if(root&&!root.hidden)renderStage();});
     });
     // Legacy transfer recovery remains supported, but normal Chat is same-origin.
     $('.mw-project-handoff').hidden=true;
     $('.mw-build').textContent='Music v'+G.CT_MUSIC_LANGUAGE.VERSION+' · '+(G.CT_MUSIC_BUILD_VERSION||'development');
     root.addEventListener('keydown',function(e){
+      if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)&&!e.altKey&&!e.isComposing&&e.target.closest('.mw-visual-code')){
+        e.preventDefault();e.stopImmediatePropagation();try{visualAdapter().applyVisual($('.mw-visual-boundary').value);}catch(error){announceError(error);}return;
+      }
       if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)&&!e.altKey&&!e.isComposing&&e.target.closest('.mw-code')){
         e.preventDefault();e.stopImmediatePropagation();try{runDraft();}catch(error){announceError(error);}return;
       }
@@ -1077,6 +1138,12 @@
     else if(name==='close')close();
     else if(name==='listen')close({listen:true});
     else if(name==='visualizer')setVisualizer(!visualizerOpen);
+    else if(name==='visual-apply')visualAdapter().applyVisual($('.mw-visual-boundary').value);
+    else if(name==='visual-cancel')visualAdapter().cancelVisual();
+    else if(name==='visual-freeze')visualAdapter().freezeVisuals(!visualAdapter().snapshot().visual.frozen);
+    else if(name==='visual-blackout')visualAdapter().blackoutVisuals(!visualAdapter().snapshot().visual.blackout);
+    else if(name==='visual-reset')visualAdapter().resetVisuals();
+    else if(name==='visual-panic'){visualAdapter().panicVisuals();resetAudio();renderState();}
     else if(name==='chart-reset'){chartRange=null;$('.mw-notes').scrollLeft=0;renderNotes();}
     else if(name==='native-pick'||name==='native-json'||name==='native-resume'){
       if(!G.CT_LSDJ_NATIVE_EDITOR)throw Error('Native format tools are unavailable');

@@ -115,7 +115,7 @@ async function runMode(browser, origin, mode) {
     assert.equal(await page.evaluate(() => typeof CT_CREATE_PRESENTATION.mount), 'function', 'requires Phase B shared artifact');
     await page.waitForFunction(() => CT_CREATE_PRESENTATION.snapshot().mounted);
     const adapter = await page.evaluate(() => CT_CREATE_PRESENTATION.snapshot());
-    assert.deepEqual(adapter.scenes.map(s => s.id).sort(), roster, 'fixed fourteen-scene roster');
+    assert.deepEqual(adapter.scenes.filter(s=>!s.id.startsWith('visual:')).map(s => s.id).sort(), roster, 'fixed fourteen-game roster alongside procedural programs');
     assert(adapter.scenes.every(s => typeof s.label === 'string' && s.label.length));
     assert(adapter.enabled && adapter.width > 0 && adapter.height > 0);
     assert.equal(await page.evaluate(() => !!CT_MUSIC_WORKSPACE.snapshot().playing || !!CT_MUSIC_WORKSPACE.snapshot().pending), false);
@@ -127,6 +127,7 @@ async function runMode(browser, origin, mode) {
     // Pin one existing scene; changing scenes is explicitly allowed to create a
     // world. All subsequent layout operations must retain that world.
     await page.locator('.mw-scene').selectOption('platformer');
+    await page.locator('[data-action=visual-apply]').click();
     await page.waitForFunction(() => CT_CREATE_PRESENTATION.snapshot().scene === 'platformer' && !!selState);
     if (mode !== 'crt') await page.waitForFunction(mode => {
       const p = mode === 'dmg' ? _dmg : _nes;
@@ -196,9 +197,11 @@ async function runMode(browser, origin, mode) {
       await unchanged(page, mode + ' viewport ' + width);
     }
     await page.locator('.mw-scene').selectOption('off'); await settle(page);
+    await page.locator('[data-action=visual-apply]').click();await settle(page);
     assert.equal(await page.evaluate(() => CT_CREATE_PRESENTATION.snapshot().enabled), false);
     await unchanged(page, mode + ' optional visuals off');
     await page.locator('.mw-scene').selectOption('platformer'); await settle(page);
+    await page.locator('[data-action=visual-apply]').click();await settle(page);
     await unchanged(page, mode + ' same scene restored');
     assert.deepEqual(errors, []); assert.deepEqual(providerRequests, []);
     console.log('PASS ' + mode + ': root stopped; persistent geometry; one world/canvas/backbuffers; resize/chat/Perform/Off preserve audio');

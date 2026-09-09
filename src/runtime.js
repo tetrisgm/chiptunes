@@ -55,6 +55,36 @@ function _backgroundUiDormant(){ return (typeof _backgroundAudioOnlyActive==='fu
 function _musicWorkspaceOpen(){return typeof CT_MUSIC_WORKSPACE!=='undefined'&&CT_MUSIC_WORKSPACE.isOpen();}
 var _musicPresentationEpoch=0;
 var _visualMount=null, _visualEnabled=true;
+var _visualSession=null;
+function _syncVisualSession(){
+  if(!_visualSession)return;
+  var state=_visualSession.snapshot();_visualEnabled=state.enabled;
+  if(state.enabled&&state.scene.indexOf('visual:')!==0){
+    randomMode=false;
+    if(!selGame||curGameKey!==state.scene)showGame(state.scene);
+  }
+  if(_visualMount){
+    _visualMount.clip.hidden=!state.enabled;
+    _visualMount.mask.hidden=!state.blackout;
+  }
+  // A stopped native panel must still display an explicit visual edit/reset.
+  if(typeof _pnlHold!=='undefined')_pnlHold=3;
+  _syncCreateRendering();
+  window.dispatchEvent(new CustomEvent('ct-visual-state'));
+}
+function _ensureVisualSession(){
+  if(!_visualSession&&typeof CT_VISUAL_STAGE!=='undefined'&&typeof CT_VISUAL_LANGUAGE!=='undefined'&&typeof CT_VISUAL_RENDERER!=='undefined'){
+    _visualSession=CT_VISUAL_STAGE.create({language:CT_VISUAL_LANGUAGE,
+      renderer:CT_VISUAL_RENDERER.create({createCanvas:function(){return document.createElement('canvas');},width:960,height:540}),
+      games:GAMES.filter(function(g){return !g.hiddenFromRandom;}).map(function(g){return {id:g.key,label:g.name||g.key};}),
+      onChange:_syncVisualSession});
+    // Boundary/cancellation state follows acknowledgements even while drawing
+    // is hidden/Off. This listener neither renders nor creates a second clock.
+    if(Audio.onMusicState)Audio.onMusicState(function(){_visualSession.observe(_musicPresentationState());});
+    _syncVisualSession();
+  }
+  return _visualSession;
+}
 // A stable presentation viewport, not a second simulation. Native panels and
 // the stage sizing code use this while host/layout changes only scale the group.
 window.__ctVisualViewport=function(kind){
@@ -86,8 +116,9 @@ function _fitVisualSurface(){
   v.surface.style.transform='translate('+((w-v.width*scale)/2)+'px,'+((h-v.height*scale)/2)+'px) scale('+scale+')';
 }
 function _visualSnapshot(){
-  return {mounted:!!_visualMount,enabled:_visualEnabled,scene:_visualEnabled?(typeof curGameKey==='string'?curGameKey:'off'):'off',
-    scenes:GAMES.filter(function(g){return !g.hiddenFromRandom;}).map(function(g){return {id:g.key,label:g.name||g.key};}),
+  var visual=_visualSession&&_visualSession.snapshot();
+  return {mounted:!!_visualMount,enabled:_visualEnabled,scene:visual?visual.scene:_visualEnabled?(typeof curGameKey==='string'?curGameKey:'off'):'off',
+    scenes:visual?visual.scenes:GAMES.filter(function(g){return !g.hiddenFromRandom;}).map(function(g){return {id:g.key,label:g.name||g.key};}),visual:visual,
     width:_visualMount?_visualMount.width:(typeof W==='number'?W:0),height:_visualMount?_visualMount.height:(typeof H==='number'?H:0)};
 }
 function _mountVisual(host){
@@ -107,8 +138,10 @@ function _mountVisual(host){
   surface.className='ct-visual-surface';
   surface.style.cssText='position:absolute;left:0;top:0;transform-origin:0 0;width:'+width+'px;height:'+height+'px;overflow:hidden;isolation:isolate;--barh:0px';
   style.textContent='.ct-visual-surface > #stage,.ct-visual-surface > .crt{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;pointer-events:none!important}';
-  clip.appendChild(style);clip.appendChild(surface);
-  _visualMount={host:host,clip:clip,surface:surface,origin:stage.parentNode,layers:[],width:width,height:height,dpr:window.devicePixelRatio||1,stageDpr:live?DPR:null,panels:{},stageStyle:{width:stage.style.width,height:stage.style.height}};
+  var mask=document.createElement('div');mask.className='ct-visual-blackout';mask.hidden=true;
+  mask.style.cssText='position:absolute;inset:0;background:#000;z-index:100;pointer-events:none';
+  clip.appendChild(style);clip.appendChild(surface);clip.appendChild(mask);
+  _visualMount={host:host,clip:clip,surface:surface,mask:mask,origin:stage.parentNode,layers:[],width:width,height:height,dpr:window.devicePixelRatio||1,stageDpr:live?DPR:null,panels:{},stageStyle:{width:stage.style.width,height:stage.style.height}};
   if(live){
     if(typeof _dmg!=='undefined'&&_dmg&&_dmg.vw)_visualMount.panels.dmg={width:_dmg.vw,height:_dmg.vh};
     if(typeof _nes!=='undefined'&&_nes&&_nes.vw)_visualMount.panels.nes={width:_nes.vw,height:_nes.vh};
@@ -132,11 +165,13 @@ function _mountVisual(host){
     resize();
   }
   if(!selGame)showGame(_fallbackGameKey()||'random');
+  _ensureVisualSession();_syncVisualSession();
   if(window.__rrrCrtBuild)window.__rrrCrtBuild();
   _syncCreateRendering();return _visualSnapshot();
 }
 function _unmountVisual(){
   var v=_visualMount;if(!v)return _visualSnapshot();
+  if(_visualSession)_visualSession.observe(null);
   if(v.observer)v.observer.disconnect();
   v.layers.forEach(function(r){if(r.marker.parentNode){r.marker.parentNode.replaceChild(r.node,r.marker);}});
   var stage=document.getElementById('stage');stage.style.width=v.stageStyle.width;stage.style.height=v.stageStyle.height;
@@ -211,12 +246,25 @@ function _syncCreateRendering(){
   return on;
 }
 window.CT_CREATE_PRESENTATION=Object.freeze({mount:_mountVisual,unmount:_unmountVisual,snapshot:_visualSnapshot,setScene:function(id){
+  if(_ensureVisualSession()){_visualSession.setScene(id,_musicPresentationState());return _visualSnapshot();}
   if(id!=='off'&&!GAMES.some(function(g){return g.key===id&&!g.hiddenFromRandom;}))throw Error('Unknown visual scene');
   _visualEnabled=id!=='off';
   if(_visualEnabled){randomMode=false;if(!selGame||curGameKey!==id)showGame(id);}
   if(_visualMount)_visualMount.clip.hidden=!_visualEnabled;
   _syncCreateRendering();return _visualSnapshot();
-},setVisualizer:function(visible){
+},setVisualDraft:function(source){return _ensureVisualSession().setDraft(source);},
+  selectVisualDraft:function(id){return _ensureVisualSession().selectDraft(id);},
+  applyVisual:function(when){return _ensureVisualSession().apply(when||'now',_musicPresentationState());},
+  cancelVisual:function(){return _ensureVisualSession().cancel();},
+  setVisualControl:function(name,value){return _ensureVisualSession().setControl(name,value);},
+  freezeVisuals:function(value){return _ensureVisualSession().freeze(value);},
+  blackoutVisuals:function(value){return _ensureVisualSession().blackout(value);},
+  resetVisuals:function(){
+    var s=_ensureVisualSession();s.reset();
+    if(s.snapshot().scene.indexOf('visual:')!==0&&selGame){selState=_safeMake(selGame,fullArea(_gameUnit(W,H)),_gameUnit(W,H),selVar);gameT=0;}
+    return _visualSnapshot();
+  },panicVisuals:function(){return _ensureVisualSession().panic();},
+  setVisualizer:function(visible){
   visible=!!visible&&_musicWorkspaceOpen();
   document.body.classList.toggle('create-visualizer',visible);
   // Workspace owns transparency, panes and focus. The original stage stays in
@@ -1140,6 +1188,12 @@ function frame(now){
   g.setTransform(DPR,0,0,DPR,0,0); g.globalAlpha = 1;
   const musicFrame=_musicPresentationFrame(musicPresentation);
   const RX = musicPresentation?musicFrame:(Audio.started && Audio.vis && !silentWatch) ? Audio.vis() : null;
+  const visualOutput=musicPresentation&&_visualSession?_visualSession.tick(musicPresentation,musicFrame):null;
+  const visualState=musicPresentation&&_visualSession?_visualSession.snapshot():null;
+  const procedural=!!visualState&&visualState.scene.indexOf('visual:')===0;
+  const visualFrozen=!!visualState&&visualState.frozen;
+  const visualFailed=procedural&&visualOutput&&visualOutput.error;
+  const visualHeld=visualFrozen||visualFailed;
   _frameRX = RX;
   _frameSND = musicPresentation ? {grid:()=>musicPresentation.grid,clock:()=>RX,vis:()=>RX,energy:()=>RX.energy,
     event(){},note(){},lead(){},fx(){},tone(){},drum(){},bass(){},act(){}}
@@ -1149,6 +1203,11 @@ function frame(now){
   // one field claim per frame (see dmg-palette.js): the pack's first
   // screen-covering fill is the Game Boy's reflector, the rest are art
   if(_panelMode() && typeof CT_PAL!=='undefined') CT_PAL.beginFrame();
+  if(!visualHeld&&procedural){
+    g.fillStyle='#000';g.fillRect(0,0,W,H);
+    if(visualOutput&&visualOutput.canvas)g.drawImage(visualOutput.canvas,0,0,W,H);
+  }
+  if(!visualHeld&&!procedural){
   if(RX && !paused) _beatPump(RX);                                // no camera pump while paused; games may still draw subtle idle state
   scnGame(simDt,U,bpm,sect,events);   // single scene path — games are always available; the no-game case renders black
   if(RX){ g.restore(); g.setTransform(DPR,0,0,DPR,0,0); g.globalAlpha=1;
@@ -1175,6 +1234,7 @@ function frame(now){
   if(flash>0.01 && !_panelMode()){ g.fillStyle=`rgba(${flashColor},${0.10*flash})`; g.fillRect(0,0,W,H); }
   if(flash>0.01) flash=Math.max(0,flash-dt*3);
   if(!paused) drawParts(dt);
+  }
   var _pnl = _panel();
   if(_pnl){
     // the panel decides the framebuffer size; the stage follows it
@@ -1185,9 +1245,9 @@ function frame(now){
     // so the little that still moves while paused -- a decaying particle, a
     // flash tailing off -- flips whole blocks of output and the picture reads
     // as alive. Two more frames after the pause settle the tail, then hold.
-    if(!paused) _pnlHold = 2;
+    if(!paused&&!visualHeld) _pnlHold = 2;
     else if(_pnlHold > 0) _pnlHold--;
-    if(!paused || _pnlHold > 0){
+    if(!visualFailed&&((!paused&&!visualFrozen) || _pnlHold > 0)){
       try{ _pnl.frame(); }catch(e){ _screenMode='crt'; _applyScreenMode(); }
     }
   }

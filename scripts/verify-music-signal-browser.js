@@ -71,10 +71,11 @@ function installProbe() {
     sameFrameVisits: 0, lastFrameSeq: null, independentLag: false, snapshots: 0,
     measured: {}, fast: { events: [], batches: 0, resets: 0 }, slow: { events: [], batches: 0, resets: 0 } };
   const readers = [];
-  let timer, originalScene, observedScene, unsubscribe;
+  let timer, originalScene, observedScene, originalTick, observedTick, unsubscribe;
   p.close = () => {
     clearInterval(timer);
     if (observedScene && scnGame === observedScene) scnGame = originalScene;
+    if (observedTick && _visualSession.tick === observedTick) _visualSession.tick = originalTick;
     if (unsubscribe) { unsubscribe(); unsubscribe = null; }
     readers.forEach(reader => reader.close());
   };
@@ -138,18 +139,18 @@ function installProbe() {
     return state;
   }
   const safely = fn => { if (!p.error) try { fn(); } catch (error) { p.error = error.stack || String(error); } };
-  function captureFrame() {
-    if (!_frameRX) return;
+  function captureFrame(rx = _frameRX, renderer = 'game') {
+    if (!rx) return;
     p.frameVisits++;
     check(counter(_frameSeq), 'runtime frame sequence is available');
     if (_frameSeq === p.lastFrameSeq) { p.sameFrameVisits++; return; }
     check(p.lastFrameSeq === null || _frameSeq > p.lastFrameSeq, 'draw frame sequence went backwards');
     p.lastFrameSeq = _frameSeq;
-    const rx = _frameRX, delivery = rx.eventDelivery, state = Audio.musicVisualState();
+    const delivery = rx.eventDelivery, state = Audio.musicVisualState();
     check(delivery && counter(delivery.dropped) && counter(delivery.pending) && delivery.pending <= 512 && counter(delivery.generation), 'bounded runtime eventDelivery metadata');
     check(Array.isArray(rx.noteOns) && rx.noteOns.length <= 64, 'bounded runtime onset delivery');
     check(p.frames.length < 4096, 'draw observation budget exceeded');
-    p.frames.push({ frameSeq: _frameSeq, delivery: { ...delivery }, epoch: state.epoch,
+    p.frames.push({ frameSeq: _frameSeq, renderer, delivery: { ...delivery }, epoch: state.epoch,
       activation: state.activation, discontinuity: state.discontinuity, paused: state.paused,
       renderContextTime: state.renderContextTime, notes: rx.noteOns.map(e => ({ ...e })) });
   }
@@ -163,6 +164,17 @@ function installProbe() {
     finally { safely(captureFrame); }
   };
   scnGame = observedScene;
+  // The procedural scene bypasses scnGame. Observe its real tick with the exact
+  // shared onset object supplied by runtime, without replacing any signals or
+  // drawing a second frame. Its input precedes assignment of _frameRX.
+  originalTick = _visualSession.tick;
+  observedTick = function (...args) {
+    const visual = this.snapshot(), procedural = visual.enabled && !visual.frozen && visual.scene.startsWith('visual:');
+    if (procedural) safely(() => captureFrame(args[1], 'procedural'));
+    try { return originalTick.apply(this, args); }
+    finally { if (procedural) safely(() => captureFrame(args[1], 'procedural')); }
+  };
+  _visualSession.tick = observedTick;
   unsubscribe = Audio.onMusicState(e => safely(() => {
     check(p.states.length < 4096, 'transport observation budget exceeded');
     p.states.push({ status: e.status, reason: e.reason, revision: e.revision, activation: e.activation,
@@ -321,6 +333,8 @@ async function verify(page, origin) {
   const initial = await snapshot();
   assert.equal(initial.playing, null); assert.equal(initial.pending, null, 'root is stopped');
   await page.locator('.mw-scene').selectOption('platformer');
+  await page.locator('[data-action=visual-apply]').click();
+  await page.waitForFunction(() => CT_CREATE_PRESENTATION.snapshot().visual.scene === 'platformer');
   await page.locator('.mw-loop').check();
   await editor.fill(source);
   await page.waitForFunction(text => CT_MUSIC_WORKSPACE.snapshot().draft === text, source);
@@ -344,6 +358,9 @@ async function verify(page, origin) {
   assert.equal(trace.states.filter(e => e.status === 'playing' && e.reason === 'activate').length, 1, 'initial Run activates exactly once');
   console.log('  ok real Run; independent readers; complete loops; source-index/frame/pitch/duration timing; bounded measured analysis; once-per-draw onsets');
 
+  await page.locator('.mw-scene').selectOption('visual:neon-tunnel');
+  await page.locator('[data-action=visual-apply]').click();
+  await page.waitForFunction(() => CT_CREATE_PRESENTATION.snapshot().visual.scene === 'visual:neon-tunnel');
   const beforeInvalid = { activation: trace.state.activation, epoch: trace.state.epoch, states: trace.states.length };
   await editor.fill(source + '\ninvalid(');
   await editor.press('ControlOrMeta+Enter');
@@ -357,6 +374,8 @@ async function verify(page, origin) {
   assert.equal(trace.state.activation, beforeInvalid.activation); assert.equal(trace.state.epoch, beforeInvalid.epoch);
   assert(trace.states.slice(beforeInvalid.states).every(e => ['position', 'loop'].includes(e.status)), 'invalid Run issues no extra prepare/queue/activation');
   verifyTrace(trace, revisions);
+  for (const renderer of ['game', 'procedural'])
+    assert(trace.frames.some(frame => frame.renderer === renderer && frame.notes.length), renderer + ' consumes actual emitted onsets');
   console.log('  ok invalid draft/Run leaves the real loop active; repeated snapshot/analysis reads preserve both reader histories');
 
   const beforeQueue = await page.evaluate(() => ({ states: musicSignalProbe.states.length,

@@ -29,9 +29,10 @@ them displace this main workflow. No autoplay or compulsory second visual progra
 - 6d87aaa / 11c16ef already provide accurate source spans, pitch rows, inline
   rolls, shared preview/Run, collapsible conversation and optional presentation.
   Reuse these; do not build another editor or chat workspace.
-- The earlier presentation was a fullscreen swap. Phase B now mounts the same
-  renderer beside music/notes; visual focus and stage-only fullscreen are layout
-  changes. This is not yet a separate audience window or visual-code renderer.
+- The earlier presentation was a fullscreen swap. Phase B mounts the same
+  output beside music/notes; visual focus and stage-only fullscreen are layout
+  changes. Phase D adds optional bounded visual code. This is not yet a separate
+  audience window.
 - Audio.musicVisualState reads acknowledged transport and measured internal
   pre-FX master analysis; it never drains onsets. Audio.musicEventReader gives
   each consumer a bounded cursor over actual sequencer commands. Semantic
@@ -126,8 +127,8 @@ workflow; compatibility is established only by our compiler tests.
   initially reusing the existing renderer/game visuals behind a stage adapter.
 - [x] Keep code, notes and stage visible together; chat stays collapsible.
 - [x] Preserve renderer identity and music phase across resizing, chat collapse,
-  visual focus and return from stage-only fullscreen. Visual-code disclosure is
-  still a Phase D acceptance check, not an implemented control.
+  visual focus and return from stage-only fullscreen. Phase D additionally
+  verifies visual-code disclosure without resetting the running world.
 - [x] Separate scene selection from the choice to compose or play a song.
 
 Gate: a fresh or saved pattern starts one player, drives the already-configured
@@ -153,10 +154,10 @@ aggregate, all three renderer modes and native local stopped entry/Run/Stop.
   epochs explicitly; no duplicate onsets from a rolling look-back window.
 - [x] Expose measured internal master waveform/bands/level where available;
   distinguish measurements from semantic event estimates. No microphone prompt.
-- [ ] Evaluate hydra-synth against the existing artifact: license/dependencies,
+- [x] Evaluate hydra-synth against the existing artifact: license/dependencies,
   instance isolation, supplied canvas, explicit ticks, memory/GPU load, errors
   and Safari behavior. Do not embed the whole Hydra website or adopt by name alone.
-- [ ] Choose an explicit bounded visual-language boundary. Do not eval arbitrary
+- [x] Choose an explicit bounded visual-language boundary. Do not eval arbitrary
   agent/user JavaScript in the application realm. Restrict available operations,
   signals, assets, resource use and source size; assess worker/renderer isolation.
   Unsupported input must fail clearly without a musical change.
@@ -176,8 +177,8 @@ Observations leave PCM byte-identical in live source tests, including temporary
 delivery failure. Measured waveform/RMS/peak and normalized dB-bin bands come
 from the existing internal master tap before EQ/compression/limiting, with
 separate analysis buffers. No microphone or extra AudioContext is created.
-The precise API and limits are in docs/music-signals.md. Visual-language choice,
-renderer isolation and the rest of Phase C are still separate unfinished gates.
+The precise API and limits are in docs/music-signals.md. The subsequent renderer
+decision and its evidence boundaries are recorded below.
 
 Local signal acceptance on app.1ce49d6d016e.js / Music 67cdfdad0f71: 20 journal,
 15 executed-pipeline and 31 live-audio source checks pass. Real Chromium checked
@@ -200,25 +201,62 @@ Sources: [upstream manifest](https://github.com/hydra-synth/hydra-synth/blob/9d2
 [constructor](https://github.com/hydra-synth/hydra-synth/blob/9d29a9f4fd8f9081b9759943f38db36f05b9a88f/src/hydra-synth.js),
 [sandbox](https://github.com/hydra-synth/hydra-synth/blob/9d29a9f4fd8f9081b9759943f38db36f05b9a88f/src/lib/sandbox.js).
 
+Decision, 2026-09-09: use the bounded native Canvas language described in
+visual-language.md; do not incorporate stock Hydra. The isolated pinned-source
+probe in hydra-renderer-evaluation.md exercised supplied canvases, independent
+manual ticks, feedback, actual music events, errors and Metal/SwiftShader
+timings. Small-graph performance was acceptable; shared prototype effects,
+eval/CSP requirements, edit/reset resource growth and licensing prevent direct
+adoption. Hydra Safari and long-session/GPU-isolation checks were not completed
+and are not transferred from the native renderer's evidence. The candidate is
+rejected for this implementation, not declared universally unsuitable.
+
+The native compiler constructs immutable bounded data, never JavaScript. Five
+composable drawing operations, named controls, explicit internal-audio/event/
+transport signal references, palettes and feedback are supported. Source is
+32 KiB UTF-8 / 4096 tokens / depth 16; 8 layers and 512 static items total.
+Two fixed <=960x540 canvases and bounded geometry prevent source-authored
+allocation/loop growth. This is not process/GPU performance isolation, Hydra
+syntax compatibility or a second music engine. Compiler/parser and renderer
+unit checks plus real browser pixels exercise those specific boundaries.
+
 ### D. Scenes, visual code and performance controls
 
-- [ ] Provide a small strong collection of editable scenes suitable for the
+- [x] Provide a small strong collection of editable scenes suitable for the
   chosen renderer, alongside the existing generic game visuals. Start with
   geometric/pixel/feedback directions that actually fit the implementation.
-- [ ] Declare named visual parameters and mappings separately from code. Sliders
+- [x] Declare named visual parameters and mappings separately from code. Sliders
   change declared saved parameter values, not secretly rewrite visual source.
-- [ ] Add optional visual code with explicit Apply and last-working retention
+- [x] Add optional visual code with explicit Apply and last-working retention
   on recoverable parser/shader errors; music continues unaffected.
   Opening/closing the visual editor must retain the running visual world.
-- [ ] Support immediate or selected-boundary scene activation, visible queued
+- [x] Support immediate or selected-boundary scene activation, visible queued
   scene/time and cancellation. Define pause/seek/revision behavior explicitly.
-- [ ] Implement distinct Stop music, Freeze visuals, Blackout output, Reset visual
+- [x] Implement distinct Stop music, Freeze visuals, Blackout output, Reset visual
   state and Global panic operations. Blackout is not an audio stop.
 - [ ] Integrate the prepared music gate/velocity/transpose literal controls and
   finish the Tidal-guided bounded pattern subset/live build-up from the music plan.
 
 Gate: code and named state have one declared source of truth, errors keep the
 last usable output, and each performance control has independently tested effects.
+
+The implemented scene programs are Neon Tunnel, Pulse Grid and Orbit Loom;
+they remain editable layered source and sit alongside the unchanged 14 generic
+game visuals. New composition configures Neon Tunnel before playback. Scene
+selection prepares a draft; separate Apply is immediate or next acknowledged
+bar. Pause holds a queue; stop/seek/loop/new activation cancels it. An existing
+audio-state subscription updates queue state even when drawing is hidden/Off;
+it adds no timer or sound engine. Freeze reanchors without catch-up, Blackout
+masks all mounted output layers while rendering continues, Reset invalidates
+visual feedback only, and Panic explicitly invokes the music Stop operation.
+Off and returning to the same scene retain its edited live program/parameters.
+
+Visual Code is a disclosure using the existing CodeMirror artifact with its own
+help/completions and focused Cmd/Ctrl-Enter Apply. The stage stays pinned above
+the editor inside its pane; code/chart/chat remain independent. Parser errors
+retain the live graph; recoverable draw failures retain the last complete front
+buffer. Named control values do not rewrite source. These are session values
+only at this checkpoint: the UI says so explicitly, and Phase E is not complete.
 
 ### E. Save the audiovisual composition and create audience output
 
@@ -257,10 +295,9 @@ solve a frontend presentation problem.
 ## Reference and evidence boundaries
 
 The owner's brief is research/design input, not evidence that these features
-already exist. TidalCycles remains the musical guide. Hydra is a renderer
-candidate, not yet a dependency decision. Its documented supplied-canvas,
-detectAudio:false and manual tick options make it worth testing; that is not
-proof of performance isolation or Safari compatibility.
+already exist. TidalCycles remains the musical guide. The Hydra evaluation led
+to the bounded native-renderer decision above. Neither embedding options nor
+the native renderer's tests establish Hydra isolation or Safari compatibility.
 
 - [TidalCycles](https://tidalcycles.org/)
 - [Hydra embedding and manual rendering](https://hydra.ojack.xyz/docs/docs/learning/guides/how-to/hydra-in-a-webpage/)

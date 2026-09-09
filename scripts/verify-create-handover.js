@@ -53,6 +53,21 @@ const audiblePeak = async (p, timeout = 10000) => {
     k = Math.max(k, await peak(p, 1000));
   return k;
 };
+async function stableStationFixture(p){
+  // This test edits percussion and asserts identity through Close. A random
+  // chill arrangement may legitimately contain no percussion; a shared live
+  // join may land at the end of a finite song. Exercise the real station with
+  // a known 81-second, four-channel score at its start, before observation.
+  await p.evaluate(()=>{
+    LiveCtl.leave();
+    const tok='velvet-engines-melt-tide-1a2b3c4d';
+    if(Audio.gotoTrackAtOffset(tok,0)!==tok)throw Error('Station fixture did not compile');
+    const score=CT_CREATE.songOf(Audio.currentDoc()).gb,position=Audio.deckPosition();
+    if(![0,1,2,3].every(ch=>score.notes.some(n=>n.ch===ch))||position.durSec-position.sec<30)
+      throw Error('Station fixture needs all four channels and a stable observation window');
+  });
+  await p.waitForFunction(()=>Audio.deckPosition().sec>0);
+}
 
 // Observation only: every call forwards unchanged arguments/return values.
 // Never wrap a Close callback to grant Listen authority on the user's behalf.
@@ -140,6 +155,7 @@ const SCENARIOS = {
     });
     await p.waitForFunction(() => !document.querySelector('.rmood.busy'), null, { timeout: 25000 });
     await wait(4000);
+    await stableStationFixture(p);
     // A generated arrangement can legitimately leave one second nearly empty
     // at a phrase boundary. Sample a musical window rather than treating that
     // quiet bar as a stopped audio engine.
@@ -245,6 +261,7 @@ const SCENARIOS = {
     // the separate pause/resume acceptance above. A transport failure must not
     // turn this into an accidental owned-chip test.
     await explicitListen(p,'pure following view setup',false);
+    await stableStationFixture(p);
     await observeTransport(p);
     const baseline=await p.evaluate(() => {
       const state={doc:Audio.currentDoc(),position:Audio.deckPosition()};

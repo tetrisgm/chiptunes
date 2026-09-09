@@ -3,6 +3,87 @@
 Plain, current working notes for whoever (or whatever) picks the project up
 next. Infrastructure and operations live outside this repository.
 
+## 2026-09-09 — Editable visual programs and performance controls (local checkpoint)
+
+Phase C's renderer decision and the first five Phase D items in
+algorave-stage-plan.md are implemented. Chiptunes now has three editable layered
+scenes (Neon Tunnel, Pulse Grid, Orbit Loom), alongside the unchanged fourteen
+generic game visuals. The optional visual editor reuses CodeMirror; its focused
+Cmd/Ctrl-Enter and Apply affect visuals only. Music remains the existing single
+compiler/player with code and note feedback visible beside the stage.
+
+src/visual-language.js compiles a data-only language: no eval, JavaScript, DOM,
+network, capture, external assets or user shaders/loops. Limits include 32 KiB
+UTF-8 source, 4096 tokens, depth 16, eight layers/controls and 512 static items.
+src/visual-renderer.js owns exactly two fixed, bounded <=960x540 canvases and
+five composable operations. It consumes the existing acknowledged musical clock,
+fresh executed onsets and internal pre-FX analysis; it owns no timer, microphone
+or AudioContext. Back-buffer drawing publishes only a complete frame. Runtime
+also retains the actual displayed stage across a first-frame renderer failure,
+including when switching from a game. This is bounded execution, not a claim
+of process/GPU performance isolation or Hydra/Tidal syntax compatibility.
+
+The pinned-source Hydra experiment and receipts are documented in
+hydra-renderer-evaluation.md. Small-graph Metal performance was acceptable, but
+stock realm/prototype effects, eval/CSP requirements, reset/edit resource growth
+and licensing prevented direct adoption. No Hydra dependency or upstream code
+was installed. Hydra's Safari/long-session/GPU-isolation checks are explicitly
+unverified; native Canvas acceptance does not substitute for them.
+
+src/visual-stage.js independently owns draft/live/queued/error state. Scene
+selection prepares a draft; Apply is Now or next acknowledged bar. Pause holds a
+queue; stop/ended/error, seek, loop, new activation/revision or detachment cancels
+it. The existing audio acknowledgement subscription handles hidden/Off queues
+without rendering or another clock. Sliders update declared parameter values,
+not source. Off/return to the same scene restores its edited live source/values.
+Freeze holds visual state; Blackout masks the whole output while state continues;
+Reset invalidates visual phase/feedback only; Panic explicitly stops music and
+blackouts output. Reopening the workspace restores blackout. Parser errors leave
+the last working visual running. Visual values are SESSION-ONLY: the UI states
+that audiovisual saving is not yet implemented; Phase E is still open.
+
+Final local artifact: app.7ac39054942d.js / Music aa1a525d6edd, 118 sources,
+2,552,866 JS bytes, 231,412 HTML bytes, fourteen games. Visual compiler: 22 groups,
+2124 compilations; renderer: 15 pure checks plus the optional real-Chromium
+pixel check (16/16 in 16761); controller checks pass. The real shared-artifact
+visual browser checks verify independent Apply/shortcut, sliders, invalid code,
+queued/cancel/Off activation, actual pause/resume/seek, injected raster failure
+and recovery, remount blackout, distinct performance controls, CRT/DMG/NES
+pixels, one AudioContext and no capture/provider requests.
+
+The project test command list passed in resumed, ordered segments, not one
+uninterrupted green npm test invocation. The first handover failure assumed a
+random radio track would neither finish during inspection nor omit percussion.
+The fixture now explicitly selects a known long four-channel track before its
+unchanged document/phase/audio handover assertions. Following-only (7251) and
+full handover (47220) passed; no production radio behavior changed. The remaining
+base suite and entire music-workspace/agent/project-transfer tail passed (93268)
+before the unified aggregate exposed a second fixture assumption: scene select
+now needs Apply. Signal acceptance now observes both actual game draws and
+procedural ticks, retaining full event/source/identity checks. The final complete
+unified aggregate exited zero (82183), including thirteen stage-adapter tests,
+three real renderer modes and the new visual-code suite. Its signal check saw
+251 matching records, 123 unique drawn onsets and 436 read-only snapshots.
+Private-ROM/harness-dependent LSDj checks retain their explicit skips.
+Render parity passed 10/10 (7524): minimum correlation 1.000000, maximum absolute
+RMS delta 0.175 dB. git diff --check is clean.
+
+Real native local Safari on the FINAL named Music aa1a525d6edd build visibly
+verified stopped entry, the simultaneous code/notes/stage/chat layout, Run,
+visual-code disclosure and Cmd-Enter application of an orbits/sparks sketch while
+Sounding r1 continued looping. Rejected while(true) source retained the working
+scene and Sounding r1. Blackout visibly masked only the stage while the playhead
+continued; Panic reported Stopped and retained blackout. The owned test tab was
+closed. These are local native UI/transport observations, not acoustic listening,
+physical-trackpad, deployed Safari or second-display/background-output acceptance.
+
+Next: music gate/velocity/transpose literal-control integration and the bounded
+Tidal-guided cycle subset; audiovisual persistence/private-share compatibility;
+same-session audience output with independent public layout and single-renderer
+background ownership; measured performance/long-session and full live-build-up
+acceptance. No deployment, paid provider call, app restart or broadcast change
+occurred. The overall goal remains active.
+
 ## 2026-09-09 — Actual musical signals for the stage (local checkpoint)
 
 The first three Phase C signal items are implemented. The rolling scheduled-note

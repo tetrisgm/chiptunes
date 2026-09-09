@@ -3100,7 +3100,7 @@
 #musicworkspace .mw-visual-header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;flex-shrink:0}
 #musicworkspace .mw-visual-header h2{font-size:14px;margin:0;font-weight:600}
 #musicworkspace .mw-visual-header button{font-size:12px;padding:5px 8px}
-#musicworkspace .mw-stage-viewport{position:relative;isolation:isolate;overflow:hidden;width:100%;aspect-ratio:16/9;flex-shrink:0;background:#050609;contain:layout paint}
+#musicworkspace .mw-stage-viewport{position:sticky;top:0;z-index:4;isolation:isolate;overflow:hidden;width:100%;aspect-ratio:16/9;flex-shrink:0;background:#050609;contain:layout paint}
 #musicworkspace .mw-stage-viewport:fullscreen{width:100vw;height:100vh;max-width:none;max-height:none;aspect-ratio:auto;background:#000}
 #musicworkspace .mw-stage-viewport:-webkit-full-screen{width:100vw;height:100vh;max-width:none;max-height:none;aspect-ratio:auto;background:#000}
 #musicworkspace .mw-stage-empty{position:absolute;z-index:20;inset:0;display:flex;align-items:center;justify-content:center;margin:0;padding:16px;color:#929bb4;font-size:12px;pointer-events:none;background:#050609}
@@ -3108,6 +3108,22 @@
 #musicworkspace .mw-scene-controls label{font-size:12px;color:#b6bfd5}
 #musicworkspace .mw-scene{min-width:0;flex:1;padding:6px 8px;font-size:12px}
 #musicworkspace .mw-stage-status{margin:0;padding:0 12px 10px;font-size:12px;color:#d4efa3}
+#musicworkspace .mw-stage-status[data-state=error]{color:#ffb3af}
+#musicworkspace .mw-visual-parameters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 14px;padding:0 12px 12px}
+#musicworkspace .mw-visual-parameters label{display:grid;grid-template-columns:1fr auto;gap:2px 8px;font-size:12px;color:#b6bfd5;min-width:0}
+#musicworkspace .mw-visual-parameters output{font:11px/1.5 ui-monospace,monospace;color:#d4efa3}
+#musicworkspace .mw-visual-parameters input{grid-column:1/-1;width:100%;padding:0;accent-color:#b9d968}
+#musicworkspace .mw-visual-apply,#musicworkspace .mw-visual-performance{display:flex;flex-wrap:wrap;gap:6px;padding:0 12px 12px;flex-shrink:0}
+#musicworkspace .mw-visual-apply>*,#musicworkspace .mw-visual-performance button{font-size:12px;padding:6px 8px;min-width:0}
+#musicworkspace .mw-visual-performance [aria-pressed=true]{background:#383346;border-color:#c5a1fa;color:#e1cbff}
+#musicworkspace [data-action=visual-panic]{margin-left:auto;color:#ffb3af}
+#musicworkspace .mw-visual-authoring{flex-shrink:0}
+#musicworkspace .mw-visual-code-disclosure{border-top:1px solid #303748;margin-bottom:12px}
+#musicworkspace .mw-visual-code-disclosure summary{cursor:pointer;padding:10px 12px;font-size:12px}
+#musicworkspace .mw-visual-code-disclosure summary small{color:#929bb4;font-size:10px;margin-left:8px}
+#musicworkspace .mw-visual-code{height:260px;min-height:180px;border-block:1px solid #303748}
+#musicworkspace .mw-visual-code .cm-editor{font-size:12px!important}
+#musicworkspace .mw-visual-reference{margin:0;padding:8px 12px;color:#929bb4;font-size:11px}
 #musicworkspace .mw-stage-help{margin:auto 0 0;padding:12px;border-top:1px solid #303748;color:#929bb4;font-size:12px}
 #musicworkspace .mw-stage-splitter{position:relative;cursor:col-resize;touch-action:none;user-select:none;border-inline:4px solid #0b0d14;background:#202534}
 #musicworkspace .mw-stage-splitter::after{content:'';position:absolute;top:calc(50% - 24px);left:2px;height:48px;border-left:2px solid #929bb4}
@@ -3228,7 +3244,7 @@
 #musicworkspace[data-presentation=visualizer]>.mw-transfer-offer{display:none}
 #musicworkspace[data-presentation=visualizer] .mw-body{grid-template-columns:minmax(0,1fr)}
 #musicworkspace[data-presentation=visualizer] .mw-creative{display:flex;flex-direction:column;overflow:hidden}
-#musicworkspace[data-presentation=visualizer] .mw-main,#musicworkspace[data-presentation=visualizer] .mw-chat,#musicworkspace[data-presentation=visualizer] .mw-stage-splitter,#musicworkspace[data-presentation=visualizer] .mw-stage-help{display:none}
+#musicworkspace[data-presentation=visualizer] .mw-main,#musicworkspace[data-presentation=visualizer] .mw-chat,#musicworkspace[data-presentation=visualizer] .mw-stage-splitter,#musicworkspace[data-presentation=visualizer] .mw-stage-help,#musicworkspace[data-presentation=visualizer] .mw-visual-authoring{display:none}
 #musicworkspace[data-presentation=visualizer] .mw-visuals{flex:1;min-height:0;overflow:hidden}
 #musicworkspace[data-presentation=visualizer] .mw-stage-viewport{flex:1;min-height:0;aspect-ratio:auto;max-height:none;max-width:none;align-self:stretch}
 /* Scoped adaptation of AI Elements layout; no Tailwind, reset, or global theme. */
@@ -3326,7 +3342,7 @@
     <button id="start" hidden></button>
   </div>
 
-<script src="../app.1ce49d6d016e.js" defer></script>
+<script src="../app.7ac39054942d.js" defer></script>
 
 </body>
 </html>
