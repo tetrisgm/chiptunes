@@ -80,7 +80,7 @@ async function run(){
   assert.equal(await page.locator('#musicworkspace').getAttribute('data-view'),'code','note selects its source block');
   await page.click('#musicworkspace [data-action=play]');
   await page.waitForFunction(()=>CT_MUSIC_WORKSPACE.snapshot().playing!==null);
-  assert.match(await page.locator('.mw-state').textContent(),/Playing r\d/,'playing waits for engine acknowledgment');
+  assert.match(await page.locator('.mw-position').textContent(),/Sounding r\d/,'playing waits for engine acknowledgment');
   const sounding=(await page.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot())).playing;
   await page.waitForTimeout(700); // Include actual periodic position notifications.
   await page.locator('.cm-content').press('ControlOrMeta+End');

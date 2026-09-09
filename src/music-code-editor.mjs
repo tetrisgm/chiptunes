@@ -1,6 +1,8 @@
 // CodeMirror supplies editing, folding and highlighting only. Compilation is
 // performed by the restricted music-language parser on explicit Apply.
 import { EditorView, basicSetup } from 'codemirror';
+import { Decoration } from '@codemirror/view';
+import { StateEffect, StateField } from '@codemirror/state';
 import { javascript } from '@codemirror/lang-javascript';
 import { autocompletion } from '@codemirror/autocomplete';
 import { setDiagnostics } from '@codemirror/lint';
@@ -34,13 +36,32 @@ const theme = EditorView.theme({
   '.cm-activeLine,.cm-activeLineGutter': {backgroundColor:'#ffffff08'},
   '.cm-selectionBackground,&.cm-focused .cm-selectionBackground': {backgroundColor:'#58734466'},
   '.cm-tooltip': {backgroundColor:'#252b3d',color:'#fff',border:'1px solid #596175'},
+  '.cm-music-sounding': {backgroundColor:'#b9d96824',boxShadow:'inset 0 -2px #b9d968',borderRadius:'2px'},
 }, {dark:true});
+
+// Playback is a view decoration, never an edit or an undo transaction. Draft
+// changes clear highlights until the host can map the sounding source exactly.
+const soundingEffect = StateEffect.define();
+const soundingField = StateField.define({
+  create: () => Decoration.none,
+  update(value, transaction) {
+    if (transaction.docChanged) return Decoration.none;
+    for (const effect of transaction.effects) if (effect.is(soundingEffect)) {
+      const length=transaction.newDoc.length;
+      const ranges=effect.value.filter(s=>Number.isInteger(s.from)&&Number.isInteger(s.to)&&s.from>=0&&s.to>s.from&&s.to<=length)
+        .map(s=>Decoration.mark({class:'cm-music-sounding'}).range(s.from,s.to));
+      return Decoration.set(ranges,true);
+    }
+    return value;
+  },
+  provide: field => EditorView.decorations.from(field)
+});
 
 globalThis.CT_MUSIC_CODE_EDITOR = {
   help,
   mount(parent, source, onChange) {
     const view = new EditorView({doc:source,parent,extensions:[
-      basicSetup, javascript(), theme, EditorView.lineWrapping,
+      basicSetup, javascript(), theme, soundingField, EditorView.lineWrapping,
       EditorView.contentAttributes.of({'aria-label':'Musical source code','data-shortcuts-off':''}),
       autocompletion({override:[ctx=>{
         const word=ctx.matchBefore(/\w*/);
@@ -63,6 +84,7 @@ globalThis.CT_MUSIC_CODE_EDITOR = {
           severity:d.severity==='warning'?'warning':'error',message:d.message||String(d)
         }))));
       },
+      highlightPlaying(spans=[]) { view.dispatch({effects:soundingEffect.of(spans.slice(0,4))}); },
       destroy:()=>view.destroy(), focus:()=>view.focus()
     };
   }

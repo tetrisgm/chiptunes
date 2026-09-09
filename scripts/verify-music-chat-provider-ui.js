@@ -48,6 +48,10 @@ const server=http.createServer((req,res)=>res.end('<!doctype html><body></body>'
     await page.addStyleTag({path:path.join(__dirname,'../src/music-workspace.css')});
     await page.setViewportSize({width:1280,height:900});
     await page.waitForFunction(()=>document.querySelector('.mw-chat-access-status').textContent.includes('Locked.'));
+    assert.equal(await page.locator('.mw-chat-settings').evaluate(el=>el.open),false,'Chat settings starts collapsed');
+    assert.equal(await page.locator('.mw-owner-password').isVisible(),false,'owner controls are secondary');
+    assert.equal(await page.locator('.mw-chat-access-status').isVisible(),true,'locked status stays visible');
+    assert.equal(await page.evaluate(()=>document.querySelector('.mw-chat-input').getBoundingClientRect().top<document.querySelector('.mw-chat-settings').getBoundingClientRect().top),true,'request input comes first');
     assert.equal(await page.locator('.mw-external-mcp').evaluate(el=>el.open),false,'external MCP is collapsed by default');
     assert.equal(await page.locator('.mw-connect').isVisible(),false,'MCP setup does not occupy the sidebar');
     assert.equal(await page.evaluate(()=>{
@@ -57,6 +61,7 @@ const server=http.createServer((req,res)=>res.end('<!doctype html><body></body>'
     }),true,'built-in Chat is visible first without expanding or scrolling past MCP');
     assert.deepEqual(await page.locator('.mw-chat-provider option').allTextContents(),['OpenAI','Claude']);
     assert.equal(await page.locator('[data-action=chat]').isDisabled(),true);
+    await page.locator('.mw-chat-settings > summary').click();
     await page.locator('.mw-owner-password').fill('wrong-fixture-password');await page.locator('[data-action=chat-unlock]').click();
     await page.waitForFunction(()=>document.querySelector('.mw-chat-access-status').textContent.includes('not accepted'));
     assert.equal(await page.locator('.mw-owner-password').inputValue(),'');
@@ -66,6 +71,10 @@ const server=http.createServer((req,res)=>res.end('<!doctype html><body></body>'
       await page.waitForFunction(()=>document.querySelector('.mw-chat-access-status').textContent.startsWith('Unlocked.'));
     }
     await unlock();assert.equal(await page.evaluate(()=>fixture.calls.length),0,'unlock is not a model call');
+    await page.locator('.mw-chat-settings > summary').click();
+    assert.equal(await page.locator('.mw-chat-access-status').isVisible(),true,'unlocked status stays visible with settings closed');
+    assert.equal(await page.locator('.mw-chat-input').isVisible(),true);
+    await page.locator('.mw-chat-settings > summary').click();
     assert.equal(await page.locator('.mw-owner-password').inputValue(),'');
     await page.locator('.mw-chat-provider').selectOption('anthropic');await page.locator('.mw-chat-input').fill('Add a comment');
     const before=await page.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot().validated.id);

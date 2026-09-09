@@ -39,6 +39,68 @@ async function status(handler, c, expected, opts) {
 const cases = [];
 function test(name, fn) { cases.push([name, fn]); }
 
+test('trusted prompt examples compile and finite repeats follow full pattern length, not gate or one-bar assumptions', () => {
+  const examples = [...SYSTEM.matchAll(/```\n([\s\S]*?)\n```/g)].map(m => m[1]);
+  assert.equal(examples.length, 2);
+  for (const example of examples) {
+    const compiled = language.compile(example);
+    assert.ok(compiled.gb);
+    assert.deepEqual(compiled.diagnostics, []);
+    assert.equal(example.includes('event('), false);
+  }
+  const half = examples[1], clock = language.createClock({ tempo: 120 });
+  const compiled = language.compile(half).gb;
+  assert.deepEqual(compiled.notes.map(n => n.frame), [0, 2, 4, 6].map(clock));
+  assert.equal(compiled.totalFrames, clock(8));
+  const shortGate = language.compile(half.replace('gate(0.7)', 'gate(0.2)')).gb;
+  assert.deepEqual(shortGate.notes.map(n => n.frame), compiled.notes.map(n => n.frame));
+  assert.ok(shortGate.notes.every((n, i) => n.frames < compiled.notes[i].frames));
+  const full = language.compile(half.replace('bars:2', 'bars:4').replace('C2 .', 'C2:2 .:2')).gb;
+  assert.deepEqual(full.notes.map(n => n.frame), [0, 4, 8, 12].map(clock));
+  assert.equal(full.totalFrames, clock(16));
+});
+
+test('pattern bass and drum suggestions round-trip as local edits, preserving comments, arrangement and other tracks', async () => {
+  const readable = [...SYSTEM.matchAll(/```\n([\s\S]*?)\n```/g)][0][1];
+  for (const target of ['bass', 'drums']) {
+    const p = project.create(readable, { compile: language.compile });
+    const before = p.validated.compiled.gb, id = 'pattern-' + target, base = p.beginRequest(id);
+    assert.equal(base.ok, true);
+    const from = target === 'bass' ? readable.indexOf('C2 . G2') : readable.indexOf('C4 . C4') + 3;
+    const edit = { from, to: from + (target === 'bass' ? 2 : 1), text: target === 'bass' ? 'D2' : 'C4@0.4' };
+    const c = { id, baseRevision: base.baseRevision, source: readable,
+      request: target === 'bass' ? 'Raise just the first bass note to D2 in each repetition' : 'Add a quiet offbeat hat on step two of each repetition',
+      constraints: { scope: { tracks: [target === 'bass' ? 2 : 3] } } };
+    const h = configured({ adapter: { authorized: true, async propose(a) {
+      assert.equal(a.system, SYSTEM);
+      assert.match(a.system, /Do not materialize patterns into an event dump/);
+      assert.match(a.system, /pattern edit affects every play\/repetition/);
+      assert.equal(JSON.parse(a.input).source, readable);
+      return stream({ id, baseRevision: base.baseRevision, edits: [edit], explanation: 'Proposed pattern token edit' });
+    } } });
+    const client = new Client({ fetch: async (_, init) => h(request(c, { body: init.body, signal: init.signal })) });
+    const answer = await client.request(c);
+    assert.equal(p.validated.source, readable, 'proposal does not apply or start playback');
+    assert.equal(p.validateProposal({ id: answer.id, baseRevision: answer.baseRevision,
+      edits: answer.edits, baseSource: base.baseSource }).ok, true);
+    assert.equal(p.applyProposal(id).ok, true);
+    const expected = readable.slice(0, edit.from) + edit.text + readable.slice(edit.to);
+    assert.equal(p.validated.source, expected, 'all comments/spacing/play calls outside the token survive');
+    assert.equal(p.validated.source.includes('event('), false);
+    const after = p.validated.compiled.gb, changed = target === 'bass' ? 2 : 3;
+    assert.deepEqual(after.notes.filter(n => n.ch !== changed), before.notes.filter(n => n.ch !== changed));
+    assert.equal(after.totalFrames, before.totalFrames);
+    assert.deepEqual(after.bank, before.bank);
+    if (target === 'bass') {
+      assert.equal(after.notes.filter(n => n.ch === 2 && n.midi === 38).length, 4);
+      assert.deepEqual(after.notes.map(n => n.frame), before.notes.map(n => n.frame));
+    } else {
+      assert.equal(after.notes.filter(n => n.ch === 3 && n.vel === 0.4).length, 4);
+      assert.equal(after.notes.length, before.notes.length + 4);
+    }
+  }
+});
+
 test('backend unconfigured and partially configured deny without invoking dependencies', async () => {
   let calls = 0;
   await status(createMusicChatHandler(), context(), 503);

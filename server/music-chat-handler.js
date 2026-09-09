@@ -25,7 +25,54 @@ Channels: lead/pulse1=0, arp/pad/pulse2=1, bass/wave=2, drums/noise=3.
 Exact event mode uses frame/frames/midi/inst fields. Changing tempo metadata alone
 does NOT retime exact event frames. Preserve instruments, assets and finite length.
 Honor the supplied constraints and selection. Explanation is a suggestion, not
-a claim that an edit has been applied or verified. Do not request secrets.`;
+a claim that an edit has been applied or verified. Do not request secrets.
+
+For algorave-style live coding, preserve the source's existing representation.
+When the draft uses pattern/notes/track/play, edit those readable declarations in
+place. Do not materialize patterns into an event dump or rewrite the song from
+compiled output. Preserve comments, whitespace outside the requested spans,
+pattern names, instruments, transformations and arrangement unless the request
+specifically changes them. Exact-event drafts remain exact-event drafts.
+Change only the requested musical elements on the requested tracks, including
+melody, harmony, bass or drums; the examples below are not a track restriction. A named
+pattern edit affects every play/repetition that references it, including other
+tracks; inspect those references before proposing. A selection is context, not
+permission to change unrelated occurrences. Respect explicit locks and scope;
+if a shared pattern cannot express the requested local change within scope,
+explain that limitation rather than flattening it into events.
+Example source using the bundled default bank (keep the draft's own bank):
+\`\`\`
+// Bass motif: keep the four-bar arrangement.
+song({tempo:120,bars:4})
+pattern("bassA", notes("C2 . G2 . C2 . G2 .").stepsPerBar(8).gate(0.7))
+// Hats stay on the noise channel.
+pattern("hatsA", notes("C4 . C4 . C4 . C4 .").stepsPerBar(8).gate(0.2))
+track("bass").instrument("wave-bass").play("bassA",{atBar:0,repeat:4})
+track("drums").instrument("n-hat").play("hatsA",{atBar:0,repeat:4})
+\`\`\`
+For "raise just the first bass note to D2 in each repetition", replace only the
+first C2 token in bassA with D2. Keep its G2 notes, hats, comments and play calls.
+For "add a quiet offbeat hat on step two of each repetition", replace only the
+first rest in hatsA with C4@0.4. Keep the eight-step length and the bass untouched.
+Noise tracks use pitch tokens, not drum-name tokens; the noise instrument sets
+the timbre. n-hat and wave-bass are bundled bank names, not functions or assets
+to load; retain an explicit bank's valid instrument references instead.
+Finite repetition: repeat is an integer 1..4096, not an infinite live loop.
+Each repeat advances by the full pattern length INCLUDING rests and :length
+tokens, divided by stepsPerBar; it is not necessarily one bar. gate changes
+sounding duration, not pattern length. atBar is an explicit position; omitted
+atBar defaults to zero on every play and does not append after a previous play.
+For example this half-bar motif repeats four times over two bars:
+\`\`\`
+song({tempo:120,bars:2})
+pattern("half", notes("C2 .").stepsPerBar(4).gate(0.7))
+track("bass").instrument("wave-bass").play("half",{atBar:0,repeat:4})
+\`\`\`
+Keep song length finite and consistent with the arrangement. Playback looping
+and queued application belong to the host UI; do not invent live_loop, sleep,
+setInterval, callbacks, variables, imports, random functions or runtime code.
+Return localized UTF-16 edits against the exact supplied source/revision; do
+not claim a proposal has been applied, is playing, or will activate on a beat.`;
 
 class Rejected extends Error {
   constructor(status, code) { super(code); this.status = status; this.code = code; }

@@ -1,6 +1,6 @@
 globalThis.CT_MUSIC_ASSETS_VERSION="5fba76c2aeb5e170";
-globalThis.CT_MUSIC_EDITOR_VERSION="85d43ca2c55e";
-globalThis.CT_MUSIC_BUILD_VERSION="eb6281febd20";
+globalThis.CT_MUSIC_EDITOR_VERSION="f0fdf436411c";
+globalThis.CT_MUSIC_BUILD_VERSION="f0a02a9a5eb2";
 /* ===== src/seed.js ===== */
 // ===== seed.js — deterministic generated-track identity. =====
 // Loads FIRST (before composer.js/audio.js) so any composer can seed itself from a URL token.
@@ -5180,6 +5180,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       // is mostly song. This is the same nowrap + overflow-x treatment the
       // mood row above already uses.
       '<div class="n-utils">' +
+        '<button type="button" class="cr-btn" data-cr="livecoding" title="Open the code workspace and keep this song in the piano roll">Live coding</button>' +
         '<button type="button" class="cr-btn" data-cr="undo">↩ Undo</button>' +
         '<button type="button" class="cr-btn" data-cr="redo">↪ Redo</button>' +
         // The link is how a song made here is kept and heard elsewhere: closing
@@ -5745,6 +5746,9 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       else if (k === 'opennative') { openNative(); }
       else if (k === 'opennativejson') { openNativeJson(); }
       else if (k === 'resumenative') { resumeNative(); }
+      else if (k === 'livecoding') {
+        G.CT_MUSIC_WORKSPACE.open().catch(function(e){if(G._toast)G._toast(e.message);});
+      }
       else if (k === 'workspace') {
         G.CT_MUSIC_WORKSPACE.open({gb:liveScore||buildSong(),settings:{tempo:S.bpm,bars:S.bars,title:S.title,tempoAt:S.tempoAt||[],grid:spb()}}).catch(function(e){if(G._toast)G._toast(e.message);});
       }
@@ -15705,7 +15709,8 @@ var EXPORTS = {
   var unsaved=false,saveEpoch=0,editorLoading=null,previousRoute=null;
   var agentInstance=null,agentRecords=new Map(),policyEpoch=0;
   var connection=null;
-  var mainSite=location.origin==='https://chiptunes.app',lastMainView='notes';
+  var mainSite=location.origin==='https://chiptunes.app',lastMainView='code';
+  var soundingIndex=null,lastHighlight=null;
   var mobileView=G.matchMedia('(max-width:760px)');
   var outboundTransfer=null,inboundTransfer=null,transferProtected=false,transferBase=null;
   function sendProject(){
@@ -15759,6 +15764,7 @@ var EXPORTS = {
     clearTimeout(saveTimer);saveTimer=null;saveEpoch++;transferProtected=true;
     if(connection)connection.disconnect();cancelChat('superseded');resetAudio();
     project=loaded.project;selection=null;proposal=null;agentInstance=G.crypto.randomUUID();unsaved=true;
+    defaultProjectLoop();
     syncEditor();renderNotes();renderProposal();renderState();diagnostics(snap().diagnostics);
     $('.mw-transfer-description').textContent='Project accepted as a temporary copy. Hosted saved project preserved. Download to keep your edits, or choose Save draft locally and confirm replacement. Apply and playback remain explicit.';
     $('[data-action=transfer-cancel]').textContent='Dismiss';
@@ -15794,7 +15800,7 @@ var EXPORTS = {
       var result=await chatAccess.request('GET');if(run!==chatAccessEpoch)return;
       if(typeof result.authenticated!=='boolean'||!Array.isArray(result.providers)||!result.limits||!Number.isSafeInteger(result.limits.dailyCalls)||result.limits.dailyCalls<1)throw Error('Chat access is unavailable.');
       chatProviders=result.providers.filter(function(p){return p&&['openai','anthropic'].indexOf(p.id)!==-1;});chatUnlocked=result.authenticated;
-      renderChatAccess(!chatProviders.length?'Chat providers are unavailable.':(chatUnlocked?'Unlocked.':'Locked. Enter the owner password to use chat.')+' Daily limit: '+result.limits.dailyCalls+' calls.');
+      renderChatAccess(!chatProviders.length?'Chat providers are unavailable.':(chatUnlocked?'Unlocked.':'Locked. Open Chat settings to unlock.')+' Daily limit: '+result.limits.dailyCalls+' calls.');
     }catch(e){if(run!==chatAccessEpoch)return;chatUnlocked=false;renderChatAccess(e.message);}
     finally{password='';if(run===chatAccessEpoch){chatAccessBusy=false;renderChatAccess();}}
   }
@@ -15891,7 +15897,84 @@ var EXPORTS = {
     if(root&&!root.hidden){renderProposal();renderState();}
     return {ok:true};
   }
-  var KEY='ct-music-workspace-v1',ASSETS=G.CT_MUSIC_ASSETS_VERSION||'ct-gb-bank-1',view='notes';
+  var KEY='ct-music-workspace-v1',ASSETS=G.CT_MUSIC_ASSETS_VERSION||'ct-gb-bank-1',view='code';
+  var LOOP_SOURCE=[
+    '// A four-bar loop. Edit a pattern, then Run (Cmd/Ctrl+Enter).',
+    '// A dot is a rest. Eight steps make one bar; repeat fills four bars.',
+    'song({tempo:128, bars:4})',
+    '',
+    'pattern("lead", notes("C4 . E4 . G4 . E4 .").stepsPerBar(8).gate(0.5))',
+    'pattern("bass", notes("C2 C2 . C2 G2 . C2 .").stepsPerBar(8).gate(0.65))',
+    'pattern("beat", notes("C2 . C2 . C2 . C2 .").stepsPerBar(8).gate(0.15))',
+    '',
+    '// Pulse, triangle bass, and a noise tick: the existing chip voices.',
+    'track("lead").instrument("p0").play("lead", {repeat:4})',
+    'track("bass").instrument("wave-bass").play("bass", {repeat:4})',
+    'track("drums").instrument("n-tick").play("beat", {repeat:4})',
+    '',
+    '// Loop repeats the audition only. Downloads and exports stay finite.',
+    ''
+  ].join('\n');
+  function loopProject(){
+    var next=api().create(LOOP_SOURCE,opts());
+    if(!next.snapshot().validated)throw Error('Starter loop could not compile. Current project kept.');
+    return next;
+  }
+  function defaultProjectLoop(){
+    var v=snap().validated,m=v&&v.compiled.mapping;
+    $('.mw-loop').checked=!!(m&&m.length&&m.every(function(note){return !!note.pattern;}));
+  }
+  function newLoop(){
+    var next=loopProject(); // Validate before offering to replace anything.
+    if(project&&!G.confirm('Replace this workspace with a new loop? Download the current project first to keep its source and unfinished edits. The new loop will replace the local save when saving is available.'))return;
+    if(outboundTransfer)outboundTransfer.cancel();outboundTransfer=null;
+    if(inboundTransfer)inboundTransfer.cancel();inboundTransfer=null;$('.mw-transfer-offer').hidden=true;
+    if(connection)connection.disconnect();cancelChat('superseded');resetAudio();
+    project=next;selection=null;proposal=null;agentInstance=G.crypto.randomUUID();
+    $('.mw-loop').checked=true;
+    syncEditor();renderNotes();renderProposal();renderState();diagnostics(snap().diagnostics);selectView('code');scheduleSave();
+    status('New four-bar loop. Edit the patterns, then Run to hear it.');
+  }
+  function runDraft(){
+    var start=audioState.status!=='playing'&&audioState.status!=='paused';
+    var result=project.applyDraft();diagnostics(result.diagnostics);applied(result);
+    if(start)activate(result.revision,true);
+  }
+  function renderPosition(s){
+    var text='Stopped · Run to hear your code',beat=null;
+    var spans=[];
+    if(playingRevision&&s.playing){
+      if(!soundingIndex||soundingIndex.revision!==playingRevision){
+        var mapping=new Map();playingRevision.compiled.mapping.forEach(function(m){mapping.set(m.noteIndex,m.span);});
+        var soundingClock=null;try{soundingClock=G.CT_MUSIC_LANGUAGE.createClock(playingRevision.compiled.settings||{});}catch(_){}
+        soundingIndex={revision:playingRevision,clock:soundingClock,lanes:[[],[],[],[]]};
+        playingRevision.compiled.gb.notes.forEach(function(n,i){if(soundingIndex.lanes[n.ch])soundingIndex.lanes[n.ch].push({frame:n.frame,end:n.frame+n.frames,span:mapping.get(i)});});
+        soundingIndex.lanes.forEach(function(lane){lane.sort(function(a,b){return a.frame-b.frame;});});
+      }
+      var clock=soundingIndex.clock,frame=Math.max(0,audioState.frame||0);
+      var position='Frame '+Math.floor(frame);
+      if(clock)try{
+        var lo=0,hi=262144;
+        while(lo<hi){var mid=Math.ceil((lo+hi)/2),at=clock(mid);if(!Number.isFinite(at))throw Error('Invalid clock');if(at<=frame)lo=mid;else hi=mid-1;}
+        beat=lo%4;position='Bar '+(Math.floor(lo/4)+1)+' · Beat '+(beat+1)+'/4';
+      }catch(_){soundingIndex.clock=null;}
+      text=(audioState.suspended?'Audio suspended':audioState.status==='paused'?'Paused':'Sounding')+' '+s.playing+' · '+position;
+      if(s.draft===playingRevision.source&&audioState.status==='playing'&&!audioState.suspended){
+        soundingIndex.lanes.forEach(function(lane){
+          var low=0,high=lane.length;
+          while(low<high){var mid=(low+high)>>1;if(lane[mid].frame<=frame)low=mid+1;else high=mid;}
+          var note=lane[low-1];if(note&&note.end>frame&&note.span)spans.push({from:note.span.start.offset,to:note.span.end.offset});
+        });
+      }
+    }else if(s.pending)text='Preparing first sound…';
+    else soundingIndex=null;
+    if(editor&&typeof editor.highlightPlaying==='function'){
+      var signature=JSON.stringify(spans);if(signature!==lastHighlight){editor.highlightPlaying(spans);lastHighlight=signature;}
+    }
+    if($('.mw-position').textContent!==text)$('.mw-position').textContent=text;
+    root.dataset.beat=beat==null?'':String(beat);
+    root.dataset.sounding=String(!!s.playing&&audioState.status==='playing'&&!audioState.suspended);
+  }
   var $=function(s){return root.querySelector(s);};
   function api(){return G.CT_MUSIC_PROJECT;}
   function engine(){return Audio;}
@@ -15969,8 +16052,13 @@ var EXPORTS = {
     renderChatAccess();
     if(connection)connection.contextChanged();
     var s=snap(),v=s.validated;
-    $('.mw-state').textContent='Draft '+(v&&s.draft===v.source?'validated':'edited')+' · Valid '+(v?v.id:'none')+
+    $('.mw-loop').disabled=audioState.status==='playing'||audioState.status==='paused'||!!s.pending;
+    $('.mw-loop').title=$('.mw-loop').disabled?'Stop to change loop playback':'';
+    $('.mw-state').title='Draft '+(v&&s.draft===v.source?'validated':'edited')+' · Valid '+(v?v.id:'none')+
       ' · Queued '+(s.pending?s.pending.revisionId:'none')+' · Playing '+(s.playing||'none')+' · '+audioState.status+(audioState.suspended?' (audio suspended)':'');
+    var state=(v&&s.draft===v.source?'Code ready':'Edits waiting for Run')+(s.pending?' · Update queued for a musical boundary':'')+' · '+audioState.status+(audioState.suspended?' (audio suspended)':'');
+    if($('.mw-state').textContent!==state)$('.mw-state').textContent=state;
+    renderPosition(s);
     $('[data-action=undo]').disabled=!s.canUndo;$('[data-action=redo]').disabled=!s.canRedo;
     $('[data-action=play]').disabled=!v;
     $('.mw-seek').max=v?Math.max(0,v.compiled.gb.totalFrames-1):0;
@@ -15979,6 +16067,9 @@ var EXPORTS = {
   }
   function renderNotes(){
     var s=snap(),v=s.validated,pane=$('.mw-notes');pane.replaceChildren();
+    $('.mw-source-mode').textContent=v&&v.compiled.mapping.some(function(m){return !m.pattern;})?
+      'Exact song source preserved. For a readable live-coding sketch, choose New loop above. Download this project first to keep it.':
+      'Edit the patterns, then Run (Cmd/Ctrl+Enter). Changes join at a musical boundary while playing.';
     if(!v){pane.textContent='Apply valid code to see notes.';return;}
     var gb=v.compiled.gb,settings=v.compiled.settings||{},bars=settings.bars||Math.max(1,Math.ceil(gb.totalFrames/120));
     var width=Math.max(pane.clientWidth-28,Math.min(12000,bars*80)),total=gb.totalFrames||1;
@@ -16186,26 +16277,26 @@ var EXPORTS = {
   }
   function build(){
     root=document.createElement('section');root.id='musicworkspace';root.hidden=true;root.setAttribute('aria-label','Create music workspace');
-    root.innerHTML='<header class="mw-top"><h1>Create · Music workspace</h1><button data-action="close">Back</button></header>'+
+    root.innerHTML='<header class="mw-top"><h1>Create · Live code</h1><button data-action="new-loop">New loop</button><button data-action="close">Back</button></header>'+
       '<div class="mw-transport"><button data-action="play">▶ Play</button><button data-action="pause">Pause</button><button data-action="stop">■ Stop</button>'+
-      '<label><input type="checkbox" class="mw-loop"> Audition loop</label><input class="mw-seek" type="range" min="0" max="0" value="0" aria-label="Seek frame">'+
-      '<button class="mw-primary" data-action="apply">Apply code</button><button data-action="undo">Undo revision</button><button data-action="redo">Redo revision</button></div>'+
-      '<div class="mw-state" aria-live="polite"></div>'+
+      '<label><input type="checkbox" class="mw-loop"> Loop</label><input class="mw-seek" type="range" min="0" max="0" value="0" aria-label="Seek frame">'+
+      '<button class="mw-primary" data-action="apply" title="Run code (Cmd/Ctrl+Enter)" aria-keyshortcuts="Meta+Enter Control+Enter">Run <kbd>⌘/Ctrl ↵</kbd></button><button data-action="undo">Undo revision</button><button data-action="redo">Redo revision</button></div>'+
+      '<div class="mw-live-feedback"><div class="mw-position" aria-live="off">Stopped · Run to hear your code</div><div class="mw-beats" aria-hidden="true"><i></i><i></i><i></i><i></i></div><div class="mw-state" aria-live="polite"></div></div>'+
       '<nav class="mw-tabs" role="tablist" aria-label="Workspace view"><button id="mw-tab-notes" role="tab" aria-controls="mw-panel-notes" data-view="notes">Notes</button><button id="mw-tab-code" role="tab" aria-controls="mw-panel-code" data-view="code">Code</button><button id="mw-tab-chat" role="tab" aria-controls="mw-panel-chat" class="mw-mobile-chat" data-view="chat">Chat</button></nav>'+
-      '<div class="mw-body"><main class="mw-main"><div class="mw-selection" role="status">Notes show the validated revision. Select a note to locate its source.</div><div id="mw-panel-notes" role="tabpanel" aria-labelledby="mw-tab-notes" class="mw-mainview mw-notes"></div><div id="mw-panel-code" role="tabpanel" aria-labelledby="mw-tab-code" class="mw-mainview mw-code" hidden></div>'+
+      '<div class="mw-body"><main class="mw-main"><p class="mw-source-mode"></p><div class="mw-selection" role="status">Notes show the validated revision. Select a note to locate its source.</div><div id="mw-panel-notes" role="tabpanel" aria-labelledby="mw-tab-notes" class="mw-mainview mw-notes"></div><div id="mw-panel-code" role="tabpanel" aria-labelledby="mw-tab-code" class="mw-mainview mw-code" hidden></div>'+
       '<div class="mw-diagnostics" role="status"></div><details class="mw-help"><summary>Music help and limits</summary><pre></pre><p>Audio/file exports are limited to 10 minutes; project downloads preserve longer songs.</p></details></main>'+
       '<aside id="mw-panel-chat" class="mw-chat" aria-label="Musical collaboration"><h2>Chat</h2><p class="mw-context"></p>'+
       '<section class="mw-project-handoff" hidden><p>Web Chat runs in the hosted workspace. Open this project there to unlock Chat and request proposals.</p><button data-action="project-handoff">Open this project in web Chat</button><p>Copies your draft and last validated revision to web Chat without private chat or provenance. Accept in the new window; your original project stays here.</p></section>'+
       '<section class="mw-transfer-offer" aria-label="Incoming project" hidden><p class="mw-transfer-description" role="status"></p><div class="mw-actions"><button data-action="transfer-accept" disabled>Accept</button><button data-action="transfer-cancel">Cancel</button></div></section>'+
-      '<section class="mw-chat-access" aria-label="Built-in chat access"><h2>Built-in chat</h2><p>Use the owner password, not an API key. Request proposal sends your music source and request to the selected provider. Unlocking makes no model call.</p>'+
-      '<label>Provider<select class="mw-chat-provider" aria-label="Chat provider"></select></label><label>Owner password<input class="mw-owner-password" type="password" autocomplete="off" maxlength="1024"></label>'+
-      '<div class="mw-actions"><button data-action="chat-unlock">Unlock chat</button><button data-action="chat-logout" disabled>Lock chat</button><button data-action="chat-access-refresh">Refresh access</button></div><p class="mw-chat-access-status" role="status">Checking chat access…</p></section>'+
       '<label>Ask a musical agent<textarea class="mw-chat-input" maxlength="2000" placeholder="Simplify the drums, keep the melody"></textarea></label><small>Code and playback work without chat. Proposals require Apply. Chat supports source up to 512 KiB UTF-8; larger projects remain editable and downloadable.</small>'+
+      '<section class="mw-chat-access" aria-label="Built-in chat access"><p class="mw-chat-access-status" role="status">Checking chat access…</p><details class="mw-chat-settings"><summary>Chat settings</summary><div class="mw-settings-content"><p>Use the owner password, not an API key. Request proposal sends your music source and request to the selected provider. Unlocking makes no model call.</p>'+
+      '<label>Provider<select class="mw-chat-provider" aria-label="Chat provider"></select></label><label>Owner password<input class="mw-owner-password" type="password" autocomplete="off" maxlength="1024"></label>'+
+      '<div class="mw-actions"><button data-action="chat-unlock">Unlock chat</button><button data-action="chat-logout" disabled>Lock chat</button><button data-action="chat-access-refresh">Refresh access</button></div></div></details></section>'+
       '<label>Edit scope <select class="mw-scope"><option value="-1">Whole song</option><option value="0">Melody</option><option value="1">Harmony</option><option value="2">Bass</option><option value="3">Drums</option></select></label>'+
       '<label>Melody lock <select class="mw-lock"><option value="none">Unlocked</option><option value="track">Whole track</option><option value="pitchrhythm">Pitch and rhythm</option><option value="instrument">Instrument</option><option value="arrangement">Arrangement</option></select></label>'+
       '<label><input class="mw-region" type="checkbox"> Restrict to selected note region</label>'+
       '<div class="mw-actions"><button data-action="chat">Request proposal</button><button data-action="cancel">Cancel request</button></div><div class="mw-proposals" aria-live="polite"></div>'+
-      '<label>Generate with the composer<input class="mw-generate-text" maxlength="500" placeholder="Make something happy"></label><button data-action="generate">Generate song</button>'+
+      '<label>Generate a full song (exact source)<input class="mw-generate-text" maxlength="500" placeholder="Make something happy"></label><button data-action="generate">Generate song</button>'+
       '<details class="mw-external-mcp"><summary>External agent via MCP (optional)</summary><section class="mw-connect" aria-label="Connect a music agent"><h2>Connect</h2>'+
       '<div class="mw-mcp-setup" hidden><p>Add this remote MCP server in your agent, sign in with the same account, then refresh clients. Authorizing a client does not share a song; Connect below does.</p><label>Remote MCP server<input class="mw-mcp-endpoint" type="text" readonly></label><button data-action="copy-mcp">Copy MCP endpoint</button></div>'+
       '<p class="mw-mcp-unavailable">Remote MCP setup requires the HTTPS gateway and an available connection API. It is unavailable on the Cloudflare site without that API. Sign in if prompted, then refresh clients.</p>'+
@@ -16213,7 +16304,7 @@ var EXPORTS = {
       '<label>Agent client<select class="mw-client"><option value="">Choose an authorized client</option></select></label><div class="mw-actions"><button data-action="refresh-clients">Refresh clients</button><button data-action="connect" disabled>Connect</button><button data-action="disconnect" disabled>Disconnect</button></div>'+
       '<p class="mw-connect-status" role="status">Connection unavailable in this build.</p><a class="mw-sign-in" href="/sign-in" hidden>Sign in to connect</a></section></details></aside></div>'+
       '<footer class="mw-actions"><button data-action="save">Save draft locally</button><button data-action="download">Download project</button><button data-action="open">Open project</button><button data-action="share">Copy project link</button>'+
-      '<select class="mw-format" aria-label="Export format"><option value="wav">WAV</option><option value="midi">MIDI</option><option value="rom">Game Boy ROM</option><option value="lsdsng">LSDj</option></select><button data-action="export">Export validated revision</button><small class="mw-build"></small></footer>'+
+      '<details class="mw-exports"><summary>Export audio / files</summary><div class="mw-actions"><select class="mw-format" aria-label="Export format"><option value="wav">WAV</option><option value="midi">MIDI</option><option value="rom">Game Boy ROM</option><option value="lsdsng">LSDj</option></select><button data-action="export">Export validated revision</button></div></details><small class="mw-build"></small></footer>'+
       '<p class="mw-status" role="status" aria-live="polite"></p>';
     document.body.appendChild(root);
     if(mainSite){
@@ -16228,6 +16319,11 @@ var EXPORTS = {
     });
     $('.mw-project-handoff').hidden=!G.CT_MUSIC_PROJECT_TRANSFER||location.origin!==G.CT_MUSIC_PROJECT_TRANSFER.SENDER_ORIGIN;
     $('.mw-build').textContent='Music v'+G.CT_MUSIC_LANGUAGE.VERSION+' · '+(G.CT_MUSIC_BUILD_VERSION||'development');
+    root.addEventListener('keydown',function(e){
+      if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)&&!e.altKey&&!e.isComposing&&e.target.closest('.mw-code')){
+        e.preventDefault();e.stopImmediatePropagation();try{runDraft();}catch(error){announceError(error);}return;
+      }
+    },true);
     root.addEventListener('keydown',function(e){
       if(e.defaultPrevented){e.stopPropagation();return;}
       if(e.key==='Tab'&&!e.defaultPrevented){
@@ -16276,7 +16372,8 @@ var EXPORTS = {
     else if(name==='connect'){if(connection)await connection.connect($('.mw-client').value);}
     else if(name==='disconnect'){if(connection)connection.disconnect();}
     else if(name==='refresh-clients'){if(connection)await connection.refresh();}
-    else if(name==='apply'){var r=project.applyDraft();diagnostics(r.diagnostics);applied(r);}
+    else if(name==='new-loop')newLoop();
+    else if(name==='apply')runDraft();
     else if(name==='undo'||name==='redo')applied(project[name]());
     else if(name==='play'){var v=snap().validated;if(v)activate(v,true);}
     else if(name==='pause')engine().musicPause(audioState.status!=='paused');
@@ -16315,6 +16412,7 @@ var EXPORTS = {
         if(project!==owner||root.hidden)return;
         if(!G.confirm('Replace this workspace? Download the current project first to keep a copy.'))return;
         cancelChat();resetAudio();project=loaded.project;selection=null;proposal=null;agentInstance=G.crypto.randomUUID();
+        defaultProjectLoop();
         syncEditor();renderNotes();renderProposal();renderState();diagnostics(snap().diagnostics);scheduleSave();
       }catch(e){announceError(e);}};input.click();
     }else if(name==='export'){
@@ -16346,10 +16444,14 @@ var EXPORTS = {
         if(saved.serialized){var restored=api().restore(saved.serialized,opts());if(restored.ok)project=restored.project;else{conflict=true;status(restored.message+' · Original saved project preserved');}}
       }catch(e){storage=null;status('Local storage unavailable. Download a project file to keep your work.');}
       if(!project){
-        var initialSettings=Object.assign({},initial&&initial.settings||{});
-        if(initialSettings.stepsPerBar==null&&initialSettings.grid!=null)initialSettings.stepsPerBar=initialSettings.grid;
-        var source=initial?G.CT_MUSIC_LANGUAGE.materialize(initial.gb,initialSettings):'song({tempo:128,bars:4})\n\n// Write patterns here, or generate a song from Chat.\n';
-        project=api().create(source,opts());unsaved=true;
+        // The legacy entry deliberately supplies a song; preserve it exactly.
+        // Only a fresh open without an initial song starts authored patterns.
+        if(initial){
+          var initialSettings=Object.assign({},initial.settings||{});
+          if(initialSettings.stepsPerBar==null&&initialSettings.grid!=null)initialSettings.stepsPerBar=initialSettings.grid;
+          project=api().create(G.CT_MUSIC_LANGUAGE.materialize(initial.gb,initialSettings),opts());
+        }else{project=loopProject();$('.mw-loop').checked=true;}
+        unsaved=true;
       }
       var shared=location.hash.match(/^#music=(.+)$/);
       if(shared){try{
@@ -16358,6 +16460,7 @@ var EXPORTS = {
         var imported=check(api().restore(new TextDecoder().decode(bytes),opts()));project=imported.project;unsaved=true;
         if(saved&&saved.serialized){conflict=true;status('Shared project opened separately. Your existing local draft is preserved; download this project to keep it.');}
       }catch(e){announceError(e);}}
+      defaultProjectLoop();
     }
     if(G.CT_CREATE.stopForNative)G.CT_CREATE.stopForNative();engine().enterCreate();
     if(!/^#music(?:=|$)/.test(location.hash))history.replaceState(null,'','/create#music');

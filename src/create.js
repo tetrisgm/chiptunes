@@ -2307,6 +2307,7 @@
       // is mostly song. This is the same nowrap + overflow-x treatment the
       // mood row above already uses.
       '<div class="n-utils">' +
+        '<button type="button" class="cr-btn" data-cr="livecoding" title="Open the code workspace and keep this song in the piano roll">Live coding</button>' +
         '<button type="button" class="cr-btn" data-cr="undo">↩ Undo</button>' +
         '<button type="button" class="cr-btn" data-cr="redo">↪ Redo</button>' +
         // The link is how a song made here is kept and heard elsewhere: closing
@@ -2872,6 +2873,9 @@
       else if (k === 'opennative') { openNative(); }
       else if (k === 'opennativejson') { openNativeJson(); }
       else if (k === 'resumenative') { resumeNative(); }
+      else if (k === 'livecoding') {
+        G.CT_MUSIC_WORKSPACE.open().catch(function(e){if(G._toast)G._toast(e.message);});
+      }
       else if (k === 'workspace') {
         G.CT_MUSIC_WORKSPACE.open({gb:liveScore||buildSong(),settings:{tempo:S.bpm,bars:S.bars,title:S.title,tempoAt:S.tempoAt||[],grid:spb()}}).catch(function(e){if(G._toast)G._toast(e.message);});
       }
