@@ -33,6 +33,9 @@ Remaining core gate: representative musical listening acceptance. Three WAV
 clips (original, manual bass, simplified drums) were provided to the owner;
 no listening result has been received. `docs/create-workspace-acceptance.md`
 records the full original-plan audit and explicit resource/capability limits.
+Private TextText changelog release 3ab136f was confirmed by reading its section
+after the write returned an ambiguous sync-wait response; no duplicate or public
+entry was created.
 Do not claim whole-goal completion or substitute PCM metrics for listening.
 
 ### Earlier handoff release and follow-up history
