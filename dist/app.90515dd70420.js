@@ -1,8 +1,8 @@
 globalThis.CT_MUSIC_ASSETS_VERSION="e84045bcb7186729";
-globalThis.CT_MUSIC_EDITOR_VERSION="eee0afd331f8";
+globalThis.CT_MUSIC_EDITOR_VERSION="9731629af0c2";
 globalThis.CT_MUSIC_CHAT_UI_VERSION="904689e8bae1";
-globalThis.CT_MUSIC_PREVIEW_VERSION="21e5e4bcc266";
-globalThis.CT_MUSIC_BUILD_VERSION="aa1a525d6edd";
+globalThis.CT_MUSIC_PREVIEW_VERSION="d74b66e061b2";
+globalThis.CT_MUSIC_BUILD_VERSION="825b6f3ddb9a";
 /* ===== src/seed.js ===== */
 // ===== seed.js — deterministic generated-track identity. =====
 // Loads FIRST (before composer.js/audio.js) so any composer can seed itself from a URL token.
@@ -14774,7 +14774,16 @@ var EXPORTS = {
  * Exact events have none of these pattern-only fields; all-rest plays emit no
  * note mappings. Occurrence ends are exclusive and are not clipped to song end.
  * Each span has start/end {offset,line,column}: UTF-16 offsets, exclusive end,
- * one-based line/column. tempoAt:[[row,tempo],...] opts into Create's LSDj
+ * one-based line/column. Successful compiles also expose controls for direct
+ * literal gate/velocity/transpose on notes and transpose on tracks, once per
+ * source call (including unused declarations). literalSpan is the numeric
+ * token, callSpan runs from the dot through the close, and ownerSpan covers
+ * the declaration through its final close, excluding trailing trivia/semicolon.
+ * Controls are source ordered and published only after all validation succeeds.
+ * The first LIMITS.controls calls are retained; controlsOmitted counts the rest
+ * without changing musical validity. Failed compiles expose controls:[] and
+ * controlsOmitted:0.
+ * tempoAt:[[row,tempo],...] opts into Create's LSDj
  * segment clock; rows use settings.stepsPerBar (16 default), swing uses the
  * shared groove. Fractional gate rows interpolate adjacent boundary frames.
  * Resource limits are deterministic operation/data budgets, not wall time.
@@ -14783,8 +14792,11 @@ var EXPORTS = {
   'use strict';
   var H = typeof module !== 'undefined' && module.exports ? require('./gb-hardware.js') : G.CT_GB;
   var K = typeof module !== 'undefined' && module.exports ? require('./gb-kits.js') : G.CT_GB_KITS;
-  var LIMITS = Object.freeze({ source: 1048576, depth: 32, nodes: 500000, events: 50000,
+  var LIMITS = Object.freeze({ source: 1048576, depth: 32, nodes: 500000, events: 50000, controls: 50000,
     frames: 216000, repeats: 4096, steps: 65536, work: 2000000, instruments: 50128 });
+  var CONTROL_BOUNDS = { gate: [0.001, 1, false], velocity: [0, 1, false], transpose: [-128, 128, true] };
+  var NOTE_BOUNDS = { stepsPerBar: [1, 256, true], gate: CONTROL_BOUNDS.gate,
+    velocity: CONTROL_BOUNDS.velocity, transpose: CONTROL_BOUNDS.transpose, register: [-128, 128, true] };
   var own = function (o, k) { return Object.prototype.hasOwnProperty.call(o, k); };
   function fail(message, at) { var e = new Error(message); e.at = at || 0; throw e; }
   function object(v) { return v !== null && typeof v === 'object' && !Array.isArray(v); }
@@ -14859,7 +14871,7 @@ var EXPORTS = {
     }
     fail('Unclosed string', start);
   };
-  Parser.prototype.value = function (depth, raw) {
+  Parser.prototype.value = function (depth, raw, numberSpan) {
     need(depth <= LIMITS.depth && ++this.nodes <= LIMITS.nodes, 'Data resource limit', this.i);
     this.skip(); var c = this.s[this.i], v, k;
     if (c === '"' || c === "'") return this.string(raw);
@@ -14878,12 +14890,19 @@ var EXPORTS = {
       } while (true);
     }
     var m = /^-?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?/.exec(this.s.slice(this.i));
-    if (m) { this.i += m[0].length; v = Number(m[0]); need(Number.isFinite(v), 'Non-finite number', this.i); return v; }
+    if (m) {
+      // Only the direct numeric token gets a span; nested data and surrounding
+      // trivia never contribute. Keep spelling in the source, not a reprint.
+      if (numberSpan) numberSpan.push(this.i, this.i + m[0].length);
+      this.i += m[0].length; v = Number(m[0]); need(Number.isFinite(v), 'Non-finite number', this.i); return v;
+    }
     k = this.id(); if (k === 'true') return true; if (k === 'false') return false; if (k === 'null') return null;
     fail('Only literal data is allowed', this.i - k.length);
   };
-  Parser.prototype.args = function (rawArgs) { var a = []; this.expect('('); if (!this.take(')')) { do { var raw = rawArgs ? [] : null; a.push(this.value(0, raw)); if (rawArgs) rawArgs.push(raw); } while (this.take(',')); this.expect(')'); } return a; };
-  Parser.prototype.chain = function () { var a = []; while (this.take('.')) { var at = this.i, name = this.id(), args = this.args(); a.push({ name: name, args: args, at: at, end: this.i }); } return a; };
+  // Transform controls use exactly one argument. Capture its token while the
+  // existing literal parser consumes it; argument validation remains unchanged.
+  Parser.prototype.args = function (rawArgs, firstNumberSpan) { var a = []; this.expect('('); if (!this.take(')')) { do { var raw = rawArgs ? [] : null; a.push(this.value(0, raw, a.length === 0 ? firstNumberSpan : null)); if (rawArgs) rawArgs.push(raw); } while (this.take(',')); this.expect(')'); } return a; };
+  Parser.prototype.chain = function () { var a = []; while (this.take('.')) { var at = this.i, name = this.id(), numberSpan = own(CONTROL_BOUNDS, name) ? [] : null, args = this.args(null, numberSpan); a.push({ name: name, args: args, at: at, end: this.i, numberSpan: numberSpan }); } return a; };
   function compile(source) {
     var settings = {}, mapping = [], diagnostics = [], p, gb = null;
     var lines = [0];
@@ -14893,8 +14912,21 @@ var EXPORTS = {
       need(typeof source === 'string' && source.length <= LIMITS.source, 'Source size limit');
       for (var li = 0; li < source.length; li++) if (source[li] === '\n') lines.push(li + 1);
       need(H && H.beatToFrame, 'CT_GB hardware dependency is required');
-      p = new Parser(source); var patterns = Object.create(null), plays = [], seen = Object.create(null), eventCount = 0, eventSpans = {}, work = 0;
+      p = new Parser(source); var patterns = Object.create(null), plays = [], seen = Object.create(null), eventCount = 0, eventSpans = {}, work = 0, controlCalls = [], controlsOmitted = 0;
       function spend(n, at) { work += n; need(work <= LIMITS.work, 'Compilation work limit', at); }
+      function recordControls(chains, ownerType, ownerName, at, end) {
+        var ownerSpan;
+        // Visit declarations, never expanded plays/notes: source order and one
+        // descriptor per call follow directly, even for repeated or silent uses.
+        chains.forEach(function (c) {
+          if (!own(CONTROL_BOUNDS, c.name) || ownerType === 'track' && c.name !== 'transpose') return;
+          // This is view metadata, not a new music resource gate. The source
+          // limit bounds the total call count; retain only the first 50,000.
+          if (controlCalls.length === LIMITS.controls) { controlsOmitted++; return; }
+          if (!ownerSpan) ownerSpan = span(at, end);
+          controlCalls.push({ call: c, ownerType: ownerType, ownerName: ownerName, ownerSpan: ownerSpan });
+        });
+      }
       gb = { notes: [] };
       function add(key, value, at, end) {
         need(object(value), key + ' requires an object', at);
@@ -14912,16 +14944,21 @@ var EXPORTS = {
           p.expect(','); need(p.id() === 'notes', 'Pattern requires notes()', p.i); var rawArgs = []; args = p.args(rawArgs); chains = p.chain(); p.expect(')');
           need(args.length === 1 && typeof args[0] === 'string', 'notes requires a string', at);
           chains.forEach(function (c) {
-            var bounds = { stepsPerBar: [1, 256, true], gate: [0.001, 1, false], velocity: [0, 1, false], transpose: [-128, 128, true], register: [-128, 128, true] };
-            need(own(bounds, c.name), 'Unknown notes transformation', c.at);
-            var b = bounds[c.name]; need(c.args.length === 1 && num(c.args[0], b[0], b[1], b[2]), 'Invalid notes transformation argument', c.at);
+            need(own(NOTE_BOUNDS, c.name), 'Unknown notes transformation', c.at);
+            var b = NOTE_BOUNDS[c.name]; need(c.args.length === 1 && num(c.args[0], b[0], b[1], b[2]), 'Invalid notes transformation argument', c.at);
           });
           patterns[pn] = { text: args[0], raw: rawArgs[0], chains: chains, at: at, end: p.i };
+          recordControls(chains, 'pattern', pn, at, p.i);
         } else {
           args = p.args(); chains = p.chain();
           need(args.length === 1, name + ' requires one argument', at);
           var v = args[0];
-          if (name === 'track') { need(typeof v === 'string', 'Track requires a lane name', at); plays.push({ lane: v, chains: chains, at: at, end: p.i }); }
+          if (name === 'track') {
+            need(typeof v === 'string', 'Track requires a lane name', at); plays.push({ lane: v, chains: chains, at: at, end: p.i });
+            // chain() skips trivia when looking for the next dot. Its last
+            // call end is the declaration close; keep legacy mapping ends as-is.
+            if (chains.length) recordControls(chains, 'track', v, at, chains[chains.length - 1].end);
+          }
           else {
             need(chains.length === 0, 'Unsupported chain', at);
             var eventNames = { event: 'notes', automation: 'auto', vibratoOff: 'vibOff', waveLoad: 'waveLoads', kit: 'kit' };
@@ -15057,8 +15094,16 @@ var EXPORTS = {
         if (n.frame < ends[n.ch]) diagnostics.push({ severity: 'warning', code: 'CHIP_OVERLAP', message: 'Overlapping notes on chip channel ' + n.ch, span: mapping[item.i].span, noteIndex: item.i });
         ends[n.ch] = Math.max(ends[n.ch], n.frame + n.frames);
       });
-      return { gb: gb, settings: settings, mapping: mapping, diagnostics: diagnostics };
-    } catch (e) { return { gb: null, settings: settings, mapping: [], diagnostics: [{ severity: 'error', code: 'INVALID_SOURCE', message: e.message, span: span(e.at == null ? p ? p.i : 0 : e.at, e.at == null ? p ? p.i : 0 : e.at) }] }; }
+      // Tracks, emitted pitches/timing, banks and dedicated event arrays have
+      // all validated. Every retained call now has one direct numeric token.
+      var controls = controlCalls.map(function (entry) {
+        var c = entry.call, b = CONTROL_BOUNDS[c.name];
+        return { kind: c.name, value: c.args[0], literalSpan: span(c.numberSpan[0], c.numberSpan[1]),
+          callSpan: span(c.at - 1, c.end), ownerSpan: entry.ownerSpan, ownerType: entry.ownerType,
+          ownerName: entry.ownerName, min: b[0], max: b[1], integer: b[2] };
+      });
+      return { gb: gb, settings: settings, mapping: mapping, diagnostics: diagnostics, controls: controls, controlsOmitted: controlsOmitted };
+    } catch (e) { return { gb: null, settings: settings, mapping: [], controls: [], controlsOmitted: 0, diagnostics: [{ severity: 'error', code: 'INVALID_SOURCE', message: e.message, span: span(e.at == null ? p ? p.i : 0 : e.at, e.at == null ? p ? p.i : 0 : e.at) }] }; }
   }
   function materialize(gb, meta) {
     var nodes = 0, active = new Set();
@@ -15273,7 +15318,11 @@ var EXPORTS = {
           assert(Number.isInteger(n.ch) && n.ch >= 0 && n.ch <= 3 && Number.isFinite(n.frame) && n.frame >= 0 &&
             Number.isFinite(n.frames) && n.frames >= 0, 'Invalid compiled note timing/channel');
         });
-        return { ok: true, compiled: { gb: c.gb, settings: c.settings || {}, mapping: c.mapping || [], diagnostics: ds }, diagnostics: ds };
+        // View descriptors come only from this compile, never persisted input
+        // or agent-supplied metadata. They cannot influence musical diffs/audio.
+        assert(c.controls === undefined || Array.isArray(c.controls) && c.controls.length <= 50000, 'Invalid source-control descriptors');
+        assert(c.controlsOmitted === undefined || Number.isSafeInteger(c.controlsOmitted) && c.controlsOmitted >= 0 && c.controlsOmitted <= LIMITS.source, 'Invalid source-control omissions');
+        return { ok: true, compiled: { gb: c.gb, settings: c.settings || {}, mapping: c.mapping || [], controls: c.controls || [], controlsOmitted: c.controlsOmitted || 0, diagnostics: ds }, diagnostics: ds };
       } catch (e) { return { ok: false, code: 'invalid', diagnostics: [{ severity: 'error', message: String(e.message || e) }] }; }
     }
     function supersede() {
@@ -16126,8 +16175,20 @@ var EXPORTS = {
       result.mapping.length>EVENT_LIMIT||result.diagnostics.length>2*EVENT_LIMIT+1)return false;
     if(!result.diagnostics.every(function(d){return object(d)&&typeof d.message==='string'&&d.message.length<=SOURCE_LIMIT&&
       ['error','warning','info'].indexOf(d.severity)!==-1&&(!d.span||span(d.span));}))return false;
+    if(result.controlsOmitted!==undefined&&!integer(result.controlsOmitted,SOURCE_LIMIT))return false;
+    if(result.controls!==undefined&&(!Array.isArray(result.controls)||result.controls.length>EVENT_LIMIT||!result.controls.every(function(c){
+      var bounds={gate:[.001,1,false],velocity:[0,1,false],transpose:[-128,128,true]},b=object(c)&&Object.prototype.hasOwnProperty.call(bounds,c.kind)&&bounds[c.kind];
+      if(!b||!['pattern','track'].includes(c.ownerType)||(c.ownerType==='track'&&c.kind!=='transpose')||
+        typeof c.ownerName!=='string'||c.ownerName.length>SOURCE_LIMIT||c.min!==b[0]||c.max!==b[1]||c.integer!==b[2]||
+        !Number.isFinite(c.value)||c.value<b[0]||c.value>b[1]||(b[2]&&!Number.isInteger(c.value))||
+        !span(c.literalSpan)||!span(c.callSpan)||!span(c.ownerSpan))return false;
+      if(c.ownerSpan.start.offset>c.callSpan.start.offset||c.callSpan.start.offset>c.literalSpan.start.offset||
+        c.literalSpan.end.offset>c.callSpan.end.offset||c.callSpan.end.offset>c.ownerSpan.end.offset)return false;
+      var text=source.slice(c.literalSpan.start.offset,c.literalSpan.end.offset);
+      return /^-?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(text)&&Number(text)===c.value;
+    })))return false;
     var errors=result.diagnostics.some(function(d){return d.severity==='error';});
-    if(result.gb===null)return errors&&result.mapping.length===0;
+    if(result.gb===null)return errors&&result.mapping.length===0&&!(result.controls||[]).length&&!result.controlsOmitted;
     if(errors||!object(result.gb)||!Array.isArray(result.gb.notes)||result.gb.notes.length>EVENT_LIMIT||
       !integer(result.gb.totalFrames,FRAME_LIMIT)||result.mapping.length!==result.gb.notes.length)return false;
     var count=0;
@@ -17288,6 +17349,7 @@ var EXPORTS = {
   var preview=null,previewChart=null,previewOwner=null,previewStatus='Validated chart';
   var chartIndex=null,chartRange=null,chartViewportKey='',chartRenderFrame=null;
   var inlineContext=null;
+  var codeProject=null,codeProjectId=0;
   var CHART_GUTTER=68,NOTE_ROW=14,LANE_HEADER=25;
   var visualizerOpen=false,presentationOwner=null,presentationFocus=null,stageError='';
   var visualEditor=null,visualEditorLoading=false,visualControlSignature='',visualRenderQueued=false;
@@ -17783,11 +17845,15 @@ var EXPORTS = {
   }}
   function syncPatternContext(){
     if(!editor||!editor.setPatternContext)return;
+    if(codeProject!==project){
+      codeProject=project;codeProjectId++;inlineContext=null;
+      if(editor.cancelSourceGesture)editor.cancelSourceGesture();
+    }
     var s=snap(),v=chartContext(s),context=v&&s.draft===v.source?v:null;
     // Project snapshots are detached copies. Compare revision identity rather
     // than object identity so scrolling cannot reset an inline occurrence picker.
     if(context?(!inlineContext||inlineContext.owner!==project||inlineContext.id!==context.id||inlineContext.source!==context.source):!!inlineContext){
-      editor.setPatternContext(context?{source:context.source,compiled:context.compiled}:null);
+      editor.setPatternContext(context?{source:context.source,compiled:context.compiled,projectId:codeProjectId}:null);
       inlineContext=context?{owner:project,id:context.id,source:context.source}:null;
     }
   }
@@ -17929,7 +17995,7 @@ var EXPORTS = {
     $('.mw-chart-status').textContent=previewStatus;
     $('.mw-source-mode').textContent=v&&v.compiled.mapping.some(function(m){return m.pattern===null;})?
       'Exact song source preserved. For a readable live-coding sketch, choose New loop above. Download this project first to keep it.':
-      'Edit the patterns, then Run (Cmd/Ctrl+Enter). Changes join at a musical boundary while playing.';
+      'Edit patterns or their gate, velocity and transpose controls, then Run (Cmd/Ctrl+Enter). Controls edit source literals only; changes join at a musical boundary while playing.';
     if(v&&((v.compiled.gb.auto||[]).length||(v.compiled.gb.kit||[]).length))$('.mw-source-mode').textContent+=' Token playback markers are unavailable on register/sample-driven tracks.';
     syncPatternContext();
     $('.mw-overview').hidden=!v;
@@ -18571,6 +18637,7 @@ var EXPORTS = {
     if(!root||root.hidden)return;
     openEpoch++;
     cancelPreview();
+    inlineContext=null;if(editor&&editor.cancelSourceGesture)editor.cancelSourceGesture();
     if(visualizerOpen)setVisualizer(false);
     if($('.mw-chat-settings').open)$('.mw-chat-settings').close();
     if(outboundTransfer)outboundTransfer.cancel();outboundTransfer=null;

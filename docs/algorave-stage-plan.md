@@ -43,9 +43,9 @@ them displace this main workflow. No autoplay or compulsory second visual progra
   that audio-render-context timestamps are not speaker-latency measurements.
 - Background rendering currently stops when document.hidden. A popup alone
   cannot be claimed to solve audience output while the editor is backgrounded.
-- Source-linked music controls have a separately tested preparatory module;
-  compiler descriptors and host integration are still outstanding. They remain
-  relevant, but do not precede the new core visual-stage layout.
+- Source-linked gate/velocity/transpose controls now use compiler descriptors
+  through the existing worker/project/editor path. They patch exact source
+  literals and remain drafts until Run; no separate mixer state is introduced.
 
 ## Layout and modes
 
@@ -234,8 +234,8 @@ unit checks plus real browser pixels exercise those specific boundaries.
   scene/time and cancellation. Define pause/seek/revision behavior explicitly.
 - [x] Implement distinct Stop music, Freeze visuals, Blackout output, Reset visual
   state and Global panic operations. Blackout is not an audio stop.
-- [ ] Integrate the prepared music gate/velocity/transpose literal controls and
-  finish the Tidal-guided bounded pattern subset/live build-up from the music plan.
+- [x] Integrate the prepared music gate/velocity/transpose literal controls.
+- [ ] Finish the Tidal-guided bounded pattern subset/live build-up from the music plan.
 
 Gate: code and named state have one declared source of truth, errors keep the
 last usable output, and each performance control has independently tested effects.
@@ -257,6 +257,17 @@ the editor inside its pane; code/chart/chat remain independent. Parser errors
 retain the live graph; recoverable draw failures retain the last complete front
 buffer. Named control values do not rewrite source. These are session values
 only at this checkpoint: the UI says so explicitly, and Phase E is not complete.
+
+Music controls are a different source-of-truth contract: the compiler describes
+direct gate/velocity/transpose literals, and each widget edits that exact source
+span. Preview and Run use the same compiler. At most 24 widgets are shown, with
+explicit omissions; invalid/foreign drafts, project replacement and close revoke
+old controls. Slow pointer/key gestures are one Undo entry, including focused
+Cmd/Ctrl-Z. Unchanged mounting retains numeric spelling, comments and precision.
+Descriptors are recompiled view metadata, never restored project authority.
+The complete unified suite and local native Safari on Music 825b6f3ddb9a verify
+source-only editing, native range/numeric input, grouped Undo, continued sounding
+revision and explicit Run to a new boundary. This does not enable cycleV1 yet.
 
 ### E. Save the audiovisual composition and create audience output
 

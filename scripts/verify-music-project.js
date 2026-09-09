@@ -271,4 +271,20 @@ if (fs.existsSync(languagePath)) test('real language materialization, malicious 
   assert.equal(restored.project.draft, p.draft); assert.deepEqual(restored.project.validated.compiled.gb, gb);
   assert.equal(globalThis.pwned, undefined);
 });
+test('real source controls are recompiled, detached view metadata, never persisted authority', () => {
+  const L=require('../src/music-language.js');
+  const text='song({tempo:128,bars:2});pattern("p",notes("C4 E4").gate(.5).velocity(.7));track("lead").instrument("p0").transpose(12).play("p");';
+  const opts={compile:L.compile},p=P.create(text,opts),expected=L.compile(text).controls;
+  assert.equal(expected.length,3);assert.deepEqual(p.validated.compiled.controls,expected);
+  const view=p.validated;view.compiled.controls[0].value=.1;
+  assert.deepEqual(p.validated.compiled.controls,expected);
+  const serialized=p.serialize();assert.equal(serialized.includes('"controls"'),false);
+  const tampered=JSON.parse(serialized);tampered.lastValid.compiled={controls:[{kind:'gate',value:.1}]};
+  const restored=P.restore(JSON.stringify(tampered),opts);assert.equal(restored.ok,true);
+  assert.deepEqual(restored.project.validated.compiled.controls,expected,'saved metadata cannot override compiler spans');
+  p.editDraft(text+'broken(');assert.equal(p.applyDraft().ok,false);assert.deepEqual(p.validated.compiled.controls,expected);
+  p.editDraft(text.replace('.gate(.5)','.gate(.6)'));assert.equal(p.applyDraft().ok,true);
+  assert.equal(p.validated.compiled.controls[0].value,.6);
+  p.undo();assert.deepEqual(p.validated.compiled.controls,expected);p.redo();assert.equal(p.validated.compiled.controls[0].value,.6);
+});
 console.log('Music project: ' + tests + ' groups passed.');

@@ -2,7 +2,8 @@
 // Compiler-shaped metadata fixtures, NOT compiler integration coverage.
 // Standalone public API harness; its bundle never touches shared dist.
 const assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
-const {build}=require('esbuild'),{chromium}=require('playwright');
+const {build}=require('esbuild'),engines=require('playwright');
+const engine=process.argv.includes('--webkit')?'webkit':'chromium';
 const span=(from,to)=>({start:{offset:from,line:1,column:from+1},end:{offset:to,line:1,column:to+1}});
 function fixture(source,projectId='one'){
   const controls=[];
@@ -18,7 +19,7 @@ const original='pattern("p", notes("C4 .").gate(9.123456e-1).velocity(0.70).tran
   try{
     await build({stdin:{contents:`import {EditorView} from '@codemirror/view';import {EditorState} from '@codemirror/state';import {history,undo,redo,undoDepth} from '@codemirror/commands';import {sourceControls} from './src/music-source-controls.mjs';
       window.mount=(source)=>{window.v?.destroy();window.c?.destroy();window.c=sourceControls();window.v=new EditorView({parent:document.querySelector('main'),state:EditorState.create({doc:source,extensions:[history(),c.extensions,EditorView.updateListener.of(u=>{if(u.docChanged&&window.clearOnEdit)c.setContext(null);})]})});c.attach(v);};window.undo=()=>undo(v);window.redo=()=>redo(v);window.depth=()=>undoDepth(v.state);`,resolveDir:path.resolve(__dirname,'..'),loader:'js'},bundle:true,format:'iife',outfile:path.join(dir,'harness.js')});
-    browser=await chromium.launch({headless:true});const page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
+    browser=await engines[engine].launch({headless:true});const page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
     await page.route('**/*',r=>r.abort());await page.setContent('<main></main>');await page.addScriptTag({path:path.join(dir,'harness.js')});
     const value=()=>page.evaluate(()=>v.state.doc.toString());
     async function mount(source=original,context=fixture(source)){await page.evaluate(source=>{clearOnEdit=false;mount(source);},source);const result=await page.evaluate(context=>c.setContext(context),context);await page.evaluate(()=>new Promise(queueMicrotask));return result;}
@@ -26,6 +27,45 @@ const original='pattern("p", notes("C4 .").gate(9.123456e-1).velocity(0.70).tran
     async function finish(){await page.evaluate(()=>document.querySelector('.cm-source-control input')?.dispatchEvent(new Event('pointerup',{bubbles:true})));await page.evaluate(()=>new Promise(queueMicrotask));}
     assert.equal((await mount()).controls,3);assert.equal(await value(),original);assert.equal(await page.evaluate(()=>depth()),0);
     assert.equal(await page.locator('output').first().textContent(),'9.123456e-1');await input('.9123456');assert.equal(await value(),original);await finish();checks++;
+
+    await mount();await page.evaluate(()=>v.dispatch({selection:{anchor:0}}));
+    assert.equal(await page.locator('.cm-source-control').count(),3,'ordinary source cursor movement retains compiler-authorized controls');
+    await input('.8');await finish();assert.equal(await value(),original.replace('9.123456e-1','0.8'));checks++;
+
+    await mount();await page.evaluate(()=>document.querySelector('input[type=range]').dispatchEvent(new PointerEvent('pointerdown')));
+    assert.equal(await page.locator('input[type=range]').first().evaluate(el=>el===document.activeElement),true,'pointer activation explicitly requests keyboard focus');
+    await finish();checks++;
+
+    await mount();await page.locator('input[type=number]').first().focus();
+    await page.locator('input[type=range]').first().click();
+    await page.evaluate(context=>c.setContext(context),fixture(await value()));
+    assert.equal(await page.locator('input[type=range]').first().evaluate(el=>el===document.activeElement),true,'native click leaves the paired slider keyboard-focused');
+    assert.deepEqual(errors,[],'paired input blur cannot clear active before pointerdown marks it held');
+    checks++;
+
+    await mount();await page.evaluate(()=>clearOnEdit=true);
+    const box=await page.locator('input[type=range]').first().boundingBox();
+    await page.mouse.move(box.x+box.width*.9,box.y+box.height/2);await page.mouse.down();
+    await page.mouse.move(box.x+box.width*.7,box.y+box.height/2);await page.waitForTimeout(650);const middle=await value();
+    await page.mouse.move(box.x+box.width*.4,box.y+box.height/2);await page.waitForTimeout(650);
+    assert.notEqual(await value(),middle,'native held pointer continues editing after the first change');
+    await page.mouse.up();assert.equal(await page.evaluate(()=>depth()),1,'native slow pointer drag is one source history entry');
+    await page.evaluate(context=>c.setContext(context),fixture(await value()));
+    assert.equal(await page.locator('input[type=range]').first().evaluate(el=>el===document.activeElement),true,'native release restores keyboard focus after preview');
+    await page.keyboard.press('ControlOrMeta+z');assert.equal(await value(),original);checks++;
+
+    for(const stop of ['outside','window','focus']){
+      await mount();await page.evaluate(()=>clearOnEdit=true);
+      await page.evaluate(()=>document.querySelector('input[type=range]').dispatchEvent(new PointerEvent('pointerdown')));await input('.8');
+      await page.evaluate(stop=>{if(stop==='outside')document.body.dispatchEvent(new PointerEvent('pointerup',{bubbles:true}));else if(stop==='window')window.dispatchEvent(new Event('blur'));else{const button=document.createElement('button');document.body.append(button);button.focus();button.remove();}},stop);
+      assert.equal(await page.locator('.cm-source-control').count(),0,stop+' ends the held gesture without stale draft authority');
+    }checks++;
+
+    await mount();await input('.8');await finish();await page.evaluate(context=>c.setContext(context),fixture(await value()));
+    await page.locator('input[type=range]').first().focus();await page.keyboard.press('ControlOrMeta+z');
+    assert.equal(await value(),original,'Undo while a source control is focused uses the source history');
+    await page.evaluate(context=>c.setContext(context),fixture(original));await page.locator('input[type=range]').first().focus();
+    await page.keyboard.press('ControlOrMeta+Shift+z');assert.equal(await value(),original.replace('9.123456e-1','0.8'),'focused Redo uses that same history');checks++;
 
     await mount();await page.evaluate(()=>clearOnEdit=true);await input('.9');await page.waitForTimeout(650);await input('.001');await page.waitForTimeout(650);await input('.87654');
     assert.equal(await page.locator('.cm-source-control').count(),1,'active control survives host null');assert.equal(await value(),original.replace('9.123456e-1','0.87654'));
@@ -35,7 +75,7 @@ const original='pattern("p", notes("C4 .").gate(9.123456e-1).velocity(0.70).tran
 
     await mount();await page.evaluate(()=>window.old=document.querySelector('input[type=number]'));await input('.8');await page.evaluate(()=>v.dispatch({changes:{from:0,insert:'// foreign\n'}}));source=await value();await page.evaluate(()=>{old.value='.3';old.dispatchEvent(new Event('input'));});assert.equal(await value(),source);assert.equal(await page.locator('.cm-source-control').count(),0);checks++;
 
-    await mount();await page.evaluate(()=>window.old=document.querySelector('input[type=number]'));await input('.8');source=await value();await page.evaluate(context=>c.setContext(context),fixture(source,'two'));await page.evaluate(()=>{old.value='.3';old.dispatchEvent(new Event('input'));});assert.equal(await value(),source,'equal-source new project invalidates old callbacks');checks++;
+    await mount();await page.evaluate(()=>window.old=document.querySelector('input[type=number]'));await input('.8');source=await value();await page.evaluate(context=>c.setContext(context),fixture(source,'two'));await page.evaluate(()=>{old.value='.3';old.dispatchEvent(new Event('input'));old.dispatchEvent(new KeyboardEvent('keydown',{key:'z',metaKey:true}));});assert.equal(await value(),source,'equal-source new project invalidates old input and Undo callbacks');checks++;
 
     await mount();await page.evaluate(()=>window.old=document.querySelector('input[type=number]'));await input('.8');await page.evaluate(()=>undo());assert.equal(await value(),original);await page.evaluate(()=>{old.value='.3';old.dispatchEvent(new Event('input'));});assert.equal(await value(),original);assert.equal(await page.locator('.cm-source-control').count(),0);checks++;
 
@@ -78,6 +118,6 @@ const original='pattern("p", notes("C4 .").gate(9.123456e-1).velocity(0.70).tran
     }checks++;
 
     await mount();await page.evaluate(()=>{window.old=document.querySelector('input[type=number]');c.cancelGesture();});await page.evaluate(()=>{old.value='.3';old.dispatchEvent(new Event('input'));});assert.equal(await value(),original);await page.evaluate(context=>{c.setContext(context);c.destroy();},fixture(original));await page.evaluate(()=>{old.value='.4';old.dispatchEvent(new Event('input'));});assert.equal(await value(),original);checks++;
-    assert.deepEqual(errors,[]);console.log(`music-source-controls: ${checks} checks passed (compiler-shaped fixtures; standalone Chromium harness)`);
+    assert.deepEqual(errors,[]);console.log(`music-source-controls: ${checks} checks passed (compiler-shaped fixtures; standalone ${engine} harness)`);
   }finally{await browser?.close();fs.rmSync(dir,{recursive:true,force:true});}
 })().catch(e=>{console.error(e);process.exitCode=1;});

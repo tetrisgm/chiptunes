@@ -13,6 +13,7 @@
   var preview=null,previewChart=null,previewOwner=null,previewStatus='Validated chart';
   var chartIndex=null,chartRange=null,chartViewportKey='',chartRenderFrame=null;
   var inlineContext=null;
+  var codeProject=null,codeProjectId=0;
   var CHART_GUTTER=68,NOTE_ROW=14,LANE_HEADER=25;
   var visualizerOpen=false,presentationOwner=null,presentationFocus=null,stageError='';
   var visualEditor=null,visualEditorLoading=false,visualControlSignature='',visualRenderQueued=false;
@@ -508,11 +509,15 @@
   }}
   function syncPatternContext(){
     if(!editor||!editor.setPatternContext)return;
+    if(codeProject!==project){
+      codeProject=project;codeProjectId++;inlineContext=null;
+      if(editor.cancelSourceGesture)editor.cancelSourceGesture();
+    }
     var s=snap(),v=chartContext(s),context=v&&s.draft===v.source?v:null;
     // Project snapshots are detached copies. Compare revision identity rather
     // than object identity so scrolling cannot reset an inline occurrence picker.
     if(context?(!inlineContext||inlineContext.owner!==project||inlineContext.id!==context.id||inlineContext.source!==context.source):!!inlineContext){
-      editor.setPatternContext(context?{source:context.source,compiled:context.compiled}:null);
+      editor.setPatternContext(context?{source:context.source,compiled:context.compiled,projectId:codeProjectId}:null);
       inlineContext=context?{owner:project,id:context.id,source:context.source}:null;
     }
   }
@@ -654,7 +659,7 @@
     $('.mw-chart-status').textContent=previewStatus;
     $('.mw-source-mode').textContent=v&&v.compiled.mapping.some(function(m){return m.pattern===null;})?
       'Exact song source preserved. For a readable live-coding sketch, choose New loop above. Download this project first to keep it.':
-      'Edit the patterns, then Run (Cmd/Ctrl+Enter). Changes join at a musical boundary while playing.';
+      'Edit patterns or their gate, velocity and transpose controls, then Run (Cmd/Ctrl+Enter). Controls edit source literals only; changes join at a musical boundary while playing.';
     if(v&&((v.compiled.gb.auto||[]).length||(v.compiled.gb.kit||[]).length))$('.mw-source-mode').textContent+=' Token playback markers are unavailable on register/sample-driven tracks.';
     syncPatternContext();
     $('.mw-overview').hidden=!v;
@@ -1296,6 +1301,7 @@
     if(!root||root.hidden)return;
     openEpoch++;
     cancelPreview();
+    inlineContext=null;if(editor&&editor.cancelSourceGesture)editor.cancelSourceGesture();
     if(visualizerOpen)setVisualizer(false);
     if($('.mw-chat-settings').open)$('.mw-chat-settings').close();
     if(outboundTransfer)outboundTransfer.cancel();outboundTransfer=null;

@@ -137,8 +137,8 @@ inline visuals/widgets, not a separate piano-roll application.
 That checkpoint implemented the shared project and transport foundation, not the
 complete performance experience. Its chart compressed pitches into fixed-height
 lanes and had no inline pattern rolls or code-linked widgets. The pitch/inline
-feedback slice below is now implemented locally; controls, pattern semantics and
-the full performance demonstration remain outstanding implementation gates.
+feedback and literal-control slices below are now implemented locally; pattern
+semantics and the full performance demonstration remain outstanding gates.
 
 ### Reference-matching implementation pass
 
@@ -164,11 +164,18 @@ the full performance demonstration remain outstanding implementation gates.
    channels with raw register/sample ownership omit markers with a disclosure.
    Full chart remains bounded/zoomable. Native playing and the complete live
    performance demo are not implied by these narrower checks.
-4. [ ] Provide inline controls for existing supported parameters (initially gate,
+4. [x] Provide inline controls for existing supported parameters (initially gate,
    velocity and transposition). Each gesture changes a bounded source literal,
    preserves unrelated text and groups undo; Run/Apply keeps the current musical
    boundary contract. A control is not hidden mixer state or permission for an
    agent response to apply itself. Unsupported/ambiguous expressions stay code-only.
+   Compiler descriptors, worker validation, project snapshots and the shared
+   editor are integrated. Metadata is recompiled on restore, never serialized
+   authority. Tests cover exact patches, unrelated text/precision, omitted
+   controls, stale project/DOM handles and grouped slow gestures in Chromium and
+   WebKit. Final native local Safari (Music 825b6f3ddb9a) verifies range click,
+   drag, keyboard/numeric editing, focused Undo, and draft-only playback until
+   explicit Run activates the next revision. This is not deployed acceptance.
 5. [ ] Make the live build-up workflow easy through short readable pattern edits
    and the existing sidebar: start a groove, add/alter an accompaniment, vary the
    melody, create a breakdown and restore the full arrangement while looping.

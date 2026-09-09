@@ -19,7 +19,7 @@ The frozen export contains exactly:
 | --- | --- |
 | `VERSION` | String `'1'` |
 | `LIMITS` | Frozen limits listed below |
-| `compile(source)` | Synchronous `{gb, settings, mapping, diagnostics}` |
+| `compile(source)` | Synchronous `{gb, settings, mapping, controls, controlsOmitted, diagnostics}` |
 | `materialize(gb, meta)` | Readable source string; throws on unsupported data |
 | `beatToFrame(settings, beat)` | Shared clock conversion; returns integer frame, throws on invalid clock/position |
 | `createClock(settings)` | Validates/snapshots the clock once; returns reusable `(beat) => frame` |
@@ -27,7 +27,7 @@ The frozen export contains exactly:
 On successful compilation, `gb` is the concrete performance, `settings` is
 source metadata/settings, and `mapping` indexes `gb.notes`. Diagnostics are
 empty unless chip overlaps produce warnings. On failure, `gb` is `null`,
-`mapping` is empty, and diagnostics contains the first error. Returned settings
+`mapping` and `controls` are empty, and diagnostics contains the first error. Returned settings
 may be partially parsed; they are not a validated revision on failure.
 
 `materialize` emits explicit calls, recompiles them, and checks normalized GB
@@ -357,6 +357,40 @@ UTF-16 string offsets; end is exclusive. Lines/columns are one-based; LF starts
 a new line. The editor selects with
 `source.slice(mapping.span.start.offset, mapping.span.end.offset)` semantics.
 Mapping supports selection; it does not implement localized rewriting.
+
+### Source-linked literal controls
+
+Successful compilation also supplies `controls` for direct pattern `.gate(n)`,
+`.velocity(n)` and `.transpose(n)` literals, and track `.transpose(n)` literals.
+Each descriptor has `kind`, `value`, `min`, `max`, `integer`, `ownerType`,
+`ownerName`, `literalSpan`, `callSpan` and `ownerSpan`. All use the same UTF-16
+position convention. The literal excludes surrounding comments/whitespace; the
+call covers its dot through closing parenthesis; the owner is the whole pattern
+or track declaration. Descriptors are source-ordered, once per authored call,
+not once per note/occurrence. Unplayed and all-rest patterns can still have
+controls. This view metadata never changes `gb`, note mappings or language v1
+semantics; it does not confer new syntax on exact-event sources.
+
+The editor shows at most 24 controls and reports further omissions. The compiler
+bounds descriptor output at 50,000 and reports any additional declarations in
+`controlsOmitted`; exceeding that view budget does not reject otherwise valid
+music. Project revisions retain detached descriptors from their own compilation.
+Project files save source, not descriptors: reopening recompiles their authority.
+The preview worker validates descriptor bounds before the editor receives them.
+
+A widget edits only its numeric literal, preserving unrelated text, comments and
+untouched numeric spelling. One pointer or held-key gesture is one undoable
+source edit. Normal cursor movement leaves valid controls available. Invalid
+drafts, unrelated edits and project replacement revoke stale controls; exact
+event imports remain code-only. During a gesture only that widget can continue
+its own exact edit chain while the new preview is pending. Compiler results for
+older source/project identities cannot restore authority.
+
+Controls edit the draft and its preview. They never Run, queue, play or mutate a
+hidden mixer. Explicit Run applies the source through the existing musical
+boundary contract. Pattern controls affect every use; track transposition affects
+only subsequent plays, in source order. Chip-range errors still reject Run and
+retain the last working music; the widget does not silently clamp musical pitch.
 
 ## Limits and execution
 

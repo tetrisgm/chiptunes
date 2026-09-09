@@ -166,7 +166,11 @@
           assert(Number.isInteger(n.ch) && n.ch >= 0 && n.ch <= 3 && Number.isFinite(n.frame) && n.frame >= 0 &&
             Number.isFinite(n.frames) && n.frames >= 0, 'Invalid compiled note timing/channel');
         });
-        return { ok: true, compiled: { gb: c.gb, settings: c.settings || {}, mapping: c.mapping || [], diagnostics: ds }, diagnostics: ds };
+        // View descriptors come only from this compile, never persisted input
+        // or agent-supplied metadata. They cannot influence musical diffs/audio.
+        assert(c.controls === undefined || Array.isArray(c.controls) && c.controls.length <= 50000, 'Invalid source-control descriptors');
+        assert(c.controlsOmitted === undefined || Number.isSafeInteger(c.controlsOmitted) && c.controlsOmitted >= 0 && c.controlsOmitted <= LIMITS.source, 'Invalid source-control omissions');
+        return { ok: true, compiled: { gb: c.gb, settings: c.settings || {}, mapping: c.mapping || [], controls: c.controls || [], controlsOmitted: c.controlsOmitted || 0, diagnostics: ds }, diagnostics: ds };
       } catch (e) { return { ok: false, code: 'invalid', diagnostics: [{ severity: 'error', message: String(e.message || e) }] }; }
     }
     function supersede() {

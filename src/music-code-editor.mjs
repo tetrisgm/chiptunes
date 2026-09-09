@@ -7,6 +7,7 @@ import { javascript } from '@codemirror/lang-javascript';
 import { autocompletion } from '@codemirror/autocomplete';
 import { setDiagnostics } from '@codemirror/lint';
 import { inlineRolls } from './music-inline-rolls.mjs';
+import { sourceControls } from './music-source-controls.mjs';
 
 const help = {
   song: 'song({tempo:128,bars:16}) — finite song settings; bars are zero indexed.',
@@ -70,8 +71,9 @@ globalThis.CT_MUSIC_CODE_EDITOR = {
   mount(parent, source, onChange, {onSelectionChange,onNoteSelect,dialect,onLimit} = {}) {
     const visual=dialect==='visual',completionHelp=visual?visualHelp:help;
     const rolls=visual?{extensions:[],attach(){},destroy(){},setContext(){},setPlayback(){}}:inlineRolls({onNoteSelect});
+    const controls=visual?{extensions:[],attach(){},destroy(){},setContext(){},cancelGesture(){}}:sourceControls();
     const view = new EditorView({doc:source,parent,extensions:[
-      basicSetup, javascript(), theme, soundingField, rolls.extensions, EditorView.lineWrapping,
+      basicSetup, javascript(), theme, soundingField, rolls.extensions, controls.extensions, EditorView.lineWrapping,
       EditorView.contentAttributes.of({'aria-label':visual?'Visual source code':'Musical source code','data-shortcuts-off':''}),
       ...(visual?[EditorState.transactionFilter.of(tr=>{
         if(tr.newDoc.length<=32768)return tr;
@@ -84,12 +86,25 @@ globalThis.CT_MUSIC_CODE_EDITOR = {
         return {from:word.from,options:Object.keys(completionHelp).map(label=>({label,type:'function',info:completionHelp[label]}))};
       }]}),
       EditorView.updateListener.of(update=>{
-        if(update.docChanged) onChange(update.state.doc.toString());
+        if(update.docChanged) {
+          controls.setContext(null);
+          onChange(update.state.doc.toString());
+        }
         if((update.selectionSet||update.docChanged)&&typeof onSelectionChange==='function')
           onSelectionChange(update.state.selection.ranges.map(r=>({from:r.from,to:r.to})));
       })
     ]});
-    rolls.attach(view);
+    rolls.attach(view);controls.attach(view);
+    let destroyed=false;
+    const effects={diagnostics:0,sounding:0};
+    function publish(kind,make){
+      const doc=view.state.doc,ticket=++effects[kind];
+      // The host may report diagnostics/highlights from its own onChange.
+      // Never dispatch reentrantly, or decorate a different/newer document.
+      queueMicrotask(()=>{
+        if(!destroyed&&ticket===effects[kind]&&view.state.doc===doc)view.dispatch(make());
+      });
+    }
     return {
       value:()=>view.state.doc.toString(),
       selection:()=>view.state.selection.ranges.map(r=>({from:r.from,to:r.to})),
@@ -99,16 +114,24 @@ globalThis.CT_MUSIC_CODE_EDITOR = {
         view.dispatch({selection:{anchor:from,head:to},scrollIntoView:true}); view.focus();
       },
       diagnostics(items=[]) {
-        view.dispatch(setDiagnostics(view.state,items.map(d=>({
+        const data=items.map(d=>({
           from:Math.max(0,Math.min(view.state.doc.length,d.from||0)),
           to:Math.max(0,Math.min(view.state.doc.length,d.to||d.from||0)),
           severity:d.severity==='warning'?'warning':'error',message:d.message||String(d)
-        }))));
+        }));
+        publish('diagnostics',()=>setDiagnostics(view.state,data));
       },
-      highlightPlaying(spans=[]) { view.dispatch({effects:soundingEffect.of(spans.slice(0,4))}); },
-      setPatternContext:context=>rolls.setContext(context),
+      highlightPlaying(spans=[]) {
+        const data=spans.slice(0,4).map(s=>({from:s.from,to:s.to}));
+        publish('sounding',()=>({effects:soundingEffect.of(data)}));
+      },
+      setPatternContext(context) {
+        controls.setContext(context&&context.projectId!=null?context:null);
+        return rolls.setContext(context);
+      },
       setPatternPlayback:state=>rolls.setPlayback(state),
-      destroy:()=>{rolls.destroy();view.destroy();}, focus:()=>view.focus()
+      cancelSourceGesture:()=>controls.cancelGesture(),
+      destroy:()=>{destroyed=true;rolls.destroy();controls.destroy();view.destroy();}, focus:()=>view.focus()
     };
   }
 };

@@ -3,6 +3,68 @@
 Plain, current working notes for whoever (or whatever) picks the project up
 next. Infrastructure and operations live outside this repository.
 
+## 2026-09-09 — Source-linked music controls (local checkpoint)
+
+Gate, velocity and transpose widgets are integrated into the existing music
+editor, not a second mixer. The restricted compiler emits exact UTF-16 literal,
+call and owner spans for supported direct calls; the preview worker validates
+their envelope and the project retains detached compiled view metadata. Restore
+recompiles source instead of trusting saved descriptors. The editor verifies
+the literal/call again before editing. The compiler caps descriptors at 50,000
+and reports excess separately without rejecting formerly valid music; the view
+shows at most 24 controls with an omission count. Unused/all-rest patterns and
+post-play track transpose calls are represented truthfully as authored calls.
+
+Widgets patch only the selected numeric literal, preserving other text and
+unchanged numeric spelling. Slow pointer/keyboard gestures form one Undo entry;
+Cmd/Ctrl-Z works while an input is focused. Controls change draft/preview only,
+never audio or the validated revision. Explicit Run retains the existing
+boundary protocol. Invalid/foreign text, Undo, equal-source project replacement,
+close and destroy revoke old DOM handles and in-flight gesture authority.
+CodeMirror diagnostics and sounding effects now publish outside update listeners
+with immutable-document guards, avoiding reentrant or stale feedback dispatch.
+build.js hashes the source-control module into the editor cache version.
+
+Native Safari exposed a precise input sequence: pointerdown focused the range,
+but native mousedown moved focus back to contentDOM. Finishing on that temporary
+blur removed the control during a drag. A held pointer now ends on release,
+cancel, foreign focus or window blur; release refocuses the still-authorized
+input without preventing native dragging. A separate paired-input synchronous
+blur issue was caught in review: focus must happen before beginning/rechecking
+the new gesture. No CSS cursor workaround or custom shadow mixer was added.
+
+Final artifact: app.90515dd70420.js / Music 825b6f3ddb9a, 118 sources,
+2,558,311 JS bytes, 231,412 HTML bytes, fourteen games. Compiler descriptors:
+11 groups; existing language: 24; project: 21; preview: 14. Source-control
+harness: 25 groups each in Chromium and WebKit, including slow native drag,
+paired inputs, focused Undo and outside/window/focus cancellation. The real
+shared-artifact browser check passes with the actual compiler, preview worker,
+CodeMirror history and AudioWorklet, proving exact source changes, no incidental
+transport/provider/capture calls and explicit boundary activation.
+
+Full npm test including posttest passed (69985) before the final pointer-focus
+refinement. After it, the final build and COMPLETE unified aggregate passed
+(61251), including source controls, inline rolls, UI/workflow, signals, all three
+stage modes and visual code. Gateway/chat checks passed 77/77 (81918); render
+parity passed 10/10 (94175), minimum correlation 1.000000 and maximum absolute
+RMS delta 0.175 dB. The last refinement only changes editor focus/gesture handling;
+no musical compiler/player changes followed those audio checks. Private-ROM/
+harness-dependent LSDj checks retain their explicit skips.
+
+Real native LOCAL Safari on the exact final Music 825b6f3ddb9a build visibly
+verified stopped entry and Run, range click plus Right (.8 -> .801), focused
+Cmd-Z back to .8, numeric edit to .6, number-to-range focus plus Right to .601,
+native pointer drag to .001 and one Undo back to .601. Sounding r2 continued
+through these drafts. Explicit Run displayed the boundary queue, then Sounding
+r3. Stop and closing the owned tab ended the check. This is native local input
+evidence, not acoustic listening, physical-trackpad or deployed acceptance.
+
+The plan now marks literal controls complete separately from the still-unenabled
+cycleV1 proposal. Next: bounded Tidal-guided cycle semantics and live build-up;
+audiovisual persistence and same-session audience output; performance and full
+acceptance. No deployment, paid model request, app restart, broadcast change or
+infrastructure repair occurred. The overall goal remains active.
+
 ## 2026-09-09 — Editable visual programs and performance controls (local checkpoint)
 
 Phase C's renderer decision and the first five Phase D items in

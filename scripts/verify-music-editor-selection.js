@@ -10,6 +10,8 @@ const {build}=require('esbuild'),{chromium}=require('playwright');
   const browser=await chromium.launch({headless:true});
   try{
     const page=await browser.newPage();
+    const errors=[];page.on('pageerror',e=>errors.push(e.message));
+    page.on('console',message=>{if(message.type()==='error'&&/CodeMirror|Calls to EditorView\.update/.test(message.text()))errors.push(message.text());});
     await page.route('**/*',route=>route.abort());
     await page.setContent('<main id="editor" style="height:400px"></main>');
     await page.addScriptTag({path:bundle});
@@ -37,6 +39,24 @@ const {build}=require('esbuild'),{chromium}=require('playwright');
     await page.locator('.cm-content').press('ControlOrMeta+z');
     assert.equal(await page.evaluate(()=>testEditor.value()),result.source,'selection/decoration do not break typing undo');
     await page.evaluate(()=>testEditor.destroy());
-    console.log('PASS editor selection: detached ranges, source-first callbacks, no decoration notifications, undo preserved');
+    await page.evaluate(()=>{
+      let editor;
+      editor=CT_MUSIC_CODE_EDITOR.mount(document.querySelector('#editor'),'abcd',()=>{
+        editor.diagnostics([{from:0,to:1,message:'Current diagnostic'}]);
+        editor.highlightPlaying([{from:0,to:1}]);
+      });
+      window.testEditor=editor;editor.set('efgh');
+    });
+    assert.equal(await page.locator('.cm-music-sounding').count(),1,'onChange feedback safely publishes after the update');
+    assert.equal(await page.locator('.cm-lintRange-error').count(),1);
+    await page.evaluate(()=>{
+      testEditor.diagnostics([{from:2,to:3,message:'Superseded diagnostic'}]);
+      testEditor.set('ijkl');
+    });
+    assert.equal(await page.locator('.cm-lintRange-error').count(),1,'older feedback never lands on a new document');
+    assert.equal(await page.locator('.cm-lintRange-error').textContent(),'i');
+    await page.evaluate(()=>{testEditor.highlightPlaying([{from:2,to:3}]);testEditor.diagnostics([]);testEditor.destroy();});
+    await page.evaluate(()=>new Promise(queueMicrotask));assert.deepEqual(errors,[]);
+    console.log('PASS editor selection: detached ranges, source-first callbacks, no decoration notifications, undo preserved; reentrant/stale/destroyed feedback safely deferred');
   }finally{await browser.close();fs.rmSync(dir,{recursive:true,force:true});}
 })().catch(e=>{console.error(e);process.exitCode=1;});

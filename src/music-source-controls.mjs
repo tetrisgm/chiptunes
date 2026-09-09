@@ -1,7 +1,7 @@
 // Literal-only source edits. Supplied compiler metadata is the sole authority.
 import {EditorView, Decoration, WidgetType} from '@codemirror/view';
 import {EditorState, StateField, StateEffect, Annotation, Transaction} from '@codemirror/state';
-import {isolateHistory} from '@codemirror/commands';
+import {isolateHistory, undo, redo} from '@codemirror/commands';
 
 export const SOURCE_CONTROL_LIMITS=Object.freeze({controls:24,descriptors:50000,source:1048576});
 const bounds={gate:[.001,1,false,.001],velocity:[0,1,false,.01],transpose:[-128,128,true,1]};
@@ -38,7 +38,9 @@ function descriptors(context){
   if(typeof source!=='string'||source.length>SOURCE_CONTROL_LIMITS.source||!compiled?.gb||
     !Array.isArray(compiled.controls)||compiled.controls.length>SOURCE_CONTROL_LIMITS.descriptors||
     !Array.isArray(compiled.diagnostics)||compiled.diagnostics.some(d=>d.severity==='error'))return null;
-  const result=[],seen=new Set(),budget={left:source.length*2+compiled.controls.length*32};let count=0;
+  const extra=compiled.controlsOmitted??0;
+  if(!Number.isSafeInteger(extra)||extra<0||extra>SOURCE_CONTROL_LIMITS.source)return null;
+  const result=[],seen=new Set(),budget={left:source.length*2+compiled.controls.length*32};let count=extra;
   for(const c of compiled.controls){
     const b=Object.hasOwn(bounds,c?.kind)?bounds[c.kind]:null,literal=offsets(c?.literalSpan,source.length),call=offsets(c?.callSpan,source.length),owner=offsets(c?.ownerSpan,source.length);
     if(!b||!literal||!call||!owner||!['pattern','track'].includes(c.ownerType)||typeof c.ownerName!=='string'||
@@ -61,7 +63,11 @@ function descriptors(context){
 export function sourceControls(){
   const replace=StateEffect.define(),own=Annotation.define();
   let view=null,dead=false,epoch=0,records=[],active=null,projectId,contextDoc=null,pending=null,omitted=0,focusBookmark=null;
-  function focusMoved(event){if(focusBookmark&&event.target!==focusBookmark.element)focusBookmark=null;}
+  function focusMoved(event){
+    if(focusBookmark&&event.target!==focusBookmark.element)focusBookmark=null;
+    if(active?.pointer&&event.target!==active.pointer&&event.target!==view?.contentDOM)finish();
+  }
+  function releasePointer(){if(active?.pointer)finish();}
   function disable(){for(const r of records)if(r.dom)for(const input of r.dom.querySelectorAll('input'))input.disabled=!!active&&active.record!==r||!active&&contextDoc!==view?.state.doc;}
   function authorized(r){return !dead&&view&&records.includes(r)&&(active?active.record===r&&active.doc===view.state.doc:contextDoc===view.state.doc);}
   function begin(r){
@@ -103,11 +109,34 @@ export function sourceControls(){
       for(const type of ['range','number']){
         const el=document.createElement('input');el.type=type;el.min=String(r.b[0]);el.max=String(r.b[1]);el.step=String(r.b[3]);el.value=r.text;
         el.setAttribute('aria-label',r.label+(type==='range'?' slider':' value'));
-        el.addEventListener('pointerdown',()=>{if(begin(r))active.held=true;});
-        el.addEventListener('keydown',e=>{if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End','PageUp','PageDown'].includes(e.key)&&begin(r))active.held=true;if(e.key==='Escape'){e.stopPropagation();finish();}});
+        el.addEventListener('pointerdown',()=>{
+          if(!authorized(r))return;
+          // Focusing a paired input can synchronously finish its old gesture.
+          el.focus({preventScroll:true});if(begin(r)){active.held=true;active.pointer=el;}
+        });
+        el.addEventListener('keydown',e=>{
+          const key=e.key.toLowerCase(),mod=(e.metaKey||e.ctrlKey)&&!e.altKey;
+          if(mod&&(key==='z'||key==='y'&&e.ctrlKey&&!e.metaKey)){
+            if(!authorized(r))return;
+            e.preventDefault();e.stopPropagation();finish();
+            (key==='y'||e.shiftKey?redo:undo)(view);return;
+          }
+          if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End','PageUp','PageDown'].includes(e.key)&&begin(r))active.held=true;
+          if(e.key==='Escape'){e.stopPropagation();finish();}
+        });
         el.addEventListener('input',()=>input(r,el.value));
         el.addEventListener('change',()=>{if(active?.record===r&&!active.held)finish();});
-        for(const event of ['pointerup','pointercancel','lostpointercapture','keyup','blur'])el.addEventListener(event,()=>{if(active?.record===r)finish();});
+        el.addEventListener('pointerup',()=>{
+          // Safari's native mousedown focuses the containing contenteditable,
+          // even after pointerdown focused a range. Refocus after that default
+          // action, without preventing the range's native pointer drag.
+          if(authorized(r))el.focus({preventScroll:true});
+          if(active?.record===r)finish();
+        });
+        // Native Safari temporarily blurs a held range to contentDOM. The
+        // pointer's release/cancel, foreign focus or window blur ends it instead.
+        el.addEventListener('blur',()=>{if(active?.record===r&&!active.pointer)finish();});
+        for(const event of ['pointercancel','lostpointercapture','keyup'])el.addEventListener(event,()=>{if(active?.record===r)finish();});
         dom.append(el);
       }
       const output=document.createElement('output');output.textContent=r.text;dom.append(output);return dom;
@@ -161,6 +190,9 @@ export function sourceControls(){
   const listener=EditorView.updateListener.of(update=>{
     if(!update.docChanged&&!update.selectionSet)return;
     for(const tr of update.transactions){
+      // Ordinary cursor movement cannot invalidate an unchanged, successfully
+      // compiled document. Only an active gesture needs selection cancellation.
+      if(tr.selection&&!tr.docChanged&&!active){focusBookmark=null;continue;}
       if(tr.docChanged&&active&&tr.annotation(own)===active){
         for(const r of records){r.from=tr.changes.mapPos(r.from,-1);r.to=tr.changes.mapPos(r.to,1);r.pos=tr.changes.mapPos(r.pos,1);}
         active.record.text=tr.newDoc.sliceString(active.record.from,active.record.to);active.doc=tr.newDoc;contextDoc=null;pending=null;
@@ -174,6 +206,16 @@ export function sourceControls(){
     '.cm-source-control input[type=range]':{width:'75px'},'.cm-source-control input[type=number]':{width:'70px'},
     '.cm-source-control output':{fontVariantNumeric:'tabular-nums'},'.cm-source-control :focus-visible':{outline:'2px solid currentColor'},
     '.cm-source-controls-omitted':{font:'12px system-ui'}
-  })],attach(v){if(view||dead)throw Error('Source controls already attached or destroyed');view=v;view.dom.ownerDocument.addEventListener('focusin',focusMoved);},setContext,cancelGesture,
-    destroy(){view?.dom.ownerDocument.removeEventListener('focusin',focusMoved);dead=true;epoch++;active=null;pending=null;records=[];contextDoc=null;focusBookmark=null;view=null;}};
+  })],attach(v){
+    if(view||dead)throw Error('Source controls already attached or destroyed');view=v;
+    const doc=view.dom.ownerDocument;
+    doc.addEventListener('focusin',focusMoved);doc.addEventListener('pointerup',releasePointer);doc.addEventListener('pointercancel',releasePointer);
+    doc.defaultView?.addEventListener('blur',releasePointer);
+  },setContext,cancelGesture,
+    destroy(){
+      const doc=view?.dom.ownerDocument;
+      doc?.removeEventListener('focusin',focusMoved);doc?.removeEventListener('pointerup',releasePointer);doc?.removeEventListener('pointercancel',releasePointer);
+      doc?.defaultView?.removeEventListener('blur',releasePointer);
+      dead=true;epoch++;active=null;pending=null;records=[];contextDoc=null;focusBookmark=null;view=null;
+    }};
 }

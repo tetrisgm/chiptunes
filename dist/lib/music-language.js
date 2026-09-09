@@ -21,7 +21,16 @@
  * Exact events have none of these pattern-only fields; all-rest plays emit no
  * note mappings. Occurrence ends are exclusive and are not clipped to song end.
  * Each span has start/end {offset,line,column}: UTF-16 offsets, exclusive end,
- * one-based line/column. tempoAt:[[row,tempo],...] opts into Create's LSDj
+ * one-based line/column. Successful compiles also expose controls for direct
+ * literal gate/velocity/transpose on notes and transpose on tracks, once per
+ * source call (including unused declarations). literalSpan is the numeric
+ * token, callSpan runs from the dot through the close, and ownerSpan covers
+ * the declaration through its final close, excluding trailing trivia/semicolon.
+ * Controls are source ordered and published only after all validation succeeds.
+ * The first LIMITS.controls calls are retained; controlsOmitted counts the rest
+ * without changing musical validity. Failed compiles expose controls:[] and
+ * controlsOmitted:0.
+ * tempoAt:[[row,tempo],...] opts into Create's LSDj
  * segment clock; rows use settings.stepsPerBar (16 default), swing uses the
  * shared groove. Fractional gate rows interpolate adjacent boundary frames.
  * Resource limits are deterministic operation/data budgets, not wall time.
@@ -30,8 +39,11 @@
   'use strict';
   var H = typeof module !== 'undefined' && module.exports ? require('./gb-hardware.js') : G.CT_GB;
   var K = typeof module !== 'undefined' && module.exports ? require('./gb-kits.js') : G.CT_GB_KITS;
-  var LIMITS = Object.freeze({ source: 1048576, depth: 32, nodes: 500000, events: 50000,
+  var LIMITS = Object.freeze({ source: 1048576, depth: 32, nodes: 500000, events: 50000, controls: 50000,
     frames: 216000, repeats: 4096, steps: 65536, work: 2000000, instruments: 50128 });
+  var CONTROL_BOUNDS = { gate: [0.001, 1, false], velocity: [0, 1, false], transpose: [-128, 128, true] };
+  var NOTE_BOUNDS = { stepsPerBar: [1, 256, true], gate: CONTROL_BOUNDS.gate,
+    velocity: CONTROL_BOUNDS.velocity, transpose: CONTROL_BOUNDS.transpose, register: [-128, 128, true] };
   var own = function (o, k) { return Object.prototype.hasOwnProperty.call(o, k); };
   function fail(message, at) { var e = new Error(message); e.at = at || 0; throw e; }
   function object(v) { return v !== null && typeof v === 'object' && !Array.isArray(v); }
@@ -106,7 +118,7 @@
     }
     fail('Unclosed string', start);
   };
-  Parser.prototype.value = function (depth, raw) {
+  Parser.prototype.value = function (depth, raw, numberSpan) {
     need(depth <= LIMITS.depth && ++this.nodes <= LIMITS.nodes, 'Data resource limit', this.i);
     this.skip(); var c = this.s[this.i], v, k;
     if (c === '"' || c === "'") return this.string(raw);
@@ -125,12 +137,19 @@
       } while (true);
     }
     var m = /^-?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?/.exec(this.s.slice(this.i));
-    if (m) { this.i += m[0].length; v = Number(m[0]); need(Number.isFinite(v), 'Non-finite number', this.i); return v; }
+    if (m) {
+      // Only the direct numeric token gets a span; nested data and surrounding
+      // trivia never contribute. Keep spelling in the source, not a reprint.
+      if (numberSpan) numberSpan.push(this.i, this.i + m[0].length);
+      this.i += m[0].length; v = Number(m[0]); need(Number.isFinite(v), 'Non-finite number', this.i); return v;
+    }
     k = this.id(); if (k === 'true') return true; if (k === 'false') return false; if (k === 'null') return null;
     fail('Only literal data is allowed', this.i - k.length);
   };
-  Parser.prototype.args = function (rawArgs) { var a = []; this.expect('('); if (!this.take(')')) { do { var raw = rawArgs ? [] : null; a.push(this.value(0, raw)); if (rawArgs) rawArgs.push(raw); } while (this.take(',')); this.expect(')'); } return a; };
-  Parser.prototype.chain = function () { var a = []; while (this.take('.')) { var at = this.i, name = this.id(), args = this.args(); a.push({ name: name, args: args, at: at, end: this.i }); } return a; };
+  // Transform controls use exactly one argument. Capture its token while the
+  // existing literal parser consumes it; argument validation remains unchanged.
+  Parser.prototype.args = function (rawArgs, firstNumberSpan) { var a = []; this.expect('('); if (!this.take(')')) { do { var raw = rawArgs ? [] : null; a.push(this.value(0, raw, a.length === 0 ? firstNumberSpan : null)); if (rawArgs) rawArgs.push(raw); } while (this.take(',')); this.expect(')'); } return a; };
+  Parser.prototype.chain = function () { var a = []; while (this.take('.')) { var at = this.i, name = this.id(), numberSpan = own(CONTROL_BOUNDS, name) ? [] : null, args = this.args(null, numberSpan); a.push({ name: name, args: args, at: at, end: this.i, numberSpan: numberSpan }); } return a; };
   function compile(source) {
     var settings = {}, mapping = [], diagnostics = [], p, gb = null;
     var lines = [0];
@@ -140,8 +159,21 @@
       need(typeof source === 'string' && source.length <= LIMITS.source, 'Source size limit');
       for (var li = 0; li < source.length; li++) if (source[li] === '\n') lines.push(li + 1);
       need(H && H.beatToFrame, 'CT_GB hardware dependency is required');
-      p = new Parser(source); var patterns = Object.create(null), plays = [], seen = Object.create(null), eventCount = 0, eventSpans = {}, work = 0;
+      p = new Parser(source); var patterns = Object.create(null), plays = [], seen = Object.create(null), eventCount = 0, eventSpans = {}, work = 0, controlCalls = [], controlsOmitted = 0;
       function spend(n, at) { work += n; need(work <= LIMITS.work, 'Compilation work limit', at); }
+      function recordControls(chains, ownerType, ownerName, at, end) {
+        var ownerSpan;
+        // Visit declarations, never expanded plays/notes: source order and one
+        // descriptor per call follow directly, even for repeated or silent uses.
+        chains.forEach(function (c) {
+          if (!own(CONTROL_BOUNDS, c.name) || ownerType === 'track' && c.name !== 'transpose') return;
+          // This is view metadata, not a new music resource gate. The source
+          // limit bounds the total call count; retain only the first 50,000.
+          if (controlCalls.length === LIMITS.controls) { controlsOmitted++; return; }
+          if (!ownerSpan) ownerSpan = span(at, end);
+          controlCalls.push({ call: c, ownerType: ownerType, ownerName: ownerName, ownerSpan: ownerSpan });
+        });
+      }
       gb = { notes: [] };
       function add(key, value, at, end) {
         need(object(value), key + ' requires an object', at);
@@ -159,16 +191,21 @@
           p.expect(','); need(p.id() === 'notes', 'Pattern requires notes()', p.i); var rawArgs = []; args = p.args(rawArgs); chains = p.chain(); p.expect(')');
           need(args.length === 1 && typeof args[0] === 'string', 'notes requires a string', at);
           chains.forEach(function (c) {
-            var bounds = { stepsPerBar: [1, 256, true], gate: [0.001, 1, false], velocity: [0, 1, false], transpose: [-128, 128, true], register: [-128, 128, true] };
-            need(own(bounds, c.name), 'Unknown notes transformation', c.at);
-            var b = bounds[c.name]; need(c.args.length === 1 && num(c.args[0], b[0], b[1], b[2]), 'Invalid notes transformation argument', c.at);
+            need(own(NOTE_BOUNDS, c.name), 'Unknown notes transformation', c.at);
+            var b = NOTE_BOUNDS[c.name]; need(c.args.length === 1 && num(c.args[0], b[0], b[1], b[2]), 'Invalid notes transformation argument', c.at);
           });
           patterns[pn] = { text: args[0], raw: rawArgs[0], chains: chains, at: at, end: p.i };
+          recordControls(chains, 'pattern', pn, at, p.i);
         } else {
           args = p.args(); chains = p.chain();
           need(args.length === 1, name + ' requires one argument', at);
           var v = args[0];
-          if (name === 'track') { need(typeof v === 'string', 'Track requires a lane name', at); plays.push({ lane: v, chains: chains, at: at, end: p.i }); }
+          if (name === 'track') {
+            need(typeof v === 'string', 'Track requires a lane name', at); plays.push({ lane: v, chains: chains, at: at, end: p.i });
+            // chain() skips trivia when looking for the next dot. Its last
+            // call end is the declaration close; keep legacy mapping ends as-is.
+            if (chains.length) recordControls(chains, 'track', v, at, chains[chains.length - 1].end);
+          }
           else {
             need(chains.length === 0, 'Unsupported chain', at);
             var eventNames = { event: 'notes', automation: 'auto', vibratoOff: 'vibOff', waveLoad: 'waveLoads', kit: 'kit' };
@@ -304,8 +341,16 @@
         if (n.frame < ends[n.ch]) diagnostics.push({ severity: 'warning', code: 'CHIP_OVERLAP', message: 'Overlapping notes on chip channel ' + n.ch, span: mapping[item.i].span, noteIndex: item.i });
         ends[n.ch] = Math.max(ends[n.ch], n.frame + n.frames);
       });
-      return { gb: gb, settings: settings, mapping: mapping, diagnostics: diagnostics };
-    } catch (e) { return { gb: null, settings: settings, mapping: [], diagnostics: [{ severity: 'error', code: 'INVALID_SOURCE', message: e.message, span: span(e.at == null ? p ? p.i : 0 : e.at, e.at == null ? p ? p.i : 0 : e.at) }] }; }
+      // Tracks, emitted pitches/timing, banks and dedicated event arrays have
+      // all validated. Every retained call now has one direct numeric token.
+      var controls = controlCalls.map(function (entry) {
+        var c = entry.call, b = CONTROL_BOUNDS[c.name];
+        return { kind: c.name, value: c.args[0], literalSpan: span(c.numberSpan[0], c.numberSpan[1]),
+          callSpan: span(c.at - 1, c.end), ownerSpan: entry.ownerSpan, ownerType: entry.ownerType,
+          ownerName: entry.ownerName, min: b[0], max: b[1], integer: b[2] };
+      });
+      return { gb: gb, settings: settings, mapping: mapping, diagnostics: diagnostics, controls: controls, controlsOmitted: controlsOmitted };
+    } catch (e) { return { gb: null, settings: settings, mapping: [], controls: [], controlsOmitted: 0, diagnostics: [{ severity: 'error', code: 'INVALID_SOURCE', message: e.message, span: span(e.at == null ? p ? p.i : 0 : e.at, e.at == null ? p ? p.i : 0 : e.at) }] }; }
   }
   function materialize(gb, meta) {
     var nodes = 0, active = new Set();

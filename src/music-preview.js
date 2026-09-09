@@ -19,8 +19,20 @@
       result.mapping.length>EVENT_LIMIT||result.diagnostics.length>2*EVENT_LIMIT+1)return false;
     if(!result.diagnostics.every(function(d){return object(d)&&typeof d.message==='string'&&d.message.length<=SOURCE_LIMIT&&
       ['error','warning','info'].indexOf(d.severity)!==-1&&(!d.span||span(d.span));}))return false;
+    if(result.controlsOmitted!==undefined&&!integer(result.controlsOmitted,SOURCE_LIMIT))return false;
+    if(result.controls!==undefined&&(!Array.isArray(result.controls)||result.controls.length>EVENT_LIMIT||!result.controls.every(function(c){
+      var bounds={gate:[.001,1,false],velocity:[0,1,false],transpose:[-128,128,true]},b=object(c)&&Object.prototype.hasOwnProperty.call(bounds,c.kind)&&bounds[c.kind];
+      if(!b||!['pattern','track'].includes(c.ownerType)||(c.ownerType==='track'&&c.kind!=='transpose')||
+        typeof c.ownerName!=='string'||c.ownerName.length>SOURCE_LIMIT||c.min!==b[0]||c.max!==b[1]||c.integer!==b[2]||
+        !Number.isFinite(c.value)||c.value<b[0]||c.value>b[1]||(b[2]&&!Number.isInteger(c.value))||
+        !span(c.literalSpan)||!span(c.callSpan)||!span(c.ownerSpan))return false;
+      if(c.ownerSpan.start.offset>c.callSpan.start.offset||c.callSpan.start.offset>c.literalSpan.start.offset||
+        c.literalSpan.end.offset>c.callSpan.end.offset||c.callSpan.end.offset>c.ownerSpan.end.offset)return false;
+      var text=source.slice(c.literalSpan.start.offset,c.literalSpan.end.offset);
+      return /^-?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(text)&&Number(text)===c.value;
+    })))return false;
     var errors=result.diagnostics.some(function(d){return d.severity==='error';});
-    if(result.gb===null)return errors&&result.mapping.length===0;
+    if(result.gb===null)return errors&&result.mapping.length===0&&!(result.controls||[]).length&&!result.controlsOmitted;
     if(errors||!object(result.gb)||!Array.isArray(result.gb.notes)||result.gb.notes.length>EVENT_LIMIT||
       !integer(result.gb.totalFrames,FRAME_LIMIT)||result.mapping.length!==result.gb.notes.length)return false;
     var count=0;
