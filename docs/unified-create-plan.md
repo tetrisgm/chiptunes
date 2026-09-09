@@ -16,7 +16,7 @@ No hidden agent composition, alternate runtime, duplicated project, or second
 website that the user must visit. Keep finite songs/exports and optional loop
 audition. Preserve the deterministic single composition pipeline and 14 games.
 
-## Current facts and failure modes
+## Baseline facts and failure modes (before implementation)
 
 - Baseline main is 67e1f94. Previous implementation and full regression are
   recorded in HANDOFF.md; the deployed Music build is fef7cf6ae28c.
@@ -63,12 +63,12 @@ source, selection, chat, undo or playback position. No extra composition on togg
 ### 1. Canonical entry and preservation
 
 - [x] Route plain /create, Create actions and existing song links into one workspace.
-- [ ] Import #s documents through the existing exact materialization path; retain
+- [x] Import #s documents through the existing exact materialization path; retain
   timings, instruments, automation, samples, comments and title where represented.
-- [ ] Reuse local recovery without overwriting a saved draft or importing twice.
-- [ ] Keep explicit native-format compatibility tools accessible, not the default
+- [x] Reuse local recovery without overwriting a saved draft or importing twice.
+- [x] Keep explicit native-format compatibility tools accessible, not the default
   experience. Do not delete legacy formats or break exports merely to hide old UI.
-- [ ] Replace public Live coding / Chat-Code-Notes forks with one Compose entry.
+- [x] Replace public Live coding / Chat-Code-Notes forks with one Compose entry.
 
 Gate: fresh entry, reload, song link, existing draft and invalid-draft recovery
 all open the unified workspace. No unsolicited autoplay or extra composer call.
@@ -77,7 +77,7 @@ all open the unified workspace. No unsolicited autoplay or extra composer call.
 
 - [x] Replace desktop Notes/Code tabs with simultaneous panes and an accessible
   divider; preserve independent scroll, editor typing undo and source selection.
-- [ ] Render chart from compiler output with readable note names and per-track
+- [x] Render chart from compiler output with readable note names and per-track
   lanes; preserve exact timing and tempo-map positioning, including finite ends.
 - [x] Clicking a note reveals/selects its actual source without hiding the chart.
   Highlight corresponding occurrences when selecting mapped code; stale mappings
@@ -85,9 +85,9 @@ all open the unified workspace. No unsolicited autoplay or extra composer call.
 - [x] Use bounded, debounced compilation for draft preview. Mark preview versus
   queued/playing revision explicitly. Invalid draft retains the last valid chart
   and sound, with diagnostics; a superseded compilation cannot replace newer state.
-- [ ] Run/Cmd-Enter and approved agent changes use existing validation and boundary
+- [x] Run/Cmd-Enter and approved agent changes use existing validation and boundary
   activation. Playback highlights follow the acknowledged playing revision.
-- [ ] Keep dense/large projects responsive (bounded rendering/virtualization as
+- [x] Keep dense/large projects responsive (bounded rendering/virtualization as
   needed), and keep code, notes and controls reachable on small screens.
 
 Gate: a known pattern's pitch/rhythm edit changes exactly the expected chart
@@ -101,19 +101,21 @@ maps and late compilation preserve correct source/chart/audio relationships.
   a small React boundary rather than rewriting the musical application in Next.
   Inspect license, dependencies and generated CSS before adopting pinned sources.
   Record the result; a compatibility obstacle must not create a second frontend.
-- [ ] Provide transcript, bottom composer, suggestions, Send/Stop, Enter/newline,
+- [x] Provide transcript, bottom composer, suggestions, Send/Stop, Enter/newline,
   useful pending/error states, scroll-to-latest and collapse/restore behavior.
-- [ ] Keep provider/access controls secondary; preserve server-only keys, private
+- [x] Keep provider/access controls secondary; preserve server-only keys, private
   owner gate, quotas and local-only editing while Chat is unavailable.
-- [ ] Preserve bounded contextual history and public-share exclusion. Render model
+- [x] Preserve bounded contextual history and public-share exclusion. Render model
   content safely, with no remote HTML, automatic image requests or executable UI.
-- [ ] Agent requests carry current source/revision, selected region and constraints.
+- [x] Agent requests carry current source/revision, selected region and constraints.
   Explanations can be text-only; code changes appear as reviewed proposals. Apply
   is one source revision and undo restores code/chart together. Historical messages
   never revive actionable proposals. Cancel/close/import cannot accept late output.
-- [ ] Complete-track requests produce valid finite musical source, not only tiny
+- [x] Complete-track requests produce valid finite musical source, not only tiny
   comment edits. Retain readable named patterns for new compositions. Use a bounded
   validated response; no automatic retries or model calls from mood selection.
+  Implemented and exercised with a real-handler/mock-provider full-track fixture;
+  production provider quality and musical listening are still open release gates.
 
 Gate: complete-track creation and targeted edit fixtures change the visible source
 and chart coherently; follow-ups, cancellation, stale Apply, collapse/reopen,
@@ -122,14 +124,14 @@ real provider acceptance. Do not represent buffered replies as token streaming.
 
 ### 4. Same-origin web Chat; backend stays behind the scenes
 
-- [ ] Implement narrowly scoped handling for /api/music/chat and its access path
+- [x] Implement narrowly scoped handling for /api/music/chat and its access path
   on the existing product routing layer, forwarding to the existing gateway.
   Keep presence/WebSocket/external-count behavior untouched; no new account,
   tunnel, model backend, database or duplicated composition pipeline.
-- [ ] Design a fixed upstream and exact path/method allowlist. Reject foreign
+- [x] Design a fixed upstream and exact path/method allowlist. Reject foreign
   origins, arbitrary destinations, redirect forwarding, spoofed forwarding
   headers and unexpected bodies. Bound bytes/deadlines and propagate cancellation.
-- [ ] Adapt gateway validation deliberately for the canonical public origin and
+- [x] Adapt gateway validation deliberately for the canonical public origin and
   server-to-server request URL. Do not trust forwarded origin/host as authority,
   spoof a user's origin, relax auth or introduce wildcard CORS. Keep signed
   Secure/HttpOnly/host-only cookies on chiptunes.app and responses no-store.
@@ -148,30 +150,33 @@ No navigation or manual project-copy step is needed to use Chat.
 
 ### 5. Optional visualizer and workflow cleanup
 
-- [ ] Add a clearly secondary composition/visualizer toggle sharing one player.
-- [ ] Remove redundant primary controls and instructions for obsolete two-editor
+- [x] Add a clearly secondary composition/visualizer toggle sharing one player.
+- [x] Remove redundant primary controls and instructions for obsolete two-editor
   workflows. Keep compatibility exports and native tooling in secondary controls.
-- [ ] Verify toggling and returning while playing, paused and with an invalid
+- [x] Verify toggling and returning while playing, paused and with an invalid
   draft; restore selection/scroll/chat and never recompose or restart audio.
 
 Gate: one song, source, undo history and transport across both presentations.
 
 ### 6. Integration, acceptance and handoff
 
-- [ ] Update existing tests rather than retaining assertions for obsolete tabs,
+- [x] Update existing tests rather than retaining assertions for obsolete tabs,
   top mood form and hosted transfer. Keep their preservation/security coverage.
-- [ ] Add an end-to-end canonical workflow: enter /create -> request composition
+- [x] Add an end-to-end canonical workflow: enter /create -> request composition
   -> review/apply code -> see notes -> play -> manually edit code -> Run -> ask
   for a scoped variation -> Apply -> undo -> collapse chat -> visualizer ->
   composition -> save/reload, without leaving chiptunes.app.
-- [ ] Test fresh and saved projects, large exact imports, private history, offline
+- [x] Test fresh and saved projects, large exact imports, private history, offline
   behavior, mobile/drawer, keyboard, genuine playback/boundary acknowledgement,
   finite exports and render-parity threshold >=0.995.
-- [ ] Run full root regression plus gateway and routing tests before pushing.
+- [x] Run full root regression plus gateway and routing tests before pushing.
   Commit small coherent pieces on shared main; preserve other sessions' work.
-- [ ] Inspect actual rendered UI in local Safari; record exact build and which
+  Root's pre-workspace stages passed; corrected outdated fixtures, then reran
+  the entire workspace tail and unified posttest to exit zero. Gateway: 77/77;
+  Next build passes. Private-ROM-only checks explicitly skip; see HANDOFF.
+- [x] Inspect actual rendered UI in local Safari; record exact build and which
   behaviors were physically exercised. Automated WebKit is not native proof.
-- [ ] Keep HANDOFF and this checklist current with commit IDs, evidence and honest
+- [x] Keep HANDOFF and this checklist current with commit IDs, evidence and honest
   open gates. Never infer human musical listening acceptance from automated tests.
 
 ## Release boundary
@@ -185,6 +190,23 @@ auth and a bounded real-provider composition/edit round trip. Record paid calls.
 Do not call production adoption complete before these checks. If deployment or
 listening approval is missing, name that gate rather than calling the whole
 product complete or silently broadening authority.
+
+Prepared cutover, not yet authorized or executed:
+
+1. Deploy the existing gateway with canonical `CHAT_ORIGIN=https://chiptunes.app`
+   and the tested public/transport-origin normalization. Preserve owner secret,
+   provider keys, durable quota database and all unrelated MCP configuration.
+2. Deploy the existing presence Worker with the two bounded chat routes and the
+   shared web artifact. Verify presence and its WebSocket path still work.
+3. Retain the old Vercel page's explicit download/recovery notice; do not blindly
+   redirect away from origin-local drafts or move private history automatically.
+4. Verify main-origin unlock, denied anonymous/foreign requests, cookie scope,
+   logout and quota behavior. Then make only the explicitly authorized bounded
+   provider composition/edit calls, applying proposals in the browser.
+5. Verify the exact public Music build in real Safari, including composition,
+   chat collapse, playing/paused visualizer return and local recovery. Record
+   deployment IDs, calls and evidence. If rollback is needed, restore the prior
+   coordinated artifact/routing/origin configuration, never browser project data.
 
 ## Execution order and parallel work
 

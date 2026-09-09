@@ -3,7 +3,29 @@
 Plain, current working notes for whoever (or whatever) picks the project up
 next. Infrastructure and operations live outside this repository.
 
-## 2026-09-09 — Unified Create implementation in progress
+## 2026-09-09 — Unified Create implemented; production cutover awaits approval
+
+Local implementation checkpoints: 775e3e4 (bounded same-origin transport),
+0178003 (canonical entry, code/chart/sidebar and presentation), 424e2f3
+(fidelity/handback fixtures), 558ccf5 (preservation fixes and migrated UI tests),
+67d1856 (full-track handler/workflow and retained external-agent regression).
+Gateway tests pass 77/77 and its Next
+production build passes. Broadcast render parity passed 10/10 with minimum
+correlation 1.000000. No provider call, deployment or configuration change.
+
+New recovery checks cover legacy swing timing, consumed #music share reloads,
+and pending explicit/file imports after close/reopen. Their four tests pass.
+The share hash is consumed after a successful import so reload does not replace
+autosaved edits with the original link. File imports capture open/project/save
+epochs and a chooser serial, and reject late reads before prompting.
+
+The full suite explicitly skips private LSDj ROM/harness-dependent checks when
+their configured ROM is absent; those checks are not newly proved. Existing
+legacy fidelity characterization still reports its documented LOSS cases;
+canonical exact materialization is covered separately, not a claim that every
+old lossy format acquired new fields. Production main-origin auth, real-provider
+composition/edit, final deployed native Safari and musical listening remain
+release acceptance gates.
 
 Canonical runtime entry now materializes explicit song links before opening the
 workspace, without starting the legacy editor/player underneath. Explicit source
@@ -15,12 +37,16 @@ mapped notes without changing agent scope. Source-loaded entry (8 cases), layout
 isolated editor-selection fixtures passed locally. These are not native Safari
 or deployed acceptance.
 
-Full npm test initially stopped in the old song-document fixture waiting for
-the retired default legacy Create shell. Song-document and handback fixtures
-were updated and pass, preserving explicit legacy fidelity and audible handback.
-Canonical close now calls the existing station handback, formerly left to the
-legacy editor underneath. Remaining UI fixture updates are in progress; no
-green full-suite claim or push yet.
+Root regression passed every stage preceding test:music-workspace on the final
+artifact. That tail exposed two outdated fixtures: omitted explicit swing:false
+metadata and old external-agent proposal/Settings selectors. Both are corrected;
+the external-agent check passes against real isolated PostgreSQL, including
+claim/Apply/Reject, generation changes, stale policy and lost acknowledgement.
+The affected workspace aggregate now exits zero in a complete rerun, as does
+test:unified-create including the final full-track fixture. This is segmented verification,
+not a claim that an earlier nonzero npm test invocation exited zero.
+Canonical close uses the existing audible station handback, with no legacy
+editor underneath.
 
 Same-origin transport committed locally as 775e3e4. Gateway suite passes all
 77 tests, including bounded proxy/body/deadline/cancellation and owner checks.
@@ -38,11 +64,24 @@ retained chart on invalid source, and restored validated source with Undo.
 No audio or provider call was made in that native check; test tab/server closed.
 The isolated chat fixture found Stop morphing into submit during synchronous
 React state update; preventDefault plus distinct button keys fixes it and the
-persisted hostile-text/scroll/IME/Send-Stop fixture passes. The unified test
-command passes; whole root suite still needs remaining obsolete share/ribbon
-and UI fixture updates followed by a fresh complete run.
+persisted hostile-text/scroll/IME/Send-Stop fixture passes. The final unified
+test command passes, including complete-track creation through the real chat
+handler with a mock adapter. That workflow checks named finite patterns,
+comment preservation, exact chart, actual AudioWorklet activation boundaries,
+manual pitch preview/Run, scoped bass Apply, undo, collapse, visualizer, paused
+invalid-draft preservation and private save/reload. No paid model is involved.
+
+Final local artifact app.74d749e8c725.js / Music 8996c27904ee was inspected in
+real Safari. It visibly shows chart above code beside chat. Native UI actions
+selected a note's source, retained a typed message across collapse/restore,
+started playback, showed the existing game, returned via Escape still playing,
+and retained paused status through another visualizer round trip. Playback was
+stopped and the dedicated test tab and loopback server were closed. This is not
+deployed acceptance or proof of physical trackpad/cursor behavior.
 Production remains the previous release below;
 no deployment/configuration cutover has been performed or newly authorized.
+The active goal remains open for that owner-authorized cutover and acceptance.
+The release sequence and exact CHAT_ORIGIN change are in unified-create-plan.md.
 
 ## 2026-09-09 — New active direction: unified Create
 
