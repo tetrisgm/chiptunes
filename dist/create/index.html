@@ -3107,8 +3107,27 @@
 #musicworkspace .mw-diagnostics{max-height:100px;overflow:auto}
 #musicworkspace .mw-status{max-height:80px;overflow:auto;flex-shrink:0}
 #musicworkspace .mw-diagnostics:empty{display:none}
-#musicworkspace .mw-chat{padding:12px;gap:10px;overflow:auto}
+#musicworkspace .mw-chat{padding:12px;gap:10px;overflow:hidden}
 #musicworkspace .mw-chat>*{flex-shrink:0}
+#musicworkspace .mw-chat-header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+#musicworkspace .mw-chat-access-status{font-size:12px;color:#bdc5d8;margin:0}
+#musicworkspace .mw-chat-log{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable}
+#musicworkspace .mw-message{padding:10px 12px;margin:0 0 12px;border-radius:10px;overflow-wrap:anywhere;white-space:pre-wrap}
+#musicworkspace .mw-message[data-role=user]{background:#222a38;margin-left:20px}
+#musicworkspace .mw-message[data-role=assistant]{background:#171c27;margin-right:8px}
+#musicworkspace .mw-message b{font-size:12px;color:#bdc5d8}
+#musicworkspace .mw-message p{margin:6px 0 0}
+#musicworkspace .mw-chat-empty{color:#929bb4;padding:12px;font-size:13px}
+#musicworkspace .mw-composer{border-top:1px solid #303748;padding-top:10px}
+#musicworkspace .mw-composer small{display:block;font-size:11px;color:#929bb4;margin:6px 0}
+#musicworkspace .mw-composer textarea{max-height:180px}
+#musicworkspace .mw-composer .mw-actions{justify-content:flex-end}
+#musicworkspace .mw-chat-settings{color:#e7eaf4;background:#10121b;border:1px solid #46503a;border-radius:12px;width:min(540px,calc(100vw - 32px));max-height:85dvh;padding:20px;overflow:auto}
+#musicworkspace .mw-chat-settings::backdrop{background:#0009}
+#musicworkspace .mw-chat-settings h2{font-size:18px;margin:0}
+#musicworkspace .mw-chat-settings label{display:block}
+#musicworkspace .mw-generate summary{padding:8px;cursor:pointer;color:#bdc5d8}
+#musicworkspace .mw-generate[open]{flex-basis:100%}
 #musicworkspace .mw-external-mcp summary{cursor:pointer;padding:8px 0;color:#bdc5d8}
 #musicworkspace .mw-chat h2{font-size:16px;margin:0}
 #musicworkspace .mw-chat textarea{width:100%;min-height:80px;resize:vertical}
@@ -3123,7 +3142,6 @@
 #musicworkspace .mw-mcp-endpoint{width:100%;font-size:12px;margin-top:4px}
 #musicworkspace .mw-chat-access{border:1px solid #3d455a;border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:8px}
 #musicworkspace .mw-chat-access p{margin:0;font-size:12px}
-#musicworkspace .mw-chat-settings summary{cursor:pointer;color:#d4efa3}
 #musicworkspace .mw-settings-content{display:flex;flex-direction:column;gap:8px;padding-top:10px}
 #musicworkspace .mw-chat-access input,#musicworkspace .mw-chat-provider{display:block;width:100%}
 #musicworkspace .mw-project-handoff,#musicworkspace .mw-transfer-offer{border:1px solid #46503a;border-radius:8px;padding:10px}
@@ -3214,7 +3232,7 @@
     <button id="start" hidden></button>
   </div>
 
-<script src="../app.87d99da3e479.js" defer></script>
+<script src="../app.dd33d7943154.js" defer></script>
 
 </body>
 </html>

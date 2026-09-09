@@ -3,6 +3,16 @@
 const assert=require('node:assert/strict'),http=require('node:http'),path=require('node:path');
 const {chromium}=require('playwright');
 const server=http.createServer((req,res)=>res.end('<!doctype html><body></body>'));
+async function openSettings(page){
+  const dialog=page.locator('.mw-chat-settings');
+  if(!await dialog.evaluate(el=>el.open))await page.locator('[data-action=chat-settings]').click();
+  assert.equal(await dialog.evaluate(el=>el.open&&el.matches(':modal')),true,'Settings is a real modal');
+}
+async function closeSettings(page){
+  const dialog=page.locator('.mw-chat-settings');
+  if(await dialog.evaluate(el=>el.open))await page.locator('[data-action=chat-settings-close]').click();
+  assert.equal(await dialog.evaluate(el=>el.open),false,'close Settings before inline proposal actions');
+}
 async function mockAuthModule(page){
   await page.route('**/api/auth',route=>route.fulfill({contentType:'text/javascript',body:
     'export async function ready(){}; export async function getSessionToken(){return "fixture-session-token";}'}));
@@ -127,6 +137,7 @@ async function integrated(browser){
     await page.addScriptTag({path:path.join(__dirname,'../src/music-workspace.js')});
     await page.evaluate(()=>CT_MUSIC_WORKSPACE.open());
     await page.waitForFunction(()=>document.querySelector('.mw-client').options.length===2);
+    await openSettings(page);
     assert.equal(await page.locator('.mw-external-mcp').evaluate(el=>el.open),false);
     await page.locator('.mw-external-mcp > summary').click();
     assert.equal(await page.locator('.mw-mcp-setup').isVisible(),true);
@@ -138,6 +149,7 @@ async function integrated(browser){
     assert.deepEqual(await execute('getContext'),{ok:false,code:'not_paired'});
     await page.locator('.mw-client').selectOption('real-service-client');await page.locator('[data-action=connect]').click();
     await page.waitForFunction(()=>document.querySelector('.mw-connect-status').textContent.startsWith('Connected.'));
+    await closeSettings(page);
     const initial=await execute('getContext');
     assert.equal(initial.source,await page.evaluate(()=>CT_MUSIC_WORKSPACE.agentContext().source));
     async function propose(id){
@@ -163,6 +175,7 @@ async function integrated(browser){
     assert.equal((await execute('getProposalStatus',{id:'real-reject'})).status,'rejected');
     assert.equal((await execute('getContext')).generation,applied.generation);
     await propose('policy-stale');
+    await openSettings(page);
     await page.locator('.mw-lock').selectOption('track');
     await page.waitForFunction(()=>document.querySelector('.mw-connect-status').textContent==='Proposal failed.');
     const failed=calls.find(c=>c.body?.action==='acknowledge'&&c.body.id==='policy-stale');
@@ -176,6 +189,7 @@ async function integrated(browser){
       if(Date.now()>policyDeadline)throw Error('new policy not published');
       await new Promise(r=>setTimeout(r,50));
     }
+    await closeSettings(page);
     await propose('lost-ack');loseAck=true;
     await page.locator('.mw-proposal button').filter({hasText:/^Apply$/}).click();
     await page.waitForFunction(()=>document.querySelector('.mw-connect-status').textContent.includes('Applied locally; remote acknowledgement could not be confirmed'));
@@ -184,6 +198,7 @@ async function integrated(browser){
     assert.equal(await page.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot().validated.id),local);
     assert.equal(calls.filter(c=>c.body?.action==='acknowledge'&&c.body.id==='lost-ack').length,1);
     assert.equal(calls.filter(c=>c.body?.action==='create').length,1,'no automatic reconnect');
+    await openSettings(page);
     auth=null;await page.locator('[data-action=refresh-clients]').click();
     await page.waitForFunction(()=>document.querySelector('.mw-connect-status').textContent.startsWith('Access denied.'));
     assert.equal(await page.locator('.mw-sign-in').isVisible(),true);
@@ -230,11 +245,14 @@ async function integrated(browser){
     await page.addScriptTag({path:path.join(__dirname,'../src/music-workspace.js')});
     await page.evaluate(()=>CT_MUSIC_WORKSPACE.open());
     const connect=async()=>{
+      await openSettings(page);
       await page.locator('.mw-client').selectOption('fixture-client');
       await page.locator('[data-action=connect]').click();
       await page.waitForFunction(()=>document.querySelector('.mw-connect-status').textContent.startsWith('Connected.'));
+      await closeSettings(page);
     };
     await page.waitForFunction(()=>document.querySelector('.mw-client').options.length===2);
+    await openSettings(page);
     assert.equal(await page.locator('.mw-external-mcp').evaluate(el=>el.open),false);
     await page.locator('.mw-external-mcp > summary').click();
     assert.equal(await page.locator('.mw-mcp-setup').isVisible(),false,'HTTP does not advertise gateway endpoint');
@@ -255,6 +273,7 @@ async function integrated(browser){
     await page.evaluate(()=>{remote={id:'stale',generation:gen,baseRevision:CT_MUSIC_WORKSPACE.agentContext().baseRevision,draftEpoch:CT_MUSIC_WORKSPACE.agentContext().draftEpoch,edits:[{from:0,to:0,text:'// stale\n'}],explanation:'Stale fixture'};mode='race';});
     await page.waitForFunction(()=>document.querySelector('.mw-connect-status').textContent.includes('Draft or project changed'));
     assert.equal(await page.evaluate(()=>CT_MUSIC_WORKSPACE.agentProposalStatus('stale').ok),false);
+    await openSettings(page);
     await page.evaluate(()=>{mode='503';});await page.locator('[data-action=refresh-clients]').click();
     await page.waitForFunction(()=>document.querySelector('.mw-connect-status').textContent.includes('unavailable'));
     assert.equal(await page.locator('[data-action=connect]').isDisabled(),true);

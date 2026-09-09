@@ -35,6 +35,7 @@ async function run(){
   assert(initial.draft.includes('event('),'source carries concrete musical events');
   assert.equal(initial.playing,null,'opening workspace does not claim playback');
   await page.evaluate(()=>{const composer=CT_COMPOSERS.rrr_core,original=composer.compile;window.__workspaceCompositions=0;composer.compile=function(...args){window.__workspaceCompositions++;return original.apply(this,args);};});
+  await page.locator('.mw-generate > summary').click();
   await page.locator('.mw-generate-text').fill('Make something happy');
   await page.click('#musicworkspace [data-action=generate]');
   await page.waitForFunction(()=>document.querySelector('.mw-status').textContent.startsWith('Generated once.'));

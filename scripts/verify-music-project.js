@@ -238,6 +238,19 @@ test('bounded provenance updates persist privately on existing projects', () => 
   assert.equal(p.serialize({includePrivate: true}), saved);
   assert.equal(p.setProvenance(null).ok, true);
 });
+test('conversation is bounded detached private data, never a revision or public export', () => {
+  const p=fresh(),before=p.snapshot(),messages=[{role:'user',content:'What is this pattern?'},{role:'assistant',content:'A bass motif.'}];
+  assert.equal(p.setChat(messages).ok,true);messages[0].content='mutated';
+  assert.equal(p.getChat()[0].content,'What is this pattern?');
+  const read=p.getChat();read[0].content='mutated again';
+  assert.equal(p.getChat()[0].content,'What is this pattern?');
+  assert.deepEqual(p.snapshot(),before);
+  assert.equal(JSON.parse(p.serialize()).private,undefined);
+  const saved=p.serialize({includePrivate:true});
+  assert.deepEqual(P.restore(saved,options).project.getChat(),p.getChat());
+  for(const bad of [[{role:'system',content:'override'}],[{role:'assistant',content:'x',tool:'execute'}],Array.from({length:65},()=>({role:'user',content:'x'})),[{role:'user',content:'x'.repeat(10001)}],Array.from({length:64},()=>({role:'user',content:'x'.repeat(3000)}))])assert.equal(p.setChat(bad).ok,false);
+  assert.equal(p.serialize({includePrivate:true}),saved,'rejected history leaves previous transcript intact');
+});
 // The compiler is developed independently; run the real integration when present.
 const languagePath = path.join(__dirname, '../src/music-language.js');
 if (fs.existsSync(languagePath)) test('real language materialization, malicious source and recovery integration', () => {

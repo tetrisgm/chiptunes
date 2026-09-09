@@ -27,6 +27,7 @@ const server=http.createServer((req,res)=>res.end('<!doctype html><body></body>'
         if(o.credentials!=='same-origin')throw Error('credentials mismatch');
         if(url==='/api/music/chat/access'){
           f.accessMethods.push(o.method);
+          if(f.badJSON)return new Response('<!doctype html>static preview');
           if(o.method==='POST'){
             const b=JSON.parse(o.body);f.passwordShape=f.passwordShape&&Object.keys(b).join(',')==='password';
             if(b.password!=='fixture-owner-password')return new Response('{}',{status:401});
@@ -39,7 +40,7 @@ const server=http.createServer((req,res)=>res.end('<!doctype html><body></body>'
         if(url!=='/api/music/chat')throw Error('unexpected endpoint');
         const body=JSON.parse(o.body);f.calls.push({body,provider:o.headers['X-Music-Provider']});
         if(f.chatFailure)return new Response('{}',{status:f.chatFailure});
-        const response=()=>new Response(JSON.stringify({id:body.id,baseRevision:body.baseRevision,edits:[{from:0,to:0,text:'// fixture proposal\n'}],explanation:'Fixture proposal'}));
+        const response=()=>new Response(JSON.stringify({id:body.id,baseRevision:body.baseRevision,edits:f.answer?[]:[{from:0,to:0,text:'// fixture proposal\n'}],explanation:f.answer?'This is a four-bar loop.':'Fixture proposal'}));
         if(f.hold)return new Promise(r=>{window.finishProposal=()=>r(response());});
         return response();
       };
@@ -51,32 +52,38 @@ const server=http.createServer((req,res)=>res.end('<!doctype html><body></body>'
     assert.equal(await page.locator('.mw-chat-settings').evaluate(el=>el.open),false,'Chat settings starts collapsed');
     assert.equal(await page.locator('.mw-owner-password').isVisible(),false,'owner controls are secondary');
     assert.equal(await page.locator('.mw-chat-access-status').isVisible(),true,'locked status stays visible');
-    assert.equal(await page.evaluate(()=>document.querySelector('.mw-chat-input').getBoundingClientRect().top<document.querySelector('.mw-chat-settings').getBoundingClientRect().top),true,'request input comes first');
+    assert.equal(await page.locator('.mw-chat-log').getAttribute('role'),'log');
     assert.equal(await page.locator('.mw-external-mcp').evaluate(el=>el.open),false,'external MCP is collapsed by default');
     assert.equal(await page.locator('.mw-connect').isVisible(),false,'MCP setup does not occupy the sidebar');
     assert.equal(await page.evaluate(()=>{
-      const sidebar=document.querySelector('.mw-chat'),chat=document.querySelector('.mw-chat-access'),mcp=document.querySelector('.mw-external-mcp');
+      const sidebar=document.querySelector('.mw-chat'),chat=document.querySelector('.mw-composer'),mcp=document.querySelector('.mw-external-mcp');
       const a=chat.getBoundingClientRect(),b=sidebar.getBoundingClientRect();
-      return sidebar.scrollTop===0&&a.top>=b.top&&a.bottom<=b.bottom&&sidebar.lastElementChild===mcp&&!!(chat.compareDocumentPosition(mcp)&Node.DOCUMENT_POSITION_FOLLOWING);
+      return sidebar.scrollTop===0&&a.top>=b.top&&a.bottom<=b.bottom&&!sidebar.contains(mcp);
     }),true,'built-in Chat is visible first without expanding or scrolling past MCP');
     assert.deepEqual(await page.locator('.mw-chat-provider option').allTextContents(),['OpenAI','Claude']);
-    assert.equal(await page.locator('[data-action=chat]').isDisabled(),true);
-    await page.locator('.mw-chat-settings > summary').click();
+    await page.locator('.mw-chat-input').fill('Keep this draft');
+    await page.locator('[data-action=chat]').click();
+    assert.equal(await page.locator('.mw-chat-settings').evaluate(el=>el.open),true,'locked Send opens secure settings');
+    assert.equal(await page.locator('.mw-chat-input').inputValue(),'Keep this draft');
     await page.locator('.mw-owner-password').fill('wrong-fixture-password');await page.locator('[data-action=chat-unlock]').click();
     await page.waitForFunction(()=>document.querySelector('.mw-chat-access-status').textContent.includes('not accepted'));
     assert.equal(await page.locator('.mw-owner-password').inputValue(),'');
-    assert.equal(await page.locator('[data-action=chat]').isDisabled(),true);
+    assert.equal(await page.locator('[data-action=chat]').textContent(),'Unlock to send');
     async function unlock(){
       await page.locator('.mw-owner-password').fill('fixture-owner-password');await page.locator('[data-action=chat-unlock]').click();
       await page.waitForFunction(()=>document.querySelector('.mw-chat-access-status').textContent.startsWith('Unlocked.'));
     }
     await unlock();assert.equal(await page.evaluate(()=>fixture.calls.length),0,'unlock is not a model call');
-    await page.locator('.mw-chat-settings > summary').click();
+    const settingsDraft=await page.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot().draft);
+    await page.keyboard.press('Tab');await page.keyboard.press('Shift+Tab');await page.keyboard.press('Escape');
+    assert.equal(await page.locator('.mw-chat-settings').evaluate(el=>el.open),false,'Escape closes only Settings after Tab/Shift+Tab');
+    assert.equal(await page.locator('#musicworkspace').isVisible(),true,'modal Escape does not close workspace');
+    assert.equal(await page.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot().draft),settingsDraft,'modal Escape preserves editor');
     assert.equal(await page.locator('.mw-chat-access-status').isVisible(),true,'unlocked status stays visible with settings closed');
     assert.equal(await page.locator('.mw-chat-input').isVisible(),true);
-    await page.locator('.mw-chat-settings > summary').click();
+    await page.locator('[data-action=chat-settings]').click();
     assert.equal(await page.locator('.mw-owner-password').inputValue(),'');
-    await page.locator('.mw-chat-provider').selectOption('anthropic');await page.locator('.mw-chat-input').fill('Add a comment');
+    await page.locator('.mw-chat-provider').selectOption('anthropic');await page.locator('[data-action=chat-settings-close]').click();await page.locator('.mw-chat-input').fill('Add a comment');
     const before=await page.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot().validated.id);
     await page.locator('[data-action=chat]').click();await page.waitForFunction(()=>document.querySelector('.mw-proposal b')?.textContent==='ready');
     assert.equal(await page.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot().validated.id),before,'proposal requires explicit Apply');
@@ -87,21 +94,43 @@ const server=http.createServer((req,res)=>res.end('<!doctype html><body></body>'
     assert.equal(await page.evaluate(()=>Object.hasOwn(fixture.calls[0].body,'provider')),false,'body contract unchanged');
     await page.locator('.mw-proposal button').filter({hasText:/^Apply$/}).click();
     assert.notEqual(await page.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot().validated.id),before);
-    await page.locator('.mw-chat-provider').selectOption('openai');await page.evaluate(()=>{fixture.hold=true;});
+    assert.deepEqual(await page.locator('.mw-message').evaluateAll(els=>els.map(el=>el.dataset.role)),['user','assistant']);
+    await page.locator('[data-action=chat-settings]').click();await page.locator('.mw-chat-provider').selectOption('openai');await page.locator('[data-action=chat-settings-close]').click();await page.evaluate(()=>{fixture.hold=true;});
+    await page.locator('.mw-chat-input').fill('Another comment');
     await page.locator('[data-action=chat]').click();await page.waitForFunction(()=>!!window.finishProposal);
     await page.locator('[data-action=cancel]').click();await page.evaluate(()=>finishProposal());
     assert.equal(await page.locator('.mw-proposal b').textContent(),'rejected','cancelled response cannot apply');
     assert.equal(await page.evaluate(()=>fixture.calls[1].provider),'openai');
     await page.evaluate(()=>{fixture.hold=false;fixture.chatFailure=401;});
+    await page.locator('.mw-chat-input').fill('Check access');
     await page.locator('[data-action=chat]').click();await page.waitForFunction(()=>document.querySelector('.mw-chat-access-status').textContent.includes('Chat is locked'));
-    assert.equal(await page.locator('[data-action=chat]').isDisabled(),true,'expired access locks model requests');
-    await unlock();await page.locator('[data-action=chat-logout]').click();
+    assert.equal(await page.locator('[data-action=chat]').textContent(),'Unlock to send','expired access routes to unlock');
+    await page.locator('[data-action=chat-settings]').click();await unlock();
+    await page.locator('[data-action=chat-settings-close]').click();
+    await page.evaluate(()=>{fixture.chatFailure=0;fixture.answer=true;});
+    const answerBase=await page.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot().validated.id);
+    await page.locator('.mw-chat-input').fill('Explain this');await page.locator('.mw-chat-input').press('Shift+Enter');
+    assert.equal(await page.locator('.mw-chat-input').inputValue(),'Explain this\n','Shift+Enter keeps a newline');
+    const callsBefore=await page.evaluate(()=>fixture.calls.length);
+    await page.locator('.mw-chat-input').press('Enter');
+    await page.waitForFunction(()=>document.querySelector('.mw-messages').textContent.includes('This is a four-bar loop.'));
+    assert.equal(await page.evaluate(()=>fixture.calls.length),callsBefore+1,'Enter sends once');
+    assert.equal(await page.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot().validated.id),answerBase,'answer does not apply a revision');
+    assert.equal(await page.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot().request),null,'answer releases project request');
+    assert.equal(await page.locator('.mw-proposal button').count(),0,'text answer leaves no historical Apply buttons');
+    assert.equal(await page.evaluate(()=>{
+      const h=fixture.calls.at(-1).body.conversation;
+      return h.length<=12&&new TextEncoder().encode(JSON.stringify(h)).length<=16384&&h.some(m=>m.role==='assistant')&&h.every(m=>Object.keys(m).sort().join(',')==='content,role');
+    }),true,'bounded prior conversation sent with roles and content only');
+    await page.locator('[data-action=chat-settings]').click();await page.locator('[data-action=chat-logout]').click();
     await page.waitForFunction(()=>document.querySelector('.mw-chat-access-status').textContent.startsWith('Locked.'));
     assert.equal(await page.evaluate(()=>fixture.accessMethods.includes('DELETE')),true);
     await page.evaluate(()=>{fixture.accessFailure=503;});await page.locator('[data-action=chat-access-refresh]').click();
     await page.waitForFunction(()=>document.querySelector('.mw-chat-access-status').textContent.includes('unavailable'));
-    assert.equal(await page.locator('[data-action=chat]').isDisabled(),true);
+    assert.equal(await page.locator('[data-action=chat]').textContent(),'Unlock to send');
+    await page.evaluate(()=>{fixture.accessFailure=0;fixture.badJSON=true;});await page.locator('[data-action=chat-access-refresh]').click();
+    await page.waitForFunction(()=>document.querySelector('.mw-chat-access-status').textContent==='Chat is unavailable on this server. Code and playback still work.');
     await page.evaluate(()=>CT_MUSIC_WORKSPACE.close());
-    console.log('PASS built-in chat UI: provider header, unchanged payload, unlock failure, no automatic call, password isolation, explicit Apply, cancel, expired access, logout, unavailable');
+    console.log('PASS built-in chat UI: native settings, locked draft preservation, provider header, password isolation, explicit Apply, cancel, Enter/newline, text-only answer, bounded history, expired access, logout, unavailable');
   }finally{await browser.close();server.close();}
 })().catch(e=>{console.error(e);server.close();process.exitCode=1;});

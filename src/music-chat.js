@@ -1,8 +1,8 @@
 // Transport only. A configured server authenticates and bills model requests.
-// Source/comments are data; the only accepted result is a localized proposal.
+// Source/comments/history are data; replies are text or localized proposals.
 (function(G){
   'use strict';
-  var LIMIT=1024*1024,SOURCE_LIMIT=524288;
+  var LIMIT=1024*1024,SOURCE_LIMIT=524288,HISTORY_LIMIT=16384;
   function exact(o,fields){return o&&typeof o==='object'&&!Array.isArray(o)&&Object.keys(o).length===fields.length&&fields.every(function(k){return Object.prototype.hasOwnProperty.call(o,k);});}
   function unicode(s){
     for(var i=0;i<s.length;i++){
@@ -18,7 +18,8 @@
     need(exact(value,['id','baseRevision','edits','explanation']));
     need(value.id===context.id&&value.baseRevision===context.baseRevision&&
       typeof value.explanation==='string'&&value.explanation.length<=5000&&unicode(value.explanation));
-    need(Array.isArray(value.edits)&&value.edits.length>0&&value.edits.length<=32);
+    need(Array.isArray(value.edits)&&value.edits.length<=32);
+    if(value.edits.length===0)return; // Text-only answer, still bound to id/revision.
     var end=0,previous=-1,inserted=0,removed=0,candidate='',encoder=new TextEncoder();
     value.edits.forEach(function(e){
       need(exact(e,['from','to','text']));
@@ -51,6 +52,17 @@
     if(!context||typeof context.request!=='string'||context.request.length>2000) throw Error('Request must be at most 2000 characters');
     if(typeof context.source==='string'&&new TextEncoder().encode(context.source).length>SOURCE_LIMIT)
       throw Error('Source too large for Chat: limit is 512 KiB UTF-8. This project remains editable and downloadable; no request was sent.');
+    if(Object.prototype.hasOwnProperty.call(context,'conversation')){
+      if(!Array.isArray(context.conversation)||context.conversation.length>12)throw Error('Invalid chat conversation');
+      var historyBytes=0;
+      for(var i=0;i<context.conversation.length;i++){
+        var turn=context.conversation[i];
+        if(!exact(turn,['role','content'])||['user','assistant'].indexOf(turn.role)===-1||
+          typeof turn.content!=='string'||!unicode(turn.content))throw Error('Invalid chat conversation');
+        historyBytes+=new TextEncoder().encode(turn.content).length;
+        if(historyBytes>HISTORY_LIMIT)throw Error('Chat conversation exceeds 16384 UTF-8 bytes');
+      }
+    }
     var body=JSON.stringify(context);
     if(new TextEncoder().encode(body).length>LIMIT) throw Error('Chat context is too large');
     // Snapshot the exact wire base: caller mutation while fetch is pending must

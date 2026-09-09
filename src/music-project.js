@@ -205,6 +205,23 @@
         return { ok: true, draftEpoch: draftEpoch };
       },
       validate: validate,
+      // Conversation is private project data, not musical source or authority.
+      // Legacy unknown chat records remain serialized, but are not rendered.
+      getChat: function () {
+        var messages=Array.isArray(privateData.chat)?privateData.chat:[];
+        var recent=messages.filter(function(m){return m&&['user','assistant'].indexOf(m.role)!==-1&&typeof m.content==='string'&&m.content.length<=10000;}).slice(-64).map(function(m){return {role:m.role,content:m.content};});
+        while(new TextEncoder().encode(JSON.stringify(recent)).length>131072)recent.shift();
+        return recent;
+      },
+      setChat: function (messages) {
+        try {
+          var data=copy(messages);
+          assert(Array.isArray(data)&&data.length<=64,'Conversation message limit');
+          data.forEach(function(m){assert(m&&Object.keys(m).length===2&&['user','assistant'].indexOf(m.role)!==-1&&typeof m.content==='string'&&m.content.length<=10000,'Invalid conversation message');});
+          assert(new TextEncoder().encode(JSON.stringify(data)).length<=131072,'Conversation size limit');
+          privateData.chat=data;return {ok:true};
+        }catch(e){return fail('invalid-conversation',String(e.message||e));}
+      },
       // Call after a generated composition is applied to an existing project.
       // Private provenance is persisted only with serialize/save includePrivate.
       setProvenance: function (value) {

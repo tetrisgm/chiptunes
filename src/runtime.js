@@ -1416,6 +1416,9 @@ function panelVisible(id){
 function handleEscapeShortcut(ev){
   if(ev && ev.key==='Escape' && !ev.metaKey && !ev.altKey && !ev.ctrlKey &&
      typeof CT_MUSIC_WORKSPACE!=='undefined' && CT_MUSIC_WORKSPACE.isOpen()){
+    // Native settings dialogs own Escape before the surrounding workspace.
+    // This document-capture handler runs before the workspace's modal handler.
+    if(document.querySelector('#musicworkspace dialog[open]'))return false;
     // CodeMirror gets first refusal for completion/search popovers. Unhandled
     // Escape bubbles to the workspace, which still closes the modal normally.
     if(ev.target&&ev.target.closest&&ev.target.closest('.cm-editor'))return false;

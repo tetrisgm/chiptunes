@@ -195,6 +195,22 @@ for (const provider of ['openai', 'anthropic']) {
     assert.notEqual(offset, [...source.slice(0, offset)].length, 'emoji means code-point counting would give a wrong offset');
   });
 
+  test(`MOCK FETCH ${provider}: conversational reply and recent history pass without source edits`, async () => {
+    const answer={id:context.id,baseRevision:context.baseRevision,edits:[],explanation:'This pattern repeats a short bass motif.'};
+    const conversation=[{role:'user',content:'Explain the bass'},{role:'assistant',content:'It repeats every bar.'}];
+    const f=mockAdapter(provider,()=>Response.json(envelope(provider,JSON.stringify(answer))));
+    const response=await handler(f.adapter)(new Request(`${origin}/api/music/chat`,{
+      method:'POST',headers:{origin,'content-type':'application/json'},
+      body:JSON.stringify({...context,request:'Why does it repeat?',conversation})
+    }));
+    assert.equal(response.status,200);assert.deepEqual(await response.json(),answer);
+    assert.equal(f.calls.length,1);
+    const body=JSON.parse(f.calls[0].init.body);
+    const input=provider==='openai'?body.input[0].content:body.messages[0].content;
+    assert.deepEqual(JSON.parse(input).conversation,conversation);
+    assert.equal(JSON.parse(input).source,source);
+  });
+
   test(`MOCK FETCH ${provider}: empty, absent, ambiguous, malformed anchors and mismatched echoes reject`, async () => {
     for (const value of [
       { ...anchoredProposal, id: 'wrong' }, { ...anchoredProposal, baseRevision: 'wrong' },
