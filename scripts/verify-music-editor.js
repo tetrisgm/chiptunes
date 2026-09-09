@@ -84,7 +84,7 @@ async function main() {
             await page.evaluate(() => document.querySelector('.cr-tour')?.remove());
             await page.click('[data-cr=workspace]');
             await page.waitForSelector('#musicworkspace .cm-content', { state: 'attached' });
-            await page.click('#musicworkspace [data-view=code]');
+            await page.click('#musicworkspace .cm-content');
             text = await page.evaluate(() => CT_MUSIC_WORKSPACE.snapshot().draft);
           } else {
             await page.evaluate(source => {

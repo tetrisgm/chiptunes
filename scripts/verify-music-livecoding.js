@@ -36,7 +36,8 @@ async function main(){
     const c=await context(),page=await c.newPage();await open(page);
     const snapshot=()=>page.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot());
     const editor=page.locator('#musicworkspace .cm-content');
-    assert.equal(await page.locator('#musicworkspace').getAttribute('data-view'),'code','first run opens Code');
+    assert.equal(await page.getByRole('region',{name:'Code editor',exact:true}).isVisible(),true,'first run exposes code');
+    assert.equal(await page.getByRole('region',{name:'Note chart',exact:true}).isVisible(),true,'first run exposes chart alongside code');
     const initial=await snapshot();
     assert(initial.validated,'starter compiles');
     assert(initial.draft.length<4000,'starter must be readable rather than a materialized full song');
@@ -118,6 +119,7 @@ async function main(){
     await page.click('#musicworkspace [data-action=undo]');
     assert.equal((await snapshot()).validated.source,changed);
     await editor.fill(changed+'\n// unfinished retained\ninvalid(');
+    await page.locator('.mw-project-tools>summary').click();
     await page.click('#musicworkspace [data-action=save]');
     await page.waitForFunction(k=>JSON.parse(localStorage.getItem(k)).draft.endsWith('invalid('),key);
     const saved=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),key);
@@ -145,12 +147,12 @@ async function main(){
     const record=JSON.parse(exact),existingState=await existing.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot());
     assert.equal(existingState.draft,record.draft);assert.equal(existingState.validated.source,record.lastValid.source);
     assert.equal(existingState.playing,null);
-    // Main-site Chat is intentionally hidden; exercise the real hosted UI using local bytes.
-    const gateway='https://chiptunes-agent-gateway.vercel.app',hostedContext=await context(gateway);
+    // The main-site chat composer shares the workspace but never owns Run.
+    const gateway=origin,hostedContext=await context(gateway);
     const hosted=await hostedContext.newPage();await open(hosted,gateway);
     const hostedBefore=await hosted.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot());
-    await hosted.locator('.mw-chat-input').fill('shortcut must not run music');
-    await hosted.locator('.mw-chat-input').press('ControlOrMeta+Enter');
+    await hosted.locator('.mcui textarea').fill('shortcut must not run music');
+    await hosted.locator('.mcui textarea').press('ControlOrMeta+Enter');
     await hosted.waitForTimeout(250); // Allow an accidental asynchronous musicPlay to acknowledge.
     const hostedAfter=await hosted.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot());
     assert.equal(hostedAfter.playing,null,'Chat shortcut never starts playback');

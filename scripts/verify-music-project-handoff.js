@@ -52,9 +52,13 @@ const origin='https://chiptunes.app',gateway='https://chiptunes-agent-gateway.ve
     await page.goto(origin+'/create#music');
     await page.waitForFunction(()=>typeof CT_MUSIC_WORKSPACE==='object');
     await page.waitForSelector('#musicworkspace:not([hidden]) .cm-content',{state:'attached'});
-    assert.equal(await page.locator('[data-action=project-handoff]').isVisible(),true);
+    assert.equal(await page.locator('[data-action=project-handoff]').isVisible(),false,'main-site chat has no second-workspace handoff bar');
     async function popup(){
-      const opened=page.waitForEvent('popup');await page.locator('[data-action=project-handoff]').click();const next=await opened;
+      // Explicit compatibility transport fixture, not a primary product action.
+      const opened=page.waitForEvent('popup');await page.evaluate(serialized=>{
+        window.testTransferResult=null;window.testTransfer=CT_MUSIC_PROJECT_TRANSFER.send(serialized);
+        testTransfer.result.then(result=>{window.testTransferResult=result;});
+      },publicCopy);const next=await opened;
       await next.waitForFunction(()=>document.querySelector('[data-action=transfer-accept]')?.disabled===false);
       assert.equal(new URL(next.url()).hash,'#music','nonce consumed before workspace route rewrite');
       assert.equal(await next.locator('.mw-project-handoff').isVisible(),false,'sender action is main-origin only');
@@ -71,13 +75,14 @@ const origin='https://chiptunes.app',gateway='https://chiptunes-agent-gateway.ve
     assert.equal(state.playing,null);assert.equal(state.pending,null);assert.equal(await accepted.evaluate(()=>handoffPrivate),false);
     assert.equal(await accepted.evaluate(key=>localStorage.getItem(key),key),hosted,'hosted storage not replaced');
     accepted.once('dialog',dialog=>dialog.dismiss());
+    await accepted.locator('.mw-project-tools>summary').click();
     await accepted.locator('[data-action=save]').click();await accepted.waitForTimeout(350);
-    assert((await accepted.locator('.mw-status').textContent()).includes('temporary transferred copy'));
+    assert((await accepted.locator('.mw-status').textContent()).includes('temporary copy'));
     assert.equal(await accepted.evaluate(key=>localStorage.getItem(key),key),hosted,'declined replacement protects hosted draft');
     await accepted.evaluate(()=>CT_MUSIC_WORKSPACE.close());
     assert.equal(await accepted.evaluate(key=>localStorage.getItem(key),key),hosted,'close cannot autosave transferred source');
     await accepted.close();
-    await page.waitForFunction(()=>document.querySelector('.mw-status').textContent==='Project sent. Review it in web Chat. Original remains here.');
+    await page.waitForFunction(()=>window.testTransferResult?.ok);
     assert.equal(await page.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot().draft),JSON.parse(original).draft);
     const cancelled=await popup();await cancelled.locator('[data-action=transfer-cancel]').click();
     assert.equal(await cancelled.evaluate(()=>handoffMessages),0);assert.equal(await cancelled.evaluate(key=>localStorage.getItem(key),key),hosted);await cancelled.close();
@@ -93,7 +98,7 @@ const origin='https://chiptunes.app',gateway='https://chiptunes-agent-gateway.ve
     assert.equal(await closing.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot().draft),JSON.parse(hosted).draft,'close after Accept prevents late swap');
     await closing.close();
     const changed=await popup();
-    await changed.locator('#musicworkspace [data-view=code]').click();await changed.locator('.cm-content').press('ControlOrMeta+End');await changed.keyboard.insertText('\n// hosted edit while consent pending');
+    await changed.locator('#musicworkspace .cm-content').click();await changed.locator('.cm-content').press('ControlOrMeta+End');await changed.keyboard.insertText('\n// hosted edit while consent pending');
     // Click synchronously after the edit, before the 250ms save timer fires.
     assert.equal(await changed.evaluate(key=>{
       const pending=!JSON.parse(localStorage.getItem(key)).draft.includes('hosted edit while consent pending');
@@ -109,8 +114,9 @@ const origin='https://chiptunes.app',gateway='https://chiptunes-agent-gateway.ve
     await persisted.locator('[data-action=transfer-accept]').click();
     await persisted.waitForFunction(()=>document.querySelector('.mw-transfer-description').textContent.startsWith('Project accepted'));
     persisted.once('dialog',dialog=>dialog.accept()); // Explicit replacement of this test-owned fixture only.
+    await persisted.locator('.mw-project-tools>summary').click();
     await persisted.locator('[data-action=save]').click();
-    await persisted.waitForFunction(()=>document.querySelector('.mw-status').textContent==='Transferred project saved locally.');
+    await persisted.waitForFunction(()=>document.querySelector('.mw-status').textContent==='Project saved locally.');
     await persisted.reload();
     await persisted.waitForSelector('#musicworkspace:not([hidden]) .cm-content',{state:'attached'});
     const recovered=await persisted.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot());

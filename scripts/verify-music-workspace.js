@@ -26,16 +26,13 @@ async function run(){
   page.on('pageerror',e=>{errors.push(e.message);console.error('browser:',e.message);});
   await page.addInitScript(()=>localStorage.setItem('ct-create-tour','1'));
   await page.goto('http://127.0.0.1:'+server.address().port+'/create');
-  await page.waitForSelector('[data-cr=workspace]');
-  await page.evaluate(()=>{document.querySelector('.cr-tour')?.remove();});
-  await page.click('[data-cr=workspace]');
   await page.waitForSelector('#musicworkspace .cm-content',{state:'attached'});
   let initial=await page.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot());
-  assert(initial.validated&&initial.validated.compiled.gb.notes.length>0,'generated song becomes actual source');
-  assert(initial.draft.includes('event('),'source carries concrete musical events');
+  assert(initial.validated&&initial.validated.compiled.gb.notes.length>0,'starter code compiles into actual notes');
+  assert(initial.draft.includes('pattern('),'fresh entry offers readable musical code');
   assert.equal(initial.playing,null,'opening workspace does not claim playback');
   await page.evaluate(()=>{const composer=CT_COMPOSERS.rrr_core,original=composer.compile;window.__workspaceCompositions=0;composer.compile=function(...args){window.__workspaceCompositions++;return original.apply(this,args);};});
-  await page.locator('.mw-generate > summary').click();
+  await page.locator('.mw-project-tools > summary').click();await page.locator('.mw-generate > summary').click();
   await page.locator('.mw-generate-text').fill('Make something happy');
   await page.click('#musicworkspace [data-action=generate]');
   await page.waitForFunction(()=>document.querySelector('.mw-status').textContent.startsWith('Generated once.'));
@@ -44,7 +41,7 @@ async function run(){
   await page.waitForTimeout(400);
   const provenance=await page.evaluate(()=>JSON.parse(localStorage.getItem('ct-music-workspace-v1')).private.provenance);
   assert.equal(provenance.prompt,'Make something happy');assert(provenance.seed,'explicit generation seed is recorded');
-  await page.click('#musicworkspace [data-view=code]');
+  await page.click('#musicworkspace .cm-content');
   await page.locator('.cm-content').fill('song({tempo:128,bars:2})\n\n// unfinished draft\ninvalid(');
   await page.click('#musicworkspace [data-action=apply]');
   const invalid=await page.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot());
@@ -64,7 +61,7 @@ async function run(){
   const recovered=await page.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot());
   assert.equal(recovered.draft,invalid.draft,'reload restores unfinished source rather than replacing it with a generated song');
   assert.deepEqual(recovered.validated.compiled.gb,initial.validated.compiled.gb);
-  await page.click('#musicworkspace [data-view=code]');
+  await page.click('#musicworkspace .cm-content');
   await page.locator('.cm-content').press('ControlOrMeta+a');
   await page.evaluate(text=>navigator.clipboard.writeText(text),initial.draft+'\n// preserved comment');
   await page.keyboard.press('ControlOrMeta+v');
@@ -76,9 +73,10 @@ async function run(){
   assert.equal((await page.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot())).draft,initial.draft,'revision undo restores exact source');
   await page.click('#musicworkspace [data-action=redo]');
   assert((await page.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot())).draft.endsWith('// preserved comment'));
-  await page.click('#musicworkspace [data-view=notes]');
+  await page.click('#musicworkspace .mw-notes');
   await page.locator('#musicworkspace .mw-note').first().click();
-  assert.equal(await page.locator('#musicworkspace').getAttribute('data-view'),'code','note selects its source block');
+  await page.waitForFunction(()=>getSelection().toString().length>0);
+  assert(await page.locator('.mw-notes').isVisible()&&await page.locator('.cm-content').isVisible(),'note selects source with both panes visible');
   await page.click('#musicworkspace [data-action=play]');
   await page.waitForFunction(()=>CT_MUSIC_WORKSPACE.snapshot().playing!==null);
   assert.match(await page.locator('.mw-position').textContent(),/Sounding r\d/,'playing waits for engine acknowledgment');
@@ -108,17 +106,17 @@ async function run(){
   await page.click('#musicworkspace [data-action=stop]');
   await page.waitForFunction(()=>CT_MUSIC_WORKSPACE.snapshot().playing===null);
   const beforeSpace=await page.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot().playing);
-  await page.locator('.mw-chat-input').fill('hello ');
-  await page.locator('.mw-chat-input').press('Space');
+  await page.locator('.mcui textarea').fill('hello ');
+  await page.locator('.mcui textarea').press('Space');
   assert.equal((await page.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot())).playing,beforeSpace,'typing Space never plays');
   await page.screenshot({path:path.join(tmp,'desktop.png')});
   await page.setViewportSize({width:390,height:844});
-  await page.click('#musicworkspace [data-view=chat]');
-  assert(await page.locator('.mw-chat-input').isVisible(),'mobile chat is full view');
-  assert.equal(await page.locator('.mw-main').isVisible(),false,'mobile sidebar replaced by full-width view');
+  await page.click('#musicworkspace [data-action=toggle-chat]');
+  assert(await page.locator('.mcui textarea').isVisible(),'mobile chat drawer is reachable');
+  assert.equal(await page.locator('.mw-main').isVisible(),true,'mobile drawer preserves composition underneath');
   await page.screenshot({path:path.join(tmp,'phone.png')});
   await page.setViewportSize({width:1280,height:900});
-  await page.click('#musicworkspace [data-view=code]');
+  await page.click('#musicworkspace .cm-content');
   const small='song({tempo:128,bars:4})\n'+
     'instruments([[128,240,0,0]]);\n'+
     'event({ch:0,frame:0,frames:60,midi:60,inst:0,vel:1});\n'+
@@ -134,10 +132,10 @@ async function run(){
     assert(c.constraints.locks.some(l=>l.type==='track'&&l.tracks[0]===0));
     await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({id:c.id,baseRevision:c.baseRevision,edits:[{from,to,text:''}],explanation:'Suggested removal of one drum hit.'})});
   });
-  await page.locator('.mw-chat-input').fill('simplify the drums, keep the melody');
-  await page.waitForFunction(()=>document.querySelector('.mw-chat-access-status').textContent.startsWith('Unlocked.'));
-  await page.click('#musicworkspace [data-action=chat]');
-  await page.waitForFunction(()=>document.querySelector('.mw-proposal b')?.textContent==='ready');
+  await page.locator('.mcui textarea').fill('simplify the drums, keep the melody');
+  await page.waitForFunction(()=>document.querySelector('.mcui-status').textContent.startsWith('Unlocked.'));
+  await page.click('#musicworkspace .mcui button[type=submit]');
+  await page.waitForFunction(()=>document.querySelector('.mcui-proposal b')?.textContent==='ready');
   await page.getByRole('button',{name:'Apply',exact:true}).click();
   const proposed=await page.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot());
   assert.equal(proposed.validated.compiled.gb.notes.length,2);
@@ -164,13 +162,13 @@ async function run(){
   await page.locator('.cm-content').press('ControlOrMeta+End');await page.keyboard.insertText('\n// first tab owns this change');
   await page.waitForTimeout(400);
   await other.waitForFunction(()=>document.querySelector('.mw-status').textContent.includes('Another tab changed'));
-  await other.click('#musicworkspace [data-view=code]');
+  await other.click('#musicworkspace .cm-content');
   await other.locator('.cm-content').press('ControlOrMeta+End');await other.keyboard.insertText('\n// conflicting second tab');
+  await other.locator('.mw-project-tools>summary').click();
   await other.click('#musicworkspace [data-action=save]');
   assert((await other.evaluate(()=>JSON.parse(localStorage.getItem('ct-music-workspace-v1')).draft)).endsWith('// first tab owns this change'),'conflicting tab never overwrites saved source');
   await other.close();
   await page.click('#musicworkspace [data-action=close]');
-  await page.click('[data-cr=close]');
   await page.waitForFunction(()=>Audio.chipDiag().owner==='radio');
   await page.waitForFunction(()=>window.__rrrChip&&window.__rrrChip.peak>0.001);
   assert.equal(await page.evaluate(()=>CT_MUSIC_WORKSPACE.isOpen()),false,'leaving Create releases workspace ownership');

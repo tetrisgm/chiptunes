@@ -2876,7 +2876,7 @@
         G.CT_MUSIC_WORKSPACE.open().catch(function(e){if(G._toast)G._toast(e.message);});
       }
       else if (k === 'workspace') {
-        var source=G.CT_MUSIC_LANGUAGE.materialize(liveScore||buildSong(),{tempo:S.bpm,bars:S.bars,title:S.title,tempoAt:S.tempoAt||[],stepsPerBar:spb()});
+        var source=G.CT_MUSIC_LANGUAGE.materialize(liveScore||buildSong(),{tempo:S.bpm,bars:S.bars,title:S.title,tempoAt:S.tempoAt||[],stepsPerBar:spb(),swing:!!S.swing});
         G.CT_MUSIC_WORKSPACE.open({source:source,explicit:true}).then(function(){if(G.CT_MUSIC_WORKSPACE.isOpen())root.classList.remove('show');}).catch(function(e){if(G._toast)G._toast(e.message);});
       }
     });

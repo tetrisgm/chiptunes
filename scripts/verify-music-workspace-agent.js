@@ -10,6 +10,8 @@ const server=http.createServer((req,res)=>res.end('<!doctype html><body></body>'
     const page=await browser.newPage(),errors=[];
     page.on('pageerror',e=>errors.push(e.message));
     await page.goto('http://127.0.0.1:'+server.address().port);
+    const chatBundle=require('esbuild').buildSync({entryPoints:[path.join(__dirname,'../src/music-chat-ui.jsx')],bundle:true,write:false,format:'iife',globalName:'CT_MUSIC_CHAT_UI',define:{'process.env.NODE_ENV':'"production"'}});
+    await page.addScriptTag({content:chatBundle.outputFiles[0].text});
     for(const file of ['gb-hardware.js','music-language.js','music-project.js','music-chat.js'])
       await page.addScriptTag({path:path.join(__dirname,'../src',file)});
     await page.evaluate(()=>{
@@ -33,7 +35,7 @@ const server=http.createServer((req,res)=>res.end('<!doctype html><body></body>'
     });
     await page.addScriptTag({path:path.join(__dirname,'../src/music-workspace.js')});
     await page.evaluate(()=>CT_MUSIC_WORKSPACE.open());
-    await page.waitForFunction(()=>document.querySelector('.mw-chat-access-status').textContent.startsWith('Unlocked.'));
+    await page.waitForFunction(()=>document.querySelector('.mcui-status').textContent.startsWith('Unlocked.'));
     const result=await page.evaluate(async()=>{
       const w=CT_MUSIC_WORKSPACE,checks=[];
       function check(value,label){if(!value)throw Error(label);checks.push(label);}
@@ -67,12 +69,12 @@ const server=http.createServer((req,res)=>res.end('<!doctype html><body></body>'
       check(w.agentPropose(input('busy')).code==='request-active','single active request');
       document.querySelector('.mw-lock').value='track';
       // No change event: Apply must still compare the exact current context.
-      [...document.querySelectorAll('.mw-proposal button')].find(b=>b.textContent==='Apply').click();
+      [...document.querySelectorAll('.mcui-proposal button')].find(b=>b.textContent==='Apply').click();
       check(w.agentProposalStatus('first').status==='superseded','Apply rejects changed policy without event');
       check(w.snapshot().draft===original.draft,'stale Apply preserves source');
       document.querySelector('.mw-lock').value='none';
       check(w.agentPropose(input('apply')).status==='ready','new context accepted');
-      [...document.querySelectorAll('.mw-proposal button')].find(b=>b.textContent==='Apply').click();
+      [...document.querySelectorAll('.mcui-proposal button')].find(b=>b.textContent==='Apply').click();
       check(w.agentProposalStatus('apply').status==='validated','explicit Apply validates');
       check(w.snapshot().validated.id!==original.validated.id&&w.snapshot().playing===null,'one revision without autoplay');
       // Remaining proposals use a comment insertion, valid under every musical lock.
@@ -100,23 +102,25 @@ const server=http.createServer((req,res)=>res.end('<!doctype html><body></body>'
       check(w.agentContext().policy.selection.ch===0,'context includes selected region');
       async function startChat(){
         const deadline=Date.now()+2000;
-        while(document.querySelector('[data-action=chat]').disabled){
+        while(!document.querySelector('.mcui-status').textContent.startsWith('Unlocked.')){
           if(Date.now()>deadline)throw Error('Authenticated chat fixture did not become ready');
           await new Promise(r=>setTimeout(r,0));
         }
         window.finishChat=null;
-        document.querySelector('.mw-chat-input').value='Add a comment';
-        document.querySelector('[data-action=chat]').click();
+        const input=document.querySelector('.mcui textarea');
+        Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input,'Add a comment');
+        input.dispatchEvent(new Event('input',{bubbles:true}));
+        document.querySelector('.mcui button[type=submit]').click();
         while(!window.finishChat){
           if(Date.now()>deadline)throw Error('Chat fixture was not called');
           await new Promise(r=>setTimeout(r,0));
         }
       }
       async function finishChat(){window.finishChat();for(let i=0;i<30;i++)await new Promise(r=>setTimeout(r,0));}
-      function proposalState(){return document.querySelector('.mw-proposal b').textContent;}
+      function proposalState(){return document.querySelector('.mcui-proposal b').textContent;}
       await startChat();await finishChat();check(proposalState()==='ready','local Chat ready');
       const beforeChat=w.snapshot().validated.id;
-      [...document.querySelectorAll('.mw-proposal button')].find(b=>b.textContent==='Apply').click();
+      [...document.querySelectorAll('.mcui-proposal button')].find(b=>b.textContent==='Apply').click();
       check(w.snapshot().validated.id!==beforeChat,'local Chat explicit Apply works');
       await startChat();await finishChat();
       lock.value='track';lock.dispatchEvent(new Event('change'));
@@ -128,7 +132,7 @@ const server=http.createServer((req,res)=>res.end('<!doctype html><body></body>'
       lock.value='none';lock.dispatchEvent(new Event('change'));
       await startChat();await finishChat();
       lock.value='track';
-      [...document.querySelectorAll('.mw-proposal button')].find(b=>b.textContent==='Apply').click();
+      [...document.querySelectorAll('.mcui-proposal button')].find(b=>b.textContent==='Apply').click();
       check(proposalState()==='superseded','local Chat Apply checks policy without event');
       lock.value='none';lock.dispatchEvent(new Event('change'));
       return checks;
@@ -136,6 +140,7 @@ const server=http.createServer((req,res)=>res.end('<!doctype html><body></body>'
     const beforeImport=await page.evaluate(()=>CT_MUSIC_WORKSPACE.agentContext().projectInstance);
     const serialized=await page.evaluate(()=>CT_MUSIC_PROJECT.create(CT_MUSIC_WORKSPACE.snapshot().draft,{compile:CT_MUSIC_LANGUAGE.compile,assetsVersion:'ct-gb-bank-1'}).serialize());
     page.on('dialog',dialog=>dialog.accept());
+    await page.locator('.mw-project-tools>summary').click();
     const chooser=page.waitForEvent('filechooser');
     await page.click('[data-action=open]');
     await (await chooser).setFiles({name:'project.json',mimeType:'application/json',buffer:Buffer.from(serialized)});

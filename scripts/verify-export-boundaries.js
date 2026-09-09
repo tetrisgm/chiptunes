@@ -61,7 +61,10 @@ const shape = song => ({
     fixture.notes.push({ lane: 'Drums', step: s * 4, drum: ['kick', 'hat', 'snare', 'hat'][s % 4] });
   }
   const code = api.fromJSON(fixture);
-  await create.goto(`http://127.0.0.1:${host.port}/create#s=${code}`, { waitUntil: 'domcontentloaded' });
+  // This fixture exercises the retained native/legacy editing export controls.
+  // Canonical source exports and shared-entry fidelity have separate coverage.
+  await create.goto(`http://127.0.0.1:${host.port}/get`, { waitUntil: 'domcontentloaded' });
+  await create.evaluate(code=>CT_CREATE.open(code),code);
   await create.waitForFunction(() => document.querySelector('#createscreen.show'), null, { timeout: 40000 });
   await wait(3500);
   const prepared = await create.evaluate(async () => {

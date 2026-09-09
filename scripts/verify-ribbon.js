@@ -42,10 +42,13 @@ function server() {
     s.listen(0, '127.0.0.1', () => res({ s, port: s.address().port }));
   });
 }
-// a canvas whose PARENT is display:none still computes display:block itself
+// The unified workspace covers and inerts the station rather than necessarily
+// deleting its layout boxes. Check exposed hit surface, not only computed size.
 const shown = p => p.evaluate(() => {
   const c = document.getElementById('noteribbon');
-  return !!c && c.getClientRects().length > 0;
+  if(!c||!c.getClientRects().length)return false;
+  const r=c.getBoundingClientRect(),hit=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);
+  return !!hit&&!!hit.closest('#playbar');
 });
 const pixels = p => p.evaluate(() => {
   const c = document.getElementById('noteribbon');
@@ -166,27 +169,28 @@ const pixels = p => p.evaluate(() => {
   const rib = await p.evaluate(() => window.__rrrFrame.rib);
   ok(rib < 1.5, 'drawing it costs ' + rib + 'ms a frame (baked once, blitted twice)');
 
-  // it belongs to the station: the editor has its own grid
-  // ...and the strip is itself the way in: clicking it opens the editor
+  // The strip opens canonical composition with the exact current document.
+  const radioGB=await p.evaluate(()=>JSON.parse(JSON.stringify(Audio.currentScore().gb)));
   await p.evaluate(() => { document.getElementById('noteribbon').click(); });
-  await wait(4500);
+  await p.waitForFunction(()=>window.CT_MUSIC_WORKSPACE?.isOpen()&&CT_MUSIC_WORKSPACE.snapshot()?.validated,null,{timeout:30000});
   ok(!(await shown(p)), 'the station bar leaves while Create owns the screen');
   const inset = await p.evaluate(() => {
-    const cs = document.getElementById('createscreen');
+    const cs = document.getElementById('musicworkspace');
     const pb = document.getElementById('playbar');
     if (!cs || !pb) return null;
     const a = cs.getBoundingClientRect(), b2 = pb.getBoundingClientRect();
+    const hit=document.elementFromPoint(b2.left+b2.width/2,b2.top+b2.height/2);
     return { top:Math.round(a.top), bottom:Math.round(a.bottom), height:Math.round(a.height), vh:innerHeight,
-      dockVisible:!!pb.getClientRects().length };
+      dockVisible:!!hit&&!!hit.closest('#playbar'),dockInert:!!pb.closest('[inert]') };
   });
-  ok(inset && inset.height >= inset.vh*.9 && inset.top > 0 && Math.abs(inset.bottom-inset.vh)<2,
-     'the editor is a tall bottom sheet over the game');
-  ok(inset && !inset.dockVisible, 'with no duplicate player bar underneath it');
-  await p.evaluate(() => {
-    const t = document.querySelector('.cr-tour'); if (t) t.remove();
-    const c = document.querySelector('[data-cr="close"]');
-    if (c) c.click();
-  });
+  ok(inset && inset.height >= inset.vh*.9 && inset.top === 0 && Math.abs(inset.bottom-inset.vh)<2,
+     'unified composition fills the viewport');
+  ok(inset && !inset.dockVisible&&inset.dockInert, 'station transport is covered and excluded from keyboard interaction');
+  const opened=await p.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot());
+  ok(require('node:util').isDeepStrictEqual(opened.validated.compiled.gb,radioGB),'ribbon entry preserves the entire radio score');
+  ok(opened.playing===null&&opened.pending===null,'opening composition does not start workspace playback');
+  ok(await p.locator('.mw-notes').isVisible()&&await p.locator('.mw-code').isVisible(),'chart and source are visible together');
+  await p.locator('[data-action=close]').click();
   await wait(4000);
   ok(await shown(p), 'and comes back on Close');
   ok(!errs.length, 'no page errors' + (errs.length ? ' -- ' + errs[0] : ''));

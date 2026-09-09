@@ -2,7 +2,7 @@ globalThis.CT_MUSIC_ASSETS_VERSION="5fba76c2aeb5e170";
 globalThis.CT_MUSIC_EDITOR_VERSION="58e1a4542326";
 globalThis.CT_MUSIC_CHAT_UI_VERSION="904689e8bae1";
 globalThis.CT_MUSIC_PREVIEW_VERSION="e64dd6030ead";
-globalThis.CT_MUSIC_BUILD_VERSION="37ea2e2afc2a";
+globalThis.CT_MUSIC_BUILD_VERSION="8996c27904ee";
 /* ===== src/seed.js ===== */
 // ===== seed.js — deterministic generated-track identity. =====
 // Loads FIRST (before composer.js/audio.js) so any composer can seed itself from a URL token.
@@ -5751,7 +5751,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
         G.CT_MUSIC_WORKSPACE.open().catch(function(e){if(G._toast)G._toast(e.message);});
       }
       else if (k === 'workspace') {
-        var source=G.CT_MUSIC_LANGUAGE.materialize(liveScore||buildSong(),{tempo:S.bpm,bars:S.bars,title:S.title,tempoAt:S.tempoAt||[],stepsPerBar:spb()});
+        var source=G.CT_MUSIC_LANGUAGE.materialize(liveScore||buildSong(),{tempo:S.bpm,bars:S.bars,title:S.title,tempoAt:S.tempoAt||[],stepsPerBar:spb(),swing:!!S.swing});
         G.CT_MUSIC_WORKSPACE.open({source:source,explicit:true}).then(function(){if(G.CT_MUSIC_WORKSPACE.isOpen())root.classList.remove('show');}).catch(function(e){if(G._toast)G._toast(e.message);});
       }
     });
@@ -15991,7 +15991,7 @@ var EXPORTS = {
   'use strict';
   var root,editor,project,storage,client,sourceLoading=false,saveTimer,queueTokens={},queueRevisions={},queueActivations={},playingRevision=null,audioState={status:'stopped',frame:0};
   var selection=null,proposal=null,requestId=null,serial=0,previousFocus,inerted=[],conflict=false,unsub=null;
-  var unsaved=false,saveEpoch=0,editorLoading=null,previousRoute=null,openEpoch=0;
+  var unsaved=false,saveEpoch=0,editorLoading=null,previousRoute=null,openEpoch=0,fileImportSerial=0;
   var agentInstance=null,agentRecords=new Map(),policyEpoch=0;
   var connection=null;
   var chatUI=null,chatLoading=null,chatDraft='',chatAccessMessage='Checking chat access…',chatUISignature=null;
@@ -16882,16 +16882,19 @@ var EXPORTS = {
       var link=location.origin+'/create#music='+encodeURIComponent(btoa(binary));
       await navigator.clipboard.writeText(link);status('Copied project link. Chat and private provenance excluded; opening does not play.');
     }else if(name==='open'){
+      var importRun=++fileImportSerial,importOpen=openEpoch,importProject=project,importSave=saveEpoch;
+      function currentImport(){return importRun===fileImportSerial&&importOpen===openEpoch&&project===importProject&&importSave===saveEpoch&&!root.hidden;}
       var input=document.createElement('input');input.type='file';input.accept='.json,application/json';
       input.onchange=async function(){try{
-        var owner=project,file=input.files[0];if(!file)return;if(file.size>8388608)throw Error('Project file is too large');
-        var loaded=check(api().restore(await file.text(),opts()));
-        if(project!==owner||root.hidden)return;
+        if(!currentImport())return;
+        var file=input.files[0];if(!file)return;if(file.size>8388608)throw Error('Project file is too large');
+        var serialized=await file.text();if(!currentImport())return;
+        var loaded=check(api().restore(serialized,opts()));
         if(!G.confirm('Replace this workspace? Download the current project first to keep a copy.'))return;
         cancelChat();resetAudio();project=loaded.project;selection=null;proposal=null;agentInstance=G.crypto.randomUUID();
         defaultProjectLoop();
         syncEditor();renderNotes();renderProposal();renderState();diagnostics(snap().diagnostics);scheduleSave();
-      }catch(e){announceError(e);}};input.click();
+      }catch(e){if(currentImport())announceError(e);}};input.click();
     }else if(name==='export'){
       var v=snap().validated;if(!v)throw Error('Apply valid code before exporting');
       var format=$('.mw-format').value,report=G.CT_MUSIC_EXPORTS.inspect(v.compiled,format);
@@ -16944,7 +16947,7 @@ var EXPORTS = {
           var legacySong=G.CT_CREATE.songOf(legacy),legacyState=G.CT_CREATE.docState(legacy);
           if(!legacySong||!legacyState)throw Error('Legacy draft could not be decoded');
           project=api().create(G.CT_MUSIC_LANGUAGE.materialize(legacySong.gb,{tempo:legacySong.bpm,bars:legacySong.bars,title:legacySong.title,
-            tempoAt:legacyState.tempoAt||[],stepsPerBar:legacyState.grid||16}),opts());
+            tempoAt:legacyState.tempoAt||[],stepsPerBar:legacyState.grid||16,swing:!!legacyState.swing}),opts());
           unsaved=true;status('Recovered your previous composition as exact source. The original legacy draft is preserved.');
         }
       }catch(e){status('Previous composition could not be recovered. Its original browser record is preserved.');}
@@ -16963,6 +16966,9 @@ var EXPORTS = {
         if(shared[1].length>20000)throw Error('Share is too large');
         var decoded=atob(decodeURIComponent(shared[1])),bytes=Uint8Array.from(decoded,function(c){return c.charCodeAt(0);});
         var imported=check(api().restore(new TextDecoder().decode(bytes),opts()));project=imported.project;unsaved=true;
+        // Consume a successful public import once. Reload must recover edits,
+        // not replay the original share over this browser's saved revision.
+        history.replaceState(null,'','/create#music');
         if(saved&&saved.serialized){conflict=true;status('Shared project opened separately. Your existing local draft is preserved; download this project to keep it.');}
       }catch(e){announceError(e);}}
       defaultProjectLoop();
@@ -42868,7 +42874,7 @@ function _openCreate(blank){
     var state=CT_CREATE.docState(code),song=state&&CT_CREATE.songOf(code);
     if(!song)throw Error('Cannot open this song document. Your saved draft is unchanged.');
     return {gb:song.gb,settings:{tempo:song.bpm,bars:song.bars,title:song.title,
-      tempoAt:state.tempoAt||[],grid:state.grid||16,stepsPerBar:state.grid||16}};
+      tempoAt:state.tempoAt||[],grid:state.grid||16,stepsPerBar:state.grid||16,swing:!!state.swing}};
   }
   var shared=_readSharedDoc();
   if(shared){

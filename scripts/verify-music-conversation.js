@@ -4,7 +4,7 @@
 // No build, live network, credentials, paid model calls or deployment.
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const {chromium}=require('playwright');
-const dist=path.join(__dirname,'../dist'),origin='https://chiptunes-agent-gateway.vercel.app',key='ct-music-workspace-v1';
+const dist=path.join(__dirname,'../dist'),origin='https://chiptunes.app',key='ct-music-workspace-v1';
 const html=fs.readFileSync(path.join(dist,'create/index.html'),'utf8');
 const app=html.match(/app\.[a-f0-9]+\.js/)[0],bundle=fs.readFileSync(path.join(dist,app));
 const literal='PRIVATE_REPLY <img src=x onerror="globalThis.conversationInjected=true">';
@@ -51,15 +51,15 @@ async function exercise(page,fixture){
     for(let i=0;i<100&&!fixture.getHeld();i++)await page.waitForTimeout(25);
     assert.equal(typeof fixture.getHeld(),'function','fixture must receive the held request');
   }
-  const input=page.locator('.mw-chat-input'),send=page.locator('[data-action=chat]');
+  const input=page.locator('.mcui textarea'),send=page.getByRole('button',{name:'Send',exact:true});
   const log=page.getByRole('log',{name:'Conversation'}),settings=page.getByRole('dialog',{name:'Chat settings'});
   const snapshot=()=>page.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot());
-  await page.waitForFunction(()=>!document.querySelector('[data-action=chat]').disabled);
+  await page.waitForFunction(()=>CT_MUSIC_WORKSPACE.snapshot().request===null && document.querySelector('.mcui-status')?.textContent.startsWith('Unlocked.'));
   assert.equal(await send.textContent(),'Send');assert.equal(await log.isVisible(),true);
   assert.equal(await settings.isVisible(),false,'settings are a closed dialog, not a permanent form');
   assert.equal(await page.locator('.mw-owner-password').isVisible(),false);
   assert.equal(await page.locator('.mw-chat-provider').isVisible(),false);
-  await page.click('[data-action=chat-settings]');await settings.waitFor({state:'visible'});
+  await page.getByRole('button',{name:'Settings',exact:true}).click();await settings.waitFor({state:'visible'});
   assert.equal(await settings.evaluate(el=>el.tagName),'DIALOG');
   assert.equal(await page.locator('.mw-owner-password').isVisible(),true);
   // Native dialogs can yield to browser chrome (activeElement becomes body),
@@ -74,10 +74,10 @@ async function exercise(page,fixture){
   await page.keyboard.press('Escape');
   assert.equal(await settings.isVisible(),false,'Escape dismisses settings');
   assert.equal(await page.evaluate(()=>CT_MUSIC_WORKSPACE.isOpen()),true,'modal Escape does not close workspace');
-  assert.equal(await page.locator('[data-action=chat-settings]').evaluate(el=>el===document.activeElement),true,'Escape restores opener focus');
-  await page.click('[data-action=chat-settings]');await settings.waitFor({state:'visible'});
+  assert.equal(await page.getByRole('button',{name:'Settings',exact:true}).evaluate(el=>el===document.activeElement),true,'Escape restores opener focus');
+  await page.getByRole('button',{name:'Settings',exact:true}).click();await settings.waitFor({state:'visible'});
   await page.click('[data-action=chat-settings-close]');
-  assert.equal(await page.locator('[data-action=chat-settings]').evaluate(el=>el===document.activeElement),true,'Done restores opener focus');
+  assert.equal(await page.getByRole('button',{name:'Settings',exact:true}).evaluate(el=>el===document.activeElement),true,'Done restores opener focus');
   assert.equal(await settings.isVisible(),false);assert.equal(fixture.calls.length,0);
   const initial=await snapshot();
   await input.fill('PRIVATE_QUESTION explain this loop');await input.press('Shift+Enter');
@@ -95,7 +95,7 @@ async function exercise(page,fixture){
   assert.equal(state.pending,null);assert.equal(state.playing,null);
   assert.equal(await log.getByRole('button',{name:'Apply',exact:true}).count(),0,'text reply has no Apply control');
   await input.fill('PRIVATE_FOLLOWUP tell me more');await send.click();
-  await page.waitForFunction(()=>document.querySelectorAll('.mw-messages').length>0);
+  await page.waitForFunction(()=>document.querySelectorAll('.mcui-content').length>0);
   await log.getByText(literal,{exact:true}).nth(1).waitFor();
   assert.equal(fixture.calls.length,2);
   assert.deepEqual(fixture.calls[1].conversation,[
@@ -118,7 +118,7 @@ async function exercise(page,fixture){
   const editor=page.locator('#musicworkspace .cm-content');
   const manual=applied.draft+'\n// newer manual draft';await editor.fill(manual);
   await fixture.getHeld()().catch(()=>{});fixture.setHold(false);
-  await page.waitForFunction(()=>!document.querySelector('[data-action=chat]').disabled);
+  await page.waitForFunction(()=>CT_MUSIC_WORKSPACE.snapshot().request===null && document.querySelector('.mcui-status')?.textContent.startsWith('Unlocked.'));
   assert.equal((await snapshot()).draft,manual,'late reply cannot replace newer draft');
   assert.equal((await snapshot()).validated.id,applied.validated.id);
   assert.equal(await log.getByRole('button',{name:'Apply',exact:true}).count(),0,'stale response has no usable Apply');
@@ -127,18 +127,19 @@ async function exercise(page,fixture){
   // deliberately broke that precondition; restore it without applying a revision.
   await editor.fill(applied.draft);
   assert.equal((await snapshot()).draft,(await snapshot()).validated.source);
-  const transcriptBefore=await log.locator('.mw-message[data-role=assistant]').allTextContents();
+  const transcriptBefore=await log.locator('.mcui-assistant').allTextContents();
   fixture.setHold(true);await input.fill('Please edit after cancellation');await send.click();await waitHeld();
   assert.equal(fixture.calls.length,5);
-  await page.click('[data-action=cancel]');
-  await page.waitForFunction(()=>!document.querySelector('[data-action=chat]').disabled);
+  await page.getByRole('button',{name:'Stop generation',exact:true}).click();
+  await page.waitForFunction(()=>CT_MUSIC_WORKSPACE.snapshot().request===null && document.querySelector('.mcui-status')?.textContent.startsWith('Unlocked.'));
   await fixture.getHeld()().catch(()=>{});fixture.setHold(false);
   await page.waitForTimeout(150); // Let a wrongly accepted late reply render.
   assert.equal(fixture.calls.length,5,'cancel never retries');
   assert.equal((await snapshot()).draft,applied.draft);assert.equal((await snapshot()).validated.id,applied.validated.id);
   assert.equal(await log.getByRole('button',{name:'Apply',exact:true}).count(),0,'cancelled reply cannot offer Apply');
-  assert.deepEqual(await log.locator('.mw-message[data-role=assistant]').allTextContents(),transcriptBefore,'cancelled response never enters transcript');
+  assert.deepEqual(await log.locator('.mcui-assistant').allTextContents(),transcriptBefore,'cancelled response never enters transcript');
   await editor.fill(manual); // Recoverable unfinished text remains the persistence fixture.
+  await page.locator('.mw-project-tools>summary').click();
   await page.click('[data-action=save]');
   await page.waitForFunction(k=>{const saved=JSON.parse(localStorage.getItem(k));return saved?.draft.endsWith('// newer manual draft')&&saved.private?.chat?.some(m=>m.content.includes('PRIVATE_FOLLOWUP'));},key);
   const saved=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),key);
@@ -146,6 +147,7 @@ async function exercise(page,fixture){
   await page.reload();await page.waitForSelector('#musicworkspace:not([hidden]) .cm-content',{state:'attached'});
   await page.getByRole('log',{name:'Conversation'}).getByText(literal,{exact:true}).first().waitFor();
   assert.equal((await snapshot()).draft,manual);assert.equal(fixture.calls.length,5,'reload never resends model requests');
+  await page.locator('.mw-project-tools>summary').click();
   const downloading=page.waitForEvent('download');await page.click('[data-action=download]');
   const download=await downloading,privateExport=JSON.parse(fs.readFileSync(await download.path(),'utf8'));
   assert.deepEqual(privateExport.private.chat,saved.private.chat,'private project download retains transcript');

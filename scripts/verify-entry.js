@@ -1,7 +1,8 @@
 // Nothing plays until you ask for it.
 //
 // A cold load holds: the station writes nothing until a mood is picked, the
-// play button is pressed, or a link names a song. This is easy to break from a
+// play button is pressed. Song links now open silent unified composition.
+// This is easy to break from a
 // distance, and it did break -- "tap anywhere to start the music" was still
 // wired to the whole page, and once holding correctly reported as PAUSED (it
 // is: nothing is playing) that handler read every stray click as "resume" and
@@ -176,6 +177,19 @@ const audibleWithin = async (p, ms, threshold = 0.02) => {
      'and that one score records and satisfies the epic premise');
   ok(!(await p.evaluate(() => document.body.classList.contains('awaiting-mood'))),
      'the hero stands down once something is on');
+  // Canonical composition entry is not a request to start another player.
+  await p.goto(`http://127.0.0.1:${h.port}/`, { waitUntil: 'domcontentloaded' });
+  await p.locator('.rmood-scratch').click();
+  await p.waitForFunction(()=>window.CT_MUSIC_WORKSPACE?.isOpen()&&CT_MUSIC_WORKSPACE.snapshot()?.validated,null,{timeout:30000});
+  ok(await p.evaluate(()=>location.pathname==='/create'&&!document.querySelector('#createscreen.show')),
+     'Start from scratch enters canonical composition, not legacy editor');
+  ok(await p.locator('.mw-notes').isVisible()&&await p.locator('.mw-code').isVisible(),'chart and code are visible together');
+  ok((await peak(p,1500))<.02&&await p.evaluate(()=>!CT_MUSIC_WORKSPACE.snapshot().playing&&!CT_MUSIC_WORKSPACE.snapshot().pending),
+     'composition opens silently');
+  await p.locator('[data-action=play]').click();
+  ok((await audibleWithin(p,20000))>.02,'explicit composition Play is audible');
+  await p.locator('[data-action=stop]').click();
+  await p.locator('[data-action=close]').click();
   ok(!errs.length, 'no page errors' + (errs.length ? ' -- ' + errs[0] : ''));
 
   await b.close(); h.s.close();

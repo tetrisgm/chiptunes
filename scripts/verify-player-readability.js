@@ -76,18 +76,25 @@ async function inViewport(locator, page, label) {
   assert(box.top >= -1 && box.bottom <= view.height + 1, `${label}: is inside the viewport`);
 }
 
-async function openCreateFromLanding(page) {
+async function openCreateFromLanding(page, legacy = false) {
   // The startup overlay briefly covers the built landing; wait it out or the
   // first click lands on a retiring overlay.
   await page.locator('#intro').waitFor({ state: 'hidden' }).catch(() => {});
   await page.locator('#rmoods').first().waitFor({ state: 'visible' });
   await page.evaluate(() => document.fonts.ready);
+  if (legacy) {
+    // Explicit legacy prompt compatibility: preserve the disclosure/readability
+    // assertions without claiming this is the default unified Create surface.
+    await page.evaluate(() => CT_CREATE.open());
+    await page.locator('#createscreen.show').waitFor({state:'visible'});
+    return;
+  }
   const make = page.getByRole('button', { name: 'Make it', exact: true });
   if (await make.count()) { await make.scrollIntoViewIfNeeded(); await make.click(); }
   const start = page.getByRole('button', { name: 'Start from scratch', exact: true });
   await start.scrollIntoViewIfNeeded();
   await start.click();
-  await page.locator('#createscreen.show').waitFor({ state: 'visible' });
+  await page.locator('#musicworkspace:not([hidden])').waitFor({ state: 'visible' });
 }
 
 // ---- A) player: duration vs the VISIBLE volume dial -----------------------
@@ -133,7 +140,7 @@ async function playerCase(page, name) {
 // ---- B) phone: a long brief must not push the transport off-screen ---------
 async function phonePromptCase(page) {
   const name = 'phone-prompt-390x844';
-  await openCreateFromLanding(page);
+  await openCreateFromLanding(page, true);
   const root = page.locator('#createscreen');
   const input = root.getByLabel('Describe your song');
   await input.fill('A happy, upbeat, dreamy, epic, retro, funky battle theme in D minor at 150 bpm, with heavy reverb, sidechain compression and a saxophone solo, no drums');
@@ -172,9 +179,9 @@ async function phonePromptCase(page) {
 async function coldCloseCase(page) {
   const name = 'cold-close-1280x900';
   await openCreateFromLanding(page);
-  const root = page.locator('#createscreen');
-  await root.getByRole('button', { name: 'Close the editor' }).click();
-  await page.locator('#createscreen.show').waitFor({ state: 'hidden' });
+  const root = page.locator('#musicworkspace');
+  await root.getByRole('button', { name: 'Back', exact:true }).click();
+  await root.waitFor({ state: 'hidden' });
   await page.locator('#rmoods').first().waitFor({ state: 'visible' });
   await page.waitForTimeout(250);
   await page.screenshot({ path: path.join(screenshots, `${name}.png`), fullPage: false });

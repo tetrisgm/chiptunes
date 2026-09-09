@@ -134,9 +134,16 @@ async function holdReads(p) {
   });
 }
 async function openLsdsng(p, buf) {
-  const [ch] = await Promise.all([p.waitForEvent('filechooser'), p.click('[data-cr="opennative"]')]);
+  const [ch] = await Promise.all([p.waitForEvent('filechooser'), nativeAction(p,'[data-action="native-pick"]')]);
   await ch.setFiles({ name: 'fixture.lsdsng', mimeType: 'application/octet-stream', buffer: Buffer.from(buf) });
   await p.waitForFunction(() => document.querySelector('#nativeeditor.show'), null, { timeout: 15000 });
+}
+async function nativeAction(p,selector){
+  if(await p.locator('.mw-project-tools').getAttribute('open')===null)await p.locator('.mw-project-tools>summary').click();
+  if(await p.locator('.mw-native-tools').getAttribute('open')===null)await p.locator('.mw-native-tools>summary').click();
+  // Isolate native dirty-state assertions from the fresh workspace's autosave.
+  await p.waitForFunction(()=>JSON.parse(localStorage.getItem('ct-music-workspace-v1')||'{}').draft===CT_MUSIC_WORKSPACE.snapshot().draft);
+  return p.click(selector);
 }
 async function focusEdges(p) {
   return p.evaluate(() => {
@@ -159,7 +166,7 @@ async function focusEdges(p) {
     const p = await b.newPage({ viewport: { width: 1300, height: 900 }, acceptDownloads: true });
     const errs = []; p.on('pageerror', e => errs.push(String(e).slice(0, 160)));
     await p.goto(`http://127.0.0.1:${h.port}/create`, { waitUntil: 'domcontentloaded' });
-    await p.waitForFunction(() => document.querySelector('#createscreen.show'), null, { timeout: 40000 });
+    await p.waitForFunction(() => document.querySelector('#musicworkspace:not([hidden])'), null, { timeout: 40000 });
     await wait(1000);
     await p.evaluate(() => { const t = document.querySelector('.cr-tour'); if (t) t.remove(); });
 
@@ -167,7 +174,7 @@ async function focusEdges(p) {
     ok(/not implemented/i.test(await p.evaluate(() => document.querySelector('#nativeeditor .ne-banner').textContent)), 'the panel states native playback is not implemented');
     ok(await p.getByRole('tab', { name: 'Song', exact: true }).count() === 1 && await p.getByRole('tab', { name: 'Alloc', exact: true }).count() === 1, 'scalar (Song) and allocation (Alloc) categories are reachable');
     ok(await p.locator('#nativeeditor .ne-byte').first().isVisible(), 'visible byte-grid controls are rendered');
-    ok(await p.evaluate(() => document.getElementById('createscreen').hasAttribute('inert')), 'Create is inert while the native panel is open');
+    ok(await p.evaluate(() => document.getElementById('musicworkspace').hasAttribute('inert')), 'Create is inert while the native panel is open');
 
     // Tab-trap boundary, both directions
     await p.evaluate(() => { const pn = document.getElementById('nativeeditor'); const f = [...pn.querySelectorAll('button:not([disabled]),input:not([disabled]),[tabindex="0"]')].filter(e => e.getClientRects().length); f[f.length - 1].focus(); });
@@ -269,7 +276,7 @@ async function focusEdges(p) {
   {
     const p = await b.newPage({ viewport: { width: 1300, height: 900 }, acceptDownloads: true });
     await p.goto(`http://127.0.0.1:${h.port}/create`, { waitUntil: 'domcontentloaded' });
-    await p.waitForFunction(() => document.querySelector('#createscreen.show'), null, { timeout: 40000 });
+    await p.waitForFunction(() => document.querySelector('#musicworkspace:not([hidden])'), null, { timeout: 40000 });
     await wait(800); await p.evaluate(() => { const t = document.querySelector('.cr-tour'); if (t) t.remove(); });
     await openLsdsng(p, fx.file);
     await setCat(p, 'Phrases'); await setSlot(p, 3);
@@ -278,10 +285,10 @@ async function focusEdges(p) {
     await cell(p, 9, 0).focus();
     await p.keyboard.press('Escape');                          // Escape from a focused input
     await wait(300);
-    ok(!await nativeOpen(p) && await p.evaluate(() => !!document.querySelector('#createscreen.show')), 'Escape from a focused input closes only the native panel; Create stays open');
-    ok(!await p.evaluate(() => document.getElementById('createscreen').hasAttribute('inert')), 'Create is no longer inert after closing');
-    ok(await p.evaluate(() => (CT_CREATE._dbg && CT_CREATE._dbg().playing) === false), 'closing did not start playback');
-    await p.click('[data-cr="resumenative"]');
+    ok(!await nativeOpen(p) && await p.evaluate(() => !!document.querySelector('#musicworkspace:not([hidden])')), 'Escape from a focused input closes only the native panel; Create stays open');
+    ok(!await p.evaluate(() => document.getElementById('musicworkspace').hasAttribute('inert')), 'Create is no longer inert after closing');
+    ok(await p.evaluate(() => CT_MUSIC_WORKSPACE.snapshot().playing === null), 'closing did not start playback');
+    await nativeAction(p,'[data-action="native-resume"]');
     await p.waitForFunction(() => document.querySelector('#nativeeditor.show'), null, { timeout: 10000 });
     await setCat(p, 'Phrases'); await setSlot(p, 3);
     ok(await cell(p, 2, 0).inputValue() === '11' && await cell(p, 9, 0).inputValue() === 'EE', 'Resume reopens the in-progress edit with committed AND staged values intact');
@@ -292,7 +299,7 @@ async function focusEdges(p) {
   for (const edits of ['applied', 'pending', 'both']) for (const closed of [false, true]) {
     const p = await b.newPage({ viewport: { width: 1300, height: 900 } });
     await p.goto(`http://127.0.0.1:${h.port}/create`, { waitUntil: 'domcontentloaded' });
-    await p.waitForFunction(() => document.querySelector('#createscreen.show'), null, { timeout: 40000 });
+    await p.waitForFunction(() => document.querySelector('#musicworkspace:not([hidden])'), null, { timeout: 40000 });
     await p.evaluate(() => { const t = document.querySelector('.cr-tour'); if (t) t.remove(); });
     await openLsdsng(p, fx.file);
     ok(!await unloadPrevented(p), 'clean imported document does not prevent dispatched beforeunload');
@@ -309,7 +316,7 @@ async function focusEdges(p) {
     cancel.stop();
     ok(cancel.seen.length === 1 && cancel.seen[0].type === 'confirm' && /replace/i.test(cancel.seen[0].message), label + ': cancel is an actual replacement confirmation');
     ok(await nativeOpen(p) === !closed, label + ': cancel preserves panel visibility');
-    if (closed) await p.click('[data-cr="resumenative"]');
+    if (closed) await nativeAction(p,'[data-action="native-resume"]');
     await setCat(p, 'Phrases'); await setSlot(p, 0);
     ok(await cell(p, 0, 0).inputValue() === (edits !== 'pending' ? '21' : base0) &&
        await cell(p, 1, 0).inputValue() === (edits !== 'applied' ? '22' : base1), label + ': cancel preserves applied and pending bytes');
@@ -335,7 +342,7 @@ async function focusEdges(p) {
     const p = await b.newPage({ viewport: { width: 1300, height: 900 }, acceptDownloads: true });
     const errs = []; p.on('pageerror', e => errs.push(String(e)));
     await p.goto(`http://127.0.0.1:${h.port}/create`, { waitUntil: 'domcontentloaded' });
-    await p.waitForFunction(() => document.querySelector('#createscreen.show'), null, { timeout: 40000 });
+    await p.waitForFunction(() => document.querySelector('#musicworkspace:not([hidden])'), null, { timeout: 40000 });
     await p.evaluate(() => { const t = document.querySelector('.cr-tour'); if (t) t.remove(); });
     await importFile(p, 'fixture.sav', sv.sav);
     await p.waitForFunction(() => document.querySelector('#nativeeditor.show'));
@@ -416,7 +423,7 @@ async function focusEdges(p) {
       await p.evaluate(() => { window.__nativeReads.shift()(); window.__restoreNativeReader(); });
       ok(!await nativeOpen(p) && closeDialogs.seen.length === 0, kind + ': close invalidates the in-flight read without reopening or prompting');
       closeDialogs.stop();
-      await p.click('[data-cr="resumenative"]'); await setCat(p, 'Phrases');
+      await nativeAction(p,'[data-action="native-resume"]'); await setCat(p, 'Phrases');
       ok(await cell(p, 1, 0).inputValue() === '32' && await cell(p, 2, 0).inputValue() === quoted &&
          await cell(p, 3, 0).inputValue() === markup, kind + ': Resume preserves drafts after the cancelled read completes');
     }
@@ -428,9 +435,9 @@ async function focusEdges(p) {
   {
     const p = await b.newPage({ viewport: { width: 1300, height: 900 }, acceptDownloads: true });
     await p.goto(`http://127.0.0.1:${h.port}/create`, { waitUntil: 'domcontentloaded' });
-    await p.waitForFunction(() => document.querySelector('#createscreen.show'), null, { timeout: 40000 });
+    await p.waitForFunction(() => document.querySelector('#musicworkspace:not([hidden])'), null, { timeout: 40000 });
     await wait(800); await p.evaluate(() => { const t = document.querySelector('.cr-tour'); if (t) t.remove(); });
-    const [ch] = await Promise.all([p.waitForEvent('filechooser'), p.click('[data-cr="opennative"]')]);
+    const [ch] = await Promise.all([p.waitForEvent('filechooser'), nativeAction(p,'[data-action="native-pick"]')]);
     await ch.setFiles({ name: 'fixture.sav', mimeType: 'application/octet-stream', buffer: Buffer.from(sv.sav) });
     await p.waitForFunction(() => document.querySelector('#nativeeditor.show'), null, { timeout: 15000 });
     await setCat(p, 'Phrases'); await setSlot(p, 0); await cell(p, 0, 0).fill('15'); await applyRow(p, 0);
@@ -447,9 +454,9 @@ async function focusEdges(p) {
   {
     const p = await b.newPage({ viewport: { width: 1300, height: 900 }, acceptDownloads: true });
     await p.goto(`http://127.0.0.1:${h.port}/create`, { waitUntil: 'domcontentloaded' });
-    await p.waitForFunction(() => document.querySelector('#createscreen.show'), null, { timeout: 40000 });
+    await p.waitForFunction(() => document.querySelector('#musicworkspace:not([hidden])'), null, { timeout: 40000 });
     await wait(800); await p.evaluate(() => { const t = document.querySelector('.cr-tour'); if (t) t.remove(); });
-    const [ch] = await Promise.all([p.waitForEvent('filechooser'), p.click('[data-cr="opennativejson"]')]);
+    const [ch] = await Promise.all([p.waitForEvent('filechooser'), nativeAction(p,'[data-action="native-json"]')]);
     await ch.setFiles({ name: 'doc.json', mimeType: 'application/json', buffer: Buffer.from(jsonFor(d => d.setPhraseNote(1, 1, 0x39))) });
     await p.waitForFunction(() => document.querySelector('#nativeeditor.show'), null, { timeout: 15000 });
     await setCat(p, 'Phrases'); await setSlot(p, 1);
@@ -461,7 +468,7 @@ async function focusEdges(p) {
   {
     const p = await b.newPage({ viewport: { width: 390, height: 844 }, acceptDownloads: true });
     await p.goto(`http://127.0.0.1:${h.port}/create`, { waitUntil: 'domcontentloaded' });
-    await p.waitForFunction(() => document.querySelector('#createscreen.show'), null, { timeout: 40000 });
+    await p.waitForFunction(() => document.querySelector('#musicworkspace:not([hidden])'), null, { timeout: 40000 });
     await wait(800); await p.evaluate(() => { const t = document.querySelector('.cr-tour'); if (t) t.remove(); });
     await openLsdsng(p, fx.file);
     const box = await p.evaluate(() => { const r = document.getElementById('nativeeditor').getBoundingClientRect(); return { l: r.left, rt: r.right, t: r.top, b: r.bottom, vw: innerWidth, vh: innerHeight }; });

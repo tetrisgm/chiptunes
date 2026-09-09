@@ -2214,7 +2214,7 @@ function _openCreate(blank){
     var state=CT_CREATE.docState(code),song=state&&CT_CREATE.songOf(code);
     if(!song)throw Error('Cannot open this song document. Your saved draft is unchanged.');
     return {gb:song.gb,settings:{tempo:song.bpm,bars:song.bars,title:song.title,
-      tempoAt:state.tempoAt||[],grid:state.grid||16,stepsPerBar:state.grid||16}};
+      tempoAt:state.tempoAt||[],grid:state.grid||16,stepsPerBar:state.grid||16,swing:!!state.swing}};
   }
   var shared=_readSharedDoc();
   if(shared){

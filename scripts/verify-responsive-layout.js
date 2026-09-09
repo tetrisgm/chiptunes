@@ -90,11 +90,50 @@ async function landing(page, name) {
   const start = page.getByRole('button', { name: 'Start from scratch', exact: true });
   await start.scrollIntoViewIfNeeded();
   await start.click();
-  await page.locator('#createscreen.show').waitFor({ state: 'visible' });
-  await page.waitForFunction(()=>Math.abs(document.querySelector('#createscreen').getBoundingClientRect().bottom-innerHeight)<1);
+  await page.locator('#musicworkspace:not([hidden])').waitFor({ state: 'visible' });
 }
 
-async function create(page, name, mobile) {
+async function unifiedCreate(page, name) {
+  const root=page.locator('#musicworkspace');
+  await root.locator('.cm-content').waitFor({state:'visible'});
+  await inViewport(root.locator('[data-action=close]'),page,`${name}: unified Back`);
+  // The phone chat drawer may cover composition. Collapse via its public toggle.
+  const toggle=root.locator('[data-action=toggle-chat]');
+  if(await toggle.getAttribute('aria-expanded')==='true')await toggle.click();
+  for(const action of ['play','pause','stop','apply'])
+    await inViewport(root.locator(`[data-action=${action}]`),page,`${name}: unified ${action}`);
+  // Short screens intentionally scroll the composition pane rather than shrink
+  // code below its readable minimum. Both regions must remain reachable.
+  const short=page.viewportSize().height<650;
+  await inViewport(root.getByRole('region',{name:'Note chart',exact:true}),page,`${name}: chart`,short);
+  await inViewport(root.getByRole('region',{name:'Code editor',exact:true}),page,`${name}: code`,short);
+  assert(await root.locator('.mw-note').count()>0,`${name}: starter notes render`);
+  const splitter=root.getByRole('separator',{name:'Resize chart and code'});
+  const before=Number(await splitter.getAttribute('aria-valuenow'));
+  await splitter.focus();await page.keyboard.press('ArrowDown');
+  assert.notEqual(Number(await splitter.getAttribute('aria-valuenow')),before,`${name}: keyboard resizes composition`);
+  await toggle.click();
+  const input=root.locator('.mcui textarea');await input.waitFor({state:'visible'});
+  await input.fill('A draft retained across collapse');
+  await inViewport(input,page,`${name}: chat composer`);
+  await toggle.click();await toggle.click();
+  assert.equal(await input.inputValue(),'A draft retained across collapse');
+  await toggle.click();
+  await root.locator('[data-action=play]').click();
+  await page.waitForFunction(()=>document.querySelector('.mw-loop').disabled);
+  await root.locator('[data-action=stop]').click();
+  await page.waitForFunction(()=>!document.querySelector('.mw-loop').disabled);
+  await page.screenshot({path:path.join(screenshots,`${name}-unified-create.png`)});
+  await root.locator('[data-action=close]').click();
+  await root.waitFor({state:'hidden'});
+}
+
+async function legacyCreate(page, name, mobile) {
+  // Explicit compatibility fixture: legacy grid/mood/export controls remain
+  // covered, but are no longer expected behind the default Create entry.
+  await page.evaluate(()=>CT_CREATE.open());
+  await page.locator('#createscreen.show').waitFor({state:'visible'});
+  await page.waitForFunction(()=>Math.abs(document.querySelector('#createscreen').getBoundingClientRect().bottom-innerHeight)<1);
   const root = page.locator('#createscreen');
   const close = root.getByRole('button', { name: 'Close the editor' });
   await inViewport(close, page, `${name}: close button`);
@@ -168,7 +207,8 @@ async function create(page, name, mobile) {
       try {
         await page.goto(`http://127.0.0.1:${host.port}/`, { waitUntil: 'domcontentloaded' });
         await landing(page, spec.name);
-        await create(page, spec.name, spec.viewport.width<760);
+        await unifiedCreate(page, spec.name);
+        await legacyCreate(page, spec.name, spec.viewport.width<760);
         assert.equal(pageErrors.length, 0, `${spec.name}: no page errors (${pageErrors.join('; ')})`);
         console.log(`ok ${spec.name}`);
       } catch (error) {

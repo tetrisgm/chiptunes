@@ -1,143 +1,101 @@
-// Sharing a song shares THE SONG -- and does it the same way from both places.
-//
-// The old share button copied location.href. That only ever worked because the
-// generated name sat in the path and the name was the composer's seed; both are
-// gone, and once a note has been moved no seed reproduces the song at all. So a
-// link carries the document, packed into the fragment, and it is the same link
-// whether the song came off the station or out of the editor. This checks the
-// whole loop: share it, open it as somebody else, and compare note for note.
+// Song links open the exact score in unified Create, silently. Radio compressed
+// links, legacy bare/raw documents, and source-project links remain supported.
 'use strict';
-const fs = require('fs');
-const http = require('http');
-const path = require('path');
-const { chromium } = require('playwright');
-
-const DIST = path.join(__dirname, '..', 'dist');
-const wait = ms => new Promise(r => setTimeout(r, ms));
-let fail = 0;
-  // Nothing plays until asked: pick a mood, which is the station's entry now.
-  const startStation = async (pg) => {
-    await pg.evaluate(() => {
-      const b = [...document.querySelectorAll('.rmood')].find(x => x.textContent === 'chill');
-      if (b) b.click();
-    });
-    await pg.waitForFunction(() => !document.querySelector('.rmood.busy'), null, { timeout: 25000 });
-  };
-const ok = (c, m) => { console.log((c ? '  ok   ' : '  FAIL ') + m); if (!c) fail++; };
-
-function server() {
-  return new Promise(res => {
-    const s = http.createServer((q, e) => {
-      let rel = decodeURIComponent(new URL(q.url, 'http://x').pathname).replace(/^\/+/, '');
-      let f = path.join(DIST, rel || 'index.html');
-      if (!f.startsWith(DIST) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) f = path.join(DIST, 'index.html');
-      fs.readFile(f, (err, b) => {
-        if (err) { e.writeHead(500); e.end(); return; }
-        e.writeHead(200, { 'content-type': f.endsWith('.js') ? 'text/javascript' : 'text/html' });
-        e.end(b);
-      });
-    });
-    s.listen(0, '127.0.0.1', () => res({ s, port: s.address().port }));
-  });
-}
-
-const sig = p => p.evaluate(async () => {
-  const s = (Audio.currentScore && Audio.currentScore()) || null;
-  const n = (s && s.gb && s.gb.notes) || [];
-  // watch the meter: one reading lands in the gap between two notes
-  let peak = 0;
-  for (let i = 0; i < 40; i++) {
-    peak = Math.max(peak, Audio.outputProbe().peak);
-    if (peak > 0.02) break;
-    await new Promise(r => setTimeout(r, 200));
-  }
-  return { name: (document.getElementById('pbTitle') || {}).textContent.trim(),
-           notes: n.length,
-           sig: n.slice(0, 80).map(x => x.frame + ':' + x.ch + ':' + x.midi).join(','),
-           peak, route: location.pathname };
+const assert=require('node:assert/strict'),fs=require('node:fs'),http=require('node:http'),path=require('node:path');
+const {chromium}=require('playwright');
+const DIST=path.resolve(__dirname,'../dist');
+const server=http.createServer((req,res)=>{
+  let file=path.join(DIST,decodeURIComponent(new URL(req.url,'http://local').pathname));
+  if(!file.startsWith(DIST+path.sep)||!fs.existsSync(file)||fs.statSync(file).isDirectory())file=path.join(DIST,'index.html');
+  res.setHeader('content-type',file.endsWith('.js')?'text/javascript':file.endsWith('.css')?'text/css':'text/html');
+  fs.createReadStream(file).pipe(res);
 });
-
-(async () => {
-  const h = await server();
-  const b = await chromium.launch({ headless: true, args: ['--autoplay-policy=no-user-gesture-required'] });
-  const ctx = await b.newContext({ viewport: { width: 1440, height: 900 },
-                                   permissions: ['clipboard-read', 'clipboard-write'] });
-  const errs = [];
-  const local = u => u.replace(/^https?:\/\/[^/]+/, `http://127.0.0.1:${h.port}`);
-
-  // ---- 1. share what the station is playing --------------------------------
-  const p = await ctx.newPage();
-  p.on('pageerror', e => errs.push(String(e).slice(0, 120)));
-  await p.goto(`http://127.0.0.1:${h.port}/`, { waitUntil: 'domcontentloaded' });
-  await wait(3500);
-  await startStation(p);
-  await wait(6000);
-  const sent = await sig(p);
-  await p.evaluate(() => { const s = document.getElementById('rshare'); if (s) s.click(); });
-  await wait(1800);
-  const link = await p.evaluate(() => navigator.clipboard.readText().catch(() => ''));
-  ok(/\/#s=/.test(link), 'the station\'s share button copies a song link (' + link.length + ' chars)');
-  ok(/\/#s=z/.test(link), 'and it is compressed -- ' + link.length + ' chars for a ' + sent.notes + '-note song');
-
-  const p2 = await ctx.newPage();
-  p2.on('pageerror', e => errs.push(String(e).slice(0, 120)));
-  await p2.goto(local(link), { waitUntil: 'domcontentloaded' });
-  await wait(3500);
-  await p2.mouse.click(720, 450);
-  await wait(7000);
-  await p2.evaluate(async () => { for (let i = 0; i < 30; i++) {
-    if (Audio.outputProbe().peak > 0.02) break; await new Promise(r => setTimeout(r, 200)); } });
-  const got = await sig(p2);
-  ok(got.notes === sent.notes && got.sig === sent.sig,
-     'opening it plays the same song, note for note (' + sent.notes + ' notes)');
-  ok(got.name === sent.name, 'under the same name ("' + got.name + '")');
-  ok(got.peak > 0.02, 'and it is sounding (' + got.peak.toFixed(3) + ')');
-  ok(got.route === '/', 'on the station, not in the editor (' + got.route + ')');
-  await p2.close();
-
-  // ---- 2. share a song out of the editor -----------------------------------
-  const p3 = await ctx.newPage();
-  p3.on('pageerror', e => errs.push(String(e).slice(0, 120)));
-  await p3.goto(`http://127.0.0.1:${h.port}/create`, { waitUntil: 'domcontentloaded' });
-  await p3.waitForFunction(() => document.querySelector('#createscreen.show'), null, { timeout: 40000 });
-  await wait(3600);
-  await p3.evaluate(() => { const t = document.querySelector('.cr-tour'); if (t) t.remove(); });
-  await p3.evaluate(() => document.querySelector('[data-mood="battle"]').click());
-  await wait(5000);
-  const made = await p3.evaluate(() => {
-    const s = CT_CREATE._score();
-    return { notes: s.notes.length, sig: s.notes.slice(0, 80).map(x => x.frame + ':' + x.ch + ':' + x.midi).join(',') };
-  });
-  await p3.evaluate(() => { const b2 = document.querySelector('[data-cr="share"]'); if (b2) b2.click(); });
-  await wait(1800);
-  const link2 = await p3.evaluate(() => navigator.clipboard.readText().catch(() => ''));
-  ok(/\/#s=/.test(link2), 'the editor\'s share button copies the same kind of link (' + link2.length + ' chars)');
-  ok(!/\/create/.test(link2), 'pointing at the station, not at the editor');
-
-  const p4 = await ctx.newPage();
-  p4.on('pageerror', e => errs.push(String(e).slice(0, 120)));
-  await p4.goto(local(link2), { waitUntil: 'domcontentloaded' });
-  await wait(3500);
-  await p4.mouse.click(720, 450);
-  await wait(7000);
-  const heard = await p4.evaluate(async () => {
-    const s = (Audio.currentScore && Audio.currentScore()) || null;
-    const n = (s && s.gb && s.gb.notes) || [];
-    let peak = 0;                       // one reading lands in the gap between notes
-    for (let i = 0; i < 40; i++) {
-      peak = Math.max(peak, Audio.outputProbe().peak);
-      if (peak > 0.02) break;
-      await new Promise(r => setTimeout(r, 200));
+async function peak(page,ms,untilAudible=false){
+  return page.evaluate(async({ms,untilAudible})=>{
+    let peak=0;const end=performance.now()+ms;
+    while(performance.now()<end){peak=Math.max(peak,Audio.outputProbe().peak);if(untilAudible&&peak>.02)break;await new Promise(r=>setTimeout(r,100));}
+    return peak;
+  },{ms,untilAudible});
+}
+(async()=>{
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  const origin='http://127.0.0.1:'+server.address().port;
+  const browser=await chromium.launch({headless:true,args:['--autoplay-policy=no-user-gesture-required']});
+  const errors=[];
+  async function newPage(){
+    const context=await browser.newContext({viewport:{width:1440,height:900},permissions:['clipboard-read','clipboard-write']});
+    const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));return page;
+  }
+  async function openShared(url,expected,label,expectedSource){
+    const page=await newPage();
+    try{
+      await page.goto(url,{waitUntil:'domcontentloaded'});
+      await page.waitForFunction(()=>window.CT_MUSIC_WORKSPACE?.isOpen()&&CT_MUSIC_WORKSPACE.snapshot()?.validated,null,{timeout:40000});
+      const state=await page.evaluate(()=>({snapshot:CT_MUSIC_WORKSPACE.snapshot(),path:location.pathname,legacy:!!document.querySelector('#createscreen.show')}));
+      assert.equal(state.path,'/create',label+' uses canonical Create');assert.equal(state.legacy,false,label+' does not mount legacy editor');
+      assert.deepEqual(state.snapshot.validated.compiled.gb,expected.gb,label+' preserves entire exact score');
+      assert.equal(state.snapshot.validated.compiled.settings.title,expected.title,label+' preserves title');
+      if(expectedSource!==undefined)assert.equal(state.snapshot.draft,expectedSource,label+' preserves authored source and comments');
+      assert.equal(state.snapshot.playing,null);assert.equal(state.snapshot.pending,null);
+      assert((await peak(page,1500))<.02,label+' opens silently');
+      for(let zoom=0;zoom<8&&await page.locator('.mw-note').count()===0;zoom++){
+        await page.locator('.mw-note-group').first().click();
+      }
+      await page.locator('.mw-note').first().click();assert((await peak(page,700))<.02,label+' note selection/density navigation stays silent');
+      await page.locator('[data-action=play]').click();
+      await page.waitForFunction(()=>CT_MUSIC_WORKSPACE.snapshot().playing===CT_MUSIC_WORKSPACE.snapshot().validated.id,null,{timeout:30000});
+      const sounding=await peak(page,15000,true);assert(sounding>.02,label+' explicit Play is audible; peak='+sounding);
+      assert.deepEqual(await page.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot().validated.compiled.gb),expected.gb,label+' Play does not alter score');
+      console.log('PASS '+label+': exact score/title, canonical silent import, explicit Play audible');
+    }finally{await page.context().close();}
+  }
+  try{
+    const station=await newPage();await station.goto(origin+'/',{waitUntil:'domcontentloaded'});
+    await station.locator('#rmoods .rmood[data-mood="chill"]').click();
+    await station.waitForFunction(()=>Audio.currentDoc?.()&&Audio.currentScore?.()?.gb?.notes?.length,null,{timeout:30000});
+    assert((await peak(station,20000,true))>.02,'station original is audible');
+    const sent=await station.evaluate(()=>{
+      const code=Audio.currentDoc(),song=CT_CREATE.songOf(code);
+      // The document contract is finite JSON: absent and undefined object
+      // fields are equivalent; every represented score field remains compared.
+      return JSON.parse(JSON.stringify({code,gb:song.gb,title:song.title,radioGB:Audio.currentScore().gb,name:document.querySelector('#pbTitle').textContent.trim()}));
+    });
+    assert.deepEqual(sent.gb,sent.radioGB,'shared document represents the full radio score');
+    assert.equal(sent.title,sent.name,'radio title belongs to shared document');
+    let link='';
+    for(let i=0;i<30;i++){
+      await station.locator('#rshare').evaluate(el=>el.click());
+      link=await station.evaluate(()=>navigator.clipboard.readText());
+      if(/\/#s=z/.test(link))break;await station.waitForTimeout(100);
     }
-    return { notes: n.length, sig: n.slice(0, 80).map(x => x.frame + ':' + x.ch + ':' + x.midi).join(','), peak };
-  });
-  ok(heard.notes === made.notes && heard.sig === made.sig,
-     'a song made in the editor plays back the same on the station (' + made.notes + ' notes)');
-  ok(heard.peak > 0.02, 'and it is sounding (' + heard.peak.toFixed(3) + ')');
-
-  ok(!errs.length, 'no page errors' + (errs.length ? ' -- ' + errs[0] : ''));
-  await b.close(); h.s.close();
-  console.log(fail ? '\nverify-share: ' + fail + ' FAILED'
-                   : '\nverify-share: a shared link is the song, from either side');
-  process.exit(fail ? 1 : 0);
-})().catch(e => { console.error(e.message); process.exit(1); });
+    assert.match(link,/\/#s=z/,'radio Share copies a compressed document');
+    await station.context().close();
+    await openShared(link.replace(/^https?:\/\/[^/]+/,origin),sent,'radio compressed share');
+    await openShared(origin+'/#s=r'+sent.code,sent,'raw document share');
+    await openShared(origin+'/create#s='+sent.code,sent,'legacy bare document share');
+    const editor=await newPage();await editor.goto(origin+'/create',{waitUntil:'domcontentloaded'});
+    await editor.waitForFunction(()=>window.CT_MUSIC_WORKSPACE?.isOpen(),null,{timeout:40000});
+    const authored=await editor.evaluate(()=>{
+      // Keep this fixture inside the documented 12KB self-contained-link cap.
+      // Native document materialization carries a large bank even for one note;
+      // those full-bank documents are covered by the three #s cases above.
+      const source='song({totalFrames:120,settings:{title:"Exact Unicode ♪",tempo:120,bars:1}})\n'+
+        'instruments([[128,240,255,0]])\n'+
+        'event({ch:0,frame:0,frames:60,midi:60,inst:0,vel:1})\n// Editor-authored comment ♪\n';
+      const compiled=CT_MUSIC_LANGUAGE.compile(source);
+      if(!compiled.gb)throw Error(JSON.stringify(compiled.diagnostics));
+      return {gb:compiled.gb,title:compiled.settings.title,source};
+    });
+    await editor.locator('.cm-content').fill(authored.source);await editor.locator('[data-action=apply]').click();
+    await editor.waitForFunction(source=>CT_MUSIC_WORKSPACE.snapshot().validated.source===source,authored.source,{timeout:30000});
+    await editor.locator('[data-action=stop]').click();
+    await editor.locator('.mw-project-tools>summary').click();await editor.locator('[data-action=share]').click();
+    await editor.waitForFunction(()=>document.querySelector('.mw-status').textContent.includes('Copied project link')).catch(async e=>{throw Error(e.message+'; workspace: '+await editor.locator('.mw-status').textContent());});
+    const sourceLink=await editor.evaluate(()=>navigator.clipboard.readText());
+    assert.match(sourceLink,/\/create#music=/,'workspace shares source-project links');
+    await editor.context().close();
+    await openShared(sourceLink.replace(/^https?:\/\/[^/]+/,origin),authored,'workspace source share',authored.source);
+    assert.deepEqual(errors,[],'no browser page errors');
+    console.log('PASS verify-share: compressed/raw/bare/source links preserve exact songs without autoplay');
+  }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}
+})().catch(e=>{console.error(e);server.close();process.exitCode=1;});
