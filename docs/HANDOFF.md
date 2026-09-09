@@ -82,6 +82,9 @@ Production remains the previous release below;
 no deployment/configuration cutover has been performed or newly authorized.
 The active goal remains open for that owner-authorized cutover and acceptance.
 The release sequence and exact CHAT_ORIGIN change are in unified-create-plan.md.
+TextText's guarded changelog update for 994bb2b returned a conflict; a reread
+confirmed the entry absent and the old hash unchanged. No forced overwrite or
+duplicate note was made. This repository handoff contains the current evidence.
 
 ## 2026-09-09 — New active direction: unified Create
 
