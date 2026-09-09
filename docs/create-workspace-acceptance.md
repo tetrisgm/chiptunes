@@ -6,6 +6,17 @@ This is an evidence record, not a replacement or reduction of that plan.
 
 ## Current release and open gates
 
+Final follow-up is deployed: implementation 2aaada4 / release 3ab136f, both
+origins on app.f715dcc08d84.js / Music eb6281febd20. Full root regression
+finished with exit 0; the dedicated UI, workspace, Chat/provider/gateway and
+production-build gates also passed. Native Safari verified the final main-site
+controls and popup handoff, the stale-offset explanation without incorrect
+source selection, Code/mobile Chat/wide Code focus restoration and arrow-key
+navigation across a page-zoom breakpoint, retained draft, and validated Play/Stop.
+Thus the follow-up regression/deployment/native checks below are complete.
+Listening remains the sole unverified core acceptance gate. This does not
+claim physical phone/trackpad testing or native reference-ROM playback.
+
 Release 0f9d576 is deployed to chiptunes.app and the Vercel Chat workspace,
 shared artifact `app.5d7aa87e1f8a.js`, visible Music build `93fb190587e0`.
 Full root tests exited 0 before release. Native Safari transfer/save/reload and
@@ -55,6 +66,7 @@ Larger projects remain editable/playable and downloadable as project files.
 These restrictions must be shown truthfully; they are not claims of full-range
 model context or audio export support.
 
-The core completion claim remains withheld until the follow-up regression,
-deployed native checks and listening gate are resolved. Optional external MCP
+The core completion claim remains withheld until the listening gate is resolved.
+Follow-up regression and deployed native checks are complete as recorded above.
+Optional external MCP
 OAuth/client acceptance is not a blocker for the owner's selected built-in path.

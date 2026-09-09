@@ -3,7 +3,39 @@
 Plain, current working notes for whoever (or whatever) picks the project up
 next. Infrastructure and operations live outside this repository.
 
-## 2026-09-09 — Web handoff deployed and verified in native Safari
+## 2026-09-09 — Final web hardening deployed; listening acceptance remains
+
+Current production release: 3ab136f (implementation 2aaada4), pushed to main.
+Vercel `dpl_BcsaDpTBJHF3M1zhMGfWHCsWvpwu` is READY at the canonical gateway;
+Pages `8704b766.retro-rave-radio.pages.dev` is live on chiptunes.app. Both
+/create routes serve `app.f715dcc08d84.js`, visible `Music v1 · eb6281febd20`.
+The full root regression exited 0 before push/deployment (27680), with explicit
+private-ROM/harness skips; complete workspace, 65 gateway tests and production
+build also passed. No broadcast, desktop, store, infrastructure or recurring
+job changes. Anonymous Chat still returns 401 and locked access lists both
+OpenAI and Claude. No additional paid model calls in this follow-up.
+
+Native Safari on that exact build, in the existing test-owned private window:
+main-site unavailable password/request controls are absent and the hosted Chat
+explanation/CTA is present. Its 244363-byte popup transfer again required Accept,
+restored r2 and did not autoplay. In the temporary test copy, a short explicit
+event fixture was validated as r3, then a leading comment edited the draft.
+Clicking the corresponding note stayed in Notes, retained note selection and
+visibly explained that source navigation is unavailable for a differing draft.
+Safari page zoom crossed the responsive breakpoint: Code -> mobile Chat ->
+wide layout returned selected/focused Code, then Left selected/focused Notes;
+draft text survived. Zoom was restored. This is native breakpoint/keyboard
+evidence, not a physical phone/trackpad certification. Play acknowledged r3
+while the draft remained edited; Stop returned to playing none/stopped.
+The temporary test copy was not saved over the previously saved hosted song.
+
+Remaining core gate: representative musical listening acceptance. Three WAV
+clips (original, manual bass, simplified drums) were provided to the owner;
+no listening result has been received. `docs/create-workspace-acceptance.md`
+records the full original-plan audit and explicit resource/capability limits.
+Do not claim whole-goal completion or substitute PCM metrics for listening.
+
+### Earlier handoff release and follow-up history
 
 Release checkpoint 0f9d576 is pushed. Vercel deployment
 `dpl_8VoxpJXVAEPVrTKiWt3cPeboFxda` is READY at the canonical gateway;

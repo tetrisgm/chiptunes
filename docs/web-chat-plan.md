@@ -18,6 +18,14 @@ artifact; do not create a second composer or audio pipeline.
 
 ## Remaining release sequence and evidence
 
+Final follow-up: implementation 2aaada4 / release 3ab136f passed full root
+regression and is deployed on both origins, app.f715dcc08d84.js / Music
+eb6281febd20. Real Safari confirmed the main-site handoff-only controls,
+consent-gated transfer, stale-draft source-navigation guard, native responsive
+breakpoint focus restoration, preserved draft, and explicit validated Play/Stop.
+All independently executable core gates in the acceptance record are now
+verified; representative listening remains unverified and requires a result.
+
 September 9 release update: full root tests exited 0, candidate pushed as
 0f9d576 and deployed to both first-party origins with the same
 `app.5d7aa87e1f8a.js` / visible Music build `93fb190587e0`. Gateway access
