@@ -24,6 +24,13 @@
 const path = require('path');
 const api = require(path.join(__dirname, '..', 'src', 'api.js'));
 const CT = require(path.join(__dirname, '..', 'src', 'create.js'));
+const crypto = require('crypto');
+
+// Musical regression gates need replayable input, not a fresh lottery on each
+// run. These are hash-derived test inputs, never candidate-selected songs. Keep
+// the corpus and thresholds stable so a failure can be reproduced and fixed.
+const fixtureToken = (group, i) => crypto.createHash('sha256')
+  .update('diversity-v1:' + group + ':' + i).digest('hex').slice(0, 16);
 
 let fail = 0;
 const ok = (c, m) => { console.log((c ? '  ok   ' : '  FAIL ') + m); if (!c) fail++; };
@@ -77,7 +84,7 @@ const N = 30;
 
 console.log('free composition');
 {
-  const b = batch(Array.from({ length: N }, () => api.compose({}).doc));
+  const b = batch(Array.from({ length: N }, (_, i) => api.compose({ token: fixtureToken('free', i) }).doc));
   ok(b.openings === b.n, 'no two songs begin the same way (' + b.openings + '/' + b.n + ')');
   // NOT 100%, and demanding it would be wrong. Rhythm cells are mined from a
   // real corpus and reusing them is what makes the output sound like chip music
@@ -122,14 +129,14 @@ const LADDER = (function () {
   if (C.tempos) return C.tempos();
   const seen = {}, out = [];
   for (let i = 0; i < 400; i++) {
-    const t = CT.docState(api.compose({}).doc).bpm;
+    const t = CT.docState(api.compose({ token: fixtureToken('ladder', i) }).doc).bpm;
     if (!seen[t]) { seen[t] = 1; out.push(t); }
   }
   return out;
 })();
 const sceneTempos = {};
 for (const scene of ['boss', 'title', 'cave']) {
-  const b = batch(Array.from({ length: N }, () => api.brief({ scene, seconds: 30 }).doc));
+  const b = batch(Array.from({ length: N }, (_, i) => api.brief({ scene, seconds: 30, token: fixtureToken(scene, i) }).doc));
   // ONE COLLISION IS ALLOWED, AND THE NUMBER IS MEASURED. Over a pool of 2400
   // boss cues, 2360 openings were distinct; the pairwise collision probability
   // is 1.8e-5, which gives a batch of thirty a 0.8% chance of containing one
@@ -201,7 +208,7 @@ console.log('soundtracks remain varied across games');
 
   // motif:true is the strongest cohesion device here. It must relate the cues
   // without making them the same, and it is OFF unless asked for.
-  const off = api.soundtrack({ scenes: ['title', 'battle', 'boss'], key: 'D' });
+  const off = api.soundtrack({ scenes: ['title', 'battle', 'boss'], key: 'D', token: fixtureToken('motif-off', 0) });
   ok(!off.motif, 'a shared motif is opt-in, not the default');
   // Fixed regression tokens, discovered by a reproducible collision audit.
   // Both previously selected the identical D/F#/A/D tonic arpeggio at bar 0.
@@ -228,7 +235,7 @@ console.log('soundtracks remain varied across games');
 // a batch into one thing.
 console.log('mood recipes do not flatten');
 {
-  const docs = Array.from({ length: N }, () => api.brief({ scene: 'battle', seconds: 25 }).doc);
+  const docs = Array.from({ length: N }, (_, i) => api.brief({ scene: 'battle', seconds: 25, token: fixtureToken('sadder', i) }).doc);
   const sad = docs.map(d => api.variant(d, { mood: 'sadder' }).doc);
   const b = batch(sad);
   // A FLOOR, NOT 100%, AND THIS ONE IS MEASURED. A mood recipe flattens: it
