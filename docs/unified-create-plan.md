@@ -16,6 +16,65 @@ No hidden agent composition, alternate runtime, duplicated project, or second
 website that the user must visit. Keep finite songs/exports and optional loop
 audition. Preserve the deterministic single composition pipeline and 14 games.
 
+## Owner's live-coding references — 2026-09-09 clarification
+
+After the implementation checkpoint ef9f674, the owner supplied four videos
+with the direction "This but for our app":
+
+- DJ_Dave, [Making dance music with code](https://www.youtube.com/shorts/5OYiOGxHxTQ).
+- Switch Angel, [Coding DRUM and BASS](https://www.youtube.com/shorts/AJ7atBkisOU).
+- ion.the.way, [Live coding Phone Down](https://www.youtube.com/shorts/3XhS6_BZ53U).
+- Switch Angel, [Coding Trance Music from Scratch (Again)](https://www.youtube.com/watch?v=iu5rnQkfO6M).
+
+Reviewed the visible code/video frames of all four and the long video's exported
+auto-captions; not a claim of complete audiovisual listening acceptance. The
+references show compact pattern code, embedded piano rolls/scopes, highlighted
+musical tokens and direct controls. The long video's captions describe building
+lead, drums and bass, manipulating sound, and developing a breakdown/progression.
+[Strudel visual-feedback docs](https://strudel.cc/learn/visual-feedback/) and
+[slider documentation](https://strudel.cc/blog/) confirm that these are code-linked
+inline visuals/widgets, not a separate piano-roll application.
+
+The checkpoint implements the shared project and transport foundation, not this
+complete performance experience. Current chart pitches occupy a compressed
+vertical range in fixed-height track lanes; there are no inline pattern rolls or
+code-linked parameter widgets. The reference pass below is now an outstanding
+implementation gate before calling the owner direction complete.
+
+### Reference-matching implementation pass
+
+1. [ ] Make pitch and rhythm legible: proper semitone rows and time grid, useful
+   pitch range per melodic track, percussion-specific rows, clear rests and
+   sounding notes. Keep a whole-song overview without making a long song unreadable.
+2. [ ] Add bounded inline pattern/track piano rolls beside their code declarations
+   using the existing compiler mappings. Shared patterns must show which track,
+   transform and occurrence is represented. Derive display from the same compiled
+   source, never recompile through a parallel musical engine. Exact imports remain
+   exact and use their overview/source mappings without forced conversion.
+3. [ ] Highlight the actual playing token/occurrence where mappings support it,
+   not only the entire declaration. Retain the existing distinction between draft
+   preview and acknowledged playing source; incomplete code never becomes audio.
+4. [ ] Provide inline controls for existing supported parameters (initially gate,
+   velocity and transposition). Each gesture changes a bounded source literal,
+   preserves unrelated text and groups undo; Run/Apply keeps the current musical
+   boundary contract. A control is not hidden mixer state or permission for an
+   agent response to apply itself. Unsupported/ambiguous expressions stay code-only.
+5. [ ] Make the live build-up workflow easy through short readable pattern edits
+   and the existing sidebar: start a groove, add/alter an accompaniment, vary the
+   melody, create a breakdown and restore the full arrangement while looping.
+   Add only the minimal deterministic language support a verified fixture needs;
+   preserve finite arrangements/exports and the one chip engine. Do not silently
+   import Strudel's unrestricted runtime, external samples or incompatible FX.
+6. [ ] Acceptance demo: play once, then manually and via reviewed agent proposals
+   build and vary a chip track with visible code/notes correspondence, no lost
+   playback phase, no navigation and no hidden musical edits. Include invalid
+   source, shared-pattern ambiguity, undo, reload and exact export checks; verify
+   local Safari before the separately authorized production/provider acceptance.
+
+This is an extension of the existing Create plan, not another workspace or an
+authorization to deploy the previous checkpoint. Start with readable pitch/inline
+feedback, then source widgets, then the complete performance demonstration.
+
 ## Baseline facts and failure modes (before implementation)
 
 - Baseline main is 67e1f94. Previous implementation and full regression are

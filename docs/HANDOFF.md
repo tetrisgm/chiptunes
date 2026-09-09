@@ -3,6 +3,18 @@
 Plain, current working notes for whoever (or whatever) picks the project up
 next. Infrastructure and operations live outside this repository.
 
+## 2026-09-09 — Owner clarified the live-coding experience with four videos
+
+The owner followed ef9f674 with "This but for our app" and DJ_Dave, Switch Angel
+and ion.the.way video links. The exact references, inspection limits, current
+product gap and sequenced reference-matching pass are in unified-create-plan.md.
+The desired experience includes compact code with inline piano rolls/scopes,
+direct code-linked controls and incremental musical build-up during playback.
+Current simultaneous panes/chat are a foundation, not evidence that this pass
+is already implemented. The active goal has new uncompleted reference gates;
+the next implementation slice is readable pitch grids and inline pattern feedback.
+No runtime or deployment change was made in this reference-planning update.
+
 ## 2026-09-09 — Unified Create implemented; production cutover awaits approval
 
 Local implementation checkpoints: 775e3e4 (bounded same-origin transport),
