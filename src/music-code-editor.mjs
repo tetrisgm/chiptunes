@@ -1,11 +1,12 @@
-// CodeMirror supplies editing, folding and highlighting only. Compilation is
-// performed by the restricted music-language parser on explicit Apply.
+// CodeMirror supplies editing and compiler-derived visual feedback only. The
+// host's restricted parser handles draft previews and explicit Run/Apply.
 import { EditorView, basicSetup } from 'codemirror';
 import { Decoration } from '@codemirror/view';
 import { StateEffect, StateField } from '@codemirror/state';
 import { javascript } from '@codemirror/lang-javascript';
 import { autocompletion } from '@codemirror/autocomplete';
 import { setDiagnostics } from '@codemirror/lint';
+import { inlineRolls } from './music-inline-rolls.mjs';
 
 const help = {
   song: 'song({tempo:128,bars:16}) — finite song settings; bars are zero indexed.',
@@ -59,9 +60,10 @@ const soundingField = StateField.define({
 
 globalThis.CT_MUSIC_CODE_EDITOR = {
   help,
-  mount(parent, source, onChange, {onSelectionChange} = {}) {
+  mount(parent, source, onChange, {onSelectionChange,onNoteSelect} = {}) {
+    const rolls=inlineRolls({onNoteSelect});
     const view = new EditorView({doc:source,parent,extensions:[
-      basicSetup, javascript(), theme, soundingField, EditorView.lineWrapping,
+      basicSetup, javascript(), theme, soundingField, rolls.extensions, EditorView.lineWrapping,
       EditorView.contentAttributes.of({'aria-label':'Musical source code','data-shortcuts-off':''}),
       autocompletion({override:[ctx=>{
         const word=ctx.matchBefore(/\w*/);
@@ -74,6 +76,7 @@ globalThis.CT_MUSIC_CODE_EDITOR = {
           onSelectionChange(update.state.selection.ranges.map(r=>({from:r.from,to:r.to})));
       })
     ]});
+    rolls.attach(view);
     return {
       value:()=>view.state.doc.toString(),
       selection:()=>view.state.selection.ranges.map(r=>({from:r.from,to:r.to})),
@@ -90,7 +93,9 @@ globalThis.CT_MUSIC_CODE_EDITOR = {
         }))));
       },
       highlightPlaying(spans=[]) { view.dispatch({effects:soundingEffect.of(spans.slice(0,4))}); },
-      destroy:()=>view.destroy(), focus:()=>view.focus()
+      setPatternContext:context=>rolls.setContext(context),
+      setPatternPlayback:state=>rolls.setPlayback(state),
+      destroy:()=>{rolls.destroy();view.destroy();}, focus:()=>view.focus()
     };
   }
 };

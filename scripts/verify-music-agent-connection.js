@@ -132,7 +132,7 @@ async function integrated(browser){
     for(const f of ['gb-hardware.js','music-language.js','music-project.js','music-chat.js','music-agent-connection.js'])await page.addScriptTag({path:path.join(__dirname,'../src',f)});
     await page.evaluate(()=>{
       window.Audio={musicStop(){},enterCreate(){},onMusicState(){return ()=>{};}};window.CT_CREATE={};
-      window.CT_MUSIC_CODE_EDITOR={help:{},mount(el,text,change){window.editSource=change;return {set(){},diagnostics(){},focus(){},select(){}};}};
+      window.CT_MUSIC_CODE_EDITOR={help:{},mount(el,text,change){window.editSource=value=>{text=value;change(value);};return {value(){return text;},set(value){text=value;},diagnostics(){},focus(){},select(){}};}};
     });
     await page.addScriptTag({path:path.join(__dirname,'../dist/lib/music-chat-ui.js')});
     await page.addScriptTag({path:path.join(__dirname,'../src/music-workspace.js')});
@@ -226,7 +226,7 @@ async function integrated(browser){
       await page.addScriptTag({path:path.join(__dirname,'../src',f)});
     await page.evaluate(()=>{
       window.Audio={musicStop(){},enterCreate(){},onMusicState(){return ()=>{};}};window.CT_CREATE={};
-      window.CT_MUSIC_CODE_EDITOR={help:{},mount(el,text,change){window.editSource=change;return {set(){},diagnostics(){},focus(){},select(){}};}};
+      window.CT_MUSIC_CODE_EDITOR={help:{},mount(el,text,change){window.editSource=value=>{text=value;change(value);};return {value(){return text;},set(value){text=value;},diagnostics(){},focus(){},select(){}};}};
       window.calls=[];window.mode='ok';window.gen=0;window.remote=null;
       window.fetch=async(url,o)=>{
         if(url!=='/api/music-agent'||o.credentials!=='same-origin'||o.redirect!=='error')throw Error('transport');

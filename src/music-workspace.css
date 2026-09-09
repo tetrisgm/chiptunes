@@ -31,12 +31,30 @@
 #musicworkspace .mw-splitter::after{content:'';position:absolute;left:calc(50% - 24px);top:6px;width:48px;border-top:2px solid #929bb4}
 #musicworkspace .mw-splitter:focus-visible{outline-offset:-2px}
 #musicworkspace .mw-mainview{flex:1;min-height:0;overflow:auto}
+#musicworkspace .cm-inline-roll select{font:12px/1.4 system-ui;padding:3px 6px;border-radius:4px;background:#202c3c;border-color:#536078}
+#musicworkspace .cm-inline-note{height:12px;min-width:3px;padding:0;border:1px solid #75cbb0;border-radius:2px;background:#2a715e;box-sizing:border-box}
+#musicworkspace .cm-inline-note:hover{background:#368770}
+#musicworkspace .cm-inline-note[data-sounding=true]{background:#d9f77c;border-color:#f0ffc1}
 #musicworkspace [hidden]{display:none!important}
 #musicworkspace .mw-notes{position:relative;min-height:0;overflow:auto;padding:12px;overscroll-behavior:contain}
-#musicworkspace .mw-lane{position:relative;height:64px;border-top:1px solid #343b4e;background:repeating-linear-gradient(90deg,transparent,transparent 79px,#ffffff09 80px)}
-#musicworkspace .mw-lane-label{position:sticky;left:0;z-index:2;font-size:12px;background:#10121bdd;width:90px;padding:3px}
-#musicworkspace .mw-note{position:absolute;height:16px;min-width:6px;padding:0;border-radius:3px;background:#83a75a;border-color:#adc98b;overflow:hidden;font-size:10px}
+#musicworkspace .mw-lane{position:relative;border-top:1px solid #414b60;background:#121621}
+#musicworkspace .mw-lane-label{position:sticky;left:0;z-index:2;font-size:11px;line-height:24px;background:#171c29;width:max-content;max-width:100%;padding:0 6px}
+#musicworkspace .mw-pitch-row{position:absolute;left:0;right:0;height:14px;border-top:1px solid #ffffff09;pointer-events:none}
+#musicworkspace .mw-pitch-row[data-accidental=true]{background:#0003}
+#musicworkspace .mw-pitch-label{display:block;position:sticky;left:0;z-index:2;width:66px;height:13px;line-height:13px;font:9px/13px ui-monospace,monospace;text-align:right;padding-right:6px;background:#1c2230;color:#b6bfd5;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+#musicworkspace .mw-pitch-row[data-accidental=true] .mw-pitch-label{background:#10141e;color:#929bb4}
+#musicworkspace .mw-lane-empty{position:absolute;left:80px;top:34px;font-size:11px;color:#929bb4}
+#musicworkspace .mw-note{position:absolute;height:12px;min-width:6px;padding:0;border-radius:2px;background:#83a75a;border-color:#adc98b;overflow:hidden;font:9px/10px ui-monospace,monospace;z-index:1}
+#musicworkspace .mw-note[data-pitch=null]{font-size:9px}
+#musicworkspace .mw-note-sounding{filter:brightness(1.8);box-shadow:0 0 8px #e7eaf488;outline:1px solid #fff}
 #musicworkspace .mw-note[aria-pressed=true]{outline:2px solid #fff}
+#musicworkspace .mw-time-grid{position:absolute;pointer-events:none;top:26px;bottom:0;border-left:1px solid #ffffff09;z-index:1}
+#musicworkspace .mw-time-grid[data-strength=bar]{border-color:#ffffff29}
+#musicworkspace .mw-time-grid[data-strength=beat]{border-color:#ffffff15}
+#musicworkspace .mw-overview{display:block;position:relative;flex-shrink:0;height:44px;min-height:44px;padding:0;margin:0 12px 6px;overflow:hidden;border-radius:4px;line-height:0}
+#musicworkspace .mw-overview canvas{display:block;width:100%;height:100%;pointer-events:none}
+#musicworkspace .mw-overview-window{position:absolute;top:0;bottom:0;border:1px solid #d4efa3;background:#d4efa310;pointer-events:none}
+#musicworkspace .mw-overview-playhead{position:absolute;top:0;bottom:0;border-left:2px solid #f8d36e;pointer-events:none}
 #musicworkspace .mw-playhead{position:absolute;top:0;bottom:0;width:2px;background:#f8d36e;pointer-events:none;z-index:3}
 #musicworkspace .mw-diagnostics,#musicworkspace .mw-selection{padding:6px 12px;white-space:pre-wrap;font-size:12px;flex-shrink:0}
 #musicworkspace .mw-diagnostics{max-height:100px;overflow:auto}

@@ -1,15 +1,15 @@
 # Source-backed Create workspace
 
-This workspace uses the shared web/desktop artifact. The earlier exact-source
-workspace is deployed; the live-loop correction described below is implemented
-and tested locally but not yet released.
-From the legacy Create editor, choose **Chat / Code / Notes** to copy
-the actual generated/Create performance into source. A saved source project
-resumes instead when one exists. Opening the workspace adopts `/create#music`,
-so reload returns to the same source project without legacy autoplay.
-`/create#music` opens the source workspace without autoplay;
-`/create#music=…` opens a bounded project share without autoplay. Existing `#s=`
-links and the legacy editable grid retain their existing behavior.
+This describes the current checkout's shared web/desktop artifact, not a claim
+of production deployment. Release IDs and acceptance evidence are in HANDOFF.md;
+the unified main-origin cutover still needs the owner's separate authorization.
+
+`/create` opens one composition workspace with code and chart together beside a
+collapsible agent conversation. `/create#music` remains compatible;
+`/create#music=…` opens a bounded source share. Existing `#s=` song links use exact
+materialization, preserving their concrete performance. Entry and import do not
+autoplay. A saved draft resumes when there is no explicit import; explicit imports
+use a protected temporary copy, not an overwrite of local recovery.
 
 The native LSDj structure editor is separate. Opening a native document does
 not convert it into source or claim faithful native playback.
@@ -17,7 +17,7 @@ not convert it into source or claim faithful native playback.
 ## Write and apply
 
 The live-coding entry starts new projects with a short, readable, multi-track
-pattern loop in Code. Play starts audio; Run (Cmd/Ctrl+Enter in Code) applies
+pattern loop. Play starts audio; Run (Cmd/Ctrl+Enter in Code) applies
 the edited source. While playing, valid changes queue on the existing engine's
 musical boundary. Invalid code leaves the last valid music playing.
 New loop is an explicit replacement action with confirmation; saved and imported
@@ -34,10 +34,12 @@ Its MIT notices and transitive dependency licenses are bundled in
 See [the language reference](music-language.md) for supported functions and
 timing semantics.
 
-Typing changes only the draft. Apply validates the entire source and installs
+Typing changes the draft and schedules a bounded preview through the same
+compiler, without changing audio. Run validates the entire source and installs
 one revision. Invalid drafts remain editable and saved with the last valid
-revision. Notes is read-only: selecting a note identifies the source event or
-pattern occurrence. Orange notes warn about channel overlap; a Game Boy has
+revision; the previous valid chart remains, explicitly labelled. The chart is
+read-only: selecting a note identifies its written pitch token (or exact event)
+and occurrence. Orange notes warn about channel overlap; a Game Boy has
 only four voices, so retaining an event does not make simultaneous notes on one
 channel polyphonic.
 
@@ -47,6 +49,41 @@ revision undo/redo, separate from typing undo. See
 [live playback semantics](music-live-playback.md), including changed-voice resets
 and transition limits. Audition looping is a transport choice, not infinite
 source evaluation.
+
+## Code and musical feedback
+
+The chart has one row per semitone, labelled pitch ranges, and percussion rows
+by instrument rather than fictitious pitched drums. Its time grid uses the same
+tempo-map clock as compilation. A four-lane whole-song overview remains visible;
+click it to inspect a four-bar region, or activate it by keyboard to inspect near
+the current playback position. This only zooms the chart, never seeks audio.
+Show full song returns to the finite overview. Dense regions retain counted
+groups and drill-down instead of silently dropping notes.
+
+Inline rolls beneath pattern declarations show compiler-derived occurrences.
+The selector identifies track, call and repetition; the context includes written
+transformations. Full occurrence bounds include leading/trailing rests and gate
+gaps. Long projects have bounded widgets, occurrences and note buttons, with
+omissions disclosed and the full chart still available. Exact event imports are
+not forcibly converted to patterns or thousands of inline widgets.
+
+Playback colour follows scheduled active notes in the acknowledged playing
+source, including the sequencer's note-off ordering and native continuation
+rows. It is not an amplitude/envelope meter. Channels affected by raw register
+automation or wave kit samples omit token playback markers: those effects have
+no mapped pitch identity/lifetime and can outlive later triggers. Their source
+and chart remain editable. Generic velocity zero is not treated as a mute: the
+chip's shared register encoder determines its level. Editing clears stale inline
+mappings; a valid preview can
+restore them but does not become sound until Run. Token/source selection and
+visual decorations do not add musical revisions or typing-undo entries. The
+optional visualizer shares the existing score/player and returns to this same
+composition, selection, conversation and transport.
+
+TidalCycles is the musical guide, not a claim of source compatibility. The
+existing `notes` language still uses dot rests, `:length` and `@velocity`.
+Cycle notation and additional transforms remain work in the active plan; do not
+paste arbitrary Tidal/Strudel code and assume it will execute.
 
 ## Chat proposals
 
@@ -63,10 +100,13 @@ Current source/revision remains authoritative, not statements in past messages.
 Restored messages do not restore actionable proposals. Replies are shown after
 validation; the UI does not pretend that buffered replies are token-streamed.
 
-Hosted Chat uses the owner's configured server-side providers and requires the
-owner unlock. The main website offers a consent-based transfer to hosted Chat.
-An unavailable request reports an error while Code and playback continue
-working. Consumer Claude/ChatGPT credits
+Chat uses the owner's existing server-side providers and requires owner unlock.
+The current checkout routes requests through narrowly scoped same-origin paths;
+the prepared main-origin deployment/configuration cutover is separately gated.
+Normal use no longer asks the user to visit a second editor or copy a project.
+The old hosted address retains explicit recovery for its origin-local drafts.
+An unavailable request reports an error while Code and playback continue working.
+Consumer Claude/ChatGPT credits
 are not treated as API authorization. No browser provider keys are supported.
 
 A proposal carries its base revision and localized source edits. The project

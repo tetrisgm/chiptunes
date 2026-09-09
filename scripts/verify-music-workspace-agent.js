@@ -30,7 +30,7 @@ const server=http.createServer((req,res)=>res.end('<!doctype html><body></body>'
           edits:[{from:0,to:0,text:'// chat\n'}],explanation:'Local Chat comment'}),{status:200}));});
       };
       window.CT_MUSIC_CODE_EDITOR={help:{},mount(el,text,change){
-        window.editSource=change;return {set(){},diagnostics(){},focus(){},select(){}};
+        window.editSource=value=>{text=value;change(value);};return {value(){return text;},set(value){text=value;},diagnostics(){},focus(){},select(){}};
       }};
     });
     await page.addScriptTag({path:path.join(__dirname,'../src/music-workspace.js')});

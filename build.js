@@ -92,7 +92,9 @@ if (!shell.includes('__SCRIPTS__')) die('src/shell.html has no __SCRIPTS__ marke
 
 const musicAssetVersion = crypto.createHash('sha256');
 for (const file of ['src/gb-hardware.js','src/gb-kits.js','src/gb-apu.js']) musicAssetVersion.update(fs.readFileSync(path.join(ROOT,file)));
-const musicEditorVersion = crypto.createHash('sha256').update(fs.readFileSync(path.join(ROOT,'src/music-code-editor.mjs'))).update(fs.readFileSync(path.join(ROOT,'package-lock.json'))).digest('hex').slice(0,12);
+const musicEditorHash = crypto.createHash('sha256');
+for (const file of ['src/music-code-editor.mjs','src/music-inline-rolls.mjs','package-lock.json']) musicEditorHash.update(fs.readFileSync(path.join(ROOT,file)));
+const musicEditorVersion = musicEditorHash.digest('hex').slice(0,12);
 const chatVersion=crypto.createHash('sha256').update(fs.readFileSync(path.join(ROOT,'src/music-chat-ui.jsx'))).update(fs.readFileSync(path.join(ROOT,'package-lock.json'))).digest('hex').slice(0,12);
 const previewHash=crypto.createHash('sha256');
 for(const file of ['music-preview-worker.js','gb-hardware.js','gb-kits.js','music-language.js'])previewHash.update(fs.readFileSync(path.join(ROOT,'src',file)));

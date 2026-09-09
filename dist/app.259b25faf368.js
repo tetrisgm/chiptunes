@@ -1,8 +1,8 @@
 globalThis.CT_MUSIC_ASSETS_VERSION="5fba76c2aeb5e170";
-globalThis.CT_MUSIC_EDITOR_VERSION="58e1a4542326";
+globalThis.CT_MUSIC_EDITOR_VERSION="70dad5f8cc36";
 globalThis.CT_MUSIC_CHAT_UI_VERSION="904689e8bae1";
-globalThis.CT_MUSIC_PREVIEW_VERSION="e64dd6030ead";
-globalThis.CT_MUSIC_BUILD_VERSION="8996c27904ee";
+globalThis.CT_MUSIC_PREVIEW_VERSION="21e5e4bcc266";
+globalThis.CT_MUSIC_BUILD_VERSION="fc63e091d3fb";
 /* ===== src/seed.js ===== */
 // ===== seed.js — deterministic generated-track identity. =====
 // Loads FIRST (before composer.js/audio.js) so any composer can seed itself from a URL token.
@@ -14462,6 +14462,13 @@ var EXPORTS = {
  * Instrument names are bank.meta name/id/patch.authored; wave-bass aliases
  * w-triangle. No pitch clamping, truncation, sorting or overlap suppression.
  * Mapping indexes gb.notes; span is definition/event, occurrenceSpan is play.
+ * Pattern notes additionally carry tokenSpan (raw pitch, including escapes),
+ * playSpan (only the dot through this play call's closing parenthesis), and
+ * trackSpan (the entire track declaration, including its transformations), plus
+ * occurrenceStartFrame/occurrenceEndFrame (full repeat, including rests/gaps).
+ * Legacy occurrenceSpan still extends from after the dot to the track end.
+ * Exact events have none of these pattern-only fields; all-rest plays emit no
+ * note mappings. Occurrence ends are exclusive and are not clipped to song end.
  * Each span has start/end {offset,line,column}: UTF-16 offsets, exclusive end,
  * one-based line/column. tempoAt:[[row,tempo],...] opts into Create's LSDj
  * segment clock; rows use settings.stepsPerBar (16 default), swing uses the
@@ -14530,11 +14537,14 @@ var EXPORTS = {
   Parser.prototype.take = function (c) { this.skip(); if (this.s[this.i] === c) { this.i++; return true; } return false; };
   Parser.prototype.expect = function (c) { need(this.take(c), 'Expected ' + c, this.i); };
   Parser.prototype.id = function () { this.skip(); var m = /^[A-Za-z_][A-Za-z_0-9]*/.exec(this.s.slice(this.i)); need(m, 'Expected name', this.i); this.i += m[0].length; return m[0]; };
-  Parser.prototype.string = function () {
+  Parser.prototype.string = function (raw) {
     this.skip(); var start = this.i, quote = this.s[this.i++], out = '';
     while (this.i < this.s.length) {
       var c = this.s[this.i++];
-      if (c === quote) return out;
+      if (c === quote) { if (raw) raw.push(this.i - 1); return out; }
+      // One decoded UTF-16 unit per iteration, even for a Unicode escape.
+      // Adjacent raw boundaries also preserve escapes used as whitespace.
+      if (raw) raw.push(this.i - 1);
       need(c.charCodeAt(0) >= 32, 'Control character in string', this.i - 1);
       if (c === '\\') {
         c = this.s[this.i++];
@@ -14545,10 +14555,10 @@ var EXPORTS = {
     }
     fail('Unclosed string', start);
   };
-  Parser.prototype.value = function (depth) {
+  Parser.prototype.value = function (depth, raw) {
     need(depth <= LIMITS.depth && ++this.nodes <= LIMITS.nodes, 'Data resource limit', this.i);
     this.skip(); var c = this.s[this.i], v, k;
-    if (c === '"' || c === "'") return this.string();
+    if (c === '"' || c === "'") return this.string(raw);
     if (c === '{' || c === '[') {
       this.i++; var arr = c === '[', close = arr ? ']' : '}'; v = arr ? [] : {};
       if (this.take(close)) return v;
@@ -14568,8 +14578,8 @@ var EXPORTS = {
     k = this.id(); if (k === 'true') return true; if (k === 'false') return false; if (k === 'null') return null;
     fail('Only literal data is allowed', this.i - k.length);
   };
-  Parser.prototype.args = function () { var a = []; this.expect('('); if (!this.take(')')) { do { a.push(this.value(0)); } while (this.take(',')); this.expect(')'); } return a; };
-  Parser.prototype.chain = function () { var a = []; while (this.take('.')) { var at = this.i; a.push({ name: this.id(), args: this.args(), at: at }); } return a; };
+  Parser.prototype.args = function (rawArgs) { var a = []; this.expect('('); if (!this.take(')')) { do { var raw = rawArgs ? [] : null; a.push(this.value(0, raw)); if (rawArgs) rawArgs.push(raw); } while (this.take(',')); this.expect(')'); } return a; };
+  Parser.prototype.chain = function () { var a = []; while (this.take('.')) { var at = this.i, name = this.id(), args = this.args(); a.push({ name: name, args: args, at: at, end: this.i }); } return a; };
   function compile(source) {
     var settings = {}, mapping = [], diagnostics = [], p, gb = null;
     var lines = [0];
@@ -14595,14 +14605,14 @@ var EXPORTS = {
         var at = p.i, name = p.id(), args, chains;
         if (name === 'pattern') {
           p.expect('('); var pn = p.value(0); need(typeof pn === 'string' && !own(patterns, pn), 'Invalid or duplicate pattern name', at);
-          p.expect(','); need(p.id() === 'notes', 'Pattern requires notes()', p.i); args = p.args(); chains = p.chain(); p.expect(')');
+          p.expect(','); need(p.id() === 'notes', 'Pattern requires notes()', p.i); var rawArgs = []; args = p.args(rawArgs); chains = p.chain(); p.expect(')');
           need(args.length === 1 && typeof args[0] === 'string', 'notes requires a string', at);
           chains.forEach(function (c) {
             var bounds = { stepsPerBar: [1, 256, true], gate: [0.001, 1, false], velocity: [0, 1, false], transpose: [-128, 128, true], register: [-128, 128, true] };
             need(own(bounds, c.name), 'Unknown notes transformation', c.at);
             var b = bounds[c.name]; need(c.args.length === 1 && num(c.args[0], b[0], b[1], b[2]), 'Invalid notes transformation argument', c.at);
           });
-          patterns[pn] = { text: args[0], chains: chains, at: at, end: p.i };
+          patterns[pn] = { text: args[0], raw: rawArgs[0], chains: chains, at: at, end: p.i };
         } else {
           args = p.args(); chains = p.chain();
           need(args.length === 1, name + ' requires one argument', at);
@@ -14674,14 +14684,17 @@ var EXPORTS = {
           need(pat && object(opt) && Object.keys(opt).every(function (k) { return ['atBar', 'repeat'].includes(k); }), 'Invalid pattern or play options', c.at);
           var atBar = opt.atBar == null ? 0 : opt.atBar, repeat = opt.repeat == null ? 1 : opt.repeat;
           need(num(atBar, 0, 65536) && num(repeat, 1, LIMITS.repeats, true), 'Invalid arrangement bounds', c.at);
-          var tokens = pat.text.trim() ? pat.text.trim().split(/\s+/) : [], step = 0, rows = [], spb = 16, gate = 1;
+          var tokens = pat.text.match(/\S+/g) || [], tokenOffset = 0, step = 0, rows = [], spb = 16, gate = 1;
           spend(tokens.length * (1 + pat.chains.length + transforms.length), c.at);
           need(tokens.length > 0 && tokens.length <= LIMITS.steps, 'Pattern step limit', pat.at);
           tokens.forEach(function (token) {
+            tokenOffset = pat.text.indexOf(token, tokenOffset);
             var m = /^(\.|[A-Ga-g][#b]?-?\d+)(?::(\d+(?:\.\d+)?))?(?:@(\d+(?:\.\d+)?))?$/.exec(token);
             need(m, 'Invalid note token ' + token, pat.at); var length = m[2] == null ? 1 : Number(m[2]), vel = m[3] == null ? 1 : Number(m[3]);
             need(num(length, 0.001, LIMITS.steps) && num(vel, 0, 1), 'Invalid length or velocity', pat.at);
             if (m[1] !== '.') { var pitch = /^([A-Ga-g])([#b]?)(-?\d+)$/.exec(m[1]); rows.push({ step: step, length: length, midi: (Number(pitch[3]) + 1) * 12 + { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }[pitch[1].toUpperCase()] + (pitch[2] === '#' ? 1 : pitch[2] === 'b' ? -1 : 0), vel: vel }); }
+            if (m[1] !== '.') rows[rows.length - 1].tokenSpan = span(pat.raw[tokenOffset], pat.raw[tokenOffset + m[1].length]);
+            tokenOffset += token.length;
             step += length; need(step <= LIMITS.steps, 'Pattern length limit', pat.at);
           });
           pat.chains.concat(transforms).forEach(function (x) {
@@ -14694,11 +14707,16 @@ var EXPORTS = {
           });
           need(eventCount + rows.length * repeat <= LIMITS.events, 'Event expansion limit', c.at);
           spend(repeat * (1 + rows.length * (1 + (changes ? changes.length : 0))), c.at);
-          for (var rep = 0; rep < repeat; rep++) rows.forEach(function (r, ri) {
+          for (var rep = 0; rows.length && rep < repeat; rep++) {
+            var occurrenceStartFrame = time(atBar * 4 + rep * step * 4 / spb);
+            var occurrenceEndFrame = time(atBar * 4 + (rep + 1) * step * 4 / spb);
+            rows.forEach(function (r, ri) {
             var beat = atBar * 4 + (rep * step + r.step) * 4 / spb, frame = time(beat);
             add('notes', { ch: lanes[t.lane], frame: frame, frames: Math.max(1, time(beat + r.length * gate * 4 / spb) - frame), midi: r.midi, inst: inst, vel: r.vel }, pat.at, pat.end);
-            Object.assign(mapping[mapping.length - 1], { pattern: c.args[0], occurrence: rep, patternNote: ri, track: t.lane, occurrenceSpan: span(c.at, t.end) });
+            Object.assign(mapping[mapping.length - 1], { pattern: c.args[0], occurrence: rep, patternNote: ri, track: t.lane, occurrenceSpan: span(c.at, t.end),
+              tokenSpan: r.tokenSpan, playSpan: span(c.at - 1, c.end), trackSpan: span(t.at, t.end), occurrenceStartFrame: occurrenceStartFrame, occurrenceEndFrame: occurrenceEndFrame });
           });
+          }
         });
       });
       gb.notes.forEach(function (n, i) {
@@ -15818,7 +15836,11 @@ var EXPORTS = {
     var seen=new Set();
     return result.mapping.every(function(m){
       if(!object(m)||!integer(m.noteIndex,result.gb.notes.length-1)||seen.has(m.noteIndex)||!span(m.span)||
-        (m.occurrenceSpan!==undefined&&!span(m.occurrenceSpan)))return false;
+        !['occurrenceSpan','tokenSpan','playSpan','trackSpan'].every(function(key){return m[key]===undefined||span(m[key]);}))return false;
+      if(m.tokenSpan&&(m.tokenSpan.start.offset<m.span.start.offset||m.tokenSpan.end.offset>m.span.end.offset||m.tokenSpan.start.offset===m.tokenSpan.end.offset))return false;
+      if(m.occurrenceStartFrame!==undefined||m.occurrenceEndFrame!==undefined){
+        if(!integer(m.occurrenceStartFrame,Number.MAX_SAFE_INTEGER)||!integer(m.occurrenceEndFrame,Number.MAX_SAFE_INTEGER)||m.occurrenceEndFrame<m.occurrenceStartFrame)return false;
+      }
       seen.add(m.noteIndex);return true;
     });
   }
@@ -15999,6 +16021,8 @@ var EXPORTS = {
   var soundingIndex=null,lastHighlight=null;
   var preview=null,previewChart=null,previewOwner=null,previewStatus='Validated chart';
   var chartIndex=null,chartRange=null,chartViewportKey='',chartRenderFrame=null;
+  var inlineContext=null;
+  var CHART_GUTTER=68,NOTE_ROW=14,LANE_HEADER=25;
   var visualizerOpen=false,presentationOwner=null,presentationFocus=null;
   function setVisualizer(visible){
     if(!G.CT_CREATE_PRESENTATION){status('Visualizer is unavailable in this build.');return;}
@@ -16258,16 +16282,52 @@ var EXPORTS = {
     var result=project.applyDraft();diagnostics(result.diagnostics);applied(result);
     if(start)activate(result.revision,true);
   }
+  function scheduledNoteLanes(gb,mapping){
+    // Match the shared sequencer's off-before-on ordering, including an old
+    // overlapping note's off cutting a newer voice. Pitch-only native rows
+    // inherit the channel's current state; they cannot revive a killed voice.
+    // This is scheduled note activity, not an amplitude/envelope meter.
+    var lanes=[[],[],[],[]],active=[null,null,null,null],events=[],off=G.CT_GB.noteOffFrames(gb.notes),unmapped=[false,false,!!(gb.kit&&gb.kit.length),false];
+    gb.notes.forEach(function(n,index){
+      events.push({frame:n.frame,type:1,ch:n.ch,note:n,index:index});
+      if(off[index]!=null)events.push({frame:off[index],type:0,ch:n.ch});
+    });
+    // Raw register writes have no pitch-token identity or lifetime. In
+    // particular DAC/power-off can outlive later mapped triggers. Omit token
+    // attribution for affected channels, rather than simulate a second APU.
+    (gb.auto||[]).forEach(function(a){
+      var ch=a.r>=0x10&&a.r<=0x14?0:a.r>=0x16&&a.r<=0x19?1:a.r>=0x1a&&a.r<=0x1e?2:a.r>=0x20&&a.r<=0x23?3:null;
+      if(ch!==null)unmapped[ch]=true;
+      else if(a.r>=0x24&&a.r<=0x26)unmapped=[true,true,true,true];
+      else if(a.r>=0x30&&a.r<=0x3f)unmapped[2]=true;
+    });
+    events.sort(function(a,b){return a.frame-b.frame||a.type-b.type;});
+    events.forEach(function(e){
+      var ch=e.ch,n=e.note;
+      // Kits can retrigger wave RAM between score frames, including after a
+      // mapped note. Without sample ownership mappings the whole wave lane is
+      // intentionally unattributed; do not approximate another audio engine.
+      if(e.type!==1||unmapped[ch])active[ch]=null;
+      else if(n.trigger===false&&ch<2){if(active[ch]!==null)active[ch]=e.index;}
+      else{
+        // Generic velocity has a 35% floor. Ask the shared register encoder,
+        // rather than incorrectly treating vel:0 as a mute.
+        var registers=G.CT_GB.noteRegisters(n,gb.bank);
+        active[ch]=(ch===2?registers[1]&0x60:registers[1]&0xf8)?e.index:null;
+      }
+      var index=active[ch],item={frame:e.frame,index:index,span:index===null?null:mapping.get(index)},lane=lanes[ch];
+      if(lane.length&&lane[lane.length-1].frame===e.frame)lane[lane.length-1]=item;else lane.push(item);
+    });
+    return lanes;
+  }
   function renderPosition(s){
     var text='Stopped · Run to hear your code',beat=null;
-    var spans=[];
+    var spans=[],soundingNotes=[];
     if(playingRevision&&s.playing){
       if(!soundingIndex||soundingIndex.revision!==playingRevision){
-        var mapping=new Map();playingRevision.compiled.mapping.forEach(function(m){mapping.set(m.noteIndex,m.span);});
+        var mapping=new Map();playingRevision.compiled.mapping.forEach(function(m){mapping.set(m.noteIndex,m.tokenSpan||m.span);});
         var soundingClock=null;try{soundingClock=G.CT_MUSIC_LANGUAGE.createClock(playingRevision.compiled.settings||{});}catch(_){}
-        soundingIndex={revision:playingRevision,clock:soundingClock,lanes:[[],[],[],[]]};
-        playingRevision.compiled.gb.notes.forEach(function(n,i){if(soundingIndex.lanes[n.ch])soundingIndex.lanes[n.ch].push({frame:n.frame,end:n.frame+n.frames,span:mapping.get(i)});});
-        soundingIndex.lanes.forEach(function(lane){lane.sort(function(a,b){return a.frame-b.frame;});});
+        soundingIndex={revision:playingRevision,clock:soundingClock,lanes:scheduledNoteLanes(playingRevision.compiled.gb,mapping)};
       }
       var clock=soundingIndex.clock,frame=Math.max(0,audioState.frame||0);
       var position='Frame '+Math.floor(frame);
@@ -16277,11 +16337,14 @@ var EXPORTS = {
         beat=lo%4;position='Bar '+(Math.floor(lo/4)+1)+' · Beat '+(beat+1)+'/4';
       }catch(_){soundingIndex.clock=null;}
       text=(audioState.suspended?'Audio suspended':audioState.status==='paused'?'Paused':'Sounding')+' '+s.playing+' · '+position;
-      if(s.draft===playingRevision.source&&audioState.status==='playing'&&!audioState.suspended){
+      if(audioState.status==='playing'&&!audioState.suspended){
         soundingIndex.lanes.forEach(function(lane){
           var low=0,high=lane.length;
           while(low<high){var mid=(low+high)>>1;if(lane[mid].frame<=frame)low=mid+1;else high=mid;}
-          var note=lane[low-1];if(note&&note.end>frame&&note.span)spans.push({from:note.span.start.offset,to:note.span.end.offset});
+          var note=lane[low-1];if(note&&note.index!==null){
+            soundingNotes.push(note.index);
+            if(s.draft===playingRevision.source&&note.span)spans.push({from:note.span.start.offset,to:note.span.end.offset});
+          }
         });
       }
     }else if(s.pending)text='Preparing first sound…';
@@ -16289,6 +16352,14 @@ var EXPORTS = {
     if(editor&&typeof editor.highlightPlaying==='function'){
       var signature=JSON.stringify(spans);if(signature!==lastHighlight){editor.highlightPlaying(spans);lastHighlight=signature;}
     }
+    var chart=chartContext(s),chartPlaying=chart&&playingRevision&&chart.source===playingRevision.source;
+    $('.mw-notes').querySelectorAll('.mw-note').forEach(function(el){
+      el.classList.toggle('mw-note-sounding',!!chartPlaying&&soundingNotes.includes(Number(el.dataset.note)));
+    });
+    if(editor&&editor.setPatternPlayback)editor.setPatternPlayback({source:playingRevision&&playingRevision.source,frame:audioState.frame||0,
+      playing:!!s.playing&&audioState.status==='playing'&&!audioState.suspended,noteIndices:soundingNotes});
+    var overviewCursor=$('.mw-overview-playhead');
+    if(overviewCursor){overviewCursor.hidden=!chartPlaying;overviewCursor.style.left=(chartPlaying?Math.max(0,Math.min(100,(audioState.frame||0)/(chart.compiled.gb.totalFrames||1)*100)):0)+'%';}
     if($('.mw-position').textContent!==text)$('.mw-position').textContent=text;
     root.dataset.beat=beat==null?'':String(beat);
     root.dataset.sounding=String(!!s.playing&&audioState.status==='playing'&&!audioState.suspended);
@@ -16337,6 +16408,7 @@ var EXPORTS = {
   }
   function sourceChanged(text){
     if(sourceLoading)return;
+    inlineContext=null;
     var result=project.editDraft(text);if(!result.ok){announceError(result);return;}
     cancelChat('superseded');renderProposal();renderState();scheduleSave();
     schedulePreview();
@@ -16351,12 +16423,43 @@ var EXPORTS = {
         script.onload=resolve;script.onerror=function(){script.remove();reject(Error('Code editor could not load'));};document.head.appendChild(script);
       });
     }
-    editor=G.CT_MUSIC_CODE_EDITOR.mount($('.mw-code'),snap().draft,sourceChanged,{onSelectionChange:sourceSelected});
+    editor=G.CT_MUSIC_CODE_EDITOR.mount($('.mw-code'),snap().draft,sourceChanged,{onSelectionChange:sourceSelected,onNoteSelect:selectChartNote});
+    syncPatternContext();
     $('.mw-help pre').textContent=Object.values(G.CT_MUSIC_CODE_EDITOR.help).join('\n');
     })();
     try{await editorLoading;}finally{editorLoading=null;}
   }
-  function syncEditor(){cancelPreview();if(visualizerOpen&&presentationOwner!==project)setVisualizer(false);if(editor){sourceLoading=true;editor.set(snap().draft);sourceLoading=false;}}
+  function syncEditor(){cancelPreview();if(visualizerOpen&&presentationOwner!==project)setVisualizer(false);if(editor){
+    var draft=snap().draft;if(editor.value()!==draft)inlineContext=null;
+    sourceLoading=true;editor.set(draft);sourceLoading=false;
+  }}
+  function syncPatternContext(){
+    if(!editor||!editor.setPatternContext)return;
+    var s=snap(),v=chartContext(s),context=v&&s.draft===v.source?v:null;
+    // Project snapshots are detached copies. Compare revision identity rather
+    // than object identity so scrolling cannot reset an inline occurrence picker.
+    if(context?(!inlineContext||inlineContext.owner!==project||inlineContext.id!==context.id||inlineContext.source!==context.source):!!inlineContext){
+      editor.setPatternContext(context?{source:context.source,compiled:context.compiled}:null);
+      inlineContext=context?{owner:project,id:context.id,source:context.source}:null;
+    }
+  }
+  function selectChartNote(item){
+    var s=snap(),v=chartContext(s),i=typeof item==='number'?item:item.noteIndex;
+    if(!v)return;
+    var n=v.compiled.gb.notes[i],m=v.compiled.mapping.find(function(entry){return entry.noteIndex===i;});
+    if(!n||!m)return;
+    selection={ch:n.ch,fromFrame:n.frame,toFrame:n.frame+n.frames};agentPolicyChanged();
+    $('.mw-notes').querySelectorAll('.mw-note').forEach(function(el){el.setAttribute('aria-pressed',String(Number(el.dataset.note)===i));});
+    $('.mw-selection').textContent='Selected '+['Melody','Harmony','Bass','Drums'][n.ch]+' · '+(m.pattern!=null?'pattern '+m.pattern+', occurrence '+m.occurrence:'explicit event')+' · frames '+n.frame+'–'+(n.frame+n.frames);
+    renderState();
+    if(s.draft!==v.source){$('.mw-selection').textContent+=' · Source navigation unavailable while the draft differs from the chart.';return;}
+    var mappingOwner=project,selected=selection;
+    selectView('code');ensureEditor().then(function(){
+      if(root.hidden||project!==mappingOwner||selection!==selected)return;
+      if(snap().draft!==v.source||!chartContext()||chartContext().id!==v.id){$('.mw-selection').textContent+=' · Source navigation unavailable while the draft differs from the chart.';return;}
+      var span=m.tokenSpan||m.span;editor.select(span.start.offset,span.end.offset);
+    }).catch(announceError);
+  }
   function sourceSelected(ranges){
     if(!project||!root)return;
     var s=snap(),v=chartContext(s),indices=new Set();
@@ -16365,7 +16468,11 @@ var EXPORTS = {
         var a=span.start.offset,b=span.end.offset;
         return r.from===r.to?r.from>=a&&r.from<b:r.from<b&&r.to>a;
       });}
-      v.compiled.mapping.forEach(function(m){if(overlaps(m.span)||overlaps(m.occurrenceSpan))indices.add(m.noteIndex);});
+      // Within a token select its occurrences, not every note in the containing
+      // declaration. Outside tokens the definition/play remains a useful scope.
+      var tokenMatches=v.compiled.mapping.filter(function(m){return overlaps(m.tokenSpan);});
+      if(!ranges.every(function(r){return tokenMatches.some(function(m){return r.from>=m.span.start.offset&&r.to<=m.span.end.offset;});}))tokenMatches=[];
+      (tokenMatches.length?tokenMatches:v.compiled.mapping).forEach(function(m){if(tokenMatches.length||overlaps(m.span)||overlaps(m.playSpan||m.occurrenceSpan))indices.add(m.noteIndex);});
     }
     // Cursor movement is visual feedback, never a change to agent edit scope.
     $('.mw-notes').querySelectorAll('.mw-note').forEach(function(el){el.classList.toggle('mw-source-selected',indices.has(Number(el.dataset.note)));});
@@ -16420,25 +16527,68 @@ var EXPORTS = {
     $('.mw-context').textContent='Base '+(v?v.id:'none')+' · '+(selection?['Melody','Harmony','Bass','Drums'][selection.ch]+' · frames '+selection.fromFrame+'–'+selection.toFrame:'Whole song');
     renderChatUI();
   }
+  function noteName(midi){return ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'][((midi%12)+12)%12]+(Math.floor(midi/12)-1);}
+  function chartLanes(gb){
+    var rows=[[],[],[],[]],metadata=new Map(((gb.bank||{}).meta||[]).map(function(m){return [m.index,m];}));
+    gb.notes.forEach(function(n){rows[n.ch].push(n);});
+    return rows.map(function(notes,ch){
+      if(ch===3){
+        var instruments=Array.from(new Set(notes.map(function(n){return n.inst;}))).sort(function(a,b){return a-b;});
+        var shown=instruments.slice(0,16),overflow=instruments.length>shown.length;
+        var labels=shown.map(function(inst){var m=metadata.get(inst);return m&&(m.name||m.id||m.patch&&m.patch.authored)||'Noise '+inst;});
+        if(overflow)labels.push('Other drums');if(!labels.length)labels.push('Noise');
+        return {labels:labels,drums:true,count:notes.length,overflow:overflow,
+          row:function(n){var i=shown.indexOf(n.inst);return i<0?labels.length-1:i;},
+          name:function(n){var m=metadata.get(n.inst);return m&&(m.name||m.id||m.patch&&m.patch.authored)||'Noise '+n.inst;}};
+      }
+      var min=notes.reduce(function(v,n){return Math.min(v,n.midi);},127),max=notes.reduce(function(v,n){return Math.max(v,n.midi);},0);
+      if(!notes.length){min=[60,48,24][ch];max=min+11;}
+      var low=Math.max(0,Math.floor(min/12)*12),high=Math.min(127,Math.ceil((max+1)/12)*12-1),labels=[];
+      for(var midi=high;midi>=low;midi--)labels.push(noteName(midi));
+      return {labels:labels,low:low,high:high,count:notes.length,row:function(n){return high-n.midi;},name:function(n){return noteName(n.midi);}};
+    });
+  }
+  function renderOverview(v,from,to){
+    var holder=$('.mw-overview'),gb=v.compiled.gb,total=gb.totalFrames||1;
+    if(!chartIndex.overview){
+      var canvas=document.createElement('canvas');canvas.width=1024;canvas.height=56;canvas.setAttribute('aria-hidden','true');
+      var ctx=canvas.getContext('2d');
+      if(ctx){
+        ctx.fillStyle='#10121b';ctx.fillRect(0,0,1024,56);
+        gb.notes.forEach(function(n){ctx.fillStyle=['#79d59d','#71bbeb','#e8b264','#bf9fde'][n.ch];
+          ctx.globalAlpha=0.75;ctx.fillRect(n.frame/total*1024,n.ch*14+3,Math.max(1,Math.min(n.frames,total-n.frame)/total*1024),8);});
+        ctx.globalAlpha=1;
+      }
+      chartIndex.overview=canvas;
+    }
+    if(holder.firstElementChild!==chartIndex.overview)holder.prepend(chartIndex.overview);
+    Array.from(holder.querySelectorAll('canvas')).forEach(function(canvas){if(canvas!==chartIndex.overview)canvas.remove();});
+    holder.setAttribute('aria-label','Whole song overview, '+gb.notes.length+' notes across four tracks. Activate to zoom near playback, or click a point to inspect it.');
+    var window=$('.mw-overview-window');window.style.left=Math.max(0,from/total*100)+'%';window.style.width=Math.min(100,(to-from)/total*100)+'%';
+  }
   function renderNotes(){
     var s=snap(),v=chartContext(s),pane=$('.mw-notes'),scrollTop=pane.scrollTop,scrollLeft=pane.scrollLeft;
     var focused=pane.contains(document.activeElement)?document.activeElement.dataset.chartKey:null;
     pane.replaceChildren();
     $('.mw-chart-status').textContent=previewStatus;
-    $('.mw-source-mode').textContent=v&&v.compiled.mapping.some(function(m){return !m.pattern;})?
+    $('.mw-source-mode').textContent=v&&v.compiled.mapping.some(function(m){return m.pattern===null;})?
       'Exact song source preserved. For a readable live-coding sketch, choose New loop above. Download this project first to keep it.':
       'Edit the patterns, then Run (Cmd/Ctrl+Enter). Changes join at a musical boundary while playing.';
+    if(v&&((v.compiled.gb.auto||[]).length||(v.compiled.gb.kit||[]).length))$('.mw-source-mode').textContent+=' Token playback markers are unavailable on register/sample-driven tracks.';
+    syncPatternContext();
+    $('.mw-overview').hidden=!v;
     if(!v){pane.textContent='Apply valid code to see notes.';return;}
     var gb=v.compiled.gb,settings=v.compiled.settings||{},bars=settings.bars||Math.max(1,Math.ceil(gb.totalFrames/120));
     if(!chartIndex||chartIndex.owner!==project||chartIndex.id!==v.id||chartIndex.source!==v.source){
       chartIndex={owner:project,id:v.id,source:v.source,index:G.CT_MUSIC_CHART_INDEX&&G.CT_MUSIC_CHART_INDEX.create(gb.notes),
         mapping:new Map(v.compiled.mapping.map(function(m){return [m.noteIndex,m];})),
+        lanes:chartLanes(gb),
         overlaps:new Set((v.compiled.diagnostics||[]).filter(function(d){return d.code==='CHIP_OVERLAP';}).map(function(d){return d.noteIndex;}))};
       chartRange=null;scrollLeft=0;
     }
     var total=gb.totalFrames||1,rangeStart=chartRange?chartRange.fromFrame:0,rangeEnd=chartRange?chartRange.toFrame:total,span=rangeEnd-rangeStart;
-    var width=Math.max(pane.clientWidth-28,Math.min(12000,bars*80*(span/total)));
-    var from=Math.min(rangeEnd-0.000001,rangeStart+Math.max(0,scrollLeft-80)/width*span),to=Math.min(rangeEnd,rangeStart+(scrollLeft+pane.clientWidth+80)/width*span);
+    var width=Math.max(120,pane.clientWidth-28-CHART_GUTTER,Math.min(12000,bars*80*(span/total)));
+    var from=Math.min(rangeEnd-0.000001,rangeStart+Math.max(0,scrollLeft-80)/width*span),to=Math.min(rangeEnd,rangeStart+(scrollLeft+pane.clientWidth-CHART_GUTTER+80)/width*span);
     var visible=chartIndex.index?chartIndex.index.query({fromFrame:from,toFrame:Math.max(from+0.000001,to),limit:399}):{items:gb.notes.map(function(n,i){return {note:n,index:i};}),bins:[],overflow:false};
     if(focused&&focused.startsWith('note-')){
       var pinned=Number(focused.slice(5));
@@ -16446,78 +16596,75 @@ var EXPORTS = {
     }
     $('.mw-chart-reset').hidden=!chartRange;
     if(visible.overflow)$('.mw-chart-status').textContent=previewStatus+' · Dense region: '+visible.count+' notes shown as counted groups. Select a group to zoom.';
-    var inner=document.createElement('div');inner.style.width=width+'px';inner.style.position='relative';
+    renderOverview(v,rangeStart,rangeEnd);
+    var inner=document.createElement('div');inner.style.width=(width+CHART_GUTTER)+'px';inner.style.position='relative';
     var ruler=document.createElement('div');ruler.className='mw-bar-ruler';ruler.setAttribute('aria-label','Bar boundaries on the compiled song clock');
     ruler.style.cssText='height:26px;position:relative;font-size:11px;color:#b6bfd5';
     inner.appendChild(ruler);
     // Reuse the compiler clock. Thin labels (not timing) to at most 256 marks;
     // label indices remain absolute, including after a tempo-map segment.
     try{
-      var clock=G.CT_MUSIC_LANGUAGE.createClock(settings),lo=0,hi=65536;
-      while(lo<hi){var mid=(lo+hi)>>1;if(clock(mid*4)<total)lo=mid+1;else hi=mid;}
-      var stride=Math.max(1,Math.ceil(lo/255));
-      for(var i=0;i<lo;i+=stride){
+      var clock=G.CT_MUSIC_LANGUAGE.createClock(settings);
+      function barAt(frame){var lo=0,hi=65536;while(lo<hi){var mid=Math.ceil((lo+hi)/2);if(clock(mid*4)<=frame)lo=mid;else hi=mid-1;}return lo;}
+      var first=barAt(from),last=barAt(to),stride=Math.max(1,Math.ceil((last-first+1)/255));
+      for(var i=first;i<=last;i+=stride){
         var frame=clock(i*4);
-        if(frame<rangeStart||frame>=rangeEnd)continue;
+        if(frame>=rangeEnd)continue;
         var mark=document.createElement('span');mark.textContent='Bar '+(i+1);mark.title='Frame '+frame;
-        mark.style.cssText='position:absolute;white-space:nowrap;top:0;left:'+((frame-rangeStart)/span*width)+'px';ruler.appendChild(mark);
-        var line=document.createElement('div');line.setAttribute('aria-hidden','true');
-        line.style.cssText='position:absolute;pointer-events:none;top:26px;bottom:0;border-left:1px solid #ffffff12;z-index:1;left:'+((frame-rangeStart)/span*width)+'px';inner.appendChild(line);
+        if(frame>=rangeStart){mark.style.cssText='position:absolute;white-space:nowrap;top:0;left:'+(CHART_GUTTER+(frame-rangeStart)/span*width)+'px';ruler.appendChild(mark);}
+        var barWidth=(clock((i+1)*4)-frame)/span*width,divisions=stride>1?1:barWidth>=192?16:barWidth>=64?4:1;
+        for(var sub=0;sub<divisions;sub++){
+          var gridFrame=clock(i*4+sub*4/divisions);if(gridFrame<rangeStart||gridFrame>=rangeEnd)continue;
+          var line=document.createElement('div');line.className='mw-time-grid';line.dataset.frame=String(gridFrame);line.dataset.strength=sub===0?'bar':sub%(divisions/4)===0?'beat':'step';line.setAttribute('aria-hidden','true');
+          line.style.left=(CHART_GUTTER+(gridFrame-rangeStart)/span*width)+'px';inner.appendChild(line);
+        }
       }
       var end=document.createElement('span');end.textContent=chartRange?'Frame '+Math.ceil(rangeEnd):'End';end.title='Frame '+rangeEnd;
       end.style.cssText='position:absolute;right:0;top:0';ruler.appendChild(end);
     }catch(e){ruler.textContent='Bar clock unavailable: '+e.message;}
     ['Melody','Harmony','Bass','Drums'].forEach(function(name,ch){
-      var lane=document.createElement('div');lane.className='mw-lane';lane.setAttribute('aria-label',name);
-      lane.style.background='#10121b';
-      var label=document.createElement('div');label.className='mw-lane-label';label.textContent=name;lane.appendChild(label);
+      var layout=chartIndex.lanes[ch],lane=document.createElement('div');lane.className='mw-lane';lane.setAttribute('aria-label',name);lane.dataset.channel=String(ch);
+      lane.style.height=(layout.count?LANE_HEADER+layout.labels.length*NOTE_ROW+1:46)+'px';
+      var label=document.createElement('div');label.className='mw-lane-label';label.textContent=name+' · '+(!layout.count?'empty':layout.drums?'percussion':noteName(layout.low)+'–'+noteName(layout.high));lane.appendChild(label);
       var laneColor=['#79d59d','#71bbeb','#e8b264','#bf9fde'][ch];label.style.color=laneColor;
+      (layout.count?layout.labels:[]).forEach(function(text,row){
+        var pitchRow=document.createElement('div');pitchRow.className='mw-pitch-row';pitchRow.style.top=(LANE_HEADER+row*NOTE_ROW)+'px';
+        if(!layout.drums){pitchRow.dataset.pitch=String(layout.high-row);pitchRow.dataset.accidental=String([1,3,6,8,10].includes((layout.high-row)%12));}
+        var pitchLabel=document.createElement('span');pitchLabel.className='mw-pitch-label';pitchLabel.textContent=text;pitchLabel.title=text;pitchRow.appendChild(pitchLabel);lane.appendChild(pitchRow);
+      });
+      if(!layout.count){var empty=document.createElement('span');empty.className='mw-lane-empty';empty.textContent='No notes';lane.appendChild(empty);}
+      if(layout.overflow)label.title='First 16 instruments have individual rows; remaining percussion is labelled on its notes in Other drums.';
       visible.items.forEach(function(item){var n=item.note,i=item.index;
         if(n.ch!==ch)return;
         var b=document.createElement('button');b.className='mw-note';b.type='button';
         b.style.background=['#244d38','#173e59','#553d22','#40304e'][ch];b.style.borderColor=laneColor;
-        b.style.left=((Math.max(n.frame,rangeStart)-rangeStart)/span*width)+'px';b.style.width=Math.max(6,(Math.min(n.frame+n.frames,rangeEnd)-Math.max(n.frame,rangeStart))/span*width)+'px';
-        b.style.top=(22+(ch===3?12:Math.max(0,Math.min(24,(84-(n.midi||36))*0.4))))+'px';
+        b.style.left=(CHART_GUTTER+(Math.max(n.frame,rangeStart)-rangeStart)/span*width)+'px';b.style.width=Math.max(6,(Math.min(n.frame+n.frames,rangeEnd)-Math.max(n.frame,rangeStart))/span*width)+'px';
+        b.style.top=(LANE_HEADER+layout.row(n)*NOTE_ROW+1)+'px';
         b.setAttribute('aria-label',name+' note '+(n.midi==null?'noise':n.midi)+' frame '+n.frame+' length '+n.frames);
-        b.textContent=n.midi==null?'Noise':['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'][((n.midi%12)+12)%12]+(Math.floor(n.midi/12)-1);
+        b.textContent=layout.name(n);b.title=b.textContent+' · frame '+n.frame+' · '+n.frames+' frames';b.dataset.pitch=String(n.midi);b.dataset.instrument=String(n.inst);
         b.setAttribute('aria-pressed','false');b.dataset.note=String(i);b.dataset.chartKey='note-'+i;
         if(chartIndex.overlaps.has(i)){b.style.background='#c46a54';b.title='Chip overlap: inspect diagnostics';}
         if(n.frame+n.frames>total){b.style.background='#c46a54';b.title='Finite song end cuts this event; source duration is retained.';}
-        b.addEventListener('click',function(){
-          selection={ch:ch,fromFrame:n.frame,toFrame:n.frame+n.frames};
-          agentPolicyChanged();
-          pane.querySelectorAll('.mw-note').forEach(function(el){el.setAttribute('aria-pressed',String(el===b));});
-          var m=chartIndex.mapping.get(i);
-          $('.mw-selection').textContent='Selected '+name+' · '+(m&&m.pattern?'pattern '+m.pattern+', occurrence '+m.occurrence:'explicit event')+' · frames '+n.frame+'–'+(n.frame+n.frames);
-          renderState();
-          if(m){
-            var mappingOwner=project,selected=selection;
-            if(snap().draft!==v.source){$('.mw-selection').textContent+=' · Source navigation unavailable while the draft differs from the validated revision.';return;}
-            selectView('code');ensureEditor().then(function(){
-              if(root.hidden||project!==mappingOwner||selection!==selected)return;
-              if(snap().draft!==v.source||!chartContext()||chartContext().id!==v.id){$('.mw-selection').textContent+=' · Source navigation unavailable while the draft differs from the chart.';return;}
-              editor.select(m.span.start.offset,m.span.end.offset);
-            }).catch(announceError);
-          }
-        });lane.appendChild(b);
+        b.addEventListener('click',function(){selectChartNote(i);});lane.appendChild(b);
       });
       visible.bins.forEach(function(bin){
         if(bin.channel!==ch)return;
         var group=document.createElement('button');group.type='button';group.className='mw-note-group';group.textContent=String(bin.count);
         group.dataset.chartKey='group-'+ch+'-'+bin.fromFrame;group.setAttribute('aria-label',bin.count+' '+name+' notes in frames '+Math.floor(bin.fromFrame)+'–'+Math.ceil(bin.toFrame)+'. Zoom into group');
-        group.style.left=((bin.fromFrame-rangeStart)/span*width)+'px';group.style.width=Math.max(12,(bin.toFrame-bin.fromFrame)/span*width)+'px';
+        group.style.left=(CHART_GUTTER+(bin.fromFrame-rangeStart)/span*width)+'px';group.style.width=Math.max(12,(bin.toFrame-bin.fromFrame)/span*width)+'px';
         group.addEventListener('click',function(){
           if(bin.toFrame-bin.fromFrame<1){status(bin.count+' simultaneous notes in this region. Inspect their exact events in the code.');selectView('code');return;}
           chartRange={fromFrame:bin.fromFrame,toFrame:bin.toFrame};pane.scrollLeft=0;renderNotes();
         });lane.appendChild(group);
       });inner.appendChild(lane);
     });
-    var cursor=document.createElement('div');cursor.className='mw-playhead';cursor.style.left=Math.max(0,((audioState.frame||0)-rangeStart)/span*width)+'px';inner.appendChild(cursor);pane.appendChild(inner);
+    var cursor=document.createElement('div');cursor.className='mw-playhead';cursor.style.left=(CHART_GUTTER+Math.max(0,((audioState.frame||0)-rangeStart)/span*width))+'px';inner.appendChild(cursor);pane.appendChild(inner);
     cursor.dataset.rangeStart=String(rangeStart);cursor.dataset.rangeEnd=String(rangeEnd);
     cursor.hidden=!playingRevision||playingRevision.source!==v.source||audioState.frame<rangeStart||audioState.frame>=rangeEnd;
     pane.scrollTop=scrollTop;pane.scrollLeft=scrollLeft;if(editor&&editor.selection)sourceSelected(editor.selection());
     chartViewportKey=pane.scrollLeft+':'+pane.clientWidth;
     if(focused){var retained=Array.from(pane.querySelectorAll('[data-chart-key]')).find(function(el){return el.dataset.chartKey===focused;});if(retained)retained.focus({preventScroll:true});}
+    renderPosition(s);
   }
   function boundaries(revision){
     if(typeof engine().musicBoundaries!=='function')throw Error('Tempo-aware audio boundaries are unavailable');
@@ -16552,7 +16699,7 @@ var EXPORTS = {
     }
     renderState();if(proposalStatus!==(proposal&&proposal.status))renderProposal();
     var v=chartContext(),cursor=$('.mw-playhead');
-    if(v&&cursor){var start=Number(cursor.dataset.rangeStart),end=Number(cursor.dataset.rangeEnd);cursor.hidden=!playingRevision||playingRevision.source!==v.source||audioState.frame<start||audioState.frame>=end;var inner=cursor.parentElement;cursor.style.left=((Math.max(0,audioState.frame||0)-start)/(end-start)*inner.clientWidth)+'px';}
+    if(v&&cursor){var start=Number(cursor.dataset.rangeStart),end=Number(cursor.dataset.rangeEnd);cursor.hidden=!playingRevision||playingRevision.source!==v.source||audioState.frame<start||audioState.frame>=end;var inner=cursor.parentElement;cursor.style.left=(CHART_GUTTER+(Math.max(0,audioState.frame||0)-start)/(end-start)*(inner.clientWidth-CHART_GUTTER))+'px';}
     $('.mw-seek').value=String(audioState.frame||0);
   }
   function activate(revision,forcePlay){
@@ -16741,6 +16888,19 @@ var EXPORTS = {
     var chartStatus=document.createElement('p');chartStatus.className='mw-chart-status';chartStatus.setAttribute('role','status');
     $('.mw-main').insertBefore(chartStatus,$('.mw-selection'));
     var chartReset=document.createElement('button');chartReset.className='mw-chart-reset';chartReset.dataset.action='chart-reset';chartReset.textContent='Show full song';chartReset.hidden=true;chartStatus.after(chartReset);
+    var overview=document.createElement('button');overview.type='button';overview.className='mw-overview';overview.title='Whole song overview · click to inspect four bars; Enter inspects the current playback position';
+    overview.innerHTML='<span class="mw-overview-window" aria-hidden="true"></span><span class="mw-overview-playhead" aria-hidden="true" hidden></span>';
+    $('.mw-main').insertBefore(overview,$('.mw-composition'));
+    overview.addEventListener('click',function(e){
+      var v=chartContext();if(!v)return;
+      var total=v.compiled.gb.totalFrames||1,rect=overview.getBoundingClientRect();
+      var frame=e.detail?Math.max(0,Math.min(total,(e.clientX-rect.left)/rect.width*total)):audioState.frame||0;
+      var clock=G.CT_MUSIC_LANGUAGE.createClock(v.compiled.settings||{}),lo=0,hi=65536;
+      while(lo<hi){var mid=Math.ceil((lo+hi)/2);if(clock(mid*4)<=frame)lo=mid;else hi=mid-1;}
+      var first=Math.max(0,lo-1),start=clock(first*4),end=Math.min(total,clock((first+4)*4));
+      if(end<=start)return;
+      chartRange={fromFrame:start,toFrame:end};$('.mw-notes').scrollLeft=0;renderNotes();
+    });
     function refreshChartViewport(){
       if(root.hidden||!project||chartViewportKey===$('.mw-notes').scrollLeft+':'+$('.mw-notes').clientWidth||chartRenderFrame)return;
       chartRenderFrame=requestAnimationFrame(function(){chartRenderFrame=null;if(!root.hidden)renderNotes();});

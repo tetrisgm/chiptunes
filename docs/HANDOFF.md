@@ -3,6 +3,65 @@
 Plain, current working notes for whoever (or whatever) picks the project up
 next. Infrastructure and operations live outside this repository.
 
+## 2026-09-09 — Reference pass: pitch chart, inline rolls and playing tokens
+
+The Tidal-guided plan from 96acdcb now has its first three reference steps
+implemented locally. Melodic lanes use labelled semitone rows, percussion uses
+instrument rows, and a compiler-clock bar/beat/subdivision grid plus whole-song
+overview makes long arrangements inspectable. Overview zoom changes neither
+source nor agent scope nor transport. Dense rendering remains bounded (400
+visible notes/groups including a retained focused item). Compiler mapping
+checkpoint: 6d87aaa.
+
+Pattern mappings add exact raw pitch token, play-call and full track spans plus
+full occurrence timing including rests. Existing mappings and compiled GB output
+are preserved, including escaped strings and all-rest edge cases. Inline rolls
+use only that compiler output: one per pattern, with an explicit track/call/
+occurrence choice and disclosed caps of 11 declarations, 24 representative
+occurrences per declaration and 128 notes per roll. Exact imports are not
+converted into patterns. Playing highlights use acknowledged source and the
+shared sequencer's scheduled note-off/trigger ordering, including pitch-only
+continuations and velocity's hardware floor. They are not amplitude meters.
+Channels affected by raw register automation or kit sample ownership omit
+token playback markers, with a visible disclosure; other channels retain them.
+This avoids inventing a second envelope/sample simulator for imported scores.
+Typing, Undo, project replacement and late preview guards
+remain in force. Chart rerenders retain the chosen inline occurrence.
+
+Frozen local artifact: app.259b25faf368.js / Music fc63e091d3fb; editor
+70dad5f8cc36, preview 21e5e4bcc266. The build hash now includes the imported
+inline-roll module. Language: 24 groups; preview: 14 tests; chart index: 9
+checks; inline editor suite and nine integrated pitch-chart cases pass.
+Focused agent and unified aggregates both exited zero. Gateway: 77/77.
+Render parity: 10/10, minimum correlation 1.000000. The initial full root run
+stopped on outdated fake editors missing the real editor's existing value()
+method; those test doubles were corrected without weakening assertions. The
+complete root rerun exited zero (47909, app.96cf1567ed63.js). Review then found
+the velocity-floor and overlapping-note-off highlighting cases above; the new
+ninth chart group compares actual sequencer register-event state with UI
+markers, including suppressed offs, continuation after silence, tied triggers,
+automation and samples. The complete rebuilt workspace and unified aggregates
+then both exited zero on the final artifact (85327 / 28847). This is a full
+root pass followed by final affected-suite verification, not a claim that the
+earlier root invocation tested later UI corrections. Audio generation is unchanged.
+
+Native local Safari on Music 94736ad9e981 visibly showed the pitch chart and
+inline roll beside the sidebar. Clicking an inline C4 selected precisely C4;
+pasting D4 produced an unapplied draft chart; native Cmd-Z restored C4 and the
+validated chart. No playback was started during this narrower native check.
+The dedicated test tab and temporary loopback server were closed; unrelated
+Safari work was left alone. Automated real-AudioWorklet workflows cover Run,
+boundary activation and undo, not human listening or deployed Safari acceptance.
+That native check preceded the final scheduled-marker correction; it is not
+native verification of Music fc63e091d3fb.
+
+Reference steps 4–6 remain: source-linked parameter controls, the explicitly
+bounded/backward-compatible Tidal-style pattern subset and live build-up, then
+the complete performance demonstration. No new musical syntax, runtime,
+deployment, configuration cutover, paid provider call or desktop restart was
+made in this slice. Production is still the previously authorized release;
+the separate owner-approved cutover/provider/native acceptance gates remain.
+
 ## 2026-09-09 — TidalCycles is the primary musical guide
 
 Owner explicitly selected https://tidalcycles.org/ as the guide. Read its official

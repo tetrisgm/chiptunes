@@ -26,7 +26,7 @@ async function fixture(run){
         // recovery/materialization code, not a second handwritten conversion.
         window.CT_CREATE=legacy?{songOf:code=>code===legacy.doc?legacy.song:null,docState:code=>code===legacy.doc?legacy.state:null}:{};
         window.CT_MUSIC_CHAT={Client:class{cancel(){}},Access:class{cancel(){}async request(){return {authenticated:false,providers:[],limits:{dailyCalls:20}};}}};
-        window.CT_MUSIC_CODE_EDITOR={help:{},mount(_el,_source,change){window.changeDraft=change;return {set(){},focus(){},diagnostics(){},selection(){return [];},highlightPlaying(){}};}};
+        window.CT_MUSIC_CODE_EDITOR={help:{},mount(_el,_source,change){window.changeDraft=value=>{_source=value;change(value);};return {value(){return _source;},set(value){_source=value;},focus(){},diagnostics(){},selection(){return [];},highlightPlaying(){}};}};
         window.CT_MUSIC_CHAT_UI={mount(){return {update(){},focus(){}};}};
       },legacy||null);
       await page.addScriptTag({path:path.resolve(__dirname,'../src/music-workspace.js')});

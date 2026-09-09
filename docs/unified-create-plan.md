@@ -87,25 +87,36 @@ lead, drums and bass, manipulating sound, and developing a breakdown/progression
 [slider documentation](https://strudel.cc/blog/) confirm that these are code-linked
 inline visuals/widgets, not a separate piano-roll application.
 
-The checkpoint implements the shared project and transport foundation, not this
-complete performance experience. Current chart pitches occupy a compressed
-vertical range in fixed-height track lanes; there are no inline pattern rolls or
-code-linked parameter widgets. The reference pass below is now an outstanding
-implementation gate before calling the owner direction complete.
+That checkpoint implemented the shared project and transport foundation, not the
+complete performance experience. Its chart compressed pitches into fixed-height
+lanes and had no inline pattern rolls or code-linked widgets. The pitch/inline
+feedback slice below is now implemented locally; controls, pattern semantics and
+the full performance demonstration remain outstanding implementation gates.
 
 ### Reference-matching implementation pass
 
-1. [ ] Make pitch and rhythm legible: proper semitone rows and time grid, useful
+1. [x] Make pitch and rhythm legible: proper semitone rows and time grid, useful
    pitch range per melodic track, percussion-specific rows, clear rests and
    sounding notes. Keep a whole-song overview without making a long song unreadable.
-2. [ ] Add bounded inline pattern/track piano rolls beside their code declarations
+2. [x] Add bounded inline pattern/track piano rolls beside their code declarations
    using the existing compiler mappings. Shared patterns must show which track,
    transform and occurrence is represented. Derive display from the same compiled
    source, never recompile through a parallel musical engine. Exact imports remain
    exact and use their overview/source mappings without forced conversion.
-3. [ ] Highlight the actual playing token/occurrence where mappings support it,
+3. [x] Highlight the actual playing token/occurrence where mappings support it,
    not only the entire declaration. Retain the existing distinction between draft
    preview and acknowledged playing source; incomplete code never becomes audio.
+   Verified with exact escaped-token/repeat/transform mappings, an isolated
+   CodeMirror suite, nine integrated pitch/tempo/overview/source-guard cases,
+   and native Safari note selection, preview and Undo. Inline rolls are one per
+   pattern with an explicit compiled track/call/occurrence selector, not duplicate
+   rolls for every invocation. At most 11 declarations, 24 representative
+   occurrences per declaration and 128 notes per roll; omissions are disclosed.
+   Playback markers follow the shared sequencer's scheduled off/trigger order,
+   not note-interval overlap or a velocity-zero assumption. They are not meters;
+   channels with raw register/sample ownership omit markers with a disclosure.
+   Full chart remains bounded/zoomable. Native playing and the complete live
+   performance demo are not implied by these narrower checks.
 4. [ ] Provide inline controls for existing supported parameters (initially gate,
    velocity and transposition). Each gesture changes a bounded source literal,
    preserves unrelated text and groups undo; Run/Apply keeps the current musical
