@@ -3,6 +3,17 @@
 Plain, current working notes for whoever (or whatever) picks the project up
 next. Infrastructure and operations live outside this repository.
 
+## 2026-09-09 — New active direction: unified Create
+
+Owner rejected the two-site/two-view product and requested a plan followed by an
+active execution goal. docs/unified-create-plan.md is the current checklist.
+It covers canonical /create and #s entry, simultaneous code/chart, collapsible
+standard chat, same-origin paid Chat, optional visualizer, preservation and
+acceptance. Existing /api/* belongs to the presence Worker; current gateway
+auth validates exact origin and host-only cookies. Same-origin integration
+must preserve both, not just remove the transfer banner. No implementation or
+new deployment is claimed by this planning checkpoint.
+
 ## 2026-09-09 — Authorized web release: live coding and conversational Chat
 
 Owner approved deployment after b7a6d0d. Both public /create routes now serve

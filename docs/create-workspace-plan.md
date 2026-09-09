@@ -1,3 +1,11 @@
+## Active plan: one unified composition workspace
+
+The owner's latest direction supersedes the separate Notes/Code tabs and hosted
+chat handoff. Execute [unified-create-plan.md](unified-create-plan.md): one
+chiptunes.app workspace, simultaneous code/chart, collapsible agent chat,
+same-origin backend access and optional visualizer sharing the same composition.
+Earlier checkpoints below are historical, not the current completion criteria.
+
 ## September 9 correction: standard agent conversation
 
 Release status: owner approved b7a6d0d for both web origins. Music fef7cf6ae28c
