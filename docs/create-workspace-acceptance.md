@@ -1,5 +1,14 @@
 # Create workspace acceptance record
 
+**Current product acceptance is open:** the owner rejected the event-dump
+interface and supplied Speccy as the algorave reference. The local correction
+now includes a readable three-voice loop, Run shortcut, sounding highlights,
+beat/bar feedback, saved-project preservation, and collapsed Chat settings.
+The full root suite passed (75814), including real-audio live-loop, invalid-draft,
+boundary-edit, undo/reload, loop-control, shortcut isolation and exact-source
+recovery tests. Local Safari is separate from production verification; this
+correction is not deployed and musical acceptance has not been inferred.
+
 Scope: `create-workspace-plan.md`, with the owner's September 9 decision that
 built-in owner-funded OpenAI/Claude Chat is primary and external MCP is optional.
 This is an evidence record, not a replacement or reduction of that plan.
@@ -14,7 +23,7 @@ controls and popup handoff, the stale-offset explanation without incorrect
 source selection, Code/mobile Chat/wide Code focus restoration and arrow-key
 navigation across a page-zoom breakpoint, retained draft, and validated Play/Stop.
 Thus the follow-up regression/deployment/native checks below are complete.
-Listening remains the sole unverified core acceptance gate. This does not
+Listening and the corrected live-coding experience remain open gates. This does not
 claim physical phone/trackpad testing or native reference-ROM playback.
 
 Release 0f9d576 is deployed to chiptunes.app and the Vercel Chat workspace,
@@ -66,7 +75,7 @@ Larger projects remain editable/playable and downloadable as project files.
 These restrictions must be shown truthfully; they are not claims of full-range
 model context or audio export support.
 
-The core completion claim remains withheld until the listening gate is resolved.
+The core completion claim remains withheld until the live-coding and listening gates are resolved.
 Follow-up regression and deployed native checks are complete as recorded above.
 Optional external MCP
 OAuth/client acceptance is not a blocker for the owner's selected built-in path.

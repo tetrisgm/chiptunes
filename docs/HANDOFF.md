@@ -3,7 +3,43 @@
 Plain, current working notes for whoever (or whatever) picks the project up
 next. Infrastructure and operations live outside this repository.
 
-## 2026-09-09 — Final web hardening deployed; listening acceptance remains
+## 2026-09-09 — Product correction: algorave/live-coding experience
+
+The owner rejected the event-dump/single-note-fixture experience and supplied
+Speccy as the algorave reference. The earlier claim that only listening remained
+was premature: readable musical code and an approachable live loop workflow
+are still required. See the new first section of create-workspace-plan.md.
+Local implementation now includes a readable three-track starter, safe New loop,
+explicit Run shortcut and boundary updates, beat/bar and source highlights,
+collapsed Chat settings/exports, a top-toolbar legacy Live coding entry, and
+pattern-preserving Chat instructions. Existing saved/imported exact sources
+remain intact. No new composer/runtime or lossy source conversion was added.
+Implementation commit: `1e0e1a3`.
+
+Dedicated browser testing exercised actual loop wrap, output activity, tempo
+edit boundary acknowledgement, invalid draft continuation, undo/redo, source
+highlight clearing, saved recovery, and replacement cancellation. Local native
+Safari on intermediate Music 468acc207e2e verified Play, continued music with an
+invalid draft, a corrected pattern accepted as r2 through Cmd+Enter, and Stop.
+This is local evidence, not production Safari or listening acceptance.
+Final local Safari Music f0a02a9a5eb2 also restored the readable saved project
+without autoplay, showed collapsed Chat settings and selected Loop, ran r2,
+disabled loop-policy changes while sounding, and accepted a 140 BPM pattern
+edit through Cmd+Enter as sounding r3. Test audio was stopped afterwards.
+Full root regression exited 0 (75814), including the new livecoding browser
+suite on app.87d99da3e479.js / Music f0a02a9a5eb2, entry checks, 1 MiB paste/undo,
+and all existing workspace/agent/transfer gates. Private-ROM dependent checks
+explicitly skipped. Gateway 65 tests, Chat 31 groups, source UI/provider UI and
+Next production build passed. No new paid
+model call, deployment, desktop restart or infrastructure change.
+
+Private TextText correction update returned conditional-write/sync conflicts
+twice; do not blindly retry or overwrite the document. Repository records are
+the reliable handoff; a subsequent read confirmed no new correction section.
+Temporary proposed content (full-regression status predates completion):
+`/tmp/chiptunes-livecoding-note.ufufGd/changelog.md`.
+
+## 2026-09-09 — Earlier web hardening deployed; listening acceptance remains
 
 Current production release: 3ab136f (implementation 2aaada4), pushed to main.
 Vercel `dpl_BcsaDpTBJHF3M1zhMGfWHCsWvpwu` is READY at the canonical gateway;

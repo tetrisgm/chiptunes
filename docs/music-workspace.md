@@ -1,11 +1,13 @@
 # Source-backed Create workspace
 
-This is a development feature in the shared web/desktop artifact. It has not
-been deployed or released. From Create, choose **Chat / Code / Notes** to copy
+This workspace uses the shared web/desktop artifact. The earlier exact-source
+workspace is deployed; the live-loop correction described below is implemented
+and tested locally but not yet released.
+From the legacy Create editor, choose **Chat / Code / Notes** to copy
 the actual generated/Create performance into source. A saved source project
 resumes instead when one exists. Opening the workspace adopts `/create#music`,
 so reload returns to the same source project without legacy autoplay.
-`/create#music` opens a silent source workspace;
+`/create#music` opens the source workspace without autoplay;
 `/create#music=…` opens a bounded project share without autoplay. Existing `#s=`
 links and the legacy editable grid retain their existing behavior.
 
@@ -13,6 +15,14 @@ The native LSDj structure editor is separate. Opening a native document does
 not convert it into source or claim faithful native playback.
 
 ## Write and apply
+
+The live-coding entry starts new projects with a short, readable, multi-track
+pattern loop in Code. Play starts audio; Run (Cmd/Ctrl+Enter in Code) applies
+the edited source. While playing, valid changes queue on the existing engine's
+musical boundary. Invalid code leaves the last valid music playing.
+New loop is an explicit replacement action with confirmation; saved and imported
+projects are not silently changed into starter patterns. Continuous audition
+does not change the finite duration of the source or exports.
 
 Generate song uses the existing deterministic prompt interpreter/composer once.
 It writes explicit musical events and assets—not a function that regenerates
@@ -40,9 +50,10 @@ source evaluation.
 
 ## Chat proposals
 
-Chat requires a separately authorized server/provider connection. There is no
-configured model provider in this checkout; an unavailable request reports an
-error while Code and playback continue working. Consumer Claude/ChatGPT credits
+Hosted Chat uses the owner's configured server-side providers and requires the
+owner unlock. The main website offers a consent-based transfer to hosted Chat.
+An unavailable request reports an error while Code and playback continue
+working. Consumer Claude/ChatGPT credits
 are not treated as API authorization. No browser provider keys are supported.
 
 A proposal carries its base revision and localized source edits. The project

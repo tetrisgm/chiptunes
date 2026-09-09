@@ -1,3 +1,36 @@
+## September 9 correction: code as a live musical instrument
+
+The owner supplied Speccy as the concrete algorave reference:
+https://mccormick.cx/news/entries/live-code-8-bit-algorave-music-in-browser-with-cljs
+and https://github.com/chr15m/speccy/ . The previous delivery exposed exact
+events but missed the intended approachable, looping live-coding experience.
+Passing infrastructure tests did not satisfy that product requirement.
+
+Implementation sequence:
+
+1. **Readable entry point:** open new projects in Code with a short, authored,
+   multi-channel pattern groove using the existing restricted language and
+   instrument bank. Provide an explicit New loop action; never replace saved
+   or imported source automatically. Generated exact songs remain lossless.
+2. **Live iteration:** explicit Play starts loop audition. Run and Cmd/Ctrl+Enter
+   validate and queue edits at the existing engine's musical boundary. Invalid
+   drafts keep the last valid performance sounding; Stop remains immediate.
+3. **Musical feedback:** show beat/bar progress alongside code and distinguish
+   edited/queued/live states in plain language. Keep Notes available. Put
+   advanced connection and document controls behind secondary disclosure.
+4. **Agent collaboration:** preserve named patterns and make targeted edits to
+   the same source, with existing proposal validation, explicit approval and
+   undo. No new provider/authentication layer or alternative audio runtime.
+5. **Verification:** test fresh entry, repeated loop playback, live edit,
+   invalid edit, undo, saved-project recovery, and unchanged exact imports.
+   Review the actual interface in native Safari; deployment remains a separate
+   authorized release action. Automated state/PCM tests are not listening proof.
+
+Finite composition and export remain separate from continuous audition.
+This correction is implemented locally and passes the full project regression,
+including real-audio live-loop browser checks. It has not shipped; deployment,
+production Safari verification and musical acceptance remain open.
+
 ## September 9 priority: built-in owner-funded web Chat
 
 The owner clarified that embedded Chat using their OpenAI and Anthropic API
