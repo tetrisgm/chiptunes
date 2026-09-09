@@ -54,6 +54,98 @@ test('ordered register/transpose and track state at play', () => {
   const b = valid(prefix + `pattern('p',notes('B2').register(3).transpose(1));track('bass').instrument(18).play('p');`);
   assert.deepEqual(a.gb.notes.map(n => n.midi), [48, 60]); assert.equal(b.gb.notes[0].midi, 60);
 });
+function sliceSpan(source, span) { return source.slice(span.start.offset, span.end.offset); }
+function exactSpan(source, text, from = 0) {
+  const offset = source.indexOf(text, from); assert.ok(offset >= 0, text);
+  function pos(offset) { const before = source.slice(0, offset); return { offset, line: before.split('\n').length, column: offset - before.lastIndexOf('\n') }; }
+  return { start: pos(offset), end: pos(offset + text.length) };
+}
+test('raw escaped pitch spans preserve UTF16, CRLF, comments and suffix boundaries', () => {
+  const raw = String.raw`\t\u0043\u0023\u0034:2@0.5\r\nD\u00624 .\u0020E4\t`;
+  const prefix = '// 🎵 UTF16\r\nsong({tempo:120,bars:2});\r\n';
+  const source = prefix + `pattern(/* notes('wrong') */'p', notes('${raw}').gate(.5));\r\ntrack('lead').instrument(0). /* call */ play('p');`;
+  const result = valid(source);
+  assert.deepEqual(result.gb, valid(prefix + `pattern('p',notes(' C#4:2@0.5 Db4 . E4 ').gate(.5));track('lead').instrument(0).play('p');`).gb);
+  for (const [i, text] of [String.raw`\u0043\u0023\u0034`, String.raw`D\u00624`, 'E4'].entries()) {
+    assert.deepEqual(result.mapping[i].tokenSpan, exactSpan(source, text));
+    assert.equal(sliceSpan(source, result.mapping[i].tokenSpan), text);
+    assert.equal(sliceSpan(source, result.mapping[i].playSpan), ". /* call */ play('p')");
+  }
+  // Different raw escape spellings for whitespace retain exactly the old grammar.
+  for (const separator of [String.raw`\b`, String.raw`\/`, String.raw`\\`, String.raw`\'`, String.raw`\"`])
+    invalid(`song({bars:1});pattern('p',notes('C4${separator}D4'));track('lead').instrument(0).play('p')`);
+  for (const separator of [String.raw`\f`, String.raw`\n`, String.raw`\r`, String.raw`\t`, String.raw`\u0020`]) {
+    const s = `song({bars:1});pattern('p',notes("C4${separator}D4"));track('lead').instrument(0).play('p')`;
+    const r = valid(s); assert.deepEqual(r.mapping[1].tokenSpan, exactSpan(s, 'D4'));
+  }
+});
+test('shared transformed repeats have stable tokens, exact play calls and full clock windows', () => {
+  const settings = { tempo:120, bars:4, stepsPerBar:16, swing:true, tempoAt:[[4,180],[16,90]] };
+  const p1 = ".play('p',{repeat:2})", p2 = ".play('p',{atBar:2})";
+  const source = `song(${JSON.stringify(settings)});\r\npattern('p',notes('. C4:2@0.5 .:2 D4 .:2').stepsPerBar(8).gate(.25).transpose(1));\r\ntrack('lead').instrument(0)${p1}.transpose(12)${p2};\r\ntrack('arp').instrument(1).play('p',{atBar:3});`;
+  const r = valid(source), clock = L.createClock(settings);
+  const expectedNotes = [];
+  for (const [start, ch, inst, transpose] of [[0,0,0,1],[4,0,0,1],[8,0,0,13],[12,1,1,1]]) {
+    for (const [step,length,midi,vel] of [[1,2,60,.5],[5,1,62,1]]) {
+      const beat = start + step / 2;
+      expectedNotes.push({ch,frame:clock(beat),frames:Math.max(1,clock(beat+length/8)-clock(beat)),midi:midi+transpose,inst,vel});
+    }
+  }
+  assert.deepEqual(r.gb, {notes:expectedNotes,totalFrames:clock(16),loopFrames:clock(16),bank:H.buildBank([])});
+  assert.deepEqual(valid(L.materialize(r.gb,settings)).gb,r.gb);
+  for (let i=0;i<r.mapping.length;i++) {
+    const m=r.mapping[i], start=[0,4,8,12][Math.floor(i/2)];
+    assert.deepEqual(m.tokenSpan, exactSpan(source,i%2?'D4':'C4'));
+    assert.equal(m.occurrenceStartFrame,clock(start)); assert.equal(m.occurrenceEndFrame,clock(start+4));
+    assert.ok(m.occurrenceStartFrame < r.gb.notes[i].frame);
+    assert.ok(m.occurrenceEndFrame > r.gb.notes[i].frame+r.gb.notes[i].frames);
+    assert.equal(m.occurrence,i>=4?0:Math.floor(i/2));
+    assert.equal(m.patternNote,i%2);
+    assert.deepEqual(m.span,exactSpan(source,"pattern('p',notes('. C4:2@0.5 .:2 D4 .:2').stepsPerBar(8).gate(.25).transpose(1))"));
+  }
+  assert.deepEqual(r.mapping[0].playSpan,exactSpan(source,p1));
+  assert.deepEqual(r.mapping[4].playSpan,exactSpan(source,p2));
+  assert.equal(sliceSpan(source,r.mapping[0].occurrenceSpan),p1.slice(1)+'.transpose(12)'+p2);
+  assert.notDeepEqual(r.mapping[0].playSpan,r.mapping[4].playSpan);
+  assert.notDeepEqual(r.mapping[4].playSpan,r.mapping[6].playSpan);
+  const leadTrack="track('lead').instrument(0)"+p1+'.transpose(12)'+p2;
+  const arpTrack="track('arp').instrument(1).play('p',{atBar:3})";
+  r.mapping.forEach((m,i)=>{
+    const text=i<6?leadTrack:arpTrack;
+    assert.deepEqual(m.trackSpan,exactSpan(source,text));
+    assert.equal(sliceSpan(source,m.trackSpan),text);
+  });
+});
+test('exact event mappings and all-rest output remain unchanged', () => {
+  const source=L.materialize(fixture), r=valid(source);
+  assert.deepEqual(r.gb,fixture);
+  r.mapping.forEach((m,i)=>{
+    assert.deepEqual(Object.keys(m),['noteIndex','span','pattern','occurrence']);
+    assert.equal(m.noteIndex,i);assert.equal(m.pattern,null);assert.equal(m.occurrence,null);
+    assert.deepEqual(m.span,exactSpan(source,'event('+JSON.stringify(fixture.notes[i])+')'));
+  });
+  const rest=valid("song({bars:1});pattern('p',notes('.:65536'));track('lead').instrument(0).play('p',{repeat:4096})");
+  assert.deepEqual(rest.mapping,[]);assert.deepEqual(rest.gb.notes,[]);
+});
+test('extreme trailing rests are visual bounds, not new finite-song constraints', () => {
+  for (const clockSettings of [{tempo:120}, {tempo:255,stepsPerBar:256,swing:true,tempoAt:[]}]) {
+    const settings={...clockSettings,bars:1}, clock=L.createClock(settings);
+    const prefix=`song(${JSON.stringify(settings)});`;
+    const tail="track('lead').instrument(0).play('p')";
+    const long=valid(prefix+"pattern('p',notes('C4 .:65535').stepsPerBar(1).gate(.001));"+tail);
+    const short=valid(prefix+"pattern('p',notes('C4').stepsPerBar(1).gate(.001));"+tail);
+    assert.deepEqual(long.gb,short.gb,'trailing silence never changes GB bounds or notes');
+    assert.deepEqual(long.diagnostics,short.diagnostics);
+    assert.equal(long.mapping[0].occurrenceStartFrame,0);
+    assert.equal(long.mapping[0].occurrenceEndFrame,clock(65536*4));
+    assert.ok(long.mapping[0].occurrenceEndFrame>L.LIMITS.frames);
+    // No occurrence clock is needed when there are no emitted notes. These
+    // arrangements were valid even beyond the tempo-map clock's row bound.
+    const rest=valid(prefix+"pattern('p',notes('.:65536').stepsPerBar(1));track('lead').instrument(0).play('p',{atBar:65536,repeat:4096})");
+    assert.deepEqual(rest.mapping,[]);
+    assert.deepEqual(rest.gb,{notes:[],totalFrames:clock(4),loopFrames:clock(4),bank:H.buildBank([])});
+  }
+});
 test('overlap warns and retains every event', () => {
   const gb = structuredClone(fixture); gb.notes.push({ ...gb.notes[0], frame: 32 });
   const r = valid(L.materialize(gb)); assert.deepEqual(r.gb, gb);

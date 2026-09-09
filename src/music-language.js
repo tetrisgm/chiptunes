@@ -13,6 +13,13 @@
  * Instrument names are bank.meta name/id/patch.authored; wave-bass aliases
  * w-triangle. No pitch clamping, truncation, sorting or overlap suppression.
  * Mapping indexes gb.notes; span is definition/event, occurrenceSpan is play.
+ * Pattern notes additionally carry tokenSpan (raw pitch, including escapes),
+ * playSpan (only the dot through this play call's closing parenthesis), and
+ * trackSpan (the entire track declaration, including its transformations), plus
+ * occurrenceStartFrame/occurrenceEndFrame (full repeat, including rests/gaps).
+ * Legacy occurrenceSpan still extends from after the dot to the track end.
+ * Exact events have none of these pattern-only fields; all-rest plays emit no
+ * note mappings. Occurrence ends are exclusive and are not clipped to song end.
  * Each span has start/end {offset,line,column}: UTF-16 offsets, exclusive end,
  * one-based line/column. tempoAt:[[row,tempo],...] opts into Create's LSDj
  * segment clock; rows use settings.stepsPerBar (16 default), swing uses the
@@ -81,11 +88,14 @@
   Parser.prototype.take = function (c) { this.skip(); if (this.s[this.i] === c) { this.i++; return true; } return false; };
   Parser.prototype.expect = function (c) { need(this.take(c), 'Expected ' + c, this.i); };
   Parser.prototype.id = function () { this.skip(); var m = /^[A-Za-z_][A-Za-z_0-9]*/.exec(this.s.slice(this.i)); need(m, 'Expected name', this.i); this.i += m[0].length; return m[0]; };
-  Parser.prototype.string = function () {
+  Parser.prototype.string = function (raw) {
     this.skip(); var start = this.i, quote = this.s[this.i++], out = '';
     while (this.i < this.s.length) {
       var c = this.s[this.i++];
-      if (c === quote) return out;
+      if (c === quote) { if (raw) raw.push(this.i - 1); return out; }
+      // One decoded UTF-16 unit per iteration, even for a Unicode escape.
+      // Adjacent raw boundaries also preserve escapes used as whitespace.
+      if (raw) raw.push(this.i - 1);
       need(c.charCodeAt(0) >= 32, 'Control character in string', this.i - 1);
       if (c === '\\') {
         c = this.s[this.i++];
@@ -96,10 +106,10 @@
     }
     fail('Unclosed string', start);
   };
-  Parser.prototype.value = function (depth) {
+  Parser.prototype.value = function (depth, raw) {
     need(depth <= LIMITS.depth && ++this.nodes <= LIMITS.nodes, 'Data resource limit', this.i);
     this.skip(); var c = this.s[this.i], v, k;
-    if (c === '"' || c === "'") return this.string();
+    if (c === '"' || c === "'") return this.string(raw);
     if (c === '{' || c === '[') {
       this.i++; var arr = c === '[', close = arr ? ']' : '}'; v = arr ? [] : {};
       if (this.take(close)) return v;
@@ -119,8 +129,8 @@
     k = this.id(); if (k === 'true') return true; if (k === 'false') return false; if (k === 'null') return null;
     fail('Only literal data is allowed', this.i - k.length);
   };
-  Parser.prototype.args = function () { var a = []; this.expect('('); if (!this.take(')')) { do { a.push(this.value(0)); } while (this.take(',')); this.expect(')'); } return a; };
-  Parser.prototype.chain = function () { var a = []; while (this.take('.')) { var at = this.i; a.push({ name: this.id(), args: this.args(), at: at }); } return a; };
+  Parser.prototype.args = function (rawArgs) { var a = []; this.expect('('); if (!this.take(')')) { do { var raw = rawArgs ? [] : null; a.push(this.value(0, raw)); if (rawArgs) rawArgs.push(raw); } while (this.take(',')); this.expect(')'); } return a; };
+  Parser.prototype.chain = function () { var a = []; while (this.take('.')) { var at = this.i, name = this.id(), args = this.args(); a.push({ name: name, args: args, at: at, end: this.i }); } return a; };
   function compile(source) {
     var settings = {}, mapping = [], diagnostics = [], p, gb = null;
     var lines = [0];
@@ -146,14 +156,14 @@
         var at = p.i, name = p.id(), args, chains;
         if (name === 'pattern') {
           p.expect('('); var pn = p.value(0); need(typeof pn === 'string' && !own(patterns, pn), 'Invalid or duplicate pattern name', at);
-          p.expect(','); need(p.id() === 'notes', 'Pattern requires notes()', p.i); args = p.args(); chains = p.chain(); p.expect(')');
+          p.expect(','); need(p.id() === 'notes', 'Pattern requires notes()', p.i); var rawArgs = []; args = p.args(rawArgs); chains = p.chain(); p.expect(')');
           need(args.length === 1 && typeof args[0] === 'string', 'notes requires a string', at);
           chains.forEach(function (c) {
             var bounds = { stepsPerBar: [1, 256, true], gate: [0.001, 1, false], velocity: [0, 1, false], transpose: [-128, 128, true], register: [-128, 128, true] };
             need(own(bounds, c.name), 'Unknown notes transformation', c.at);
             var b = bounds[c.name]; need(c.args.length === 1 && num(c.args[0], b[0], b[1], b[2]), 'Invalid notes transformation argument', c.at);
           });
-          patterns[pn] = { text: args[0], chains: chains, at: at, end: p.i };
+          patterns[pn] = { text: args[0], raw: rawArgs[0], chains: chains, at: at, end: p.i };
         } else {
           args = p.args(); chains = p.chain();
           need(args.length === 1, name + ' requires one argument', at);
@@ -225,14 +235,17 @@
           need(pat && object(opt) && Object.keys(opt).every(function (k) { return ['atBar', 'repeat'].includes(k); }), 'Invalid pattern or play options', c.at);
           var atBar = opt.atBar == null ? 0 : opt.atBar, repeat = opt.repeat == null ? 1 : opt.repeat;
           need(num(atBar, 0, 65536) && num(repeat, 1, LIMITS.repeats, true), 'Invalid arrangement bounds', c.at);
-          var tokens = pat.text.trim() ? pat.text.trim().split(/\s+/) : [], step = 0, rows = [], spb = 16, gate = 1;
+          var tokens = pat.text.match(/\S+/g) || [], tokenOffset = 0, step = 0, rows = [], spb = 16, gate = 1;
           spend(tokens.length * (1 + pat.chains.length + transforms.length), c.at);
           need(tokens.length > 0 && tokens.length <= LIMITS.steps, 'Pattern step limit', pat.at);
           tokens.forEach(function (token) {
+            tokenOffset = pat.text.indexOf(token, tokenOffset);
             var m = /^(\.|[A-Ga-g][#b]?-?\d+)(?::(\d+(?:\.\d+)?))?(?:@(\d+(?:\.\d+)?))?$/.exec(token);
             need(m, 'Invalid note token ' + token, pat.at); var length = m[2] == null ? 1 : Number(m[2]), vel = m[3] == null ? 1 : Number(m[3]);
             need(num(length, 0.001, LIMITS.steps) && num(vel, 0, 1), 'Invalid length or velocity', pat.at);
             if (m[1] !== '.') { var pitch = /^([A-Ga-g])([#b]?)(-?\d+)$/.exec(m[1]); rows.push({ step: step, length: length, midi: (Number(pitch[3]) + 1) * 12 + { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }[pitch[1].toUpperCase()] + (pitch[2] === '#' ? 1 : pitch[2] === 'b' ? -1 : 0), vel: vel }); }
+            if (m[1] !== '.') rows[rows.length - 1].tokenSpan = span(pat.raw[tokenOffset], pat.raw[tokenOffset + m[1].length]);
+            tokenOffset += token.length;
             step += length; need(step <= LIMITS.steps, 'Pattern length limit', pat.at);
           });
           pat.chains.concat(transforms).forEach(function (x) {
@@ -245,11 +258,16 @@
           });
           need(eventCount + rows.length * repeat <= LIMITS.events, 'Event expansion limit', c.at);
           spend(repeat * (1 + rows.length * (1 + (changes ? changes.length : 0))), c.at);
-          for (var rep = 0; rep < repeat; rep++) rows.forEach(function (r, ri) {
+          for (var rep = 0; rows.length && rep < repeat; rep++) {
+            var occurrenceStartFrame = time(atBar * 4 + rep * step * 4 / spb);
+            var occurrenceEndFrame = time(atBar * 4 + (rep + 1) * step * 4 / spb);
+            rows.forEach(function (r, ri) {
             var beat = atBar * 4 + (rep * step + r.step) * 4 / spb, frame = time(beat);
             add('notes', { ch: lanes[t.lane], frame: frame, frames: Math.max(1, time(beat + r.length * gate * 4 / spb) - frame), midi: r.midi, inst: inst, vel: r.vel }, pat.at, pat.end);
-            Object.assign(mapping[mapping.length - 1], { pattern: c.args[0], occurrence: rep, patternNote: ri, track: t.lane, occurrenceSpan: span(c.at, t.end) });
+            Object.assign(mapping[mapping.length - 1], { pattern: c.args[0], occurrence: rep, patternNote: ri, track: t.lane, occurrenceSpan: span(c.at, t.end),
+              tokenSpan: r.tokenSpan, playSpan: span(c.at - 1, c.end), trackSpan: span(t.at, t.end), occurrenceStartFrame: occurrenceStartFrame, occurrenceEndFrame: occurrenceEndFrame });
           });
+          }
         });
       });
       gb.notes.forEach(function (n, i) {

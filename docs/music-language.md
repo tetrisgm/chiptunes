@@ -336,6 +336,22 @@ definition; occurrence is the zero-based repeat index within that play.
 `occurrenceSpan` starts at the play method name and ends at the track statement
 end, potentially including later methods. It is not a token-level edit range.
 
+Additional visual mappings preserve those older fields:
+
+- `tokenSpan` covers the written pitch, including any raw string escapes, but
+  not its `:length` or `@velocity` suffix. Repeats/transforms point to the same
+  original token, even when the compiled pitch differs.
+- `playSpan` covers precisely the dot through this play call's closing `)`;
+  `trackSpan` covers the full track declaration and its ordered transforms.
+- `occurrenceStartFrame` and `occurrenceEndFrame` bound the full repeated
+  pattern on the shared clock, including leading/trailing rests and gate gaps.
+  These are visual timing bounds, not new song-end constraints. A trailing rest
+  can extend beyond the finite song; rounding can collapse a very short interval.
+
+Exact events have none of these pattern-only fields. Unplayed/all-rest patterns
+produce no note mappings. Consumers must not fabricate note identities for them
+or assume every declaration has a sounding occurrence.
+
 Spans have `start` and `end`, each `{offset,line,column}`. Offsets are zero-based
 UTF-16 string offsets; end is exclusive. Lines/columns are one-based; LF starts
 a new line. The editor selects with

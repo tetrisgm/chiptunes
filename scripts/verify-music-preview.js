@@ -105,7 +105,9 @@ test('worker startup, postMessage, error and messageerror failures clean up',()=
   }
 });
 test('matching malformed compiler result rejected rather than shown',()=>{
-  const mutations=[r=>{r.gb.notes[0].frame=-1;},r=>{r.mapping[0].span.end.offset=song.length+1;},r=>{r.mapping[1].noteIndex=r.mapping[0].noteIndex;},r=>{r.gb.totalFrames=L.LIMITS.frames+1;},r=>{r.diagnostics=[{severity:'error',message:'error'}];},r=>{r.mapping=[];}];
+  const mutations=[r=>{r.gb.notes[0].frame=-1;},r=>{r.mapping[0].span.end.offset=song.length+1;},r=>{r.mapping[1].noteIndex=r.mapping[0].noteIndex;},r=>{r.gb.totalFrames=L.LIMITS.frames+1;},r=>{r.diagnostics=[{severity:'error',message:'error'}];},r=>{r.mapping=[];},
+    r=>{r.mapping[0].tokenSpan.start.offset=0;},r=>{r.mapping[0].playSpan={};},r=>{r.mapping[0].trackSpan=null;},
+    r=>{r.mapping[0].occurrenceEndFrame=-1;},r=>{delete r.mapping[0].occurrenceStartFrame;}];
   for(const mutate of mutations){const f=fixture();f.controller.schedule(input());f.timers.tick(250);const result=L.compile(song);mutate(result);f.workers[0].reply({compiled:result});
     assert.equal(f.errors[0].code,'invalid-result');assert.equal(f.results.length,0);assert(f.workers[0].terminated);}
 });

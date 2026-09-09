@@ -33,7 +33,11 @@
     var seen=new Set();
     return result.mapping.every(function(m){
       if(!object(m)||!integer(m.noteIndex,result.gb.notes.length-1)||seen.has(m.noteIndex)||!span(m.span)||
-        (m.occurrenceSpan!==undefined&&!span(m.occurrenceSpan)))return false;
+        !['occurrenceSpan','tokenSpan','playSpan','trackSpan'].every(function(key){return m[key]===undefined||span(m[key]);}))return false;
+      if(m.tokenSpan&&(m.tokenSpan.start.offset<m.span.start.offset||m.tokenSpan.end.offset>m.span.end.offset||m.tokenSpan.start.offset===m.tokenSpan.end.offset))return false;
+      if(m.occurrenceStartFrame!==undefined||m.occurrenceEndFrame!==undefined){
+        if(!integer(m.occurrenceStartFrame,Number.MAX_SAFE_INTEGER)||!integer(m.occurrenceEndFrame,Number.MAX_SAFE_INTEGER)||m.occurrenceEndFrame<m.occurrenceStartFrame)return false;
+      }
       seen.add(m.noteIndex);return true;
     });
   }
