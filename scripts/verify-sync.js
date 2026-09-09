@@ -48,7 +48,7 @@ function server() {
   const p = await b.newPage({ viewport: { width: 1400, height: 900 } });
   const errs = [];
   p.on('pageerror', e => errs.push(String(e).slice(0, 120)));
-  await p.goto(`http://127.0.0.1:${h.port}/`, { waitUntil: 'domcontentloaded' });
+  await p.goto(`http://127.0.0.1:${h.port}/listen`, { waitUntil: 'domcontentloaded' });
   await wait(3500);
   await p.evaluate(() => {
     const m = [...document.querySelectorAll('.rmood')].find(x => x.textContent === 'chill');

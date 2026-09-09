@@ -67,7 +67,7 @@ const audibleWithin = async (p, ms, threshold = 0.02) => {
   const p = await b.newPage({ viewport: { width: 1500, height: 950 } });
   const errs = [];
   p.on('pageerror', e => errs.push(String(e).slice(0, 120)));
-  await p.goto(`http://127.0.0.1:${h.port}/`, { waitUntil: 'domcontentloaded' });
+  await p.goto(`http://127.0.0.1:${h.port}/listen`, { waitUntil: 'domcontentloaded' });
   await wait(4000);
 
   ok(await p.evaluate(() => !!(Audio.isHolding && Audio.isHolding())), 'a cold load holds');
@@ -140,13 +140,13 @@ const audibleWithin = async (p, ms, threshold = 0.02) => {
   ok(playPeak > 0.02, 'pressing play starts one anyway (it means "surprise me") [peak ' + playPeak.toFixed(4) +
      ', chip ' + JSON.stringify(await p.evaluate(() => { try { return Audio.chipDiag ? Audio.chipDiag() : null; } catch (e) { return String(e); } })).slice(0, 160) + ']');
 
-  ok(await p.evaluate(() => location.pathname === '/'),
-     'playing keeps the permanent root address');
+  ok(await p.evaluate(() => location.pathname === '/listen'),
+     'playing keeps the explicit listening address');
 
-  await p.goto(`http://127.0.0.1:${h.port}/`, { waitUntil: 'domcontentloaded' });
+  await p.goto(`http://127.0.0.1:${h.port}/listen`, { waitUntil: 'domcontentloaded' });
   await wait(4000);
-  ok(await p.evaluate(() => location.pathname === '/' && document.body.classList.contains('awaiting-mood')),
-     'returning to / always returns to the landing page');
+  ok(await p.evaluate(() => location.pathname === '/listen' && document.body.classList.contains('awaiting-mood')),
+     'returning to /listen returns to the explicit listening landing page');
   await p.evaluate(() => {
     const C = CT_COMPOSERS.rrr_core;
     const original = C.compile;
@@ -178,7 +178,7 @@ const audibleWithin = async (p, ms, threshold = 0.02) => {
   ok(!(await p.evaluate(() => document.body.classList.contains('awaiting-mood'))),
      'the hero stands down once something is on');
   // Canonical composition entry is not a request to start another player.
-  await p.goto(`http://127.0.0.1:${h.port}/`, { waitUntil: 'domcontentloaded' });
+  await p.goto(`http://127.0.0.1:${h.port}/listen`, { waitUntil: 'domcontentloaded' });
   await p.locator('.rmood-scratch').click();
   await p.waitForFunction(()=>window.CT_MUSIC_WORKSPACE?.isOpen()&&CT_MUSIC_WORKSPACE.snapshot()?.validated,null,{timeout:30000});
   ok(await p.evaluate(()=>location.pathname==='/create'&&!document.querySelector('#createscreen.show')),
@@ -189,7 +189,28 @@ const audibleWithin = async (p, ms, threshold = 0.02) => {
   await p.locator('[data-action=play]').click();
   ok((await audibleWithin(p,20000))>.02,'explicit composition Play is audible');
   await p.locator('[data-action=stop]').click();
-  await p.locator('[data-action=close]').click();
+  await p.evaluate(() => CT_MUSIC_WORKSPACE.close());
+  ok((await peak(p,1500))<.02, 'plain composition close never starts the station');
+
+  // The public root is the instrument, not the compatibility listening wall.
+  await p.goto(`http://127.0.0.1:${h.port}/`, { waitUntil: 'domcontentloaded' });
+  await p.waitForFunction(()=>window.CT_MUSIC_WORKSPACE?.isOpen()&&CT_MUSIC_WORKSPACE.snapshot()?.validated,null,{timeout:30000});
+  ok(await p.locator('.mw-code').isVisible()&&await p.locator('.mw-notes').isVisible()&&await p.locator('.mw-stage-viewport').isVisible(),
+     'root opens music code, notes and persistent visual stage together');
+  ok(await p.evaluate(()=>!CT_CREATE.isOpen()&&!document.body.classList.contains('awaiting-mood')),
+     'root has no legacy editor or mood setup wall');
+  ok((await peak(p,1500))<.02&&await p.evaluate(()=>!CT_MUSIC_WORKSPACE.snapshot().playing&&!CT_MUSIC_WORKSPACE.snapshot().pending),
+     'root restores composition stopped, with no queued player');
+  await p.locator('.mw-visuals').getByText('Visuals',{exact:true}).first().click();
+  ok((await peak(p,1000))<.02,'interacting with visual chrome never starts music');
+  const savedSource=await p.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot().draft);
+  await p.reload({waitUntil:'domcontentloaded'});
+  await p.waitForFunction(()=>window.CT_MUSIC_WORKSPACE?.isOpen()&&CT_MUSIC_WORKSPACE.snapshot()?.validated,null,{timeout:30000});
+  ok(await p.evaluate(source=>CT_MUSIC_WORKSPACE.snapshot().draft===source&&!CT_MUSIC_WORKSPACE.snapshot().playing,savedSource),
+     'reload retains the music source without resuming playback');
+  await p.keyboard.press('Escape');
+  ok(await p.evaluate(()=>CT_MUSIC_WORKSPACE.isOpen()),'Escape retains the primary music workspace');
+  ok((await peak(p,1500))<.02,'plain Escape never starts station audio');
   ok(!errs.length, 'no page errors' + (errs.length ? ' -- ' + errs[0] : ''));
 
   await b.close(); h.s.close();

@@ -36,10 +36,10 @@
   if(location.hostname==='www.chiptunes.app'){
     location.replace('https://chiptunes.app'+location.pathname+location.search+location.hash); return;
   }
-  // /player was the old generated-player address. Root is the only landing
-  // address now, so collapse an old bookmark before the page can boot there.
+  // /player was the old generated-player address. Keep old bookmarks on the
+  // explicit listening path; root now opens the music-code workspace.
   if((location.pathname||'/').replace(/\/+$/,'')==='/player'){
-    location.replace('/'+(location.search||'')+(location.hash||'')); return;
+    location.replace('/listen'+(location.search||'')+(location.hash||'')); return;
   }
   // player-route boot: hide the Home overlay pre-paint for direct track/watch links.
   // /track/<slug> (generated; slug may carry a '<composerId>.' prefix)
@@ -50,10 +50,10 @@
   var parts=slug.split('/').filter(Boolean);
   var aiTrackRoute=!!(parts[0]==='track' && parts[1] && !parts[2] && /^[a-z0-9][a-z0-9._-]*$/.test(parts[1]));
   var modeRoute=(parts.length===1 && (parts[0]==='watch' || parts[0]==='gameboy' || parts[0]==='create'));
-  // Root is always the landing page. Once a visitor starts a song the runtime
-  // gives it a /track URL, so restoring or reloading / can never resurrect a
-  // playing screen under the homepage address.
-  if(aiTrackRoute || modeRoute){
+  // Composition has no mood setup wall, including its first paint. Broadcast
+  // root retains its existing rendering/boot contract. This starts no audio.
+  var musicRoot=!parts.length && new URLSearchParams(location.search||'').get('broadcast')!=='1';
+  if(aiTrackRoute || modeRoute || musicRoot){
     document.documentElement.classList.add('boot-player-route');
     window.__RRR_BOOT_PLAYER_ROUTE=true;
   }

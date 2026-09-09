@@ -16,7 +16,7 @@ const server=http.createServer((req,res)=>res.end('<!doctype html><body></body>'
   await assert.rejects(new Client({provider:'unknown',fetch:()=>{throw Error('must not fetch');}}).request(context),/Unknown chat provider/);
   await new Promise(r=>server.listen(0,'127.0.0.1',r));const browser=await chromium.launch({headless:true});
   try{
-    const page=await browser.newPage();await page.goto('http://127.0.0.1:'+server.address().port);
+    const page=await browser.newPage({viewport:{width:1800,height:900}});await page.goto('http://127.0.0.1:'+server.address().port);
     for(const f of ['gb-hardware.js','music-language.js','music-project.js','music-chat.js'])await page.addScriptTag({path:path.join(__dirname,'../src',f)});
     await page.evaluate(()=>{
       window.Audio={musicStop(){},enterCreate(){},onMusicState(){return ()=>{};}};window.CT_CREATE={};
@@ -49,7 +49,7 @@ const server=http.createServer((req,res)=>res.end('<!doctype html><body></body>'
     await page.addStyleTag({path:path.join(__dirname,'../src/music-chat-ui.css')});
     await page.addScriptTag({path:path.join(__dirname,'../src/music-workspace.js')});await page.evaluate(()=>CT_MUSIC_WORKSPACE.open());
     await page.addStyleTag({path:path.join(__dirname,'../src/music-workspace.css')});
-    await page.setViewportSize({width:1280,height:900});
+    await page.setViewportSize({width:1800,height:900});
     await page.waitForFunction(()=>document.querySelector('.mcui-status').textContent.includes('Locked.'));
     assert.equal(await page.locator('.mw-chat-settings').evaluate(el=>el.open),false,'Chat settings starts collapsed');
     assert.equal(await page.locator('.mw-owner-password').isVisible(),false,'owner controls are secondary');

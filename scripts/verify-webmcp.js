@@ -75,7 +75,7 @@ const LIVE = process.env.VERIFY_URL || '';
   const errs = [];
   p.on('pageerror', e => errs.push(String(e).slice(0, 160)));
   await p.addInitScript(SHIM);
-  await p.goto(BASE + '/', { waitUntil: 'domcontentloaded' });
+  await p.goto(BASE + '/listen', { waitUntil: 'domcontentloaded' });
   await wait(4000);
 
   const reg = await p.evaluate(() => ({
@@ -241,7 +241,7 @@ const LIVE = process.env.VERIFY_URL || '';
     ok(st.width < 500, 'which does not span the page (' + st.width + 'px)');
     // /webmcp is not a route runtime.js knows, so the station never entered its
     // landing state -- in agent mode that left a person staring at nothing.
-    ok(st.landing && st.url === '/#webmcp',
+    ok(st.landing && st.url === '/listen#webmcp',
        'and the station behind it is in its normal landing state (' + st.url + ')');
     const reopened = await agent.evaluate(() => {
       document.querySelector('#wmcp .bar button').click();
@@ -255,7 +255,7 @@ const LIVE = process.env.VERIFY_URL || '';
     document.querySelector('#wmcp .x').click();
     return { gone: !document.getElementById('wmcp'), path: location.pathname };
   });
-  ok(closed.gone && closed.path === '/', 'and it closes onto the station, which was playing underneath all along');
+  ok(closed.gone && closed.path === '/listen', 'and it closes onto the station, which was playing underneath all along');
   ok(!errs2.length, 'no page errors on /webmcp' + (errs2.length ? ' -- ' + errs2[0] : ''));
 
   // AGENT WORK HAS TO BE VISIBLE. A person watching should never have the music
@@ -306,7 +306,7 @@ const LIVE = process.env.VERIFY_URL || '';
   // context at load; one appears afterwards; the polling must find it.
   {
     const late = await b.newPage({ viewport: { width: 1200, height: 800 } });
-    await late.goto(BASE + '/', { waitUntil: 'domcontentloaded' });
+    await late.goto(BASE + '/listen', { waitUntil: 'domcontentloaded' });
     await wait(3000);
     const before = await late.evaluate(() => window.chiptunes && window.chiptunes.webmcp);
     ok(!before, 'with no host at load, nothing is registered (' + String(before) + ')');

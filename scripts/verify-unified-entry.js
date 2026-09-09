@@ -11,18 +11,21 @@ const create=require('../src/create.js');
 const language=require('../src/music-language.js');
 const entry=runtime.slice(runtime.indexOf('var _createStandalone=false;'),runtime.indexOf('window._openCreate=_openCreate;'));
 function fixture(hash='',unpack=async s=>s){
-  const calls=[],errors=[],events={};let currentDoc=null;
+  const calls=[],errors=[],events={},audioCalls=[];let currentDoc=null;
   const location={pathname:'/create',search:'',hash};
   // Normalize VM metadata into the compiler's realm, as in the single-realm browser.
   const sandbox={location,console,CT_CREATE:create,CT_MUSIC_LANGUAGE:{materialize:(gb,meta)=>language.materialize(gb,JSON.parse(JSON.stringify(meta)))},
     document:{body:{classList:{add(){}}}},
-    Audio:{currentDoc:()=>currentDoc,playScore(){throw Error('Unexpected playback');}},
+    Audio:{currentDoc:()=>currentDoc,playScore(){audioCalls.push('score');}},
+    _unmountVisual(){},resize(){},_syncCreateRendering(){},_startEndlessRadio(){audioCalls.push('station');},
+    history:{replaceState(_state,_title,url){location.pathname=url;}},
     CT_MUSIC_WORKSPACE:{open(...args){calls.push(args);return Promise.resolve();}},
     _readSharedDoc:()=>{const m=/(?:#|&)s=([^&]+)/.exec(location.hash);return m&&m[1];},
     _unpackDoc:unpack};
   sandbox.window={addEventListener(n,fn){events[n]=fn;},_toast:m=>errors.push(m)};
   vm.runInNewContext(entry,sandbox);
-  return {calls,errors,events,location,open:sandbox._openCreate,setDoc:d=>{currentDoc=d;}};
+  return {calls,errors,events,audioCalls,location,open:sandbox._openCreate,
+    handback:options=>sandbox.window._closeCreateReturn(options),setDoc:d=>{currentDoc=d;}};
 }
 function documentFixture(){
   const api=require('../src/api.js');
@@ -31,7 +34,15 @@ function documentFixture(){
 }
 test('plain and source-share entries do not mount legacy UI or play; normal open has no initial',async()=>{
   for(const hash of ['', '#music', '#music=project']){
-    const f=fixture(hash);await f.open();assert.equal(f.calls.length,1);assert.equal(f.calls[0].length,0);
+    const f=fixture(hash);await f.open();assert.equal(f.calls.length,1);assert.equal(f.calls[0].length,0);assert.deepEqual(f.audioCalls,[]);
+  }
+});
+test('runtime handback starts station only for explicit listen:true',async()=>{
+  for(const options of [undefined,{}, {listen:false}, {listen:true}]){
+    const f=fixture();await f.open();assert.deepEqual(f.audioCalls,[]);
+    f.handback(options);
+    assert.deepEqual(f.audioCalls,options?.listen===true?['station','score']:[]);
+    if(options?.listen===true)assert.equal(f.location.pathname,'/listen');
   }
 });
 test('explicit document materializes exact native GB and metadata',async()=>{
@@ -78,9 +89,31 @@ test('actual unpacker accepts bare, raw and compressed legacy links',async()=>{
     assert.deepEqual(f.errors,[]);assert.equal(f.calls.length,1);assert.equal(f.calls[0][0].explicit,true);
   }
 });
-test('boot dispatches Create and root song links before startAudio; workspace owns route',()=>{
-  const start=runtime.indexOf("if(head==='create'||(head===''&&_readSharedDoc()))");
-  assert.ok(start>0);const branch=runtime.slice(start,runtime.indexOf("if(head==='get')",start));
-  assert.ok(!branch.includes('startAudio('));assert.ok(branch.includes('_openCreate(); return;'));
+test('cold root/Create/share boot opens composition; only explicit Listen initializes listening',()=>{
+  const marker=runtime.indexOf('// ----- BOOT ROUTE:');assert.ok(marker>=0);
+  const start=runtime.indexOf('(function(){',marker),end=runtime.indexOf('\n})();',start);
+  assert.ok(start>=0&&end>start);
+  for(const [pathname,hash,expected] of [['/','','create'],['/create','','create'],['/','#s=exact','create'],['/','#music=project','create'],['/listen','','listen']]){
+    const calls=[];
+    const s={_RRR_BROADCAST:false,location:{pathname,hash,search:''},document:{body:{classList:{add(){}}}},
+      _pathParts:p=>p.split('/').filter(Boolean),_readSharedDoc:()=>hash.startsWith('#s=')?'exact':null,
+      _openCreate:()=>calls.push('create'),startAudio:()=>calls.push('listen'),_startEndlessRadio:()=>calls.push('listen'),
+      history:{replaceState(){throw Error('Cold canonical routes must not redirect into a legacy route');}}};
+    vm.runInNewContext(runtime.slice(start,end+'\n})();'.length),s);
+    assert.deepEqual(calls,[expected],pathname+hash);
+  }
   assert.match(runtime,/function syncRoute\(slug\)\{[\s\S]*?CT_MUSIC_WORKSPACE\.isOpen\(\)\)return;/);
+});
+test('navigation dispatch agrees with cold boot for root, Create and explicit Listen',()=>{
+  const start=runtime.indexOf('function _productRouteFromPath('),end=runtime.indexOf('// ----- station entry:',start);
+  assert.ok(start>=0&&end>start);
+  for(const [path,expected] of [['/','create'],['/create','create'],['/listen','listen']]){
+    const calls=[],s={window:{},_RRR_BROADCAST:false,_createEntryEpoch:0,_pathParts:p=>p.split('/').filter(Boolean),
+      _musicWorkspaceOpen:()=>false,
+      _readSharedDoc:()=>null,_openCreate:()=>calls.push('create'),_startEndlessRadio:()=>calls.push('listen'),
+      history:{replaceState(){throw Error('Canonical route unexpectedly rewritten');}}};
+    vm.runInNewContext(runtime.slice(start,end),s);
+    assert.equal(s.window._productRouteTo(path),true);
+    assert.deepEqual(calls,[expected],path);
+  }
 });

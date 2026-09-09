@@ -47,7 +47,7 @@ function server() {
   const p = await b.newPage({ viewport: { width: 1380, height: 900 } });
   const errs = [];
   p.on('pageerror', e => errs.push(String(e).slice(0, 140)));
-  await p.goto(`http://127.0.0.1:${h.port}/`, { waitUntil: 'domcontentloaded' });
+  await p.goto(`http://127.0.0.1:${h.port}/listen`, { waitUntil: 'domcontentloaded' });
   await wait(4000);
 
   // ---- 1. a composed song survives becoming a document ---------------------
@@ -127,7 +127,7 @@ function server() {
   ok(back === trip.notes, 'explicit compatibility editor opens the same song, note for note');
 
   // ---- 3. and the station is playing one ----------------------------------
-  await p.goto(`http://127.0.0.1:${h.port}/`, { waitUntil: 'domcontentloaded' });
+  await p.goto(`http://127.0.0.1:${h.port}/listen`, { waitUntil: 'domcontentloaded' });
   await wait(3500);
   await startStation(p);
   await wait(4000);
@@ -143,7 +143,7 @@ function server() {
   });
   ok(!!onAir.doc, 'the song on air has a document behind it' + (onAir.doc ? ' (' + (onAir.doc.length / 1024).toFixed(1) + ' KB)' : ''));
   ok(onAir.peak > 0.02, 'and it is sounding (' + onAir.peak.toFixed(3) + ')');
-  ok(onAir.route === '/', 'the address bar stays at the permanent root (' + onAir.route + ')');
+  ok(onAir.route === '/listen', 'the address bar stays at the listening route (' + onAir.route + ')');
   // Explicit compatibility prompt controls still use the shared interpreter.
   await p.evaluate(() => {
     localStorage.setItem('ct-create-tour', '1');

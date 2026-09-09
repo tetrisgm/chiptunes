@@ -24,6 +24,9 @@ let fail = 0;
       if (b) b.click();
     });
     await pg.waitForFunction(() => !document.querySelector('.rmood.busy'), null, { timeout: 25000 });
+    // A baked strip is not evidence that the audio worklet has started. The
+    // progress test needs real playback before taking its first pixel sample.
+    await pg.waitForFunction(() => Audio.outputProbe().peak > .02, null, { timeout: 25000 });
   };
 const ok = (c, m) => { console.log((c ? '  ok   ' : '  FAIL ') + m); if (!c) fail++; };
 
@@ -64,8 +67,11 @@ const pixels = p => p.evaluate(() => {
   const p = await b.newPage({ viewport: { width: 1600, height: 1000 }, deviceScaleFactor: 2 });
   const errs = [];
   p.on('pageerror', e => errs.push(String(e).slice(0, 120)));
-  await p.goto(`http://127.0.0.1:${h.port}/`, { waitUntil: 'domcontentloaded' });
+  await p.goto(`http://127.0.0.1:${h.port}/listen`, { waitUntil: 'domcontentloaded' });
   await wait(3500);
+  // Rendering/progress coverage uses one known arrangement. Composer diversity
+  // is independently tested; this must not race a random silent intro or seam.
+  await p.evaluate(() => { Song.mint = () => '523e26qcl13jeeuu'; });
   await startStation(p);
   await wait(7000);
 
@@ -161,6 +167,10 @@ const pixels = p => p.evaluate(() => {
   ok(a.any > 500, 'it has drawn the track (' + notes + ' notes, ' + a.any + ' painted pixels)');
   await wait(7000);
   const c2 = await pixels(p);
+  if(c2.lit<=a.lit)console.log('  progress diagnostics '+JSON.stringify(await p.evaluate(()=>({
+    elapsed:document.getElementById('pbElapsed').textContent,chip:Audio.chipDiag(),
+    processor:window.__rrrChip,holding:Audio.isHolding(),probe:Audio.outputProbe()
+  }))));
   ok(c2.lit > a.lit, 'and the played part grows as the song plays (' + a.lit + ' -> ' + c2.lit + ' lit pixels)');
   ok(Math.abs(c2.any - a.any) < a.any * 0.25, 'while the track itself stays put (baked once, not redrawn)');
 
@@ -190,9 +200,10 @@ const pixels = p => p.evaluate(() => {
   ok(require('node:util').isDeepStrictEqual(opened.validated.compiled.gb,radioGB),'ribbon entry preserves the entire radio score');
   ok(opened.playing===null&&opened.pending===null,'opening composition does not start workspace playback');
   ok(await p.locator('.mw-notes').isVisible()&&await p.locator('.mw-code').isVisible(),'chart and source are visible together');
-  await p.locator('[data-action=close]').click();
+  await p.getByRole('button',{name:'Listen',exact:true}).click();
   await wait(4000);
-  ok(await shown(p), 'and comes back on Close');
+  ok(await shown(p), 'and comes back on explicit Listen');
+  ok(await p.evaluate(()=>location.pathname==='/listen'),'Listen keeps the listening route');
   ok(!errs.length, 'no page errors' + (errs.length ? ' -- ' + errs[0] : ''));
 
   await b.close(); h.s.close();

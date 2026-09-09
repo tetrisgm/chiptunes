@@ -10,7 +10,7 @@ const { chromium } = require('playwright');
 const { createMusicChatHandler } = require('../server/music-chat-handler.js');
 const dist = path.resolve(__dirname, '../dist');
 const origin = 'https://chiptunes.app', storageKey = 'ct-music-workspace-v1';
-const html = fs.readFileSync(path.join(dist, 'create/index.html'), 'utf8');
+const html = fs.readFileSync(path.join(dist, 'index.html'), 'utf8');
 const app = html.match(/app\.[a-f0-9]+\.js/)[0];
 const bundle = fs.readFileSync(path.join(dist, app));
 const completeRequest = 'Write a complete finite track with an introduction, a developed theme and an ending, using readable named patterns.';
@@ -72,7 +72,7 @@ async function main() {
     } }
   });
   try {
-    const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+    const context = await browser.newContext({ viewport: { width: 1800, height: 1000 } });
     await context.setOffline(true);
     await context.route('**/*', async route => {
       const request = route.request(), url = new URL(request.url());
@@ -95,7 +95,7 @@ async function main() {
           return route.fulfill({ status: response.status, headers: Object.fromEntries(response.headers), body });
         }
         if (url.pathname.startsWith('/api/')) return route.fulfill({ status: 503, body: '{}' });
-        if (['/create', '/create/'].includes(url.pathname)) return route.fulfill({ contentType: 'text/html', body: html });
+        if (['/', '/create', '/create/'].includes(url.pathname)) return route.fulfill({ contentType: 'text/html', body: html });
         if (url.pathname === '/' + app) return route.fulfill({ contentType: 'text/javascript', body: bundle });
         const file = path.resolve(dist, '.' + url.pathname);
         if (!file.startsWith(dist + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile())
@@ -108,7 +108,7 @@ async function main() {
     });
     page = await context.newPage();
     page.on('pageerror', error => errors.push(error.message));
-    await page.goto(origin + '/create'); // No #music escape hatch or legacy open.
+    await page.goto(origin + '/'); // Root composition, no hash escape hatch or legacy open.
     await page.waitForSelector('#musicworkspace:not([hidden]) .cm-content');
     await page.waitForFunction(() => document.querySelector('.mcui-status')?.textContent.startsWith('Unlocked.'));
     const snapshot = () => page.evaluate(() => CT_MUSIC_WORKSPACE.snapshot());
@@ -121,6 +121,19 @@ async function main() {
     varied = manual.replace('C2 . G2 . C3', 'D2 . G2 . C3');
     assert.deepEqual(track.split('\n').filter(line => line.startsWith('//')), initial.draft.split('\n').filter(line => line.startsWith('//')), 'complete arrangement preserves all starter comments');
     assert.equal(initial.playing, null); assert.equal(initial.pending, null);
+    assert.equal(await page.locator('#musicworkspace').getAttribute('data-presentation'),'composition');
+    assert.equal(await page.evaluate(()=>CT_MUSIC_WORKSPACE.isVisualizerOpen()),false);
+    assert(await page.locator('.mw-stage-viewport canvas').evaluateAll(elements=>elements.some(el=>{const r=el.getBoundingClientRect();return r.width>0&&r.height>0&&getComputedStyle(el).visibility!=='hidden'&&getComputedStyle(el).display!=='none';})),'root has a visible persistent visual output alongside music');
+    await page.evaluate(()=>window.workflowCanvases=Array.from(document.querySelectorAll('.mw-stage-viewport canvas')));
+    const stageBuffers=await page.evaluate(()=>workflowCanvases.map(el=>({width:el.width,height:el.height})));
+    async function assertStage(){assert.deepEqual(await page.evaluate(()=>{const current=Array.from(document.querySelectorAll('.mw-stage-viewport canvas'));return {same:current.length===workflowCanvases.length&&current.every((el,i)=>el===workflowCanvases[i]),buffers:current.map(el=>({width:el.width,height:el.height}))};}),{same:true,buffers:stageBuffers},'layout does not replace any stage canvas or resize its backing buffer');}
+    await page.setViewportSize({width:1280,height:1000});
+    await page.waitForFunction(()=>document.querySelector('.mw-chat').hidden);
+    const geometry=await page.evaluate(()=>['.mw-main','.mw-stage-viewport'].map(s=>{const r=document.querySelector(s).getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height};}));
+    await page.locator('[data-action=toggle-chat]').click();
+    assert(await page.locator('.mw-chat').isVisible());
+    assert.deepEqual(await page.evaluate(()=>['.mw-main','.mw-stage-viewport'].map(s=>{const r=document.querySelector(s).getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height};})),geometry,'1280 chat drawer overlays without changing stage/music geometry');
+    await assertStage();await page.setViewportSize({width:1800,height:1000});
     assert.equal(await page.evaluate(() => CT_CREATE.isOpen()), false, 'canonical entry never mounts legacy underneath');
     const expected = await page.evaluate(source => CT_MUSIC_LANGUAGE.compile(source), track);
     assert(expected.gb, JSON.stringify(expected.diagnostics));
@@ -219,12 +232,14 @@ async function main() {
     await page.locator('[data-action=toggle-chat]').click();
     assert.equal(await page.locator('.mw-chat').isVisible(), false);
     const beforePresentation = await page.evaluate(() => ({ frame: Audio.musicVisualState().frame, events: workflowEvents.length }));
-    await page.getByRole('button', { name: 'Visualizer', exact: true }).click();
+    await page.getByRole('button', { name: 'Focus visuals', exact: true }).click();
     assert.equal(await page.evaluate(() => CT_MUSIC_WORKSPACE.isVisualizerOpen()), true);
     assert.equal(await page.locator('.mw-code').isVisible(), false, 'visualizer replaces composition presentation');
+    await assertStage();
     await page.waitForFunction(frame => Audio.musicVisualState().frame > frame + 10, beforePresentation.frame);
     await page.getByRole('button', { name: 'Return to composition', exact: true }).click();
     assert.equal(await page.evaluate(() => CT_MUSIC_WORKSPACE.isVisualizerOpen()), false);
+    await assertStage();
     assert.equal((await snapshot()).draft, manual); assert.equal((await snapshot()).playing, undone.validated.id);
     const presentation = await page.evaluate(start => ({ state: Audio.musicVisualState(), events: workflowEvents.slice(start) }), beforePresentation.events);
     assert(presentation.state.frame > beforePresentation.frame, 'presentation never rewinds playback');
@@ -241,7 +256,7 @@ async function main() {
     await editor.fill(manual + '\ninvalid unfinished code');
     await page.waitForFunction(() => document.querySelector('.mw-chart-status').textContent === 'Previous chart · draft has errors');
     const heldFrame = await page.evaluate(() => Audio.musicVisualState().frame);
-    await page.getByRole('button', { name: 'Visualizer', exact: true }).click();
+    await page.getByRole('button', { name: 'Focus visuals', exact: true }).click();
     await page.keyboard.press('Escape');
     assert.equal(await page.evaluate(() => Audio.musicVisualState().status), 'paused');
     assert.equal(await page.evaluate(() => Audio.musicVisualState().frame), heldFrame);
@@ -267,7 +282,7 @@ async function main() {
     assert.equal(await page.getByRole('log', { name: 'Conversation' }).getByRole('button', { name: 'Apply', exact: true }).count(), 0, 'reload cannot revive old proposals');
     assert.equal(calls.length, 2, 'presentation, save and reload never send requests');
     assert.equal(adapterCalls, 2, 'both proposals passed through the real handler and mock adapter exactly once');
-    assert.equal(new URL(page.url()).origin, origin); assert.equal(new URL(page.url()).pathname, '/create');
+    assert.equal(new URL(page.url()).origin, origin); assert.equal(new URL(page.url()).pathname, '/');
     assert.deepEqual(routeErrors, []); assert.deepEqual(errors, []);
     console.log('  ok collapsed chat → visualizer/composition preserves playback/source → private save/reload');
     console.log('PASS unified workflow: offline complete-track/scoped-variation fixtures, real compiler/preview/AudioWorklet, canonical single workspace (' + app + ')');

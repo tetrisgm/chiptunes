@@ -96,7 +96,7 @@ async function landing(page, name) {
 async function unifiedCreate(page, name) {
   const root=page.locator('#musicworkspace');
   await root.locator('.cm-content').waitFor({state:'visible'});
-  await inViewport(root.locator('[data-action=close]'),page,`${name}: unified Back`);
+  await inViewport(root.locator('[data-action=listen]'),page,`${name}: explicit Listen`);
   // The phone chat drawer may cover composition. Collapse via its public toggle.
   const toggle=root.locator('[data-action=toggle-chat]');
   if(await toggle.getAttribute('aria-expanded')==='true')await toggle.click();
@@ -124,7 +124,7 @@ async function unifiedCreate(page, name) {
   await root.locator('[data-action=stop]').click();
   await page.waitForFunction(()=>!document.querySelector('.mw-loop').disabled);
   await page.screenshot({path:path.join(screenshots,`${name}-unified-create.png`)});
-  await root.locator('[data-action=close]').click();
+  await root.locator('[data-action=listen]').click();
   await root.waitFor({state:'hidden'});
 }
 
@@ -205,7 +205,7 @@ async function legacyCreate(page, name, mobile) {
       const pageErrors = [];
       page.on('pageerror', error => pageErrors.push(String(error)));
       try {
-        await page.goto(`http://127.0.0.1:${host.port}/`, { waitUntil: 'domcontentloaded' });
+        await page.goto(`http://127.0.0.1:${host.port}/listen`, { waitUntil: 'domcontentloaded' });
         await landing(page, spec.name);
         await unifiedCreate(page, spec.name);
         await legacyCreate(page, spec.name, spec.viewport.width<760);

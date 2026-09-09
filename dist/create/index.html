@@ -36,10 +36,10 @@
   if(location.hostname==='www.chiptunes.app'){
     location.replace('https://chiptunes.app'+location.pathname+location.search+location.hash); return;
   }
-  // /player was the old generated-player address. Root is the only landing
-  // address now, so collapse an old bookmark before the page can boot there.
+  // /player was the old generated-player address. Keep old bookmarks on the
+  // explicit listening path; root now opens the music-code workspace.
   if((location.pathname||'/').replace(/\/+$/,'')==='/player'){
-    location.replace('/'+(location.search||'')+(location.hash||'')); return;
+    location.replace('/listen'+(location.search||'')+(location.hash||'')); return;
   }
   // player-route boot: hide the Home overlay pre-paint for direct track/watch links.
   // /track/<slug> (generated; slug may carry a '<composerId>.' prefix)
@@ -50,10 +50,10 @@
   var parts=slug.split('/').filter(Boolean);
   var aiTrackRoute=!!(parts[0]==='track' && parts[1] && !parts[2] && /^[a-z0-9][a-z0-9._-]*$/.test(parts[1]));
   var modeRoute=(parts.length===1 && (parts[0]==='watch' || parts[0]==='gameboy' || parts[0]==='create'));
-  // Root is always the landing page. Once a visitor starts a song the runtime
-  // gives it a /track URL, so restoring or reloading / can never resurrect a
-  // playing screen under the homepage address.
-  if(aiTrackRoute || modeRoute){
+  // Composition has no mood setup wall, including its first paint. Broadcast
+  // root retains its existing rendering/boot contract. This starts no audio.
+  var musicRoot=!parts.length && new URLSearchParams(location.search||'').get('broadcast')!=='1';
+  if(aiTrackRoute || modeRoute || musicRoot){
     document.documentElement.classList.add('boot-player-route');
     window.__RRR_BOOT_PLAYER_ROUTE=true;
   }
@@ -3093,8 +3093,25 @@
 #musicworkspace .mw-selection{font-size:11px;color:#929bb4}
 #musicworkspace .mw-body{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:12px;min-height:0;min-width:0;flex:1}
 #musicworkspace[data-chat-open=false] .mw-body{grid-template-columns:minmax(0,1fr)}
-#musicworkspace .mw-main,#musicworkspace .mw-chat{min-height:0;min-width:0;border:1px solid #303748;border-radius:12px;overflow:hidden;background:#10121b;display:flex;flex-direction:column}
+#musicworkspace .mw-creative{display:grid;grid-template-columns:minmax(0,var(--music-share,62fr)) 16px minmax(0,var(--visuals-share,38fr));min-height:0;min-width:0}
+#musicworkspace .mw-main,#musicworkspace .mw-chat,#musicworkspace .mw-visuals{min-height:0;min-width:0;border:1px solid #303748;border-radius:12px;overflow:hidden;background:#10121b;display:flex;flex-direction:column}
 #musicworkspace .mw-main{overflow-y:auto}
+#musicworkspace .mw-visuals{align-self:stretch;overflow-y:auto}
+#musicworkspace .mw-visual-header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;flex-shrink:0}
+#musicworkspace .mw-visual-header h2{font-size:14px;margin:0;font-weight:600}
+#musicworkspace .mw-visual-header button{font-size:12px;padding:5px 8px}
+#musicworkspace .mw-stage-viewport{position:relative;isolation:isolate;overflow:hidden;width:100%;aspect-ratio:16/9;flex-shrink:0;background:#050609;contain:layout paint}
+#musicworkspace .mw-stage-viewport:fullscreen{width:100vw;height:100vh;max-width:none;max-height:none;aspect-ratio:auto;background:#000}
+#musicworkspace .mw-stage-viewport:-webkit-full-screen{width:100vw;height:100vh;max-width:none;max-height:none;aspect-ratio:auto;background:#000}
+#musicworkspace .mw-stage-empty{position:absolute;z-index:20;inset:0;display:flex;align-items:center;justify-content:center;margin:0;padding:16px;color:#929bb4;font-size:12px;pointer-events:none;background:#050609}
+#musicworkspace .mw-scene-controls{display:flex;align-items:center;gap:8px;padding:12px;flex-shrink:0}
+#musicworkspace .mw-scene-controls label{font-size:12px;color:#b6bfd5}
+#musicworkspace .mw-scene{min-width:0;flex:1;padding:6px 8px;font-size:12px}
+#musicworkspace .mw-stage-status{margin:0;padding:0 12px 10px;font-size:12px;color:#d4efa3}
+#musicworkspace .mw-stage-help{margin:auto 0 0;padding:12px;border-top:1px solid #303748;color:#929bb4;font-size:12px}
+#musicworkspace .mw-stage-splitter{position:relative;cursor:col-resize;touch-action:none;user-select:none;border-inline:4px solid #0b0d14;background:#202534}
+#musicworkspace .mw-stage-splitter::after{content:'';position:absolute;top:calc(50% - 24px);left:2px;height:48px;border-left:2px solid #929bb4}
+#musicworkspace .mw-stage-splitter:focus-visible{outline-offset:-3px}
 #musicworkspace .mw-composition{display:grid;grid-template-rows:minmax(120px,var(--chart-share,45fr)) 16px minmax(160px,var(--code-share,55fr));min-height:360px;min-width:0;flex:1}
 #musicworkspace .mw-composition>*{min-width:0}
 #musicworkspace .mw-splitter{cursor:row-resize;touch-action:none;user-select:none;background:#202534;border-block:1px solid #3d455a;position:relative}
@@ -3170,6 +3187,7 @@
 #musicworkspace .mw-chat-access input,#musicworkspace .mw-chat-provider{display:block;width:100%}
 #musicworkspace .mw-project-handoff,#musicworkspace .mw-transfer-offer{border:1px solid #46503a;border-radius:8px;padding:10px}
 #musicworkspace .mw-project-handoff p,#musicworkspace .mw-transfer-offer p{font-size:12px;margin:6px 0}
+#musicworkspace>.mw-transfer-offer{flex-shrink:0;max-height:30dvh;overflow:auto}
 #musicworkspace .mw-project-handoff button{white-space:normal;width:100%}
 #musicworkspace .mw-status{min-height:22px;margin:0;font-size:13px;white-space:pre-wrap}
 #musicworkspace .mw-help{font-size:12px;padding:6px 12px;border-top:1px solid #303748;color:#bdc5d8}
@@ -3180,10 +3198,19 @@
 #musicworkspace .mw-project-tools>.mw-actions{padding:8px}
 #musicworkspace .mw-build{font-size:10px;color:#929bb4;overflow-wrap:anywhere}
 #musicworkspace .mw-seek{flex:1;min-width:80px;max-width:260px}
-@media(max-width:760px){
-  #musicworkspace{padding:8px;gap:8px}
+@media(max-width:1499px){
   #musicworkspace .mw-body{display:grid;grid-template-columns:minmax(0,1fr)}
   #musicworkspace .mw-chat{position:absolute;z-index:5;inset:0 0 0 auto;width:min(100%,360px);box-shadow:-12px 0 32px #0009}
+}
+@media(max-width:979px){
+  #musicworkspace .mw-creative{display:flex;flex-direction:column;gap:12px;overflow:auto;overscroll-behavior:contain}
+  #musicworkspace .mw-stage-splitter{display:none}
+  #musicworkspace .mw-main{flex:0 0 auto;min-height:440px;height:max(440px,58dvh)}
+  #musicworkspace .mw-visuals{flex:0 0 auto;min-height:0}
+  #musicworkspace .mw-stage-viewport{max-width:533.333px;align-self:center;aspect-ratio:16/9}
+}
+@media(max-width:760px){
+  #musicworkspace{padding:8px;gap:8px}
   #musicworkspace .mw-top{gap:6px}
   #musicworkspace h1{font-size:16px;flex-basis:100%}
   #musicworkspace .mw-source-mode{font-size:11px;padding:6px 8px}
@@ -3197,9 +3224,13 @@
 #musicworkspace .mw-chart-status{margin:0;padding:6px 12px;font-size:12px;color:#b6bfd5}
 #musicworkspace .mw-note-group{position:absolute;top:28px;height:24px;min-width:12px;padding:0;font-size:10px;overflow:hidden;background:#3b4059}
 #musicworkspace .mw-chart-reset{align-self:flex-start;margin:0 12px 4px}
-#musicworkspace[data-presentation=visualizer]{background:transparent;pointer-events:none}
-#musicworkspace[data-presentation=visualizer]>.mw-top,#musicworkspace[data-presentation=visualizer]>.mw-transport{pointer-events:auto;background:#0b0d14ed;border-radius:10px;padding:8px}
-#musicworkspace[data-presentation=visualizer]>.mw-body,#musicworkspace[data-presentation=visualizer]>.mw-footer,#musicworkspace[data-presentation=visualizer]>.mw-live-feedback,#musicworkspace[data-presentation=visualizer]>.mw-status{display:none}
+#musicworkspace[data-presentation=visualizer]>.mw-top>:not(h1):not([data-action=visualizer]),#musicworkspace[data-presentation=visualizer]>.mw-transport,#musicworkspace[data-presentation=visualizer]>.mw-footer,#musicworkspace[data-presentation=visualizer]>.mw-live-feedback,#musicworkspace[data-presentation=visualizer]>.mw-status{display:none}
+#musicworkspace[data-presentation=visualizer]>.mw-transfer-offer{display:none}
+#musicworkspace[data-presentation=visualizer] .mw-body{grid-template-columns:minmax(0,1fr)}
+#musicworkspace[data-presentation=visualizer] .mw-creative{display:flex;flex-direction:column;overflow:hidden}
+#musicworkspace[data-presentation=visualizer] .mw-main,#musicworkspace[data-presentation=visualizer] .mw-chat,#musicworkspace[data-presentation=visualizer] .mw-stage-splitter,#musicworkspace[data-presentation=visualizer] .mw-stage-help{display:none}
+#musicworkspace[data-presentation=visualizer] .mw-visuals{flex:1;min-height:0;overflow:hidden}
+#musicworkspace[data-presentation=visualizer] .mw-stage-viewport{flex:1;min-height:0;aspect-ratio:auto;max-height:none;max-width:none;align-self:stretch}
 /* Scoped adaptation of AI Elements layout; no Tailwind, reset, or global theme. */
 .mcui { display:flex; flex-direction:column; min-height:0; height:100%; color:inherit; font:inherit; }
 .mcui *, .mcui *::before, .mcui *::after { box-sizing:border-box; }
@@ -3295,7 +3326,7 @@
     <button id="start" hidden></button>
   </div>
 
-<script src="../app.259b25faf368.js" defer></script>
+<script src="../app.d1add928e23d.js" defer></script>
 
 </body>
 </html>

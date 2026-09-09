@@ -54,6 +54,96 @@ function _backgroundAudioOnlyActive(){ return !!_bgAudioOnly; }
 function _backgroundUiDormant(){ return (typeof _backgroundAudioOnlyActive==='function' && _backgroundAudioOnlyActive()); }
 function _musicWorkspaceOpen(){return typeof CT_MUSIC_WORKSPACE!=='undefined'&&CT_MUSIC_WORKSPACE.isOpen();}
 var _musicPresentationEpoch=0;
+var _visualMount=null, _visualEnabled=true;
+// A stable presentation viewport, not a second simulation. Native panels and
+// the stage sizing code use this while host/layout changes only scale the group.
+window.__ctVisualViewport=function(kind){
+  if(!_visualMount)return null;
+  var v=_visualMount, panel=v.panels[kind];
+  return {width:v.width,height:v.height,dpr:v.dpr,stageDpr:v.stageDpr,
+    outputWidth:panel&&panel.width,outputHeight:panel&&panel.height};
+};
+function _visualLayer(node){
+  var v=_visualMount;
+  if(!v||!node||v.layers.some(function(r){return r.node===node;}))return;
+  var marker=document.createComment('visual-layer');
+  if(node.parentNode===v.surface){
+    // Newly-created native/gain layers follow an existing layer. Mirror that
+    // insertion at its original position for later detach.
+    var prev=node.previousSibling, record;
+    while(prev&&!record){record=v.layers.find(function(r){return r.node===prev;});prev=prev.previousSibling;}
+    if(record&&record.marker.parentNode)record.marker.parentNode.insertBefore(marker,record.marker.nextSibling);
+    else v.origin.appendChild(marker);
+  }else if(node.parentNode)node.parentNode.insertBefore(marker,node);
+  else v.origin.appendChild(marker);
+  v.layers.push({node:node,marker:marker});
+  if(node.parentNode!==v.surface)v.surface.appendChild(node);
+}
+function _fitVisualSurface(){
+  var v=_visualMount;if(!v)return;
+  var w=v.clip.clientWidth,h=v.clip.clientHeight;
+  var scale=Math.max(0,Math.min(w/v.width,h/v.height));
+  v.surface.style.transform='translate('+((w-v.width*scale)/2)+'px,'+((h-v.height*scale)/2)+'px) scale('+scale+')';
+}
+function _visualSnapshot(){
+  return {mounted:!!_visualMount,enabled:_visualEnabled,scene:_visualEnabled?(typeof curGameKey==='string'?curGameKey:'off'):'off',
+    scenes:GAMES.filter(function(g){return !g.hiddenFromRandom;}).map(function(g){return {id:g.key,label:g.name||g.key};}),
+    width:_visualMount?_visualMount.width:(typeof W==='number'?W:0),height:_visualMount?_visualMount.height:(typeof H==='number'?H:0)};
+}
+function _mountVisual(host){
+  if(!host||host.nodeType!==1||host.ownerDocument!==document)throw Error('Visual host must be an element in this document');
+  if(_visualMount){
+    if(_visualMount.surface.contains(host))throw Error('Visual host cannot be inside its output');
+    if(_visualMount.host!==host){_visualMount.host=host;host.appendChild(_visualMount.clip);}
+    _fitVisualSurface();return _visualSnapshot();
+  }
+  var stage=document.getElementById('stage');if(!stage)throw Error('Visual stage unavailable');
+  if(stage===host||stage.contains(host))throw Error('Invalid visual host');
+  var live=!!selGame&&!!(Audio.started||(typeof _watchOnly!=='undefined'&&_watchOnly));
+  var width=live?(parseFloat(stage.style.width)||W||960):960;
+  var height=live?(parseFloat(stage.style.height)||H||540):540;
+  var clip=document.createElement('div'),surface=document.createElement('div'),style=document.createElement('style');
+  clip.className='ct-visual-viewport';clip.style.cssText='position:relative;width:100%;height:100%;overflow:hidden;isolation:isolate;background:#000;pointer-events:none';
+  surface.className='ct-visual-surface';
+  surface.style.cssText='position:absolute;left:0;top:0;transform-origin:0 0;width:'+width+'px;height:'+height+'px;overflow:hidden;isolation:isolate;--barh:0px';
+  style.textContent='.ct-visual-surface > #stage,.ct-visual-surface > .crt{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;pointer-events:none!important}';
+  clip.appendChild(style);clip.appendChild(surface);
+  _visualMount={host:host,clip:clip,surface:surface,origin:stage.parentNode,layers:[],width:width,height:height,dpr:window.devicePixelRatio||1,stageDpr:live?DPR:null,panels:{},stageStyle:{width:stage.style.width,height:stage.style.height}};
+  if(live){
+    if(typeof _dmg!=='undefined'&&_dmg&&_dmg.vw)_visualMount.panels.dmg={width:_dmg.vw,height:_dmg.vh};
+    if(typeof _nes!=='undefined'&&_nes&&_nes.vw)_visualMount.panels.nes={width:_nes.vw,height:_nes.vh};
+  }
+  Array.from(document.querySelectorAll('#stage,.crt')).forEach(_visualLayer);
+  host.appendChild(clip);clip.hidden=!_visualEnabled;
+  // Station-change snow is chrome, not part of the visual world. Never carry
+  // its full-page overlay or inherited stage filters into composition.
+  clearTimeout(_trackTransitionTimer);
+  var transition=document.getElementById('track-transition');if(transition)transition.classList.remove('on');
+  document.body.classList.remove('track-transition');
+  if(typeof ResizeObserver!=='undefined'){
+    _visualMount.observer=new ResizeObserver(_fitVisualSurface);_visualMount.observer.observe(clip);
+  }
+  _fitVisualSurface();
+  // Establish the cold viewport before making a world; live output is retained.
+  if(!live){
+    [typeof _dmg!=='undefined'&&_dmg,typeof _nes!=='undefined'&&_nes].forEach(function(panel){
+      if(panel){panel._sizeDirty=true;if(panel.ready&&!panel._asleep)panel.resize();}
+    });
+    resize();
+  }
+  if(!selGame)showGame(_fallbackGameKey()||'random');
+  if(window.__rrrCrtBuild)window.__rrrCrtBuild();
+  _syncCreateRendering();return _visualSnapshot();
+}
+function _unmountVisual(){
+  var v=_visualMount;if(!v)return _visualSnapshot();
+  if(v.observer)v.observer.disconnect();
+  v.layers.forEach(function(r){if(r.marker.parentNode){r.marker.parentNode.replaceChild(r.node,r.marker);}});
+  var stage=document.getElementById('stage');stage.style.width=v.stageStyle.width;stage.style.height=v.stageStyle.height;
+  v.clip.remove();_visualMount=null;
+  // No scene reset, framebuffer resize, screen-mode change or audio handover.
+  _syncCreateRendering();return _visualSnapshot();
+}
 function _musicPresentationState(){
   if(!_musicWorkspaceOpen())return null;
   var state=Audio.musicVisualState&&Audio.musicVisualState();
@@ -69,13 +159,19 @@ function _syncCreateRendering(){
   if(on)_stopFrameLoop();else _scheduleFrameLoop();
   return on;
 }
-window.CT_CREATE_PRESENTATION=Object.freeze({setVisualizer:function(visible){
-  _musicPresentationEpoch++;
+window.CT_CREATE_PRESENTATION=Object.freeze({mount:_mountVisual,unmount:_unmountVisual,snapshot:_visualSnapshot,setScene:function(id){
+  if(id!=='off'&&!GAMES.some(function(g){return g.key===id&&!g.hiddenFromRandom;}))throw Error('Unknown visual scene');
+  _visualEnabled=id!=='off';
+  if(_visualEnabled){randomMode=false;if(!selGame||curGameKey!==id)showGame(id);}
+  if(_visualMount)_visualMount.clip.hidden=!_visualEnabled;
+  _syncCreateRendering();return _visualSnapshot();
+},setVisualizer:function(visible){
   visible=!!visible&&_musicWorkspaceOpen();
   document.body.classList.toggle('create-visualizer',visible);
   // Workspace owns transparency, panes and focus. The original stage stays in
   // place (and may remain inert); this API touches no player/project state.
   if(visible&&!selGame)showGame(_fallbackGameKey()||'random');
+  _fitVisualSurface();
   _syncCreateRendering();return visible;
 }});
 function _shouldBackgroundAudioOnly(){
@@ -86,6 +182,7 @@ function _shouldBackgroundAudioOnly(){
   // (Blur was never a reliable "background" signal anyway: touch devices, and any window with a playing
   // media element, report unfocused while fully visible.)
   if(document.hidden) return true;
+  if(_visualMount)return !_visualEnabled;
   if(_musicWorkspaceOpen())return !(CT_MUSIC_WORKSPACE.isVisualizerOpen&&CT_MUSIC_WORKSPACE.isVisualizerOpen());
   // The Create editor is an opaque full-screen takeover: simulating and painting the stage
   // beneath it is pure waste, and it visibly drags the editor's own frame rate down.
@@ -981,7 +1078,7 @@ function frame(now){
   }
   const U = _gameUnit(W, H);
   if(_reseatScene){ _reseatScene=false;                    // returned from a long background stint: rebuild the scene so it plays live (no fast-forward catch-up)
-    if(sceneKind==='game' && selGame){ try{ selState = selGame.make(fullArea(U), U, selVar); }catch(e){ selState = selState||{}; } } }
+    if(!musicPresentation&&sceneKind==='game' && selGame){ try{ selState = selGame.make(fullArea(U), U, selVar); }catch(e){ selState = selState||{}; } } }
   const silentWatch = !musicPresentation&&!!(_watchOnly && !_watchMicActive);
   const cur = musicPresentation?{bpm:musicPresentation.grid.bpm,sect:null}:(Audio.started && !silentWatch) ? Audio.current() : null;
   const bpm = cur?cur.bpm:120, sect = cur?cur.sect:'verse';
@@ -1191,6 +1288,14 @@ var _screenMode = (function(){
   _screenMix = true;
   return _tossScreen();
 })();
+function _nativePanelReady(panel){
+  if(panel!==_panel())return;
+  // Shader loading may finish after the stopped workspace's settling frames.
+  // Size once before drawing, then allow a few frames to present the ready
+  // panel. Do not reset the visual world or re-apply/sleep its screen mode.
+  panel._sizeDirty=true;panel.resize();resize();_pnlHold=3;
+  _syncCreateRendering();
+}
 function _applyScreenMode(){
   var stage = document.getElementById('stage');
   // Both of these used to be silent give-ups, and nothing ever came back to
@@ -1209,12 +1314,12 @@ function _applyScreenMode(){
     try{
       _dmg = new CT_DMG_SCREEN.DmgScreen(stage, {});
       if(!_dmg.ok){ _dmg = null; _screenMode='crt'; }
-      else { stage.parentNode.insertBefore(_dmg.canvas, stage.nextSibling);
-             _dmg.load().catch(function(e){
+      else { stage.parentNode.insertBefore(_dmg.canvas, stage.nextSibling);_visualLayer(_dmg.canvas);
+             _dmg.load().then(_nativePanelReady).catch(function(e){
                // Do not fail silently. This reverted the screen with no trace,
                // which is exactly how a broken shader path went unnoticed.
                try{ console.error('[chiptunes] Game Boy panel unavailable:', e && e.message || e); }catch(_){}
-               _dmg=null; _screenMode='crt'; _applyScreenMode();
+               _dmg=null;if(_screenMode==='dmg'){_screenMode='crt'; _applyScreenMode();}
                try{ if(window._syncGameBoyPill) window._syncGameBoyPill(); }catch(_){}
              }); }
     }catch(e){ _dmg = null; _screenMode = 'crt'; }
@@ -1226,10 +1331,10 @@ function _applyScreenMode(){
     try{
       _nes = new CT_NES_SCREEN.NesScreen(stage, {});
       if(!_nes.ok){ _nes = null; _screenMode='crt'; }
-      else { stage.parentNode.insertBefore(_nes.canvas, stage.nextSibling);
-             _nes.load().catch(function(e){
+      else { stage.parentNode.insertBefore(_nes.canvas, stage.nextSibling);_visualLayer(_nes.canvas);
+             _nes.load().then(_nativePanelReady).catch(function(e){
                try{ console.error('[chiptunes] NES panel unavailable:', e && e.message || e); }catch(_){}
-               _nes=null; _screenMode='crt'; _applyScreenMode();
+               _nes=null;if(_screenMode==='nes'){_screenMode='crt'; _applyScreenMode();}
                try{ if(window._syncGameBoyPill) window._syncGameBoyPill(); }catch(_){}
              }); }
     }catch(e){ _nes = null; _screenMode = 'crt'; }
@@ -1456,14 +1561,10 @@ function handleEscapeShortcut(ev){
     CT_LSDJ_NATIVE_EDITOR.close(); consumeKeyEvent(ev); return true; }
   if(ev && ev.key==='Escape' && !ev.metaKey && !ev.altKey && !ev.ctrlKey &&
      typeof CT_MUSIC_WORKSPACE!=='undefined' && CT_MUSIC_WORKSPACE.isOpen()){
-    // Native settings dialogs own Escape before the surrounding workspace.
-    // This document-capture handler runs before the workspace's modal handler.
-    if(document.querySelector('#musicworkspace dialog[open]'))return false;
-    if(CT_MUSIC_WORKSPACE.isVisualizerOpen&&CT_MUSIC_WORKSPACE.isVisualizerOpen())return false;
-    // CodeMirror gets first refusal for completion/search popovers. Unhandled
-    // Escape bubbles to the workspace, which still closes the modal normally.
-    if(ev.target&&ev.target.closest&&ev.target.closest('.cm-editor'))return false;
-    CT_MUSIC_WORKSPACE.close(); consumeKeyEvent(ev); return true; }
+    // The primary workspace owns Escape in its root (focus/chat/dialogs).
+    // Fullscreen can restore focus to body: that is not permission to close
+    // the composition. Leave browser fullscreen and native dialog handling intact.
+    return false; }
   if(!ev || ev.key!=='Escape' || shortcutTargetBlocked(ev) || ev.metaKey || ev.altKey || ev.ctrlKey) return false;
   if(typeof CT_CREATE!=='undefined' && CT_CREATE.isOpen()){
     // the editor's own panels close first; Escape only leaves once nothing is open
@@ -2183,23 +2284,18 @@ function _openCreate(blank){
   // whether it wanted it. Since the station is already playing this document,
   // opening the notes view usually needs to take nothing at all. The editor
   // calls enterCreate itself at the moment it actually takes the chip.
-  window._closeCreateReturn=function(){
-    if(_createStandalone){                       // the station has not played yet: start it now
+  window._closeCreateReturn=function(options){
+    _createEntryEpoch++;
+    _unmountVisual();
+    if(options&&options.listen===true){
       _createStandalone=false;
-      try{ _startEndlessRadio(); }catch(e){}
-      // ...and take the chip back off the editor. This branch returned before
-      // the playScore() below, so closing a cold-booted /create left the
-      // worklet holding the editor's song and the station came back SILENT --
-      // pause and play could not rescue it, because neither reposts a score.
-      try{ if(typeof Audio!=='undefined'&&Audio.playScore) Audio.playScore(); }catch(e){}
-      try{ _syncBackgroundAudioOnly(); }catch(e){}
-      return;
+      try{history.replaceState(null,'','/listen');}catch(e){}
+      _startEndlessRadio();
+      if(Audio.playScore)Audio.playScore();
+      resize();
     }
-    try{ if(typeof Audio!=='undefined'&&Audio.playScore) Audio.playScore(); }catch(e){}
-    // The frame loop parked itself while the editor was open (audio-only mode); nothing
-    // else recalls the sync on close, and the game restarts live rather than mid-stumble.
-    if(sceneKind==='game' && selGame && selState) _reseatScene=true;
-    try{ _syncBackgroundAudioOnly(); }catch(e){}
+    // Ordinary close/Escape is never permission to start or resume a station.
+    _syncCreateRendering();
   };
   // CLOSING A VIEW IS NOT A HANDOVER. When the editor never took the chip --
   // it was showing the song the station was already playing -- there is nothing
@@ -3222,7 +3318,7 @@ var LiveCtl = (function(){
     }
     try{ if(typeof Radio!=='undefined'&&Radio.setLive) Radio.setLive(true); }catch(e2){}
     if(!timer) timer=setInterval(tick, 1000);
-    try{ if(history.replaceState && !window.__RRR_BOOT_PLAYER_ROUTE) history.replaceState(null,'','/'+(typeof _routeQueryExtras==='function'?_routeQueryExtras():'')); }catch(e3){}
+    try{ if(history.replaceState && !window.__RRR_BOOT_PLAYER_ROUTE) history.replaceState(null,'',_generatedRoute()+(typeof _routeQueryExtras==='function'?_routeQueryExtras():'')); }catch(e3){}
     if(typeof _updatePlaybar==='function') _updatePlaybar();
     if(typeof _syncVisualChrome==='function') _syncVisualChrome();
     return true;
@@ -3548,7 +3644,7 @@ function _closeGameBoy(opts){
   document.body.classList.remove('gb-open');
   if(Audio.playScore) Audio.playScore();      // back to the composition, where it had got to
   _syncTryPill();
-  if(!opts.noRoute){ try{ if(history.pushState) history.pushState({},'','/'); }catch(e){} }
+  if(!opts.noRoute){ try{ if(history.pushState) history.pushState({},'',_generatedRoute()); }catch(e){} }
 }
 function _toggleGameBoyEmulator(){ if(_gbEmuOn) _closeGameBoy(); else _openGameBoy(); }
 // A cold load of /gameboy has no track yet: the station has to mint one first.
@@ -4085,12 +4181,13 @@ function setMediaMeta(){
     // baking it to the whole window put its vignette a bar's height too low
     var _bi=0;
     try{ _bi=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--barh'))||0; }catch(e){}
-    var w=window.innerWidth, h=Math.max(160, window.innerHeight-_bi);
+    var viewport=window.__ctVisualViewport&&window.__ctVisualViewport();
+    var w=viewport?viewport.width:window.innerWidth, h=viewport?viewport.height:Math.max(160, window.innerHeight-_bi);
     // The gain layer is a soft multiply mask over the whole window, composited
     // every frame -- at DPR 2 on a 1440p display that is five megapixels of
     // blending for a texture whose finest detail is a scanline. Capped at 1.5
     // it is indistinguishable and costs 44% fewer pixels.
-    var dpr=Math.min(1.5, window.devicePixelRatio||1);
+    var dpr=Math.min(1.5, viewport?viewport.dpr:(window.devicePixelRatio||1));
     var key=w+'x'+h+'@'+dpr+'#'+_RRR_SCANLINE_STRENGTH;
     if(key===_gainKey){ setMode(_mode==='legacy'?'legacy':'gain'); window.__rrrCrtReady=true; return; }
     window.__rrrCrtReady=false;
@@ -4115,6 +4212,7 @@ function setMediaMeta(){
         var vigEl=document.querySelector('.crt.vignette');
         if(vigEl && vigEl.parentNode) vigEl.parentNode.insertBefore(_gainCv, vigEl.nextSibling);
         else document.body.appendChild(_gainCv);
+        _visualLayer(_gainCv);
       }
       _gainCv.width=built.width; _gainCv.height=built.height;
       _gainCv.getContext('2d').drawImage(built,0,0);
@@ -4214,7 +4312,8 @@ function _pathParts(path){
 }
 function _generatedRoute(){
   var p=(location.pathname||'/');
-  return p==='/watch' ? p : '/';
+  if(_RRR_BROADCAST)return '/';
+  return p==='/watch' ? p : '/listen';
 }
 function _queryFlag(name){
   try{
@@ -4254,8 +4353,9 @@ function syncRoute(slug){
   var want = _generatedRoute() + _routeQueryExtras();
   if((location.pathname + (location.search||'')) !== want){ try{ history.replaceState(null,'',want); }catch(e){} }
 }
-window.addEventListener('popstate', ()=>{ if(!bootDone) return;
+window.addEventListener('popstate', ()=>{
   if(window._productRouteTo && _productRouteTo(location.pathname+location.search)) return; // / · /radio · /watch (+ legacy heads) are product routes, not track history
+  if(!bootDone)return;
   if(typeof Audio==='undefined' || !Audio.gotoTrack) return;
   var s=_readSlug(); if(s && s!==_curSlug){ _forkFromLive(); if(_watchOnly && typeof _exitWatchMode==='function') _exitWatchMode(); _trkHist=[s]; _trkI=0; Audio.gotoTrack(s); } });
 
@@ -4281,7 +4381,9 @@ function _onTrack(slug, gen){
 var _trackTransitionTimer=0;
 function _showTrackTransition(){
   var el=document.getElementById('track-transition'); if(!el || !document.body) return;
-  clearTimeout(_trackTransitionTimer); el.classList.remove('on'); void el.offsetWidth;
+  clearTimeout(_trackTransitionTimer); el.classList.remove('on');
+  if(_visualMount||_musicWorkspaceOpen()){document.body.classList.remove('track-transition');return;}
+  void el.offsetWidth;
   el.classList.add('on'); document.body.classList.add('track-transition');
   _trackTransitionTimer=setTimeout(function(){ el.classList.remove('on'); document.body.classList.remove('track-transition'); },310);
 }
@@ -4463,6 +4565,7 @@ function _resumePausedFromGesture(ev){
   return true;
 }
 function _firstGesture(ev){
+  if(_musicWorkspaceOpen()||(!_RRR_BROADCAST&&['','create'].includes(String(_pathParts(location.pathname)[0]||'').toLowerCase())))return;
   if(shortcutTargetBlocked(ev)) return;
   var intro=document.getElementById('intro');
   var awaitingChoice=!!(document.body && document.body.classList.contains('awaiting-mood'));
@@ -4924,12 +5027,13 @@ window.openProductHome=openProductHome;
 //  library/track routes. -----
 function _productRouteFromPath(path){
   var head=String(_pathParts(path)[0]||'').toLowerCase();
-  if(!head) return {mode:'radio'};                 // '/' IS the player now
+  if(!head) return {mode:_RRR_BROADCAST?'radio':'create'};
   if(head==='player') return {mode:'radio', legacy:true};
   if(head==='get') return {mode:'home'};
   if(head==='gameboy') return {mode:'gameboy'};
   if(head==='watch') return {mode:'watch'};
-  if(head==='listen'||head==='play'||head==='wip') return {mode:'radio', legacy:true};
+  if(head==='listen'||head==='radio')return {mode:'radio'};
+  if(head==='play'||head==='wip') return {mode:'radio', legacy:true};
   if(head==='create') return {mode:'create'};
   return null;
 }
@@ -4938,11 +5042,18 @@ window._productRouteTo=function(path, opts){
   var r=_productRouteFromPath(path);
   if(!r) return false;
   opts=Object.assign({replace:true}, opts||{});
-  if(r.legacy && typeof history!=='undefined' && history.replaceState){ try{ history.replaceState(null,'','/'); }catch(e){} }
+  if(r.legacy && typeof history!=='undefined' && history.replaceState){ try{ history.replaceState(null,'','/listen'); }catch(e){} }
+  var closedWorkspace=r.mode!=='create'&&_musicWorkspaceOpen();
+  if(closedWorkspace){
+    // Close may restore its prior URL; the requested route remains authoritative.
+    var target=location.pathname+location.search+location.hash;
+    CT_MUSIC_WORKSPACE.close();
+    try{history.replaceState(null,'',target);}catch(e){}
+  }
   if(r.mode==='gameboy'){ _startEndlessRadio(); _openGameBoyWhenReady(); return true; }
   if(r.mode==='create'){ _createStandalone=true; _openCreate(); return true; }
   if(r.mode==='radio'&&_readSharedDoc()){_createStandalone=true;_openCreate();return true;}
-  if(r.mode==='radio'){ _startEndlessRadio(); return true; }
+  if(r.mode==='radio'){ _startEndlessRadio(); if(closedWorkspace&&Audio.playScore)Audio.playScore(); return true; }
   if(r.mode==='watch'){ enterWatchMode({noRoute:true}); return true; }
   openProductHome(Object.assign({noRoute:true}, opts));   // already ON /get; do not push it again
   return true;
@@ -5022,14 +5133,14 @@ if(String(_pathParts(location.pathname||'/')[0]||'').toLowerCase()==='get') buil
 (function(){
   var head=String(_pathParts(location.pathname||'/')[0]||'').toLowerCase();
   // 'create' left this retired-routes list 2026-08-26: it is the editor now
-  if(head==='player'||head==='listen'||head==='play'||head==='wip'){
-    if(typeof history!=='undefined' && history.replaceState){ try{ history.replaceState(null,'','/'); }catch(e){} }
-    head='';
+  if(head==='player'||head==='play'||head==='wip'){
+    if(typeof history!=='undefined' && history.replaceState){ try{ history.replaceState(null,'','/listen'); }catch(e){} }
+    head='listen';
   }
   if(head==='gameboy'){ if(document.body) document.body.classList.add('ai-visual');
     startAudio(false); _openGameBoyWhenReady(); return; }
   // Shared documents belong to composition, before radio boot can play them.
-  if(head==='create'||(head===''&&_readSharedDoc())){ if(document.body) document.body.classList.add('ai-visual');
+  if(head==='create'||(head===''&&!_RRR_BROADCAST)||((head==='listen'||head==='radio')&&_readSharedDoc())){ if(document.body) document.body.classList.add('ai-visual');
     document.body.classList.add('create-open');
     _createStandalone=true; _openCreate(); return; }
   if(head==='get') return;                                       // the platform page; #intro is already up
@@ -5040,7 +5151,7 @@ if(String(_pathParts(location.pathname||'/')[0]||'').toLowerCase()==='get') buil
   // no-gesture path reveals the game immediately and arms the first tap to
   // start the sound, which is the same thing a shared /track link has always
   // done -- so autoplay policy costs a tap, not the whole experience.
-  if(head===''){
+  if(head===''||head==='listen'||head==='radio'){
     if(document.body) document.body.classList.add('ai-visual');
     startAudio(false);                                           // holds for a choice; sound arms when the visitor starts something
   }

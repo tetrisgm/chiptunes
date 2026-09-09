@@ -3,6 +3,99 @@
 Plain, current working notes for whoever (or whatever) picks the project up
 next. Infrastructure and operations live outside this repository.
 
+## 2026-09-09 — Music-first entry and persistent visual stage (local checkpoint)
+
+Phase B of algorave-stage-plan.md is implemented. Root and /create enter the
+stopped/recovered music workspace; /listen is the explicit listening path.
+Code/notes, a resizable 62/38 creative split and a landscape visual stage are
+present together. Chat is a separate sidebar at >=1500px and a collapsible drawer
+below it. Below 980px music and a compact 16:9 stage stack. Focus visuals and
+stage-only fullscreen keep the same canvas/world. There is no new visual-code
+editor, Hydra dependency or audience window in this checkpoint.
+
+runtime.js owns CT_CREATE_PRESENTATION mount/unmount/snapshot/setScene. It moves
+the existing stage plus CRT/DMG/NES/gain layers into a fixed internal surface,
+scales that surface into the UI, and restores original layer positions on exit.
+Cold output is 960x540; docking existing live output retains its prior dimensions.
+Resize/chat/fullscreen do not reallocate the simulation/native feedback buffers.
+Off suppresses visual rendering only; selecting the same scene retains its world.
+The fixed fourteen-scene roster and deterministic music pipeline are unchanged.
+Late native shader readiness gets settling frames, not a world reset. A pending
+station snow transition cannot leak onto the composition output.
+
+Ordinary Close/Escape does not start a station. The cleanup callback still runs
+with empty options to invalidate late entry work; only explicit listen:true
+authorizes station playback. Full-root testing found station route writes in
+LiveCtl.join, Game Boy close, legacy Create close and the WebMCP demo; these now
+use the explicit listening route while retaining broadcast root and /watch.
+The pre-runtime /player redirect also targets /listen, and cold composition hides
+the legacy mood wall before paint. Radio regression fixtures use /listen without
+dropping their audio, export or compatibility assertions.
+
+Stronger real-UI handover coverage found an actual cold Listen bug: successful
+startTrackAtOffset left _holdForPick set, so the next Pause selected a new song
+instead. A successful compiled join now clears that flag; failed/empty joins
+still retain it. Final full handover passes (85506), including owned-chip legacy
+Close silence, explicit Listen pause/resume, and pure-following Close retaining
+the exact already-playing document and forward position without reposting it.
+
+Final local artifact: app.d1add928e23d.js / Music a5e7a94fb4e7 (114 sources,
+2,468,341 JS bytes, 229,731 HTML bytes, 14 games). It follows app.89d2857c321e.js
+only by relocating incoming-project consent outside the collapsible chat and
+bounding its height. The consent remains explicit, independently visible and
+excluded from visual-focus/fullscreen output; no transfer protocol changed.
+
+The project's complete test command list was exercised in resumed, ordered
+segments after the route/fixture fixes, not one uninterrupted green npm test
+invocation. Early automation/APU/ROM/document/rhythm/entry/export gates passed;
+final89 generated transitions, sync, Chrome, responsive/readability, API/language,
+LSDj structural, WebMCP, latency, GPU screens and fourteen-game smoke/audit passed.
+The music compiler/project/live/export/chat/editor/agent checks passed; the last
+connection fixture was corrected to open the narrow-desktop drawer before
+Settings, and then passed its isolated auth/database/browser cases (76736).
+Private-ROM/harness-dependent LSDj cases reported their existing skips, not
+verification of missing copyrighted ROMs.
+
+On finald1, project handoff plus the full unified aggregate exited zero (3028):
+source/editor/inline/preview/pitch/chart/chat/presentation/layout/workflow and
+stage acceptance all passed. Stage adapter 13/13 includes actual prepaint route
+and successful/failed join handling. Real Chromium CRT/DMG/NES acceptance passed
+3/3 with non-flat pixels, one AudioContext, stable canvas/world/native feedback
+allocations and no incidental audio/provider commands across resizing, chat,
+focus, fullscreen and Off. Gateway 77/77 passed before the route-only fixes.
+Final89 render parity passed 10/10 (27121), minimum correlation 1.000000,
+maximum absolute RMS delta 0.175 dB; finald1 changes no audio/composer code.
+
+verify-diversity previously sampled unrecorded random tokens and failed one
+free-composition draw at 22/30 distinct opening rhythms (floor 23). Its free,
+scene and mood fixtures now use stable SHA-256-derived diversity-v1 tokens;
+no threshold or production composition changed and no candidates were selected.
+The fixed corpus passes (25/30 free rhythms) and can be reproduced on a failure.
+The ribbon pixel test also uses a known arrangement and waits for actual output
+before measuring progression, rather than assuming a baked strip proves playback.
+
+Native local Safari visibly showed Music c08ec19abe2a, code/notes/stage/chat
+together, stopped initial entry, Run into playback, keyboard splitter 62->57,
+stage-only fullscreen with no private UI, Escape back to the running composition,
+and Stop. It was a native local check, not deployed acceptance, physical trackpad
+coverage, or subjective audio listening. A second native local check on final
+Music f2162e2cc5c5 verified stopped combined entry, cold Listen to /listen, Pause
+retaining Crystal Swamp Mission at 1:02 across observations, then resumed station
+progression. Final Music a5e7a94fb4e7 also visibly verified stopped combined entry,
+Run into progressing code/chart/stage playback, then Stop. The owned Safari test
+tabs and loopback servers were closed; unrelated tabs/server work were left alone.
+All delegated agents are closed. No paid provider call, deployment, configuration
+cutover, desktop restart or broadcast restart occurred.
+
+Tidal remains the primary musical guide. unified-create-plan.md now records the
+bounded cycle-constructor proposal and a correction: positive Euclidean rotation
+shifts left, (3,8)=10010010 and (3,8,1)=00100101. This is still proposed compiler
+work, not accepted new syntax. Remaining goal work is Phases C–F: stable measured/
+semantic signal separation and onset identities; safe visual evaluation and
+scenes/controls; audiovisual persistence and independent audience output; source
+controls/Tidal semantics and the full performance/acceptance exercise. The goal
+is active; this checkpoint is not completion of the whole requested application.
+
 ## 2026-09-09 — Active goal changed: algorave first, games as visual output
 
 The owner edited the active goal and supplied the visual-stage design brief at

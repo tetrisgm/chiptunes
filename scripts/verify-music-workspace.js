@@ -20,7 +20,7 @@ async function run(){
  await new Promise(r=>server.listen(0,'127.0.0.1',r));
  const browser=await chromium.launch({headless:true,args:['--autoplay-policy=no-user-gesture-required']});
  try{
-  const context=await browser.newContext({viewport:{width:1280,height:900},acceptDownloads:true,permissions:['clipboard-read','clipboard-write']});
+  const context=await browser.newContext({viewport:{width:1800,height:900},acceptDownloads:true,permissions:['clipboard-read','clipboard-write']});
   await fixtureChatAccess(context);
   const page=await context.newPage(),errors=[];
   page.on('pageerror',e=>{errors.push(e.message);console.error('browser:',e.message);});
@@ -115,7 +115,7 @@ async function run(){
   assert(await page.locator('.mcui textarea').isVisible(),'mobile chat drawer is reachable');
   assert.equal(await page.locator('.mw-main').isVisible(),true,'mobile drawer preserves composition underneath');
   await page.screenshot({path:path.join(tmp,'phone.png')});
-  await page.setViewportSize({width:1280,height:900});
+  await page.setViewportSize({width:1800,height:900});
   await page.click('#musicworkspace .cm-content');
   const small='song({tempo:128,bars:4})\n'+
     'instruments([[128,240,0,0]]);\n'+
@@ -168,10 +168,24 @@ async function run(){
   await other.click('#musicworkspace [data-action=save]');
   assert((await other.evaluate(()=>JSON.parse(localStorage.getItem('ct-music-workspace-v1')).draft)).endsWith('// first tab owns this change'),'conflicting tab never overwrites saved source');
   await other.close();
-  await page.click('#musicworkspace [data-action=close]');
+  await page.evaluate(()=>{
+    const handback=window._closeCreateReturn;window.workspaceHandbacks=[];window.workspaceStationPlays=0;
+    window._closeCreateReturn=function(options){workspaceHandbacks.push(structuredClone(options));return handback.call(this,options);};
+    const playScore=Audio.playScore;
+    Audio.playScore=function(...args){workspaceStationPlays++;return playScore.apply(this,args);};
+    CT_MUSIC_WORKSPACE.close();
+  });
+  assert.deepEqual(await page.evaluate(()=>workspaceHandbacks),[{}],'plain close invokes runtime cleanup without Listen authority');
+  assert.equal(await page.evaluate(()=>workspaceStationPlays),0,'plain close does not start station playback');
+  assert.equal(await page.evaluate(()=>CT_MUSIC_WORKSPACE.isOpen()),false,'plain close releases workspace UI');
+  await page.evaluate(()=>CT_MUSIC_WORKSPACE.open());
+  assert.equal(await page.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot().playing),null,'reopening remains stopped');
+  await page.click('#musicworkspace [data-action=listen]');
+  assert.deepEqual(await page.evaluate(()=>workspaceHandbacks),[{}, {listen:true}],'Listen explicitly requests station handback');
+  assert.equal(await page.evaluate(()=>workspaceStationPlays),1,'Listen explicitly starts station playback once');
   await page.waitForFunction(()=>Audio.chipDiag().owner==='radio');
   await page.waitForFunction(()=>window.__rrrChip&&window.__rrrChip.peak>0.001);
-  assert.equal(await page.evaluate(()=>CT_MUSIC_WORKSPACE.isOpen()),false,'leaving Create releases workspace ownership');
+  assert.equal(await page.evaluate(()=>CT_MUSIC_WORKSPACE.isOpen()),false,'Listen releases workspace ownership');
   assert.deepEqual(errors,[],'no runtime errors');
   console.log('workspace: integration passed; screenshots '+tmp);
  }catch(error){

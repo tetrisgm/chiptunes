@@ -29,9 +29,9 @@ them displace this main workflow. No autoplay or compulsory second visual progra
 - 6d87aaa / 11c16ef already provide accurate source spans, pitch rows, inline
   rolls, shared preview/Run, collapsible conversation and optional presentation.
   Reuse these; do not build another editor or chat workspace.
-- The current presentation is a fullscreen swap: music-workspace.js hides its
-  panes, and runtime.js stops drawing when that swap is closed. It does not yet
-  provide simultaneous music/notes/stage.
+- The earlier presentation was a fullscreen swap. Phase B now mounts the same
+  renderer beside music/notes; visual focus and stage-only fullscreen are layout
+  changes. This is not yet a separate audience window or visual-code renderer.
 - Audio.musicVisualState reads acknowledged music transport and native schedule
   events. Its current role bands are semantic note-strength estimates, and its
   spectrum/waveform arrays are empty. Do not label these FFT measurements.
@@ -77,7 +77,7 @@ one rendered feedback world when mirroring; do not assume two renderers agree.
 - [x] Read the owner's new brief and supersede the prior priority order.
 - [x] Preserve the tested code/chart/agent foundation and repo handoff.
 - [x] Complete concrete entry/layout, visual-host, signal and persistence audits.
-- [ ] Specify stage/session/renderer interfaces and their ownership before
+- [x] Specify stage/session/renderer interfaces and their ownership before
   changing canvas parents, routing or saved project versions.
 
 Gate: named existing owners for music source, acknowledged time, scene state,
@@ -92,20 +92,56 @@ must both change before promising portable scene state; arbitrary extra fields
 are currently discarded. The first slice will reuse game visuals and expose
 their current scheduled-signal limits, not advertise lossless emitted onsets.
 
+First-slice interface contract: music-workspace.js owns the host, panel geometry,
+focus and Compose/visual-focus presentation. runtime.js owns the one visual
+world, canvas/layer attachment and scene selection through
+`CT_CREATE_PRESENTATION.mount(host)`, `unmount()`, `snapshot()` and
+`setScene(id | 'off')`. A snapshot reports mounted/enabled state, selected scene,
+the fixed roster and stable output dimensions. Off suspends visual rendering,
+not music, and retains the selected world. A fixed-size internal surface is
+scaled/letterboxed into its host: splitter/chat/fullscreen changes do not resize
+simulation or feedback buffers. Existing native/CRT output layers travel with
+the canvas and return to their original parents when leaving composition.
+
+Audio remains the authority for acknowledged musical time. Stage operations
+never call music play, pause, resume, queue or composition. An explicit Listen
+action may hand back to the existing listening route; ordinary close/Escape
+must not start a station. Layout preferences are local UI state, not musical
+source or portable scene state. Audience windows and visual-project serialization
+remain separate later gates, not claims made by mounting the stage.
+
+Tidal guide checked again on 2026-09-09: adopt its small, composable patterns and
+live transformation workflow, not a second Haskell/SuperDirt backend. The bounded
+Chiptunes dialect must name its supported subset and keep cycles distinct from
+bars. The [official introduction](https://tidalcycles.org/docs/) motivates the
+workflow; compatibility is established only by our compiler tests.
+
 ### B. First vertical slice: music-first entry and simultaneous stage
 
-- [ ] Make the public entry prioritize code or agent composition; preserve
+- [x] Make the public entry prioritize code or agent composition; preserve
   explicit existing listening/song-link routes and browser recovery.
-- [ ] Introduce the resizable music/stage split with a landscape live preview,
+- [x] Introduce the resizable music/stage split with a landscape live preview,
   initially reusing the existing renderer/game visuals behind a stage adapter.
-- [ ] Keep code, notes and stage visible together; chat stays collapsible.
-- [ ] Preserve renderer identity and music phase across resizing, mode changes,
-  chat collapse, visual-code disclosure and return from Perform.
-- [ ] Separate scene selection from the choice to compose or play a song.
+- [x] Keep code, notes and stage visible together; chat stays collapsible.
+- [x] Preserve renderer identity and music phase across resizing, chat collapse,
+  visual focus and return from stage-only fullscreen. Visual-code disclosure is
+  still a Phase D acceptance check, not an implemented control.
+- [x] Separate scene selection from the choice to compose or play a song.
 
 Gate: a fresh or saved pattern starts one player, drives the already-configured
 stage and remains editable beside it. No mood/game setup wall or navigation to
 another composition workspace. Verify desktop, narrow and mobile layouts.
+
+Local Phase B acceptance: real Chromium checks pass for CRT/DMG/NES, fixed
+simulation/canvas/feedback allocations, one AudioContext, Off/same-scene restore,
+desktop split, narrow/mobile stacking and stage-only fullscreen. Native local
+Safari on Music c08ec19abe2a visibly verified the combined layout, Run, keyboard
+split resize and fullscreen/Escape while playback continued. These are local
+checks, not deployed native acceptance or hidden-editor audience output.
+The final route/transport build (Music f2162e2cc5c5) additionally passed native
+local stopped entry, cold Listen, Pause retaining track/position, and resume.
+The consent-layout-only successor (Music a5e7a94fb4e7) passed the complete unified
+aggregate, all three renderer modes and native local stopped entry/Run/Stop.
 
 ### C. Shared musical signals and safe renderer evaluation
 
@@ -127,6 +163,28 @@ Gate: one known note drives a predictable visual event through tempo changes and
 live replacement. Drafts never emit events. A runaway/rejected visual program
 cannot be called isolated merely because it is wrapped in try/catch.
 
+Implementation notes for this next slice: retain native note indices in the
+sequencer schedule and observe executed triggers/continuations/register writes,
+not a reconstructed rolling window. Batch scalar observations from the processor
+with activation, revision, seek/loop discontinuity, sequence and audio-context
+time. The page validates identity before publishing to independent bounded
+readers with explicit overflow. Observation must leave PCM byte-identical.
+Master analysis attaches to the existing output and has its own bounded sampling
+rate; it never requests microphone access or creates another AudioContext.
+
+Hydra source preflight (not an adoption/performance test) inspected upstream
+commit `9d29a9f4fd8f9081b9759943f38db36f05b9a88f`, manifest 1.4.0. It carries
+AGPL licensing, while this project is MIT; distribution needs deliberate license
+review before incorporation. Stock construction also initializes Array prototype
+helpers and an eval-based sandbox even with `makeGlobal:false`. Direct embedding
+therefore does not satisfy the planned application-realm boundary. No Hydra
+dependency or upstream code was installed. Keep the adapter boundary; compare a
+small bounded native visual language with an explicitly adapted/isolated Hydra
+spike before choosing. Do not label either GPU-safe without measured budgets.
+Sources: [upstream manifest](https://github.com/hydra-synth/hydra-synth/blob/9d29a9f4fd8f9081b9759943f38db36f05b9a88f/package.json),
+[constructor](https://github.com/hydra-synth/hydra-synth/blob/9d29a9f4fd8f9081b9759943f38db36f05b9a88f/src/hydra-synth.js),
+[sandbox](https://github.com/hydra-synth/hydra-synth/blob/9d29a9f4fd8f9081b9759943f38db36f05b9a88f/src/lib/sandbox.js).
+
 ### D. Scenes, visual code and performance controls
 
 - [ ] Provide a small strong collection of editable scenes suitable for the
@@ -136,6 +194,7 @@ cannot be called isolated merely because it is wrapped in try/catch.
   change declared saved parameter values, not secretly rewrite visual source.
 - [ ] Add optional visual code with explicit Apply and last-working retention
   on recoverable parser/shader errors; music continues unaffected.
+  Opening/closing the visual editor must retain the running visual world.
 - [ ] Support immediate or selected-boundary scene activation, visible queued
   scene/time and cancellation. Define pause/seek/revision behavior explicitly.
 - [ ] Implement distinct Stop music, Freeze visuals, Blackout output, Reset visual

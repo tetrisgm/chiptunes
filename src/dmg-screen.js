@@ -295,15 +295,16 @@ var BLIT_FS = '#version 300 es\nprecision highp float;in vec2 v;out vec4 o;unifo
     // synchronous layout. _watchSize sets the flag when the box really changes.
     if (this._ro && !this._sizeDirty) return;
     this._sizeDirty = false;
-    var dpr = Math.min(1.5, (G.devicePixelRatio || 1));
+    var viewport = G.__ctVisualViewport && G.__ctVisualViewport('dmg');
+    var dpr = Math.min(1.5, viewport ? viewport.dpr : (G.devicePixelRatio || 1));
     // Keep the full-screen shader chain below roughly two million output
     // fragments per pass. Above that point the extra pixels are display
     // oversampling, not recoverable Game Boy detail, and Safari pays for all
     // of them on every pass.
-    var maxPx = 2000000, px = (G.innerWidth || 1) * (G.innerHeight || 1) * dpr * dpr;
+    var maxPx = 2000000, px = (viewport ? viewport.width : (G.innerWidth || 1)) * (viewport ? viewport.height : (G.innerHeight || 1)) * dpr * dpr;
     if (px > maxPx) dpr *= Math.sqrt(maxPx / px);
-    var w = Math.max(1, Math.round((this.canvas.clientWidth || G.innerWidth || 1) * dpr));
-    var h = Math.max(1, Math.round((this.canvas.clientHeight || G.innerHeight || 1) * dpr));
+    var w = viewport && viewport.outputWidth || Math.max(1, Math.round((viewport ? viewport.width : (this.canvas.clientWidth || G.innerWidth || 1)) * dpr));
+    var h = viewport && viewport.outputHeight || Math.max(1, Math.round((viewport ? viewport.height : (this.canvas.clientHeight || G.innerHeight || 1)) * dpr));
     if (this.vw === w && this.vh === h) return;
     this.vw = w; this.vh = h;
     this.canvas.width = w; this.canvas.height = h;

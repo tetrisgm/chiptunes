@@ -26,13 +26,13 @@ async function peak(page,ms,untilAudible=false){
     const context=await browser.newContext({viewport:{width:1440,height:900},permissions:['clipboard-read','clipboard-write']});
     const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));return page;
   }
-  async function openShared(url,expected,label,expectedSource){
+  async function openShared(url,expected,label,expectedSource,expectedPath='/create'){
     const page=await newPage();
     try{
       await page.goto(url,{waitUntil:'domcontentloaded'});
       await page.waitForFunction(()=>window.CT_MUSIC_WORKSPACE?.isOpen()&&CT_MUSIC_WORKSPACE.snapshot()?.validated,null,{timeout:40000});
       const state=await page.evaluate(()=>({snapshot:CT_MUSIC_WORKSPACE.snapshot(),path:location.pathname,legacy:!!document.querySelector('#createscreen.show')}));
-      assert.equal(state.path,'/create',label+' uses canonical Create');assert.equal(state.legacy,false,label+' does not mount legacy editor');
+      assert.equal(state.path,expectedPath,label+' uses the intended composition route');assert.equal(state.legacy,false,label+' does not mount legacy editor');
       assert.deepEqual(state.snapshot.validated.compiled.gb,expected.gb,label+' preserves entire exact score');
       assert.equal(state.snapshot.validated.compiled.settings.title,expected.title,label+' preserves title');
       if(expectedSource!==undefined)assert.equal(state.snapshot.draft,expectedSource,label+' preserves authored source and comments');
@@ -50,7 +50,7 @@ async function peak(page,ms,untilAudible=false){
     }finally{await page.context().close();}
   }
   try{
-    const station=await newPage();await station.goto(origin+'/',{waitUntil:'domcontentloaded'});
+    const station=await newPage();await station.goto(origin+'/listen',{waitUntil:'domcontentloaded'});
     await station.locator('#rmoods .rmood[data-mood="chill"]').click();
     await station.waitForFunction(()=>Audio.currentDoc?.()&&Audio.currentScore?.()?.gb?.notes?.length,null,{timeout:30000});
     assert((await peak(station,20000,true))>.02,'station original is audible');
@@ -70,8 +70,8 @@ async function peak(page,ms,untilAudible=false){
     }
     assert.match(link,/\/#s=z/,'radio Share copies a compressed document');
     await station.context().close();
-    await openShared(link.replace(/^https?:\/\/[^/]+/,origin),sent,'radio compressed share');
-    await openShared(origin+'/#s=r'+sent.code,sent,'raw document share');
+    await openShared(link.replace(/^https?:\/\/[^/]+/,origin),sent,'radio compressed share',undefined,'/');
+    await openShared(origin+'/#s=r'+sent.code,sent,'raw document share',undefined,'/');
     await openShared(origin+'/create#s='+sent.code,sent,'legacy bare document share');
     const editor=await newPage();await editor.goto(origin+'/create',{waitUntil:'domcontentloaded'});
     await editor.waitForFunction(()=>window.CT_MUSIC_WORKSPACE?.isOpen(),null,{timeout:40000});

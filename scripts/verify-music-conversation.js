@@ -12,7 +12,7 @@ async function main(){
   const browser=await chromium.launch({headless:true});
   const calls=[],errors=[];let held,hold=false;
   try{
-    const context=await browser.newContext({viewport:{width:1440,height:1000},acceptDownloads:true,permissions:['clipboard-read','clipboard-write']});
+    const context=await browser.newContext({viewport:{width:1800,height:1000},acceptDownloads:true,permissions:['clipboard-read','clipboard-write']});
     await context.setOffline(true);
     await context.route('**/*',async route=>{
       const request=route.request(),url=new URL(request.url());

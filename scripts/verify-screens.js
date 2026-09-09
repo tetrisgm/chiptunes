@@ -97,7 +97,7 @@ const SNAP = `(() => {
   console.log('  renderer: ' + renderer);
   ok(!/SwiftShader/i.test(renderer), 'measuring on a real GPU, not SwiftShader');
 
-  await p.goto(`http://127.0.0.1:${h.port}/`, { waitUntil: 'domcontentloaded' });
+  await p.goto(`http://127.0.0.1:${h.port}/listen`, { waitUntil: 'domcontentloaded' });
   await wait(3000);
   await p.evaluate(() => { const x = [...document.querySelectorAll('.rmood')].find(y => y.textContent === 'chill'); if (x) x.click(); });
   await p.waitForFunction(() => !document.querySelector('.rmood.busy'), null, { timeout: 30000 });
@@ -153,7 +153,7 @@ const SNAP = `(() => {
   {
     const p2 = await b.newPage({ viewport: { width: 1200, height: 820 } });
     const e2 = []; p2.on('pageerror', e => e2.push(String(e).slice(0, 160)));
-    await p2.goto(`http://127.0.0.1:${h.port}/`, { waitUntil: 'domcontentloaded' });
+    await p2.goto(`http://127.0.0.1:${h.port}/listen`, { waitUntil: 'domcontentloaded' });
     await wait(2200);
     const FACES = ['crt', 'dmg', 'nes'];
     // force the next toss to land on `face`, tap a mood, report what happened
@@ -199,7 +199,7 @@ const SNAP = `(() => {
     for (const [eng, launcher] of [['webkit', webkit], ['chromium', chromium]]) {
       const eb = await launcher.launch();
       const ep = await eb.newPage({ viewport: { width: 900, height: 700 } });
-      await ep.goto(`http://127.0.0.1:${h.port}/?screen=crt`, { waitUntil: 'domcontentloaded' });
+      await ep.goto(`http://127.0.0.1:${h.port}/listen?screen=crt`, { waitUntil: 'domcontentloaded' });
       await wait(3500);
       const d = await ep.evaluate(() => {
         const diag = window.__rrrCrtDiag ? window.__rrrCrtDiag() : null;

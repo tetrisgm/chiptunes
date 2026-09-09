@@ -295,14 +295,15 @@
     // synchronous layout. _watchSize sets the flag when the box really changes.
     if (this._ro && !this._sizeDirty) return;
     this._sizeDirty = false;
-    var dpr = Math.min(1.5, (G.devicePixelRatio || 1));
+    var viewport = G.__ctVisualViewport && G.__ctVisualViewport('nes');
+    var dpr = Math.min(1.5, viewport ? viewport.dpr : (G.devicePixelRatio || 1));
     // The console signal cannot carry detail beyond this output budget, while
     // every CRT pass still pays for each pixel. Bound the full-screen chain so
     // high-DPI Safari does not rasterize display oversampling indefinitely.
-    var maxPx = 2000000, px = (G.innerWidth || 1) * (G.innerHeight || 1) * dpr * dpr;
+    var maxPx = 2000000, px = (viewport ? viewport.width : (G.innerWidth || 1)) * (viewport ? viewport.height : (G.innerHeight || 1)) * dpr * dpr;
     if (px > maxPx) dpr *= Math.sqrt(maxPx / px);
-    var w = Math.max(1, Math.round((this.canvas.clientWidth || G.innerWidth || 1) * dpr));
-    var h = Math.max(1, Math.round((this.canvas.clientHeight || G.innerHeight || 1) * dpr));
+    var w = viewport && viewport.outputWidth || Math.max(1, Math.round((viewport ? viewport.width : (this.canvas.clientWidth || G.innerWidth || 1)) * dpr));
+    var h = viewport && viewport.outputHeight || Math.max(1, Math.round((viewport ? viewport.height : (this.canvas.clientHeight || G.innerHeight || 1)) * dpr));
     if (this.vw === w && this.vh === h) return;
     this.vw = w; this.vh = h;
     this.canvas.width = w; this.canvas.height = h;

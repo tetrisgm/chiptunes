@@ -590,7 +590,7 @@ function mcp(messages) {
       value: { registerTool: t => window.__registered.push(t.name) }
     });
   });
-  await p.goto(`http://127.0.0.1:${h.port}/`, { waitUntil: 'domcontentloaded' });
+  await p.goto(`http://127.0.0.1:${h.port}/listen`, { waitUntil: 'domcontentloaded' });
   await wait(2500);
   const page = await p.evaluate(() => ({
     present: typeof window.chiptunes === 'object',

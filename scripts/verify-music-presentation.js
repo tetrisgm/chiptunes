@@ -61,27 +61,65 @@ test('real source processor acknowledgements drive finite end without presentati
   assert.equal(f.read().status,'ended');assert.equal(f.read().frame,2);assert.equal(f.read().paused,true);
 });
 function renderingFixture(){
-  const classes=()=>({values:new Set(),toggle(name,on){if(on)this.values.add(name);else this.values.delete(name);},contains(name){return this.values.has(name);}});
-  let open=true,visible=false,frames=0,stops=0,games=0;
-  const s={document:{hidden:false,body:{classList:classes()},documentElement:{classList:classes()}},window:{},
+  const classes=()=>({values:new Set(),toggle(name,on){if(on)this.values.add(name);else this.values.delete(name);},remove(name){this.values.delete(name);},contains(name){return this.values.has(name);}});
+  let open=true,visible=false,frames=0,stops=0,games=0,resizes=0,observer;
+  // Minimal DOM ownership adapter only. Pixel/geometry/backbuffer verification
+  // lives in verify-music-visual-stage against the real renderer, not these stubs.
+  const document={hidden:false};
+  function node(type=1){return {nodeType:type,ownerDocument:document,children:[],style:{},classList:classes(),clientWidth:620,clientHeight:349,
+    get previousSibling(){return this.parentNode?.children[this.parentNode.children.indexOf(this)-1]||null;},
+    get nextSibling(){return this.parentNode?.children[this.parentNode.children.indexOf(this)+1]||null;},
+    appendChild(child){child.remove();this.children.push(child);child.parentNode=this;return child;},
+    insertBefore(child,next){child.remove();const i=this.children.indexOf(next);this.children.splice(i<0?this.children.length:i,0,child);child.parentNode=this;},
+    replaceChild(child,old){this.insertBefore(child,old);old.remove();},
+    contains(child){return child===this||this.children.some(n=>n.contains(child));},
+    remove(){if(this.parentNode){const a=this.parentNode.children;a.splice(a.indexOf(this),1);this.parentNode=null;}}};}
+  document.body=node();document.documentElement=node();document.createElement=()=>node();document.createComment=()=>node(8);
+  const stage=node(),crt=node(),host=node();stage.style.width='960px';stage.style.height='540px';
+  document.body.appendChild(stage);document.body.appendChild(crt);document.body.appendChild(host);
+  document.getElementById=id=>id==='stage'?stage:null;document.querySelectorAll=()=>[stage,crt];
+  const s={document,window:{devicePixelRatio:1},
+    // Cold browser state: no pending station-transition timer to cancel.
+    clearTimeout,_trackTransitionTimer:0,
     CT_MUSIC_WORKSPACE:{isOpen:()=>open,isVisualizerOpen:()=>visible},CT_CREATE:{isOpen:()=>false},
-    Audio:new Proxy({musicVisualState:()=>null},{get(target,key){if(key in target)return target[key];return ()=>{throw Error('Audio mutation/read outside music bridge: '+key);};}}),
-    selGame:null,_bgAudioOnly:false,lastFrame:1,_nowMs:()=>10,
+    Audio:new Proxy({started:false,musicVisualState:()=>null},{get(target,key){if(key in target)return target[key];return ()=>{throw Error('Audio mutation/read outside music bridge: '+key);};}}),
+    selGame:null,selState:null,curGameKey:'',randomMode:false,W:960,H:540,GAMES:[{key:'platformer',name:'Platformer'},{key:'maze',name:'Maze'}],
+    _bgAudioOnly:false,lastFrame:1,_nowMs:()=>10,resize:()=>{resizes++;},
+    ResizeObserver:class{constructor(callback){observer=this;this.callback=callback;}observe(){}disconnect(){this.disconnected=true;}},
     _stopFrameLoop:()=>{stops++;},_scheduleFrameLoop:()=>{frames++;},_fallbackGameKey:()=> 'platformer',
-    showGame:key=>{games++;s.selGame={key};},_publishAudioOnlyMode:()=>{throw Error('Must not publish audio mode');}};
+    showGame:key=>{games++;s.curGameKey=key;s.selGame={key};s.selState={phase:42};},_publishAudioOnlyMode:()=>{throw Error('Must not publish audio mode');}};
   vm.createContext(s);
   vm.runInContext(runtime.slice(runtime.indexOf('function _musicWorkspaceOpen()'),runtime.indexOf("if(typeof window!=='undefined') window._backgroundAudioOnlyActive")),s);
-  return {s,set(visibleNext){visible=visibleNext;return s.window.CT_CREATE_PRESENTATION.setVisualizer(visibleNext);},close(){open=false;},stats:()=>({frames,stops,games})};
+  return {s,host,stage,crt,api:s.window.CT_CREATE_PRESENTATION,resizeHost(){observer.callback();},
+    set(visibleNext){visible=visibleNext;return s.window.CT_CREATE_PRESENTATION.setVisualizer(visibleNext);},close(){open=false;},stats:()=>({frames,stops,games,resizes})};
 }
-test('workspace flag first: toggle changes only stage presentation and rendering, preserves mounted state',()=>{
+test('mounted Compose stage and Perform share one world without audio or revision mutations',()=>{
   const f=renderingFixture(),project={draft:'invalid draft',undo:[1],chat:['private'],selection:[3,8]},before=JSON.stringify(project);
-  assert.equal(f.s._syncBackgroundAudioOnly(),true,'opaque workspace parks rendering without audio calls');
-  assert.equal(f.set(true),true);assert.equal(f.s.document.body.classList.contains('create-visualizer'),true);assert.equal(f.stats().games,1);
+  assert.equal(f.s._syncBackgroundAudioOnly(),true,'unmounted opaque workspace parks rendering');
+  assert.equal(f.api.mount(f.host).mounted,true);assert.equal(f.stats().games,1);
+  assert.equal(f.s._syncBackgroundAudioOnly(),false,'Compose runs the mounted stage without Perform');
+  const world=f.s.selState,epoch=f.s._musicPresentationEpoch,baseline=f.stats();
+  f.resizeHost();f.api.mount(f.host);
+  assert.equal(f.set(true),true);assert.equal(f.s.document.body.classList.contains('create-visualizer'),true);
   f.s.lastFrame=42;assert.equal(f.s._syncBackgroundAudioOnly(),false);assert.equal(f.s.lastFrame,42,'frame sync does not zero simulation dt');
-  f.set(false);f.set(true);assert.equal(f.stats().games,1,'same game instance on return');
+  f.set(false);assert.equal(f.s._syncBackgroundAudioOnly(),false,'return to Compose keeps rendering');
+  assert.equal(f.s.selState,world);assert.equal(f.stats().games,baseline.games);assert.equal(f.stats().resizes,baseline.resizes);
+  assert.equal(f.s._musicPresentationEpoch,epoch,'presentation does not announce another musical activation');
   assert.equal(JSON.stringify(project),before);
   f.s.document.hidden=true;assert.equal(f.s._syncBackgroundAudioOnly(),true);f.s.document.hidden=false;assert.equal(f.s._syncBackgroundAudioOnly(),false);
-  f.set(false);f.close();assert.equal(f.s._musicPresentationState(),null,'radio presentation outside workspace untouched');
+  f.api.unmount();assert.equal(f.stage.parentNode,f.s.document.body);assert.equal(f.crt.parentNode,f.s.document.body);
+  assert.equal(f.s.selState,world,'unmount never recreates the world');
+  f.close();assert.equal(f.s._musicPresentationState(),null,'radio presentation outside workspace untouched');
+});
+test('scene Off suspends visuals only; reenabling the same scene retains its world',()=>{
+  const f=renderingFixture();f.api.mount(f.host);const world=f.s.selState;
+  assert.equal(f.api.setScene('off').enabled,false);assert.equal(f.s._syncBackgroundAudioOnly(),true);
+  assert.equal(f.api.setScene('platformer').enabled,true);assert.equal(f.s.selState,world);assert.equal(f.stats().games,1);
+  assert.equal(f.api.setScene('maze').scene,'maze');assert.equal(f.stats().games,2);
+  assert.throws(()=>f.api.setScene('not-a-roster-scene'),/Unknown/);
+  assert.throws(()=>f.api.mount(null),/host/i);
+  const snapshot=f.api.snapshot();snapshot.scenes[0].label='mutated';
+  assert.equal(f.api.snapshot().scenes[0].label,'Platformer','snapshot is detached from registry');
 });
 test('runtime selects music bridge before radio/watch clocks and never drains radio events for workspace',()=>{
   assert.match(runtime,/const events = \(!musicPresentation&&!paused/);
@@ -91,14 +129,14 @@ test('runtime selects music bridge before radio/watch clocks and never drains ra
   assert.match(audio,/musicVisualState:musicVisualState/);
 });
 test('workspace focus/visibility returns never invoke radio resume or reset the game',()=>{
-  const f=renderingFixture(),events={};f.set(true);f.s._hiddenAt=1;f.s._syncWakeLock=()=>{};
+  const f=renderingFixture(),events={};f.api.mount(f.host);f.s._hiddenAt=1;f.s._syncWakeLock=()=>{};
   f.s.document.addEventListener=(name,fn)=>{events[name]=fn;};f.s.window.addEventListener=(name,fn)=>{events[name]=fn;};
   for(const [start,end] of [["document.addEventListener('visibilitychange',", "window.addEventListener('blur',"],["window.addEventListener('focus',", "window.addEventListener('pagehide',"]]){
     vm.runInContext(runtime.slice(runtime.indexOf(start),runtime.indexOf(end,runtime.indexOf(start))),f.s);
   }
   events.focus();events.visibilitychange();assert.equal(f.stats().games,1);assert.equal(f.s._hiddenAt,0);
 });
-test('native Escape has precedence; visualizer Escape bubbles to workspace return handler',()=>{
+test('native Escape has precedence; workspace Escape always reaches its local focus/chat handler',()=>{
   let native=true,visual=true,nativeClosed=0,workspaceClosed=0,consumed=0;
   const s={CT_LSDJ_NATIVE_EDITOR:{isOpen:()=>native,close:()=>{nativeClosed++;}},
     CT_MUSIC_WORKSPACE:{isOpen:()=>true,isVisualizerOpen:()=>visual,close:()=>{workspaceClosed++;}},
@@ -106,5 +144,6 @@ test('native Escape has precedence; visualizer Escape bubbles to workspace retur
   vm.runInNewContext(runtime.slice(runtime.indexOf('function handleEscapeShortcut(ev){'),runtime.indexOf('// position ONLY',runtime.indexOf('function handleEscapeShortcut(ev){'))),s);
   assert.equal(s.handleEscapeShortcut({key:'Escape'}),true);assert.equal(nativeClosed,1);assert.equal(workspaceClosed,0);assert.equal(consumed,1);
   native=false;assert.equal(s.handleEscapeShortcut({key:'Escape'}),false);assert.equal(workspaceClosed,0);assert.equal(consumed,1);
-  visual=false;assert.equal(s.handleEscapeShortcut({key:'Escape'}),true);assert.equal(workspaceClosed,1);
+  visual=false;assert.equal(s.handleEscapeShortcut({key:'Escape'}),false);assert.equal(workspaceClosed,0);
+  assert.equal(consumed,1,'runtime must not consume composition Escape before the workspace handler');
 });

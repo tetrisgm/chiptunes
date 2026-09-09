@@ -1316,6 +1316,10 @@ const Audio = (()=>{
     var cs=compileScore(tok);
     // live join failure: caller falls back to private — never substitute a random mint (desyncs the room)
     if(!cs){ _autoRetryAt=(ctx?ctx.currentTime:0)+5; return null; }
+    // A successful live join is an explicit track start, just like startTrack.
+    // Leaving the cold-landing hold set makes the next Pause pick a new mood
+    // instead, even though the live station is already sounding.
+    _holdForPick=false;
     if(ctx && started){
       Engine.killAll(opts.fade!=null?opts.fade:0.12);
       Engine.clearFuture(ctx.currentTime+0.02);
@@ -2362,7 +2366,8 @@ function resize(){
   // the player bar owns the bottom of the window; the picture ends above it
   var _inset = 0;
   try{ _inset = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--barh')) || 0; }catch(e){}
-  var vw = window.innerWidth, vh = Math.max(160, window.innerHeight - _inset);
+  var viewport = window.__ctVisualViewport && window.__ctVisualViewport();
+  var vw = viewport ? viewport.width : window.innerWidth, vh = viewport ? viewport.height : Math.max(160, window.innerHeight - _inset);
   // On the Game Boy panel the stage IS the console's framebuffer: the games draw
   // at the LCD's own resolution, one canvas pixel per cell, and the panel shows
   // those pixels. Drawing at full device resolution and downsampling afterwards
@@ -2374,7 +2379,8 @@ function resize(){
              : mode === 'nes' ? window.CT_NES_NATIVE : null;
   if (native) {
     W = native.w; H = native.h; DPR = 1;
-    cv.width = W; cv.height = H;
+    if(cv.width!==W) cv.width = W;
+    if(cv.height!==H) cv.height = H;
     // A 16px sprite lands at about a tenth of the screen, the proportion it has
     // on the real console. The NES framebuffer is ~1.67x the Game Boy's at the
     // same window, so the divisor moves with it or sprites shrink by a third.
@@ -2382,11 +2388,12 @@ function resize(){
                             : Math.max(2, Math.round(Math.min(W,H)/90));
   } else {
     W = vw; H = vh;
-    var rawDpr = window.devicePixelRatio||1;
+    var rawDpr = viewport ? viewport.dpr : (window.devicePixelRatio||1);
     var maxCanvasPixels = 3200000; // pixel art does not need a giant Retina backbuffer; keep render cost bounded.
     var area = Math.max(1, W*H);
-    DPR = Math.max(1, Math.min(2, rawDpr, Math.sqrt(maxCanvasPixels/area)));
-    cv.width = Math.floor(W*DPR); cv.height = Math.floor(H*DPR);
+    DPR = viewport && viewport.stageDpr || Math.max(1, Math.min(2, rawDpr, Math.sqrt(maxCanvasPixels/area)));
+    if(cv.width!==Math.floor(W*DPR)) cv.width = Math.floor(W*DPR);
+    if(cv.height!==Math.floor(H*DPR)) cv.height = Math.floor(H*DPR);
     pxBase = Math.max(3, Math.round(Math.min(W,H)/150));
   }
   cv.style.width = vw+'px'; cv.style.height = vh+'px';

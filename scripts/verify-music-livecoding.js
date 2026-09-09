@@ -11,7 +11,7 @@ async function main(){
   let paidCalls=0;const errors=[];
   try{
     async function context(site=origin){
-      const c=await browser.newContext({viewport:{width:1440,height:1000}});
+      const c=await browser.newContext({viewport:{width:1800,height:1000}});
       await c.setOffline(true);
       await c.route('**/*',async route=>{
         const url=new URL(route.request().url());

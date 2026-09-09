@@ -65,7 +65,7 @@ const cadence = p => p.evaluate(async () => {
   const h = await server();
   const b = await chromium.launch({ headless: true, args: ['--autoplay-policy=no-user-gesture-required'] });
   const p = await b.newPage({ viewport: { width: 1440, height: 900 } });
-  await p.goto(`http://127.0.0.1:${h.port}/`, { waitUntil: 'domcontentloaded' });
+  await p.goto(`http://127.0.0.1:${h.port}/listen`, { waitUntil: 'domcontentloaded' });
   await wait(3500);
   await p.mouse.click(720, 450);
   await wait(5000);

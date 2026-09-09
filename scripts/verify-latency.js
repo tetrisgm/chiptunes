@@ -55,7 +55,7 @@ function server() {
       return orig.apply(this, arguments);
     };
   });
-  await p.goto(`http://127.0.0.1:${h.port}/`, { waitUntil: 'domcontentloaded' });
+  await p.goto(`http://127.0.0.1:${h.port}/listen`, { waitUntil: 'domcontentloaded' });
   await wait(3500);
   await p.evaluate(() => { const x = [...document.querySelectorAll('.rmood')].find(y => y.textContent === 'chill'); if (x) x.click(); });
   await p.waitForFunction(() => !document.querySelector('.rmood.busy'), null, { timeout: 30000 });

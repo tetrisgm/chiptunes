@@ -7,7 +7,7 @@ const {chromium}=require('playwright');
   const browser=await chromium.launch({headless:true});
   try{
     for(const origin of ['https://chiptunes.app','https://chiptunes-agent-gateway.vercel.app']){
-      const page=await browser.newPage({viewport:{width:1280,height:900}});let accessCalls=0;
+      const page=await browser.newPage({viewport:{width:1800,height:900}});let accessCalls=0;
       await page.context().setOffline(true);
       await page.route('**/*',async route=>{
         const url=new URL(route.request().url());
@@ -94,7 +94,7 @@ const {chromium}=require('playwright');
       assert.equal(await page.locator('.mw-chat').isVisible(),true,'mobile chat opens as a drawer');
       assert.equal(await page.locator('.mw-notes').isVisible(),true);
       assert.equal(await page.locator('.mw-code').isVisible(),true,'drawer preserves composition');
-      await page.setViewportSize({width:1280,height:900});
+      await page.setViewportSize({width:1800,height:900});
       assert.equal(await page.locator('.mcui textarea').evaluate(el=>el===document.activeElement),true,'resize keeps focus on the visible composer');
       assert.equal(await page.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot().draft),draft,'resize preserves editor source');
       // Collapse still works when the browser has already blurred the composer.
@@ -107,7 +107,7 @@ const {chromium}=require('playwright');
       assert.equal(await page.locator('.mcui textarea').inputValue(),'Retain this draft across layout changes');
       await page.getByRole('button',{name:'Settings',exact:true}).focus();
       await page.setViewportSize({width:390,height:844});
-      await page.setViewportSize({width:1280,height:900});
+      await page.setViewportSize({width:1800,height:900});
       assert.equal(await page.getByRole('button',{name:'Settings',exact:true}).evaluate(el=>el===document.activeElement),true,'resize does not steal focus while the drawer remains open');
       for(const name of ['Note chart','Code editor'])assert.equal(await page.getByRole('region',{name,exact:true}).isVisible(),true,'composition regions stay named and reachable');
       const splitter=page.getByRole('separator',{name:'Resize chart and code'});

@@ -32,14 +32,16 @@
   // never entered its landing state -- in agent mode, where this panel demotes
   // to a bar, that left a person staring at an empty page.
   //
-  // Rewriting to '/#webmcp' gives the app the root route it understands while
+  // The demo keeps its compatibility listening surface. The public root now
+  // opens composition, so use the explicit listening route instead.
+  // Rewriting to '/listen#webmcp' gives the app that route while
   // keeping the demo addressable: the hash still matches onDemoRoute() above,
   // so a reload comes back here. This runs at bundle execution, which is before
   // runtime.js in the concatenation order -- doing it at mount would be too
   // late, since the app has booted by then.
   try {
     if (/^\/webmcp\/?$/.test(location.pathname) && history && history.replaceState)
-      history.replaceState(null, '', '/#webmcp');
+      history.replaceState(null, '', '/listen#webmcp');
   } catch (e) {}
 
   var CSS = [
@@ -163,7 +165,7 @@
     close.addEventListener('click', function () {
       root.remove();
       // drop the #webmcp too, or a reload reopens what was just closed
-      try { history.replaceState(null, '', '/'); } catch (e) {}
+      try { history.replaceState(null, '', '/listen'); } catch (e) {}
     });
     wrap.appendChild(close);
 

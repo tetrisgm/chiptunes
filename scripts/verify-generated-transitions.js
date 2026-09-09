@@ -54,7 +54,7 @@ function assert(condition, message){
     const errors = [];
     page.on('pageerror', error => errors.push(String(error)));
 
-    // /player is retired. Old bookmarks collapse to root without minting a
+    // /player is retired. Old bookmarks collapse to /listen without minting a
     // song or preserving the obsolete route.
     await page.goto(url + '/player', { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => typeof Audio !== 'undefined' && Audio.isHolding && Audio.isHolding());
@@ -64,7 +64,7 @@ function assert(condition, message){
       path: location.pathname
     }));
     assert(cold.holding && !cold.token, 'retired /player holds without minting a track');
-    assert(cold.path === '/', 'retired /player redirects to root');
+    assert(cold.path === '/listen', 'retired /player redirects to /listen');
 
     // Exercise the public router after boot. Private intent must mint directly;
     // live schedule and queue policy are not allowed to substitute a token.
@@ -82,7 +82,7 @@ function assert(condition, message){
         LiveCtl.active = () => true;
         LiveCtl.nextToken = () => { calls.push('live-policy'); return 'scheduled-token'; };
         Audio.gotoTrack = token => { calls.push(token); };
-        history.pushState(null, '', '/');
+        history.pushState(null, '', '/listen');
         dispatchEvent(new PopStateEvent('popstate'));
         await new Promise(resolve => setTimeout(resolve, 50));
         return { calls, live: Radio.live(), path: location.pathname };

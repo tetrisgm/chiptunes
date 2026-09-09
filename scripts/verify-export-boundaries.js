@@ -142,7 +142,7 @@ const shape = song => ({
   // The station WAV/AAC helper shares one PCM boundary. Sentinels make every
   // adjacent array visible without depending on a particular generated song.
   const station = await browser.newPage({ viewport: { width: 1380, height: 900 }, acceptDownloads: true });
-  await station.goto(`http://127.0.0.1:${host.port}/`, { waitUntil: 'domcontentloaded' });
+  await station.goto(`http://127.0.0.1:${host.port}/listen`, { waitUntil: 'domcontentloaded' });
   await wait(3000);
   const stationShape = await station.evaluate(async () => {
     const gb = { notes: [{ ch: 0, frame: 0, frames: 2, midi: 60, inst: 0 }],

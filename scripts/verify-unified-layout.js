@@ -7,7 +7,7 @@ const {chromium}=require('playwright');
 (async()=>{
   const browser=await chromium.launch({headless:true});
   try{
-    const page=await browser.newPage({viewport:{width:1280,height:900}});
+    const page=await browser.newPage({viewport:{width:1800,height:1000}});
     await page.context().setOffline(true);
     await page.route('**/*',route=>{
       const pathname=new URL(route.request().url()).pathname;
@@ -23,8 +23,17 @@ const {chromium}=require('playwright');
     await page.addScriptTag({content:chatBundle.outputFiles[0].text});
     await page.evaluate(()=>{
       window.Audio={musicStop(){},enterCreate(){},onMusicState(){return ()=>{};}};window.CT_CREATE={};
-      window.fixture={calls:0,finish:null,visualizer:[]};
-      window.CT_CREATE_PRESENTATION={setVisualizer(visible){fixture.visualizer.push(visible);}};
+      window.fixture={calls:0,finish:null,mounts:0,unmounts:0,sceneCalls:[],returns:[]};
+      window._closeCreateReturn=options=>fixture.returns.push(structuredClone(options));
+      const canvas=document.createElement('canvas');canvas.width=640;canvas.height=360;canvas.style.cssText='width:100%;height:100%;object-fit:contain';
+      fixture.canvas=canvas;
+      let host=null,scene='maze',enabled=true;
+      window.CT_CREATE_PRESENTATION={
+        mount(target){fixture.mounts++;host=target;host.append(canvas);},
+        unmount(){fixture.unmounts++;canvas.remove();host=null;},
+        snapshot(){return {mounted:!!host,enabled,scene,scenes:[{id:'maze',label:'Maze'},{id:'blocks',label:'Blocks'}],width:canvas.width,height:canvas.height};},
+        setScene(id){fixture.sceneCalls.push(id);enabled=id!=='off';if(enabled)scene=id;}
+      };
       window.fetch=async(url,o)=>{
         if(url==='/api/music/chat/access')return new Response(JSON.stringify({ok:true,authenticated:true,providers:[{id:'openai',label:'OpenAI'}],limits:{dailyCalls:20}}));
         if(url!=='/api/music/chat')throw Error('Unexpected fixture endpoint');
@@ -46,6 +55,22 @@ const {chromium}=require('playwright');
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'no page-wide horizontal overflow');
     }
     await stacked();
+    const stage=page.locator('.mw-stage-viewport');
+    assert.equal(await page.locator('#musicworkspace').getAttribute('data-presentation'),'composition');
+    assert.equal(await page.evaluate(()=>CT_MUSIC_WORKSPACE.isVisualizerOpen()),false,'persistent stage is not focus mode');
+    assert(await stage.isVisible());assert.equal(await page.locator('.mw-creative > .mw-main,.mw-creative > .mw-stage-splitter,.mw-creative > .mw-visuals').count(),3);
+    async function sameStage(){assert.deepEqual(await page.evaluate(()=>({same:document.querySelector('.mw-stage-viewport canvas')===fixture.canvas,width:fixture.canvas.width,height:fixture.canvas.height,mounts:fixture.mounts,unmounts:fixture.unmounts})),{same:true,width:640,height:360,mounts:1,unmounts:0},'layout retains mounted canvas and fixed fixture backbuffer');}
+    await sameStage();
+    const stageSplitter=page.locator('.mw-stage-splitter');
+    assert.equal(await stageSplitter.getAttribute('aria-orientation'),'vertical');
+    await stageSplitter.focus();await stageSplitter.press('Home');assert.equal(await stageSplitter.getAttribute('aria-valuenow'),'45');
+    await stageSplitter.press('End');assert.equal(await stageSplitter.getAttribute('aria-valuenow'),'75');
+    await stageSplitter.press('ArrowLeft');assert(+(await stageSplitter.getAttribute('aria-valuenow'))<75,'stage divider is keyboard adjustable');
+    await stageSplitter.press('Home');await stageSplitter.press('ArrowRight');await sameStage();
+    await page.locator('.mw-scene').selectOption('off');assert.match(await page.locator('.mw-stage-status').textContent(),/Visuals off/);
+    await page.locator('.mw-scene').selectOption('blocks');await sameStage();
+    await page.evaluate(()=>{document.querySelector('.mw-stage-viewport').requestFullscreen=function(){fixture.fullscreenTarget=this;return Promise.resolve();};});
+    await page.locator('[data-action=stage-fullscreen]').click();assert.equal(await page.evaluate(()=>fixture.fullscreenTarget===document.querySelector('.mw-stage-viewport')),true,'fullscreen targets stage only');
     if(process.env.VERIFY_SCREENSHOT)await page.screenshot({path:process.env.VERIFY_SCREENSHOT});
     const original=await page.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot().draft);
     await page.locator('.mw-note').first().click();
@@ -88,15 +113,24 @@ const {chromium}=require('playwright');
     assert.equal(await page.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot().request.id),request,'collapse does not cancel request');
     await page.locator('[data-action=visualizer]').click();
     assert.equal(await code.isVisible(),false,'visualizer hides but keeps composition mounted');
+    assert.equal(await page.evaluate(()=>CT_MUSIC_WORKSPACE.isVisualizerOpen()),true);await sameStage();
     assert.equal(await page.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot().request.id),request,'visualizer keeps in-flight request');
     await page.locator('[data-action=visualizer]').click();assert(await code.isVisible());
-    assert.deepEqual(await page.evaluate(()=>fixture.visualizer),[true,false]);
+    assert.equal(await page.evaluate(()=>CT_MUSIC_WORKSPACE.isVisualizerOpen()),false);await sameStage();
+    assert.deepEqual(await page.evaluate(()=>fixture.sceneCalls),['off','blocks'],'focus layout never calls scene adapter');
     await page.evaluate(()=>fixture.finish());
     await page.waitForFunction(()=>CT_MUSIC_WORKSPACE.snapshot().request===null);
     await toggle.click();assert((await page.locator('.mcui-content').textContent()).includes('Your source is unchanged.'));
     assert.equal(await page.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot().validated.id),revision,'collapse/reply never applies or plays');
     assert.equal(await page.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot().playing),null);
     assert.deepEqual(await page.evaluate(()=>CT_MUSIC_WORKSPACE.agentContext().policy.selection),selected);
+    await page.setViewportSize({width:1280,height:900});
+    await page.waitForFunction(()=>document.querySelector('.mw-chat').hidden);
+    await stacked();await sameStage();
+    const drawerGeometry=await page.evaluate(()=>['.mw-main','.mw-stage-viewport'].map(s=>{const r=document.querySelector(s).getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height};}));
+    await toggle.click();assert(await page.locator('.mw-chat').isVisible(),'1280 uses an overlay drawer');
+    assert.deepEqual(await page.evaluate(()=>['.mw-main','.mw-stage-viewport'].map(s=>{const r=document.querySelector(s).getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height};})),drawerGeometry,'1280 drawer preserves music and stage geometry');
+    await sameStage();await toggle.click();
     await page.setViewportSize({width:390,height:844});
     await page.waitForFunction(()=>document.querySelector('.mw-chat').hidden);
     await stacked();
@@ -106,7 +140,7 @@ const {chromium}=require('playwright');
     await page.locator('.mcui textarea').fill('Mobile draft');await page.locator('.mcui').getByRole('button',{name:'Hide chat',exact:true}).click();
     assert.equal(await page.evaluate(()=>document.activeElement.dataset.action),'toggle-chat');
     await toggle.click();assert.equal(await page.locator('.mcui textarea').inputValue(),'Mobile draft');
-    await page.setViewportSize({width:1280,height:900});await stacked();
+    await page.setViewportSize({width:1800,height:1000});await stacked();await sameStage();
     assert.equal(await page.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot().draft),original);
     assert.equal(await page.evaluate(()=>fixture.calls),1,'layout never calls a provider');
     await page.locator('.cm-content').fill(original.replace('C4 . E4','D4 . E4'));
@@ -144,6 +178,10 @@ const {chromium}=require('playwright');
     await assert.rejects(page.evaluate(()=>CT_MUSIC_WORKSPACE.open({source:'invalid(',explicit:true})),/invalid/);
     assert.equal(await page.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot().draft),imported,'invalid import preserves current draft');
     await page.evaluate(()=>CT_MUSIC_WORKSPACE.close());
-    console.log('PASS unified layout: stacked desktop/mobile, keyboard/pointer splitter, exact/stale mapping, typing undo, chart scroll, collapse/drawer focus and state, in-flight chat, no autoplay/provider side effects, secondary tools');
+    assert.deepEqual(await page.evaluate(()=>fixture.returns),[{}],'plain close requests cleanup without station playback');
+    assert.equal(await page.evaluate(()=>fixture.unmounts),1,'close releases the stage');
+    await page.evaluate(()=>CT_MUSIC_WORKSPACE.open());await page.locator('[data-action=listen]').click();
+    assert.deepEqual(await page.evaluate(()=>fixture.returns),[{}, {listen:true}],'Listen explicitly requests station playback after cleanup');
+    console.log('PASS unified layout: persistent stage and fixed fixture canvas, desktop sidebar/1280/mobile drawers, keyboard/pointer splitters, exact/stale mapping, typing undo, chart scroll, in-flight chat, explicit Listen, no incidental autoplay/provider calls');
   }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

@@ -4,6 +4,16 @@ A register-level emulation of the Game Boy sound chip in the browser, a
 composer that writes complete songs for it, and an exporter that turns any of
 them into a 32 KB cartridge that boots on real hardware.
 
+The current source opens a live-coding workspace: write a pattern or ask the
+agent, inspect its notes, then Run. Music and note feedback sit beside a
+resizable visual stage; the bundled games are visual output. Chat collapses,
+and explicit Listen keeps the existing listening experience available.
+Opening a project does not play it. [TidalCycles](https://tidalcycles.org/) is
+the musical workflow guide, not a claim of full Tidal syntax compatibility.
+See the [active implementation plan](docs/algorave-stage-plan.md) and
+[build/verification notes](docs/HANDOFF.md) for what is implemented versus
+deployed.
+
 The browser and the cartridge are not two implementations of the same music.
 They are checked against each other: the same register writes, on the same
 frames, in the same order.

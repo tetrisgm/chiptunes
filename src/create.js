@@ -2998,7 +2998,7 @@
     closeSnd();
     if (root) root.classList.remove('show');
     document.body.classList.remove('create-open');
-    try { history.replaceState(null, '', '/'); } catch (e) {}
+    try { history.replaceState(null, '', typeof G._generatedRoute === 'function' ? G._generatedRoute() : '/listen'); } catch (e) {}
     following = false; owning = false;
     if (justAView) { if (G._closeCreateView) G._closeCreateView(); return; }
     if (G._closeCreateReturn) G._closeCreateReturn();

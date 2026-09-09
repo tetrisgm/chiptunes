@@ -14,10 +14,10 @@ separate editor tabs and user-facing hosted-chat/project-transfer workflow.
 
 ## Outcome
 
-One composition workspace at chiptunes.app/create. The musical code and its
+One composition workspace at the public entry and /create. The musical code and its
 note chart are visible together. A collapsible right-hand conversation panel
 lets the owner compose, ask questions and request changes to that same code.
-The optional game/visualizer is a listening presentation, not another composer.
+The optional game/visualizer is adjacent artistic output, not another composer.
 
 Code -> existing compiler -> compiled score -> note chart and existing player.
 Manual edits and agent proposals enter through the same source/revision model.
@@ -76,6 +76,44 @@ Acceptance adds exact pattern-semantics fixtures and a repeatable live build-up
 exercise to the reference pass below. An attractive editor alone does not close
 this gate. Determine the explicit syntax boundary before adding these operators;
 readable pitch/inline feedback remains the first implementation slice.
+
+### Bounded cycle implementation proposal (not yet enabled)
+
+Use a separate constructor, provisionally `cycleV1("…")`, rather than changing
+saved `notes()` strings. First support pitch atoms, `~`, nested subdivisions,
+slot repetition, alternation, integer fast/slow (1–16), reversal, reversal every
+N cycles with an explicit offset, and Euclidean rhythm on a single pitch atom.
+Defer unrestricted callbacks, sample notation, chance and patterned parameters.
+
+A cycle is pattern time, not inherently a bar. For this bounded version the
+proposed mapping is one output cycle to one four-beat bar. Nested evaluation
+uses rational intervals and absolute endpoint conversion through createClock;
+time transformations wrap the preceding expression in source order. Alternation
+must see the time arriving at its node, not be flattened before speed changes.
+Finite arrangement onset windows use song-global phase; the existing finite
+audition loop has an intentional seam. Existing notes/repeat semantics stay intact.
+
+Required fixtures include `C2 [E2 G2]` at 0, 1/2 and 3/4; `C2*2 G2` at 0,
+1/4 and 1/2; fast alternation; triplets and escaped source tokens; long sustains
+crossing a cycle; gated reversal; and finite-end/voice conflicts. Preserve whole
+event identity across interval queries, never manufacture a retrigger by slicing
+a sustain. Reject unsupported combinations instead of approximating them. Charge
+bounded work for rests, fragments and nesting as well as emitted notes.
+
+Euclidean rotation follows the official direction: `(3,8)` is `10010010`, and
+positive rotation `(3,8,1)` shifts left to `00100101`. This corrects an earlier
+read-only proposal that shifted later. Verify against the
+[mini-notation reference](https://tidalcycles.org/docs/reference/mini_notation/),
+[time transformations](https://tidalcycles.org/docs/reference/time/) and
+[periodic conditions](https://tidalcycles.org/docs/reference/conditions/).
+Gate applies after rhythmic transforms. materialize() remains the exact-event
+serialization path; it need not reconstruct cycle notation.
+
+Acceptance is an eight-bar progression: noise groove, subdivided bass, alternating
+melody, reversal on cycles 3 and 7, Euclidean drums, a rest-based breakdown and
+restoration. Each Run uses the existing musical boundary; invalid source, Undo,
+reload and materialized export must preserve the same performance. Phase B's
+stage uses existing compiled patterns and does not depend on enabling this syntax.
 
 ## Owner's live-coding references — 2026-09-09 clarification
 

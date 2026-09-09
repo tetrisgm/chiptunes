@@ -5,7 +5,13 @@ const {chromium}=require('playwright');
 const server=http.createServer((req,res)=>res.end('<!doctype html><body></body>'));
 async function openSettings(page){
   const dialog=page.locator('.mw-chat-settings');
-  if(!await dialog.evaluate(el=>el.open))await page.getByRole('button',{name:'Settings',exact:true}).click();
+  if(!await dialog.evaluate(el=>el.open)){
+    // Narrow desktops start with the chat drawer collapsed. Exercise its real
+    // disclosure before Settings; connection/security assertions stay intact.
+    const chat=page.locator('[data-action=toggle-chat]');
+    if(await chat.getAttribute('aria-expanded')==='false')await chat.click();
+    await page.getByRole('button',{name:'Settings',exact:true}).click();
+  }
   assert.equal(await dialog.evaluate(el=>el.open&&el.matches(':modal')),true,'Settings is a real modal');
 }
 async function closeSettings(page){

@@ -64,6 +64,9 @@ const origin='https://chiptunes.app',gateway='https://chiptunes-agent-gateway.ve
       assert.equal(await next.locator('.mw-project-handoff').isVisible(),false,'sender action is main-origin only');
       assert.equal(await next.evaluate(()=>handoffMessages),0,'only bytes offered before Accept');
       assert((await next.locator('.mw-transfer-description').textContent()).includes(String(Buffer.byteLength(publicCopy))));
+      assert.equal(await next.locator('[data-action=toggle-chat]').getAttribute('aria-expanded'),'false','narrow desktop chat stays collapsed');
+      assert.equal(await next.locator('[data-action=transfer-accept]').isVisible(),true,'project consent is visible independently of chat');
+      assert.equal(await next.locator('.mw-chat .mw-transfer-offer').count(),0,'incoming project is not chat content');
       return next;
     }
     const accepted=await popup();

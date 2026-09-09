@@ -14,7 +14,7 @@
 //   B) Phone prompt: a long brief (many traits + unsupported words) keeps the
 //      transport on-screen, bounds the primary reading, and exposes the full
 //      caveats through a disclosure reachable by keyboard AND click.
-//   C) Cold Create close returns to the landing without autoplaying the player.
+//   C) Escape retains cold composition without autoplaying any player.
 //
 // It writes a screenshot per case so the VISIBLE confirmation can be done by
 // eye; the script gates the geometry, it is not the visible check.
@@ -175,19 +175,25 @@ async function phonePromptCase(page) {
   assert(!(await more.evaluate(d => d.open)), `${name}: disclosure toggles closed with a click`);
 }
 
-// ---- C) cold Create close returns to the landing, no autoplay --------------
-async function coldCloseCase(page) {
-  const name = 'cold-close-1280x900';
+// ---- C) Escape retains primary composition, no autoplay -------------------
+async function coldEscapeCase(page) {
+  const name = 'cold-escape-1280x900';
   await openCreateFromLanding(page);
   const root = page.locator('#musicworkspace');
-  await root.getByRole('button', { name: 'Back', exact:true }).click();
-  await root.waitFor({ state: 'hidden' });
-  await page.locator('#rmoods').first().waitFor({ state: 'visible' });
-  await page.waitForTimeout(250);
+  await root.locator('.cm-content').focus();
+  await page.keyboard.press('Escape');
+  assert(await root.isVisible(), `${name}: Escape retains the primary composition`);
+  for (const selector of ['.mw-code', '.mw-notes', '.mw-stage-viewport'])
+    assert(await root.locator(selector).isVisible(), `${name}: ${selector} remains visible`);
+  const silent = await page.evaluate(async () => {
+    let peak=0;
+    for(let i=0;i<10;i++){peak=Math.max(peak,Audio.outputProbe().peak);await new Promise(resolve=>setTimeout(resolve,100));}
+    const state=CT_MUSIC_WORKSPACE.snapshot();
+    return peak<.02 && !state.playing && !state.pending;
+  });
   await page.screenshot({ path: path.join(screenshots, `${name}.png`), fullPage: false });
   const playerShown = await page.locator('#playbar.show').isVisible().catch(() => false);
-  assert(!playerShown, `${name}: the player did not autoplay on return to the landing`);
-  assert(await page.locator('#rmoods').first().isVisible(), `${name}: the landing is shown after closing`);
+  assert(!playerShown && silent, `${name}: Escape starts neither composition nor station playback`);
 }
 
 (async () => {
@@ -200,7 +206,7 @@ async function coldCloseCase(page) {
     const pageErrors = [];
     page.on('pageerror', error => pageErrors.push(String(error)));
     try {
-      await page.goto(`http://127.0.0.1:${host.port}/`, { waitUntil: 'domcontentloaded' });
+      await page.goto(`http://127.0.0.1:${host.port}/listen`, { waitUntil: 'domcontentloaded' });
       await fn(page);
       assert.equal(pageErrors.length, 0, `${label}: no page errors (${pageErrors.join('; ')})`);
       console.log(`ok ${label}`);
@@ -219,7 +225,7 @@ async function coldCloseCase(page) {
       await run(`player-${width}`, { width, height: 900 }, (page) => playerCase(page, `player-${width}`));
     }
     await run('phone-prompt-390x844', { width: 390, height: 844 }, phonePromptCase);
-    await run('cold-close-1280x900', { width: 1280, height: 900 }, coldCloseCase);
+    await run('cold-escape-1280x900', { width: 1280, height: 900 }, coldEscapeCase);
   } finally {
     if (browser) await browser.close();
     if (host) await new Promise(resolve => host.server.close(resolve));

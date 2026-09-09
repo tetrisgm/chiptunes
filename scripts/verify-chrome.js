@@ -93,7 +93,7 @@ function names() {
   const p = await b.newPage({ viewport: { width: 1600, height: 1000 }, deviceScaleFactor: 2 });
   const errs = [];
   p.on('pageerror', e => errs.push(String(e).slice(0, 140)));
-  await p.goto(`http://127.0.0.1:${h.port}/`, { waitUntil: 'domcontentloaded' });
+  await p.goto(`http://127.0.0.1:${h.port}/listen`, { waitUntil: 'domcontentloaded' });
   await wait(3500);
   try { fs.mkdirSync(SHOT, { recursive: true }); } catch (e) {}
 
@@ -371,7 +371,7 @@ function names() {
   const mobile = await mctx.newPage();
   const mobileErrs = [];
   mobile.on('pageerror', e => mobileErrs.push(String(e).slice(0, 140)));
-  await mobile.goto(`http://127.0.0.1:${h.port}/`, { waitUntil: 'domcontentloaded' });
+  await mobile.goto(`http://127.0.0.1:${h.port}/listen`, { waitUntil: 'domcontentloaded' });
   await wait(1500);
   const mobileLanding = await mobile.evaluate(() => {
     const title=document.querySelector('.rmood-title'), legal=document.querySelector('.rmood-legal'), hero=document.getElementById('rmoods');
@@ -405,7 +405,7 @@ function names() {
     // itself half off the top of a scroller
     const short = await mctx.newPage();
     await short.setViewportSize({ width: 390, height: 620 });
-    await short.goto(`http://127.0.0.1:${h.port}/`, { waitUntil: 'domcontentloaded' });
+    await short.goto(`http://127.0.0.1:${h.port}/listen`, { waitUntil: 'domcontentloaded' });
     await wait(1500);
     const tall = await short.evaluate(() => {
       const r = document.getElementById('rmoods').getBoundingClientRect();
