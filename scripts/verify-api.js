@@ -278,10 +278,13 @@ function mcp(messages) {
 
   // the four things the plan still listed as open
   console.log('closing the plan');
-  const ost2 = api.soundtrack({ scenes: ['title', 'battle', 'game_over'], key: 'D', motif: true });
+  // Fixed seeds cover both outcomes: sparse/repeating cues legitimately skip
+  // sharing a motif, so randomly minted input cannot require one every run.
+  const ost2 = api.soundtrack({ scenes: ['title', 'battle', 'game_over'], key: 'D', motif: true,
+                               token: 'audit-motif-0' });
   ok(!!ost2.motif && ost2.motif.notes >= 2, 'a soundtrack shares a motif (' +
      (ost2.motif ? ost2.motif.pitches.slice(0, 4).join(' ') + ' on ' + ost2.motif.lane : 'none') + ')');
-  {
+  if (ost2.motif) {
     // COMPARE INTERVALS, NOT PITCHES. The figure is transposed into each cue on
     // purpose -- a copied motif is what makes a soundtrack sound like one song
     // played five times -- so the thing that survives, and the thing that makes
@@ -314,6 +317,11 @@ function mcp(messages) {
     ok(new Set(pitchHeads).size > 1 || ost2.cues.length <= 2,
        'at different pitches, so the cues are related rather than identical (' + pitchHeads.join(', ') + ')');
   }
+  const noMotif = api.soundtrack({ scenes: ['title', 'battle', 'game_over'], key: 'D', motif: true,
+                                  token: 'audit-motif-1' });
+  ok(noMotif.motif === null &&
+     noMotif.motifSkipped === 'the first cue has no non-repeating melodic phrase to build on',
+     'a cue without an eligible phrase explicitly skips the shared motif');
   const vic = api.brief({ scene: 'victory', seconds: 12 }).doc;
   const res = api.transform(vic, [{ op: 'resolve' }]);
   ok(res.applied.some(x => /resolved to the tonic/.test(x)), 'resolve ends on the tonic (' + res.applied.join('; ') + ')');
