@@ -24,6 +24,14 @@ outside JSON. Echo id/baseRevision. Each edit has only from, to, text. Offsets a
 UTF-16 code units in the supplied source, half-open, non-overlapping and sorted.
 Preserve comments and unaffected source. Do not replace the whole source.
 Use at most 32 edits and 16384 UTF-8 bytes each of deleted/inserted source in total.
+For an explicit request to compose a complete track, write a complete finite
+arrangement, not a placeholder or comment-only edit. In a pattern-based draft,
+update the song and musical declarations using localized edits, retaining its
+comments and unrelated source. Use readable named motifs, intentional variation,
+and explicit play positions and finite repeats that fit song.bars. Complete-track
+intent never overrides a supplied track/region scope or lock; explain a conflict
+instead. Keep exact-event imports in their existing representation unless the
+request explicitly asks to change it. Do not exceed the edit or response bounds.
 The language allows song, instruments, waves, performance, event, automation,
 vibratoOff, waveLoad, kit, pattern(name, notes(...)), and track(...).
 notes chains: stepsPerBar, gate, velocity, transpose, register.

@@ -70,7 +70,7 @@ test('Compose imports the exact current song as protected source and hides legac
     const initial = f.calls[0][0], compiled = language.compile(initial.source);
     assert.equal(initial.explicit, true, 'current song cannot be replaced by a recovered workspace draft');
     assert.deepEqual(compiled.gb, f.score, 'all native score fields survive materialization');
-    assert.deepEqual(compiled.settings, { tempo: 120, bars: 4, title: 'Existing song ♪', tempoAt: [[16, 128]], stepsPerBar: 16 });
+    assert.deepEqual(compiled.settings, { tempo: 120, bars: 4, title: 'Existing song ♪', tempoAt: [[16, 128]], stepsPerBar: 16, swing: false });
     assert.equal(f.builds(), useLiveScore ? 0 : 1, 'reuse live score or materialize the edited legacy song once');
     assert.equal(f.legacyVisible(), true, 'pending open keeps the legacy editor available');
     await f.finish();

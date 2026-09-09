@@ -1,11 +1,11 @@
 'use strict';
-// Source-only browser panel + explicit fetch fixtures, no build or hosted auth.
+// Source browser panel + built chat island + explicit fetch fixtures, no build or hosted auth.
 const assert=require('node:assert/strict'),http=require('node:http'),path=require('node:path');
 const {chromium}=require('playwright');
 const server=http.createServer((req,res)=>res.end('<!doctype html><body></body>'));
 async function openSettings(page){
   const dialog=page.locator('.mw-chat-settings');
-  if(!await dialog.evaluate(el=>el.open))await page.locator('[data-action=chat-settings]').click();
+  if(!await dialog.evaluate(el=>el.open))await page.getByRole('button',{name:'Settings',exact:true}).click();
   assert.equal(await dialog.evaluate(el=>el.open&&el.matches(':modal')),true,'Settings is a real modal');
 }
 async function closeSettings(page){
@@ -134,6 +134,7 @@ async function integrated(browser){
       window.Audio={musicStop(){},enterCreate(){},onMusicState(){return ()=>{};}};window.CT_CREATE={};
       window.CT_MUSIC_CODE_EDITOR={help:{},mount(el,text,change){window.editSource=change;return {set(){},diagnostics(){},focus(){},select(){}};}};
     });
+    await page.addScriptTag({path:path.join(__dirname,'../dist/lib/music-chat-ui.js')});
     await page.addScriptTag({path:path.join(__dirname,'../src/music-workspace.js')});
     await page.evaluate(()=>CT_MUSIC_WORKSPACE.open());
     await page.waitForFunction(()=>document.querySelector('.mw-client').options.length===2);
@@ -156,13 +157,13 @@ async function integrated(browser){
       const c=await execute('getContext');
       const result=await execute('propose',{id,generation:c.generation,baseRevision:c.baseRevision,draftEpoch:c.draftEpoch,edits:[{from:0,to:0,text:'// '+id+'\n'}],explanation:id});
       assert.equal(result.status,'pending');
-      await page.waitForFunction(id=>document.querySelector('.mw-proposal p')?.textContent===id&&document.querySelector('.mw-proposal b')?.textContent==='ready',id);
+      await page.waitForFunction(id=>CT_MUSIC_WORKSPACE.agentProposalStatus(id).status==='ready'&&document.querySelector('.mcui-proposal b')?.textContent==='ready',id);
     }
     await propose('real-apply');
     assert.equal((await execute('getProposalStatus',{id:'real-apply'})).status,'claimed');
     assert.equal((await execute('getContext')).generation,initial.generation);
     assert.equal(calls.some(c=>c.body?.action==='acknowledge'),false);
-    await page.locator('.mw-proposal button').filter({hasText:/^Apply$/}).click();
+    await page.locator('.mcui-proposal button').filter({hasText:/^Apply$/}).click();
     await page.waitForFunction(()=>document.querySelector('.mw-connect-status').textContent.startsWith('Applied in browser'));
     const applied=await execute('getContext'),receipt=calls.find(c=>c.body?.action==='acknowledge');
     assert.equal(receipt.result.status,'applied');assert.equal(receipt.body.generation,initial.generation);
@@ -170,7 +171,7 @@ async function integrated(browser){
     assert.notEqual(applied.baseRevision,initial.baseRevision);assert(applied.draftEpoch>initial.draftEpoch);
     assert.equal(await page.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot().playing),null);
     await propose('real-reject');
-    await page.locator('.mw-proposal button').filter({hasText:/^Reject$/}).click();
+    await page.locator('.mcui-proposal button').filter({hasText:/^Reject$/}).click();
     await page.waitForFunction(()=>document.querySelector('.mw-connect-status').textContent==='Proposal rejected.');
     assert.equal((await execute('getProposalStatus',{id:'real-reject'})).status,'rejected');
     assert.equal((await execute('getContext')).generation,applied.generation);
@@ -191,7 +192,7 @@ async function integrated(browser){
     }
     await closeSettings(page);
     await propose('lost-ack');loseAck=true;
-    await page.locator('.mw-proposal button').filter({hasText:/^Apply$/}).click();
+    await page.locator('.mcui-proposal button').filter({hasText:/^Apply$/}).click();
     await page.waitForFunction(()=>document.querySelector('.mw-connect-status').textContent.includes('Applied locally; remote acknowledgement could not be confirmed'));
     const local=await page.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot().validated.id);
     await page.waitForTimeout(1200);
@@ -242,6 +243,7 @@ async function integrated(browser){
         return new Response(JSON.stringify(result));
       };
     });
+    await page.addScriptTag({path:path.join(__dirname,'../dist/lib/music-chat-ui.js')});
     await page.addScriptTag({path:path.join(__dirname,'../src/music-workspace.js')});
     await page.evaluate(()=>CT_MUSIC_WORKSPACE.open());
     const connect=async()=>{
@@ -262,10 +264,10 @@ async function integrated(browser){
       const c=CT_MUSIC_WORKSPACE.agentContext();return {source:c.source,baseRevision:c.baseRevision,draftEpoch:c.draftEpoch,selection:c.policy.selection,constraints:c.policy.constraints};
     }));
     await page.evaluate(()=>{window.before=CT_MUSIC_WORKSPACE.snapshot().validated.id;remote={id:'proposal-one',generation:gen,baseRevision:published.baseRevision,draftEpoch:published.draftEpoch,edits:[{from:0,to:0,text:'// fixture\n'}],explanation:'Fixture proposal'};});
-    await page.waitForFunction(()=>document.querySelector('.mw-proposal b')?.textContent==='ready');
+    await page.waitForFunction(()=>document.querySelector('.mcui-proposal b')?.textContent==='ready');
     assert.equal(await page.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot().validated.id===before),true);
     assert.equal(await page.evaluate(()=>calls.some(c=>c&&c.action==='acknowledge'&&c.status==='applied')),false);
-    await page.locator('.mw-proposal button').filter({hasText:/^Apply$/}).click();
+    await page.locator('.mcui-proposal button').filter({hasText:/^Apply$/}).click();
     await page.waitForFunction(()=>calls.some(c=>c&&c.action==='acknowledge'&&c.status==='applied'));
     const ack=await page.evaluate(()=>calls.find(c=>c&&c.action==='acknowledge'&&c.status==='applied'));
     assert.equal(ack.generation,1);assert.notEqual(ack.baseRevision,ack.snapshot.baseRevision);
