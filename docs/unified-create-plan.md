@@ -1,5 +1,14 @@
 # Unified Create: code, notes and an agent in one place
 
+The owner updated the active goal on 2026-09-09: Chiptunes is an algorave/music-
+coding product, with games serving as artistic visuals. The new controlling
+presentation/priority plan is [algorave-stage-plan.md](algorave-stage-plan.md),
+based on the supplied visual-stage brief. Preserve the musical foundation and
+remaining language/agent gates below, but replace the old fullscreen-only
+visualizer assumption with a persistent side stage and same-session audience
+output. Do not build another editor/chat workspace or treat the old checklist
+as completion of the new goal.
+
 Owner direction: 2026-09-09. This is the active product plan, superseding the
 separate editor tabs and user-facing hosted-chat/project-transfer workflow.
 

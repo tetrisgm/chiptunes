@@ -1,0 +1,201 @@
+# Algorave-first Chiptunes: music workspace and visual stage
+
+Active owner goal, 2026-09-09. Supersedes the product-priority/presentation parts
+of unified-create-plan.md, not its preservation, security or verification work.
+Owner brief read in full from attachment
+`397f142c-e62a-4818-b237-57c87cf57739/pasted-text-1.txt`.
+
+## Product outcome
+
+Chiptunes is a place to perform music by writing code or asking the agent to
+write that same code. Code and its compiled notes are the central interaction.
+Games are artistic visual output, not the main product or another source of
+music. Preserve the existing deterministic compiler/player and fixed 14-game
+roster. A visual scene is not a new game-pack/composer system.
+
+The three surfaces have different jobs:
+
+- Music source is the editable performance program.
+- Note/pattern feedback explains what that program produces.
+- The visual stage is artistic output for the musician and audience.
+
+The default path must invite writing/running a readable groove or asking the
+agent for one, not choosing a game or a mood-driven radio station. Keep existing
+listening, song links, exact imports and finite exports available without letting
+them displace this main workflow. No autoplay or compulsory second visual program.
+
+## Reuse and known gaps
+
+- 6d87aaa / 11c16ef already provide accurate source spans, pitch rows, inline
+  rolls, shared preview/Run, collapsible conversation and optional presentation.
+  Reuse these; do not build another editor or chat workspace.
+- The current presentation is a fullscreen swap: music-workspace.js hides its
+  panes, and runtime.js stops drawing when that swap is closed. It does not yet
+  provide simultaneous music/notes/stage.
+- Audio.musicVisualState reads acknowledged music transport and native schedule
+  events. Its current role bands are semantic note-strength estimates, and its
+  spectrum/waveform arrays are empty. Do not label these FFT measurements.
+- The current recent-note window is a presentation convenience, not yet a
+  stable, timestamped, per-consumer onset stream for VJ routing. Audit identity,
+  overlap, native continuation, loops, seek, late acknowledgements and catch-up.
+- Background rendering currently stops when document.hidden. A popup alone
+  cannot be claimed to solve audience output while the editor is backgrounded.
+- Source-linked music controls have a separately tested preparatory module;
+  compiler descriptors and host integration are still outstanding. They remain
+  relevant, but do not precede the new core visual-stage layout.
+
+## Layout and modes
+
+Compose: preserve the existing music-side code/chart/inline arrangement. Add a
+persistent resizable Visuals area on the right, starting around a 62/38 split
+between music and visuals. Use a landscape 16:9 stage, compact scene/parameter
+controls, and initially collapsed visual code. The ratio is a hypothesis to test.
+Do not stretch artwork into a tall narrow canvas or replace the readable note
+chart with a visual effect.
+
+Keep the existing collapsible agent panel. At ample desktop widths it can occupy
+a separate rightmost panel; otherwise use a drawer so the two creative surfaces
+retain sensible minimum widths. A small window stacks/compacts the visual stage
+below music instead of squeezing two illegible code editors. Panel changes never
+recompose, restart audio, reset visual feedback or lose code/chat state.
+
+Audiovisual edit: reveal visual code under its stage. Focused-editor evaluation
+is explicit: Music Run never applies a visual draft, and Visual Apply never
+re-evaluates music. Distinguish draft, compiling, pending boundary, live and error
+states independently. An agent proposal remains reviewable and explicitly applied.
+
+Perform/output: visuals-only or code-plus-visuals, optionally a note strip. Exclude
+chat, provider/account settings, private history and editing/error chrome. Keep
+audience layout independent of authoring layout. A same-session output window
+must not load another composer/player or create another AudioContext. Preserve
+one rendered feedback world when mirroring; do not assume two renderers agree.
+
+## Sequenced implementation
+
+### A. Preserve the musical foundation and audit the stage
+
+- [x] Read the owner's new brief and supersede the prior priority order.
+- [x] Preserve the tested code/chart/agent foundation and repo handoff.
+- [x] Complete concrete entry/layout, visual-host, signal and persistence audits.
+- [ ] Specify stage/session/renderer interfaces and their ownership before
+  changing canvas parents, routing or saved project versions.
+
+Gate: named existing owners for music source, acknowledged time, scene state,
+canvas, output and project persistence. No speculative replacement backend.
+
+Audit result: runtime.js owns route/presentation and scene identity; the sizing
+section at the end of audio.js assumes window dimensions; shell.html includes
+the stage plus sibling CRT/DMG/NES presentation layers. A docked container must
+clip/size all chosen output layers, not just move a canvas. Keep simulation
+dimensions stable during splitter drags. music-project.js serialize/restore
+must both change before promising portable scene state; arbitrary extra fields
+are currently discarded. The first slice will reuse game visuals and expose
+their current scheduled-signal limits, not advertise lossless emitted onsets.
+
+### B. First vertical slice: music-first entry and simultaneous stage
+
+- [ ] Make the public entry prioritize code or agent composition; preserve
+  explicit existing listening/song-link routes and browser recovery.
+- [ ] Introduce the resizable music/stage split with a landscape live preview,
+  initially reusing the existing renderer/game visuals behind a stage adapter.
+- [ ] Keep code, notes and stage visible together; chat stays collapsible.
+- [ ] Preserve renderer identity and music phase across resizing, mode changes,
+  chat collapse, visual-code disclosure and return from Perform.
+- [ ] Separate scene selection from the choice to compose or play a song.
+
+Gate: a fresh or saved pattern starts one player, drives the already-configured
+stage and remains editable beside it. No mood/game setup wall or navigation to
+another composition workspace. Verify desktop, narrow and mobile layouts.
+
+### C. Shared musical signals and safe renderer evaluation
+
+- [ ] Normalize acknowledged transport and stable native onset identity with
+  source index, frame/time, duration, pitch, channel/part and strength.
+- [ ] Give each visual consumer its own bounded cursor. Handle loop/seek/revision
+  epochs explicitly; no duplicate onsets from a rolling look-back window.
+- [ ] Expose measured internal master waveform/bands/level where available;
+  distinguish measurements from semantic event estimates. No microphone prompt.
+- [ ] Evaluate hydra-synth against the existing artifact: license/dependencies,
+  instance isolation, supplied canvas, explicit ticks, memory/GPU load, errors
+  and Safari behavior. Do not embed the whole Hydra website or adopt by name alone.
+- [ ] Choose an explicit bounded visual-language boundary. Do not eval arbitrary
+  agent/user JavaScript in the application realm. Restrict available operations,
+  signals, assets, resource use and source size; assess worker/renderer isolation.
+  Unsupported input must fail clearly without a musical change.
+
+Gate: one known note drives a predictable visual event through tempo changes and
+live replacement. Drafts never emit events. A runaway/rejected visual program
+cannot be called isolated merely because it is wrapped in try/catch.
+
+### D. Scenes, visual code and performance controls
+
+- [ ] Provide a small strong collection of editable scenes suitable for the
+  chosen renderer, alongside the existing generic game visuals. Start with
+  geometric/pixel/feedback directions that actually fit the implementation.
+- [ ] Declare named visual parameters and mappings separately from code. Sliders
+  change declared saved parameter values, not secretly rewrite visual source.
+- [ ] Add optional visual code with explicit Apply and last-working retention
+  on recoverable parser/shader errors; music continues unaffected.
+- [ ] Support immediate or selected-boundary scene activation, visible queued
+  scene/time and cancellation. Define pause/seek/revision behavior explicitly.
+- [ ] Implement distinct Stop music, Freeze visuals, Blackout output, Reset visual
+  state and Global panic operations. Blackout is not an audio stop.
+- [ ] Integrate the prepared music gate/velocity/transpose literal controls and
+  finish the Tidal-guided bounded pattern subset/live build-up from the music plan.
+
+Gate: code and named state have one declared source of truth, errors keep the
+last usable output, and each performance control has independently tested effects.
+
+### E. Save the audiovisual composition and create audience output
+
+- [ ] Version/save visual source, selected scene, parameters, mappings and
+  supported assets with the musical project; preserve old music-only projects.
+- [ ] Keep local panel/window geometry separate from portable composition data.
+  Preserve existing private-history/public-share boundaries and explicit import.
+- [ ] Provide fullscreen and a same-session output path with visuals-only and
+  code-plus-visuals choices. Never expose the entire app DOM as audience output.
+- [ ] Verify the single renderer/output strategy under backgrounding and a second
+  display; if a simple mirror freezes, fix ownership before claiming acceptance.
+
+Gate: reopen restores the audiovisual composition; output has one audio engine,
+no private UI, stable visual state and independent presentation choices.
+
+### F. Performance and release acceptance
+
+- [ ] Define and measure resolution/frame-rate/resource budgets; reduce visual
+  work before degrading audio. Test high-density displays and long sessions.
+- [ ] Exercise resize, collapse, focused evaluation, error retention, scene
+  queue/cancel, freeze/blackout/reset/panic, save/reload and output lifecycle.
+- [ ] Perform a repeatable groove -> accompaniment -> melody -> variation ->
+  breakdown -> full arrangement exercise using manual code and reviewed agent
+  proposals, with visible note/visual correspondence and continuous music phase.
+- [ ] Run project, gateway and affected renderer/export/parity regressions;
+  verify actual rendered layouts and native Safari with visible build IDs.
+- [ ] Prepare the coordinated web release, then obtain the owner's separate
+  deployment/configuration authorization and perform bounded real-provider and
+  deployed native acceptance. No desktop/broadcast restart as a side effect.
+
+Full Tidal/Hydra/Strudel compatibility, collaboration, arbitrary pane grids,
+camera/video inputs, node graphs, a preset marketplace and elaborate 3D/VJ mixing
+are not initial-scope requirements. Do not add accounts, tunnels or services to
+solve a frontend presentation problem.
+
+## Reference and evidence boundaries
+
+The owner's brief is research/design input, not evidence that these features
+already exist. TidalCycles remains the musical guide. Hydra is a renderer
+candidate, not yet a dependency decision. Its documented supplied-canvas,
+detectAudio:false and manual tick options make it worth testing; that is not
+proof of performance isolation or Safari compatibility.
+
+- [TidalCycles](https://tidalcycles.org/)
+- [Hydra embedding and manual rendering](https://hydra.ojack.xyz/docs/docs/learning/guides/how-to/hydra-in-a-webpage/)
+- [Strudel visual feedback](https://strudel.cc/learn/visual-feedback/)
+- [Strudel/Hydra integration](https://strudel.cc/learn/hydra/)
+- [Flok](https://munshkr.github.io/flok/)
+- [Mercury Playground](https://github.com/tmhglnd/mercury-playground)
+- [P5LIVE](https://github.com/ffd8/P5LIVE)
+
+Track exact implementations, tests, build IDs and open gates in HANDOFF.md.
+Do not mark this goal complete while these required surfaces or acceptance
+checks are missing.

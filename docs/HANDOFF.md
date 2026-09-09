@@ -3,6 +3,50 @@
 Plain, current working notes for whoever (or whatever) picks the project up
 next. Infrastructure and operations live outside this repository.
 
+## 2026-09-09 — Active goal changed: algorave first, games as visual output
+
+The owner edited the active goal and supplied the visual-stage design brief at
+attachment `397f142c-e62a-4818-b237-57c87cf57739/pasted-text-1.txt`; it was read
+in full. docs/algorave-stage-plan.md now controls the presentation and priority
+order. Preserve the code/chart/agent work in 6d87aaa / 11c16ef (both pushed), but
+the old fullscreen visualizer switch is not the requested endpoint. The next
+vertical slice is music-primary entry with simultaneous code/notes and a
+persistent landscape stage. Follow with normalized musical signals, curated
+editable scenes, optional independent visual code, distinct performance controls,
+audiovisual persistence and same-session audience output. The old music plan
+retains unfinished Tidal language, source controls and agent/security gates.
+
+Initial repository inspection: runtime.js owns the original stage and currently
+stops rendering whenever Create's full-screen visualizer switch is closed.
+Audio.musicVisualState already reads acknowledged music time/schedule, but its
+bands are semantic strengths and waveform/spectrum are empty, not measured FFT
+data. Background rendering currently stops when document.hidden. Hydra embedding
+docs were read for supplied-canvas, manual-tick and microphone-disabled options;
+no dependency, renderer-isolation or output-mirroring decision has been made.
+The owner's brief explicitly requires inspecting those concerns, not installing
+another live-coding site wholesale. No deployment or paid call was made.
+
+Read-only stage audits completed: runtime.js owns routes/scene identity;
+audio.js's final sizing section assumes viewport dimensions; shell.html includes
+CRT/DMG/NES sibling layers beyond the main canvas. First implementation should
+dock a single renderer behind a host-size/presentation API, preserve simulation
+dimensions during resizing, make root entry music-first and replace implicit
+station autoplay on Back with an explicit listening choice. Current event IDs
+include position in a moving look-back window, so later reliable VJ routing needs
+stable sequence indices and loop/seek epochs. A simple popup mirror cannot meet
+hidden-editor acceptance while the renderer stops on document.hidden.
+
+Prepared music-control component: src/music-source-controls.mjs and
+scripts/verify-music-source-controls.js. Its standalone Chromium harness passes
+19 checks for exact numeric edits, grouped slow-drag/held-key Undo, matching-
+preview focus restoration, comment trivia, stale/project/destroy guards and
+bounded mounting. `npm run test:music-source-controls` runs it independently.
+It is deliberately not imported by the editor or build yet: it expects validated
+`compiled.controls` descriptors and project identity, which the compiler/project/
+preview/host do not supply yet. These are compiler-shaped fixture results, not
+an enabled product feature or native pointer proof. Finish that integration
+under the new plan; do not show a working slider claim before then.
+
 ## 2026-09-09 — Reference pass: pitch chart, inline rolls and playing tokens
 
 The Tidal-guided plan from 96acdcb now has its first three reference steps
