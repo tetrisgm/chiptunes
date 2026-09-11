@@ -147,6 +147,36 @@ const PROGRAM=[
       assert.ok(r.visual.source.includes('orbits'),'a deliberate new visual replaces the unreadable one');
     });
 
+    await check('panel geometry persists in its own key and never enters the project record',async()=>{
+      // Checkbox 2: local viewing preferences are durable but separate from
+      // portable composition data. A record that carried them would ship one
+      // machine's window arrangement to everyone who opened the link.
+      const LAYOUT='ct-music-layout-v1';
+      await page.evaluate(()=>{
+        document.querySelector('.mw-stage-splitter').focus();
+        for(let i=0;i<5;i++)document.querySelector('.mw-stage-splitter').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft',bubbles:true}));
+        document.querySelector('.mw-splitter').focus();
+        for(let i=0;i<5;i++)document.querySelector('.mw-splitter').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowUp',bubbles:true}));
+      });
+      await page.waitForTimeout(400);
+      const layout=await page.evaluate(k=>{const raw=localStorage.getItem(k);return raw?JSON.parse(raw):null;},LAYOUT);
+      assert.ok(layout,'a separate layout key is written');
+      assert.equal(typeof layout.musicShare,'number');
+      assert.equal(typeof layout.chartShare,'number');
+      const before=await page.evaluate(()=>({music:+getComputedStyle(document.querySelector('.mw-creative')).getPropertyValue('--music-share').trim().replace('fr',''),
+        chart:+getComputedStyle(document.querySelector('.mw-composition')).getPropertyValue('--chart-share').trim().replace('fr','')}));
+      // The project record must carry none of it.
+      const raw=await page.evaluate(k=>localStorage.getItem(k),KEY);
+      for(const key of ['musicShare','chartShare','desktopChatOpen','mobileChatOpen','visualCodeOpen'])
+        assert.equal(raw.includes(key),false,'project record must not contain '+key);
+      // And it survives a reload.
+      await page.reload();await ready();await page.waitForTimeout(300);
+      const after=await page.evaluate(()=>({music:+getComputedStyle(document.querySelector('.mw-creative')).getPropertyValue('--music-share').trim().replace('fr',''),
+        chart:+getComputedStyle(document.querySelector('.mw-composition')).getPropertyValue('--chart-share').trim().replace('fr','')}));
+      assert.deepEqual(after,before,'panel geometry is restored from its own key');
+      assert.notEqual(after.music,62,'and is the adjusted value, not the default');
+    });
+
     await check('no page errors, one AudioContext, no provider or capture calls',async()=>{
       assert.deepEqual(errors,[]);
       assert.equal(await page.evaluate(()=>visualMic),0,'no microphone request');

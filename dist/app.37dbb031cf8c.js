@@ -2,7 +2,7 @@ globalThis.CT_MUSIC_ASSETS_VERSION="e84045bcb7186729";
 globalThis.CT_MUSIC_EDITOR_VERSION="ffbf00c2401d";
 globalThis.CT_MUSIC_CHAT_UI_VERSION="904689e8bae1";
 globalThis.CT_MUSIC_PREVIEW_VERSION="155578e509d1";
-globalThis.CT_MUSIC_BUILD_VERSION="09bc7ead9d35";
+globalThis.CT_MUSIC_BUILD_VERSION="f135bba5dd6f";
 /* ===== src/seed.js ===== */
 // ===== seed.js — deterministic generated-track identity. =====
 // Loads FIRST (before composer.js/audio.js) so any composer can seed itself from a URL token.
@@ -18404,6 +18404,35 @@ track("lead").instrument("p0").play("lead",{repeat:8})`
     if(next==='notes'&&focusCode!==false)$('.mw-notes').focus({preventScroll:true});
     if(next==='code')ensureEditor().then(function(){if(epoch===viewEpoch&&focusCode!==false&&!root.hidden&&view==='code')editor.focus();}).catch(announceError);
   }
+  // Panel geometry is a local viewing preference, not composition data. It
+  // lives under its own key so it can never travel in a project record, a
+  // download, a share link or a transfer: those carry what the music and
+  // visuals ARE, not how this browser happened to be arranged.
+  var LAYOUT_KEY='ct-music-layout-v1',layoutTimer=null,layoutLoaded=false,visualCodeOpen=false;
+  function loadLayout(){
+    if(layoutLoaded)return;layoutLoaded=true;
+    try{
+      var raw=localStorage.getItem(LAYOUT_KEY);if(!raw)return;
+      var saved=JSON.parse(raw);if(!saved||typeof saved!=='object')return;
+      // Every value is clamped by its own setter, so a hand-edited or stale
+      // record cannot produce an unusable layout.
+      if(typeof saved.musicShare==='number'&&isFinite(saved.musicShare))musicShare=Math.max(45,Math.min(75,Math.round(saved.musicShare)));
+      if(typeof saved.chartShare==='number'&&isFinite(saved.chartShare))chartShare=Math.max(20,Math.min(75,Math.round(saved.chartShare)));
+      if(typeof saved.desktopChatOpen==='boolean')desktopChatOpen=saved.desktopChatOpen;
+      if(typeof saved.mobileChatOpen==='boolean')mobileChatOpen=saved.mobileChatOpen;
+      if(typeof saved.visualCodeOpen==='boolean')visualCodeOpen=saved.visualCodeOpen;
+    }catch(e){/* a broken layout preference must never block the workspace */}
+  }
+  function scheduleLayoutSave(){
+    clearTimeout(layoutTimer);
+    layoutTimer=setTimeout(function(){
+      layoutTimer=null;
+      try{
+        localStorage.setItem(LAYOUT_KEY,JSON.stringify({musicShare:musicShare,chartShare:chartShare,
+          desktopChatOpen:desktopChatOpen,mobileChatOpen:mobileChatOpen,visualCodeOpen:visualCodeOpen}));
+      }catch(e){/* layout is a convenience; never report or block on it */}
+    },250);
+  }
   function chatIsOpen(){return mobileView.matches?mobileChatOpen:desktopChatOpen;}
   function renderChatLayout(){
     var expanded=chatIsOpen(),panel=$('.mw-chat');
@@ -18415,6 +18444,7 @@ track("lead").instrument("p0").play("lead",{repeat:8})`
   }
   function setChatOpen(expanded,focus){
     if(mobileView.matches)mobileChatOpen=expanded;else desktopChatOpen=expanded;
+    scheduleLayoutSave();
     renderChatLayout();
     if(expanded&&focus){
       var target=chatFocus&&chatFocus.isConnected&&!chatFocus.disabled&&chatFocus.getClientRects().length?chatFocus:
@@ -18428,6 +18458,7 @@ track("lead").instrument("p0").play("lead",{repeat:8})`
     $('.mw-composition').style.setProperty('--code-share',(100-chartShare)+'fr');
     $('.mw-splitter').setAttribute('aria-valuenow',String(chartShare));
     $('.mw-splitter').setAttribute('aria-valuetext','Chart '+chartShare+' percent; code '+(100-chartShare)+' percent');
+    scheduleLayoutSave();
   }
   function setMusicShare(value){
     musicShare=Math.max(45,Math.min(75,Math.round(value)));
@@ -18435,6 +18466,7 @@ track("lead").instrument("p0").play("lead",{repeat:8})`
     $('.mw-creative').style.setProperty('--visuals-share',(100-musicShare)+'fr');
     $('.mw-stage-splitter').setAttribute('aria-valuenow',String(musicShare));
     $('.mw-stage-splitter').setAttribute('aria-valuetext','Music '+musicShare+' percent; visuals '+(100-musicShare)+' percent');
+    scheduleLayoutSave();
   }
   function renderState(){
     renderChatAccess();
@@ -18866,7 +18898,9 @@ track("lead").instrument("p0").play("lead",{repeat:8})`
       if(!root.hidden)renderChatLayout();
     });
     var splitter=$('.mw-splitter'),dragPointer=null;
+    loadLayout();
     setChartShare(chartShare);setMusicShare(musicShare);renderChatLayout();
+    if(visualCodeOpen)$('.mw-visual-code-disclosure').open=true;
     splitter.addEventListener('keydown',function(e){
       var delta=e.shiftKey?10:5;
       if(['ArrowUp','ArrowDown','Home','End'].indexOf(e.key)===-1)return;
@@ -18904,7 +18938,10 @@ track("lead").instrument("p0").play("lead",{repeat:8})`
         renderStage();
       }catch(e){status('This visual scene could not be selected. Music is unchanged.');renderStage();}
     });
-    $('.mw-visual-code-disclosure').addEventListener('toggle',function(){if(this.open)ensureVisualEditor();});
+    $('.mw-visual-code-disclosure').addEventListener('toggle',function(){
+      visualCodeOpen=this.open;scheduleLayoutSave();
+      if(this.open)ensureVisualEditor();
+    });
     G.addEventListener('ct-visual-state',function(){
       // CodeMirror change listeners run during an editor update. UI/diagnostic
       // synchronization must not dispatch another transaction reentrantly.
