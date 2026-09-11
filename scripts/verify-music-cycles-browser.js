@@ -139,6 +139,31 @@ const replyText='Add every(4,"rev",3) to the lead pattern; the bass and drums ar
     assert.deepEqual(live.validated.compiled.gb,full.validated.compiled.gb);
     console.log('  ok reviewed periodic reversal → Euclidean drums → rests → restoration; exact revision Undo/Redo');
 
+    // The visual half of the build-up exercise: while the restored arrangement
+    // is still sounding, the shared stage must actually be drawing and its
+    // music-derived signals must actually move, with the music phase unbroken.
+    // This shows both surfaces are live and fed from the same acknowledged
+    // clock. It is not a pixel-level causal proof and is not a claim about
+    // Safari or a second display.
+    const correspondence=()=>page.evaluate(()=>{
+      const v=CT_CREATE_PRESENTATION.snapshot().visual,a=Audio.musicVisualState();
+      return {scene:v.scene,enabled:v.enabled,state:v.state,frames:v.renderer.frames,hasFrame:v.renderer.hasFrame,
+        signals:JSON.stringify(v.renderer.signals),phase:a&&a.frame,activation:a&&a.activation,
+        revision:a&&a.revision,status:a&&a.status};
+    });
+    const visual0=await correspondence();
+    assert.equal(visual0.enabled,true,'the persistent stage is running beside the music');
+    assert.equal(visual0.status,'playing','the restored arrangement is still sounding');
+    await page.waitForFunction(f=>CT_CREATE_PRESENTATION.snapshot().visual.renderer.frames>f+10,visual0.frames);
+    const visual1=await correspondence();
+    assert.ok(visual1.frames>visual0.frames,'the stage draws while the arrangement sounds');
+    assert.equal(visual1.hasFrame,true,'and has published a complete frame');
+    assert.ok(visual1.phase>visual0.phase,'the music phase advances across the same window');
+    assert.equal(visual1.activation,visual0.activation,'with no new activation');
+    assert.equal(visual1.revision,visual0.revision,'and no revision change');
+    assert.notEqual(visual1.signals,visual0.signals,'music-derived visual signals move with the arrangement');
+    console.log('  ok note/visual correspondence during the sounding arrangement, with continuous phase');
+
     // Honest error fallback: neither invalid text nor a failed Run affects sound.
     const stable=await snapshot(),invalid=steps[6].source.replace('cycleV1("C2(3,8)")','cycleV1("C2").slow(2).rev()'),invalidStart=await commandCount();
     await code.fill(invalid);
