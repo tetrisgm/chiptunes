@@ -385,8 +385,36 @@ physical display is not expressible in Playwright.
 
 ### F. Performance and release acceptance
 
-- [ ] Define and measure resolution/frame-rate/resource budgets; reduce visual
+- [x] Define and measure resolution/frame-rate/resource budgets; reduce visual
   work before degrading audio. Test high-density displays and long sessions.
+  The budgets are now explicit constants rather than assumptions: resolution is
+  the two fixed 960x540 canvases, item count is capped at 512 by the compiler,
+  and VISUAL_BUDGET_MS (6 ms) is the share of a 60fps frame the stage may take
+  before it must draw less. The split matters: the renderer deliberately owns no
+  clock and no ambient services -- verify-visual-renderer.js forbids Date and
+  performance inside it -- so it cannot measure its own cost. runtime.js measures
+  actual frame cost around the stage tick, keeps a slow EMA so one expensive
+  frame does not visibly thin the scene, and hands back a quality level; the
+  renderer only spends it. Recovery is deliberately slower than shedding so the
+  level does not oscillate on a marginal machine.
+  Shedding scales every layer's item count, which is the loop every draw
+  operation runs, so it reduces real canvas primitives rather than merely
+  reporting a smaller number; MIN_QUALITY (0.25) and a one-item-per-layer floor
+  keep a shed frame the same composition, thinner, never a blank stage. Audio is
+  never the thing that gives way: nothing in this path touches transport, and the
+  browser check asserts the music keeps playing and no second AudioContext
+  appears while visuals are being budgeted.
+  Evidence: verify-visual-renderer.js covers shedding, clamping in both
+  directions, invalid hints that must not fail a frame, and a 5,000-frame
+  session with rotating transport identity, quality and onsets that allocates no
+  canvas, resizes none, keeps phase wrapped and never exceeds the declared
+  program. High density is exercised at deviceScaleFactor 2 by the existing
+  browser checks. verify-visual-persistence-browser.js asserts the budget is
+  declared, that real cost is measured rather than assumed, and that a shed frame
+  really draws fewer items; removing the cost measurement turns it red.
+  Evidence boundary: this is a bounded work budget measured in Chromium. It is
+  not a multi-hour real session, not a physical high-DPI display, and not a GPU
+  memory measurement.
 - [ ] Exercise resize, collapse, focused evaluation, error retention, scene
   queue/cancel, freeze/blackout/reset/panic, save/reload and output lifecycle.
   Eight of the nine are already covered on every gate, so only OUTPUT LIFECYCLE

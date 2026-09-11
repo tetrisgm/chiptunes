@@ -3,6 +3,51 @@
 Plain, current working notes for whoever (or whatever) picks the project up
 next. Infrastructure and operations live outside this repository.
 
+## 2026-09-11 — Measured visual work budget, Phase F item 1 (local checkpoint)
+
+The budgets are explicit constants now instead of assumptions. Resolution is the
+two fixed 960x540 canvases, items are capped at 512 by the compiler, and
+VISUAL_BUDGET_MS (6 ms) is the share of a 60fps frame the stage may take before
+it must draw less.
+
+The split is the interesting part and it was forced by an existing test: the
+renderer deliberately owns no clock and no ambient services, and
+verify-visual-renderer.js:133 actively forbids Date and performance inside it,
+so it CANNOT measure its own cost. runtime.js therefore measures real frame cost
+around the stage tick, keeps a slow EMA so one expensive frame does not visibly
+thin the scene, and hands a quality level back down; visual-stage.js passes it
+straight through and the renderer only spends it. Recovery is deliberately
+slower than shedding (+0.01 versus -0.05 per frame) so the level does not
+oscillate on a marginal machine. CT_CREATE_PRESENTATION.visualBudget() exposes
+budgetMs/costMs/quality so the budget is observable rather than asserted.
+
+Shedding scales every layer's item count, which is the loop all five draw
+operations run, so it reduces real canvas primitives rather than reporting a
+smaller number — the unit check asserts primitives actually fall, not just
+drawnItems. MIN_QUALITY (0.25) plus a one-item-per-layer floor keep a shed frame
+the same composition, thinner, never a blank stage. Audio is never what gives
+way: nothing on this path touches transport, and the browser check asserts the
+music keeps playing with no second AudioContext while visuals are budgeted.
+
+Final artifact: app.95cb80005172.js / Music 54320fd3c98a, 119 sources, fourteen
+games. verify-visual-renderer.js is 17 tests, up from 15: shedding, clamping in
+both directions, invalid hints that must not fail a frame, and a 5,000-frame
+session with rotating transport identity, quality and onsets that allocates no
+canvas, resizes none, keeps phase wrapped and never exceeds the declared
+program. verify-visual-persistence-browser.js is ten checks and was
+mutation-confirmed: deleting the cost measurement turns it red.
+
+One correction worth keeping: the long-session check first asserted two resizes
+and saw four, because construction sets width and height on each of the two
+canvases. The assertion now captures the construction baseline and asserts no
+GROWTH during the session, which is the real claim and survives a constructor
+change.
+
+Evidence boundary: a bounded work budget measured in Chromium, with high density
+exercised at deviceScaleFactor 2 by the existing browser checks. NOT a
+multi-hour real session, not a physical high-DPI display, not a GPU memory
+measurement, and not Safari.
+
 ## 2026-09-11 — Build-up exercise closed, Phase F item 3 (local checkpoint)
 
 Phase F item 3 is complete, and it was closer to done than the plan implied.
