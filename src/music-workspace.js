@@ -118,7 +118,7 @@
     if(!G.CT_CREATE_PRESENTATION||!G.CT_CREATE_PRESENTATION.snapshot||!G.CT_CREATE_PRESENTATION.snapshot().mounted){status('Visualizer is unavailable in this build.');return;}
     if(visible&&!visualizerOpen)presentationFocus=document.activeElement;
     visualizerOpen=!!visible;presentationOwner=visible?project:null;
-    root.dataset.presentation=visible?'visualizer':'composition';
+    root.dataset.presentation=visible?outputMode:'composition';
     var button=$('[data-action=visualizer]');button.textContent=visible?'Return to composition':'Focus visuals';button.setAttribute('aria-pressed',String(visible));
     // Presentation changes only layout. The same stage stays mounted and music
     // keeps its acknowledged phase; private chat is never part of output.
@@ -647,6 +647,11 @@
   // download, a share link or a transfer: those carry what the music and
   // visuals ARE, not how this browser happened to be arranged.
   var LAYOUT_KEY='ct-music-layout-v1',layoutTimer=null,layoutLoaded=false,visualCodeOpen=false;
+  // Audience output layout, independent of the authoring layout: 'visualizer'
+  // is visuals only, 'performance' keeps the readable code beside them. Both
+  // exclude chat, account/provider settings, private history and editing or
+  // error chrome; neither ever exposes the whole app DOM.
+  var outputMode='visualizer';
   function loadLayout(){
     if(layoutLoaded)return;layoutLoaded=true;
     try{
@@ -659,6 +664,7 @@
       if(typeof saved.desktopChatOpen==='boolean')desktopChatOpen=saved.desktopChatOpen;
       if(typeof saved.mobileChatOpen==='boolean')mobileChatOpen=saved.mobileChatOpen;
       if(typeof saved.visualCodeOpen==='boolean')visualCodeOpen=saved.visualCodeOpen;
+      if(saved.outputMode==='visualizer'||saved.outputMode==='performance')outputMode=saved.outputMode;
     }catch(e){/* a broken layout preference must never block the workspace */}
   }
   function scheduleLayoutSave(){
@@ -667,7 +673,8 @@
       layoutTimer=null;
       try{
         localStorage.setItem(LAYOUT_KEY,JSON.stringify({musicShare:musicShare,chartShare:chartShare,
-          desktopChatOpen:desktopChatOpen,mobileChatOpen:mobileChatOpen,visualCodeOpen:visualCodeOpen}));
+          desktopChatOpen:desktopChatOpen,mobileChatOpen:mobileChatOpen,visualCodeOpen:visualCodeOpen,
+          outputMode:outputMode}));
       }catch(e){/* layout is a convenience; never report or block on it */}
     },250);
   }
@@ -1093,7 +1100,21 @@
     function describeCycleStep(){var step=cycleSteps.find(function(item){return item.id===$('.mw-live-step').value;});$('.mw-live-step-description').textContent=step?step.description:'';}
     $('.mw-live-step').addEventListener('change',describeCycleStep);describeCycleStep();
     $('.mw-live-guide').hidden=!cycleSteps.length;
+    var outputSelect=document.createElement('select');
+    outputSelect.className='mw-output-mode';outputSelect.setAttribute('aria-label','Audience output layout');
+    [['visualizer','Output: visuals only'],['performance','Output: code + visuals']].forEach(function(pair){
+      var option=document.createElement('option');option.value=pair[0];option.textContent=pair[1];outputSelect.appendChild(option);
+    });
+    outputSelect.value=outputMode;
+    outputSelect.addEventListener('change',function(){
+      outputMode=this.value==='performance'?'performance':'visualizer';
+      scheduleLayoutSave();
+      // Switching while output is showing re-lays it out immediately; it never
+      // recomposes, restarts audio or resets the visual world.
+      if(visualizerOpen)root.dataset.presentation=outputMode;
+    });
     var visualizerButton=document.createElement('button');visualizerButton.dataset.action='visualizer';visualizerButton.textContent='Focus visuals';visualizerButton.setAttribute('aria-pressed','false');visualizerButton.setAttribute('aria-controls','mw-panel-visuals');
+    $('.mw-top').insertBefore(outputSelect,$('[data-action=toggle-chat]'));
     $('.mw-top').insertBefore(visualizerButton,$('[data-action=toggle-chat]'));
     var chartStatus=document.createElement('p');chartStatus.className='mw-chart-status';chartStatus.setAttribute('role','status');
     $('.mw-main').insertBefore(chartStatus,$('.mw-selection'));
@@ -1139,6 +1160,9 @@
     loadLayout();
     setChartShare(chartShare);setMusicShare(musicShare);renderChatLayout();
     if(visualCodeOpen)$('.mw-visual-code-disclosure').open=true;
+    // The chooser is built before the stored layout is read, so apply it here
+    // rather than at construction.
+    $('.mw-output-mode').value=outputMode;
     splitter.addEventListener('keydown',function(e){
       var delta=e.shiftKey?10:5;
       if(['ArrowUp','ArrowDown','Home','End'].indexOf(e.key)===-1)return;

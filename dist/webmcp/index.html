@@ -3247,13 +3247,27 @@
 #musicworkspace .mw-chart-status{margin:0;padding:6px 12px;font-size:12px;color:#b6bfd5}
 #musicworkspace .mw-note-group{position:absolute;top:28px;height:24px;min-width:12px;padding:0;font-size:10px;overflow:hidden;background:#3b4059}
 #musicworkspace .mw-chart-reset{align-self:flex-start;margin:0 12px 4px}
-#musicworkspace[data-presentation=visualizer]>.mw-top>:not(h1):not([data-action=visualizer]),#musicworkspace[data-presentation=visualizer]>.mw-transport,#musicworkspace[data-presentation=visualizer]>.mw-footer,#musicworkspace[data-presentation=visualizer]>.mw-live-feedback,#musicworkspace[data-presentation=visualizer]>.mw-status{display:none}
+#musicworkspace[data-presentation=visualizer]>.mw-top>:not(h1):not([data-action=visualizer]):not(.mw-output-mode),#musicworkspace[data-presentation=visualizer]>.mw-transport,#musicworkspace[data-presentation=visualizer]>.mw-footer,#musicworkspace[data-presentation=visualizer]>.mw-live-feedback,#musicworkspace[data-presentation=visualizer]>.mw-status{display:none}
 #musicworkspace[data-presentation=visualizer]>.mw-transfer-offer{display:none}
 #musicworkspace[data-presentation=visualizer] .mw-body{grid-template-columns:minmax(0,1fr)}
 #musicworkspace[data-presentation=visualizer] .mw-creative{display:flex;flex-direction:column;overflow:hidden}
 #musicworkspace[data-presentation=visualizer] .mw-main,#musicworkspace[data-presentation=visualizer] .mw-chat,#musicworkspace[data-presentation=visualizer] .mw-stage-splitter,#musicworkspace[data-presentation=visualizer] .mw-stage-help,#musicworkspace[data-presentation=visualizer] .mw-visual-authoring{display:none}
 #musicworkspace[data-presentation=visualizer] .mw-visuals{flex:1;min-height:0;overflow:hidden}
 #musicworkspace[data-presentation=visualizer] .mw-stage-viewport{flex:1;min-height:0;aspect-ratio:auto;max-height:none;max-width:none;align-self:stretch}
+/* Audience output, code + visuals. Same exclusions as visuals-only, but the
+   readable performance program stays on screen beside the stage. Chat, account
+   and provider settings, private history, project tools and every editing or
+   error affordance are excluded; the whole app DOM is never the output. */
+#musicworkspace[data-presentation=performance]>.mw-top>:not(h1):not([data-action=visualizer]):not(.mw-output-mode),#musicworkspace[data-presentation=performance]>.mw-transport,#musicworkspace[data-presentation=performance]>.mw-footer,#musicworkspace[data-presentation=performance]>.mw-live-feedback,#musicworkspace[data-presentation=performance]>.mw-status,#musicworkspace[data-presentation=performance]>.mw-transfer-offer{display:none}
+#musicworkspace[data-presentation=performance] .mw-body{grid-template-columns:minmax(0,1fr)}
+#musicworkspace[data-presentation=performance] .mw-creative{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;overflow:hidden}
+#musicworkspace[data-presentation=performance] .mw-chat,#musicworkspace[data-presentation=performance] .mw-stage-splitter,#musicworkspace[data-presentation=performance] .mw-stage-help,#musicworkspace[data-presentation=performance] .mw-visual-authoring,#musicworkspace[data-presentation=performance] .mw-diagnostics,#musicworkspace[data-presentation=performance] .mw-live-guide,#musicworkspace[data-presentation=performance] .mw-help,#musicworkspace[data-presentation=performance] .mw-selection,#musicworkspace[data-presentation=performance] .mw-source-mode,#musicworkspace[data-presentation=performance] .mw-splitter,#musicworkspace[data-presentation=performance] .mw-notes{display:none}
+#musicworkspace[data-presentation=performance] .mw-main{display:flex;flex-direction:column;min-height:0;overflow:hidden}
+#musicworkspace[data-presentation=performance] .mw-composition{display:flex;flex-direction:column;min-height:0;flex:1}
+#musicworkspace[data-presentation=performance] .mw-code{flex:1;min-height:0}
+#musicworkspace[data-presentation=performance] .mw-visuals{display:flex;flex-direction:column;min-height:0;overflow:hidden}
+#musicworkspace[data-presentation=performance] .mw-stage-viewport{flex:1;min-height:0;aspect-ratio:auto;max-height:none;max-width:none;align-self:stretch}
+@media (max-width:980px){#musicworkspace[data-presentation=performance] .mw-creative{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) minmax(0,1fr)}}
 /* Scoped adaptation of AI Elements layout; no Tailwind, reset, or global theme. */
 .mcui { display:flex; flex-direction:column; min-height:0; height:100%; color:inherit; font:inherit; }
 .mcui *, .mcui *::before, .mcui *::after { box-sizing:border-box; }
@@ -3349,7 +3363,7 @@
     <button id="start" hidden></button>
   </div>
 
-<script src="../app.95cb80005172.js" defer></script>
+<script src="../app.e493f183f7ea.js" defer></script>
 
 </body>
 </html>
