@@ -323,6 +323,48 @@ saved projects are untouched.
   still stops when document.hidden, so a popup would freeze behind the editor.
 - [ ] Verify the single renderer/output strategy under backgrounding and a second
   display; if a simple mirror freezes, fix ownership before claiming acceptance.
+  STRATEGY DECIDED 2026-09-11, and the conditional clause turns out not to fire:
+  ownership never needed fixing. There is exactly one visual session, the
+  renderer's two 960x540 canvases are private buffers reaching the screen
+  through a single drawImage, and mount/unmount moves the whole layer stack with
+  ownerDocument enforced. The freeze this checkbox anticipates is a DRIVER
+  problem, not an ownership problem -- so the answer is the shape that does not
+  create a second owner: ONE window, one document, one renderer, one mount host,
+  with the chosen output layout fullscreened onto the projector. The performer
+  works on the audience surface, which is the algorave idiom rather than a
+  compromise.
+  Three alternatives were examined against this codebase and rejected. Rendering
+  while hidden is inert on its own, because requestAnimationFrame does not fire
+  in a hidden document; making it real means a worker tick, a second blanking
+  mechanism, re-deriving the vsync frame divisor and re-labelling diagnostics
+  three existing verifiers read -- and it is the single most dangerous shape to
+  accept on headless evidence, because Playwright never produces document.hidden
+  and would confirm exactly what fails on a real machine. OffscreenCanvas is a
+  rewrite, not a change: it moves rendering to a worker rather than a window, it
+  cannot even be applied because a 2D context is taken on #stage at module load,
+  and the audience picture is a CSS stack of #stage plus WebGL panels and
+  blended layers, not one canvas. A captureStream/drawImage mirror inherits the
+  freeze rather than fixing it, and mirrors the wrong layer in DMG/NES modes
+  where #stage is deliberately hidden -- and this plan already forbids assuming
+  two renderers agree.
+  Landed for it: fullscreen now takes the whole output layout, so code-plus-
+  visuals keeps its code half; output carries its own on-screen build identifier
+  (a NEW element, never an unhide of the footer) so an observation can name the
+  build it was made against; and the naive popup mirror is a permanent red-able
+  regression -- it ticks its own frame loop and produces zero new frames once
+  the source stops, so nobody ships it as an output path by accident.
+  scripts/verify-audience-clock-browser.js also asserts the thing nothing
+  asserted before: acknowledged musical time keeps advancing across a real
+  editor blur, with no second audio engine.
+  WHAT REMAINS IS OWNER-ONLY, and it is the whole checkbox: whether a window
+  fullscreened on display 2 reports document.hidden when the operator switches
+  Spaces or another window occludes it, on this Mac with its current "Displays
+  have separate Spaces" setting. Playwright cannot produce document.hidden by
+  any of six routes tried, so no headless check may stand in for this. Also
+  owner-only: whether the letterboxed 960x540 surface fills a real projector at
+  its resolution and refresh, whether the code half is legible at projection
+  distance, all Safari behaviour, and whether a set-length session holds frame
+  rate and musical time. The owner acceptance checklist is in HANDOFF.md.
 
 Gate: reopen restores the audiovisual composition; output has one audio engine,
 no private UI, stable visual state and independent presentation choices.
@@ -479,14 +521,17 @@ physical display is not expressible in Playwright.
   `npm test` does NOT include gateway, render-parity or worklet-boundary.
   Gateway fails 3 of 77 on macOS without LC_ALL, because the isolated postmaster
   it spawns dies with "postmaster became multithreaded during startup" under
-  PostgreSQL 17; with LC_ALL=C it is 77/77. And two checks are load-sensitive
-  rather than flaky-by-design -- verify-sync compares a measured clock
-  correction against a 120 ms tolerance, and verify-frame-pacing measures the
-  display refresh interval and fails when it reads 0 ms. Both pass standalone
-  and both fail under a loaded machine, so do not run agents, builds or a second
-  browser suite concurrently with the gate. When one of them does fail, re-run it
-  alone before treating it as a regression, and record which invocations were
-  used rather than claiming one uninterrupted green run.
+  PostgreSQL 17; with LC_ALL=C it is 77/77. And THREE checks are load-sensitive rather than
+  flaky-by-design: verify-sync compares a measured clock correction against a
+  120 ms tolerance, verify-frame-pacing measures the display refresh interval
+  and fails when it reads 0 ms, and verify-chrome times the home reel's cut
+  cadence against a 2 s target (observed 2638 ms under load, 2000 ms idle).
+  All three pass standalone and all three fail under a loaded machine, so do not
+  run agents, builds or a second browser suite concurrently with the gate. When
+  one fails, re-run it alone before treating it as a regression, and record which
+  invocations were used rather than claiming one uninterrupted green run. Note
+  verify-chrome is the FIRST command after verify-sync, so a flake there skips
+  the rest of that segment; re-run from the command after it.
 - [ ] Prepare the coordinated web release, then obtain the owner's separate
   deployment/configuration authorization and perform bounded real-provider and
   deployed native acceptance. No desktop/broadcast restart as a side effect.

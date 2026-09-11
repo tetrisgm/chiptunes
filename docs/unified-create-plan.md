@@ -181,7 +181,7 @@ semantics and the full performance demonstration remain outstanding gates.
    WebKit. Final native local Safari (Music 825b6f3ddb9a) verifies range click,
    drag, keyboard/numeric editing, focused Undo, and draft-only playback until
    explicit Run activates the next revision. This is not deployed acceptance.
-5. [ ] Make the live build-up workflow easy through short readable pattern edits
+5. [x] Make the live build-up workflow easy through short readable pattern edits
    and the existing sidebar: start a groove, add/alter an accompaniment, vary the
    melody, create a breakdown and restore the full arrangement while looping.
    Add only the minimal deterministic language support a verified fixture needs;
@@ -190,6 +190,18 @@ semantics and the full performance demonstration remain outstanding gates.
    Follow the TidalCycles guide above: specify the supported pattern subset and
    its compatibility boundary, then implement operators with exact timing/source-
    mapping tests before advertising them in completion or agent instructions.
+   Done 2026-09-11 by cycleV1 and the seven-step live-set guide, in the order
+   this item requires: docs/music-cycle-v1.md specified the subset and its
+   compatibility boundary first, scripts/verify-music-cycles.js established
+   exact timing and source-mapping fixtures, and only then did the editor
+   completions and the trusted server prompt advertise the operators.
+   scripts/verify-music-cycles-browser.js performs the whole build-up while
+   looping -- groove, accompaniment, melody, variation, breakdown, restoration --
+   and it uses BOTH paths this item names: short readable edits typed into the
+   code editor, and a reviewed agent proposal applied from the existing sidebar.
+   Item 6's acceptance demo stays open: it additionally requires local Safari,
+   which is the same outstanding native check as Phase F item 4 in
+   algorave-stage-plan.md.
 6. [ ] Acceptance demo: play once, then manually and via reviewed agent proposals
    build and vary a chip track with visible code/notes correspondence, no lost
    playback phase, no navigation and no hidden musical edits. Include invalid

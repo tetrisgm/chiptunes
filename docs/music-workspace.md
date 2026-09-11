@@ -175,7 +175,11 @@ conversion is not established as faithful, so native export remains in the
 native editor and legacy Create retains its own exporter.
 
 Unknown project, language/compiler or instrument-asset versions are reported
-without silently migrating sound or replacing the original saved record.
+without silently migrating sound or replacing the original saved record. If a
+saved project uses notation this build does not know — a record written by a
+newer dialect, opened on an older build — the report names the build and carries
+the compiler's own reason, rather than saying the music no longer compiles as
+though the source were at fault. The original record is handed back untouched.
 
 ## Verification
 

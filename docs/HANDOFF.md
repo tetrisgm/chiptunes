@@ -3,6 +3,98 @@
 Plain, current working notes for whoever (or whatever) picks the project up
 next. Infrastructure and operations live outside this repository.
 
+## 2026-09-11 — Output strategy decided; small fixes (local checkpoint)
+
+Phase E checkbox 4's strategy is settled and its conditional clause turns out
+not to fire. The checkbox says "if a simple mirror freezes, fix ownership before
+claiming acceptance" — but ownership never needed fixing. There is exactly one
+visual session, the renderer's two 960x540 canvases are private buffers reaching
+the screen through a single drawImage, and mount/unmount moves the whole layer
+stack with ownerDocument enforced. The freeze the checkbox anticipates is a
+DRIVER problem, not an ownership problem, so the answer is the shape that does
+not create a second owner: one window, one document, one renderer, one mount
+host, with the chosen output layout fullscreened onto the projector. The
+performer works on the audience surface. Rejected alternatives and their
+concrete costs in this codebase are recorded in algorave-stage-plan.md; the
+sharpest is that rendering-while-hidden would PASS headlessly and fail on the
+real machine, because Playwright never produces document.hidden.
+
+Landed for it. fullscreenStage() fullscreened only .mw-stage-viewport, so
+entering fullscreen from code-plus-visuals silently dropped the code half — the
+half that makes it a performance surface rather than a screensaver; it now
+fullscreens the output root when an output layout is active, with the call still
+synchronous inside the click so user activation survives. Output gained its own
+on-screen build identifier: a NEW .mw-output-build element, deliberately not an
+unhide of .mw-footer, which both output layouts hide and which carries project
+tools, download, share and export. That element is the precondition for an
+honest native acceptance note — a build id read at a different moment than the
+observation is inference, not evidence.
+
+New scripts/verify-audience-clock-browser.js holds the half a harness honestly
+can. A real same-origin popup mirrors the opener's stage on its own rAF: while
+the source paints it mirrors real frames, and once the source stops it keeps
+ticking and produces ZERO new frames. That is the checkbox's own negative clause
+as a permanent regression, so nobody ships a mirror as an output path by
+accident. It also asserts what nothing asserted before: acknowledged musical
+time keeps advancing across a REAL editor blur (fronting another page, not a
+synthetic Event), with no second audio engine. The file's header states plainly
+that none of this is backgrounding or second-display evidence, and why the
+document.hidden override is unsound rather than merely disallowed: Playwright
+runs Chromium with backgrounding disabled, so rAF keeps running under it. That
+technique can make a freeze look real; it can never show one was fixed.
+
+Also in this slice, three small things. The live-guide summary derived its step
+count from CT_MUSIC_CYCLE_EXAMPLES instead of a literal, and the browser check
+now pins the label to steps.length rather than only counting options.
+unified-create-plan.md item 5 ticked: the clause "and the existing sidebar" is
+genuinely satisfied, because the build-up verifier applies a reviewed agent
+proposal from the sidebar mid-sequence with looping on, and the item's required
+order (specify the subset, then timing/source-mapping tests, then advertise) was
+followed. And the restore message that read "Saved validated source no longer
+compiles" now names the build and carries the compiler's own reason — the
+diagnostics were already in scope at that assert. That was the real problem
+COMPILER_VERSION was meant to solve, and this fixes it while invalidating zero
+existing records, where adding the version field would have broken every saved
+project and share link to correct a string. The VERSION bump remains unnecessary
+too; the optional visual key sidesteps it.
+
+Final artifact: app.ad4d5a3cf0dd.js / Music 64b20ba3ce16, 119 sources, fourteen
+games. The gate passed in ordered segments again, and this run surfaced a THIRD
+load-sensitive check to add to verify-sync and verify-frame-pacing:
+verify-chrome times the home reel's cut cadence against a 2 s target and read
+2638 ms under load, then 2000 ms (of 2002, 1999, 2000) standalone. Nothing in
+this slice touches the reel. It matters more than the other two because
+verify-chrome is the first command of segment C, so a flake there skips the
+whole rest of the segment; re-run from the command after it rather than
+re-running the segment. Music project is 25 groups; verify-audience-output-browser.js is nine
+checks including fullscreen and the build label; verify-audience-clock-browser.js
+is four. Both new checks were mutation-confirmed: reverting fullscreen to target
+only the stage turns the output check red, and faking the step count turns the
+cycle browser check red.
+
+### Owner acceptance checklist for checkbox 4
+
+This is the whole remaining checkbox and no headless check may stand in for it.
+
+1. Build and serve dist, open it, choose "Output: code + visuals", press Focus
+   visuals, then Fullscreen. Drag that window to display 2.
+2. Read the build label in the corner of the output and confirm it matches the
+   build under test. Record the id in the note.
+3. Play a set-length stretch — minutes, not seconds.
+4. Switch Spaces, or focus another app on display 1. Report whether the
+   projected surface KEEPS DRAWING or blanks, and record the macOS "Displays
+   have separate Spaces" setting in force at the time.
+5. Say whether the letterboxed surface fills the projector correctly at its real
+   resolution and refresh, and whether the code half is legible at projection
+   distance.
+6. Repeat step 1 in Safari and report whether fullscreen is granted and whether
+   the layout matches.
+
+Answer the product question alongside it: is it acceptable that the performer
+works on the same surface the audience sees, or does the product require a
+private editor on display 1? The second shape costs a second frame clock and
+buys back a failure mode Chromium cannot test.
+
 ## 2026-09-11 — Audience output, Phase E checkbox 3 and Phase F item 2 (local checkpoint)
 
 Audience output is a layout of the SAME session, chosen independently of the
