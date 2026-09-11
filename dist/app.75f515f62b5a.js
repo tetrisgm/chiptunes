@@ -2,7 +2,7 @@ globalThis.CT_MUSIC_ASSETS_VERSION="e84045bcb7186729";
 globalThis.CT_MUSIC_EDITOR_VERSION="ffbf00c2401d";
 globalThis.CT_MUSIC_CHAT_UI_VERSION="904689e8bae1";
 globalThis.CT_MUSIC_PREVIEW_VERSION="155578e509d1";
-globalThis.CT_MUSIC_BUILD_VERSION="13d485a43356";
+globalThis.CT_MUSIC_BUILD_VERSION="09bc7ead9d35";
 /* ===== src/seed.js ===== */
 // ===== seed.js — deterministic generated-track identity. =====
 // Loads FIRST (before composer.js/audio.js) so any composer can seed itself from a URL token.
@@ -15634,6 +15634,7 @@ track("lead").instrument("p0").play("lead",{repeat:8})`
     var metadata = copy({ seeds: options.seeds || [], assets: options.assets || [] });
     var privateData = copy({ chat: options.chat || [], provenance: provenanceData(options.provenance) });
     var draft = source, draftEpoch = 0, history = [], cursor = -1, serial = 0, queueSerial = 0;
+    var visualData = null;
     var sessionId = ++sessionCounter;
     var playing = null, pending = null, diagnostics = [], active = null, requests = new Map();
     function current() { return history[cursor] || null; }
@@ -15791,10 +15792,27 @@ track("lead").instrument("p0").play("lead",{repeat:8})`
         var result = install(request.source, request.compiled); request.status = 'applied';
         requests.set(id, { id: id, status: 'applied' }); result.diff = copy(request.diff); return result;
       },
+      // Portable audiovisual composition data. The record key is optional, so a
+      // record written here still restores on a build that predates it, and a
+      // record written there still restores here. VERSION deliberately unchanged.
+      setVisual: function (data) {
+        if (data === null || data === undefined) { visualData = null; return { ok: true }; }
+        if (typeof data !== 'object' || typeof data.scene !== 'string') return fail('invalid-visual');
+        if (data.source !== undefined && (typeof data.source !== 'string' || data.source.length > 32768)) return fail('invalid-visual');
+        if (data.values !== undefined && (typeof data.values !== 'object' || data.values === null || Array.isArray(data.values) ||
+          !Object.keys(data.values).every(function (k) { return typeof data.values[k] === 'number' && Number.isFinite(data.values[k]); }))) return fail('invalid-visual');
+        if (data.off !== undefined && typeof data.off !== 'boolean') return fail('invalid-visual');
+        visualData = copy({ scene: data.scene, source: data.source || '', values: data.values || {} });
+        if (data.off === true) visualData.off = true;
+        return { ok: true };
+      },
       serialize: function (opts) {
         var record = { format: FORMAT, version: VERSION, versions: versions, metadata: metadata,
           draft: draft, lastValid: current() ? { id: current().id, source: current().source } : null, revisionCounter: serial };
         if (opts && opts.includePrivate) record.private = privateData;
+        // Visuals are portable, not private; a caller may still omit them to fit
+        // a self-contained link budget.
+        if (visualData && !(opts && opts.excludeVisual)) record.visual = visualData;
         var text = JSON.stringify(record); assert(text.length <= LIMITS.record, 'Project record limit'); return text;
       }
     };
@@ -15802,8 +15820,10 @@ track("lead").instrument("p0").play("lead",{repeat:8})`
       draft: { enumerable: true, get: function () { return draft; } },
       validated: { enumerable: true, get: function () { return copy(current()); } },
       pending: { enumerable: true, get: function () { return copy(pending); } },
-      playing: { enumerable: true, get: function () { return playing; } }
+      playing: { enumerable: true, get: function () { return playing; } },
+      visual: { enumerable: true, get: function () { return copy(visualData); } }
     });
+    if (options.visual) project.setVisual(options.visual);
     project.propose = project.validateProposal;
     var initial = compile(source); diagnostics = copy(initial.diagnostics);
     if (initial.ok) install(source, initial.compiled);
@@ -15835,6 +15855,8 @@ track("lead").instrument("p0").play("lead",{repeat:8})`
         compiler: options.compilerVersion || (language && language.COMPILER_VERSION) || '1', assets: options.assetsVersion || 'unspecified' };
       assert(equal(saved.versions, expected), 'Incompatible language/compiler/instrument assets versions');
       options.seeds = saved.metadata.seeds; options.assets = saved.metadata.assets;
+      // An absent or malformed visual block never fails a music restore.
+      options.visual = saved.visual || null;
       if (saved.private) { options.chat = saved.private.chat; options.provenance = saved.private.provenance; }
       options._restore = saved;
       var project = create(saved.lastValid ? saved.lastValid.source : saved.draft, options);
@@ -17654,12 +17676,83 @@ track("lead").instrument("p0").play("lead",{repeat:8})`
       if(result&&result.ok===false)throw Error(result.error||'Invalid visual control');
       changed();return snapshot();
     }
+    // Portable visual composition data: the live scene, its edited source and
+    // its named control values. Draft-only edits, queued boundaries, freeze,
+    // blackout and renderer internals are session state and are NOT saved.
+    function serialize(){
+      if(!live)return null;
+      // Off suspends a world rather than discarding it, so saving while Off
+      // must carry the suspended program, not an empty scene. Otherwise
+      // switching visuals Off and saving would silently destroy the source and
+      // control values the performer had applied.
+      var off=live.scene==='off',subject=off?suspended:live;
+      if(!subject)return off?{scene:'off',source:'',values:{},off:true}:null;
+      var values={},current=renderer.snapshot().values||{},tuned=false;
+      if(subject.program)subject.program.controls.forEach(function(c){
+        if(Object.prototype.hasOwnProperty.call(current,c.name)){
+          values[c.name]=current[c.name];
+          if(current[c.name]!==c.value)tuned=true;
+        }
+      });
+      // The stage always boots into the first preset, so an untouched default
+      // is not composition data. Saving it would give every music-only project
+      // a visual block it never asked for and change records that should be
+      // byte-identical to ones written before visuals were persisted.
+      if(!off&&subject.scene===presets[0].id&&subject.source===presets[0].source&&!tuned)return null;
+      var out={scene:subject.scene,source:subject.program?subject.source:'',values:values};
+      if(off)out.off=true;
+      return out;
+    }
+    // A saved visual is untrusted input from a project record. It may name a
+    // scene this build no longer has, or a program that no longer compiles;
+    // neither may prevent the stage from starting.
+    function toDefault(){
+      draft=presets[0].source;draftScene=presets[0].id;
+      error=null;renderError=null;diagnostics=[];
+      activate(candidate());
+    }
+    function restoreSaved(saved){
+      // Absent is not malformed: a project that never used visuals opens on the
+      // default scene silently, while a broken saved visual says so.
+      if(saved===null||saved===undefined){toDefault();notice='';return true;}
+      try{
+        if(typeof saved!=='object'||typeof saved.scene!=='string')throw Error('Malformed saved visual');
+        var id=saved.scene;
+        if(id!=='off'&&!isProgram(id)&&!scenes.some(function(s){return s.id===id;}))throw Error('Unknown saved visual scene');
+        if(isProgram(id)){
+          if(typeof saved.source!=='string'||saved.source.length>32768)throw Error('Invalid saved visual source');
+          // A preset this build no longer ships must not discard the saved
+          // program: the source is self-contained, so keep it and relabel it
+          // as an edited custom scene rather than retaining an id that
+          // selectDraft would later reject.
+          if(id!=='visual:custom'&&!scenes.some(function(s){return s.id===id;}))id='visual:custom';
+          draft=saved.source;
+        }else{var preset=find(id);if(preset)draft=preset.source;}
+        draftScene=id;
+        var next=candidate();
+        if(!next)throw Error('Saved visual no longer compiles');
+        if(saved.values&&typeof saved.values==='object'&&next.program)next.program.controls.forEach(function(c){
+          var v=saved.values[c.name];
+          if(typeof v==='number'&&Number.isFinite(v))next.values[c.name]=Math.max(c.min,Math.min(c.max,v));
+        });
+        if(!activate(next))throw Error('Saved visual could not be applied');
+        // Restore the suspended world first, then suspend it again, so Off
+        // reopens Off while still retaining the program behind it.
+        if(saved.off===true){draftScene='off';if(!activate(candidate()))throw Error('Saved visual could not be suspended');}
+        return true;
+      }catch(e){
+        toDefault();
+        notice='Saved visual could not be restored; the default scene is running.';
+        return false;
+      }
+    }
     function freeze(value){frozen=!!value;reanchor++;changed();return snapshot();}
     function mask(value){blackout=!!value;changed();return snapshot();}
     function reset(){renderer.reset();lastFrame=null;reanchor++;notice='Visual state reset; music unchanged.';changed();return snapshot();}
     function panic(){pending=null;blackout=true;notice='Panic: visual output blacked out.';changed();return snapshot();}
-    activate(candidate());
+    if(options.restore)restoreSaved(options.restore);else activate(candidate());
     return {snapshot:snapshot,setDraft:setDraft,selectDraft:selectDraft,apply:apply,cancel:cancel,observe:observe,tick:tick,
+      serialize:serialize,restoreSaved:function(saved){var ok=restoreSaved(saved);changed();return ok;},
       setScene:function(id,t){selectDraft(id);return apply('now',t);},setControl:setControl,
       freeze:freeze,blackout:mask,reset:reset,panic:panic};
   }
@@ -17686,6 +17779,23 @@ track("lead").instrument("p0").play("lead",{repeat:8})`
   var CHART_GUTTER=68,NOTE_ROW=14,LANE_HEADER=25;
   var visualizerOpen=false,presentationOwner=null,presentationFocus=null,stageError='';
   var visualEditor=null,visualEditorLoading=false,visualControlSignature='',visualRenderQueued=false;
+  // Restoring a saved visual is not a user edit and must not mark the project
+  // unsaved, or opening a project would immediately dirty it.
+  var visualRestoring=false;
+  // The stage boots into its default scene before a project's saved visual can
+  // be handed to it. Until that handover happens the stage's state says nothing
+  // about this project, and treating it as an edit would erase the saved
+  // visual on every reload.
+  // Ownership, not a boolean: this is the exact project the stage was last
+  // handed over to. project is reassigned on several paths (file import,
+  // transfer accept, new loop, generate) and any path that does NOT re-run the
+  // handover leaves owner !== project, which makes it read-only by default
+  // rather than writing one project's visuals into another.
+  var visualOwner=null;
+  // A saved visual that could not be restored must never be erased by the
+  // fallback default that replaced it. While this is set, "the stage is at its
+  // default" means "nothing to say", not "delete what is stored".
+  var visualRestoreFailed=false;
   function visualAdapter(){return G.CT_CREATE_PRESENTATION;}
   function renderVisualEditor(state){
     $('.mw-visual-authoring').hidden=!state;
@@ -17850,6 +17960,7 @@ track("lead").instrument("p0").play("lead",{repeat:8})`
     clearTimeout(saveTimer);saveTimer=null;saveEpoch++;transferProtected=true;
     if(connection)connection.disconnect();cancelChat('superseded');resetAudio();
     project=loaded.project;selection=null;proposal=null;agentInstance=G.crypto.randomUUID();unsaved=true;
+    restoreProjectVisuals();
     defaultProjectLoop();
     syncEditor();renderNotes();renderProposal();renderState();diagnostics(snap().diagnostics);
     $('.mw-transfer-description').textContent='Project accepted as a temporary copy. Hosted saved project preserved. Download to keep your edits, or choose Save draft locally and confirm replacement. Apply and playback remain explicit.';
@@ -18016,6 +18127,7 @@ track("lead").instrument("p0").play("lead",{repeat:8})`
     if(inboundTransfer)inboundTransfer.cancel();inboundTransfer=null;$('.mw-transfer-offer').hidden=true;
     if(connection)connection.disconnect();cancelChat('superseded');resetAudio();
     project=next;selection=null;proposal=null;agentInstance=G.crypto.randomUUID();
+    restoreProjectVisuals();
     $('.mw-loop').checked=true;
     syncEditor();renderNotes();renderProposal();renderState();diagnostics(snap().diagnostics);selectView('code');scheduleSave();
     status('New four-bar loop. Edit the patterns, then Run to hear it.');
@@ -18131,12 +18243,62 @@ track("lead").instrument("p0").play("lead",{repeat:8})`
     if(editor)editor.diagnostics(items.map(function(d){return Object.assign({},d,{from:d.span&&d.span.start.offset||d.from||0,to:d.span&&d.span.end.offset||d.to||0});}));
   }
   function scheduleSave(){unsaved=true;saveEpoch++;clearTimeout(saveTimer);saveTimer=setTimeout(save,250);}
+  // The stage owns live visual state; the project record only carries it. A
+  // session that never opened visuals contributes nothing and clears nothing.
+  function captureVisual(p){
+    try{
+      var a=visualAdapter();
+      // Only the project the stage was actually handed over to may be written.
+      if(!p||p!==visualOwner||!a||typeof a.serializeVisuals!=='function')return;
+      var next=a.serializeVisuals()||null;
+      // null clears a stale visual when the user really did return to the
+      // default, but never when the saved one simply failed to restore.
+      if(next===null&&visualRestoreFailed)return;
+      p.setVisual(next);
+    }catch(e){/* visuals must never block a music save */}
+  }
+  // The stage emits state for many reasons that are not composition edits
+  // (mounting, focus, scaling, renderer notices). Saving on all of them would
+  // rewrite a project record merely because it was opened, so compare against
+  // what the project already holds and save only a real difference.
+  function visualChanged(){
+    if(visualRestoring||!project||project!==visualOwner||transferProtected)return;
+    try{
+      var a=visualAdapter();
+      if(!a||typeof a.serializeVisuals!=='function')return;
+      var next=a.serializeVisuals()||null;
+      // A default stage after a failed restore is not an instruction to delete
+      // the visual that failed; only a real authored change is.
+      if(next===null&&visualRestoreFailed)return;
+      if(JSON.stringify(next)===JSON.stringify(project.visual||null))return;
+      // The user authored something, so the stage is authoritative again.
+      if(next!==null)visualRestoreFailed=false;
+      project.setVisual(next);scheduleSave();
+    }catch(e){/* visuals must never block music editing */}
+  }
+  // Hand this project's saved visual to the stage and record that the stage now
+  // represents it. Called on every path that replaces `project`.
+  function restoreProjectVisuals(){
+    visualOwner=null;visualRestoreFailed=false;
+    try{
+      var a=visualAdapter();
+      if(!project||!a||typeof a.restoreVisuals!=='function')return;
+      var ok;
+      visualRestoring=true;
+      try{ok=a.restoreVisuals(project.visual);}finally{visualRestoring=false;}
+      // A failed restore still takes ownership, so a newly authored visual can
+      // be saved; it just may not delete the block it could not read.
+      visualRestoreFailed=ok===false;
+      visualOwner=project;
+    }catch(e){visualRestoring=false;}
+  }
   async function save(){
     clearTimeout(saveTimer);saveTimer=null;
     if(!storage||conflict||transferProtected){unsaved=true;return;}
     var p=project,epoch=saveEpoch;
     var write=function(){
       if(p!==project||transferProtected)return;
+      captureVisual(p);
       var result=storage.save(p,{includePrivate:true});
       if(!result.ok){unsaved=true;conflict=result.code==='storage-conflict';status(conflict?'Another tab changed this project. Download your project before reloading.':'Draft could not be saved locally. Download a project file to keep it.');}
       else if(epoch===saveEpoch)unsaved=false;
@@ -18506,6 +18668,7 @@ track("lead").instrument("p0").play("lead",{repeat:8})`
     var next=api().create(text,Object.assign(opts(),{provenance:provenance}));
     if(!next.snapshot().validated)throw Error(next.snapshot().diagnostics.map(function(d){return d.message;}).join('\n'));
     cancelChat();resetAudio();project=next;selection=null;proposal=null;agentInstance=G.crypto.randomUUID();
+    restoreProjectVisuals();
     syncEditor();renderNotes();renderProposal();renderState();scheduleSave();
   }
   function generate(){
@@ -18634,7 +18797,7 @@ track("lead").instrument("p0").play("lead",{repeat:8})`
       '<div class="mw-scene-controls"><label for="mw-scene">Scene</label><select id="mw-scene" class="mw-scene" aria-label="Visual scene" disabled></select></div>'+
       '<div class="mw-visual-authoring" hidden><div class="mw-visual-parameters" aria-label="Live visual controls"></div><div class="mw-visual-apply"><select class="mw-visual-boundary" aria-label="Visual activation boundary"><option value="now">Now</option><option value="bar">Next bar</option></select><button data-action="visual-apply">Apply visuals</button><button data-action="visual-cancel" hidden>Cancel queued</button></div>'+
       '<details class="mw-visual-code-disclosure"><summary>Visual code <small>⌘/Ctrl ↵ applies visuals only</small></summary><div class="mw-visual-code" role="region" aria-label="Visual editor"></div><p class="mw-visual-reference">Compose layers: tunnel, tiles, orbits, ribbons, sparks. Read named controls with param("motion"), music with signal("bass.hit") or signal("audio.bass"). This bounded language does not run JavaScript.</p></details></div>'+
-      '<p class="mw-stage-status" role="status">Preparing the visual stage…</p><div class="mw-visual-performance" hidden><button data-action="visual-freeze" aria-pressed="false" title="Hold visual state; music continues">Freeze</button><button data-action="visual-blackout" aria-pressed="false" title="Mask output; music and visual state continue">Blackout</button><button data-action="visual-reset" title="Clear visual feedback and phase only">Reset visuals</button><button data-action="visual-panic" title="Stop music, cancel queued visuals and black out output">Panic</button></div><p class="mw-stage-help">Code makes the music. The scene follows it. Visual edits are session-only until audiovisual saving is added.</p></section></div>'+
+      '<p class="mw-stage-status" role="status">Preparing the visual stage…</p><div class="mw-visual-performance" hidden><button data-action="visual-freeze" aria-pressed="false" title="Hold visual state; music continues">Freeze</button><button data-action="visual-blackout" aria-pressed="false" title="Mask output; music and visual state continue">Blackout</button><button data-action="visual-reset" title="Clear visual feedback and phase only">Reset visuals</button><button data-action="visual-panic" title="Stop music, cancel queued visuals and black out output">Panic</button></div><p class="mw-stage-help">Code makes the music. The scene follows it. The applied scene, its source and its control values are saved with your project.</p></section></div>'+
       '<aside id="mw-panel-chat" class="mw-chat" aria-label="Musical collaboration">'+
       '<section class="mw-project-handoff" hidden><p>Web Chat runs in the hosted workspace. Open this project there to unlock Chat and request proposals.</p><button data-action="project-handoff">Open this project in web Chat</button><p>Copies your draft and last validated revision to web Chat without private chat or provenance. Accept in the new window; your original project stays here.</p></section>'+
       '<div class="mw-chat-island"></div></aside></div>'+
@@ -18745,6 +18908,7 @@ track("lead").instrument("p0").play("lead",{repeat:8})`
     G.addEventListener('ct-visual-state',function(){
       // CodeMirror change listeners run during an editor update. UI/diagnostic
       // synchronization must not dispatch another transaction reentrantly.
+      visualChanged();
       if(visualRenderQueued)return;visualRenderQueued=true;
       queueMicrotask(function(){visualRenderQueued=false;if(root&&!root.hidden)renderStage();});
     });
@@ -18860,11 +19024,19 @@ track("lead").instrument("p0").play("lead",{repeat:8})`
     }
     else if(name==='download')download(project.serialize({includePrivate:true}),'chiptunes-project.json','application/json');
     else if(name==='share'){
-      var text=project.serialize(),bytes=new TextEncoder().encode(text);
+      captureVisual(project);
+      var text=project.serialize(),bytes=new TextEncoder().encode(text),visualOmitted=false;
+      // Visual source is allowed 32 KiB, larger than the whole link budget.
+      // Drop visuals to keep the music shareable rather than refusing outright.
+      if(bytes.length>12000&&project.visual){
+        visualOmitted=true;text=project.serialize({excludeVisual:true});bytes=new TextEncoder().encode(text);
+      }
       if(bytes.length>12000)throw Error('Project is too large for a self-contained link. Download a project file.');
       var binary='';bytes.forEach(function(b){binary+=String.fromCharCode(b);});
       var link=location.origin+'/create#music='+encodeURIComponent(btoa(binary));
-      await navigator.clipboard.writeText(link);status('Copied project link. Chat and private provenance excluded; opening does not play.');
+      await navigator.clipboard.writeText(link);
+      status('Copied project link. '+(visualOmitted?'Visuals were too large for the link and were omitted; download a project file to keep them. ':'')+
+        'Chat and private provenance excluded; opening does not play.');
     }else if(name==='open'){
       var importRun=++fileImportSerial,importOpen=openEpoch,importProject=project,importSave=saveEpoch;
       function currentImport(){return importRun===fileImportSerial&&importOpen===openEpoch&&project===importProject&&importSave===saveEpoch&&!root.hidden;}
@@ -18876,6 +19048,7 @@ track("lead").instrument("p0").play("lead",{repeat:8})`
         var loaded=check(api().restore(serialized,opts()));
         if(!G.confirm('Replace this workspace? Download the current project first to keep a copy.'))return;
         cancelChat();resetAudio();project=loaded.project;selection=null;proposal=null;agentInstance=G.crypto.randomUUID();
+        restoreProjectVisuals();
         defaultProjectLoop();
         syncEditor();renderNotes();renderProposal();renderState();diagnostics(snap().diagnostics);scheduleSave();
       }catch(e){if(currentImport())announceError(e);}};input.click();
@@ -18969,6 +19142,7 @@ track("lead").instrument("p0").play("lead",{repeat:8})`
     if(!/^#music(?:=|$)/.test(location.hash))history.replaceState(null,'',((location.pathname==='/'||location.pathname==='/create')?location.pathname:'/create')+location.search+'#music');
     agentInstance=G.crypto.randomUUID();root.hidden=false;if(!alreadyOpen)inerted=[];renderChatLayout();
     mountStage();
+    restoreProjectVisuals();
     if(!chatAccess)chatAccess=new G.CT_MUSIC_CHAT.Access();
     chatUnlocked=false;updateChatAccess('GET');
     if(!connection&&G.CT_MUSIC_AGENT_CONNECTION)connection=G.CT_MUSIC_AGENT_CONNECTION.create({workspace:G.CT_MUSIC_WORKSPACE,onChange:renderConnection});
@@ -18985,6 +19159,9 @@ track("lead").instrument("p0").play("lead",{repeat:8})`
   function close(options){
     if(!root||root.hidden)return;
     openEpoch++;
+    // A closed workspace must not write stage activity back to the project it
+    // was showing; the next open re-establishes the handover.
+    visualOwner=null;visualRestoreFailed=false;
     cancelPreview();
     inlineContext=null;if(editor&&editor.cancelSourceGesture)editor.cancelSourceGesture();
     if(visualizerOpen)setVisualizer(false);
@@ -42707,6 +42884,9 @@ function _musicWorkspaceOpen(){return typeof CT_MUSIC_WORKSPACE!=='undefined'&&C
 var _musicPresentationEpoch=0;
 var _visualMount=null, _visualEnabled=true;
 var _visualSession=null;
+// A project's saved visual arrives before the stage is lazily created, so it
+// waits here. It is consumed once; later project loads restore the live stage.
+var _visualRestore=null;
 function _syncVisualSession(){
   if(!_visualSession)return;
   var state=_visualSession.snapshot();_visualEnabled=state.enabled;
@@ -42725,7 +42905,7 @@ function _syncVisualSession(){
 }
 function _ensureVisualSession(){
   if(!_visualSession&&typeof CT_VISUAL_STAGE!=='undefined'&&typeof CT_VISUAL_LANGUAGE!=='undefined'&&typeof CT_VISUAL_RENDERER!=='undefined'){
-    _visualSession=CT_VISUAL_STAGE.create({language:CT_VISUAL_LANGUAGE,
+    _visualSession=CT_VISUAL_STAGE.create({language:CT_VISUAL_LANGUAGE,restore:_visualRestore,
       renderer:CT_VISUAL_RENDERER.create({createCanvas:function(){return document.createElement('canvas');},width:960,height:540}),
       games:GAMES.filter(function(g){return !g.hiddenFromRandom;}).map(function(g){return {id:g.key,label:g.name||g.key};}),
       onChange:_syncVisualSession});
@@ -42915,6 +43095,14 @@ window.CT_CREATE_PRESENTATION=Object.freeze({mount:_mountVisual,unmount:_unmount
     if(s.snapshot().scene.indexOf('visual:')!==0&&selGame){selState=_safeMake(selGame,fullArea(_gameUnit(W,H)),_gameUnit(W,H),selVar);gameT=0;}
     return _visualSnapshot();
   },panicVisuals:function(){return _ensureVisualSession().panic();},
+  // Portable visual composition data. Reading must never create a stage: a
+  // music-only session that never opened visuals has nothing to save.
+  serializeVisuals:function(){return _visualSession?_visualSession.serialize():(_visualRestore||null);},
+  restoreVisuals:function(saved){
+    _visualRestore=saved||null;
+    if(_visualSession)return _visualSession.restoreSaved(_visualRestore);
+    return true;
+  },
   setVisualizer:function(visible){
   visible=!!visible&&_musicWorkspaceOpen();
   document.body.classList.toggle('create-visualizer',visible);

@@ -56,6 +56,9 @@ function _musicWorkspaceOpen(){return typeof CT_MUSIC_WORKSPACE!=='undefined'&&C
 var _musicPresentationEpoch=0;
 var _visualMount=null, _visualEnabled=true;
 var _visualSession=null;
+// A project's saved visual arrives before the stage is lazily created, so it
+// waits here. It is consumed once; later project loads restore the live stage.
+var _visualRestore=null;
 function _syncVisualSession(){
   if(!_visualSession)return;
   var state=_visualSession.snapshot();_visualEnabled=state.enabled;
@@ -74,7 +77,7 @@ function _syncVisualSession(){
 }
 function _ensureVisualSession(){
   if(!_visualSession&&typeof CT_VISUAL_STAGE!=='undefined'&&typeof CT_VISUAL_LANGUAGE!=='undefined'&&typeof CT_VISUAL_RENDERER!=='undefined'){
-    _visualSession=CT_VISUAL_STAGE.create({language:CT_VISUAL_LANGUAGE,
+    _visualSession=CT_VISUAL_STAGE.create({language:CT_VISUAL_LANGUAGE,restore:_visualRestore,
       renderer:CT_VISUAL_RENDERER.create({createCanvas:function(){return document.createElement('canvas');},width:960,height:540}),
       games:GAMES.filter(function(g){return !g.hiddenFromRandom;}).map(function(g){return {id:g.key,label:g.name||g.key};}),
       onChange:_syncVisualSession});
@@ -264,6 +267,14 @@ window.CT_CREATE_PRESENTATION=Object.freeze({mount:_mountVisual,unmount:_unmount
     if(s.snapshot().scene.indexOf('visual:')!==0&&selGame){selState=_safeMake(selGame,fullArea(_gameUnit(W,H)),_gameUnit(W,H),selVar);gameT=0;}
     return _visualSnapshot();
   },panicVisuals:function(){return _ensureVisualSession().panic();},
+  // Portable visual composition data. Reading must never create a stage: a
+  // music-only session that never opened visuals has nothing to save.
+  serializeVisuals:function(){return _visualSession?_visualSession.serialize():(_visualRestore||null);},
+  restoreVisuals:function(saved){
+    _visualRestore=saved||null;
+    if(_visualSession)return _visualSession.restoreSaved(_visualRestore);
+    return true;
+  },
   setVisualizer:function(visible){
   visible=!!visible&&_musicWorkspaceOpen();
   document.body.classList.toggle('create-visualizer',visible);

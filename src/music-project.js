@@ -149,6 +149,7 @@
     var metadata = copy({ seeds: options.seeds || [], assets: options.assets || [] });
     var privateData = copy({ chat: options.chat || [], provenance: provenanceData(options.provenance) });
     var draft = source, draftEpoch = 0, history = [], cursor = -1, serial = 0, queueSerial = 0;
+    var visualData = null;
     var sessionId = ++sessionCounter;
     var playing = null, pending = null, diagnostics = [], active = null, requests = new Map();
     function current() { return history[cursor] || null; }
@@ -306,10 +307,27 @@
         var result = install(request.source, request.compiled); request.status = 'applied';
         requests.set(id, { id: id, status: 'applied' }); result.diff = copy(request.diff); return result;
       },
+      // Portable audiovisual composition data. The record key is optional, so a
+      // record written here still restores on a build that predates it, and a
+      // record written there still restores here. VERSION deliberately unchanged.
+      setVisual: function (data) {
+        if (data === null || data === undefined) { visualData = null; return { ok: true }; }
+        if (typeof data !== 'object' || typeof data.scene !== 'string') return fail('invalid-visual');
+        if (data.source !== undefined && (typeof data.source !== 'string' || data.source.length > 32768)) return fail('invalid-visual');
+        if (data.values !== undefined && (typeof data.values !== 'object' || data.values === null || Array.isArray(data.values) ||
+          !Object.keys(data.values).every(function (k) { return typeof data.values[k] === 'number' && Number.isFinite(data.values[k]); }))) return fail('invalid-visual');
+        if (data.off !== undefined && typeof data.off !== 'boolean') return fail('invalid-visual');
+        visualData = copy({ scene: data.scene, source: data.source || '', values: data.values || {} });
+        if (data.off === true) visualData.off = true;
+        return { ok: true };
+      },
       serialize: function (opts) {
         var record = { format: FORMAT, version: VERSION, versions: versions, metadata: metadata,
           draft: draft, lastValid: current() ? { id: current().id, source: current().source } : null, revisionCounter: serial };
         if (opts && opts.includePrivate) record.private = privateData;
+        // Visuals are portable, not private; a caller may still omit them to fit
+        // a self-contained link budget.
+        if (visualData && !(opts && opts.excludeVisual)) record.visual = visualData;
         var text = JSON.stringify(record); assert(text.length <= LIMITS.record, 'Project record limit'); return text;
       }
     };
@@ -317,8 +335,10 @@
       draft: { enumerable: true, get: function () { return draft; } },
       validated: { enumerable: true, get: function () { return copy(current()); } },
       pending: { enumerable: true, get: function () { return copy(pending); } },
-      playing: { enumerable: true, get: function () { return playing; } }
+      playing: { enumerable: true, get: function () { return playing; } },
+      visual: { enumerable: true, get: function () { return copy(visualData); } }
     });
+    if (options.visual) project.setVisual(options.visual);
     project.propose = project.validateProposal;
     var initial = compile(source); diagnostics = copy(initial.diagnostics);
     if (initial.ok) install(source, initial.compiled);
@@ -350,6 +370,8 @@
         compiler: options.compilerVersion || (language && language.COMPILER_VERSION) || '1', assets: options.assetsVersion || 'unspecified' };
       assert(equal(saved.versions, expected), 'Incompatible language/compiler/instrument assets versions');
       options.seeds = saved.metadata.seeds; options.assets = saved.metadata.assets;
+      // An absent or malformed visual block never fails a music restore.
+      options.visual = saved.visual || null;
       if (saved.private) { options.chat = saved.private.chat; options.provenance = saved.private.provenance; }
       options._restore = saved;
       var project = create(saved.lastValid ? saved.lastValid.source : saved.draft, options);

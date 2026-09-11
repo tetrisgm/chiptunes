@@ -287,4 +287,61 @@ test('real source controls are recompiled, detached view metadata, never persist
   assert.equal(p.validated.compiled.controls[0].value,.6);
   p.undo();assert.deepEqual(p.validated.compiled.controls,expected);p.redo();assert.equal(p.validated.compiled.controls[0].value,.6);
 });
+test('the optional visual block round-trips without changing the record version', () => {
+  const p = P.create(source, {});
+  assert.equal(p.visual, null, 'a music-only project carries no visual block');
+  assert.equal(JSON.parse(p.serialize()).visual, undefined, 'and writes no visual key at all');
+  assert.deepEqual(p.setVisual({ scene: 'visual:neon', source: 'layer tunnel', values: { motion: 0.5 } }), { ok: true });
+  const record = JSON.parse(p.serialize());
+  assert.equal(record.version, P.VERSION, 'persisting visuals must not bump the record version');
+  assert.equal(P.VERSION, 1);
+  assert.deepEqual(record.visual, { scene: 'visual:neon', source: 'layer tunnel', values: { motion: 0.5 } });
+  const back = P.restore(p.serialize(), {});
+  assert.equal(back.ok, true);
+  assert.deepEqual(back.project.visual, { scene: 'visual:neon', source: 'layer tunnel', values: { motion: 0.5 } });
+  // The getter is a copy: a caller cannot reach in and mutate stored state.
+  const taken = p.visual; taken.scene = 'mutated';
+  assert.equal(p.visual.scene, 'visual:neon');
+});
+test('visual persistence is compatible in BOTH directions and never fails a music restore', () => {
+  const p = P.create(source, {});
+  p.setVisual({ scene: 'visual:neon', source: 'layer tunnel', values: { motion: 0.5 } });
+  // A record written by a build that predates visuals still restores here.
+  const older = JSON.parse(p.serialize()); delete older.visual;
+  const fromOlder = P.restore(JSON.stringify(older), {});
+  assert.equal(fromOlder.ok, true); assert.equal(fromOlder.project.visual, null);
+  // A malformed or hostile visual block is dropped, and the music still opens.
+  for (const bad of [{ scene: 123 }, { scene: 'visual:x', source: 'y'.repeat(32769) }, { scene: 'visual:x', values: { motion: 'NaN' } },
+    { scene: 'visual:x', values: [1, 2] }, 'not-an-object', 42]) {
+    const tampered = JSON.parse(p.serialize()); tampered.visual = bad;
+    const result = P.restore(JSON.stringify(tampered), {});
+    assert.equal(result.ok, true, 'music must survive ' + JSON.stringify(bad));
+    assert.equal(result.project.visual, null, 'and the bad visual block is dropped');
+    assert.equal(result.project.draft, p.draft, 'while the music source is untouched');
+  }
+  assert.equal(P.create(source, {}).setVisual({ scene: 5 }).ok, false);
+  assert.deepEqual(P.create(source, {}).setVisual(null), { ok: true });
+  // Off carries the suspended program, so the record must round-trip the flag
+  // rather than silently dropping it and losing which state to reopen in.
+  const off = P.create(source, {});
+  assert.deepEqual(off.setVisual({ scene: 'visual:a', source: 'held', values: {}, off: true }), { ok: true });
+  assert.equal(JSON.parse(off.serialize()).visual.off, true);
+  assert.equal(P.restore(off.serialize(), {}).project.visual.off, true);
+  assert.equal(off.setVisual({ scene: 'visual:a', source: 'held', values: {}, off: 'yes' }).ok, false);
+  // A visual that is simply live carries no off key at all.
+  const live = P.create(source, {});
+  live.setVisual({ scene: 'visual:a', source: 'held', values: {} });
+  assert.equal(JSON.parse(live.serialize()).visual.off, undefined);
+});
+test('a caller may omit visuals to fit a self-contained link budget', () => {
+  const p = P.create(source, {});
+  p.setVisual({ scene: 'visual:big', source: 'x'.repeat(20000), values: {} });
+  const full = p.serialize(), trimmed = p.serialize({ excludeVisual: true });
+  assert.ok(full.length > trimmed.length + 19000);
+  assert.equal(JSON.parse(trimmed).visual, undefined);
+  // Omitting visuals never disturbs the music the link carries.
+  assert.equal(JSON.parse(trimmed).draft, JSON.parse(full).draft);
+  assert.deepEqual(JSON.parse(trimmed).lastValid, JSON.parse(full).lastValid);
+  assert.equal(P.restore(trimmed, {}).ok, true);
+});
 console.log('Music project: ' + tests + ' groups passed.');

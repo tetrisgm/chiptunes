@@ -17,6 +17,23 @@
   var CHART_GUTTER=68,NOTE_ROW=14,LANE_HEADER=25;
   var visualizerOpen=false,presentationOwner=null,presentationFocus=null,stageError='';
   var visualEditor=null,visualEditorLoading=false,visualControlSignature='',visualRenderQueued=false;
+  // Restoring a saved visual is not a user edit and must not mark the project
+  // unsaved, or opening a project would immediately dirty it.
+  var visualRestoring=false;
+  // The stage boots into its default scene before a project's saved visual can
+  // be handed to it. Until that handover happens the stage's state says nothing
+  // about this project, and treating it as an edit would erase the saved
+  // visual on every reload.
+  // Ownership, not a boolean: this is the exact project the stage was last
+  // handed over to. project is reassigned on several paths (file import,
+  // transfer accept, new loop, generate) and any path that does NOT re-run the
+  // handover leaves owner !== project, which makes it read-only by default
+  // rather than writing one project's visuals into another.
+  var visualOwner=null;
+  // A saved visual that could not be restored must never be erased by the
+  // fallback default that replaced it. While this is set, "the stage is at its
+  // default" means "nothing to say", not "delete what is stored".
+  var visualRestoreFailed=false;
   function visualAdapter(){return G.CT_CREATE_PRESENTATION;}
   function renderVisualEditor(state){
     $('.mw-visual-authoring').hidden=!state;
@@ -181,6 +198,7 @@
     clearTimeout(saveTimer);saveTimer=null;saveEpoch++;transferProtected=true;
     if(connection)connection.disconnect();cancelChat('superseded');resetAudio();
     project=loaded.project;selection=null;proposal=null;agentInstance=G.crypto.randomUUID();unsaved=true;
+    restoreProjectVisuals();
     defaultProjectLoop();
     syncEditor();renderNotes();renderProposal();renderState();diagnostics(snap().diagnostics);
     $('.mw-transfer-description').textContent='Project accepted as a temporary copy. Hosted saved project preserved. Download to keep your edits, or choose Save draft locally and confirm replacement. Apply and playback remain explicit.';
@@ -347,6 +365,7 @@
     if(inboundTransfer)inboundTransfer.cancel();inboundTransfer=null;$('.mw-transfer-offer').hidden=true;
     if(connection)connection.disconnect();cancelChat('superseded');resetAudio();
     project=next;selection=null;proposal=null;agentInstance=G.crypto.randomUUID();
+    restoreProjectVisuals();
     $('.mw-loop').checked=true;
     syncEditor();renderNotes();renderProposal();renderState();diagnostics(snap().diagnostics);selectView('code');scheduleSave();
     status('New four-bar loop. Edit the patterns, then Run to hear it.');
@@ -462,12 +481,62 @@
     if(editor)editor.diagnostics(items.map(function(d){return Object.assign({},d,{from:d.span&&d.span.start.offset||d.from||0,to:d.span&&d.span.end.offset||d.to||0});}));
   }
   function scheduleSave(){unsaved=true;saveEpoch++;clearTimeout(saveTimer);saveTimer=setTimeout(save,250);}
+  // The stage owns live visual state; the project record only carries it. A
+  // session that never opened visuals contributes nothing and clears nothing.
+  function captureVisual(p){
+    try{
+      var a=visualAdapter();
+      // Only the project the stage was actually handed over to may be written.
+      if(!p||p!==visualOwner||!a||typeof a.serializeVisuals!=='function')return;
+      var next=a.serializeVisuals()||null;
+      // null clears a stale visual when the user really did return to the
+      // default, but never when the saved one simply failed to restore.
+      if(next===null&&visualRestoreFailed)return;
+      p.setVisual(next);
+    }catch(e){/* visuals must never block a music save */}
+  }
+  // The stage emits state for many reasons that are not composition edits
+  // (mounting, focus, scaling, renderer notices). Saving on all of them would
+  // rewrite a project record merely because it was opened, so compare against
+  // what the project already holds and save only a real difference.
+  function visualChanged(){
+    if(visualRestoring||!project||project!==visualOwner||transferProtected)return;
+    try{
+      var a=visualAdapter();
+      if(!a||typeof a.serializeVisuals!=='function')return;
+      var next=a.serializeVisuals()||null;
+      // A default stage after a failed restore is not an instruction to delete
+      // the visual that failed; only a real authored change is.
+      if(next===null&&visualRestoreFailed)return;
+      if(JSON.stringify(next)===JSON.stringify(project.visual||null))return;
+      // The user authored something, so the stage is authoritative again.
+      if(next!==null)visualRestoreFailed=false;
+      project.setVisual(next);scheduleSave();
+    }catch(e){/* visuals must never block music editing */}
+  }
+  // Hand this project's saved visual to the stage and record that the stage now
+  // represents it. Called on every path that replaces `project`.
+  function restoreProjectVisuals(){
+    visualOwner=null;visualRestoreFailed=false;
+    try{
+      var a=visualAdapter();
+      if(!project||!a||typeof a.restoreVisuals!=='function')return;
+      var ok;
+      visualRestoring=true;
+      try{ok=a.restoreVisuals(project.visual);}finally{visualRestoring=false;}
+      // A failed restore still takes ownership, so a newly authored visual can
+      // be saved; it just may not delete the block it could not read.
+      visualRestoreFailed=ok===false;
+      visualOwner=project;
+    }catch(e){visualRestoring=false;}
+  }
   async function save(){
     clearTimeout(saveTimer);saveTimer=null;
     if(!storage||conflict||transferProtected){unsaved=true;return;}
     var p=project,epoch=saveEpoch;
     var write=function(){
       if(p!==project||transferProtected)return;
+      captureVisual(p);
       var result=storage.save(p,{includePrivate:true});
       if(!result.ok){unsaved=true;conflict=result.code==='storage-conflict';status(conflict?'Another tab changed this project. Download your project before reloading.':'Draft could not be saved locally. Download a project file to keep it.');}
       else if(epoch===saveEpoch)unsaved=false;
@@ -837,6 +906,7 @@
     var next=api().create(text,Object.assign(opts(),{provenance:provenance}));
     if(!next.snapshot().validated)throw Error(next.snapshot().diagnostics.map(function(d){return d.message;}).join('\n'));
     cancelChat();resetAudio();project=next;selection=null;proposal=null;agentInstance=G.crypto.randomUUID();
+    restoreProjectVisuals();
     syncEditor();renderNotes();renderProposal();renderState();scheduleSave();
   }
   function generate(){
@@ -965,7 +1035,7 @@
       '<div class="mw-scene-controls"><label for="mw-scene">Scene</label><select id="mw-scene" class="mw-scene" aria-label="Visual scene" disabled></select></div>'+
       '<div class="mw-visual-authoring" hidden><div class="mw-visual-parameters" aria-label="Live visual controls"></div><div class="mw-visual-apply"><select class="mw-visual-boundary" aria-label="Visual activation boundary"><option value="now">Now</option><option value="bar">Next bar</option></select><button data-action="visual-apply">Apply visuals</button><button data-action="visual-cancel" hidden>Cancel queued</button></div>'+
       '<details class="mw-visual-code-disclosure"><summary>Visual code <small>⌘/Ctrl ↵ applies visuals only</small></summary><div class="mw-visual-code" role="region" aria-label="Visual editor"></div><p class="mw-visual-reference">Compose layers: tunnel, tiles, orbits, ribbons, sparks. Read named controls with param("motion"), music with signal("bass.hit") or signal("audio.bass"). This bounded language does not run JavaScript.</p></details></div>'+
-      '<p class="mw-stage-status" role="status">Preparing the visual stage…</p><div class="mw-visual-performance" hidden><button data-action="visual-freeze" aria-pressed="false" title="Hold visual state; music continues">Freeze</button><button data-action="visual-blackout" aria-pressed="false" title="Mask output; music and visual state continue">Blackout</button><button data-action="visual-reset" title="Clear visual feedback and phase only">Reset visuals</button><button data-action="visual-panic" title="Stop music, cancel queued visuals and black out output">Panic</button></div><p class="mw-stage-help">Code makes the music. The scene follows it. Visual edits are session-only until audiovisual saving is added.</p></section></div>'+
+      '<p class="mw-stage-status" role="status">Preparing the visual stage…</p><div class="mw-visual-performance" hidden><button data-action="visual-freeze" aria-pressed="false" title="Hold visual state; music continues">Freeze</button><button data-action="visual-blackout" aria-pressed="false" title="Mask output; music and visual state continue">Blackout</button><button data-action="visual-reset" title="Clear visual feedback and phase only">Reset visuals</button><button data-action="visual-panic" title="Stop music, cancel queued visuals and black out output">Panic</button></div><p class="mw-stage-help">Code makes the music. The scene follows it. The applied scene, its source and its control values are saved with your project.</p></section></div>'+
       '<aside id="mw-panel-chat" class="mw-chat" aria-label="Musical collaboration">'+
       '<section class="mw-project-handoff" hidden><p>Web Chat runs in the hosted workspace. Open this project there to unlock Chat and request proposals.</p><button data-action="project-handoff">Open this project in web Chat</button><p>Copies your draft and last validated revision to web Chat without private chat or provenance. Accept in the new window; your original project stays here.</p></section>'+
       '<div class="mw-chat-island"></div></aside></div>'+
@@ -1076,6 +1146,7 @@
     G.addEventListener('ct-visual-state',function(){
       // CodeMirror change listeners run during an editor update. UI/diagnostic
       // synchronization must not dispatch another transaction reentrantly.
+      visualChanged();
       if(visualRenderQueued)return;visualRenderQueued=true;
       queueMicrotask(function(){visualRenderQueued=false;if(root&&!root.hidden)renderStage();});
     });
@@ -1191,11 +1262,19 @@
     }
     else if(name==='download')download(project.serialize({includePrivate:true}),'chiptunes-project.json','application/json');
     else if(name==='share'){
-      var text=project.serialize(),bytes=new TextEncoder().encode(text);
+      captureVisual(project);
+      var text=project.serialize(),bytes=new TextEncoder().encode(text),visualOmitted=false;
+      // Visual source is allowed 32 KiB, larger than the whole link budget.
+      // Drop visuals to keep the music shareable rather than refusing outright.
+      if(bytes.length>12000&&project.visual){
+        visualOmitted=true;text=project.serialize({excludeVisual:true});bytes=new TextEncoder().encode(text);
+      }
       if(bytes.length>12000)throw Error('Project is too large for a self-contained link. Download a project file.');
       var binary='';bytes.forEach(function(b){binary+=String.fromCharCode(b);});
       var link=location.origin+'/create#music='+encodeURIComponent(btoa(binary));
-      await navigator.clipboard.writeText(link);status('Copied project link. Chat and private provenance excluded; opening does not play.');
+      await navigator.clipboard.writeText(link);
+      status('Copied project link. '+(visualOmitted?'Visuals were too large for the link and were omitted; download a project file to keep them. ':'')+
+        'Chat and private provenance excluded; opening does not play.');
     }else if(name==='open'){
       var importRun=++fileImportSerial,importOpen=openEpoch,importProject=project,importSave=saveEpoch;
       function currentImport(){return importRun===fileImportSerial&&importOpen===openEpoch&&project===importProject&&importSave===saveEpoch&&!root.hidden;}
@@ -1207,6 +1286,7 @@
         var loaded=check(api().restore(serialized,opts()));
         if(!G.confirm('Replace this workspace? Download the current project first to keep a copy.'))return;
         cancelChat();resetAudio();project=loaded.project;selection=null;proposal=null;agentInstance=G.crypto.randomUUID();
+        restoreProjectVisuals();
         defaultProjectLoop();
         syncEditor();renderNotes();renderProposal();renderState();diagnostics(snap().diagnostics);scheduleSave();
       }catch(e){if(currentImport())announceError(e);}};input.click();
@@ -1300,6 +1380,7 @@
     if(!/^#music(?:=|$)/.test(location.hash))history.replaceState(null,'',((location.pathname==='/'||location.pathname==='/create')?location.pathname:'/create')+location.search+'#music');
     agentInstance=G.crypto.randomUUID();root.hidden=false;if(!alreadyOpen)inerted=[];renderChatLayout();
     mountStage();
+    restoreProjectVisuals();
     if(!chatAccess)chatAccess=new G.CT_MUSIC_CHAT.Access();
     chatUnlocked=false;updateChatAccess('GET');
     if(!connection&&G.CT_MUSIC_AGENT_CONNECTION)connection=G.CT_MUSIC_AGENT_CONNECTION.create({workspace:G.CT_MUSIC_WORKSPACE,onChange:renderConnection});
@@ -1316,6 +1397,9 @@
   function close(options){
     if(!root||root.hidden)return;
     openEpoch++;
+    // A closed workspace must not write stage activity back to the project it
+    // was showing; the next open re-establishes the handover.
+    visualOwner=null;visualRestoreFailed=false;
     cancelPreview();
     inlineContext=null;if(editor&&editor.cancelSourceGesture)editor.cancelSourceGesture();
     if(visualizerOpen)setVisualizer(false);
