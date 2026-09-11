@@ -2,7 +2,7 @@ globalThis.CT_MUSIC_ASSETS_VERSION="e84045bcb7186729";
 globalThis.CT_MUSIC_EDITOR_VERSION="ffbf00c2401d";
 globalThis.CT_MUSIC_CHAT_UI_VERSION="904689e8bae1";
 globalThis.CT_MUSIC_PREVIEW_VERSION="155578e509d1";
-globalThis.CT_MUSIC_BUILD_VERSION="f135bba5dd6f";
+globalThis.CT_MUSIC_BUILD_VERSION="54320fd3c98a";
 /* ===== src/seed.js ===== */
 // ===== seed.js — deterministic generated-track identity. =====
 // Loads FIRST (before composer.js/audio.js) so any composer can seed itself from a URL token.
@@ -17172,6 +17172,9 @@ track("lead").instrument("p0").play("lead",{repeat:8})`
 (function (G) {
   'use strict';
   var TAU = Math.PI * 2, MAX_DT = 0.1, MAX_ITEMS = 512, MAX_EVENTS = 64;
+  // Floor on shedding. Below this a scene stops reading as itself, and the
+  // right answer is a simpler program, not an emptier one.
+  var MIN_QUALITY = 0.25;
   var own = Object.prototype.hasOwnProperty;
   var OPS = ['tunnel', 'tiles', 'orbits', 'ribbons', 'sparks'];
   var SIGNALS = ['audio.bass', 'audio.mid', 'audio.treble', 'audio.level',
@@ -17435,6 +17438,11 @@ track("lead").instrument("p0").play("lead",{repeat:8})`
     var program = null, values = Object.create(null), signals = Object.create(null);
     var phase = 0, frameCount = 0, renderErrors = 0, error = null, lastTime = null, lastIdentity = null;
     var wasPaused = true, hasFrame = false, feedbackValid = false, dirty = true, dt = 0;
+    // The renderer owns no clock and no ambient services, so it cannot measure
+    // its own cost. The host measures frame cost and hands back a quality
+    // level; this module only spends it. MIN_QUALITY keeps a shed frame
+    // recognisable instead of degenerating to one item per layer.
+    var quality = 1, drawnItems = 0;
     var acknowledgedGrid = { gstep: 0, phase: 0, bar: 0, bpm: 120 };
     SIGNALS.forEach(function (name) { signals[name] = 0; });
 
@@ -17462,7 +17470,11 @@ track("lead").instrument("p0").play("lead",{repeat:8})`
       return { ok: true, value: next, error: null };
     }
     function resolve(layer) {
-      var p = { count: layer.count };
+      // Shedding lever: every draw operation loops over p.count, so scaling it
+      // reduces real drawn work rather than merely reporting a lower quality.
+      // At least one item per layer always survives, so a shed frame is still
+      // the same composition, thinner — never a blank stage.
+      var p = { count: Math.max(1, Math.round(layer.count * quality)) };
       PARAM_NAMES.forEach(function (name) {
         var ref = layer[name], v = typeof ref === 'number' ? ref :
           ref.type === 'param' ? values[ref.name] : signals[ref.name] * ref.scale + ref.offset;
@@ -17515,6 +17527,9 @@ track("lead").instrument("p0").play("lead",{repeat:8})`
         if (!(id == null || typeof id === 'string' && id.length <= 256 || finite(id))) fail('Invalid visual transport identity');
         id = id == null ? null : id;
         var paused = input.paused === true, clock = input.clock || {}, grid = input.grid || {};
+        // Clamped rather than rejected: a bad quality hint must never turn into
+        // a render failure that blanks the stage.
+        quality = finite(input.quality) ? clamp(input.quality, MIN_QUALITY, 1) : 1;
         dt = !paused && !wasPaused && id === lastIdentity && time !== null && lastTime !== null ? clamp(time - lastTime, 0, MAX_DT) : 0;
         lastTime = time; lastIdentity = id; wasPaused = paused;
         // At most 100 ms of visual catch-up; a backwards/invalid clock only
@@ -17538,8 +17553,10 @@ track("lead").instrument("p0").play("lead",{repeat:8})`
             backCtx.globalAlpha = Math.pow(program.visual.feedback, Math.max(dt, 1 / 60) * 60);
             backCtx.drawImage(front, (width - width * zoom) / 2, (height - height * zoom) / 2, width * zoom, height * zoom);
           }
+          drawnItems = 0;
           program.layers.forEach(function (layer, index) {
             var p = resolve(layer); env.layer = index;
+            drawnItems += p.count;
             if (p.opacity === 0) return;
             saved(backCtx, function () {
               backCtx.globalCompositeOperation = layer.blend;
@@ -17569,7 +17586,8 @@ track("lead").instrument("p0").play("lead",{repeat:8})`
       return { values: Object.assign({}, values), phase: phase, frames: frameCount,
         canvasCount: 2, width: width, height: height, error: error, renderErrors: renderErrors,
         dt: dt, signals: Object.assign({}, signals), grid: Object.assign({}, acknowledgedGrid), layers: program ? program.layers.length : 0,
-        items: program ? program.count : 0, hasFrame: hasFrame };
+        items: program ? program.count : 0, hasFrame: hasFrame,
+        quality: quality, drawnItems: drawnItems };
     }
     return Object.freeze({ apply: apply, setControl: setControl, render: render, reset: reset, snapshot: snapshot });
   }
@@ -17659,12 +17677,15 @@ track("lead").instrument("p0").play("lead",{repeat:8})`
         else if(!t.paused&&t.grid.gstep>=pending.targetStep){activate(pending);changed();}
       }
     }
-    function tick(t,clock){
+    function tick(t,clock,quality){
       observe(t);
       if(!live||!live.program)return {canvas:null,error:error};
       if(frozen)return lastFrame||{canvas:null,error:error};
+      // The stage does not decide how much work to spend; the host measures
+      // frame cost and passes a quality level straight through. The renderer
+      // clamps it, so an absent or bad value is simply full quality.
       var result=renderer.render({contextTime:t&&t.renderContextTime||0,paused:!t||t.paused,
-        identity:identity(t)+':'+reanchor,grid:t&&t.grid||{},clock:clock||{noteOns:[]}});
+        identity:identity(t)+':'+reanchor,grid:t&&t.grid||{},clock:clock||{noteOns:[]},quality:quality});
       lastFrame=result;
       var currentError=result.error?String(result.error):null;
       if(currentError!==renderError){renderError=currentError;changed();}
@@ -42924,6 +42945,20 @@ var _visualSession=null;
 // A project's saved visual arrives before the stage is lazily created, so it
 // waits here. It is consumed once; later project loads restore the live stage.
 var _visualRestore=null;
+// Phase F item 1: an explicit visual work budget, spent by the host because the
+// renderer deliberately owns no clock. VISUAL_BUDGET_MS is the share of a 60fps
+// frame the stage may take before it must draw less; audio is never the thing
+// that gives way. The measurement is a slow EMA so one expensive frame does not
+// visibly thin the scene, and recovery is slower than shedding so the quality
+// level does not oscillate on a marginal machine.
+var VISUAL_BUDGET_MS=6, _visualCostMs=0, _visualQuality=1;
+function _visualWorkQuality(){ return _visualQuality; }
+function _recordVisualCost(ms){
+  if(typeof ms!=='number'||!isFinite(ms)||ms<0)return;
+  _visualCostMs=_visualCostMs?_visualCostMs*0.9+ms*0.1:ms;
+  if(_visualCostMs>VISUAL_BUDGET_MS)_visualQuality=Math.max(0.25,_visualQuality-0.05);
+  else if(_visualCostMs<VISUAL_BUDGET_MS*0.6)_visualQuality=Math.min(1,_visualQuality+0.01);
+}
 function _syncVisualSession(){
   if(!_visualSession)return;
   var state=_visualSession.snapshot();_visualEnabled=state.enabled;
@@ -43134,6 +43169,8 @@ window.CT_CREATE_PRESENTATION=Object.freeze({mount:_mountVisual,unmount:_unmount
   },panicVisuals:function(){return _ensureVisualSession().panic();},
   // Portable visual composition data. Reading must never create a stage: a
   // music-only session that never opened visuals has nothing to save.
+  // Measured visual work, so the budget is observable rather than asserted.
+  visualBudget:function(){return {budgetMs:VISUAL_BUDGET_MS,costMs:_visualCostMs,quality:_visualQuality};},
   serializeVisuals:function(){return _visualSession?_visualSession.serialize():(_visualRestore||null);},
   restoreVisuals:function(saved){
     _visualRestore=saved||null;
@@ -44064,7 +44101,9 @@ function frame(now){
   g.setTransform(DPR,0,0,DPR,0,0); g.globalAlpha = 1;
   const musicFrame=_musicPresentationFrame(musicPresentation);
   const RX = musicPresentation?musicFrame:(Audio.started && Audio.vis && !silentWatch) ? Audio.vis() : null;
-  const visualOutput=musicPresentation&&_visualSession?_visualSession.tick(musicPresentation,musicFrame):null;
+  const _visualStart=musicPresentation&&_visualSession&&typeof performance!=='undefined'?performance.now():null;
+  const visualOutput=musicPresentation&&_visualSession?_visualSession.tick(musicPresentation,musicFrame,_visualWorkQuality()):null;
+  if(_visualStart!==null)_recordVisualCost(performance.now()-_visualStart);
   const visualState=musicPresentation&&_visualSession?_visualSession.snapshot():null;
   const procedural=!!visualState&&visualState.scene.indexOf('visual:')===0;
   const visualFrozen=!!visualState&&visualState.frozen;

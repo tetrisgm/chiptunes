@@ -79,12 +79,15 @@
         else if(!t.paused&&t.grid.gstep>=pending.targetStep){activate(pending);changed();}
       }
     }
-    function tick(t,clock){
+    function tick(t,clock,quality){
       observe(t);
       if(!live||!live.program)return {canvas:null,error:error};
       if(frozen)return lastFrame||{canvas:null,error:error};
+      // The stage does not decide how much work to spend; the host measures
+      // frame cost and passes a quality level straight through. The renderer
+      // clamps it, so an absent or bad value is simply full quality.
       var result=renderer.render({contextTime:t&&t.renderContextTime||0,paused:!t||t.paused,
-        identity:identity(t)+':'+reanchor,grid:t&&t.grid||{},clock:clock||{noteOns:[]}});
+        identity:identity(t)+':'+reanchor,grid:t&&t.grid||{},clock:clock||{noteOns:[]},quality:quality});
       lastFrame=result;
       var currentError=result.error?String(result.error):null;
       if(currentError!==renderError){renderError=currentError;changed();}

@@ -177,6 +177,31 @@ const PROGRAM=[
       assert.notEqual(after.music,62,'and is the adjusted value, not the default');
     });
 
+    await check('the visual work budget is measured and sheds visuals, never audio',async()=>{
+      // Phase F item 1. The renderer owns no clock, so the host measures frame
+      // cost and hands back a quality level. Assert the MECHANISM rather than a
+      // machine-dependent threshold: whether 6 ms is exceeded depends on the host.
+      await page.evaluate(src=>{CT_CREATE_PRESENTATION.setVisualDraft(src);CT_CREATE_PRESENTATION.applyVisual('now');},PROGRAM);
+      await page.locator('[data-action=play]').click();
+      await page.waitForFunction(()=>Audio.musicVisualState()?.status==='playing'&&Audio.musicVisualState().frame>4);
+      await page.waitForFunction(()=>CT_CREATE_PRESENTATION.snapshot().visual.renderer.frames>30);
+      const budget=await page.evaluate(()=>CT_CREATE_PRESENTATION.visualBudget());
+      assert.equal(budget.budgetMs,6,'the budget is declared, not implicit');
+      assert.ok(budget.costMs>0,'real frame cost is measured, not assumed');
+      assert.ok(budget.quality>=0.25&&budget.quality<=1,'quality stays inside its declared floor and ceiling');
+      const view=await page.evaluate(()=>{const r=CT_CREATE_PRESENTATION.snapshot().visual.renderer;
+        return {quality:r.quality,drawn:r.drawnItems,declared:r.items};});
+      assert.ok(view.drawn<=view.declared,'shedding only ever draws less than the program declares');
+      if(view.quality<1)assert.ok(view.drawn<view.declared,'a shed frame really draws fewer items');
+      else assert.equal(view.drawn,view.declared,'an unshed frame draws the whole program');
+      // Audio is never what gives way.
+      const audio=await page.evaluate(()=>({status:Audio.musicVisualState()?.status,contexts:visualContexts}));
+      assert.equal(audio.status,'playing','the music keeps playing while visuals are budgeted');
+      assert.ok(audio.contexts<=1,'no extra AudioContext');
+      await page.locator('[data-action=stop]').click();
+      await page.waitForFunction(()=>Audio.musicVisualState()?.status!=='playing');
+    });
+
     await check('no page errors, one AudioContext, no provider or capture calls',async()=>{
       assert.deepEqual(errors,[]);
       assert.equal(await page.evaluate(()=>visualMic),0,'no microphone request');
@@ -187,5 +212,5 @@ const PROGRAM=[
   finally{if(browser)await browser.close();await new Promise(r=>server.close(r));}
   const build=(()=>{try{const html=fs.readFileSync(path.join(dist,'index.html'),'utf8');const m=html.match(/app\.[0-9a-f]+\.js/);return m?m[0]:'dist';}catch(e){return 'dist';}})();
   if(failures){console.error(`verify-visual-persistence-browser: ${failures} failed`);process.exitCode=1;}
-  else console.log(`PASS audiovisual persistence (${build}); reload restores scene/source/values; Chromium only, no provider/microphone/deployment.`);
+  else console.log(`PASS audiovisual persistence (${build}); reload restores scene/source/values, measured visual budget; Chromium only, no provider/microphone/deployment.`);
 })().catch(e=>{console.error(e);process.exitCode=1;});

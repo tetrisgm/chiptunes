@@ -483,3 +483,79 @@ if (process.argv.includes('--browser')) test('real Chromium draws every compiler
     console.log('Chromium pixels:', JSON.stringify(results));
   } finally { await browser.close(); }
 });
+
+test('a host-supplied quality level sheds real drawn work without blanking the stage', () => {
+  // The renderer owns no clock and no ambient services, so it cannot measure
+  // its own cost; the host measures frame cost and hands back a quality level.
+  // Shedding must reduce ACTUAL primitives, not just report a lower number.
+  const f = fixture();
+  const p = program([{ op: 'orbits', count: 40, blend: 'lighter' }, { op: 'sparks', count: 60 }]);
+  p.visual.feedback = 0;
+  f.renderer.apply(p);
+
+  f.render(input(1, { quality: 1 }));
+  const full = f.renderer.snapshot(), fullPrimitives = f.render(input(1.1, { quality: 1 })).canvas.ctx.primitives;
+  assert.equal(full.quality, 1);
+  assert.equal(full.drawnItems, 100, 'full quality draws every declared item');
+  assert.equal(full.items, 100, 'the declared program count is reported unchanged');
+
+  f.render(input(1.2, { quality: 0.5 }));
+  const half = f.renderer.snapshot();
+  assert.equal(half.quality, 0.5);
+  assert.equal(half.drawnItems, 50, 'half quality halves the drawn items');
+  const halfPrimitives = f.render(input(1.3, { quality: 0.5 })).canvas.ctx.primitives;
+  assert(halfPrimitives < fullPrimitives, 'and that is fewer real canvas primitives, not just a smaller number');
+
+  // Clamping in both directions, and an invalid hint must never become a render
+  // failure that blanks the stage.
+  for (const [supplied, expected] of [[5, 1], [0.01, 0.25], [-1, 0.25], ['bad', 1], [NaN, 1], [undefined, 1]]) {
+    const result = f.render(input(1.4, { quality: supplied }));
+    assert.equal(result.error, null, String(supplied) + ' must not fail the frame');
+    assert.equal(f.renderer.snapshot().quality, expected, 'quality ' + String(supplied) + ' resolves to ' + expected);
+  }
+
+  // At the floor every layer still draws: a shed frame is the same composition,
+  // thinner, never an empty one.
+  f.render(input(1.5, { quality: 0.25 }));
+  assert.equal(f.renderer.snapshot().drawnItems, 25);
+  const thin = fixture();
+  thin.renderer.apply(program([{ op: 'orbits', count: 1 }, { op: 'sparks', count: 2 }]));
+  thin.render(input(1, { quality: 0.25 }));
+  assert.equal(thin.renderer.snapshot().drawnItems, 2, 'each layer keeps at least one item');
+});
+
+test('a long session stays bounded in allocations, resources and reported work', () => {
+  // "Long session" here means many thousands of frames with changing quality,
+  // signals and transport identity — enough to expose growth in canvases,
+  // contexts, resizes or retained per-frame state. It is not a claim about a
+  // multi-hour real session or GPU memory on a physical display.
+  const f = fixture();
+  const p = program([{ op: 'tunnel', count: 64, speed: 1, react: signal('bass.hit') },
+    { op: 'sparks', count: 64, blend: 'lighter' }]);
+  f.renderer.apply(p);
+  // Baselines from construction, so the claim is "does not grow during the
+  // session" rather than a hardcoded count that a constructor change invalidates.
+  const baseline = { allocations: f.metrics.allocations, resizes: f.metrics.resizes };
+  const qualities = [1, 0.8, 0.5, 0.25, 0.5, 1];
+  let maximumDrawn = 0;
+  for (let frame = 0; frame < 5000; frame++) {
+    const quality = qualities[frame % qualities.length];
+    const result = f.render(input(frame / 60, { quality,
+      // Rotate transport identity periodically: a real session loops, seeks and
+      // re-activates, and none of that may accumulate state.
+      identity: 'epoch:activation:r' + (frame % 7) + ':0',
+      clock: { noteOns: frame % 5 === 0 ? [{ role: 'bass', strength: 1 }] : [] } }));
+    assert.equal(result.error, null, 'frame ' + frame + ' renders without error');
+    maximumDrawn = Math.max(maximumDrawn, f.renderer.snapshot().drawnItems);
+  }
+  const end = f.renderer.snapshot();
+  assert.equal(end.frames, 5000, 'every frame was actually drawn');
+  assert.equal(end.renderErrors, 0);
+  assert.equal(end.canvasCount, 2, 'still exactly two canvases after a long session');
+  assert.equal(f.metrics.allocations, baseline.allocations, 'no canvas was allocated during the session');
+  assert.equal(f.metrics.resizes, baseline.resizes, 'and none was resized during it');
+  assert.ok(maximumDrawn <= 128, 'drawn work never exceeds the declared program');
+  assert.ok(end.quality >= 0.25 && end.quality <= 1);
+  // Phase is explicitly wrapped, so it cannot grow without bound over a set.
+  assert.ok(end.phase >= 0 && end.phase < 1048576, 'visual phase stays wrapped');
+});

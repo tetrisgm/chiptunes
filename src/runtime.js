@@ -59,6 +59,20 @@ var _visualSession=null;
 // A project's saved visual arrives before the stage is lazily created, so it
 // waits here. It is consumed once; later project loads restore the live stage.
 var _visualRestore=null;
+// Phase F item 1: an explicit visual work budget, spent by the host because the
+// renderer deliberately owns no clock. VISUAL_BUDGET_MS is the share of a 60fps
+// frame the stage may take before it must draw less; audio is never the thing
+// that gives way. The measurement is a slow EMA so one expensive frame does not
+// visibly thin the scene, and recovery is slower than shedding so the quality
+// level does not oscillate on a marginal machine.
+var VISUAL_BUDGET_MS=6, _visualCostMs=0, _visualQuality=1;
+function _visualWorkQuality(){ return _visualQuality; }
+function _recordVisualCost(ms){
+  if(typeof ms!=='number'||!isFinite(ms)||ms<0)return;
+  _visualCostMs=_visualCostMs?_visualCostMs*0.9+ms*0.1:ms;
+  if(_visualCostMs>VISUAL_BUDGET_MS)_visualQuality=Math.max(0.25,_visualQuality-0.05);
+  else if(_visualCostMs<VISUAL_BUDGET_MS*0.6)_visualQuality=Math.min(1,_visualQuality+0.01);
+}
 function _syncVisualSession(){
   if(!_visualSession)return;
   var state=_visualSession.snapshot();_visualEnabled=state.enabled;
@@ -269,6 +283,8 @@ window.CT_CREATE_PRESENTATION=Object.freeze({mount:_mountVisual,unmount:_unmount
   },panicVisuals:function(){return _ensureVisualSession().panic();},
   // Portable visual composition data. Reading must never create a stage: a
   // music-only session that never opened visuals has nothing to save.
+  // Measured visual work, so the budget is observable rather than asserted.
+  visualBudget:function(){return {budgetMs:VISUAL_BUDGET_MS,costMs:_visualCostMs,quality:_visualQuality};},
   serializeVisuals:function(){return _visualSession?_visualSession.serialize():(_visualRestore||null);},
   restoreVisuals:function(saved){
     _visualRestore=saved||null;
@@ -1199,7 +1215,9 @@ function frame(now){
   g.setTransform(DPR,0,0,DPR,0,0); g.globalAlpha = 1;
   const musicFrame=_musicPresentationFrame(musicPresentation);
   const RX = musicPresentation?musicFrame:(Audio.started && Audio.vis && !silentWatch) ? Audio.vis() : null;
-  const visualOutput=musicPresentation&&_visualSession?_visualSession.tick(musicPresentation,musicFrame):null;
+  const _visualStart=musicPresentation&&_visualSession&&typeof performance!=='undefined'?performance.now():null;
+  const visualOutput=musicPresentation&&_visualSession?_visualSession.tick(musicPresentation,musicFrame,_visualWorkQuality()):null;
+  if(_visualStart!==null)_recordVisualCost(performance.now()-_visualStart);
   const visualState=musicPresentation&&_visualSession?_visualSession.snapshot():null;
   const procedural=!!visualState&&visualState.scene.indexOf('visual:')===0;
   const visualFrozen=!!visualState&&visualState.frozen;
