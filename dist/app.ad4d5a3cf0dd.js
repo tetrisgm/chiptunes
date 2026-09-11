@@ -2,7 +2,7 @@ globalThis.CT_MUSIC_ASSETS_VERSION="e84045bcb7186729";
 globalThis.CT_MUSIC_EDITOR_VERSION="ffbf00c2401d";
 globalThis.CT_MUSIC_CHAT_UI_VERSION="904689e8bae1";
 globalThis.CT_MUSIC_PREVIEW_VERSION="155578e509d1";
-globalThis.CT_MUSIC_BUILD_VERSION="a54ff22847e4";
+globalThis.CT_MUSIC_BUILD_VERSION="64b20ba3ce16";
 /* ===== src/seed.js ===== */
 // ===== seed.js — deterministic generated-track identity. =====
 // Loads FIRST (before composer.js/audio.js) so any composer can seed itself from a URL token.
@@ -15831,7 +15831,14 @@ track("lead").instrument("p0").play("lead",{repeat:8})`
     if (options._restore) {
       var saved = options._restore;
       if (saved.lastValid) {
-        assert(current(), 'Saved validated source no longer compiles');
+        // This source compiled when it was saved, so a failure here is usually a
+        // build difference -- a record written by a newer dialect opened on an
+        // older build -- not broken music. Surface the compiler's own reason so
+        // the message points at the build rather than blaming the source, and
+        // say plainly that nothing was discarded.
+        assert(current(), 'Saved validated source no longer compiles in this build' +
+          (diagnostics && diagnostics[0] && diagnostics[0].message ? ' (' + diagnostics[0].message + ')' : '') +
+          '. The saved project is unchanged.');
         current().id = saved.lastValid.id;
       }
       serial = saved.revisionCounter;
@@ -17891,7 +17898,12 @@ track("lead").instrument("p0").play("lead",{repeat:8})`
     renderStage();
   }
   function fullscreenStage(){
-    var host=$('.mw-stage-viewport'),request=host.requestFullscreen||host.webkitRequestFullscreen;
+    // In an output layout the whole output is the picture; fullscreening only
+    // the stage would drop the code half that makes code-plus-visuals a
+    // performance surface rather than a screensaver. requestFullscreen must
+    // stay synchronous inside the click to keep user activation.
+    var host=visualizerOpen?root:$('.mw-stage-viewport');
+    var request=host.requestFullscreen||host.webkitRequestFullscreen;
     if(!request){status('Fullscreen is unavailable in this browser. Use Focus visuals to enlarge the stage.');return;}
     // Called directly from the click to preserve browser user activation.
     try{var result=request.call(host);if(result&&result.catch)result.catch(function(){status('Fullscreen was declined. The stage and music are unchanged.');});}
@@ -18850,7 +18862,7 @@ track("lead").instrument("p0").play("lead",{repeat:8})`
       '<div class="mw-live-feedback"><div class="mw-position" aria-live="off">Stopped · Run to hear your code</div><div class="mw-beats" aria-hidden="true"><i></i><i></i><i></i><i></i></div><div class="mw-state" aria-live="polite"></div></div>'+
       '<section class="mw-transfer-offer" aria-label="Incoming project" hidden><p class="mw-transfer-description" role="status"></p><div class="mw-actions"><button data-action="transfer-accept" disabled>Accept</button><button data-action="transfer-cancel">Cancel</button></div></section>'+
       '<div class="mw-body"><div class="mw-creative"><main id="mw-panel-music" class="mw-main" aria-label="Composition"><p class="mw-source-mode"></p><div class="mw-selection" role="status">Notes show the validated revision. Select a note to locate its source.</div><div class="mw-composition"><div id="mw-panel-notes" role="region" aria-label="Note chart" tabindex="0" class="mw-mainview mw-notes"></div><div class="mw-splitter" role="separator" tabindex="0" aria-label="Resize chart and code" aria-orientation="horizontal" aria-controls="mw-panel-notes mw-panel-code" aria-valuemin="20" aria-valuemax="75" aria-valuenow="45" title="Drag or use Up/Down arrows to resize chart and code; Home/End for limits"></div><div id="mw-panel-code" role="region" aria-label="Code editor" class="mw-mainview mw-code"></div></div>'+
-      '<div class="mw-diagnostics" role="status"></div><details class="mw-live-guide"><summary>Build a live set · 7 steps</summary><div class="mw-live-guide-content"><label for="mw-live-step">Tidal-inspired patterns</label><div class="mw-live-step-actions"><select id="mw-live-step" class="mw-live-step" aria-describedby="mw-live-step-description mw-live-step-warning"></select><button data-action="load-cycle-example">Load into code</button></div><p id="mw-live-step-description" class="mw-live-step-description" aria-live="polite"></p><p id="mw-live-step-warning">Replaces your draft in one undoable edit. Run to hear it; the current music keeps playing until then.</p></div></details><details class="mw-help"><summary>Music help and limits</summary><pre></pre><p>Audio/file exports are limited to 10 minutes; project downloads preserve longer songs.</p></details></main>'+
+      '<div class="mw-diagnostics" role="status"></div><details class="mw-live-guide"><summary>Build a live set</summary><div class="mw-live-guide-content"><label for="mw-live-step">Tidal-inspired patterns</label><div class="mw-live-step-actions"><select id="mw-live-step" class="mw-live-step" aria-describedby="mw-live-step-description mw-live-step-warning"></select><button data-action="load-cycle-example">Load into code</button></div><p id="mw-live-step-description" class="mw-live-step-description" aria-live="polite"></p><p id="mw-live-step-warning">Replaces your draft in one undoable edit. Run to hear it; the current music keeps playing until then.</p></div></details><details class="mw-help"><summary>Music help and limits</summary><pre></pre><p>Audio/file exports are limited to 10 minutes; project downloads preserve longer songs.</p></details></main>'+
       '<div class="mw-stage-splitter" role="separator" tabindex="0" aria-label="Resize music and visuals" aria-orientation="vertical" aria-controls="mw-panel-music mw-panel-visuals" aria-valuemin="45" aria-valuemax="75" aria-valuenow="62" title="Drag or use Left/Right arrows to resize music and visuals; Home/End for limits"></div>'+
       '<section id="mw-panel-visuals" class="mw-visuals" aria-label="Visual stage"><header class="mw-visual-header"><h2>Visuals</h2><button data-action="stage-fullscreen" title="Show only this visual output in fullscreen">Fullscreen</button></header>'+
       '<div class="mw-stage-viewport" role="img" aria-label="Music-driven visual output"><p class="mw-stage-empty">Preparing the visual stage…</p></div>'+
@@ -18876,6 +18888,7 @@ track("lead").instrument("p0").play("lead",{repeat:8})`
       '<footer class="mw-actions mw-footer"><details class="mw-project-tools"><summary>Project tools</summary><div class="mw-actions"><button data-action="save">Save draft locally</button><button data-action="download">Download project</button><button data-action="open">Open project</button><button data-action="share">Copy project link</button>'+
       '<details class="mw-generate"><summary>Generate a full song (exact source)</summary><label>Describe the song<input class="mw-generate-text" maxlength="500" placeholder="Make something happy"></label><button data-action="generate">Generate song</button></details>'+
       '<details class="mw-exports"><summary>Export audio / files</summary><div class="mw-actions"><select class="mw-format" aria-label="Export format"><option value="wav">WAV</option><option value="midi">MIDI</option><option value="rom">Game Boy ROM</option><option value="lsdsng">LSDj</option></select><button data-action="export">Export validated revision</button></div></details></div></details><small class="mw-build"></small></footer>'+
+      '<p class="mw-output-build" aria-hidden="true"></p>'+
       '<p class="mw-status" role="status" aria-live="polite"></p>';
     document.body.appendChild(root);
     var cycleSteps=G.CT_MUSIC_CYCLE_EXAMPLES&&G.CT_MUSIC_CYCLE_EXAMPLES.steps||[];
@@ -18883,6 +18896,10 @@ track("lead").instrument("p0").play("lead",{repeat:8})`
     function describeCycleStep(){var step=cycleSteps.find(function(item){return item.id===$('.mw-live-step').value;});$('.mw-live-step-description').textContent=step?step.description:'';}
     $('.mw-live-step').addEventListener('change',describeCycleStep);describeCycleStep();
     $('.mw-live-guide').hidden=!cycleSteps.length;
+    // Derived, not hardcoded: the options come from CT_MUSIC_CYCLE_EXAMPLES and
+    // the browser check only counts them, so a literal label could quietly lie
+    // about how many steps the guide actually offers.
+    $('.mw-live-guide>summary').textContent='Build a live set · '+cycleSteps.length+' steps';
     var outputSelect=document.createElement('select');
     outputSelect.className='mw-output-mode';outputSelect.setAttribute('aria-label','Audience output layout');
     [['visualizer','Output: visuals only'],['performance','Output: code + visuals']].forEach(function(pair){
@@ -18996,7 +19013,13 @@ track("lead").instrument("p0").play("lead",{repeat:8})`
     });
     // Legacy transfer recovery remains supported, but normal Chat is same-origin.
     $('.mw-project-handoff').hidden=true;
-    $('.mw-build').textContent='Music v'+G.CT_MUSIC_LANGUAGE.VERSION+' · '+(G.CT_MUSIC_BUILD_VERSION||'development');
+    var buildLabel='Music v'+G.CT_MUSIC_LANGUAGE.VERSION+' · '+(G.CT_MUSIC_BUILD_VERSION||'development');
+    $('.mw-build').textContent=buildLabel;
+    // The footer carries the build id for authoring, but output hides the whole
+    // footer, so audience layouts need their own uncached on-screen copy. A
+    // build id read at a different moment than the observation is inference,
+    // not evidence -- which is exactly what a native acceptance note needs.
+    $('.mw-output-build').textContent=buildLabel;
     root.addEventListener('keydown',function(e){
       if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)&&!e.altKey&&!e.isComposing&&e.target.closest('.mw-visual-code')){
         e.preventDefault();e.stopImmediatePropagation();try{visualAdapter().applyVisual($('.mw-visual-boundary').value);}catch(error){announceError(error);}return;

@@ -346,7 +346,14 @@
     if (options._restore) {
       var saved = options._restore;
       if (saved.lastValid) {
-        assert(current(), 'Saved validated source no longer compiles');
+        // This source compiled when it was saved, so a failure here is usually a
+        // build difference -- a record written by a newer dialect opened on an
+        // older build -- not broken music. Surface the compiler's own reason so
+        // the message points at the build rather than blaming the source, and
+        // say plainly that nothing was discarded.
+        assert(current(), 'Saved validated source no longer compiles in this build' +
+          (diagnostics && diagnostics[0] && diagnostics[0].message ? ' (' + diagnostics[0].message + ')' : '') +
+          '. The saved project is unchanged.');
         current().id = saved.lastValid.id;
       }
       serial = saved.revisionCounter;

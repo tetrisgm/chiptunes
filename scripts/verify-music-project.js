@@ -344,4 +344,25 @@ test('a caller may omit visuals to fit a self-contained link budget', () => {
   assert.deepEqual(JSON.parse(trimmed).lastValid, JSON.parse(full).lastValid);
   assert.equal(P.restore(trimmed, {}).ok, true);
 });
+test('a record this build cannot compile blames the build, not the music, and keeps the original', () => {
+  // The alternative was a COMPILER_VERSION on the language, which would have
+  // invalidated every existing saved record just to fix a message. Surfacing
+  // the compiler's own reason fixes the misattribution and breaks nothing.
+  const p = fresh();
+  const record = JSON.parse(p.serialize());
+  record.lastValid.source = 'song({bars:1});pattern("p",futureV9("C2"));';
+  record.draft = record.lastValid.source;
+  // A build that predates the dialect: compilation fails with a real reason
+  // rather than throwing, exactly as the restricted compiler reports it.
+  const older = Object.assign({}, options, {
+    compile: () => ({ ok: false, diagnostics: [{ severity: 'error', message: 'Pattern requires notes() or cycleV1()' }] })
+  });
+  const result = P.restore(JSON.stringify(record), older);
+  assert.equal(result.ok, false);
+  assert.equal(result.code, 'incompatible-project');
+  assert.match(result.message, /in this build/, 'the message points at the build');
+  assert.match(result.message, /Pattern requires notes\(\)/, "and carries the compiler's own reason");
+  assert.match(result.message, /saved project is unchanged/, 'and says nothing was discarded');
+  assert.equal(result.original.includes('futureV9'), true, 'the original record is handed back intact');
+});
 console.log('Music project: ' + tests + ' groups passed.');

@@ -61,7 +61,11 @@ const replyText='Add every(4,"rev",3) to the lead pattern; the bass and drums ar
     await page.waitForFunction(()=>document.querySelector('.mcui-status')?.textContent.startsWith('Unlocked.'));
     const snapshot=()=>page.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot());
     const initial=await snapshot();assert.equal(initial.playing,null);
-    assert.equal(await page.locator('.mw-live-step option').count(),7);
+    assert.equal(await page.locator('.mw-live-step option').count(),steps.length);
+    // The summary text must agree with the data that fills the select, or the
+    // guide can silently advertise the wrong number of steps.
+    assert.equal((await page.locator('.mw-live-guide>summary').textContent()).trim(),
+      'Build a live set · '+steps.length+' steps');
     await page.evaluate(()=>{
       window.cycleCanvases=Array.from(document.querySelectorAll('.mw-stage-viewport canvas'));
       window.cycleEvents=[];Audio.onMusicState(e=>cycleEvents.push({...e}));

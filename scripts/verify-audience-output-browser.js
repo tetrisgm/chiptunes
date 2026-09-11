@@ -115,6 +115,49 @@ const PRIVATE=['.mw-chat','.mw-footer','.mw-project-tools','.mw-chat-settings[op
       assert.equal(await visible('.mw-chat'),true,'authoring surfaces come back');
     });
 
+    await check('output carries its own on-screen build identifier while the footer stays hidden',async()=>{
+      // A build id read at a different moment than the observation is inference,
+      // not evidence. The footer copy is hidden in output, so audience layouts
+      // need their own, and it must NOT be an unhide of .mw-footer (that would
+      // put project tools, download, share and export on the projector).
+      await page.getByRole('button',{name:'Focus visuals',exact:true}).click();
+      assert.equal(await visible('.mw-output-build'),true,'output shows a build identifier');
+      assert.equal(await visible('.mw-footer'),false,'and the footer is still hidden');
+      const shown=(await page.locator('.mw-output-build').textContent()).trim();
+      const footer=(await page.locator('.mw-build').textContent()).trim();
+      assert.equal(shown,footer,'it is the same build string the footer carries');
+      assert.match(shown,/^Music v\d+ · [0-9a-f]+$/,'and it names a concrete build');
+    });
+
+    await check('fullscreen takes the whole output layout, not just the stage',async()=>{
+      // Fullscreening only .mw-stage-viewport would drop the code half of
+      // code-plus-visuals, which is what makes it a performance surface.
+      await page.locator('.mw-output-mode').selectOption('performance');
+      const before=await page.evaluate(()=>{
+        const s=CT_CREATE_PRESENTATION.snapshot().visual;
+        return {canvases:s.renderer.canvasCount,w:s.renderer.width,h:s.renderer.height,
+          revision:CT_MUSIC_WORKSPACE.snapshot().validated.id,contexts:outContexts};});
+      await page.locator('[data-action=stage-fullscreen]').click();
+      await page.waitForFunction(()=>document.fullscreenElement!==null);
+      assert.equal(await page.evaluate(()=>document.fullscreenElement&&document.fullscreenElement.id),'musicworkspace',
+        'the output root is the fullscreen element');
+      assert.equal(await visible('.mw-code'),true,'the code half survives fullscreen');
+      assert.equal(await visible('.mw-stage-viewport'),true,'and so does the stage');
+      assert.equal(await visible('.mw-output-build'),true,'the build identifier is readable in fullscreen');
+      // The private list must hold in the FULLSCREEN state, not only windowed.
+      for(const sel of PRIVATE)assert.equal(await visible(sel),false,sel+' must not be visible in fullscreen output');
+      const during=await page.evaluate(()=>{
+        const s=CT_CREATE_PRESENTATION.snapshot().visual;
+        return {canvases:s.renderer.canvasCount,w:s.renderer.width,h:s.renderer.height,
+          revision:CT_MUSIC_WORKSPACE.snapshot().validated.id,contexts:outContexts};});
+      assert.deepEqual(during,before,'one renderer, fixed buffers, no recompose, no second audio engine');
+      await page.evaluate(()=>document.exitFullscreen());
+      await page.waitForFunction(()=>document.fullscreenElement===null);
+      await page.getByRole('button',{name:'Return to composition',exact:true}).click();
+      assert.equal(await mode(),'composition','leaving fullscreen and output restores authoring');
+      assert.equal(await visible('.mw-chat'),true);
+    });
+
     await check('no page errors, no provider or capture calls',async()=>{
       assert.deepEqual(errors,[]);
       assert.equal(await page.evaluate(()=>outMic),0);
