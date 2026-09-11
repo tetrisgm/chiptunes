@@ -299,7 +299,7 @@ saved projects are untouched.
 
 ### E. Save the audiovisual composition and create audience output
 
-- [ ] Version/save visual source, selected scene, parameters, mappings and
+- [x] Version/save visual source, selected scene, parameters, mappings and
   supported assets with the musical project; preserve old music-only projects.
 - [ ] Keep local panel/window geometry separate from portable composition data.
   Preserve existing private-history/public-share boundaries and explicit import.
@@ -310,6 +310,68 @@ saved projects are untouched.
 
 Gate: reopen restores the audiovisual composition; output has one audio engine,
 no private UI, stable visual state and independent presentation choices.
+
+Checkbox 1 is implemented. visual-stage.js gained serialize()/restoreSaved() and
+an options.restore, so a session no longer always boots on presets[0]. Saving
+captures only portable composition data -- the LIVE scene, its edited source and
+its named control values. Drafts, queued boundaries, freeze and blackout are
+session state and deliberately do not travel; restore-then-save is a fixed
+point. music-project.js carries an OPTIONAL `visual` record key and VERSION
+stays 1, which is what makes this non-breaking in both directions: a record
+written by an older build restores here with no visual block, and a record
+written here restores on an older build as music with the visual key ignored.
+There is no assets item to do -- the visual language forbids external assets.
+
+A saved visual is treated as untrusted input from a project record. A malformed,
+oversized, hostile or no-longer-compiling block is dropped and the music still
+opens with its source untouched; the stage falls back to the default scene and
+says so. Absent is distinguished from malformed, so a music-only project opens
+silently rather than claiming a failed restore. Saved control values are clamped
+to the program's declared range. A preset this build no longer ships keeps the
+saved program rather than discarding the work, relabelled visual:custom so
+selectDraft still accepts it. Visuals never block a music save.
+
+The workspace now wires the missing save path, and the rule that makes it safe
+is OWNERSHIP rather than a flag: the workspace records the exact project the
+stage was last handed over to, and neither the ct-visual-state listener nor
+save() may write visuals unless that project is still the current one. The
+handover runs on every path that replaces the project -- open, file import,
+transfer accept, new loop and generate -- so any future path that forgets it is
+read-only by default instead of writing one project's visuals into another.
+Share links carry visuals when they fit; because visual source may be 32 KiB
+against a 12,000-byte link budget, an oversized visual is omitted and the user
+is told, rather than refusing to share the music at all. Private history remains
+excluded from shares exactly as before.
+
+An adversarial review of this slice found four data-loss defects before it
+landed, all from one collision: serialize() returning null meant both "the stage
+is at its untouched default" and "delete what is stored". The fixes, each with a
+regression test:
+
+- A saved visual that could not be restored was written back as null by the next
+  save, permanently destroying a composition a different build could still read.
+  A failed restore is now recorded, and while it stands an empty stage never
+  deletes the stored block -- though authoring a real visual still replaces it.
+- Opening a project file, accepting a transfer, starting a new loop or
+  generating a song replaced the project without re-syncing, so the outgoing
+  stage was written into the incoming project. Ownership plus the added handover
+  calls fix all four.
+- Saving while the scene was Off discarded the applied program entirely, because
+  Off serialized as an empty scene. Off now carries the suspended program and
+  reopens Off with it intact.
+
+One of those regression tests was itself vacuous at first: it drove a music edit
+by typing into CodeMirror, which Playwright cannot do (docs/music-workspace.md
+records the same limitation for paste), so no save ever ran and the check passed
+against the unfixed code. It now clicks the real Save action, and was confirmed
+by mutation -- removing the guard turns it red.
+
+Not done in this slice: checkbox 2's durable local panel/window geometry, which
+is still session-only module state (separate from portable data, but not yet
+persisted); checkboxes 3 and 4. Checkbox 4 remains the hardest and ends in
+owner-only evidence -- runtime.js returns early on document.hidden above its
+only tick call, so a backgrounded editor window stops rendering, and a second
+physical display is not expressible in Playwright.
 
 ### F. Performance and release acceptance
 

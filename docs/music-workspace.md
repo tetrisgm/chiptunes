@@ -129,11 +129,23 @@ cover whole track, pitch/rhythm, instrument or arrangement.
 ## Keep and export work
 
 Local recovery stores one atomic record containing draft and last valid source.
-Compiled music is re-derived on restore. Storage failure and conflicting tabs
+Compiled music is re-derived on restore. The record also carries the applied
+visual scene, its edited source and its named control values, so reopening a
+project restores the audiovisual composition rather than only the music.
+Unapplied visual drafts, a queued scene boundary, Freeze and Blackout are
+session state and deliberately do not travel with the project. The `visual`
+record key is optional and the record version is unchanged, so a project saved
+before visuals were persisted still opens, and a project saved with them still
+opens on a build that predates them — as music, with the visual block ignored.
+A saved visual that is malformed or no longer compiles is dropped: the music
+opens untouched and the stage falls back to its default scene and says so. Storage failure and conflicting tabs
 are reported; download the project before replacing or reloading conflicted
 work. Downloaded project files can include private provenance; public links
 exclude private provenance/chat by default. Self-contained links are limited
 to 12,000 UTF-8 bytes; larger projects use files, not automatic cloud storage.
+Visual source may be up to 32 KiB, larger than the whole link budget, so a link
+that cannot fit its visuals omits them and says so rather than refusing to share
+the music; download a project file to keep them.
 Opening a shared project does not overwrite an existing local draft; download
 the shared project to keep it, then explicitly import the file to replace a
 locally recovered project.

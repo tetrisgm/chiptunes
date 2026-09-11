@@ -3,6 +3,123 @@
 Plain, current working notes for whoever (or whatever) picks the project up
 next. Infrastructure and operations live outside this repository.
 
+## 2026-09-11 — Audiovisual persistence, Phase E checkbox 1 (local checkpoint)
+
+Reopening a project now restores the audiovisual composition, not just the
+music. src/visual-stage.js gained serialize() and restoreSaved() plus an
+options.restore, so a session no longer always boots on presets[0].
+src/music-project.js carries an OPTIONAL `visual` record key and VERSION stays
+1 — that is what makes this non-breaking in both directions: a record written by
+a build that predates visuals restores here with no visual block, and a record
+written here restores on that older build as music, with the unknown key
+ignored. There is no assets item to do; the visual language forbids external
+assets. src/runtime.js stashes a pending restore because the stage is created
+lazily, and exposes serializeVisuals()/restoreVisuals(); reading never
+force-creates a stage, so a music-only session has nothing to save.
+
+Only portable composition data travels: the live scene, its edited source and
+its named control values. Unapplied drafts, a queued scene boundary, Freeze and
+Blackout are session state and deliberately do not travel; restore-then-save is
+a fixed point. An untouched default stage serializes to nothing, so a music-only
+project does not silently gain a visual block. A saved visual is treated as
+untrusted input from a record: malformed, oversized, hostile or no-longer-
+compiling blocks are dropped, the music opens with its source untouched, and the
+stage falls back to the default scene and says so. Absent is distinguished from
+malformed, so a music-only project opens silently. Saved control values are
+clamped to the program's declared range. A preset this build no longer ships
+keeps the saved program, relabelled visual:custom so selectDraft still accepts
+it. Visuals never block a music save.
+
+The rule that makes the save path safe is OWNERSHIP, not a flag. The workspace
+records the exact project the stage was last handed over to, and neither the
+ct-visual-state listener nor save() may write visuals unless that project is
+still current. The handover runs on every path that replaces the project — open,
+file import, transfer accept, new loop and generate — so a future path that
+forgets it is read-only by default rather than writing one project's visuals
+into another. Share links carry visuals when they fit; since visual source may
+be 32 KiB against a 12,000-byte link budget, an oversized visual is omitted with
+an explicit message rather than refusing to share the music. Private history is
+excluded from shares exactly as before.
+
+Two rounds of defects were found and fixed before this landed, and they are
+worth recording because both were mine. The project suite caught the first pair:
+the stage always boots into the first preset, so EVERY project — including
+music-only ones — was gaining a visual block, which broke
+verify-music-project-handoff's "hosted storage not replaced"; and on reload the
+stage boots to its default BEFORE the saved visual is handed over, so the change
+listener read "default != saved" as a user edit and WIPED the saved visual on
+every reload. An adversarial review then found four more data-loss defects, all
+from one collision — serialize() returning null meant both "untouched default"
+and "delete what is stored":
+
+- A visual that failed to restore was written back as null by the next save,
+  permanently destroying a composition a different build could still read.
+- File import, transfer accept, new loop and generate replaced the project
+  without re-syncing, so the outgoing stage was written into the incoming one.
+- Saving while the scene was Off discarded the applied program entirely, because
+  Off serialized as an empty scene. Off now carries the suspended program and
+  reopens Off with it intact.
+
+Each has a regression test. One of those tests was itself VACUOUS at first: it
+drove a music edit by typing into CodeMirror, which Playwright cannot do —
+docs/music-workspace.md already records the same limitation for paste — so no
+save ever ran and the check passed against unfixed code. It now clicks the real
+Save action. Every guard here was confirmed by mutation: removing the
+failed-restore guard turns the suite red, and so do cycleBits/cycleWork changes
+in the cycle suite. A test that cannot fail is not evidence.
+
+Final artifact: app.75f515f62b5a.js / Music 09bc7ead9d35, 119 sources,
+2,590,172 JS bytes, 231,984 HTML bytes, fourteen games. The complete project
+test command list passed in resumed, ordered segments, not one uninterrupted
+green npm test invocation: commands 0-16, verify-sync alone, the remaining 27
+commands including test:music-workspace, and the whole posttest
+test:unified-create each exited zero, alongside render parity 10/10 (minimum
+correlation 1.000000, maximum absolute RMS delta 0.175 dB) and gateway 77/77.
+music-cycles 25 groups, verify-music-cycle-examples 31 checks and Music project
+24 groups all pass, and the cycle live-set browser check passes against this
+build. Private-ROM and harness-dependent LSDj checks retain their explicit skips.
+
+Two environment facts recorded earlier still hold and cost time again here.
+verify-sync is load-sensitive rather than broken, and verify-frame-pacing is too:
+under a loaded machine it measured "display ticks every 0ms" and failed, then
+passed standalone. Both failures in this slice were self-inflicted, by running an
+agent review concurrently with the gate; do not do that. Gateway still needs
+LC_ALL set on this Mac (PostgreSQL 17 "postmaster became multithreaded during
+startup"); with LC_ALL=C it is 77/77.
+
+New scripts/verify-visual-persistence-browser.js exercises the real
+shared artifact in Chromium across a genuine page reload: default writes nothing,
+an applied program saves scene/source/values, reload restores all three live and
+unfrozen with the music byte-identical, returning to the default clears the
+block, a corrupt block still opens the music and is NOT erased by the fallback,
+and authoring a new visual after a failed restore does save. It is wired into
+test:visual-code, so it runs under npm test through the posttest lane. Existing
+suites extended: verify-visual-stage-state.js covers persistence, Off round-trip
+and restore-failure reporting; verify-music-project.js is 24 groups, up from 21.
+Chromium only — not a WebKit, native Safari, physical-input or output-window
+check.
+
+Not done here: Phase E checkbox 2's durable local panel/window geometry, which
+is still session-only module state (separate from portable data, but not
+persisted); checkboxes 3 and 4. Checkbox 4 remains the hardest and ends in
+owner-only evidence: src/runtime.js returns early on document.hidden above its
+only tick call, so a backgrounded editor window stops rendering, and a second
+physical display is not expressible in Playwright. Say so before implementing it.
+
+Still open and deliberately not decided: bumping src/music-project.js VERSION to
+2 with a migration, versus unknown-block pass-through, versus accepting silent
+loss of a newer build's visual block on an older one. Nothing here needed that
+decision — the optional key sidesteps it — but audience output and any further
+record growth may not. Related: CT_MUSIC_LANGUAGE still has no COMPILER_VERSION,
+and src/music-project.js:146-147 already compares one (defaulting to '1'), so
+adding it would invalidate every existing saved record; a share link using cycle
+notation opened on a cached older build still fails with "Saved validated source
+no longer compiles", blaming the source rather than the build.
+
+No deployment, store upload, paid provider call, desktop or broadcast restart,
+configuration cutover or infrastructure repair occurred. The overall goal
+remains active.
+
 ## 2026-09-11 — Bounded Tidal-guided cycle patterns (local checkpoint)
 
 The last open Phase D item in algorave-stage-plan.md is implemented, so Phase D
