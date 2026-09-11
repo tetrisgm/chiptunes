@@ -3,6 +3,38 @@
 Plain, current working notes for whoever (or whatever) picks the project up
 next. Infrastructure and operations live outside this repository.
 
+## 2026-09-11 — Build-up exercise closed, Phase F item 3 (local checkpoint)
+
+Phase F item 3 is complete, and it was closer to done than the plan implied.
+scripts/verify-music-cycles-browser.js already WAS the repeatable exercise --
+seven ordered steps from a noise groove through subdivided bass, alternating
+melody, periodic reversal, Euclidean drums and a rest breakdown to full
+restoration, driven by hand-typed code and by a reviewed agent proposal that is
+explicitly applied, with phase continuity asserted structurally (a Run over
+sounding music issues musicQueue, not musicPlay, and activates on the sounding
+song clock). Because it is a verifier it runs on every gate rather than having
+been performed once, which is what "repeatable" should mean.
+
+The missing half was note/visual correspondence, now added: while the restored
+arrangement is still sounding, the check asserts the stage is drawing, has
+published a complete frame, and that its music-derived renderer signals move,
+with no new activation and no revision change across the same window. It uses
+the renderer snapshot (frames/hasFrame/signals) rather than framebuffer pixels,
+which avoids depending on whether the active screen mode hands back a 2D or a
+WebGL canvas. The signals assertion cannot pass vacuously: two identical signal
+snapshots would compare equal and fail it. Evidence boundary: this shows both
+surfaces live on one acknowledged clock in Chromium. It is not a pixel-level
+causal proof, not acoustic listening, and not Safari.
+
+Phase F item 2 was also audited rather than rebuilt, and the finding is recorded
+in the plan rather than acted on: eight of its nine surfaces are already covered
+on every gate, with the specific verifier named for each. Only OUTPUT LIFECYCLE
+is outstanding, and only because Phase E checkbox 3 has not been built. Do not
+re-derive that coverage; add output lifecycle once E3 lands.
+
+No artifact change: only a test file and docs changed, and scripts/ is not
+bundled, so app.37dbb031cf8c.js / Music f135bba5dd6f still stands.
+
 ## 2026-09-11 — Durable local panel geometry, Phase E checkbox 2 (local checkpoint)
 
 The music/visuals split, the chart/code split, desktop and mobile chat state and

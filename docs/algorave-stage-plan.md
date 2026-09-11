@@ -389,9 +389,34 @@ physical display is not expressible in Playwright.
   work before degrading audio. Test high-density displays and long sessions.
 - [ ] Exercise resize, collapse, focused evaluation, error retention, scene
   queue/cancel, freeze/blackout/reset/panic, save/reload and output lifecycle.
-- [ ] Perform a repeatable groove -> accompaniment -> melody -> variation ->
+  Eight of the nine are already covered on every gate, so only OUTPUT LIFECYCLE
+  is outstanding, and it is outstanding because checkbox E3 has not been built:
+  resize and collapse in verify-music-visual-stage.js and verify-unified-layout.js
+  (keyboard and pointer splitters, chat collapse, each asserting audio is
+  unchanged); focused evaluation, scene queue/cancel and
+  freeze/blackout/reset/panic in verify-visual-code-browser.js; error retention
+  in both verify-visual-code-browser.js (a rejected program keeps the last
+  working scene) and verify-music-cycles-browser.js (an invalid draft keeps the
+  sounding revision and its chart); save/reload in
+  verify-visual-persistence-browser.js and verify-music-cycles-browser.js. Do
+  not re-derive these; close the item by adding output lifecycle once E3 lands.
+- [x] Perform a repeatable groove -> accompaniment -> melody -> variation ->
   breakdown -> full arrangement exercise using manual code and reviewed agent
   proposals, with visible note/visual correspondence and continuous music phase.
+  scripts/verify-music-cycles-browser.js is that exercise, and it runs on every
+  gate rather than being performed once: seven ordered steps from a noise groove
+  through subdivided bass, alternating melody, periodic reversal, Euclidean
+  drums and a rest breakdown to full restoration, driven both by hand-typed code
+  and by a reviewed agent proposal that is explicitly applied. Phase continuity
+  is asserted structurally -- a Run over sounding music issues musicQueue rather
+  than musicPlay and activates on the sounding song clock -- and the visual half
+  asserts that while the restored arrangement sounds the stage is drawing, has
+  published a complete frame, and its music-derived signals move, with no new
+  activation or revision. scripts/verify-music-cycle-examples.js proves the same
+  seven scores offline against hand-written beat tables and real APU PCM.
+  Evidence boundary: this is Chromium, and it shows both surfaces live on one
+  acknowledged clock -- not a pixel-level causal proof, not acoustic listening,
+  and not Safari.
 - [ ] Run project, gateway and affected renderer/export/parity regressions;
   verify actual rendered layouts and native Safari with visible build IDs.
   No single aggregate covers this. The sequence that actually does, established
