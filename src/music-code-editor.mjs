@@ -2,7 +2,8 @@
 // host's restricted parser handles draft previews and explicit Run/Apply.
 import { EditorView, basicSetup } from 'codemirror';
 import { Decoration } from '@codemirror/view';
-import { EditorState, StateEffect, StateField } from '@codemirror/state';
+import { EditorState, StateEffect, StateField, Transaction } from '@codemirror/state';
+import { isolateHistory } from '@codemirror/commands';
 import { javascript } from '@codemirror/lang-javascript';
 import { autocompletion } from '@codemirror/autocomplete';
 import { setDiagnostics } from '@codemirror/lint';
@@ -13,6 +14,11 @@ const help = {
   song: 'song({tempo:128,bars:16}) — finite song settings; bars are zero indexed.',
   pattern: 'pattern("name", notes("C2 . G2 .").stepsPerBar(8).gate(0.7))',
   notes: 'notes("C4 . E4 G4") — pitches and dot rests, in written order.',
+  cycleV1: 'cycleV1("<C4 E4> [G4 B4] E4 ~") — one cycle = one four-beat bar in Chiptunes. Equal slots; [subdivisions], <alternation>, ~ rests, *2 repeats, C2(3,8,1) Euclidean hits/slots/left rotation. This bounded dialect is inspired by Tidal, not Tidal-compatible.',
+  fast: 'fast(2) — run the preceding cycle expression twice as fast (integer 1–16); alternation follows transformed time.',
+  slow: 'slow(2) — stretch the preceding cycle expression (integer 1–16). play repeat still counts output cycles, not complete slowed phrases.',
+  rev: 'rev() — reverse within each cycle. A note crossing that cycle is rejected: put rev before slow for held notes.',
+  every: 'every(4,"rev",3) — reverse zero-based cycles 3, 7, …; explicit offset 0–period−1, period 1–64. Rhythmic chains act in written order.',
   track: 'track("bass").instrument(0).play("name", {atBar:0,repeat:4})',
   event: 'event({ch:0,frame:0,frames:60,midi:60,inst:0,vel:0.8}) — exact frames.',
   instruments: 'instruments([...]) — explicit instrument register records.',
@@ -25,9 +31,9 @@ const help = {
   transpose: 'transpose(semitones) — applies in source order.',
   register: 'register(octave) — moves pitch classes into the named scientific octave, in source order.',
   velocity: 'velocity(value) — replace token velocities with a value from 0 to 1.',
-  gate: 'gate(fraction) — note length relative to its step.',
-  stepsPerBar: 'stepsPerBar(count) — finite pattern resolution.',
-  play: 'play("pattern", {atBar:0,repeat:1}) — finite pattern occurrence.',
+  gate: 'gate(fraction) — note length relative to its step. For cycleV1, applied after rhythmic transforms; the last gate wins.',
+  stepsPerBar: 'stepsPerBar(count) — notes() resolution; not available on cycleV1().',
+  play: 'play("pattern", {atBar:0,repeat:1}) — finite arrangement. notes repeats the whole phrase. cycleV1 selects onsets in [atBar, atBar+repeat), with song-global phase and untrimmed note tails. No infinite repeats.',
   instrument: 'instrument(index) — select an instrument in this song bank.'
 };
 const visualHelp = {
@@ -109,6 +115,14 @@ globalThis.CT_MUSIC_CODE_EDITOR = {
       value:()=>view.state.doc.toString(),
       selection:()=>view.state.selection.ranges.map(r=>({from:r.from,to:r.to})),
       set(source) { if(source!==view.state.doc.toString()) view.dispatch({changes:{from:0,to:view.state.doc.length,insert:source}}); },
+      replaceDraft(source) {
+        controls.cancelGesture();
+        if(source!==view.state.doc.toString()) view.dispatch({
+          changes:{from:0,to:view.state.doc.length,insert:source},selection:{anchor:0},scrollIntoView:true,
+          annotations:[Transaction.userEvent.of('input.replace'),isolateHistory.of('full')]
+        });
+        view.focus();
+      },
       select(from,to=from) {
         from=Math.max(0,Math.min(view.state.doc.length,from||0)); to=Math.max(from,Math.min(view.state.doc.length,to||from));
         view.dispatch({selection:{anchor:from,head:to},scrollIntoView:true}); view.focus();

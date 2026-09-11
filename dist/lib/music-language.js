@@ -9,6 +9,23 @@
  * notes accepts space-separated pitches/rests, optionally C4:2@0.5 (step length,
  * velocity); chains: stepsPerBar, gate, velocity, transpose, register (octave).
  * register preserves pitch class at that point in the ordered transformation.
+ * cycleV1 is the second pattern constructor, accepted only as pattern()'s
+ * second argument; it never reinterprets a saved notes() string. Equal slots
+ * divide one cycle: [..] subdivides a slot, <..> alternates one branch per
+ * visit, ~ rests, *N repeats in place (1-16), and C2(k,n,r) distributes k hits
+ * over n slots on a single pitch atom, with positive r rotating LEFT.
+ * cycleV1 chains: fast, slow (integer 1-16), rev(), every(period,'rev',offset)
+ * (period 1-64, explicit zero-based offset), wrapping the preceding expression
+ * in written order; gate applies after rhythm and the last gate wins; velocity,
+ * transpose and register behave as on notes; stepsPerBar is rejected.
+ * One output cycle is one four-beat bar here, through the same clock below;
+ * a cycle is not inherently a bar in Tidal. Phase is song-global, so
+ * play({atBar,repeat}) selects the onset window [atBar, atBar+repeat) without
+ * restarting alternation, without manufacturing a retrigger by slicing a
+ * sustain, and without trimming a tail. Reversal of an event crossing its own
+ * reversal cycle is rejected with a located diagnostic, never approximated.
+ * Evaluation uses bounded BigInt rationals with absolute endpoint conversion.
+ * This is a bounded dialect guided by Tidal, not Tidal compatibility.
  * Tracks: lead/pulse1=0, arp/pad/pulse2=1, bass/wave=2, drums/noise=3.
  * Instrument names are bank.meta name/id/patch.authored; wave-bass aliases
  * w-triangle. No pitch clamping, truncation, sorting or overlap suppression.
@@ -17,6 +34,12 @@
  * playSpan (only the dot through this play call's closing parenthesis), and
  * trackSpan (the entire track declaration, including its transformations), plus
  * occurrenceStartFrame/occurrenceEndFrame (full repeat, including rests/gaps).
+ * cycleV1 rows additionally carry patternType:'cycleV1' and cycleEvent, a
+ * stable token@start/end rational identity used to deduplicate fragments of
+ * one event inside a single play. notes() rows carry no patternType at all,
+ * so a consumer must read an absent patternType as notes(). For cycles,
+ * occurrence counts output cycles from the play's own start, and its
+ * occurrenceStartFrame/EndFrame span a fixed four beats.
  * Legacy occurrenceSpan still extends from after the dot to the track end.
  * Exact events have none of these pattern-only fields; all-rest plays emit no
  * note mappings. Occurrence ends are exclusive and are not clipped to song end.
@@ -40,7 +63,8 @@
   var H = typeof module !== 'undefined' && module.exports ? require('./gb-hardware.js') : G.CT_GB;
   var K = typeof module !== 'undefined' && module.exports ? require('./gb-kits.js') : G.CT_GB_KITS;
   var LIMITS = Object.freeze({ source: 1048576, depth: 32, nodes: 500000, events: 50000, controls: 50000,
-    frames: 216000, repeats: 4096, steps: 65536, work: 2000000, instruments: 50128 });
+    frames: 216000, repeats: 4096, steps: 65536, work: 2000000, instruments: 50128,
+    cycleNodes: 4096, cycleDepth: 16, cycleTransforms: 32, cycleWork: 200000, cycleBits: 256 });
   var CONTROL_BOUNDS = { gate: [0.001, 1, false], velocity: [0, 1, false], transpose: [-128, 128, true] };
   var NOTE_BOUNDS = { stepsPerBar: [1, 256, true], gate: CONTROL_BOUNDS.gate,
     velocity: CONTROL_BOUNDS.velocity, transpose: CONTROL_BOUNDS.transpose, register: [-128, 128, true] };
@@ -150,6 +174,180 @@
   // existing literal parser consumes it; argument validation remains unchanged.
   Parser.prototype.args = function (rawArgs, firstNumberSpan) { var a = []; this.expect('('); if (!this.take(')')) { do { var raw = rawArgs ? [] : null; a.push(this.value(0, raw, a.length === 0 ? firstNumberSpan : null)); if (rawArgs) rawArgs.push(raw); } while (this.take(',')); this.expect(')'); } return a; };
   Parser.prototype.chain = function () { var a = []; while (this.take('.')) { var at = this.i, name = this.id(), numberSpan = own(CONTROL_BOUNDS, name) ? [] : null, args = this.args(null, numberSpan); a.push({ name: name, args: args, at: at, end: this.i, numberSpan: numberSpan }); } return a; };
+  // cycleV1 is explicit syntax, never a reinterpretation of saved notes().
+  // Parsing constructs bounded data; expansion still belongs to compile().
+  function cycleTree(text, raw, spend) {
+    var i = 0, nodes = 0, atoms = 0;
+    function at() { return raw[i]; }
+    function skip() { while (i < text.length && /\s/.test(text[i])) i++; }
+    function integer() { skip(); var start = i; while (/[0-9]/.test(text[i] || ' ')) i++; need(i > start, 'Expected cycle integer', at()); return Number(text.slice(start, i)); }
+    function expect(c) { skip(); need(text[i] === c, 'Expected cycle ' + c, at()); i++; }
+    function node(type, data, children, offset) {
+      spend(offset); need(++nodes <= LIMITS.cycleNodes, 'Cycle syntax node limit', offset);
+      var depth = 1;
+      (children || []).forEach(function (child) { depth = Math.max(depth, child.depth + 1); });
+      need(depth <= LIMITS.cycleDepth, 'Cycle nesting limit', offset);
+      return Object.assign({ type: type, depth: depth, at: offset }, data);
+    }
+    function euclid(hits, slots) {
+      // Distribute the shorter collection among the longer, retaining the
+      // remainder at each Euclidean step. This fixes a reproducible phase.
+      if (hits === 0 || hits === slots) return Array(slots).fill(hits !== 0);
+      var a = Array.from({ length: hits }, function () { return [true]; });
+      var b = Array.from({ length: slots - hits }, function () { return [false]; });
+      while (a.length > 1 && b.length > 1) {
+        var count = Math.min(a.length, b.length), combined = [];
+        for (var n = 0; n < count; n++) combined.push(a[n].concat(b[n]));
+        var rest = a.length > count ? a.slice(count) : b.slice(count);
+        a = combined; b = rest;
+      }
+      return a.concat(b).flat();
+    }
+    function sequence(close, alternate, nesting) {
+      need(nesting <= LIMITS.cycleDepth, 'Cycle nesting limit', at());
+      skip(); var start = at(), children = [];
+      while (i < text.length && text[i] !== close) {
+        children.push(item(nesting));
+        var before = i; skip();
+        need(i === text.length || text[i] === close || i > before, 'Separate cycle slots with whitespace', at());
+      }
+      need(children.length > 0, 'Empty cycle group', start);
+      if (close) expect(close);
+      return node(alternate ? 'alternate' : 'sequence', { children: children }, children, start);
+    }
+    function item(nesting) {
+      skip(); var start = at(), value;
+      if (text[i] === '[' || text[i] === '<') {
+        var alternate = text[i++] === '<'; value = sequence(alternate ? '>' : ']', alternate, nesting + 1);
+      } else if (text[i] === '~') { i++; value = node('rest', {}, [], start); }
+      else {
+        var match = /^([A-Ga-g])([#b]?)(-?\d+)/.exec(text.slice(i));
+        need(match, 'Expected cycle pitch, ~, [group] or <alternation>', start);
+        var octave = Number(match[3]); need(num(octave, -128, 128, true), 'Invalid cycle octave', start);
+        i += match[0].length;
+        value = node('note', { token: atoms++, from: start, to: at(), midi: (octave + 1) * 12 +
+          { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }[match[1].toUpperCase()] + (match[2] === '#' ? 1 : match[2] === 'b' ? -1 : 0) }, [], start);
+      }
+      // Postfix operators are adjacent to their item, never free-floating slots.
+      while (text[i] === '*' || text[i] === '(') {
+        var operation = text[i++], offset = raw[i - 1], n;
+        if (operation === '*') {
+          n = integer(); need(num(n, 1, 16, true), 'Cycle repetition must be an integer 1–16', offset);
+          value = node('repeat', { child: value, count: n }, [value], offset);
+        } else {
+          need(value.type === 'note', 'Euclidean suffix requires one pitch atom', offset);
+          var hits = integer(); expect(','); n = integer(); skip(); var rotation = 0;
+          if (text[i] === ',') { i++; rotation = integer(); }
+          expect(')');
+          need(num(n, 1, 64, true) && num(hits, 0, n, true) && num(rotation, 0, n - 1, true), 'Invalid Euclidean hits, slots or left rotation', offset);
+          var mask = euclid(hits, n);
+          value = node('euclid', { child: value, mask: mask.map(function (_, index) { return mask[(index + rotation) % n]; }) }, [value], offset);
+        }
+      }
+      return value;
+    }
+    var root = sequence(null, false, 0); skip(); need(i === text.length, 'Unexpected cycle notation', at()); return root;
+  }
+  function cycleRows(pat, atBar, repeat, gate, spend, playAt) {
+    // Only bounded integer arithmetic is used before the common clock boundary.
+    // Intermediate products have at most twice the bounded operand bit count.
+    var MAX = (1n << BigInt(LIMITS.cycleBits)) - 1n;
+    function rational(n, d) {
+      d = d === undefined ? 1n : d; if (d < 0n) { n = -n; d = -d; }
+      var a = n < 0n ? -n : n, b = d;
+      while (b) { var rem = a % b; a = b; b = rem; }
+      n /= a; d /= a;
+      need(d > 0n && d <= MAX && n <= MAX && n >= -MAX, 'Cycle rational precision limit', playAt);
+      return { n: n, d: d };
+    }
+    function add(a, b) { return rational(a.n * b.d + b.n * a.d, a.d * b.d); }
+    function sub(a, b) { return rational(a.n * b.d - b.n * a.d, a.d * b.d); }
+    function mul(a, b) { return rational(a.n * b.n, a.d * b.d); }
+    function div(a, b) { return rational(a.n * b.d, a.d * b.n); }
+    function cmp(a, b) { var delta = a.n * b.d - b.n * a.d; return delta < 0n ? -1 : delta > 0n ? 1 : 0; }
+    function floor(a) { return a.n >= 0n ? a.n / a.d : (a.n - a.d + 1n) / a.d; }
+    function ceil(a) { return -floor({ n: -a.n, d: a.d }); }
+    function minimum(a, b) { return cmp(a, b) < 0 ? a : b; }
+    function maximum(a, b) { return cmp(a, b) > 0 ? a : b; }
+    function number(a) { return Number(a.n) / Number(a.d); }
+    function decimal(n) {
+      var parts = String(n).toLowerCase().split('e'), mantissa = parts[0].split('.');
+      var exponent = Number(parts[1] || 0) - (mantissa[1] || '').length;
+      var digits = BigInt(mantissa.join(''));
+      return exponent >= 0 ? rational(digits * 10n ** BigInt(exponent)) : rational(digits, 10n ** BigInt(-exponent));
+    }
+    function push(out, event) { need(out.length <= LIMITS.events, 'Cycle intermediate event limit', playAt); out.push(event); }
+    function identity(event) { return event.note.token + '@' + event.start.n + '/' + event.start.d + ':' + event.end.n + '/' + event.end.d; }
+    function unique(events) {
+      var seen = new Set(), out = [];
+      events.forEach(function (event) { spend(playAt); var key = identity(event); if (!seen.has(key)) { seen.add(key); push(out, event); } });
+      return out;
+    }
+    function tree(node, phase, start, end, from, to, out) {
+      spend(node.at);
+      if (cmp(end, from) <= 0 || cmp(start, to) >= 0) return;
+      if (node.type === 'rest') return;
+      if (node.type === 'note') { push(out, { note: node, start: start, end: end }); return; }
+      if (node.type === 'alternate') {
+        var count = BigInt(node.children.length);
+        tree(node.children[Number(phase % count)], phase / count, start, end, from, to, out); return;
+      }
+      var n = node.type === 'sequence' ? node.children.length : node.type === 'repeat' ? node.count : node.mask.length;
+      var size = div(sub(end, start), rational(BigInt(n)));
+      for (var index = 0; index < n; index++) {
+        spend(node.at);
+        if (node.type === 'euclid' && !node.mask[index]) continue;
+        var next = node.type === 'sequence' ? node.children[index] : node.child;
+        var a = add(start, mul(size, rational(BigInt(index))));
+        var b = add(start, mul(size, rational(BigInt(index + 1))));
+        tree(next, node.type === 'repeat' ? phase * BigInt(n) + BigInt(index) : phase, a, b, from, to, out);
+      }
+    }
+    var wrappers = pat.chains.filter(function (c) { return ['fast', 'slow', 'rev', 'every'].includes(c.name); });
+    function query(level, from, to) {
+      spend(playAt); var out = [];
+      if (level >= 0) {
+        var wrapper = wrappers[level];
+        if (wrapper.name === 'fast' || wrapper.name === 'slow') {
+          var factor = wrapper.name === 'fast' ? rational(BigInt(wrapper.args[0])) : rational(1n, BigInt(wrapper.args[0]));
+          return query(level - 1, mul(from, factor), mul(to, factor)).map(function (event) {
+            spend(wrapper.at); return { note: event.note, start: div(event.start, factor), end: div(event.end, factor) };
+          });
+        }
+      }
+      var first = floor(from), last = ceil(to);
+      need(last - first <= BigInt(LIMITS.cycleWork), 'Cycle query work limit', playAt);
+      for (var cycle = first; cycle < last; cycle++) {
+        spend(playAt);
+        var start = rational(cycle), end = rational(cycle + 1n), a = maximum(from, start), b = minimum(to, end);
+        if (level < 0) tree(pat.cycle, cycle, start, end, a, b, out);
+        else {
+          var reverse = wrapper.name === 'rev' || Number(cycle % BigInt(wrapper.args[0])) === wrapper.args[2];
+          var pivot = rational(2n * cycle + 1n);
+          var events = query(level - 1, reverse ? sub(pivot, b) : a, reverse ? sub(pivot, a) : b);
+          if (reverse) events.reverse();
+          events.forEach(function (event) {
+            spend(wrapper.at);
+            if (reverse) {
+              need(cmp(event.start, start) >= 0 && cmp(event.end, end) <= 0,
+                'Cannot reverse a note crossing a cycle; put rev before slow', wrapper.at);
+              event = { note: event.note, start: sub(pivot, event.end), end: sub(pivot, event.start) };
+            }
+            push(out, event);
+          });
+        }
+      }
+      return level < 0 ? out : unique(out);
+    }
+    var from = decimal(atBar), to = add(from, rational(BigInt(repeat))), gateRatio = decimal(gate);
+    return unique(query(wrappers.length - 1, from, to)).filter(function (event) {
+      return cmp(event.start, from) >= 0 && cmp(event.start, to) < 0;
+    }).map(function (event) {
+      spend(playAt);
+      return { start: number(event.start), end: number(add(event.start, mul(sub(event.end, event.start), gateRatio))), midi: event.note.midi, vel: 1,
+        token: event.note.token, from: event.note.from, to: event.note.to, cycleEvent: identity(event), occurrence: Number(floor(sub(event.start, from))) };
+    });
+  }
   function compile(source) {
     var settings = {}, mapping = [], diagnostics = [], p, gb = null;
     var lines = [0];
@@ -159,8 +357,9 @@
       need(typeof source === 'string' && source.length <= LIMITS.source, 'Source size limit');
       for (var li = 0; li < source.length; li++) if (source[li] === '\n') lines.push(li + 1);
       need(H && H.beatToFrame, 'CT_GB hardware dependency is required');
-      p = new Parser(source); var patterns = Object.create(null), plays = [], seen = Object.create(null), eventCount = 0, eventSpans = {}, work = 0, controlCalls = [], controlsOmitted = 0;
+      p = new Parser(source); var patterns = Object.create(null), plays = [], seen = Object.create(null), eventCount = 0, eventSpans = {}, work = 0, cycleWork = 0, controlCalls = [], controlsOmitted = 0;
       function spend(n, at) { work += n; need(work <= LIMITS.work, 'Compilation work limit', at); }
+      function spendCycle(at) { need(++cycleWork <= LIMITS.cycleWork, 'Cycle compilation work limit', at); spend(1, at); }
       function recordControls(chains, ownerType, ownerName, at, end) {
         var ownerSpan;
         // Visit declarations, never expanded plays/notes: source order and one
@@ -188,13 +387,23 @@
         var at = p.i, name = p.id(), args, chains;
         if (name === 'pattern') {
           p.expect('('); var pn = p.value(0); need(typeof pn === 'string' && !own(patterns, pn), 'Invalid or duplicate pattern name', at);
-          p.expect(','); need(p.id() === 'notes', 'Pattern requires notes()', p.i); var rawArgs = []; args = p.args(rawArgs); chains = p.chain(); p.expect(')');
-          need(args.length === 1 && typeof args[0] === 'string', 'notes requires a string', at);
+          p.expect(','); var constructor = p.id(); need(constructor === 'notes' || constructor === 'cycleV1', 'Pattern requires notes() or cycleV1()', p.i); var rawArgs = []; args = p.args(rawArgs); chains = p.chain(); p.expect(')');
+          need(args.length === 1 && typeof args[0] === 'string', constructor + ' requires a string', at);
+          var rhythmic = 0;
           chains.forEach(function (c) {
+            if (constructor === 'cycleV1' && ['fast', 'slow', 'rev', 'every'].includes(c.name)) {
+              need(++rhythmic <= LIMITS.cycleTransforms, 'Cycle transformation limit', c.at);
+              if (c.name === 'rev') need(c.args.length === 0, 'rev takes no arguments', c.at);
+              else if (c.name === 'every') need(c.args.length === 3 && num(c.args[0], 1, 64, true) && c.args[1] === 'rev' && num(c.args[2], 0, c.args[0] - 1, true), 'Use every(period, "rev", offset)', c.at);
+              else need(c.args.length === 1 && num(c.args[0], 1, 16, true), 'Cycle speed must be an integer 1–16', c.at);
+              return;
+            }
             need(own(NOTE_BOUNDS, c.name), 'Unknown notes transformation', c.at);
+            need(constructor !== 'cycleV1' || c.name !== 'stepsPerBar', 'cycleV1 uses cycles; stepsPerBar belongs to notes()', c.at);
             var b = NOTE_BOUNDS[c.name]; need(c.args.length === 1 && num(c.args[0], b[0], b[1], b[2]), 'Invalid notes transformation argument', c.at);
           });
-          patterns[pn] = { text: args[0], raw: rawArgs[0], chains: chains, at: at, end: p.i };
+          patterns[pn] = { text: args[0], raw: rawArgs[0], chains: chains, at: at, end: p.i,
+            cycle: constructor === 'cycleV1' ? cycleTree(args[0], rawArgs[0], spendCycle) : null };
           recordControls(chains, 'pattern', pn, at, p.i);
         } else {
           args = p.args(); chains = p.chain();
@@ -272,6 +481,29 @@
           need(pat && object(opt) && Object.keys(opt).every(function (k) { return ['atBar', 'repeat'].includes(k); }), 'Invalid pattern or play options', c.at);
           var atBar = opt.atBar == null ? 0 : opt.atBar, repeat = opt.repeat == null ? 1 : opt.repeat;
           need(num(atBar, 0, 65536) && num(repeat, 1, LIMITS.repeats, true), 'Invalid arrangement bounds', c.at);
+          if (pat.cycle) {
+            var cycleGate = 1;
+            pat.chains.forEach(function (x) { if (x.name === 'gate') cycleGate = x.args[0]; });
+            var cycleNotes = cycleRows(pat, atBar, repeat, cycleGate, spendCycle, c.at);
+            pat.chains.concat(transforms).forEach(function (x) {
+              spend(1, x.at);
+              if (x.name === 'velocity' || x.name === 'transpose' || x.name === 'register') cycleNotes.forEach(function (row) {
+                spend(1, x.at);
+                if (x.name === 'velocity') row.vel = x.args[0];
+                else row.midi = x.name === 'transpose' ? row.midi + x.args[0] : (x.args[0] + 1) * 12 + ((row.midi % 12) + 12) % 12;
+              });
+            });
+            need(eventCount + cycleNotes.length <= LIMITS.events, 'Event expansion limit', c.at);
+            cycleNotes.forEach(function (row) {
+              spend(1, c.at); var frame = time(row.start * 4);
+              add('notes', { ch: lanes[t.lane], frame: frame, frames: Math.max(1, time(row.end * 4) - frame), midi: row.midi, inst: inst, vel: row.vel }, pat.at, pat.end);
+              Object.assign(mapping[mapping.length - 1], { pattern: c.args[0], patternType: 'cycleV1', occurrence: row.occurrence,
+                patternNote: row.token, cycleEvent: row.cycleEvent, track: t.lane, tokenSpan: span(row.from, row.to),
+                occurrenceSpan: span(c.at, t.end), playSpan: span(c.at - 1, c.end), trackSpan: span(t.at, t.end),
+                occurrenceStartFrame: time((atBar + row.occurrence) * 4), occurrenceEndFrame: time((atBar + row.occurrence + 1) * 4) });
+            });
+            return;
+          }
           var tokens = pat.text.match(/\S+/g) || [], tokenOffset = 0, step = 0, rows = [], spb = 16, gate = 1;
           spend(tokens.length * (1 + pat.chains.length + transforms.length), c.at);
           need(tokens.length > 0 && tokens.length <= LIMITS.steps, 'Pattern step limit', pat.at);

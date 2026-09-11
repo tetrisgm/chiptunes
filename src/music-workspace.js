@@ -356,6 +356,16 @@
     var result=project.applyDraft();diagnostics(result.diagnostics);applied(result);
     if(start)activate(result.revision,true);
   }
+  async function loadCycleExample(){
+    var owner=project,epoch=openEpoch,draft=snap().draft,steps=G.CT_MUSIC_CYCLE_EXAMPLES&&G.CT_MUSIC_CYCLE_EXAMPLES.steps;
+    var step=steps&&steps.find(function(item){return item.id===$('.mw-live-step').value;});
+    if(!step)throw Error('Live-set example is unavailable in this build.');
+    await ensureEditor();
+    // Editor loading may outlive this project or a user's more recent edit.
+    if(root.hidden||project!==owner||openEpoch!==epoch||snap().draft!==draft)return;
+    editor.replaceDraft(step.source); // One undoable edit, same project/player.
+    status(step.title+' loaded into code. Draft only; Run to hear it. Cmd/Ctrl-Z restores your previous code.');
+  }
   function scheduledNoteLanes(gb,mapping){
     // Match the shared sequencer's off-before-on ordering, including an old
     // overlapping note's off cutting a newer voice. Pitch-only native rows
@@ -948,7 +958,7 @@
       '<div class="mw-live-feedback"><div class="mw-position" aria-live="off">Stopped · Run to hear your code</div><div class="mw-beats" aria-hidden="true"><i></i><i></i><i></i><i></i></div><div class="mw-state" aria-live="polite"></div></div>'+
       '<section class="mw-transfer-offer" aria-label="Incoming project" hidden><p class="mw-transfer-description" role="status"></p><div class="mw-actions"><button data-action="transfer-accept" disabled>Accept</button><button data-action="transfer-cancel">Cancel</button></div></section>'+
       '<div class="mw-body"><div class="mw-creative"><main id="mw-panel-music" class="mw-main" aria-label="Composition"><p class="mw-source-mode"></p><div class="mw-selection" role="status">Notes show the validated revision. Select a note to locate its source.</div><div class="mw-composition"><div id="mw-panel-notes" role="region" aria-label="Note chart" tabindex="0" class="mw-mainview mw-notes"></div><div class="mw-splitter" role="separator" tabindex="0" aria-label="Resize chart and code" aria-orientation="horizontal" aria-controls="mw-panel-notes mw-panel-code" aria-valuemin="20" aria-valuemax="75" aria-valuenow="45" title="Drag or use Up/Down arrows to resize chart and code; Home/End for limits"></div><div id="mw-panel-code" role="region" aria-label="Code editor" class="mw-mainview mw-code"></div></div>'+
-      '<div class="mw-diagnostics" role="status"></div><details class="mw-help"><summary>Music help and limits</summary><pre></pre><p>Audio/file exports are limited to 10 minutes; project downloads preserve longer songs.</p></details></main>'+
+      '<div class="mw-diagnostics" role="status"></div><details class="mw-live-guide"><summary>Build a live set · 7 steps</summary><div class="mw-live-guide-content"><label for="mw-live-step">Tidal-inspired patterns</label><div class="mw-live-step-actions"><select id="mw-live-step" class="mw-live-step" aria-describedby="mw-live-step-description mw-live-step-warning"></select><button data-action="load-cycle-example">Load into code</button></div><p id="mw-live-step-description" class="mw-live-step-description" aria-live="polite"></p><p id="mw-live-step-warning">Replaces your draft in one undoable edit. Run to hear it; the current music keeps playing until then.</p></div></details><details class="mw-help"><summary>Music help and limits</summary><pre></pre><p>Audio/file exports are limited to 10 minutes; project downloads preserve longer songs.</p></details></main>'+
       '<div class="mw-stage-splitter" role="separator" tabindex="0" aria-label="Resize music and visuals" aria-orientation="vertical" aria-controls="mw-panel-music mw-panel-visuals" aria-valuemin="45" aria-valuemax="75" aria-valuenow="62" title="Drag or use Left/Right arrows to resize music and visuals; Home/End for limits"></div>'+
       '<section id="mw-panel-visuals" class="mw-visuals" aria-label="Visual stage"><header class="mw-visual-header"><h2>Visuals</h2><button data-action="stage-fullscreen" title="Show only this visual output in fullscreen">Fullscreen</button></header>'+
       '<div class="mw-stage-viewport" role="img" aria-label="Music-driven visual output"><p class="mw-stage-empty">Preparing the visual stage…</p></div>'+
@@ -976,6 +986,11 @@
       '<details class="mw-exports"><summary>Export audio / files</summary><div class="mw-actions"><select class="mw-format" aria-label="Export format"><option value="wav">WAV</option><option value="midi">MIDI</option><option value="rom">Game Boy ROM</option><option value="lsdsng">LSDj</option></select><button data-action="export">Export validated revision</button></div></details></div></details><small class="mw-build"></small></footer>'+
       '<p class="mw-status" role="status" aria-live="polite"></p>';
     document.body.appendChild(root);
+    var cycleSteps=G.CT_MUSIC_CYCLE_EXAMPLES&&G.CT_MUSIC_CYCLE_EXAMPLES.steps||[];
+    cycleSteps.forEach(function(step,index){var option=document.createElement('option');option.value=step.id;option.textContent=(index+1)+'. '+step.title;$('.mw-live-step').appendChild(option);});
+    function describeCycleStep(){var step=cycleSteps.find(function(item){return item.id===$('.mw-live-step').value;});$('.mw-live-step-description').textContent=step?step.description:'';}
+    $('.mw-live-step').addEventListener('change',describeCycleStep);describeCycleStep();
+    $('.mw-live-guide').hidden=!cycleSteps.length;
     var visualizerButton=document.createElement('button');visualizerButton.dataset.action='visualizer';visualizerButton.textContent='Focus visuals';visualizerButton.setAttribute('aria-pressed','false');visualizerButton.setAttribute('aria-controls','mw-panel-visuals');
     $('.mw-top').insertBefore(visualizerButton,$('[data-action=toggle-chat]'));
     var chartStatus=document.createElement('p');chartStatus.className='mw-chart-status';chartStatus.setAttribute('role','status');
@@ -1135,6 +1150,7 @@
     else if(name==='disconnect'){if(connection)connection.disconnect();}
     else if(name==='refresh-clients'){if(connection)await connection.refresh();}
     else if(name==='new-loop')newLoop();
+    else if(name==='load-cycle-example')await loadCycleExample();
     else if(name==='apply')runDraft();
     else if(name==='undo'||name==='redo')applied(project[name]());
     else if(name==='play'){var v=snap().validated;if(v)activate(v,true);}

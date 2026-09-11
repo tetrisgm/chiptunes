@@ -82,8 +82,18 @@ composition, selection, conversation and transport.
 
 TidalCycles is the musical guide, not a claim of source compatibility. The
 existing `notes` language still uses dot rests, `:length` and `@velocity`.
-Cycle notation and additional transforms remain work in the active plan; do not
-paste arbitrary Tidal/Strudel code and assume it will execute.
+Cycle notation is implemented as a separate constructor, `cycleV1("…")`,
+alongside `notes()` — see [the language reference](music-language.md) and
+[cycle patterns v1](music-cycle-v1.md) for the exact supported subset. It is a
+bounded dialect: do not paste arbitrary Tidal/Strudel code and assume it will
+execute, because unsupported notation is a located error rather than an
+approximation.
+
+**Build a live set** is a disclosure above the code editor offering seven
+ordered steps — groove, accompaniment, melody, variation, breakdown and
+restoration — that load a readable cycle program into the draft. Loading a step
+is one Undo entry and replaces the draft only; music keeps sounding until an
+explicit Run, exactly as with hand-typed edits.
 
 ## Chat proposals
 
@@ -143,6 +153,12 @@ without silently migrating sound or replacing the original saved record.
 `npm run test:music-workspace` runs the focused fidelity, compiler, revision,
 live-engine, export, Chat-contract and browser tests. `npm test` covers existing
 product regressions; `npm run test:render-parity` compares the shared renderers.
+`npm run test:music-cycles` runs the cycle dialect lanes — exact schedules and
+bounds, the seven live-set scenes against hand-written beat tables and real APU
+PCM, and the Chromium live-set workflow. All three are reachable from `npm test`
+(the two Node lanes through `test:music-workspace`, the browser lane through the
+`posttest` `test:unified-create`); the browser lane is Chromium-only and is not a
+WebKit or Safari check.
 Automated structural/waveform tests do not substitute for listening acceptance.
 Deployment and real Safari acceptance remain separate owner-authorized steps.
 

@@ -129,7 +129,7 @@ test('conversation is detached at send time and cannot replace the current sourc
 
 test('trusted prompt examples compile and finite repeats follow full pattern length, not gate or one-bar assumptions', () => {
   const examples = [...SYSTEM.matchAll(/```\n([\s\S]*?)\n```/g)].map(m => m[1]);
-  assert.equal(examples.length, 2);
+  assert.equal(examples.length, 3);
   for (const example of examples) {
     const compiled = language.compile(example);
     assert.ok(compiled.gb);
@@ -146,6 +146,10 @@ test('trusted prompt examples compile and finite repeats follow full pattern len
   const full = language.compile(half.replace('bars:2', 'bars:4').replace('C2 .', 'C2:2 .:2')).gb;
   assert.deepEqual(full.notes.map(n => n.frame), [0, 4, 8, 12].map(clock));
   assert.equal(full.totalFrames, clock(16));
+  const cycle=language.compile(examples[2]);
+  assert.equal(cycle.settings.bars,8);
+  assert(cycle.mapping.every(m=>m.patternType==='cycleV1'));
+  assert.deepEqual(cycle.gb.notes.filter(n=>n.ch===3).map(n=>n.frame),Array.from({length:8},(_,bar)=>[0,3/8,6/8].map(slot=>language.beatToFrame(cycle.settings,(bar+slot)*4))).flat());
 });
 
 test('pattern bass and drum suggestions round-trip as local edits, preserving comments, arrangement and other tracks', async () => {

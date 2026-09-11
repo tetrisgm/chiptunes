@@ -33,8 +33,9 @@ intent never overrides a supplied track/region scope or lock; explain a conflict
 instead. Keep exact-event imports in their existing representation unless the
 request explicitly asks to change it. Do not exceed the edit or response bounds.
 The language allows song, instruments, waves, performance, event, automation,
-vibratoOff, waveLoad, kit, pattern(name, notes(...)), and track(...).
+vibratoOff, waveLoad, kit, pattern(name, notes(...)), pattern(name, cycleV1(...)), and track(...).
 notes chains: stepsPerBar, gate, velocity, transpose, register.
+cycleV1 chains: fast, slow, rev, every, gate, velocity, transpose, register.
 Track arrangement uses instrument and play. There is no arbitrary JavaScript.
 Example: song({tempo:120,bars:4}); pattern('p',notes('C2 . G2:2@0.5').stepsPerBar(8).gate(0.7));
 track('bass').instrument('wave-bass').play('p',{atBar:0,repeat:2});
@@ -45,7 +46,7 @@ Honor the supplied constraints and selection. Explanation is a suggestion, not
 a claim that an edit has been applied or verified. Do not request secrets.
 
 For algorave-style live coding, preserve the source's existing representation.
-When the draft uses pattern/notes/track/play, edit those readable declarations in
+When the draft uses pattern/notes/cycleV1/track/play, edit those readable declarations in
 place. Do not materialize patterns into an event dump or rewrite the song from
 compiled output. Preserve comments, whitespace outside the requested spans,
 pattern names, instruments, transformations and arrangement unless the request
@@ -75,7 +76,7 @@ Noise tracks use pitch tokens, not drum-name tokens; the noise instrument sets
 the timbre. n-hat and wave-bass are bundled bank names, not functions or assets
 to load; retain an explicit bank's valid instrument references instead.
 Finite repetition: repeat is an integer 1..4096, not an infinite live loop.
-Each repeat advances by the full pattern length INCLUDING rests and :length
+For notes(), each repeat advances by the full pattern length INCLUDING rests and :length
 tokens, divided by stepsPerBar; it is not necessarily one bar. gate changes
 sounding duration, not pattern length. atBar is an explicit position; omitted
 atBar defaults to zero on every play and does not append after a previous play.
@@ -85,6 +86,39 @@ song({tempo:120,bars:2})
 pattern("half", notes("C2 .").stepsPerBar(4).gate(0.7))
 track("bass").instrument("wave-bass").play("half",{atBar:0,repeat:4})
 \`\`\`
+cycleV1 is our explicit bounded Tidal-inspired dialect, not Tidal-compatible
+source. Preserve notes() when already used unless a notation change is requested.
+For cycleV1, equal slots divide a cycle: ~ is a rest, [C2 E2] subdivides a slot,
+<C4 E4> alternates across cycles, and *2 repeats within a slot (integer 1..16).
+Nested alternation advances each branch once per visit: <<C4 D4> E4> yields
+C4,E4,D4,E4. Repetition advances its child's clock: <C4 E4>*2 gives both each cycle.
+Pitch atoms only; no drum names, dot rests, :length or @velocity in this notation.
+C2(k,n,r) places k Euclidean hits in n slots, with optional left rotation r:
+n=1..64, k=0..n, r=0..n-1. C2(3,8) has hits at slots 0,3,6.
+fast(N) and slow(N) take integers 1..16; rev() reverses within each cycle.
+every(period,"rev",offset) requires all three arguments: period 1..64,
+offset 0..period-1. every(4,"rev",3) reverses zero-based cycles 3 and 7.
+Rhythmic chains wrap in written order and alternation sees transformed time.
+gate is applied after rhythm; last gate wins. Pitch transforms act in source order.
+stepsPerBar is invalid on cycleV1. A note crossing its reversal cycle is rejected;
+put rev before slow for held notes instead of manufacturing a retrigger.
+Our cycleV1 maps one output cycle to one four-beat bar through the song clock.
+play({atBar,repeat}) selects onsets in [atBar,atBar+repeat): repeat counts output
+cycles, NOT whole repetitions of a slowed/alternating phrase. Phase is song-global:
+atBar:3 starts at cycle 3, not cycle zero. A window never retriggers a previous
+sustain or trims its tail; every note must still end within the finite song.
+Example eight-bar variation, with the default bank:
+\`\`\`
+song({tempo:132,bars:8})
+pattern("bass",cycleV1("C2 [E2 G2] ~ G2").gate(.65))
+pattern("lead",cycleV1("<C4 E4> [G4 B4] E4 ~").every(4,"rev",3).gate(.55))
+pattern("beat",cycleV1("C2(3,8)").gate(.15))
+track("bass").instrument("wave-bass").play("bass",{repeat:8})
+track("lead").instrument("p0").play("lead",{repeat:8})
+track("drums").instrument("n-tick").play("beat",{repeat:8})
+\`\`\`
+Keep expansions small: at most 4096 syntax nodes per cycle pattern, depth 16,
+32 rhythmic wrappers, and 200000 cycle evaluation work across the compilation.
 Keep song length finite and consistent with the arrangement. Playback looping
 and queued application belong to the host UI; do not invent live_loop, sleep,
 setInterval, callbacks, variables, imports, random functions or runtime code.

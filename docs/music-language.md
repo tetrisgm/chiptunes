@@ -82,7 +82,8 @@ comments labeling blocks. No precision is discarded to shorten the source.
 There are no variables, assignments, arithmetic expressions, function values,
 user-defined functions, property access, indexing, imports, loops, recursive
 patterns, random functions, global access, or arbitrary method calls. The only
-nested musical call is `notes()` inside `pattern()`; other arguments are data.
+nested musical calls are `notes()` and `cycleV1()` inside `pattern()`; other
+arguments are data.
 Unknown metadata keys are preserved data, not additional language features.
 
 ## Song settings and timing
@@ -218,6 +219,46 @@ value; transpose/register operations compose. For example, B2 followed by
 Pitch validation occurs after transformations: pulse channels require MIDI
 36–108; wave requires 24–96. No silent clamping occurs.
 
+### `cycleV1()` — the bounded cycle dialect
+
+`pattern()` also accepts `cycleV1("…")` as its second argument. It is a separate,
+explicitly versioned constructor: it never reinterprets a saved `notes()` string,
+and the two cannot be mixed inside one pattern. The full contract, including its
+evidence boundaries, is [cycle patterns v1](music-cycle-v1.md).
+
+Equal slots divide one cycle. `[a b]` subdivides a slot, `<a b>` alternates one
+branch per visit, `~` is a rest, `a*N` repeats in place (integer 1–16), and
+`C2(k,n,r)` distributes `k` hits over `n` slots on a **single pitch atom**, with
+positive `r` rotating left. Pitch atoms use the same letters and accidentals as
+`notes()`, so `Bb2` is B-flat while a bare `b2` is the note B. Sample names, dot
+rests, `:length`/`@velocity` suffixes, weighting, stacking, chance and callbacks
+are not inferred; unsupported notation is a located error, never an approximation.
+
+| Method | Meaning and range |
+| --- | --- |
+| `.fast(n)` / `.slow(n)` | Integer 1–16; scales cycle time |
+| `.rev()` | No arguments; reverses within each cycle |
+| `.every(period, "rev", offset)` | Integer period 1–64, explicit zero-based offset |
+| `.gate` `.velocity` `.transpose` `.register` | As on `notes()` |
+| `.stepsPerBar(n)` | **Rejected** — cycles have no step grid |
+
+Rhythmic methods wrap the preceding expression in written order, so alternation
+receives transformed time rather than being flattened first. `gate` applies after
+the rhythmic transforms and the last one wins; pitch and register keep their
+written order.
+
+One output cycle is one four-beat bar here, through the same clock described
+above — a cycle is not inherently a bar in Tidal. Phase is song-global, so
+`play({atBar,repeat})` selects the onset window `[atBar, atBar+repeat)` without
+restarting alternation, without manufacturing a retrigger by slicing a sustain,
+and without trimming a tail. `atBar` may be fractional. Reversing an event that
+crosses its own reversal cycle is rejected with a located diagnostic; because
+that is evaluated per queried cycle, lengthening a song can surface it on a
+pattern that previously compiled.
+
+This is a bounded dialect guided by TidalCycles, not Tidal compatibility and not
+a second synthesis engine.
+
 | Track names | Chip channel |
 | --- | --- |
 | `lead`, `pulse1` | 0, first pulse |
@@ -347,6 +388,14 @@ Additional visual mappings preserve those older fields:
   pattern on the shared clock, including leading/trailing rests and gate gaps.
   These are visual timing bounds, not new song-end constraints. A trailing rest
   can extend beyond the finite song; rounding can collapse a very short interval.
+- `patternType` is `'cycleV1'` on cycle rows and is **absent** on `notes()` rows,
+  so a consumer must read an absent `patternType` as `notes()`.
+- `cycleEvent` is a stable `token@start/end` rational identity, used to
+  deduplicate fragments of one event inside a single play, never across separate
+  authored play calls. For cycles, `occurrence` counts output cycles from that
+  play's start and `occurrenceStartFrame`/`occurrenceEndFrame` span a fixed four
+  beats, which differs from `notes()`, where an occurrence is one whole
+  repetition of the authored phrase.
 
 Exact events have none of these pattern-only fields. Unplayed/all-rest patterns
 produce no note mappings. Consumers must not fabricate note identities for them
@@ -407,6 +456,11 @@ retain the last working music; the widget does not silently clamp musical pitch.
 | Shorthand bars / maximum `atBar` | 65,536 |
 | Tempo changes | 4,096; row at most 65,536 |
 | Deterministic expansion work budget | 2,000,000 units |
+| Cycle syntax nodes per pattern | 4,096 |
+| Cycle node depth | 16 (so 14 authored brackets) |
+| Cycle rhythmic wrappers per pattern | 32 |
+| Cycle fragments, and cycles per query | 200,000 (one shared constant) |
+| Cycle rational numerator/denominator | 256 bits each |
 
 Work charges token processing times transformation count and repeated note
 expansion times tempo-map size. These are operation budgets, not a measured

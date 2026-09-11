@@ -138,6 +138,13 @@
 #musicworkspace .mw-status{min-height:22px;margin:0;font-size:13px;white-space:pre-wrap}
 #musicworkspace .mw-help{font-size:12px;padding:6px 12px;border-top:1px solid #303748;color:#bdc5d8}
 #musicworkspace .mw-help pre{white-space:pre-wrap}
+#musicworkspace .mw-live-guide{font-size:12px;border-top:1px solid #303748;color:#bdc5d8;flex-shrink:0}
+#musicworkspace .mw-live-guide summary{cursor:pointer;padding:6px 12px;color:#d4efa3}
+#musicworkspace .mw-live-guide-content{padding:0 12px 8px;max-height:180px;overflow:auto}
+#musicworkspace .mw-live-step-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+#musicworkspace .mw-live-step-actions select{flex:1;min-width:0;width:160px}
+#musicworkspace .mw-live-guide-content p{margin:6px 0 0}
+#musicworkspace #mw-live-step-warning{color:#929bb4;font-size:11px}
 #musicworkspace .mw-footer{flex-shrink:0;max-height:25dvh;overflow:auto}
 #musicworkspace .mw-project-tools summary{cursor:pointer;padding:8px;color:#bdc5d8}
 #musicworkspace .mw-project-tools[open]{flex-basis:100%}

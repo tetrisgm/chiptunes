@@ -59,6 +59,7 @@ const ORDER = [
   'src/reference-styles.js',  // "like Castlevania" -> genre dials, read back out loud
   'src/api.js',         // the agent API, also reachable in the page as CT_API
   'src/music-language.js',
+  'src/music-cycle-examples.js',
   'src/music-project.js',
   'src/music-chat.js',
   'src/music-exports.js',
