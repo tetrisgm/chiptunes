@@ -394,6 +394,27 @@ physical display is not expressible in Playwright.
   proposals, with visible note/visual correspondence and continuous music phase.
 - [ ] Run project, gateway and affected renderer/export/parity regressions;
   verify actual rendered layouts and native Safari with visible build IDs.
+  No single aggregate covers this. The sequence that actually does, established
+  2026-09-11, is four invocations plus one environment variable:
+
+      export LC_ALL=C          # gateway only; see below
+      npm test                 # runs posttest -> test:unified-create
+      npm run test:render-parity
+      npm run test:music-chat-web
+      npm run test:worklet-boundary
+
+  Three facts about that sequence, each of which has cost a session real time:
+  `npm test` does NOT include gateway, render-parity or worklet-boundary.
+  Gateway fails 3 of 77 on macOS without LC_ALL, because the isolated postmaster
+  it spawns dies with "postmaster became multithreaded during startup" under
+  PostgreSQL 17; with LC_ALL=C it is 77/77. And two checks are load-sensitive
+  rather than flaky-by-design -- verify-sync compares a measured clock
+  correction against a 120 ms tolerance, and verify-frame-pacing measures the
+  display refresh interval and fails when it reads 0 ms. Both pass standalone
+  and both fail under a loaded machine, so do not run agents, builds or a second
+  browser suite concurrently with the gate. When one of them does fail, re-run it
+  alone before treating it as a regression, and record which invocations were
+  used rather than claiming one uninterrupted green run.
 - [ ] Prepare the coordinated web release, then obtain the owner's separate
   deployment/configuration authorization and perform bounded real-provider and
   deployed native acceptance. No desktop/broadcast restart as a side effect.
