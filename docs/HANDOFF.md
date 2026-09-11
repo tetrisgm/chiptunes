@@ -3,6 +3,36 @@
 Plain, current working notes for whoever (or whatever) picks the project up
 next. Infrastructure and operations live outside this repository.
 
+## 2026-09-11 — Durable local panel geometry, Phase E checkbox 2 (local checkpoint)
+
+The music/visuals split, the chart/code split, desktop and mobile chat state and
+the visual-code disclosure are now durable, under their own `ct-music-layout-v1`
+key. They are loaded once before the first render and clamped by the same
+setters that bound live interaction, so a hand-edited or stale record cannot
+produce an unusable layout, and a broken or unavailable preference is swallowed
+rather than reported: layout is a convenience and must never block the
+workspace. Writes are debounced, so dragging a splitter does not write per
+pointer event.
+
+The point of the checkbox is the separation, not the persistence. These values
+are deliberately NOT in the project record, because a record that carried them
+would ship one machine's window arrangement to everyone who opened the link. The
+browser check asserts both halves: the geometry survives a reload with the
+adjusted value rather than the default, and the project record contains none of
+the field names. Existing private-history and public-share boundaries and
+explicit import are unchanged.
+
+Final artifact: app.37dbb031cf8c.js / Music f135bba5dd6f, 119 sources, fourteen
+games. scripts/verify-visual-persistence-browser.js is now nine checks. Both new
+checks in this and the previous slice were confirmed by mutation: disabling the
+layout write turns the geometry check red, and removing the failed-restore guard
+turns the erase-protection check red. That habit earned its keep here — one
+regression test in the previous slice passed against unfixed code because it
+drove a music edit by typing into CodeMirror, which Playwright cannot do. Assume
+a new browser check is vacuous until a mutation proves otherwise.
+
+Phase E checkboxes 3 and 4 remain. Checkbox 4 still ends in owner-only evidence.
+
 ## 2026-09-11 — Audiovisual persistence, Phase E checkbox 1 (local checkpoint)
 
 Reopening a project now restores the audiovisual composition, not just the

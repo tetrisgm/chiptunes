@@ -301,7 +301,7 @@ saved projects are untouched.
 
 - [x] Version/save visual source, selected scene, parameters, mappings and
   supported assets with the musical project; preserve old music-only projects.
-- [ ] Keep local panel/window geometry separate from portable composition data.
+- [x] Keep local panel/window geometry separate from portable composition data.
   Preserve existing private-history/public-share boundaries and explicit import.
 - [ ] Provide fullscreen and a same-session output path with visuals-only and
   code-plus-visuals choices. Never expose the entire app DOM as audience output.
@@ -366,11 +366,21 @@ records the same limitation for paste), so no save ever ran and the check passed
 against the unfixed code. It now clicks the real Save action, and was confirmed
 by mutation -- removing the guard turns it red.
 
-Not done in this slice: checkbox 2's durable local panel/window geometry, which
-is still session-only module state (separate from portable data, but not yet
-persisted); checkboxes 3 and 4. Checkbox 4 remains the hardest and ends in
-owner-only evidence -- runtime.js returns early on document.hidden above its
-only tick call, so a backgrounded editor window stops rendering, and a second
+Checkbox 2 is implemented. The music/visuals split, the chart/code split, the
+desktop and mobile chat state and the visual-code disclosure are durable, under
+their own `ct-music-layout-v1` key, loaded before the first render and clamped by
+the same setters that bound live interaction, so a hand-edited or stale record
+cannot produce an unusable layout. They are deliberately NOT in the project
+record: a record that carried them would ship one machine's window arrangement
+to everyone who opened the link. The browser check asserts both halves -- the
+geometry survives a reload, and the project record contains none of those field
+names. A broken or unavailable layout preference is swallowed; it is a
+convenience and must never block the workspace or report an error. The existing
+private-history and public-share boundaries and explicit import are unchanged.
+
+Not done in this slice: checkboxes 3 and 4. Checkbox 4 remains the hardest and
+ends in owner-only evidence -- runtime.js returns early on document.hidden above
+its only tick call, so a backgrounded editor window stops rendering, and a second
 physical display is not expressible in Playwright.
 
 ### F. Performance and release acceptance

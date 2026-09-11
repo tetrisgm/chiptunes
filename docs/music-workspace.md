@@ -138,7 +138,13 @@ record key is optional and the record version is unchanged, so a project saved
 before visuals were persisted still opens, and a project saved with them still
 opens on a build that predates them — as music, with the visual block ignored.
 A saved visual that is malformed or no longer compiles is dropped: the music
-opens untouched and the stage falls back to its default scene and says so. Storage failure and conflicting tabs
+opens untouched and the stage falls back to its default scene and says so.
+
+Panel geometry — the music/visuals split, the chart/code split, desktop and
+mobile chat state and the visual-code disclosure — is remembered under its own
+`ct-music-layout-v1` key. It is a local viewing preference, never part of the
+project record, so it is not downloaded, shared or transferred: a link carries
+what the music and visuals are, not how your window happened to be arranged. Storage failure and conflicting tabs
 are reported; download the project before replacing or reloading conflicted
 work. Downloaded project files can include private provenance; public links
 exclude private provenance/chat by default. Self-contained links are limited
