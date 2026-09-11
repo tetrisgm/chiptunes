@@ -303,8 +303,24 @@ saved projects are untouched.
   supported assets with the musical project; preserve old music-only projects.
 - [x] Keep local panel/window geometry separate from portable composition data.
   Preserve existing private-history/public-share boundaries and explicit import.
-- [ ] Provide fullscreen and a same-session output path with visuals-only and
+- [x] Provide fullscreen and a same-session output path with visuals-only and
   code-plus-visuals choices. Never expose the entire app DOM as audience output.
+  Output is a layout of the SAME session, chosen independently of the authoring
+  layout: visuals-only (the existing stage presentation) or code-plus-visuals,
+  which keeps the readable performance program beside the stage. Both exclude
+  chat, account and provider settings, private history, project tools, the live
+  guide, help, diagnostics and every editing affordance; the browser check
+  asserts each of those is not visible rather than trusting the CSS, and
+  removing any one of them from the hidden set turns it red. Stage-only
+  fullscreen is unchanged. Entering, switching and leaving output never
+  recompose, never restart audio, never create a second AudioContext and reuse
+  the same visual world -- all asserted while music is actually playing. The
+  chosen layout is a local preference under the layout key, never portable
+  composition data. Escape leaves output and restores the authoring surfaces.
+  Evidence boundary: this is a same-session, same-window output path, which is
+  what this checkbox asks for. A SEPARATE output window or a second display is
+  checkbox 4 below and is explicitly NOT claimed here -- background rendering
+  still stops when document.hidden, so a popup would freeze behind the editor.
 - [ ] Verify the single renderer/output strategy under backgrounding and a second
   display; if a simple mirror freezes, fix ownership before claiming acceptance.
 
@@ -415,10 +431,13 @@ physical display is not expressible in Playwright.
   Evidence boundary: this is a bounded work budget measured in Chromium. It is
   not a multi-hour real session, not a physical high-DPI display, and not a GPU
   memory measurement.
-- [ ] Exercise resize, collapse, focused evaluation, error retention, scene
+- [x] Exercise resize, collapse, focused evaluation, error retention, scene
   queue/cancel, freeze/blackout/reset/panic, save/reload and output lifecycle.
-  Eight of the nine are already covered on every gate, so only OUTPUT LIFECYCLE
-  is outstanding, and it is outstanding because checkbox E3 has not been built:
+  All nine are covered on every gate. Output lifecycle was the last one and is
+  now closed by verify-audience-output-browser.js, which enters output, switches
+  layout while it is showing, leaves by button and by Escape, and reloads --
+  asserting throughout that nothing recomposes, restarts audio, adds an
+  AudioContext or rebuilds the visual world. The other eight:
   resize and collapse in verify-music-visual-stage.js and verify-unified-layout.js
   (keyboard and pointer splitters, chat collapse, each asserting audio is
   unchanged); focused evaluation, scene queue/cancel and
@@ -427,7 +446,7 @@ physical display is not expressible in Playwright.
   working scene) and verify-music-cycles-browser.js (an invalid draft keeps the
   sounding revision and its chart); save/reload in
   verify-visual-persistence-browser.js and verify-music-cycles-browser.js. Do
-  not re-derive these; close the item by adding output lifecycle once E3 lands.
+  not re-derive these.
 - [x] Perform a repeatable groove -> accompaniment -> melody -> variation ->
   breakdown -> full arrangement exercise using manual code and reviewed agent
   proposals, with visible note/visual correspondence and continuous music phase.

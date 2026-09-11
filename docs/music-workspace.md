@@ -140,9 +140,20 @@ opens on a build that predates them — as music, with the visual block ignored.
 A saved visual that is malformed or no longer compiles is dropped: the music
 opens untouched and the stage falls back to its default scene and says so.
 
+**Focus visuals** enters audience output: the same session, laid out for people
+watching rather than for editing. The chooser beside it offers two layouts —
+visuals only, or code plus visuals, which keeps the readable performance program
+beside the stage. Both exclude chat, account and provider settings, private
+history, project tools, the live guide, help, diagnostics and every editing
+affordance. Entering, switching or leaving output never recomposes, restarts
+audio, creates a second audio engine or resets the visual world; Escape returns
+to the authoring layout. Stage-only fullscreen is separate and unchanged. This
+is a same-window output path: a separate output window or second display is not
+supported, because background rendering still stops when the page is hidden.
+
 Panel geometry — the music/visuals split, the chart/code split, desktop and
-mobile chat state and the visual-code disclosure — is remembered under its own
-`ct-music-layout-v1` key. It is a local viewing preference, never part of the
+mobile chat state, the visual-code disclosure and the chosen output layout — is
+remembered under its own `ct-music-layout-v1` key. It is a local viewing preference, never part of the
 project record, so it is not downloaded, shared or transferred: a link carries
 what the music and visuals are, not how your window happened to be arranged. Storage failure and conflicting tabs
 are reported; download the project before replacing or reloading conflicted

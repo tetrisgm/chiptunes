@@ -3,6 +3,45 @@
 Plain, current working notes for whoever (or whatever) picks the project up
 next. Infrastructure and operations live outside this repository.
 
+## 2026-09-11 — Audience output, Phase E checkbox 3 and Phase F item 2 (local checkpoint)
+
+Audience output is a layout of the SAME session, chosen independently of the
+authoring layout. Two choices: visuals-only, which is the existing stage
+presentation, and code-plus-visuals, which keeps the readable performance
+program beside the stage. Both exclude chat, account and provider settings,
+private history, project tools, the live guide, help, diagnostics and every
+editing affordance. The browser check asserts each of those is not visible
+rather than trusting the CSS, and removing any one from the hidden set turns it
+red -- confirmed by mutation on .mw-chat.
+
+Entering, switching and leaving output never recompose, never restart audio,
+never create a second AudioContext and reuse the same visual world, all asserted
+while music is actually playing. The chosen layout is a local preference stored
+with panel geometry, never portable composition data; the check asserts the
+project record does not contain it. Escape leaves output and restores the
+authoring surfaces. Stage-only fullscreen is unchanged.
+
+A correction to an earlier reading in this session, because it cost time: E3 was
+described here as blocked on E4. It is not. E4 is specifically backgrounding and
+a SECOND DISPLAY; E3 asks for "fullscreen and a same-session output path", and a
+same-window output path satisfies it exactly, with no document.hidden problem
+because the window is visible. Only a separate output WINDOW runs into that, and
+that is E4's problem, not this one. Read the checkbox, not the adjacent worry.
+
+That also closed Phase F item 2, whose last outstanding surface was output
+lifecycle; the other eight were already covered on every gate and are now named
+verifier-by-verifier in the plan so nobody re-derives them.
+
+Final artifact: app.e493f183f7ea.js / Music a54ff22847e4, 119 sources, fourteen
+games. New scripts/verify-audience-output-browser.js (seven checks) is wired
+into test:visual-code, so it runs under npm test through the posttest lane.
+
+Evidence boundary: same-session, same-window output in Chromium. A separate
+output window, a second display and backgrounded output are explicitly NOT
+claimed -- background rendering still stops when document.hidden, so a popup
+would freeze behind the editor. That is checkbox 4, and it ends in owner-only
+evidence.
+
 ## 2026-09-11 — Measured visual work budget, Phase F item 1 (local checkpoint)
 
 The budgets are explicit constants now instead of assumptions. Resolution is the
