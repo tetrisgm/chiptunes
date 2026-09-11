@@ -235,7 +235,7 @@ unit checks plus real browser pixels exercise those specific boundaries.
 - [x] Implement distinct Stop music, Freeze visuals, Blackout output, Reset visual
   state and Global panic operations. Blackout is not an audio stop.
 - [x] Integrate the prepared music gate/velocity/transpose literal controls.
-- [ ] Finish the Tidal-guided bounded pattern subset/live build-up from the music plan.
+- [x] Finish the Tidal-guided bounded pattern subset/live build-up from the music plan.
 
 Gate: code and named state have one declared source of truth, errors keep the
 last usable output, and each performance control has independently tested effects.
@@ -267,7 +267,35 @@ Cmd/Ctrl-Z. Unchanged mounting retains numeric spelling, comments and precision.
 Descriptors are recompiled view metadata, never restored project authority.
 The complete unified suite and local native Safari on Music 825b6f3ddb9a verify
 source-only editing, native range/numeric input, grouped Undo, continued sounding
-revision and explicit Run to a new boundary. This does not enable cycleV1 yet.
+revision and explicit Run to a new boundary. That slice did not yet enable cycleV1.
+
+cycleV1 is now implemented and is the last Phase D item. It is an explicitly
+versioned second pattern constructor, never a reinterpretation of saved notes()
+strings: `pattern("bass",cycleV1("C2 [E2 G2] ~ G2").gate(.65))`. Equal slots
+divide a cycle; brackets nest, `~` rests, `*N` repeats inside its slot, `<...>`
+alternates one branch per visit, and `C2(k,n,r)` distributes k hits over n slots
+with left rotation. The chain adds `.fast/.slow` (integer 1–16), `.rev()` and
+`.every(N,"rev",offset)`, wrapping the preceding expression in written order;
+the existing gate/velocity/transpose/register still apply, and `.stepsPerBar`
+is rejected as belonging to notes(). Evaluation uses bounded BigInt rationals
+with absolute endpoint conversion through the existing createClock, so tempo
+maps and groove are honoured without accumulating rounded durations. One output
+cycle maps to one four-beat bar in this version; a cycle is not inherently a bar
+in Tidal, and the mapping is a deliberate Chiptunes choice. play({atBar,repeat})
+selects the finite onset window with song-global phase, never manufacturing a
+retrigger by slicing a sustain and never trimming a tail. Reversal of an event
+crossing its reversal cycle is rejected with a located diagnostic rather than
+approximated. Cycle parsing/evaluation carries its own bounds (4096 nodes,
+depth 16, 32 wrappers, 200,000 visited fragments, 256-bit rationals) on top of
+the existing source/event/work limits; rests and discarded fragments are charged
+work. The contract is docs/music-cycle-v1.md; the editor help, the trusted
+server chat system text and src/music-cycle-examples.js all describe the same
+subset, and unsupported Tidal notation fails closed instead of being inferred.
+
+This is a bounded Chiptunes dialect guided by Tidal, not Tidal compatibility and
+not a second synthesis engine. The deterministic single compiler/player, finite
+exports and the chip's four channels are unchanged; notes() semantics and old
+saved projects are untouched.
 
 ### E. Save the audiovisual composition and create audience output
 

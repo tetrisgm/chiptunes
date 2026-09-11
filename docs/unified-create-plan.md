@@ -77,7 +77,12 @@ exercise to the reference pass below. An attractive editor alone does not close
 this gate. Determine the explicit syntax boundary before adding these operators;
 readable pitch/inline feedback remains the first implementation slice.
 
-### Bounded cycle implementation proposal (not yet enabled)
+### Bounded cycle implementation proposal (implemented as cycleV1)
+
+Implemented 2026-09-11. This section is retained as the design rationale; the
+authoritative contract is docs/music-cycle-v1.md and the executable verifiers
+named there. The proposal below was followed, including the corrected Euclidean
+rotation direction; the constructor shipped under its provisional name.
 
 Use a separate constructor, provisionally `cycleV1("…")`, rather than changing
 saved `notes()` strings. First support pitch atoms, `~`, nested subdivisions,

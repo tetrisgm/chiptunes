@@ -3,6 +3,155 @@
 Plain, current working notes for whoever (or whatever) picks the project up
 next. Infrastructure and operations live outside this repository.
 
+## 2026-09-11 — Bounded Tidal-guided cycle patterns (local checkpoint)
+
+The last open Phase D item in algorave-stage-plan.md is implemented, so Phase D
+is complete. cycleV1 is a second, explicitly versioned pattern constructor
+accepted only as pattern()'s second argument; it never reinterprets a saved
+notes() string and the two cannot be mixed in one pattern. Equal slots divide a
+cycle: [..] subdivides, <..> alternates one branch per visit, ~ rests, *N
+repeats in place (1-16), and C2(k,n,r) distributes k Euclidean hits over n slots
+on a single pitch atom with positive r rotating left. The chain adds fast/slow
+(integer 1-16), rev() and every(period,"rev",offset), wrapping the preceding
+expression in written order; gate applies after rhythm with last-gate-wins,
+pitch/register keep source order, and stepsPerBar is rejected. The deterministic
+single compiler/player, finite exports, notes() semantics, old saved projects
+and the chip's four channels are unchanged.
+
+Evaluation uses bounded BigInt rationals with absolute endpoint conversion
+through the existing createClock, so tempo maps and groove are honoured without
+accumulating rounded durations. One output cycle maps to one four-beat bar in
+this version; a cycle is not inherently a bar in Tidal, and the mapping is a
+deliberate Chiptunes choice. play({atBar,repeat}) selects the finite onset
+window with song-global phase and a possibly fractional atBar; it never
+manufactures a retrigger by slicing a sustain and never trims a tail. Reversing
+an event that crosses its own reversal cycle is rejected with a located
+diagnostic. That rejection is evaluated per queried cycle, not statically, so
+lengthening a song can surface it on a pattern that previously compiled:
+cycleV1("C2").slow(2).every(64,"rev",63) compiles over eight bars and is
+rejected over sixty-four. This is the one way a valid arrangement can stop
+compiling when nothing about the pattern changed.
+
+The slice was found already written and locally green but entirely unintegrated.
+package.json defined test:music-cycles and NO aggregate referenced it, so none
+of its evidence ran under npm test; four tracked page shells already pointed at
+an untracked bundle; and every status record still said the feature did not
+exist. All of that is now closed. The two Node lanes run inside
+test:music-workspace beside verify-music-language, the Chromium lane runs at the
+end of the posttest test:unified-create, and the standalone test:music-cycles
+gained the `node build.js` prefix its siblings carry, because
+verify-music-cycles-browser.js serves gitignored dist/.
+
+Fixture quality was the real gap rather than coverage. Thirty-three rejection
+fixtures asserted only that some diagnostic existed, so two documented numbers
+were free to drift: LIMITS.cycleWork could be raised from 200,000 to 1e9 and
+LIMITS.cycleBits halved with the suite still green. Every rejection now matches
+its exact message, and the documented maxima are pinned on the accepting side
+too. Confirmed by mutation: cycleWork 200,000 -> 1e9, cycleNodes 4096 ->
+100,000, cycleDepth 16 -> 64, cycleTransforms 32 -> 256 and cycleBits 256 ->
+64/128/192 each turn the suite red; only a one-bit 256 -> 255 change still
+passes. Added: valid upper bounds (C2*16, C2(3,64), C2(64,64), C2(1,1),
+C2(0,1), every(64,"rev",63)), the pitch-atom surface including the overload
+where Bb2 is B-flat but a bare b2 is B natural, both Euclidean-suffix rejection
+shapes, a work fixture spanning two patterns and two plays, and a legitimate
+program that genuinely needs the declared 256-bit rationals (thirteen nested
+triplets against a 10^-60 window, about 2^220 of denominator). verify-music-cycle-examples.js now extracts the ```music fence
+from docs/music-cycle-v1.md and compiles it (88 notes), so the contract cannot
+drift from the compiler.
+
+Two audit findings were corrected rather than implemented. cycleV1 in an exact
+song was reported as silently defaulting to 120 BPM; it does, but notes() does
+exactly the same through the same createClock, producing byte-identical frames
+(0/60/119/179 with no tempo, 0/51/102/154 at 140). Rejecting only cycleV1 would
+have made the two constructors inconsistent, so the shared default is documented
+and pinned against notes() instead. The 256-bit bound on rational NUMERATORS was
+reported as untested; it is unreachable, because 32 wrappers cap the speed
+factor at 16^32 and atBar at 65536, so a numerator cannot exceed about 2^144.
+It is recorded as deliberate defence in depth with no fixture, because none can
+be written. LIMITS.cycleWork also carries two meanings against one constant --
+compilation fragments and cycles per query -- and is documented as such rather
+than split, since LIMITS is a frozen public export; see the open decision below.
+
+Final artifact: app.303a9f343e19.js / Music 13d485a43356, 119 sources,
+2,579,199 JS bytes, 231,984 HTML bytes, fourteen games. music-cycles 25 groups;
+verify-music-cycle-examples 31 checks over seven scenes against hand-written
+beat tables, real APU PCM and exact materialization; music-language 24 groups;
+Music project 21 groups; chat 35/35, up from 28 because the trusted prompt now
+carries three compiled examples and the third is asserted to be a cycleV1
+program whose noise onsets land on the documented Euclidean slots. The real
+shared-artifact browser check passes against the final build: "cycle live-set
+workflow (Music v1 · 13d485a43356); no provider/microphone/deployment", covering
+the seven-step live set, draft/Undo, real preview/Run boundary audio,
+save/reload and private chat. That lane is Chromium-only and is NOT a WebKit or
+Safari check. Render parity 10/10, minimum correlation 1.000000, maximum
+absolute RMS delta 0.175 dB. Gateway 77/77.
+
+The project test command list passed in resumed, ordered segments, not one
+uninterrupted green npm test invocation. Commands 0-16 passed in a full run that
+then failed verify-sync; verify-sync passed standalone twice on the same tree;
+the remaining 27 commands including test:music-workspace, and the whole posttest
+test:unified-create, passed as their own segments. verify-sync is load-sensitive
+rather than broken: under a loaded suite it measured 318ms against 452ms and
+255ms against 376ms on a 120ms tolerance, and unloaded 410ms against 479ms. Its
+own output already reports that the drift varies (20ms, 206ms and 1026ms
+observed). Nothing in this slice touches the deck clock. Private-ROM and
+harness-dependent LSDj checks retain their explicit skips.
+
+Gateway needed LC_ALL set on this Mac. Three of 77 failed with
+isolated_database_unavailable / db_unavailable, and the cause is not a missing
+PostgreSQL: initdb and postgres are on PATH and a server is already running. The
+isolated postmaster the tests spawn dies with "postmaster became multithreaded
+during startup / Set the LC_ALL environment variable to a valid locale", a known
+PostgreSQL 17 and macOS interaction. With LC_ALL=C the suite is 77/77 in 1.5s.
+gateway/ is untouched by this slice, so those failures were pre-existing and
+environmental. The test spawn env was deliberately NOT edited.
+
+Not verified for this build: native local Safari, acoustic listening, physical
+trackpad or pointer input, deployed acceptance, and second-display or
+backgrounded output. The prior slices' native observations belong to their own
+named builds and are not transferred to Music 13d485a43356. Real local Safari on
+this artifact is the outstanding acceptance step for Phase D; .mw-build already
+renders "Music v1 · <id>" so the visible build identifier requirement is met.
+
+Known papercut, deliberately left: src/music-workspace.js hardcodes "Build a
+live set · 7 steps" while the options are generated from
+CT_MUSIC_CYCLE_EXAMPLES.steps and verify-music-cycles-browser.js asserts only
+the option count, so adding or removing a step leaves the label lying. Deriving
+it from cycleSteps.length is a one-line fix, but it changes appSources and
+therefore the artifact hash, so it belongs to the next slice rather than to this
+landing. mapping[].patternType and mapping[].cycleEvent are published on every
+cycleV1 row and currently read only by tests; they are documented as deliberate
+forward-compatible metadata, and notes() rows carry no patternType at all, so a
+consumer must read absence as notes().
+
+Open owner decisions, none of them taken here: whether to split LIMITS.cycleWork
+into two constants (a visible change to a frozen public export) or keep the
+documented dual meaning; whether unified-create-plan.md item 5 flips, given the
+seven-step guide is a code-editor loader rather than the sidebar chat path that
+item names; and, for Phase E, whether music-project.js VERSION bumps to 2 with a
+migration, which would break every existing save and share link until a range
+check lands, versus unknown-block pass-through versus accepting silent loss of a
+newer build's visual block. Related: whether CT_MUSIC_LANGUAGE gains a
+COMPILER_VERSION, without which a share link using cycle notation opened on a
+cached older build fails with "Saved validated source no longer compiles",
+blaming the source rather than the build. Also whether visuals belong in
+#music= share links at all: visual source is allowed 32,768 bytes against a
+12,000-byte serialize budget and a 20,000-character fragment cap.
+
+Next: Phase E, which is genuinely unstarted -- no visual state is persisted
+anywhere and there is no audience-output surface beyond a CSS-hidden app shell.
+Its first primitive is a serialize/restore entry point on visual-stage.js, which
+today hard-starts from presets[0]; then the stage has no dirty-to-save path at
+all, because runtime.js's 'ct-visual-state' listener never calls scheduleSave().
+Phase E checkbox 4 is the hardest and ends in owner-only evidence: runtime.js
+returns early on document.hidden above its only tick call, so the editor window
+being backgrounded stops rendering, and a second physical display is not
+expressible in Playwright. Say so before implementation, not after.
+
+No deployment, store upload, paid provider call, desktop or broadcast restart,
+configuration cutover or infrastructure repair occurred. The overall goal
+remains active.
+
 ## 2026-09-09 — Source-linked music controls (local checkpoint)
 
 Gate, velocity and transpose widgets are integrated into the existing music

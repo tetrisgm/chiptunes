@@ -180,8 +180,11 @@ the handler, actual `src/music-chat.js`, and the real language/project modules.
 VM tests load the actual client source with a fake timer to test its 30-second
 deadline without a 30-second wait. Backend tests use brief real deadlines.
 
-Observed validation: 28/28 chat groups pass. The earlier backend verification
-also passed the existing 16 language groups and 19 project groups.
+Observed validation: 35/35 chat groups pass, alongside 24 language groups and
+21 project groups. The chat count grew with the cycleV1 slice: the trusted
+prompt now carries three compiled examples rather than two, and the third is
+asserted to be a cycleV1 program whose noise onsets land on the documented
+Euclidean slots.
 
 Covered: default denial, auth/origin/quota, full-song context, one-call contract,
 untrusted instruction separation, strict edits, compiler/lock enforcement, UTF-8
