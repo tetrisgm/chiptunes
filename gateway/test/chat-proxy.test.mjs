@@ -3,11 +3,50 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import vm from 'node:vm';
+import http from 'node:http';
+import {chromium} from 'playwright';
 import {proxyMusicChat,PUBLIC_ORIGIN as P,UPSTREAM_ORIGIN as U} from '../../cloudflare/music-chat-proxy.mjs';
 import {createChatHandlers} from '../lib/chat-production.mjs';
 const access='/api/music/chat/access',chat='/api/music/chat';
 const req=(path=chat,{method='POST',headers={},body='{}',signal,origin=P}={})=>new Request(origin+path,{method,headers:{origin:P,'content-type':'application/json',...headers},...(method==='GET'?{}:{body}),signal,duplex:'half'});
 const good=()=>Response.json({ok:true});
+test('real browser fetch metadata reaches the fixed proxy for access and chat',async()=>{
+  // Only the fixture authority is mapped to the production authority. Fetch
+  // metadata is supplied by Chromium over HTTP, never synthesized by the test.
+  const seen=[];
+  const server=http.createServer(async(incoming,outgoing)=>{
+    if(incoming.url==='/'){outgoing.end('<!doctype html><title>Proxy fixture</title>');return;}
+    try{
+      const chunks=[];for await(const chunk of incoming)chunks.push(chunk);
+      const headers=new Headers(incoming.headers);
+      assert.equal(headers.get('sec-fetch-dest'),'empty');
+      assert.equal(headers.get('sec-fetch-site'),'same-origin');
+      assert.equal(headers.get('sec-fetch-mode'),'cors');
+      if(headers.has('origin'))headers.set('origin',P);
+      const request=new Request(P+incoming.url,{method:incoming.method,headers,
+        ...(incoming.method==='POST'?{body:Buffer.concat(chunks)}:{})});
+      const response=await proxyMusicChat(request,{fetch:async(url,init)=>{
+        seen.push([incoming.method,incoming.url]);
+        assert.equal(init.headers.get('sec-fetch-dest'),'empty');
+        return good();
+      }});
+      outgoing.writeHead(response.status,{'Content-Type':'application/json'});
+      outgoing.end(await response.text());
+    }catch{outgoing.writeHead(500);outgoing.end();}
+  });
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  let browser;
+  try{
+    browser=await chromium.launch();const page=await browser.newPage();
+    await page.goto('http://127.0.0.1:'+server.address().port);
+    for(const [method,path] of [['GET',access],['POST',access],['DELETE',access],['POST',chat]]){
+      const status=await page.evaluate(async({method,path})=>(await fetch(path,{method,
+        headers:{'Content-Type':'application/json'},...(method==='POST'?{body:'{}'}:{})})).status,{method,path});
+      assert.equal(status,200,method+' '+path);
+    }
+    assert.equal(seen.length,4);
+  }finally{if(browser)await browser.close();await new Promise(resolve=>server.close(resolve));}
+});
 test('fixed target and minimal headers; no forwarding of auth-adjacent/private headers',async()=>{
   let calls=0;
   const r=await proxyMusicChat(req(chat,{headers:{cookie:'other=private; __Host-ct-chat-owner=v1.fixture',forwarded:'host=evil','x-forwarded-host':'evil','x-forwarded-proto':'http','x-secret':'private','x-music-provider':'anthropic','sec-fetch-site':'same-origin'}}),{fetch:async(url,init)=>{

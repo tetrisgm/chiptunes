@@ -16,7 +16,9 @@ export async function proxyMusicChat(request,{fetch:send=globalThis.fetch,deadli
     (request.method!=='GET'&&h.get('origin')!==PUBLIC_ORIGIN)||
     (h.has('sec-fetch-site')&&h.get('sec-fetch-site')!=='same-origin')||
     (h.has('sec-fetch-mode')&&!['cors','same-origin'].includes(h.get('sec-fetch-mode')))||
-    (h.has('sec-fetch-dest')&&h.get('sec-fetch-dest')!==''))return json(403,'request_denied');
+    // Fetch serializes its empty destination as the literal header token
+    // "empty", not an empty header value (Request.destination is different).
+    (h.has('sec-fetch-dest')&&h.get('sec-fetch-dest')!=='empty'))return json(403,'request_denied');
   if(request.method==='POST'&&!/^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(h.get('content-type')||''))return json(415,'json_required');
   const provider=h.get('x-music-provider');
   if(provider!==null&&!['openai','anthropic'].includes(provider))return json(400,'provider_unavailable');

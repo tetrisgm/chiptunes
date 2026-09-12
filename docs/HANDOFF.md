@@ -5,6 +5,26 @@ next. Infrastructure and operations live outside this repository.
 
 ## 2026-09-12 — Coordinated web release acceptance in progress
 
+Web deployment is now live: Pages 39d9b6b2-1453-4af0-b40f-b24268a87481
+(source149217d), gateway dpl_Bvzo56cgkEC5xhCHYqQebyJxtWGf. CHAT_ORIGIN is
+https://chiptunes.app; no secret values or database settings changed. Initial
+Worker release was 6f9f2123-f982-442a-a3cc-e50d804b1649; its browser Fetch
+Metadata bug is corrected in the following checkpoint. Pages cache purge
+succeeded. Both hosts return byte-identical app.ad4d5a3cf0dd.js.
+
+Production acceptance caught a real proxy bug before any paid call: browser
+fetch sends Sec-Fetch-Dest: empty (the literal token), while the proxy compared
+against an empty string. This rejected even browser access GETs, despite Node
+preflight succeeding without Fetch Metadata. Reproduced locally with actual
+Chromium HTTP request headers and an explicitly mapped fixture authority; the
+new test failed GET access 403 before the one-token correction. All four browser
+methods/paths now pass (access GET/POST/DELETE and chat POST), and the full
+gateway suite is 78/78 with existing hostile-origin/cookie/body/deadline cases
+unchanged. Worker dry-run passed. The manual live preflight now sends real
+Fetch Metadata too, and accepts only Pages' exact /create/ canonical redirect.
+Initial unlock attempts made zero model calls. No authentication guard was
+removed; this is a protocol-value correction, not a bypass.
+
 Owner's “do everything you need” authorizes the remaining web-only release and
 a bounded production chat smoke test. No desktop/broadcast deployment or shared
 infrastructure change. Started clean on main at 12a4c9f; pull was up to date.

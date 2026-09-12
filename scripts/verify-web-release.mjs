@@ -11,6 +11,7 @@ import {fileURLToPath} from 'node:url';
 import {chromium} from 'playwright';
 
 const origin='https://chiptunes.app',gateway='https://chiptunes-agent-gateway.vercel.app';
+const fetchMetadata={'Sec-Fetch-Site':'same-origin','Sec-Fetch-Mode':'cors','Sec-Fetch-Dest':'empty'};
 const paid=process.argv.includes('--paid');
 assert(process.argv.slice(2).every(a=>a==='--paid'),'Only --paid is supported');
 const root=fileURLToPath(new URL('../',import.meta.url));
@@ -19,22 +20,32 @@ const artifact=html.match(/app\.[a-f0-9]+\.js/)[0];
 const bundle=fs.readFileSync(root+'dist/'+artifact);
 const build=bundle.toString().match(/CT_MUSIC_BUILD_VERSION="([a-f0-9]+)"/)[1];
 let stage='public preflight',calls=0,browser;
-async function get(url,options={}){return fetch(url,{...options,signal:AbortSignal.timeout(20000),redirect:'error'});}
+async function get(url,options={}){return fetch(url,{signal:AbortSignal.timeout(20000),redirect:'error',...options});}
 try{
   for(const base of [origin,gateway]){
-    const response=await get(base+'/create');assert.equal(response.status,200);
+    stage='public HTML '+base;
+    let response=await get(base+'/create',{redirect:'manual'});
+    if(base===origin&&response.status===308){
+      assert.equal(response.headers.get('location'),'/create/');
+      response=await get(base+'/create/');
+    }
+    assert.equal(response.status,200);
     assert.equal((await response.text()).match(/app\.[a-f0-9]+\.js/)?.[0],artifact);
+    stage='public bundle '+base;
     const js=await get(base+'/'+artifact);assert.equal(js.status,200);
     assert(Buffer.from(await js.arrayBuffer()).equals(bundle),'public artifact differs from tested bytes');
   }
-  const access=await get(origin+'/api/music/chat/access');assert.equal(access.status,200);
+  stage='public chat access';
+  const access=await get(origin+'/api/music/chat/access',{headers:fetchMetadata});assert.equal(access.status,200);
   const info=await access.json();assert.equal(info.authenticated,false);
   assert.deepEqual(info.providers.map(p=>p.id).sort(),['anthropic','openai']);
   assert.match(access.headers.get('cache-control'),/no-store/);
   for(const [requestOrigin,status] of [[origin,401],['https://example.invalid',403]]){
-    const denied=await get(origin+'/api/music/chat',{method:'POST',headers:{Origin:requestOrigin,'Content-Type':'application/json'},body:'{}'});
+    stage='anonymous request denial';
+    const denied=await get(origin+'/api/music/chat',{method:'POST',headers:{...fetchMetadata,Origin:requestOrigin,'Content-Type':'application/json'},body:'{}'});
     assert.equal(denied.status,status);
   }
+  stage='presence count and socket';
   const count=await get(origin+'/api/presence/count');assert.equal(count.status,200);
   assert(Number.isFinite((await count.json()).listeners));
   await new Promise((resolve,reject)=>{
@@ -71,7 +82,11 @@ try{
     await page.getByRole('button',{name:'Settings',exact:true}).click();
     let password=execFileSync('security',['find-generic-password','-s','chiptunes-chat-owner','-w'],{encoding:'utf8',stdio:['ignore','pipe','pipe']}).trimEnd();
     await page.locator('.mw-owner-password').fill(password);password='';
+    const loginResponse=page.waitForResponse(r=>r.url()===origin+'/api/music/chat/access'&&r.request().method()==='POST');
     await page.locator('[data-action=chat-unlock]').click();
+    const login=await loginResponse;
+    console.log('Owner unlock HTTP '+login.status()+'.');
+    assert.equal(login.status(),200,'owner unlock denied');
     await page.waitForFunction(()=>document.querySelector('.mcui-status')?.textContent.startsWith('Unlocked.'));
     assert.equal(await page.locator('.mw-owner-password').inputValue(),'');
     const cookies=await context.cookies(origin);
