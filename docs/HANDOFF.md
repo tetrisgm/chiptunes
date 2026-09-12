@@ -3,7 +3,31 @@
 Plain, current working notes for whoever (or whatever) picks the project up
 next. Infrastructure and operations live outside this repository.
 
-## 2026-09-12 — Coordinated web release acceptance in progress
+## 2026-09-12 — Algorave web release live and verified
+
+Released on https://chiptunes.app/create/. Unified source/chart/visual stage,
+Tidal-inspired cycleV1 live-set guide, collapsible agent chat, portable visual
+programs and same-window audience output are now on the public web artifact.
+Current Worker: 3829addb-940b-41c1-bcca-3d9443ad0a28 (7ac2345).
+
+Final production acceptance passed: exact bytes on both hosts; same-origin
+access with real Fetch Metadata; anonymous/foreign-origin denial; listener count
+and real WebSocket ping/pong. Fresh Chromium used exactly TWO provider requests:
+OpenAI composed an eight-bar cycle track preserving the synthetic drum source,
+then Claude transposed only the bass. Both proposals left source/playback
+unchanged until explicit Apply, then activated on the running player. Other
+voices were unchanged by the scoped edit; exact Undo, save/reload without
+autoplay, secure host-only HttpOnly cookie, cleared password input and logout
+all passed. No model retry, microphone, user-saved project or new credential.
+
+Final native Safari private-window checks on the LIVE site visibly confirmed
+Music 64b20ba3ce16, the working locked-chat status (not unavailable), stopped
+entry, Cmd+Enter Run, the resulting chart, and code-plus-visuals fullscreen
+with changing rendered frames and its build label. Both test-only private
+Safari windows were closed afterward. Local two-display evidence is below.
+Remaining venue-only checks: actual projector-distance readability and acoustic
+listening. This does not promise rendering from a minimized/hidden document,
+an independent private editor window, or every macOS Spaces configuration.
 
 Web deployment is now live: Pages 39d9b6b2-1453-4af0-b40f-b24268a87481
 (source149217d), gateway dpl_Bvzo56cgkEC5xhCHYqQebyJxtWGf. CHAT_ORIGIN is
@@ -44,21 +68,20 @@ main-origin access and anonymous/foreign-origin denial, plus presence count and
 real WebSocket ping/pong. Explicit --paid uses a fresh browser context and
 synthetic music: at most two model requests, no retries, owner credential kept
 in memory, proposal/Apply, scoped variation, Undo, recovery and logout checks.
-No paid call or deployment has occurred at this checkpoint.
+The initial checkpoint was pre-deployment; the final results above supersede it.
 
-Root regression is running in ordered segments. Initial cold legacy Close
+Root regression ran in ordered segments. Initial cold legacy Close
 compound-state check failed while its silence check passed. Added state logging
 and --cold-only isolation without changing the assertion; standalone passed
 with hasDoc=false, open=false, calls=[enterCreate,playCreate], holding=true.
 Sync collected only one report during its initial timeout; standalone passed
 with 40 reports and about 1 ms corrected alignment. No runtime fix is claimed
-for either non-reproduced failure. Other suites continue serially, avoiding
+for either non-reproduced failure. Other suites ran serially, avoiding
 simultaneous browser/build work.
 
 Native preflight finds a second display (PHL 241B7Q, logical 1920x1080 at 60 Hz)
 alongside the Mac display. com.apple.spaces spans-displays is 1: separate Spaces
-are disabled. This setting is not changed by this product task. Actual native
-output and exact deployed build observations remain to be recorded.
+are disabled. This setting was not changed by this product task.
 
 Verification completed: all root test commands and posttest/unified aggregate
 passed across the ordered segments and the isolated reruns described above;

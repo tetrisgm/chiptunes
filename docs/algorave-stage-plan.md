@@ -321,8 +321,14 @@ saved projects are untouched.
   what this checkbox asks for. A SEPARATE output window or a second display is
   checkbox 4 below and is explicitly NOT claimed here -- background rendering
   still stops when document.hidden, so a popup would freeze behind the editor.
-- [ ] Verify the single renderer/output strategy under backgrounding and a second
+- [x] Verify the single renderer/output strategy under backgrounding and a second
   display; if a simple mirror freezes, fix ownership before claiming acceptance.
+  Native acceptance 2026-09-12: the same Safari output window was moved to the
+  PHL 241B7Q and fullscreened on Music 64b20ba3ce16. With System Settings focused,
+  captures over two minutes show new scene frames and advancing chart/playhead.
+  Separate Spaces was Off and left unchanged. This accepts visible external
+  output losing app focus, not a minimized/hidden document or a private editor
+  window. Actual projector-distance readability remains a venue check.
   STRATEGY DECIDED 2026-09-11, and the conditional clause turns out not to fire:
   ownership never needed fixing. There is exactly one visual session, the
   renderer's two 960x540 canvases are private buffers reaching the screen
@@ -506,8 +512,12 @@ physical display is not expressible in Playwright.
   Evidence boundary: this is Chromium, and it shows both surfaces live on one
   acknowledged clock -- not a pixel-level causal proof, not acoustic listening,
   and not Safari.
-- [ ] Run project, gateway and affected renderer/export/parity regressions;
+- [x] Run project, gateway and affected renderer/export/parity regressions;
   verify actual rendered layouts and native Safari with visible build IDs.
+  Completed 2026-09-12 in the ordered segments documented in HANDOFF.md;
+  parity 10/10 at minimum correlation 1.000000, gateway now 78/78 including
+  actual browser Fetch Metadata, worklet boundary green. Native local and
+  deployed Safari showed the exact build, Run and fullscreen code-plus-visuals.
   No single aggregate covers this. The sequence that actually does, established
   2026-09-11, is four invocations plus one environment variable:
 
@@ -532,9 +542,14 @@ physical display is not expressible in Playwright.
   invocations were used rather than claiming one uninterrupted green run. Note
   verify-chrome is the FIRST command after verify-sync, so a flake there skips
   the rest of that segment; re-run from the command after it.
-- [ ] Prepare the coordinated web release, then obtain the owner's separate
+- [x] Prepare the coordinated web release, then obtain the owner's separate
   deployment/configuration authorization and perform bounded real-provider and
   deployed native acceptance. No desktop/broadcast restart as a side effect.
+  Owner approved 2026-09-12. Pages/gateway share app.ad4d5a3cf0dd.js; canonical
+  CHAT_ORIGIN and the fixed-path Worker proxy are live. Both real providers,
+  explicit Apply, scoped notes, exact Undo/recovery/logout and deployed Safari
+  passed; exactly two model requests, no retries. Release/rollback IDs are in
+  HANDOFF.md. No desktop or broadcast deployment.
 
 Full Tidal/Hydra/Strudel compatibility, collaboration, arbitrary pane grids,
 camera/video inputs, node graphs, a preset marketplace and elaborate 3D/VJ mixing
