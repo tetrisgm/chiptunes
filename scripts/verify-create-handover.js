@@ -19,6 +19,7 @@ const { chromium } = require('playwright');
 const DIST = path.join(__dirname, '..', 'dist');
 const canonicalOnly = process.argv.includes('--canonical-only');
 const followingOnly = process.argv.includes('--following-only');
+const coldOnly = process.argv.includes('--cold-only');
 const wait = ms => new Promise(r => setTimeout(r, ms));
 let fail = 0;
 const ok = (c, m) => { console.log((c ? '  ok   ' : '  FAIL ') + m); if (!c) fail++; };
@@ -142,7 +143,7 @@ const SCENARIOS = {
   const b = await chromium.launch({ headless: true, args: ['--autoplay-policy=no-user-gesture-required'] });
 
   console.log('Artifact: ' + (fs.readFileSync(path.join(DIST,'index.html'),'utf8').match(/app\.[a-f0-9]+\.js/)||['unknown'])[0]);
-  for (const [name, setup] of canonicalOnly||followingOnly ? [] : Object.entries(SCENARIOS)) {
+  for (const [name, setup] of canonicalOnly||followingOnly||coldOnly ? [] : Object.entries(SCENARIOS)) {
     const p = await b.newPage({ viewport: { width: 1380, height: 900 } });
     const errs = [];
     p.on('pageerror', e => errs.push(String(e).slice(0, 120)));
@@ -246,13 +247,15 @@ const SCENARIOS = {
     await wait(4500);
     const started = await peak(p, 3000);
     ok(started < 0.02, 'cold legacy Close stays silent (' + started.toFixed(3) + ')');
-    ok(await p.evaluate(() => !Audio.currentDoc()&&!CT_CREATE.isOpen()&&!handoverTransport.includes('playScore')),
+    const coldClosed=await p.evaluate(()=>({hasDoc:!!Audio.currentDoc(),open:CT_CREATE.isOpen(),calls:handoverTransport,holding:Audio.isHolding(),paused:Audio.isPaused()}));
+    console.log('  cold close state: '+JSON.stringify(coldClosed));
+    ok(!coldClosed.hasDoc&&!coldClosed.open&&!coldClosed.calls.includes('playScore'),
       'cold legacy Close neither starts station nor leaves legacy editor open');
     await explicitListen(p,'cold compatibility editor');
     await p.close();
   }
 
-  if (!canonicalOnly) {
+  if (!canonicalOnly&&!coldOnly) {
     const p=await b.newPage({viewport:{width:1380,height:900}}),errs=[];
     p.on('pageerror',e=>errs.push(String(e).slice(0,140)));
     await p.goto(`http://127.0.0.1:${h.port}/create`,{waitUntil:'domcontentloaded'});
@@ -285,7 +288,7 @@ const SCENARIOS = {
 
   // Canonical entry owns a single workspace. Only explicit Listen hands back
   // station playback, whether entered cold or from a sounding station.
-  for (const cold of followingOnly?[]:[true, false]) {
+  for (const cold of followingOnly||coldOnly?[]:[true, false]) {
     const p = await b.newPage({ viewport: { width: 1380, height: 900 } });
     const errs = [];
     p.on('pageerror', e => errs.push(String(e).slice(0, 140)));

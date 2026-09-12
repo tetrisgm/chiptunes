@@ -3,6 +3,65 @@
 Plain, current working notes for whoever (or whatever) picks the project up
 next. Infrastructure and operations live outside this repository.
 
+## 2026-09-12 — Coordinated web release acceptance in progress
+
+Owner's “do everything you need” authorizes the remaining web-only release and
+a bounded production chat smoke test. No desktop/broadcast deployment or shared
+infrastructure change. Started clean on main at 12a4c9f; pull was up to date.
+The unchanged runtime artifact is app.ad4d5a3cf0dd.js / Music 64b20ba3ce16.
+
+Production before this release: Pages deployment
+0df515f9-0935-4213-82f5-bc8da4b1d5d0 (app.dd33d7943154.js), Vercel
+dpl_3r4kaQUHgB1LNmwYcWbYnMQ5pRnP, radio-presence Worker version
+f2289a99-f4bb-4ea0-9698-9f2f20280956. Main-origin chat access returns 404;
+the compatibility gateway returns locked access with both existing providers.
+No new keys/accounts/database are needed. Canonical CHAT_ORIGIN and the already
+implemented fixed-path Worker proxy must ship together with the shared artifact.
+
+Added a manual scripts/verify-web-release.mjs acceptance command, never wired
+into tests or automation. Default verifies both public artifact byte streams,
+main-origin access and anonymous/foreign-origin denial, plus presence count and
+real WebSocket ping/pong. Explicit --paid uses a fresh browser context and
+synthetic music: at most two model requests, no retries, owner credential kept
+in memory, proposal/Apply, scoped variation, Undo, recovery and logout checks.
+No paid call or deployment has occurred at this checkpoint.
+
+Root regression is running in ordered segments. Initial cold legacy Close
+compound-state check failed while its silence check passed. Added state logging
+and --cold-only isolation without changing the assertion; standalone passed
+with hasDoc=false, open=false, calls=[enterCreate,playCreate], holding=true.
+Sync collected only one report during its initial timeout; standalone passed
+with 40 reports and about 1 ms corrected alignment. No runtime fix is claimed
+for either non-reproduced failure. Other suites continue serially, avoiding
+simultaneous browser/build work.
+
+Native preflight finds a second display (PHL 241B7Q, logical 1920x1080 at 60 Hz)
+alongside the Mac display. com.apple.spaces spans-displays is 1: separate Spaces
+are disabled. This setting is not changed by this product task. Actual native
+output and exact deployed build observations remain to be recorded.
+
+Verification completed: all root test commands and posttest/unified aggregate
+passed across the ordered segments and the isolated reruns described above;
+this is not one uninterrupted npm test pass. Render parity passed 10/10 with
+minimum correlation 1.000000, zero sample lag and maximum RMS delta 0.175 dB.
+LC_ALL=C npm run test:music-chat-web passed the provider UI and all 77 gateway
+tests. Worklet boundary passed. prepare-studio copied 25 generated public files,
+Next production build passed, and Worker --dry-run --keep-vars passed with the
+existing PRESENCE binding. Vercel upload dry-run: 230 allowlisted files,
+5,650,133 bytes, zero private/env/library files.
+
+Local native Safari private-window acceptance on Music 64b20ba3ce16 visibly
+confirmed stopped entry, Cmd+Enter Run of an eight-bar cycleV1 source, live
+chart and scene, and code-plus-visuals fullscreen retaining both halves and the
+on-screen build label. Safari's Window > Move to PHL 241B7Q moved only this
+test window; fullscreen was granted there too. System Settings independently
+confirms separate Spaces is Off. No saved user project is used or overwritten.
+With System Settings focused after moving the output to the external monitor,
+native Safari window captures from 14:39:50–14:41:52 UTC show distinct rendered
+scene frames and advancing chart/playhead positions, still carrying the exact
+build label. This verifies native app-focus loss, not a minimized/hidden output,
+all Spaces configurations, acoustic quality or legibility at projector distance.
+
 ## 2026-09-11 — Output strategy decided; small fixes (local checkpoint)
 
 Phase E checkbox 4's strategy is settled and its conditional clause turns out
