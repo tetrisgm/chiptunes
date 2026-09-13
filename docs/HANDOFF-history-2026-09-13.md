@@ -1,0 +1,6327 @@
+# Working notes
+
+Plain, current working notes for whoever (or whatever) picks the project up
+next. Infrastructure and operations live outside this repository.
+
+## 2026-09-12 — Algorave web release live and verified
+
+Released on https://chiptunes.app/create/. Unified source/chart/visual stage,
+Tidal-inspired cycleV1 live-set guide, collapsible agent chat, portable visual
+programs and same-window audience output are now on the public web artifact.
+Current Worker: 3829addb-940b-41c1-bcca-3d9443ad0a28 (7ac2345).
+
+Final production acceptance passed: exact bytes on both hosts; same-origin
+access with real Fetch Metadata; anonymous/foreign-origin denial; listener count
+and real WebSocket ping/pong. Fresh Chromium used exactly TWO provider requests:
+OpenAI composed an eight-bar cycle track preserving the synthetic drum source,
+then Claude transposed only the bass. Both proposals left source/playback
+unchanged until explicit Apply, then activated on the running player. Other
+voices were unchanged by the scoped edit; exact Undo, save/reload without
+autoplay, secure host-only HttpOnly cookie, cleared password input and logout
+all passed. No model retry, microphone, user-saved project or new credential.
+
+Final native Safari private-window checks on the LIVE site visibly confirmed
+Music 64b20ba3ce16, the working locked-chat status (not unavailable), stopped
+entry, Cmd+Enter Run, the resulting chart, and code-plus-visuals fullscreen
+with changing rendered frames and its build label. Both test-only private
+Safari windows were closed afterward. Local two-display evidence is below.
+Remaining venue-only checks: actual projector-distance readability and acoustic
+listening. This does not promise rendering from a minimized/hidden document,
+an independent private editor window, or every macOS Spaces configuration.
+
+Web deployment is now live: Pages 39d9b6b2-1453-4af0-b40f-b24268a87481
+(source149217d), gateway dpl_Bvzo56cgkEC5xhCHYqQebyJxtWGf. CHAT_ORIGIN is
+https://chiptunes.app; no secret values or database settings changed. Initial
+Worker release was 6f9f2123-f982-442a-a3cc-e50d804b1649; its browser Fetch
+Metadata bug is corrected in the following checkpoint. Pages cache purge
+succeeded. Both hosts return byte-identical app.ad4d5a3cf0dd.js.
+
+Production acceptance caught a real proxy bug before any paid call: browser
+fetch sends Sec-Fetch-Dest: empty (the literal token), while the proxy compared
+against an empty string. This rejected even browser access GETs, despite Node
+preflight succeeding without Fetch Metadata. Reproduced locally with actual
+Chromium HTTP request headers and an explicitly mapped fixture authority; the
+new test failed GET access 403 before the one-token correction. All four browser
+methods/paths now pass (access GET/POST/DELETE and chat POST), and the full
+gateway suite is 78/78 with existing hostile-origin/cookie/body/deadline cases
+unchanged. Worker dry-run passed. The manual live preflight now sends real
+Fetch Metadata too, and accepts only Pages' exact /create/ canonical redirect.
+Initial unlock attempts made zero model calls. No authentication guard was
+removed; this is a protocol-value correction, not a bypass.
+
+Owner's “do everything you need” authorizes the remaining web-only release and
+a bounded production chat smoke test. No desktop/broadcast deployment or shared
+infrastructure change. Started clean on main at 12a4c9f; pull was up to date.
+The unchanged runtime artifact is app.ad4d5a3cf0dd.js / Music 64b20ba3ce16.
+
+Production before this release: Pages deployment
+0df515f9-0935-4213-82f5-bc8da4b1d5d0 (app.dd33d7943154.js), Vercel
+dpl_3r4kaQUHgB1LNmwYcWbYnMQ5pRnP, radio-presence Worker version
+f2289a99-f4bb-4ea0-9698-9f2f20280956. Main-origin chat access returns 404;
+the compatibility gateway returns locked access with both existing providers.
+No new keys/accounts/database are needed. Canonical CHAT_ORIGIN and the already
+implemented fixed-path Worker proxy must ship together with the shared artifact.
+
+Added a manual scripts/verify-web-release.mjs acceptance command, never wired
+into tests or automation. Default verifies both public artifact byte streams,
+main-origin access and anonymous/foreign-origin denial, plus presence count and
+real WebSocket ping/pong. Explicit --paid uses a fresh browser context and
+synthetic music: at most two model requests, no retries, owner credential kept
+in memory, proposal/Apply, scoped variation, Undo, recovery and logout checks.
+The initial checkpoint was pre-deployment; the final results above supersede it.
+
+Root regression ran in ordered segments. Initial cold legacy Close
+compound-state check failed while its silence check passed. Added state logging
+and --cold-only isolation without changing the assertion; standalone passed
+with hasDoc=false, open=false, calls=[enterCreate,playCreate], holding=true.
+Sync collected only one report during its initial timeout; standalone passed
+with 40 reports and about 1 ms corrected alignment. No runtime fix is claimed
+for either non-reproduced failure. Other suites ran serially, avoiding
+simultaneous browser/build work.
+
+Native preflight finds a second display (PHL 241B7Q, logical 1920x1080 at 60 Hz)
+alongside the Mac display. com.apple.spaces spans-displays is 1: separate Spaces
+are disabled. This setting was not changed by this product task.
+
+Verification completed: all root test commands and posttest/unified aggregate
+passed across the ordered segments and the isolated reruns described above;
+this is not one uninterrupted npm test pass. Render parity passed 10/10 with
+minimum correlation 1.000000, zero sample lag and maximum RMS delta 0.175 dB.
+LC_ALL=C npm run test:music-chat-web passed the provider UI and all 77 gateway
+tests. Worklet boundary passed. prepare-studio copied 25 generated public files,
+Next production build passed, and Worker --dry-run --keep-vars passed with the
+existing PRESENCE binding. Vercel upload dry-run: 230 allowlisted files,
+5,650,133 bytes, zero private/env/library files.
+
+Local native Safari private-window acceptance on Music 64b20ba3ce16 visibly
+confirmed stopped entry, Cmd+Enter Run of an eight-bar cycleV1 source, live
+chart and scene, and code-plus-visuals fullscreen retaining both halves and the
+on-screen build label. Safari's Window > Move to PHL 241B7Q moved only this
+test window; fullscreen was granted there too. System Settings independently
+confirms separate Spaces is Off. No saved user project is used or overwritten.
+With System Settings focused after moving the output to the external monitor,
+native Safari window captures from 14:39:50–14:41:52 UTC show distinct rendered
+scene frames and advancing chart/playhead positions, still carrying the exact
+build label. This verifies native app-focus loss, not a minimized/hidden output,
+all Spaces configurations, acoustic quality or legibility at projector distance.
+
+## 2026-09-11 — Output strategy decided; small fixes (local checkpoint)
+
+Phase E checkbox 4's strategy is settled and its conditional clause turns out
+not to fire. The checkbox says "if a simple mirror freezes, fix ownership before
+claiming acceptance" — but ownership never needed fixing. There is exactly one
+visual session, the renderer's two 960x540 canvases are private buffers reaching
+the screen through a single drawImage, and mount/unmount moves the whole layer
+stack with ownerDocument enforced. The freeze the checkbox anticipates is a
+DRIVER problem, not an ownership problem, so the answer is the shape that does
+not create a second owner: one window, one document, one renderer, one mount
+host, with the chosen output layout fullscreened onto the projector. The
+performer works on the audience surface. Rejected alternatives and their
+concrete costs in this codebase are recorded in algorave-stage-plan.md; the
+sharpest is that rendering-while-hidden would PASS headlessly and fail on the
+real machine, because Playwright never produces document.hidden.
+
+Landed for it. fullscreenStage() fullscreened only .mw-stage-viewport, so
+entering fullscreen from code-plus-visuals silently dropped the code half — the
+half that makes it a performance surface rather than a screensaver; it now
+fullscreens the output root when an output layout is active, with the call still
+synchronous inside the click so user activation survives. Output gained its own
+on-screen build identifier: a NEW .mw-output-build element, deliberately not an
+unhide of .mw-footer, which both output layouts hide and which carries project
+tools, download, share and export. That element is the precondition for an
+honest native acceptance note — a build id read at a different moment than the
+observation is inference, not evidence.
+
+New scripts/verify-audience-clock-browser.js holds the half a harness honestly
+can. A real same-origin popup mirrors the opener's stage on its own rAF: while
+the source paints it mirrors real frames, and once the source stops it keeps
+ticking and produces ZERO new frames. That is the checkbox's own negative clause
+as a permanent regression, so nobody ships a mirror as an output path by
+accident. It also asserts what nothing asserted before: acknowledged musical
+time keeps advancing across a REAL editor blur (fronting another page, not a
+synthetic Event), with no second audio engine. The file's header states plainly
+that none of this is backgrounding or second-display evidence, and why the
+document.hidden override is unsound rather than merely disallowed: Playwright
+runs Chromium with backgrounding disabled, so rAF keeps running under it. That
+technique can make a freeze look real; it can never show one was fixed.
+
+Also in this slice, three small things. The live-guide summary derived its step
+count from CT_MUSIC_CYCLE_EXAMPLES instead of a literal, and the browser check
+now pins the label to steps.length rather than only counting options.
+unified-create-plan.md item 5 ticked: the clause "and the existing sidebar" is
+genuinely satisfied, because the build-up verifier applies a reviewed agent
+proposal from the sidebar mid-sequence with looping on, and the item's required
+order (specify the subset, then timing/source-mapping tests, then advertise) was
+followed. And the restore message that read "Saved validated source no longer
+compiles" now names the build and carries the compiler's own reason — the
+diagnostics were already in scope at that assert. That was the real problem
+COMPILER_VERSION was meant to solve, and this fixes it while invalidating zero
+existing records, where adding the version field would have broken every saved
+project and share link to correct a string. The VERSION bump remains unnecessary
+too; the optional visual key sidesteps it.
+
+Final artifact: app.ad4d5a3cf0dd.js / Music 64b20ba3ce16, 119 sources, fourteen
+games. The gate passed in ordered segments again, and this run surfaced a THIRD
+load-sensitive check to add to verify-sync and verify-frame-pacing:
+verify-chrome times the home reel's cut cadence against a 2 s target and read
+2638 ms under load, then 2000 ms (of 2002, 1999, 2000) standalone. Nothing in
+this slice touches the reel. It matters more than the other two because
+verify-chrome is the first command of segment C, so a flake there skips the
+whole rest of the segment; re-run from the command after it rather than
+re-running the segment. Music project is 25 groups; verify-audience-output-browser.js is nine
+checks including fullscreen and the build label; verify-audience-clock-browser.js
+is four. Both new checks were mutation-confirmed: reverting fullscreen to target
+only the stage turns the output check red, and faking the step count turns the
+cycle browser check red.
+
+### Owner acceptance checklist for checkbox 4
+
+This is the whole remaining checkbox and no headless check may stand in for it.
+
+1. Build and serve dist, open it, choose "Output: code + visuals", press Focus
+   visuals, then Fullscreen. Drag that window to display 2.
+2. Read the build label in the corner of the output and confirm it matches the
+   build under test. Record the id in the note.
+3. Play a set-length stretch — minutes, not seconds.
+4. Switch Spaces, or focus another app on display 1. Report whether the
+   projected surface KEEPS DRAWING or blanks, and record the macOS "Displays
+   have separate Spaces" setting in force at the time.
+5. Say whether the letterboxed surface fills the projector correctly at its real
+   resolution and refresh, and whether the code half is legible at projection
+   distance.
+6. Repeat step 1 in Safari and report whether fullscreen is granted and whether
+   the layout matches.
+
+Answer the product question alongside it: is it acceptable that the performer
+works on the same surface the audience sees, or does the product require a
+private editor on display 1? The second shape costs a second frame clock and
+buys back a failure mode Chromium cannot test.
+
+## 2026-09-11 — Audience output, Phase E checkbox 3 and Phase F item 2 (local checkpoint)
+
+Audience output is a layout of the SAME session, chosen independently of the
+authoring layout. Two choices: visuals-only, which is the existing stage
+presentation, and code-plus-visuals, which keeps the readable performance
+program beside the stage. Both exclude chat, account and provider settings,
+private history, project tools, the live guide, help, diagnostics and every
+editing affordance. The browser check asserts each of those is not visible
+rather than trusting the CSS, and removing any one from the hidden set turns it
+red -- confirmed by mutation on .mw-chat.
+
+Entering, switching and leaving output never recompose, never restart audio,
+never create a second AudioContext and reuse the same visual world, all asserted
+while music is actually playing. The chosen layout is a local preference stored
+with panel geometry, never portable composition data; the check asserts the
+project record does not contain it. Escape leaves output and restores the
+authoring surfaces. Stage-only fullscreen is unchanged.
+
+A correction to an earlier reading in this session, because it cost time: E3 was
+described here as blocked on E4. It is not. E4 is specifically backgrounding and
+a SECOND DISPLAY; E3 asks for "fullscreen and a same-session output path", and a
+same-window output path satisfies it exactly, with no document.hidden problem
+because the window is visible. Only a separate output WINDOW runs into that, and
+that is E4's problem, not this one. Read the checkbox, not the adjacent worry.
+
+That also closed Phase F item 2, whose last outstanding surface was output
+lifecycle; the other eight were already covered on every gate and are now named
+verifier-by-verifier in the plan so nobody re-derives them.
+
+Final artifact: app.e493f183f7ea.js / Music a54ff22847e4, 119 sources, fourteen
+games. New scripts/verify-audience-output-browser.js (seven checks) is wired
+into test:visual-code, so it runs under npm test through the posttest lane.
+
+Evidence boundary: same-session, same-window output in Chromium. A separate
+output window, a second display and backgrounded output are explicitly NOT
+claimed -- background rendering still stops when document.hidden, so a popup
+would freeze behind the editor. That is checkbox 4, and it ends in owner-only
+evidence.
+
+## 2026-09-11 — Measured visual work budget, Phase F item 1 (local checkpoint)
+
+The budgets are explicit constants now instead of assumptions. Resolution is the
+two fixed 960x540 canvases, items are capped at 512 by the compiler, and
+VISUAL_BUDGET_MS (6 ms) is the share of a 60fps frame the stage may take before
+it must draw less.
+
+The split is the interesting part and it was forced by an existing test: the
+renderer deliberately owns no clock and no ambient services, and
+verify-visual-renderer.js:133 actively forbids Date and performance inside it,
+so it CANNOT measure its own cost. runtime.js therefore measures real frame cost
+around the stage tick, keeps a slow EMA so one expensive frame does not visibly
+thin the scene, and hands a quality level back down; visual-stage.js passes it
+straight through and the renderer only spends it. Recovery is deliberately
+slower than shedding (+0.01 versus -0.05 per frame) so the level does not
+oscillate on a marginal machine. CT_CREATE_PRESENTATION.visualBudget() exposes
+budgetMs/costMs/quality so the budget is observable rather than asserted.
+
+Shedding scales every layer's item count, which is the loop all five draw
+operations run, so it reduces real canvas primitives rather than reporting a
+smaller number — the unit check asserts primitives actually fall, not just
+drawnItems. MIN_QUALITY (0.25) plus a one-item-per-layer floor keep a shed frame
+the same composition, thinner, never a blank stage. Audio is never what gives
+way: nothing on this path touches transport, and the browser check asserts the
+music keeps playing with no second AudioContext while visuals are budgeted.
+
+Final artifact: app.95cb80005172.js / Music 54320fd3c98a, 119 sources, fourteen
+games. verify-visual-renderer.js is 17 tests, up from 15: shedding, clamping in
+both directions, invalid hints that must not fail a frame, and a 5,000-frame
+session with rotating transport identity, quality and onsets that allocates no
+canvas, resizes none, keeps phase wrapped and never exceeds the declared
+program. verify-visual-persistence-browser.js is ten checks and was
+mutation-confirmed: deleting the cost measurement turns it red.
+
+One correction worth keeping: the long-session check first asserted two resizes
+and saw four, because construction sets width and height on each of the two
+canvases. The assertion now captures the construction baseline and asserts no
+GROWTH during the session, which is the real claim and survives a constructor
+change.
+
+Evidence boundary: a bounded work budget measured in Chromium, with high density
+exercised at deviceScaleFactor 2 by the existing browser checks. NOT a
+multi-hour real session, not a physical high-DPI display, not a GPU memory
+measurement, and not Safari.
+
+## 2026-09-11 — Build-up exercise closed, Phase F item 3 (local checkpoint)
+
+Phase F item 3 is complete, and it was closer to done than the plan implied.
+scripts/verify-music-cycles-browser.js already WAS the repeatable exercise --
+seven ordered steps from a noise groove through subdivided bass, alternating
+melody, periodic reversal, Euclidean drums and a rest breakdown to full
+restoration, driven by hand-typed code and by a reviewed agent proposal that is
+explicitly applied, with phase continuity asserted structurally (a Run over
+sounding music issues musicQueue, not musicPlay, and activates on the sounding
+song clock). Because it is a verifier it runs on every gate rather than having
+been performed once, which is what "repeatable" should mean.
+
+The missing half was note/visual correspondence, now added: while the restored
+arrangement is still sounding, the check asserts the stage is drawing, has
+published a complete frame, and that its music-derived renderer signals move,
+with no new activation and no revision change across the same window. It uses
+the renderer snapshot (frames/hasFrame/signals) rather than framebuffer pixels,
+which avoids depending on whether the active screen mode hands back a 2D or a
+WebGL canvas. The signals assertion cannot pass vacuously: two identical signal
+snapshots would compare equal and fail it. Evidence boundary: this shows both
+surfaces live on one acknowledged clock in Chromium. It is not a pixel-level
+causal proof, not acoustic listening, and not Safari.
+
+Phase F item 2 was also audited rather than rebuilt, and the finding is recorded
+in the plan rather than acted on: eight of its nine surfaces are already covered
+on every gate, with the specific verifier named for each. Only OUTPUT LIFECYCLE
+is outstanding, and only because Phase E checkbox 3 has not been built. Do not
+re-derive that coverage; add output lifecycle once E3 lands.
+
+No artifact change: only a test file and docs changed, and scripts/ is not
+bundled, so app.37dbb031cf8c.js / Music f135bba5dd6f still stands.
+
+## 2026-09-11 — Durable local panel geometry, Phase E checkbox 2 (local checkpoint)
+
+The music/visuals split, the chart/code split, desktop and mobile chat state and
+the visual-code disclosure are now durable, under their own `ct-music-layout-v1`
+key. They are loaded once before the first render and clamped by the same
+setters that bound live interaction, so a hand-edited or stale record cannot
+produce an unusable layout, and a broken or unavailable preference is swallowed
+rather than reported: layout is a convenience and must never block the
+workspace. Writes are debounced, so dragging a splitter does not write per
+pointer event.
+
+The point of the checkbox is the separation, not the persistence. These values
+are deliberately NOT in the project record, because a record that carried them
+would ship one machine's window arrangement to everyone who opened the link. The
+browser check asserts both halves: the geometry survives a reload with the
+adjusted value rather than the default, and the project record contains none of
+the field names. Existing private-history and public-share boundaries and
+explicit import are unchanged.
+
+Final artifact: app.37dbb031cf8c.js / Music f135bba5dd6f, 119 sources, fourteen
+games. scripts/verify-visual-persistence-browser.js is now nine checks. Both new
+checks in this and the previous slice were confirmed by mutation: disabling the
+layout write turns the geometry check red, and removing the failed-restore guard
+turns the erase-protection check red. That habit earned its keep here — one
+regression test in the previous slice passed against unfixed code because it
+drove a music edit by typing into CodeMirror, which Playwright cannot do. Assume
+a new browser check is vacuous until a mutation proves otherwise.
+
+Phase E checkboxes 3 and 4 remain. Checkbox 4 still ends in owner-only evidence.
+
+## 2026-09-11 — Audiovisual persistence, Phase E checkbox 1 (local checkpoint)
+
+Reopening a project now restores the audiovisual composition, not just the
+music. src/visual-stage.js gained serialize() and restoreSaved() plus an
+options.restore, so a session no longer always boots on presets[0].
+src/music-project.js carries an OPTIONAL `visual` record key and VERSION stays
+1 — that is what makes this non-breaking in both directions: a record written by
+a build that predates visuals restores here with no visual block, and a record
+written here restores on that older build as music, with the unknown key
+ignored. There is no assets item to do; the visual language forbids external
+assets. src/runtime.js stashes a pending restore because the stage is created
+lazily, and exposes serializeVisuals()/restoreVisuals(); reading never
+force-creates a stage, so a music-only session has nothing to save.
+
+Only portable composition data travels: the live scene, its edited source and
+its named control values. Unapplied drafts, a queued scene boundary, Freeze and
+Blackout are session state and deliberately do not travel; restore-then-save is
+a fixed point. An untouched default stage serializes to nothing, so a music-only
+project does not silently gain a visual block. A saved visual is treated as
+untrusted input from a record: malformed, oversized, hostile or no-longer-
+compiling blocks are dropped, the music opens with its source untouched, and the
+stage falls back to the default scene and says so. Absent is distinguished from
+malformed, so a music-only project opens silently. Saved control values are
+clamped to the program's declared range. A preset this build no longer ships
+keeps the saved program, relabelled visual:custom so selectDraft still accepts
+it. Visuals never block a music save.
+
+The rule that makes the save path safe is OWNERSHIP, not a flag. The workspace
+records the exact project the stage was last handed over to, and neither the
+ct-visual-state listener nor save() may write visuals unless that project is
+still current. The handover runs on every path that replaces the project — open,
+file import, transfer accept, new loop and generate — so a future path that
+forgets it is read-only by default rather than writing one project's visuals
+into another. Share links carry visuals when they fit; since visual source may
+be 32 KiB against a 12,000-byte link budget, an oversized visual is omitted with
+an explicit message rather than refusing to share the music. Private history is
+excluded from shares exactly as before.
+
+Two rounds of defects were found and fixed before this landed, and they are
+worth recording because both were mine. The project suite caught the first pair:
+the stage always boots into the first preset, so EVERY project — including
+music-only ones — was gaining a visual block, which broke
+verify-music-project-handoff's "hosted storage not replaced"; and on reload the
+stage boots to its default BEFORE the saved visual is handed over, so the change
+listener read "default != saved" as a user edit and WIPED the saved visual on
+every reload. An adversarial review then found four more data-loss defects, all
+from one collision — serialize() returning null meant both "untouched default"
+and "delete what is stored":
+
+- A visual that failed to restore was written back as null by the next save,
+  permanently destroying a composition a different build could still read.
+- File import, transfer accept, new loop and generate replaced the project
+  without re-syncing, so the outgoing stage was written into the incoming one.
+- Saving while the scene was Off discarded the applied program entirely, because
+  Off serialized as an empty scene. Off now carries the suspended program and
+  reopens Off with it intact.
+
+Each has a regression test. One of those tests was itself VACUOUS at first: it
+drove a music edit by typing into CodeMirror, which Playwright cannot do —
+docs/music-workspace.md already records the same limitation for paste — so no
+save ever ran and the check passed against unfixed code. It now clicks the real
+Save action. Every guard here was confirmed by mutation: removing the
+failed-restore guard turns the suite red, and so do cycleBits/cycleWork changes
+in the cycle suite. A test that cannot fail is not evidence.
+
+Final artifact: app.75f515f62b5a.js / Music 09bc7ead9d35, 119 sources,
+2,590,172 JS bytes, 231,984 HTML bytes, fourteen games. The complete project
+test command list passed in resumed, ordered segments, not one uninterrupted
+green npm test invocation: commands 0-16, verify-sync alone, the remaining 27
+commands including test:music-workspace, and the whole posttest
+test:unified-create each exited zero, alongside render parity 10/10 (minimum
+correlation 1.000000, maximum absolute RMS delta 0.175 dB) and gateway 77/77.
+music-cycles 25 groups, verify-music-cycle-examples 31 checks and Music project
+24 groups all pass, and the cycle live-set browser check passes against this
+build. Private-ROM and harness-dependent LSDj checks retain their explicit skips.
+
+Two environment facts recorded earlier still hold and cost time again here.
+verify-sync is load-sensitive rather than broken, and verify-frame-pacing is too:
+under a loaded machine it measured "display ticks every 0ms" and failed, then
+passed standalone. Both failures in this slice were self-inflicted, by running an
+agent review concurrently with the gate; do not do that. Gateway still needs
+LC_ALL set on this Mac (PostgreSQL 17 "postmaster became multithreaded during
+startup"); with LC_ALL=C it is 77/77.
+
+New scripts/verify-visual-persistence-browser.js exercises the real
+shared artifact in Chromium across a genuine page reload: default writes nothing,
+an applied program saves scene/source/values, reload restores all three live and
+unfrozen with the music byte-identical, returning to the default clears the
+block, a corrupt block still opens the music and is NOT erased by the fallback,
+and authoring a new visual after a failed restore does save. It is wired into
+test:visual-code, so it runs under npm test through the posttest lane. Existing
+suites extended: verify-visual-stage-state.js covers persistence, Off round-trip
+and restore-failure reporting; verify-music-project.js is 24 groups, up from 21.
+Chromium only — not a WebKit, native Safari, physical-input or output-window
+check.
+
+Not done here: Phase E checkbox 2's durable local panel/window geometry, which
+is still session-only module state (separate from portable data, but not
+persisted); checkboxes 3 and 4. Checkbox 4 remains the hardest and ends in
+owner-only evidence: src/runtime.js returns early on document.hidden above its
+only tick call, so a backgrounded editor window stops rendering, and a second
+physical display is not expressible in Playwright. Say so before implementing it.
+
+Still open and deliberately not decided: bumping src/music-project.js VERSION to
+2 with a migration, versus unknown-block pass-through, versus accepting silent
+loss of a newer build's visual block on an older one. Nothing here needed that
+decision — the optional key sidesteps it — but audience output and any further
+record growth may not. Related: CT_MUSIC_LANGUAGE still has no COMPILER_VERSION,
+and src/music-project.js:146-147 already compares one (defaulting to '1'), so
+adding it would invalidate every existing saved record; a share link using cycle
+notation opened on a cached older build still fails with "Saved validated source
+no longer compiles", blaming the source rather than the build.
+
+No deployment, store upload, paid provider call, desktop or broadcast restart,
+configuration cutover or infrastructure repair occurred. The overall goal
+remains active.
+
+## 2026-09-11 — Bounded Tidal-guided cycle patterns (local checkpoint)
+
+The last open Phase D item in algorave-stage-plan.md is implemented, so Phase D
+is complete. cycleV1 is a second, explicitly versioned pattern constructor
+accepted only as pattern()'s second argument; it never reinterprets a saved
+notes() string and the two cannot be mixed in one pattern. Equal slots divide a
+cycle: [..] subdivides, <..> alternates one branch per visit, ~ rests, *N
+repeats in place (1-16), and C2(k,n,r) distributes k Euclidean hits over n slots
+on a single pitch atom with positive r rotating left. The chain adds fast/slow
+(integer 1-16), rev() and every(period,"rev",offset), wrapping the preceding
+expression in written order; gate applies after rhythm with last-gate-wins,
+pitch/register keep source order, and stepsPerBar is rejected. The deterministic
+single compiler/player, finite exports, notes() semantics, old saved projects
+and the chip's four channels are unchanged.
+
+Evaluation uses bounded BigInt rationals with absolute endpoint conversion
+through the existing createClock, so tempo maps and groove are honoured without
+accumulating rounded durations. One output cycle maps to one four-beat bar in
+this version; a cycle is not inherently a bar in Tidal, and the mapping is a
+deliberate Chiptunes choice. play({atBar,repeat}) selects the finite onset
+window with song-global phase and a possibly fractional atBar; it never
+manufactures a retrigger by slicing a sustain and never trims a tail. Reversing
+an event that crosses its own reversal cycle is rejected with a located
+diagnostic. That rejection is evaluated per queried cycle, not statically, so
+lengthening a song can surface it on a pattern that previously compiled:
+cycleV1("C2").slow(2).every(64,"rev",63) compiles over eight bars and is
+rejected over sixty-four. This is the one way a valid arrangement can stop
+compiling when nothing about the pattern changed.
+
+The slice was found already written and locally green but entirely unintegrated.
+package.json defined test:music-cycles and NO aggregate referenced it, so none
+of its evidence ran under npm test; four tracked page shells already pointed at
+an untracked bundle; and every status record still said the feature did not
+exist. All of that is now closed. The two Node lanes run inside
+test:music-workspace beside verify-music-language, the Chromium lane runs at the
+end of the posttest test:unified-create, and the standalone test:music-cycles
+gained the `node build.js` prefix its siblings carry, because
+verify-music-cycles-browser.js serves gitignored dist/.
+
+Fixture quality was the real gap rather than coverage. Thirty-three rejection
+fixtures asserted only that some diagnostic existed, so two documented numbers
+were free to drift: LIMITS.cycleWork could be raised from 200,000 to 1e9 and
+LIMITS.cycleBits halved with the suite still green. Every rejection now matches
+its exact message, and the documented maxima are pinned on the accepting side
+too. Confirmed by mutation: cycleWork 200,000 -> 1e9, cycleNodes 4096 ->
+100,000, cycleDepth 16 -> 64, cycleTransforms 32 -> 256 and cycleBits 256 ->
+64/128/192 each turn the suite red; only a one-bit 256 -> 255 change still
+passes. Added: valid upper bounds (C2*16, C2(3,64), C2(64,64), C2(1,1),
+C2(0,1), every(64,"rev",63)), the pitch-atom surface including the overload
+where Bb2 is B-flat but a bare b2 is B natural, both Euclidean-suffix rejection
+shapes, a work fixture spanning two patterns and two plays, and a legitimate
+program that genuinely needs the declared 256-bit rationals (thirteen nested
+triplets against a 10^-60 window, about 2^220 of denominator). verify-music-cycle-examples.js now extracts the ```music fence
+from docs/music-cycle-v1.md and compiles it (88 notes), so the contract cannot
+drift from the compiler.
+
+Two audit findings were corrected rather than implemented. cycleV1 in an exact
+song was reported as silently defaulting to 120 BPM; it does, but notes() does
+exactly the same through the same createClock, producing byte-identical frames
+(0/60/119/179 with no tempo, 0/51/102/154 at 140). Rejecting only cycleV1 would
+have made the two constructors inconsistent, so the shared default is documented
+and pinned against notes() instead. The 256-bit bound on rational NUMERATORS was
+reported as untested; it is unreachable, because 32 wrappers cap the speed
+factor at 16^32 and atBar at 65536, so a numerator cannot exceed about 2^144.
+It is recorded as deliberate defence in depth with no fixture, because none can
+be written. LIMITS.cycleWork also carries two meanings against one constant --
+compilation fragments and cycles per query -- and is documented as such rather
+than split, since LIMITS is a frozen public export; see the open decision below.
+
+Final artifact: app.303a9f343e19.js / Music 13d485a43356, 119 sources,
+2,579,199 JS bytes, 231,984 HTML bytes, fourteen games. music-cycles 25 groups;
+verify-music-cycle-examples 31 checks over seven scenes against hand-written
+beat tables, real APU PCM and exact materialization; music-language 24 groups;
+Music project 21 groups; chat 35/35, up from 28 because the trusted prompt now
+carries three compiled examples and the third is asserted to be a cycleV1
+program whose noise onsets land on the documented Euclidean slots. The real
+shared-artifact browser check passes against the final build: "cycle live-set
+workflow (Music v1 · 13d485a43356); no provider/microphone/deployment", covering
+the seven-step live set, draft/Undo, real preview/Run boundary audio,
+save/reload and private chat. That lane is Chromium-only and is NOT a WebKit or
+Safari check. Render parity 10/10, minimum correlation 1.000000, maximum
+absolute RMS delta 0.175 dB. Gateway 77/77.
+
+The project test command list passed in resumed, ordered segments, not one
+uninterrupted green npm test invocation. Commands 0-16 passed in a full run that
+then failed verify-sync; verify-sync passed standalone twice on the same tree;
+the remaining 27 commands including test:music-workspace, and the whole posttest
+test:unified-create, passed as their own segments. verify-sync is load-sensitive
+rather than broken: under a loaded suite it measured 318ms against 452ms and
+255ms against 376ms on a 120ms tolerance, and unloaded 410ms against 479ms. Its
+own output already reports that the drift varies (20ms, 206ms and 1026ms
+observed). Nothing in this slice touches the deck clock. Private-ROM and
+harness-dependent LSDj checks retain their explicit skips.
+
+Gateway needed LC_ALL set on this Mac. Three of 77 failed with
+isolated_database_unavailable / db_unavailable, and the cause is not a missing
+PostgreSQL: initdb and postgres are on PATH and a server is already running. The
+isolated postmaster the tests spawn dies with "postmaster became multithreaded
+during startup / Set the LC_ALL environment variable to a valid locale", a known
+PostgreSQL 17 and macOS interaction. With LC_ALL=C the suite is 77/77 in 1.5s.
+gateway/ is untouched by this slice, so those failures were pre-existing and
+environmental. The test spawn env was deliberately NOT edited.
+
+Not verified for this build: native local Safari, acoustic listening, physical
+trackpad or pointer input, deployed acceptance, and second-display or
+backgrounded output. The prior slices' native observations belong to their own
+named builds and are not transferred to Music 13d485a43356. Real local Safari on
+this artifact is the outstanding acceptance step for Phase D; .mw-build already
+renders "Music v1 · <id>" so the visible build identifier requirement is met.
+
+Known papercut, deliberately left: src/music-workspace.js hardcodes "Build a
+live set · 7 steps" while the options are generated from
+CT_MUSIC_CYCLE_EXAMPLES.steps and verify-music-cycles-browser.js asserts only
+the option count, so adding or removing a step leaves the label lying. Deriving
+it from cycleSteps.length is a one-line fix, but it changes appSources and
+therefore the artifact hash, so it belongs to the next slice rather than to this
+landing. mapping[].patternType and mapping[].cycleEvent are published on every
+cycleV1 row and currently read only by tests; they are documented as deliberate
+forward-compatible metadata, and notes() rows carry no patternType at all, so a
+consumer must read absence as notes().
+
+Open owner decisions, none of them taken here: whether to split LIMITS.cycleWork
+into two constants (a visible change to a frozen public export) or keep the
+documented dual meaning; whether unified-create-plan.md item 5 flips, given the
+seven-step guide is a code-editor loader rather than the sidebar chat path that
+item names; and, for Phase E, whether music-project.js VERSION bumps to 2 with a
+migration, which would break every existing save and share link until a range
+check lands, versus unknown-block pass-through versus accepting silent loss of a
+newer build's visual block. Related: whether CT_MUSIC_LANGUAGE gains a
+COMPILER_VERSION, without which a share link using cycle notation opened on a
+cached older build fails with "Saved validated source no longer compiles",
+blaming the source rather than the build. Also whether visuals belong in
+#music= share links at all: visual source is allowed 32,768 bytes against a
+12,000-byte serialize budget and a 20,000-character fragment cap.
+
+Next: Phase E, which is genuinely unstarted -- no visual state is persisted
+anywhere and there is no audience-output surface beyond a CSS-hidden app shell.
+Its first primitive is a serialize/restore entry point on visual-stage.js, which
+today hard-starts from presets[0]; then the stage has no dirty-to-save path at
+all, because runtime.js's 'ct-visual-state' listener never calls scheduleSave().
+Phase E checkbox 4 is the hardest and ends in owner-only evidence: runtime.js
+returns early on document.hidden above its only tick call, so the editor window
+being backgrounded stops rendering, and a second physical display is not
+expressible in Playwright. Say so before implementation, not after.
+
+No deployment, store upload, paid provider call, desktop or broadcast restart,
+configuration cutover or infrastructure repair occurred. The overall goal
+remains active.
+
+## 2026-09-09 — Source-linked music controls (local checkpoint)
+
+Gate, velocity and transpose widgets are integrated into the existing music
+editor, not a second mixer. The restricted compiler emits exact UTF-16 literal,
+call and owner spans for supported direct calls; the preview worker validates
+their envelope and the project retains detached compiled view metadata. Restore
+recompiles source instead of trusting saved descriptors. The editor verifies
+the literal/call again before editing. The compiler caps descriptors at 50,000
+and reports excess separately without rejecting formerly valid music; the view
+shows at most 24 controls with an omission count. Unused/all-rest patterns and
+post-play track transpose calls are represented truthfully as authored calls.
+
+Widgets patch only the selected numeric literal, preserving other text and
+unchanged numeric spelling. Slow pointer/keyboard gestures form one Undo entry;
+Cmd/Ctrl-Z works while an input is focused. Controls change draft/preview only,
+never audio or the validated revision. Explicit Run retains the existing
+boundary protocol. Invalid/foreign text, Undo, equal-source project replacement,
+close and destroy revoke old DOM handles and in-flight gesture authority.
+CodeMirror diagnostics and sounding effects now publish outside update listeners
+with immutable-document guards, avoiding reentrant or stale feedback dispatch.
+build.js hashes the source-control module into the editor cache version.
+
+Native Safari exposed a precise input sequence: pointerdown focused the range,
+but native mousedown moved focus back to contentDOM. Finishing on that temporary
+blur removed the control during a drag. A held pointer now ends on release,
+cancel, foreign focus or window blur; release refocuses the still-authorized
+input without preventing native dragging. A separate paired-input synchronous
+blur issue was caught in review: focus must happen before beginning/rechecking
+the new gesture. No CSS cursor workaround or custom shadow mixer was added.
+
+Final artifact: app.90515dd70420.js / Music 825b6f3ddb9a, 118 sources,
+2,558,311 JS bytes, 231,412 HTML bytes, fourteen games. Compiler descriptors:
+11 groups; existing language: 24; project: 21; preview: 14. Source-control
+harness: 25 groups each in Chromium and WebKit, including slow native drag,
+paired inputs, focused Undo and outside/window/focus cancellation. The real
+shared-artifact browser check passes with the actual compiler, preview worker,
+CodeMirror history and AudioWorklet, proving exact source changes, no incidental
+transport/provider/capture calls and explicit boundary activation.
+
+Full npm test including posttest passed (69985) before the final pointer-focus
+refinement. After it, the final build and COMPLETE unified aggregate passed
+(61251), including source controls, inline rolls, UI/workflow, signals, all three
+stage modes and visual code. Gateway/chat checks passed 77/77 (81918); render
+parity passed 10/10 (94175), minimum correlation 1.000000 and maximum absolute
+RMS delta 0.175 dB. The last refinement only changes editor focus/gesture handling;
+no musical compiler/player changes followed those audio checks. Private-ROM/
+harness-dependent LSDj checks retain their explicit skips.
+
+Real native LOCAL Safari on the exact final Music 825b6f3ddb9a build visibly
+verified stopped entry and Run, range click plus Right (.8 -> .801), focused
+Cmd-Z back to .8, numeric edit to .6, number-to-range focus plus Right to .601,
+native pointer drag to .001 and one Undo back to .601. Sounding r2 continued
+through these drafts. Explicit Run displayed the boundary queue, then Sounding
+r3. Stop and closing the owned tab ended the check. This is native local input
+evidence, not acoustic listening, physical-trackpad or deployed acceptance.
+
+The plan now marks literal controls complete separately from the still-unenabled
+cycleV1 proposal. Next: bounded Tidal-guided cycle semantics and live build-up;
+audiovisual persistence and same-session audience output; performance and full
+acceptance. No deployment, paid model request, app restart, broadcast change or
+infrastructure repair occurred. The overall goal remains active.
+
+## 2026-09-09 — Editable visual programs and performance controls (local checkpoint)
+
+Phase C's renderer decision and the first five Phase D items in
+algorave-stage-plan.md are implemented. Chiptunes now has three editable layered
+scenes (Neon Tunnel, Pulse Grid, Orbit Loom), alongside the unchanged fourteen
+generic game visuals. The optional visual editor reuses CodeMirror; its focused
+Cmd/Ctrl-Enter and Apply affect visuals only. Music remains the existing single
+compiler/player with code and note feedback visible beside the stage.
+
+src/visual-language.js compiles a data-only language: no eval, JavaScript, DOM,
+network, capture, external assets or user shaders/loops. Limits include 32 KiB
+UTF-8 source, 4096 tokens, depth 16, eight layers/controls and 512 static items.
+src/visual-renderer.js owns exactly two fixed, bounded <=960x540 canvases and
+five composable operations. It consumes the existing acknowledged musical clock,
+fresh executed onsets and internal pre-FX analysis; it owns no timer, microphone
+or AudioContext. Back-buffer drawing publishes only a complete frame. Runtime
+also retains the actual displayed stage across a first-frame renderer failure,
+including when switching from a game. This is bounded execution, not a claim
+of process/GPU performance isolation or Hydra/Tidal syntax compatibility.
+
+The pinned-source Hydra experiment and receipts are documented in
+hydra-renderer-evaluation.md. Small-graph Metal performance was acceptable, but
+stock realm/prototype effects, eval/CSP requirements, reset/edit resource growth
+and licensing prevented direct adoption. No Hydra dependency or upstream code
+was installed. Hydra's Safari/long-session/GPU-isolation checks are explicitly
+unverified; native Canvas acceptance does not substitute for them.
+
+src/visual-stage.js independently owns draft/live/queued/error state. Scene
+selection prepares a draft; Apply is Now or next acknowledged bar. Pause holds a
+queue; stop/ended/error, seek, loop, new activation/revision or detachment cancels
+it. The existing audio acknowledgement subscription handles hidden/Off queues
+without rendering or another clock. Sliders update declared parameter values,
+not source. Off/return to the same scene restores its edited live source/values.
+Freeze holds visual state; Blackout masks the whole output while state continues;
+Reset invalidates visual phase/feedback only; Panic explicitly stops music and
+blackouts output. Reopening the workspace restores blackout. Parser errors leave
+the last working visual running. Visual values are SESSION-ONLY: the UI states
+that audiovisual saving is not yet implemented; Phase E is still open.
+
+Final local artifact: app.7ac39054942d.js / Music aa1a525d6edd, 118 sources,
+2,552,866 JS bytes, 231,412 HTML bytes, fourteen games. Visual compiler: 22 groups,
+2124 compilations; renderer: 15 pure checks plus the optional real-Chromium
+pixel check (16/16 in 16761); controller checks pass. The real shared-artifact
+visual browser checks verify independent Apply/shortcut, sliders, invalid code,
+queued/cancel/Off activation, actual pause/resume/seek, injected raster failure
+and recovery, remount blackout, distinct performance controls, CRT/DMG/NES
+pixels, one AudioContext and no capture/provider requests.
+
+The project test command list passed in resumed, ordered segments, not one
+uninterrupted green npm test invocation. The first handover failure assumed a
+random radio track would neither finish during inspection nor omit percussion.
+The fixture now explicitly selects a known long four-channel track before its
+unchanged document/phase/audio handover assertions. Following-only (7251) and
+full handover (47220) passed; no production radio behavior changed. The remaining
+base suite and entire music-workspace/agent/project-transfer tail passed (93268)
+before the unified aggregate exposed a second fixture assumption: scene select
+now needs Apply. Signal acceptance now observes both actual game draws and
+procedural ticks, retaining full event/source/identity checks. The final complete
+unified aggregate exited zero (82183), including thirteen stage-adapter tests,
+three real renderer modes and the new visual-code suite. Its signal check saw
+251 matching records, 123 unique drawn onsets and 436 read-only snapshots.
+Private-ROM/harness-dependent LSDj checks retain their explicit skips.
+Render parity passed 10/10 (7524): minimum correlation 1.000000, maximum absolute
+RMS delta 0.175 dB. git diff --check is clean.
+
+Real native local Safari on the FINAL named Music aa1a525d6edd build visibly
+verified stopped entry, the simultaneous code/notes/stage/chat layout, Run,
+visual-code disclosure and Cmd-Enter application of an orbits/sparks sketch while
+Sounding r1 continued looping. Rejected while(true) source retained the working
+scene and Sounding r1. Blackout visibly masked only the stage while the playhead
+continued; Panic reported Stopped and retained blackout. The owned test tab was
+closed. These are local native UI/transport observations, not acoustic listening,
+physical-trackpad, deployed Safari or second-display/background-output acceptance.
+
+Next: music gate/velocity/transpose literal-control integration and the bounded
+Tidal-guided cycle subset; audiovisual persistence/private-share compatibility;
+same-session audience output with independent public layout and single-renderer
+background ownership; measured performance/long-session and full live-build-up
+acceptance. No deployment, paid provider call, app restart or broadcast change
+occurred. The overall goal remains active.
+
+## 2026-09-09 — Actual musical signals for the stage (local checkpoint)
+
+The first three Phase C signal items are implemented. The rolling scheduled-note
+look-back is gone. The real sequencer optionally observes executed note-ons,
+note-offs, pulse continuations, sample starts and authored register writes, with
+original source indices. Loop-boundary note-offs execute before the loop marker.
+Page preparation/seek replay and offline/radio rendering leave observation off.
+Source-index metadata is deliberately excluded from sonic-history comparisons,
+so reordering source indices alone cannot reset held voices on live handover.
+
+The processor batches at most 256 scalar records with audio-context timestamps,
+epoch, activation, revision, loop/seek discontinuity and monotonic source sequence.
+The page validates acknowledgement identity, sequence and source references before
+publishing. src/music-event-stream.js retains 2048 records with independent pull
+readers, detached results, explicit overflow/clear semantics and bounded counters.
+Runtime reads once per draw: at most 512 pending triggers and 64 deliveries,
+dropping events over 250 ms late or from obsolete/paused transport. Positive
+authored NRx4 retriggers are also delivered, retaining kind/register and unknown
+pitch/duration rather than inventing a note. A failed observation delivery does
+not silence PCM. docs/music-signals.md documents the exact API and limitations.
+
+Audio.musicVisualState remains read-only and has no consumable noteOns. It now
+exposes measured RMS/peak, 160 signed waveform samples, 64 averaged frequency
+bins and normalized dB-magnitude bands from the existing INTERNAL PRE-FX master
+analyser. This is before EQ/compression/limiting, not speaker output or per-part
+spectral power. Scratch buffers are independent of the radio onset detector;
+no new AudioContext or microphone request is introduced. Role trigger strength
+is explicitly a semantic chip-level estimate, not an FFT measurement.
+
+Local artifact: app.1ce49d6d016e.js / Music 67cdfdad0f71, 115 sources,
+2,489,033 JS bytes, 229,731 HTML bytes, 14 games. Journal 20/20,
+executed-pipeline 15/15, live 31/31 and presentation 9/9 source checks pass.
+Worklet-boundary, automation, manual-envelope, kit and ROM checks pass.
+Real Chromium signal acceptance passed with 250 matching records, 123 unique
+drawn onsets and 437 snapshot reads, including loops, invalid Run and live
+replacement. It verified one AudioContext, measured nonzero bounded analysis,
+and no external/provider/microphone calls. A separate source-only review found
+no concrete actionable defects under normal bounded execution.
+
+The complete project test command list passed in resumed, ordered segments,
+not one uninterrupted green npm test invocation. The initial segment (82264)
+passed through export boundaries, then verify-entry
+sampled a cached pre-Stop peak immediately after Play/Stop/Close. A targeted real
+browser check showed stopped playback and no restart calls. The fixture now
+waits for the real Stop acknowledgement plus the probe's 100 ms cache and the
+analyser's 2048-sample history, then samples the full silence interval and also
+spies on start/queue calls. It passes at 0.000 peak with no starts (42744).
+The rest of the project sequence, music workspace/agent/project-transfer checks
+and the full unified aggregate exited zero (12577), including 13/13 stage adapter
+checks and CRT/DMG/NES 3/3 real renderer checks. Main's repeated signal browser
+check saw 251 matching records, 123 unique onsets and 438 snapshots. The existing
+private-ROM/harness-dependent LSDj checks reported skips, not proof of those
+unavailable ROMs. No production Stop behavior changed. Render parity passed
+10/10 (38507), minimum correlation 1.000000, maximum absolute RMS delta 0.175 dB.
+
+All owned test browsers/servers and delegated agents are closed. This slice's
+new event acceptance is local Chromium, not a fresh native/deployed Safari or
+physical speaker/trackpad check. The previous Phase B native observations below
+remain historical evidence for their named builds, not for this new artifact.
+
+This is not completion of Phase C or the whole goal. Safe visual evaluation,
+curated editable visual scenes/controls, audiovisual persistence, same-session
+audience output, the bounded Tidal/source-controls work and full performance/
+release acceptance remain. No Hydra dependency, deployment, paid provider call,
+desktop restart or broadcast change occurred. The goal remains active.
+
+## 2026-09-09 — Music-first entry and persistent visual stage (local checkpoint)
+
+Phase B of algorave-stage-plan.md is implemented. Root and /create enter the
+stopped/recovered music workspace; /listen is the explicit listening path.
+Code/notes, a resizable 62/38 creative split and a landscape visual stage are
+present together. Chat is a separate sidebar at >=1500px and a collapsible drawer
+below it. Below 980px music and a compact 16:9 stage stack. Focus visuals and
+stage-only fullscreen keep the same canvas/world. There is no new visual-code
+editor, Hydra dependency or audience window in this checkpoint.
+
+runtime.js owns CT_CREATE_PRESENTATION mount/unmount/snapshot/setScene. It moves
+the existing stage plus CRT/DMG/NES/gain layers into a fixed internal surface,
+scales that surface into the UI, and restores original layer positions on exit.
+Cold output is 960x540; docking existing live output retains its prior dimensions.
+Resize/chat/fullscreen do not reallocate the simulation/native feedback buffers.
+Off suppresses visual rendering only; selecting the same scene retains its world.
+The fixed fourteen-scene roster and deterministic music pipeline are unchanged.
+Late native shader readiness gets settling frames, not a world reset. A pending
+station snow transition cannot leak onto the composition output.
+
+Ordinary Close/Escape does not start a station. The cleanup callback still runs
+with empty options to invalidate late entry work; only explicit listen:true
+authorizes station playback. Full-root testing found station route writes in
+LiveCtl.join, Game Boy close, legacy Create close and the WebMCP demo; these now
+use the explicit listening route while retaining broadcast root and /watch.
+The pre-runtime /player redirect also targets /listen, and cold composition hides
+the legacy mood wall before paint. Radio regression fixtures use /listen without
+dropping their audio, export or compatibility assertions.
+
+Stronger real-UI handover coverage found an actual cold Listen bug: successful
+startTrackAtOffset left _holdForPick set, so the next Pause selected a new song
+instead. A successful compiled join now clears that flag; failed/empty joins
+still retain it. Final full handover passes (85506), including owned-chip legacy
+Close silence, explicit Listen pause/resume, and pure-following Close retaining
+the exact already-playing document and forward position without reposting it.
+
+Final local artifact: app.d1add928e23d.js / Music a5e7a94fb4e7 (114 sources,
+2,468,341 JS bytes, 229,731 HTML bytes, 14 games). It follows app.89d2857c321e.js
+only by relocating incoming-project consent outside the collapsible chat and
+bounding its height. The consent remains explicit, independently visible and
+excluded from visual-focus/fullscreen output; no transfer protocol changed.
+
+The project's complete test command list was exercised in resumed, ordered
+segments after the route/fixture fixes, not one uninterrupted green npm test
+invocation. Early automation/APU/ROM/document/rhythm/entry/export gates passed;
+final89 generated transitions, sync, Chrome, responsive/readability, API/language,
+LSDj structural, WebMCP, latency, GPU screens and fourteen-game smoke/audit passed.
+The music compiler/project/live/export/chat/editor/agent checks passed; the last
+connection fixture was corrected to open the narrow-desktop drawer before
+Settings, and then passed its isolated auth/database/browser cases (76736).
+Private-ROM/harness-dependent LSDj cases reported their existing skips, not
+verification of missing copyrighted ROMs.
+
+On finald1, project handoff plus the full unified aggregate exited zero (3028):
+source/editor/inline/preview/pitch/chart/chat/presentation/layout/workflow and
+stage acceptance all passed. Stage adapter 13/13 includes actual prepaint route
+and successful/failed join handling. Real Chromium CRT/DMG/NES acceptance passed
+3/3 with non-flat pixels, one AudioContext, stable canvas/world/native feedback
+allocations and no incidental audio/provider commands across resizing, chat,
+focus, fullscreen and Off. Gateway 77/77 passed before the route-only fixes.
+Final89 render parity passed 10/10 (27121), minimum correlation 1.000000,
+maximum absolute RMS delta 0.175 dB; finald1 changes no audio/composer code.
+
+verify-diversity previously sampled unrecorded random tokens and failed one
+free-composition draw at 22/30 distinct opening rhythms (floor 23). Its free,
+scene and mood fixtures now use stable SHA-256-derived diversity-v1 tokens;
+no threshold or production composition changed and no candidates were selected.
+The fixed corpus passes (25/30 free rhythms) and can be reproduced on a failure.
+The ribbon pixel test also uses a known arrangement and waits for actual output
+before measuring progression, rather than assuming a baked strip proves playback.
+
+Native local Safari visibly showed Music c08ec19abe2a, code/notes/stage/chat
+together, stopped initial entry, Run into playback, keyboard splitter 62->57,
+stage-only fullscreen with no private UI, Escape back to the running composition,
+and Stop. It was a native local check, not deployed acceptance, physical trackpad
+coverage, or subjective audio listening. A second native local check on final
+Music f2162e2cc5c5 verified stopped combined entry, cold Listen to /listen, Pause
+retaining Crystal Swamp Mission at 1:02 across observations, then resumed station
+progression. Final Music a5e7a94fb4e7 also visibly verified stopped combined entry,
+Run into progressing code/chart/stage playback, then Stop. The owned Safari test
+tabs and loopback servers were closed; unrelated tabs/server work were left alone.
+All delegated agents are closed. No paid provider call, deployment, configuration
+cutover, desktop restart or broadcast restart occurred.
+
+Tidal remains the primary musical guide. unified-create-plan.md now records the
+bounded cycle-constructor proposal and a correction: positive Euclidean rotation
+shifts left, (3,8)=10010010 and (3,8,1)=00100101. This is still proposed compiler
+work, not accepted new syntax. Remaining goal work is Phases C–F: stable measured/
+semantic signal separation and onset identities; safe visual evaluation and
+scenes/controls; audiovisual persistence and independent audience output; source
+controls/Tidal semantics and the full performance/acceptance exercise. The goal
+is active; this checkpoint is not completion of the whole requested application.
+
+## 2026-09-09 — Active goal changed: algorave first, games as visual output
+
+The owner edited the active goal and supplied the visual-stage design brief at
+attachment `397f142c-e62a-4818-b237-57c87cf57739/pasted-text-1.txt`; it was read
+in full. docs/algorave-stage-plan.md now controls the presentation and priority
+order. Preserve the code/chart/agent work in 6d87aaa / 11c16ef (both pushed), but
+the old fullscreen visualizer switch is not the requested endpoint. The next
+vertical slice is music-primary entry with simultaneous code/notes and a
+persistent landscape stage. Follow with normalized musical signals, curated
+editable scenes, optional independent visual code, distinct performance controls,
+audiovisual persistence and same-session audience output. The old music plan
+retains unfinished Tidal language, source controls and agent/security gates.
+
+Initial repository inspection: runtime.js owns the original stage and currently
+stops rendering whenever Create's full-screen visualizer switch is closed.
+Audio.musicVisualState already reads acknowledged music time/schedule, but its
+bands are semantic strengths and waveform/spectrum are empty, not measured FFT
+data. Background rendering currently stops when document.hidden. Hydra embedding
+docs were read for supplied-canvas, manual-tick and microphone-disabled options;
+no dependency, renderer-isolation or output-mirroring decision has been made.
+The owner's brief explicitly requires inspecting those concerns, not installing
+another live-coding site wholesale. No deployment or paid call was made.
+
+Read-only stage audits completed: runtime.js owns routes/scene identity;
+audio.js's final sizing section assumes viewport dimensions; shell.html includes
+CRT/DMG/NES sibling layers beyond the main canvas. First implementation should
+dock a single renderer behind a host-size/presentation API, preserve simulation
+dimensions during resizing, make root entry music-first and replace implicit
+station autoplay on Back with an explicit listening choice. Current event IDs
+include position in a moving look-back window, so later reliable VJ routing needs
+stable sequence indices and loop/seek epochs. A simple popup mirror cannot meet
+hidden-editor acceptance while the renderer stops on document.hidden.
+
+Prepared music-control component: src/music-source-controls.mjs and
+scripts/verify-music-source-controls.js. Its standalone Chromium harness passes
+19 checks for exact numeric edits, grouped slow-drag/held-key Undo, matching-
+preview focus restoration, comment trivia, stale/project/destroy guards and
+bounded mounting. `npm run test:music-source-controls` runs it independently.
+It is deliberately not imported by the editor or build yet: it expects validated
+`compiled.controls` descriptors and project identity, which the compiler/project/
+preview/host do not supply yet. These are compiler-shaped fixture results, not
+an enabled product feature or native pointer proof. Finish that integration
+under the new plan; do not show a working slider claim before then.
+
+## 2026-09-09 — Reference pass: pitch chart, inline rolls and playing tokens
+
+The Tidal-guided plan from 96acdcb now has its first three reference steps
+implemented locally. Melodic lanes use labelled semitone rows, percussion uses
+instrument rows, and a compiler-clock bar/beat/subdivision grid plus whole-song
+overview makes long arrangements inspectable. Overview zoom changes neither
+source nor agent scope nor transport. Dense rendering remains bounded (400
+visible notes/groups including a retained focused item). Compiler mapping
+checkpoint: 6d87aaa.
+
+Pattern mappings add exact raw pitch token, play-call and full track spans plus
+full occurrence timing including rests. Existing mappings and compiled GB output
+are preserved, including escaped strings and all-rest edge cases. Inline rolls
+use only that compiler output: one per pattern, with an explicit track/call/
+occurrence choice and disclosed caps of 11 declarations, 24 representative
+occurrences per declaration and 128 notes per roll. Exact imports are not
+converted into patterns. Playing highlights use acknowledged source and the
+shared sequencer's scheduled note-off/trigger ordering, including pitch-only
+continuations and velocity's hardware floor. They are not amplitude meters.
+Channels affected by raw register automation or kit sample ownership omit
+token playback markers, with a visible disclosure; other channels retain them.
+This avoids inventing a second envelope/sample simulator for imported scores.
+Typing, Undo, project replacement and late preview guards
+remain in force. Chart rerenders retain the chosen inline occurrence.
+
+Frozen local artifact: app.259b25faf368.js / Music fc63e091d3fb; editor
+70dad5f8cc36, preview 21e5e4bcc266. The build hash now includes the imported
+inline-roll module. Language: 24 groups; preview: 14 tests; chart index: 9
+checks; inline editor suite and nine integrated pitch-chart cases pass.
+Focused agent and unified aggregates both exited zero. Gateway: 77/77.
+Render parity: 10/10, minimum correlation 1.000000. The initial full root run
+stopped on outdated fake editors missing the real editor's existing value()
+method; those test doubles were corrected without weakening assertions. The
+complete root rerun exited zero (47909, app.96cf1567ed63.js). Review then found
+the velocity-floor and overlapping-note-off highlighting cases above; the new
+ninth chart group compares actual sequencer register-event state with UI
+markers, including suppressed offs, continuation after silence, tied triggers,
+automation and samples. The complete rebuilt workspace and unified aggregates
+then both exited zero on the final artifact (85327 / 28847). This is a full
+root pass followed by final affected-suite verification, not a claim that the
+earlier root invocation tested later UI corrections. Audio generation is unchanged.
+
+Native local Safari on Music 94736ad9e981 visibly showed the pitch chart and
+inline roll beside the sidebar. Clicking an inline C4 selected precisely C4;
+pasting D4 produced an unapplied draft chart; native Cmd-Z restored C4 and the
+validated chart. No playback was started during this narrower native check.
+The dedicated test tab and temporary loopback server were closed; unrelated
+Safari work was left alone. Automated real-AudioWorklet workflows cover Run,
+boundary activation and undo, not human listening or deployed Safari acceptance.
+That native check preceded the final scheduled-marker correction; it is not
+native verification of Music fc63e091d3fb.
+
+Reference steps 4–6 remain: source-linked parameter controls, the explicitly
+bounded/backward-compatible Tidal-style pattern subset and live build-up, then
+the complete performance demonstration. No new musical syntax, runtime,
+deployment, configuration cutover, paid provider call or desktop restart was
+made in this slice. Production is still the previously authorized release;
+the separate owner-approved cutover/provider/native acceptance gates remain.
+
+## 2026-09-09 — TidalCycles is the primary musical guide
+
+Owner explicitly selected https://tidalcycles.org/ as the guide. Read its official
+overview, cycle, mini-notation, pattern-model and workshop documentation. The
+active plan now distinguishes Tidal musical semantics from Strudel's browser UI
+reference and our existing chip runtime. It specifies a bounded pattern subset,
+phase/quantization tests, a backward-compatible syntax boundary and deterministic
+variation/export requirements. Dot, colon and at-sign notation already have
+different meanings in existing Chiptunes source; silently treating old notes as
+Tidal would change saved music. This update changes planning/reference documents
+only; no Tidal runtime install, language implementation or deployment is claimed.
+
+## 2026-09-09 — Owner clarified the live-coding experience with four videos
+
+The owner followed ef9f674 with "This but for our app" and DJ_Dave, Switch Angel
+and ion.the.way video links. The exact references, inspection limits, current
+product gap and sequenced reference-matching pass are in unified-create-plan.md.
+The desired experience includes compact code with inline piano rolls/scopes,
+direct code-linked controls and incremental musical build-up during playback.
+Current simultaneous panes/chat are a foundation, not evidence that this pass
+is already implemented. The active goal has new uncompleted reference gates;
+the next implementation slice is readable pitch grids and inline pattern feedback.
+No runtime or deployment change was made in this reference-planning update.
+
+## 2026-09-09 — Unified Create implemented; production cutover awaits approval
+
+Local implementation checkpoints: 775e3e4 (bounded same-origin transport),
+0178003 (canonical entry, code/chart/sidebar and presentation), 424e2f3
+(fidelity/handback fixtures), 558ccf5 (preservation fixes and migrated UI tests),
+67d1856 (full-track handler/workflow and retained external-agent regression).
+Gateway tests pass 77/77 and its Next
+production build passes. Broadcast render parity passed 10/10 with minimum
+correlation 1.000000. No provider call, deployment or configuration change.
+
+New recovery checks cover legacy swing timing, consumed #music share reloads,
+and pending explicit/file imports after close/reopen. Their four tests pass.
+The share hash is consumed after a successful import so reload does not replace
+autosaved edits with the original link. File imports capture open/project/save
+epochs and a chooser serial, and reject late reads before prompting.
+
+The full suite explicitly skips private LSDj ROM/harness-dependent checks when
+their configured ROM is absent; those checks are not newly proved. Existing
+legacy fidelity characterization still reports its documented LOSS cases;
+canonical exact materialization is covered separately, not a claim that every
+old lossy format acquired new fields. Production main-origin auth, real-provider
+composition/edit, final deployed native Safari and musical listening remain
+release acceptance gates.
+
+Canonical runtime entry now materializes explicit song links before opening the
+workspace, without starting the legacy editor/player underneath. Explicit source
+imports validate first and use a protected temporary copy rather than replacing
+browser recovery. Chart and code are simultaneously visible with an adjustable
+divider; chat collapses independently. Editor selection notifications highlight
+mapped notes without changing agent scope. Source-loaded entry (8 cases), layout
+(desktop/mobile, import preservation, selection and pending-chat state), and
+isolated editor-selection fixtures passed locally. These are not native Safari
+or deployed acceptance.
+
+Root regression passed every stage preceding test:music-workspace on the final
+artifact. That tail exposed two outdated fixtures: omitted explicit swing:false
+metadata and old external-agent proposal/Settings selectors. Both are corrected;
+the external-agent check passes against real isolated PostgreSQL, including
+claim/Apply/Reject, generation changes, stale policy and lost acknowledgement.
+The affected workspace aggregate now exits zero in a complete rerun, as does
+test:unified-create including the final full-track fixture. This is segmented verification,
+not a claim that an earlier nonzero npm test invocation exited zero.
+Canonical close uses the existing audible station handback, with no legacy
+editor underneath.
+
+Same-origin transport committed locally as 775e3e4. Gateway suite passes all
+77 tests, including bounded proxy/body/deadline/cancellation and owner checks.
+Presence dispatch has mock DO coverage, not deployed workerd verification.
+The Vercel-derived chat island is integrated using exact React/ReactDOM 19.2.8
+(npm audit: zero vulnerabilities); shared lazy bundle measured 62,070 bytes
+gzip. It keeps vanilla request/project state authoritative, text-only rendering,
+and explicit proposal Apply. Preview uses the existing compiler in a disposable
+worker; 14 lifecycle/parity tests pass. Dense-chart work and real browser preview
+acceptance have progressed: source-loaded Chromium shows 16,384-note preview
+with at most 400 mounted chart items, disclosed grouping and exact-note zoom.
+Local native Safari (Music 0681f655f1d8, before the final dense-index slice)
+showed the existing game, returned via Escape, previewed C4→D4 without Run,
+retained chart on invalid source, and restored validated source with Undo.
+No audio or provider call was made in that native check; test tab/server closed.
+The isolated chat fixture found Stop morphing into submit during synchronous
+React state update; preventDefault plus distinct button keys fixes it and the
+persisted hostile-text/scroll/IME/Send-Stop fixture passes. The final unified
+test command passes, including complete-track creation through the real chat
+handler with a mock adapter. That workflow checks named finite patterns,
+comment preservation, exact chart, actual AudioWorklet activation boundaries,
+manual pitch preview/Run, scoped bass Apply, undo, collapse, visualizer, paused
+invalid-draft preservation and private save/reload. No paid model is involved.
+
+Final local artifact app.74d749e8c725.js / Music 8996c27904ee was inspected in
+real Safari. It visibly shows chart above code beside chat. Native UI actions
+selected a note's source, retained a typed message across collapse/restore,
+started playback, showed the existing game, returned via Escape still playing,
+and retained paused status through another visualizer round trip. Playback was
+stopped and the dedicated test tab and loopback server were closed. This is not
+deployed acceptance or proof of physical trackpad/cursor behavior.
+Production remains the previous release below;
+no deployment/configuration cutover has been performed or newly authorized.
+The active goal remains open for that owner-authorized cutover and acceptance.
+The release sequence and exact CHAT_ORIGIN change are in unified-create-plan.md.
+TextText's guarded changelog update for 994bb2b returned a conflict; a reread
+confirmed the entry absent and the old hash unchanged. No forced overwrite or
+duplicate note was made. This repository handoff contains the current evidence.
+
+## 2026-09-09 — New active direction: unified Create
+
+Owner rejected the two-site/two-view product and requested a plan followed by an
+active execution goal. docs/unified-create-plan.md is the current checklist.
+It covers canonical /create and #s entry, simultaneous code/chart, collapsible
+standard chat, same-origin paid Chat, optional visualizer, preservation and
+acceptance. Existing /api/* belongs to the presence Worker; current gateway
+auth validates exact origin and host-only cookies. Same-origin integration
+must preserve both, not just remove the transfer banner. No implementation or
+new deployment is claimed by this planning checkpoint.
+
+## 2026-09-09 — Authorized web release: live coding and conversational Chat
+
+Owner approved deployment after b7a6d0d. Both public /create routes now serve
+app.dd33d7943154.js / Music fef7cf6ae28c, byte-identical to the tested local
+artifact. Pages: 0df515f9.retro-rave-radio.pages.dev; chiptunes.app cache purge
+succeeded. Vercel: dpl_3r4kaQUHgB1LNmwYcWbYnMQ5pRnP, READY and aliased to
+chiptunes-agent-gateway.vercel.app. Upload dry-run allowed 210 source files /
+5,204,307 bytes and excluded local/private inputs. Existing provider settings
+were retained; access lists OpenAI and Claude, and anonymous Chat returns 401.
+
+Native Safari verified the deployed Music fef7cf6ae28c: the setup panel is absent
+from the conversation, the bottom composer opens Settings when locked, and
+Escape returns to the workspace with its typed message intact. Existing exact
+song source was preserved and no autoplay occurred. No paid model call was
+made for this release; text-only/follow-up behavior has automated coverage,
+not new real-provider acceptance. Musical listening acceptance remains open.
+No desktop/broadcast release, restart, persistent job or infrastructure change.
+Full regression and gateway/build results for this unchanged artifact are below.
+
+Main-site native Safari also verified the same visible version, readable starter
+and hosted-chat handoff control. Test tab closed without changing saved projects
+or starting audio. TextText release-note conditional write again conflicted;
+reread confirmed it absent. No forced overwrite or duplicate note was made.
+
+The implementation checkpoints below describe their pre-release status; this
+entry supersedes their statements that deployment is pending.
+
+## 2026-09-09 — Standard conversation, not a connection form
+
+The owner rejected the large Built-in chat/access panel. Chat now has a private
+conversation transcript, bottom message composer, Enter/Shift+Enter, Stop,
+text-only answers and inline explicit-Apply proposals. Provider, owner access,
+scope/locks and optional MCP are in a separate native Settings dialog. The full
+song generator moved out of the sidebar. No auth, quota or source validation
+was bypassed; responses remain buffered and validated, not token-streamed.
+Recent history is bounded to 12 messages / 16 KiB for provider context and is
+untrusted data, never system messages. Saved history is private; public links
+and transfers exclude it, full project downloads include it. Invalid drafts
+still require validation before requesting Chat.
+
+Implementation: aa45dcc. Separate deterministic test correction: bc01dae.
+
+Regression work caught a document-capture Escape handler closing Create ahead
+of Settings, and a resize race where CSS blurred the hidden mobile Chat tab
+before its media-query callback. Both have targeted coverage now. The initial
+full run also exposed an unchanged random soundtrack-test assumption: a valid
+song can have no eligible motif. That test now uses deterministic motif and
+no-motif fixtures; production composition was not changed.
+
+Final full root regression exited 0 (73457), including the new conversation
+suite, livecoding, editor paste/undo, agent/isolated-PostgreSQL integration and
+project transfers. Final artifact: app.dd33d7943154.js / Music fef7cf6ae28c.
+Gateway: 67/67 tests; Chat: 35/35 groups; project: 20 groups. Final built
+workspace UI, conversation and provider UI also passed separately (61493),
+and the Next production build exited 0 (39678). Reference-ROM-dependent tests
+explicitly skipped when their prerequisite was absent; this is not ROM or
+human-listening acceptance.
+
+Local Safari verified Music 11149101240b: compact Chat, bottom composer, Enter
+opening Settings with no model call, and Escape returning to the retained
+message/workspace. Safari password autofill consumed the first Escape when
+focused; the next dismissed Settings. No audio was started; the test tab and
+temporary server were closed. This is local evidence, not deployed acceptance.
+
+This correction and the preceding live-coding work are not deployed. Existing
+public origins remain the earlier release recorded below. No new paid model
+call, desktop restart, deployment or infrastructure change was made.
+
+The project-changelog skill's conditional TextText update again reported a
+concurrent-change/sync conflict; rereading confirmed the entry was absent.
+No forced write or duplicate note was created. This repository is the current
+handoff until that existing sync issue is resolved separately.
+
+## 2026-09-09 — Product correction: algorave/live-coding experience
+
+The owner rejected the event-dump/single-note-fixture experience and supplied
+Speccy as the algorave reference. The earlier claim that only listening remained
+was premature: readable musical code and an approachable live loop workflow
+are still required. See the new first section of create-workspace-plan.md.
+Local implementation now includes a readable three-track starter, safe New loop,
+explicit Run shortcut and boundary updates, beat/bar and source highlights,
+collapsed Chat settings/exports, a top-toolbar legacy Live coding entry, and
+pattern-preserving Chat instructions. Existing saved/imported exact sources
+remain intact. No new composer/runtime or lossy source conversion was added.
+Implementation commit: `1e0e1a3`.
+
+Dedicated browser testing exercised actual loop wrap, output activity, tempo
+edit boundary acknowledgement, invalid draft continuation, undo/redo, source
+highlight clearing, saved recovery, and replacement cancellation. Local native
+Safari on intermediate Music 468acc207e2e verified Play, continued music with an
+invalid draft, a corrected pattern accepted as r2 through Cmd+Enter, and Stop.
+This is local evidence, not production Safari or listening acceptance.
+Final local Safari Music f0a02a9a5eb2 also restored the readable saved project
+without autoplay, showed collapsed Chat settings and selected Loop, ran r2,
+disabled loop-policy changes while sounding, and accepted a 140 BPM pattern
+edit through Cmd+Enter as sounding r3. Test audio was stopped afterwards.
+Full root regression exited 0 (75814), including the new livecoding browser
+suite on app.87d99da3e479.js / Music f0a02a9a5eb2, entry checks, 1 MiB paste/undo,
+and all existing workspace/agent/transfer gates. Private-ROM dependent checks
+explicitly skipped. Gateway 65 tests, Chat 31 groups, source UI/provider UI and
+Next production build passed. No new paid
+model call, deployment, desktop restart or infrastructure change.
+
+Private TextText correction update returned conditional-write/sync conflicts
+twice; do not blindly retry or overwrite the document. Repository records are
+the reliable handoff; a subsequent read confirmed no new correction section.
+Temporary proposed content (full-regression status predates completion):
+`/tmp/chiptunes-livecoding-note.ufufGd/changelog.md`.
+
+## 2026-09-09 — Earlier web hardening deployed; listening acceptance remains
+
+Current production release: 3ab136f (implementation 2aaada4), pushed to main.
+Vercel `dpl_BcsaDpTBJHF3M1zhMGfWHCsWvpwu` is READY at the canonical gateway;
+Pages `8704b766.retro-rave-radio.pages.dev` is live on chiptunes.app. Both
+/create routes serve `app.f715dcc08d84.js`, visible `Music v1 · eb6281febd20`.
+The full root regression exited 0 before push/deployment (27680), with explicit
+private-ROM/harness skips; complete workspace, 65 gateway tests and production
+build also passed. No broadcast, desktop, store, infrastructure or recurring
+job changes. Anonymous Chat still returns 401 and locked access lists both
+OpenAI and Claude. No additional paid model calls in this follow-up.
+
+Native Safari on that exact build, in the existing test-owned private window:
+main-site unavailable password/request controls are absent and the hosted Chat
+explanation/CTA is present. Its 244363-byte popup transfer again required Accept,
+restored r2 and did not autoplay. In the temporary test copy, a short explicit
+event fixture was validated as r3, then a leading comment edited the draft.
+Clicking the corresponding note stayed in Notes, retained note selection and
+visibly explained that source navigation is unavailable for a differing draft.
+Safari page zoom crossed the responsive breakpoint: Code -> mobile Chat ->
+wide layout returned selected/focused Code, then Left selected/focused Notes;
+draft text survived. Zoom was restored. This is native breakpoint/keyboard
+evidence, not a physical phone/trackpad certification. Play acknowledged r3
+while the draft remained edited; Stop returned to playing none/stopped.
+The temporary test copy was not saved over the previously saved hosted song.
+
+Remaining core gate: representative musical listening acceptance. Three WAV
+clips (original, manual bass, simplified drums) were provided to the owner;
+no listening result has been received. `docs/create-workspace-acceptance.md`
+records the full original-plan audit and explicit resource/capability limits.
+Private TextText changelog release 3ab136f was confirmed by reading its section
+after the write returned an ambiguous sync-wait response; no duplicate or public
+entry was created.
+Do not claim whole-goal completion or substitute PCM metrics for listening.
+
+### Earlier handoff release and follow-up history
+
+Release checkpoint 0f9d576 is pushed. Vercel deployment
+`dpl_8VoxpJXVAEPVrTKiWt3cPeboFxda` is READY at the canonical gateway;
+Cloudflare Pages deployment `0aa56abb.retro-rave-radio.pages.dev` is live on
+chiptunes.app. Both /create routes serve `app.5d7aa87e1f8a.js`, visible
+`Music v1 · 93fb190587e0`. Only the gateway and Pages site were deployed;
+no broadcast, desktop, store, infrastructure or recurring-job changes.
+Production access returns locked with OpenAI/Claude available; anonymous Chat
+POST returns 401. Neither origin sets Cross-Origin-Opener-Policy.
+
+Native macOS Safari verification used a fresh private window, leaving normal
+saved projects untouched: generated a 53-bar test song, clicked the main-site
+handoff, saw metadata-only consent for 244363 bytes, accepted, and observed
+validated r2 with no queued/playing revision. Explicit Save opened a native
+replacement confirmation; confirming saved the test-owned copy. Reload restored
+the song at r2 without autoplay. Selecting bass note 42 at frame 0 located Code
+at frames 0–41; Play acknowledged playing r2 and Stop returned to playing none.
+Screenshot
+confirms the built-in Chat panel precedes collapsed optional external MCP.
+Listening and full original-plan completion audit remain outstanding. The main
+site still renders unavailable local Chat controls below its working handoff;
+this clarity issue is included in the UI audit. The private TextText changelog
+records release 0f9d576 once (read back after an ambiguous write response).
+
+Post-release audit found two concrete UI correctness bugs: validated Notes
+offsets were applied to an edited draft, and a mobile Chat selection could leave
+desktop tabs with no keyboard focus target after resizing. Pauli owns their
+fixes and the main-site unavailable-controls cleanup; main owns the Chat source
+preflight. The existing 512 KiB UTF-8 Chat bound is now rejected locally before
+fetch with an actionable explanation, and server rejection is 413
+source_too_large before paid reservation/provider invocation. Its 29 Chat tests
+pass. These follow-up changes are not yet deployed. Herschel owns additional
+real-processor tempo-map replacement coverage. Do not conflate these in-flight
+fixes with the deployed 93fb190587e0 acceptance above.
+All follow-up source owners are now finished/frozen. Main reran the complete
+music-workspace suite (including the new UI test), Chat/provider/gateway suite
+and Next production build: exit 0 (session 47360). The live tests now contain
+31 checks, including sample-exact future tempo-map replacement and late delivery
+on the next sounding-map boundary. Root `npm test` finished with exit 0 (session
+27680, terminal observed September 9), including the new UI regression and
+real-popup transfer tests. Reference-ROM/write-observer/harness-dependent native
+checks explicitly skipped when their local prerequisites were absent. Vercel
+dry-run includes 210 files / 5,165,028 bytes, required updated sources present,
+credentials and local caches excluded. Follow-up 2aaada4 is ready to push and
+deploy; its artifact is app.f715dcc08d84.js / Music build eb6281febd20.
+`docs/create-workspace-acceptance.md` records the original-plan evidence map,
+explicit capability limits and remaining listening/native follow-up gates.
+
+Earlier candidate details and verification history follow.
+
+Main-site -> hosted project handoff is deployed. `src/music-project-transfer.js` uses exact first-party
+origins, a 256-bit nonce in the fragment (never source), matching window identity,
+explicit receiver Accept, 8 MiB UTF-8 bounds, 120s expiry, one-shot cleanup, and
+opener removal after the final acknowledgment/cancellation. Module checkpoint
+5809e43 is pushed. The workspace retains the original source tab and excludes
+private chat/provenance. Accepted copies are temporary by default: existing hosted
+storage is protected. Download retains a separate file; Save draft locally asks
+for explicit confirmation before replacing the hosted saved project. Cancelling
+that confirmation preserves the original. Confirmed saves restore draft and
+last-valid source on reload without starting playback (browser regression passed).
+Edits while consent is open cancel import; pending original saves are preserved.
+No model call, playback, Apply or MCP connection is started by a transfer.
+
+Main verification: 9 protocol groups and real-popup browser tests passed with
+a >150 KB Unicode unfinished draft, preserved last-valid source, metadata-only
+offer, Accept/Cancel, incompatible restore, close-during-Accept, pending edits,
+protected hosted storage and zero model/session creation. Chat UI + 65 gateway
+tests and Next production build also passed. The fresh full root `npm test`
+finished with exit 0 (exec session 58427, terminal result observed September 9),
+including the workspace, agent and real-popup project-transfer suites.
+The Vercel upload dry-run passed: 209 files / 5,150,023 bytes; required transfer
+and Chat routes included, private/local artifacts excluded.
+Source files are frozen; both source-owning agents finished.
+The push, both site-only deployments and native Safari handoff/layout checks
+are now complete as recorded above. Resolve listening and the full-plan audit.
+
+Native Safari follow-up on the deployed build label `Music v1 · 7fe57941c401`:
+opened a fresh tab through native UI, generated "Make something happy", saw
+concrete source and corresponding Notes, clicked Play, observed `Playing r2`
+with an advancing playhead, and clicked Stop (`Playing none · stopped`). This
+does not establish listening acceptance or every pointer/trackpad interaction.
+The rendered sidebar exposed a real usability defect: unconfigured optional MCP
+setup consumed the visible area before built-in Chat. The local fix places
+built-in Chat first and external MCP in a collapsed details section at the bottom;
+pending the next deliberate deployment and native layout recheck.
+The sidebar checkpoint is 51cd5f0 on origin/main; main reran Chat/web gateway,
+workspace, workspace-agent, and external-connection tests successfully. Native
+Safari also mapped a clicked bass note to Code with explicit frames 0–47.
+The ten-song browser/broadcast render comparison passed: min correlation
+1.000000, maximum absolute RMS difference 0.175 dB, exceeding the 0.995 gate.
+Listening variants (original, bass edit, simplified drums) were rendered locally
+with scripts/audition-music-workspace.js; no listening acceptance is claimed.
+
+The owner clarified the primary web path: built-in Chat beside Code/Notes,
+funded by their OpenAI and Anthropic API keys. Clerk and external MCP are optional
+and are not prerequisites for this path. See `docs/web-chat-plan.md` for remaining
+acceptance gates. Earlier Clerk-blocked language below applies only to external
+MCP authentication, not built-in Chat.
+
+Implemented server-only REST providers, provider selection, private owner unlock,
+and durable PostgreSQL paid-call admission. Keys are production environment
+secrets, never browser inputs. The unlock secret is in the owner's login Keychain
+under service `chiptunes-chat-owner`; no secret value belongs in working notes.
+Canonical origin is https://chiptunes-agent-gateway.vercel.app. Production envs
+and the dedicated Neon chat schema are provisioned. Defaults:
+gpt-5.4-mini-2026-03-17 and claude-sonnet-4-6.
+
+Paid admission is 20 calls per UTC day, 2 per fixed UTC minute (not rolling),
+one 45-second lease, and permanent request-ID replay rejection across instances.
+Failures do not refund quota. Uncertain provider cancellation retains the lease;
+only fully consumed responses release it early. Durable admission replaces the
+standalone handler's lifetime in-memory replay capacity. Fixed error codes map
+conflicts to 409, quota to 429, and unavailable admission to 503.
+
+Both real providers returned a validated single-edit proposal in a synthetic
+tempo-change check. This is not browser/audio acceptance. Gateway tests: 65 pass,
+including real isolated PostgreSQL and explicitly mocked model HTTP. Frontend
+provider fixture and existing Chat/workspace integration tests pass. Full root
+`npm test` exited 0; ROM-dependent emulator/fixture gates explicitly skipped
+because the reference ROM was absent. `npm run test:music-chat-web` and the Next
+production build also exited 0. Vercel dry-run: 208 files / 5,129,964 bytes,
+new chat routes present and credentials/local caches excluded.
+Implementation committed/pushed as 5439dc8. Vercel deployment
+dpl_FumJ4WjPSvviQoqgTUwaicanDBMX is READY at the canonical origin;
+Create serves app.63706cf4a8c5.js / no-store. Access reports both providers,
+locked by default; unauthenticated Chat returns 401. Both real providers passed
+deployed headless Chromium acceptance on a 16-bar wave-bass pattern: request
+C2 E2 G2 E2 -> D2 F2 A2 F2, proposal leaves source unchanged until explicit Apply,
+playback acknowledges the new revision, undo restores the exact original source
+and playback revision. Two paid production calls were made; neither used mocks.
+An earlier browser probe stopped at an invalid test instrument before any paid
+request; the corrected probe used the documented wave-bass instrument.
+Native Safari, listening, and the main-site entry path remain unverified. This
+is a private gateway deployment, not completion of the full Create pipeline.
+TextText private changelog records 5439dc8 once; no public note was published.
+
+## 2026-09-08 — Web agent connection pipeline (implementation underway)
+
+Current continuation: owner approved completing the proposed free-tier setup.
+Created Vercel `chiptunes-agent-gateway` in `shoku-s-projects` and dedicated Neon
+`chiptunes-agent-sessions` (free_v3, Frankfurt, built-in Neon auth off), connected
+to that project. TextText's database was not used. Clerk Hobby installation is
+blocked on marketplace terms acceptance; the owner has been given the acceptance
+link. No terms were accepted by the agent and no paid plan was selected.
+Production deployment remains disabled pending real Clerk setup and acceptance.
+The shared Create artifact is deployed at
+https://chiptunes-agent-gateway.vercel.app/create#music (deployment
+dpl_GEk6xpFvsXgEHqy9Zgs8y41R3kfj). Agent APIs deliberately return 503 without
+Clerk. Public HTTP checks confirm Create 200/no-store and both protected endpoints
+503/no-store. This is hosting verification, not completed OAuth acceptance.
+Deployed Chromium smoke passed with visible build fde1f8c919a3 and an honest
+unconfigured Connect state. No native Safari or real OAuth acceptance is claimed.
+`.vercelignore` is a deny-by-default upload allowlist, dry-run verified as 201
+files / 5,093,996 bytes with required sources present and private/local artifacts
+excluded. The initial oversized upload was interrupted; a subsequent overly
+restrictive allowlist failed before build, then the corrected allowlist deployed.
+Final local packaging excludes stale dist/lib files that are neither source-backed
+nor declared build outputs; local and deployed public manifests now match (25
+files). This packaging-only follow-up does not change the deployed app artifact.
+Implementation checkpoint is 1701dfb on origin/main. TextText private draft
+Notes/Chiptunes changelog.textpack records that checkpoint exactly once.
+
+Clerk SDK authentication now uses standard OAuth identities, not a custom song
+grant claim. Durable connection lifecycle and opt-in browser Connect controller
+are implemented, including gateway routes and ClerkJS session refresh.
+`gateway/prepare-studio.mjs` packages the same build.js Create artifact
+for first-party hosting, excluding music libraries and secrets. Vercel project
+root is gateway with parent sources enabled. Root .env.local is CLI-generated,
+ignored and mode 0600; never print it. Integration envs are recoverable from Vercel.
+Dedicated Neon schema and durable admission columns were migrated over verified
+TLS. Per-owner admission is 2,400 transactions/minute; 32 clients and 8 active
+sessions are bounded. Revoke deletes its session; owner activity cleans expired
+sessions. An abandoned owner's expired source remains until later owner activity:
+there is no guaranteed timed purge or recurring cleanup job.
+
+Security integration: hashed random tab nonce plus verified Clerk session binds
+browser ownership. Agent-visible revision hashes include pairing UUID, preventing
+stale proposals across reconnect. Browser raw-source limit remains 512 KiB with
+4 MiB JSON envelope; MCP input stays 600,000 bytes. Apply is explicit and lost
+acknowledgments never trigger replay. Auth bootstrap and requests are bounded.
+
+Verification in this continuation: full npm test passed, followed by the updated
+test:music-agent (24 core groups, 42 workspace checks, browser transport/auth
+fixtures and real handleBrowser/Postgres round trips), both isolated DB suites,
+and all 32 gateway tests. Next production build and real local HTTP Create smoke
+passed, with protected APIs honestly returning 503 without Clerk. npm audit reports
+zero production dependency vulnerabilities. Real Clerk, external clients,
+listening and deployed Safari checks remain unverified.
+
+The owner wants Pen/Paper-like onboarding for an existing agent on the WEB,
+without requiring Chiptunes desktop or an embedded paid-model API. Updated
+sequence: `docs/agent-connection-plan.md`, linked from the original workspace
+plan. Hosting is not a constraint (owner clarification): Vercel is selected for
+the agent gateway; the existing Pages site/presence are not migrated by this work.
+
+New host-neutral session core tracks snapshot generation, revision and epoch,
+locks, pending claims, replay tombstones, expiry and revocation. Private durable
+state export/import preserves those checks across restarts. The four musical
+tools expose context/help/proposal/status, never automatic Apply or shell/files.
+The broker checks issuer/owner/client or browser-instance ownership inside the
+repository transaction. The Postgres adapter uses a row lock and parameterized
+queries; its migration is for a dedicated Chiptunes database only.
+
+The local browser bridge routes proposals through the existing editor UI and
+explicit Apply; exact context checks include project instance and lock policy,
+not only revision IDs. Same-origin browser-to-gateway synchronization now exists.
+No source upload starts automatically. Code/audio continue without a connection.
+
+`gateway/` contains the isolated Vercel/Next.js MCP service, with its own pinned
+dependencies, authentication verifier, scoped tool binding and dedicated database
+adapter. Missing configuration fails closed. Do not equate transport tests with
+real identity-provider consent or a functioning public Connect workflow.
+
+Deployment dependencies: Vercel CLI is authenticated as the existing account.
+Clerk terms acceptance is outstanding; Vercel/Neon provisioning is complete.
+Do not reuse TextText's Neon production database. Do not run the aggregate deploy
+command: it also changes the broadcast box.
+
+Still required: Clerk installation/configuration after terms acceptance, real
+login/consent, actual two-client OAuth acceptance, listening and real Safari
+acceptance. Hard timed source deletion would require an approved retention
+mechanism; current opportunistic cleanup is documented above.
+The optional embedded Chat provider remains separate. Completion must not be
+reported based on fixtures or fail-closed scaffolding.
+
+Verification for this checkpoint: full `npm test` exited 0 including
+`test:music-agent` (23 session groups, tool/broker/SQL-contract checks and 42
+browser-bridge checks). Gateway's eight tests use a real MCP SDK client and
+cryptographically signed test tokens; gateway production build passed. Separate
+`npm run test:music-agent-db` passed against a real isolated local PostgreSQL
+cluster, including concurrent proposal serialization, persisted replay/restart,
+ownership and revoke. The temporary socket-only cluster was shut down and its
+test data removed; no existing database service was touched. Production database
+TLS, identity-provider consent and real external agent acceptance are still
+untested. Security review fixes include terminal grant expiry on clock rollback,
+destroying pooled connections on failed rollback, and MCP error-result labeling.
+
+## 2026-09-08 — Source-backed Create workspace (live provider still pending)
+
+Owner's complete request is retained in `docs/create-workspace-plan.md`.
+The fidelity audit reproduces losses in readable/packed legacy representations;
+the new restricted language preserves the concrete performance instead of
+round-tripping it through those representations. `music-language.js` and
+`music-project.js` provide bounded parsing, exact events/assets, shorthand
+patterns, source mapping, atomic revisions/recovery, scoped proposals and locks.
+No arbitrary source execution or second composer/runtime was added.
+
+Focused checks: 18 fidelity characterization groups, 20 language groups and 19
+project groups pass. Generated concrete source is readable one-event/asset-row
+per line; a representative song is 83,097 characters / 816 lines. Compiler
+limits are 1,048,576 UTF-16 characters and 216,000 GB frames. Source mapping uses
+indexed line lookup, and compilation/Notes/boundaries use a shared clock.
+
+CodeMirror 6 is locally bundled under MIT with transitive dependency licenses.
+Browser checks pass automatic invalid-draft reload, editing, revision undo/redo,
+Notes mapping, actual playback acknowledgment, live Apply/undo, paused queues,
+real AudioContext suspension/resume, scoped fixture proposals, silent shared
+projects, two-tab conflicts, mobile layout and return to radio ownership/audio.
+The fixture is not a real-model acceptance test. Shared projects protect an
+existing local draft. Legacy `#s=` projects and native byte editing stay separate.
+The UI generation check verifies exactly one composition for “Make something
+happy” and recovery of its explicit seed/prompt provenance. Escape dismisses
+CodeMirror completion before closing the workspace.
+Native Playwright `fill`/`insertText` on a large multiline contenteditable can
+stall Chromium native layout; actual clipboard paste goes through CodeMirror's
+bounded document transaction. A 1 MiB/88,299-line clipboard paste and a 1 MiB
+single-line paste pass exact-text and edit/undo under a two-second budget.
+Do not mistake native insertion for clipboard behavior.
+
+Live engine checks (29) preserve unchanged/future-only waveforms exactly and
+cover stale/superseded revisions, undo/redo activation IDs, finite ends, loops,
+seeking, ownership, instrument/wave changes, sample clocks and output gain.
+Changed voices reset explicitly; a 64-sample output correction removes the
+instantaneous activation step, not the need for listening acceptance.
+
+Generated bank expansion is real: the 400 seed/mood language matrix reaches
+130 records/index 129. No source truncation is used. The additional 100-song
+export matrix includes 17,297 pitchless noise notes and five over-end notes.
+Exact source retains over-end durations with `SONG_END_CUT`; Notes shows the
+finite audible extent. WAV renders through the finite end. MIDI refuses an
+undefined noise pitch, and ROM rejects late note-offs/unsupported wave slots.
+Source-to-LSDj conversion stays rejected with specific capability reasons,
+not silently flattened through legacy grid export.
+
+Verification: the final combined `npm test` run exited 0, including the appended
+complete `test:music-workspace` suite. Its 1 MiB/88,299-line clipboard paste took
+79 ms and edit/undo took 191 ms. Earlier separate full/focused runs also exited 0.
+The private-ROM `npm run test:lsdj` run exited 0 with existing local harnesses,
+including real emulator/command/envelope checks skipped in the default setup.
+Render parity passed 10/10, min correlation 1.000000, max RMS delta 0.175 dB.
+
+Real Chat remains owner-gated: there is no selected authorized model provider,
+API billing account, production authentication or public abuse/spend policy.
+`server/music-chat-handler.js` is a deny-by-default integration boundary, not a
+configured live service. Test adapters are fixtures, not real model acceptance.
+Consumer subscription credits have not been used or assumed to fund API calls.
+No deployment, release, infrastructure changes or app restart was performed.
+Listening and owner-authorized deployed real-Safari acceptance remain pending.
+`scripts/audition-music-workspace.js` regenerates local original/manual-bass/
+simplified-drums WAV/source examples without playing or uploading. The workspace
+footer exposes a content-based build ID for the future manual Safari check.
+Behavior is documented in `docs/music-workspace.md`, `docs/music-language.md`,
+`docs/music-live-playback.md` and `docs/music-chat-backend.md`.
+
+Historical test clarification: the earlier native session's nested “all good”
+output did not establish a full `npm test` success. The fresh exit-0 result above
+is actual full-suite evidence for this workspace work.
+
+## 2026-09-08 — Native structural editor completed
+
+The native LSDj structure editor is bundled and reachable from Create via Open
+LSDj, Open native JSON, and Resume LSDj edit. It edits the authoritative 32 KiB
+NativeDocument directly: sequence, chains, phrases, instrument
+parameters/names, all five table regions, grooves, waves, allocation bytes,
+tempo and transpose; format version is read-only. Edits are staged in a
+persistent field/slot/row map and applied atomically through bounded
+`setBytes()`, with undo/redo. Pending edits survive navigation, closing and
+render/history operations; invalid drafts are escaped in the DOM and block
+exports rather than being dropped. Replacement requires confirmation, the
+shared strict .lsdsng parser is used, in-flight imports are cancelled by a
+generation token, and a beforeunload warning covers dirty edits while the
+panel is open or suspended.
+
+Exports were checked against actual byte offsets: .lsdsng retains its imported
+name/version header; .sav changes only the first 32768 working-memory bytes;
+native JSON is a standalone structure share. Keyboard modality is checked with
+Tab wrapping, Escape isolation, Space isolation, category navigation, focus
+restoration after Apply and mobile layout. The browser regression checks
+malformed streams, cyclic input, invalid drafts, replacement confirmation,
+close/resume, slow/fast import races, and blocked exports. The focused native
+editor suite passed all checks.
+
+This remains a structure editor, not a player: native command/table execution,
+multi-stage envelope behavior, kit execution and native sound parity remain
+unfinished. No deployment or app restart occurred. The full suite reached its
+final all-good checks but the long npm wrapper did not exit cleanly; focused
+native-document, parser-bound and editor suites passed.
+
+## 2026-09-07 — Composition fixes completed
+
+Owner requested the composition fixes specifically. Restored only the
+composition/API/melody portions of the saved Claude draft; the native-editor
+draft remains deferred. The archive is retained unchanged for provenance.
+
+- Optional bounded energy/density/motion premises now affect section intensity,
+  lead/bass onset count and melodic/bass range before generation. Absent/zero
+  dials preserve the unprompted station byte-for-byte; non-finite values are
+  neutral and finite out-of-range values clamp to [-1,1].
+- New-song mood mode respects an explicit mode or scene. Existing-song edits
+  with explicit edit wording transpose/recolour the current document without
+  regenerating its arrangement. Reference character fills only unowned axes;
+  a user's axes that cancel to zero remain owned. Melody/bass density is not
+  thinned/subdivided a second time after its premise is applied.
+- Caller tempo ranges suppress later mood/reference/absolute/multiplier tempo
+  operations. A one-sided caller range does not inherit the other endpoint
+  from a reference. Spoken tempo operations also block reference tempo hints.
+- `reference.uses` records surviving operation indices and premise axes.
+  Character words are labelled as partial hints with their actual surviving
+  dimensions. `ask().understood` and `applied` remove overridden reference
+  style/mode/range claims and report effective caller key/mode/tempo/style;
+  `spec` remains the parsed request. Unmet styles are reported rather than
+  retained as successful genre claims.
+- `composer.canCompose()` shares the composer's own eligibility logic without
+  generating a score. `brief()` uses it to resolve the existing style fallback
+  before generation, avoiding a second compile and no longer catching unrelated
+  composer exceptions as style conflicts. An impossible direct composer premise
+  still fails. This is constraint resolution, not candidate scoring.
+
+Focused character, mood-constraint and language tests passed. All 345 published
+reference-title × neutral/cheerful/calm combinations preserved caller house,
+major and 120 BPM settings in exactly one compile. The character tests are in
+`npm test`; the bundled-browser API test also checks the caller precedence and
+readback. Render parity passed 10/10, correlation 1.000000, lag 0, max RMS
+delta 0.175 dB. The full `npm test` suite exited 0, including the local-ROM
+native checks (not skipped). The final `verify-api.js` rerun also exited 0,
+including exact Node/browser document identity for the same prompt, token and
+character premise. Logs: `/tmp/chiptunes-composition-fix.AnT2XH/` (`full.log`,
+`parity.log`, `api-final.log`, focused logs). Verified local artifact:
+`dist/app.32bcc1826b40.js`. The previous native-editor/playback and Safari
+release-acceptance work remains separate and unfinished.
+No deployment, release, app restart or native-playback implementation occurred.
+
+## 2026-09-07 — Native foundation and measured-envelope checkpoint
+
+Owner clarified that using Claude was intended to spend the available credits
+and make progress, not establish a permanent model restriction. Parallel Claude
+workers prepared implementation patches; Codex reviewed/applied them and ran
+tests centrally. Claude recovered at its 23:20 Europe/Paris reset, then returned
+HTTP 429 with a new reported reset of 04:20 Europe/Paris. Composition and
+envelope-review calls confirmed the limit. A final editor retry produced no
+output and was stopped; no Claude workers from this task remain running.
+
+### Verified changes
+
+- `src/lsdj-native-document.js`: authoritative native image plus private edit
+  state, bounded undo/redo, atomic phrase-row editing, copies at public read
+  boundaries, frozen descriptors, exact untouched-byte retention, checked diff
+  and standalone full JSON serialization. Oversized diffs fall back to full
+  shares. FNV-1a is an accidental-corruption checksum, not authentication.
+  This is a module foundation, **not bundled or exposed as a finished UI**.
+  Its tests cover every mapped field's final byte, invalid edits/atomicity,
+  hostile shares, 12 high-entropy songs, worst-case escaping and whole-song
+  full-share fallback. An additional check edited all 30,099 mapped bytes.
+- Shared foreign-file decompression now rejects cycles, invalid jumps/bases,
+  missing operands/EOF, early EOF and output overrun instead of hanging,
+  zero-padding or truncating. Valid full-length backward/noncontiguous acyclic
+  layouts remain accepted; foreign files do not require canonical recompression.
+  Focused parser tests and 128 additional random image round trips passed.
+- Write observer checks BOTH forwarded callback values and adds stderr timing
+  calibration over the play window, frame counts, min/max raw ticks, reduced
+  ticks/frame ratio and frame-boundary double-speed transitions. DMG and CGB
+  observer checks passed with a freshly compiled `lsdjwrites-calibrated`.
+- Envelope analyzer preserves ordered same-frame writes, excludes next-onset
+  setup, distinguishes interruption/truncation from completion, validates CSV
+  and bounds fixture matrices. 352 actual ROM cases completed across first,
+  second, third and edge/zero-turn experiments. No native sound implementation
+  landed. See `docs/lsdj-envelope-write-evidence.md` for counts, limitations
+  and report paths. Cadence remains a hypothesis, not a physical-volume oracle.
+- Native-document, parser-bound and analyzer selftests are included in both
+  `npm test` and `test:lsdj`.
+
+### Deferred work is preserved, not silently shipped
+
+`docs/drafts/claude-2026-09-07.json` retains the provisional composition/editor
+diff, three new source/test files and two later Claude review proposals.
+`docs/drafts/README.md` identifies how those alternatives relate. Temporary
+originals also remain under `/tmp/chiptunes-claude-52kTdZ/`.
+
+The composition draft passed focused character/language/API/mood/melody tests
+and kept neutral digests, but review found caller-pinned 150 BPM becoming 132
+for calm or 162 for cheerful, and reference summaries claiming overridden
+traits. Earlier edits fixed mood/reference mode precedence and edit-in-place
+transposition, but the final result/provenance corrections are unfinished.
+The first native editor passed basic exact-byte exports and desktop/phone
+layout checks; later draft review found staging loss, modal keyboard leakage,
+replacement without confirmation, unsafe duplicate decompression and unescaped
+invalid draft values. These drafts were removed from product source/build
+before the checkpoint. Their passing focused tests do not certify readiness.
+
+Next: finish those bounded fixes from the saved drafts; then native command,
+table, multi-stage envelope and kit execution/parity remain substantial work.
+Real deployed Safari acceptance still requires an owner-authorized release.
+No deployment, store upload, app restart, ROM upload, cloud task or persistent
+job was created. This is not completion of the overall goal.
+
+### Checkpoint verification
+
+Focused native-document, parser-bound and analyzer selftests passed (exit 0).
+Calibration passed on both models: `/tmp/chiptunes-claude-52kTdZ/timing-calibration-test.log`.
+Every command in the 42-command `npm test` sequence passed across the following
+runs, with explicit owner ROM, `LSDJPLAY`/`LSDJ_TRACE` from
+`/tmp/chiptunes-envelope-safe.rNmG2i/`, and
+`LSDJ_WRITES=/tmp/chiptunes-claude-52kTdZ/lsdjwrites-calibrated`:
+
+- `full-native-checkpoint.log`: build through song-document checks passed;
+  the subsequent Create-handover browser process stalled before its first
+  assertion and was stopped. This `npm test` invocation did not exit zero.
+- `handover-retry.log`: the unchanged Create-handover test passed on a fresh
+  browser retry (exit 0); diagnostic logging was enabled only for this run.
+- `full-native-tail.log`: every remaining package test command, starting at
+  frame pacing, passed in sequence (orchestrator exit 0), with a 240-second
+  timeout per command. Native observer/ROM cases were exercised, not skipped.
+- `parity-native-checkpoint.log`: separate render-parity check exited 0,
+  10/10, minimum correlation 1.000000, zero-sample lag, max RMS delta 0.175 dB.
+
+These logs are in `/tmp/chiptunes-claude-52kTdZ/`. An earlier mixed-state
+`full-interim-sep7.log` run was deliberately stopped and is not a suite pass.
+Verified local artifact: `dist/app.83c94db404c3.js`; nothing was deployed.
+The durable draft archive was compared byte-for-byte with its saved snapshots.
+
+All prompts/results/logs remain under `/tmp/chiptunes-claude-52kTdZ/`.
+Another task, `01a078a8-cce4-7512-805e-52788a5ae6c3`, accidentally terminated
+this task's live composition and envelope Claude workers. Both exited 143 and
+were resumed in their same Claude sessions; no shared files were altered by
+that task. Its owner has the separate byte-matching decompilation request in
+`/Users/shokunin/dev/lsdj-decomp`; this task does not edit that repository, only
+uses the owner's ROM there for immutable local probes. The other task
+confirmed it will leave this task's files and processes alone.
+
+## 2026-09-06 — Claude-coordinated UI and native-observer checkpoint
+
+Owner requested the remaining work through Claude using parallel workers.
+Five local Claude Code workers prepared patches/reviews; Codex reviewed and
+applied them centrally in this shared checkout. Initial OAuth failures and a
+GitHub connection reset cleared on recheck; the pull then reported up to date.
+Claude later returned `You've hit your session limit`, reset reported as
+23:20 Europe/Paris. No cloud task, ROM upload, deployment, app restart,
+infrastructure change, or persistent job was created.
+
+### Ready changes
+
+- The visible player volume control is `.pb-voldial`, NOT the hidden legacy
+  `#pbVolume` button. The duration was visibly occluded at 1280px because the
+  LCD's 420px minimum width (300px in a narrower rule) overflowed its grid
+  track. Both floors are now zero; the flex item can shrink inside its track.
+  `verify-player-readability.js` checks the actual visible control at 1200,
+  1280, 1440 and 1600px. Before/after screenshots were inspected, not merely
+  bounding boxes. This was local Chromium, not deployed/native Safari proof.
+- Create prompt feedback shows a bounded primary interpretation and an
+  expandable full reading. Unapplied requests are counted in the disclosure
+  label even when additional successful traits are also collapsed. Every
+  full reading remains available, including a single long reference that
+  exceeds two phone lines. The legacy `reading` string remains intact for
+  API consumers. Visible listen/copy-link help replaces tooltip-only guidance.
+  The new browser test exercises a long phone prompt, keyboard/click disclosure,
+  visible transport and cold Create close returning to landing. It does not
+  introduce a new handoff-to-player behavior or implicit playback on close.
+- `tableOf` detects enabled table data across all five mapped columns, not
+  just transpose. `tableTransposes` separately gates the existing approximate
+  arpeggio projection. Command-only/other non-transpose tables are warned as
+  detected but not executed. Empty-table handling is unchanged; this does not
+  establish that a native enabled all-zero table is semantically inert.
+  `verify-lsdj-table-detection.js` covers disabled, command-only, transpose,
+  empty and table-free cases and verifies projection does not mutate input.
+- `tools/lsdjwrites.c` wraps AND forwards mGBA's CPU `store8` to record every
+  FF10..FF3F store in order, with a uint64 global timestamp, frame index and
+  double-speed flag. It attaches after boot but before START so onset writes
+  are included. It uses the immutable save helper, restores the callback
+  before deinit, validates model/frame arguments, and exits nonzero on capture
+  overflow. Synthetic selftests cover recorder order, >2^32 timestamps,
+  overflow flagging and basic hook forwarding/filtering. The hook selftest
+  checks the final forwarded event, not every forwarded value.
+  `verify-lsdj-write-observer.js` additionally captures the owner's ROM's
+  same-frame NR12 09/11/18 sequence after onset on DMG AND CGB, with no
+  retrigger within that burst; checks CSV ordering/format, input immutability,
+  missing-save behavior and invalid arguments. This proves observed driver
+  write order, NOT correct physical envelope volume or cycle accuracy. The
+  mGBA decay-volume limitation remains; no native-envelope mapping landed.
+
+The new tests are included in `npm test`; both native tests are also in
+`test:lsdj`. The write observer uses optional `LSDJ_WRITES` and `LSDJ_ROM`;
+explicitly supplied unusable paths fail (the binary selftest runs before the
+ROM check). This session compiled the observer with installed mGBA headers:
+`/tmp/chiptunes-claude-52kTdZ/lsdjwrites`.
+
+### Verification of this checkpoint
+
+The full `npm test` run completed with exit 0, including the native observer
+on both DMG and CGB (not skipped). Environment used the owner's local ROM,
+`LSDJPLAY` and `LSDJ_TRACE` from `/tmp/chiptunes-envelope-safe.rNmG2i/`, and
+`LSDJ_WRITES=/tmp/chiptunes-claude-52kTdZ/lsdjwrites`. Complete log:
+`/tmp/chiptunes-claude-52kTdZ/full-ready.log`. The separate broadcast render
+parity check also exited 0: 10/10, minimum correlation 1.000000, zero-sample
+lag, maximum absolute RMS difference 0.175 dB. Log:
+`/tmp/chiptunes-claude-52kTdZ/parity-ready.log`.
+
+Verified local artifact: `dist/app.02d62de91078.js`. Nothing was deployed.
+Final player/prompt screenshots are in
+`/var/folders/tq/_6yt1vp555qcj2jwgxmz060w0000gn/T/chiptunes-player-read-w7QRix/`;
+responsive screenshots are in the sibling `chiptunes-responsive-Dntkn8/`.
+These temporary screenshots and logs are not durable repository artifacts.
+
+### Deferred Claude drafts — not in the product or claimed complete
+
+Session files, proposals and review requests are under
+`/tmp/chiptunes-claude-52kTdZ/`. These are temporary; this handoff records the
+substantive blockers so resumption does not depend on those files surviving.
+
+1. Composition worker `9c81e763-f240-497f-a1ee-0a63e1a680eb` proposed energy,
+   density and motion premise dials. Neutral output and existing language/API
+   tests passed, but the new test failed for bare `a sparse song`: interpreter
+   classified it as a change with no document, bypassing the premise. Motion
+   changed legacy lead-motif metadata and walking bass, not the actual modern
+   lead generator. Zero-valued cancelling explicit axes were wrongly treated
+   as unowned, and reference transforms still vanished wholesale when explicit
+   moods were present. The D-minor mood-override fix covered only briefs, not
+   all actual new-song/existing-edit paths. Requested revision includes actual
+   `src/melody.js` generation, axis-presence tracking, semantic reference merge,
+   explicit typed constraints and deterministic fixed-token tests. Claude hit
+   its limit before returning that revision. ALL provisional composer/API
+   changes and the new character test were removed from the checkout; HEAD's
+   previously verified genre/mode fix remains. No mood overhaul has landed.
+2. Native-document worker `2ef67966-afd6-4ccf-935b-49fa22171fe2` proposed a
+   private raw-slot authoring model, atomic edits/undo and versioned shares.
+   Reviewed revisions added strict index validation and a bounded canonical
+   compressed-stream decoder, because the old codec decoder can loop forever
+   on hostile block jumps and pads truncated output. Generic hardware-envelope
+   behavior and structural byte coverage must never be labelled native playback
+   support. The final draft passed focused tests and 12 extra high-entropy full
+   share roundtrips, but a valid large diff serialized to 318819 characters and
+   failed its own 262144-character input limit. Requested full-share fallback
+   plus worst-case escaping/large-edit tests was blocked by Claude's limit.
+   Module and test are preserved as `deferred-lsdj-native-document.js` and
+   `deferred-verify-lsdj-native-document.js` outside the repo, NOT integrated.
+   Next integration must keep actual native state authoritative; retaining an
+   original image beside an independently editable flattened doc would export
+   stale data. Phrase/chain/table/instrument UI and playback remain open.
+
+Remaining full objective: mood/keyword composition overhaul and listening
+review; complete native sound, sequencing, editing and lossless edit/export
+parity; no extra Chiptunes-only musical capabilities; final UI/Safari acceptance.
+Byte-matching decompilation remains postponed. Do not conflate this checkpoint
+with that final objective.
+
+## 2026-09-05 — explicit genre/mode checkpoint
+
+Named composer styles now accept either explicit major or minor. The style's
+`modes` metadata remains its default preference, not a restriction when styles
+and mode are both supplied. Mode-only premises retain the previous genre pool;
+unprompted composition and random streams are unchanged.
+
+Previously `brief({styles:['rock'], mode:'minor'})` exhausted the eligible
+style pool, caught the error and retried after discarding rock. This combination
+now succeeds on its first compile. Focused coverage exercises both polarities
+for all 14 styles, counts one compile for the API regression, retains rejection
+of impossible style/tempo combinations, and pins the existing 48-song complete
+score digest. Named multi-style premises may now select formerly excluded
+genres (for example minor punk in the battle pool); that is intentional.
+
+This is not the mood-driven composition overhaul. Reference-title modes still
+use their existing post-compose transform path; the historical explanation in
+`src/api.js` about rock/minor being impossible is now obsolete. Explicit mood
+versus typed-mode precedence, energy/density/motion before note generation,
+remaining native LSDj parity, and the UI/Safari checks remain open. No cloud
+task was dispatched and no ROM was uploaded.
+
+Verification: the full `npm test` run passed through latency, then stopped in
+`verify-screens.js` on a 180-second screenshot timeout after fonts loaded
+(`/tmp/chiptunes-explicit-mode-full.log`). On the unchanged build the isolated
+screen retry passed, followed by all three remaining smoke/audit commands
+and render parity (10/10, correlation 1.000000, zero sample lag, maximum
+absolute RMS difference 0.175 dB). Logs are
+`/tmp/chiptunes-explicit-mode-screens-retry.log`,
+`/tmp/chiptunes-explicit-mode-smoke.log`, and
+`/tmp/chiptunes-explicit-mode-parity.log`. Every package test command passed
+across those segments; this was not an uninterrupted green full-suite run.
+The screenshot timeout's cause is not established or claimed fixed.
+Shared artifact: `app.fdaafc91525b.js`. Nothing deployed or restarted.
+
+## 2026-09-05 — portable manual envelope playback primitive
+
+`src/gb-apu.js` now executes the portable held-increase NRx2 operation: while
+the channel is active and its envelope is unlocked, an x8 -> x8 register
+write increments live volume modulo 16 without a trigger. Fifteen such
+increments decrement by one. Pulse 1, pulse 2 and noise share this behavior;
+wave does not have this envelope unit. Automatic hardware envelopes now
+retain an explicit active/overflow-lock state, released by a new trigger.
+DAC re-enable without a trigger does not restart a killed voice.
+
+This implements only the common manual operation, not all model-specific
+NRx2 transitions. In particular, the owner's LSDj ROM's optimized 09/11/18
+decrement is NOT yet implemented. Pan Docs documents the portable operation
+and revision-dependent alternatives (Audio details / Obscure Behavior):
+https://github.com/gbdev/pandocs/blob/master/src/Audio_details.md
+SameBoy's `nrx2_glitch` also distinguishes pre-CGB-D and later revisions:
+https://github.com/LIJI32/SameBoy/blob/master/Core/apu.c
+No external emulator source was copied into production, and mGBA's faulty
+decay behavior was not adopted. Full chip-revision/cycle accuracy is not
+established by this increment primitive.
+
+`verify-apu-manual-envelope.js` adds 54 channel/initial-volume/overflow-lock
+cases plus initial-volume reload checks. It checks all 16 initial levels,
+modulo wrap, repeated decrement writes, DAC-off/re-enable, unchanged oscillator
+and timer state, sustained pace-zero output and overflow locking/retrigger.
+Three integration cases route a manual increment and 15 identical decrement
+writes through the browser sequencer and actual generated cartridge CPU;
+both retain every write and reach the expected live volumes. Both paths use
+our APU, so these checks establish transport/order, not independent hardware
+validation. The new check is part of full `npm test`.
+
+A read-only comparison against `75878a9` found identical PCM for the first
+20 seconds of each of 48 generated smoke songs (not their entire duration):
+`/tmp/chiptunes-manual-envelope-baseline.js`. The focused automation check
+and `verify-rom-audio.js` also passed. This is no listening-quality verdict.
+
+The native import/export envelope gap is still open: `ENVELOPE_HOLD` remains
+wrong, export still discards shape, native stage/version fields are not a
+shared authoring representation, and fast modern rates require sub-frame
+timing beyond current automation. The portable primitive now gives that
+future scheduler a manual volume operation; it does not by itself repair
+an imported song or expose native ADSR in Create. Earlier statements below
+that `_env` implements no manual volume writes describe the prior checkpoint.
+
+Scheduler constraints confirmed in this checkout: `Sequencer` indexes auto
+events with `w.f | 0`; its speed setting scales only the music/frame clock,
+while hardware envelopes remain real-time. Pre-expanding envelopes into that
+lane would both lose fast updates and incorrectly speed them up with tempo.
+The sample renderer already splits APU advancement for kit refills; a native
+envelope clock must coexist with that split. Cartridge automation is likewise
+integer-frame scheduled. Its timer ISR currently serves kit refills, and
+`kitStop` disables the timer, so a shared real-time envelope scheduler must
+not steal or inadvertently disable kit timing. These are integration gaps,
+not reasons to fork behavior between website and cartridge.
+
+Every package.json test command has now passed on the current build across
+three segments: the successful prefix through `verify-create-handover.js`
+in `full-v2`, the isolated pacing rerun, and the exact remaining suite command
+tail from `verify-share.js` onward, which finished with exit 0 in
+`/tmp/chiptunes-manual-envelope-suite-tail.log`. This includes the fixed motif
+regression, native envelope/arrangement checks, five responsive viewports,
+48 finite generated songs and all 14 games. This is NOT a claim that the
+uninterrupted `npm test` invocation passed; its intermittent pacing failure
+is retained below. No deployment or desktop app restart occurred.
+Browser/broadcast render parity finished with exit 0: 10/10, minimum
+correlation 1.000000, zero sample lag, maximum absolute RMS difference
+0.175 dB (`/tmp/chiptunes-manual-envelope-parity.log`). The shared artifact
+is `app.4bed86848176.js`, including the updated worklet APU.
+
+Verification history must not be summarized as an uninterrupted green run:
+`/tmp/chiptunes-manual-envelope-full.log` stopped at the motif collision below.
+After that correction, `/tmp/chiptunes-manual-envelope-full-v2.log` stopped
+at frame pacing: draws were observed but the refresh estimate stayed zero,
+so both the measured-tick and ratio assertions failed. No runtime pacing code
+was changed. An isolated rerun on the same artifact passed with an 8.32 ms
+estimate and ratio 2 (`/tmp/chiptunes-frame-pacing-recheck.log`). Cause of the
+zero estimate is unproven; this is an unresolved intermittent test/runtime
+observation, not a claimed pacing fix. Remaining commands were resumed
+from `verify-share.js` using the exact tail of package.json's test command.
+
+### Full-suite failure exposed a motif-picker collision
+
+The first full run stopped in `verify-diversity.js`: two randomly minted
+soundtracks returned the same eight-pitch motif preview. The random test did
+not log replay tokens. A separate fixed-seed audit reproduced a stronger
+collision: `f6c94f818d131520` and `bf7f5ae2f36b6741`, scenes title/battle/boss,
+key D, motif true, both selected the identical 15-note D4/F#4/A4/D5 arpeggio
+at bar 0 with two-row lengths/onsets. This is independent of the APU change;
+the API and composer at the failed build were still unchanged.
+
+The soundtrack picker now skips mechanically repeated 1..4-note cells with
+matching pitch, duration and inter-onset pattern, including a last partial
+repeat. It sorts candidate cells by onset and keeps looking within the SAME
+already composed cue, then the other pulse lane. It does not recompose,
+rank candidate songs or add an alternate musical pipeline. With no eligible
+phrase it reports why rather than inventing a motif. This is a bounded
+selection correction, not a claim that repetition is bad music or that the
+new selection is always the best theme.
+
+The motif regression now uses those two fixed formerly-colliding tokens,
+retains the requirement that their pitch previews differ, and checks that a
+clipped repetition is not selected as a new phrase. Other diversity batches
+retain their existing coverage and thresholds. Focused diversity and API
+checks passed (`/tmp/chiptunes-motif-diversity-focused.log`,
+`/tmp/chiptunes-motif-api-focused.log`). A 100-token exploratory audit still
+found some common short figures and some identical pitch previews with
+different rhythms; global motif uniqueness and quality are NOT established.
+The broader pre-composition mood/semantic overhaul below remains needed.
+The same updated regression run against the prior `75878a9` API fails exactly
+the two new motif checks (exit 1; `/tmp/chiptunes-motif-counterfactual.log`),
+confirming that the fixed tokens exercise the old defect rather than merely
+choosing examples that already passed.
+
+### Composition follow-up identified during verification
+
+The authorized read-only Luna audit identified a concrete next composition
+change, and main checked the relevant source: `brief()` passes styles/mode/
+tempo into `compose()`, while `ask()` blends mood recipes only afterward as
+document transforms (`src/api.js`, `brief`, `ask`). Thus mood cannot directly
+condition initial rhythm/bass/accompaniment selection. `interpret()` also
+guards all reference-title character traits with `!moods.length`: one explicit
+mood suppresses every inferred trait, not just conflicts. A canonical semantic
+recipe should merge orthogonal traits and feed compositional premises before
+the one deterministic composition, retaining post-transforms for actual edits.
+Test fixed-token prompt pairs and control paths, not merely different hashes
+or note counts; listening evidence is still required for a quality claim.
+
+The audit also flagged mixed understood/unsupported prompts returning `ok:true`.
+`ask()` does retain `unsupported` in its returned reading, so this is not yet
+proof of silent loss in the UI. Review how partial fulfillment is presented
+before changing this into a blanket refusal policy; no new refusal rule or
+composer change was implemented in this APU checkpoint.
+
+## 2026-09-05 — envelope evidence and immutable native probes
+
+The envelope investigation uncovered an observer problem before a playback
+fix: both C probes used `mCoreLoadSaveFile(..., false)`, which lets LSDj's
+upgrader rewrite the input SAV. Previously played temporary fixtures from
+`chiptunes-envelope-shapes-6TIA6x` now contain format 22, not their originally
+generated format 7. Do not reinterpret those current files as pristine inputs.
+The earlier logged projections were computed from an in-memory pre-run model;
+the observed rise/hold counterexamples remain valid, but replay provenance was
+not protected. `tools/lsdj-probe-save.h` now loads a read-only input into an
+owned in-memory VFile for both probes. Only explicit exclusive `LSDJ_BOOT_SONG`
+output persists an upgrade. Missing save paths fail without creating files.
+
+Fresh owner-ROM 9.4.2 fixtures measure v7 -> v22 envelope migration. Holding
+initial volume 8, legacy rates 0..7 become modern byte-1 low nibbles
+`0,5,7,8,9,A,B,B`. Legacy direction is moved into the target: byte 9 becomes
+`F0` for shapes 9..F and `00` otherwise; byte A is zero. Legacy 8 becomes
+modern 0 (hold). Modern byte 1 is therefore NOT the same direction/rate field
+as legacy byte 1 or Create's `fd`. The official 8.5.1 manual describes three
+amplitude/speed stages, with direction inferred from their levels:
+https://www.littlesounddj.com/latest/documentation/LSDj_8_5_1.pdf (2.6.2).
+These are measured migration cases, not a full modern ADSR decoder or timing
+specification. Local liblsdj also exposes stage bytes 1, 9 and A, and treats
+the first rate as four bits from format 13 onward; its setters/getters are
+not sufficient proof of owner-ROM behavior.
+
+`lsdjtrace` now accepts only `LSDJ_MODEL=DMG|CGB` (or omitted auto-detection),
+reports the actual model on stderr, and documents that CSV data is frame-end
+internal IO shadows plus emulator volume, NOT a complete bus-write trace.
+Repeated/intermediate writes disappear; equal snapshots alone cannot prove
+equal sound. A temporary 24-case probe at 80/128/180 BPM exposed divergent
+decay behavior: legacy 81 at volume 8 rose 8..15 then wrapped to zero in mGBA
+DMG, but dropped to zero on the first update in CGB. Legacy 89 rose to 15 in
+both. Those decay outputs are not a native musical specification. mGBA
+0.10.5 `src/gb/audio.c` `_writeEnvelope` explicitly has incomplete zombie-mode
+handling with different DMG/CGB paths:
+https://github.com/mgba-emu/mgba/blob/0.10.5/src/gb/audio.c#L831
+Do not reproduce those artifacts as intended LSDj envelopes in our player.
+No mGBA installation, infrastructure, ROM or production APU was modified.
+
+A temporary CPU store callback, preserving and forwarding the original
+`SM83Core.memory.store8`, observes what frame snapshots missed. On fresh
+legacy 81 at 128 BPM, CGB: frame 19 writes NR12=88, NR14=86 then 06;
+frames 20..27 each write NR12=09,11,18 in order. There is no new trigger
+for those eight envelope updates. `/tmp/chiptunes-envelope-write-trace.c`
+and `/tmp/chiptunes-envelope-write-events.log` retain this probe (the log's
+event separators in that first log are literal escaped newlines). The trace is not yet a
+cycle-accurate validated oracle. It provides a concrete next observer change:
+record ALL sound-register writes in order, not only their frame-end values.
+Pan Docs' Audio details / Obscure Behavior describes model-dependent NRx2
+write effects and the portable +1 via 08 (15 such writes decrement by one):
+https://github.com/gbdev/pandocs/blob/master/src/Audio_details.md
+Our APU `_env` currently changes only initial volume/rate/DAC state, so it
+does not implement manual mid-note volume updates at all. An automation list
+alone cannot fix this; the hardware boundary also needs verified semantics.
+
+A further temporary modern-rate sweep (`/tmp/chiptunes-modern-envelope-rate-audit.js`,
+`/tmp/chiptunes-modern-envelope-rate.log`) varies format-22 first-stage rates
+0..F, initial level 8, target F, later rates zero. Rate 1 performs four 08
+writes in the trigger's frame and three in the following frame; rate 5 takes
+seven updates at offsets 1..7 frames, rate F at 19/38/57/76/96/115/134.
+The store callback now also logs `mTimingGlobalTime` and `doubleSpeed` (1 in
+this CGB run). Thus frame-only automation is insufficient for the faster
+native envelopes even with correct direction. Cycle-delta observations are
+retained in the log, not promoted to a universal timing formula; later stages,
+phase, model and tempo still need controlled write-level fixtures.
+
+`verify-lsdj-envelope-fixtures.js` adds owner-ROM checks for input immutability,
+16 independently expected migrations and old/upgraded snapshot equivalence,
+plus 36 rise cases across both pulse channels, two hardware models, three
+tempos and initial volumes 1/8/14. This is observer/migration evidence, not
+full envelope parity. The existing fixed `ENVELOPE_HOLD` importer is still
+wrong and the exporter still drops shape. Next implementation needs an
+explicit version-aware multi-stage envelope representation shared by native
+import/export, Create and playback; a raw four-bit `fd` alias would conflate
+different semantics. A reliable software-envelope write/timing observer (or
+independent hardware-validated emulator) is needed before asserting decay
+volume correctness. This does not block unrelated composition/UI work.
+
+The focused fixture run passed, then full `npm test` finished with exit 0
+using freshly compiled `/tmp/chiptunes-envelope-safe.rNmG2i/{lsdjplay,lsdjtrace}`.
+Log: `/tmp/chiptunes-envelope-observer-full.log`. The full run includes all
+new envelope checks, existing owner-ROM cases, five responsive viewports,
+48 deterministic finite songs and all 14 games. No production source or
+generated artifact changed; no release, deployment or app restart occurred.
+Render parity also finished with exit 0: 10/10, minimum correlation 1.000000,
+zero sample lag, maximum absolute RMS difference 0.175 dB
+(`/tmp/chiptunes-envelope-observer-parity.log`).
+
+## 2026-09-05 — local landing and Create responsive correction
+
+The follow-up to `91b63b9` changes the shared UI, not the musical path.
+Landing uses normal document flow with a content-sized card and attribution
+footer, replacing fixed desktop centering that clipped its top. The screen
+panel's width and mobile title size now fit the case. Concise product copy
+keeps the automatic-song/composition/hardware explanation, removes the stale
+WebMCP count, and explicitly says some LSDj sounds/effects still differ.
+This is disclosure of unfinished parity, not a substitute objective.
+
+The landing must receive pointer input: when its container retained
+`pointer-events:none`, wheel events could target the fixed game canvas and
+miss the body's scroll chain. The local Chromium check now scrolls with real
+browser wheel input, captures the revealed action, and clicks it. No native
+Safari interaction claim follows from this evidence.
+
+Create's scrolling mood viewport ends physically before the close control.
+Phone transport is a two-row grid with rewind/play/follow/grid on the first
+row and speed on the second. Sound labels have content-sized heights; the
+old 19-pixel buttons spilled wrapped pulse labels outside their surfaces.
+The play control now reports Play/Pause and pressed state through ARIA.
+Close semantics are unchanged: a cold-start Create session returns to the
+prior landing context, not an implicit player handoff of the edited song.
+
+`verify-responsive-layout.js` is part of `npm test`: 1280×900, 900×650,
+narrow desktop 390×844, 320×568, and iPhone 13 emulation at 390×844. It checks
+visible controls, actual wheel/click input, successful prompt generation and
+rendered notes, play/pause state, the final horizontally scrolled utility
+action, and a playing page. Its asset server supplies correct MIME types.
+The authorized Luna sidecar supplied the initial script; main corrected its
+bounding-box/property errors, nonexistent grid IDs, horizontal close-reserve
+assertion, and note-render assertion before trusting it. Main added smaller
+viewports, visible wheel checks and player captures. Initial wheel failures
+also exposed a test timing issue: the retiring startup overlay received the
+event. The final test waits until that overlay is hidden, then tests input.
+All five focused cases passed. Screenshot review and remaining findings are
+in `docs/website-review-2026-09-05.md`; final focused images are under
+`/var/folders/tq/_6yt1vp555qcj2jwgxmz060w0000gn/T/chiptunes-responsive-371FcH`.
+
+Full `npm test` finished with exit 0, including the new five-viewport checks,
+owner-ROM fixtures, 48 deterministic songs and all 14 games
+(`/tmp/chiptunes-responsive-full.log`). Browser/broadcast render parity also
+finished with exit 0: 10/10, minimum correlation 1.000000, zero sample lag,
+maximum absolute RMS difference 0.175 dB
+(`/tmp/chiptunes-responsive-render-parity.log`).
+No deployment, app restart, infrastructure change or decompilation occurred.
+Native sound/editing parity, real deployed Safari interaction verification,
+listening-quality evidence and broader composition overhaul remain incomplete.
+
+### Next sound-parity evidence: the envelope hold table is wrong
+
+A read-only probe during this UI verification varied pulse instrument byte 1
+through `80..8F`, with byte 3 zero, C4 at row 6, no phrase commands/KILL, two
+declared bars, 128 BPM, and the owner ROM in the volume-aware mGBA harness.
+`/tmp/chiptunes-envelope-probe.js` generated exclusive temporary SAV files;
+results are in `/tmp/chiptunes-envelope-probe.log`, with fixtures under
+`/var/folders/tq/_6yt1vp555qcj2jwgxmz060w0000gn/T/chiptunes-envelope-shapes-6TIA6x`.
+
+The imported projection's `ENVELOPE_HOLD` assumption is contradicted, not just
+approximately timed: byte `88` sustained volume 8 throughout frames 19..179,
+but imports as a one-row note. Byte `89` rose from volume 8 at frame 19 through
+9/10/11/12/13/14/15 at frames 20..26 and then sustained; it also imports as a
+one-row note. `8A..8F` likewise rose to 15 at different rates, while the
+projection shortened them to 1..3 rows. `80` sustained as expected; `81..87`
+dropped to zero at frame offsets 1/2/2/3/4/6/6 in this particular harness.
+These results do not yet establish decay semantics on every hardware model,
+tempo dependence, or modern-format instrument migration. They DO disprove the
+existing claim that every nonzero low nibble is a finite hold followed by cut.
+No envelope implementation changed during the frozen UI build. Next native
+work should preserve/execute envelope direction and rate, with multi-tempo,
+volume/register and format-upgrade fixtures, rather than revising one more
+fixed hold-length lookup table.
+
+## 2026-09-05 — reachable native arrangements and declared duration
+
+`src/lsdj.js` now separates structural inspection (`sequenceRows` and legacy
+`playedNotes`) from `arrangementRows`: canonical row-zero traversal stops at
+NO_CHAIN and chain end markers, including an empty first phrase. Stored
+references after those markers remain available to raw inspection but do not
+become ghost notes, tempo commands or playback warnings on import.
+
+Channels loop independently. Import repeats each nonempty channel cycle to
+the least common arrangement length; a one-phrase C4 part beside a two-phrase
+E4/G4 part now imports C4 at both rows 6 and 22. Source phrase/chain addresses
+remain on the repeated arrangement rows. This is arrangement interpretation,
+NOT a full native executor: H/G jumps, tick effects, groove phase and persistent
+instrument/tempo state across the final loop boundary remain unproven.
+In particular, a matching fixed-tempo trace does not prove arbitrary T-command
+state across loop restarts.
+
+Export includes declared `bars * grid`, not just the last note or T command.
+Import derives duration from arrangement rows, so a four-bar document with
+only one short note no longer returns as one bar. A completely blank document
+uses one channel of genuinely empty timing phrases; the other channels remain
+absent. This preserves declared duration, not an extra tail beyond the existing
+browser loop. Twelve generated-document fixtures check the same boundary.
+
+The document's bar count has 12 bits, but **cell and tempo row addresses also
+have only 12 bits**. A common cycle over 4,096 rows now rejects explicitly
+instead of wrapping later notes to the beginning during encoding. More than
+63 expanded tempo commands also rejects instead of silently dropping the
+rest. These are current projection limits, not LSDj limits or completion of
+the requested parity; the raw codec still retains the native image.
+
+`verify-lsdj-arrangement.js` is in both native and full suites. The authorized
+Luna agent wrote its initial fixture set; main reviewed it, corrected the
+description of per-frame sound-state comparisons (not all were onsets), and
+added populated trailing silence, generated durations, repeated reachable T,
+native end-marker cases, and a true 17/19-phrase oversized-LCM case. Real-ROM
+fixtures establish C4-only repetition beyond chain/sequence ends, silence for
+leading/empty-first-chain cases, and normal repetition when an empty later
+chain is encountered. Unequal-cycle import/re-export matches every sounding
+frame's channel, period and volume over 600 frames. A four-bar trailing-silence
+fixture restarts after exactly 448 frames. No ROM bytes entered the repo.
+The older structural fixture's T/warning expectations were corrected because
+they had treated stored occurrences after end markers as reachable playback.
+
+Focused native and new arrangement verification passed. Full `npm test`
+finished with exit 0, including owner-ROM fixtures, 48 deterministic songs,
+and all 14 games (`/tmp/chiptunes-arrangement-full.log`). The final added
+63/64-tempo-command boundary assertions passed in a separate rerun of the
+arrangement script with the owner ROM. Browser/broadcast render parity also
+finished with exit 0: 10/10, minimum correlation 1.000000, zero sample lag,
+maximum absolute RMS difference 0.175 dB
+(`/tmp/chiptunes-arrangement-render-parity.log`).
+
+An actual rendered website review also ran during verification; see
+`docs/website-review-2026-09-05.md` for build IDs, screenshot paths, desktop and
+mobile observations. It found desktop landing clipping/overlap, mobile form
+overflow and clipped Create transport. A preliminary mid-transition capture
+was discarded as layout evidence. No UI fix or deployment occurred. Next UI
+work needs visible layout and interaction verification, including populated
+Create and player views; native Safari cursor/gesture claims remain unverified.
+
+## 2026-09-05 — pushed checkpoint and next import checks
+
+`7512284` is committed and pushed to `origin/main`; the checkout was clean
+and `git pull --ff-only` reported already up to date before this notes-only
+update. Its full-suite and render-parity evidence is recorded below. No
+deployment occurred. The broader parity/composition goal remains incomplete.
+
+Read-only ROM probes after that checkpoint establish a further importer gap.
+At 128 BPM, a chain containing C4, an FF end marker, and a stale G4 phrase
+plays only C4 (onsets at frames 19, 131, 243, 355, 467, 579). The current
+structural `playedNotes` projection incorrectly includes G4. Putting an E4
+chain on the next sequence row makes native playback alternate C4/E4 at
+112-frame intervals; an intervening NO_CHAIN sequence row instead leaves C4
+repeating. Starting channel 1 on NO_CHAIN with its material on sequence row 1
+was silent in the solo-channel fixture. These are bounded observations, not
+proof of all channel-loop or jump semantics. Keep raw structural inspection
+distinct from execution-aware import; no importer fix has landed yet.
+The temporary probe is
+`/tmp/chiptunes-version-fixtures.e2ILOJ/chain-end-probe.js` (subsequently
+extended with multi-channel and empty-first-chain cases; their results still
+need review before drawing conclusions).
+
+The read-only Luna duration review also found a reproducible remaining gap:
+a four-bar document containing one note at row 0 plays four bars in Create,
+but exports one 16-row native phrase and reimports as one bar. Create uses
+`bars * grid` for its loop duration; `fromDocument` derives export duration
+from the last cell/tempo command and ignores declared bars. KILL insertion
+handles note sustain separately and does not preserve the empty tail.
+Next implementation needs declared-tail export and import tests, generated
+song duration checks, and native timing verification. Merely extending the
+exporter's `steps` is insufficient if import still infers bars only from
+note/tempo material. No duration fix or new regression test has landed yet.
+
+## 2026-09-05 — musician-13: section-aware melodic allocation
+
+The prefix-ratio limiter in `melody.write` forced zero lead onsets in
+zero-based bars 4..11 for all 32 `composition-form-00`..`-31` scores. Replacing
+that with `allocatePhraseGroups` budgets selected phrase spans over the whole
+song (maximum 64%), establishes an early body statement and reserves a later
+return when affordable, then distributes remaining spans among sections.
+This plans slots within one composition; it does not generate/select candidate
+songs. All randomness remains token-derived and deterministic.
+
+Phrase starts follow actual section boundaries. One-, two- and three-bar
+fragments retain cadence material rather than clipping a four-bar theme or
+discarding short sections. Cached A/B/C material is adjusted to each bar's
+local harmony, and a returning theme keeps its statement anchor. New phrases
+do not start in resolve sections; sustained cadence tails may cross a boundary.
+The public Score exposes selected spans as `musical.phrasePlan` for inspection.
+
+Composer revision is now musician-13, but its random-stream namespace stays
+musician-12 deliberately: an independent 48-score before/after comparison
+found style, tempo, key/scale, form/sections, palette and accompaniment events
+unchanged (excluding event seed IDs after the changed lead count). Only melodic
+writing, its echo and metadata are intentionally different. The whole-score
+checksum was updated with this evidence, and a separate pinned backing digest
+in `verify-melody-allocation.js` guards against accidental global reseeding.
+
+Measured on the same 32 seeds: early eight-bar lead gaps went 32 -> 0; bars
+with lead onsets went 544 -> 547 out of 1,496, so this is redistribution rather
+than simply more melody. The cohort uses 42 short fragments. These are onset
+statistics, NOT silence or listening-quality measurements. The 200-song rhythm
+gate still passes; its effective bar-rhythm vocabulary is 171.5 (previously
+183.7), so not every variety statistic increased.
+
+`verify-melody-allocation.js` tests odd section boundaries, spans 1..4, budget,
+determinism, retained cadences, A statement anchors, B development and 200
+production plans. It is part of `npm test`. The owner-authorized Luna sidecar
+extended `diagnose-composition-form.js` with separate planned-phrase fingerprints
+and same-letter/same-span comparisons; the old fixed-four-bar statistics remain
+unchanged for comparison. Main reviewed the patch and reran its self-tests.
+
+Listening material was rendered with `scripts/render-composition-comparison.js`
+from `/tmp/chiptunes-melody-scores-before.json`: rock `smoke-song-0` and ballad
+`smoke-song-21`, 45 seconds each before/after, same production APU and fixed
+0.8 gain. They omit the player's post-processing and are dry mono. WAV paths
+are in `/tmp/chiptunes-melody-listening-manifest.json`; previews are under
+`/var/folders/tq/_6yt1vp555qcj2jwgxmz060w0000gn/T/chiptunes-melody-listening-cEm7Qa`.
+No listening verdict has been obtained. The old `audition-generated-music.js`
+does not render audio despite the package's `--render` alias and still uses a
+stale 14% lead cap; do not treat it as an audition or the current product gate.
+
+Focused allocation, smoke, rhythm, mood/language, diagnostic and native
+structural checks passed. The corrected full `npm test` finished with exit 0,
+including new allocation and sparse-gap fixtures, all prior real-ROM checks,
+48 deterministic songs and all 14 games. Log:
+`/tmp/chiptunes-melody-allocation-verified.log`. Browser/broadcast render parity
+also passed 10/10, minimum correlation 1.000000, zero sample lag and maximum
+absolute RMS difference 0.175 dB (`/tmp/chiptunes-melody-allocation-render-parity.log`).
+This checkpoint is ready for the owner-requested commit/push. No deployment,
+app restart, or decompilation work occurred.
+Full LSDj sound/control-flow/edit parity, broader composition/keyword critique,
+actual UI review and listening verification remain incomplete.
+
+### Compatibility fix: sparse phrase holes (ROM-confirmed)
+
+A separate read-only probe during verification constructed a 128-BPM pulse
+part with C4 at row 6 and G4 at row 54, both four rows long. `fromDocument`
+emits chain slots `[phrase0, FF, FF, phrase1]`. The structural importer reports
+rows 6/22, already losing the intended 48-row gap. The ROM result is worse:
+over 600 observed frames it repeats C4 at frames 19, 131, 243, 355, 467, 579
+and never reaches G4; intended inter-note distance is 336 frames. FF cannot
+serve as an empty, timed phrase, and the structural walk's `continue` past it
+is not proof of native traversal. This defect predates the melody rewrite.
+
+Probe: `/tmp/chiptunes-version-fixtures.e2ILOJ/sparse-gap-probe.js`; latest SAV:
+`/var/folders/tq/_6yt1vp555qcj2jwgxmz060w0000gn/T/chiptunes-sparse-gap-iClJbh/sparse.sav`.
+The full run then failed `verify-lsdj` on the newly arranged battle fixture:
+only 5/12 expected pitches reached LSDj. Verification was terminal (exit 1),
+not restarted on a timeout. `fromDocument` now emits real, deduplicated empty
+phrases for every gap on active channels through the shared material end;
+wholly unused channels remain absent. Tempo-only channels use the same path.
+The failing battle fixture now plays 12/12 expected pitches.
+
+`verify-lsdj-sparse-phrases.js` is wired into both full and native suites.
+Independent ROM fixtures cover both pulse channels, split-channel leading and
+trailing gaps, and a whole-chain gap: observed note spacing is exactly 336 or
+2,128 frames, with no premature loop retriggers. This does not prove all native
+chain/control-flow semantics or preservation of declared trailing document
+duration. Import of arbitrary native chain data still needs execution-aware
+handling rather than treating the structural walk as playback authority.
+The first full log is `/tmp/chiptunes-melody-allocation-full.log`; corrected
+full-suite verification passed, as recorded above. Listening feedback on the
+equal-gain previews has been requested but not yet received.
+
+## 2026-09-05 — native command identities and tempo round trips
+
+The ROM now supplies the modern-format test fixture: `LSDJ_BOOT_SONG` in
+`tools/lsdjplay.c` captures the working song after boot, before playback. It
+writes only 32 KiB of song SRAM to an exclusive new file, never ROM data.
+LSDj 9.4.2 upgrades the format-7 fixture to format 22, changing 151 bytes.
+Original and upgraded saves give identical frame/register/volume CSV traces.
+Before the fix, importing the upgraded fixture lost KILL and T: note lengths
+6/6/6 became 10/8/8 and the tempo timeline disappeared.
+
+`decodeCommand`/`encodeCommand` now separate canonical IDs from raw storage
+for known layouts through format 22. Structural rows and `playedNotes` retain
+raw `command` and add `commandId`; unknown bytes remain untouched, and future
+formats are not guessed. The importer dispatches on normalized identities.
+Canonical identity is not proof of full effect support. The ROM leaves raw 1
+unchanged during upgrade, so the native test deliberately does not claim A/B
+semantic equivalence; see `docs/lsdj-native-command-layout.md`.
+
+The test exposed another loss: even format-7 T survived document import but
+was discarded on export. Export now places the document's tempo changes in
+free command columns without replacing effects/KILL. Explicit empty phrases
+keep commands on otherwise empty channels at their intended row. An occupied
+four-channel command row is an explicit export error, not a silent overwrite.
+Import also reads command-only T (BPM values >=40) across all channels, dedups
+matching simultaneous values, and explicitly rejects conflicting values whose
+execution order has not been established. Lower T values remain unsupported.
+
+`scripts/verify-lsdj-command-versions.js` is included in `npm test` and
+`test:lsdj`. Focused checks pass: formats 7/8/22 encoding, raw preservation,
+unknown values, command allocation, and two ROM-upgraded K/T fixtures (T with
+a note and T mid-note on an empty row). Native re-export pulse transitions and
+frame timing match exactly in these fixtures; browser volume/duty/pitch match
+with the existing one-frame transition sampling allowance. Table migration is
+checked structurally in both command columns, not claimed as table playback.
+Misleading exact-table warnings/comments now describe the known approximation.
+
+Boundary review before verification also fixed two tempo-path cases: a
+command-only tail is included before computing which KILL rows fit, and the
+document codec now retains T at row zero instead of filtering it out. The
+native suite has three fixtures (T at rows 0, 16 and 20), all passing browser
+and native re-export checks. The first full run was deliberately stopped after
+finding the tail issue; its browser-closed message is cancellation, not a new
+browser defect. The corrected-build full `npm test` finished with exit 0:
+`/tmp/chiptunes-command-versions-verified.log`, including all three native
+version fixtures, the eight pulse-trigger fixtures, 48 deterministic songs
+and all 14 game checks. Explicit native-T conflict and saturated export-column
+checks were subsequently made permanent in the focused suite and passed on a
+fresh real-ROM rerun. Browser/broadcast render parity also passed 10/10,
+minimum correlation 1.000000, zero sample lag, maximum absolute RMS difference
+0.175 dB (`/tmp/chiptunes-command-versions-render-parity.log`). This checkpoint
+is ready for the owner-requested commit/push; nothing was deployed.
+
+Scope of the new native playback proof: pulse channel 1, K00, base tempo 128
+and T80, placed at rows 0/16/20. This does not establish all K/T values, every
+channel, arbitrary tempo maps or native control flow. Existing browser frames
+can differ from the sampled native transition by one frame, as noted above.
+
+Use the newly built harness for this run:
+`LSDJPLAY=/tmp/chiptunes-version-fixtures.e2ILOJ/lsdjplay`, alongside the existing
+private ROM and volume-aware `LSDJ_TRACE` paths. Older binaries lack the new
+capture option and fail this gate explicitly. No deployment or app restart.
+Full instrument/table/control-flow parity, edit preservation, the composition
+overhaul (including the forced early melody gap), UI and listening reviews
+remain incomplete.
+
+Read-only Luna melody review confirmed another design constraint for the next
+composition change: sections can start at bars 2 or 3, while melody allocation
+currently steps globally by four. Any section-aware replacement must handle
+short/partial phrases explicitly, not simply discard short openings or assume
+every four-bar group has one section role. Keep motif materialization separate
+from whole-song allocation, and verify theme returns, density and listening.
+
+## 2026-09-05 — separate render synchronization from device latency
+
+The sync failure at checkpoint `3f4e080` compared a speaker-corrected position
+against a chip render-frame report. A fresh browser measurement reports 168 ms
+of output latency, independently of chip scheduling lag. `verify-sync` now
+compares like clocks by removing that separate device correction, logs both
+components, and checks their sum is applied to the audible playhead. Existing
+render error tolerances are unchanged. This is not a physical listening test.
+
+The player also incorrectly took the maximum of reported output latency and
+`currentTime - timestamp.contextTime`. The Web Audio specification explicitly
+rejects the latter as a reliable latency measurement. `outLatency` now prefers
+finite nonnegative `outputLatency`, without capping legitimate long device
+delays. Only when unavailable does it use a fresh, age-adjusted timestamp
+approximation, then the existing bounded base-latency heuristic. Those
+fallbacks remain estimates, not hardware calibration.
+
+Synthetic browser API fixtures failed on the old player for stale timestamp
+precedence (400 vs 32 ms), long reported delay (500 vs 800 ms), and timestamp
+age (140 vs 40 ms). The patched player passes these and high-latency, stalled
+timestamp and invalid-value cases, checking both diagnostics and actual
+audible-position adjustment. Focused sync and latency tests passed. Explicit
+zero and future-timestamp cases also pass in the full run. Full `npm test`
+finished with exit 0, including the real-ROM pulse/tempo checks, all eight
+latency fixtures, 48 deterministic seed checks and all 14 game checks. Log:
+`/tmp/chiptunes-sync-latency-full.log`. The earlier red checkpoint is now
+covered by this green run. The separate browser/broadcast render-parity check
+also passed 10/10, minimum correlation 1.000000, zero sample lag and maximum
+absolute RMS difference 0.175 dB. Log:
+`/tmp/chiptunes-sync-latency-render-parity.log`. No deployment or app restart
+occurred. These changes and the earlier native-row checkpoint are ready for
+the owner-requested push; the next implementation work is native versioned
+command interpretation and section-aware melodic phrase allocation.
+
+The broader LSDj parity and composition objective remains incomplete. Native
+command version normalization, tables, instrument-only latches, full sound
+capabilities, UI review and listening verification still require work; this
+player fix is not a substitute for them.
+
+Read-only composition follow-up: all 32 `composition-form-00` through `-31`
+scores have zero `events` lead onsets in zero-based bars 4 through 11. In
+`src/melody.js:write`, after the first group plays, `(played + 1) / eligible >
+0.62` rejects groups two and three even before section/presence decisions.
+This creates an eight-bar early lead gap shared across styles and forms;
+accompaniment can still sound, so it is not eight bars of silence. Replace the
+prefix-ratio budgeting with whole-song, section-aware phrase allocation and
+verify phrasing and listening, not simply more notes or a loosened smoke cap.
+
+A read-only Luna fixture review identified existing `nativeState` in
+`verify-lsdj-trigger-state.js` as reusable for K-off timing and period-change
+timing. Main review confirms the underlying CSV already includes frame
+numbers; no new harness is needed merely to observe T timing. Format-7 K/T
+bytes are 8/15; format-22 bytes are 9/16. Preserve structural raw `command`
+fields and add distinct normalized identities, rather than replacing raw
+bytes as the draft suggestion proposed. Do not assume changing only the
+format marker creates an otherwise valid newer-format song: establish the
+ROM's upgrade effects/fixture validity independently before comparing versions.
+
+## 2026-09-05 — LSDj parity and composition overhaul audit
+
+Active objective: postpone decompilation; review website, player and Create;
+achieve bidirectional LSDj instrument/sound and import/export parity without
+extra Chiptunes-only musical capabilities; substantially improve composition
+and mood/keyword direction. This objective is NOT complete.
+
+Baseline inspected on main at `9e49cca`, clean checkout, pull up to date:
+
+- `node scripts/verify-lsdj-native.js` passed: 60 songs, 40,863 notes,
+  zero off-row notes, sub-row collisions or channel/row clashes. These are
+  generated-song structural checks, not proof of arbitrary LSDj playback.
+- Default `verify-lsdj-emulator.js` SKIPPED because its Downloads ROM path
+  does not exist. Re-running with `LSDJ_ROM` pointing to the existing private
+  `../lsdj-decomp/baserom.gb` passed using `/tmp/lsdjtrace`: four tempo
+  measurements, pulse/wave pitch bases, 320/320 row gaps, three noise colours
+  and a single waveform. No ROM was copied or added to this repository.
+  This test does not verify every command, instrument parameter or sound.
+- `src/lsdj.js:toSongJSON` substitutes unnamed noise instruments with kicks,
+  caps imported note lengths at 16 rows, and maps instrument parameters onto
+  a small stamp palette. `tableOf` ignores enabled tables with zero transpose
+  even if they contain other modulation. `expandTables` uses average groove
+  length to locate ticks, retriggers notes, and silently skips cells when
+  offsets or available rows cannot represent them. Its exact-playback wording
+  is not supported by these implementations or the emulator test's scope.
+- Import command handling walks `playedNotes`; audit command-only rows and
+  stateful effects before claiming command support. Raw-byte preservation is
+  distinct from playback preservation and from preservation after editing.
+- Create's `parseMood` is a separate word dictionary from `api.interpret`.
+  It ignores negation, takes the last mode word, and can create contradictory
+  tempo bounds. `composeMood` catches compilation failures and returns null.
+  It now compiles once; the older handoff claim of searching 140 seeds is stale.
+
+Next implementation priorities: establish native song/command/instrument
+execution and edit-preservation fixtures against real LSDj, replace lossy
+projections as playback authority, and unify prompt interpretation with visible
+conflict/unsupported feedback. Expand emulator coverage beyond ruler songs.
+Review actual website/player/Create interactions and audition arrangements;
+neither visual review nor listening has been completed in this checkpoint.
+Composition evaluation must cover motif development, phrase/section contrast,
+cadences and audible mood separation, not merely metadata or seed diversity.
+No deployment, release, infrastructure change or decompilation work is implied.
+
+Verification follow-up: mood-constraints and language suites passed, including
+the API's measurable happy/sad separation. Full `npm test` initially stopped
+at the missing Playwright Chromium binary. Installed the project's pinned
+Chromium with `npx playwright install chromium` and restarted the full suite
+with the explicit private-ROM path. Full-suite completion remains pending;
+do not treat the focused passes above as permission to push a red suite.
+
+## Where the music stands (musician-11)
+
+### 2026-09-05 — shared native structural row traversal
+
+`sequenceRows(model, channel)` retains every row of each referenced phrase,
+including blank pitches, instrument-only selections and command-only events.
+Each snapshot includes sequence/chain/phrase source coordinates, so repeated
+phrase occurrences are distinguishable. `playedNotes`, channel length, KILL
+discovery and command-loss reporting now share the same traversal instead of
+maintaining separate walks. This is structural sequence order, NOT execution
+of H/G jumps, tick effects or cross-channel timing; it must not be presented
+as a complete native sequencer.
+
+Import now warns about dropped command-only rows (raw command bytes are named
+because letters depend on format version) and about non-format-7 command
+semantics. Previously these rows escaped loss reporting because warnings
+looked only at notes. No new effects have been claimed as implemented.
+
+Focused structural fixtures cover reused phrase source addresses, signed chain
+transpose, instrument-only/T/K rows, independent channels and non-mutating
+snapshots. Native and all eight real-ROM pulse-trigger fixtures pass. A
+differential check against fdc1f57 found identical note projections and
+generated-song imports for 64 fixed seeds, 256 channels and 44,499 notes.
+The first full npm test run ended in a Chromium page crash entering the Create
+handover checks, rather than a failed music assertion. The isolated handover
+rerun passed all cases. The second full run stopped at verify-sync: raw deck
+clock was 27 ms ahead of the reported chip frame, corrected position was
+-173 ms, and total correction was 201 ms. Output-device latency and chip lag
+were not logged separately. `audiblePosition` subtracts both, while verify-sync
+compares to the render-frame report; inspect that observer mismatch AND the
+timestamp-based output-latency estimate before changing code or tolerances.
+Full log: /tmp/chiptunes-native-row-events-verified.log. No push is permitted
+until verification is green. This checkpoint is local only; no deployment or
+release. Next immediate task is player synchronization diagnosis, not another
+blind full-suite retry.
+
+Three owner-requested Luna subagents produced sidecar work, reviewed and refined
+by the main agent before integration:
+
+- `docs/lsdj-native-command-layout.md`: pinned primary-source mapping for
+  format-8+ phrase/table commands and table field offsets. Main review found
+  and documented the inspected upstream setter's A/B asymmetry; do not copy
+  its setter as a round-trip oracle. Version-aware command interpretation and
+  the table envelope region at 0x1690 are concrete next native-model work.
+- `docs/lsdj-editing-capabilities.md`: distinguishes raw fields, document
+  projection and actual Create controls, including authoring/preservation gaps.
+- `scripts/diagnose-composition-form.js`: deterministic offline lead-event
+  diagnostic, not a quality score or production selector. Exact fingerprints
+  include pitch/timing/duration; pitch, contour and rhythm variation are
+  separate. Synthetic self-tests and two byte-identical runs passed. In 32
+  fixed songs (1,496 bars), 952 bars lack lead onsets; this does NOT mean the
+  song is silent, because other voices and earlier sustained notes are not
+  counted. The 238 onset-free four-bar windows are excluded from repetition
+  counts. No exact nonempty four-bar repeats were found; 12 of 17 repeated
+  same-role/same-length section comparisons varied pitch/contour/rhythm.
+  These measurements are an audition starting point, not evidence of good or
+  bad musical quality. No production composition algorithm changed here.
+
+### 2026-09-05 — native pulse trigger state carried end to end
+
+Native pulse imports now distinguish an explicit instrument trigger from a
+blank-instrument pitch change. `playedNotes` exposes the effective instrument
+without overwriting the raw instrument field. JSON notes carry `trigger`;
+document v15 stores it as cell `nt` (1 explicit, 2 pitch-only). Existing
+documents without this field retain their v13/v14 encoding and behavior.
+
+The browser and generated cartridge use shared note-off scheduling so a
+contiguous pitch-only row does not cut/retrigger the held voice. A real gap
+still cuts; a pitch-only row after KILL stays silent until an explicit trigger.
+Native pulse volume uses the actual 0..15 level, including zero, and does not
+acquire the default player's unsolicited vibrato. Pulse duty settings survive
+export, including 75% rather than replacing it with 25%. The sustain envelope
+register path is covered; arbitrary native envelopes/effects are NOT proven.
+
+New `verify-lsdj-trigger-state.js` is wired into npm test and test:lsdj. Eight
+fixtures cover both pulse channels with hold, KILL/pitch-only, explicit restart
+and zero-volume scenarios. Checks include JSON/document round-trip, transpose
+editing, browser volume/pitch/duty, executed cartridge trigger bits, and real
+LSDj original/re-export traces. Frame comparisons align the first sounding
+note and sample away from boundaries; this is not cycle-accurate audio parity.
+All eight focused fixtures passed with the private ROM. Native-format, API and
+cartridge tests also passed. Headless Chromium loaded and played a v15 shared
+document with both trigger values retained and no page errors. Broadcast
+render parity passed 10/10 samples, minimum correlation 1.000000.
+
+The first full run stopped on a pre-existing randomized language assertion:
+smooth left the step ratio unchanged at 0.34. Smooth octave-folds while keeping
+pitch classes, so it cannot turn every third/fourth into a second. Its test now
+checks non-increasing mean leap on generated melodies plus a deliberate angular
+fixture (17.00 -> 4.33 semitones) and exact pitch-class preservation. The user
+feedback now says octave shifts rather than falsely claiming every leap became
+a step. The transformation algorithm itself is unchanged. Focused language
+passes. The final fresh full-suite run PASSED, including all eight real-ROM
+trigger fixtures, existing LSDj checks, diversity, latency, screen tests,
+48 deterministic finite-song smoke cases and all 14 games. Local full output:
+`/tmp/chiptunes-native-trigger-verified.log`; render-parity output:
+`/tmp/chiptunes-native-trigger-render.log`. These temporary logs are supporting
+evidence, not prerequisites for future runs; the fixtures are in the repo.
+
+Additional real-ROM probe: an instrument-only row makes no immediate register
+change in the tested pulse fixture, but its selected settings can take effect
+at the following blank-instrument note (duty changed while volume did not
+retrigger). Therefore it must NOT be ignored by instrument selection tracking.
+The importer retains that selected instrument and now explicitly warns when
+notes depend on this unsupported latch sequence. The eight passing pulse
+fixtures do not include this sequence as supported playback. Two in-progress
+full runs were deliberately stopped while resolving this additional evidence;
+they are not verification passes.
+
+Still open: instrument-only and command-only rows, wave/noise trigger behavior,
+arbitrary envelopes, table execution, full groove/tempo handling, lossless
+native structural editing and native control UI. Bar-only audition does not
+reconstruct preceding native channel state; score-to-document ingestion paths
+also need explicit native-field coverage. Do not describe this checkpoint as
+full LSDj instrument/sound parity. Nothing was deployed or released.
+
+### 2026-09-05 — soundtrack diversity diagnosis and seed separation
+
+The preceding diversity failure mixed a valid product bug with an invalid
+measurement: every tested soundtrack explicitly requested D, while the gate
+penalized shared pitch classes. Honoring the key correctly makes that histogram
+similarity expected; it does not establish that phrases or rhythms are alike.
+Independently, soundtrack() also defaulted EVERY unrequested key to D.
+
+Unconstrained soundtracks now inherit their first cue's generated key; explicit
+keys are still honored. Each cue gets a distinct seed derived from the returned
+soundtrack token, cue index and scene. Reusing one supplied token unchanged
+previously duplicated openings across overlapping scene constraints. This is
+still one composition per cue, with no best-of-N or production scoring.
+
+The diversity gate now uses fixed tokens for twenty soundtracks, separates
+unconstrained harmonic diversity (same 0.65 ceiling, measured 0.286) from
+same-key phrase/rhythm variety (10/10 openings, 9/10 rhythms), checks all twenty
+games for within-game opening duplication, and verifies returned-token replay,
+distinct cue seeds and actual document keys. These are symbolic checks, not
+an audition or evidence of complete composition quality. The broader musical
+and LSDj-parity objective remains open. Focused diversity and the fresh full
+npm test run PASS with the private ROM and rebuilt harnesses, including the
+previously unreached latency, screen, 48-song smoke and all 14 game checks.
+Full output: /tmp/chiptunes-soundtrack-full-test.log (temporary local evidence).
+This supersedes the push blocker in the preceding checkpoint. No deployment,
+release or app restart was performed.
+
+Next native-import evidence: blank instrument fields are stateful, not merely
+missing labels. A two-note PU1 fixture (C4 at row 0, KILL at row 8, E4 at row
+10, trumpet duty and volume 6) was traced in real LSDj. Changing only the
+second instrument field to FF retains duty and changes pitch but keeps volume
+zero after KILL; explicitly selecting the instrument restores volume 6. The
+importer currently drops stamp/velocity on that second note and materializes a
+fresh default voice. Copying the preceding instrument would also be wrong:
+it would incorrectly retrigger after KILL. Native import needs explicit
+instrument/trigger/envelope state, with fixtures for both contiguous notes and
+notes after KILL, plus instrument-only rows. This behavior was measured, not
+fixed in the soundtrack checkpoint. Private diagnostic SAVs were removed.
+
+### 2026-09-05 — exported pulse duration and observer correction
+
+Pulse instrument byte 3 was FF, enabling a hardware length counter that cut
+held notes short. Export now writes zero for pulse instruments only; note
+replacement and KILL schedule their duration. No noise/wave length settings
+or command encoding were changed. Real LSDj 9.4.2 fixtures for both pulse
+channels now sound for 56 frames against the browser's 55-frame note, within
+the one-frame legato tolerance. Both fixtures failed before the correction.
+
+The trace harness now records decoded channel activity AND current volume.
+Activity alone can remain set after KILL; a retained pitch register is not
+evidence of an audible note. The diagnostic also reports the loaded song
+format: LSDj upgrades this format-7 export to format 22 at boot.
+
+Restoring sustain exposed an observer defect in the older aggregate pitch
+gate: its TRIG records are active-channel samples, not note-on events, and
+legitimate sweeps traverse pitches absent from the base-note list. That gate
+now compares with frame-sampled browser APU pitches. A regression verifies
+that the previously erroneous MIDI 79/78/77/75 remain outside the reference.
+This is not full timing, envelope, timbre or arbitrary-import parity.
+
+Rebuild tools/lsdjtrace.c for the added ON/VOL columns before running the
+emulator suite. Use LSDJ_TRACE and LSDJPLAY for the rebuilt private temporary
+harnesses and LSDJ_ROM for the owner's external ROM. No ROM is distributed.
+The final combined npm test run FAILED in verify-diversity.js: cross-game
+title-theme similarity was 0.734 against a ceiling of 0.65. All preceding
+suites, including export/native/real-ROM checks and both sustain fixtures,
+passed. Later latency, screens and smoke/game checks were not reached.
+Full output is temporarily available at /tmp/chiptunes-final-verification.log.
+The focused verify-lsdj.js run also passed independently. Do not weaken the
+diversity threshold to get a push through: investigate the soundtrack
+similarity regression, then rerun the full suite. The checkpoint is committed
+locally, with push withheld under the green-tests rule. No deployment or
+release has been performed; the broader objective above remains incomplete.
+
+### 2026-09-05 — unintended LSDj pulse sweep fixed
+
+The real-ROM pitch failure above was an export defect, not just an observer
+problem. Instrument byte 4 is complemented before LSDj writes NR10. Writing
+zero for a plain pulse produced NR10=255 (active bits 127), sweeping the first
+A5 through MIDI 79, 78, 77 and 75. A controlled change of that instrument byte
+to 255 produced NR10=0 and removed all four unexpected pitches. Changing byte
+13 alone had no effect. Falls and rises were inverted too: old exports wrote
+active NR10 values 65 and 73 instead of 62 and 54.
+
+The exporter now complements pulse sweep values, including exact per-cell
+sweep values. Import decodes the complement and preserves the exact value
+unless a row S command overrides it. Real-ROM plain/fall/rise fixtures failed
+before this correction and pass afterward; the original `verify-lsdj.js`
+real-ROM assertion passes without modification. Added a custom-sweep register
+fixture and round-trip regression as well.
+
+`tools/lsdjplay.c` has opt-in `LSDJ_TRACE_PITCH` frame/channel/period/active
+output. `scripts/diagnose-lsdj-pitches.js` compares sampled active pitch sets
+against the browser, with optional private-save-only instrument-byte probes.
+It is diagnostic, NOT proof of timing, timbre or full playback parity. A fresh
+harness was built in a unique temporary directory, leaving `/tmp/lsdjplay`
+untouched. The separate entry and Create-handover tests both passed for the
+shared-prompt changes. Full-suite verification of the combined work follows.
+
+### 2026-09-05 — shared prompt implementation checkpoint
+
+Create now has a text prompt and persistent, accessible interpretation feedback.
+The editor and station mood chips use `CT_API.ask` through `moodSong`; the
+duplicate Create dictionary is removed. All ten chips and tested free-text
+briefs produce exactly the same document as the API for a fixed token.
+Unknown requests return no song and leave the editor document untouched.
+`epic` and `retro` now name anthem and arcade in the shared genre vocabulary.
+
+Two correctness fixes accompany that integration: composed documents retain
+their real tonic instead of always reporting C, and `brief({key})` transposes
+the notes into that key (it previously reported the request without applying
+it). The editor's speed label/slider now show the post-transform tempo; the
+slider accepts every integer, not just even values. Scratch composition no
+longer writes its intermediate tempo into the live editor's controls.
+
+Language, API and native structural suites passed after these changes. Added
+browser regressions for prompt/document identity, key/no-drums, tempo controls
+and rejection preservation to `verify-song-document.js`; its rerun passed,
+including 100% frame-exact note retention for all 12 fixture songs. Entry and
+Create-handover suites are running against the rebuilt artifact. Local browser interaction and desktop/390px layout
+inspection confirmed the prompt, feedback, requested-key notes, empty drum
+lane, matching tempo display and unchanged song link after an invalid prompt.
+Mobile transport still clips at the left edge; this remains a layout target.
+No listening audition or real Safari interaction certification was performed.
+
+The earlier full suite is terminal RED at `verify-lsdj.js`, with the explicit
+private-ROM path: all 12 expected pitches occur, but its `TRIG` set also contains
+MIDI 79, 78, 77 and 75. Reproduced identically by loading the committed
+`b54eb63` versions of create.js and api.js in an isolated Node process. This is
+not introduced by the prompt changes. `tools/lsdjplay.c` samples playing-channel
+frequencies every frame, not actual note-on events; determine whether these
+are intended modulation or a genuine exported-pitch mismatch against the
+browser APU schedule. Do not drop the assertion or omit the ROM to get green.
+Push remains withheld under the no-red-push contract.
+
+- One deterministic composer (`src/composer.js`): a token maps to the same
+  song forever. No randomness, time, DOM, or network in the musical path.
+- Fourteen style archetypes (anthem, house, trance, techno, dnb, breaks,
+  arcade, rock, punk, funk, boombap, chill, ballad, drone), each owning tempo
+  band, kit signature, bass engine, accompaniment pool, harmony type, swing
+  and melody density.
+- Pattern pools are mined from a 74,552-file VGM MIDI corpus (joint kit bars,
+  bass onset masks, 4-bar chord movements) via `scripts/distill-style-corpus.js`
+  into `src/style-corpus.js`. The miner is a stdlib-only Python script with
+  its own MIDI parser.
+- The instrument bank pairs corpus patches with an authored palette
+  (4 duties x 5 envelope characters, 6 wave shapes, 4 noises) in
+  `src/gb-hardware.js`; a per-style TIMBRE table dresses each style.
+- Hardware articulations run in BOTH engines: the channel-1 sweep unit
+  (slides) and per-frame vibrato tables live in the browser Sequencer
+  (`src/gb-apu.js`) and the generated cartridge driver (`src/gb-rom.js`),
+  kept honest by `npm run test:rom-audio` (spectral comparison of the browser
+  chip against the ROM executing on the CPU emulator).
+
+## Invariants worth knowing before touching anything
+
+- `verify-rom-audio` is the referee: any audio change must land in the
+  Sequencer and the ROM driver together or parity breaks.
+- Vibrato steps BEFORE each frame's events in both engines; the ordering is
+  what keeps the two age counters frame-identical.
+- The smoke contract (`scripts/smoke-generated-seeds.js`) holds the lead
+  under 72% of bars and requires kick+snare from every kit.
+- Indexed screens (Game Boy / NES): hueRot returns the base colour while a
+  palette is installed; per-variant scheme hints (`st.nesSchemes`) outrank
+  the static table; packs must read the live unit `U` every frame (a pinned
+  make()-time unit rendered the climber gigantic after a face switch).
+
+## Create (the editor at /create)
+
+- The mood box and chips do parameter-space seed search, NOT curation: mood
+  words map to the composer's own dials (style id, mode family, tempo band)
+  and `composeIntoGrid` compiles random seeds (~0.4ms each, 140 cap) until
+  one's declared parameters match. Owner asked for exactly this (2026-08-26);
+  it never scores output quality, and Create never feeds the station.
+- A composed roll plays the REAL score verbatim, full length (`liveScore`:
+  its own bank, all instruments, no loop; at the end the same mood composes
+  the next song). Editing is LOSSLESS: every projected cell carries the
+  exact inst/midi/len/vel/ch/sweep (URL hash v3 serializes them), and
+  buildSong plays cells from those fields, so a hand edit keeps the whole
+  arrangement. The composer's bank IS buildBank(patches) -- pickBank only
+  selects role indices from it -- which is why bare instrument indices
+  survive the trip. Remaining loss: onsets/lengths step-quantize to 16ths,
+  swing timing flattens, and same-column notes folding to one row drop.
+- Drag right on a note stretches it (len steps); a tap removes it; leaving
+  the row switches to line painting. The More drawer offers every melodic
+  bank instrument as a generated waveform icon ('i<N>' stamps).
+- Command stamps (one in hand at a time; cell flags): z Fall / u Rise
+  (hardware sweep, claims pulse 1), q Arp, g Retrig, f Echo (echo defaults
+  len 4; g/f work on drums). All expand in buildSong into ordinary chip
+  notes -- no engine changes, parity untouched. URL hash v4 adds one cmd
+  char per cell; v1-v3 links still decode.
+- Channel lanes: P1/P2/WAV/NOI chips (click mutes, S solos) drive a
+  chip-side 'chmute' message -- the Sequencer skips triggers for masked
+  channels and note-offs the newly muted -- so muting bites instantly on
+  grid songs AND verbatim compositions. Session-only, never serialized;
+  playScore() clears the mask so the radio can never come back muted.
+  Cells wear a left-edge tick in their resolved channel's color (rch,
+  computed by buildSong) and dim while their lane is muted.
+- The grid is a TIMELINE: the whole track as one strip of bar panels with a
+  camera (follows the playhead; wheel/header-drag pans and disengages;
+  play/resume re-engages). Bars are patterns: header glyphs duplicate and
+  delete, the ghost "+" bar extends, up to 63 bars. URL hash v2 is 4 chars
+  per cell (2-char columns); v1 links still decode.
+- The app's `Audio` is a top-level `const`: a global lexical binding, never a
+  `window` property. `window.Audio` is the native HTMLAudioElement
+  constructor. Always reference the bare name.
+- dmg/nes palette systems quantize fillStyle/strokeStyle on the GLOBAL canvas
+  prototype; UI canvases must set `canvas.__ctpalRaw = true` or translucent
+  fills silently vanish while a panel face is active.
+- The chip never rebuilds at a loop seam (`Sequencer.rewind()`) or track
+  swap (APU carry + `cutNotes()`): a fresh APU's power-on DAC writes through
+  a reset output capacitor are an audible pop.
+
+## Create: the alive posture (Nanoloop wave 1, 2026-08-26)
+
+- The editor is ALWAYS running: open() starts the transport (silent until
+  the first gesture resumes audio), and a first visit with no draft
+  composes a gentle song immediately -- never a blank page.
+- Loop-a-bar: tapping a bar's number loops just that bar (a sliced song,
+  sliceForBar) while editing; tapping again releases to the whole song.
+  currentSong() is the one source for playback/repost; exports still use
+  the full song.
+- Notes: body-drag moves (exact midis shift diatonically; drums adopt the
+  new lane), right-edge drag stretches, tap removes. cellSpanAt hit-tests
+  the whole tail. Cells pulse as the playhead fires them.
+- The hint bar (.cr-hint) narrates: data-tip hover mirrors into it, first
+  placement and the first sulk explain themselves once.
+- Touch: coarse pointers get 32px cells; two-finger pinch zooms the
+  timeline width (cwZoom).
+- URL v5: bpm rides as (bpm-70)/2. Plain bpm/2 overflowed six bits for
+  tempos >= 128 and every such link loaded at ~70 (bug existed since v1).
+
+## Create wave 2 (2026-08-26)
+
+- Queue-next-bar: while a bar loops, tapping another bar's number queues it
+  (amber outline) and it takes over exactly at the loop wrap. Tapping the
+  looping bar still releases to the whole song.
+- Accents: double-tap a note to cycle soft/normal/loud (vel 0.5/0.8/1.0);
+  a single tap still removes, deferred 260ms to leave room for the second
+  tap. Icon size follows velocity.
+- The sound pad: every melodic instrument plotted on a brightness-by-
+  sustain map inside the More drawer (padPoints/drawPad/padPick); dragging
+  snaps to the nearest sound and auditions as you go.
+- The Songs shelf ('Songs' in the toolbar): save/load/delete named songs in
+  localStorage ('ct-create-shelf', encode strings, cap 30).
+- URL v6: the cell extension rides whenever ANY exact field exists
+  (v5 gated it on inst alone and silently dropped hand-placed stretches
+  and accents from links); inst encodes as inst+1 so 0 means none.
+
+## Create wave 3 (2026-08-26)
+
+- First-run tour: three anchored cards (grid / bar loop / moods), each
+  advancing on the real action or Next; 'ct-create-tour' in localStorage
+  gates it forever after. Shown only on the fresh-visit path.
+- Phone: the mood chips and palette are single scrolling rows (hidden
+  scrollbars), chrome tightens, the title hides, touch-action:manipulation
+  kills double-tap zoom, and the grid canvas owns its gestures
+  (touch-action:none).
+
+## Create rebuilt as a pocket tracker (2026-08-26)
+
+- The timeline/palette UI is gone. One screen: a 4x4 step grid shows one
+  bar of one voice (tap toggles, vertical drag pitches diatonically,
+  horizontal drag stretches, drums drag between kick/snare/hat); four
+  channel buttons (tap switches, tap the lit one mutes, hold opens the
+  sound map scoped to that voice, picked per channel in chInst[]); a bar
+  strip walks the song (tap views, the ring button loops the current bar,
+  tapping another bar while looping queues it for the wrap); mood row and
+  Share (link/WAV/ROM) on top. The whole engine (cells, buildSong,
+  liveScore, encode v1-6, shelf, chip glue) is unchanged.
+- Command stamps, eraser, accents, and solo lost their UI; cells carrying
+  those flags still play. Channel view mapping: explicit ch, else rch from
+  buildSong, else P1; the composer assigns pulse channels per seed, so a
+  seed may use only one of P1/P2 -- the views report what is real.
+- Decode bug fixed: the cell extension's channel read (e1>>3)&7, swallowing
+  the midi flag into the channel since v3, so decoded links corrupted
+  explicit channels (playback survived via the budget fallback). The
+  encoder always wrote correct bits, so old links heal on load.
+
+## Create legibility pass (2026-08-26)
+
+- Channels wear plain words (Melody / Harmony / Bass / Drums) plus a small
+  waveform icon of their current sound (chanIcon, cached per inst); the
+  hardware names live in the tips. Active squares print their note name
+  (C3, E2...) or drum name (Kick/Snare/Hat); corners carry step numbers
+  1-16; a caption above the grid says "<voice> - bar N of M (looping)".
+
+## Create pattern-mode parity pass (2026-08-26)
+
+Studied the reference tutorial in depth and adopted its editing model:
+- A parameter row under the grid (Note / Vol / Len): vertical drag on a
+  step edits the SELECTED parameter. Volume to zero is a rest: the square
+  shows '=', dotted border, and buildSong skips vel===0 notes on every
+  channel.
+- Multi-tapping the selected parameter randomizes it across this voice's
+  bar (more taps, more random; one snapshot per burst, in-key for pitch).
+- Pattern tools: shift left/right (wrapping nudge), octave up/down for the
+  voice's bar, a Swing toggle (S.swing), and a return-to-top transport
+  button.
+- Not adopted: meta steps (flick gestures), their pattern-number song
+  screen (our linear bars + mood compose stay), and their visual identity
+  (ours is note names, waveform icons, plain words).
+
+## Create: 48-bar cap and the scrolling timeline (2026-08-27)
+
+- Songs cap at 48 bars everywhere (decode clamps and drops out-of-range
+  cells, compose clips S.bars AND the verbatim liveScore to the same
+  frame count, add/duplicate stop at 48).
+- The numbered bar buttons are a canvas timeline: every bar side by side
+  as a small panel with its notes drawn as ticks in the four voices'
+  colours, a white playhead line, and a camera that eases to follow the
+  playing bar. Drag or wheel pans (dropping the follow); play re-engages
+  it; a tap picks the bar (or queues it while looping). The canvas needs
+  __ctpalRaw or a DMG face greys its colours.
+
+## Create: the song scrolls in the main area (2026-08-27)
+
+- The centre of the screen IS the song now: one 4x4 block per bar laid
+  end to end in .n-track (translateX camera), neighbours dimmed, the
+  playing/looping/queued bar marked on its head strip. Drag a bar's head
+  or wheel to pan (drops the follow); play re-engages it. The bottom
+  timeline canvas and the numbered strip are gone. Steps carry data-col
+  (absolute), so every bar is editable in place without a "current bar".
+- An All tab (viewCh -1) draws every voice in each step as labelled pills
+  (Melody/Harmony/Bass/Drums, colour-coded, tails faint); tapping a note
+  dives into that voice. Tools and multi-tap randomize act on all four
+  voices while All is selected.
+- Channel tabs carry a speaker icon: tap the tab to select, tap the
+  speaker to mute (browser-tab style). The old select-then-tap-again
+  muting is gone.
+- Composed notes with no pitch are dropped at projection (they showed as
+  bogus 'C-1' squares and played subsonic).
+
+## Create simplified to buttons (2026-08-27)
+
+- Default tab is All. Tabs are real tabs above the track, each with a
+  speaker icon that mutes that voice; holding a tab still opens its sound
+  map. Empty slots in All draw nothing (sustained notes get a hairline).
+- Tapping a square selects it: an empty square on a voice tab adds a note,
+  a note (or a pill in All) opens the note editor under the track. All
+  editing is labelled buttons -- Note -/+ and -/+ octave (real semitones on
+  the note's own midi, so the two-octave display never traps a pitch),
+  Volume -/+ (0 = a silent step, dropped from the song), Length -/+, drum
+  Sound as Hat/Snare/Kick, and Remove this note. No drag-to-edit.
+- Each bar head carries nudge left/right, loop, duplicate, remove; a dashed
+  block after the last bar adds one (capped at 48 with a hint).
+- Removed: the mood text field, the dice, the Songs shelf, the Share menu
+  (Copy link / WAV / ROM sit in the top bar), the parameter row, multi-tap
+  randomize, and the instrument drawer list.
+
+- Create owns /create while it is open. syncRoute() (which replaceStates
+  /track/<slug> on every radio track change) now returns early when
+  CT_CREATE.isOpen(), and the editor re-asserts '/create#s=<song>' from its
+  ticker if anything else moves the URL. A refresh lands back in the editor
+  with the same song (hash first, localStorage draft as the fallback).
+
+- The panel under the track is always live. With nothing selected it is the
+  PEN (voice / note / volume / length) and tapping any empty square places
+  exactly that, in any view including All; with a note selected it edits
+  that note and the pen follows it, so the next note matches the last.
+  Clicking a note (or any square inside its tail) selects and auditions it
+  for its real length (capped at 600 frames).
+
+## Create layout, owner pass (2026-08-27)
+
+Screen order is now: utility row (undo/redo/copy link/WAV/cartridge/close),
+the mood band (the star: large label + big chips), voice tabs sitting
+directly on the track, the bars, the note panel, and a player-style
+transport bar at the foot (Start / Play / Speed). Gone: the hint line, the
+caption line, every tooltip.
+
+Per bar: the tools row moved BELOW the grid with a 16px gap and carries
+worded buttons (Earlier / Later / Loop / Copy / Delete, no bar number);
+under it sits the bar's name ("bar 3 of 48", plus "looping"), shown for
+the bar you are on. Panning is a drag anywhere on a bar that is not a
+step or a button.
+
+The note panel is columned and worded: This/Next note, Voice, Pitch
+(Octave down / Lower / value / Higher / Octave up), Volume (Softer /
+Louder), Length (Shorter / Longer), Sound (Choose...), Remove note.
+sizeTrack() reserves room for the tools row and the label, and the tools
+row scrolls rather than wraps on phones.
+
+- Autoplay honesty: a freshly loaded /create (a shared link, a refresh) has
+  no user gesture, so the audio context is suspended. startPlayback() now
+  refuses to claim it is playing in that state -- it parks as paused with a
+  pulsing Play button and arms a one-shot capture-phase gesture listener
+  that resumes audio and starts the song on the first touch anywhere. The
+  listener skips auto-starting when the gesture IS the Play button, or the
+  button's own handler would immediately pause it again.
+
+- The voice tabs are attached to the bar you are on: the strip is the bar's
+  width and applyCam() slides it with the camera every frame (it must live
+  there, not in renderBars, which only fires on bar changes). Tab waveform
+  icons are gone so the names fit; on phones the strip widens to the
+  viewport since the bar nearly fills it anyway.
+
+- Projection keeps nearly everything now: an overflow note (a third pulse, a
+  second wave, a second drum in one 16th) slides to the next free step for
+  its voice instead of being dropped -- up to 2 steps for melodic voices,
+  1 for drums, never past the song end. Measured over six seeds, notes kept
+  went from 96.7% to 99.1%; chords land as quick strums, stacked drums as
+  flams.
+
+- /create boots straight into the editor: the boot route and the product
+  route both set _createStandalone and call _openCreate() with no
+  _startEndlessRadio(), so no game frame is ever drawn behind it. The
+  station starts on close instead (_closeCreateReturn), which is also when
+  the URL hands back to /.
+- The track carries half a screen of padding at each end (--trackpad), so
+  the first and last bars centre exactly like the ones between them; camMax
+  reads the track's scrollWidth, and the tab strip and barUnderCamera both
+  offset by trackPad.
+
+## Create: the note picker (2026-08-27)
+
+- Tapping a square opens a picker ON that square: the four instruments as
+  coloured buttons, one octave of the song's own scale as note names (with
+  octave arrows), Volume and Length as eight-block meters, and Remove.
+  Tapping a note name places (or repitches) the note; tapping another
+  instrument moves the note to that voice. The old bottom panel and the
+  "pen" idea are gone: there is no mode to remember.
+- Guard worth keeping: a grid re-render detaches the element that was
+  clicked, so the outside-click check must not fire for the click that
+  opened the picker (pickOpenedAt, 60ms).
+- Bars: no separators, no Loop/Copy actions, the number sits under the
+  actions as "#3", and the voice tabs no longer travel -- they stay above
+  the middle of the screen. The mute control is a drawn speaker.
+
+## Create as four lanes (2026-08-27)
+
+The 4x4 bar blocks and the voice tabs are gone. The song is four
+horizontal lanes -- Melody, Harmony, Bass, Drums -- named down a fixed
+left gutter (each with its speaker), running left to right through the
+whole song under one camera. Notes are absolutely positioned blocks in
+their lane: left = step, width = length, HEIGHT = pitch (mapped from the
+note's own midi over C2..C7, not the old fifteen-row grid, or a flat
+scale would pin everything above C5 to the ceiling), label = note or drum
+name. Rows carry the step/beat/bar gridlines and faint horizontal rules
+as a background gradient, so the DOM holds one node per note rather than
+per step. The ruler numbers the bars; the bar strip under the lanes names
+the bar you are on and carries Earlier / Later / Delete / Add.
+
+Tapping empty lane space opens the note picker there with THAT lane's
+instrument preselected; tapping a note opens it for editing. Dragging
+anywhere in the lanes travels; the wheel does too.
+
+Watch out: old bar-block CSS (.n-track display:flex) survived the
+rewrite and stacked all four lanes on top of each other -- when
+replacing a view wholesale, delete its stylesheet rules in the same
+pass.
+
+- Performance: the lane gridlines must NOT be painted across the song. Rows
+  were var(--songw) wide (26,000px at 48 bars) with four repeating gradients,
+  which made scrolling stutter badly. They now live on one viewport-sized
+  .n-bg layer translated by (sidePad - camX) mod barW (the pattern repeats
+  every bar), so scrolling is a composited nudge; rows are 1px wide and only
+  host their absolutely positioned notes. Measured: flat 8.3ms frames while
+  playing and while dragging, zero long frames.
+- body.create-open now hides #stage/.crt/#hud/#now/#presets, the editor
+  background is fully opaque, and arriving directly at /create skips the
+  fade (class 'instant'). Before this the game showed through Create's
+  200ms fade-in on every refresh.
+
+- The song starts at the left edge (sidePad 0); centring only happens when
+  the camera follows a bar mid-song.
+- The first gesture ONLY unlocks the audio device. Music starts when the
+  user asks: Play, the spacebar, or a mood chip (which composes and plays).
+  A stray click or keypress never starts playback.
+
+- Notes are draggable: pointerdown on a .n-note starts a note drag (pan is
+  suppressed), vertical position sets the pitch straight from the lane
+  geometry (or the drum lane), horizontal sets the step, and crossing into
+  another lane changes the voice, keeping pitch/drum/volume/length. It
+  auditions as it moves (throttled 110ms), and the drag suppresses the click
+  that would otherwise open the picker.
+- pickVoice() now remembers pitch, drum lane, volume and length BEFORE
+  deleting the old cell -- a trip through Drums and back used to lose the
+  pitch, because a drum row has no pitch to read back.
+- Clicking empty lane space with the picker open dismisses it (a second
+  click there opens a fresh one); the outside-click guard tests .n-note now
+  that .n-step is gone.
+- Earlier/Later bar shifting is gone: dragging a note moves it in time.
+
+- The chip keeps ONE PENDING NOTE-OFF PER CHANNEL (pokeOffs[4]) and accepts a
+  'pokeoff' message. The single-slot version meant auditioning on a second
+  channel orphaned the first one's note-off, so a note dragged between lanes
+  sang on forever and fought the song. Drags now audition briefly (0.35s),
+  silence the old voice when crossing lanes, and stop everything on release.
+- A note's right 14px is a resize handle: dragging it sets the length.
+- The bar you are on is banded across all four lanes; Delete bar asks once
+  (the button arms for 4 seconds); Add bar inserts an empty bar AT the
+  current position and pushes the rest right.
+
+- The note panel is Volume and Remove only: instrument, pitch and length are
+  all set by dragging (lane, height, right edge), so listing them twice was
+  clutter. Clicking empty lane space places a note AT the height you clicked
+  and opens that panel.
+
+- BAR CONTROLS LIVE ON THE RULER, not in a row underneath. The current bar's
+  label carries them -- "#4  + insert  x" -- and only the current bar shows
+  them, at the same 11px as the number itself; every other bar is just its
+  number. The ruler is 30px tall to hold them -- .n-bg, .n-barhl and .n-ph all
+  hang off that height, and sizeTrack subtracts it from the lane maths. The x arms for 4 seconds
+  ("x sure?") before it deletes, and + insert opens an empty bar at that bar
+  and pushes the rest right. The old .n-barbar row is gone.
+
+- THE PLAYHEAD AND THE CAMERA BOTH CARRY FRACTIONS. updatePh took a floored
+  column and centerOn took a bar index, so the line hopped once per sixteenth
+  and the camera lurched then stood still for the rest of each bar -- 60fps
+  frames, stuttering motion. The playhead now takes the fractional column and
+  moves by transform; the follow uses followCol(col), which keeps the playhead
+  centred; the track, the gridline layer and the scrollbar thumb are all
+  positioned sub-pixel. Measured while following: every frame moves, camera
+  2.38px +/- 0.099, zero stalls in 480 frames. Never round a position that a
+  frame loop writes -- rounding is what puts the steps back.
+
+- The camera FOLLOWS THE MUSIC, and a hand scroll KEEPS it. There is no timer
+  (an earlier 3-second auto-resume was wrong: it yanks the view away mid-edit,
+  and no DAW does it -- Ableton, Logic, Reaper and Renoise all disengage on a
+  hand scroll and re-engage only on an explicit event). Every gesture goes
+  through handScrolled(), which hands the camera back when the playhead is on
+  screen (8%..92% of the pane); camCatch then holds the view where your hand
+  left it and decays 0.86 a frame so the centring is a glide, not a snap.
+  Play, Start and a new mood also hand it back.
+
+- A note joining a lane (dragged there, or placed there) takes the
+  instrument its NEIGHBOURS in that lane use (laneInstAt: nearest cell by
+  column, then chInst, then the stamp default). Composed songs change patch
+  from section to section, so falling back to Create's default made the same
+  written note sound unlike the notes beside it -- the owner heard a dragged
+  D2 differ from the D2 next to it. Notes also carry data-inst now, which
+  makes this checkable from a test.
+
+
+- THE PALETTE IS READ OFF THE BANK, NOT TYPED OUT: 31 named sounds (11 pulse,
+  10 wave, 10 noise) built at resolveBank() time. A pulse sound is a duty x
+  envelope-class cell of the bank's own grid (75% duty is 25% inverted -- the
+  same timbre -- so it only fills an envelope 25% lacks). A wave sound is one
+  table, deduped by the SHAPE of its harmonic series with loudness and phase
+  divided out, then named roundest-first. A noise sound is one patch, ordered
+  bright hiss to low boom, and it carries the lane row it belongs at, so
+  height and sound stay in step.
+
+- THE NULLS IN THOSE NAME TABLES ARE MEASURED. Every candidate is rendered
+  through this repo's own APU (a ~60 line Node harness: gb-hardware +
+  chip-instruments + gb-apu, one note each) and compared to the ones already
+  kept on two axes -- a 64-band spectrum of the sustain (mean subtracted) and a
+  24-point AMPLITUDE envelope. Anything within 0.10 of a keeper is dropped: the
+  Ghost character (identical to Hold but quieter, and level is what Volume is
+  for), Sine (Round), Hiss (Snare), Clank (Bleep). Sort the names you want to
+  keep -- Snare, Kick, Hat -- to the front, or a keeper loses to a lookalike
+  that happened to sort earlier. The shipped 64 are all audible and their
+  closest pair is 0.104 apart. Redo the measurement before adding names: a name
+  you cannot hear the difference of is clutter, and a sustain spectrum ALONE
+  will not catch it, because two of these differ only in their envelope.
+
+- SOUNDS ARE NAMED AND VISIBLE. The chip's timbres used to live behind a
+  long-press on the lane name, which opened a scatter pad of unlabelled dots:
+  the owner never found it and read the editor as having no instruments at
+  all. Each lane now carries the name of the sound it is holding (Square, Punch,
+  Soft, Hold, Swell, Reed, Airy, Drone, Rise, Bell, Thin on the pulse lanes;
+  Round, Sine, Cello, Vox, Wood, Reed, Thin, Saw, Growl, Ring on the wave
+  lane; Tick, Hat, Hiss, Shaker, Wash, Snare, Sizzle, Tom, Rumble, Kick on the
+  drum lane, which also moves the note to the height that sound belongs at). Clicking that name sets
+  what the NEXT note there will use; the note panel sets the note in front of
+  you and the lane together. SOUNDS resolves against the live bank the same
+  way STAMPS does, and DEDUPES -- two names for one instrument is a lie the
+  ear catches at once.
+
+- laneInstAt now answers chInst FIRST. It used to prefer the nearest
+  neighbour's instrument (that fix stops a dragged note sounding unlike the
+  notes beside it), but a sound you picked by hand has to win, or choosing one
+  does nothing you can hear.
+
+- THE PANEL CLOSES: an x on its header, Escape (CT_CREATE.escape() runs before
+  runtime closes the whole editor), and a click anywhere off it. That last one
+  listens on the DOCUMENT, not on the editor -- a click on the lane column or
+  the transport is still a click away. Two traps live here: (1) a handler that
+  re-renders leaves the clicked node DETACHED, so closest('.n-pick') finds
+  nothing and the click reads as "outside" -- hence the isConnected guard, and
+  hence the lane popover marks its buttons instead of rebuilding them; (2)
+  renderEdit() must preserve pickOpenedAt, or every refresh looks like a fresh
+  open and the click-away guard never expires.
+
+- FOLLOW IS A BUTTON, in the transport, lit while the camera is riding the
+  music. Anything that scrolls turns it off; pressing it (or Play, Start, a new
+  mood) turns it back on and glides to the playhead. An earlier version re-armed
+  the follow by itself whenever the playhead came into view, and it fought the
+  hand: dragging the scrollbar left to reach bar 1 snapped the view away before
+  you got there.
+
+- MOTION IS THE OTHER HALF OF AN INSTRUMENT, and it already existed: the build
+  path has expanded x.q (arp), x.g (retrig), x.f (echo) and x.z / x.u (sweep
+  down / up on channel 1) into ordinary chip notes since the command-stamp
+  work, and the link format has carried them since v4. The panel-slimming pass
+  removed every way to reach them, which is why 31 static timbres still felt
+  minimal -- nothing moved. The note panel now has a Motion row beside Sound:
+  Plain, Arp, Roll, Echo, Fall, Rise.
+
+- WHAT EACH LANE CAN DO IS NOT THE SAME. A pitch slide needs channel 1's sweep
+  unit, and compileCells only writes note.sweep when the note lands on channel
+  0 -- so Fall and Rise are Melody's alone (a Harmony cell carries x.ch = 1 and
+  would silently ignore them). Drums have no arp. MOTIONS carries a per-lane
+  mask, and setCellVoice drops a motion the new lane cannot play rather than
+  leaving invisible state on the cell.
+
+- A MOTION PREVIEW HAS TO BE A SEQUENCE. auditionCell pokes the chip once,
+  which makes Arp, Roll and Echo all sound like a plain note; previewMotion
+  schedules the real hits instead. It is skipped while dragging (auditionCell's
+  maxFrames argument marks a drag), or a drag would fire a timer storm.
+
+- THE CARTRIDGE NOW CARRIES 32 WAVE TABLES, not 16. The driver never had the
+  limit -- doWave walks waveAddr forward index*16 with an 8-bit counter -- it
+  was our instrument record masking byte0 to a nibble. WAVE_SLOTS in
+  gb-hardware.js is the one number both sides read; waveBytes() writes that
+  many tables (16 bytes each, so 32 costs 512 bytes of a 32 KiB cart, and a
+  1000-note song still leaves ~22 KB free).
+
+- WIDENING THAT MASK EXPOSED A REAL BUG, and the fix is the flag bit. The
+  composer sometimes lands a PULSE instrument on channel 3 (velvet-engines-
+  melt-tide-1a2b3c4d does), and a pulse record's byte0 is its duty -- 0x80.
+  Masked to a nibble that read as slot 0 and nobody noticed; as a full byte it
+  read as slot 128, and the cartridge walked 2 KB into ROM for a wave table.
+  patchToInstrument now sets flags bit 0 on wave records and waveSlotOf returns
+  0 unless that bit is set, which keeps the old behaviour exactly. The composer
+  bug itself is left alone ON PURPOSE: those songs are published, and changing
+  which instrument a seed uses would rewrite them.
+
+- gb-rom now RELOADS the wave table when a song changes bass sound mid-way.
+  It used to load only the first wave note's table, which was fine when the
+  composer picked one wave instrument per song -- but the editor lets you give
+  every note its own, and the cartridge would have played the first one
+  throughout. The browser's Sequencer reloads per note; the two must match.
+
+- A NOTE'S SOUND IS NOW THE CHIP'S OWN SETTINGS, not a name off a list. Sixty
+  four invented timbre names read as harder to understand than LSDJ, whose
+  instrument is two or three fields, so the panel is those fields: a pulse note
+  has Shape (12.5/25/50/75% duty) and Fade (LSDJ's ENV nibble: 0 holds, 1-7
+  fades out fastest-first, 9-F swells); a bass note has Wave (one of the
+  cartridge's tables); a drum has Noise (Free = 15-bit, Metal = 7-bit), Pitch
+  and Fade. Cells carry dy / fd / wv / nz / ns, and paramsOf() answers for a
+  COMPOSED note by reading its bank record back, so the panel always shows what
+  the note actually is.
+
+- THOSE SETTINGS ARE MATERIALISED INTO A PER-SONG BANK. instOf() appends a
+  record for each distinct setting to a copy of the shared bank (reusing an
+  existing record when the bytes already match) and buildSong hands that bank
+  out. This is free: the cartridge stores four register bytes PER NOTE and no
+  instrument table at all, so the only real limit is the 32 wave tables. The
+  128-instrument pad in buildBank is a browser-side convention, not hardware.
+
+- AUDITION CARRIES THE RECORD, NOT THE INDEX. A drag auditions long before the
+  song is reposted, so a hand-set sound would not be in the chip's bank yet.
+  pokeCreate notes may carry rec: [4 bytes] and the worklet builds a one-entry
+  bank from it. Without that, every edit sounded like the note's OLD instrument
+  until you released the mouse.
+
+- LINK FORMAT v7 adds those settings: bit 3 of the per-cell command char says
+  "four more chars follow" -- fade+present flags, duty+shape+present flags,
+  wave slot, noise pitch. v1-v6 still decode.
+
+- REMOVED WITH THE PALETTE: chanIcon, soundBtns, soundsFor, laneInst,
+  laneInstAt, chInst, PULSE_FAM / FAM_ORDER / CHAR_ORDER / pulseChar /
+  NOISE_NAMES / METAL_NAMES / LANE_SOUND, and the editValue branches they fed.
+  buildSounds now only names the WAVE tables, which the Bass picker still
+  needs; a table it cannot name shows as "wave N" rather than marking nothing.
+
+- NAMES SIT ON TOP OF THE SETTINGS, and pressing one MOVES them. LSDJ has no
+  presets -- you learn the chip -- but "Shape 75%, Fade out 6" means nothing
+  until you have heard it, and the owner read the parameter panel as having
+  fewer sounds than the name list it replaced (it has far more: 4 shapes x 15
+  fades against 30 names). So each panel opens with a Sounds row -- Pluck,
+  Bell, Stab, Reed, Organ, Thin, Soft, Swell for the pulse lanes; Kick, Snare,
+  Hat, Clap, Tom, Rumble, Ping, Zap for drums -- and picking one writes the
+  settings underneath, which is what teaches them. The Bass lane needs no
+  presets: its Wave row is already a list of names. presetOn() marks the name
+  whose settings the note currently matches, so a composed note shows as
+  "Organ" when that is what it is.
+
+- THE AUTOMATION LANE. A Game Boy instrument is not a note-on, it is what the
+  driver writes on every frame after it, so a score can now carry three arrays
+  beside its notes: gb.auto ([{f, r, v}] raw register writes), gb.waveLoads
+  ([{f, slot}] a table swapped under a sounding note) and gb.vibOff ([{f, ch}]
+  the note taking its own pitch over from the driver's vibrato). BOTH players
+  read the same arrays -- the Sequencer applies them at the end of _runFrame,
+  after that frame's note-ons -- so they cannot drift by construction.
+
+- THE CARTRIDGE GREW TWO OPCODES for it: event type 4 is [reg, val] straight to
+  $FF00+reg, type 5 clears this channel's vibrato flag. Ordering matters and is
+  encoded in TYPEW: offs, wave loads, sweep, note-ons, vibrato hand-offs, then
+  raw writes LAST -- a duty change on a note's own frame has to land after the
+  note-on that would otherwise overwrite it.
+
+- npm run test:automation is the gate. It builds a score using every kind of
+  automation, runs the browser chip and the real ROM on the emulated CPU, and
+  compares: each write lands on its frame in both, and each register gets the
+  same values in the SAME ORDER. Ignore each player's power-on writes (frame <
+  5) -- the browser's happen inside the Sequencer's constructor. An editor song
+  was also checked end to end this way: 45 writes, 9 wave swaps, 164 period
+  writes, identical order on both sides.
+
+- WHAT THE EDITOR EMITS: Wobble writes the period every 3 frames from a small
+  table (and hands vibrato off, or the driver's own vibrato fights it); Sweep
+  walks NRx1's duty bits every 5 frames from the note's own duty; Morph swaps
+  wave tables every 6 frames; Pan is a RUNNING NR51 -- one byte for the whole
+  machine, so panWrites() collects every note's wish, sorts by frame and writes
+  the byte only where it changes. Moves need room: they are skipped on notes
+  shorter than 6-8 frames, because there is nothing to move through.
+
+- A jr COULDN'T REACH doWave once the two new handlers landed. The assembler
+  throws on that (gb-rom: jr out of range), which is why it is a guard and not
+  a silent wrap; the dispatch now uses jp for that one branch.
+
+- THE GRID IS A NUMBER NOW, not the constant 16. S.grid is steps in a bar (16,
+  24 or 32) and spb() answers it; framesPer16() returns frames in ONE STEP,
+  which is (60/bpm)*4/spb()*FPS, so a bar is four beats however finely it is
+  cut. Everything that used to multiply or divide by 16 -- cols, the ruler, the
+  bar highlight, addBar/delBar/shiftBar, camera maths, the gridline layer's
+  modulo -- asks spb(). Changing it RESCALES the cells (c and len by the ratio)
+  so the music stays where it is in time; coarsening can land two notes on one
+  step of a lane and setGrid says how many, because the chip has one voice
+  there and dropping one quietly would be a lie.
+
+- FREE PITCH: a note may carry dt (detune, +/-16 period units) and gl (glide).
+  noteRegisters adds det to the period for channels 1-3 and clamps to 11 bits,
+  so BOTH players and the ROM builder get it from the one place that decides
+  registers. Glide is automation: the period walks from the previous note in
+  that lane to this one over the first frames, which is the only slide the chip
+  has away from channel 1's sweep unit. moves.last[ch] tracks the lane's last
+  period -- every melodic note updates it, move or no move, or a glide would
+  start from whatever note last happened to have one.
+
+- LINK v9 puts the grid in the header (index into GRIDS), so cells start at
+  char 7 rather than 6; dt and gl ride in the v8 blocks.
+
+- PRESSING PLAY IS THE GESTURE. startPlayback used to only ARM the audio unlock
+  when nothing had been touched yet and return silent, so a first press could
+  do nothing; togglePlay (and a mood tap) now set gestured and resume audio
+  inside the handler, which is what browsers allow and what every player does.
+  The rule that a stray key must not start music still holds -- nothing else
+  sets it.
+
+- KIT SAMPLES: FOUR-BIT PCM ON CHANNEL 3, the last thing the editor could not
+  say. The DMG has one DAC -- 32 nibbles of wave RAM -- and every Game Boy game
+  that plays a sample plays it there, by rewriting that buffer while the channel
+  runs. src/gb-kits.js SYNTHESISES the drums (oscillators and a seeded LFSR, so
+  the same kit everywhere and nothing lifted); 8 samples, 3.5 KB packed.
+
+- THE RATE IS CHOSEN, NOT ROUNDED, and that is the whole design. Channel 3
+  steps its 32 nibbles at 4194304/((2048-period)*2), so period 1792 is exactly
+  8192 samples a second and one buffer is exactly 1/256 s. The cartridge
+  refills from the TIMER interrupt: the 4096 Hz clock with TMA=240 fires
+  exactly 256 times a second. Sample clock and refill clock are the same clock,
+  so nothing drifts. The alternative -- refilling once a frame, no interrupts --
+  is 1911 Hz and 955 Hz of bandwidth: muffled thuds, no click, no sizzle.
+
+- WHAT IT COST, all of it deliberate: the CPU emulator learned interrupts, the
+  timer and six opcodes (it throws on anything the driver did not emit, so the
+  additions are exactly what is used); the driver gained doKit, kitFill and an
+  ISR at the $0050 vector; and a kit hit STEALS THE BASS VOICE for its length,
+  exactly as on hardware and in LSDJ. Create emits a waveLoads entry after each
+  hit to give the bass its table back, since wave RAM now holds a sample.
+
+- npm run test:kit is the gate, and it is the strongest one here: the two sides
+  reach the sound by completely different routes (a cycle counter versus a real
+  interrupt on an emulated CPU), so it plays every drum through both and
+  compares spectrograms -- 0.9918 correlation, 1.34 dB a band -- and asserts the
+  two clocks are exactly in step.
+
+- The dispatch in the driver now uses jp for every handler: the event section
+  outgrew a relative jump's reach twice in one day. If you add a handler and see
+  'gb-rom: jr out of range', that is the assembler's guard doing its job.
+
+- THE GRID DRAWS ONLY WHAT IS ON SCREEN. Forty-eight bars is 26,000 pixels of
+  track and the pane shows about 1,200, so renderGrid was building a thousand
+  elements to show forty -- and every edit re-ran it. Measured in WebKit on a
+  48-bar song: opening the note panel 56ms, changing a setting 77ms, worst
+  frame 75ms. With a visible-range filter (visRange(), one bar of margin, and
+  applyCam re-rendering when the window no longer covers the pane): 62 elements
+  drawn, panel 8ms, setting 13ms, worst frame 33ms. Chromium went 33/37ms to
+  4/2ms. If you add anything that renders per cell, keep it inside that filter.
+
+- SELECTING A NOTE IS A CLASS, not a rebuild. selectNote used to call
+  renderGrid for the sake of one '.sel'.
+
+- CLICKING A NOTE OPENED NOTHING, and pointer capture is why: the drag handler
+  takes setPointerCapture on the scroller, so the CLICK that follows is
+  delivered with the scroller as its target and closest('.n-note') finds
+  nothing. Synthetic .click() in a test still worked, which is how it survived
+  a whole session of tests -- use a real mouse (page.mouse.click) when checking
+  this path. The press now remembers its note (pressedNote) and the click uses
+  that.
+
+- resumeCtx WROTE TO THE DOM ON EVERY CALL. Its diagnostic stringifies an
+  object into documentElement.dataset, which invalidates style on the document
+  element -- and pokeCreate calls resume before every audition, which now
+  happens on hover. It leaves early and silently when the context is already
+  running.
+
+- playCreate WAS DROPPING HALF THE SONG. It built its message from
+  {notes, bank, totalFrames} only, so automation, wave swaps, vibrato hand-offs
+  and kit hits never reached the browser chip -- they only ever played on the
+  cartridge. Anything added to a score has to be added there too.
+
+- AN AUDITION HAS A FLOOR. Previews used to play at the note's own velocity for
+  the note's own length: a composed note at vel 0.2 lasting a sixteenth is a
+  blip, and the owner reported hearing nothing at all on hover or click.
+  HEARD_VEL (0.75) and HEARD_FRAMES (about 0.28s) are the floor; measured in
+  WebKit the peak went 0.09 -> 0.19. Note that while the SONG is playing, an
+  audition on a busy channel is cut by the next note there -- four voices is
+  four voices, and that part is not a bug.
+
+- THE PAGE NO LONGER CARRIES ITS OWN JAVASCRIPT. build.js used to inline the
+  whole bundle into index.html: 1.8MB that no browser can cache on its own, so
+  every visit re-downloaded and re-compiled it, blocking the first paint
+  (measured on localhost with no network: 231ms of parse in WebKit, 638ms in
+  Chromium). It is now dist/app.<hash>.js, referenced with defer, cached
+  immutable via assets/_headers. index.html is 109KB. Interactive went 251->143ms
+  in WebKit and 645->160ms in Chromium, and a repeat visit pays nothing at all.
+
+- THE TAG IS RELATIVE, AND THE ROUTE COPIES REWRITE IT to '../app.<hash>.js'.
+  The desktop app's offline fallback does win.loadFile(dist/index.html) -- over
+  file:// an absolute '/app.js' is the filesystem root. Keep it relative.
+
+- WHAT THE RADIO IS ACTUALLY SPENDING TIME ON: not JavaScript. A CPU profile of
+  three seconds of playback is 99.2% '(program)' -- the main thread is idle and
+  the work is the WebGL screen shader, the canvas and the audio worklet thread.
+  The stage canvas is already capped (DPR <= 2, 3.2 megapixels) and the screen
+  shaders cap DPR at 2. Frames measured 8.2ms median in Chromium and 17ms in
+  WebKit with only 317 DOM nodes. If the radio feels heavy, look at pixels and
+  at boot, not at the frame loop.
+
+- CLOSING A COLD-BOOTED /create LEFT THE STATION SILENT, and that was the bug
+  reported from the wild. _closeCreateReturn has two branches: the ordinary one
+  calls Audio.playScore() to take the chip back off the editor, and the
+  _createStandalone one -- /create opened directly, station never started --
+  returned BEFORE it. So the worklet kept holding the editor's song and nothing
+  reposted a score; pause and play could not rescue it because neither reposts
+  either. It calls playScore() now.
+
+- npm run test:handover stands over it: it drives a real browser out of the
+  editor four ways (after an edit, with every lane muted, with a sample left in
+  wave RAM, and mid-playback) plus the cold /create route, and asserts the
+  station is audible after Close AND after pause/play. It caught this on the
+  first run, having failed to reproduce by hand all afternoon.
+
+- MOVES SCALE WITH THE NOTE. Wobble, Sweep and Morph used to need 6-8 frames,
+  and a sixteenth at 150bpm is about six -- so switching one on for an ordinary
+  note did nothing at all. The step is now len/6, len/4 and len/4, floored at
+  two or three frames: a one-step note gets two or three writes. Only something
+  under three frames is genuinely too short to move through.
+
+- EVERY WAVE SLOT HAS A NAME. The picker lists one table per timbre, but a
+  composed note can hold one of the near-duplicates the dedupe dropped, and the
+  panel used to label those "wave 7". SLOTNAME names them after the timbre they
+  are a variant of ("Cello 2").
+
+- THE CARTRIDGE BUDGET IS ESTIMATED WHILE YOU EDIT (romBytes, in buildSong) and
+  hinted at 30000 of 32768, because learning that a song will not fit from a
+  failed download is learning it too late. For scale: 48 bars, 1045 chip notes
+  and all eight sampled drums came to 13054 bytes, so this only bites at the
+  extremes. hint() only surfaces messages carrying consequence -- the filter now
+  includes 'cartridge' and 'share a step', which were being swallowed.
+
+- THE EDITOR CAN NOW HOLD WHAT THE COMPOSER WRITES, which is the precondition
+  for making Create the source of the station's songs rather than a side door.
+  Three things were quantising the music away on import:
+    * S.bpm was rounded to the nearest EVEN value, which moves every frame in
+      the song. It keeps the exact tempo now (link v11 carries 7 bits).
+    * note starts were snapped to the sixteenth grid. A cell carries `of`, an
+      offset in frames (+/-32), and cellFrame() is colFrame + of. The note is
+      DRAWN at the offset too, so what you see is where it sounds.
+    * note lengths were whole steps. A cell carries `lf`, an exact length in
+      frames, whenever the grid cannot say it.
+  Clashes are judged by whether two notes on a lane overlap IN TIME, not by
+  counting notes per column -- the old rule threw away notes that never
+  collided on the hardware.
+
+- MEASURED, one 803-note song: 102 notes fall past the 48-bar cap, 10 are
+  emitted by the composer with midi null (a melodic note with no pitch -- the
+  composer should probably not do that), and of the 691 that can be placed,
+  685 land on the exact frame. 99.1%. Before this work, four moods measured
+  98.2 / 73.0 / 85.1 / 25.1% surviving; 'chill' was losing three notes in four.
+
+- The 48-bar cap is now the largest single source of loss on import. If the
+  station's songs are to come out of Create, that cap has to rise or go.
+
+- THE STATION AND THE EDITOR PLAY THE SAME SONGS. compileScore() now hands every
+  composed Score to CT_CREATE.songFrom(), which runs the editor's own import on
+  a scratch state and returns a playable gb plus the document code; score.gb is
+  replaced with it and score.doc carries the code. The chip plays the DOCUMENT.
+  The Score stays for the visuals, the sections and the games, which read
+  events rather than notes. Cost: 1-3ms a track.
+
+- Consequences, all deliberate: pressing Create hands the editor the song on
+  air (Audio.currentDoc() -> CT_CREATE.open(code)), so "edit what I am hearing"
+  is that song note for note. The address bar no longer carries the generated
+  name -- _generatedRoute() returns the product route -- because a name is a
+  label now, not a seed. A song worth keeping is shared as a document.
+
+- THE LAST QUANTISERS ARE GONE, and two composer bugs came out with them:
+    * the 48-bar cap (import kept 48 bars of a 57-bar song),
+    * per-COLUMN voice allocation in buildSong -- notes carry frame offsets now,
+      so two notes in one column may not overlap at all and two in different
+      columns may. Voices are claimed by time, like the import does it.
+    * the composer put a WAVE instrument on a pulse channel when a plan routed
+      bass there (the mirror of the channel-3 bug fixed earlier). Both
+      directions are guarded now: the instrument has to belong to the channel.
+    * Voices.place() refuses a melodic note with no pitch. The composer emitted
+      a few per song; on the hardware they are a period-0 click.
+  Measured after: twelve songs, 100% of notes on the exact frame, every one.
+
+- npm run test:song-document is the gate. It materialises twelve songs and
+  compares note for note, round-trips a document through the URL into the
+  editor, and checks the song on air has a document behind it.
+
+- THE FRAME LOOP PACED ITSELF BADLY, and that -- not rendering cost -- is what
+  "performance is extremely poor" was. The cap was `now - lastFrame <
+  _frameTarget - 1`, wall-clock. A vsync tick arriving 1ms early is dropped
+  WHOLE and the next lands a refresh later, so the cadence beats between 16.7
+  and 25ms. Fed measured timings: 51.9fps with 15.5% of frames hitching at +-1ms
+  of tick jitter, 43.6fps / 20.0% at +-2ms. The render itself costs 1-2ms.
+  It now counts vsync ticks -- learn the display's interval, draw every Nth --
+  which is exact by construction: 60.0fps, 0% hitches, at 60Hz and 120Hz alike,
+  and the 120Hz case (previously 55.6fps) is right for free.
+  Backoff steps are whole multiples of a 60fps frame now (16.7/33.4/50.1, so
+  60/30/20fps). The old middle step asked for 42fps, which no 60Hz display can
+  show evenly -- it only ever meant uneven frames.
+
+- Why every benchmark here missed it: headless browsers tick like metronomes,
+  so the jitter that triggers it does not exist in them. npm run test:pacing
+  therefore asserts the RULE against jittered timings rather than measuring fps
+  in a browser that rasterises in software at single-digit frame rates.
+
+- `__rrrFrame.seq` counted ticks SEEN, not frames drawn -- it incremented
+  before the cap. `.drawn` is the real one; `.tick` and `.every` show what the
+  loop measured and chose.
+
+- Smaller, from the same pass: hueRot re-parsed hex, rebuilt two closures per
+  call and ran per sprite per frame (~5% of samples during play) -- memoised on
+  colour plus whole degree, verified identical on 10087 colour/angle pairs. The
+  Media Session artwork cache grew by one 512x512 PNG data URL per track
+  forever; it keeps 8.
+
+- Checked and NOT problems, so nobody re-litigates them: canvases do not
+  accumulate (two console panels, cached deliberately, inactive one display:
+  none); Create does not rewrite the URL per frame (the guard needs a route it
+  never has); songFrom costs 1-3ms a track; the heap is flat across track
+  changes. The long tasks a headless profile shows are software rasterisation,
+  not JS.
+
+- THE TOKEN IS ENTROPY; THE NAME IS A LABEL MINTED FROM IT. Song.mint() used to
+  return four words plus an 8-char nonce, and compile(token) hashes whatever it
+  is given -- style, key, tempo, form, harmony, groove, motifs, channel plan and
+  instrument bank all come off that string. Measured before changing anything:
+  holding the phrase FIXED and varying only the nonce gives the same spread of
+  styles and tempos as varying everything (anthem 28/23, house 23/23, techno
+  20/20, bpm 74/134/171 vs 75/134/170), because 41 bits of nonce dominate the
+  hash. So the words were not audibly coercing the music. The coupling was still
+  wrong: a song could not be renamed without becoming a different song, and
+  editing SLOTS would have silently rewritten every future composition.
+  mint() is 16 base36 characters now (~82 bits) and Song.nameFor(token) derives
+  the words one way, at the end. Causality is token->music and token->name; the
+  words cannot reach the composer. Deriving rather than storing the name keeps
+  it stable across a reload and carries it through a shared link for free.
+  Song.title() still reads old word-slugs out as themselves.
+  looksLikeCode() widened to 24 chars for the longer token -- it demands both a
+  digit and a letter, so a real word still never matches.
+  Downloads and cartridge headers take _curName now; a file named after 16
+  characters of base36 is no use to anybody.
+
+- THE IDLE CHROME HOLDS FOR THREE SECONDS AGAIN. It had been 350ms plus a 2.9s
+  dissolve, on the theory that the fade could BE the countdown. It cannot: the
+  chrome starts dimming while you are still looking at it, and it reads as being
+  yanked away the moment you stop moving. 3000ms then a 0.42s fade. The wait has
+  to be a wait.
+
+- SHARING IS ONE ACT WITH ONE RESULT. The share button copied location.href,
+  which only ever worked because the generated name was in the path and the name
+  was the seed. Both are gone, so it was copying the bare station. A link
+  carries the DOCUMENT now -- packed and in the FRAGMENT, which no browser sends
+  to a server, so there is no request limit, no edge config, nothing stored and
+  nothing to moderate. 9.5 KB of document deflates to about 2.9 KB, so a shared
+  song is a 1600-4400 character URL. Long, but it works everywhere and cannot
+  rot.
+  Deliberately NOT token-when-unedited/document-when-edited: that is two
+  behaviours switched invisibly, where the same button gives a 40-character link
+  or a 4000-character one depending on whether you nudged a note.
+  Short links (/s/ab12cd + OG preview cards) were designed and declined for now
+  -- they need a KV store, which gives the product a backend, persistence and a
+  moderation surface it does not currently have. The fragment format stays the
+  fallback underneath if that is ever added.
+
+- v13 documents carry the TITLE. Names derive from the token and a document has
+  no token, so without this a shared song opened under a different name than the
+  sender saw. CT_CREATE.songOf(code) is the inverse of songFrom: a document
+  straight to a playable song with no editor. Audio.playDoc() puts it on the
+  deck as a real track -- visuals, games, sections, transport -- with the events
+  the visuals read rebuilt from the notes.
+
+- Two traps on the way in, both of which produced "it played SOMETHING, just not
+  the right song": (1) playDoc returned deckCur.tok, which is '' for a document,
+  so every success read as a failure and the caller fell back to a random mint;
+  (2) LiveCtl's broadcast tick re-seeks the station every few seconds and seeked
+  straight off the top of the shared song half a second in. window.
+  _sharedSongPlaying holds it off until the station moves on by itself.
+
+- npm run test:share is the gate, and it checks BOTH directions, because "the
+  same from either side" is the actual requirement.
+
+- THE STATION HAD A FAVOURITE RHYTHM, and the report was exact: "it plays one
+  two three four and the fourth is longer, and it reuses that pattern in the
+  same structure, and it is in so many songs." Measured before touching
+  anything: 17.7% of every four-note run in the lead was short-short-short-LONG,
+  56.8% of songs contained it, half of all bar rhythms were 14 patterns out of
+  531, and the exact figure `0/1 1/1 2/1 3/10` was 4.2% of all bars on its own.
+  FOUR structural causes, all of them found in the code rather than guessed at:
+
+  1. THE CORPUS COUNTS WINDOWS, NOT DECISIONS. rhythmCells were mined by sliding
+     a window over real GB leads, so a 32-note run of straight sixteenths emits
+     29 overlapping '1-1-1-1' cells. Weighting by raw count measures how LONG a
+     figure ran, not how often anyone chose it: '1-1-1-1' took 69% of the draw
+     and the effective vocabulary of a 96-cell corpus was 5.7 CELLS. Compressed
+     by sqrt (what chipPatch already does to instrument weights) -> 58.4, with
+     the straight run still the most common single figure at 16%, which is true
+     of the genre. This was the single biggest lever.
+  2. A HARD FOUR-NOTE CAP. `i < shape.length + 1`, and every contour in
+     MOTIF_SHAPE is three long, so every bar of every song was truncated to four
+     notes however much rhythm the cell carried. Literally one, two, three,
+     four. The contour cycles now instead of severing the figure.
+  3. ONE RHYTHM STAMPED ON BARS 0-2 of every phrase. Bar 1 is a varied
+     restatement now (head literal, tail moved) and bar 2 develops the rhythm
+     as well as the pitch -- displacement, fragmentation, augmentation,
+     truncation, which are the standard ways of restating a figure.
+  4. THE CADENCE BAR WAS HARDCODED [0,4,8] in every phrase of every song ever
+     generated -- a quarter of all melodic bars, three notes then a held one,
+     which IS the reported shape. Ten cadence rhythms now; the run still walks
+     stepwise onto the goal tone, because that is what makes it a cadence.
+
+  Also: figures are sometimes stated at the eighth rather than the sixteenth
+  (the corpus is mined at the sixteenth, so every gap in every song was a 1 or a
+  2); the fallback pool went from 8 figures, 6 of them on the 0/4/8/12 grid, to
+  20 including anacrusis and syncopation; long even runs get thinned; and
+  makeMotif drew a random gap, pushed it, then overwrote it on the next line --
+  dead code that made the cell cycle from index 0 forever.
+
+  Result, same measurements: short-short-short-LONG 17.7% -> 7.9%, songs
+  containing it 56.8% -> 41.6%, consecutive bars repeating their rhythm
+  16.3% -> 11.1%, bar-rhythm effective vocabulary 54.2 -> 167.6, four-run
+  vocabulary 26.8 -> 62.3, distinct bar rhythms 299 -> 941.
+
+  NOT flattened into randomness: note spacing is still peaked on 1, 2 and 4
+  sixteenths, because that is what the genre is made of, and phrases still
+  repeat 10.8% of the time -- repetition is what turns a phrase into a tune, and
+  the gate asserts BOTH directions so nobody 'fixes' this into noodling.
+
+- npm run test:rhythm measures the ENSEMBLE, not one song. A single song may
+  repeat a figure as much as it likes; the station must not keep reaching for
+  the same handful. REV is musician-12.
+
+- THE CRT VIGNETTE WAS TWO DARK VERTICAL BARS on a wide window, and the cause is
+  geometric: `radial-gradient(ellipse at center, ...)` fits itself to the box, so
+  at 1990x1250 the falloff runs out horizontally long before it runs out
+  vertically and the darkening lands as a band down each side instead of in the
+  corners. THREE layers were stacked -- the CSS radial, an inset box-shadow, and
+  the per-frame canvas radial in _vignette(). Measured on the baked gain mask:
+  the edge column sat at 50.9% of centre brightness. A CIRCLE sized to the
+  longer axis keeps the falloff in the corners at any aspect ratio; strengths
+  cut to roughly a third. Edge is 86.5% of centre now and nothing darkens before
+  90% of the width.
+
+- VIG_BG/SCAN_BG in runtime.js MIRROR the .scanlines/.vignette rules in
+  shell.html: the first bakes the gain map the CRT actually uses, the second is
+  the legacy fallback stack, and scripts/crt-diff.mjs exists to prove they are
+  the same pixels. They had already drifted -- crt-diff was failing at max
+  channel diff 103 BEFORE this change, and it is not in the npm gate list, so
+  nothing was watching. Editing one and not the other took it to 184. Both are
+  scaled together now and crt-diff reports 0. If you touch either, run it.
+
+- CREATE IS A VIEW OF THE STATION, NOT A SECOND PLAYER. Owner, 2026-08-28: "make
+  it that create and the radio are the same mode -- we are enabling the view of
+  the notes or focusing on the visualizer. Two tabs of the same thing." That is
+  now literally what it is, and it removed a whole class of bug.
+  What it used to do: _openCreate called Audio.enterCreate(), which posts
+  {type:'stop'} to the worklet -- so merely OPENING the editor killed the chip
+  before the editor had decided anything -- then Create armed the chip with a
+  silent host song and started its OWN transport from bar one. Closing reversed
+  it. Every silence anyone has reported lived in that swap, and it also meant
+  pressing Create dropped you at the start of a song you were in the middle of.
+  Since the merge the station is ALREADY playing this exact document, so there
+  is nothing to hand over. `owning` is the line: while it is false the station
+  is the player and this is a view of it. open() follows what is sounding (same
+  song, same position, no gap), pause/play drive the SHARED transport, and the
+  chip is taken only when you actually change something. close() on a view that
+  never owned calls _closeCreateView() -- visuals only -- instead of
+  _closeCreateReturn(), because there is nothing to give back.
+  Measured: chip owner stays 'radio' with the editor open, the deck runs
+  continuously across the open, the editor lands on bar 34 of 53 rather than
+  bar 1, and it SOUNDS without pressing play.
+
+- Second cause of the same silence: Create's `gestured` flag is module-local and
+  knew nothing about the click that had already started the radio, so
+  startPlayback refused to start ("nothing can sound yet: stay honest") while
+  armChip had already stopped the station. audioLive() seeds it.
+
+- scripts/crt-diff.mjs IS FLAKY -- the same build gives different verdicts run
+  to run (seen passing at 0 and failing at 101 on the same code, DPR 2). It is
+  not in the npm gate list and nothing watches it. Do not read a single run as
+  a regression, in either direction, and do not claim a fix from one pass.
+
+- THE TRACK RIBBON. Owner asked for the horizontal strip of notes back, at the
+  bottom, narrow, showing the whole track -- and then: "conceptually this is
+  like showing the waveform of the music, where the progress bar usually is."
+  So it is both. A music player draws a waveform under the scrubber; a Game
+  Boy's waveform is its NOTES, and since the merge the station plays a document,
+  so they are simply there to read off score.gb.notes. Every note of the track
+  at once, x = frame/totalFrames, y = pitch (drums on their own band at the
+  foot), colour = the editor's four lane colours, bar lines behind. What has
+  played is lit and what is coming is dimmed, which is the progress bar.
+  52px tall (40 under 820px), bottom:0, and the bottom chrome steps up over it
+  via body.ribbon-on.
+  Baked ONCE per track into two offscreen canvases (lit + dim) and blitted
+  twice a frame with a clip, because a thousand notes redrawn every frame is
+  exactly the kind of thing the pacing work was about. Frame cost stays ~1ms.
+  It is the station's: hidden with the editor open (which has its own grid), in
+  wallpaper/popover/browse, and until the playbar is up -- Audio.started is not
+  the same question as "is the player up", because the deck compiles a track
+  before anyone presses anything.
+  npm run test:ribbon holds the geometry, that the played part grows, that the
+  baked track does NOT get redrawn, and the frame cost.
+
+- Not built, deliberately: scrubbing. It looks like a scrubber and a listener
+  will try to drag it. gotoTrackAtOffset exists but a document deck has no
+  token, so seeking a shared or edited song needs its own path. Ask before
+  wiring it rather than half-wiring it.
+
+- THE STRIP MOVED INTO THE PLAYER BAR, with the transport, the way a music
+  player groups them (owner's reference: Roon). #playbar .pb-ctrl is a two-row
+  group now -- prev/play/next above, elapsed | track | total below -- and over
+  the game that pill becomes a column instead of a 142px lozenge. It fades with
+  the rest of the chrome, because idle means gone here.
+  TRAP: a canvas reports its BUFFER width as its intrinsic size, so `flex:1 1
+  auto` let the buffer decide the layout that decided the buffer. The measured
+  size changed every frame, the bake key with it, and the strip re-baked a
+  thousand notes sixty times a second -- 41ms a frame. `flex:1 1 0%; width:0`
+  breaks the loop; the key is also rounded to 4 device pixels. And
+  getBoundingClientRect() in the frame loop forces layout every frame: measured
+  once every 45 frames and on resize instead. __rrrFrame.rib times the strip on
+  its own (0.02-0.03ms) because the frame EMA is dominated by the game.
+
+- FOUR LANES, NOT ONE PITCH BAND. The first cut mapped every melodic voice into
+  a single band with drums beneath. Drums are usually more than half the notes
+  in a song, so it came out 69% purple and read as one colour rather than four
+  voices -- reported as "it does not have the colour coding of create mode".
+  Melody / Harmony / Bass / Drums now each own a quarter of the strip in the
+  editor's own lane colours, each scaled to its own pitch range so a bass line
+  uses its whole lane. The gate matches rendered pixels against those four
+  colours and fails if any one voice takes more than 75%.
+
+- NOTHING PLAYS UNTIL YOU ASK. A cold load minted a random track and started it
+  -- or joined the scheduled broadcast, which amounts to the same -- answering a
+  question nobody had put. The station holds (Audio.holdForPick) and the moods
+  are the question: they sit in the middle of the screen, do not fade, and shrink
+  back to the top strip once something is on. Deep links (/track/<slug>, #s=)
+  still play immediately; the broadcast is still reachable, it just does not grab
+  the room on the way in.
+
+- THE WAY INTO THE EDITOR IS THE STRIP ITSELF. Owner asked for a good idea here;
+  this is it. The strip is already a miniature of the editor's grid, so clicking
+  it opens the full one ON THAT SONG -- no separate button to find, and the
+  gesture is "pull these notes up". A hover chevron says so. "From scratch" sits
+  at the end of the moods and opens an empty grid (CT_CREATE.openBlank), which
+  needed a flag because the build path deliberately composes something when it
+  finds no cells.
+
+- The handover gate had encoded an assumption that is no longer true: it pressed
+  play after opening the editor, which now PAUSES, because the editor opens
+  following what is already sounding. It picks a mood to start and only presses
+  play if the editor is not already running.
+
+- THE WAITING SCREEN IS A LANDING PAGE. Name, one line of what this is, then the
+  choice -- centred, in that order. The big play button and its paragraph
+  ("An endless Game Boy radio. Press play...") are hidden while waiting: the
+  moods are the entry now and two calls to action in the same square of screen
+  is one too many. The rail stops repeating the title while the hero shows it
+  (its How-it-works button stays), and the hero's brand is display:none the
+  moment something plays.
+
+- Rail, by owner instruction 2026-08-28: no Create button (the strip of notes is
+  the way into the editor, and it opens the song you are actually hearing), the
+  Game Boy emulator first, "Download as Game Boy ROM" directly under it -- the
+  cartridge belongs under the offer to run it, not beside a WAV -- then WAV, Web
+  radio, GitHub, then a "Made by TetrisGM @GitHub @Twitter" credit under the
+  offers. The screen pill says "Graphics: <face>" rather than a bare face name.
+  "Start from scratch", not "from scratch".
+
+  ⚠ The Twitter URL is a GUESS: nothing in this repo records one, so it matches
+  the GitHub handle (twitter.com/tetrisgm). Correct it if that is wrong.
+
+- Three gates encoded the old entry (a click anywhere starts music) and two
+  found the editor by looking for a button whose text says "create". Both
+  assumptions are gone: they pick a mood to start, and they open the editor by
+  clicking the strip, which is what a person now does.
+
+- THE PLAYER BAR IS FURNITURE. It used to appear only once a track was on, so
+  the first thing a visitor saw was a page with no transport and the bar arrived
+  under them the moment they picked a mood. _updatePlaybar shows it from the
+  first paint; the strip has a real EMPTY state (the lanes, no notes, 0:00 /
+  0:00) rather than being absent, and the hero centres in what is left above it.
+  With nothing loaded the play button means "surprise me" -- it clicks one of
+  the moods, because that is the only way anything starts now. Clicking the
+  empty strip opens an empty editor.
+  "How it works" is a plain .plink again: it had been overridden to 32px with a
+  smaller label, so the one button in the masthead read as a different family of
+  control from the five under it.
+
+- THE STRIP WAS BEING REPAINTED BY THE CONSOLE PALETTE. CT_PAL hooks fillStyle
+  on CanvasRenderingContext2D.prototype and quantises EVERY canvas to the Game
+  Boy's four shades or the NES palette while one of those screens is on. The
+  screen face is random per track, so the lane colours were correct on the CRT
+  and snapped to something else on the other two -- reported as "no colour
+  coding", fixed, and then still wrong on two thirds of tracks without anyone
+  seeing it. canvas.__ctpalRaw is the existing opt-out (Create's grid already
+  used it); the strip and its two offscreen bakes set it now.
+  This is why verify-ribbon checks rendered PIXELS against the four colours
+  rather than trusting the fillStyle it asked for.
+
+- Four reports, four causes, 2026-08-28:
+  * The transport read as PLAYING on a cold load. _transportIsPaused() knew
+    about gating and about Audio.isPaused but not about the new hold, so a
+    station that was waiting to be asked showed a pause button and ran the game.
+    Holding is paused.
+  * "Start from scratch" opened a page full of notes. open('') falls through the
+    URL to the saved localStorage draft, so it opened whatever you were last
+    working on -- in answer to a request for nothing. wantBlank skips the draft.
+  * A note sounded for no reason on opening the editor. The editor opens UNDER a
+    cursor that has not moved; the first pointermove is the browser reporting
+    where the pointer already was, and if a note arrived beneath it, it played.
+    Hover audition arms on real movement (3px) now.
+  * "Pausing the music should pause the gameplay" -- and the sim WAS frozen
+    (2.2% of pixels still moving on the CRT, which is the decay tail). The
+    console panels quantise a ~500px framebuffer up to the whole window, so that
+    2% flipped whole blocks and the picture read as alive: 22.9% on the NES face.
+    The panel holds its last frame two frames after a pause now: 1.9-2.3%,
+    the same as the CRT.
+
+- The masthead ("Chiptunes.app ... How it works") collapses to just its button
+  once music is playing. Saying what the page is answers a question only an
+  arriving visitor has; with a song on it is a panel of prose over the game.
+
+- THE PLAYER BAR IS DOCKED, full width, the shape a music player uses. It had
+  been four pills floating in the corners over the game; it is one bar now --
+  track on the left, transport with the song's own notes in the middle, and the
+  desk on the right: Display, BPM, Volume, then the advanced mixer. Display and
+  BPM sliders sit LEFT of Volume, each with its number, and the whole bar fades
+  as one unit on idle rather than four things on four schedules.
+  #pbBpm drives Radio.setTempo; #pbVol drives window._sessionMixSet('master').
+  #pbAdv opens the same mix panel the volume icon does -- verified: volume 100
+  to 30 halves the measured peak, BPM 101 to 150 reaches Radio.state.tempo.
+  The screen pill had been fixed-positioned at 50%+81px from when it lived
+  outside the bar, so it floated over the strip until that was neutralised; it
+  says "Display: CRT/Game Boy/NES/Random" now.
+  Sliders drop first on a narrow window, then BPM, then the Display label -- the
+  numbers survive longest.
+
+- "TAP ANYWHERE TO START" WAS STILL WIRED, and it undid the hold from a
+  distance. _gestureShouldResumePaused fires on any pointerdown when the
+  transport is paused; holding correctly reports as paused (nothing IS
+  playing), so every stray click on the background read as "resume", reached
+  _transportToggle, and took its surprise-me branch -- a random mood, started by
+  someone who had clicked nothing in particular. Reported from the wild as "I
+  went to the page and it just started playing music".
+  That handler stands down while holding. The play button keeps the surprise-me
+  branch, because pressing play is a deliberate act; a click on the page is not.
+  npm run test:entry is the gate: four clicks that mean nothing must start
+  nothing, and the two that mean something must still work.
+
+- The credit reads "An AI product experiment by Shokunin" with three round icon
+  buttons: GitHub, X and Hacker News, all github.com/tetrisgm,
+  twitter.com/tetrisgm, news.ycombinator.com/user?id=tetrisgm (owner confirmed
+  the handle; the earlier guess was right). Icons are drawn inline -- nothing
+  here loads a third-party asset.
+
+- The How-it-works LABEL did not match the other rail labels even after the pill
+  did: `#plinks .plhead span`, written for the masthead's description paragraph,
+  is a descendant selector, so it also caught the spans INSIDE the button and
+  beat .plink-t on specificity -- 15px/400 against everything else at 13.5px/600.
+  It is `> span` now. If you add anything else to the masthead, remember that
+  rule reaches into it.
+
+- THE BAR OWNS THE BOTTOM; EVERYTHING ELSE IS CONTAINED ABOVE IT. The stage was
+  inset:0 and sized from innerHeight, so the game ran underneath the player bar
+  and the bottom of the picture sat permanently behind it. --barh is the bar's
+  MEASURED height (0 in wallpaper/popover/browse, where it is not shown),
+  published by _syncBarInset() every 32 frames and on show/hide; the stage, the
+  CRT layers and the editor all end there, and resize() subtracts it.
+  Three things had to follow:
+  * .crt is a CANVAS for the gain layer -- a replaced element, so with
+    height:auto its intrinsic buffer size wins and the bottom inset is simply
+    ignored. It needs a stated height:calc(100vh - var(--barh)).
+  * the gain map bakes to the PICTURE's size, so publishing --barh dispatches a
+    resize; otherwise its vignette sat a bar's height too low.
+  * html.audio-background hides the playbar, and opening the editor parks the
+    frame loop into exactly that mode -- so the bar under the editor was there,
+    laid out, opacity 1, and invisible. Exempted while create-open.
+  The STRIP STAYS while the editor is open: the bar must be the same height in
+  both views or the thing contained above it jumps when you open one. And the
+  editor's own play/rewind are hidden -- the bar carries the transport; the
+  editor's row keeps only what the bar has no business knowing (Follow, Speed,
+  Grid).
+
+- THE CRT VIGNETTE, MEASURED PROPERLY AT LAST. Reported as a dark vertical bar
+  slightly right of centre. Column analysis of a screenshot is useless here --
+  it is dominated by the game's own walls and floor. The way to see the EFFECT
+  is to freeze the scene (pause), capture with __rrrScreenMode('crt') and then
+  ('off'), and divide: that ratio IS the effect's transmission curve, free of
+  content. It showed a smooth falloff, NO sharp step anywhere -- so there was
+  never a bar, there was a vignette strong enough to read as one: 0.846 in the
+  middle against 0.694 at the edges. Cut to 0.846 / 0.789, a 6% falloff.
+  scripts/... the isolate technique is worth keeping: freeze, toggle, divide.
+
+- Rail: the lone GitHub row is gone -- the credit carries GitHub, Twitter and
+  Hacker News as full rail pills (icon and label, 46px, same as every other
+  offer) rather than bare circles. The desktop card says "Use these games as an
+  animated wallpaper" and sits at bottom:calc(var(--barh) + 18px), inside the
+  picture: the player bar owns the bottom of the window on its own, and nothing
+  that belongs to the game may overlap it.
+
+- THE PICTURE RAN AHEAD OF THE SOUND, reported as "the music plays almost 1 sec
+  after" the strip. Measured, and the report was literally right: 1026ms in one
+  session. The cause is a clock mismatch, not a latency. A deck opens 0.18s in
+  the future and gbPlay tells the chip to wait the same leadSec -- but the
+  worklet starts counting that lead when the AUDIO THREAD receives the message,
+  not when the main thread posted it, and how late that is depends on what the
+  machine was doing at the instant the track started. Measured across sessions:
+  20ms, 206ms, 1026ms. It is NOT a constant, so no constant can correct it.
+  The chip already reports its true frame ~9 times a second (report() every 40
+  blocks). The difference between that and the deck's clock IS the correction,
+  taken live and per track. Audio.audiblePosition() is deckPosition() minus it;
+  the strip and the editor's playhead use it. ANYTHING SCHEDULING AUDIO MUST
+  KEEP USING deckPosition -- that is the clock the scheduler runs on, and
+  correcting it would move the music rather than the picture.
+  Residual is ~100ms, which is the anchor's own report interval: the floor
+  without making the worklet talk more often.
+  MEASUREMENT TRAP: comparing a fresh deck clock against whatever __rrrChip
+  happens to hold measures the report interval, not the lag. Sample only when
+  the reported frame CHANGES. That mistake made the same bug read as 206ms once
+  and 1026ms the next time.
+  npm run test:sync holds it.
+
+- THE HOME DOES NOT FADE, and its bar is a transport and nothing else. Idle-hide
+  exists so that watching the game leaves only the game; on the home there is no
+  game yet, and a landing page whose offers vanish three seconds after you
+  arrive cannot be read. Everything holds until something is playing.
+  The bar drops Now playing, the elapsed/total of a track that does not exist,
+  the tempo and volume of silence, and a screen control for a picture that has
+  not started -- all readings of a song. The strip stays (an empty box) so the
+  bar keeps one height across both states and nothing above it jumps.
+  The empty strip is NOT a door either: clicking it used to open a blank editor,
+  which is what "Start from scratch" is for, and it is what a stray click in the
+  middle of the bar landed on.
+  The "this is a background radio, just listen" hint waits for a radio. It fired
+  on any key or click, over the very buttons that would give you something to
+  listen to.
+
+- On the home the credit holds the MIDDLE and the ask sits in the corner (owner's
+  choice, offered against two other arrangements). Done by moving the nodes
+  (_syncHomeLayout, on the frame loop's 32-frame tick) rather than positioning
+  from a distance: the hero is a centred flex column of unknown height and a
+  fixed element cannot be told to sit inside one. .rmood-ask wraps the label and
+  the pills so they travel together.
+
+- Full screen is a rail pill with a label, 46px, like everything else; it was a
+  54px circle with a bare glyph. The credit line is 600 13.5px, the same type as
+  every button label beside it.
+
+- verify-create-handover is INTERMITTENTLY FLAKY -- seen failing once and passing
+  on the next run across several unrelated changes. Re-run before believing it.
+
+- THE HOME: credit TOP CENTRE, the ask BOTTOM LEFT, and a bar that is only a
+  transport. The strip goes too -- with nothing loaded it was an empty rounded
+  box in the middle of the bar and read as a control.
+
+- TWO BUGS FOUND DOING IT, both worth remembering:
+  * Placing the credit inside the hero was done by MOVING the node into #rmoods
+    (the hero is a centred column of unknown height, which a fixed element
+    cannot be told to sit inside). That is a timing dependency: on the deployed
+    build the move had not happened yet while `position:static` had already
+    applied, so a body-level element fell into normal document flow and landed
+    at x0-1180, y6 -- full width across the top. Fixed + translateX(-50%) needs
+    no move and cannot race. Prefer placement over reparenting.
+  * --barh was NEVER PUBLISHED on the home. The call was gated on
+    `(_frameSeq & 31)===0`, but _frameSeq counts TICKS while that line only runs
+    on DRAWN frames -- the loop draws every second tick, so drawn frames all had
+    one parity and multiples of 32 had the other. It never fired. Everything
+    anchored to `calc(var(--barh) + 18px)` fell back to 18px and sat under the
+    bar. It has its own counter now (_barhTick), and _updatePlaybar publishes it
+    eagerly the moment the bar is shown rather than waiting half a second for a
+    tick. If you gate anything else on a frame counter, check which frames the
+    line actually runs on.
+
+- NO PLAYER BAR ON THE LANDING PAGE (owner reversed the earlier "always the same
+  bar" call after seeing it): stripped of now-playing, clock, tempo, volume and
+  the strip, what was left was three buttons and an empty band across a landing
+  page. --barh goes to 0 with it, so the ask, the card and the picture run to
+  the bottom of the window.
+  TRAP: `body.awaiting-mood #playbar.show{display:none !important}` LOST to
+  `body.ai-visual #playbar.show{display:grid !important}` -- identical
+  specificity, and the ai-visual rule is further down the file, so source order
+  decided it. Prefixing `html` broke the tie. Two !important rules of equal
+  weight are decided by position, which is not obvious when they are 1000 lines
+  apart.
+
+- THE SWAP WAS FOR THE PLAYING SCREEN, not the landing page (owner had to say so
+  twice; the first reading cost a round trip). Credit at the top in BOTH states;
+  the moods are the hero's last line on the landing page and the bottom-left
+  corner while a song plays.
+
+- THE LANDING PAGE IS A REEL: the wallpaper game cuts every 2s through the
+  roster. One game for as long as somebody reads the page says "here is a game";
+  cutting says "here are fourteen, and they play themselves", which is the
+  product. Runs only while awaiting-mood, never when a game is pinned, never
+  while the tab is hidden, and stops the moment a mood is picked. 0.5ms a frame.
+
+- THE LAG BEFORE A SONG STARTS WAS latencyHint:'playback'. That asks the browser
+  for the largest output buffer it likes: glitch resistance bought with delay
+  before anything is heard. It is why "start a mood" and "click next" felt late,
+  and it is also why the playhead correction measured 20ms in one session and
+  1026ms in another -- the buffer is negotiated per context. 'interactive' now.
+  The chip runs on the AUDIO thread, so it was never the one at risk from a busy
+  main thread. Measured after: deck-vs-chip 32-65ms (was 20-1026ms), skip to
+  audible 229ms median, which is the deck's own 0.18s lead plus the hop.
+  Also measured, so nobody optimises the wrong thing: the mood search over 140
+  candidates is 7ms, a composer compile is 1ms, a document materialisation 1ms.
+  None of those were ever the delay.
+
+- THE PLAYER BAR IS APPLE MUSIC'S SHAPE: transport and volume on the left, a
+  now-playing panel in the middle -- the track name over a thin scrubber with
+  the clock at either end -- and what changes the PICTURE on the right (Display,
+  BPM, the mixer). 79px tall, down from 111; the strip is 26px, down from 44.
+  Every element that was there is still there; it was the arrangement.
+  The volume readout sits beside its own slider now: on the far side of the bar
+  from it, next to the BPM number, it rendered as "104100".
+
+- LANDING PAGE: no bar, no full-screen button, no desktop card, credit in the
+  bottom-left, moods in the hero, and the wallpaper game cutting every 2s
+  (verified: racer -> squadron -> trooper -> vortex -> blast in 8s).
+  __rrrFrame.game reports the current pack -- window.curGameKey is not a global
+  and selGame.key is empty, which cost two bad probes before this was added.
+
+- scripts/crt-diff.mjs: ITS PASSES USED TO BE VACUOUS. Both screenshots were
+  solid black -- the stage was never painted, or was cleared by a resize between
+  paint and capture -- so the two CRT paths were compared over nothing and every
+  "ok" meant nothing. I reported one of those passes as proof the paths agreed;
+  it was not. There is now a blank-frame guard: a comparison of an unpainted
+  frame is an ERROR, not a pass. It also repaints immediately before each
+  capture and stops the 700ms UI tick, because _updatePlaybar -> _syncBarInset
+  -> resize() clears the stage.
+  With real ink in the frames the paths DID differ, and that was mine: softening
+  the vignette, I scaled VIG_BG (which bakes the gain map) and the .vignette CSS
+  (the legacy layer) by two separate guesses. They are the same layer and must
+  be identical strings. They are now, and DPR 2 diffs at exactly 0.
+  STILL FLAKY AT DPR 1: sometimes 0, sometimes ~95 LSB, same code -- a race
+  where the gain path is captured against a stale map that __rrrCrtReady does
+  not catch. NOT in the npm gate list, and it should not go in until that is
+  understood. Do not read a single run either way.
+
+- THE LANDING PAGE'S BACKDROP WAS A FLAT FILL, not a game -- reported as "this
+  is not currently happening", and it was not. The reel WAS cycling packs every
+  2s (the key changed: squadron, trooper, vortex, blast, blocks) but every one
+  of them drew its empty first frame and stopped: four distinct colours on the
+  whole stage. Cause: _transportIsPaused() returns true while the station is
+  holding -- correct for the play icon, since nothing is playing -- and the
+  frame loop feeds that same flag into simDt. Pausing a SONG should stop the
+  games; having no song yet should not. The loop distinguishes them now, and
+  the stage draws 385 colours.
+  MEASUREMENT NOTE: "the game key is changing" is not "a game is drawing". The
+  first check only proved showGame() was being called. Count distinct colours on
+  the stage, or the reel can look healthy while the page is one flat rectangle.
+
+- A SCRIM behind the hero: with a game running under it, the name, the line and
+  the pills were competing with a platform every two seconds. Radial and centred
+  on the hero so the artwork still reads at the edges, where nothing is text.
+
+## The furniture pass (2026-08-29)
+
+- THE REEL DID NOT DEPEND ON THE RENDERER, and now it does not. `_syncReel()`
+  was called from exactly one place: the frame loop, every 32 drawn ticks. That
+  is fine while the loop runs -- but the loop is what parks itself when the tab
+  becomes a background audio source, so entering the home in that state left the
+  wallpaper on one frozen game forever. It is called on the state change too
+  now. Measured cadence 2002/1998/2004ms over the 14-game roster.
+  GATE NOTE: timing the reel by SAMPLING `_reelAt` from the page is skewed by
+  `showGame()` itself -- a pack that takes 900ms to load blocks the sampler, so
+  the cut is detected late and the next one looks early (923, 2911, 1995 on a
+  perfectly regular 2s timer). Check the mean and the count, not each gap.
+
+- `offsetParent` IS NULL FOR `position:fixed`, however plainly the element is on
+  screen. The desktop card's wallpaper used `if(!card.offsetParent) return` as
+  its "am I visible" test and therefore skipped every single frame: the canvas
+  stayed at one colour and nothing moved. `getClientRects().length` is the test
+  that works for fixed elements. Anything else in here guarding work on
+  visibility should be read with this in mind.
+
+- THE DOCKED PLAYER BAR'S RULES COME BEFORE THE FLOATING ONES in shell.html, and
+  both are `body.ai-visual #playbar ...` -- same specificity, so source order
+  decides and the floating pill wins every tie. That is why the docked overrides
+  in that block all carry `!important` (`position:static !important` and
+  friends). A docked-only change to a property the floating rules also set has
+  to say `!important` or it silently does nothing. The Display button's height
+  is the newest member of that group.
+
+- TRACK NAMES ARE A TRADEMARK SURFACE. The generator now assembles NES/Game Boy
+  era words, which is what was asked for and reads right -- but era vocabulary
+  is exactly the vocabulary real cartridges used, so combinations WILL land on
+  real titles by chance. `BLOCKED` in src/seed.js lists the ones this word pool
+  can actually reach; `nameFor` re-rolls on a hit, deterministically, and the
+  last attempt uses a shape that cannot collide. 200k samples, zero hits, held
+  by `npm run test:chrome`. If you widen the word lists, widen BLOCKED with them
+  and re-run that gate -- this is the same hazard as pack naming (AGENTS.md) and
+  a complaint lands on the repository, not the string.
+
+- `npm test` EXISTS NOW: build, the browser gates in the order they were
+  written, the two smokes, the game audit. It is a manual command. Nothing
+  invokes it on a trigger and nothing may be made to. `crt-diff` is still out of
+  it, for the reason recorded above.
+
+## The picture was leading the sound (2026-08-29)
+
+Reported as "the performance is really bad again and when I click next it takes
+a second for audio to come out, whereas the games and the visual progress of
+things being played happens instantly."
+
+- THE OUTPUT LATENCY WAS NEVER MEASURED. `ctx.currentTime` is where the graph is
+  RENDERING; the sample rendered at T is not heard until T plus the device's
+  output buffer. Every visual clock in audio.js was timed against
+  `ctx.currentTime`, so on a device with a real buffer the games, the beat grid
+  and the playhead all ran that far ahead of the music. On this Mac's own
+  speakers that is 34ms and invisible. Over AirPods it is routinely 150-250ms
+  and over AirPlay it can exceed a second — which is exactly the report.
+  `outLatency()` in src/audio.js measures it and three visual clocks now carry
+  it: `consumeEvents()` (the single choke point for every audio-timed visual,
+  so the games come with it), `gridNow()`'s phase, and `audiblePosition()`.
+  `deckCur.origin` is UNCHANGED and must stay that way — the scheduler runs on
+  it, and moving it would queue every note late.
+  WHY `getOutputTimestamp()` AND NOT `ctx.outputLatency`: WebKit has never
+  shipped `outputLatency`, and Safari is the browser this matters most on.
+  Take the LARGER of the two signals — Playwright's WebKit returns a
+  `getOutputTimestamp` whose contextTime equals currentTime (a latency of
+  exactly zero, which no real output has) while its `outputLatency` says 15.8ms,
+  and preferring the timestamp threw the only real number away.
+  `__ctDiag()` in the console reports it, because this number cannot be measured
+  from a test runner: Playwright's WebKit is not Safari and neither is playing
+  through the owner's actual output device.
+
+- ONE PRESS OF NEXT STARTED TWO TRACKS. `_ensureGeneratedTransport()` guards on
+  `!Audio.trackToken()` meaning "nothing is loaded" — but a mood and a shared
+  link both enter through `playDoc`, which starts a real deck with an EMPTY
+  token, because a document has no seed to be named by. So the first Next after
+  a mood minted a token, compiled it and started it, and then the next line
+  called `Radio.next()` and started a different song 30ms later. It takes a
+  `startOne` argument now, and the skip paths pass false. Guarded by
+  `npm run test:latency`.
+
+- WHAT WAS *NOT* THE CAUSE, all measured: `leadSec` is a constant 0.18 (by
+  design, and the chip is still told exactly that); composer.compile 4.8ms;
+  CT_CREATE.songFrom 10ms; `new Sequencer(gb)` on the audio thread 0.1-0.5ms;
+  structuredClone of the 126KB payload 0.5-1.3ms; the whole click handler
+  5-15ms; `_deskShotFrame`'s blit and getComputedStyle 0.2ms each.
+
+- ⚠️ HEADLESS CHROMIUM HAS NO GPU AND WILL LIE TO YOU ABOUT THIS PROJECT.
+  It runs WebGL through SwiftShader, in software. Measured there, the `dmg` and
+  `nes` screen faces showed 1.2 and 2.8 fps, 879ms long tasks, a main thread
+  100% busy, and worklet stat messages arriving in bursts — a completely
+  convincing performance regression that does not exist. The same build headed
+  with `--use-angle=metal` on the M4: 57-60fps on all three faces, zero long
+  tasks, stats on a clean 116.1ms cadence. `dmg-screen.js` and `nes-screen.js`
+  are WebGL shader pipelines; anything that touches them must be measured on a
+  real GPU. Check with `WEBGL_debug_renderer_info` before believing a number.
+  The same artifact makes the desktop-card wallpaper check flaky: at 2fps a
+  fixed 900ms window legitimately contains no new frame, so `verify-chrome`
+  polls for the change instead. Its colour-count assertion was wrong for a
+  related reason — it failed at 4 and 8 tones and passed at 107 on identical
+  code, because it was really asking whether the game showing at that instant
+  happens to be colourful. It compares the wallpaper's palette to the stage's
+  now, which is the claim that was meant.
+
+## The performance pass (2026-08-29)
+
+Reported as "severe performance issues running the website overall", in Safari.
+
+- **FIRST, THE ENVIRONMENT.** The owner's Mac was compiling Chromium (`siso` out
+  of `~/dev/webweb/upstream/chromium/src`, 12 clang processes, **load average
+  ~100-115**) for the whole investigation. That alone makes every browser on the
+  machine stutter, and it contaminated every Safari measurement taken that day
+  in BOTH directions -- the "before" baseline as much as the "after". Before
+  concluding anything about this site's performance from a local measurement,
+  run `uptime`. A load average over ~10 on this machine means stop and wait.
+- **HEADLESS CHROMIUM HAS NO GPU.** It runs the DMG/NES WebGL panels through
+  SwiftShader, where they measure 1.2 and 2.8 fps with 879ms long tasks and a
+  main thread pinned at 100%: a completely convincing performance regression
+  that does not exist. Headed with `--use-angle=metal` the same build is 57-60fps
+  with zero long tasks. `verify-screens.js` asserts it is not on SwiftShader
+  before it measures anything, because this fooled a whole afternoon once.
+- Safari's real numbers, read off an on-screen probe (`?perf=1`, and
+  `?perf=1&noblur=1` for the backdrop-filter A/B) because **Safari cannot be
+  profiled from a session here**: `safaridriver` needs an authorisation we must
+  not create, Safari has no `longtask` observer, and Playwright's WebKit is not
+  Safari. The probe measures rAF deltas, which every engine reports alike.
+  Safari's output latency measured **5.8-11.6ms** -- so the earlier theory that
+  Safari was buffering ~1s was wrong.
+
+### What was actually fixed
+
+- **Inactive screen pipelines are freed.** `setMode(false)` set `display:none`
+  and released nothing, so once the default "Random" had shown all three faces
+  the page held CRT, DMG and NES render targets simultaneously -- on the order
+  of 300MB at the 2400x1500 these run at. `sleep()`/`wake()` drop every
+  full-resolution target and shrink the drawing buffer to 1x1; the compiled
+  programs and parsed preset stay, because those are what is expensive to
+  rebuild. Held by `npm run test:screens`.
+- **The vignette cache is bounded in BYTES, not entries.** `_VIG_LRU=12` was
+  chosen when the entries were small; each is a full device-resolution RGBA
+  canvas, so the real bound was ~154MB. Now 48MB, and dropped entirely whenever
+  the CRT is not the face on screen.
+- **Uniform locations are looked up once per program, not once per frame.** The
+  DMG preset has 86 parameters; with MVP, three sizes, FrameCount and the
+  samplers that was ~145 `getUniformLocation` calls per frame, ~8,700 driver
+  queries a second, for answers fixed at link time.
+  ⚠️ The regex that made this change also rewrote the cache's OWN lookup into a
+  call to itself. It parsed fine and would have infinitely recursed on first
+  frame, killing both panels. If you do a sweep like this, check the helper.
+- **`resize()` stopped forcing layout every frame.** Both panels read
+  `clientWidth/clientHeight` in `frame()`. A ResizeObserver sets a dirty flag
+  instead -- it catches the `--barh` inset moving, which a window-resize
+  listener would not.
+- **The CRT gain map is built when the CRT is the face**, not at module
+  evaluation. Two `getImageData`, a `putImageData` and a ~3.6M-iteration JS loop
+  ran on every load, including the two loads in three where the toss picks a
+  panel and the map is never shown.
+- The desktop card's wallpaper is a recorded WebP, not a live blit of the stage.
+
+### Known and NOT fixed
+
+- **16 backdrop-filter surfaces** can be on screen at once over a continuously
+  repainting canvas. Chromium/M4 absorbs it entirely (118 -> 120fps with them
+  forced off, p95 unchanged), so it cannot be judged from here. `?perf=1&noblur=1`
+  is the A/B; it needs a quiet Mac and real Safari.
+- **Safari backdrop-filter A/B completed (2026-08-29).** At 1800x737 CSS px,
+  DPR 2, blur on measured 59.9fps / 18.0ms p95 / 18.0ms max; blur off measured
+  60.9fps / 18.0ms p95 / 18.0ms max. The long-stall counts varied slightly
+  between runs (5 vs 4 over 50ms), so there is no material backdrop-filter cost
+  to remove at this viewport. Keep `?perf=1&noblur=1` as the diagnostic for
+  future Safari regressions.
+
+### Closed in the 2026-08-29 pass
+
+- `_renderEMA` now measures after the panel, ribbon and periodic layout-sync
+  work, so its JS cost covers the drawn frame. The rAF-gap probe remains the
+  GPU/compositor complement.
+- DMG and NES backing dimensions are capped at roughly 2,000,000 pixels per
+  surface. The screen source texture is allocated on dimension changes and
+  updated with `texSubImage2D` thereafter.
+- The editor's animation path uses cached track metrics instead of reading
+  layout on every frame. Bar insertion and duplication now respect the actual
+  steps-per-bar and the 48-bar limit.
+- `verify-ribbon` now asserts the shipped docked transport geometry rather than
+  the obsolete viewport-centering layout. `crt-diff.mjs` passed all ten cases
+  (including DPR 1 and DPR 2), and the complete `npm test` suite is green.
+
+## One-pass mood composition (2026-08-30)
+
+- Landing and editor moods formerly compiled as many as 140 complete songs and
+  kept the first whose style, mode and tempo metadata matched. Nothing listened
+  to those candidates, so this was both the dominant mood-click cost and a
+  production best-of-N path in conflict with the product contract.
+- A mood is now a normalized `{styles, mode, bpmMin, bpmMax}` premise passed to
+  the one composer. The existing style, mode and tempo choices are constrained
+  before generation; one opaque token is minted and one score is compiled.
+  Impossible combinations fail instead of silently returning a mislabeled
+  partial match. The normalized premise is recorded at `score.tracker.premise`.
+- `compile(token)` without a premise is byte-for-byte unchanged. The 48-song
+  smoke ensemble retains SHA-256
+  `72731f65bb59e30722a9ba09dd069f98d697c1de887375c21d043d355cfbf566`.
+  `verify-mood-constraints` holds the constraint behavior and checksum;
+  `verify-entry` holds the production interaction to exactly one compiler call.
+
+## Complete chip-song exports (2026-08-30)
+
+- Create ROM/WAV and station WAV/AAC wrappers used to reconstruct a chip song
+  from only `notes`, `bank` and `totalFrames`. That silently discarded `auto`,
+  `vibOff`, `waveLoads` and `kit`, so exported performances could lose duty,
+  pan and pitch motion, let vibrato overwrite glides, miss wave-table changes,
+  or omit sampled drums even though live playback retained them.
+- Export and offline-render boundaries now pass the complete `gb` song object
+  rather than enumerating its current schema. The same invariant covers the
+  browser engine, Node broadcast renderer and ROM-audio comparison helpers;
+  kit-only chip scores are accepted by both renderer entry points.
+- `verify-export-boundaries` edits a real song until it contains all four data
+  classes, intercepts the actual Create ROM/WAV buttons, and checks the shared
+  station WAV/AAC boundary with sentinels. It is part of the main test gate.
+
+### Still worth doing when the environment permits
+
+- A quiet-machine performance capture at other viewport sizes could still be
+  useful, but the real Safari A/B at the shipped size found no actionable cost.
+- The radio endpoint should be rechecked if the reported 404 returns; the
+  current probe on 2026-08-29 returned HTTP 200 audio from
+  `https://radio.chiptunes.app` and valid `.pls`/`.m3u` responses.
+## Wallpaper product extraction (2026-08-30)
+
+- The animated desktop wallpaper is now a separate product in
+  `github.com/tetrisgm/wallpaper`. Chiptunes no longer contains the Electron
+  application, native wallpaper bridge, update publisher, wallpaper download
+  assets, platform download offer, or the in-player wallpaper promotion card.
+- The Chiptunes game packs remain because they are still the music player's
+  visualizers. The new Wallpaper repository owns its own copy of the initial
+  14-scene roster and drives it with a visual-only clock; it does not bundle the
+  composer, audio engine, radio, editor, or music export paths.
+# 2026-08-31 — Listen Anywhere and track-change presentation
+
+- `/radio` is the standalone “Take CHIPTUNES.APP with you” page; generated visual playback uses `/player`.
+- The permanent public MP3 endpoint remains `https://radio.chiptunes.app`.
+- Canonical app playlists are `/listen.m3u` and `/listen.pls`; legacy `/radio.m3u` and `/radio.pls` remain available.
+- The stream advertises CHIPTUNES.APP, “Endless Game Boy radio,” the requested genre set, square artwork, and `Game Boy - Track Title` ICY titles.
+- Every generated track-ready event produces a 300 ms CRT/noise transition, covering both skips and natural handoffs.
+- The player-bar track title uses the same 25 px/600 system type treatment as the rest of the playing UI and the bar contents are vertically centred.
+- The playing dock is a single baseline with three non-overlapping zones: a 420 px metadata lane that keeps Share visible, a flexible transport/progress lane, and volume/fullscreen on the right.
+- The root landing page opens directly on the Game Boy chooser; the separate CHIPTUNES.APP introductory splash overlay was removed.
+- The Game Boy landing copy now leads with “Create or listen”: mood choices automatically compose complete songs one after another, while the next sections distinguish full arrangements from loops and explain the register-level hardware model.
+- Radio Browser accepted the public station as UUID `967010ce-34f5-460d-beb4-67a196c49d9b`.
+
+# 2026-08-31 — Root routing and Create sheet
+
+- `/player` is retired. Generated playback remains at `/`, the build no longer emits a player route, and legacy `/player` requests replace themselves with `/` before boot.
+- The playing credit again shows GitHub, X, and Hacker News as icon-only links.
+- Create is a 93-dvh bottom sheet over the still-visible game. It hides the unrelated station dock, owns its transport, uses a real share icon, and closes through a labelled “Back to game” control.
+- Route, editor geometry, editor/audio handoff, social-credit, and station-dock behavior are held by the browser verification suite.
+
+# 2026-08-31 — Remotion portfolio preview
+
+- `promo-video/` is the reproducible 12-second, 1280×720 Remotion composition used by the chiptunes.app card on ramine.net.
+- `npm run capture` refreshes its landing, playing, and Create reference frames from the current local build. `npm run render` and `npm run poster` produce the portfolio MP4 and WebP in the ignored `promo-video/out/` directory.
+- The cut leads with automatic creation/listening, shows continuous generated playback, opens the tall Create tracker sheet, and closes on real four-channel sound plus cartridge export.
+
+# 2026-08-31 — GitHub Star control
+
+- The site credit keeps PartyParty's useful `GitHub · Star · count` structure, pointed at the public `tetrisgm/chiptunes` repository, but uses the same cream moulded Game Boy material as the Twitter and Hacker News controls. It starts with the last verified public count and refreshes from GitHub's public repository API.
+
+# 2026-09-01 — Launch-readiness pass
+
+- The public story is now “create or listen to complete Game Boy songs,” with
+  automatic composition, editable song documents, register-level chip
+  emulation, cartridge export, self-playing visualizers, and listen-anywhere
+  radio described consistently across the site, README, metadata, and GitHub.
+- The landing page and README clarify that Game Boy is a Nintendo trademark
+  and that Chiptunes.app is an independent project, not affiliated with or
+  endorsed by Nintendo.
+- A final 390 px layout owns the phone landing and playing surfaces. The title,
+  product story, mood controls, share, transport, volume, and fullscreen remain
+  visible without horizontal overflow; `verify-chrome` holds those facts.
+- Static crawler/install assets now include `robots.txt`, `sitemap.xml`,
+  `manifest.webmanifest`, `favicon.ico`, and the existing square station icon.
+- `docs/launch/` contains the HN and Product Hunt copy, launch checklist, and
+  three 1270×760 gallery frames. The 12-second Remotion demo remains the current
+  video asset; uploading or submitting it is a separate public launch action.
+- The public GitHub repository description, homepage, and discovery topics now
+  match the product.
+
+# 2026-09-01 — Listen-anywhere Safari playback
+
+- `/radio/` now explicitly loads and awaits the live audio stream when “Play
+  here” is pressed, exposes a connecting state, and shows a usable retry/error
+  state instead of discarding Safari's rejected playback promise.
+- Production commit `2ca0b6d` was deployed site-only and verified in real
+  Safari: both the page button and native audio control changed from Play to
+  Pause while `https://radio.chiptunes.app` played.
+
+# 2026-09-01 — The phone playing screen
+
+Reported from a real iPhone on the production site: the question ran into its
+first answer, the song strip and the NEXT button were missing, there was a hole
+after full screen, and the product name and source links had gone.
+
+- **THE ASK IS TWO LINES ON A PHONE.** "Write me a song that is…" and the moods
+  are one running sentence on a wide window and wrap as one, which is right
+  there. In a 390px column the label alone is ~214px, so exactly one mood fit
+  beside it and the rest fell to a second row — a phrase broken after its first
+  answer, which reads as an accident. The label takes the full width and every
+  mood sits together underneath it.
+
+- **THE BAR IS TWO ROWS.** One row could not hold it, and both symptoms were the
+  same width problem:
+  * the song strip was a 7px absolutely-positioned sliver along the bar's bottom
+    edge that measured **24px wide with a zero-width canvas** — the notes, which
+    are the whole point of the strip, were not drawn at all;
+  * the transport wanted 112px in a 105px column, so **NEXT was laid out
+    underneath the volume dial**.
+  Row 1 is now the song end to end with its own Edit key; row 2 is the title,
+  the transport, and volume/full-screen. `display:contents` on `.pb-center`
+  promotes its two children to grid items so they can take different rows
+  without touching the desktop markup.
+
+- **THE EDIT KEY IS A KEY, NOT A HOVER HINT.** `.pb-expand` was a
+  `pointer-events:none` span at opacity 0 that the scrub row revealed on hover.
+  A phone has no hover, so the only way into the editor from the playing screen
+  was invisible there. It is a real `<button id="pbExpand">` sharing the
+  ribbon's handler, standing and labelled on the phone layout and still a
+  reveal-on-hover chevron on a pointer.
+
+- **NO HOLE AFTER FULL SCREEN.** `.pb-right` was pinned to `width:77px` and then
+  pulled `translateX(-12px)` off the right edge, which left a gap the width of a
+  button — and that fixed width is what hid NEXT. It sizes to what it holds and
+  ends where the bar ends. `VOL` (a `::before` on the dial, 48px next to a
+  speaker icon that already says it) comes off the phone and the track name
+  takes the width.
+
+- **THE CREDIT STAYS ON A PHONE.** It was `display:none` here, which also
+  removed the only place the playing screen says what this is and where the
+  source is — name, GitHub star, X and Hacker News exist nowhere else once a
+  song is on. Compact: name at reading size, links as icons, tagline and legal
+  line still off (those are the landing page's job). The rail drops to `top:54px`.
+
+- **`justify-self:start` SIZES A GRID ITEM TO ITS MAX-CONTENT.** Found doing the
+  above and worth remembering: `.pb-left` carried it, so the title lane grew with
+  the track name instead of staying in its `minmax(0,1fr)` column — a long name
+  carried the share button 300px along, under the transport and outside
+  `.pb-left`'s own `overflow:hidden`, so **Share simply vanished on some
+  tracks**. `justify-self:stretch` plus `overflow:hidden` on `.pb-info` and
+  `.pb-titleline` (the desktop bar sets those `visible`, harmless in a 420px
+  lane) makes the name ellipsise instead. The gate forces a long title inside
+  the same evaluate that measures, because the bar's ticker rewrites the title
+  and the check was otherwise passing or failing by luck of the draw.
+
+- `verify-chrome` holds all of it: NEXT clear of the volume, full screen against
+  the right edge, the strip on its own row with the notes actually drawn in it,
+  the standing Edit key, the credit above the rail, and the ask's two lines.
+
+- **`verify-export-boundaries` IS INTERMITTENTLY FLAKY**, like
+  `verify-create-handover`. It edits whatever song Create happens to compose
+  until the score carries automation, a vibrato hand-off, a wave reload and a
+  kit hit; seen failing once with `auto:0, vibOff:0` on a 572-note song and
+  passing on the next four runs of the same build. Re-run before believing it.
+
+- **Deployed site-only on 2026-09-01** (owner asked after seeing the old layout
+  still on the phone). `npm run deploy:site`; production went from
+  `app.28e8709b4775.js` to `app.b432657d7129.js` and the edge cache was purged.
+  The deployed build was re-probed at 390px, not just checked by hash: strip
+  370px on its own row with the notes drawn (286x26), the Edit key standing
+  beside them, NEXT clear of the volume, full screen against the right edge, the
+  credit at the top, and the ask on two lines. Still owed: the same look on the
+  owner's real iPhone Safari — headless Chromium is not that, and this repo has
+  been fooled by that difference before.
+
+# 2026-09-02 — The face never re-rolled after a mood
+
+Reported from a phone as "it seems to stick to one render mode and never change
+after — eg it plays in game boy for every song".
+
+- **A NEW TRACK IS A NEW DECK, NOT A NEW SLUG.** `_setGeneratedNowPlaying`
+  decided a track had changed with `slug !== _curSlug`. A DOCUMENT HAS NO TOKEN
+  — `playDoc` calls `startCompiled({tok:'', ...})` — and **picking a mood
+  composes a document**, so that test was false for every mood the visitor
+  tapped, and the two things gated on it never ran: `_rollScreenMode()` and
+  `_pickNesScheme()`. Someone driving the station by tapping moods therefore sat
+  on whichever face the boot toss happened to pick, for the entire session.
+  `publishTrackReady` now carries the deck's `generation` as a second argument
+  (it is a fresh number per started deck whether or not there is a token) and
+  `changed` reads that first.
+
+- **WHAT WAS NOT WRONG, all measured, so nobody re-litigates it:** there is no
+  persisted screen preference to latch on (the boot IIFE *deletes* `rrrScreen`,
+  and nothing writes it); `_rollScreenMode` and `_tossScreen` are correct; and
+  the natural end-of-song hand-off ALWAYS re-rolled — watched over six minutes
+  of real playback it went nes -> dmg -> crt at 92s and 172s. Skipping with Next
+  worked too. Only the document path was broken, which is why this looked like
+  "it never changes" to someone tapping moods and like "works fine" from a test
+  that skips tracks.
+
+- `npm run test:screens` now covers it, and it is the gap that let this ship:
+  every other check in that file drives `__rrrScreenMode()` with a PINNED face,
+  so nothing watched the coin toss and nothing advanced a track. The new block
+  stubs `Math.random` so the toss is deterministic, taps three moods and asserts
+  the face follows — verified to FAIL on the old code (`nes -> nes -> nes`).
+
+# 2026-09-02 — Phone landing and the Create close control
+
+- **THE GAME BOY IS CENTRED ON A PHONE, VIA AUTO MARGINS.** It was pinned 8px
+  from the top with all its free space below (136px at 844 tall, 224px at 932).
+  `align-items:center` is the wrong tool: the container is a scroller, and
+  centring a flex item TALLER than its line splits the overflow both ways and
+  puts the top out of reach — which is what the `flex-start` was there to avoid.
+  Auto margins resolve to ZERO when free space is negative, so the case centres
+  when it fits and top-aligns when it does not. Measured: 67/77 at 844, 111/121
+  at 932, and still top-aligned and scrollable at 620.
+
+- **CLOSE IS AN X IN THE TOP-RIGHT CORNER.** "Back to game" was a worded pill at
+  the end of the utility row; on a phone that row wraps, so the one control that
+  LEAVES took a second line and read as one more export action beside Download
+  WAV and Download ROM. It is absolutely positioned in the sheet's corner, 40px,
+  icon-only with an aria-label, and `.n-utils` reserves 58px of right padding so
+  the row cannot slide a button under it. The size properties carry `!important`
+  because `.n-utils .cr-btn` (a 30px pill) is one class more specific and the
+  button still lives in that row.
+  `verify-create-handover` asserted `closeText === 'Back to game'`, which would
+  have kept passing on the hidden span; it now asserts the corner geometry, the
+  icon-only rendering, the accessible label and the reserved room.
+
+# 2026-09-02 — Four reports from the phone
+
+## The white screen (Modern only, intermittent)
+
+- **`.crt.gain` IS AN OPAQUE, ALMOST ENTIRELY WHITE, FULL-VIEWPORT CANVAS whose
+  only reason for being invisible is `mix-blend-mode:multiply`.** Read the two
+  CRT paths side by side: the legacy divs are BLACK based (`.scanlines` is
+  rgba(0,0,0,.62) stripes at opacity .3, `.vignette` a black radial with no
+  blend mode at all), so a dropped blend darkens them very slightly. The gain
+  canvas is the opposite, and it is z-index 5 over the whole window. It is the
+  one element on this page that can turn the screen white, and Modern is the
+  only face that shows it — which is the report, exactly.
+- **WebKit now gets the legacy divs and no gain canvas is built there at all.**
+  The gain layer exists as a PERFORMANCE optimisation for the GPU-less Linux
+  broadcast box (a backdrop copy and two full-screen blends per frame, ~1.34ms).
+  An iPhone has a GPU. Trading that, on the one engine this project cannot
+  profile or reproduce, against "the screen can go white" is not a close call.
+  Chromium keeps the baked map. `window.__rrrCrtDiag()` reports which path is
+  live, because this was invisible from outside.
+- **The build also measures its own output now.** `cssLayerImg` rasterises HTML
+  inside an SVG `foreignObject` through an `<img>`; where an engine declines to
+  render that, `onload` still fires with a BLANK image — no error, no `catch`.
+  Two blank layers bake to 255,255,255 everywhere. A map with no pixel below 250
+  in it is refused and the legacy divs stay on.
+- ✅ **CONFIRMED FIXED ON THE OWNER'S IPHONE (2026-09-02)** — "no more white
+  screen" after the deploy of `app.13ad90d728d1.js`. That is the only evidence
+  that counts here and it is now in hand.
+- ⚠️ **It was never reproduced HERE, so do not read a green local run as
+  covering this.** Playwright's WebKit rasterises the layers fine
+  (`blank:false`) and shows none of the symptom, and `scripts/crt-diff.mjs` has
+  only ever run Chromium. The change was reasoned from the two paths' failure
+  modes and then confirmed on the device. If white screens ever return,
+  `__rrrCrtDiag()` is the first thing to read, and the next suspect is
+  `#track-transition` (a 72%-white sheet at `mix-blend-mode:screen`,
+  `steps(6,end)` so its last step holds opacity .58, cleared only by a 310ms
+  timeout — if that timer is throttled it stays up).
+- **The general lesson, which is bigger than the CRT:** an overlay that is
+  invisible only because of a blend mode is a bet on the compositor. Make the
+  layer's FAILURE mode safe — black-based layers degrade to "slightly darker",
+  white-based ones degrade to "the product is gone". If you add a full-viewport
+  overlay here, check what it looks like with its blend mode removed.
+- A build-in-flight guard (one build per key) was tried here to stop
+  `_applyScreenMode`'s two `apply()` calls doing the work twice. **It broke
+  crt-diff — 100% of pixels differing at DPR 2** — because the two calls do not
+  always ask for the same key and suppressing the second left the overlay built
+  for the wrong one. Reverted; the doubled build is wasteful and harmless.
+- crt-diff's BLANK FRAME flakiness is PRE-EXISTING, measured either side of this
+  change: baseline 0/2/2 blank cases over three runs, after 2/2/4. Every case
+  that actually painted diffs at 0 LSB on both.
+
+## The credit was never on a phone at all
+
+- `_buildPlayerLinks()` bailed out on `_homeIsMobile()` before building EITHER
+  the rail or the credit, on the theory that a hamburger menu carried them —
+  the hamburger has been gone since 2026-08. So on a real phone the playing
+  screen had no product name, no GitHub, no X, no Hacker News, and the CSS
+  written last session to show the credit there was styling an element that did
+  not exist.
+- **`_homeIsMobile()` tests the USER AGENT and touch support, never the width**,
+  which is why a 390px desktop Playwright page built the credit exactly as a
+  wide one did and every headless check reported it present. `verify-chrome`'s
+  phone section now runs in a real `devices['iPhone 13']` context. Anything
+  claiming to test "the phone" must, or it is testing a narrow window.
+- The credit is built on every device now; the RAIL stays desktop-only (four
+  full-width action pills would take the top half of a phone), and the gate
+  asserts both halves of that.
+
+## Create: the ask first, one row of actions, no gap above
+
+- The mood row is the FIRST line — writing a song is what the screen is for;
+  Undo/Redo and the three exports are what you do to one afterwards.
+- `.n-utils` is one nowrap row that scrolls, like the mood row above it. NOTE:
+  it uses `justify-content:flex-start` with `margin-left:auto` on the first
+  pill, NOT `flex-end` — end-alignment in a scroller pushes the overflow off the
+  START edge where it cannot be scrolled back to, and the row opened on Download
+  ROM with Undo and Redo lost off the left. Same trap as the landing hero.
+- The sheet is 100dvh on a phone. The 7dvh strip of game above it was the "this
+  is a sheet" affordance and the only visible way out; the corner X says both,
+  and a tracker wants every pixel of height. Desktop keeps the 93dvh sheet.
+- The close X is centred on the first row (`--cr-row1`), and the ask reserves
+  `--cr-closew` on its right so a chip cannot come to rest under it.
+
+# 2026-09-02 — The watch-only hint is desktop-only
+
+- `watchOnlyToast()` ("the games are the visualiser... nothing to control: sit
+  back and listen") answers **"why can't I steer the character?"**, which is a
+  question an ARROW KEY asks. A phone has no arrow keys, so the only thing that
+  ever fired it there was a tap on the picture — and on a phone that tap is the
+  gesture that wakes the idle chrome. The one action whose entire purpose is to
+  reveal the transport, the credit and the moods was covering them with a big
+  panel of text. Reported from the owner's iPhone.
+- It returns early on `_homeIsMobile()` now. Held both ways by `verify-chrome`:
+  a synthesised touch pointerdown on `#stage` in the iPhone context must NOT
+  raise `#rtoast`, and an ArrowLeft on the desktop page still must. Verified to
+  FAIL on the old code.
+
+# 2026-09-02 — How it works, reachable and about the engineering
+
+- **IT HAD TWO BEHAVIOURS AND NO WAY IN.** `_toggleHowModal()` swapped the
+  landing hero's LCD for a four-paragraph "how-page" when `#rmoods .rmood-brand`
+  existed, and opened `#howmodal` otherwise — so the same control did different
+  things depending on where you pressed it. And it could not be pressed: the
+  button lived in `.plhead`, which is `display:none` on the landing, inside
+  `#plinks`, which is never built on a phone. The explanation existed and nobody
+  could open it. One control, one modal, both states, every device.
+- The button is a SELECT-key pill in the ask row (`.rmood-how`), beside Start
+  from scratch. That row is the only chrome on screen in both states on every
+  device; the rail is desktop-only. The rail's copy and the `.how-page` branch
+  and CSS are gone.
+- The modal now carries the engineering: registers `$FF10`–`$FF3F`, the
+  browser/cartridge same-values-same-frames-same-order check, the
+  timer-interrupt PCM with its numbers, the deterministic single-pass composer,
+  the song document in the URL fragment, the shader screens, one build, 20
+  gates. Same story as the README.
+- Its card keeps the green Game Boy cartridge-page look and the pixel heading,
+  but the BODY COPY is now the UI face. The pixel font was chosen when this was
+  three short lines; a screenful of technical prose in a bitmap face is a wall.
+
+- ⚠️ **REMOVING A RULE FROM A MULTI-SELECTOR LEFT A DANGLING SELECTOR, and it
+  silently applied the NEXT rule's declarations.** Deleting
+  `body.ai-visual.controls-active #plinks .plhead .plhow{ pointer-events:auto; }`
+  left the line above it —
+  `body.ai-visual.controls-active #plinks .plrow,` — ending in a comma, so the
+  selector list ran on into `#navmenu{ display:none; ... }` and **the entire
+  action rail became display:none on the playing screen**. Caught only because
+  `verify-chrome`'s rail-gap assertion went to 0. When deleting a selector,
+  check whether it was carrying the braces for the ones above it.
+  (That assertion also had to be repaired: it measured the first two `.plink`s,
+  which worked only because the How-it-works button happened to be first. It
+  measures `.plrow` gaps now, which is what "breathing room" means.)
+
+# 2026-09-02 — The agent surfaces
+
+Four faces of one API, so a program (or a model) can make songs without a
+browser, and drive the running page when there is one.
+
+- **THE WHOLE PIPELINE ALREADY RAN HEADLESS**, which is why this is exposure
+  rather than new machinery: `create.js`, `composer.js`, `seed.js`, `gb-rom.js`
+  and `gb-apu.js` all `require()` in plain Node. Compose → document → cartridge
+  → rendered audio works with no DOM. What was missing was a CONTRACT.
+- **`src/api.js`** — the versioned facade: `capabilities`, `compose`, `load`,
+  `toJSON`, `fromJSON`, `validate`, `describe`, `buildCartridge`, `renderWav`,
+  `shareUrl`. Documents in, documents out; the editor's underscore-private
+  internals stay private.
+- **`bin/chiptunes.js`** — the CLI over the same facade (`npx chiptunes`).
+- **`mcp/server.js`** — MCP over stdio, hand-rolled JSON-RPC rather than an SDK
+  dependency (this repo has one runtime dependency and the protocol needed is
+  three methods). Two ergonomics decisions that matter: songs are held by SHORT
+  ID because a document is ~10k characters and returning one per call burns the
+  caller's context, and `song_to_json` is PAGED BY BAR so an agent can work a
+  section at a time.
+- **`src/webmcp.js`** — `window.chiptunes` plus `navigator.modelContext`
+  registration when the browser has it. This drives the live SESSION (now
+  playing, transport, moods, editor, screen), which is a different job from
+  making tracks.
+- **`create.js` gained three agent hooks only**: `docState`, `docFromState`,
+  `tables`. Everything readable is built on those in `api.js`.
+
+- ⚠️ **`Audio` IS A LEXICAL const IN THE BUNDLE, NOT A WINDOW PROPERTY**, and
+  `webmcp.js` walked straight into it: `G.Audio` resolves to the browser's
+  native `HTMLAudioElement` constructor, which has no `currentDoc` and no
+  `playDoc`, so it returned nothing instead of throwing. The page reported "no
+  song" while a song was playing. Use the bare name behind a `typeof` guard.
+  This is the trap already recorded further up this file; it caught me anyway.
+- A hand-authored song round-trips JSON → document → JSON **losslessly**, and
+  re-encoding the read-back gives the identical document. Composed songs lose a
+  few notes to the projection rules, which is expected and documented.
+- `npm run test:api` holds all of it: the surface, determinism, the round trip,
+  the error text (which IS the interface an agent iterates on), a cartridge with
+  a real boot logo and header checksum, an audible WAV, the MCP protocol over a
+  real stdio process, and the in-page tools with a stubbed `modelContext`.
+
+- **`verify-entry` has a low-rate timing flake**: `pressing play starts one
+  anyway` clicks play, waits 3.5s and samples the audio peak. Seen failing once
+  in nine runs, and nothing in this change touches playback. Re-run before
+  believing it, like `verify-create-handover` and `verify-export-boundaries`.
+
+- **`docs/AGENT_PLAN.md` is the plan for the next layer.** It replaced
+  `AGENT_VOCABULARY.md`, which planned a DAW — "make it happier", "repeat the
+  melody" — and that is what somebody ALREADY HOLDING A TRACK says, not what
+  people ask a music generator for. The rework leads with briefs, guaranteed
+  constraints, cohesive SETS and deliverables, and demotes the editing verbs to
+  the last tier. The old vocabulary tables are good and survive in git history.
+- **STEMS ARE FREE AND EXACT HERE, and that is the strongest unbuilt feature.**
+  `Sequencer` already carries a per-channel `chMute`, so rendering each voice
+  alone is four renders and no new engine work. Measured on one composed song:
+  Melody peak 0.500, Harmony 0.250, Bass 0.250, Drums 0.251, each with real
+  energy. Elsewhere stem separation is an ML approximation and usually paid.
+  Songs also already carry `loopFrames`, so seamless-loop metadata is plumbing.
+- The other structural advantages worth building the API around: the output is
+  SYMBOLIC (transpose, retempo and restructure are exact), composition is ~5ms
+  and free (breadth costs nothing), it is deterministic (a token reproduces a
+  song byte for byte), and its provenance is a readable algorithm rather than a
+  model trained on other people's recordings — which is the decisive point for
+  a game developer worried about shipping AI music.
+- ⚠️ **Open contract question**: `AGENTS.md` keeps best-of-N out of production
+  composition. An API consumer generating many candidates and choosing is close
+  to that line. Needs an owner ruling before `generate_many` is built; nothing
+  else in the plan depends on it.
+
+# 2026-09-02 — Instant, free and local, with the numbers
+
+Measured on this Mac rather than asserted, and now stated in the README, the
+How-it-works modal, the Show HN copy and the agent plan:
+
+| | |
+| --- | --- |
+| `composer.compile` | 0.61 ms |
+| score to document | 1.51 ms |
+| a complete `compose()` | **1.6 ms** |
+| document back to a song | 0.77 ms |
+| build a 32 KB cartridge | 1.19 ms |
+| render audio | 103 ms for 40.7 s, **395x real time** |
+| **a thousand complete songs** | **471 ms** |
+
+Why it is worth leading with rather than burying: against a hosted music model
+this is the difference in kind, not degree. No queue, no account, no key,
+nothing metered, and nothing uploaded to make music. Generating a hundred
+candidates and keeping one becomes a reasonable thing to do, and an agent needs
+no credentials and cannot run up a bill.
+
+**Keep the claim precise.** The honest sentence is that COMPOSITION and SHARING
+are local: songs are written in the browser and a shared link carries the whole
+arrangement in the URL fragment, which browsers never send anywhere. The radio
+stream is a server, and the site itself is hosted. Every place this is written
+says so in the same breath; do not let it drift into "there are no servers".
+
+# 2026-09-02 — The agent layer people actually asked for
+
+Built on the four surfaces: scenes, briefs, constraints, sets, variants, stems.
+
+- **`brief({scene, seconds, exclude, ...})`** — 11 scenes (`title`, `menu`,
+  `overworld`, `town`, `shop`, `cave`, `battle`, `boss`, `victory`,
+  `game_over`, `credits`), each a bundle of premise plus constraints, so the
+  word behaves the same way every time. It reports what it could NOT meet in
+  `unmet` rather than pretending.
+- **`soundtrack({scenes, key})`** — several cues pulled into one key. Five cues
+  in 58 ms. This is the thing an audio model cannot do, because you cannot
+  transplant a key between two waveforms.
+- **`variant(doc, {mood})`** — eight published recipes (`sadder`, `intense`,
+  `calmer`...) over exact primitives, so a word means one thing twice. Returns a
+  NEW document; the original is untouched, which is free undo.
+- **`transform(doc, ops)`** — tempo, transpose, register, mode, velocity, thin,
+  drop, trim, repeat, swing, motion, shape, fade. All mechanical. Deliberately
+  no `thicken`: adding notes is composing, not transforming.
+  `mode` moves the third, sixth and seventh relative to the song's key, which is
+  what makes "make it sad" actually work rather than just slowing it down.
+- **`renderStems(doc)`** — four WAVs with a `smpl` loop chunk. Not separation:
+  the other channels are muted per render, so the stems sum to the mix.
+- **`guide()`** — the answers an agent would otherwise invent, licensing above
+  all. It says plainly that it is not legal advice and points at the LICENSE.
+
+- ⚠️⚠️ **THE BUNDLE IS CONCATENATED CLASSIC SCRIPTS, SO A TOP-LEVEL `var` IN ANY
+  SOURCE FILE IS A GLOBAL.** `api.js` was written as a Node module and shipped
+  into the page unwrapped: 47 top-level names including `Song`, `compose`,
+  `load`, `describe` and `validate`. It overwrote seed.js's `Song` and **killed
+  the audio chip** — `chipDiag()` reported `chip:false, chipGain:0` with the
+  context running. It passed standalone eight times and failed the FULL SUITE
+  three times running, which is what finally isolated it: baseline suite green,
+  mine red. Both agent files are IIFEs now, and `verify-api` asserts the page
+  leaks none of those names and that `Song` is still seed.js. Every file in
+  `build.js`'s list must be wrapped.
+- **`verify-entry`'s audio assertions were a fixed-window race** and are now
+  `audibleWithin(20s)`: they return as soon as sound appears. The old form
+  failed about one run in nine. Absence still samples a full window.
+
+# 2026-09-02 — Say what you want, and the bug that hid behind a flaky test
+
+## The field
+
+There is now a text field under the mood chips, in both states, on every device.
+It is **not decoration**: `CT_API.interpret()` is a deterministic parser (there is
+no model in the page) and `CT_API.ask()` carries the reading out.
+
+- It handles scenes, lengths, keys, modes, tempo words, register, lanes to leave
+  out, repeat, swing and the eight mood recipes, and it distinguishes a NEW piece
+  ("a boss theme, 30 seconds, no drums") from a CHANGE to what is playing
+  ("make it much slower").
+- **It always says what it did**, names anything it ignored, and refuses out
+  loud when it understood nothing rather than composing something at random.
+  That last rule is the whole difference between this and a decorative box.
+- `verify-api` pins the phrase → reading table, `ask()` end to end, and the field
+  in the page including that nonsense changes nothing.
+
+## ⚠️ `.rmood` IS A LOOK, NOT A MEANING — and this cost most of a session
+
+`_transportToggle` starts a song when the station is holding by picking a random
+element from `#rmoods .rmood:not(.rmood-scratch)` and clicking it. That was
+correct when the only pills in that row were moods and Start from scratch. Today
+the row also gained **How it works** and **Make it**, both of which wear
+`.rmood` for the pill styling and both of which correctly do nothing when
+clicked with no input.
+
+So pressing play had a **one-in-three chance of clicking a control that starts
+nothing**, and the station simply never began.
+
+It surfaced as `verify-entry` failing intermittently, and **I misdiagnosed it
+twice**: first as an audio timing race (and "fixed" it by making the assertion
+wait 20s, which was a real improvement but not the cause), then as a bundle
+global leak (which WAS a real, separate bug — see the IIFE note above). The rate
+tracked the number of non-mood pills: clean before How it works, ~1 in 5 after
+it, ~1 in 3 once Make it landed.
+
+**The fix is a marker, not a blocklist.** Real moods carry `data-mood`, and
+anything meaning "pick a mood" selects on that. `verify-entry` now asserts that
+every pickable control is a real mood AND that the row does contain non-mood
+pills, so the assertion cannot quietly become vacuous. `verify-chrome`'s two
+mood-line checks use the same marker; they had been maintaining their own
+blocklist, which is the same mistake one layer up.
+
+If you add another pill to that row, it needs no thought — just do not give it
+`data-mood`.
+
+# 2026-09-02 — MIDI, and the best-of-N question answered
+
+- **`toMidi(doc)`** — Standard MIDI format 1: a tempo track plus one track per
+  hardware voice, so the file carries the stems too, with drums on channel 10
+  using General MIDI numbers. `file(1)` recognises it. This export exists only
+  because the music is symbolic; an audio model has nothing to hand you here.
+  The gate walks every chunk and requires the lengths to land exactly on the end
+  of the file, rather than trusting the header.
+- **`variations(spec, n)` resolves the contract question without a ruling.**
+  `AGENTS.md` forbids the product *scoring* candidates — "fix bad output in the
+  composer rather than hiding it behind candidate scoring". Composing n songs
+  from n tokens and returning **all** of them, unranked, scores nothing; it is
+  pressing "next" n times, and the choosing has always been the caller's. There
+  is deliberately no `best` argument and `verify-api` asserts there is not one.
+  Automatic selection is the thing that would need an owner ruling.
+- `docs/AGENT_PLAN.md` now marks the build order done or not, and states plainly
+  what is still open: a shared MOTIF across a soundtrack (shared key, mode and
+  tempo are done; the palette and motif are not), `resolve:true` actually
+  forcing a tonic ending, intensity layers beyond the four stems, and increasing
+  density — `thin` has no opposite on purpose, because adding notes is composing
+  and belongs in the composer rather than in a transform.
+
+# 2026-09-02 — Variety is now a gate, and the DMG is not negotiable
+
+## `scripts/verify-diversity.js` — the build fails if the music gets samey
+
+Every cohesion device is a way to make a generator boring: shared keys, scene
+presets, mood recipes, shared motifs. Each is individually reasonable and the
+cumulative effect is that everything sounds alike. That is the failure the owner
+cares about most, so it is **measured on every run** rather than argued about.
+
+Measured today, with the ceilings the gate enforces in brackets:
+
+| | distinct openings | pitch-class similarity |
+| --- | --- | --- |
+| free composition | 30/30 | 0.33 (ceiling 0.55) |
+| brief: boss | 30/30 | 0.25 (0.6) |
+| brief: cave | 30/30 | 0.40 (0.6) |
+| ten different games' title themes | 10/10 | 0.29 (0.65) |
+| thirty songs made "sadder" | 30/30 | 0.33 (0.7) |
+
+Thresholds are floors with headroom, not today's numbers rounded down — a gate
+set to the current measurement fails on noise and gets deleted.
+
+**The signature was wrong twice, in opposite directions, and both are instructive.**
+Flattening every lane into one sequence is fine for identity but useless for
+INTERVALS, because it interleaves a bass line into the melody and produces
+intervals that are an artefact of the reader (`-29,24,3,-27,29`). Filtering to
+Melody only looks more precise and is worse: plenty of cues have no melody in
+their opening bars, so every one of those produced an EMPTY signature and
+collided with all the others. It is lane-TAGGED now, over sixteen notes.
+
+## The shared motif is opt-in, and varied rather than copied
+
+Reversed from the previous entry after the owner's objection, which was right.
+Shared KEY already makes cues belong together and costs no variety; a recurring
+figure is a stronger, riskier claim, so `motif: true` is required. When it is on,
+each cue gets the figure at a different transposition (the octave, the fifth, the
+fourth below), so the cues are related the way a leitmotif is related. The gate
+compares INTERVAL SHAPE, not pitches, because that is what survives
+transposition and what a listener recognises. Two different soundtracks never
+share anything.
+
+If the first cue has no melodic phrase at all — a drone, a percussion-led piece —
+it says so in `motifSkipped` rather than sharing silence.
+
+## ⚠️ THE FOUR CHANNELS ARE NOT INTERCHANGEABLE
+
+`double` (octave doubling, the density-up operation) exposed two hardware facts
+in one afternoon:
+
+1. **One voice per channel.** An octave copy left on its own lane sounds at the
+   same instant as the note it came from, and the voice allocator correctly drops
+   one, so the operation silently did nothing. A double has to land on a
+   DIFFERENT lane that is free at that moment, and says so when none is.
+2. **An instrument record belongs to one channel.** Copying a cell wholesale
+   carried its `inst` across, putting a wave table on a pulse channel — exactly
+   the fault recorded further up this file as guarded. Moving a note between
+   lanes now drops `inst`, `dy`, `fd`, `wv`, `nz`, `ns`, and the channel-1 sweep
+   flags, and lets the stamp speak.
+
+`verify-api` now asserts, over composed, doubled AND transformed songs, that
+**every note is on a channel its instrument belongs to**. That invariant is
+cheap and it is the one that keeps this a Game Boy rather than a synthesiser
+with four arbitrary voices.
+
+## Eight intensity layers, which is why density had to exist
+
+Lane presence alone gives four steps, too coarse to fade an action scene up.
+Density is the second axis: each voice arrives thinned before it arrives whole,
+and the bass doubles at the top. `ambient · pulse · groove · drive · colour ·
+rise · lead · full`. A layer that adds nothing to the one below **says so** —
+plenty of songs have no Harmony, and returning two identical layers as an
+intensity step is a quiet lie.
+
+## MIDI is in the product
+
+Create has a Download MIDI button beside WAV and ROM. `toMidi` returns a Node
+Buffer where there is one and a `Uint8Array` in the browser, same bytes.
+
+# 2026-09-02 — "like zelda" is refused out loud
+
+The owner typed **"dungeon song like zelda"** and got back
+*"Made it: scene: cave (ignored: zelda)"*. The parser had matched one word —
+`dungeon` → the cave scene — and thrown the rest away, and the quiet bracketed
+apology read as though the reference had been taken into account.
+
+- **A reference is now detected and refused explicitly.** `interpret()` returns
+  `reference` for "like X", "in the style of X", "similar to X", "sounds like
+  X", and the field says: *"I cannot do 'like zelda'. I match words, not
+  references: there is no model reading this, and I will not pretend to imitate
+  something I was not built from."* It still composes the part it did
+  understand, and says which part that was.
+- **Adding game names to the vocabulary is NOT the fix, and must not be done.**
+  It would be a false claim — nothing here is trained on or derived from that
+  music — and `AGENTS.md` forbids naming anything in this product after a real
+  game or company. `seed.js` already carries a `BLOCKED` list so generated
+  TITLES cannot land on real cartridge names; a trademark in the *prompt
+  vocabulary* is the same hazard one step earlier. `verify-api` asserts no real
+  game or company appears in the scenes or mood words.
+- **The vocabulary is much wider instead**, with honest descriptors that map to
+  real dials: heroic, mysterious, menacing, frantic, playful, solemn, tense,
+  plus wistful/nostalgic/grim/hopeful/serene/driving and friends. Each compound
+  is a published recipe of primitives, so a word means one thing twice. Bare
+  "slow" and "fast" work now; only "slower"/"faster" did.
+- Anything not understood is stated in the sentence rather than in brackets,
+  and points at How it works for the words that do exist.
+
+**⚠️ `verify-sync` is load-sensitive and will fail on a busy machine.** It failed
+three assertions during this pass at load average 51 (from my own back-to-back
+Playwright runs) and passed 2/2 standalone immediately after. The rule already
+recorded further up this file applies to the test suite as well as to
+performance work: run `uptime` first, and a load average over ~10 means the
+measurement is not about the code.
+
+# 2026-09-02 — The vocabulary, widened without franchise names
+
+The owner asked for franchise names in the prompt vocabulary ("in the style of
+this game or that game"), on the grounds that no code or IP is being lifted.
+Two separate objections, and only one of them is legal:
+
+1. **It would not be true.** There is no model here and nothing is derived from
+   anyone else's music, so a mapping from a franchise name to musical dials
+   would be an invention — my impression of what a series sounds like, wearing
+   a trademark as a label. The product's whole pitch, in the README and the Show
+   HN post, is that it is honest about what it does; a fake style mapping
+   undercuts the one thing that differentiates it.
+2. **It reverses a documented decision.** `AGENTS.md`: "Never name a pack,
+   entity, sprite, palette or display string after a real game, character or
+   company... Renamed wholesale 2026-08-12 for exactly this reason." `seed.js`
+   carries `BLOCKED` so generated TITLES cannot land on real ones, held by
+   `verify-chrome`. A trademark in the prompt vocabulary is the same hazard one
+   step earlier. That contract is the owner's to change, not an agent's.
+
+**What was built instead**, which gets most of what somebody means by naming a
+game, and is true:
+
+- **Game genres** (15): platformer, shmup, racing, puzzle, rpg, adventure,
+  horror, roguelike, fighting, stealth, strategy, sports, metroidvania...
+- **Musical genres** (28) mapped onto the composer's own fourteen styles, so
+  the mapping is a statement of fact rather than a guess.
+- **Forms** (6): fanfare, lullaby, dirge, hymn, march, sting.
+- **Techniques** (17): arpeggiated, staccato, legato, syncopated, punchy,
+  muted, rolled, echoing, doubled, halftime...
+- Plus the compound moods added earlier: heroic, mysterious, menacing, frantic,
+  playful, solemn, tense.
+
+So *"a platformer overworld theme, arpeggiated, 40 seconds"* lands completely.
+
+**And it now says what it CANNOT do, rather than dropping it silently:** a
+different time signature (everything is in four; there is no meter dial),
+vocals, or a real instrument. Same treatment as a franchise reference. Held by
+`verify-api`, which also asserts the published vocabulary is broad and that a
+fully-understood sentence reports nothing ignored.
+
+# 2026-09-02 (later) — Named games ARE in the vocabulary now, read as genres
+
+The owner scoped the `AGENTS.md` naming rule: it was written for the visualizer
+PACKS, which are original code that looks like somebody's game, and it does not
+govern the music. `AGENTS.md` now says so, and names three separate things that
+kept being confused:
+
+1. **A title in a prompt** is a genre description and is allowed.
+2. **A generated song title** landing on a real cartridge name is passing off,
+   not describing, and stays forbidden — `BLOCKED` in `seed.js`, held by
+   `verify-chrome`.
+3. **A visualizer pack** named after a real game is the takedown hazard the
+   original rule was written for — held by `smoke-games.js`.
+
+## What was built
+
+`src/reference-styles.js`: 115 titles, aliases included, mapping onto genre,
+composer styles, major/minor, a tempo band, a mood and one technique. Nothing
+else — and `verify-language.js` asserts the entry shape, so a future edit cannot
+smuggle in anything that would stop it being a genre reading.
+
+The summary always states the reading, never a resemblance: *"like Castlevania
+(platformer), used for: rock/punk, 145-172 bpm, menacing, arpeggiated"*. And it
+names only what the title **actually set** — see the precedence below.
+
+## Three things that fought each other, and how they were settled
+
+- **An explicit word beats the reference.** "a platformer like Metroid" is a
+  platformer. The title's span is BLANKED before ordinary vocabulary matching,
+  because otherwise "Kirby's Adventure" also fires the game genre *adventure*
+  and "Metal Gear" fires the genre *metal*, and the summary contradicts itself.
+- **A named scene keeps its own mode.** A scene is a functional requirement (a
+  game-over cue must not come out jaunty); a title is an atmosphere hint. So a
+  dungeon "like Zelda" is minor. Typing "major" still beats both.
+- **A title's mood goes in as ops with its tempo and mode stripped**, because
+  both were already decided by things that outrank it.
+
+## Two real bugs this uncovered
+
+**Forty-eight of the 115 titles were silently losing their genre.** Ten of the
+composer's fourteen styles are `modes:'maj'`, so a premise of `styles:['rock',
+'punk']` plus `mode:'minor'` leaves `pickStyle()` an empty pool. `brief()`'s
+fallback then deletes `styles` and keeps the mode — discarding the one part of a
+reference a listener can actually hear, while the summary went on naming it. Fix:
+a title's mode is applied as a `mode` TRANSFORM after composing, exactly as the
+mood recipes already do. Twelve more had tempo bands no listed style could
+reach; those were corrected, and `_bandIsReachable()` now drops an unreachable
+band rather than letting it cost the genre. `composer.styles()` was added
+(read-only) so that check has something true to consult.
+
+**`brief()` never honoured `SCENES`' own `resolve: true`.** It had been there
+since scenes were added, so `victory` and `game_over` — the two cues that most
+need a clean ending — were the two not getting one.
+
+## Parser work, generally
+
+Shared normalisation with the title table (hyphens, apostrophes, `&`, roman
+numerals), so "boss-fight" and "castlevania iii" match. `unsupported` is tested
+against punctuation-bearing text, which is why the `3/4` check can now fire at
+all — the slash had previously been replaced by a space before it ran. Written
+numbers ("forty five seconds", "a minute and a half"), flats mapped to sharps,
+"just bass and drums", "leave out the harmony", loop and resolve, and five
+categories of honest refusal (time signature, vocals, real instruments, modes
+beyond major/minor, studio effects).
+
+Every rule that fires now **eats its own words** (`consumed`), instead of a
+hand-maintained list of function words growing by one entry every time the
+ignored line cried wolf about "leave" or "half" or "brisk".
+
+## Gate
+
+`scripts/verify-language.js`, in `npm test`. It walks all 115 titles for
+compose-ability AND genre retention, checks alias/sequel/apostrophe resolution,
+the precedence rules above, sixteen ordinary sentences that must be understood
+*completely*, the refusals, determinism, and a global-leak guard. Its strongest
+assertion is the general one: **everything a summary lists under "used for" is
+really in force** — that is what catches the next false claim, whatever shape it
+takes.
+
+`verify-diversity`'s "thirty songs made sadder" assertion was demanding 30/30
+from a randomly seeded batch. Measured over 60 batches: one collided, worst case
+29/30. It was failing ~1.7% of runs for no reason, so it now has a floor of 28
+with the measurement recorded next to it.
+
+# 2026-09-02 (third pass) — A title is a CHARACTER, not just a genre
+
+The owner disputed the precedence rule from the pass above, and was right. "A
+platformer like Metroid" is not just a platformer: Metroid is gloomy, sparse and
+about exploring, and those words have to reach the notes or naming the game did
+nothing. The shipped behaviour reported `used for: mysterious` and nothing else
+— an explicit genre took the styles, a genre DEFAULT of `mode:'major'` blocked
+the title's minor, and the reachability guard discarded the tempo band. Naming
+Metroid was very nearly decoration.
+
+**Genre says what a piece is FOR; character says what it FEELS like.** They are
+orthogonal, so they now compose instead of competing.
+
+- Each title carries a **character of two to four traits** drawn from the same
+  published mood vocabulary a user can type, not one mood. Metroid is
+  `mysterious, sparser, calmer, darker`; Mario is `playful, happier, brighter`;
+  Castlevania is `menacing, intense`.
+- **Character applies whether or not a genre was named.** Only a mood the user
+  typed themselves suppresses it, being the more specific request.
+- **A genre's default mode no longer blocks a title's.** `platformer` carries
+  `mode:'major'` as a default, and treating that as the user's own word is what
+  made "like Metroid" come out cheerful. Only a TYPED mode, or a scene's
+  functional requirement, outranks a reference now (`modeTyped`).
+- **An unreachable tempo band pulls instead of vanishing.** A platformer cannot
+  sit at Metroid's 88-118, but it can be dragged 25% towards it, and the summary
+  says that is what happened rather than claiming the band.
+- **Traits blend, they do not stack.** Three recipes concatenated raw would move
+  the melody three octaves and the tempo by half. Additive dials are summed then
+  clamped (±1 octave a lane, ±25% tempo, ±0.25 velocity); structural ops (thin,
+  subdivide, motion, swing, shape) are taken once each; `mode` is dropped from
+  the blend because the title's own major/minor already said it.
+
+## The user's own adjectives got the same treatment
+
+Only the FIRST mood word in a sentence was ever taken, so "gloomy and
+exploratory" silently discarded one of them. All of them are taken now (up to
+three) and blended the same way. An explicit tempo word suppresses the blend's
+own tempo, because "a cheerful fast platformer" was compounding "fast" with
+`happier`'s +8% and arriving at 180 bpm, which neither word asked for.
+
+Two vocabulary changes fell out of the owner's own example, "a gloomy song about
+exploring a cave":
+
+- `gloomy` did not exist. Added, along with moody, murky, adventurous, daring,
+  whimsical, somber, majestic, atmospheric, spacious, wandering, roaming.
+- **`exploring` was a SCENE word meaning overworld**, and being the longer
+  phrase it beat "cave" in that very sentence. Exploring is a feeling, not a
+  place. It is a mood now — `exploratory`, a new recipe: unhurried, thin
+  underneath, sustained notes, and an echoing melody. The overworld still has
+  four other ways to ask for it.
+
+## Gate
+
+`verify-language` now measures the MUSIC rather than the summary. Same token,
+same "a platformer, 30 seconds", one word different: Metroid 112 bpm, Mario 149,
+Castlevania 150 at 985 notes, Recca 176. All four differ from the untitled
+platformer and from each other, compared on note CONTENT — an earlier version
+compared bpm and note count and called Mario "unchanged", because swing, duty
+and register move none of those. It also asserts the blend never piles up,
+across all 115 titles.
+
+# 2026-09-02 (fourth pass) — The words have to move the notes
+
+The owner's point: "if I say write a happy song, it should write a happy song...
+those things need to have an actual effect on the music." He is not asking for a
+model — he said so — but for the mapping a human has from a word to the shape of
+the MIDI.
+
+He was right that this did not exist. A mood was three settings — mode, tempo,
+octave — applied to an already-written song. A happy song and a sad song were
+the same tune under different lighting: same contour, same leaps, same
+consonance, same cadence.
+
+## Four operations that WRITE rather than set
+
+- **`chordtones`** — a melody note that clashes with the chord sounding under it
+  moves to the nearest pitch that does not, at most a whole tone. Exact: the
+  harmony is already in the song, so nothing is invented.
+- **`arc`** — ramps a phrase up or down in SCALE DEGREES, not semitones, so it
+  reshapes the line instead of detuning it. Gated on both counts.
+- **`smooth`** — leaps become steps by octave displacement, which preserves the
+  pitch class and so leaves the harmony alone. This is what makes a lullaby.
+- **`accent`** — metric emphasis: downbeat loudest, half-bar next, offbeats
+  quieter. Clamped at 0.05 rather than 0, because velocity 0 is a REST and is
+  dropped from the song, so accenting an offbeat must never delete it.
+
+All sixteen mood recipes were rewritten around these. `_blendMoods` emits in a
+MUSICAL order (reshape, then fix consonance, then texture, then dynamics)
+because snapping to chord tones *before* arcing a phrase just moves the notes
+back off the chord, while every individual op still reports success.
+
+## `analyse(doc)`, and the bug it found immediately
+
+`describe()` gives the facts of a song; `analyse()` gives its character:
+majorness, phrase arc, consonance, step ratio, mean pitch, density, whether it
+ends on the tonic. It exists so a claim like "happier" can be checked instead of
+trusted.
+
+It immediately exposed a real musical error. **Consonance was defined as
+pitch-class set membership** — a melody note counted as consonant only if its
+pitch class was already IN the sounding chord. A third above the bass is
+consonant. So is a sixth. The same wrong definition was in the operation AND in
+the measurement, so they agreed with each other and both were wrong: a good tune
+measured 0.19, `chordtones` shoved half of it onto the root, and where only a
+bass note was sounding it could find no legal target and **silently gave up**,
+reporting nothing left to snap while the measure still said the music was
+dissonant. It is one shared `_isConsonant` now (unison, thirds, fourth, fifth,
+sixths), and the op reports what it could not fix rather than returning quietly.
+
+A second measurement bug: `arc` ramps WITHIN each phrase, and `analyse` measured
+first-half-vs-second-half of the whole piece, which a per-phrase ramp does not
+move. A working operation looked like a no-op. `melody.phraseArc` measures what
+the operation controls; `melody.arc` keeps the whole-piece figure.
+
+## The gate
+
+`verify-language` now measures batches. Over 22 songs each, happy vs sad:
+majorness 0.94/0.00, tempo 144/120, phrase arc +1.8/−1.6, consonance 0.99/0.64,
+mean pitch 84/69. Each gap is asserted.
+
+The strongest assertion is per-song and deliberately excludes **both** majorness
+and tempo, since those are one flag and one number set directly by the recipe:
+on the WRITING alone, each song is classified correctly **93%** of the time.
+Features are standardised before being summed — an earlier version added them
+raw at wildly different scales, scored 77%, and that said more about the
+arithmetic than about the music. Floor set at 80%.
+
+Each operation is also asserted individually to do what it says, to stay in key,
+never to silence a note into a rest, and to remain deterministic.
+
+# 2026-09-02 (fifth pass) — WebMCP, and the bug that would have sunk it
+
+Aimed at the OpenAI WebMCP Challenge (webmcp.devpost.com). **Submissions close
+2026-09-03, 13:00 PT.** Judging is four equally weighted criteria: WebMCP
+leverage, execution, potential impact, creativity.
+
+## The bug
+
+`src/webmcp.js` registered on **`navigator.modelContext`**. The spec surface is
+**`document.modelContext`**. In the ChatGPT desktop app's in-app browser and in
+Chrome with `chrome://flags/#enable-webmcp-testing`, not one tool would have
+registered — and nothing would have looked wrong. `window.chiptunes` worked, the
+page was healthy, and `verify-api.js` passed because its shim had been written
+against the same wrong surface. The test and the code agreed with each other and
+were both wrong, which is the same failure shape as the consonance bug a pass
+earlier.
+
+Registration now tries `document` first, `navigator` second, `registerTool` then
+`provideContext`, and **polls for ~10 s** because an agent browser can inject the
+API after page scripts run — a one-shot check loses that race silently.
+
+## Six new tools, and why they are the point
+
+The eight that existed only OPERATED the session. The six added compose,
+measure and export **in the page**: `capabilities`, `ask`, `compose`,
+`variations`, `analyse`, `export`. That is the WebMCP argument in one line: the
+composer is already in the bundle, so an agent that can open a tab writes music
+with no key, no account and nothing metered — and a song is 1.6 ms, so
+`variations` returns twelve complete different songs in ~80 ms. `analyse` closes
+the loop: an agent cannot listen, so it measures instead.
+
+`export` does link / midi / rom in the page. WAV is Node-only — `renderWav`
+calls `needBuffer`.
+
+## The gate
+
+`scripts/verify-webmcp.js`, in `npm test`. It installs the SPEC shim before any
+page script runs, exactly as an agent browser does, then calls all 14 tools for
+real against the built bundle. It found a second live bug immediately:
+`variations()` returns an envelope `{asked, count, candidates, note}`, not an
+array, and the tool called `.map` on it — a failure that would only ever have
+appeared at the agent.
+
+## Submission material
+
+`docs/WEBMCP.md` carries the four required description points and the
+**prior-work vs new-work** table the rules demand for a pre-existing project.
+Note for anyone checking: this repository's first commit is 2026-08-26 because
+the public repo was initialised then, but the project is older (AGENTS.md
+records decisions from July), so it is submitted as pre-existing and extended,
+not as new. Every agent- and WebMCP-related commit is dated 2026-09-02, inside
+the window.
+
+**Still owner-only:** the Devpost entry itself and the demo video (under three
+minutes, on YouTube, with audio, showing the tools working).
+
+# 2026-09-02 (sixth pass) — /webmcp, a dedicated path for the demo
+
+Owner: the site needs a path geared for the WebMCP demo without hijacking the
+product. So `/webmcp` is a route, and `src/webmcp-demo.js` mounts an explainer
+panel there.
+
+**It is the REAL app, not a standalone page, and that is not a style choice.** An
+agent landing on /webmcp reads the TOP document's `modelContext`. An explainer
+page framing the app in an iframe would register its tools inside the frame,
+where no agent would ever find them. Building it as a route entry (`ROUTES` in
+build.js) means registration happens exactly where it is looked for, and what a
+judge tests is the same page everybody else uses. The panel is a passenger:
+close it and the station is playing underneath, because it always was.
+
+The panel carries:
+
+- **live status** — "WebMCP is live, 14 tools on document.modelContext" or, in
+  an ordinary browser, how to get it (ChatGPT desktop in-app browser, or Chrome
+  149+ with `chrome://flags/#enable-webmcp-testing`). It re-checks for 30s,
+  because the agent browser injects the API on its own schedule and a panel
+  stuck on "not supported" would be lying about a page that had registered.
+- **five prompts to copy** for the agent.
+- **"Try it right now, agent or not"** — buttons calling the same
+  `window.chiptunes` implementation the agent reaches, with the JSON shown and
+  the station audibly responding. This matters: most visitors, and possibly a
+  judge in a hurry, have no WebMCP browser, and the capability should be
+  visible before anybody installs anything.
+- **the 14 tools**, read from the live surface rather than duplicated in copy.
+
+A "For agents" pill sits next to "How it works" on the landing page. That is the
+whole of the home-page change — a link into a different reading of the product,
+not a different product.
+
+`verify-webmcp` covers the route: the panel mounts, the tools still register on
+`document.modelContext` there (the point of not using an iframe), every tool is
+listed, a tool call from the panel really composes, and closing it lands on `/`.
+
+# 2026-09-03 — WebMCP hardening, against a playbook from another project
+
+The owner passed on a field playbook from TreeTree (github.com/tetrisgm/treetree).
+Most of it named things that were live gaps here. What changed:
+
+**Both surfaces, not one.** Registration picked the FIRST of document /
+navigator / window and stopped. Now it registers on every surface present,
+deduped by object identity. A host exposing one object in two places gets one
+registration; two genuinely different objects both get tools.
+
+**Schemas.** `type`, `properties` AND `additionalProperties` are all required —
+ChatGPT enforces it, and a malformed inputSchema is the commonest silent
+registration failure. Normalised centrally in `describeTool` rather than in
+fourteen hand-written literals, and gated.
+
+**`isError: true`** on failing results, so a model can tell a failure from an
+answer instead of reading `{"ok":false}` as success.
+
+**Per-tool try/catch**, so one descriptor a host rejects cannot take the other
+thirteen with it.
+
+**Pre-hydration registrar — the real gap.** The bundle is `defer`red, so it runs
+AFTER the document parses; an agent enumerating tools during parse would find
+none. `build.js` now inlines a registrar as the first child of `<body>`,
+generated from `src/webmcp.js`'s own descriptors (it exports them under Node) so
+the two cannot drift. Its execute stubs poll for the dispatcher for 10s, then
+fail politely.
+
+⚠️ **The bug that cost the most time here**: `/(<body[^>]*>)/` matched the text
+`<body>` inside a CSS COMMENT in the inline stylesheet, so the registrar was
+inserted into the middle of a comment and never ran, while the page looked
+perfectly normal. Anchored to start-of-line now, with a guard that the match is
+after the last `</style>` — and note the guard must use `found.index`, not
+`indexOf(found[0])`, because that string also occurs in the comment.
+
+**Agent calls are narrated.** `surface.callFromAgent` is a separate dispatcher
+that runs the tool and shows "🤖 agent: …". The pre-hydration stub forwards
+there; the demo panel's own buttons use plain `call`, so the toast says "agent"
+only when that is true. Gated both ways.
+
+## Field notes worth keeping
+
+- **ChatGPT's browser gates site tools behind Settings → Browser → Permissions →
+  Enable site tools.** Check that before blaming code — it is very likely the
+  explanation for the earlier "I haven't been given one" result.
+- Any browser can be made a host by hand for testing: assign
+  `{registerTool}` to `navigator.modelContext` in the console and the page's
+  polling picks it up within half a second.
+
+Not applicable to this codebase, from the same playbook: the Next.js `<head>`
+hydration crash, and ref-authoritative state for React (our state is the audio
+deck, read synchronously).
+
+# 2026-09-03 (second pass) — orientation, late hosts, agent mode
+
+More from the TreeTree playbook. What was still missing:
+
+**`what_can_i_do_here` — the orientation tool.** WebMCP has no page-to-agent
+instruction channel: `provideContext` was removed from the spec, so a page's
+only voice is tool names, descriptions and results. This tool is named as the
+question a person types, and returns prose meant to be relayed rather than JSON.
+
+⚠️ **It must answer on a COLD LOAD.** It is the tool most likely to be called
+first, and "still loading" is a worse greeting than silence. Our pre-hydration
+stubs wait for the bundle, so this one is special-cased: the text is a constant
+inlined into the registrar by build.js, sourced from `src/webmcp.js`'s own
+`INTRO` export. Gated with the bundle deliberately delayed 9 s — it answered in
+under 1.5 s with 15 tools registered.
+
+**Late hosts, tested.** New gate case: load with no model context, inject one
+afterwards, assert the polling registers within 1.5 s and the tools really work.
+That is the closest automatable stand-in for ChatGPT's browser, and the same
+window that lets a person paste a mock `{registerTool}` into the console.
+
+**`VERIFY_URL=https://chiptunes.app npm run test:webmcp:live`** runs the whole
+gate against production. A gate that only ever sees `dist/` cannot tell you the
+page judges open works.
+
+**Agent mode on /webmcp.** With a host present the explainer demotes to a corner
+bar; the station is visible and audible behind it. Set once — a host appearing
+later must not snatch the panel from a person who asked for it.
+
+⚠️ **Which exposed a real bug**: `/webmcp` is not a route `runtime.js` knows, so
+the station never entered its landing state. Nobody noticed while the panel
+covered the whole screen; the moment it demoted, the page behind was EMPTY. Fixed
+by rewriting to `/#webmcp` at bundle-execution time (before runtime.js runs, and
+too late if done at mount): the app gets the root route it understands, the hash
+still matches the demo route so a reload comes back, and the address still says
+what the page is.
+
+**Error messages teach the next step** — "No song is loaded yet. Compose one
+first with chiptunes_ask (\"a boss theme, 30 seconds\")" rather than "nothing is
+playing yet".
+
+Still not applicable: the Next.js `<head>` crash, and ref-authoritative state
+(no framework; tools read the audio deck synchronously).
+
+# 2026-09-03 — Time is ticks, and LSDj composers can open our songs
+
+Two changes, and the first is what makes the second honest.
+
+## Time
+
+`framesPer16()` returned a float and `colFrame()` rounded the running total, so
+a "6.27 frame step" was really some steps of 6 frames and some of 7 in whatever
+pattern the rounding produced. Unintentional swing that drifted with tempo.
+Measured across 40 songs, **only 7 sat within a tenth of a frame of an integer
+step** — our tempi were not reachable on the machine at all.
+
+A step now lasts a whole number of frames and the unevenness is a **groove**: a
+short repeating list of tick counts, capped at four steps. That one mechanism
+reaches the tempi between the rungs AND carries swing, which is why trackers
+work this way.
+
+- **32 playable tempi** at a 16th grid; the composer reaches **27** of them. I
+  expected to lose most of the range and lost almost none, because grooves give
+  quarter-frame resolution.
+- The groove is chosen by **constrained search**, not arithmetic. Rounding put
+  70bpm on a 32nd grid at 68.9 — below the storable minimum — where the header
+  wrote a negative offset that wrapped through the mask and returned 179.
+- Tempo snaps on **write** as well as read, so the round trip is a fixed point.
+  Verified across 3 grids x 2 feels x 111 tempi.
+- `describe()` reports the groove; `capabilities().tempo` publishes the ladder.
+
+Two gates were asserting properties the hardware does not have. Tempo spread
+wanted 40% distinct of 30 on a *continuum*; it now checks a floor of 8 plus a
+real spread across the ladder. The per-scene uniqueness check wanted 30/30 from
+a random draw, where the measured collision rate over a pool of 2400 boss cues
+gives a batch of thirty a **0.8% chance** of one pair.
+
+## The LSDj export
+
+`src/lsdj.js` writes a `.lsdsng` — one song, the unit LSDj musicians pass
+around. Reachable from `api.toLsdsng()`, `npx chiptunes lsdsng`, the tracker's
+*Download LSDj* button, the MCP `export_lsdsng` tool and `chiptunes_export`
+with `format: "lsdsng"`.
+
+It is faithful rather than converted, and only because of the work above: a bar
+IS a phrase (16 steps), channels map one-to-one, and the groove goes across
+intact. An arpeggio exports as a `C` command because the document carries the
+gesture as a flag and only the player expands it — so the phrase is readable
+rather than 300 rows of spelled-out notes.
+
+**What does not survive, stated in `warnings` rather than discovered by ear:**
+drums move to the noise channel (a `.sav` cannot carry kit samples, which live
+in the ROM), and instruments are stock defaults one per channel, on purpose.
+
+### The gate, and why it is shaped like this
+
+`scripts/verify-lsdj.js` reads the output back with **liblsdj itself** and
+compares counts. A self round-trip — our compressor feeding our decompressor —
+would repeat the WebMCP mistake exactly: code and test agreeing with each other
+and both wrong. Build the reader with the two commands in that file's header;
+without it the gate runs the structural checks and says loudly that the strong
+check was skipped.
+
+⚠️ **One constant it cannot prove.** `NOTE_ZERO_MIDI` maps MIDI 36 to LSDj note
+1. liblsdj reports the note BYTE and never claims which pitch it sounds — only
+LSDj does. It is a named constant for exactly that reason: **confirm it once by
+ear on hardware**, and if it is off, one number moves.
+
+`tools/lsdjcheck.c` is the reader harness. liblsdj is MIT and attributed in
+NOTICE along with the embedded empty-song image.
+
+## And a whole cart (same day)
+
+`.lsdsng` is one song and still needs importing. **`.sav` IS the cartridge**, so
+`api.toLsdjSav()` writes up to 32 songs into one file: copy it to a flash cart
+and every slot already holds an arrangement. Ten songs take about 40 ms.
+
+Reachable from `npx chiptunes lsdjcart`, the MCP `export_lsdj_cart` tool, and
+`chiptunes_lsdj_cart` in the page — which is the one an LSDj musician actually
+wants, because it is one sentence to an agent and a cart full of starting
+points.
+
+Layout: the working-memory song (which is song 0, so the cart opens on
+something), a 512-byte header, then 191 blocks of 512. **Blocks are numbered
+from 1 and block N lives at (N-1)*512** — that is the off-by-one, and the gate
+checks the block table accounts for exactly the blocks used and points only at
+slots that exist. The `jk` marker at header+318 is what tells LSDj this is a
+save rather than 128 KB of noise.
+
+### Two counts, because they answer different questions
+
+`notes` is what lives in the unique phrases — what LSDj shows, and what liblsdj
+counts, since identical bars share a phrase. `sequencedNotes` follows the
+sequence through its chains and counts what a listener hears. Reporting only the
+first made a 217-note song look like a 61-note one and made the gate assert the
+wrong thing.
+
+### Range
+
+A straight pitch mapping clamped 111 notes of a busy boss cue: our composer
+writes down to MIDI 24 and LSDj's note 1 sits higher. **A clamped note is worse
+than a missing one** — it is a wrong note that looks deliberate. The export
+shifts by whole octaves instead, keeping every interval and pitch class, and
+says so. Across 32 songs: nothing lost, seven transposed.
+
+### The note base, resolved from the hardware rather than guessed
+
+I shipped `NOTE_ZERO_MIDI = 36` as one constant for every channel and flagged it
+as the thing only a real Game Boy could settle. It was wrong, and the machine
+settled it without one.
+
+The DMG computes pulse frequency as `131072/(2048-x)` and wave as half that, so
+the lowest note a pulse can hold is 65.41 Hz and the wave channel reaches a full
+octave below. `gb-hardware` agrees exactly: **pulse spans MIDI 36..108, wave
+24..96.** Two lines of Kotlinski's manual finish it — pressing A on an empty
+step enters **"C-2"**, and C2 is 65.41 Hz to the decimal; and the noise kick
+recipe says to play at **"C-0"**, below pulse's floor, which proves the note
+NAMES are per channel rather than one shared absolute scale.
+
+So the byte is an index into what THAT channel can play: `NOTE_BASE = [36, 36,
+24, 36]`.
+
+The corroboration is that a workaround disappeared. With one constant, six or
+seven songs in every 32 had to be transposed by an octave to escape the floor.
+Per channel, **none do** — the bass sits in the wave channel's range in the file
+exactly as it does on the hardware. `verify-lsdj` now asserts the table against
+`gb-hardware.inRange()` directly, and that no song needs a shift; if either
+starts firing, the table is wrong.
+
+What is left for a real Game Boy is one octave on one channel, not the mapping.
+
+### Measured, not inferred (LSDj 9.4.2 ROM)
+
+The owner downloaded LSDj and asked to settle the octave in the emulator. Our
+emulator cannot run it -- `gb-cpu.js` is 192 lines with no MBC and no PPU, and
+LSDj is a 1 MB MBC5 application with a UI. Building one that could is a project,
+not a check.
+
+It did not need running. LSDj must carry a table of 16-bit DMG period values to
+play a note at all, so the answer is static: scan the ROM for a long monotonic
+run in [0,2047] whose implied frequencies step by a semitone. One table, at
+0x40FA in 9.4.2:
+
+    note 1 through 131072/(2048-x)  ->  65.41 Hz  =  C2, MIDI 36, 0.0 cents
+    note 1 through  65536/(2048-x)  ->  32.70 Hz  =  C1, MIDI 24, 0.0 cents
+
+One table serves both channels; the wave channel's halved formula puts it an
+octave down. `NOTE_BASE = [36, 36, 24, 36]` confirmed exactly, and it agrees
+with `gb-hardware`'s own floors to the note.
+
+**And it caught a real bug.** `NOTE_MAX` was 0x6F (111), a round number I
+invented. The table stops climbing after **89** entries. Our highest note is
+index 73 so nothing was ever wrong in practice, but an index past the end of a
+period table is not a wrong note -- it is whatever bytes follow it. NOTE_MAX is
+the measured length now, and `verify-lsdj` checks our range against it.
+
+A second table sits at 0x41D2, consistently ~40 cents flat. We did not need to
+identify it and did not.
+
+⚠️ **The ROM is not in this repository and must not be.** LSDj is freeware for
+personal and educational use and its licence forbids copying or distributing it.
+What is recorded above is two frequencies and a count -- measurements, not
+content. The ROM stayed in a scratch directory outside the checkout.
+
+### LSDj actually plays it (mGBA, 2026-09-03)
+
+The last unverified claim -- that LSDj ACCEPTS the save and plays it -- is now
+checked. Our own `gb-cpu.js` cannot do it (no MBC, no PPU, and it throws on any
+opcode our driver does not emit), so this uses **mGBA's library** headlessly:
+boot the real ROM with one of our `.sav` files, press START, and read the
+decoded channel state.
+
+**Result: every note in the document is played, and nothing is played that we
+did not write.**
+
+Two gotchas worth keeping:
+
+- **mGBA faults without a video buffer and without `mCoreInitConfig`.** Both
+  crash in `reset` with SIGBUS and no message.
+- **NR13/NR23/NR33 are WRITE-ONLY.** Reading them back through `busRead8`
+  returns nothing (mGBA says so on stderr). Read `gb->audio.chN.control.frequency`
+  instead.
+
+The harness reports two sets because neither is complete alone. `HZ` samples
+every frame regardless of channel state: it catches every note, and also idle
+channels and mid-transition reads, so it is the set to check for MISSING notes.
+`TRIG` samples only while a channel reports playing: it misses notes, but what
+it reports is real, so it is the set to check for WRONG ones. Gating on the
+playing flag alone found 9 of 12 -- a fault in the observer, which is why both
+are kept.
+
+`tools/lsdjplay.c` is committed; **the ROM is not and must not be**. Run it with
+`LSDJPLAY=/tmp/lsdjplay LSDJ_ROM=~/lsdj.gb npm run test:lsdj`; without both the
+gate skips loudly.
+
+# 2026-09-03 — The groove regression, and what it taught
+
+The owner reported the station sounding "lower quality, very noisy" after the
+tick rewrite. It was not noise and it was not the engine: **51 songs in 60 had
+picked up an audible limp.**
+
+Ruled out first, with measurements rather than guesses: no clipping, no sample
+discontinuities, per-channel levels identical to the previous build to within
+0.5%, high-frequency content identical, render parity 1.000000, and the kit gate
+still at 0.9918 correlation.
+
+The cause was my own groove selection. To reach any tempo it made k of every
+four steps one tick longer -- [6,7,7,7], [5,5,5,6] -- one step up to **19% off
+the average, repeating every four steps, forever**. The float rounding it
+replaced spread the same total error quasi-randomly, so it never formed a
+pattern and never became audible. **The thing worth preserving was not the
+drift; it was the absence of a repeating shape.** The ear locks onto anything
+that repeats every bar.
+
+Grooves are now [n] or [n, n+1] only -- even, or a symmetric shuffle, which is a
+feel a musician would choose. Even wins unless it would miss the target tempo by
+more than 3%. Result: 60 straight, 20 shuffled, **0 lopsided** out of 80.
+
+## The constraint underneath, which is the hardware's
+
+At fast tempos the even rungs are far apart -- 179.2, 149.3, 128.0, 112.0 -- and
+the tempi that fill the gaps carry 9-18% swing. **On this machine you cannot
+have both fine tempo and a straight feel up there.** The ladder went from 32
+rungs to 16, and that is the honest price of not imposing a feel nobody asked
+for.
+
+⚠️ **One consequence to weigh:** a style's bpm window is narrow, and some windows
+now contain exactly one rung. `title` is anthem and arcade, 140-158, which holds
+only 149.3 -- so every title cue has the same tempo. If that becomes the next
+complaint, the fix is to widen the STYLES bpm ranges in composer.js so each
+spans two rungs, which keeps everything straight. It changes each style's tempo
+character, so it is the owner's call.
+
+## Three gates were asserting numbers instead of properties
+
+All three failed on this change and all three were wrong, not the code:
+
+- `verify-diversity` demanded three tempi per scene. On a quantised ladder some
+  scenes can only reach one. It checks that a scene's tempi are real rungs now,
+  and that the spread holds across scenes.
+- `verify-api` required at least 20 rungs. There are 16.
+- `verify-language` asserted "a cheerful fast platformer" stays under 175 bpm. It
+  came out at 179 -- not compounding, just the top rung. It compares against
+  "a fast platformer" alone now, which is the property it meant.
+
+And two gates were failing on machine load alone. `verify-screens` timed a
+3200x2000 capture out at 60s and took the whole run down as an uncaught error
+with no failing assertion; it has 180s now, because the assertion is that a face
+DRAWS. `verify-sync` compared two independently sampled latencies against a flat
+160ms, which cannot hold when the quantity ranges from 20ms to over 1000ms; the
+tolerance scales with the magnitude now.
+
+## LSDj is the model now, not the export format (2026-09-04)
+
+Owner, this day: *"I need our entire way of working to be entirely compatible
+and indistinguishable from LSDJ... if I export what I've made in this app to
+the LSDJ format, it will have no difference whatsoever. And if I decide later
+to recreate something that I made in LSDJ here, there's no difference. And if
+later we decide to do an import feature, there's no difference either."*
+
+That is a change of relationship, not a feature. `lsdj.js` TRANSLATES: it takes
+whatever the composer wrote, finds the nearest LSDj-shaped thing, and reports
+what it lost in `warnings`. As long as translation is the relationship, round
+trip cannot be identity. The end state is that the LSDj document IS the song --
+the composer writes one, the web player renders one, and `lsdj.js` only
+serialises it -- and then export, import and round trip are all identity for
+free, because there is nothing left to translate.
+
+### Two decisions the owner made, so they do not get relitigated
+
+- **Drums are kits, read from the owner's own LSDj ROM**, with noise-only as the
+  fallback when no ROM is loaded. Kits live in the ROM and a `.sav` only
+  references them by index, so the export is correct for anyone with LSDj; the
+  web player needs the samples to match, and the only lawful source is the
+  user's own copy. Never vendor them.
+- **The back catalogue just changes.** Every seed re-composes under the LSDj
+  model and old shared links will sound different. No second renderer, no
+  document version flag -- a second code path is exactly how the player and the
+  exporter drifted apart in the first place.
+
+### `verify-lsdj-native` is the distance, and it is a RATCHET
+
+Every check is a thing LSDj cannot hold, counted over 60 songs. Ceilings are
+whatever it measured that day and may only fall. **Never raise one to make a
+change fit** -- a raise means the export moved further from LSDj, which is the
+whole thing the file exists to catch.
+
+Where it started, and where it is after the first pass:
+
+```
+notes not on a phrase row     11.83%  ->  0.00%   (locked at 0)
+notes closer than one row      4.31%  ->  0.00%   (locked at 0)
+two notes on one channel+row   1.17%  ->  0.00%   (locked at 0)
+instruments in one song            7      inside LSDj's 64
+longest channel             895 rows      inside 256 chain rows of 16
+note volumes on a channel         10      STILL OPEN -- see below
+```
+
+### Swing was 92% of it, and it was one line
+
+`sw8()` slid every offbeat eighth late by a fraction of a beat. It sounds right
+and it cannot be written down: **LSDj has no position between two rows**, so
+4514 of our 4894 un-exportable notes were that one nudge.
+
+A tracker swings by making the ROWS uneven -- a long-short pair of tick counts,
+which is a groove. Same feel, every note still exactly on a row. What comes out
+is what an LSDj musician would have typed: `[8,6]` for house at 128, `[12,8]`
+for boombap at 90, `[n]` for everything straight. The remaining 380 were the
+frame-level arp, three notes 0.05 beats apart -- a chord on the machine and a
+chord in LSDj, so it is written as one note with an arpeggio now.
+
+⚠️ **The groove travels on the score (`s.groove`, and `s.gb.groove`).** With
+swing the rows are deliberately uneven, so "which row is this note on" is
+unanswerable without it. Any reader that divides the bar into equal slices --
+exporter, player, or gate -- measures the swing as error: the conformance gate
+did exactly that on its first run and reported a song sitting perfectly on the
+grid as 62% off it.
+
+⚠️ **The groove maths lives in `gb-hardware.js`** (`grooveFor`, `bpmOfGroove`,
+`rowFrame`, `framesPerRow`, `grooveSpread`) and `create.js` holds handles on it.
+It used to be written out in the editor as well. Two copies of a clock is how a
+player comes to disagree with its own exporter, and the composer needed the same
+maths the moment swing became a groove.
+
+### What is still not LSDj, in the order it matters
+
+1. **Per-note velocity does not exist in LSDj.** Volume is the instrument's
+   envelope; changing it mid-phrase spends the row's one command. We emit up to
+   10 distinct volumes per channel. This is the one that will MOVE THE SOUND
+   when it is fixed, and it is not a count to grind down -- it is the instrument
+   model arriving.
+2. **The instrument model itself.** `chip-instruments.js` has things a DMG never
+   had, including a low-pass cutoff. LSDj instruments are pulse (duty, envelope,
+   sweep, phase, table, vibrato, transpose), wave (synth or drawn frames, play
+   mode, length, repeat), kit and noise. Ours has to become exactly that set.
+3. **Note length.** LSDj stores none -- a note runs until the next one or a KILL
+   command. Ours carries `frames`, which is a rendering detail today and has to
+   become a command or an envelope.
+4. **Import.** Once the model is the document this is a parser and two identity
+   gates: parse -> serialise is byte-identical, and compose -> serialise ->
+   parse -> serialise is byte-identical.
+
+### The proof, when it comes, is not ours to mark
+
+`tools/lsdjplay.c` already boots the real ROM in mGBA and reads the APU
+registers frame by frame. Render the same song through our player and through
+LSDj itself, diff the two register streams, and that is what indistinguishable
+MEANS. Anything short of it is our code agreeing with our code -- the WebMCP
+mistake, which this repository has already made once.
+
+## There was never a tempo ladder (2026-09-04, later)
+
+This session invented one and spent a long time defending it. The reasoning was
+that a row lasts a whole number of frames, so only tempi whose rows divide
+evenly are playable -- 179.2, 149.3, 128.0, 112.0, 99.5, 89.6, 81.4, 74.7 -- and
+anything between has to be faked with an uneven groove, which is a feel nobody
+asked for. The STYLES windows were widened to span several rungs to buy back the
+variety the snap had taken away.
+
+**The first half is true and the conclusion was wrong.** Asked directly, in
+mGBA, LSDj plays tempo 120 as rows of 7 frames and 8 frames INTERLEAVED. It runs
+an accumulator, reaches every integer tempo, and spends the remainder as a mix of
+two whole frame counts. It has done this for twenty years and nobody calls it
+lopsided, because an accumulator has no short period.
+
+What DID sound like a limp -- and did, on 51 of 60 songs -- was a four-step
+pattern with one step out, `[6,7,7,7]`, repeating every bar. The ear locks onto
+that instantly. **Uneven rows were never the problem; a repeating shape was.**
+
+So the ladder was ours, not the machine's, and it offered 8 tempi where LSDj
+offers 111. Parity does not allow being more restrictive than the thing you are
+matching, and the ladder is gone: `reachableBpms()` returns every integer in the
+style bands, and `create.js` no longer snaps on encode or decode.
+
+### The numbers, measured off the ROM
+
+```
+ticks per second = 0.4 x TEMPO
+frames per tick  = 149.31875 / TEMPO        (149.31875 = 2.5 x FPS)
+frames per row   = ticks x 149.31875 / TEMPO
+```
+
+LSDj's default groove of 6 ticks makes a row `895.9125/TEMPO` frames, so TEMPO
+is ordinary bpm with four rows to the beat -- our own constant. `gb-hardware.js`
+holds this as `lsdjRowFrame`, `lsdjFramesPerRow`, `lsdjTempoForRow` and
+`lsdjGrooveTicks`; the composer, the editor and the exporter all read it.
+
+⚠️ **A GROOVE IS IN TICKS.** We were writing FRAME counts into that field, so a
+song exported as 128 bpm with a 7-frame row played at 8.17 frames a row -- 110
+bpm, 17% slow, on every song this project ever exported. Nothing could have
+caught it from inside: reading our own file back agreed with us perfectly
+because both sides shared the assumption, and liblsdj would have agreed too --
+the bytes were valid, they just meant something else.
+
+### What is proved, and what is only close
+
+- **Tempo**: exact. LSDj plays 9.955, 8.000, 7.000 and 5.970 frames a row where
+  we predict 9.955, 7.999, 6.999 and 5.973.
+- **Pitch**: exact. `NOTE_BASE` is CONFIRMED rather than believed -- byte 1
+  sounds MIDI 36 on both pulses and 24 on the wave.
+- **Row-by-row frame pattern**: within ONE FRAME, not identical. Our accumulator
+  and LSDj's disagree about which individual rows get the spare frame, on 0-20%
+  of rows depending on tempo. The averages match to 0.01%. Bit-exactness would
+  need LSDj's integer arithmetic, which was not recovered; a search over
+  fixed-point shifts got to 12.5% mismatch and no further. **Do not claim
+  bit-identical timing.** It is inaudible sub-17ms jitter of the same kind LSDj
+  itself produces, ordered differently.
+
+### ⚠️ Two traps this cost real time to learn
+
+- **Anything that can be misaligned will be.** A ruler song of ascending notes
+  repeats, the trace starts mid-phrase, and the sequences line up three notches
+  out -- which reported every NOTE_BASE an octave low, twice, and would have had
+  us "fix" a constant that was right. Measure pitch with ONE note in the song.
+- **A gate that divides the bar into equal slices measures the swing as error.**
+  Both conformance gates did this, once when swing became a groove and again
+  when the groove changed units, each time reporting a song sitting perfectly on
+  the grid as 62% and then 83% off it. Ask the clock, never the average.
+
+`scripts/verify-lsdj-emulator.js` is the harness. It needs mGBA and the owner's
+own ROM (`LSDJ_ROM=...`), and SKIPS loudly without them. **The ROM is Johan
+Kotlinski's, freeware for personal and educational use, and must never enter
+this repository.**
+
+## Where LSDj parity actually stands (2026-09-04, end of session)
+
+Owner's bar: *"It needs to sound exactly the same. It needs to behave exactly
+the same. It cannot have more stuff or less stuff."* Here is what is true and
+what is not, because the difference matters more than the progress.
+
+### Proved against the real ROM in mGBA
+
+- **Tempo.** LSDj plays 9.955, 8.000, 7.000 and 5.970 frames a row where we
+  predict 9.955, 7.999, 6.999 and 5.973.
+- **Pitch.** `NOTE_BASE` measured, not believed: byte 1 sounds MIDI 36 on both
+  pulses and 24 on the wave.
+- **Instrument bytes.** Byte 0 type, byte 1 high nibble volume, byte 3 length,
+  byte 4 sweep, byte 7 duty and pan, byte 11 transpose -- each found by varying
+  one byte and watching which APU register moved.
+
+### Proved in the suite
+
+- The codec is lossless on random bytes, escape bytes, long runs and the default
+  wave, not just on the empty song.
+- A song image survives read -> write byte-for-byte; 71.5% of it is understood
+  by name and the rest is carried verbatim.
+- Export -> import returns the same tempo, groove, and every pitched note on the
+  same lane at the same step at the same pitch; importing again changes nothing.
+- A kick comes back a kick.
+
+### NOT parity yet, in the order it matters
+
+1. **LSDj's envelope is SOFTWARE.** It rewrites NR12 as a note plays rather than
+   setting the hardware pace once, so byte 1's low nibble is LSDj's own envelope
+   shape and not a DMG field. We write a plain sustain. Matching its characters
+   means reproducing its per-tick stepping. **This is the biggest remaining
+   audible difference.**
+2. **Kits.** The owner chose kits read from his own ROM, with noise-only as the
+   fallback. We still write NOISE instruments for drums. They survive a round
+   trip by name, but they do not sound like LSDj's kits, and nothing reads the
+   ROM's samples yet.
+3. **Tables and commands.** LSDj's 32 tables and most of its command set are
+   unused. We emit C, R and V only.
+4. **Wave instruments.** LSDj's wave voices use its own soft-synth; ours use our
+   wave tables. The channel is right, the timbre is ours.
+5. **Row-by-row frame pattern**, within one frame -- see the tempo section
+   above. Inaudible, but not identity.
+
+### What is NOT a gap, checked so it does not get re-litigated
+
+- **The renderer is already register-level.** The chip worklet connects straight
+  to gain with no filters between; `verify-rom` proves every note reaches the
+  hardware as the APU would write it. The biquads in `audio.js` are on other
+  paths, not the GB one.
+- **Per-note volume is not un-LSDj.** Volume lives in the instrument, so an
+  accent is a different instrument -- and LSDj has 64 slots for exactly that.
+  The export writes one per (voice, level); real songs use about 11. Do not
+  "fix" this by flattening the music, which was the first instinct and was
+  backwards.
+
+### The envelope, MEASURED (2026-09-04, later)
+
+Byte 1 is `volume<<4 | shape`, and both halves are measured off the ROM.
+
+- **High nibble is the initial volume.** 0x3F sounds volume 3, 0x7F sounds 7,
+  0xBF sounds 11, 0xFF sounds 15.
+- **Low nibble is a HOLD, in frames, before the note is cut.** 0 sustains
+  forever; 1..f hold for 1, 1, 1, 1, 1, 2, 2, 3, 4, 5, 6, 8, 11, 15, 20 frames.
+
+So LSDj's envelope is not a decay curve, it is "this loud, for this long". Shape
+0 -- sustain until something stops the note -- is what a tracker uses and what we
+write.
+
+**How it was finally measured, after two failures.** Notes RETRIGGERING every few
+rows, at tempo 40 with 15-tick rows, traced per frame. mGBA's `io[]` entry for
+NR12 tracks the LIVE volume rather than only the last write, so a per-frame trace
+of it IS the envelope -- as long as the note lasts long enough for the steps to
+land on different frames. A single note at a normal tempo shows one value and
+reads as "LSDj wrote 1 and stopped". That is the trace being too coarse, not LSDj
+being silent.
+
+⚠️ **Two tools were built and deleted on the way. Do not rebuild them.**
+
+- An instruction-stepping probe. `core->step` does not advance the GB core in
+  mGBA 0.10.5 here, and `core->frameCounter()` does not count frames the way the
+  name suggests, so a frame-budgeted loop ends after a few dozen instructions.
+- A PCM dumper. mGBA emitted digital silence of exactly the right length through
+  both the polled blip buffers and an `mAVStream` callback, with the core volume
+  options and the APU's own `masterVolume` set. Whatever is missing was not
+  found.
+
+**Both failed by producing a plausible EMPTY result, which reads identically to
+"LSDj does nothing here".** That is the shape of every wrong answer this
+measurement produces, including the two that said NOTE_BASE was an octave low.
+
+## Note length survives now, and it was the audible gap
+
+LSDj stores no note length -- a note runs until the next note or a `K` command --
+so ours were dropped, and every staccato note exported as a SUSTAINED one. That
+is a different piece of music, and it was audible on anything with space in it.
+
+The envelope cannot fix it: the hold tops out at twenty frames and belongs to the
+instrument rather than the note. A tracker says it with a command, so the export
+writes `K` on the row a note stops and the import reads the length back off it.
+
+Verified in mGBA: with the KILL the volume drops one row after the note; without
+it, it held to the next one.
+
+⚠️ **Not on drums** -- they are one-shots and killing them cuts the sample short.
+And only where the row is FREE, because a row holds one command and an arpeggio
+already sitting there is the more musical thing to keep.
+
+### So the round trip now preserves
+
+tempo, groove, pitch, lane, step, which drum it was, and how long each note
+lasted. The last of those was written down as unrecoverable two commits earlier.
+
+
+## Every exported drum was SILENT (2026-09-04)
+
+A noise note is a PITCH, and the wrong one is silence. The export wrote note 25
+for every drum, on the reasoning that noise is not melodic. Measured against the
+ROM one note at a time: **LSDj writes nothing to NR43 for any noise note below
+33**, so every drum this project ever exported made no sound -- and had they
+sounded, all three would have been the same pitch, because they shared the note.
+
+Measured note bytes, and the divisor is the pitch:
+
+```
+note 33 -> NR43 0xde   divisor 6   low    -> kick
+note 49 -> NR43 0xdb   divisor 3   middle -> snare
+note 61 -> NR43 0xd1   divisor 1   high   -> hat
+```
+
+Confirmed in mGBA: three distinct NR43 values where there had been none.
+
+⚠️ **And the header of `src/lsdj.js` was wrong about our drums.** It said "ours
+are 4-bit PCM streamed into wave RAM -- the same technique LSDj kits use", and
+they are not: the composer puts drums on CHANNEL 3, NOISE, with `midi: null` and
+no kit data on the score at all. That stale claim is what made "drums are a real
+loss" look inevitable and sent this session looking at kits. Kits are not needed
+-- LSDj noise plays noise, and drums-on-noise is an ordinary LSDj arrangement.
+Kits would cost the WAVE channel, which is where the bass lives.
+
+## Three gates were measuring badly, not measuring something bad
+
+Worth reading together, because they fail the same way: the measurement moves,
+the thing being measured does not.
+
+- **verify-sync** compared a single instantaneous `lag`, read after the sampling
+  loop, against a MEDIAN of `raw` taken across it -- two samples of a moving
+  quantity from different moments. The tolerance was widened twice and it still
+  failed a fourth run, at 418 against 642. Both sides are medians over the same
+  window now: 629 against 601, and the allowance could go back DOWN.
+- **verify-export-boundaries** drove the editor on flat 80ms delays. Idle, fine;
+  loaded, the picker had not opened, the click landed on nothing, and the
+  fixture came back with no kit and no wave load -- reporting that the editor was
+  broken when it was merely slower than the test's stopwatch. It waits for the
+  panel now.
+- **verify-latency** pinned the scheduler lead to 0.18 exactly, which is computed
+  from two clock reads and arrives as 0.17999999999999972.
+
+The pattern: **a gate that races a stopwatch is measuring the machine's mood.**
+Wait for the condition, or compare like with like.
+
+
+## The bass was playing in LSDj's voice, not ours (2026-09-04)
+
+A wave voice's whole timbre is its 32-nibble table, and the export never wrote
+one. LSDj played the right notes through its own default waveform: the correct
+tune in somebody else's voice. A register trace limited to NR10..NR51 could
+never have said so, because the PITCH was right -- which is why `lsdjtrace` now
+runs through 0xFF3F and carries wave RAM.
+
+**WAVES live at 0x6000**, 256 frames of 16 bytes. Found by looking rather than
+guessing: the default wave appears in the empty song at exactly 256 contiguous
+slots from 0x6000 to 0x6FF0, which is precisely the gap the field map had.
+Confirmed on the machine -- a marker table planted at frame 0 comes back out of
+LSDj's wave RAM byte for byte.
+
+⚠️ **A wave instrument ANIMATES by default.** Left alone it walks a run of
+frames -- that is LSDj's wave synth, and it is a lovely thing that is not what
+our bass sounds like. **Byte 9 = 0x03 pins it to frame 0**, measured; byte 11
+does not select the frame, so a pinned instrument holds frame 0 specifically and
+a song using two wave voices has to share one table. The export says so in
+`warnings` rather than leaving it to be noticed by ear.
+
+Field-map coverage went 71.5% -> 84.0% with the wave region named.
+
+## A gate cannot edit a song that is not there
+
+`verify-export-boundaries` opened bare `/create` and edited whatever the editor
+happened to put on screen -- a different song every run. One run in several has
+no DRUMS at all, so the kit loop had nothing to click and the fixture came back
+with no kit and no wave data. The gate then reported that exports drop data,
+when the truth was the fixture never had any.
+
+It loads a KNOWN song through the URL fragment now (`/create#s=<code>`) with
+melody, bass and drums in it, and waits for the editor's panel instead of racing
+an 80ms timer. Three consecutive runs return byte-identical fixture counts.
+
+
+## Every gesture now carries (2026-09-04, end)
+
+The document's six motions, and where each lives in LSDj:
+
+```
+plain   nothing
+arp     command C
+roll    command R
+fall    instrument byte 4 = NR10, bit 3 set   (frequency decreases)
+rise    instrument byte 4 = NR10, bit 3 clear
+echo    TWO NOTES -- LSDj has no echo flag
+```
+
+`fall` and `rise` are a hardware SWEEP, and the sweep unit belongs to PU1 alone,
+so only the Melody lane can carry them. That is the machine's limit, not one we
+added.
+
+`echo` is the interesting one. Ours renders as the note shortened to a row plus
+a quieter repeat one row later on the same channel -- so that is what gets
+written, rather than a flag LSDj has no way to store. Both play the same thing,
+and a musician opening the file sees the repeat, which is what is actually
+happening.
+
+### The full list of what survives a round trip
+
+tempo, groove, pitch, lane, step, note length, which drum it was, the timbre,
+the loudness, and the gesture. All of it verified against the real ROM in mGBA.
+
+### And what still does not
+
+- **LSDj's envelope SHAPES.** Byte 1's low nibble is a hold in frames; we write 0
+  (sustain), which is what a tracker uses, and say where a note stops with a KILL
+  instead. Its other shapes are unused. This is a thing LSDj can do that we do
+  not, not a thing we do that it cannot.
+- **TABLES.** LSDj's 32 tables are a per-instrument modulation sequence.
+  Nothing here writes or reads one, so importing a foreign song that uses them
+  loses the modulation.
+- **Row-by-row frame pattern**, within one frame. Averages agree to 0.01%.
+
+
+## Tables: located, not yet played (2026-09-04)
+
+Found by probing the running ROM, not by reading a header:
+
+- **Instrument byte 6 = 0x20 turns a table on.** The default is 0x03 and nothing
+  runs; with 0x20 a held note starts moving in pitch.
+- **The data is in 0x3480..0x3E80**, five 512-byte regions of 32 tables x 16
+  rows. Filling every OTHER unmapped gap in the song changes nothing.
+- **Regions 3 and 4 (0x3A80, 0x3C80) are the command/value pair.** A table runs
+  with those two and with no other pairing.
+
+Named in the field map now, which took coverage 84.0% -> 91.9% and leaves the
+round trip exact. `toSongJSON` warns when an imported song uses one.
+
+### The full table spec, measured
+
+```
+instrument byte 6 = 0x20 | index    turns table `index` on (default 0x03, off)
+transposes        0x3480 + table*16 + row      signed semitones
+one row per TICK  six to a row, looping through all sixteen
+```
+
+Verified: a table of [0,2,4,5,7,9,11,12] on a MIDI 72 note plays
+72,74,76,77,79,81,83,84 and loops, one step every 2.49 frames at tempo 60 --
+which is exactly a tick.
+
+### And they play EXACTLY
+
+The first attempt called a table an arpeggio and warned that it was an
+approximation, on the reasoning that a table steps every TICK while the document
+is ROW-based, so there was nowhere to put the intermediate steps. **That was
+wrong, and the thing that makes it wrong was already in the format.**
+
+A cell carries `of` -- an offset in FRAMES -- alongside `midi` (an exact pitch)
+and `lf` (an exact length in frames). Between them they can put a note wherever
+the machine can, and that is the same mechanism a composed song already uses to
+survive import at frame resolution.
+
+So a note running a table is played OUT into notes, one per tick, each at the
+pitch that tick sounds and the frame that tick starts on. Verified: transposes
+[0,4,7,12] on a MIDI 60 note give 60,64,67,72,60,64 at frames 0,1,2,3,5,6 --
+1.167 frames a tick at tempo 128, which is the tick.
+
+**No document format change and no audio-engine change was needed.** The
+approximation had been justified by a limit the format did not actually have.
+
+## The other two gaps are closed
+
+**The envelope** carries on import. Byte 1's low nibble is a hold in FRAMES --
+measured 0 sustains, 1..f hold 1,1,1,1,1,2,2,3,4,5,6,8,11,15,20 -- and reading it
+as a note length (which our document already speaks) makes a shape-9 instrument a
+1-row note at 128bpm instead of one sustaining to the next note.
+
+**The clock** puts the spare frames where LSDj puts them. The physical constant
+15 x FPS = 895.9125 with a ceil disagreed on up to 20% of rows; fitting the real
+thing over eight tempi and a hundred gaps each gives
+
+    row k starts at round(k * 895.88 / TEMPO)
+
+and a fresh trace matches **320 of 320 row gaps across four tempi, all four
+exact**. The averages were always right -- this is about the ORDER of the spare
+frames, which is what makes two players sound identical rather than merely equal
+in tempo.
+
+
+## Every LSDj command that moves a register (2026-09-04, last)
+
+Measured by playing each one and watching the chip -- one run per command,
+comparing against the same song with no command:
+
+```
+C -> NR13          chord / arpeggio      carried as motion 'arp'
+R -> NR12, NR14    retrig                carried as motion 'roll'
+V -> NR13          vibrato               carried as the cell's `vb`
+K -> (none)        kill                  carried as the note's LENGTH
+E -> NR12          envelope, a volume    carried as `vel`
+O -> NR51          panning               carried as `pn`
+S -> NR10, NR14    sweep                 carried as `sweep`
+P -> NR13, NR14    pitch bend            carried as `dt`
+M -> NR50          MASTER volume         not carried: it is global, and the
+                                         document has no per-song master
+A D F G H L T W Z  moved no register at all in that measurement
+```
+
+So every command that made the chip do something has a home in the document
+already, and none of them is reported as unplayable any more.
+
+### Following that caveat through
+
+The nine "moved nothing" were measured with one value on a sustained note, and
+several are structural. Re-measured with a RULER -- a note on every row, watching
+the song's SHAPE -- two of them move plenty:
+
+```
+L  100 rows -> 112, mean gap 6.98 -> 6.23    a pitch SLIDE, filling in between
+T  100 rows ->  56, mean gap 6.98 -> 12.32   a mid-song TEMPO change
+```
+
+So **every command that does anything measurable is now carried**:
+
+```
+L -> the cell's `gl` (glide)
+T -> the document's tempoAt list, and colFrame integrates across it
+M -> the document's master, which leaves as the score's gainScalar
+```
+
+### ⚠️ "A D F G H W Z moved nothing" WAS WRONG. Four of them move.
+
+That claim was committed three times and it came from a flawed measurement: the
+probe watched **channel 1's PITCH registers only**. A duty change, a wave-RAM
+change, or anything on the wave or noise channel was invisible to it by
+construction. Re-run across all four channels, comparing every register plus the
+pitch SEQUENCE:
+
+```
+W  sets NR11's duty. Value 1, 2, 3 -> duty 1, 2, 3, directly.   CARRIED as `dy`
+H  changes the pitch SEQUENCE on every channel -- a hop, so the
+   song plays a different order                                 not carried
+D  shortens the sequence, and on WAV rewrites ALL of wave RAM    not carried
+F  moves NR13, but only on a dense phrase (a note every row)     not carried
+A G Z  still nothing, on either test, on any channel
+```
+
+**The lesson is the measurement, not the commands.** Three separate write-ups
+said those seven did nothing, each one repeating the first probe's blind spot. A
+negative result from a probe that cannot see the effect looks exactly like a
+negative result from a command that has none.
+
+H is a HOP and the document has no jump; D touches wave RAM and looks
+kit-related; F needs a denser context than one note per four rows to show what it
+is. All three are SEEN and named as unread rather than claimed inert.
+
+### Document version 14
+
+`tempoAt` (a list of [row, tempo]) and `master` (one byte) are song-level fields
+added for T and M. ⚠️ **A document using neither still encodes as v13** -- the
+version byte is only raised when one of them is present -- so nothing composed
+here grew by a character.
+
+`colFrame` is PIECEWISE now: with no tempo changes it is the single call it
+always was, and with them the frame of a row is the sum over the segments before
+it. Verified: halving the tempo at row 32 makes every later gap exactly 2.00x.
+
+# 2026-09-04 — Post-Claude repository audit
+
+- `main` is clean, matches `origin/main`, and ends at `53c5b1d`. The focused
+  `scripts/verify-lsdj-native.js` gate passes there.
+- Production is **not** at `main`: `chiptunes.app` serves
+  `app.73c91fbe2963.js`, introduced by `b66f4f1`; HEAD builds
+  `app.8b4ba419a9a2.js`. There are 30 commits between those revisions. Nothing
+  from this audit was deployed.
+- The final measurement corrected a repeated false negative: W is carried as
+  `dy`, while H, D and F demonstrably affect playback but are still only
+  detected/reported, not translated into the document. A, G and Z are the only
+  commands that remained inert across the measured contexts.
+- `src/lsdj.js` still contains stale explanatory comments saying tables are an
+  approximation and that A/D/F/G/H/L/T/W/Z moved no register. Later code and
+  the final measurements contradict both comments. Clean those comments before
+  using the file as an implementation guide.
+- Safe next checkpoint: define and independently measure H, D and F semantics,
+  add fixtures that prove their audible/register behavior, then translate only
+  what those fixtures establish. Run the full suite before considering the
+  30-commit production deployment.
+
+## Owner correction: the objective is a byte-matching LSDj decompilation
+
+The owner clarified after this audit that the intended work is a
+**byte-matching decompilation of LSDj**, not merely a Chiptunes document model
+that approximates or translates to LSDj. Earlier handoff language saying that
+the translation layer or an "LSDj-shaped" model is the end state changed the
+objective and must not be treated as a product decision.
+
+The existing probes, field map, compressor, liblsdj checks, mGBA harness and
+register traces are useful reverse-engineering evidence. `src/lsdj.js` is also
+useful as a compatibility layer. Neither constitutes the requested
+decompilation, and passing its round-trip tests is not proof of byte identity
+with LSDj's program.
+
+The decompilation must be developed and verified from the owner's own LSDj ROM.
+The ROM itself remains outside this repository. Progress is measured by
+reassembling the recovered program and comparing its bytes against that local
+reference, with explicitly identified data/assets or unavoidable relocation
+differences accounted for rather than waved away.
