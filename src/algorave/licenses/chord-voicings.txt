@@ -1,0 +1,11 @@
+chord-voicings 0.0.1
+Author: Felix Roos <flix91@gmail.com>
+Declared license: ISC
+Upstream: https://github.com/felixroos/chord-voicings
+Published gitHead: 447ee7932851562dcfc480f54f5011430174a30d
+
+The package and upstream repository do not contain a standalone license file.
+Their package.json declares ISC. This metadata and the complete published source
+package are retained in source.tar.gz. The ISC license is identified at:
+https://spdx.org/licenses/ISC.html
+No missing copyright year or separate upstream notice has been invented.

@@ -85,14 +85,14 @@ useful local work, not block research or prototypes.
 
 ### 1. Runtime and interface proof
 
-- [ ] Inventory current entry, editor, project, chat, player, visual and build
+- [x] Inventory current entry, editor, project, chat, player, visual and build
   boundaries. Record the selected pinned packages, isolation design and license
   requirements in a short implementation decision record.
-- [ ] Build a local vertical slice: real Strudel groove, editable mainImage shader,
+- [x] Build a local vertical slice: real Strudel groove, editable mainImage shader,
   real audio texture and the proposed minimal shell. Verify actual upstream code
   executes unchanged; use representative mini-notation, transforms, synths and
   samples, not only one trivial example.
-- [ ] Inspect the rendered shell at desktop and narrow widths. Resolve complexity
+- [x] Inspect the rendered shell at desktop and narrow widths. Resolve complexity
   here before expanding capability. Preserve the old experience during migration.
 
 ### 2. Music and shader execution
@@ -128,7 +128,7 @@ remains open; fixture responses are not model-quality evidence.
   assets/buffer configuration and bindings. Recover after reload without autoplay.
   Keep panel geometry local. Preserve old saved projects and links without lossy
   conversion; legacy chip exports remain available only for applicable documents.
-- [ ] Make the minimal workspace the default Create entry. Remove obsolete panels
+- [x] Make the minimal workspace the default Create entry. Remove obsolete panels
   from this default, with secondary access to preserved legacy functionality.
 - [x] Add small original examples and concise contextual help. Support keyboard
   navigation, readable errors, accessible buttons and narrow screens.

@@ -233,3 +233,43 @@ Evidence on the Mac:
 The local build bundles the worker inside the music frame artifact and includes
 its source in the build identifier. Production/default entry, native Safari,
 external-display/sustained acceptance and the distribution gate remain open.
+
+## Minimal default and preserved chip entry — 2026-09-15
+
+The normal shared build now chooses the workspace before loading an engine.
+Fresh `/` and `/create` entries show the small same-origin audiovisual UI frame;
+the legacy 2.6 MB app bundle is not requested. Its CSS and runtime cannot add
+panels to the new creative surface. The music execution frame remains opaque and
+worker-isolated. Existing `#s`, `#music` and transfer links, broadcast and listening
+routes retain their original runtime and URLs. Chip projects and Listen are in the
+secondary menu. Chip projects offers a return to Strudel/GLSL. A full navigation
+and explicit Stop dispose the departing engine; a failed save blocks navigation.
+The preserved chip workspace retains its compiler, imports and applicable exports.
+
+The same builder supplies both `dist/algorave` and the local preview. The
+[distribution record](algorave-distribution.md) records public repository visibility,
+license metadata, notices and exact source delivery. The source archive's checksums
+pass and a fresh npm ci/build from it reproduces both browser bundles exactly.
+Original MIT licensing is unchanged; bundled AGPL dependencies are disclosed with
+license text and source access in Help. No deployment was performed.
+
+Evidence:
+- npm run test:algorave-entry: default shell, no legacy bundle on new entry, real
+  playback, stopped page handoff, chip recovery, exact saved-chip bytes left intact,
+  existing consumed source links and native cartridge-note links, reload and narrow
+  layout. Reviewed default-entry.png/default-entry-narrow.png in the preview folder.
+- npm run test:algorave-source: archive contents/checksums/notices and independent
+  dependency installation plus byte-identical browser rebuild in a temporary tree.
+- Preview, workflow and editor suites pass serially on the current source. Existing
+  unified entry and preservation checks also pass. Agent responses remain fixtures.
+
+Native Safari was tested through its actual macOS UI on a fresh local origin,
+visible build `6e20fa4925dc`, in a separate tab. Play produced Safari's audio indicator;
+Cmd-Enter applied an edited original groove. A GLSL diagnostic showed green only
+when the actual frequency texture contained a nonzero signal. The screenshot was
+green during playback and fullscreen. An invalid shader displayed a line-1 syntax
+error while retaining that green output. Keyboard Undo/Run repaired the draft;
+Save and reload retained the edited music with Play restored and no audio indicator.
+The test tab and temporary server were closed. This is local native-browser evidence,
+not production verification, acoustic listening, external-display acceptance, a
+30-minute soak, or a live-provider test. Those requirements remain open.

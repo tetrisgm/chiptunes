@@ -145,6 +145,17 @@ $('examples').onchange = async () => {
   const name = $('examples').value; $('examples').value = '';
   if (name) await openProject(example(name));
 };
+async function leaveFor(path) {
+  await action(async()=>{
+    session.save();
+    await bridge.request('stop');playing=false;bridge.dispose();
+    // Change the query/path too, so this is a full navigation rather than a
+    // same-document hash change that could leave another engine alive.
+    window.top.location.assign(path);
+  });
+}
+$('chip-projects').onclick=()=>leaveFor('/create?editor=chip#music');
+$('listen').onclick=()=>leaveFor('/listen');
 $('help-open').onclick = () => $('help').showModal();
 $('help-close').onclick = () => $('help').close();
 $('save').onclick = () => save(true);

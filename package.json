@@ -23,6 +23,8 @@
     "test:music-source-controls": "node scripts/verify-music-control-descriptors.js && node scripts/verify-music-source-controls.js && node scripts/verify-music-source-controls.js --webkit && node scripts/verify-music-controls-browser.js",
     "test:unified-create": "npm run test:music-signals && node scripts/verify-unified-entry.js && node scripts/verify-unified-preservation.js && node scripts/verify-music-editor-selection.js && npm run test:music-source-controls && node scripts/verify-music-inline-rolls.js && node scripts/verify-music-preview.js && node scripts/verify-music-chart-index.js && node scripts/verify-music-pitch-chart.js && node scripts/verify-music-chat-ui.js && node scripts/verify-music-presentation.js && node scripts/verify-unified-layout.js && node scripts/verify-unified-workflow.js && npm run test:music-visual-stage && node scripts/verify-music-cycles-browser.js",
     "test:music-signals": "node scripts/verify-music-event-stream.js && node scripts/verify-music-executed-events.js && node scripts/verify-music-signal-browser.js",
+    "test:algorave-source": "node build.js && node scripts/verify-algorave-source.cjs",
+    "test:algorave-entry": "node build.js && node scripts/verify-algorave-entry.cjs",
     "test:algorave-worker": "node scripts/verify-algorave-transport.mjs && node build.js --algorave-preview && node scripts/verify-algorave-worker.cjs",
     "test:algorave-editor": "node build.js --algorave-preview && node scripts/verify-algorave-editor.cjs",
     "test:algorave-workflow": "node scripts/verify-algorave-session.mjs && node build.js --algorave-preview && node scripts/verify-algorave-workflow.cjs",

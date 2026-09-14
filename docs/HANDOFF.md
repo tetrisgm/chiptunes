@@ -3,19 +3,21 @@
 ## Current work — 2026-09-15
 
 The active direction is [simple Strudel + GLSL Create](algorave-simple-workspace-plan.md).
-Local implementation now has native language runtimes, code editors, audio-reactive
-shader buffers/recovery, staged agent Apply/Undo, draft/applied persistence,
-portable project opening/download, three original examples, and terminable music
-evaluation/query workers in a minimal shell.
-[Runtime decisions and evidence](algorave-runtime-decisions.md) record the boundaries.
-Worker recovery/clock, editor, workflow, preview and agent checks pass; provider
-responses are fixtures.
-Production Create is unchanged and no live provider call or deployment occurred.
+The shared local build now opens the minimal Strudel/GLSL workspace at `/` and
+`/create`. Chip projects, their saved data, links and export UI remain available
+through secondary navigation; switching pages disposes the previous player.
+[Runtime evidence](algorave-runtime-decisions.md) and the
+[distribution/source record](algorave-distribution.md) describe the current build.
+Entry, editor, workflow, preview, worker, source-rebuild and legacy preservation
+checks pass. Native Safari basic editing/audio-texture/fullscreen/reload checks
+passed on build `6e20fa4925dc`; full agent/external-display acceptance is incomplete.
+No live provider request or public deployment occurred.
 
-Next: finish asset handling and performance acceptance, preserve legacy navigation
-while replacing the default entry, resolve distribution obligations, and complete
-native Safari/external-display/sustained performance acceptance. Historical web
-release acceptance does not establish completion of this revised product.
+Next: finish asset handling, code-plus-output fullscreen, the 30-minute performance
+run and full Mac/provider acceptance; review the recorded distribution details.
+The existing production Safari tab showed an incompatible legacy saved-version
+warning before local testing. Its original record was not touched; investigate
+that real recovery case before claiming preservation of every historical version.
 
 2026-09-13: Instruction-only cleanup; application behavior unchanged. Earlier notes are preserved verbatim in [HANDOFF-history-2026-09-13.md](HANDOFF-history-2026-09-13.md). Read the relevant section when resuming its topic; historical release/status claims need revalidation.
 

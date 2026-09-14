@@ -1,8 +1,8 @@
 globalThis.CT_MUSIC_ASSETS_VERSION="e84045bcb7186729";
-globalThis.CT_MUSIC_EDITOR_VERSION="ffbf00c2401d";
-globalThis.CT_MUSIC_CHAT_UI_VERSION="904689e8bae1";
+globalThis.CT_MUSIC_EDITOR_VERSION="c0415fa8e2df";
+globalThis.CT_MUSIC_CHAT_UI_VERSION="be55115c5801";
 globalThis.CT_MUSIC_PREVIEW_VERSION="155578e509d1";
-globalThis.CT_MUSIC_BUILD_VERSION="64b20ba3ce16";
+globalThis.CT_MUSIC_BUILD_VERSION="b44ab939fb1c";
 /* ===== src/seed.js ===== */
 // ===== seed.js — deterministic generated-track identity. =====
 // Loads FIRST (before composer.js/audio.js) so any composer can seed itself from a URL token.
@@ -18855,7 +18855,7 @@ track("lead").instrument("p0").play("lead",{repeat:8})`
   }
   function build(){
     root=document.createElement('section');root.id='musicworkspace';root.hidden=true;root.dataset.presentation='composition';root.setAttribute('aria-label','Create music workspace');
-    root.innerHTML='<header class="mw-top"><h1>Chiptunes · Live code</h1><button data-action="new-loop">New loop</button><button data-action="toggle-chat" aria-controls="mw-panel-chat" aria-expanded="true">Hide chat</button><button data-action="listen" title="Leave composition and listen to generated songs">Listen</button></header>'+
+    root.innerHTML='<header class="mw-top"><h1>Chiptunes · Chip projects</h1><button data-action="algorave">Strudel + GLSL</button><button data-action="new-loop">New loop</button><button data-action="toggle-chat" aria-controls="mw-panel-chat" aria-expanded="true">Hide chat</button><button data-action="listen" title="Leave composition and listen to generated songs">Listen</button></header>'+
       '<div class="mw-transport"><button data-action="play">▶ Play</button><button data-action="pause">Pause</button><button data-action="stop">■ Stop</button>'+
       '<label><input type="checkbox" class="mw-loop"> Loop</label><input class="mw-seek" type="range" min="0" max="0" value="0" aria-label="Seek frame">'+
       '<button class="mw-primary" data-action="apply" title="Run code (Cmd/Ctrl+Enter)" aria-keyshortcuts="Meta+Enter Control+Enter">Run <kbd>⌘/Ctrl ↵</kbd></button><button data-action="undo">Undo revision</button><button data-action="redo">Redo revision</button></div>'+
@@ -19069,7 +19069,12 @@ track("lead").instrument("p0").play("lead",{repeat:8})`
     G.addEventListener('beforeunload',function(e){if(conflict||saveTimer||unsaved){save();e.preventDefault();e.returnValue='';}});
   }
   async function action(name){
-    if(name==='toggle-chat')setChatOpen(!chatIsOpen(),true);
+    if(name==='algorave'){
+      await save();
+      if(unsaved)throw Error('Download this chip project before switching; it could not be saved.');
+      resetAudio();location.assign('/create?mode=algorave');
+    }
+    else if(name==='toggle-chat')setChatOpen(!chatIsOpen(),true);
     else if(name==='hide-chat')setChatOpen(false,false);
     else if(name==='chat-settings')$('.mw-chat-settings').showModal();
     else if(name==='chat-settings-close')$('.mw-chat-settings').close();
@@ -45065,10 +45070,10 @@ function buildRadioUI(){
       });
       // ...or none of the above: an empty grid and your own hands.
       var scratch=mkRbtn('Start from scratch', function(){
-        if(typeof _openCreate==='function') _openCreate(true);
+        location.assign('/create?mode=algorave');
       });
       scratch.classList.add('rmood','rmood-scratch');
-      scratch.title='Open the editor with an empty song';
+      scratch.title='Open Strudel music and GLSL visuals';
       pills.appendChild(scratch);
       // HOW IT WORKS LIVES HERE, not in the left rail. The rail is desktop-only
       // (it is never built on a phone) and its copy of this button was
@@ -45325,7 +45330,7 @@ function _buildPlayerLinks(){
     else if(k==='wav'){ _downloadAudio('wav'); }
     else if(k==='try'){ _toggleGameBoyEmulator(); }
     else if(k==='how'){ _toggleHowModal(); }
-    else if(k==='create'){ _openCreate(); }
+    else if(k==='create'){ location.assign('/create?mode=algorave'); }
     else if(k==='screen'){ _toggleGameBoyScreen(); }
   });
   document.body.appendChild(wrap);
@@ -48125,7 +48130,10 @@ window._productRouteTo=function(path, opts){
     try{history.replaceState(null,'',target);}catch(e){}
   }
   if(r.mode==='gameboy'){ _startEndlessRadio(); _openGameBoyWhenReady(); return true; }
-  if(r.mode==='create'){ _createStandalone=true; _openCreate(); return true; }
+  if(r.mode==='create'){
+    if(window.CT_USES_SIMPLE_CREATE&&window.CT_USES_SIMPLE_CREATE(location)){location.reload();return true;}
+    _createStandalone=true; _openCreate(); return true;
+  }
   if(r.mode==='radio'&&_readSharedDoc()){_createStandalone=true;_openCreate();return true;}
   if(r.mode==='radio'){ _startEndlessRadio(); if(closedWorkspace&&Audio.playScore)Audio.playScore(); return true; }
   if(r.mode==='watch'){ enterWatchMode({noRoute:true}); return true; }

@@ -95,7 +95,9 @@ const ORDER = [
 
 const shellPath = path.join(ROOT, 'src', 'shell.html');
 if (!fs.existsSync(shellPath)) die('missing src/shell.html (the HTML template with the __SCRIPTS__ marker)');
-const shell = fs.readFileSync(shellPath, 'utf8').replace('</style>',
+const {usesSimple}=require('./src/create-entry.js');
+const entryHash=crypto.createHash('sha256').update(fs.readFileSync(path.join(ROOT,'src/create-entry.js'))).digest('hex').slice(0,12);
+const shell = fs.readFileSync(shellPath, 'utf8').replace('<head>',()=>'<head><script>globalThis.CT_SIMPLE_CREATE=('+usesSimple.toString()+')(location);</script>').replace('</style>',
   fs.readFileSync(path.join(ROOT, 'src/music-workspace.css'), 'utf8') +
   fs.readFileSync(path.join(ROOT, 'src/music-chat-ui.css'), 'utf8') + '\n</style>');
 if (!shell.includes('__SCRIPTS__')) die('src/shell.html has no __SCRIPTS__ marker');
@@ -168,7 +170,7 @@ fs.copyFileSync(path.join(ROOT,'src/music-chat-ui.NOTICE.md'),path.join(DIST,'li
 // compiled once, and `defer` lets the page draw first.
 const bundleHash = crypto.createHash('sha256').update(js).digest('hex').slice(0, 12);
 const bundleName = 'app.' + bundleHash + '.js';
-const html = shell.replace('__SCRIPTS__', () => '<script src="' + bundleName + '" defer></script>');
+const html = shell.replace('__SCRIPTS__', () => '<script src="/lib/create-entry.js?v='+entryHash+'" data-legacy="/'+bundleName+'" defer></script>');
 // Prove the page's script survived templating -- the corruption this guards
 // against produced a perfectly plausible artifact that simply did not run.
 {
@@ -179,7 +181,7 @@ const html = shell.replace('__SCRIPTS__', () => '<script src="' + bundleName + '
     try { new Function(m[1]); }
     catch (e) { die('emitted inline script block ' + n + ' does not parse: ' + e.message); }
   }
-  if (!html.includes('src="' + bundleName + '"')) die('the bundle tag was altered while being templated into the shell');
+  if (!html.includes('data-legacy="/' + bundleName + '"')) die('the bundle tag was altered while being templated into the shell');
 }
 // clear yesterday's bundles so dist/ never accumulates them
 for (const f of fs.readdirSync(DIST)) if (/^app\.[0-9a-f]+\.js$/.test(f) && f !== bundleName) fs.unlinkSync(path.join(DIST, f));
@@ -202,6 +204,7 @@ let pageHtml;
     throw new Error('build: the orientation tool is missing from the descriptors');
   const registrar = `<script>
 (function(G){
+  if(G.CT_SIMPLE_CREATE)return;
   var D=${JSON.stringify(descriptors)};
   // The introduction is the one answer that must not wait for anything. It is
   // the tool an agent calls FIRST, on a cold page, and "still loading" is a
@@ -259,6 +262,8 @@ let pageHtml;
     throw new Error('build: matched a <body> inside the stylesheet, not the document body');
   pageHtml = html.replace(bodyTag, found[0] + '\n' + registrar);
 }
+fs.copyFileSync(path.join(ROOT,'src/create-entry.js'),path.join(DIST,'lib/create-entry.js'));
+require('./scripts/build-algorave-preview.cjs').build({out:path.join(DIST,'algorave')});
 fs.writeFileSync(path.join(DIST, 'index.html'), pageHtml);
 
 // /radio is the public “listen anywhere” page.

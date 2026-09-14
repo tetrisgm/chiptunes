@@ -1065,7 +1065,7 @@
   }
   function build(){
     root=document.createElement('section');root.id='musicworkspace';root.hidden=true;root.dataset.presentation='composition';root.setAttribute('aria-label','Create music workspace');
-    root.innerHTML='<header class="mw-top"><h1>Chiptunes · Live code</h1><button data-action="new-loop">New loop</button><button data-action="toggle-chat" aria-controls="mw-panel-chat" aria-expanded="true">Hide chat</button><button data-action="listen" title="Leave composition and listen to generated songs">Listen</button></header>'+
+    root.innerHTML='<header class="mw-top"><h1>Chiptunes · Chip projects</h1><button data-action="algorave">Strudel + GLSL</button><button data-action="new-loop">New loop</button><button data-action="toggle-chat" aria-controls="mw-panel-chat" aria-expanded="true">Hide chat</button><button data-action="listen" title="Leave composition and listen to generated songs">Listen</button></header>'+
       '<div class="mw-transport"><button data-action="play">▶ Play</button><button data-action="pause">Pause</button><button data-action="stop">■ Stop</button>'+
       '<label><input type="checkbox" class="mw-loop"> Loop</label><input class="mw-seek" type="range" min="0" max="0" value="0" aria-label="Seek frame">'+
       '<button class="mw-primary" data-action="apply" title="Run code (Cmd/Ctrl+Enter)" aria-keyshortcuts="Meta+Enter Control+Enter">Run <kbd>⌘/Ctrl ↵</kbd></button><button data-action="undo">Undo revision</button><button data-action="redo">Redo revision</button></div>'+
@@ -1279,7 +1279,12 @@
     G.addEventListener('beforeunload',function(e){if(conflict||saveTimer||unsaved){save();e.preventDefault();e.returnValue='';}});
   }
   async function action(name){
-    if(name==='toggle-chat')setChatOpen(!chatIsOpen(),true);
+    if(name==='algorave'){
+      await save();
+      if(unsaved)throw Error('Download this chip project before switching; it could not be saved.');
+      resetAudio();location.assign('/create?mode=algorave');
+    }
+    else if(name==='toggle-chat')setChatOpen(!chatIsOpen(),true);
     else if(name==='hide-chat')setChatOpen(false,false);
     else if(name==='chat-settings')$('.mw-chat-settings').showModal();
     else if(name==='chat-settings-close')$('.mw-chat-settings').close();

@@ -2132,10 +2132,10 @@ function buildRadioUI(){
       });
       // ...or none of the above: an empty grid and your own hands.
       var scratch=mkRbtn('Start from scratch', function(){
-        if(typeof _openCreate==='function') _openCreate(true);
+        location.assign('/create?mode=algorave');
       });
       scratch.classList.add('rmood','rmood-scratch');
-      scratch.title='Open the editor with an empty song';
+      scratch.title='Open Strudel music and GLSL visuals';
       pills.appendChild(scratch);
       // HOW IT WORKS LIVES HERE, not in the left rail. The rail is desktop-only
       // (it is never built on a phone) and its copy of this button was
@@ -2392,7 +2392,7 @@ function _buildPlayerLinks(){
     else if(k==='wav'){ _downloadAudio('wav'); }
     else if(k==='try'){ _toggleGameBoyEmulator(); }
     else if(k==='how'){ _toggleHowModal(); }
-    else if(k==='create'){ _openCreate(); }
+    else if(k==='create'){ location.assign('/create?mode=algorave'); }
     else if(k==='screen'){ _toggleGameBoyScreen(); }
   });
   document.body.appendChild(wrap);
@@ -5192,7 +5192,10 @@ window._productRouteTo=function(path, opts){
     try{history.replaceState(null,'',target);}catch(e){}
   }
   if(r.mode==='gameboy'){ _startEndlessRadio(); _openGameBoyWhenReady(); return true; }
-  if(r.mode==='create'){ _createStandalone=true; _openCreate(); return true; }
+  if(r.mode==='create'){
+    if(window.CT_USES_SIMPLE_CREATE&&window.CT_USES_SIMPLE_CREATE(location)){location.reload();return true;}
+    _createStandalone=true; _openCreate(); return true;
+  }
   if(r.mode==='radio'&&_readSharedDoc()){_createStandalone=true;_openCreate();return true;}
   if(r.mode==='radio'){ _startEndlessRadio(); if(closedWorkspace&&Audio.playScore)Audio.playScore(); return true; }
   if(r.mode==='watch'){ enterWatchMode({noRoute:true}); return true; }
