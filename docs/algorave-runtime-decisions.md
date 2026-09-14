@@ -392,3 +392,32 @@ Receipts under `.algorave-preview/provider-<provider>.json` retain contexts,
 proposals and candidates for subsequent local runtime/UI acceptance. A captured
 reply is explicitly not compilation, musical quality or browser acceptance.
 Live calls remain unauthorized until the owner approves this bounded test.
+
+### Sample preparation implementation
+
+`src/algorave/sample-assets.mjs` now supplies bounded sample fetching, immutable
+content storage and WAV preflight. It is not yet connected to the music bridge,
+sample-bank activation or persistence, so the app still exposes the original
+three-sample bank. The running soak artifact is unchanged.
+
+The initial remote policy accepts public HTTPS raw.githubusercontent.com files
+with no credentials/query/fragment; requests omit credentials and referrers,
+require CORS, reject redirects and stop after ten seconds. Both declared and
+actual streamed bytes are bounded at 4 MiB. The content store uses SHA-256 IDs,
+deduplicates identical bytes, returns copies and caps encoded residency at 32
+files/16 MiB. This is not a decoded-audio memory claim.
+
+WAV preflight accepts mono/stereo uncompressed PCM (8/16/24/32-bit) or float32,
+8–96 kHz input and at most 30 seconds. It validates chunk bounds/alignment, RIFF
+length, rate/block consistency and the single data chunk before decoding. The
+decoded-memory reservation accounts for resampling to the supplied AudioContext
+rate (8–192 kHz), rounding frames upward. Compressed, extensible and RF64 formats
+remain unsupported by this bounded path.
+
+`node --test scripts/verify-algorave-sample-assets.mjs`: seven groups pass for
+malformed/oversized WAVs, resampling, URL policy, credential/referrer omission,
+stream/declared limits, cancellation/stalled headers and body, known SHA-256,
+concurrent deduplication, mutation isolation and byte/count capacity. These tests
+use injected responses; no external sample was downloaded. Remaining integration
+must enforce cumulative decoded residency, keep worker isolation, use immutable
+bank mappings and persist/export content alongside its source references.
