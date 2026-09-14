@@ -421,3 +421,26 @@ concurrent deduplication, mutation isolation and byte/count capacity. These test
 use injected responses; no external sample was downloaded. Remaining integration
 must enforce cumulative decoded residency, keep worker isolation, use immutable
 bank mappings and persist/export content alongside its source references.
+
+### Immutable audio sample-bank preparation
+
+`src/algorave/sample-bank.mjs` prepares content-identified sample lists under
+immutable internal names. A bank resolves logical sound names (including bank
+prefixes) to its own registered names while preserving sample indices and other
+controls. Preparing a different `bd` list cannot overwrite the old bank's `bd`.
+The caller must keep using the logical name for musical-event signals.
+
+One manager belongs to one audio frame. Defaults cap reservations at 32 assets,
+64 list variations and 64 MiB of decoded PCM, including the target sample rate.
+Content is hash-checked before loading. Identical lists/content share registrations
+and buffers; failed decode/registration attempts retain their reservations and
+are not retried silently. Closing revokes URLs and prevents late registration;
+it does not claim to clear upstream's private decoded cache. Reclaim that cache
+by disposing the audio frame, not by resetting the manager in a live frame.
+
+The combined asset/bank Node checks pass 13 groups, covering bank isolation,
+indices/prefixes, concurrent deduplication, caller mutation during preparation,
+quota failures, content mismatch, failed-attempt accounting, unexpected decode
+dimensions and closing during a pending decode. Audio loading/registration are
+injected in these checks. Actual upstream-browser integration and project asset
+persistence remain pending; this module is not yet wired into the playing build.
