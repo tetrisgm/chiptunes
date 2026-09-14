@@ -5,12 +5,14 @@
 The active direction is [simple Strudel + GLSL Create](algorave-simple-workspace-plan.md).
 Local implementation now has native language runtimes, code editors, audio-reactive
 shader buffers/recovery, staged agent Apply/Undo, draft/applied persistence,
-portable project opening/download, and three original examples in a minimal shell.
+portable project opening/download, three original examples, and terminable music
+evaluation/query workers in a minimal shell.
 [Runtime decisions and evidence](algorave-runtime-decisions.md) record the boundaries.
-The editor, workflow and preview test commands pass; provider responses are fixtures.
+Worker recovery/clock, editor, workflow, preview and agent checks pass; provider
+responses are fixtures.
 Production Create is unchanged and no live provider call or deployment occurred.
 
-Next: finish execution-time recovery and asset handling, preserve legacy navigation
+Next: finish asset handling and performance acceptance, preserve legacy navigation
 while replacing the default entry, resolve distribution obligations, and complete
 native Safari/external-display/sustained performance acceptance. Historical web
 release acceptance does not establish completion of this revised product.

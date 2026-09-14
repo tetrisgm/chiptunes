@@ -190,3 +190,46 @@ The editor test caught and corrected shortcut precedence and malformed example
 option markup. Reviewed screenshots use the running renderer after layout settles.
 npm run test:algorave-workflow and npm run test:algorave-preview also pass with the
 code editors. Native Safari, live providers and deployment remain unperformed.
+
+## Terminable pattern execution — 2026-09-15
+
+User music now evaluates in a dedicated worker per candidate, using the pinned
+upstream core REPL, transpiler, mini-notation and tonal functions. Pattern closures
+stay in that worker. A failed candidate cannot replace or hang the active pattern.
+Only bounded serializable onset/control records cross a private MessageChannel to
+the opaque audio frame. Both ends check controls; arbitrary audio callbacks,
+stateful triggers, custom audio nodes and executable control values are rejected.
+Normal Strudel pattern transformations still execute upstream, without translation
+into the legacy language. The agent guide records the boundary. Samples remain
+the bundled original drums; there is no external network or parent storage access.
+
+The audio frame uses upstream createClock and superdough with one AudioContext.
+An adapter queries contiguous cycle windows asynchronously, schedules whole-event
+onsets and note durations, preserves cycle position during live replacement, and
+anchors tempo windows using tick multiplication to avoid accumulating rounding.
+Waveform/spectrum and kick deadlines still come from actual audio output. Cycle
+signals follow the audible scheduling timeline with the existing output timestamp
+estimate; this does not establish acoustic/display latency acceptance.
+
+An external deadline terminates evaluation after three seconds or a stalled query
+after one second. Candidate errors retain previous playback. A later lazy query
+failure stops transport, reports the error, preserves the draft and permits Run
+with repaired code. The stress test exposed a re-entrant clock-stop bug: resetting
+upstream phase within its catch-up callback could loop indefinitely. Queue draining
+and overload failure now occur after that callback returns. A dedicated regression
+checks this and rejects stale worker failures after a new playback generation.
+This protects the UI from music JavaScript loops; it does not claim preemption of
+GPU shaders or hard real-time/resource isolation against arbitrary hostile code.
+
+Evidence on the Mac:
+- npm run test:algorave-worker: actual isolated workers and audio, infinite loop,
+  unresolved async evaluation and recursion with prior audio intact, native onset
+  and sustained-note expectations, lazy-loop stop and repaired Run; deterministic
+  clock tests cover 1000 windows, tempo/live swaps, missed windows and overload.
+- Preview, workflow and editor browser checks cover existing audio/GLSL behavior,
+  paired Apply/Undo, examples, imports and persistence through the worker adapter.
+- Agent/legacy gateway checks remain fixture-only with no paid provider requests.
+
+The local build bundles the worker inside the music frame artifact and includes
+its source in the build identifier. Production/default entry, native Safari,
+external-display/sustained acceptance and the distribution gate remain open.

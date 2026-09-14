@@ -18,6 +18,7 @@ const root=path.resolve(__dirname,'../.algorave-preview');
     const original=await doc();assert(await page.locator('#music .cm-content span').count()>3,'Strudel syntax is highlighted');
     await music.click();await music.press('ControlOrMeta+Enter');await page.waitForFunction(()=>algoravePreview.playing);
     await music.press('Tab');assert.equal(await page.evaluate(()=>algoravePreview.editors.music.hasFocus),false,'Tab is not trapped');
+    await page.waitForFunction(()=>Number.isSafeInteger(algoravePreview.signal.epoch)&&algoravePreview.signal.playing);
     const epoch=await page.evaluate(()=>algoravePreview.signal.epoch);
     await page.locator('#mode').selectOption('visuals');
     await visual.fill('void mainImage(out vec4 c,in vec2 p){c=vec4(1.)}');await visual.press('ControlOrMeta+Enter');

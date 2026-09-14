@@ -206,7 +206,7 @@ if (!response.ok) throw Error('Music engine could not load.');
 const script = await response.text();
 frame.srcdoc = `<!doctype html><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' blob:; worker-src blob:; connect-src blob:; img-src 'none'; media-src blob:; style-src 'unsafe-inline'"><script>${script.replace(/<\/script/gi,'<\\/script')}<\/script>`;
 await new Promise(resolve => { frame.onload = resolve; document.body.append(frame); });
-bridge = new MusicBridge(frame, next => { signal = next; signals.receive(next); });
+bridge = new MusicBridge(frame, next => { signal = next; signals.receive(next); }, error => { playing=false; $('play').textContent='Play'; message(error); });
 await bridge.ready; lock(false);
 status.textContent = session.recoveryError || 'Ready · ⌘/Ctrl Enter to run'; $('build').textContent = BUILD_ID;
 function draw(now) {
