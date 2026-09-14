@@ -164,7 +164,19 @@ $('download').onclick = () => {
   const link = document.createElement('a'); link.href = url; link.download = 'chiptunes-algorave.json'; link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 };
-$('fullscreen').onclick = () => $('output').requestFullscreen().catch(message);
+async function fullscreen(code) {
+  const target = code ? document.documentElement : $('output');
+  try {
+    if (!target.requestFullscreen) throw Error('Fullscreen is unavailable in this browser.');
+    $('menu').open = false;
+    // Keep the performance view focused on the editors and their output.
+    $('agent').hidden = true; $('agent-toggle').setAttribute('aria-expanded','false');
+    await target.requestFullscreen();
+    if (code) (focus === 'visual' ? visual : music).focus();
+  } catch (error) { message(error); }
+}
+$('fullscreen').onclick = () => fullscreen(false);
+$('fullscreen-code').onclick = () => fullscreen(true);
 $('undo').onclick = () => action(async () => { await session.undo(); pendingProposal = null; $('proposal').hidden = true; status.textContent = 'Undone'; });
 $('agent-undo').onclick = () => $('undo').onclick();
 $('apply').onclick = () => action(async () => {

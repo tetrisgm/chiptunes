@@ -24819,7 +24819,7 @@ var theme2 = EditorView.theme({
   "&": { height: "100%", fontSize: "14px", backgroundColor: "transparent", color: "#e0e4f0" },
   ".cm-scroller": { overflow: "auto", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", lineHeight: "1.65" },
   ".cm-content": { caretColor: "#c3b9ff", padding: "8px 0" },
-  ".cm-gutters": { backgroundColor: "transparent", border: "none", color: "#656c80" },
+  ".cm-gutters": { backgroundColor: "#101116", border: "none", color: "#656c80" },
   ".cm-lineNumbers .cm-gutterElement": { padding: "0 12px 0 0", minWidth: "24px" },
   ".cm-activeLine": { backgroundColor: "#ffffff04" },
   "&.cm-focused": { outline: "none" },
@@ -25778,7 +25778,21 @@ $("download").onclick = () => {
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1e3);
 };
-$("fullscreen").onclick = () => $("output").requestFullscreen().catch(message);
+async function fullscreen(code2) {
+  const target = code2 ? document.documentElement : $("output");
+  try {
+    if (!target.requestFullscreen) throw Error("Fullscreen is unavailable in this browser.");
+    $("menu").open = false;
+    $("agent").hidden = true;
+    $("agent-toggle").setAttribute("aria-expanded", "false");
+    await target.requestFullscreen();
+    if (code2) (focus === "visual" ? visual : music).focus();
+  } catch (error) {
+    message(error);
+  }
+}
+$("fullscreen").onclick = () => fullscreen(false);
+$("fullscreen-code").onclick = () => fullscreen(true);
 $("undo").onclick = () => action(async () => {
   await session.undo();
   pendingProposal = null;
@@ -25886,7 +25900,7 @@ bridge = new MusicBridge(frame, (next) => {
 await bridge.ready;
 lock(false);
 status.textContent = session.recoveryError || "Ready \xB7 \u2318/Ctrl Enter to run";
-$("build").textContent = "Algorave 6e20fa4925dc";
+$("build").textContent = "Algorave 869b21f502ab";
 function draw(now) {
   shader2.render({ time: now / 1e3, delta: last2 ? (now - last2) / 1e3 : 0, ...signals.at(performance.timeOrigin + now) });
   last2 = now;

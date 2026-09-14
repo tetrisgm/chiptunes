@@ -13,8 +13,10 @@ checks pass. Native Safari basic editing/audio-texture/fullscreen/reload checks
 passed on build `6e20fa4925dc`; full agent/external-display acceptance is incomplete.
 No live provider request or public deployment occurred.
 
-Next: finish asset handling, code-plus-output fullscreen, the 30-minute performance
-run and full Mac/provider acceptance; review the recorded distribution details.
+Code-plus-output fullscreen now works in all layouts; native Safari and Chromium
+checks passed on build `869b21f502ab`, including editing and Stop inside fullscreen.
+
+Next: finish asset handling, the 30-minute performance run and full Mac/provider acceptance; review the recorded distribution details.
 The existing production Safari tab showed an incompatible legacy saved-version
 warning before local testing. Its original record was not touched; investigate
 that real recovery case before claiming preservation of every historical version.

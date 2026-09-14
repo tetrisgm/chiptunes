@@ -273,3 +273,27 @@ Save and reload retained the edited music with Play restored and no audio indica
 The test tab and temporary server were closed. This is local native-browser evidence,
 not production verification, acoustic listening, external-display acceptance, a
 30-minute soak, or a live-provider test. Those requirements remain open.
+
+## Code-plus-output fullscreen — 2026-09-15
+
+The secondary menu now offers Fullscreen code + visuals alongside Fullscreen
+visuals. The code view retains the chosen Music/Visuals/Both layout, code editing,
+Run/Stop and error status. Entering closes the menu and agent drawer and focuses
+the selected editor. It does not activate a project, replace an engine or restart
+playback. Leaving fullscreen returns to the existing layout. A missing/rejected
+Fullscreen API is reported in the normal status area.
+
+npm run test:algorave-fullscreen passes through the actual shared-build iframe:
+all three code layouts, unchanged source on entry, keyboard shader evaluation,
+visuals-only fullscreen, an unchanged audio epoch, exit and Stop. The editor suite
+also passes. A screenshot revealed text showing through the transparent line-number
+gutter on horizontally scrolled lines; the gutter now has the editor's opaque dark
+background. The corrected Both layout was reviewed in fullscreen-code.png.
+
+Native Safari on the Mac, local build `869b21f502ab`: entered code fullscreen while
+playing, switched to Both without leaving fullscreen, edited and ran a shader with
+Cmd-Enter, and observed nonzero audio texture data as green output. Stop remained
+available in fullscreen; the audio-texture output settled to black, and Escape
+returned to the same editors with Play available. The temporary tab/server were
+closed. This is not an external-display, production or 30-minute performance test;
+those acceptance requirements remain open.

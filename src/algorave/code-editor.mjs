@@ -35,7 +35,7 @@ const theme = EditorView.theme({
   '&':{height:'100%',fontSize:'14px',backgroundColor:'transparent',color:'#e0e4f0'},
   '.cm-scroller':{overflow:'auto',fontFamily:'ui-monospace, SFMono-Regular, Menlo, monospace',lineHeight:'1.65'},
   '.cm-content':{caretColor:'#c3b9ff',padding:'8px 0'},
-  '.cm-gutters':{backgroundColor:'transparent',border:'none',color:'#656c80'},
+  '.cm-gutters':{backgroundColor:'#101116',border:'none',color:'#656c80'},
   '.cm-lineNumbers .cm-gutterElement':{padding:'0 12px 0 0',minWidth:'24px'},
   '.cm-activeLine':{backgroundColor:'#ffffff04'},
   '&.cm-focused':{outline:'none'},
