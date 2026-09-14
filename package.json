@@ -25,6 +25,7 @@
     "test:music-signals": "node scripts/verify-music-event-stream.js && node scripts/verify-music-executed-events.js && node scripts/verify-music-signal-browser.js",
     "test:algorave-fullscreen": "node build.js && node scripts/verify-algorave-fullscreen.cjs",
     "test:algorave-source": "node build.js && node scripts/verify-algorave-source.cjs",
+    "test:algorave-soak": "node build.js && node scripts/verify-algorave-soak.cjs",
     "test:algorave-entry": "node build.js && node scripts/verify-algorave-entry.cjs",
     "test:algorave-worker": "node scripts/verify-algorave-transport.mjs && node build.js --algorave-preview && node scripts/verify-algorave-worker.cjs",
     "test:algorave-editor": "node build.js --algorave-preview && node scripts/verify-algorave-editor.cjs",

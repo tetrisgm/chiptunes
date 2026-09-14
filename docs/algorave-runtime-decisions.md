@@ -325,3 +325,24 @@ saved bytes, alongside existing Strudel/chip handoff and cartridge-link checks.
 All nine transfer protocol checks also pass. The production tab's original
 record remains unchanged; this local fix has not been deployed or tested against
 that private record's source in the new build.
+
+## Sustained performance harness — 2026-09-15
+
+`npm run test:algorave-soak` builds the shared artifact and runs 1800 seconds of
+local Chromium playback. Every 30 seconds it changes Strudel tempo/notes and GLSL
+through the real editors and Run button, then changes layout. It records scheduled
+kick gaps, audio-signal delivery gaps, analyser silence, transport epochs, bounded
+Undo history, worker counts, live WebGL program/texture counts, blob URL counts
+and main-frame heap samples. It stops and closes its browser/server on completion
+or failure. Run serially with other browser/audio suites.
+
+The receipt is `.algorave-preview/soak-receipt.json`; it records elapsed time,
+build identity, samples and terminal status. A 30-second harness check passed
+(57 kicks, maximum scheduled kick gap 0.536 seconds, one worker, approximately
+7 MiB main-frame heap). Its initial test-only `GLSL visuals` locator was corrected
+to the actual `GLSL visual` label before this pass. A short run is explicitly
+marked as a harness check and does not establish 30-minute acceptance.
+
+These measurements cannot prove acoustic glitch freedom, whole-browser/GPU heap
+usage, native Safari performance, or external-display behavior. The fixed original
+drum bank is exercised; external sample loading remains separate work.
