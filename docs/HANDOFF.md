@@ -1,5 +1,13 @@
 # chiptunes handoff
 
+## Current work — 2026-09-14
+
+Owner rejected the current Create experience as too complex and specified actual
+Strudel music plus Shadertoy-style GLSL visuals, with one agent able to edit either
+or both. [The new implementation plan](algorave-simple-workspace-plan.md) is the
+active direction. Plan recorded; implementation has not started. Earlier release
+acceptance below does not establish completion of this revised product.
+
 2026-09-13: Instruction-only cleanup; application behavior unchanged. Earlier notes are preserved verbatim in [HANDOFF-history-2026-09-13.md](HANDOFF-history-2026-09-13.md). Read the relevant section when resuming its topic; historical release/status claims need revalidation.
 
 ## Recent recorded checkpoints
