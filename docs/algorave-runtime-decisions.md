@@ -372,3 +372,23 @@ portable assets need content identity and a reload/export policy as well.
 
 These are inspected implementation constraints, not completed external-sample
 support. The active soak continues against the unchanged fixed-bank artifact.
+
+### Prepared live-provider capture
+
+`node scripts/verify-algorave-provider.mjs --plan` prints the exact three prompts,
+effective model names and limits without sending requests. `--self-test` passes
+both real provider adapters and the shared handler with six fixture responses,
+checking exact document targets and required edits. These are not live calls.
+
+After owner authorization, `--live openai` or `--live anthropic` captures three
+requests for that provider, using the original bundled groove and each preceding
+data-validated candidate. It uses inherited credentials only, no tools, no private
+project/chat, no retries, at most 4096 output tokens per request and a 30-second
+handler deadline. The prepared models are `gpt-5.4-mini-2026-03-17` and
+`claude-sonnet-4-6`. An existing live receipt prevents accidental repeat charges;
+a failed request records the partial attempt and stops.
+
+Receipts under `.algorave-preview/provider-<provider>.json` retain contexts,
+proposals and candidates for subsequent local runtime/UI acceptance. A captured
+reply is explicitly not compilation, musical quality or browser acceptance.
+Live calls remain unauthorized until the owner approves this bounded test.
