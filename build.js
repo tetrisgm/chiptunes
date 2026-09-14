@@ -1,5 +1,10 @@
 // Build the one shared artifact used by web, desktop, and broadcast. The fixed
 // game roster is concatenated directly; there is no runtime pack platform.
+// Explicit local proof; never enters the release dist directory.
+if (process.argv.includes('--algorave-preview')) {
+  require('./scripts/build-algorave-preview.cjs').build();
+  return;
+}
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');

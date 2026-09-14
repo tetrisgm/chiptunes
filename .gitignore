@@ -54,3 +54,6 @@ dist/_paneltest.html
 .shots/
 .vercel
 .env*
+
+# Local algorave runtime proof; excluded from every release artifact.
+.algorave-preview/
