@@ -346,3 +346,29 @@ marked as a harness check and does not establish 30-minute acceptance.
 These measurements cannot prove acoustic glitch freedom, whole-browser/GPU heap
 usage, native Safari performance, or external-display behavior. The fixed original
 drum bank is exercised; external sample loading remains separate work.
+
+### External-sample integration constraints
+
+Checked the [upstream sample contract](https://strudel.cc/learn/samples/) and
+the pinned `node_modules/superdough/sampler.mjs` implementation. `samples` accepts
+named URL maps, sample lists and a base URL; it can also fetch a JSON map. The
+current worker does not expose this API. Merely exposing it in the audio frame
+would not preserve the existing execution/network boundary.
+
+The pinned sampler's module-private `loadCache` and `bufferCache` retain promises
+and decoded buffers by URL without an eviction API. Revoking a blob URL does not
+release that decoded buffer. A per-load byte limit alone therefore cannot bound
+a long performance. Integration needs a cumulative resident-byte/count budget,
+content reuse, and a clear capacity error that preserves playing audio. Include
+failed attempts in the accounting where the upstream cache retains them.
+
+`registerSound` replaces a global name in `soundMap`. Preparing a new bank under
+existing names would change the previous pattern before Apply, and queued slices
+can still belong to a retired pattern client. Use immutable internal bank names
+and resolve each event against its own validated client's mapping; retain the
+logical sound name for kick/event signals. Validate/download/decode before
+activation. Saved source alone preserves URL text, not the original sample bytes;
+portable assets need content identity and a reload/export policy as well.
+
+These are inspected implementation constraints, not completed external-sample
+support. The active soak continues against the unchanged fixed-bank artifact.
