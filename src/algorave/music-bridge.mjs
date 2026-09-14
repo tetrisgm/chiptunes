@@ -16,7 +16,7 @@ export class MusicBridge {
         if (data.type === 'reply' && this.pending.has(data.id)) {
           const pending = this.pending.get(data.id);
           this.pending.delete(data.id); clearTimeout(pending.timer);
-          data.error ? pending.reject(Error(String(data.error).slice(0, 2000))) : pending.resolve({ playing: data.playing === true });
+          data.error ? pending.reject(Error(String(data.error).slice(0, 2000))) : pending.resolve({ playing: data.playing === true, ...(Number.isSafeInteger(data.token) ? { token: data.token } : {}) });
         }
         if (data.type === 'signal' && Number.isSafeInteger(data.epoch) && Number.isFinite(data.observedAt) && Number.isFinite(data.time) && Number.isFinite(data.cycle)
           && Number.isFinite(data.cps) && Number.isFinite(data.sampleRate)
@@ -30,13 +30,13 @@ export class MusicBridge {
     });
     frame.contentWindow.postMessage({ type: 'connect' }, '*', [channel.port2]);
   }
-  async request(type, source) {
+  async request(type, source, options = {}) {
     await this.ready;
     const id = ++this.nextId;
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => { this.pending.delete(id); reject(Error('Music evaluation timed out. Stop and reload the engine.')); }, 15000);
       this.pending.set(id, { resolve, reject, timer });
-      this.port.postMessage({ id, type, source });
+      this.port.postMessage({ id, type, source, token: options.token, play: options.play === true });
     });
   }
   dispose() {

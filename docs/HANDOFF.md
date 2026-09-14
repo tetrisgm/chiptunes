@@ -1,6 +1,6 @@
 # chiptunes handoff
 
-## Current work — 2026-09-14
+## Current work — 2026-09-15
 
 Owner rejected the current Create experience as too complex and specified actual
 Strudel music plus Shadertoy-style GLSL visuals, with one agent able to edit either
@@ -12,9 +12,12 @@ evidence and remaining work. Run `npm run test:algorave-preview`; production Cre
 is unchanged. Runtime now includes original drums, scheduled kick signals, mouse
 input, resize retention and forced-context-loss recovery. The shared gateway now
 validates typed Strudel/GLSL proposals; both provider adapters have fixture coverage.
-Next: connect this contract to client Apply/Undo and persistence, finish execution
-timeout recovery/external assets, then replace the default entry and perform native
-acceptance. Earlier release acceptance below does not
+The preview now has collapsed agent chat, staged music/GLSL Apply, exact source
+Undo, separate draft/applied persistence, named shader passes and a small project
+menu. `npm run test:algorave-workflow` passes the real UI/gateway flow with fixtures;
+no live provider call. Next: finish execution-time recovery and asset handling,
+upgrade the basic editor, preserve legacy navigation while replacing the default
+entry, resolve distribution obligations, and perform native/sustained acceptance. Earlier release acceptance below does not
 establish completion of this revised product.
 
 2026-09-13: Instruction-only cleanup; application behavior unchanged. Earlier notes are preserved verbatim in [HANDOFF-history-2026-09-13.md](HANDOFF-history-2026-09-13.md). Read the relevant section when resuming its topic; historical release/status claims need revalidation.

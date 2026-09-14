@@ -110,3 +110,51 @@ yet connected to the preview UI; client Apply/Undo and persistence remain next.
 
 Checks: npm run test:algorave-preview; npm run test:algorave-agent (new audiovisual
 contract/provider fixtures plus all 35 legacy chat groups); gateway suite 78/78.
+
+## Client Apply/Undo and persistence — 2026-09-15
+
+The preview now connects the typed gateway contract to a collapsed Agent drawer.
+It supports both providers, optional access unlock, bounded/cancellable responses,
+and review-before-Apply. Music-only, visual-only and paired proposals use the
+same session model. Named shader passes and channel routing are editable behind
+the visual editor's controls. Save/download, Undo and fullscreen visuals are in
+one secondary menu; Undo is also available beside an agent proposal.
+
+Music candidates use an upstream staging REPL without starting its scheduler.
+The primary REPL remains the only scheduled player and uses the same AudioContext.
+Candidate tempo, labels and ordinary pattern expressions are evaluated before
+activation; representative pattern windows are queried. Prepared pattern closures
+stay inside the opaque music frame. A failed candidate that calls setcpm before
+an undefined function leaves the actual playing tempo/epoch unchanged. GLSL and
+music are both prepared before paired Apply. Visual activation is restored to the
+previous source if the subsequent music commit fails. These checks cover ordinary
+Strudel proposals; arbitrary global side effects, unbounded code and adversarial
+lazy pattern callbacks still need stronger execution control. No claim that a
+staging REPL alone is a complete sandbox or a preemptive execution-time limit.
+
+ProjectSession tracks draft and applied projects separately, with a bounded Undo
+history. ct-algorave-project-v1 is separate from legacy project storage. Reload
+restores unfinished code plus the last applied shader and never starts music.
+Malformed saved data is kept; automatic saving refuses to overwrite it. Saving
+also compares the last read value to detect another tab's update. Explicit Save
+can replace an unreadable record; download exports the current portable project.
+Imported files/legacy navigation and full corresponding-source delivery are still
+outstanding. Chat credentials/history are not written into the project record.
+
+Checks passed on the Mac:
+
+- npm run test:algorave-workflow: session recovery/Undo, failed activation,
+  corrupt/cross-tab preservation, cancelled/stalled/oversize agent responses;
+  real browser and gateway handler with six fixture requests for music, visuals,
+  paired edits, invalid candidates and stale proposals; unchanged live clock;
+  rendered pixels after rejection/layout changes; exact save/reload without autoplay.
+- npm run test:algorave-preview: existing real audio, drums/signals, shader pixels,
+  resize/context recovery, pointer, narrow layout and Stop checks remain passing.
+
+The first workflow screenshot captured a blank output around a layout change.
+The final test waits for actual nonzero pixels from the normal animation loop
+before screenshotting (without forcing a render); the reviewed output is visible.
+The desktop footer overflow found during review is corrected. This is still the
+basic editor shell; CodeMirror highlighting, richer error feedback and final
+simplicity/native Safari acceptance are not complete. No live provider request
+or deployment occurred.

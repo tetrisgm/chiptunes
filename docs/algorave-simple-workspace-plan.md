@@ -109,14 +109,18 @@ useful local work, not block research or prototypes.
 
 ### 3. Agent that knows both languages
 
-- [ ] Update client/server schemas, context and proposal validation for either
+- [x] Update client/server schemas, context and proposal validation for either
   document or coordinated changes. Bind replies to exact base revisions.
-- [ ] Supply version-matched language guidance, concise runnable examples and
+- [x] Supply version-matched language guidance, concise runnable examples and
   diagnostics for Strudel and GLSL, including our audio/event bindings. Eliminate
   custom-language instructions from this new workflow.
 - [ ] Test music-only, shader-only and combined requests; compile generated
   candidates, preserve unrelated source, reject stale proposals and verify exact
   Undo. No automatic paid retries. Test fixtures do not count as live providers.
+
+Local evidence for the first two items and fixture-based Apply/Undo is in
+[the runtime checkpoint](algorave-runtime-decisions.md). Live provider acceptance
+remains open; fixture responses are not model-quality evidence.
 
 ### 4. Persistence and a simpler default
 

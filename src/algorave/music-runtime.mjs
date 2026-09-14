@@ -1,6 +1,6 @@
 // Local integration with upstream Strudel. Distribution license review is tracked
 // in docs/algorave-runtime-decisions.md; this prototype is not a release artifact.
-import { initStrudel, getAudioContext, initAudio, getSuperdoughAudioController, webaudioOutput, samples, loadBuffer } from '@strudel/web';
+import { initStrudel, getAudioContext, initAudio, getSuperdoughAudioController, webaudioOutput, samples, loadBuffer, webaudioRepl, transpiler, setTime, Pattern } from '@strudel/web';
 import { drumWav } from './drum-samples.mjs';
 
 // User code shares only this opaque-origin frame. It never receives parent storage,
@@ -28,28 +28,70 @@ window.addEventListener('message', async function connect(event) {
       await samples({ [name]: [url] });
       await loadBuffer(url, audio, name);
     }
+    let candidate = null, candidateId = 0;
+    async function prepare(source) {
+      if (typeof source !== 'string' || source.length > 65536) throw Error('Music code is too large.');
+      candidate = null;
+      // An upstream REPL evaluates labels/transforms without starting its clock.
+      // Only the primary REPL ever schedules audio. A candidate keeps its pattern
+      // closures locally; no executable objects cross the private message port.
+      const stage = webaudioRepl({ audioContext: audio, transpiler });
+      let tempo = repl.scheduler.cps, active = false;
+      Object.defineProperty(stage.scheduler, 'cps', { get: () => active ? repl.scheduler.cps : tempo, set: value => { tempo = value; } });
+      stage.scheduler.now = () => repl.scheduler.now();
+      stage.scheduler.start = async () => { throw Error('Use Play after applying music.'); };
+      const previousPlay = Pattern.prototype.play;
+      Pattern.prototype.play = function () { return this.p('$'); };
+      try {
+        await stage.evaluate(source, false);
+        if (stage.state.error) throw stage.state.error;
+        if (!Number.isFinite(tempo) || tempo <= 0 || tempo > 20) throw Error('Tempo must be between 0 and 1200 cycles per minute.');
+        const pattern = stage.state.pattern;
+        // Exercise representative query windows before committing lazy patterns.
+        const now = Math.max(0, repl.scheduler.now());
+        for (const start of [0, now, now + 1]) {
+          const events = pattern.queryArc(start, start + 1, { _cps:tempo });
+          if (!Array.isArray(events) || events.length > 4096) throw Error('The pattern is too dense.');
+        }
+        const token = ++candidateId;
+        candidate = { token, source, pattern, tempo, activate: () => { active = true; } };
+        return token;
+      } finally { Pattern.prototype.play = previousPlay; setTime(() => repl.scheduler.now()); }
+    }
+    async function commit(token, play) {
+      if (!candidate || candidate.token !== token) throw Error('Music candidate expired. Run again.');
+      const selected = candidate;
+      await initAudio();
+      if (play) await audio.resume();
+      if (!analyser) {
+        analyser = audio.createAnalyser(); analyser.fftSize = 1024; analyser.smoothingTimeConstant = 0.5;
+        getSuperdoughAudioController().output.destinationGain.connect(analyser);
+      }
+      if (!repl.state.started && play) { epoch++; events.length = 0; }
+      repl.setCps(selected.tempo); selected.activate();
+      await repl.setPattern(selected.pattern, play);
+      repl.state.activeCode = selected.source;
+      candidate = null;
+    }
     const frequency = new Uint8Array(512), waveform = new Uint8Array(512);
     port.onmessage = async ({ data }) => {
-      if (!data || !Number.isSafeInteger(data.id) || !['run', 'stop'].includes(data.type)) return;
+      if (!data || !Number.isSafeInteger(data.id) || !['run', 'stop', 'prepare', 'commit', 'discard'].includes(data.type)) return;
       if (busy) { send({ type: 'reply', id: data.id, error: 'Another edit is still running.' }); return; }
       busy = true;
       try {
         if (data.type === 'stop') {
-          repl.stop(); epoch++;
+          repl.stop(); epoch++; candidate = null;
           events.length = 0;
+        } else if (data.type === 'discard') {
+          if (candidate?.token === data.token) candidate = null;
+        } else if (data.type === 'prepare') {
+          const token = await prepare(data.source);
+          send({ type: 'reply', id: data.id, token, playing: repl.state.started });
+          return;
+        } else if (data.type === 'commit') {
+          await commit(data.token, data.play === true);
         } else {
-          if (typeof data.source !== 'string' || data.source.length > 65536) throw Error('Music code is too large.');
-          await initAudio();
-          await audio.resume();
-          if (!analyser) {
-            analyser = audio.createAnalyser();
-            analyser.fftSize = 1024;
-            analyser.smoothingTimeConstant = 0.5;
-            getSuperdoughAudioController().output.destinationGain.connect(analyser);
-          }
-          if (!repl.state.started) { epoch++; events.length = 0; }
-          await repl.evaluate(data.source, true);
-          if (repl.state.error) throw repl.state.error;
+          await commit(await prepare(data.source), true);
         }
         send({ type: 'reply', id: data.id, playing: repl.state.started, source: repl.state.activeCode });
       } catch (error) {
