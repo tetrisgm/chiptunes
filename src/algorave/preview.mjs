@@ -1,3 +1,5 @@
+import { example } from './examples.mjs';
+import { codeEditor } from './code-editor.mjs';
 import contract from './project.cjs';
 import { ProjectSession } from './session.mjs';
 import { AgentClient } from './agent-client.mjs';
@@ -5,27 +7,17 @@ import { MusicBridge } from './music-bridge.mjs';
 import { MusicSignals } from './music-signals.mjs';
 import { ShaderRuntime } from './shader-runtime.mjs';
 const $ = id => document.getElementById(id);
-const music = $('music'), visual = $('visual'), status = $('status');
-music.value = `setcpm(30)
-$: s("bd*4, [~ hh]*4, ~ sd ~ sd").gain(.5)
-$: note("<c2 eb2 f2 g2>")
-  .s("sawtooth").lpf(700).decay(.2).sustain(0).gain(.25)
-$: note("c5 [eb5 g5] ~ bb4")
-  .s("triangle").decay(.15).sustain(0).gain(.2)`;
-visual.value = `void mainImage(out vec4 color, in vec2 pixel) {
-  vec2 uv = (pixel * 2. - iResolution.xy) / iResolution.y;
-  float bass = texture(iChannel0, vec2(.025, .25)).r;
-  float rings = sin(length(uv) * 18. - iTime * 3. - bass * 5.);
-  vec3 ink = .5 + .5 * cos(iTime * .2 + uv.xyx + vec3(0,2,4));
-  color = vec4(ink * smoothstep(-.2,.6,rings), 1.);
-}`;
-let signal = {}, playing = false, last = 0, focus = 'music', playRequested = false, visualPass = 'Image';
+const status = $('status');
+const music = codeEditor($('music'), {language:'music',label:'Strudel music'});
+const visual = codeEditor($('visual'), {language:'visual',label:'GLSL visual'});
+let signal = {}, playing = false, last = 0, focus = 'music', playRequested = false, openRequested = false, visualPass = 'Image';
 let bridge, shader, pendingProposal, pendingContext, uiBusy = false, saveTimer;
-const initial = { version:1, runtime:contract.RUNTIME, music:music.value, visuals:{ Image:visual.value, channels:{Image:['audio']} } };
+const initial = example();
 const signals = new MusicSignals(), agent = new AgentClient();
 const runtime = {
   async prepare(next, previous) {
-    const musicChanged = next.music !== previous.music || playRequested;
+    const musicChanged = next.music !== previous.music || playRequested || openRequested;
+    const shouldPlay = !openRequested && (playing || playRequested);
     const visualChanged = JSON.stringify(next.visuals) !== JSON.stringify(previous.visuals);
     const visualCandidate = visualChanged ? shader.prepare(next.visuals) : null;
     let token;
@@ -39,7 +31,7 @@ const runtime = {
         try {
           if (visualCandidate) { visualCandidate.apply(); visualApplied = true; }
           if (musicChanged) {
-            const result = await bridge.request('commit', undefined, { token, play:playing || playRequested });
+            const result = await bridge.request('commit', undefined, { token, play:shouldPlay });
             playing = result.playing; token = undefined;
           }
         } catch (error) {
@@ -59,7 +51,7 @@ try { storage = localStorage; } catch {}
 const session = new ProjectSession(initial, runtime, storage);
 function showProject() {
   music.value = session.draft.music;
-  visual.value = session.draft.visuals[visualPass] || '';
+  visual.switchDocument(session.draft.visuals[visualPass] || '', visualPass);
   $('channels').value = JSON.stringify(session.draft.visuals.channels);
   $('undo').disabled = !session.history.length || uiBusy;
   $('agent-undo').disabled = $('undo').disabled;
@@ -72,8 +64,9 @@ const resize = new ResizeObserver(() => {
   catch (error) { status.textContent = error.message; }
 });
 resize.observe($('canvas'));
-window.addEventListener('pagehide', () => { resize.disconnect(); shader.dispose(); agent.cancel(); clearTimeout(saveTimer); });
+window.addEventListener('pagehide', () => { resize.disconnect(); shader.dispose(); agent.cancel(); clearTimeout(saveTimer); music.destroy(); visual.destroy(); });
 function message(error) { status.textContent = error.message || String(error); }
+music.onLimit = visual.onLimit = text => message(text);
 function save(explicit = false) {
   try { session.save({replaceUnreadable:explicit}); if (explicit) status.textContent = 'Saved on this device'; }
   catch (error) { message(error); }
@@ -90,7 +83,7 @@ function changed() {
 music.oninput = changed; visual.oninput = changed;
 function lock(value) {
   uiBusy = value; music.readOnly = value; visual.readOnly = value;
-  for (const id of ['run','play','apply','undo','pass','set-channels','channels']) $(id).disabled = value;
+  for (const id of ['run','play','apply','undo','pass','set-channels','channels','open','examples']) $(id).disabled = value;
   $('undo').disabled = value || !session.history.length;
   $('agent-undo').disabled = $('undo').disabled;
   $('apply').disabled = value || !pendingProposal?.edits.length;
@@ -108,12 +101,17 @@ async function run() {
     if (focus === 'visual') next.visuals = structuredClone(session.draft.visuals);
     else { next.music = session.draft.music; playRequested = true; }
     try { await session.activate(next, {draftAfter:session.draft}); status.textContent = focus === 'visual' ? 'Visuals updated' : 'Music updated'; }
+    catch (error) {
+      const match = focus === 'visual' ? /(?:ERROR|WARNING):\s*0:(\d+):/.exec(error.message) : /\((\d+):(\d+)\)/.exec(error.message);
+      if (match) (focus === 'visual' ? visual : music).error(error.message, {line:Number(match[1]),column:Number(match[2] || 0)});
+      throw error;
+    }
     finally { playRequested = false; }
   });
 }
 $('mode').onchange = () => { document.body.dataset.mode = $('mode').value; focus = $('mode').value === 'visuals' ? 'visual' : 'music'; };
 music.onfocus = () => focus = 'music'; visual.onfocus = () => focus = 'visual';
-$('pass').onchange = () => { visualPass = $('pass').value; visual.value = session.draft.visuals[visualPass] || ''; focus = 'visual'; };
+$('pass').onchange = () => { visualPass = $('pass').value; visual.switchDocument(session.draft.visuals[visualPass] || '', visualPass); focus = 'visual'; };
 $('set-channels').onclick = () => {
   try { const next = structuredClone(session.draft); next.visuals.channels = JSON.parse($('channels').value); session.edit(next); save(); status.textContent = 'Channel draft updated · Run visuals to apply'; }
   catch (error) { message(error); }
@@ -123,6 +121,32 @@ $('play').onclick = async () => {
   if (!playing) { focus = 'music'; await run(); return; }
   await action(async () => { await bridge.request('stop'); playing = false; status.textContent = 'Stopped'; });
 };
+async function openProject(next) {
+  await action(async () => {
+    status.textContent = 'Opening project…';
+    openRequested = true;
+    try { await session.activate(contract.project(next)); music.resetHistory(); visual.resetHistory(); visualPass = 'Image'; $('pass').value = 'Image'; pendingProposal = null; $('proposal').hidden = true; status.textContent = 'Project opened · press Play'; }
+    finally { openRequested = false; }
+  });
+}
+$('open').onclick = () => $('project-file').click();
+$('project-file').onchange = async () => {
+  const file = $('project-file').files[0]; $('project-file').value = '';
+  if (!file) return;
+  const generation = session.generation;
+  try {
+    if (file.size > 524288) throw Error('Project files must be at most 512 KiB.');
+    const next = contract.project(JSON.parse(await file.text()));
+    if (generation !== session.generation) throw Error('The draft changed while the file was being read. Open it again.');
+    await openProject(next);
+  } catch (error) { message(Error('Could not open this audiovisual project: ' + error.message)); }
+};
+$('examples').onchange = async () => {
+  const name = $('examples').value; $('examples').value = '';
+  if (name) await openProject(example(name));
+};
+$('help-open').onclick = () => $('help').showModal();
+$('help-close').onclick = () => $('help').close();
 $('save').onclick = () => save(true);
 $('download').onclick = () => {
   const url = URL.createObjectURL(new Blob([JSON.stringify(session.draft,null,2)], {type:'application/json'}));
@@ -171,7 +195,8 @@ $('ask-form').onsubmit = async event => {
   finally { $('ask').disabled = false; $('cancel').hidden = true; }
 };
 $('cancel').onclick = () => agent.cancel();
-document.addEventListener('keydown', event => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter' && [music,visual].includes(document.activeElement)) { event.preventDefault(); run(); } });
+music.onRun = () => { focus = 'music'; run(); };
+visual.onRun = () => { focus = 'visual'; run(); };
 
 // Only user-written music enters the opaque frame. No auth, storage or chat data.
 const frame = document.createElement('iframe');
@@ -189,4 +214,4 @@ function draw(now) {
   last = now; requestAnimationFrame(draw);
 }
 requestAnimationFrame(draw);
-window.algoravePreview = { shader, bridge, signals, session, get signal(){return signal;}, get playing(){return playing;} };
+window.algoravePreview = { editors:{music,visual}, shader, bridge, signals, session, get signal(){return signal;}, get playing(){return playing;} };

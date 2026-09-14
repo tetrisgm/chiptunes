@@ -130,7 +130,7 @@ remains open; fixture responses are not model-quality evidence.
   conversion; legacy chip exports remain available only for applicable documents.
 - [ ] Make the minimal workspace the default Create entry. Remove obsolete panels
   from this default, with secondary access to preserved legacy functionality.
-- [ ] Add small original examples and concise contextual help. Support keyboard
+- [x] Add small original examples and concise contextual help. Support keyboard
   navigation, readable errors, accessible buttons and narrow screens.
 - [ ] Finish fullscreen output and code-plus-output. Verify a visible external
   display on the Mac; document hidden/minimized-window limitations honestly.

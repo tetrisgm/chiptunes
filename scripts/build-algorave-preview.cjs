@@ -4,8 +4,9 @@ const root=path.resolve(__dirname,'..');
 function build(){
   const out=path.join(root,'.algorave-preview');
   fs.mkdirSync(out,{recursive:true});
-  const files=['preview.mjs','preview.html','music-runtime.mjs','music-bridge.mjs','shader-runtime.mjs','music-signals.mjs','drum-samples.mjs','project.cjs','session.mjs','agent-client.mjs'];
+  const files=['preview.mjs','preview.html','music-runtime.mjs','music-bridge.mjs','shader-runtime.mjs','music-signals.mjs','drum-samples.mjs','project.cjs','session.mjs','agent-client.mjs','code-editor.mjs','examples.mjs'];
   const id=crypto.createHash('sha256');for(const file of files)id.update(fs.readFileSync(path.join(root,'src/algorave',file)));
+  id.update(fs.readFileSync(path.join(root,'package-lock.json')));
   const buildId=id.digest('hex').slice(0,12);
   for(const [entry,name] of [['music-runtime.mjs','music-runtime.js'],['preview.mjs','workspace.js']]){
     esbuild.buildSync({entryPoints:[path.join(root,'src/algorave',entry)],outfile:path.join(out,name),bundle:true,

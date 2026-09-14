@@ -158,3 +158,35 @@ The desktop footer overflow found during review is corrected. This is still the
 basic editor shell; CodeMirror highlighting, richer error feedback and final
 simplicity/native Safari acceptance are not complete. No live provider request
 or deployment occurred.
+
+## Code editors and portable project opening — 2026-09-15
+
+The two code surfaces now use a small CodeMirror configuration with dark-theme
+syntax highlighting, line numbers, bracket support and concise language-specific
+completions. GLSL uses @codemirror/legacy-modes 6.5.4 (MIT); existing CodeMirror
+versions are unchanged. Compiler line diagnostics decorate the current source
+when the runtime supplies a usable line location. Runtime errors without a reliable
+location stay in the status text rather than being placed on a guessed line.
+Cmd/Ctrl Enter evaluates the focused language, with higher priority than the
+editor's default insert-blank-line binding. Tab remains available for navigation.
+Shader passes retain separate editing histories; project import clears those
+histories so keyboard Undo cannot pull text across project boundaries. App Undo
+still restores the full previous project.
+
+The secondary menu now opens/downloads the versioned audiovisual JSON project,
+provides three original examples (groove, kick pulse, feedback trails), and shows
+short contextual help. Imported/example code is validated before activation and
+starts stopped, even when replacing a playing project. Unsupported or malformed
+files leave the existing project intact; this is not a chip-song conversion path.
+The existing chip import UI still needs explicit preserved navigation when the
+new default route is integrated. File reads are bounded and reject concurrent
+draft changes. The selected visual editor returns to Image for an opened project.
+
+npm run test:algorave-editor passes in real Chromium: syntax highlighting,
+accessible editor fields, keyboard Run and Tab, GLSL line errors, per-pass history,
+completions, all three examples through actual engines, stopped import, download
+round-trip, import Undo, rejected legacy-shaped input and narrow-page layout.
+The editor test caught and corrected shortcut precedence and malformed example
+option markup. Reviewed screenshots use the running renderer after layout settles.
+npm run test:algorave-workflow and npm run test:algorave-preview also pass with the
+code editors. Native Safari, live providers and deployment remain unperformed.

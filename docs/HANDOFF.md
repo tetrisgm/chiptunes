@@ -2,23 +2,18 @@
 
 ## Current work — 2026-09-15
 
-Owner rejected the current Create experience as too complex and specified actual
-Strudel music plus Shadertoy-style GLSL visuals, with one agent able to edit either
-or both. [The new implementation plan](algorave-simple-workspace-plan.md) is the
-active direction. The first local runtime proof implements pinned upstream
-Strudel in an opaque-origin frame and a GLSL renderer with feedback buffers.
-[Runtime decisions and verification](algorave-runtime-decisions.md) record current
-evidence and remaining work. Run `npm run test:algorave-preview`; production Create
-is unchanged. Runtime now includes original drums, scheduled kick signals, mouse
-input, resize retention and forced-context-loss recovery. The shared gateway now
-validates typed Strudel/GLSL proposals; both provider adapters have fixture coverage.
-The preview now has collapsed agent chat, staged music/GLSL Apply, exact source
-Undo, separate draft/applied persistence, named shader passes and a small project
-menu. `npm run test:algorave-workflow` passes the real UI/gateway flow with fixtures;
-no live provider call. Next: finish execution-time recovery and asset handling,
-upgrade the basic editor, preserve legacy navigation while replacing the default
-entry, resolve distribution obligations, and perform native/sustained acceptance. Earlier release acceptance below does not
-establish completion of this revised product.
+The active direction is [simple Strudel + GLSL Create](algorave-simple-workspace-plan.md).
+Local implementation now has native language runtimes, code editors, audio-reactive
+shader buffers/recovery, staged agent Apply/Undo, draft/applied persistence,
+portable project opening/download, and three original examples in a minimal shell.
+[Runtime decisions and evidence](algorave-runtime-decisions.md) record the boundaries.
+The editor, workflow and preview test commands pass; provider responses are fixtures.
+Production Create is unchanged and no live provider call or deployment occurred.
+
+Next: finish execution-time recovery and asset handling, preserve legacy navigation
+while replacing the default entry, resolve distribution obligations, and complete
+native Safari/external-display/sustained performance acceptance. Historical web
+release acceptance does not establish completion of this revised product.
 
 2026-09-13: Instruction-only cleanup; application behavior unchanged. Earlier notes are preserved verbatim in [HANDOFF-history-2026-09-13.md](HANDOFF-history-2026-09-13.md). Read the relevant section when resuming its topic; historical release/status claims need revalidation.
 

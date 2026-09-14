@@ -67,6 +67,7 @@ window.addEventListener('message', async function connect(event) {
         analyser = audio.createAnalyser(); analyser.fftSize = 1024; analyser.smoothingTimeConstant = 0.5;
         getSuperdoughAudioController().output.destinationGain.connect(analyser);
       }
+      if (!play && repl.state.started) { repl.stop(); epoch++; events.length = 0; }
       if (!repl.state.started && play) { epoch++; events.length = 0; }
       repl.setCps(selected.tempo); selected.activate();
       await repl.setPattern(selected.pattern, play);
