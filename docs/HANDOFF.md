@@ -17,6 +17,11 @@ Code-plus-output fullscreen now works in all layouts; native Safari and Chromium
 checks passed on build `869b21f502ab`, including editing and Stop inside fullscreen.
 
 Next: finish asset handling, the 30-minute performance run and full Mac/provider acceptance; review the recorded distribution details.
+The sustained-performance harness is committed as `815e9e5`. A full 1800-second
+run is active in exec session `42681`; its first 30-second sample passed. Poll
+that handle and read `.algorave-preview/soak-receipt.json` before deciding whether
+it is finished. Do not start another browser/audio suite while this run is live.
+The short harness check passed; full acceptance is not yet established.
 The production Safari warning was traced read-only to asset hash `5fba76c2aeb5e170`.
 The local build now accepts that exact observation-only APU update and preserves
 the complete old record; see the historical recovery evidence in the runtime record.
