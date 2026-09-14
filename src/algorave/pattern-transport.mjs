@@ -53,7 +53,7 @@ export class PatternTransport {
           if(task.epoch!==this.epoch||!this.playing)continue;
           for(const event of events){
             const time=this.anchorTime+(event.begin-this.anchorCycle)/cps+.1;
-            if(time>=this.getTime())Promise.resolve(this.output(event,time,event.duration/cps,cps)).catch(error=>{
+            if(time>=this.getTime())Promise.resolve(this.output(event,time,event.duration/cps,cps,client)).catch(error=>{
               if(task.epoch===this.epoch&&client===this.active)this.fail(error);
             });
             const next=event.value.cps;

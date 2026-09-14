@@ -46,7 +46,7 @@ var require_project = __commonJS({
       return typeof v === "string" && bytes(v) <= limit && !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(v);
     }
     function project(value) {
-      need(keys(value, ["version", "runtime", "music", "visuals"], ["version", "runtime", "music", "visuals"]));
+      need(keys(value, ["version", "runtime", "music", "visuals", "samples"], ["version", "runtime", "music", "visuals"]));
       need(value.version === 1 && keys(value.runtime, ["music", "visual"], ["music", "visual"]));
       need(value.runtime.music === RUNTIME.music && value.runtime.visual === RUNTIME.visual, "Unsupported project runtime.");
       need(text(value.music, 65536));
@@ -69,6 +69,19 @@ var require_project = __commonJS({
         visuals.channels[name2] = [...row];
       }
       const result = { version: 1, runtime: { ...RUNTIME }, music: value.music, visuals };
+      if (Object.hasOwn(value, "samples")) {
+        need(plain(value.samples) && Object.keys(value.samples).length <= 32, "Invalid sample collection.");
+        const samples = {}, ids = /* @__PURE__ */ new Set();
+        for (const name2 of Object.keys(value.samples).sort()) {
+          const row = value.samples[name2];
+          need(/^[a-z][a-z0-9_-]{0,63}$/.test(name2) && !["constructor", "prototype"].includes(name2) && Array.isArray(row) && row.length > 0 && row.length <= 32, "Invalid sample name or list.");
+          need(row.every((id2) => typeof id2 === "string" && /^[a-f0-9]{64}$/.test(id2)), "Invalid sample content identity.");
+          samples[name2] = [...row];
+          row.forEach((id2) => ids.add(id2));
+        }
+        need(ids.size <= 32, "Too many sample files.");
+        if (Object.keys(samples).length) result.samples = samples;
+      }
       need(bytes(JSON.stringify(result)) <= 524288, "Project is too large.");
       return result;
     }
@@ -24914,7 +24927,7 @@ function codeEditor(parent, { language: language2, label }) {
 }
 
 // src/algorave/preview.mjs
-var import_project4 = __toESM(require_project(), 1);
+var import_project5 = __toESM(require_project(), 1);
 
 // src/algorave/session.mjs
 var import_project2 = __toESM(require_project(), 1);
@@ -25158,7 +25171,7 @@ var MusicBridge = class {
         reject(Error("Music evaluation timed out. Stop and reload the engine."));
       }, 15e3);
       this.pending.set(id2, { resolve, reject, timer });
-      this.port.postMessage({ id: id2, type, source, token: options.token, play: options.play === true });
+      this.port.postMessage({ id: id2, type, source, token: options.token, play: options.play === true, samples: options.samples, assets: options.assets });
     });
   }
   dispose() {
@@ -25518,6 +25531,240 @@ var ShaderRuntime = class {
   }
 };
 
+// src/algorave/sample-assets.mjs
+var SAMPLE_LIMITS = Object.freeze({ fileBytes: 4 * 1024 * 1024, totalBytes: 16 * 1024 * 1024, count: 32, timeoutMs: 1e4 });
+function inspectSampleWav(bytes, outputSampleRate = 48e3) {
+  if (!Number.isInteger(outputSampleRate) || outputSampleRate < 8e3 || outputSampleRate > 192e3) throw Error("Unsupported audio output sample rate.");
+  if (!(bytes instanceof Uint8Array) || bytes.byteLength < 44 || bytes.byteLength > SAMPLE_LIMITS.fileBytes) throw Error("Invalid sample WAV size.");
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const word = (offset2) => String.fromCharCode(...bytes.subarray(offset2, offset2 + 4));
+  if (word(0) !== "RIFF" || word(8) !== "WAVE" || view.getUint32(4, true) + 8 !== bytes.length) throw Error("Use a complete RIFF/WAVE sample.");
+  let format = null, data = null, offset = 12;
+  while (offset < bytes.length) {
+    if (offset + 8 > bytes.length) throw Error("Truncated WAV chunk.");
+    const type = word(offset), size = view.getUint32(offset + 4, true), start = offset + 8, end = start + size;
+    if (end > bytes.length || end + size % 2 > bytes.length) throw Error("Truncated WAV chunk.");
+    if (type === "fmt ") {
+      if (format || size < 16) throw Error("Invalid WAV format chunk.");
+      format = { encoding: view.getUint16(start, true), channels: view.getUint16(start + 2, true), sampleRate: view.getUint32(start + 4, true), byteRate: view.getUint32(start + 8, true), blockAlign: view.getUint16(start + 12, true), bits: view.getUint16(start + 14, true) };
+    }
+    if (type === "data") {
+      if (data !== null) throw Error("Use a single WAV data chunk.");
+      data = size;
+    }
+    offset = end + size % 2;
+  }
+  if (!format || data === null || !data) throw Error("WAV format or audio data is missing.");
+  const { encoding, channels, sampleRate, byteRate, blockAlign, bits } = format;
+  if (![1, 2].includes(channels) || sampleRate < 8e3 || sampleRate > 96e3 || !(encoding === 1 && [8, 16, 24, 32].includes(bits) || encoding === 3 && bits === 32) || blockAlign !== channels * bits / 8 || byteRate !== sampleRate * blockAlign || data % blockAlign)
+    throw Error("Use mono/stereo PCM or float32 WAV at 8\u201396 kHz.");
+  const frames = data / blockAlign, duration = frames / sampleRate;
+  if (duration > 30) throw Error("Sample exceeds the 30-second limit.");
+  const decodedFrames = Math.ceil(frames * outputSampleRate / sampleRate);
+  return Object.freeze({ channels, sampleRate, frames, duration, outputSampleRate, decodedBytes: decodedFrames * channels * 4 });
+}
+function sampleURL(value) {
+  if (typeof value !== "string" || value.length > 2048) throw Error("Invalid sample URL.");
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    throw Error("Invalid sample URL.");
+  }
+  if (url.protocol !== "https:" || url.hostname !== "raw.githubusercontent.com" || url.port || url.username || url.password || url.search || url.hash)
+    throw Error("Use a public HTTPS raw.githubusercontent.com sample URL without credentials or query parameters.");
+  return url.href;
+}
+async function fetchSample(value, { fetcher = globalThis.fetch, signal: signal2, timeoutMs = SAMPLE_LIMITS.timeoutMs } = {}) {
+  const url = sampleURL(value);
+  if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > SAMPLE_LIMITS.timeoutMs) throw Error("Invalid sample deadline.");
+  const controller = new AbortController();
+  let reader, timer, listener, aborted;
+  const cancelled = new Promise((_, reject) => {
+    aborted = () => reject(Error("Sample download cancelled or timed out."));
+    controller.signal.addEventListener("abort", aborted, { once: true });
+  });
+  listener = () => controller.abort();
+  signal2?.addEventListener("abort", listener, { once: true });
+  if (signal2?.aborted) controller.abort();
+  timer = setTimeout(() => controller.abort(), timeoutMs);
+  const read = async () => {
+    if (controller.signal.aborted) throw Error("Sample download cancelled or timed out.");
+    const response2 = await fetcher(url, { method: "GET", mode: "cors", credentials: "omit", redirect: "error", referrerPolicy: "no-referrer", signal: controller.signal });
+    if (controller.signal.aborted) {
+      void response2.body?.cancel().catch(() => {
+      });
+      throw Error("Sample download cancelled or timed out.");
+    }
+    if (!response2.ok || response2.redirected || !response2.body) {
+      void response2.body?.cancel().catch(() => {
+      });
+      throw Error("Sample download failed.");
+    }
+    const declared = response2.headers.get("content-length");
+    if (declared !== null && (!/^\d+$/.test(declared) || Number(declared) > SAMPLE_LIMITS.fileBytes)) {
+      void response2.body.cancel().catch(() => {
+      });
+      throw Error("Sample exceeds the 4 MiB download limit.");
+    }
+    reader = response2.body.getReader();
+    const chunks = [];
+    let length = 0;
+    for (; ; ) {
+      const { done, value: value2 } = await reader.read();
+      if (done) break;
+      if (!(value2 instanceof Uint8Array)) throw Error("Invalid sample response.");
+      length += value2.byteLength;
+      if (length > SAMPLE_LIMITS.fileBytes) throw Error("Sample exceeds the 4 MiB download limit.");
+      chunks.push(value2);
+    }
+    if (!length) throw Error("Sample is empty.");
+    const bytes = new Uint8Array(length);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.length;
+    }
+    return { url, bytes };
+  };
+  try {
+    return await Promise.race([read(), cancelled]);
+  } finally {
+    clearTimeout(timer);
+    signal2?.removeEventListener("abort", listener);
+    controller.signal.removeEventListener("abort", aborted);
+    controller.abort();
+    if (reader) void reader.cancel().catch(() => {
+    });
+  }
+}
+var SampleByteStore = class {
+  #items = /* @__PURE__ */ new Map();
+  #total = 0;
+  // Content identity survives a URL rename; every returned buffer is detached
+  // from the stored bytes. This accounts for encoded bytes, not decoded PCM.
+  async put(input) {
+    if (!(input instanceof Uint8Array) || !input.byteLength || input.byteLength > SAMPLE_LIMITS.fileBytes) throw Error("Sample must contain between 1 byte and 4 MiB.");
+    const bytes = input.slice();
+    const hash = await crypto.subtle.digest("SHA-256", bytes);
+    const id2 = [...new Uint8Array(hash)].map((n) => n.toString(16).padStart(2, "0")).join("");
+    if (!this.#items.has(id2)) {
+      if (this.#items.size >= SAMPLE_LIMITS.count || this.#total + bytes.byteLength > SAMPLE_LIMITS.totalBytes) throw Error("Sample collection is full (32 files or 16 MiB).");
+      this.#items.set(id2, bytes);
+      this.#total += bytes.byteLength;
+    }
+    return Object.freeze({ id: id2, byteLength: bytes.byteLength });
+  }
+  get(id2) {
+    const bytes = this.#items.get(id2);
+    if (!bytes) throw Error("Sample content is missing.");
+    return bytes.slice();
+  }
+  snapshot() {
+    return { count: this.#items.size, byteLength: this.#total, assets: [...this.#items].map(([id2, bytes]) => ({ id: id2, byteLength: bytes.byteLength })) };
+  }
+};
+
+// src/algorave/sample-persistence.mjs
+var NAME = "ct-algorave-samples-v1";
+async function database() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(NAME, 1);
+    let blocked = false;
+    request.onupgradeneeded = () => request.result.createObjectStore("samples", { keyPath: "id" });
+    request.onerror = () => reject(Error("Could not open sample storage."));
+    request.onblocked = () => {
+      blocked = true;
+      reject(Error("Sample storage is busy in another tab."));
+    };
+    request.onsuccess = () => {
+      if (blocked) request.result.close();
+      else resolve(request.result);
+    };
+  });
+}
+async function loadSamples() {
+  const db = await database();
+  try {
+    const records = await new Promise((resolve, reject) => {
+      const tx = db.transaction("samples", "readonly"), request = tx.objectStore("samples").getAll(void 0, SAMPLE_LIMITS.count + 1);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(Error("Could not read saved samples."));
+    });
+    if (records.length > SAMPLE_LIMITS.count) throw Error("Saved sample collection exceeds its limit.");
+    const store = new SampleByteStore();
+    for (const record of records) {
+      const item = await store.put(record.bytes);
+      if (item.id !== record.id) throw Error("Saved sample content is damaged.");
+    }
+    return store;
+  } finally {
+    db.close();
+  }
+}
+async function saveSamples(store) {
+  const records = store.snapshot().assets.map(({ id: id2 }) => ({ id: id2, bytes: store.get(id2) })), db = await database();
+  try {
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction("samples", "readwrite"), table = tx.objectStore("samples"), request = table.getAll(void 0, SAMPLE_LIMITS.count + 1);
+      let failure;
+      tx.oncomplete = () => resolve();
+      tx.onabort = tx.onerror = () => reject(failure || Error("Could not save samples."));
+      request.onsuccess = () => {
+        try {
+          const existing = new Map(request.result.map((item) => [item.id, item.bytes]));
+          for (const record of records) {
+            const previous = existing.get(record.id);
+            if (previous && (!(previous instanceof Uint8Array) || previous.length !== record.bytes.length || previous.some((v, i2) => v !== record.bytes[i2]))) throw Error("Saved sample identity conflicts with existing data.");
+            existing.set(record.id, record.bytes);
+          }
+          let total = 0;
+          for (const bytes of existing.values()) {
+            if (!(bytes instanceof Uint8Array) || !bytes.length || bytes.length > SAMPLE_LIMITS.fileBytes) throw Error("Saved sample data is invalid.");
+            total += bytes.length;
+          }
+          if (existing.size > SAMPLE_LIMITS.count || total > SAMPLE_LIMITS.totalBytes) throw Error("Saved sample collection is full (32 files or 16 MiB).");
+          for (const record of records) if (!request.result.some((item) => item.id === record.id)) table.add(record);
+        } catch (error) {
+          failure = error;
+          tx.abort();
+        }
+      };
+    });
+  } finally {
+    db.close();
+  }
+}
+
+// src/algorave/sample-project.mjs
+var import_project4 = __toESM(require_project(), 1);
+var SAMPLE_PROJECT_BYTES = 24 * 1024 * 1024;
+var sampleIds = (project) => [...new Set(Object.values(project.samples || {}).flat())];
+var encode = (bytes) => {
+  let text = "";
+  for (let i2 = 0; i2 < bytes.length; i2 += 32768) text += String.fromCharCode(...bytes.subarray(i2, i2 + 32768));
+  return btoa(text);
+};
+function exportSampleProject(value, store) {
+  const project = import_project4.default.project(value), ids = sampleIds(project);
+  if (!ids.length) return project;
+  return { format: "ct-algorave-samples", version: 1, project, assets: ids.map((id2) => ({ id: id2, data: encode(store.get(id2)) })) };
+}
+async function importSampleProject(value) {
+  if (value?.format !== "ct-algorave-samples") return { project: import_project4.default.project(value), store: null };
+  if (value.version !== 1 || Object.keys(value).length !== 4 || !["format", "version", "project", "assets"].every((k) => Object.hasOwn(value, k)) || !Array.isArray(value.assets) || value.assets.length > 32) throw Error("Invalid project sample archive.");
+  const project = import_project4.default.project(value.project), ids = new Set(sampleIds(project)), store = new SampleByteStore();
+  if (value.assets.length !== ids.size) throw Error("Project sample archive has missing or duplicate content.");
+  for (const record of value.assets) {
+    if (!record || Object.keys(record).length !== 2 || !ids.has(record.id) || typeof record.data !== "string" || record.data.length > Math.ceil(SAMPLE_LIMITS.fileBytes / 3) * 4 || (record.data.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(record.data))) throw Error("Invalid project sample content.");
+    const bytes = Uint8Array.from(atob(record.data), (c2) => c2.charCodeAt(0));
+    inspectSampleWav(bytes);
+    if ((await store.put(bytes)).id !== record.id) throw Error("Project sample content does not match its saved identity.");
+    ids.delete(record.id);
+  }
+  return { project, store };
+}
+
 // src/algorave/preview.mjs
 var $ = (id2) => document.getElementById(id2);
 var status = $("status");
@@ -25536,24 +25783,37 @@ var pendingProposal;
 var pendingContext;
 var uiBusy = false;
 var saveTimer;
+var sampleStorePromise;
+var sampleAbort;
+var sampleStore = () => sampleStorePromise || (sampleStorePromise = loadSamples().catch((error) => {
+  sampleStorePromise = null;
+  throw error;
+}));
 var initial = example();
 var signals = new MusicSignals();
 var agent = new AgentClient();
 var runtime = {
   async prepare(next, previous) {
-    const musicChanged = next.music !== previous.music || playRequested || openRequested;
+    const pendingSample = sampleAbort;
+    const musicChanged = next.music !== previous.music || JSON.stringify(next.samples) !== JSON.stringify(previous.samples) || playRequested || openRequested;
     const shouldPlay = !openRequested && (playing || playRequested);
     const visualChanged = JSON.stringify(next.visuals) !== JSON.stringify(previous.visuals);
     const visualCandidate = visualChanged ? shader2.prepare(next.visuals) : null;
     let token;
     try {
-      if (musicChanged) ({ token } = await bridge.request("prepare", next.music));
+      if (musicChanged) {
+        const ids = sampleIds(next), store = ids.length ? await sampleStore() : null;
+        const assets = ids.map((id2) => ({ id: id2, bytes: store.get(id2) }));
+        ({ token } = await bridge.request("prepare", next.music, { samples: next.samples, assets }));
+      }
     } catch (error) {
       visualCandidate?.dispose();
       throw error;
     }
     return {
       async apply() {
+        if (pendingSample?.signal.aborted) throw Error("Sample loading cancelled.");
+        if (pendingSample) $("sample-cancel").disabled = true;
         let visualApplied = false;
         try {
           if (visualCandidate) {
@@ -25609,12 +25869,14 @@ window.addEventListener("pagehide", () => {
   resize.disconnect();
   shader2.dispose();
   agent.cancel();
+  sampleAbort?.abort();
   clearTimeout(saveTimer);
   music.destroy();
   visual.destroy();
 });
 function message(error) {
   status.textContent = error.message || String(error);
+  if ($("sample-dialog").open) $("sample-feedback").textContent = status.textContent;
 }
 music.onLimit = visual.onLimit = (text) => message(text);
 function save(explicit = false) {
@@ -25644,7 +25906,7 @@ function lock(value) {
   uiBusy = value;
   music.readOnly = value;
   visual.readOnly = value;
-  for (const id2 of ["run", "play", "apply", "undo", "pass", "set-channels", "channels", "open", "examples"]) $(id2).disabled = value;
+  for (const id2 of ["run", "play", "apply", "undo", "pass", "set-channels", "channels", "open", "examples", "sample-open", "sample-add"]) $(id2).disabled = value;
   $("undo").disabled = value || !session.history.length;
   $("agent-undo").disabled = $("undo").disabled;
   $("apply").disabled = value || !pendingProposal?.edits.length;
@@ -25723,7 +25985,7 @@ async function openProject(next) {
     status.textContent = "Opening project\u2026";
     openRequested = true;
     try {
-      await session.activate(import_project4.default.project(next));
+      await session.activate(import_project5.default.project(next));
       music.resetHistory();
       visual.resetHistory();
       visualPass = "Image";
@@ -25743,10 +26005,16 @@ $("project-file").onchange = async () => {
   if (!file) return;
   const generation = session.generation;
   try {
-    if (file.size > 524288) throw Error("Project files must be at most 512 KiB.");
-    const next = import_project4.default.project(JSON.parse(await file.text()));
+    if (file.size > SAMPLE_PROJECT_BYTES) throw Error("Project files must be at most 24 MiB including samples.");
+    const imported = await importSampleProject(JSON.parse(await file.text()));
     if (generation !== session.generation) throw Error("The draft changed while the file was being read. Open it again.");
-    await openProject(next);
+    if (imported.store) {
+      const store = await sampleStore();
+      for (const { id: id2 } of imported.store.snapshot().assets) await store.put(imported.store.get(id2));
+      await saveSamples(store);
+      if (generation !== session.generation) throw Error("The draft changed while samples were being saved. Open it again.");
+    }
+    await openProject(imported.project);
   } catch (error) {
     message(Error("Could not open this audiovisual project: " + error.message));
   }
@@ -25770,14 +26038,60 @@ $("listen").onclick = () => leaveFor("/listen");
 $("help-open").onclick = () => $("help").showModal();
 $("help-close").onclick = () => $("help").close();
 $("save").onclick = () => save(true);
-$("download").onclick = () => {
-  const url = URL.createObjectURL(new Blob([JSON.stringify(session.draft, null, 2)], { type: "application/json" }));
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = "chiptunes-algorave.json";
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1e3);
+$("download").onclick = async () => {
+  try {
+    const snapshot = import_project5.default.project(session.draft), store = sampleIds(snapshot).length ? await sampleStore() : null;
+    const url = URL.createObjectURL(new Blob([JSON.stringify(exportSampleProject(snapshot, store), null, 2)], { type: "application/json" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "chiptunes-algorave.json";
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1e3);
+  } catch (error) {
+    message(error);
+  }
 };
+$("sample-open").onclick = () => {
+  $("menu").open = false;
+  $("sample-feedback").textContent = "";
+  $("sample-dialog").showModal();
+};
+$("sample-cancel").onclick = () => {
+  sampleAbort?.abort();
+  $("sample-dialog").close();
+};
+$("sample-dialog").addEventListener("cancel", (event) => {
+  if ($("sample-cancel").disabled) event.preventDefault();
+  else sampleAbort?.abort();
+});
+$("sample-add").onclick = () => action(async () => {
+  const name2 = $("sample-name").value.trim(), file = $("sample-file").files[0], url = $("sample-url").value.trim();
+  if (!/^[a-z][a-z0-9_-]{0,63}$/.test(name2) || ["constructor", "prototype"].includes(name2)) throw Error("Use a lowercase sample name starting with a letter.");
+  if (Boolean(file) === Boolean(url)) throw Error("Choose one WAV file or enter one public sample URL.");
+  const generation = session.generation;
+  sampleAbort = new AbortController();
+  try {
+    status.textContent = "Loading sample\u2026";
+    $("sample-feedback").textContent = status.textContent;
+    if (file && file.size > SAMPLE_LIMITS.fileBytes) throw Error("Sample files must be at most 4 MiB.");
+    const bytes = file ? new Uint8Array(await file.arrayBuffer()) : (await fetchSample(url, { signal: sampleAbort.signal })).bytes;
+    inspectSampleWav(bytes);
+    if (sampleAbort.signal.aborted) throw Error("Sample loading cancelled.");
+    const store = await sampleStore(), { id: id2 } = await store.put(bytes);
+    await saveSamples(store);
+    if (sampleAbort.signal.aborted) throw Error("Sample loading cancelled.");
+    if (generation !== session.generation) throw Error("The project changed while the sample loaded. Try again.");
+    const next = import_project5.default.project({ ...session.draft, samples: { ...session.draft.samples, [name2]: [id2] } });
+    await session.activate(next);
+    $("sample-dialog").close();
+    $("sample-file").value = "";
+    $("sample-url").value = "";
+    status.textContent = 'Sample loaded \xB7 use s("' + name2 + '")';
+  } finally {
+    sampleAbort = null;
+    $("sample-cancel").disabled = false;
+  }
+});
 async function fullscreen(code2) {
   const target = code2 ? document.documentElement : $("output");
   try {
@@ -25853,7 +26167,7 @@ $("ask-form").onsubmit = async (event) => {
     const context = await session.requestContext($("prompt").value);
     $("agent-status").textContent = "Writing a proposal\u2026";
     const proposal = await agent.request(context, $("provider").value);
-    if (await import_project4.default.revision(session.draft) !== context.baseRevision) throw Error("The source changed while the agent was writing. Ask again.");
+    if (await import_project5.default.revision(session.draft) !== context.baseRevision) throw Error("The source changed while the agent was writing. Ask again.");
     pendingContext = context;
     pendingProposal = proposal;
     $("explanation").textContent = proposal.explanation;
@@ -25900,7 +26214,7 @@ bridge = new MusicBridge(frame, (next) => {
 await bridge.ready;
 lock(false);
 status.textContent = session.recoveryError || "Ready \xB7 \u2318/Ctrl Enter to run";
-$("build").textContent = "Algorave 869b21f502ab";
+$("build").textContent = "Algorave 48aa463e6fd2";
 function draw(now) {
   shader2.render({ time: now / 1e3, delta: last2 ? (now - last2) / 1e3 : 0, ...signals.at(performance.timeOrigin + now) });
   last2 = now;

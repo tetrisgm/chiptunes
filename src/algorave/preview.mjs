@@ -6,25 +6,37 @@ import { AgentClient } from './agent-client.mjs';
 import { MusicBridge } from './music-bridge.mjs';
 import { MusicSignals } from './music-signals.mjs';
 import { ShaderRuntime } from './shader-runtime.mjs';
+import {fetchSample,inspectSampleWav,SAMPLE_LIMITS} from './sample-assets.mjs';
+import {loadSamples,saveSamples} from './sample-persistence.mjs';
+import {sampleIds,exportSampleProject,importSampleProject,SAMPLE_PROJECT_BYTES} from './sample-project.mjs';
 const $ = id => document.getElementById(id);
 const status = $('status');
 const music = codeEditor($('music'), {language:'music',label:'Strudel music'});
 const visual = codeEditor($('visual'), {language:'visual',label:'GLSL visual'});
 let signal = {}, playing = false, last = 0, focus = 'music', playRequested = false, openRequested = false, visualPass = 'Image';
 let bridge, shader, pendingProposal, pendingContext, uiBusy = false, saveTimer;
+let sampleStorePromise,sampleAbort;
+const sampleStore=()=>sampleStorePromise||(sampleStorePromise=loadSamples().catch(error=>{sampleStorePromise=null;throw error;}));
 const initial = example();
 const signals = new MusicSignals(), agent = new AgentClient();
 const runtime = {
   async prepare(next, previous) {
-    const musicChanged = next.music !== previous.music || playRequested || openRequested;
+    const pendingSample=sampleAbort;
+    const musicChanged = next.music !== previous.music || JSON.stringify(next.samples)!==JSON.stringify(previous.samples) || playRequested || openRequested;
     const shouldPlay = !openRequested && (playing || playRequested);
     const visualChanged = JSON.stringify(next.visuals) !== JSON.stringify(previous.visuals);
     const visualCandidate = visualChanged ? shader.prepare(next.visuals) : null;
     let token;
-    try { if (musicChanged) ({ token } = await bridge.request('prepare', next.music)); }
+    try { if (musicChanged) {
+      const ids=sampleIds(next),store=ids.length?await sampleStore():null;
+      const assets=ids.map(id=>({id,bytes:store.get(id)}));
+      ({ token } = await bridge.request('prepare', next.music,{samples:next.samples,assets}));
+    } }
     catch (error) { visualCandidate?.dispose(); throw error; }
     return {
       async apply() {
+        if(pendingSample?.signal.aborted)throw Error('Sample loading cancelled.');
+        if(pendingSample)$('sample-cancel').disabled=true;
         // Both candidates have been validated. Apply the visual transaction first;
         // if audio activation fails, restore the previous applied visual source.
         let visualApplied = false;
@@ -64,8 +76,8 @@ const resize = new ResizeObserver(() => {
   catch (error) { status.textContent = error.message; }
 });
 resize.observe($('canvas'));
-window.addEventListener('pagehide', () => { resize.disconnect(); shader.dispose(); agent.cancel(); clearTimeout(saveTimer); music.destroy(); visual.destroy(); });
-function message(error) { status.textContent = error.message || String(error); }
+window.addEventListener('pagehide', () => { resize.disconnect(); shader.dispose(); agent.cancel(); sampleAbort?.abort(); clearTimeout(saveTimer); music.destroy(); visual.destroy(); });
+function message(error) { status.textContent = error.message || String(error); if($('sample-dialog').open)$('sample-feedback').textContent=status.textContent; }
 music.onLimit = visual.onLimit = text => message(text);
 function save(explicit = false) {
   try { session.save({replaceUnreadable:explicit}); if (explicit) status.textContent = 'Saved on this device'; }
@@ -83,7 +95,7 @@ function changed() {
 music.oninput = changed; visual.oninput = changed;
 function lock(value) {
   uiBusy = value; music.readOnly = value; visual.readOnly = value;
-  for (const id of ['run','play','apply','undo','pass','set-channels','channels','open','examples']) $(id).disabled = value;
+  for (const id of ['run','play','apply','undo','pass','set-channels','channels','open','examples','sample-open','sample-add']) $(id).disabled = value;
   $('undo').disabled = value || !session.history.length;
   $('agent-undo').disabled = $('undo').disabled;
   $('apply').disabled = value || !pendingProposal?.edits.length;
@@ -135,10 +147,16 @@ $('project-file').onchange = async () => {
   if (!file) return;
   const generation = session.generation;
   try {
-    if (file.size > 524288) throw Error('Project files must be at most 512 KiB.');
-    const next = contract.project(JSON.parse(await file.text()));
+    if (file.size > SAMPLE_PROJECT_BYTES) throw Error('Project files must be at most 24 MiB including samples.');
+    const imported = await importSampleProject(JSON.parse(await file.text()));
     if (generation !== session.generation) throw Error('The draft changed while the file was being read. Open it again.');
-    await openProject(next);
+    if(imported.store){
+      const store=await sampleStore();
+      for(const {id} of imported.store.snapshot().assets)await store.put(imported.store.get(id));
+      await saveSamples(store);
+      if(generation!==session.generation)throw Error('The draft changed while samples were being saved. Open it again.');
+    }
+    await openProject(imported.project);
   } catch (error) { message(Error('Could not open this audiovisual project: ' + error.message)); }
 };
 $('examples').onchange = async () => {
@@ -159,11 +177,36 @@ $('listen').onclick=()=>leaveFor('/listen');
 $('help-open').onclick = () => $('help').showModal();
 $('help-close').onclick = () => $('help').close();
 $('save').onclick = () => save(true);
-$('download').onclick = () => {
-  const url = URL.createObjectURL(new Blob([JSON.stringify(session.draft,null,2)], {type:'application/json'}));
+$('download').onclick = async () => {
+  try{
+  const snapshot=contract.project(session.draft),store=sampleIds(snapshot).length?await sampleStore():null;
+  const url = URL.createObjectURL(new Blob([JSON.stringify(exportSampleProject(snapshot,store),null,2)], {type:'application/json'}));
   const link = document.createElement('a'); link.href = url; link.download = 'chiptunes-algorave.json'; link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }catch(error){message(error);}
 };
+$('sample-open').onclick=()=>{$('menu').open=false;$('sample-feedback').textContent='';$('sample-dialog').showModal();};
+$('sample-cancel').onclick=()=>{sampleAbort?.abort();$('sample-dialog').close();};
+$('sample-dialog').addEventListener('cancel',event=>{if($('sample-cancel').disabled)event.preventDefault();else sampleAbort?.abort();});
+$('sample-add').onclick=()=>action(async()=>{
+  const name=$('sample-name').value.trim(),file=$('sample-file').files[0],url=$('sample-url').value.trim();
+  if(!/^[a-z][a-z0-9_-]{0,63}$/.test(name)||['constructor','prototype'].includes(name))throw Error('Use a lowercase sample name starting with a letter.');
+  if(Boolean(file)===Boolean(url))throw Error('Choose one WAV file or enter one public sample URL.');
+  const generation=session.generation;sampleAbort=new AbortController();
+  try{
+    status.textContent='Loading sample…';$('sample-feedback').textContent=status.textContent;
+    if(file&&file.size>SAMPLE_LIMITS.fileBytes)throw Error('Sample files must be at most 4 MiB.');
+    const bytes=file?new Uint8Array(await file.arrayBuffer()):(await fetchSample(url,{signal:sampleAbort.signal})).bytes;
+    inspectSampleWav(bytes);if(sampleAbort.signal.aborted)throw Error('Sample loading cancelled.');
+    const store=await sampleStore(),{id}=await store.put(bytes);
+    await saveSamples(store);
+    if(sampleAbort.signal.aborted)throw Error('Sample loading cancelled.');
+    if(generation!==session.generation)throw Error('The project changed while the sample loaded. Try again.');
+    const next=contract.project({...session.draft,samples:{...session.draft.samples,[name]:[id]}});
+    await session.activate(next);$('sample-dialog').close();$('sample-file').value='';$('sample-url').value='';
+    status.textContent='Sample loaded · use s("'+name+'")';
+  }finally{sampleAbort=null;$('sample-cancel').disabled=false;}
+});
 async function fullscreen(code) {
   const target = code ? document.documentElement : $('output');
   try {

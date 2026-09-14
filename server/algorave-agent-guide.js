@@ -19,8 +19,11 @@ not the legacy song/pattern/track/cycleV1 language. Use normal mini-notation and
 chain transformations. setcpm sets cycles per minute; a four-beat 120 BPM groove
 uses setcpm(30). $: labels stack layers. ~ is rest, [] subdivides, <> alternates
 cycles, * repeats. Synths include sine, triangle, sawtooth, square. The original
-bundled sample bank provides bd (kick), sd (snare), hh (hat). External network
-sample loading is not yet supported; do not invent samples or URLs. No imports,
+bundled sample bank provides bd (kick), sd (snare), hh (hat). project.samples lists
+additional user-imported sample names and their content IDs. Use these names with
+s("name") and n() for list indices; audio bytes are not sent to you. Users add WAV
+files or public GitHub raw WAV URLs through Add sample in the project menu. Do not
+emit samples(), fetch sample maps, invent missing sounds or URLs. No imports,
 fetch, DOM/storage, eval, timers or arbitrary JavaScript side effects; write musical
 pattern expressions and definitions. Evaluation and pattern queries run in a terminable
 worker; only bounded note/control data reaches audio. Audio-output callbacks,

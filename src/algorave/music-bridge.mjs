@@ -37,7 +37,7 @@ export class MusicBridge {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => { this.pending.delete(id); reject(Error('Music evaluation timed out. Stop and reload the engine.')); }, 15000);
       this.pending.set(id, { resolve, reject, timer });
-      this.port.postMessage({ id, type, source, token: options.token, play: options.play === true });
+      this.port.postMessage({ id, type, source, token: options.token, play: options.play === true, samples:options.samples,assets:options.assets });
     });
   }
   dispose() {

@@ -12,7 +12,7 @@ function text(v, limit) {
   return typeof v === 'string' && bytes(v) <= limit && !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(v);
 }
 function project(value) {
-  need(keys(value, ['version','runtime','music','visuals'], ['version','runtime','music','visuals']));
+  need(keys(value, ['version','runtime','music','visuals','samples'], ['version','runtime','music','visuals']));
   need(value.version === 1 && keys(value.runtime,['music','visual'],['music','visual']));
   need(value.runtime.music === RUNTIME.music && value.runtime.visual === RUNTIME.visual,'Unsupported project runtime.');
   need(text(value.music,65536));
@@ -35,6 +35,18 @@ function project(value) {
     visuals.channels[name] = [...row];
   }
   const result = { version:1, runtime:{...RUNTIME}, music:value.music, visuals };
+  if(Object.hasOwn(value,'samples')){
+    need(plain(value.samples)&&Object.keys(value.samples).length<=32,'Invalid sample collection.');
+    const samples={},ids=new Set();
+    for(const name of Object.keys(value.samples).sort()){
+      const row=value.samples[name];
+      need(/^[a-z][a-z0-9_-]{0,63}$/.test(name)&&!['constructor','prototype'].includes(name)&&Array.isArray(row)&&row.length>0&&row.length<=32,'Invalid sample name or list.');
+      need(row.every(id=>typeof id==='string'&&/^[a-f0-9]{64}$/.test(id)),'Invalid sample content identity.');
+      samples[name]=[...row];row.forEach(id=>ids.add(id));
+    }
+    need(ids.size<=32,'Too many sample files.');
+    if(Object.keys(samples).length)result.samples=samples;
+  }
   need(bytes(JSON.stringify(result)) <= 524288,'Project is too large.');
   return result;
 }

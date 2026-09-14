@@ -444,3 +444,51 @@ quota failures, content mismatch, failed-attempt accounting, unexpected decode
 dimensions and closing during a pending decode. Audio loading/registration are
 injected in these checks. Actual upstream-browser integration and project asset
 persistence remain pending; this module is not yet wired into the playing build.
+
+## Sample-enabled workspace checkpoint — 2026-09-15
+
+Build `48aa463e6fd2` wires the asset and bank managers into the actual audio frame.
+Add sample lives in the secondary project menu. It accepts a local WAV or a public
+GitHub raw WAV URL and a logical name. Adding a sample validates/loads it before
+activation, leaves a stopped project stopped, and preserves phase when playing.
+An existing name can be replaced; exact Undo restores its old bank mapping.
+Unknown sound names now fail preflight with an Add sample hint while retaining
+the last working music. Lazy unknown names also stop safely through the existing
+transport-error path.
+
+Projects optionally contain a bounded `samples` map of names to SHA-256 IDs.
+Sample bytes remain outside the agent context. The original three drums also use
+the immutable bank manager; queued slices resolve against their own pattern
+client, while event signals retain logical names such as bd. The audio frame's
+32-asset limit includes those original drums.
+
+IndexedDB stores content before the source record refers to it. Read/write
+transactions merge new identities without overwriting existing content, enforce
+the encoded byte/count limits against concurrent additions, and reject conflicting
+bytes. Loading rechecks content hashes. Download project includes referenced
+sample bytes in a versioned archive; Open validates its hashes/WAVs before
+activation and starts stopped. Older sample-free project files keep their shape.
+Archives are capped at 24 MiB; audio bytes are never sent in agent requests.
+
+`npm run test:algorave-samples` passes 16 Node groups and actual Chromium coverage
+of file import, upstream sample playback, missing-sound retention, phase-preserving
+bank replacement, exact Undo, IndexedDB reload, metadata-only agent context,
+exact-byte export, fresh-context restore and damaged-archive retention. URL import
+uses a intercepted public-URL fixture with no credentials; this is not a live
+GitHub download. The narrow modal screenshot was reviewed; controls and errors
+fit 390×844. Preview, agent workflow, editor, worker and shared-entry browser
+regressions pass serially. Native Safari sample behavior and a sample-enabled
+long performance run are not yet verified.
+
+## Completed baseline performance run
+
+The unchanged fixed-bank build `869b21f502ab` completed 1800.008 seconds, 3600
+scheduled kicks and repeated tempo/music/shader/layout edits. It kept one audio
+epoch; maximum scheduled kick gap was 0.535715 seconds, signal-delivery gap
+0.0734 seconds, and observed analyser silence 99.7 ms. Steady state retained one
+worker (peak two during preparation), one WebGL program, two textures and three
+sample blob URLs. Main-frame heap samples ranged from 8,293,568 to 11,288,676 bytes.
+The terminal receipt is `.algorave-preview/soak-receipt.json`; the runner stopped
+audio and closed its browser/server. This establishes the fixed-bank baseline,
+not long-run acceptance of the subsequently changed sample path, acoustic glitch
+freedom, whole-browser/GPU memory, native Safari or an external display.
