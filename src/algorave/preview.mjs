@@ -1,8 +1,10 @@
 import { MusicBridge } from './music-bridge.mjs';
+import { MusicSignals } from './music-signals.mjs';
 import { ShaderRuntime } from './shader-runtime.mjs';
 const $ = id => document.getElementById(id);
 const music = $('music'), visual = $('visual'), status = $('status');
 music.value = `setcpm(30)
+$: s("bd*4, [~ hh]*4, ~ sd ~ sd").gain(.5)
 $: note("<c2 eb2 f2 g2>")
   .s("sawtooth").lpf(700).decay(.2).sustain(0).gain(.25)
 $: note("c5 [eb5 g5] ~ bb4")
@@ -14,8 +16,15 @@ visual.value = `void mainImage(out vec4 color, in vec2 pixel) {
   vec3 ink = .5 + .5 * cos(iTime * .2 + uv.xyx + vec3(0,2,4));
   color = vec4(ink * smoothstep(-.2,.6,rings), 1.);
 }`;
-const shader = new ShaderRuntime($('canvas'));
+const shader = new ShaderRuntime($('canvas'), { onStatus: text => { status.textContent = text; } });
+const signals = new MusicSignals();
 shader.set({ Image: visual.value });
+const resize = new ResizeObserver(() => {
+  try { const rect = $('canvas').getBoundingClientRect(); shader.resize(rect.width * devicePixelRatio, rect.height * devicePixelRatio); }
+  catch (error) { status.textContent = error.message; }
+});
+resize.observe($('canvas'));
+window.addEventListener('pagehide', () => { resize.disconnect(); shader.dispose(); });
 let signal = {}, playing = false, last = 0, focus = 'music';
 const frame = document.createElement('iframe');
 frame.hidden = true; frame.setAttribute('sandbox','allow-scripts');
@@ -25,9 +34,9 @@ frame.setAttribute('allow','autoplay'); frame.title='Isolated music engine';
 const response = await fetch('music-runtime.js');
 if (!response.ok) throw Error('Music engine could not load.');
 const script = await response.text();
-frame.srcdoc = `<!doctype html><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' blob:; worker-src blob:; connect-src 'none'; img-src 'none'; media-src blob:; style-src 'unsafe-inline'"><script>${script.replace(/<\/script/gi,'<\\/script')}<\/script>`;
+frame.srcdoc = `<!doctype html><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' blob:; worker-src blob:; connect-src blob:; img-src 'none'; media-src blob:; style-src 'unsafe-inline'"><script>${script.replace(/<\/script/gi,'<\\/script')}<\/script>`;
 await new Promise(resolve => { frame.onload=resolve; document.body.append(frame); });
-const bridge = new MusicBridge(frame, next => { signal = next; });
+const bridge = new MusicBridge(frame, next => { signal = next; signals.receive(next); });
 await bridge.ready;
 $('play').disabled=false; $('run').disabled=false;
 status.textContent='Ready · ⌘/Ctrl Enter to run'; $('build').textContent=BUILD_ID;
@@ -49,9 +58,9 @@ $('play').onclick=async()=> {
 };
 document.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key==='Enter'){e.preventDefault();run();}});
 function draw(now) {
-  shader.render({time:now/1000,delta:last?(now-last)/1000:0,...signal});
+  shader.render({time:now/1000,delta:last?(now-last)/1000:0,...signals.at(performance.timeOrigin + now)});
   last=now; requestAnimationFrame(draw);
 }
 requestAnimationFrame(draw);
 // Test seam contains only this local proof's public runtime state, no app secrets.
-window.algoravePreview={shader,bridge,get signal(){return signal;},get playing(){return playing;}};
+window.algoravePreview={shader,bridge,signals,get signal(){return signal;},get playing(){return playing;}};

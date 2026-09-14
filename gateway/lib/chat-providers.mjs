@@ -1,3 +1,4 @@
+import audiovisual from '../../src/algorave/project.cjs';
 // Provider credentials live only in this server module's closure. No retries:
 // uncertain or cancelled requests must not silently incur a second charge.
 const schema = {type:'object',additionalProperties:false,properties:{
@@ -5,6 +6,9 @@ const schema = {type:'object',additionalProperties:false,properties:{
   edits:{type:'array',items:{type:'object',additionalProperties:false,properties:{
     oldText:{type:'string'},newText:{type:'string'}},required:['oldText','newText']}}
 },required:['id','baseRevision','edits','explanation']};
+const audiovisualSchema = structuredClone(schema);
+audiovisualSchema.properties.edits.items.properties.document={type:'string',enum:audiovisual.DOCUMENTS};
+audiovisualSchema.properties.edits.items.required=['document','oldText','newText'];
 const settings={
   openai:{key:'OPENAI_API_KEY',model:'CHAT_OPENAI_MODEL',fallback:'gpt-5.4-mini-2026-03-17',url:'https://api.openai.com/v1/responses'},
   anthropic:{key:'ANTHROPIC_API_KEY',model:'CHAT_ANTHROPIC_MODEL',fallback:'claude-sonnet-4-6',url:'https://api.anthropic.com/v1/messages'}
@@ -25,6 +29,13 @@ export function createChatProvider(provider,env=process.env,{fetch:fetcher=globa
   return Object.freeze({authorized:true,async propose({system,input,signal,maxOutputTokens,maxOutputBytes,maxCalls}){
     if(maxCalls!==1||signal.aborted)throw Error('provider_unavailable');
     const context=JSON.parse(input);
+    const isAudiovisual=context.kind==='algorave';
+    const proposalSchema=isAudiovisual?audiovisualSchema:schema;
+    if(isAudiovisual){
+      system=system.replace('Each edit has document, from, to, text.', 'Each edit has document, oldText, newText.')
+        .replace(/Offsets are UTF-16 half-open ranges in that document's source, sorted\nand nonoverlapping within each document\./, 'oldText must be an exact substring occurring once in that document. Use enough surrounding context to make it unique. newText replaces it. Do not calculate offsets; edits must not overlap.')
+        .replace('insert at 0 to add one.', 'use oldText empty only for an empty document to add one.');
+    }
     // Models identify exact text, never count character offsets. The host maps
     // unique anchors back to the unchanged UTF-16 edit contract deterministically.
     system=system.replace('Each edit has only from, to, text. Offsets are\nUTF-16 code units in the supplied source, half-open, non-overlapping and sorted.',
@@ -33,11 +44,11 @@ export function createChatProvider(provider,env=process.env,{fetch:fetcher=globa
     if(provider==='openai'){
       headers.authorization='Bearer '+key;
       body={model,store:false,instructions:system,input:[{role:'user',content:input}],
-        max_output_tokens:Math.min(4096,maxOutputTokens),text:{format:{type:'json_schema',name:'music_proposal',strict:true,schema}}};
+        max_output_tokens:Math.min(4096,maxOutputTokens),text:{format:{type:'json_schema',name:'music_proposal',strict:true,schema:proposalSchema}}};
     }else{
       headers['x-api-key']=key;headers['anthropic-version']='2023-06-01';
       body={model,max_tokens:Math.min(4096,maxOutputTokens),system,messages:[{role:'user',content:input}],
-        output_config:{format:{type:'json_schema',schema}}};
+        output_config:{format:{type:'json_schema',schema:proposalSchema}}};
     }
     try{
       const response=await fetcher(config.url,{method:'POST',headers,body:JSON.stringify(body),signal,redirect:'error'});
@@ -59,11 +70,13 @@ export function createChatProvider(provider,env=process.env,{fetch:fetcher=globa
         !['id','baseRevision','explanation','edits'].every(k=>Object.hasOwn(proposal,k)))throw Error('invalid_output');
       if(proposal.id!==context.id||proposal.baseRevision!==context.baseRevision||!Array.isArray(proposal.edits)||proposal.edits.length>32)throw Error('invalid_output');
       const edits=proposal.edits.map(edit=>{
-        if(!edit||Object.keys(edit).length!==2||typeof edit.oldText!=='string'||!edit.oldText||typeof edit.newText!=='string')throw Error('invalid_anchor');
-        const from=context.source.indexOf(edit.oldText);
-        if(from<0||context.source.indexOf(edit.oldText,from+1)!==-1)throw Error('ambiguous_anchor');
-        return {from,to:from+edit.oldText.length,text:edit.newText};
-      }).sort((a,b)=>a.from-b.from);
+        if(!edit||Object.keys(edit).length!==(isAudiovisual?3:2)||typeof edit.oldText!=='string'||typeof edit.newText!=='string')throw Error('invalid_anchor');
+        const source=isAudiovisual?audiovisual.sourceFor(context.project,edit.document):context.source;
+        if(!edit.oldText&&!(isAudiovisual&&source===''))throw Error('invalid_anchor');
+        const from=source.indexOf(edit.oldText);
+        if(from<0||(edit.oldText&&source.indexOf(edit.oldText,from+1)!==-1))throw Error('ambiguous_anchor');
+        return {...(isAudiovisual?{document:edit.document}:{}),from,to:from+edit.oldText.length,text:edit.newText};
+      }).sort((a,b)=>(a.document||'').localeCompare(b.document||'')||a.from-b.from);
       return new Response(JSON.stringify({id:proposal.id,baseRevision:proposal.baseRevision,explanation:proposal.explanation,edits})).body;
     }catch{throw Error('provider_unavailable');}
   }});

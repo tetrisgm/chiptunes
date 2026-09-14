@@ -18,11 +18,11 @@ export class MusicBridge {
           this.pending.delete(data.id); clearTimeout(pending.timer);
           data.error ? pending.reject(Error(String(data.error).slice(0, 2000))) : pending.resolve({ playing: data.playing === true });
         }
-        if (data.type === 'signal' && Number.isFinite(data.time) && Number.isFinite(data.cycle)
+        if (data.type === 'signal' && Number.isSafeInteger(data.epoch) && Number.isFinite(data.observedAt) && Number.isFinite(data.time) && Number.isFinite(data.cycle)
           && Number.isFinite(data.cps) && Number.isFinite(data.sampleRate)
           && data.frequency instanceof Uint8Array && data.frequency.length === 512
           && data.waveform instanceof Uint8Array && data.waveform.length === 512) {
-          onSignal({ time: data.time, cycle: data.cycle, cps: data.cps, playing: data.playing === true,
+          onSignal({ epoch: data.epoch, observedAt: data.observedAt, time: data.time, cycle: data.cycle, cps: data.cps, playing: data.playing === true,
             sampleRate: data.sampleRate, frequency: data.frequency, waveform: data.waveform,
             events: Array.isArray(data.events) ? data.events.slice(0, 256).filter(e => e && Number.isFinite(e.time) && typeof e.sound === 'string').map(e => ({ time: e.time, sound: e.sound.slice(0,64) })) : [] });
         }

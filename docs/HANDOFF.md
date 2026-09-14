@@ -9,8 +9,12 @@ active direction. The first local runtime proof implements pinned upstream
 Strudel in an opaque-origin frame and a GLSL renderer with feedback buffers.
 [Runtime decisions and verification](algorave-runtime-decisions.md) record current
 evidence and remaining work. Run `npm run test:algorave-preview`; production Create
-is unchanged. Next: complete execution/recovery and samples, then dual-language
-agent integration and persistence. Earlier release acceptance below does not
+is unchanged. Runtime now includes original drums, scheduled kick signals, mouse
+input, resize retention and forced-context-loss recovery. The shared gateway now
+validates typed Strudel/GLSL proposals; both provider adapters have fixture coverage.
+Next: connect this contract to client Apply/Undo and persistence, finish execution
+timeout recovery/external assets, then replace the default entry and perform native
+acceptance. Earlier release acceptance below does not
 establish completion of this revised product.
 
 2026-09-13: Instruction-only cleanup; application behavior unchanged. Earlier notes are preserved verbatim in [HANDOFF-history-2026-09-13.md](HANDOFF-history-2026-09-13.md). Read the relevant section when resuming its topic; historical release/status claims need revalidation.

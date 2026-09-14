@@ -3,6 +3,8 @@
 // In-process Fetch handler only. No route, listener, credentials or provider.
 const language = require('../src/music-language.js');
 const project = require('../src/music-project.js');
+const audiovisual = require('../src/algorave/project.cjs');
+const audiovisualGuide = require('./algorave-agent-guide.js');
 const LIMITS = Object.freeze({ requestBytes: 1048576, sourceBytes: 524288,
   responseBytes: 65536, editBytes: 16384, edits: 32, timeoutMs: 30000,
   outputTokens: 8192, rememberedRequests: 1024, activeRequests: 32,
@@ -299,15 +301,19 @@ function createMusicChatHandler(options = {}) {
       need(await clock.run(() => rateLimit({ subject: owner, signal: clock.signal })) === true, 429, 'rate_limited');
       const length = request.headers.get('content-length');
       need(length == null || (/^\d+$/.test(length) && Number(length) <= LIMITS.requestBytes), 413, 'request_too_large');
-      const context = contextOf(json(await readUTF8(request.body, LIMITS.requestBytes, clock, 413, 'invalid_body'), 400, 'invalid_json'));
+      const input = json(await readUTF8(request.body, LIMITS.requestBytes, clock, 413, 'invalid_body'), 400, 'invalid_json');
+      let context;
+      try { context = input?.kind === 'algorave' ? await clock.run(() => audiovisual.context(input)) : contextOf(input); }
+      catch (error) { if (error instanceof Rejected) throw error; throw new Rejected(400, 'invalid_request'); }
+      const isAudiovisual = context.kind === 'algorave';
       const key = JSON.stringify([owner, context.id]);
       if (!options.reserveRequest) {
         need(!seen.has(key), 409, 'duplicate_request');
         need(seen.size < LIMITS.rememberedRequests, 503, 'request_capacity');
         seen.add(key); // Standalone hosts have no durable replay ledger.
       }
-      const before = compile(context.source, 400, 'invalid_source');
-      try { project.checkConstraints(before, before, context.constraints); }
+      const before = isAudiovisual ? null : compile(context.source, 400, 'invalid_source');
+      try { if (!isAudiovisual) project.checkConstraints(before, before, context.constraints); }
       catch (_) { throw new Rejected(400, 'invalid_constraints'); }
       // Deployed hosts reserve a durable, globally bounded paid call. Local
       // active/seen sets alone cannot enforce billing limits across instances.
@@ -324,7 +330,7 @@ function createMusicChatHandler(options = {}) {
       // the adapter. No HTTP request, principal, credentials, or executable tools.
       const output = await clock.run(async () => {
         const result = await adapter.propose(Object.freeze({
-        system: SYSTEM, input: JSON.stringify(context), signal: clock.signal,
+        system: isAudiovisual ? audiovisualGuide : SYSTEM, input: JSON.stringify(context), signal: clock.signal,
         tools: Object.freeze([]), toolChoice: 'none', maxOutputTokens: LIMITS.outputTokens,
         maxOutputBytes: LIMITS.responseBytes, maxCalls: 1
         }));
@@ -335,7 +341,12 @@ function createMusicChatHandler(options = {}) {
       });
       const raw = await readUTF8(output, LIMITS.responseBytes, clock, 502, 'invalid_provider_stream');
       providerFinished = true;
-      const proposal = proposalOf(json(raw, 502, 'invalid_proposal'), context, before);
+      const parsed = json(raw, 502, 'invalid_proposal');
+      let proposal;
+      if (isAudiovisual) {
+        try { audiovisual.candidateFrom(context.project, parsed, context); proposal = parsed; }
+        catch { throw new Rejected(502, 'invalid_proposal'); }
+      } else proposal = proposalOf(parsed, context, before);
       // Observe cancellation/timeout once more before committing the response.
       return await clock.run(() => response(200, proposal));
     } catch (e) {

@@ -18,15 +18,79 @@ out vec4 outputColor;
 `;
 const ORDER = ['A', 'B', 'C', 'D', 'Image'];
 export class ShaderRuntime {
-  constructor(canvas) {
-    this.canvas = canvas;
+  constructor(canvas, { onStatus = () => {} } = {}) {
+    this.canvas = canvas; this.onStatus = onStatus; this.generation = 0; this.candidates = new Set();
+    this.document = null; this.lost = false;
     this.gl = canvas.getContext('webgl2', { antialias: false, preserveDrawingBuffer: true });
     if (!this.gl) throw Error('Visuals need WebGL 2.');
     this.floatBuffers = this.gl.getExtension('EXT_color_buffer_float');
     this.passes = []; this.frame = 0; this.disposed = false;
-    this.audio = this.texture(512, 2, new Uint8Array(1024));
+    this.audioBytes = new Uint8Array(1024); this.audioBytes.fill(128, 512);
+    this.audio = this.texture(512, 2, this.audioBytes);
     this.empty = this.texture(1, 1, new Uint8Array(1));
     this.mouse = [0,0,0,0];
+    this.handlers = {
+      webglcontextlost: event => {
+        event.preventDefault(); this.lost = true; this.generation++;
+        for (const candidate of [...this.candidates]) candidate.dispose();
+        this.onStatus('Visuals paused while the graphics context recovers. Music continues.');
+      },
+      webglcontextrestored: () => {
+        if (this.disposed) return;
+        const saved = this.document;
+        this.lost = false; this.passes = [];
+        this.floatBuffers = this.gl.getExtension('EXT_color_buffer_float');
+        this.audio = this.texture(512, 2, this.audioBytes);
+        this.empty = this.texture(1, 1, new Uint8Array(1));
+        try { if (saved) this.set(saved); this.onStatus('Visuals recovered'); }
+        catch (error) { this.onStatus('Visual recovery failed: ' + error.message); }
+      },
+      pointerdown: event => {
+        if (event.button !== 0) return;
+        this.pointer = event.pointerId; canvas.setPointerCapture(event.pointerId);
+        this.position(event); this.mouse[2] = Math.max(.0001, this.mouse[0]); this.mouse[3] = Math.max(.0001, this.mouse[1]);
+      },
+      pointermove: event => { if (event.pointerId === this.pointer) this.position(event); },
+      pointerup: event => this.releasePointer(event),
+      pointercancel: event => this.releasePointer(event),
+      lostpointercapture: event => this.releasePointer(event),
+    };
+    for (const [name, handler] of Object.entries(this.handlers)) canvas.addEventListener(name, handler);
+  }
+  position(event) {
+    const rect = this.canvas.getBoundingClientRect();
+    this.mouse[0] = Math.max(0, Math.min(this.canvas.width, (event.clientX - rect.left) * this.canvas.width / rect.width));
+    this.mouse[1] = Math.max(0, Math.min(this.canvas.height, (rect.bottom - event.clientY) * this.canvas.height / rect.height));
+  }
+  releasePointer(event) {
+    if (event.pointerId !== this.pointer) return;
+    this.mouse[2] = -Math.abs(this.mouse[2]); this.mouse[3] = -Math.abs(this.mouse[3]); this.pointer = null;
+  }
+  resize(width, height) {
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width < 1 || height < 1) return false;
+    const scale = Math.min(1, 1920 / width, 1080 / height);
+    width = Math.max(1, Math.floor(width * scale)); height = Math.max(1, Math.floor(height * scale));
+    if (width === this.canvas.width && height === this.canvas.height) return false;
+    if (this.disposed || this.lost || this.gl.isContextLost()) return false;
+    const g = this.gl, replacements = [];
+    try {
+      for (const pass of this.passes) {
+        if (!pass.targets.length) continue;
+        const pair = []; replacements.push({ pass, pair });
+        for (const old of pass.targets) {
+          const next = this.target(width, height); pair.push(next);
+          g.bindFramebuffer(g.READ_FRAMEBUFFER, old.fbo); g.bindFramebuffer(g.DRAW_FRAMEBUFFER, next.fbo);
+          g.blitFramebuffer(0, 0, old.width, old.height, 0, 0, width, height, g.COLOR_BUFFER_BIT, g.NEAREST);
+        }
+      }
+    } catch (error) { replacements.forEach(({ pair }) => pair.forEach(t => this.deleteTarget(t))); throw error; }
+    // Candidates compiled against the old size cannot subsequently be activated.
+    this.generation++;
+    for (const candidate of [...this.candidates]) candidate.dispose();
+    for (const { pass, pair } of replacements) { pass.targets.forEach(t => this.deleteTarget(t)); pass.targets = pair; }
+    this.canvas.width = width; this.canvas.height = height;
+    g.bindFramebuffer(g.FRAMEBUFFER, null);
+    return true;
   }
   texture(width, height, bytes = null) {
     const g = this.gl, texture = g.createTexture();
@@ -39,9 +103,9 @@ export class ShaderRuntime {
     g.texImage2D(g.TEXTURE_2D, 0, bytes ? g.R8 : g.RGBA16F, width, height, 0, bytes ? g.RED : g.RGBA, bytes ? g.UNSIGNED_BYTE : g.HALF_FLOAT, bytes);
     return { texture, width, height };
   }
-  target() {
+  target(width = this.canvas.width, height = this.canvas.height) {
     if (!this.floatBuffers) throw Error('Feedback buffers need floating-point WebGL support.');
-    const g = this.gl, result = this.texture(this.canvas.width, this.canvas.height);
+    const g = this.gl, result = this.texture(width, height);
     result.fbo = g.createFramebuffer();
     g.bindFramebuffer(g.FRAMEBUFFER, result.fbo);
     g.framebufferTexture2D(g.FRAMEBUFFER, g.COLOR_ATTACHMENT0, g.TEXTURE_2D, result.texture, 0);
@@ -53,17 +117,18 @@ export class ShaderRuntime {
   }
   compile(source, common = '') {
     const g = this.gl;
+    if (this.disposed || this.lost || g.isContextLost()) throw Error('Visuals are waiting for the graphics context.');
     const shaders = [], program = g.createProgram();
     try {
       for (const [kind, code] of [[g.VERTEX_SHADER, VERTEX], [g.FRAGMENT_SHADER,
         HEADER + '\n#line 1 1\n' + common + '\n#line 1 0\n' + source + '\nvoid main(){mainImage(outputColor,gl_FragCoord.xy);}' ]]) {
         const shader = g.createShader(kind); shaders.push(shader);
         g.shaderSource(shader, code); g.compileShader(shader);
-        if (!g.getShaderParameter(shader, g.COMPILE_STATUS)) throw Error(g.getShaderInfoLog(shader));
+        if (!g.getShaderParameter(shader, g.COMPILE_STATUS)) throw Error(g.getShaderInfoLog(shader) || 'Graphics context became unavailable during compilation.');
         g.attachShader(program, shader);
       }
       g.linkProgram(program);
-      if (!g.getProgramParameter(program, g.LINK_STATUS)) throw Error(g.getProgramInfoLog(program));
+      if (!g.getProgramParameter(program, g.LINK_STATUS)) throw Error(g.getProgramInfoLog(program) || 'Graphics context became unavailable during linking.');
       return program;
     } catch (error) { g.deleteProgram(program); throw error; }
     finally { shaders.forEach(s => g.deleteShader(s)); }
@@ -71,7 +136,8 @@ export class ShaderRuntime {
   // Transactional prepare: a bad pass never replaces any working pass.
   prepare(document) {
     if (!document || typeof document.Image !== 'string') throw Error('An Image shader is required.');
-    const common = document.Common || '', next = [];
+    document = structuredClone(document);
+    const common = document.Common || '', next = [], generation = this.generation;
     if (typeof common !== 'string' || common.length > 65536) throw Error('Common code is too large.');
     try {
       for (const name of ORDER) {
@@ -89,13 +155,17 @@ export class ShaderRuntime {
       }
     } catch (error) { this.deletePasses(next); throw error; }
     let settled = false;
-    return {
+    const candidate = {
       apply: () => {
-        if (settled) throw Error('Shader candidate already consumed.');
-        settled = true; this.deletePasses(this.passes); this.passes = next; this.frame = 0;
+        if (settled || generation !== this.generation || this.lost || this.disposed || this.gl.isContextLost()) {
+          candidate.dispose(); throw Error('The visual output changed. Run this edit again.');
+        }
+        settled = true; this.candidates.delete(candidate); this.deletePasses(this.passes); this.passes = next; this.frame = 0; this.document = document;
       },
-      dispose: () => { if (!settled) { settled = true; this.deletePasses(next); } },
+      dispose: () => { if (!settled) { settled = true; this.candidates.delete(candidate); this.deletePasses(next); } },
     };
+    this.candidates.add(candidate);
+    return candidate;
   }
   set(document) { this.prepare(document).apply(); }
   uniform(pass, name, kind, ...values) {
@@ -104,11 +174,11 @@ export class ShaderRuntime {
   }
   render({ time = 0, delta = 0, cycle = 0, kick = 0, sampleRate = 44100, frequency, waveform, date = new Date() } = {}) {
     const g = this.gl;
-    if (this.disposed || g.isContextLost()) return false;
+    if (this.disposed || this.lost || g.isContextLost()) return false;
     if (frequency?.length === 512 && waveform?.length === 512) {
-      const bytes = new Uint8Array(1024); bytes.set(frequency); bytes.set(waveform,512);
+      this.audioBytes.set(frequency); this.audioBytes.set(waveform,512);
       g.bindTexture(g.TEXTURE_2D, this.audio.texture);
-      g.texSubImage2D(g.TEXTURE_2D, 0, 0, 0, 512, 2, g.RED, g.UNSIGNED_BYTE, bytes);
+      g.texSubImage2D(g.TEXTURE_2D, 0, 0, 0, 512, 2, g.RED, g.UNSIGNED_BYTE, this.audioBytes);
     }
     const completed = new Map();
     for (const pass of this.passes) {
@@ -142,5 +212,9 @@ export class ShaderRuntime {
   }
   deleteTarget(target) { this.gl.deleteTexture(target.texture); if (target.fbo) this.gl.deleteFramebuffer(target.fbo); }
   deletePasses(passes) { for (const pass of passes) { this.gl.deleteProgram(pass.program); pass.targets.forEach(t => this.deleteTarget(t)); } }
-  dispose() { this.disposed = true; this.deletePasses(this.passes); this.deleteTarget(this.audio); this.deleteTarget(this.empty); this.passes=[]; }
+  dispose() {
+    if (this.disposed) return;
+    for (const [name, handler] of Object.entries(this.handlers)) this.canvas.removeEventListener(name, handler);
+    for (const candidate of [...this.candidates]) candidate.dispose();
+    this.disposed = true; this.deletePasses(this.passes); this.deleteTarget(this.audio); this.deleteTarget(this.empty); this.passes=[]; }
 }

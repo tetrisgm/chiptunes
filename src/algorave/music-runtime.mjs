@@ -1,6 +1,7 @@
 // Local integration with upstream Strudel. Distribution license review is tracked
 // in docs/algorave-runtime-decisions.md; this prototype is not a release artifact.
-import { initStrudel, getAudioContext, initAudio, getSuperdoughAudioController, webaudioOutput } from '@strudel/web';
+import { initStrudel, getAudioContext, initAudio, getSuperdoughAudioController, webaudioOutput, samples, loadBuffer } from '@strudel/web';
+import { drumWav } from './drum-samples.mjs';
 
 // User code shares only this opaque-origin frame. It never receives parent storage,
 // cookies, auth state or a callable parent API. Capture the port before evaluation.
@@ -10,7 +11,8 @@ window.addEventListener('message', async function connect(event) {
   connected = true;
   const port = event.ports[0];
   const send = port.postMessage.bind(port);
-  let busy = false, analyser, timer, sequence = 0;
+  let busy = false, analyser, timer, sequence = 0, epoch = 0;
+  const sampleURLs = [];
   const events = [];
   try {
     const audio = getAudioContext();
@@ -20,6 +22,12 @@ window.addEventListener('message', async function connect(event) {
         return webaudioOutput(hap, deadline, duration, cps, time);
       },
     });
+    for (const name of ['bd', 'sd', 'hh']) {
+      const url = URL.createObjectURL(new Blob([drumWav(name)], { type: 'audio/wav' }));
+      sampleURLs.push(url);
+      await samples({ [name]: [url] });
+      await loadBuffer(url, audio, name);
+    }
     const frequency = new Uint8Array(512), waveform = new Uint8Array(512);
     port.onmessage = async ({ data }) => {
       if (!data || !Number.isSafeInteger(data.id) || !['run', 'stop'].includes(data.type)) return;
@@ -27,7 +35,7 @@ window.addEventListener('message', async function connect(event) {
       busy = true;
       try {
         if (data.type === 'stop') {
-          repl.stop();
+          repl.stop(); epoch++;
           events.length = 0;
         } else {
           if (typeof data.source !== 'string' || data.source.length > 65536) throw Error('Music code is too large.');
@@ -39,6 +47,7 @@ window.addEventListener('message', async function connect(event) {
             analyser.smoothingTimeConstant = 0.5;
             getSuperdoughAudioController().output.destinationGain.connect(analyser);
           }
+          if (!repl.state.started) { epoch++; events.length = 0; }
           await repl.evaluate(data.source, true);
           if (repl.state.error) throw repl.state.error;
         }
@@ -52,11 +61,13 @@ window.addEventListener('message', async function connect(event) {
       if (!analyser) return;
       analyser.getByteFrequencyData(frequency);
       analyser.getByteTimeDomainData(waveform);
-      send({ type: 'signal', sequence: ++sequence, time: audio.currentTime,
-        cycle: repl.scheduler.now(), cps: repl.scheduler.cps, playing: repl.state.started,
+      const stamp = audio.getOutputTimestamp?.();
+      const lag = stamp?.contextTime > 0 ? Math.max(0, Math.min(.5, audio.currentTime - stamp.contextTime)) : Math.max(0, Math.min(.5, (audio.baseLatency || 0) + (audio.outputLatency || 0)));
+      send({ type: 'signal', sequence: ++sequence, epoch, observedAt: performance.timeOrigin + performance.now(), time: audio.currentTime - lag,
+        cycle: repl.scheduler.now() - (repl.state.started ? lag * repl.scheduler.cps : 0), cps: repl.scheduler.cps, playing: repl.state.started,
         sampleRate: audio.sampleRate, frequency, waveform, events: events.splice(0) });
     }, 1000 / 30);
-    window.addEventListener('pagehide', () => { clearInterval(timer); repl.stop(); audio.close(); });
+    window.addEventListener('pagehide', () => { clearInterval(timer); repl.stop(); audio.close(); sampleURLs.forEach(url => URL.revokeObjectURL(url)); });
     send({ type: 'ready', version: 'strudel-web-1.3.0' });
   } catch (error) { send({ type: 'fatal', error: String(error.message || error).slice(0, 2000) }); }
 });
