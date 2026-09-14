@@ -297,3 +297,31 @@ available in fullscreen; the audio-texture output settled to black, and Escape
 returned to the same editors with Play available. The temporary tab/server were
 closed. This is not an external-display, production or 30-minute performance test;
 those acceptance requirements remain open.
+
+## Historical chip recovery — 2026-09-15
+
+A read-only native Safari console query of version metadata identified the real
+production warning: saved language/compiler `1` and assets `5fba76c2aeb5e170`,
+versus current assets `e84045bcb7186729`. No source/private data was printed or
+changed. The console was closed after inspection.
+
+Git history pins the old asset triplet to `11dd607c50b5`; `88062941bfbb` changed
+only gb-apu.js within that triplet, adding scalar event observations and indices.
+Hardware and instrument assets are identical. An independent local VM comparison
+loaded the historical triplet with git show and the current files, verified both
+SHA-256 prefixes, and compared complete Float32 PCM bytes for four-bar pulse,
+wave-bass and n-tick source fixtures at 8000, 44100 and 48000 Hz. All nine renders
+were nonzero and exactly equal. This supports only this specific hash pair.
+
+Restore now accepts that pair with language/compiler exactly `1`, retaining the
+original version metadata, drafts, validated source and private data. Unknown
+hashes, language/compiler changes and the reverse pair still fail. No general
+version bypass or lossy source migration was introduced.
+
+All 26 project contract groups pass, including exact private-record serialization,
+invalid-draft retention and rejection of future versions. The shared-build entry
+browser test reopens a historical-hash fixture without autoplay or replacing its
+saved bytes, alongside existing Strudel/chip handoff and cartridge-link checks.
+All nine transfer protocol checks also pass. The production tab's original
+record remains unchanged; this local fix has not been deployed or tested against
+that private record's source in the new build.

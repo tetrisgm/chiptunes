@@ -375,7 +375,16 @@
       var language = root.CT_MUSIC_LANGUAGE;
       var expected = { language: options.languageVersion || (language && language.VERSION) || '1',
         compiler: options.compilerVersion || (language && language.COMPILER_VERSION) || '1', assets: options.assetsVersion || 'unspecified' };
-      assert(equal(saved.versions, expected), 'Incompatible language/compiler/instrument assets versions');
+      // 88062941 added read-only event observations to the APU, changing its
+      // file hash without changing instruments or PCM. Only this verified pair
+      // is compatible; do not relax checks for future engines or languages.
+      var observedAssets = expected.language === '1' && expected.compiler === '1' &&
+        expected.assets === 'e84045bcb7186729' && equal(saved.versions,
+          {language: '1', compiler: '1', assets: '5fba76c2aeb5e170'});
+      assert(equal(saved.versions, expected) || observedAssets, 'Incompatible language/compiler/instrument assets versions');
+      // Keep the original version metadata on save as well as source/private
+      // data. Opening a compatible project is not a destructive migration.
+      if (observedAssets) options.assetsVersion = saved.versions.assets;
       options.seeds = saved.metadata.seeds; options.assets = saved.metadata.assets;
       // An absent or malformed visual block never fails a music restore.
       options.visual = saved.visual || null;

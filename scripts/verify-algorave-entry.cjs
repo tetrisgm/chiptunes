@@ -59,6 +59,19 @@ const root=path.resolve(__dirname,'../dist');
     await page.goto(origin+'/create#music');await page.waitForFunction(()=>window.CT_MUSIC_WORKSPACE?.isOpen());
     assert.equal(await page.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot().draft),chip);
     assert.equal(await page.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot().playing),null);
+    // The historical asset hash predates read-only APU event observations.
+    // Reopen its actual record without replacing drafts or private metadata.
+    const historical=await page.evaluate(()=>{
+      const record=JSON.parse(localStorage.getItem('ct-music-workspace-v1'));
+      record.versions.assets='5fba76c2aeb5e170';
+      const serialized=JSON.stringify(record);
+      localStorage.setItem('ct-music-workspace-v1',serialized);return serialized;
+    });
+    await page.reload();await page.waitForFunction(()=>window.CT_MUSIC_WORKSPACE?.isOpen());
+    assert.equal(await page.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot().draft),chip);
+    assert.equal(await page.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot().playing),null);
+    assert.equal(await page.evaluate(()=>localStorage.getItem('ct-music-workspace-v1')),historical);
+    assert.equal(await page.getByText('Incompatible language/compiler/instrument assets versions',{exact:false}).count(),0);
     // A real legacy cartridge share retains its notes through the new dispatcher.
     const api=require('../src/api.js'),create=require('../src/create.js');
     const doc=api.fromJSON({title:'Preserved chip',bpm:120,bars:1,grid:16,notes:[{lane:'Melody',step:0,note:'C5',len:4}]});

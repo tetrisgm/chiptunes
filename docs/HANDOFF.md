@@ -17,9 +17,10 @@ Code-plus-output fullscreen now works in all layouts; native Safari and Chromium
 checks passed on build `869b21f502ab`, including editing and Stop inside fullscreen.
 
 Next: finish asset handling, the 30-minute performance run and full Mac/provider acceptance; review the recorded distribution details.
-The existing production Safari tab showed an incompatible legacy saved-version
-warning before local testing. Its original record was not touched; investigate
-that real recovery case before claiming preservation of every historical version.
+The production Safari warning was traced read-only to asset hash `5fba76c2aeb5e170`.
+The local build now accepts that exact observation-only APU update and preserves
+the complete old record; see the historical recovery evidence in the runtime record.
+The production record remains untouched and the fix is not deployed.
 
 2026-09-13: Instruction-only cleanup; application behavior unchanged. Earlier notes are preserved verbatim in [HANDOFF-history-2026-09-13.md](HANDOFF-history-2026-09-13.md). Read the relevant section when resuming its topic; historical release/status claims need revalidation.
 

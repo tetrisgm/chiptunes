@@ -157,6 +157,23 @@ test('private metadata opt-in, incompatible recovery retains original', () => {
   const version = JSON.parse(saved); version.version++; assert.equal(P.restore(JSON.stringify(version), options).ok, false);
   assert.equal(P.restore(saved, {...options, compile: () => { throw Error('changed compiler'); }}).ok, false);
 });
+test('observation-only asset update restores exact records but no other version pair', () => {
+  const old = {...options, assetsVersion: '5fba76c2aeb5e170'};
+  const current = {...options, assetsVersion: 'e84045bcb7186729'};
+  const p = P.create(source, {...old, chat: ['preserved'], provenance: {note: 'keep'}});
+  p.editDraft(source + ' broken');
+  const saved = p.serialize({includePrivate: true});
+  const restored = P.restore(saved, current);
+  assert.equal(restored.ok, true);
+  assert.equal(restored.project.serialize({includePrivate: true}), saved);
+  assert.deepEqual(restored.project.validated.compiled, p.validated.compiled);
+  assert.equal(restored.project.playing, null);
+  for (const overrides of [{assetsVersion:'future'}, {languageVersion:'2'}, {compilerVersion:'2'}]) {
+    const result = P.restore(saved, {...current, ...overrides});
+    assert.equal(result.ok, false); assert.equal(result.original, saved);
+  }
+  assert.equal(P.restore(P.create(source, current).serialize(), old).ok, false);
+});
 test('no valid source, compiler errors, asynchronous misuse and source bound', () => {
   const p = P.create('broken', options); assert.equal(p.validated, null);
   assert.equal(P.restore(p.serialize(), options).project.draft, 'broken');
