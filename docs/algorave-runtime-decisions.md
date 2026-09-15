@@ -1797,3 +1797,27 @@ responses are accepted. Source changes and Stop detach the listener through
 The existing texture verifier renders a synthetic magenta peer source, checks
 forty replacements retain one listener, and verifies Clear/Stop cancellation.
 This verifies renderer integration and event lifecycle, not a network peer service.
+
+### MQTT output — 2026-09-15
+
+Integrated published @strudel/mqtt 1.2.6 and Paho 1.1.0 preferred source, originals,
+hashes and licenses. The upstream `.mqtt(username,password,topic,host,client,
+latency,add_meta)` pattern method retains trigger dominance, inferred topic paths,
+JSON/scalar payloads, duration/cps metadata and timestamp scheduling. `closeMqtt`
+and Stop cancel timers and disconnect clients; generation checks reject late
+connections. Connection/send errors reach the status through the Strudel logger.
+
+The opaque frame allows WSS connections. Paho falls back to its memory store when
+browser storage is inaccessible. The module requires an explicit password argument
+when a username is given: upstream cookie persistence and modal password prompts
+are intentionally unavailable in this frame. No supplied credentials were used.
+
+`scripts/verify-algorave-mqtt.cjs` runs the actual Paho encoder against an intercepted
+WSS broker fixture. It verifies packets, topic inference, metadata suppression,
+Run/Undo, delayed-send cancellation, disconnect, deferred reload, late connection
+and broker rejection. This is local Chromium acceptance, not a real external broker
+or native Safari test. Arbitrary external side effects cannot be undone.
+
+The published Csound 1.3.0 source was also inspected: it exports loadCSound aliases,
+loadOrc, csound and csoundm and uses @csound/browser 6.18.7 plus orchestra resources.
+That module remains unintegrated; its engine and source distribution need work.

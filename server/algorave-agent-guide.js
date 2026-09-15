@@ -159,6 +159,13 @@ orientationAlpha/Beta/Gamma (oriA/B/G), and absoluteOrientationAlpha/Beta/Gamma
 Sensor availability and permission depend on the browser/device. Do not assume
 permission is granted or that a desktop has motion sensors.
 
+MQTT output uses .mqtt(username,password,topic,host,client,latency,add_meta)
+with upstream defaults and WSS broker URLs. Use single-quoted URL/topic strings.
+Only use MQTT when the user requests an external broker; do not invent credentials
+or put secrets in generated source. Cookie/password prompts are unavailable in
+the isolated frame; credentials must already be supplied by the user's code.
+Stop cancels queued messages and disconnects; closeMqtt() also releases clients.
+
 Sound is an optional GLSL document with vec2 mainSound(int samp,float time),
 returning left/right samples in [-1,1]. Common code is shared. Sound renders a
 finite 180-second track before applying the edit; Play/Stop pauses/resumes it.

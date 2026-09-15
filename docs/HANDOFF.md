@@ -119,6 +119,13 @@ device/URL-media acceptance and broader continuity/performance remain
 pending. See the
 [Hydra checkpoint](algorave-runtime-decisions.md#hydra-integration--2026-09-15).
 
+MQTT output is integrated from pinned upstream/Paho source. Chromium intercepted
+WSS checks cover wire payloads, metadata, Run/Undo, Stop, late connections and
+visible rejection. Native and external-broker acceptance remain pending. Csound
+1.3.0 source was inspected but is not integrated; it depends on @csound/browser
+6.18.7 and needs its WASM/worklet/source-distribution integration. See the
+[MQTT checkpoint](algorave-runtime-decisions.md#mqtt-output--2026-09-15).
+
 Next: complete the remaining Strudel input/drawing/module scope and Shadertoy
 media and Sound contracts; complete final browser/acoustic
 acceptance and check performance appropriate to subsequent changes. Chromium DSP checks use an explicit

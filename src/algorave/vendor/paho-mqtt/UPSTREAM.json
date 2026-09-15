@@ -1,0 +1,37 @@
+{
+  "package": "paho-mqtt",
+  "version": "1.1.0",
+  "files": [
+    {
+      "path": "paho-mqtt.js",
+      "sha256": "a0c734a00a2172d579ca1ff4f92fb366bccb40974005bdad5ea7a2f0326ac158"
+    },
+    {
+      "path": "package.json",
+      "sha256": "339d6bd3e212643994d294e0592de776672b831ec4f05058e1363612ef0cd8c8"
+    },
+    {
+      "path": "README.md",
+      "sha256": "7c18b80504f82464837183f0b2eaf62eaa1f71aa80f144f8f854fc01f050cbea"
+    },
+    {
+      "path": "edl-v10",
+      "sha256": "83bbba033dc985487e321b6dfde111772affb73460be48726299fed3da684b1c"
+    },
+    {
+      "path": "epl-v10",
+      "sha256": "44277b2bec6093e4ac313afec251a4de599d24c4e768f8574d95b13a9d2d97b5"
+    },
+    {
+      "path": "about.html",
+      "sha256": "eb56f6a44ac069b68ff8294be9e5e2599da89853b76e281d4efddcfd121a38fc"
+    }
+  ],
+  "modified": [
+    "paho-mqtt.js"
+  ],
+  "changes": [
+    "Fall back to the existing in-memory store when opaque-origin access to localStorage throws."
+  ],
+  "tarball": "https://registry.npmjs.org/paho-mqtt/-/paho-mqtt-1.1.0.tgz"
+}

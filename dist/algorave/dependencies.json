@@ -323,6 +323,19 @@
   },
   {
     "supplementalNotice": null,
+    "name": "@strudel/mqtt",
+    "version": "1.2.6",
+    "license": "AGPL-3.0-or-later",
+    "repository": {
+      "type": "git",
+      "url": "git+https://codeberg.org/uzu/strudel.git"
+    },
+    "noticeFiles": [
+      "LICENSE"
+    ]
+  },
+  {
+    "supplementalNotice": null,
     "name": "@strudel/osc",
     "version": "1.3.2",
     "license": "AGPL-3.0-or-later",
@@ -1075,6 +1088,20 @@
     "repository": "nanostores/nanostores",
     "noticeFiles": [
       "LICENSE"
+    ]
+  },
+  {
+    "supplementalNotice": null,
+    "name": "paho-mqtt",
+    "version": "1.1.0",
+    "license": "EPL-1.0",
+    "repository": {
+      "type": "git",
+      "url": "git+https://github.com/eclipse/paho.mqtt.javascript.git"
+    },
+    "noticeFiles": [
+      "edl-v10",
+      "epl-v10"
     ]
   },
   {

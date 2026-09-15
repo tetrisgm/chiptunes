@@ -5,7 +5,7 @@ const fs=require('node:fs'),path=require('node:path');
 function notices(out,inputs){
   const packages=new Map();
   for(const file of inputs){
-    const vendor=['edo','draw','gamepad','midi','motion','serial','tidal','hs2js','mondo','codemirror','hydra','hydra-synth'].find(name=>file.includes('src/algorave/vendor/'+name+'/'));
+    const vendor=['edo','draw','gamepad','midi','motion','serial','tidal','hs2js','mondo','codemirror','hydra','hydra-synth','mqtt','paho-mqtt'].find(name=>file.includes('src/algorave/vendor/'+name+'/'));
     if(vendor){
       const directory=path.resolve(__dirname,'../src/algorave/vendor',vendor);
       packages.set(directory,JSON.parse(fs.readFileSync(path.join(directory,'package.json'),'utf8')));
@@ -24,7 +24,7 @@ function notices(out,inputs){
   }
   const records=[],sections=[];
   for(const [directory,data]of [...packages].sort((a,b)=>a[1].name.localeCompare(b[1].name))){
-    const files=fs.readdirSync(directory).filter(name=>/^(LICENSE|LICENCE|COPYING|NOTICE)(\.|$)/i.test(name)&&fs.statSync(path.join(directory,name)).isFile());
+    const files=fs.readdirSync(directory).filter(name=>/^(LICENSE|LICENCE|COPYING|NOTICE|edl-v10|epl-v10)(\.|$)/i.test(name)&&fs.statSync(path.join(directory,name)).isFile());
     const supplement=data.name==='@tonaljs/progression'?'tonal-MIT.txt':data.name==='chord-voicings'?'chord-voicings.txt':data.name==='sfumato'?'sfumato.txt':null;
     const extra=supplement?fs.readFileSync(path.join(__dirname,'../src/algorave/licenses',supplement),'utf8'):'';
     const record={supplementalNotice:supplement,name:data.name,version:data.version,license:data.license||data.licenses||'UNDECLARED',repository:data.repository||null,noticeFiles:files};

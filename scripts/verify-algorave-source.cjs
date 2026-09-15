@@ -32,6 +32,8 @@ try{
   assert(dependencies.some(p=>p.name==='@strudel/core'&&p.license==='AGPL-3.0-or-later'));
   assert(dependencies.some(p=>p.name==='@strudel/edo'&&p.license==='AGPL-3.0-or-later'&&p.noticeFiles.includes('LICENSE')));
   assert(dependencies.some(p=>p.name==='@strudel/gamepad'&&p.noticeFiles.includes('LICENSE')));
+  assert(dependencies.some(p=>p.name==='paho-mqtt'&&p.noticeFiles.includes('edl-v10')&&p.noticeFiles.includes('epl-v10')));
+  assert(dependencies.some(p=>p.name==='@strudel/mqtt'&&p.noticeFiles.includes('LICENSE')));
   assert(dependencies.every(p=>p.noticeFiles.length||p.supplementalNotice));
   assert(fs.readFileSync(path.join(artifact,'THIRD_PARTY_NOTICES.txt'),'utf8').includes('GNU AFFERO GENERAL PUBLIC LICENSE'));
   // Rebuild from the archive without the repository/.git or local node_modules.

@@ -18,6 +18,7 @@ function build({out=path.join(root,'.algorave-preview')}={}){
   for(const file of ['mondough.mjs','UPSTREAM.json'])id.update(fs.readFileSync(path.join(root,'src/algorave/vendor/mondo',file)));
   for(const file of ['drawing-widgets.mjs','UPSTREAM.json'])id.update(fs.readFileSync(path.join(root,'src/algorave/vendor/codemirror',file)));
   for(const file of ['hydra.mjs','UPSTREAM.json'])id.update(fs.readFileSync(path.join(root,'src/algorave/vendor/hydra',file)));
+  for(const file of ['mqtt/mqtt.mjs','mqtt/UPSTREAM.json','paho-mqtt/paho-mqtt.js','paho-mqtt/UPSTREAM.json'])id.update(fs.readFileSync(path.join(root,'src/algorave/vendor',file)));
   const hydraRoot=path.join(root,'src/algorave/vendor/hydra-synth');
   const hydraManifest=fs.readFileSync(path.join(hydraRoot,'UPSTREAM.json'));id.update(hydraManifest);
   for(const file of JSON.parse(hydraManifest).files)id.update(fs.readFileSync(path.join(hydraRoot,file.path)));
