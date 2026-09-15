@@ -29,6 +29,9 @@ build `1c68b1666ee5` / commit `fb20e3c`. Session `64814` exited successfully and
 closed its browser/server. Measurements and limitations are in the runtime record;
 the receipt is `.algorave-preview/sample-soak-receipt.json`.
 The prepared six-call provider test is awaiting the owner's authorization.
+Native Safari external-display fullscreen passed on `1c68b1666ee5`; the local
+test window/server are closed. Acoustic listening and live-provider acceptance
+remain open; see the runtime record for the display scope and limitations.
 The [release preparation](algorave-release-candidate.md) records the implementation
 candidate, remaining acceptance gates and coordinated web rollback requirements.
 The production Safari warning was traced read-only to asset hash `5fba76c2aeb5e170`.

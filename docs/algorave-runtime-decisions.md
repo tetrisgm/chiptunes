@@ -552,3 +552,27 @@ false/null, not zero memory use. Decoded-buffer limits have separate unit/browse
 evidence; this result does not measure whole-process or GPU memory. It establishes
 the planned local sustained-edit run, not acoustic listening, physical display
 latency, native Safari endurance or live-provider quality.
+
+### Native Safari external display — 2026-09-15
+
+The Mac reported its built-in display and an online, non-mirrored PHL 241B7Q at
+1920×1080 logical resolution / 60 Hz. A fresh local origin on port 53828 loaded
+visible build `1c68b1666ee5`, stopped. The temporary tab was separated with
+Safari's Move Tab to New Window, then moved with Move to PHL 241B7Q. After the
+checks, Safari's menu offered Move to Built-in Retina Display, confirming the
+test window remained on the external display.
+
+Play, code-plus-output fullscreen, editing Strudel and Cmd+Enter Run succeeded.
+The editor showed the changed 32-cpm source and Music updated status. Escape
+returned to the window while the Stop control remained available. Output-only
+fullscreen filled the display after Safari's transition; successive screenshots
+showed different rendered ring/color frames. Escape and Stop returned the visible
+Stopped state. The temporary window and server session `73932` were then closed;
+the original production project window remained intact.
+
+This verifies visible local external-display operation, not projector-distance
+readability, acoustic quality, production deployment or every macOS Spaces
+configuration. Hidden/minimized documents may have animation frames throttled or
+suspended; continuous visual output requires the presentation window to remain
+visible. No independent background-output window or hidden-rendering guarantee
+is claimed. Live-provider end-to-end acceptance remains separate.

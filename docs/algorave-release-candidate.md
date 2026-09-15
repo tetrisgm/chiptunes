@@ -18,8 +18,9 @@ applicable exports. See the [plan](algorave-simple-workspace-plan.md),
 - Obtain the requested bounded provider authorization, capture actual music,
   visual and paired replies, then compile and exercise Apply/Undo with those
   replies in Chromium and native Safari. Fixture results do not close this gate.
-- Complete the Mac end-to-end sequence using those replies, visible external
-  display verification and representative acoustic listening. Audio texture
+- Complete the Mac end-to-end sequence using those replies and representative
+  acoustic listening. Native Safari external-display fullscreen passed locally
+  on this candidate. Audio texture
   measurements and headless timing do not establish acoustic quality.
 - Audit every remaining plan checkbox against current evidence before calling
   the candidate complete. Public deployment is a separate owner decision.
