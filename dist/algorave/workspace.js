@@ -32,7 +32,7 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 var require_project = __commonJS({
   "src/algorave/project.cjs"(exports, module) {
     "use strict";
-    var DOCUMENTS = Object.freeze(["music", "Image", "Common", "A", "B", "C", "D", "Cube", "channels"]);
+    var DOCUMENTS = Object.freeze(["music", "Image", "Common", "A", "B", "C", "D", "Cube", "Sound", "channels"]);
     var RUNTIME = Object.freeze({ music: "strudel-web-1.3.0", visual: "shadertoy-webgl2-v1" });
     var bytes = (value) => new TextEncoder().encode(value).length;
     var plain = (v) => v && typeof v === "object" && !Array.isArray(v);
@@ -111,17 +111,17 @@ var require_project = __commonJS({
       need(value.version === 1 && keys(value.runtime, ["music", "visual"], ["music", "visual"]));
       need(value.runtime.music === RUNTIME.music && value.runtime.visual === RUNTIME.visual, "Unsupported project runtime.");
       need(text(value.music, 65536));
-      need(keys(value.visuals, ["Image", "Common", "A", "B", "C", "D", "Cube", "channels"], ["Image"]));
+      need(keys(value.visuals, ["Image", "Common", "A", "B", "C", "D", "Cube", "Sound", "channels"], ["Image"]));
       const visuals = {};
-      for (const name2 of ["Image", "Common", "A", "B", "C", "D", "Cube"]) {
+      for (const name2 of ["Image", "Common", "A", "B", "C", "D", "Cube", "Sound"]) {
         if (!Object.hasOwn(value.visuals, name2)) continue;
         need(text(value.visuals[name2], 65536));
         if (name2 === "Image" || value.visuals[name2] !== "") visuals[name2] = value.visuals[name2];
       }
       const inputs = Object.hasOwn(value.visuals, "channels") ? value.visuals.channels : { Image: ["audio"] };
-      need(keys(inputs, ["Image", "A", "B", "C", "D", "Cube"]));
+      need(keys(inputs, ["Image", "A", "B", "C", "D", "Cube", "Sound"]));
       visuals.channels = {};
-      for (const name2 of ["Image", "A", "B", "C", "D", "Cube"]) {
+      for (const name2 of ["Image", "A", "B", "C", "D", "Cube", "Sound"]) {
         if (!Object.hasOwn(inputs, name2)) continue;
         need(Object.hasOwn(visuals, name2), "Channel configuration names a missing pass.");
         const row = inputs[name2];
@@ -25303,6 +25303,108 @@ var MusicSignals = class {
 // src/algorave/shader-runtime.mjs
 var import_project4 = __toESM(require_project(), 1);
 
+// src/algorave/shader-sound.mjs
+var SOUND_SECONDS = 180;
+var SIZE = 256;
+var BLOCK = SIZE * SIZE;
+var vertex = `#version 300 es
+void main(){vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.-1.,0.,1.);}`;
+async function renderShaderSound(source, { common = "", sampleRate = 44100, duration = SOUND_SECONDS, signal: signal2, channels = [], bindInputs = () => {
+}, onProgress = () => {
+} } = {}) {
+  if (!Number.isInteger(sampleRate) || sampleRate < 8e3 || sampleRate > 192e3 || !Number.isFinite(duration) || duration <= 0 || duration > SOUND_SECONDS) throw Error("Invalid Sound duration or sample rate.");
+  if (typeof source !== "string" || typeof common !== "string" || source.length > 65536 || common.length > 65536) throw Error("Sound code is too large.");
+  if (channels.length > 4 || channels.some((type) => !["sampler2D", "samplerCube", "sampler3D"].includes(type))) throw Error("Invalid Sound channel type.");
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = SIZE;
+  const g = canvas.getContext("webgl2", { antialias: false, depth: false, stencil: false, preserveDrawingBuffer: true });
+  if (!g) throw Error("Sound needs WebGL 2.");
+  const shaders = [], program = g.createProgram();
+  let texture, framebuffer;
+  const check = () => {
+    if (signal2?.aborted) throw Error("Sound rendering cancelled.");
+    if (g.isContextLost()) throw Error("Sound graphics context was lost.");
+  };
+  try {
+    check();
+    const header = `#version 300 es
+precision highp float;
+precision highp int;
+precision highp sampler3D;
+uniform float iSampleRate;
+uniform vec3 iChannelResolution[4];
+uniform vec4 iDate;
+uniform int ctSampleOffset;
+out vec4 ctSound;
+#define texture2D texture
+#define textureCube texture
+${Array.from({ length: 4 }, (_, i2) => `uniform ${channels[i2] || "sampler2D"} iChannel${i2};`).join("\n")}
+`;
+    const main = `
+void main(){
+ int samp=ctSampleOffset+int(gl_FragCoord.x)+256*int(gl_FragCoord.y);
+ vec2 v=clamp(mainSound(samp,float(samp)/iSampleRate),-1.,1.);
+ vec2 packed=floor((v*.5+.5)*65535.+.5);
+ ctSound=vec4(mod(packed.x,256.),floor(packed.x/256.),mod(packed.y,256.),floor(packed.y/256.))/255.;
+}`;
+    for (const [kind, code2] of [[g.VERTEX_SHADER, vertex], [g.FRAGMENT_SHADER, header + "\n#line 1 1\n" + common + "\n#line 1 0\n" + source + main]]) {
+      const shader3 = g.createShader(kind);
+      shaders.push(shader3);
+      g.shaderSource(shader3, code2);
+      g.compileShader(shader3);
+      if (!g.getShaderParameter(shader3, g.COMPILE_STATUS)) throw Error("Sound: " + g.getShaderInfoLog(shader3));
+      g.attachShader(program, shader3);
+    }
+    g.linkProgram(program);
+    if (!g.getProgramParameter(program, g.LINK_STATUS)) throw Error("Sound: " + g.getProgramInfoLog(program));
+    texture = g.createTexture();
+    g.bindTexture(g.TEXTURE_2D, texture);
+    g.texStorage2D(g.TEXTURE_2D, 1, g.RGBA8, SIZE, SIZE);
+    framebuffer = g.createFramebuffer();
+    g.bindFramebuffer(g.FRAMEBUFFER, framebuffer);
+    g.framebufferTexture2D(g.FRAMEBUFFER, g.COLOR_ATTACHMENT0, g.TEXTURE_2D, texture, 0);
+    if (g.checkFramebufferStatus(g.FRAMEBUFFER) !== g.FRAMEBUFFER_COMPLETE) throw Error("Sound framebuffer allocation failed.");
+    g.disable(g.DITHER);
+    g.disable(g.BLEND);
+    g.viewport(0, 0, SIZE, SIZE);
+    g.useProgram(program);
+    g.uniform1f(g.getUniformLocation(program, "iSampleRate"), sampleRate);
+    for (let i2 = 0; i2 < 4; i2++) g.uniform1i(g.getUniformLocation(program, "iChannel" + i2), i2);
+    const date = /* @__PURE__ */ new Date();
+    g.uniform4f(g.getUniformLocation(program, "iDate"), date.getFullYear(), date.getMonth(), date.getDate(), date.getHours() * 3600 + date.getMinutes() * 60 + date.getSeconds() + date.getMilliseconds() / 1e3);
+    const buffer = new AudioBuffer({ numberOfChannels: 2, length: Math.ceil(sampleRate * duration), sampleRate });
+    const left = buffer.getChannelData(0), right = buffer.getChannelData(1), bytes = new Uint8Array(BLOCK * 4), offset = g.getUniformLocation(program, "ctSampleOffset");
+    for (let start = 0; start < buffer.length; start += BLOCK) {
+      check();
+      bindInputs(g, program, start / sampleRate);
+      g.useProgram(program);
+      g.bindFramebuffer(g.FRAMEBUFFER, framebuffer);
+      g.viewport(0, 0, SIZE, SIZE);
+      g.uniform1i(offset, start);
+      g.drawArrays(g.TRIANGLES, 0, 3);
+      g.readPixels(0, 0, SIZE, SIZE, g.RGBA, g.UNSIGNED_BYTE, bytes);
+      check();
+      if (g.getError() !== g.NO_ERROR) throw Error("Sound rendering failed.");
+      const count = Math.min(BLOCK, buffer.length - start);
+      for (let i2 = 0; i2 < count; i2++) {
+        const j = i2 * 4;
+        left[start + i2] = (bytes[j] + 256 * bytes[j + 1]) / 65535 * 2 - 1;
+        right[start + i2] = (bytes[j + 2] + 256 * bytes[j + 3]) / 65535 * 2 - 1;
+      }
+      onProgress(Math.min(1, (start + count) / buffer.length));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    check();
+    return buffer;
+  } finally {
+    if (framebuffer) g.deleteFramebuffer(framebuffer);
+    if (texture) g.deleteTexture(texture);
+    g.deleteProgram(program);
+    shaders.forEach((shader3) => g.deleteShader(shader3));
+    g.getExtension("WEBGL_lose_context")?.loseContext();
+  }
+}
+
 // src/algorave/shader-images.mjs
 var IMAGE_BYTES = 16 * 1024 * 1024;
 var IMAGE_PIXELS = 16 * 1024 * 1024;
@@ -25724,7 +25826,7 @@ void main(){
     ctCubeFace==4?vec3(p.x,-p.y,1.):vec3(-p.x,-p.y,-1.);
   mainCubemap(outputColor,gl_FragCoord.xy,vec3(0.),normalize(d));
 }`;
-var ShaderRuntime = class {
+var ShaderRuntime = class _ShaderRuntime {
   constructor(canvas, { onStatus = () => {
   }, resolveImage: resolveImage2 = async () => {
     throw Error("Imported image content is missing.");
@@ -26057,13 +26159,17 @@ var ShaderRuntime = class {
     }
   }
   // Transactional prepare: a bad pass never replaces any working pass.
-  prepare(document2, images = /* @__PURE__ */ new Map()) {
+  prepare(document2, images = /* @__PURE__ */ new Map(), sound = null) {
     if (!document2 || typeof document2.Image !== "string") throw Error("An Image shader is required.");
     document2 = structuredClone(document2);
     const common = document2.Common || "", next = [], generation = this.generation, imageTextures = /* @__PURE__ */ new Map();
     let imagePixels = 0;
     if (typeof common !== "string" || common.length > 65536) throw Error("Common code is too large.");
     try {
+      if (document2.Sound) {
+        if (!sound) throw Error("Sound needs asynchronous preparation.");
+        next.push({ name: "Sound", program: null, channels: [], uniforms: /* @__PURE__ */ new Map(), targets: [], images: [{ media: sound }], samplers: [] });
+      }
       for (const name2 of ORDER) {
         const source = document2[name2];
         if (source === void 0) continue;
@@ -26181,7 +26287,7 @@ var ShaderRuntime = class {
   async prepareAsync(document2) {
     const normalized = import_project4.default.project({ version: 1, runtime: import_project4.default.RUNTIME, music: "", visuals: document2 }).visuals;
     const inputs = Object.values(normalized.channels).flat().flatMap((input) => import_project4.default.textureSources(input).map((src) => ({ src, vflip: input.vflip, type: input.type })));
-    if (!inputs.length) return this.prepare(normalized);
+    if (!inputs.length && !normalized.Sound) return this.prepare(normalized);
     const generation = this.generation, controller = new AbortController(), images = /* @__PURE__ */ new Map();
     this.loads.add(controller);
     const timer = setTimeout(() => controller.abort(), 15e3);
@@ -26210,7 +26316,50 @@ var ShaderRuntime = class {
         if (pixels > IMAGE_PIXELS * 4) throw Error("Combined texture resolution exceeds 64 million pixels/voxels.");
       }
       if (controller.signal.aborted || generation !== this.generation || this.disposed || this.lost) throw Error("Visual output changed while textures loaded. Run again.");
-      return this.prepare(normalized, images);
+      clearTimeout(timer);
+      let sound;
+      if (normalized.Sound) {
+        const same = this.document?.Sound === normalized.Sound && this.document?.Common === normalized.Common && JSON.stringify(this.document?.channels?.Sound) === JSON.stringify(normalized.channels.Sound);
+        const existing = same && this.passes.find((pass) => pass.name === "Sound")?.images[0]?.media;
+        if (existing) sound = existing.retain();
+        else {
+          const row = normalized.channels.Sound || [];
+          if (row.some((input) => !["empty", "texture", "cubemap", "volume"].includes(inputInfo(input).type))) throw Error("Sound currently supports image, cube and volume textures; other Sound inputs are not implemented yet.");
+          let bindings;
+          const buffer = await renderShaderSound(normalized.Sound, {
+            common: normalized.Common || "",
+            sampleRate: this.audioHub.sampleRate || 44100,
+            signal: controller.signal,
+            channels: row.map((input) => cubeInput(input) ? "samplerCube" : inputInfo(input).type === "volume" ? "sampler3D" : "sampler2D"),
+            bindInputs: (g, program) => {
+              if (!bindings) {
+                const factory = Object.create(_ShaderRuntime.prototype);
+                factory.gl = g;
+                bindings = Array.from({ length: 4 }, (_, i2) => {
+                  const input = inputInfo(row[i2]), sources = import_project4.default.textureSources(input), bitmaps = sources.map((src) => images.get(imageKey({ src, vflip: input.vflip, type: input.type })));
+                  const texture = input.type === "cubemap" ? factory.cubeTexture(bitmaps, input.srgb === true) : input.type === "volume" ? factory.volumeTexture(bitmaps[0], input.srgb === true) : input.type === "texture" ? factory.imageTexture(bitmaps[0], input.srgb === true) : factory.texture(1, 1, new Uint8Array(1));
+                  return { texture, sampler: factory.sampler(row[i2]), input };
+                });
+              }
+              g.useProgram(program);
+              bindings.forEach(({ texture, sampler, input }, i2) => {
+                const target = texture.target || g.TEXTURE_2D;
+                g.activeTexture(g.TEXTURE0 + i2);
+                g.bindTexture(target, texture.texture);
+                g.bindSampler(i2, sampler);
+                if (input.filter === "mipmap" && !texture.mipmaps) {
+                  g.generateMipmap(target);
+                  texture.mipmaps = true;
+                }
+                g.uniform3f(g.getUniformLocation(program, `iChannelResolution[${i2}]`), texture.width, texture.height, texture.depth || 1);
+              });
+            }
+          });
+          if (controller.signal.aborted || generation !== this.generation || this.disposed || this.lost) throw Error("Visual output changed while Sound rendered. Run again.");
+          sound = createShaderAudio(this.audioHub, { buffer, loop: false });
+        }
+      }
+      return this.prepare(normalized, images, sound);
     } finally {
       clearTimeout(timer);
       this.loads.delete(controller);
@@ -26228,7 +26377,10 @@ var ShaderRuntime = class {
     return this.audioHub.unlock();
   }
   setPlaying(playing2) {
-    if (!playing2) this.audioHub.suspend();
+    if (!playing2) {
+      for (const controller of this.loads) controller.abort();
+      this.audioHub.suspend();
+    }
     for (const texture of new Set(this.passes.flatMap((pass) => pass.images))) texture.media?.setPlaying(playing2, this.onStatus);
   }
   render({ playing: playing2 = true, time = 0, delta = 0, cycle = 0, kick = 0, sampleRate = 44100, frequency, waveform, date = /* @__PURE__ */ new Date() } = {}) {
@@ -26246,6 +26398,7 @@ var ShaderRuntime = class {
     this.keyboard.mipmaps = false;
     for (const texture of new Set(this.passes.flatMap((pass) => pass.images))) if (texture.media) {
       texture.media.setPlaying(playing2, this.onStatus);
+      if (!texture.texture) continue;
       if (texture.media.bytes) {
         g.bindTexture(g.TEXTURE_2D, texture.texture);
         g.texSubImage2D(g.TEXTURE_2D, 0, 0, 0, 512, 2, g.RED, g.UNSIGNED_BYTE, texture.media.update());
@@ -26254,6 +26407,7 @@ var ShaderRuntime = class {
     }
     const completed = /* @__PURE__ */ new Map();
     for (const pass of this.passes) {
+      if (pass.name === "Sound") continue;
       const write = pass.targets[1 - pass.read];
       g.bindFramebuffer(g.FRAMEBUFFER, write?.fbo || null);
       const width = write?.width || this.canvas.width, height = write?.height || this.canvas.height;
@@ -27451,7 +27605,7 @@ bridge = new MusicBridge(frame, (next) => {
 await bridge.ready;
 lock(false);
 status.textContent = session.recoveryError || initialVisualError || "Ready \xB7 \u2318/Ctrl Enter to run";
-$("build").textContent = "Algorave f02f9dbebb5a";
+$("build").textContent = "Algorave 65b84585aad5";
 function draw(now) {
   shader2.render({ playing, time: now / 1e3, delta: last2 ? (now - last2) / 1e3 : 0, ...signals.at(performance.timeOrigin + now) });
   last2 = now;

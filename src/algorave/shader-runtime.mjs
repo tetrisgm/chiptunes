@@ -1,5 +1,6 @@
 // A shader owns no transport. The caller supplies time, audio and event signals.
 import contract from './project.cjs';
+import {renderShaderSound} from './shader-sound.mjs';
 import {loadShaderImage,decodeShaderImage,imageKey,IMAGE_PIXELS} from './shader-images.mjs';
 import {createShaderAudioHub,createShaderAudio,decodeShaderAudio,loadShaderAudio} from './shader-audio.mjs';
 import {createShaderCamera} from './shader-camera.mjs';
@@ -269,13 +270,14 @@ export class ShaderRuntime {
     finally { shaders.forEach(s => g.deleteShader(s)); }
   }
   // Transactional prepare: a bad pass never replaces any working pass.
-  prepare(document, images=new Map()) {
+  prepare(document, images=new Map(), sound=null) {
     if (!document || typeof document.Image !== 'string') throw Error('An Image shader is required.');
     document = structuredClone(document);
     const common = document.Common || '', next = [], generation = this.generation, imageTextures=new Map();
     let imagePixels=0;
     if (typeof common !== 'string' || common.length > 65536) throw Error('Common code is too large.');
     try {
+      if(document.Sound){if(!sound)throw Error('Sound needs asynchronous preparation.');next.push({name:'Sound',program:null,channels:[],uniforms:new Map(),targets:[],images:[{media:sound}],samplers:[]});}
       for (const name of ORDER) {
         const source = document[name];
         if (source === undefined) continue;
@@ -355,7 +357,7 @@ export class ShaderRuntime {
   async prepareAsync(document){
     const normalized=contract.project({version:1,runtime:contract.RUNTIME,music:'',visuals:document}).visuals;
     const inputs=Object.values(normalized.channels).flat().flatMap(input=>contract.textureSources(input).map(src=>({src,vflip:input.vflip,type:input.type})));
-    if(!inputs.length)return this.prepare(normalized);
+    if(!inputs.length&&!normalized.Sound)return this.prepare(normalized);
     const generation=this.generation,controller=new AbortController(),images=new Map();this.loads.add(controller);
     const timer=setTimeout(()=>controller.abort(),15000);let pixels=0,audioSamples=0;
     try{
@@ -372,7 +374,39 @@ export class ShaderRuntime {
         pixels+=bitmap.width*bitmap.height*(bitmap.depth||1)||0;if(pixels>IMAGE_PIXELS*4)throw Error('Combined texture resolution exceeds 64 million pixels/voxels.');
       }
       if(controller.signal.aborted||generation!==this.generation||this.disposed||this.lost)throw Error('Visual output changed while textures loaded. Run again.');
-      return this.prepare(normalized,images);
+      clearTimeout(timer); // The network deadline does not limit GPU Sound generation.
+      let sound;
+      if(normalized.Sound){
+        const same=this.document?.Sound===normalized.Sound&&this.document?.Common===normalized.Common&&JSON.stringify(this.document?.channels?.Sound)===JSON.stringify(normalized.channels.Sound);
+        const existing=same&&this.passes.find(pass=>pass.name==='Sound')?.images[0]?.media;
+        if(existing)sound=existing.retain();
+        else{
+          const row=normalized.channels.Sound||[];
+          if(row.some(input=>!['empty','texture','cubemap','volume'].includes(inputInfo(input).type)))throw Error('Sound currently supports image, cube and volume textures; other Sound inputs are not implemented yet.');
+          let bindings;
+          const buffer=await renderShaderSound(normalized.Sound,{common:normalized.Common||'',sampleRate:this.audioHub.sampleRate||44100,signal:controller.signal,
+            channels:row.map(input=>cubeInput(input)?'samplerCube':inputInfo(input).type==='volume'?'sampler3D':'sampler2D'),
+            bindInputs:(g,program)=>{
+              if(!bindings){
+                const factory=Object.create(ShaderRuntime.prototype);factory.gl=g;
+                bindings=Array.from({length:4},(_,i)=>{
+                  const input=inputInfo(row[i]),sources=contract.textureSources(input),bitmaps=sources.map(src=>images.get(imageKey({src,vflip:input.vflip,type:input.type})));
+                  const texture=input.type==='cubemap'?factory.cubeTexture(bitmaps,input.srgb===true):input.type==='volume'?factory.volumeTexture(bitmaps[0],input.srgb===true):input.type==='texture'?factory.imageTexture(bitmaps[0],input.srgb===true):factory.texture(1,1,new Uint8Array(1));
+                  return {texture,sampler:factory.sampler(row[i]),input};
+                });
+              }
+              g.useProgram(program);
+              bindings.forEach(({texture,sampler,input},i)=>{
+                const target=texture.target||g.TEXTURE_2D;g.activeTexture(g.TEXTURE0+i);g.bindTexture(target,texture.texture);g.bindSampler(i,sampler);
+                if(input.filter==='mipmap'&&!texture.mipmaps){g.generateMipmap(target);texture.mipmaps=true;}
+                g.uniform3f(g.getUniformLocation(program,`iChannelResolution[${i}]`),texture.width,texture.height,texture.depth||1);
+              });
+            }});
+          if(controller.signal.aborted||generation!==this.generation||this.disposed||this.lost)throw Error('Visual output changed while Sound rendered. Run again.');
+          sound=createShaderAudio(this.audioHub,{buffer,loop:false});
+        }
+      }
+      return this.prepare(normalized,images,sound);
     }finally{clearTimeout(timer);this.loads.delete(controller);for(const bitmap of images.values())bitmap?.close?.();}
   }
   set(document) { this.prepare(document).apply(); }
@@ -381,7 +415,7 @@ export class ShaderRuntime {
     this.gl[kind](pass.uniforms.get(name), ...values);
   }
   unlockAudio(){return this.audioHub.unlock();}
-  setPlaying(playing){if(!playing)this.audioHub.suspend();for(const texture of new Set(this.passes.flatMap(pass=>pass.images)))texture.media?.setPlaying(playing,this.onStatus);}
+  setPlaying(playing){if(!playing){for(const controller of this.loads)controller.abort();this.audioHub.suspend();}for(const texture of new Set(this.passes.flatMap(pass=>pass.images)))texture.media?.setPlaying(playing,this.onStatus);}
   render({ playing = true, time = 0, delta = 0, cycle = 0, kick = 0, sampleRate = 44100, frequency, waveform, date = new Date() } = {}) {
     const g = this.gl;
     if (this.disposed || this.lost || g.isContextLost()) return false;
@@ -394,10 +428,12 @@ export class ShaderRuntime {
     g.bindTexture(g.TEXTURE_2D,this.keyboard.texture);g.texSubImage2D(g.TEXTURE_2D,0,0,0,256,3,g.RED,g.UNSIGNED_BYTE,this.keyboardBytes);this.keyboard.mipmaps=false;
     for(const texture of new Set(this.passes.flatMap(pass=>pass.images)))if(texture.media){
       texture.media.setPlaying(playing,this.onStatus);
+      if(!texture.texture)continue;
       if(texture.media.bytes){g.bindTexture(g.TEXTURE_2D,texture.texture);g.texSubImage2D(g.TEXTURE_2D,0,0,0,512,2,g.RED,g.UNSIGNED_BYTE,texture.media.update());texture.mipmaps=false;}else this.updateVideo(texture);
     }
     const completed = new Map();
     for (const pass of this.passes) {
+      if(pass.name==='Sound')continue;
       const write = pass.targets[1-pass.read];
       g.bindFramebuffer(g.FRAMEBUFFER, write?.fbo || null);
       const width=write?.width||this.canvas.width,height=write?.height||this.canvas.height;

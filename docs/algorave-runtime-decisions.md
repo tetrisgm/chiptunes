@@ -1466,3 +1466,23 @@ The full external-audio/microphone suite also passes on `c98f4e88d40d`, includin
 channel Run/Undo, permission fixture cleanup and saved reload. No physical
 microphone or speaker verification was performed. The editor and transactional
 Sound integration remain pending; this is not a user-facing Sound release.
+
+### Sound workspace integration
+
+The optional Sound document is now available in the existing pass selector and
+agent edit contract. Preparation renders its 180-second AudioBuffer before
+committing the visual transaction. A failed Sound compile retains the prior
+playing resource. Unchanged Sound/Common/channel source reuses that resource
+across unrelated visual edits. Stop cancels pending generation; disposal and
+context loss release its audio alongside the visual resources.
+
+Image, cube and volume inputs use the existing texture decoders and sampler
+settings in the separate Sound context. Other Sound channel types currently
+fail explicitly and remain implementation work, not excluded scope.
+
+`test:algorave-sound` now includes a real workspace Open → Play → Run → Undo
+flow, invalid compilation retaining the actual resource, Stop and saved reload.
+An original local red texture also generates the expected waveform through an
+actual 180-second Sound buffer. Chromium uses a silent sink. Native Safari,
+additional channel types, cancellation/rollback stress and final production
+acceptance remain pending.

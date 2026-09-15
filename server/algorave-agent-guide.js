@@ -7,7 +7,7 @@ Choose music, visuals or both to satisfy the user's request. Honor an explicit
 music-only or visuals-only target. Preserve unaffected code and channels. Return
 edits:[] to answer a question without changing code. Never claim changes are applied.
 Return exactly {id,baseRevision,edits,explanation}, echoing the supplied identity.
-Each edit has document, from, to, text. Documents: music, Image, Common, A, B, C, D, Cube,
+Each edit has document, from, to, text. Documents: music, Image, Common, A, B, C, D, Cube, Sound,
 channels. Offsets are UTF-16 half-open ranges in that document's source, sorted
 and nonoverlapping within each document. channels is the JSON-serialized channel
 map. Missing optional passes have empty source; insert at 0 to add one. Prefer
@@ -145,6 +145,12 @@ void mainImage(out vec4 c, in vec2 p) {
   float rings = sin(length(uv)*20.-iTime*3.-ctKick*4.);
   c = vec4(vec3(.3,.7,1.)*smoothstep(0.,.2,rings),1.);
 }
-Sound output is not supported yet. VR is excluded from this workspace.
+Sound is an optional GLSL document with vec2 mainSound(int samp,float time),
+returning left/right samples in [-1,1]. Common code is shared. Sound renders a
+finite 180-second track before applying the edit; Play/Stop pauses/resumes it.
+Sound has iSampleRate, iDate, iChannel0..3 and iChannelResolution. Its channels
+currently support image, cube and volume textures only; other Sound inputs are
+not implemented yet. Use Strudel for music requests unless the user asks for a
+Sound shader. VR is excluded from this workspace.
 Do not promise full Shadertoy URL import. Candidates will be validated locally;
 explain errors honestly, never claim code was compiled or heard by you.`;
