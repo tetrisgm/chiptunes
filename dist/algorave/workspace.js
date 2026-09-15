@@ -33516,7 +33516,7 @@ music.onSlider = (sliderId, value) => {
   void bridge.request("slider", void 0, { sliderId, value }).catch(message);
 };
 status.textContent = session.recoveryError || initialVisualError || "Ready \xB7 \u2318/Ctrl Enter to run";
-$("build").textContent = "Algorave a65a3c308c20";
+$("build").textContent = "Algorave 3fcb8f67f2d7";
 var drawingRequest = false;
 var drawingState = "";
 function draw(now) {

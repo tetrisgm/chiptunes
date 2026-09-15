@@ -125,7 +125,9 @@ visible rejection. Native and external-broker acceptance remain pending. Csound
 1.3.0 now uses a local @csound/browser 6.18.7 engine. Chromium verifies actual
 220/330/440 Hz output, custom orchestra code, loadOrc, csoundm, Run/Undo and Stop.
 Orchestra HTTP/compile failures now retain playback and allow retry at the same URL.
-Native acceptance, initialization/cancellation lifecycle, other orchestra errors and
+Stop now cancels pending initialization waits and orchestra fetches; Chromium
+verifies recovery through the same engine and a retried download. Native acceptance,
+other orchestra errors, broader lifecycle behavior and
 independent engine rebuild/source audit remain pending. See the
 [MQTT checkpoint](algorave-runtime-decisions.md#mqtt-output--2026-09-15).
 

@@ -1854,3 +1854,21 @@ failed cached promises. Successful orchestra URLs remain cached. The real-engine
 browser test attempts one URL with HTTP 503, then invalid orchestra text, then
 valid source. Both failures retain the previously applied music; the third Run
 loads the corrected instrument and produces its 220 Hz fundamental without reload.
+
+### Csound pending-load cancellation — 2026-09-15
+
+Stop now aborts waits for Csound initialization/evaluation and orchestra downloads.
+The shared engine initialization remains available for the next Play, and the
+engine is published to note triggers only after startup completes. A Stop before
+the local module import completes prevents constructor startup. Pattern methods
+handle cancellation without an unhandled initialization rejection.
+
+`scripts/verify-algorave-csound-cancellation.cjs` reproduces the previous stuck-busy
+edit by delaying the real audio worklet module. After the fix, Stop releases the
+edit, late loading leaves the shared AudioContext suspended, and Play recovers
+440 Hz output with exactly one worklet module. A second fixture holds an orchestra
+fetch, verifies Stop aborts it, and retries successfully with 220 Hz output.
+The hidden music frame needs explicit polling in this test; animation-frame polling
+caused an observation timeout. The standard Csound suite passes alongside it.
+These checks do not prove preemption of Csound compilation already executing in
+its worklet, native browser behavior or complete engine teardown after failure.

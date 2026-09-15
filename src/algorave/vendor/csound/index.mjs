@@ -5,15 +5,37 @@ import csd from './project.csd';
 import presetsOrc from './presets.orc';
 
 let csoundLoader, _csound;
+let loadController = new AbortController();
+window.addEventListener('message', event => {
+  if (event.source !== window || event.data !== 'strudel-stop') return;
+  loadController.abort();
+  loadController = new AbortController();
+});
+
+function waitForLoad(promise, signal) {
+  return new Promise((resolve, reject) => {
+    const cancelled = () => reject(new DOMException('Csound load cancelled.', 'AbortError'));
+    if (signal.aborted) cancelled();
+    else signal.addEventListener('abort', cancelled, { once: true });
+    Promise.resolve(promise).then(value => {
+      signal.removeEventListener('abort', cancelled); resolve(value);
+    }, error => {
+      signal.removeEventListener('abort', cancelled); reject(error);
+    });
+  });
+}
+const reportInitError = error => { if (error.name !== 'AbortError') logger(`[csound] ${error.message}`, 'error'); };
 
 // initializes csound + can be used to reevaluate given instrument code
 export async function loadCSound(code = '') {
-  await init();
+  const signal = loadController.signal;
+  await init(signal);
+  signal.throwIfAborted();
   if (code) {
     code = `${code}`;
     //     ^       ^
     // wrapping in backticks makes sure it works when calling as templated function
-    await _csound?.evalCode(code);
+    await waitForLoad(_csound.evalCode(code), signal);
   }
 }
 export const loadcsound = loadCSound;
@@ -21,7 +43,7 @@ export const loadCsound = loadCSound;
 
 export const csound = register('csound', (instrument, pat) => {
   instrument = instrument || 'triangle';
-  init(); // not async to support csound inside other patterns + to be able to call pattern methods after it
+  init().catch(reportInitError); // not async to support csound inside other patterns + to be able to call pattern methods after it
   // TODO: find a alternative way to wait for csound to load (to wait with first time playback)
   return pat.onTrigger((hap, currentTime, _cps, targetTime) => {
     if (!_csound) {
@@ -86,29 +108,37 @@ async function load() {
     _csound = window.__csound__;
     return _csound;
   } else {
+    const signal = loadController.signal;
     const { Csound } = await import('../csound-browser/dist/csound.js');
-    _csound = await Csound({ audioContext: getAudioContext() });
-    _csound.removeAllListeners('message');
-    ['message'].forEach((k) => _csound.on(k, (...args) => eventLogger(k, args)));
-    await _csound.setOption('-m0d'); // see -m flag https://csound.com/docs/manual/CommandFlags.html
-    await _csound.setOption('--sample-accurate');
-    await _csound.setOption('-odac');
-    await _csound.compileCsdText(csd);
-    // await _csound.compileOrc(livecodeOrc);
-    await _csound.compileOrc(presetsOrc);
-    await _csound.start();
-    return _csound;
+    signal.throwIfAborted();
+    const instance = await Csound({ audioContext: getAudioContext() });
+    instance.removeAllListeners('message');
+    ['message'].forEach((k) => instance.on(k, (...args) => eventLogger(k, args)));
+    await instance.setOption('-m0d'); // see -m flag https://csound.com/docs/manual/CommandFlags.html
+    await instance.setOption('--sample-accurate');
+    await instance.setOption('-odac');
+    await instance.compileCsdText(csd);
+    // await instance.compileOrc(livecodeOrc);
+    await instance.compileOrc(presetsOrc);
+    await instance.start();
+    _csound = instance;
+    return instance;
   }
 }
 
-async function init() {
-  csoundLoader = csoundLoader || load();
-  return csoundLoader;
+async function init(signal = loadController.signal) {
+  csoundLoader = csoundLoader || load().catch(error => {
+    csoundLoader = undefined;
+    throw error;
+  });
+  return waitForLoad(csoundLoader, signal);
 }
 
 const orcCache = Object.create(null);
 export async function loadOrc(url) {
-  await init();
+  const signal = loadController.signal;
+  await init(signal);
+  signal.throwIfAborted();
   if (typeof url !== 'string') {
     throw new Error('loadOrc: expected url string');
   }
@@ -117,18 +147,19 @@ export async function loadOrc(url) {
     url = `https://raw.githubusercontent.com/${path}`;
   }
   if (!orcCache[url]) {
-    orcCache[url] = fetch(url)
+    orcCache[url] = fetch(url, { signal })
       .then((res) => {
         if (!res.ok) throw Error(`Csound orchestra download failed: HTTP ${res.status}`);
         return res.text();
       })
       .then(async (code) => {
-        const result = await _csound.compileOrc(code);
+        signal.throwIfAborted();
+        const result = await waitForLoad(_csound.compileOrc(code), signal);
         if (result !== 0) throw Error('Csound orchestra could not be compiled.');
       })
       .catch(error => { delete orcCache[url]; throw error; });
   }
-  await orcCache[url];
+  await waitForLoad(orcCache[url], signal);
 }
 
 /**
@@ -148,7 +179,7 @@ export const csoundm = register('csoundm', (instrument, pat) => {
   if (typeof instrument === 'string') {
     p1 = `"${instrument}"`;
   }
-  init(); // not async to support csound inside other patterns + to be able to call pattern methods after it
+  init().catch(reportInitError); // not async to support csound inside other patterns + to be able to call pattern methods after it
   return pat.onTrigger((hap, currentTime, _cps, targetTime) => {
     if (!_csound) {
       logger('[csound] not loaded yet', 'warning');

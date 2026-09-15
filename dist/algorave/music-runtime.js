@@ -71326,18 +71326,43 @@ ${JSON.stringify(t2, null, 2)}`);
   // src/algorave/vendor/csound/index.mjs
   var csoundLoader;
   var _csound;
+  var loadController = new AbortController();
+  window.addEventListener("message", (event) => {
+    if (event.source !== window || event.data !== "strudel-stop") return;
+    loadController.abort();
+    loadController = new AbortController();
+  });
+  function waitForLoad(promise, signal) {
+    return new Promise((resolve, reject) => {
+      const cancelled = () => reject(new DOMException("Csound load cancelled.", "AbortError"));
+      if (signal.aborted) cancelled();
+      else signal.addEventListener("abort", cancelled, { once: true });
+      Promise.resolve(promise).then((value) => {
+        signal.removeEventListener("abort", cancelled);
+        resolve(value);
+      }, (error) => {
+        signal.removeEventListener("abort", cancelled);
+        reject(error);
+      });
+    });
+  }
+  var reportInitError = (error) => {
+    if (error.name !== "AbortError") E2(`[csound] ${error.message}`, "error");
+  };
   async function loadCSound(code = "") {
-    await init2();
+    const signal = loadController.signal;
+    await init2(signal);
+    signal.throwIfAborted();
     if (code) {
       code = `${code}`;
-      await _csound?.evalCode(code);
+      await waitForLoad(_csound.evalCode(code), signal);
     }
   }
   var loadcsound = loadCSound;
   var loadCsound = loadCSound;
   var csound = l("csound", (instrument, pat) => {
     instrument = instrument || "triangle";
-    init2();
+    init2().catch(reportInitError);
     return pat.onTrigger((hap, currentTime, _cps, targetTime) => {
       if (!_csound) {
         E2("[csound] not loaded yet", "warning");
@@ -71385,26 +71410,34 @@ ${JSON.stringify(t2, null, 2)}`);
       _csound = window.__csound__;
       return _csound;
     } else {
+      const signal = loadController.signal;
       const { Csound: Csound2 } = await Promise.resolve().then(() => (init_csound(), csound_exports));
-      _csound = await Csound2({ audioContext: z2() });
-      _csound.removeAllListeners("message");
-      ["message"].forEach((k6) => _csound.on(k6, (...args2) => eventLogger(k6, args2)));
-      await _csound.setOption("-m0d");
-      await _csound.setOption("--sample-accurate");
-      await _csound.setOption("-odac");
-      await _csound.compileCsdText(project_default);
-      await _csound.compileOrc(presets_default);
-      await _csound.start();
-      return _csound;
+      signal.throwIfAborted();
+      const instance2 = await Csound2({ audioContext: z2() });
+      instance2.removeAllListeners("message");
+      ["message"].forEach((k6) => instance2.on(k6, (...args2) => eventLogger(k6, args2)));
+      await instance2.setOption("-m0d");
+      await instance2.setOption("--sample-accurate");
+      await instance2.setOption("-odac");
+      await instance2.compileCsdText(project_default);
+      await instance2.compileOrc(presets_default);
+      await instance2.start();
+      _csound = instance2;
+      return instance2;
     }
   }
-  async function init2() {
-    csoundLoader = csoundLoader || load2();
-    return csoundLoader;
+  async function init2(signal = loadController.signal) {
+    csoundLoader = csoundLoader || load2().catch((error) => {
+      csoundLoader = void 0;
+      throw error;
+    });
+    return waitForLoad(csoundLoader, signal);
   }
   var orcCache = /* @__PURE__ */ Object.create(null);
   async function loadOrc(url2) {
-    await init2();
+    const signal = loadController.signal;
+    await init2(signal);
+    signal.throwIfAborted();
     if (typeof url2 !== "string") {
       throw new Error("loadOrc: expected url string");
     }
@@ -71413,25 +71446,26 @@ ${JSON.stringify(t2, null, 2)}`);
       url2 = `https://raw.githubusercontent.com/${path}`;
     }
     if (!orcCache[url2]) {
-      orcCache[url2] = fetch(url2).then((res) => {
+      orcCache[url2] = fetch(url2, { signal }).then((res) => {
         if (!res.ok) throw Error(`Csound orchestra download failed: HTTP ${res.status}`);
         return res.text();
       }).then(async (code) => {
-        const result = await _csound.compileOrc(code);
+        signal.throwIfAborted();
+        const result = await waitForLoad(_csound.compileOrc(code), signal);
         if (result !== 0) throw Error("Csound orchestra could not be compiled.");
       }).catch((error) => {
         delete orcCache[url2];
         throw error;
       });
     }
-    await orcCache[url2];
+    await waitForLoad(orcCache[url2], signal);
   }
   var csoundm = l("csoundm", (instrument, pat) => {
     let p12 = instrument;
     if (typeof instrument === "string") {
       p12 = `"${instrument}"`;
     }
-    init2();
+    init2().catch(reportInitError);
     return pat.onTrigger((hap, currentTime, _cps, targetTime) => {
       if (!_csound) {
         E2("[csound] not loaded yet", "warning");

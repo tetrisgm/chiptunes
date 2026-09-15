@@ -37,6 +37,7 @@
   ],
   "changes": [
     "Import local pinned browser engine and orchestra text assets.",
-    "Reject failed HTTP and orchestra compilation results; evict failed orchestra promises so Run can retry."
+    "Reject failed HTTP and orchestra compilation results; evict failed orchestra promises so Run can retry.",
+    "Stop cancels initialization/evaluation waits and orchestra fetches while retaining one shared engine initialization; publish the engine only after it starts."
   ]
 }
