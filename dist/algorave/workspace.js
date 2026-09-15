@@ -25317,12 +25317,14 @@ var ShaderRuntime = class {
   }
   resize(width, height) {
     if (!Number.isFinite(width) || !Number.isFinite(height) || width < 1 || height < 1) return false;
-    const scale = Math.min(1, 1920 / width, 1080 / height);
+    if (this.disposed || this.lost || this.gl.isContextLost()) return false;
+    const g = this.gl, viewport = g.getParameter(g.MAX_VIEWPORT_DIMS);
+    const limit = Math.min(g.getParameter(g.MAX_TEXTURE_SIZE), g.getParameter(g.MAX_RENDERBUFFER_SIZE));
+    const scale = Math.min(1, Math.min(limit, viewport[0]) / width, Math.min(limit, viewport[1]) / height);
     width = Math.max(1, Math.floor(width * scale));
     height = Math.max(1, Math.floor(height * scale));
     if (width === this.canvas.width && height === this.canvas.height) return false;
-    if (this.disposed || this.lost || this.gl.isContextLost()) return false;
-    const g = this.gl, replacements = [];
+    const replacements = [];
     try {
       for (const pass of this.passes) {
         if (!pass.targets.length) continue;
@@ -25499,7 +25501,7 @@ var ShaderRuntime = class {
         g.bindTexture(g.TEXTURE_2D, texture.texture);
         this.uniform(pass, `iChannel${i2}`, "uniform1i", i2);
         this.uniform(pass, `iChannelResolution[${i2}]`, "uniform3f", texture.width, texture.height, 1);
-        this.uniform(pass, `iChannelTime[${i2}]`, "uniform1f", input ? time : 0);
+        this.uniform(pass, `iChannelTime[${i2}]`, "uniform1f", input === "audio" ? time : 0);
       }
       g.drawArrays(g.TRIANGLES, 0, 3);
       if (write) completed.set(pass.name, write);
@@ -26216,7 +26218,7 @@ bridge = new MusicBridge(frame, (next) => {
 await bridge.ready;
 lock(false);
 status.textContent = session.recoveryError || "Ready \xB7 \u2318/Ctrl Enter to run";
-$("build").textContent = "Algorave 1c68b1666ee5";
+$("build").textContent = "Algorave 668ca3b9634e";
 function draw(now) {
   shader2.render({ time: now / 1e3, delta: last2 ? (now - last2) / 1e3 : 0, ...signals.at(performance.timeOrigin + now) });
   last2 = now;

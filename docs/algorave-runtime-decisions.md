@@ -620,3 +620,22 @@ its sample path is not Strudel's full samples()/bank ecosystem. Shader channels
 currently allow only audio and A-D buffer references, with sampler2D uniforms.
 External textures/video, cubemap and VR passes are absent. These are concrete
 implementation gaps, not items that passing candidate compilation can close.
+
+### Display resolution and channel clock parity
+
+The shader runtime no longer reduces every output to at most 1920×1080. It uses
+the requested size constrained by the device's MAX_TEXTURE_SIZE,
+MAX_RENDERBUFFER_SIZE and MAX_VIEWPORT_DIMS. This preserves gl_FragCoord and
+iResolution at higher display sizes rather than silently changing shader scale.
+Lost/disposed contexts are rejected before querying device limits.
+
+Shadertoy's [input reference](https://www.shadertoy.com/view/XsfcWj) defines
+iChannelTime for video/sound inputs. The runtime now advances this uniform only
+for its audio channel; buffer and absent inputs remain zero. Preview tests render
+at 2560×1440 and use independent expected RGBA pixels to check resolution and
+three distinct channel clocks. Build `668ca3b9634e` passes those and the existing
+feedback, resize, mouse, context recovery and audio checks. The first expanded
+test left the canvas at the next test's destination size; restoring a distinct
+size fixed that test setup, without weakening resize-invalidation coverage.
+The earlier 30-minute receipt predates this rendering change and is not a
+high-resolution performance result. Other channel/pass/music parity gaps remain.

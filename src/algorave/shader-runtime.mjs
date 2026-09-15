@@ -68,11 +68,15 @@ export class ShaderRuntime {
   }
   resize(width, height) {
     if (!Number.isFinite(width) || !Number.isFinite(height) || width < 1 || height < 1) return false;
-    const scale = Math.min(1, 1920 / width, 1080 / height);
+    if (this.disposed || this.lost || this.gl.isContextLost()) return false;
+    // Match the requested display size up to the actual device's GL limits.
+    // A fixed 1080p ceiling changes gl_FragCoord/iResolution on larger displays.
+    const g = this.gl, viewport = g.getParameter(g.MAX_VIEWPORT_DIMS);
+    const limit = Math.min(g.getParameter(g.MAX_TEXTURE_SIZE), g.getParameter(g.MAX_RENDERBUFFER_SIZE));
+    const scale = Math.min(1, Math.min(limit, viewport[0]) / width, Math.min(limit, viewport[1]) / height);
     width = Math.max(1, Math.floor(width * scale)); height = Math.max(1, Math.floor(height * scale));
     if (width === this.canvas.width && height === this.canvas.height) return false;
-    if (this.disposed || this.lost || this.gl.isContextLost()) return false;
-    const g = this.gl, replacements = [];
+    const replacements = [];
     try {
       for (const pass of this.passes) {
         if (!pass.targets.length) continue;
@@ -201,7 +205,7 @@ export class ShaderRuntime {
         g.activeTexture(g.TEXTURE0+i); g.bindTexture(g.TEXTURE_2D,texture.texture);
         this.uniform(pass,`iChannel${i}`,'uniform1i',i);
         this.uniform(pass,`iChannelResolution[${i}]`,'uniform3f',texture.width,texture.height,1);
-        this.uniform(pass,`iChannelTime[${i}]`,'uniform1f',input ? time : 0);
+        this.uniform(pass,`iChannelTime[${i}]`,'uniform1f',input === 'audio' ? time : 0);
       }
       g.drawArrays(g.TRIANGLES,0,3);
       if (write) completed.set(pass.name,write);

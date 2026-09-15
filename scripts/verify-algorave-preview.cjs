@@ -56,6 +56,21 @@ const root=path.resolve(__dirname,'../.algorave-preview');
     });
     assert.deepEqual(shader.red,[255,0,0,255]);assert(shader.rejected);assert.deepEqual(shader.retained,shader.red);
     assert(shader.two[0]>shader.one[0]+20,'feedback accumulates previous frame');assert.equal(shader.error,0);assert.equal(shader.signed[0],0);assert(Math.abs(shader.signed[1]-128)<=1,'buffers preserve signed HDR values');
+    const uniforms=await page.evaluate(()=>{
+      const s=algoravePreview.shader,g=s.gl;
+      s.set({Image:'void mainImage(out vec4 c,in vec2 p){c=vec4(iResolution.x/2560.,iResolution.y/1440.,0.,1.);}'});
+      s.resize(2560,1440);s.render();const pixel=new Uint8Array(4);g.readPixels(0,0,1,1,g.RGBA,g.UNSIGNED_BYTE,pixel);
+      const dimensions=[s.canvas.width,s.canvas.height];s.resize(320,180);
+      s.set({A:'void mainImage(out vec4 c,in vec2 p){c=vec4(0.);}',
+        Image:'void mainImage(out vec4 c,in vec2 p){c=vec4(iChannelTime[0],iChannelTime[1],iChannelTime[2],1.);}',
+        channels:{Image:['A','audio',null]}});
+      s.render({time:.5});const times=new Uint8Array(4);g.readPixels(0,0,1,1,g.RGBA,g.UNSIGNED_BYTE,times);
+      s.resize(640,360);
+      return {dimensions,pixel:[...pixel],times:[...times],error:g.getError()};
+    });
+    assert.deepEqual(uniforms.dimensions,[2560,1440],'display resolution is not capped at 1080p');
+    assert.deepEqual(uniforms.pixel,[255,255,0,255],'iResolution matches actual rendering size');
+    assert.deepEqual(uniforms.times,[0,128,0,255],'only timed media advances iChannelTime');assert.equal(uniforms.error,0);
     const lifecycle=await page.evaluate(()=>{
       const s=algoravePreview.shader,g=s.gl;
       s.set({A:'void mainImage(out vec4 c,in vec2 p){c=texture(iChannel0,p/iResolution.xy)+vec4(.1,0.,0.,0.);}',
