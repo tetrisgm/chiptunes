@@ -166,6 +166,35 @@ The subsequent drawing checkpoint below makes the music canvas visible and
 handles Run/Undo/Stop. Inline editor widgets and the remaining REPL modules,
 Shadertoy inputs/passes, native acceptance, soak and deployment remain in scope.
 
+## Gamepad pattern inputs — 2026-09-15
+
+The music scope now exposes the unchanged upstream @strudel/gamepad 1.2.6 module
+from commit `8f81463b9cb5ddd5f117ed7baef6a1fde9445dc2`. `gamepad(index)` returns
+ordinary Strudel patterns for axes, bipolar axes, analog button values, button
+toggles and sequence gates. Both named aliases and indexed buttons work directly
+in musical controls. Source, metadata, README, license and Git blob hashes ship
+in the corresponding-source archive; the notice inventory now has 87 packages.
+
+The opaque music frame explicitly delegates the browser Gamepad feature while
+retaining its existing sandbox and no parent storage/DOM access. The upstream
+module polls through navigator.getGamepads when its patterns are queried; it does
+not start a separate polling timer. Controller event listeners and toggle state
+retain upstream page/module lifetime. Source Undo does not rewind physical input,
+toggle history or arbitrary JavaScript side effects. Browser support and controller
+availability still determine actual hardware access.
+
+Build `d2c1aff761a4` passes `test:algorave-gamepad`: pinned-file hashes, actual
+Chromium permissions-policy/native API access in the opaque frame, simulated
+independent controllers, unipolar/bipolar axes, analog values, toggle edges,
+sequence aliases, musical pan/gain and scheduling, Run/Undo, stopped reload, and
+playback after removing the simulated input. The initial sequence fixture used
+up instead of down; correcting its index required no upstream source change.
+Runtime cancellation/rollback/isolation and agent/35 legacy chat checks pass.
+These checks use a silent Web Audio sink; no physical-controller, native Safari
+controller or acoustic acceptance is claimed. Remaining REPL modules, inline
+widgets, Shadertoy scope, final native acceptance, soak and public deployment
+remain open.
+
 ## Visible Strudel drawing — 2026-09-15
 
 Upstream pianoroll, scope/fscope/spectrum, punchcard, spiral, pitchwheel, draw and

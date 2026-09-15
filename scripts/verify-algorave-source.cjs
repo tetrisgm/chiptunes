@@ -15,6 +15,8 @@ try{
   assert(manifest.files.some(file=>file.path==='src/algorave/vendor/sfumato/src/index.ts'));
   assert(manifest.files.some(file=>file.path==='src/algorave/vendor/edo/edo.mjs'));
   assert(manifest.files.some(file=>file.path==='src/algorave/vendor/edo/UPSTREAM.json'));
+  assert(manifest.files.some(file=>file.path==='src/algorave/vendor/gamepad/gamepad.mjs'));
+  assert(manifest.files.some(file=>file.path==='src/algorave/vendor/gamepad/UPSTREAM.json'));
   assert(manifest.files.some(file=>file.path==='src/algorave/vendor/draw/draw.mjs'));
   assert(manifest.files.some(file=>file.path==='src/algorave/vendor/draw/upstream/draw.mjs'));
   assert(manifest.files.some(file=>file.path==='node_modules/sfumato/node_modules/soundfont2/src/index.ts'));
@@ -25,6 +27,7 @@ try{
   const dependencies=JSON.parse(fs.readFileSync(path.join(artifact,'dependencies.json'),'utf8'));
   assert(dependencies.some(p=>p.name==='@strudel/core'&&p.license==='AGPL-3.0-or-later'));
   assert(dependencies.some(p=>p.name==='@strudel/edo'&&p.license==='AGPL-3.0-or-later'&&p.noticeFiles.includes('LICENSE')));
+  assert(dependencies.some(p=>p.name==='@strudel/gamepad'&&p.noticeFiles.includes('LICENSE')));
   assert(dependencies.every(p=>p.noticeFiles.length||p.supplementalNotice));
   assert(fs.readFileSync(path.join(artifact,'THIRD_PARTY_NOTICES.txt'),'utf8').includes('GNU AFFERO GENERAL PUBLIC LICENSE'));
   // Rebuild from the archive without the repository/.git or local node_modules.

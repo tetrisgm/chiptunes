@@ -9,6 +9,7 @@ function build({out=path.join(root,'.algorave-preview')}={}){
   id.update(fs.readFileSync(path.join(root,'src/algorave/strudel-drawing.mjs')));
   for(const file of fs.readdirSync(path.join(root,'src/algorave/vendor/draw')).filter(file=>file.endsWith('.mjs')).sort())id.update(fs.readFileSync(path.join(root,'src/algorave/vendor/draw',file)));
   id.update(fs.readFileSync(path.join(root,'src/algorave/vendor/edo/UPSTREAM.json')));
+  for(const file of ['index.mjs','gamepad.mjs','UPSTREAM.json'])id.update(fs.readFileSync(path.join(root,'src/algorave/vendor/gamepad',file)));
   id.update(fs.readFileSync(path.join(root,'src/algorave/shader-images.mjs')));
   id.update(fs.readFileSync(path.join(root,'src/algorave/shader-channel-editor.mjs')));
   id.update(fs.readFileSync(__filename));

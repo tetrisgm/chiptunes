@@ -34,6 +34,11 @@ scope, including samples(), registerSound(), callback closures and custom nodes.
 Music drawings appear below the music editor through .pianoroll(), .scope(),
 .fscope(), .spectrum(), .punchcard(), .spiral(), .pitchwheel(), .draw() and .animate().
 They use upstream drawing APIs and remain independent of the GLSL document.
+Gamepad input uses const pad = gamepad(0): pad.x1/y1/x2/y2 are 0..1
+patterns, *_2 variants are -1..1, pad.a/b/x/y are button values, pad.tglA
+is a toggle, and pad.checkSequence(['down','right','a']) is a sequence gate.
+Use these directly in .gain(), .pan(), .lpf(), etc. A supported connected controller
+and browser Gamepad API access are required; do not claim a controller is present.
 The inline underscore-prefixed editor widgets are not integrated yet.
 Use single quotes for ordinary URL/JavaScript strings; double quotes are mini-notation.
 Use provided or verified public CORS-enabled sample URLs, never invent missing

@@ -102,7 +102,8 @@ text in the reference engine and workspace. The differential probe is
 `scripts/probe-algorave-strudel-parity.cjs`; four passing programs establish those
 behaviors only, not full REPL parity.
 The standard REPL sample banks, soundfonts, ZZFX, piano helper and xen tuning are
-now integrated. Finish the remaining sound/input/drawing modules, including their
+now integrated, together with upstream gamepad pattern inputs. Finish the remaining
+sound/input/drawing modules, including their
 normal source-language APIs, rather than requiring rewritten examples.
 
 The visual runtime now has HTTPS and portable local image textures, sampler

@@ -232,6 +232,19 @@
   },
   {
     "supplementalNotice": null,
+    "name": "@strudel/gamepad",
+    "version": "1.2.6",
+    "license": "AGPL-3.0-or-later",
+    "repository": {
+      "type": "git",
+      "url": "git+https://codeberg.org/uzu/strudel.git"
+    },
+    "noticeFiles": [
+      "LICENSE"
+    ]
+  },
+  {
+    "supplementalNotice": null,
     "name": "@strudel/mini",
     "version": "1.2.6",
     "license": "AGPL-3.0-or-later",

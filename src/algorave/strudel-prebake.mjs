@@ -5,6 +5,7 @@ import { Pattern, noteToMidi, valueToMidi, evalScope, samples, aliasBank, regist
 import * as soundfonts from '@strudel/soundfonts';
 import * as xen from '@strudel/xen';
 import * as edo from './vendor/edo/index.mjs';
+import * as gamepad from './vendor/gamepad/index.mjs';
 
 export const CDN = 'https://strudel.b-cdn.net';
 export const BANKS = [
@@ -43,7 +44,7 @@ async function catalog(name) {
 }
 
 export async function registerDefaultSounds() {
-  await evalScope(soundfonts, xen, edo);
+  await evalScope(soundfonts, xen, edo, gamepad);
   registerZZFXSounds(); soundfonts.registerSoundfonts();
   await samples(DIRT, `${CDN}/Dirt-Samples/`, {prebake:true});
   const tasks = BANKS.map(async ([name, base, tag]) => samples(await catalog(name), `${CDN}/${base}`, {prebake:true,tag}));

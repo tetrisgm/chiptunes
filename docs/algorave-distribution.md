@@ -23,7 +23,7 @@ preview command uses the same builder. `dependencies.json` inventories packages
 actually included by esbuild's input graph. The full runtime bundles upstream
 web.mjs source rather than its prebundled distribution, so transitive inputs and
 their notices remain visible. The pattern worker is no longer embedded.
-The current inventory has 86 package entries, declaring MIT, ISC, BSD-2-Clause,
+The current inventory has 87 package entries, declaring MIT, ISC, BSD-2-Clause,
 BSD-3-Clause or AGPL-3.0-or-later. `THIRD_PARTY_NOTICES.txt` preserves distributed
 license/notice files. This inventory is evidence about these installed packages,
 not a blanket legal assurance about future dependencies.
@@ -42,6 +42,12 @@ animate.mjs add lifecycle checkpoint hooks, canvas resize-listener disposal and
 current-size animation rendering. Their original files are preserved in upstream/,
 with all original package-file SHA-256 hashes in UPSTREAM.json. The modified
 source, originals, metadata and AGPL license are included in the source archive.
+
+@strudel/gamepad 1.2.6 is copied unchanged from the same pinned Strudel commit
+into `src/algorave/vendor/gamepad`. Its source, package metadata, README and
+repository license are preserved with Git blob hashes in UPSTREAM.json. The
+application bundles this source against its locked @strudel/core dependency;
+its exports retain upstream pattern behavior and module-level toggle state.
 
 Three npm packages omit a standalone license file:
 - @tonaljs/progression 4.9.2 declares MIT. Supplement its notices with Tonal's

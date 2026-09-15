@@ -20303,7 +20303,7 @@ registerProcessor('${n2}', MyProcessor);
         symbols: () => symbols
       });
       module.exports = __toCommonJS(chord_type_exports);
-      var import_core15 = require_dist18();
+      var import_core16 = require_dist18();
       var import_pcset = require_dist11();
       var CHORDS = [
         ["1P 3M 5P", "major", "M ^  maj"],
@@ -20442,7 +20442,7 @@ registerProcessor('${n2}', MyProcessor);
       function get(type) {
         return index[type] || NoChordType;
       }
-      var chordType = (0, import_core15.deprecate)("ChordType.chordType", "ChordType.get", get);
+      var chordType = (0, import_core16.deprecate)("ChordType.chordType", "ChordType.get", get);
       function names() {
         return dictionary.map((chord) => chord.name).filter((x4) => x4);
       }
@@ -20455,7 +20455,7 @@ registerProcessor('${n2}', MyProcessor);
       function all() {
         return dictionary.slice();
       }
-      var entries = (0, import_core15.deprecate)("ChordType.entries", "ChordType.all", all);
+      var entries = (0, import_core16.deprecate)("ChordType.entries", "ChordType.all", all);
       function removeAll() {
         dictionary = [];
         index = {};
@@ -20779,7 +20779,7 @@ registerProcessor('${n2}', MyProcessor);
       module.exports = __toCommonJS(chord_exports);
       var import_chord_detect = require_dist13();
       var import_chord_type = require_dist19();
-      var import_core15 = require_dist18();
+      var import_core16 = require_dist18();
       var import_core22 = require_dist18();
       var import_pcset = require_dist11();
       var import_scale_type = require_dist20();
@@ -20883,12 +20883,12 @@ registerProcessor('${n2}', MyProcessor);
       }
       function degrees(chordName) {
         const { intervals, tonic } = get(chordName);
-        const transpose2 = (0, import_core15.tonicIntervalsTransposer)(intervals, tonic);
+        const transpose2 = (0, import_core16.tonicIntervalsTransposer)(intervals, tonic);
         return (degree) => degree ? transpose2(degree > 0 ? degree - 1 : degree) : "";
       }
       function steps(chordName) {
         const { intervals, tonic } = get(chordName);
-        return (0, import_core15.tonicIntervalsTransposer)(intervals, tonic);
+        return (0, import_core16.tonicIntervalsTransposer)(intervals, tonic);
       }
       var chord_default = {
         getChord,
@@ -37621,6 +37621,187 @@ registerProcessor('${n2}', MyProcessor);
   // src/algorave/vendor/edo/index.mjs
   var packageName = "@strudel/edo";
 
+  // src/algorave/vendor/gamepad/index.mjs
+  var gamepad_exports = {};
+  __export(gamepad_exports, {
+    buttonMap: () => buttonMap,
+    clearGamepadStates: () => clearGamepadStates,
+    gamepad: () => gamepad,
+    getGamepadStates: () => getGamepadStates
+  });
+
+  // src/algorave/vendor/gamepad/gamepad.mjs
+  init_dist2();
+  var buttonMap = {
+    a: 0,
+    b: 1,
+    x: 2,
+    y: 3,
+    lb: 4,
+    rb: 5,
+    lt: 6,
+    rt: 7,
+    back: 8,
+    start: 9,
+    l3: 10,
+    ls: 10,
+    r3: 11,
+    rs: 11,
+    u: 12,
+    up: 12,
+    d: 13,
+    down: 13,
+    l: 14,
+    left: 14,
+    r: 15,
+    right: 15
+  };
+  var ButtonSequenceDetector = class {
+    constructor(timeWindow = 1e3) {
+      this.sequence = [];
+      this.timeWindow = timeWindow;
+      this.lastInputTime = 0;
+      this.buttonStates = Array(16).fill(0);
+    }
+    addInput(buttonIndex, buttonValue) {
+      const currentTime = Date.now();
+      if (buttonValue === 1 && this.buttonStates[buttonIndex] === 0) {
+        if (currentTime - this.lastInputTime > this.timeWindow) {
+          this.sequence = [];
+        }
+        const buttonName = Object.keys(buttonMap).find((key) => buttonMap[key] === buttonIndex) || buttonIndex.toString();
+        this.sequence.push({
+          input: buttonName,
+          timestamp: currentTime
+        });
+        this.lastInputTime = currentTime;
+        this.sequence = this.sequence.filter((entry) => currentTime - entry.timestamp <= this.timeWindow);
+      }
+      this.buttonStates[buttonIndex] = buttonValue;
+    }
+    checkSequence(targetSequence) {
+      if (!Array.isArray(targetSequence) && typeof targetSequence !== "string") {
+        console.error("ButtonSequenceDetector: targetSequence must be an array or string");
+        return 0;
+      }
+      if (this.sequence.length < targetSequence.length) return 0;
+      const sequence = typeof targetSequence === "string" ? targetSequence.toLowerCase().split("") : targetSequence.map((s2) => s2.toString().toLowerCase());
+      const lastInputs = this.sequence.slice(-targetSequence.length).map((entry) => entry.input);
+      return lastInputs.every((input, index) => {
+        const target = sequence[index];
+        return input === target || buttonMap[input] === buttonMap[target] || // Also check if the numerical index matches
+        buttonMap[input] === parseInt(target);
+      }) ? 1 : 0;
+    }
+  };
+  var GamepadHandler = class {
+    constructor(index = 0) {
+      this._gamepads = {};
+      this._activeGamepad = index;
+      this._axes = [0, 0, 0, 0];
+      this._buttons = Array(16).fill(0);
+      this.setupEventListeners();
+    }
+    setupEventListeners() {
+      window.addEventListener("gamepadconnected", (e) => {
+        this._gamepads[e.gamepad.index] = e.gamepad;
+        if (!this._activeGamepad) {
+          this._activeGamepad = e.gamepad.index;
+        }
+      });
+      window.addEventListener("gamepaddisconnected", (e) => {
+        delete this._gamepads[e.gamepad.index];
+        if (this._activeGamepad === e.gamepad.index) {
+          this._activeGamepad = Object.keys(this._gamepads)[0] || null;
+        }
+      });
+    }
+    poll() {
+      if (this._activeGamepad !== null) {
+        const gamepad2 = navigator.getGamepads()[this._activeGamepad];
+        if (gamepad2) {
+          this._axes = gamepad2.axes.map((axis) => (axis + 1) / 2);
+          this._buttons = gamepad2.buttons.map((button) => button.value);
+        }
+      }
+    }
+    getAxes() {
+      return this._axes;
+    }
+    getButtons() {
+      return this._buttons;
+    }
+  };
+  var gamepadStates = /* @__PURE__ */ new Map();
+  var gamepad = (index = 0) => {
+    const handler = new GamepadHandler(index);
+    const sequenceDetector = new ButtonSequenceDetector(2e3);
+    const baseSignal = j2((t) => {
+      handler.poll();
+      const axes2 = handler.getAxes();
+      const buttons2 = handler.getButtons();
+      buttons2.forEach((value, i2) => {
+        sequenceDetector.addInput(i2, value);
+      });
+      return { axes: axes2, buttons: buttons2, t };
+    });
+    const axes = {
+      x1: baseSignal.fmap((state) => state.axes[0]),
+      y1: baseSignal.fmap((state) => state.axes[1]),
+      x2: baseSignal.fmap((state) => state.axes[2]),
+      y2: baseSignal.fmap((state) => state.axes[3])
+    };
+    axes.x1_2 = axes.x1.toBipolar();
+    axes.y1_2 = axes.y1.toBipolar();
+    axes.x2_2 = axes.x2.toBipolar();
+    axes.y2_2 = axes.y2.toBipolar();
+    const buttons = Array(16).fill(null).map((_7, i2) => {
+      const stateKey = `gamepad${index}_btn${i2}`;
+      if (!gamepadStates.has(stateKey)) {
+        gamepadStates.set(stateKey, {
+          lastButtonState: 0,
+          toggleState: 0
+        });
+      }
+      const btn = baseSignal.fmap((state) => state.buttons[i2]);
+      const toggle = baseSignal.fmap((state) => {
+        const currentState = state.buttons[i2];
+        const buttonState = gamepadStates.get(stateKey);
+        if (currentState === 1 && buttonState.lastButtonState === 0) {
+          buttonState.toggleState = buttonState.toggleState === 0 ? 1 : 0;
+        }
+        buttonState.lastButtonState = currentState;
+        return buttonState.toggleState;
+      });
+      return { value: btn, toggle };
+    });
+    const btnSequence = (sequence) => {
+      return baseSignal.fmap(() => sequenceDetector.checkSequence(sequence));
+    };
+    const checkSequence = btnSequence;
+    const btnSeq = btnSequence;
+    const btnseq = btnSeq;
+    return {
+      ...axes,
+      buttons,
+      ...Object.fromEntries(
+        Object.entries(buttonMap).flatMap(([key, index2]) => [
+          [key.toLowerCase(), buttons[index2].value],
+          [key.toUpperCase(), buttons[index2].value],
+          [`tgl${key.toLowerCase()}`, buttons[index2].toggle],
+          [`tgl${key.toUpperCase()}`, buttons[index2].toggle]
+        ])
+      ),
+      checkSequence,
+      btnSequence,
+      btnSeq,
+      btnseq,
+      raw: baseSignal
+    };
+  };
+  var getGamepadStates = () => Object.fromEntries(gamepadStates);
+  var clearGamepadStates = () => gamepadStates.clear();
+
   // src/algorave/strudel-prebake.mjs
   var CDN = "https://strudel.b-cdn.net";
   var BANKS = [
@@ -37655,7 +37836,7 @@ registerProcessor('${n2}', MyProcessor);
     return response.json();
   }
   async function registerDefaultSounds() {
-    await xn(soundfonts_exports, xen_exports, edo_exports);
+    await xn(soundfonts_exports, xen_exports, edo_exports, gamepad_exports);
     hc2();
     registerSoundfonts();
     await ao2(DIRT, `${CDN}/Dirt-Samples/`, { prebake: true });
