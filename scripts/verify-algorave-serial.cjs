@@ -14,10 +14,10 @@ const bundle=esbuild.buildSync({stdin:{resolveDir:path.resolve(__dirname,'..'),c
    const writer=await getWriter('fixture',9600),cached=await getWriter('fixture',9600);
    const trigger=(value,delay=0,crc=false,short=false)=>{const hap=pure(value).serial(9600,crc,short,'fixture').queryArc(0,1)[0];hap.context.onTrigger(hap,0,1,delay);};
    trigger({action:'go',speed:3});await new Promise(r=>setTimeout(r,150));const message=new TextDecoder().decode(new Uint8Array(writes[0]));
-   trigger('cancelled',.2);window.dispatchEvent(new Event('strudel-stop'));await new Promise(r=>setTimeout(r,350));const afterStop=writes.length;
+   trigger('cancelled',.2);window.dispatchEvent(new MessageEvent('message',{source:window,data:'strudel-stop'}));await new Promise(r=>setTimeout(r,350));const afterStop=writes.length;
    trigger('resumed');await new Promise(r=>setTimeout(r,150));
    navigator.serial.requestPort=()=>new Promise(resolve=>release=resolve);
-   const pending=getWriter('late',115200);window.dispatchEvent(new Event('strudel-stop'));release({open:async()=>{},close:async()=>closed++,writable:{getWriter:()=>{throw Error('late writer must not be acquired');}}});await pending;
+   const pending=getWriter('late',115200);window.dispatchEvent(new MessageEvent('message',{source:window,data:'strudel-stop'}));release({open:async()=>{},close:async()=>closed++,writable:{getWriter:()=>{throw Error('late writer must not be acquired');}}});await pending;
    return {rejected,cached:writer===cached,requests,opens,message,afterStop,writes:writes.map(b=>new TextDecoder().decode(new Uint8Array(b))),closed};
   });
   assert(result.rejected&&result.cached);assert.equal(result.requests,2);assert.deepEqual(result.opens,[{baudRate:9600}]);assert.equal(result.message,'go(speed:3)');assert.equal(result.afterStop,1);assert.deepEqual(result.writes,['go(speed:3)','resumed']);assert.equal(result.closed,1);

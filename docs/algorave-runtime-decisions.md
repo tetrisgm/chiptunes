@@ -1579,3 +1579,13 @@ port closure. No real chooser, hardware, CRC acceptance or native browser/device
 acceptance is claimed. Full workspace Run/Undo/Stop and unsupported Safari
 behavior remain to verify. Open ports currently follow upstream session lifetime;
 explicit disconnect/release handling remains work.
+
+### Serial workspace checkpoint
+
+The workspace test exposed a Stop integration bug: the module listened for a
+DOM event, while the runtime posts a window message. The listener now accepts
+only the runtime window's strudel-stop message. Chromium on `ac7005a22607`
+verifies the actual iframe policy, s("first*4").serial() playback, changed messages
+after Run, restored messages after Undo, cached port reuse, cancellation of an
+explicit future write through the real Stop button, and stopped reload. Ports
+remain synthetic; no native permission or hardware acceptance is claimed.

@@ -24,6 +24,7 @@
   "changes": [
     "Release chooser state on failure; return cached/new writers.",
     "Cancel scheduled writes on strudel-stop and close ports acquired after Stop.",
-    "Ignore not-yet-ready writers instead of throwing from scheduled callback."
+    "Ignore not-yet-ready writers instead of throwing from scheduled callback.",
+    "Listen to the runtime same-window strudel-stop message, not a DOM event."
   ]
 }

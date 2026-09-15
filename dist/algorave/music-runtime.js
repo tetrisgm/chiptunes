@@ -46998,7 +46998,8 @@ registerProcessor('${n2}', MyProcessor);
   var choosing = false;
   var pendingWrites = /* @__PURE__ */ new Set();
   var generation = 0;
-  if (typeof window !== "undefined") window.addEventListener("strudel-stop", () => {
+  if (typeof window !== "undefined") window.addEventListener("message", (event) => {
+    if (event.source !== window || event.data !== "strudel-stop") return;
     generation++;
     for (const timer of pendingWrites) clearTimeout(timer);
     pendingWrites.clear();

@@ -74,7 +74,8 @@ permission acceptance remains pending. See the
 [motion inventory](algorave-runtime-decisions.md#motion-module-inventory--2026-09-15).
 
 Serial output is integrated with fake-port message and Stop/late-grant checks.
-Native permission, full workspace integration acceptance and hardware remain unverified.
+Chromium workspace Play/Run/Undo/Stop/reload now passes with a fake port.
+Native permission and hardware remain unverified.
 
 Next: complete the remaining Strudel input/drawing/module scope and Shadertoy
 media and Sound contracts; complete final browser/acoustic

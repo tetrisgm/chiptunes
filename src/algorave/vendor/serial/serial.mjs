@@ -10,7 +10,8 @@ var writeMessagers = {};
 var choosing = false;
 const pendingWrites = new Set();
 let generation = 0;
-if (typeof window !== 'undefined') window.addEventListener('strudel-stop', () => {
+if (typeof window !== 'undefined') window.addEventListener('message', event => {
+  if (event.source !== window || event.data !== 'strudel-stop') return;
   generation++;
   for (const timer of pendingWrites) clearTimeout(timer);
   pendingWrites.clear();
