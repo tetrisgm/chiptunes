@@ -17,4 +17,12 @@ screen test twice lost its window; the same screen assertions passed using
 headless Chromium on the Mac Metal GPU, without source changes. Remaining
 48-song smoke, 14-game smoke, and music-driven audit passed.
 
-Production deployment and live WebMCP verification are pending.
+Deployed restore commit `18e5376` to Cloudflare Pages:
+https://51c853c8.retro-rave-radio.pages.dev (production: https://chiptunes.app).
+Live WebMCP verification passed, including all 15 tools, cold orientation,
+late-host registration and real tool execution. Production HTML and
+`app.a41aa43f43dc.js` match the local restored artifact byte for byte.
+
+No remaining rollback work. Later-work local artifacts (`.algorave-preview/`,
+`.env.local`, `.vercel/`, and residual `gateway/`) were left untouched and are
+untracked under the restored ignore rules; do not add them to commits.
