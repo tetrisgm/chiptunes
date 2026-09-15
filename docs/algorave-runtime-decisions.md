@@ -656,4 +656,58 @@ were closed; the preexisting production project tab remained untouched.
 
 These were real captured provider outputs replayed through native chat/Apply/
 Undo, not fresh provider calls, Safari automation through WebKit, or public-site
-verification. Native Anthropic replay and broader parity work remain open.
+verification. The Anthropic continuation and broader parity work follow below.
+
+### Native Safari captured Anthropic replies and recovery findings
+
+On `668ca3b9634e`, local replay port 63029 completed the same three captured
+Claude requests: bass-only, kick-driven Image-only and paired dark music/colors.
+Visible source inspection confirmed each applied proposal and restoration of both
+documents after the combined edit. Save/reload retained the restored bass project,
+showed Play and Ready, and did not autoplay. The tab and server 75799 were closed.
+No additional provider calls were made; the original production tab was untouched.
+
+The paired case was stopped when inspected after Apply. Starting it succeeded,
+but the first Undo then restored an identical project; a second restored the
+pre-proposal music and shader. `ProjectSession.activate` recorded unchanged Play
+as an edit. It now activates the runtime without adding history when both draft
+and applied documents are unchanged. The session check and six Chromium captured
+reply cases on `1f18011ed5b2` pass with an added Stop/Play before each single Undo.
+Native Safari on that build also restored the original bass source with one Undo
+after Play, but playback had stopped with “Audio scheduling fell behind.” The
+local tab and server 45574 were closed. This is not a continuous-playback pass.
+
+The custom transport queued every overdue upstream clock callback until its
+32-slice guard stopped playback. It now coalesces contiguous expired slices,
+advances their exact cycle count and queries only slices whose deadlines remain
+current. This follows upstream Cyclist's missed-window behavior without resetting
+its clock inside the catch-up loop. A deterministic 50-second/1000-slice burst
+proves bounded queuing, continued transport, correct future deadline and no late
+note burst. The worker browser check on `57f1ee3f9b7d` also passed a forced
+2.5-second audio-frame event-loop delay with resumed analyser activity and the
+transport still playing, followed by its existing infinite/async/recursive
+candidate and lazy-query recovery checks. The first run timed out at initial
+audio startup; adding a bounded failure snapshot and rerunning passed. No cause
+for that initial timeout is established. Native recovery verification is pending.
+
+### Direct upstream music differential probe
+
+`node scripts/probe-algorave-strudel-parity.cjs` on `57f1ee3f9b7d` executes the same
+original source programs in unmodified `@strudel/web` 1.3.0 initStrudel (including
+its scheduler and Web Audio output), then in the workspace. The browser instances
+play serially and close after each case. The sample fixture uses an original drum
+WAV served locally with CORS; it does not prove arbitrary remote-bank availability.
+
+| Program | Upstream measured audio | Workspace |
+| --- | --- | --- |
+| Synth with mini-notation | Nonzero | Nonzero |
+| registerSound with an AudioContext oscillator | Nonzero | registerSound is not defined |
+| onTrigger closure | Nonzero; callback executed | Explicitly rejected by worker |
+| samples() called in source | Nonzero | samples is not defined |
+
+Receipt: `.algorave-preview/strudel-parity-probe.json`. These are demonstrated
+compatibility failures, not a broad parity score. The selected integration must
+retain executable closures and the upstream Web Audio scope together, outside
+the privileged app. The updated plan calls for replacing the serialization-only
+boundary rather than teaching the agent to avoid these normal Strudel programs.
+Default REPL banks, additional packages and wider reference programs remain open.

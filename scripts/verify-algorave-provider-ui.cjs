@@ -56,6 +56,8 @@ async function serve(provider){
         assert.deepEqual(await page.evaluate(()=>algoravePreview.session.applied),item.context.project,'proposal cannot auto-apply');
         await apply(item.candidate);
         assert.deepEqual(await page.evaluate(()=>algoravePreview.session.applied),item.candidate);
+        await page.locator('#play').click();await page.waitForFunction(()=>!algoravePreview.playing);
+        await page.locator('#play').click();await page.waitForFunction(()=>algoravePreview.playing);
         await page.locator('#menu summary').click();await page.locator('#undo').click();await page.waitForFunction(()=>document.getElementById('status').textContent==='Undone');
         assert.deepEqual(await page.evaluate(()=>algoravePreview.session.draft),item.context.project,'exact UI Undo');
         await page.locator('#menu summary').click();

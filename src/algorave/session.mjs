@@ -46,7 +46,12 @@ export class ProjectSession {
       if (generation !== this.generation) throw Error('The source changed. Review the edit again.');
       await prepared.apply();
       this.applied = next; this.draft = draft; this.generation++;
-      if (record) { this.history.push(previous); if (this.history.length > 20) this.history.shift(); }
+      // Play/Run still activates the runtime, but an unchanged project is not
+      // an edit. Otherwise starting playback hides the last edit behind a
+      // redundant Undo step.
+      if (record && (JSON.stringify(previous.applied) !== JSON.stringify(next) || JSON.stringify(previous.draft) !== JSON.stringify(draft))) {
+        this.history.push(previous); if (this.history.length > 20) this.history.shift();
+      }
     } finally { prepared?.dispose(); this.busy = false; }
   }
   async accept(proposal, context) {

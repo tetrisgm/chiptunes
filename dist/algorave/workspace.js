@@ -24998,7 +24998,7 @@ var ProjectSession = class {
       this.applied = next;
       this.draft = draft;
       this.generation++;
-      if (record) {
+      if (record && (JSON.stringify(previous.applied) !== JSON.stringify(next) || JSON.stringify(previous.draft) !== JSON.stringify(draft))) {
         this.history.push(previous);
         if (this.history.length > 20) this.history.shift();
       }
@@ -26218,7 +26218,7 @@ bridge = new MusicBridge(frame, (next) => {
 await bridge.ready;
 lock(false);
 status.textContent = session.recoveryError || "Ready \xB7 \u2318/Ctrl Enter to run";
-$("build").textContent = "Algorave 668ca3b9634e";
+$("build").textContent = "Algorave 57f1ee3f9b7d";
 function draw(now) {
   shader2.render({ time: now / 1e3, delta: last2 ? (now - last2) / 1e3 : 0, ...signals.at(performance.timeOrigin + now) });
   last2 = now;

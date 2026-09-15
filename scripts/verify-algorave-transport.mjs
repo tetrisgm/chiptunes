@@ -35,5 +35,20 @@ const overflow=new PatternTransport({getTime:()=>0,output(){},onError(){overflow
 overflow.set(client(),true);insideClock=true;
 for(let i=0;i<40;i++)burstTick(i*.05,.05);
 insideClock=false;await flush();assert.equal(overflowErrors,1);assert.equal(overflow.playing,false);overflow.dispose();
+// A realistic delayed-clock burst consists of expired contiguous slices, not
+// 40 future slices. Skip them with exactly the upstream musical-time advance.
+let delayedTick,delayedNow=10;const delayedQueries=[],delayedOutputs=[],delayedErrors=[];
+const delayed=new PatternTransport({getTime:()=>delayedNow,output:(event,time)=>delayedOutputs.push(time),onError:e=>delayedErrors.push(e),clockFactory:(_time,callback)=>{delayedTick=callback;return {start(){},stop(){}};}});
+const delayedClient=client(2);delayedClient.query=async(begin,end)=>{delayedQueries.push([begin,end]);return [{begin,end,duration:end-begin,value:{s:'triangle'}}];};
+delayed.set(delayedClient,true);delayedTick(10,.05);await flush();
+delayedNow=60;
+for(let i=1;i<=1000;i++)delayedTick(10+i*.05,.05);
+assert(delayed.queue.length<8,'missed callbacks are bounded before the async drain');
+await flush();assert.equal(delayed.playing,true);assert.deepEqual(delayedErrors,[]);
+assert.equal(delayedQueries.at(-1)[0],100);
+assert(Math.abs(delayedQueries.at(-1)[1]-100.1)<1e-12);
+assert.equal(delayedOutputs.at(-1),60.1);
+assert(delayedOutputs.slice(1).every(time=>time>=60),'expired notes must never burst on recovery');
+delayed.dispose();
 transport.dispose();
 console.log('PASS: scheduled note deadlines/durations, 1000-window drift, phase-preserving swaps, tempo changes, missed windows and stale/current query failure recovery.');

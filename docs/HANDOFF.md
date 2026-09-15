@@ -9,7 +9,13 @@ established: sample-loading/integration restrictions and missing shader channel/
 pass types require work. Do not treat the earlier bounded compatibility contract
 as satisfying this expanded goal. Chromium captured-reply UI checks now pass via
 `scripts/verify-algorave-provider-ui.cjs`. Native Safari replay of all three OpenAI
-responses now passes on `668ca3b9634e`; Anthropic native replay remains next.
+and Anthropic responses completed on `668ca3b9634e`; the Anthropic check exposed
+redundant Play history and a delayed-clock playback stop. The fixes pass session,
+Chromium chat and delayed-loop/worker checks within their recorded scopes; native
+delayed-clock recovery remains to verify. A new differential probe demonstrates
+three programs that play in upstream initStrudel but fail here: samples(),
+onTrigger closures and custom Web Audio sounds. Replace the serialized-event
+boundary with full upstream execution next; see the latest runtime checkpoint.
 Shader parity progress: removed the fixed 1080p output cap in favor of actual GL
 device limits and corrected buffer iChannelTime to zero. Independent 2560×1440
 pixel/uniform checks and the full preview suite pass on `668ca3b9634e`.
@@ -22,7 +28,7 @@ through secondary navigation; switching pages disposes the previous player.
 [distribution/source record](algorave-distribution.md) describe the current build.
 Entry, editor, workflow, preview, worker, source-rebuild and legacy preservation
 checks pass. Native Safari basic editing/audio-texture/fullscreen/reload checks
-passed on build `6e20fa4925dc`; full agent/external-display acceptance is incomplete.
+passed on build `6e20fa4925dc`; later agent/display evidence is in the runtime record.
 Live provider capture/runtime results are recorded below. No public deployment occurred.
 
 Code-plus-output fullscreen now works in all layouts; native Safari and Chromium
@@ -44,9 +50,8 @@ The owner authorized testing with the existing keys. All six live requests
 succeeded (three OpenAI, three Anthropic), and all captured candidates compiled,
 played and restored exact Undo in Chromium. No retries. See the runtime record.
 Native Safari external-display fullscreen passed on `1c68b1666ee5`; the local
-test window/server are closed. Acoustic listening and the native end-to-end
-sequence using the captured provider replies
-remain open; see the runtime record for the display scope and limitations.
+test window/server are closed. Acoustic listening remains unverified; see the
+runtime record for the display and captured-reply scope and limitations.
 The [release preparation](algorave-release-candidate.md) records the implementation
 candidate, remaining acceptance gates and coordinated web rollback requirements.
 The production Safari warning was traced read-only to asset hash `5fba76c2aeb5e170`.

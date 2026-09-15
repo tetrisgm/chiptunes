@@ -47,9 +47,10 @@ subset into cycleV1 and call it Strudel. Investigate the upstream evaluator,
 scheduler and Web Audio integration before choosing package boundaries. Keep the
 existing CodeMirror shell only where it makes the experience simpler.
 
-Implement a local WebGL shader runtime supporting Shadertoy-style mainImage and
-standard uniforms. Target Image, Common and Buffer A-D with feedback and channel
-routing behind an advanced affordance. First prove a single Image pass. Specify
+Implement a local WebGL shader runtime supporting Shadertoy's GLSL entry points,
+standard uniforms, pass types and inputs. Image, Common and Buffer A-D are the
+implemented starting point, not the final compatibility boundary. Keep additional
+passes, media inputs and sampler settings behind secondary controls. Specify
 and test iResolution, iTime, iTimeDelta, iFrame, iMouse, iDate, iSampleRate,
 iChannel0-3, channel resolution/time and the audio texture layout against official
 references. Explicitly document unsupported channel types and Sound/VR/cubemap
@@ -88,6 +89,27 @@ compatible dependencies, notices and corresponding-source delivery. Record the
 concrete distribution requirements; do not silently relicense existing code or
 publish private source. Any owner decision needed here must be precise and follow
 useful local work, not block research or prototypes.
+
+### Full parity work after the owner's expanded requirement
+
+The current worker queries upstream patterns but serializes only ordinary event
+values into a custom transport. That excludes executable callbacks, custom Web
+Audio output and the upstream sample-loading API. Do not keep extending this
+serialization format as a substitute for the full runtime. Integrate upstream
+evaluation and Web Audio output together outside the privileged app context;
+prove candidate isolation, phase-preserving Apply and exact Undo there. Use the
+same program text in the reference engine and workspace. The differential probe
+is `scripts/probe-algorave-strudel-parity.cjs`; it reports gaps, not a parity pass.
+Add the reference REPL's sample banks and relevant sound/input packages, including
+their normal source-language APIs, rather than requiring rewritten examples.
+
+The visual runtime still lacks texture/media input lifecycles, sampler settings,
+keyboard input, cube textures/passes, Sound and VR support. Implement and test
+those against the official contracts, including persistence and resource cleanup;
+do not turn their absence into the final product specification. A valid shader
+must retain its GLSL rather than be rewritten to avoid an unsupported channel.
+Original test programs and appropriately licensed assets must prove each behavior.
+Neither a small fixture set nor matching syntax alone establishes full parity.
 
 ## Sequenced work and evidence
 
@@ -165,11 +187,10 @@ remains open; fixture responses are not model-quality evidence.
   web release with rollback references. Public deployment requires an explicit
   release request; no desktop reinstall, broadcast restart or store upload.
 
-Complete means a working, demonstrably simple local release candidate with both
-real languages, agent support, persistence and recorded acceptance—not checked
-feature boxes alone. Report pending provider, licensing or release authorization
-as specific remaining gates; never describe unverified public behavior as shipped.
-If release is separately authorized, deploy and verify the actual public artifact.
+Complete means the demonstrably simple app, full music/visual runtime parity,
+agent support and persistence are verified and deployed at the public link.
+Deployment is authorized by the updated goal. Local checks and checked feature
+boxes alone cannot establish completion; verify the actual public artifact.
 
 ## Starting points and references
 

@@ -17,8 +17,18 @@ const root=path.resolve(__dirname,'../.algorave-preview');
     await page.goto('http://127.0.0.1:'+server.address().port);
     await page.waitForFunction(()=>window.algoravePreview);
     await page.getByRole('button',{name:'Play',exact:true}).click();
-    await page.waitForFunction(()=>algoravePreview.playing&&algoravePreview.signal.frequency?.some(n=>n>0));
+    await page.waitForFunction(()=>algoravePreview.playing&&algoravePreview.signal.frequency?.some(n=>n>0)).catch(async error=>{
+      console.error(await page.evaluate(()=>({playing:algoravePreview.playing,status:document.getElementById('status').textContent,signalTime:algoravePreview.signal.time})));throw error;
+    });
     const good=await page.evaluate(()=>algoravePreview.session.applied.music);
+    // Simulate a delayed audio-frame event loop, as observed during native
+    // Safari interaction. The upstream clock catches up in one callback burst.
+    const audioFrame=page.frames().find(f=>f!==page.mainFrame());
+    const beforeDelay=await page.evaluate(()=>algoravePreview.signal.time);
+    await audioFrame.evaluate(()=>{const until=performance.now()+2500;while(performance.now()<until){}});
+    await page.waitForFunction(t=>algoravePreview.signal.time>t+2.5,beforeDelay);
+    assert.equal(await page.evaluate(()=>algoravePreview.playing),true,'expired clock slices must not stop music');
+    await page.waitForFunction(()=>algoravePreview.signal.frequency?.some(n=>n>0));
     for(const source of ['while(true) {} s("bd")','await new Promise(()=>{}); s("bd")','function recurse(){return recurse()} recurse();']){
       const before=await page.evaluate(()=>algoravePreview.signal.time);
       await page.getByLabel('Strudel music').fill(source);

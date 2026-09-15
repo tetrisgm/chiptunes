@@ -21276,6 +21276,11 @@ Defaulting to 2020, but this will stop working in the future.`)), t.ecmaVersion 
       this.anchorCycle = 0;
       this.clock = clockFactory(getTime, (phase, duration) => {
         if (!this.playing) return;
+        const previous = this.queue.at(-1);
+        if (phase + 0.1 < this.getTime() && previous?.client === this.active && previous.epoch === this.epoch && previous.duration === duration && Math.abs(previous.phase + previous.count * duration - phase) < 1e-7) {
+          previous.count++;
+          return;
+        }
         if (this.queue.length > 32) {
           const epoch = this.epoch;
           queueMicrotask(() => {
@@ -21283,7 +21288,7 @@ Defaulting to 2020, but this will stop working in the future.`)), t.ecmaVersion 
           });
           return;
         }
-        this.queue.push({ phase, duration, epoch: this.epoch, client: this.active });
+        this.queue.push({ phase, duration, count: 1, epoch: this.epoch, client: this.active });
         queueMicrotask(() => this.drain());
       });
     }
@@ -21328,11 +21333,12 @@ Defaulting to 2020, but this will stop working in the future.`)), t.ecmaVersion 
             this.anchorCycle = this.nextCycle;
             this.anchorTime = task.phase;
           }
-          const cps = this.cps, begin = this.nextCycle, end = this.anchorCycle + ++this.tempoTicks * task.duration * cps;
+          this.tempoTicks += task.count;
+          const cps = this.cps, begin = this.nextCycle, end = this.anchorCycle + this.tempoTicks * task.duration * cps;
           this.nextCycle = end;
           this.segments.push({ time: task.phase + 0.1, begin, cps });
           this.segments = this.segments.filter((s) => s.time >= this.getTime() - 2).slice(-128);
-          if (task.phase + 0.1 < this.getTime()) continue;
+          if (task.phase + (task.count - 1) * task.duration + 0.1 < this.getTime()) continue;
           try {
             const events = await client.query(begin, end, cps);
             if (task.epoch !== this.epoch || !this.playing) continue;
