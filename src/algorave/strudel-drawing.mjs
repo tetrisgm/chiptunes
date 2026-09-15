@@ -3,14 +3,14 @@ import { evalScope } from '@strudel/web';
 import './vendor/codemirror/drawing-widgets.mjs';
 
 
-// The visible canvas stays inside the opaque music frame. Only a boolean crosses
-// to the parent; source callbacks cannot insert DOM into the surrounding app.
+// Source callbacks stay inside the opaque music frame. Inline widgets export
+// bitmap snapshots; they cannot insert DOM into the surrounding app.
 export async function createDrawingHost(engine, visibility) {
   await evalScope(draw);
   const canvases = () => [...document.querySelectorAll('canvas:not([data-drawing-preview])')];
   let drawer, pending;
   const stop = () => { drawer?.stop(); draw.pauseDraw(); draw.pauseAnimation(); };
-  const report = () => visibility(canvases().length > 0);
+  const report = () => {const nodes=canvases();visibility(nodes.length>0,nodes.length>0&&nodes.every(canvas=>canvas.dataset.inlineDrawing!==undefined));};
   const observer = new MutationObserver(() => { if (!pending) report(); });
   observer.observe(document.body, { childList: true, subtree: true });
   function prepare() {
@@ -33,17 +33,19 @@ export async function createDrawingHost(engine, visibility) {
         // scheduler haps and upstream Drawer as Strudel's editor.
         if (pattern) {
           const next = new draw.Drawer((haps, time, state, painters) => {
-            const ctx = draw.getDrawContext();
+            const inline=painters.length&&painters.every(painter=>painter.inlineDrawing);
+            const ctx = inline?canvases().find(canvas=>canvas.dataset.inlineDrawing!==undefined)?.getContext('2d'):draw.getDrawContext();
+            if(!ctx)return;
             ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
             for (const painter of painters) painter(ctx, time, haps, state.drawTime);
           }, [-2, 2]);
           next.invalidate(engine.scheduler);
           if (next.painters.length) {
-            drawer = next; draw.getDrawContext();
+            drawer = next;if(!next.painters.every(painter=>painter.inlineDrawing))draw.getDrawContext();
             if (running) drawer.framer.start();
           }
         }
-        if (draw.hasDrawCallbacks() || draw.hasAnimation()) draw.getDrawContext();
+        if (!canvases().length&&(draw.hasDrawCallbacks() || draw.hasAnimation())) draw.getDrawContext();
         if (!running) stop();
         draw.disposeDrawCanvases(snapshot.nodes.map(node => node.canvas));
         snapshot.nodes.forEach(node => node.marker.remove());

@@ -10,6 +10,27 @@ import { tags } from '@lezer/highlight';
 import { setDiagnostics } from '@codemirror/lint';
 
 const activeNotes=StateEffect.define();
+const setDrawings=StateEffect.define();
+const drawingMarks=StateField.define({
+  create:()=>Decoration.none,
+  update(value,tr){
+    value=value.map(tr.changes);
+    for(const effect of tr.effects)if(effect.is(setDrawings))value=effect.value;
+    return value;
+  },provide:field=>EditorView.decorations.from(field),
+});
+class DrawingWidget extends WidgetType {
+  constructor(){super();this.canvas=document.createElement('canvas');this.canvas.className='cm-strudel-drawing';this.canvas.style.cssText='display:block;max-width:100%;height:auto';}
+  toDOM(){return this.canvas;}
+  ignoreEvent(){return true;}
+  paint(frame){
+    if(this.canvas.width!==frame.bitmap.width)this.canvas.width=frame.bitmap.width;
+    if(this.canvas.height!==frame.bitmap.height)this.canvas.height=frame.bitmap.height;
+    this.canvas.style.width=frame.width+'px';
+    this.canvas.style.aspectRatio=frame.width+'/'+frame.height;
+    const ctx=this.canvas.getContext('2d');ctx.clearRect(0,0,this.canvas.width,this.canvas.height);ctx.drawImage(frame.bitmap,0,0);
+  }
+}
 const setSliders=StateEffect.define();
 const sliderMarks=StateField.define({
   create:()=>Decoration.none,
@@ -97,11 +118,12 @@ const theme = EditorView.theme({
 export function codeEditor(parent, { language, label }) {
   const readonly = new Compartment(), help = language === 'music' ? musicHelp : visualHelp;
   let previousMarks='',highlightSource=null,highlightChanges=null,sliderSource=null;
+  let drawingSource=null,drawingKey='',drawingWidgets=new Map();
   let muted = false, destroyed = false, serial = 0, readOnly = false, documentKey = 'default';
   const documents = new Map();
   const editor = { oninput:null, onfocus:null, onRun:null };
   const extensions = [
-    minimalSetup, noteMarks, sliderMarks, lineNumbers(), language === 'music' ? javascript() : StreamLanguage.define(glsl),
+    minimalSetup, noteMarks, sliderMarks, drawingMarks, lineNumbers(), language === 'music' ? javascript() : StreamLanguage.define(glsl),
     bracketMatching(), closeBrackets(), syntaxHighlighting(colors), theme,
     readonly.of([EditorState.readOnly.of(false), EditorView.editable.of(true)]),
     EditorView.contentAttributes.of({'aria-label':label,'aria-multiline':'true',spellcheck:'false'}),
@@ -132,7 +154,7 @@ export function codeEditor(parent, { language, label }) {
     documents.set(documentKey, view.state);
     const cached = documents.get(key);
     const state = key !== documentKey && cached?.doc.toString() === source ? cached : stateFor(source);
-    previousMarks='';highlightSource=null;highlightChanges=null;sliderSource=null;serial++; muted = true;
+    previousMarks='';highlightSource=null;highlightChanges=null;sliderSource=null;drawingKey='';serial++; muted = true;
     try {
       view.setState(state); documentKey = key;
       view.dispatch({effects:readonly.reconfigure([EditorState.readOnly.of(readOnly),EditorView.editable.of(!readOnly)])});
@@ -140,7 +162,7 @@ export function codeEditor(parent, { language, label }) {
   }
   editor.switchDocument = replace;
   editor.resetHistory = () => {
-    documents.clear(); serial++;previousMarks='';highlightSource=null;highlightChanges=null;sliderSource=null;
+    documents.clear(); serial++;previousMarks='';highlightSource=null;highlightChanges=null;sliderSource=null;drawingKey='';
     view.setState(stateFor(view.state.doc.toString()));
     view.dispatch({effects:readonly.reconfigure([EditorState.readOnly.of(readOnly),EditorView.editable.of(!readOnly)])});
   };
@@ -167,6 +189,22 @@ export function codeEditor(parent, { language, label }) {
     view.dispatch({effects:activeNotes.of(marks)});
   };
   editor.focus = () => view.focus();
+  editor.drawings = (frames,source) => {
+    try{
+      if(destroyed||language!=='music'||source!==highlightSource)return;
+      if(drawingSource!==source){drawingSource=source;drawingWidgets=new Map();drawingKey='';}
+      const decorations=[],ids=new Set();
+      for(const frame of frames){
+        if(frame.to>source.length)continue;
+        let widget=drawingWidgets.get(frame.id);if(!widget){widget=new DrawingWidget();drawingWidgets.set(frame.id,widget);}
+        ids.add(frame.id);widget.paint(frame);
+        decorations.push(Decoration.widget({widget,block:true,side:1}).range(highlightChanges.mapPos(frame.to,1)));
+      }
+      for(const id of drawingWidgets.keys())if(!ids.has(id))drawingWidgets.delete(id);
+      const key=JSON.stringify([...ids]);
+      if(key!==drawingKey){drawingKey=key;view.dispatch({effects:setDrawings.of(Decoration.set(decorations,true))});}
+    }finally{frames.forEach(frame=>frame.bitmap.close());}
+  };
   editor.sliders = source => {
     if(language!=='music'||source===sliderSource)return;
     // Use the same source positions and defaults as upstream sliderWithID.

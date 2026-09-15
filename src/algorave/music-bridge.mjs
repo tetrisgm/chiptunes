@@ -15,11 +15,20 @@ export class MusicBridge {
         if (data.type === 'fatal') { clearTimeout(this.readyTimer); reject(Error(String(data.error).slice(0, 2000))); }
         if (data.type === 'runtime-error') onError(Error(String(data.error).slice(0,2000)));
         if (data.type === 'diagnostic') onDiagnostic(Error(String(data.error).slice(0,2000)));
-        if (data.type === 'drawing' && typeof data.visible === 'boolean') onDrawing(data.visible);
+        if (data.type === 'drawing' && typeof data.visible === 'boolean') onDrawing(data.visible,data.inlineOnly===true);
         if (data.type === 'reply' && this.pending.has(data.id)) {
           const pending = this.pending.get(data.id);
           this.pending.delete(data.id); clearTimeout(pending.timer);
-          data.error ? pending.reject(Error(String(data.error).slice(0, 2000))) : pending.resolve({ playing: data.playing === true, ...(Number.isSafeInteger(data.token) ? { token: data.token } : {}), ...(Number.isSafeInteger(data.checkpoint)?{checkpoint:data.checkpoint}:{}) });
+          const drawings=[];
+          if(Array.isArray(data.drawings))for(const frame of data.drawings){
+            if(frame?.bitmap instanceof ImageBitmap){
+              if(drawings.length<64&&typeof frame.id==='string'&&frame.id.length<128&&Number.isSafeInteger(frame.to)&&frame.to>=0&&frame.to<=65536&&Number.isFinite(frame.width)&&frame.width>0&&frame.width<=8192&&Number.isFinite(frame.height)&&frame.height>0&&frame.height<=8192)drawings.push(frame);
+              else frame.bitmap.close();
+            }
+          }
+          data.error ? pending.reject(Error(String(data.error).slice(0, 2000))) : pending.resolve({ playing: data.playing === true, ...(Array.isArray(data.drawings)?{drawings}:{}), ...(Number.isSafeInteger(data.token) ? { token: data.token } : {}), ...(Number.isSafeInteger(data.checkpoint)?{checkpoint:data.checkpoint}:{}) });
+        }else if(data.type==='reply'&&Array.isArray(data.drawings)){
+          for(const frame of data.drawings)if(frame?.bitmap instanceof ImageBitmap)frame.bitmap.close();
         }
         if (data.type === 'signal' && Number.isSafeInteger(data.epoch) && Number.isFinite(data.observedAt) && Number.isFinite(data.time) && Number.isFinite(data.cycle)
           && Number.isFinite(data.cps) && Number.isFinite(data.sampleRate)

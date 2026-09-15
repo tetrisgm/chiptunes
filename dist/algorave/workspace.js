@@ -30555,6 +30555,39 @@ var dart = clike({
 
 // src/algorave/code-editor.mjs
 var activeNotes = StateEffect.define();
+var setDrawings = StateEffect.define();
+var drawingMarks = StateField.define({
+  create: () => Decoration.none,
+  update(value, tr) {
+    value = value.map(tr.changes);
+    for (const effect of tr.effects) if (effect.is(setDrawings)) value = effect.value;
+    return value;
+  },
+  provide: (field) => EditorView.decorations.from(field)
+});
+var DrawingWidget = class extends WidgetType {
+  constructor() {
+    super();
+    this.canvas = document.createElement("canvas");
+    this.canvas.className = "cm-strudel-drawing";
+    this.canvas.style.cssText = "display:block;max-width:100%;height:auto";
+  }
+  toDOM() {
+    return this.canvas;
+  }
+  ignoreEvent() {
+    return true;
+  }
+  paint(frame2) {
+    if (this.canvas.width !== frame2.bitmap.width) this.canvas.width = frame2.bitmap.width;
+    if (this.canvas.height !== frame2.bitmap.height) this.canvas.height = frame2.bitmap.height;
+    this.canvas.style.width = frame2.width + "px";
+    this.canvas.style.aspectRatio = frame2.width + "/" + frame2.height;
+    const ctx = this.canvas.getContext("2d");
+    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    ctx.drawImage(frame2.bitmap, 0, 0);
+  }
+};
 var setSliders = StateEffect.define();
 var sliderMarks = StateField.define({
   create: () => Decoration.none,
@@ -30670,6 +30703,7 @@ var theme2 = EditorView.theme({
 function codeEditor(parent, { language: language2, label }) {
   const readonly = new Compartment(), help = language2 === "music" ? musicHelp : visualHelp;
   let previousMarks = "", highlightSource = null, highlightChanges = null, sliderSource = null;
+  let drawingSource = null, drawingKey = "", drawingWidgets = /* @__PURE__ */ new Map();
   let muted = false, destroyed = false, serial = 0, readOnly2 = false, documentKey = "default";
   const documents = /* @__PURE__ */ new Map();
   const editor = { oninput: null, onfocus: null, onRun: null };
@@ -30677,6 +30711,7 @@ function codeEditor(parent, { language: language2, label }) {
     minimalSetup,
     noteMarks,
     sliderMarks,
+    drawingMarks,
     lineNumbers(),
     language2 === "music" ? javascript() : StreamLanguage.define(shader),
     bracketMatching(),
@@ -30724,6 +30759,7 @@ function codeEditor(parent, { language: language2, label }) {
     highlightSource = null;
     highlightChanges = null;
     sliderSource = null;
+    drawingKey = "";
     serial++;
     muted = true;
     try {
@@ -30742,6 +30778,7 @@ function codeEditor(parent, { language: language2, label }) {
     highlightSource = null;
     highlightChanges = null;
     sliderSource = null;
+    drawingKey = "";
     view.setState(stateFor(view.state.doc.toString()));
     view.dispatch({ effects: readonly.reconfigure([EditorState.readOnly.of(readOnly2), EditorView.editable.of(!readOnly2)]) });
   };
@@ -30776,6 +30813,36 @@ function codeEditor(parent, { language: language2, label }) {
     view.dispatch({ effects: activeNotes.of(marks2) });
   };
   editor.focus = () => view.focus();
+  editor.drawings = (frames, source) => {
+    try {
+      if (destroyed || language2 !== "music" || source !== highlightSource) return;
+      if (drawingSource !== source) {
+        drawingSource = source;
+        drawingWidgets = /* @__PURE__ */ new Map();
+        drawingKey = "";
+      }
+      const decorations2 = [], ids = /* @__PURE__ */ new Set();
+      for (const frame2 of frames) {
+        if (frame2.to > source.length) continue;
+        let widget = drawingWidgets.get(frame2.id);
+        if (!widget) {
+          widget = new DrawingWidget();
+          drawingWidgets.set(frame2.id, widget);
+        }
+        ids.add(frame2.id);
+        widget.paint(frame2);
+        decorations2.push(Decoration.widget({ widget, block: true, side: 1 }).range(highlightChanges.mapPos(frame2.to, 1)));
+      }
+      for (const id2 of drawingWidgets.keys()) if (!ids.has(id2)) drawingWidgets.delete(id2);
+      const key = JSON.stringify([...ids]);
+      if (key !== drawingKey) {
+        drawingKey = key;
+        view.dispatch({ effects: setDrawings.of(Decoration.set(decorations2, true)) });
+      }
+    } finally {
+      frames.forEach((frame2) => frame2.bitmap.close());
+    }
+  };
   editor.sliders = (source) => {
     if (language2 !== "music" || source === sliderSource) return;
     if (source !== view.state.doc.toString()) return;
@@ -31026,12 +31093,21 @@ var MusicBridge = class {
         }
         if (data2.type === "runtime-error") onError(Error(String(data2.error).slice(0, 2e3)));
         if (data2.type === "diagnostic") onDiagnostic(Error(String(data2.error).slice(0, 2e3)));
-        if (data2.type === "drawing" && typeof data2.visible === "boolean") onDrawing(data2.visible);
+        if (data2.type === "drawing" && typeof data2.visible === "boolean") onDrawing(data2.visible, data2.inlineOnly === true);
         if (data2.type === "reply" && this.pending.has(data2.id)) {
           const pending = this.pending.get(data2.id);
           this.pending.delete(data2.id);
           clearTimeout(pending.timer);
-          data2.error ? pending.reject(Error(String(data2.error).slice(0, 2e3))) : pending.resolve({ playing: data2.playing === true, ...Number.isSafeInteger(data2.token) ? { token: data2.token } : {}, ...Number.isSafeInteger(data2.checkpoint) ? { checkpoint: data2.checkpoint } : {} });
+          const drawings = [];
+          if (Array.isArray(data2.drawings)) for (const frame3 of data2.drawings) {
+            if (frame3?.bitmap instanceof ImageBitmap) {
+              if (drawings.length < 64 && typeof frame3.id === "string" && frame3.id.length < 128 && Number.isSafeInteger(frame3.to) && frame3.to >= 0 && frame3.to <= 65536 && Number.isFinite(frame3.width) && frame3.width > 0 && frame3.width <= 8192 && Number.isFinite(frame3.height) && frame3.height > 0 && frame3.height <= 8192) drawings.push(frame3);
+              else frame3.bitmap.close();
+            }
+          }
+          data2.error ? pending.reject(Error(String(data2.error).slice(0, 2e3))) : pending.resolve({ playing: data2.playing === true, ...Array.isArray(data2.drawings) ? { drawings } : {}, ...Number.isSafeInteger(data2.token) ? { token: data2.token } : {}, ...Number.isSafeInteger(data2.checkpoint) ? { checkpoint: data2.checkpoint } : {} });
+        } else if (data2.type === "reply" && Array.isArray(data2.drawings)) {
+          for (const frame3 of data2.drawings) if (frame3?.bitmap instanceof ImageBitmap) frame3.bitmap.close();
         }
         if (data2.type === "signal" && Number.isSafeInteger(data2.epoch) && Number.isFinite(data2.observedAt) && Number.isFinite(data2.time) && Number.isFinite(data2.cycle) && Number.isFinite(data2.cps) && Number.isFinite(data2.sampleRate) && data2.frequency instanceof Uint8Array && data2.frequency.length === 512 && data2.waveform instanceof Uint8Array && data2.waveform.length === 512) {
           onSignal({
@@ -33408,7 +33484,7 @@ frame.title = "Strudel music drawing";
 var response = await fetch("music-runtime.js");
 if (!response.ok) throw Error("Music engine could not load.");
 var script = await response.text();
-frame.srcdoc = `<!doctype html><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' blob: data: https:; worker-src blob: data:; connect-src blob: data: https: http: ws://localhost:8080; img-src blob: data: https:; media-src blob: data: https:; style-src 'unsafe-inline'"><style>body{margin:0;background:#161821;color:#dbdbe9;overflow:hidden}body[data-drawing-pending] canvas:not([data-drawing-preview]){visibility:hidden!important}</style><body><script>${script.replace(/<\/script/gi, "<\\/script")}<\/script>`;
+frame.srcdoc = `<!doctype html><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' blob: data: https:; worker-src blob: data:; connect-src blob: data: https: http: ws://localhost:8080; img-src blob: data: https:; media-src blob: data: https:; style-src 'unsafe-inline'"><style>body{margin:0;background:#161821;color:#dbdbe9;overflow:hidden}body[data-drawing-pending] canvas:not([data-drawing-preview]){visibility:hidden!important}canvas[data-inline-drawing]{display:none}</style><body><script>${script.replace(/<\/script/gi, "<\\/script")}<\/script>`;
 await new Promise((resolve) => {
   frame.onload = resolve;
   $("music-editor").append(frame);
@@ -33421,8 +33497,9 @@ bridge = new MusicBridge(frame, (next) => {
   shader2.setPlaying(false);
   $("play").textContent = "Play";
   message(error);
-}, message, (visible) => {
+}, message, (visible, inlineOnly) => {
   frame.hidden = !visible;
+  frame.classList.toggle("inline-only", inlineOnly);
 });
 await bridge.ready;
 lock(false);
@@ -33430,11 +33507,28 @@ music.onSlider = (sliderId, value) => {
   void bridge.request("slider", void 0, { sliderId, value }).catch(message);
 };
 status.textContent = session.recoveryError || initialVisualError || "Ready \xB7 \u2318/Ctrl Enter to run";
-$("build").textContent = "Algorave c84044579396";
+$("build").textContent = "Algorave 6ccf1dabb04b";
+var drawingRequest = false;
+var drawingState = "";
 function draw(now) {
   shader2.render({ playing, time: now / 1e3, delta: last2 ? (now - last2) / 1e3 : 0, ...signals.at(performance.timeOrigin + now) });
   music.highlight(playing ? signals.highlights(performance.timeOrigin + now) : [], session.applied.music);
   music.sliders(session.applied.music);
+  if (!drawingRequest && !uiBusy && (playing || drawingState !== playing + session.applied.music)) {
+    drawingRequest = true;
+    drawingState = playing + session.applied.music;
+    const source = session.applied.music;
+    bridge.request("drawings", source).then(({ drawings }) => {
+      if (!drawings) {
+        drawingState = "";
+        return;
+      }
+      if (source === session.applied.music) music.drawings(drawings, source);
+      else drawings.forEach((frame2) => frame2.bitmap.close());
+    }).catch(message).finally(() => {
+      drawingRequest = false;
+    });
+  }
   last2 = now;
   requestAnimationFrame(draw);
 }

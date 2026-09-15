@@ -49628,7 +49628,16 @@ ${JSON.stringify(t2, null, 2)}`);
   function registerWidget(type, fn3) {
     Ee4(type);
     f2.prototype[type] = function(id2, options = { fold: 1 }) {
-      return fn3(id2, options, this);
+      const onPaint = f2.prototype.onPaint;
+      f2.prototype.onPaint = function(painter) {
+        painter.inlineDrawing = true;
+        return onPaint.call(this, painter);
+      };
+      try {
+        return fn3(id2, options, this);
+      } finally {
+        f2.prototype.onPaint = onPaint;
+      }
     };
   }
   function getCanvasWidget(id2, options = {}) {
@@ -49685,7 +49694,10 @@ ${JSON.stringify(t2, null, 2)}`);
       pauseDraw();
       pauseAnimation();
     };
-    const report = () => visibility(canvases().length > 0);
+    const report = () => {
+      const nodes = canvases();
+      visibility(nodes.length > 0, nodes.length > 0 && nodes.every((canvas) => canvas.dataset.inlineDrawing !== void 0));
+    };
     const observer = new MutationObserver(() => {
       if (!pending) report();
     });
@@ -49713,18 +49725,20 @@ ${JSON.stringify(t2, null, 2)}`);
         complete(running, pattern = engine.state.pattern) {
           if (pattern) {
             const next = new Drawer((haps, time, state, painters) => {
-              const ctx = getDrawContext();
+              const inline = painters.length && painters.every((painter) => painter.inlineDrawing);
+              const ctx = inline ? canvases().find((canvas) => canvas.dataset.inlineDrawing !== void 0)?.getContext("2d") : getDrawContext();
+              if (!ctx) return;
               ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
               for (const painter of painters) painter(ctx, time, haps, state.drawTime);
             }, [-2, 2]);
             next.invalidate(engine.scheduler);
             if (next.painters.length) {
               drawer = next;
-              getDrawContext();
+              if (!next.painters.every((painter) => painter.inlineDrawing)) getDrawContext();
               if (running) drawer.framer.start();
             }
           }
-          if (hasDrawCallbacks() || hasAnimation()) getDrawContext();
+          if (!canvases().length && (hasDrawCallbacks() || hasAnimation())) getDrawContext();
           if (!running) stop2();
           disposeDrawCanvases(snapshot.nodes.map((node) => node.canvas));
           snapshot.nodes.forEach((node) => node.marker.remove());
@@ -49764,7 +49778,7 @@ ${JSON.stringify(t2, null, 2)}`);
     if (connected || event.source !== parent || event.data?.type !== "connect" || event.ports.length !== 1) return;
     connected = true;
     const port = event.ports[0], send = port.postMessage.bind(port);
-    let busy = false, operation, candidate = null, candidateId = 0, checkpoint = 0, epoch2 = 0, sequence = 0, timer, evaluationBank;
+    let busy = false, operation, candidate = null, candidateId = 0, checkpoint = 0, epoch2 = 0, sequence = 0, timer, evaluationBank, drawingRevision = 0;
     const registries = /* @__PURE__ */ new Map(), localAssets = {};
     const restoreRegistry = (registry) => ae2.set({ ...registry, ...localAssets });
     const events = [], bankKey = /* @__PURE__ */ Symbol("local sample bank"), wrapped = /* @__PURE__ */ Symbol("observed pattern");
@@ -49829,7 +49843,7 @@ ${JSON.stringify(t2, null, 2)}`);
           return observed;
         }
       });
-      const drawing = await createDrawingHost(engine, (visible) => send({ type: "drawing", visible }));
+      const drawing = await createDrawingHost(engine, (visible, inlineOnly) => send({ type: "drawing", visible, inlineOnly }));
       audio.addEventListener("statechange", () => {
         if (!busy && engine.state.started && audio.state !== "running" && audio.state !== "closed") {
           engine.pause();
@@ -49872,6 +49886,7 @@ ${JSON.stringify(t2, null, 2)}`);
         if (!candidate || candidate.token !== token) throw Error("Music candidate expired. Run again.");
         const next = candidate;
         candidate = null;
+        drawingRevision++;
         if (next.defer && play) throw Error("An opened project must remain stopped until Play.");
         const previous = { pattern: engine.state.pattern, activeCode: engine.state.activeCode, cps: engine.scheduler.cps, playing: engine.state.started, registry: { ...ae2.get() } };
         const visual = drawing.prepare();
@@ -49927,10 +49942,44 @@ ${JSON.stringify(t2, null, 2)}`);
           throw error;
         }
       }
+      let widgetCode, widgetConfigs = [];
       port.onmessage = async ({ data: data3 }) => {
         if (!data3 || !Number.isSafeInteger(data3.id)) return;
         if (data3.type === "cancel") {
           if (operation?.id === data3.id) operation.cancelled = true;
+          return;
+        }
+        if (data3.type === "drawings") {
+          if (busy) {
+            send({ type: "reply", id: data3.id });
+            return;
+          }
+          const frames = [], revision = drawingRevision;
+          if (!busy && data3.source === engine.state.activeCode) {
+            if (widgetCode !== data3.source) {
+              widgetCode = data3.source;
+              widgetConfigs = F4(widgetCode).widgets.filter((w7) => w7.type !== "slider");
+            }
+            try {
+              for (const config of widgetConfigs) {
+                const canvas = document.getElementById(ee4(config));
+                if (canvas?.dataset.inlineDrawing !== void 0 && canvas.width && canvas.height) {
+                  const bitmap = await createImageBitmap(canvas);
+                  frames.push({ to: config.to, id: ee4(config), width: parseFloat(canvas.style.width), height: parseFloat(canvas.style.height), bitmap });
+                }
+              }
+            } catch (error) {
+              frames.forEach((frame) => frame.bitmap.close());
+              send({ type: "reply", id: data3.id, error: String(error.message || error) });
+              return;
+            }
+          }
+          if (busy || revision !== drawingRevision) {
+            frames.forEach((frame) => frame.bitmap.close());
+            send({ type: "reply", id: data3.id });
+            return;
+          }
+          send({ type: "reply", id: data3.id, drawings: frames }, frames.map((frame) => frame.bitmap));
           return;
         }
         if (data3.type === "slider") {

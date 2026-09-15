@@ -6,13 +6,14 @@ import { SampleByteStore } from './sample-assets.mjs';
 import { SampleBank } from './sample-bank.mjs';
 import { registerDefaultSounds, updateSlider, snapshotSliders, restoreSliders } from './strudel-prebake.mjs';
 import { createDrawingHost } from './strudel-drawing.mjs';
+import { getWidgetID } from '@strudel/transpiler';
 
 let connected = false;
 window.addEventListener('message', async event => {
   if (connected || event.source !== parent || event.data?.type !== 'connect' || event.ports.length !== 1) return;
   connected = true;
   const port=event.ports[0],send=port.postMessage.bind(port);
-  let busy=false,operation,candidate=null,candidateId=0,checkpoint=0,epoch=0,sequence=0,timer,evaluationBank;
+  let busy=false,operation,candidate=null,candidateId=0,checkpoint=0,epoch=0,sequence=0,timer,evaluationBank,drawingRevision=0;
   const registries=new Map(),localAssets={};
   const restoreRegistry=registry=>soundMap.set({...registry,...localAssets});
   const events=[],bankKey=Symbol('local sample bank'),wrapped=Symbol('observed pattern');
@@ -73,7 +74,7 @@ window.addEventListener('message', async event => {
         Object.defineProperty(observed,wrapped,{value:true});return observed;
       },
     });
-    const drawing=await createDrawingHost(engine,visible=>send({type:'drawing',visible}));
+    const drawing=await createDrawingHost(engine,(visible,inlineOnly)=>send({type:'drawing',visible,inlineOnly}));
     audio.addEventListener('statechange',()=>{
       if(!busy&&engine.state.started&&audio.state!=='running'&&audio.state!=='closed'){
         engine.pause();drawing.stop();epoch++;events.length=0;
@@ -113,6 +114,7 @@ window.addEventListener('message', async event => {
     async function commit(token,play,current){
       if(!candidate||candidate.token!==token)throw Error('Music candidate expired. Run again.');
       const next=candidate;candidate=null;
+      drawingRevision++;
       if(next.defer&&play)throw Error('An opened project must remain stopped until Play.');
       const previous={pattern:engine.state.pattern,activeCode:engine.state.activeCode,cps:engine.scheduler.cps,playing:engine.state.started,registry:{...soundMap.get()}};
       const visual=drawing.prepare();
@@ -146,9 +148,28 @@ window.addEventListener('message', async event => {
         throw error;
       }
     }
+    let widgetCode,widgetConfigs=[];
     port.onmessage=async({data})=>{
       if(!data||!Number.isSafeInteger(data.id))return;
       if(data.type==='cancel'){if(operation?.id===data.id)operation.cancelled=true;return;}
+      if(data.type==='drawings'){
+        if(busy){send({type:'reply',id:data.id});return;}
+        const frames=[],revision=drawingRevision;
+        if(!busy&&data.source===engine.state.activeCode){
+          if(widgetCode!==data.source){widgetCode=data.source;widgetConfigs=transpiler(widgetCode).widgets.filter(w=>w.type!=='slider');}
+          try{
+            for(const config of widgetConfigs){
+              const canvas=document.getElementById(getWidgetID(config));
+              if(canvas?.dataset.inlineDrawing!==undefined&&canvas.width&&canvas.height){
+                const bitmap=await createImageBitmap(canvas);
+                frames.push({to:config.to,id:getWidgetID(config),width:parseFloat(canvas.style.width),height:parseFloat(canvas.style.height),bitmap});
+              }
+            }
+          }catch(error){frames.forEach(frame=>frame.bitmap.close());send({type:'reply',id:data.id,error:String(error.message||error)});return;}
+        }
+        if(busy||revision!==drawingRevision){frames.forEach(frame=>frame.bitmap.close());send({type:'reply',id:data.id});return;}
+        send({type:'reply',id:data.id,drawings:frames},frames.map(frame=>frame.bitmap));return;
+      }
       if(data.type==='slider'){
         const accepted=!busy&&updateSlider(data.sliderId,data.value);
         send({type:'reply',id:data.id,...(accepted?{}:{error:'Slider is unavailable.'})});return;

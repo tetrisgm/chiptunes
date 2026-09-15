@@ -335,16 +335,25 @@ const script = await response.text();
 // load blob worklets from this opaque origin. Strudel's source-level samples()
 // and module APIs can load public resources; application storage and parent DOM
 // remain inaccessible because allow-same-origin is deliberately absent.
-frame.srcdoc = `<!doctype html><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' blob: data: https:; worker-src blob: data:; connect-src blob: data: https: http: ws://localhost:8080; img-src blob: data: https:; media-src blob: data: https:; style-src 'unsafe-inline'"><style>body{margin:0;background:#161821;color:#dbdbe9;overflow:hidden}body[data-drawing-pending] canvas:not([data-drawing-preview]){visibility:hidden!important}</style><body><script>${script.replace(/<\/script/gi,'<\\/script')}<\/script>`;
+frame.srcdoc = `<!doctype html><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' blob: data: https:; worker-src blob: data:; connect-src blob: data: https: http: ws://localhost:8080; img-src blob: data: https:; media-src blob: data: https:; style-src 'unsafe-inline'"><style>body{margin:0;background:#161821;color:#dbdbe9;overflow:hidden}body[data-drawing-pending] canvas:not([data-drawing-preview]){visibility:hidden!important}canvas[data-inline-drawing]{display:none}</style><body><script>${script.replace(/<\/script/gi,'<\\/script')}<\/script>`;
 await new Promise(resolve => { frame.onload = resolve; $('music-editor').append(frame); });
-bridge = new MusicBridge(frame, next => { signal = next; signals.receive(next); }, error => { playing=false;shader.setPlaying(false); $('play').textContent='Play'; message(error); }, message,visible=>{frame.hidden=!visible;});
+bridge = new MusicBridge(frame, next => { signal = next; signals.receive(next); }, error => { playing=false;shader.setPlaying(false); $('play').textContent='Play'; message(error); }, message,(visible,inlineOnly)=>{frame.hidden=!visible;frame.classList.toggle('inline-only',inlineOnly);});
 await bridge.ready; lock(false);
 music.onSlider=(sliderId,value)=>{void bridge.request('slider',undefined,{sliderId,value}).catch(message);};
 status.textContent = session.recoveryError || initialVisualError || 'Ready · ⌘/Ctrl Enter to run'; $('build').textContent = BUILD_ID;
+let drawingRequest=false,drawingState='';
 function draw(now) {
   shader.render({playing,time:now/1000,delta:last?(now-last)/1000:0,...signals.at(performance.timeOrigin + now)});
   music.highlight(playing?signals.highlights(performance.timeOrigin+now):[],session.applied.music);
   music.sliders(session.applied.music);
+  if(!drawingRequest&&!uiBusy&&(playing||drawingState!==playing+session.applied.music)){
+    drawingRequest=true;drawingState=playing+session.applied.music;const source=session.applied.music;
+    bridge.request('drawings',source).then(({drawings})=>{
+      if(!drawings){drawingState='';return;}
+      if(source===session.applied.music)music.drawings(drawings,source);
+      else drawings.forEach(frame=>frame.bitmap.close());
+    }).catch(message).finally(()=>{drawingRequest=false;});
+  }
   last = now; requestAnimationFrame(draw);
 }
 requestAnimationFrame(draw);

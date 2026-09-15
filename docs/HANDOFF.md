@@ -93,7 +93,9 @@ unrun insertion, Run and Undo checks pass. Native acceptance remains unfinished.
 
 The six upstream underscore drawing methods now render in the isolated music
 frame. Chromium checks cover each method, two independent scopes and failed-edit
-canvas retention. Positioning those canvases inline in the editor remains pending.
+canvas retention. Bitmap snapshots now place the canvases inline in the editor. Chromium checks
+cover pixels, multiple widgets, unrun insertion, removal and narrow layout.
+Native Safari and sustained performance acceptance remain pending.
 
 Next: complete the remaining Strudel input/drawing/module scope and Shadertoy
 media and Sound contracts; complete final browser/acoustic

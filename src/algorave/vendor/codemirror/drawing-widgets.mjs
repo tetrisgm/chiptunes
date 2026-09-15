@@ -7,7 +7,11 @@ import { registerWidgetType } from '@strudel/transpiler';
 // adapted to the opaque frame so existing drawing transactions can retain it.
 function registerWidget(type, fn) {
   registerWidgetType(type);
-  Pattern.prototype[type]=function(id,options={fold:1}){return fn(id,options,this);};
+  Pattern.prototype[type]=function(id,options={fold:1}){
+    const onPaint=Pattern.prototype.onPaint;
+    Pattern.prototype.onPaint=function(painter){painter.inlineDrawing=true;return onPaint.call(this,painter);};
+    try{return fn(id,options,this);}finally{Pattern.prototype.onPaint=onPaint;}
+  };
 }
 function getCanvasWidget(id,options={}) {
   const {width=500,height=60,pixelRatio=window.devicePixelRatio}=options;
@@ -55,4 +59,3 @@ registerWidget('_spectrum', (id, options = {}, pat) => {
   const ctx = getCanvasWidget(id, options).getContext('2d');
   return pat.spectrum({ ...options, ctx, id });
 });
-
