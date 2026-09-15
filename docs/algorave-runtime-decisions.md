@@ -1589,3 +1589,14 @@ verifies the actual iframe policy, s("first*4").serial() playback, changed messa
 after Run, restored messages after Undo, cached port reuse, cancellation of an
 explicit future write through the real Stop button, and stopped reload. Ports
 remain synthetic; no native permission or hardware acceptance is claimed.
+
+### Serial writer cleanup and checksum
+
+closeSerial() cancels queued writes, clears cached writers, aborts their streams,
+releases writer locks and closes ports. The workspace pagehide event invokes it.
+A port is also closed if acquiring its writer fails. A repeated close is harmless.
+The module test verifies cleanup counts and the CCITT-FALSE checksum bytes for
+the single-character message g(s:3): 103,40,115,58,51,41,124,173,144,59. This
+remains fake-port evidence; real device unplug/reconnect and native permissions
+are unverified. The helper extends upstream's lifecycle API without changing
+.serial() message encoding.

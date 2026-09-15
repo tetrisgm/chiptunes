@@ -25,6 +25,7 @@
     "Release chooser state on failure; return cached/new writers.",
     "Cancel scheduled writes on strudel-stop and close ports acquired after Stop.",
     "Ignore not-yet-ready writers instead of throwing from scheduled callback.",
-    "Listen to the runtime same-window strudel-stop message, not a DOM event."
+    "Listen to the runtime same-window strudel-stop message, not a DOM event.",
+    "Provide closeSerial and pagehide cleanup to abort writers, release locks and close ports; close ports when writer acquisition fails."
   ]
 }

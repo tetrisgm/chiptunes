@@ -46991,18 +46991,40 @@ registerProcessor('${n2}', MyProcessor);
   // src/algorave/vendor/serial/serial.mjs
   var serial_exports = {};
   __export(serial_exports, {
+    closeSerial: () => closeSerial,
     getWriter: () => getWriter
   });
   init_dist2();
   var writeMessagers = {};
   var choosing = false;
   var pendingWrites = /* @__PURE__ */ new Set();
+  var ports = /* @__PURE__ */ new Map();
   var generation = 0;
   if (typeof window !== "undefined") window.addEventListener("message", (event) => {
     if (event.source !== window || event.data !== "strudel-stop") return;
     generation++;
     for (const timer of pendingWrites) clearTimeout(timer);
     pendingWrites.clear();
+  });
+  async function closeSerial() {
+    generation++;
+    for (const timer of pendingWrites) clearTimeout(timer);
+    pendingWrites.clear();
+    const active = [...ports.values()];
+    ports.clear();
+    writeMessagers = {};
+    await Promise.all(active.map(async ({ port, writer }) => {
+      try {
+        await writer.abort();
+      } finally {
+        writer.releaseLock();
+        await port.close();
+      }
+    }));
+  }
+  if (typeof window !== "undefined") window.addEventListener("pagehide", () => {
+    void closeSerial().catch(() => {
+    });
   });
   async function getWriter(name2, br2) {
     if (name2 in writeMessagers) return writeMessagers[name2];
@@ -47023,7 +47045,14 @@ registerProcessor('${n2}', MyProcessor);
           return;
         }
         const encoder = new TextEncoder();
-        const writer = port.writable.getWriter();
+        let writer;
+        try {
+          writer = port.writable.getWriter();
+        } catch (error) {
+          await port.close();
+          throw error;
+        }
+        ports.set(name2, { port, writer });
         writeMessagers[name2] = function(message, chk) {
           const encoded = encoder.encode(message);
           if (!chk) {

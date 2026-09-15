@@ -9,6 +9,7 @@ import { Pattern, isPattern } from '@strudel/core';
 var writeMessagers = {};
 var choosing = false;
 const pendingWrites = new Set();
+const ports = new Map();
 let generation = 0;
 if (typeof window !== 'undefined') window.addEventListener('message', event => {
   if (event.source !== window || event.data !== 'strudel-stop') return;
@@ -16,6 +17,20 @@ if (typeof window !== 'undefined') window.addEventListener('message', event => {
   for (const timer of pendingWrites) clearTimeout(timer);
   pendingWrites.clear();
 });
+
+export async function closeSerial() {
+  generation++;
+  for (const timer of pendingWrites) clearTimeout(timer);
+  pendingWrites.clear();
+  const active = [...ports.values()];
+  ports.clear();
+  writeMessagers = {};
+  await Promise.all(active.map(async ({port, writer}) => {
+    try { await writer.abort(); }
+    finally { writer.releaseLock(); await port.close(); }
+  }));
+}
+if (typeof window !== 'undefined') window.addEventListener('pagehide', () => { void closeSerial().catch(() => {}); });
 
 export async function getWriter(name, br) {
   if (name in writeMessagers) return writeMessagers[name];
@@ -33,7 +48,10 @@ export async function getWriter(name, br) {
     await port.open({ baudRate: br });
     if (started !== generation) { await port.close(); return; }
     const encoder = new TextEncoder();
-    const writer = port.writable.getWriter();
+    let writer;
+    try { writer = port.writable.getWriter(); }
+    catch (error) { await port.close(); throw error; }
+    ports.set(name, {port, writer});
     writeMessagers[name] = function (message, chk) {
       const encoded = encoder.encode(message);
       if (!chk) {

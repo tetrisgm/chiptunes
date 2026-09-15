@@ -8,7 +8,7 @@ const root=path.resolve(__dirname,'../.algorave-preview');
   const page=await browser.newPage();await configureAudio(page);await page.goto('http://127.0.0.1:'+server.address().port);await page.waitForFunction(()=>window.algoravePreview);
   const frame=page.frames().find(f=>f!==page.mainFrame());
   const allowed=await frame.evaluate(()=> (document.permissionsPolicy||document.featurePolicy).allowsFeature('serial'));assert.equal(allowed,true);
-  await frame.evaluate(()=>{window.serialWrites=[];window.serialRequests=0;Object.defineProperty(navigator,'serial',{configurable:true,value:{requestPort:async()=>{serialRequests++;return {open:async()=>{},writable:{getWriter:()=>({write:bytes=>{serialWrites.push(new TextDecoder().decode(bytes));return Promise.resolve();}})}};}}});});
+  await frame.evaluate(()=>{window.serialWrites=[];window.serialRequests=0;Object.defineProperty(navigator,'serial',{configurable:true,value:{requestPort:async()=>{serialRequests++;return {open:async()=>{},writable:{getWriter:()=>({abort:async()=>{},releaseLock:()=>{},write:bytes=>{serialWrites.push(new TextDecoder().decode(bytes));return Promise.resolve();}})}};}}});});
   const source='setcpm(120); s("first*4").serial()',changed=source.replace('first','second');
   await page.getByLabel('Strudel music').fill(source);await page.locator('#play').click();await frame.waitForFunction(()=>serialWrites.includes('s:first'),null,{polling:50}).catch(async error=>{console.error(await page.locator('#status').innerText(),await frame.evaluate(()=>({serialWrites:serialWrites.slice(0,4),serialRequests})));throw error;});
   await page.getByLabel('Strudel music').fill(changed);await page.locator('#run').click();await frame.waitForFunction(()=>serialWrites.includes('s:second'),null,{polling:50});
