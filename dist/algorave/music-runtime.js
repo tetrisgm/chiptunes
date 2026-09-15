@@ -60040,29 +60040,48 @@ ${JSON.stringify(t2, null, 2)}`);
     }
     initVideo(url2 = "", params) {
       this.stopCapture();
+      const version2 = this.sourceVersion;
       const vid = document.createElement("video");
       vid.crossOrigin = "anonymous";
       vid.autoplay = true;
       vid.loop = true;
       vid.muted = true;
-      const onload = vid.addEventListener("loadeddata", () => {
+      this.pendingCleanup = () => {
+        vid.removeEventListener("loadeddata", loaded);
+        vid.pause();
+        vid.removeAttribute("src");
+        vid.load();
+      };
+      const loaded = () => {
+        if (version2 !== this.sourceVersion) return;
+        this.replaceTexture({ data: vid, ...params });
+        this.pendingCleanup = void 0;
+        this.ownedVideo = vid;
         this.src = vid;
-        vid.play();
-        this.replaceTexture({ data: this.src, ...params });
+        void vid.play().catch((err2) => console.log("could not play video", err2));
         this.dynamic = true;
-      });
+      };
+      vid.addEventListener("loadeddata", loaded, { once: true });
       vid.src = url2;
     }
     initImage(url2 = "", params) {
       this.stopCapture();
+      const version2 = this.sourceVersion;
       const img = document.createElement("img");
       img.crossOrigin = "anonymous";
-      img.src = url2;
+      this.pendingCleanup = () => {
+        img.onload = null;
+        img.removeAttribute("src");
+      };
       img.onload = () => {
+        if (version2 !== this.sourceVersion) return;
+        this.replaceTexture({ data: img, ...params });
+        this.pendingCleanup = void 0;
+        img.onload = null;
         this.src = img;
         this.dynamic = false;
-        this.replaceTexture({ data: this.src, ...params });
       };
+      img.src = url2;
     }
     initStream(streamName, params) {
       this.stopCapture();
@@ -60119,6 +60138,16 @@ ${JSON.stringify(t2, null, 2)}`);
       this.height = height;
     }
     stopCapture() {
+      this.sourceVersion = (this.sourceVersion || 0) + 1;
+      this.pendingCleanup?.();
+      this.pendingCleanup = void 0;
+      if (this.ownedVideo) {
+        this.ownedVideo.pause();
+        this.ownedVideo.removeAttribute("src");
+        this.ownedVideo.load();
+        if (this.src === this.ownedVideo) this.src = null;
+        this.ownedVideo = void 0;
+      }
       if (!this.captureController) return;
       const video = this.src;
       this.captureController.abort();

@@ -1772,3 +1772,19 @@ It verifies width-only/height-only canvas resizing, dynamic height-only texture
 resizing to 71×96, and cyan shader pixels from the resized input. Camera/screen
 synthetic capture regressions pass. This is a bounded GPU-resource check, not a
 claim that sustained performance or asynchronous URL-media lifecycle is complete.
+
+
+### Hydra URL image/video lifecycle — 2026-09-15
+
+Source requests now have a generation guard. Clearing, replacing or stopping a
+source removes pending image/video handlers and cancels their load. Even a queued
+callback cannot install its texture after the source generation changes. Owned
+URL videos are paused and unloaded on Stop; caller-provided canvas/image inputs
+retain their normal ownership.
+
+`scripts/verify-algorave-hydra-media.cjs` verifies real cyan image pixels and red
+MP4 pixels through Hydra, explicitly queued stale image/video callbacks after
+clear, and paused/unloaded video after Stop. The MP4 is generated locally and
+served through a controlled HTTPS route, respecting the runtime media CSP.
+Camera/screen regressions pass. Native URL-media behavior, peer-stream listeners,
+and broader error/continuity/performance acceptance remain pending.

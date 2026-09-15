@@ -47,31 +47,42 @@ class HydraSource {
 
   initVideo (url = '', params) {
     this.stopCapture()
+    const version = this.sourceVersion
     // const self = this
     const vid = document.createElement('video')
     vid.crossOrigin = 'anonymous'
     vid.autoplay = true
     vid.loop = true
     vid.muted = true // mute in order to load without user interaction
-    const onload = vid.addEventListener('loadeddata', () => {
+    this.pendingCleanup = () => { vid.removeEventListener('loadeddata', loaded); vid.pause(); vid.removeAttribute('src'); vid.load() }
+    const loaded = () => {
+      if (version !== this.sourceVersion) return
+      this.replaceTexture({ data: vid, ...params})
+      this.pendingCleanup = undefined
+      this.ownedVideo = vid
       this.src = vid
-      vid.play()
-      this.replaceTexture({ data: this.src, ...params})
+      void vid.play().catch(err => console.log('could not play video', err))
       this.dynamic = true
-    })
+    }
+    vid.addEventListener('loadeddata', loaded, { once: true })
     vid.src = url
   }
 
   initImage (url = '', params) {
     this.stopCapture()
+    const version = this.sourceVersion
     const img = document.createElement('img')
     img.crossOrigin = 'anonymous'
-    img.src = url
+    this.pendingCleanup = () => { img.onload = null; img.removeAttribute('src') }
     img.onload = () => {
+      if (version !== this.sourceVersion) return
+      this.replaceTexture({ data: img, ...params})
+      this.pendingCleanup = undefined
+      img.onload = null
       this.src = img
       this.dynamic = false
-      this.replaceTexture({ data: this.src, ...params})
     }
+    img.src = url
   }
 
   initStream (streamName, params) {
@@ -139,6 +150,16 @@ class HydraSource {
   }
 
   stopCapture () {
+    this.sourceVersion = (this.sourceVersion || 0) + 1
+    this.pendingCleanup?.()
+    this.pendingCleanup = undefined
+    if (this.ownedVideo) {
+      this.ownedVideo.pause()
+      this.ownedVideo.removeAttribute('src')
+      this.ownedVideo.load()
+      if (this.src === this.ownedVideo) this.src = null
+      this.ownedVideo = undefined
+    }
     if (!this.captureController) return
     const video = this.src
     this.captureController.abort()
