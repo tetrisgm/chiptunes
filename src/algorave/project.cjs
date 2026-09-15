@@ -12,27 +12,35 @@ function text(v, limit) {
   return typeof v === 'string' && bytes(v) <= limit && !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(v);
 }
 const imageId = src => typeof src === 'string' && /^asset:[a-f0-9]{64}$/.test(src) ? src.slice(6) : null;
+const textureSources = input => input?.type === 'cubemap' ? input.faces : input?.type === 'texture' ? [input.src] : [];
+function textureSource(src){
+  need(text(src,4096),'Invalid texture URL.');
+  if(imageId(src))return src;
+  let url;try{url=new URL(src);}catch{throw Error('Use an HTTPS texture URL or an imported image.');}
+  need(url.protocol==='https:'&&!url.username&&!url.password&&!url.hash,'Use an HTTPS texture URL without credentials or a fragment.');
+  return url.href;
+}
 function channel(value, visuals) {
   if(value===null||value==='audio'||value==='keyboard')return value;
   if(['A','B','C','D'].includes(value)){
     need(Object.hasOwn(visuals,value),'Channel names a missing buffer.');return value;
   }
-  need(keys(value,['type','source','src','filter','wrap','vflip','srgb'],['type']),'Invalid visual input.');
-  need(['audio','keyboard','buffer','texture'].includes(value.type),'Unsupported visual input type.');
+  need(keys(value,['type','source','src','faces','filter','wrap','vflip','srgb'],['type']),'Invalid visual input.');
+  need(['audio','keyboard','buffer','texture','cubemap'].includes(value.type),'Unsupported visual input type.');
   const result={type:value.type};
   if(value.type==='buffer'){
     need(['A','B','C','D'].includes(value.source)&&Object.hasOwn(visuals,value.source),'Channel names a missing buffer.');
     result.source=value.source;
   }else need(!Object.hasOwn(value,'source'),'Only buffers have a source pass.');
-  if(value.type==='texture'){
-    need(text(value.src,4096),'Invalid texture URL.');
-    if(imageId(value.src))result.src=value.src;
-    else {let url;
-    try{url=new URL(value.src);}catch{throw Error('Use an HTTPS texture URL.');}
-    need(url.protocol==='https:'&&!url.username&&!url.password&&!url.hash,'Use an HTTPS texture URL without credentials or a fragment.');
-    result.src=url.href;}
+  if(value.type==='texture'||value.type==='cubemap'){
+    if(value.type==='texture'){
+      need(!Object.hasOwn(value,'faces'),'Only cube textures have faces.');result.src=textureSource(value.src);
+    }else{
+      need(!Object.hasOwn(value,'src')&&Array.isArray(value.faces)&&value.faces.length===6,'A cube texture needs six faces: +X, -X, +Y, -Y, +Z, -Z.');
+      result.faces=Array.from(value.faces,textureSource);
+    }
     for(const option of ['vflip','srgb'])if(Object.hasOwn(value,option)){need(typeof value[option]==='boolean');result[option]=value[option];}
-  }else need(!['src','vflip','srgb'].some(key=>Object.hasOwn(value,key)),'Image options need a texture input.');
+  }else need(!['src','faces','vflip','srgb'].some(key=>Object.hasOwn(value,key)),'Image options need a texture input.');
   if(Object.hasOwn(value,'filter')){need(['nearest','linear','mipmap'].includes(value.filter),'Invalid texture filter.');result.filter=value.filter;}
   if(Object.hasOwn(value,'wrap')){need(['clamp','repeat','mirror'].includes(value.wrap),'Invalid texture wrap.');result.wrap=value.wrap;}
   return result;
@@ -133,4 +141,4 @@ async function context(value) {
   need(count<=16384);
   return {kind:'algorave',id:value.id,request:value.request,baseRevision:value.baseRevision,project:normalized,target,conversation};
 }
-module.exports={DOCUMENTS,RUNTIME,project,revision,sourceFor,candidateFrom,context,channel,imageId};
+module.exports={DOCUMENTS,RUNTIME,project,revision,sourceFor,candidateFrom,context,channel,imageId,textureSources};

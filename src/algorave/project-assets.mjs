@@ -2,7 +2,7 @@ import contract from './project.cjs';
 import {exportSampleProject,importSampleProject} from './sample-project.mjs';
 import {ImageByteStore,IMAGE_LIMITS} from './image-assets.mjs';
 export const PROJECT_BYTES=112*1024*1024;
-export const imageIds=project=>[...new Set(Object.values(project.visuals.channels||{}).flat().map(input=>contract.imageId(input?.src)).filter(Boolean))];
+export const imageIds=project=>[...new Set(Object.values(project.visuals.channels||{}).flat().flatMap(contract.textureSources).map(contract.imageId).filter(Boolean))];
 const encode=bytes=>{let text='';for(let i=0;i<bytes.length;i+=32768)text+=String.fromCharCode(...bytes.subarray(i,i+32768));return btoa(text);};
 export function exportProject(value,{samples,images}={}){
   const project=contract.project(value),ids=imageIds(project),previous=exportSampleProject(project,samples);

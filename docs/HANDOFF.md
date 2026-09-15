@@ -27,9 +27,11 @@ Image texture and keyboard inputs plus per-channel sampler controls are now
 implemented; see the [image/keyboard checkpoint](algorave-runtime-decisions.md#image-and-keyboard-channels--2026-09-15).
 Local image files now survive Run/Undo, reload and portable project transfer; see
 the [local-image checkpoint](algorave-runtime-decisions.md#local-image-projects--2026-09-15).
+Six-face cube inputs now use samplerCube without rewriting GLSL; see the
+[cube-texture checkpoint](algorave-runtime-decisions.md#cube-texture-inputs--2026-09-15).
 
 Next: complete the remaining Strudel input/drawing/module scope and Shadertoy
-media, cube/volume textures, Cubemap, Sound and VR contracts; repeat native acceptance
+media, volume textures, Cubemap output, Sound and VR contracts; repeat native acceptance
 and sustained performance on the replacement. Chromium DSP checks use an explicit
 silent sink after default-device failures also affected upstream. Six saved real
 provider replies are available for zero-call replay. Native OpenAI music, visual

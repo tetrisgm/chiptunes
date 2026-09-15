@@ -72,7 +72,7 @@ notices and corresponding source (81 packages), rather than hiding transitive
 inputs in a prebundle. See [distribution](algorave-distribution.md).
 
 Shadertoy still needs media lifecycles,
-cube/volume inputs, Cubemap passes, Sound and VR support. HTTPS image textures,
+volume inputs, Cubemap output passes, Sound and VR support. HTTPS image textures,
 sampler settings, keyboard and local image imports are covered by the newer checkpoints below. Image/Common/A-D,
 floating-point feedback, standard uniform and high-resolution checks are a
 starting point. Finish native and Chromium acceptance on the final build and the
@@ -241,6 +241,49 @@ during further checking, so native scope/Undo remains pending. Only the temporar
 test tab was closed and its replay server stopped. Final public acceptance and
 the new-runtime soak remain open.
 
+## Cube texture inputs — 2026-09-15
+
+Channels now offers six-face cube textures alongside 2D images, audio, keyboard
+and buffers. A cube descriptor is `{type:"cubemap",faces:[+X,-X,+Y,-Y,+Z,-Z]}`,
+where each face is an HTTPS URL or local `asset:<hash>` image reference. Faces
+must be square and equal-sized. The renderer declares samplerCube for that
+channel, preserving ordinary `texture(iChannel,vec3Direction)`, textureLod and
+legacy textureCube calls. Other channels retain sampler2D declarations, including
+when both kinds occur in the same shader. GLSL source is not translated.
+
+Face URLs/imports live inside the existing Channels disclosure. Filtering,
+vertical flip and sRGB use the same options as 2D images. Cube uploads respect
+the device's cube size limit and the combined 64-megapixel allocation bound;
+all six faces count toward GPU use even when encoded content is shared. Failed
+faces or shader compilation retain the previous GL passes. Prepared/retained cube
+textures participate in rollback, disposal and context recovery. Local cube faces
+are included exactly once by identity in portable project archives, using the
+existing image store and full image validation before Open.
+
+References: [WebGL 2 specification](https://registry.khronos.org/webgl/specs/2.0/)
+and [Shadertoy's published input declaration](https://www.shadertoy.com/view/NdS3WK)
+(the indexed header describes samplerXX as 2D/Cube). Shadertoy's full howto page
+returned 402 again. This implements cube **inputs**; Cubemap output-pass behavior
+remains a separate open requirement.
+
+Build `d793b1d18718` passes `test:algorave-cubemap`: all six directions, face
+orientation/vertical flip, legacy sampling alias, mipmaps, sRGB, resolution/time,
+mixed sampler types, wrong-size face rejection with retained pixels, transaction
+rollback and graphics-context recovery. Real UI checks import six original PNGs,
+Run/Undo, reload stopped, download and Open in a fresh profile, and narrow layout.
+The wait for a second Run uses the applied source rather than a previous identical
+status message, so asynchronous decoding must finish before asserting pixels.
+Local-image/mixed-WAV archive and existing shader-input suites also pass on this
+build. Image archive unit tests and the agent contract pass. Chromium audio checks
+use the explicit silent sink; no acoustic result is claimed.
+
+Native Safari on visible local `d793b1d18718` opened the six-face fixture through
+the macOS picker. +Y sampled blue, editing to -Y and Run sampled yellow, and Undo
+restored blue and the prior GLSL. Reload retained blue with Play/Ready and no
+autoplay. The temporary native tab and replay server closed. Final public/browser
+acceptance, media/volume/Cubemap-output/Sound/VR scope, remaining Strudel modules,
+new-runtime soak and deployment still remain.
+
 ## Local image projects — 2026-09-15
 
 Channels now accepts local PNG/JPEG/WebP/AVIF/GIF/BMP files. Imports use the same
@@ -332,9 +375,9 @@ All six captured real OpenAI/Anthropic replies also pass chat → Apply → exac
 Chromium audio checks use the explicit silent sink; native acceptance and speaker
 output are not established by these results.
 
-Image URLs remain external references in saved/downloaded projects. Local image
-imports, videos/camera/audio media lifecycles, cube/volume textures, Cubemap/Sound/VR
-passes and their controls are still outstanding. This is progress toward the
+Image URLs remain external references in saved/downloaded projects. Subsequent
+checkpoints above add local image imports and cube texture inputs. Video/camera/audio
+media lifecycles, volume textures and Cubemap/Sound/VR output passes remain outstanding. This is progress toward the
 expanded visual goal, not a revised final compatibility boundary.
 
 ## Historical checkpoints

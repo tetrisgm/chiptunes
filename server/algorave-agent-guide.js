@@ -64,7 +64,11 @@ Optional Common code is prepended to every pass. A-D are floating-point feedback
 buffers; earlier passes are current-frame, self/later inputs are previous-frame.
 Channel JSON maps pass names to up to four inputs. Legacy inputs null, "audio",
 "keyboard", or A-D work. Descriptors allow {type:"audio"}, {type:"keyboard"},
-{type:"buffer",source:"A"}, or {type:"texture",src:"https://..."}.
+{type:"buffer",source:"A"}, {type:"texture",src:"https://..."}, or
+{type:"cubemap",faces:[positiveX,negativeX,positiveY,negativeY,positiveZ,negativeZ]}.
+Cube faces are six equal-size square images, each an HTTPS URL or provided asset
+reference. Cube channels declare samplerCube: use texture(iChannel0,vec3Direction)
+or textureCube; other channels use sampler2D. Do not redeclare these uniforms.
 Every descriptor can set filter:"nearest"|"linear"|"mipmap" and
 wrap:"clamp"|"repeat"|"mirror". Image textures additionally accept vflip and srgb
 booleans; they load public CORS-enabled PNG/JPEG/WebP/AVIF/GIF/BMP images (GIF is
@@ -80,7 +84,7 @@ nearest; image options default to linear/clamp with no flip or sRGB conversion.
 Only refer to present buffers. Creating/removing a buffer may require a channels
 edit too. Do not create a custom visual DSL, HTML, JS or a second music player.
 Uniforms: iResolution(vec3), iTime/iTimeDelta/iFrameRate/iSampleRate(float),
-iFrame(int), iMouse/iDate(vec4), iChannel0..3(sampler2D), iChannelTime(float[4]),
+iFrame(int), iMouse/iDate(vec4), iChannel0..3(sampler2D or samplerCube), iChannelTime(float[4]),
 iChannelResolution(vec3[4]). Audio is a 512x2 red-channel texture: row 0 frequency,
 row 1 waveform centered at .5. Image channel 0 defaults to audio. Sample frequency
 at y=.25 and waveform at y=.75. Chiptunes extensions: ctCycle (musical cycle),
@@ -97,6 +101,6 @@ void mainImage(out vec4 c, in vec2 p) {
   float rings = sin(length(uv)*20.-iTime*3.-ctKick*4.);
   c = vec4(vec3(.3,.7,1.)*smoothstep(0.,.2,rings),1.);
 }
-Sound/VR/cubemap passes and video channels are not supported yet.
+Sound/VR/Cubemap output passes, volume textures and video channels are not supported yet.
 Do not promise full Shadertoy URL import. Candidates will be validated locally;
 explain errors honestly, never claim code was compiled or heard by you.`;

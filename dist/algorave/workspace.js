@@ -46,37 +46,45 @@ var require_project = __commonJS({
       return typeof v === "string" && bytes(v) <= limit && !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(v);
     }
     var imageId = (src) => typeof src === "string" && /^asset:[a-f0-9]{64}$/.test(src) ? src.slice(6) : null;
+    var textureSources = (input) => input?.type === "cubemap" ? input.faces : input?.type === "texture" ? [input.src] : [];
+    function textureSource(src) {
+      need(text(src, 4096), "Invalid texture URL.");
+      if (imageId(src)) return src;
+      let url;
+      try {
+        url = new URL(src);
+      } catch {
+        throw Error("Use an HTTPS texture URL or an imported image.");
+      }
+      need(url.protocol === "https:" && !url.username && !url.password && !url.hash, "Use an HTTPS texture URL without credentials or a fragment.");
+      return url.href;
+    }
     function channel(value, visuals) {
       if (value === null || value === "audio" || value === "keyboard") return value;
       if (["A", "B", "C", "D"].includes(value)) {
         need(Object.hasOwn(visuals, value), "Channel names a missing buffer.");
         return value;
       }
-      need(keys(value, ["type", "source", "src", "filter", "wrap", "vflip", "srgb"], ["type"]), "Invalid visual input.");
-      need(["audio", "keyboard", "buffer", "texture"].includes(value.type), "Unsupported visual input type.");
+      need(keys(value, ["type", "source", "src", "faces", "filter", "wrap", "vflip", "srgb"], ["type"]), "Invalid visual input.");
+      need(["audio", "keyboard", "buffer", "texture", "cubemap"].includes(value.type), "Unsupported visual input type.");
       const result = { type: value.type };
       if (value.type === "buffer") {
         need(["A", "B", "C", "D"].includes(value.source) && Object.hasOwn(visuals, value.source), "Channel names a missing buffer.");
         result.source = value.source;
       } else need(!Object.hasOwn(value, "source"), "Only buffers have a source pass.");
-      if (value.type === "texture") {
-        need(text(value.src, 4096), "Invalid texture URL.");
-        if (imageId(value.src)) result.src = value.src;
-        else {
-          let url;
-          try {
-            url = new URL(value.src);
-          } catch {
-            throw Error("Use an HTTPS texture URL.");
-          }
-          need(url.protocol === "https:" && !url.username && !url.password && !url.hash, "Use an HTTPS texture URL without credentials or a fragment.");
-          result.src = url.href;
+      if (value.type === "texture" || value.type === "cubemap") {
+        if (value.type === "texture") {
+          need(!Object.hasOwn(value, "faces"), "Only cube textures have faces.");
+          result.src = textureSource(value.src);
+        } else {
+          need(!Object.hasOwn(value, "src") && Array.isArray(value.faces) && value.faces.length === 6, "A cube texture needs six faces: +X, -X, +Y, -Y, +Z, -Z.");
+          result.faces = Array.from(value.faces, textureSource);
         }
         for (const option of ["vflip", "srgb"]) if (Object.hasOwn(value, option)) {
           need(typeof value[option] === "boolean");
           result[option] = value[option];
         }
-      } else need(!["src", "vflip", "srgb"].some((key) => Object.hasOwn(value, key)), "Image options need a texture input.");
+      } else need(!["src", "faces", "vflip", "srgb"].some((key) => Object.hasOwn(value, key)), "Image options need a texture input.");
       if (Object.hasOwn(value, "filter")) {
         need(["nearest", "linear", "mipmap"].includes(value.filter), "Invalid texture filter.");
         result.filter = value.filter;
@@ -198,7 +206,7 @@ var require_project = __commonJS({
       need(count <= 16384);
       return { kind: "algorave", id: value.id, request: value.request, baseRevision: value.baseRevision, project: normalized, target, conversation };
     }
-    module.exports = { DOCUMENTS, RUNTIME, project, revision, sourceFor, candidateFrom, context, channel, imageId };
+    module.exports = { DOCUMENTS, RUNTIME, project, revision, sourceFor, candidateFrom, context, channel, imageId, textureSources };
   }
 });
 
@@ -25346,11 +25354,11 @@ uniform int iFrame;
 uniform vec4 iMouse, iDate;
 uniform float iChannelTime[4];
 uniform vec3 iChannelResolution[4];
-uniform sampler2D iChannel0, iChannel1, iChannel2, iChannel3;
 // Chiptunes extensions: cycles, four-beat phase, and a scheduled kick envelope.
 uniform float ctCycle, ctBeat, ctKick;
 out vec4 outputColor;
 #define texture2D texture
+#define textureCube texture
 `;
 var ORDER = ["A", "B", "C", "D", "Image"];
 var ShaderRuntime = class {
@@ -25524,6 +25532,26 @@ var ShaderRuntime = class {
       throw error;
     }
   }
+  cubeTexture(bitmaps, srgb = false) {
+    const g = this.gl, size = bitmaps[0].width;
+    if (bitmaps.length !== 6 || bitmaps.some((b) => b.width !== size || b.height !== size)) throw Error("Cube texture faces must be square and have the same dimensions.");
+    if (size > g.getParameter(g.MAX_CUBE_MAP_TEXTURE_SIZE)) throw Error("Cube texture exceeds this graphics device\u2019s size limit.");
+    const texture = g.createTexture();
+    g.bindTexture(g.TEXTURE_CUBE_MAP, texture);
+    try {
+      g.pixelStorei(g.UNPACK_FLIP_Y_WEBGL, false);
+      g.pixelStorei(g.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+      bitmaps.forEach((bitmap, i2) => g.texImage2D(g.TEXTURE_CUBE_MAP_POSITIVE_X + i2, 0, srgb ? g.SRGB8_ALPHA8 : g.RGBA8, g.RGBA, g.UNSIGNED_BYTE, bitmap));
+      if (g.getError() !== g.NO_ERROR) throw Error("Cube texture allocation failed.");
+      g.texParameteri(g.TEXTURE_CUBE_MAP, g.TEXTURE_MIN_FILTER, g.LINEAR);
+      g.texParameteri(g.TEXTURE_CUBE_MAP, g.TEXTURE_MAG_FILTER, g.LINEAR);
+      for (const axis of [g.TEXTURE_WRAP_S, g.TEXTURE_WRAP_T, g.TEXTURE_WRAP_R]) g.texParameteri(g.TEXTURE_CUBE_MAP, axis, g.CLAMP_TO_EDGE);
+      return { texture, width: size, height: size, target: g.TEXTURE_CUBE_MAP };
+    } catch (error) {
+      g.deleteTexture(texture);
+      throw error;
+    }
+  }
   sampler(input) {
     const g = this.gl, info = inputInfo(input), sampler = g.createSampler();
     const filter = info.filter || (info.type === "keyboard" ? "nearest" : "linear"), wrap = info.wrap || "clamp";
@@ -25532,6 +25560,7 @@ var ShaderRuntime = class {
     const edge = wrap === "repeat" ? g.REPEAT : wrap === "mirror" ? g.MIRRORED_REPEAT : g.CLAMP_TO_EDGE;
     g.samplerParameteri(sampler, g.TEXTURE_WRAP_S, edge);
     g.samplerParameteri(sampler, g.TEXTURE_WRAP_T, edge);
+    g.samplerParameteri(sampler, g.TEXTURE_WRAP_R, edge);
     return sampler;
   }
   target(width = this.canvas.width, height = this.canvas.height) {
@@ -25548,14 +25577,15 @@ var ShaderRuntime = class {
     g.clear(g.COLOR_BUFFER_BIT);
     return result;
   }
-  compile(source, common = "") {
+  compile(source, common = "", channels = []) {
     const g = this.gl;
     if (this.disposed || this.lost || g.isContextLost()) throw Error("Visuals are waiting for the graphics context.");
     const shaders = [], program = g.createProgram();
     try {
       for (const [kind, code2] of [[g.VERTEX_SHADER, VERTEX], [
         g.FRAGMENT_SHADER,
-        HEADER + "\n#line 1 1\n" + common + "\n#line 1 0\n" + source + "\nvoid main(){mainImage(outputColor,gl_FragCoord.xy);}"
+        HEADER + Array.from({ length: 4 }, (_, i2) => `uniform ${inputInfo(channels[i2]).type === "cubemap" ? "samplerCube" : "sampler2D"} iChannel${i2};
+`).join("") + "\n#line 1 1\n" + common + "\n#line 1 0\n" + source + "\nvoid main(){mainImage(outputColor,gl_FragCoord.xy);}"
       ]]) {
         const shader3 = g.createShader(kind);
         shaders.push(shader3);
@@ -25591,7 +25621,7 @@ var ShaderRuntime = class {
         const channels = row.map((input) => import_project4.default.channel(input, document2));
         let program;
         try {
-          program = this.compile(source, common);
+          program = this.compile(source, common, channels);
         } catch (e) {
           throw Error(`${name2}: ${e.message}`);
         }
@@ -25600,14 +25630,14 @@ var ShaderRuntime = class {
         for (let i2 = 0; i2 < 4; i2++) {
           const input = inputInfo(channels[i2]);
           pass.samplers.push(this.sampler(channels[i2]));
-          if (input.type === "texture") {
-            const bitmap = images.get(imageKey(input));
-            if (!bitmap) throw Error("Texture is not loaded. Use asynchronous preparation.");
-            const key = imageKey(input) + ":" + (input.srgb === true);
+          if (input.type === "texture" || input.type === "cubemap") {
+            const sources = import_project4.default.textureSources(input), bitmaps = sources.map((src) => images.get(imageKey({ src, vflip: input.vflip })));
+            if (bitmaps.some((bitmap) => !bitmap)) throw Error("Texture is not loaded. Use asynchronous preparation.");
+            const key = JSON.stringify([input.type, sources, input.vflip === true, input.srgb === true]);
             if (!imageTextures.has(key)) {
-              imagePixels += bitmap.width * bitmap.height;
+              imagePixels += bitmaps.reduce((sum, b) => sum + b.width * b.height, 0);
               if (imagePixels > IMAGE_PIXELS * 4) throw Error("Combined texture resolution exceeds 64 megapixels.");
-              imageTextures.set(key, this.imageTexture(bitmap, input.srgb === true));
+              imageTextures.set(key, input.type === "cubemap" ? this.cubeTexture(bitmaps, input.srgb === true) : this.imageTexture(bitmaps[0], input.srgb === true));
             }
             pass.images[i2] = imageTextures.get(key);
           }
@@ -25675,7 +25705,7 @@ var ShaderRuntime = class {
   }
   async prepareAsync(document2) {
     const normalized = import_project4.default.project({ version: 1, runtime: import_project4.default.RUNTIME, music: "", visuals: document2 }).visuals;
-    const inputs = Object.values(normalized.channels).flat().filter((input) => inputInfo(input).type === "texture");
+    const inputs = Object.values(normalized.channels).flat().flatMap((input) => import_project4.default.textureSources(input).map((src) => ({ src, vflip: input.vflip })));
     if (!inputs.length) return this.prepare(normalized);
     const generation = this.generation, controller = new AbortController(), images = /* @__PURE__ */ new Map();
     this.loads.add(controller);
@@ -25740,10 +25770,11 @@ var ShaderRuntime = class {
         const input = inputInfo(pass.channels[i2]);
         const buffer = this.passes.find((p) => p.name === input.source);
         const texture = input.type === "audio" ? this.audio : input.type === "keyboard" ? this.keyboard : pass.images[i2] || completed.get(input.source) || buffer?.targets[buffer.read] || this.empty;
+        const target = texture.target || g.TEXTURE_2D;
         g.activeTexture(g.TEXTURE0 + i2);
-        g.bindTexture(g.TEXTURE_2D, texture.texture);
+        g.bindTexture(target, texture.texture);
         if (input.filter === "mipmap" && !texture.mipmaps) {
-          g.generateMipmap(g.TEXTURE_2D);
+          g.generateMipmap(target);
           texture.mipmaps = true;
         }
         g.bindSampler(i2, pass.samplers[i2]);
@@ -25821,34 +25852,12 @@ function shaderChannelEditor(root, textarea, { importImage: importImage2, onErro
     const row = channels?.[pass] || [];
     for (let index = 0; index < 4; index++) {
       let visibility = function() {
-        const texture = source.input.value === "texture", empty = source.input.value === "none";
-        file.label.hidden = !texture || !importImage2;
-        src.label.hidden = flip.label.hidden = srgb.label.hidden = !texture;
+        const texture = source.input.value === "texture", cube = source.input.value === "cubemap", empty = source.input.value === "none";
+        image.show(texture);
+        faces.forEach((face) => face.show(cube));
+        flip.label.hidden = srgb.label.hidden = !texture && !cube;
         filter.label.hidden = wrap.label.hidden = empty;
-      };
-      const raw = row[index], input = typeof raw === "string" ? { type: ["audio", "keyboard"].includes(raw) ? raw : "buffer", source: raw } : raw || {};
-      const group = documentElement("fieldset"), legend = documentElement("legend");
-      legend.textContent = `iChannel${index}`;
-      group.append(legend);
-      const source = select("Input", ["none", "audio", "keyboard", "texture", ...["A", "B", "C", "D"].filter((name2) => document2[name2])], input.type === "buffer" ? input.source : input.type || "none");
-      group.append(source.label);
-      let imported = import_project5.default.imageId(input.src) ? input.src : "";
-      const src = field("Image URL", "url");
-      src.input.value = imported ? "" : input.src || "";
-      src.input.placeholder = imported ? "Imported image (saved)" : "https://\u2026";
-      group.append(src.label);
-      const file = field("Import image", "file");
-      file.input.accept = "image/png,image/jpeg,image/webp,image/avif,image/gif,image/bmp";
-      group.append(file.label);
-      const filter = select("Filter", ["nearest", "linear", "mipmap"], input.filter || (input.type === "keyboard" ? "nearest" : "linear"));
-      group.append(filter.label);
-      const wrap = select("Wrap", ["clamp", "repeat", "mirror"], input.wrap || "clamp");
-      group.append(wrap.label);
-      const flip = field("Flip vertically", "checkbox"), srgb = field("sRGB", "checkbox");
-      flip.input.checked = input.vflip === true;
-      srgb.input.checked = input.srgb === true;
-      group.append(flip.label, srgb.label);
-      const update = () => {
+      }, update = function() {
         let current;
         try {
           current = JSON.parse(textarea.value);
@@ -25860,7 +25869,9 @@ function shaderChannelEditor(root, textarea, { importImage: importImage2, onErro
         if (chosen !== "none") {
           value = { type: ["A", "B", "C", "D"].includes(chosen) ? "buffer" : chosen, filter: filter.input.value, wrap: wrap.input.value };
           if (value.type === "buffer") value.source = chosen;
-          if (chosen === "texture") Object.assign(value, { src: imported || src.input.value, vflip: flip.input.checked, srgb: srgb.input.checked });
+          if (chosen === "texture") value.src = image.value();
+          if (chosen === "cubemap") value.faces = faces.map((face) => face.value());
+          if (chosen === "texture" || chosen === "cubemap") Object.assign(value, { vflip: flip.input.checked, srgb: srgb.input.checked });
         }
         const inputs = [...current[pass] || []];
         while (inputs.length <= index) inputs.push(null);
@@ -25868,33 +25879,63 @@ function shaderChannelEditor(root, textarea, { importImage: importImage2, onErro
         current[pass] = inputs;
         textarea.value = JSON.stringify(current);
         visibility();
+      }, imageControl = function(urlLabel, fileLabel, initial2) {
+        let imported = import_project5.default.imageId(initial2) ? initial2 : "";
+        const src = field(urlLabel, "url");
+        src.input.value = imported ? "" : initial2 || "";
+        src.input.placeholder = imported ? "Imported image (saved)" : "https://\u2026";
+        group.append(src.label);
+        const file = field(fileLabel, "file");
+        file.input.accept = "image/png,image/jpeg,image/webp,image/avif,image/gif,image/bmp";
+        group.append(file.label);
+        src.input.oninput = () => {
+          imported = "";
+          src.input.placeholder = "https://\u2026";
+          update();
+        };
+        src.input.onchange = update;
+        file.input.onchange = async () => {
+          const selected = file.input.files[0];
+          if (!selected) return;
+          try {
+            const reference = await importImage2(selected);
+            if (rendered !== version) return;
+            imported = reference;
+            src.input.value = "";
+            src.input.placeholder = "Imported image (saved)";
+            update();
+          } catch (error) {
+            onError(error);
+          } finally {
+            file.input.value = "";
+          }
+        };
+        return { value: () => imported || src.input.value, show: (visible) => {
+          src.label.hidden = !visible;
+          file.label.hidden = !visible || !importImage2;
+        } };
       };
+      const raw = row[index], input = typeof raw === "string" ? { type: ["audio", "keyboard"].includes(raw) ? raw : "buffer", source: raw } : raw || {};
+      const group = documentElement("fieldset"), legend = documentElement("legend");
+      legend.textContent = `iChannel${index}`;
+      group.append(legend);
+      const source = select("Input", ["none", "audio", "keyboard", "texture", "cubemap", ...["A", "B", "C", "D"].filter((name2) => document2[name2])], input.type === "buffer" ? input.source : input.type || "none");
+      group.append(source.label);
+      const image = imageControl("Image URL", "Import image", input.src);
+      const faces = ["+X", "-X", "+Y", "-Y", "+Z", "-Z"].map((name2, i2) => imageControl(name2 + " URL", "Import " + name2, input.faces?.[i2]));
+      const filter = select("Filter", ["nearest", "linear", "mipmap"], input.filter || (input.type === "keyboard" ? "nearest" : "linear"));
+      group.append(filter.label);
+      const wrap = select("Wrap", ["clamp", "repeat", "mirror"], input.wrap || "clamp");
+      group.append(wrap.label);
+      const flip = field("Flip vertically", "checkbox"), srgb = field("sRGB", "checkbox");
+      flip.input.checked = input.vflip === true;
+      srgb.input.checked = input.srgb === true;
+      group.append(flip.label, srgb.label);
       source.input.onchange = () => {
         if (source.input.value === "keyboard") filter.input.value = "nearest";
         update();
       };
-      for (const control of [src, filter, wrap, flip, srgb]) control.input.onchange = update;
-      src.input.oninput = () => {
-        imported = "";
-        src.input.placeholder = "https://\u2026";
-        update();
-      };
-      file.input.onchange = async () => {
-        const selected = file.input.files[0];
-        if (!selected) return;
-        try {
-          const reference = await importImage2(selected);
-          if (rendered !== version) return;
-          imported = reference;
-          src.input.value = "";
-          src.input.placeholder = "Imported image (saved)";
-          update();
-        } catch (error) {
-          onError(error);
-        } finally {
-          file.input.value = "";
-        }
-      };
+      for (const control of [filter, wrap, flip, srgb]) control.input.onchange = update;
       visibility();
       root.append(group);
     }
@@ -25915,7 +25956,7 @@ function shaderChannelEditor(root, textarea, { importImage: importImage2, onErro
     for (const item of values) {
       const option = documentElement("option");
       option.value = item;
-      option.textContent = { none: "None", audio: "Music audio", keyboard: "Keyboard", texture: "Image texture" }[item] || item;
+      option.textContent = { none: "None", audio: "Music audio", keyboard: "Keyboard", texture: "Image texture", cubemap: "Cube texture" }[item] || item;
       input.append(option);
     }
     input.value = value;
@@ -26219,7 +26260,7 @@ var ImageByteStore = class _ImageByteStore {
 
 // src/algorave/project-assets.mjs
 var PROJECT_BYTES = 112 * 1024 * 1024;
-var imageIds = (project) => [...new Set(Object.values(project.visuals.channels || {}).flat().map((input) => import_project7.default.imageId(input?.src)).filter(Boolean))];
+var imageIds = (project) => [...new Set(Object.values(project.visuals.channels || {}).flat().flatMap(import_project7.default.textureSources).map(import_project7.default.imageId).filter(Boolean))];
 var encode2 = (bytes) => {
   let text = "";
   for (let i2 = 0; i2 < bytes.length; i2 += 32768) text += String.fromCharCode(...bytes.subarray(i2, i2 + 32768));
@@ -26852,7 +26893,7 @@ bridge = new MusicBridge(frame, (next) => {
 await bridge.ready;
 lock(false);
 status.textContent = session.recoveryError || initialVisualError || "Ready \xB7 \u2318/Ctrl Enter to run";
-$("build").textContent = "Algorave d2c1aff761a4";
+$("build").textContent = "Algorave d793b1d18718";
 function draw(now) {
   shader2.render({ time: now / 1e3, delta: last2 ? (now - last2) / 1e3 : 0, ...signals.at(performance.timeOrigin + now) });
   last2 = now;
