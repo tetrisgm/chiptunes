@@ -53,6 +53,13 @@ release on Stop. Full Chromium fixture capture and native Safari denial/syntheti
 stream checks pass locally on `9c8e3981729b`; no physical camera was used. See the
 [camera checkpoint](algorave-runtime-decisions.md#camera-texture-input--2026-09-15).
 
+External file audio and microphone channels are integrated; file persistence,
+waveform/spectrum output and capture cleanup pass in Chromium and native Safari
+with controlled audio fixtures on `4a5ca1bf34ea`. See the
+[external-audio checkpoint](algorave-runtime-decisions.md#external-audio-inputs--2026-09-15).
+Reconcile the existing Strudel bridge FFT (1024 samples) with the external
+audio FFT (2048) during final visual acceptance.
+
 Next: complete the remaining Strudel input/drawing/module scope and Shadertoy
 media and Sound contracts; complete final browser/acoustic
 acceptance and check performance appropriate to subsequent changes. Chromium DSP checks use an explicit

@@ -29,4 +29,4 @@ export async function decodeShaderImage(blob,{signal,vflip=false}={}){
   return bitmap;
 }
 
-export const imageKey=input=>JSON.stringify([['volume','video'].includes(input.type)?input.type:'image',input.src,input.vflip===true]);
+export const imageKey=input=>JSON.stringify([['volume','video','music'].includes(input.type)?input.type:'image',input.src,input.vflip===true]);

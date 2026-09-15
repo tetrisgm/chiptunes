@@ -359,6 +359,47 @@ the sustained DSP/resource check for that build, not separate audio-frame heap,
 speaker quality or later shader additions. Receipt:
 `.algorave-preview/upstream-soak-1800s-receipt.json`.
 
+## External audio inputs — 2026-09-15
+
+`{type:'music',src:...}` supplies an audible looping external audio file, from
+HTTPS or the portable asset store. `{type:'mic'}` supplies microphone analysis
+without speaker monitoring. Both use a 512×2 R8 texture: the first row contains
+512 bins from a 2048-sample FFT; the second contains byte waveform values centered
+at 128. Channel time/resolution and the analysis context's sample rate are exposed
+through the standard GLSL uniforms. Audio file and Microphone choices remain
+inside the Channels disclosure.
+
+Loading uses OfflineAudioContext decoding and makes no live context or permission
+request. Play unlocks one shared analysis/output context from the user gesture.
+Files pause/resume at their previous offset and identical inputs are shared across
+passes and source edits. Stop stops file nodes and all microphone tracks; late
+permission responses after Stop are released. Projects save encoded audio bytes,
+never microphone recordings or device IDs. Existing 16 MiB per-file/64 MiB asset
+limits apply, plus 32 million decoded samples across active file inputs. Browser
+codec support still determines which encoded files decode.
+
+`node scripts/verify-algorave-audio-input.cjs` passes on `4a5ca1bf34ea`. Original
+1000 Hz WAV data verifies offline decode, portable bytes, actual frequency-bin and
+waveform values, GL row data, time, pause/resume and shared live edits. Full Chromium
+uses fake audio-device/file flags for permission denial/grant and microphone data;
+Stop and late-result cleanup leave all tracks ended. Workspace checks cover local
+file input, channel Run/Undo and stopped reload. Camera regression and six captured
+real-provider UI replays also pass, with zero new provider calls. Chromium output
+uses the explicit silent sink, not acoustic verification.
+
+Native Safari on the same local build opened the audio project stopped and showed
+its spectrum-driven color after Play. A separate original oscillator stream drove
+the microphone texture; live GLSL Run and Undo kept requests/live tracks at 1/1,
+Stop changed that to 1/0, and reload showed 0/0 with Play/Ready. The native `--serve`
+harness substitutes the microphone request and mutes the final speaker path;
+this is native signal-processing/UI evidence, not physical microphone permission
+or speaker-quality evidence. Its owned tab and temporary listener were closed.
+
+Reference: [Web Audio analyser specification](https://webaudio.github.io/web-audio-api/).
+The existing Strudel signal bridge still uses a 1024-sample FFT; reconcile its
+frequency-axis contract with these external inputs during final visual acceptance.
+Sound output and remaining Strudel integrations are still open; VR is excluded.
+
 ## Camera texture input — 2026-09-15
 
 `{type:'webcam'}` now supplies a standard sampler2D camera texture, channel

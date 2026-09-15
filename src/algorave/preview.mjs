@@ -28,16 +28,16 @@ async function resolveImage(id){
   if(!store.has(id)){imageStorePromise=null;store=await imageStore();}
   return store.blob(id);
 }
-async function importImage(file,{volume=false,video=false}={}){
+async function importImage(file,{volume=false,video=false,audio=false}={}){
   if(uiBusy)throw Error('Wait for the current edit to finish.');
   lock(true);
   try{
     if(file.size>IMAGE_BYTES)throw Error('Texture files must be at most 16 MiB.');
     const store=(await imageStore()).fork(),{id}=await store.put(new Uint8Array(await file.arrayBuffer()));
-    const type=await validateVisualAsset(store.blob(id));
-    if(video?!type.startsWith('video/'):volume?type!=='application/x-shadertoy-volume':!type.startsWith('image/'))throw Error(video?'Choose a supported video.':volume?'Choose a Shadertoy .bin volume.':'Choose an image for this channel.');
+    const type=await validateVisualAsset(store.blob(id),{audio});
+    if(audio?!type.startsWith('audio/'):video?!type.startsWith('video/'):volume?type!=='application/x-shadertoy-volume':!type.startsWith('image/'))throw Error(audio?'Choose a supported audio file.':video?'Choose a supported video.':volume?'Choose a Shadertoy .bin volume.':'Choose an image for this channel.');
     await saveImages(store);imageStorePromise=Promise.resolve(store);
-    status.textContent=(video?'Video':volume?'Volume':'Image')+' imported · Set channels, then Run visuals';
+    status.textContent=(audio?'Audio':video?'Video':volume?'Volume':'Image')+' imported · Set channels, then Run visuals';
     return 'asset:'+id;
   }finally{lock(false);}
 }
@@ -152,7 +152,7 @@ async function run() {
     if (focus === 'visual') next.visuals = structuredClone(session.draft.visuals);
     else { next.music = session.draft.music; playRequested = true; }
     try {
-      if(playRequested&&!playing)await bridge.request('unlock');
+      if(playRequested||playing){const audioUnlock=shader.unlockAudio();if(playRequested&&!playing)await bridge.request('unlock');await audioUnlock;}
       await session.activate(next, {draftAfter:session.draft,historyDraft}); status.textContent = focus === 'visual' ? 'Visuals updated' : 'Music updated';
     }
     catch (error) {

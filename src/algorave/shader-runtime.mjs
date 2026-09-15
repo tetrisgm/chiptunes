@@ -1,6 +1,7 @@
 // A shader owns no transport. The caller supplies time, audio and event signals.
 import contract from './project.cjs';
 import {loadShaderImage,decodeShaderImage,imageKey,IMAGE_PIXELS} from './shader-images.mjs';
+import {createShaderAudioHub,createShaderAudio,decodeShaderAudio,loadShaderAudio} from './shader-audio.mjs';
 import {createShaderCamera} from './shader-camera.mjs';
 import {loadShaderVideo,decodeShaderVideo} from './shader-video.mjs';
 import {loadShaderVolume,decodeShaderVolume} from './shader-volume.mjs';
@@ -41,7 +42,7 @@ export class ShaderRuntime {
   constructor(canvas, { onStatus = () => {}, resolveImage = async () => {throw Error('Imported image content is missing.');} } = {}) {
     this.resolveImage = resolveImage; this.canvas = canvas; this.onStatus = onStatus; this.generation = 0; this.candidates = new Set();
     this.document = null; this.lost = false;
-    this.loads=new Set();this.retained=new Set();
+    this.audioHub=createShaderAudioHub();this.loads=new Set();this.retained=new Set();
     this.gl = canvas.getContext('webgl2', { antialias: false, preserveDrawingBuffer: true });
     if (!this.gl) throw Error('Visuals need WebGL 2.');
     this.floatBuffers = this.gl.getExtension('EXT_color_buffer_float');
@@ -288,7 +289,16 @@ export class ShaderRuntime {
         next.push(pass);
         for(let i=0;i<4;i++){
           const input=inputInfo(channels[i]);pass.samplers.push(this.sampler(channels[i]));
-          if(input.type==='webcam'){
+          if(input.type==='music'||input.type==='mic'){
+            const key=JSON.stringify([input.type,input.src]);
+            if(!imageTextures.has(key)){
+              const shared=this.passes.flatMap(p=>p.images).find(t=>t.media?.kind===input.type&&t.source===input.src);
+              if(input.type==='music'&&!shared&&!images.get(imageKey(input)))throw Error('Audio is not loaded. Use asynchronous preparation.');
+              const media=shared?shared.media.retain():createShaderAudio(this.audioHub,{microphone:input.type==='mic',buffer:input.type==='music'?images.get(imageKey(input)):null});
+              imageTextures.set(key,{...this.texture(512,2,media.bytes),media,source:input.src});
+            }
+            pass.images[i]=imageTextures.get(key);
+          }else if(input.type==='webcam'){
             const key=JSON.stringify(['webcam',input.vflip===true,input.srgb===true]);
             if(!imageTextures.has(key)){
               const shared=[...imageTextures.values(),...this.passes.flatMap(p=>p.images)].find(t=>t.media?.kind==='webcam');
@@ -347,27 +357,31 @@ export class ShaderRuntime {
     const inputs=Object.values(normalized.channels).flat().flatMap(input=>contract.textureSources(input).map(src=>({src,vflip:input.vflip,type:input.type})));
     if(!inputs.length)return this.prepare(normalized);
     const generation=this.generation,controller=new AbortController(),images=new Map();this.loads.add(controller);
-    const timer=setTimeout(()=>controller.abort(),15000);let pixels=0;
+    const timer=setTimeout(()=>controller.abort(),15000);let pixels=0,audioSamples=0;
     try{
       // Sequential decoding bounds in-flight allocations; identical inputs are shared.
       for(const input of inputs){
         const key=imageKey(input);if(images.has(key))continue;
+        const previousAudio=input.type==='music'&&this.passes.flatMap(pass=>pass.images).find(t=>t.media?.kind==='music'&&t.source===input.src);
+        if(previousAudio){audioSamples+=previousAudio.media.sampleCount;if(audioSamples>32*1024*1024)throw Error('Combined audio inputs exceed 32 million decoded samples.');images.set(key,null);continue;}
         const options={signal:controller.signal,vflip:input.vflip},id=contract.imageId(input.src);
-        const decode=input.type==='video'?decodeShaderVideo:input.type==='volume'?decodeShaderVolume:decodeShaderImage,load=input.type==='video'?loadShaderVideo:input.type==='volume'?loadShaderVolume:loadShaderImage;
+        const decode=input.type==='music'?decodeShaderAudio:input.type==='video'?decodeShaderVideo:input.type==='volume'?decodeShaderVolume:decodeShaderImage,load=input.type==='music'?loadShaderAudio:input.type==='video'?loadShaderVideo:input.type==='volume'?loadShaderVolume:loadShaderImage;
         const existing=input.type==='video'&&this.passes.flatMap(pass=>pass.images).find(texture=>texture.media&&texture.source===input.src);
         const bitmap=existing?existing.media.retain():id?await decode(await this.resolveImage(id),options):await load(input.src,options);images.set(key,bitmap);
-        pixels+=bitmap.width*bitmap.height*(bitmap.depth||1);if(pixels>IMAGE_PIXELS*4)throw Error('Combined texture resolution exceeds 64 million pixels/voxels.');
+        if(input.type==='music'){audioSamples+=bitmap.length*bitmap.numberOfChannels;if(audioSamples>32*1024*1024)throw Error('Combined audio inputs exceed 32 million decoded samples.');}
+        pixels+=bitmap.width*bitmap.height*(bitmap.depth||1)||0;if(pixels>IMAGE_PIXELS*4)throw Error('Combined texture resolution exceeds 64 million pixels/voxels.');
       }
       if(controller.signal.aborted||generation!==this.generation||this.disposed||this.lost)throw Error('Visual output changed while textures loaded. Run again.');
       return this.prepare(normalized,images);
-    }finally{clearTimeout(timer);this.loads.delete(controller);for(const bitmap of images.values())bitmap.close();}
+    }finally{clearTimeout(timer);this.loads.delete(controller);for(const bitmap of images.values())bitmap?.close?.();}
   }
   set(document) { this.prepare(document).apply(); }
   uniform(pass, name, kind, ...values) {
     if (!pass.uniforms.has(name)) pass.uniforms.set(name, this.gl.getUniformLocation(pass.program, name));
     this.gl[kind](pass.uniforms.get(name), ...values);
   }
-  setPlaying(playing){for(const texture of new Set(this.passes.flatMap(pass=>pass.images)))texture.media?.setPlaying(playing,this.onStatus);}
+  unlockAudio(){return this.audioHub.unlock();}
+  setPlaying(playing){if(!playing)this.audioHub.suspend();for(const texture of new Set(this.passes.flatMap(pass=>pass.images)))texture.media?.setPlaying(playing,this.onStatus);}
   render({ playing = true, time = 0, delta = 0, cycle = 0, kick = 0, sampleRate = 44100, frequency, waveform, date = new Date() } = {}) {
     const g = this.gl;
     if (this.disposed || this.lost || g.isContextLost()) return false;
@@ -379,7 +393,8 @@ export class ShaderRuntime {
     }
     g.bindTexture(g.TEXTURE_2D,this.keyboard.texture);g.texSubImage2D(g.TEXTURE_2D,0,0,0,256,3,g.RED,g.UNSIGNED_BYTE,this.keyboardBytes);this.keyboard.mipmaps=false;
     for(const texture of new Set(this.passes.flatMap(pass=>pass.images)))if(texture.media){
-      texture.media.setPlaying(playing,this.onStatus);this.updateVideo(texture);
+      texture.media.setPlaying(playing,this.onStatus);
+      if(texture.media.bytes){g.bindTexture(g.TEXTURE_2D,texture.texture);g.texSubImage2D(g.TEXTURE_2D,0,0,0,512,2,g.RED,g.UNSIGNED_BYTE,texture.media.update());texture.mipmaps=false;}else this.updateVideo(texture);
     }
     const completed = new Map();
     for (const pass of this.passes) {
@@ -390,7 +405,7 @@ export class ShaderRuntime {
       this.uniform(pass,'iResolution','uniform3f',width,height,1);
       this.uniform(pass,'iTime','uniform1f',time); this.uniform(pass,'iTimeDelta','uniform1f',delta);
       this.uniform(pass,'iFrameRate','uniform1f',delta > 0 ? 1/delta : 0);
-      this.uniform(pass,'iFrame','uniform1i',this.frame); this.uniform(pass,'iSampleRate','uniform1f',sampleRate);
+      this.uniform(pass,'iFrame','uniform1i',this.frame); this.uniform(pass,'iSampleRate','uniform1f',this.audioHub.sampleRate||sampleRate);
       this.uniform(pass,'iMouse','uniform4fv',this.mouse);
       this.uniform(pass,'iDate','uniform4f',date.getFullYear(),date.getMonth(),date.getDate(),date.getHours()*3600+date.getMinutes()*60+date.getSeconds()+date.getMilliseconds()/1000);
       this.uniform(pass,'ctCycle','uniform1f',cycle); this.uniform(pass,'ctBeat','uniform1f',((cycle*4)%1+1)%1);
@@ -406,7 +421,7 @@ export class ShaderRuntime {
         g.bindSampler(i,pass.samplers[i]);
         this.uniform(pass,`iChannel${i}`,'uniform1i',i);
         this.uniform(pass,`iChannelResolution[${i}]`,'uniform3f',texture.width,texture.height,texture.depth||1);
-        this.uniform(pass,`iChannelTime[${i}]`,'uniform1f',texture.media ? texture.media.video.currentTime : input.type === 'audio' ? time : 0);
+        this.uniform(pass,`iChannelTime[${i}]`,'uniform1f',texture.media ? texture.media.time??texture.media.video.currentTime : input.type === 'audio' ? time : 0);
       }
       if(pass.name==='Cube'){
         for(let face=0;face<6;face++){
@@ -435,5 +450,5 @@ export class ShaderRuntime {
     for(const controller of this.loads)controller.abort();
     for(const previous of this.retained)if(!previous.invalid)this.deletePasses(previous.passes);this.retained.clear();
     for (const candidate of [...this.candidates]) candidate.dispose();
-    this.disposed = true; this.deletePasses(this.passes); this.deleteTarget(this.audio); this.deleteTarget(this.empty);this.deleteTarget(this.keyboard);this.passes=[]; }
+    this.disposed = true; this.deletePasses(this.passes); this.deleteTarget(this.audio); this.deleteTarget(this.empty);this.deleteTarget(this.keyboard);this.passes=[];this.audioHub.close(); }
 }

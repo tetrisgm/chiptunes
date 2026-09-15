@@ -12,7 +12,7 @@ function text(v, limit) {
   return typeof v === 'string' && bytes(v) <= limit && !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(v);
 }
 const imageId = src => typeof src === 'string' && /^asset:[a-f0-9]{64}$/.test(src) ? src.slice(6) : null;
-const textureSources = input => input?.type === 'cubemap' ? input.faces : ['texture','volume','video'].includes(input?.type) ? [input.src] : [];
+const textureSources = input => input?.type === 'cubemap' ? input.faces : ['texture','volume','video','music'].includes(input?.type) ? [input.src] : [];
 function textureSource(src){
   need(text(src,4096),'Invalid texture URL.');
   if(imageId(src))return src;
@@ -26,13 +26,17 @@ function channel(value, visuals) {
     need(Object.hasOwn(visuals,value),'Channel names a missing buffer.');return value;
   }
   need(keys(value,['type','source','src','faces','filter','wrap','vflip','srgb'],['type']),'Invalid visual input.');
-  need(['audio','keyboard','buffer','texture','cubemap','volume','video','webcam'].includes(value.type),'Unsupported visual input type.');
+  need(['audio','keyboard','buffer','texture','cubemap','volume','video','webcam','music','mic'].includes(value.type),'Unsupported visual input type.');
   const result={type:value.type};
   if(value.type==='buffer'){
     need(['A','B','C','D','Cube'].includes(value.source)&&Object.hasOwn(visuals,value.source),'Channel names a missing buffer.');
     result.source=value.source;
   }else need(!Object.hasOwn(value,'source'),'Only buffers have a source pass.');
-  if(value.type==='webcam'){
+  if(value.type==='mic'){
+    need(!['src','faces','vflip','srgb'].some(key=>Object.hasOwn(value,key)),'Microphone input does not have a URL or image options.');
+  }else if(value.type==='music'){
+    need(!['faces','vflip','srgb'].some(key=>Object.hasOwn(value,key)),'Audio input does not have image options.');result.src=textureSource(value.src);
+  }else if(value.type==='webcam'){
     need(!Object.hasOwn(value,'src')&&!Object.hasOwn(value,'faces'),'Camera input does not have a URL.');
     for(const option of ['vflip','srgb'])if(Object.hasOwn(value,option)){need(typeof value[option]==='boolean');result[option]=value[option];}
   }else if(value.type==='texture'||value.type==='cubemap'||value.type==='volume'||value.type==='video'){

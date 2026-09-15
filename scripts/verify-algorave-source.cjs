@@ -7,7 +7,7 @@ try{
   const source=path.join(temp,'chiptunes-source'),manifest=JSON.parse(fs.readFileSync(path.join(source,'SOURCE.json'),'utf8'));
   assert(manifest.files.some(file=>file.path==='src/create-entry.js'));
   assert(manifest.files.some(file=>file.path==='src/algorave/music-runtime.mjs'));
-  for(const name of ['image-assets','image-persistence','project-assets','shader-volume','shader-video','shader-camera'])assert(manifest.files.some(file=>file.path==='src/algorave/'+name+'.mjs'));
+  for(const name of ['image-assets','image-persistence','project-assets','shader-volume','shader-video','shader-camera','shader-audio'])assert(manifest.files.some(file=>file.path==='src/algorave/'+name+'.mjs'));
   assert(manifest.files.some(file=>file.path==='node_modules/@strudel/web/web.mjs'));
   assert(manifest.files.some(file=>file.path==='node_modules/@strudel/osc/osc.mjs'));
   assert(manifest.files.some(file=>file.path==='node_modules/@strudel/osc/server.js'));

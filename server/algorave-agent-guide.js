@@ -80,7 +80,15 @@ with a standard sampler2D, iChannelResolution and iChannelTime. It has no URL or
 saved device ID. Select it only when the user requests camera visuals. Play requests
 browser permission; Stop releases the camera. Camera frames stay local and are
 not sent to the agent or saved in a project. Browser/device availability applies.
-External audio inputs are not yet integrated.
+External audio uses {type:'music',src:'https://…',filter:'linear',wrap:'clamp'}
+for a provided audio URL or an existing imported asset reference, and {type:'mic'}
+for microphone input. Both are 512×2 sampler2D textures: row 0 is spectrum, row 1
+is the waveform centered at .5. iChannelTime supplies their playback time.
+The FFT uses 2048 samples; the texture contains its first 512 bins. Use iSampleRate
+for frequency-to-bin conversion. Imported audio loops and pauses/resumes with Play/Stop;
+it is audible. Microphone audio is analyzed without speaker monitoring and is not
+saved or sent to the agent. Play requests microphone permission; Stop releases it.
+Choose microphone input only when requested. Do not invent audio URLs or device IDs.
 
 VISUALS: GLSL ES 3.00 fragment code with
 void mainImage(out vec4 color, in vec2 pixel). The host supplies the version,
