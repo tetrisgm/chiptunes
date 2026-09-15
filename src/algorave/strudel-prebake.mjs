@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Standard sound setup and piano helper follow Strudel contributors' REPL:
 // https://codeberg.org/uzu/strudel/src/branch/main/website/src/repl/prebake.mjs
-import { registerControl, Pattern, noteToMidi, valueToMidi, evalScope, samples, aliasBank, registerZZFXSounds } from '@strudel/web';
+import { pure, registerControl, Pattern, noteToMidi, valueToMidi, evalScope, samples, aliasBank, registerZZFXSounds } from '@strudel/web';
 import * as soundfonts from '@strudel/soundfonts';
 import * as xen from '@strudel/xen';
 import * as edo from './vendor/edo/index.mjs';
@@ -14,7 +14,9 @@ import * as tidal from './vendor/tidal/tidal.mjs';
 import * as mondo from '@strudel/mondo';
 
 // Matches @strudel/codemirror 1.2.6's control registration.
-export const markcss = registerControl('markcss');
+const {markcss:markcssControl} = registerControl('markcss');
+export const markcss = (value,pattern) => markcssControl(typeof value==='string'?pure(value):value,pattern);
+Pattern.prototype.markcss = function(value){return markcss(value,this);};
 
 export const CDN = 'https://strudel.b-cdn.net';
 export const BANKS = [

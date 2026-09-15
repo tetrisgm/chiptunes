@@ -1641,3 +1641,18 @@ half-cycle values, actual audio, invalid-input retention, Run, Undo and Stop.
 The output uses a silent sink. Highlight metadata is retained but active editor
 mark rendering is still missing; native Safari and broader language cases remain
 unverified. This does not complete the editor parity requirement.
+
+## Live event highlighting — 2026-09-15
+
+The runtime sends bounded source locations, audio start/end times and markcss/color
+metadata through the private bridge. Locations must also occur in the active
+source's transpiler location list, excluding internal pattern-generated offsets.
+CodeMirror marks follow the audio-aligned clock and clear on Stop. Literal markcss
+strings are wrapped in pure() to preserve CSS instead of parsing mini-notation.
+
+Chromium af248034b4cb verifies alternating bd/sd token highlights, actual computed
+red background CSS, clearing after an unrun edit, restoration after Run and
+clearing after Stop. Signal and Mondo regressions pass. Source edits currently
+hide marks until Run; upstream-style remapping while editing is still missing.
+Native visual acceptance, inline widgets and long-session performance remain
+pending. This checkpoint does not establish full editor parity.

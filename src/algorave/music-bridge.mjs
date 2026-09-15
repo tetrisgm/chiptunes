@@ -27,7 +27,7 @@ export class MusicBridge {
           && data.waveform instanceof Uint8Array && data.waveform.length === 512) {
           onSignal({ epoch: data.epoch, observedAt: data.observedAt, time: data.time, cycle: data.cycle, cps: data.cps, playing: data.playing === true,
             sampleRate: data.sampleRate, frequency: data.frequency, waveform: data.waveform,
-            events: Array.isArray(data.events) ? data.events.slice(0, 256).filter(e => e && Number.isFinite(e.time) && typeof e.sound === 'string').map(e => ({ time: e.time, sound: e.sound.slice(0,64) })) : [] });
+            events: Array.isArray(data.events) ? data.events.slice(0, 256).filter(e => e && Number.isFinite(e.time) && typeof e.sound === 'string').map(e => ({ time:e.time,end:Number.isFinite(e.end)?Math.max(e.time,Math.min(e.time+3600,e.end)):e.time,sound:e.sound.slice(0,64),locations:Array.isArray(e.locations)?e.locations.slice(0,32).filter(l=>l&&Number.isSafeInteger(l.start)&&Number.isSafeInteger(l.end)&&l.start>=0&&l.end>l.start&&l.end<=65536).map(l=>({start:l.start,end:l.end})):[],markcss:typeof e.markcss==='string'?e.markcss.slice(0,1024):'',color:typeof e.color==='string'?e.color.slice(0,128):'' })) : [] });
         }
       };
     });

@@ -50,6 +50,7 @@ window.addEventListener('message', async event => {
       const id=event.data.id;
       audio.resume().then(()=>send({type:'reply',id}),error=>send({type:'reply',id,error:String(error.message||error).slice(0,2000)}));
     });
+    let locationCode,sourceLocations=new Set();
     const engine=await initStrudel({
       defaultOutput(hap,...args){
         // Portable imported samples retain immutable names across live edits.
@@ -63,7 +64,8 @@ window.addEventListener('message', async event => {
         const observed=pattern.withHap(hap=>{
           const original=hap.context.onTrigger;
           const observedHap=hap.setContext({...hap.context,[bankKey]:bank,onTrigger:async(hap,now,cps,time)=>{
-            if(events.length<256)events.push({time,sound:String(hap.value?.s||'').slice(0,64)});
+            if(locationCode!==engine.state.activeCode){locationCode=engine.state.activeCode;sourceLocations=new Set(transpiler(locationCode||'').miniLocations.map(([start,end])=>`${start}:${end}`));}
+            if(events.length<256)events.push({time,end:time+Number(hap.whole?.duration||0)/cps,sound:String(hap.value?.s||'').slice(0,64),locations:(hap.context.locations||[]).filter(({start,end})=>sourceLocations.has(`${start}:${end}`)).slice(0,32).map(({start,end})=>({start,end})),markcss:typeof hap.value?.markcss==='string'?hap.value.markcss.slice(0,1024):'',color:typeof hap.value?.color==='string'?hap.value.color.slice(0,128):''});
             return original?.call(hap.context,hap,now,cps,time);
           }});
           observedHap.stateful=hap.stateful;return observedHap;

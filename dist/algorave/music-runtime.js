@@ -49552,7 +49552,11 @@ ${JSON.stringify(t2, null, 2)}`);
   });
 
   // src/algorave/strudel-prebake.mjs
-  var markcss = c2("markcss");
+  var { markcss: markcssControl } = c2("markcss");
+  var markcss = (value, pattern) => markcssControl(typeof value === "string" ? C3(value) : value, pattern);
+  f2.prototype.markcss = function(value) {
+    return markcss(value, this);
+  };
   var CDN = "https://strudel.b-cdn.net";
   var BANKS = [
     ["piano", "piano/"],
@@ -49725,6 +49729,7 @@ ${JSON.stringify(t2, null, 2)}`);
         const id2 = event2.data.id;
         audio.resume().then(() => send({ type: "reply", id: id2 }), (error) => send({ type: "reply", id: id2, error: String(error.message || error).slice(0, 2e3) }));
       });
+      let locationCode, sourceLocations = /* @__PURE__ */ new Set();
       const engine = await initStrudel({
         defaultOutput(hap, ...args2) {
           hap.ensureObjectValue();
@@ -49737,7 +49742,11 @@ ${JSON.stringify(t2, null, 2)}`);
           const observed = pattern.withHap((hap) => {
             const original = hap.context.onTrigger;
             const observedHap = hap.setContext({ ...hap.context, [bankKey]: bank, onTrigger: async (hap2, now, cps, time) => {
-              if (events.length < 256) events.push({ time, sound: String(hap2.value?.s || "").slice(0, 64) });
+              if (locationCode !== engine.state.activeCode) {
+                locationCode = engine.state.activeCode;
+                sourceLocations = new Set(F4(locationCode || "").miniLocations.map(([start2, end]) => `${start2}:${end}`));
+              }
+              if (events.length < 256) events.push({ time, end: time + Number(hap2.whole?.duration || 0) / cps, sound: String(hap2.value?.s || "").slice(0, 64), locations: (hap2.context.locations || []).filter(({ start: start2, end }) => sourceLocations.has(`${start2}:${end}`)).slice(0, 32).map(({ start: start2, end }) => ({ start: start2, end })), markcss: typeof hap2.value?.markcss === "string" ? hap2.value.markcss.slice(0, 1024) : "", color: typeof hap2.value?.color === "string" ? hap2.value.color.slice(0, 128) : "" });
               return original?.call(hap2.context, hap2, now, cps, time);
             } });
             observedHap.stateful = hap.stateful;

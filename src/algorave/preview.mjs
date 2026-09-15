@@ -342,6 +342,7 @@ await bridge.ready; lock(false);
 status.textContent = session.recoveryError || initialVisualError || 'Ready · ⌘/Ctrl Enter to run'; $('build').textContent = BUILD_ID;
 function draw(now) {
   shader.render({playing,time:now/1000,delta:last?(now-last)/1000:0,...signals.at(performance.timeOrigin + now)});
+  music.highlight(playing&&music.value===session.applied.music?signals.highlights(performance.timeOrigin+now):[]);
   last = now; requestAnimationFrame(draw);
 }
 requestAnimationFrame(draw);

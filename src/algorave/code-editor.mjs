@@ -1,6 +1,6 @@
 import { minimalSetup } from 'codemirror';
-import { EditorView, keymap, lineNumbers } from '@codemirror/view';
-import { EditorState, Compartment, Prec } from '@codemirror/state';
+import { EditorView, Decoration, keymap, lineNumbers } from '@codemirror/view';
+import { EditorState, StateEffect, StateField, Compartment, Prec } from '@codemirror/state';
 import { javascript } from '@codemirror/lang-javascript';
 import { StreamLanguage, bracketMatching, syntaxHighlighting, HighlightStyle } from '@codemirror/language';
 import { shader as glsl } from '@codemirror/legacy-modes/mode/clike';
@@ -8,6 +8,15 @@ import { autocompletion, closeBrackets } from '@codemirror/autocomplete';
 import { tags } from '@lezer/highlight';
 import { setDiagnostics } from '@codemirror/lint';
 
+const activeNotes=StateEffect.define();
+const noteMarks=StateField.define({
+  create:()=>Decoration.none,
+  update(value,tr){
+    if(tr.docChanged)value=Decoration.none;
+    for(const effect of tr.effects)if(effect.is(activeNotes))value=Decoration.set(effect.value.filter(mark=>mark.start>=0&&mark.end<=tr.newDoc.length&&mark.end>mark.start).map(mark=>Decoration.mark({class:'cm-playing-note',attributes:{style:mark.style}}).range(mark.start,mark.end)),true);
+    return value;
+  },provide:field=>EditorView.decorations.from(field),
+});
 const musicHelp = {
   setcpm:'Cycles per minute. setcpm(30) gives four-beat cycles at 120 BPM.',
   note:'Pitched pattern, for example note("c3 [eb3 g3] ~ bb3").',
@@ -49,11 +58,12 @@ const theme = EditorView.theme({
 
 export function codeEditor(parent, { language, label }) {
   const readonly = new Compartment(), help = language === 'music' ? musicHelp : visualHelp;
+  let previousMarks='';
   let muted = false, destroyed = false, serial = 0, readOnly = false, documentKey = 'default';
   const documents = new Map();
   const editor = { oninput:null, onfocus:null, onRun:null };
   const extensions = [
-    minimalSetup, lineNumbers(), language === 'music' ? javascript() : StreamLanguage.define(glsl),
+    minimalSetup, noteMarks, lineNumbers(), language === 'music' ? javascript() : StreamLanguage.define(glsl),
     bracketMatching(), closeBrackets(), syntaxHighlighting(colors), theme,
     readonly.of([EditorState.readOnly.of(false), EditorView.editable.of(true)]),
     EditorView.contentAttributes.of({'aria-label':label,'aria-multiline':'true',spellcheck:'false'}),
@@ -70,6 +80,7 @@ export function codeEditor(parent, { language, label }) {
     EditorView.domEventHandlers({focus:() => {editor.onfocus?.();}}),
     EditorView.updateListener.of(update => {
       if (!update.docChanged) return;
+      previousMarks='';
       const ticket = ++serial;
       if (!muted) editor.oninput?.();
       queueMicrotask(() => { if (!destroyed && ticket === serial) view.dispatch(setDiagnostics(view.state,[])); });
@@ -82,7 +93,7 @@ export function codeEditor(parent, { language, label }) {
     documents.set(documentKey, view.state);
     const cached = documents.get(key);
     const state = key !== documentKey && cached?.doc.toString() === source ? cached : stateFor(source);
-    serial++; muted = true;
+    previousMarks='';serial++; muted = true;
     try {
       view.setState(state); documentKey = key;
       view.dispatch({effects:readonly.reconfigure([EditorState.readOnly.of(readOnly),EditorView.editable.of(!readOnly)])});
@@ -103,6 +114,10 @@ export function codeEditor(parent, { language, label }) {
     if (!Number.isInteger(line) || line < 1 || line > view.state.doc.lines) return;
     const row = view.state.doc.line(line),from=Math.min(row.to,row.from+Math.max(0,column));
     view.dispatch(setDiagnostics(view.state,[{from,to:Math.min(row.to,from+1),severity:'error',message}]));
+  };
+  editor.highlight=marks=>{
+    const key=JSON.stringify(marks);if(key===previousMarks)return;previousMarks=key;
+    view.dispatch({effects:activeNotes.of(marks)});
   };
   editor.focus = () => view.focus();
   editor.destroy = () => { destroyed=true;view.destroy(); };

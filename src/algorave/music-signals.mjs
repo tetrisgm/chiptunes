@@ -7,7 +7,12 @@ export class MusicSignals {
     this.snapshot = signal;
     if (!signal.playing) this.events = [];
     else this.events.push(...signal.events);
-    this.events = this.events.filter(e => e.time >= signal.time - 1).slice(-512);
+    this.events = this.events.filter(e => Math.max(e.time,e.end||e.time) >= signal.time - 1).slice(-512);
+  }
+  highlights(observedAt) {
+    if(!this.snapshot?.playing)return [];
+    const {time}=this.at(observedAt);
+    return this.events.filter(event=>time>=event.time&&time<event.end).flatMap(event=>(event.locations||[]).map(location=>({...location,style:event.markcss||`outline:solid 2px ${event.color||'currentColor'}`})));
   }
   at(observedAt) {
     const s = this.snapshot;

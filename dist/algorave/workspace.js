@@ -24857,6 +24857,16 @@ var dart = clike({
 });
 
 // src/algorave/code-editor.mjs
+var activeNotes = StateEffect.define();
+var noteMarks = StateField.define({
+  create: () => Decoration.none,
+  update(value, tr) {
+    if (tr.docChanged) value = Decoration.none;
+    for (const effect of tr.effects) if (effect.is(activeNotes)) value = Decoration.set(effect.value.filter((mark) => mark.start >= 0 && mark.end <= tr.newDoc.length && mark.end > mark.start).map((mark) => Decoration.mark({ class: "cm-playing-note", attributes: { style: mark.style } }).range(mark.start, mark.end)), true);
+    return value;
+  },
+  provide: (field) => EditorView.decorations.from(field)
+});
 var musicHelp = {
   setcpm: "Cycles per minute. setcpm(30) gives four-beat cycles at 120 BPM.",
   note: 'Pitched pattern, for example note("c3 [eb3 g3] ~ bb3").',
@@ -24905,11 +24915,13 @@ var theme2 = EditorView.theme({
 }, { dark: true });
 function codeEditor(parent, { language: language2, label }) {
   const readonly = new Compartment(), help = language2 === "music" ? musicHelp : visualHelp;
+  let previousMarks = "";
   let muted = false, destroyed = false, serial = 0, readOnly2 = false, documentKey = "default";
   const documents = /* @__PURE__ */ new Map();
   const editor = { oninput: null, onfocus: null, onRun: null };
   const extensions = [
     minimalSetup,
+    noteMarks,
     lineNumbers(),
     language2 === "music" ? javascript() : StreamLanguage.define(shader),
     bracketMatching(),
@@ -24937,6 +24949,7 @@ function codeEditor(parent, { language: language2, label }) {
     } }),
     EditorView.updateListener.of((update) => {
       if (!update.docChanged) return;
+      previousMarks = "";
       const ticket = ++serial;
       if (!muted) editor.oninput?.();
       queueMicrotask(() => {
@@ -24951,6 +24964,7 @@ function codeEditor(parent, { language: language2, label }) {
     documents.set(documentKey, view.state);
     const cached = documents.get(key);
     const state = key !== documentKey && cached?.doc.toString() === source ? cached : stateFor(source);
+    previousMarks = "";
     serial++;
     muted = true;
     try {
@@ -24980,6 +24994,12 @@ function codeEditor(parent, { language: language2, label }) {
     if (!Number.isInteger(line) || line < 1 || line > view.state.doc.lines) return;
     const row = view.state.doc.line(line), from = Math.min(row.to, row.from + Math.max(0, column));
     view.dispatch(setDiagnostics(view.state, [{ from, to: Math.min(row.to, from + 1), severity: "error", message: message2 }]));
+  };
+  editor.highlight = (marks2) => {
+    const key = JSON.stringify(marks2);
+    if (key === previousMarks) return;
+    previousMarks = key;
+    view.dispatch({ effects: activeNotes.of(marks2) });
   };
   editor.focus = () => view.focus();
   editor.destroy = () => {
@@ -25229,7 +25249,7 @@ var MusicBridge = class {
             sampleRate: data.sampleRate,
             frequency: data.frequency,
             waveform: data.waveform,
-            events: Array.isArray(data.events) ? data.events.slice(0, 256).filter((e) => e && Number.isFinite(e.time) && typeof e.sound === "string").map((e) => ({ time: e.time, sound: e.sound.slice(0, 64) })) : []
+            events: Array.isArray(data.events) ? data.events.slice(0, 256).filter((e) => e && Number.isFinite(e.time) && typeof e.sound === "string").map((e) => ({ time: e.time, end: Number.isFinite(e.end) ? Math.max(e.time, Math.min(e.time + 3600, e.end)) : e.time, sound: e.sound.slice(0, 64), locations: Array.isArray(e.locations) ? e.locations.slice(0, 32).filter((l) => l && Number.isSafeInteger(l.start) && Number.isSafeInteger(l.end) && l.start >= 0 && l.end > l.start && l.end <= 65536).map((l) => ({ start: l.start, end: l.end })) : [], markcss: typeof e.markcss === "string" ? e.markcss.slice(0, 1024) : "", color: typeof e.color === "string" ? e.color.slice(0, 128) : "" })) : []
           });
         }
       };
@@ -25277,7 +25297,12 @@ var MusicSignals = class {
     this.snapshot = signal2;
     if (!signal2.playing) this.events = [];
     else this.events.push(...signal2.events);
-    this.events = this.events.filter((e) => e.time >= signal2.time - 1).slice(-512);
+    this.events = this.events.filter((e) => Math.max(e.time, e.end || e.time) >= signal2.time - 1).slice(-512);
+  }
+  highlights(observedAt) {
+    if (!this.snapshot?.playing) return [];
+    const { time } = this.at(observedAt);
+    return this.events.filter((event) => time >= event.time && time < event.end).flatMap((event) => (event.locations || []).map((location) => ({ ...location, style: event.markcss || `outline:solid 2px ${event.color || "currentColor"}` })));
   }
   at(observedAt) {
     const s = this.snapshot;
@@ -27607,9 +27632,10 @@ bridge = new MusicBridge(frame, (next) => {
 await bridge.ready;
 lock(false);
 status.textContent = session.recoveryError || initialVisualError || "Ready \xB7 \u2318/Ctrl Enter to run";
-$("build").textContent = "Algorave faaaf5e7ea74";
+$("build").textContent = "Algorave af248034b4cb";
 function draw(now) {
   shader2.render({ playing, time: now / 1e3, delta: last2 ? (now - last2) / 1e3 : 0, ...signals.at(performance.timeOrigin + now) });
+  music.highlight(playing && music.value === session.applied.music ? signals.highlights(performance.timeOrigin + now) : []);
   last2 = now;
   requestAnimationFrame(draw);
 }
