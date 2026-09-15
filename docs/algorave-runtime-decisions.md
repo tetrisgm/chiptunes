@@ -639,3 +639,21 @@ test left the canvas at the next test's destination size; restoring a distinct
 size fixed that test setup, without weakening resize-invalidation coverage.
 The earlier 30-minute receipt predates this rendering change and is not a
 high-resolution performance result. Other channel/pass/music parity gaps remain.
+
+### Native Safari captured OpenAI replies
+
+On visible build `668ca3b9634e`, a fresh local Safari tab used the replay server
+from `verify-algorave-provider-ui.cjs --serve openai`, port 62314. Play and Agent
+opened the original groove and chat. The exact captured bass request produced a
+proposal without changing source; Apply added the captured bass layer and Undo
+restored the original visible source. Re-Apply established the next captured
+base. The visual-only reply changed the Image source while leaving music intact;
+Undo restored the original Image. The paired reply changed both visible sources
+and rendered the dark blue/violet tunnel; Undo restored both prior documents.
+The restored project was saved and reload showed Play, collapsed chat, the saved
+bass source and Ready status without autoplay. The tab and server session 30518
+were closed; the preexisting production project tab remained untouched.
+
+These were real captured provider outputs replayed through native chat/Apply/
+Undo, not fresh provider calls, Safari automation through WebKit, or public-site
+verification. Native Anthropic replay and broader parity work remain open.

@@ -8,7 +8,8 @@ acceptance and deploy publicly. Deployment is now requested, but parity is not
 established: sample-loading/integration restrictions and missing shader channel/
 pass types require work. Do not treat the earlier bounded compatibility contract
 as satisfying this expanded goal. Chromium captured-reply UI checks now pass via
-`scripts/verify-algorave-provider-ui.cjs`; native Safari replay remains next.
+`scripts/verify-algorave-provider-ui.cjs`. Native Safari replay of all three OpenAI
+responses now passes on `668ca3b9634e`; Anthropic native replay remains next.
 Shader parity progress: removed the fixed 1080p output cap in favor of actual GL
 device limits and corrected buffer iChannelTime to zero. Independent 2560×1440
 pixel/uniform checks and the full preview suite pass on `668ca3b9634e`.
