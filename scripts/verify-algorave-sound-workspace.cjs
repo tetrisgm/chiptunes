@@ -3,9 +3,21 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
 const {chromium}=require('playwright'),{configureAudio}=require('./algorave-browser-audio.cjs');
 const contract=require('../src/algorave/project.cjs'),root=path.resolve(__dirname,'../.algorave-preview');
 const source='vec2 mainSound(int samp,float time){return vec2(sin(6.2831853*440.*time)*.2);}',changed=source.replace('440.','660.');
+const nativeFixture=`
+const originalConnect=AudioNode.prototype.connect,mutedOutputs=new WeakMap();
+AudioNode.prototype.connect=function(destination,...args){if(destination instanceof AudioDestinationNode){let mute=mutedOutputs.get(this.context);if(!mute){mute=this.context.createGain();mute.gain.value=0;originalConnect.call(mute,destination);mutedOutputs.set(this.context,mute);}return originalConnect.call(this,mute,...args);}return originalConnect.call(this,destination,...args);};
+addEventListener('DOMContentLoaded',()=>{const meter=document.createElement('p');meter.style='position:fixed;bottom:24px;left:12px;background:#111;color:white;padding:8px;z-index:9999';document.body.append(meter);setInterval(()=>{const app=window.algoravePreview,media=app?.shader.passes.find(p=>p.name==='Sound')?.images[0]?.media,bytes=media?.update();meter.textContent='MUTED TEST · Sound '+(media?media.time.toFixed(1)+'s · spectrum '+Math.max(...bytes.slice(0,512)):'absent');},250);});
+`;
 (async()=>{
- const server=http.createServer((req,res)=>{const file=path.join(root,req.url==='/'?'index.html':req.url.split('?')[0]);if(!file.startsWith(root+path.sep)||!fs.existsSync(file)){res.writeHead(404);return res.end();}res.setHeader('content-type',file.endsWith('.js')?'text/javascript':'text/html');res.end(fs.readFileSync(file));});
- await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const browser=await chromium.launch({headless:true});
+ const server=http.createServer((req,res)=>{const file=path.join(root,req.url==='/'?'index.html':req.url.split('?')[0]);if(!file.startsWith(root+path.sep)||!fs.existsSync(file)){res.writeHead(404);return res.end();}res.setHeader('content-type',file.endsWith('.js')?'text/javascript':'text/html');let body=fs.readFileSync(file);if(process.argv.includes('--serve')&&file.endsWith('index.html'))body=body.toString().replace('</head>','<script>'+nativeFixture+'</script></head>');res.end(body);});
+ await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+ if(process.argv.includes('--serve')){
+  const project={version:1,runtime:contract.RUNTIME,music:'silence',visuals:{Image:'void mainImage(out vec4 c,in vec2 p){c=vec4(0.,1.,0.,1.);}',Sound:source,channels:{Image:[],Sound:[]}}};
+  fs.writeFileSync(path.join(root,'native-sound-project.json'),JSON.stringify(project));
+  console.log('Muted native Sound test: http://127.0.0.1:'+server.address().port);
+  await new Promise(resolve=>process.once('SIGINT',resolve));server.closeAllConnections();await new Promise(resolve=>server.close(resolve));return;
+ }
+ const browser=await chromium.launch({headless:true});
  try{
   const page=await browser.newPage();page.setDefaultTimeout(30000);await configureAudio(page);await page.goto('http://127.0.0.1:'+server.address().port);await page.waitForFunction(()=>window.algoravePreview);
   const project={version:1,runtime:contract.RUNTIME,music:'silence',visuals:{Image:'void mainImage(out vec4 c,in vec2 p){c=vec4(0.,1.,0.,1.);}',Sound:source,channels:{Image:[],Sound:[]}}};

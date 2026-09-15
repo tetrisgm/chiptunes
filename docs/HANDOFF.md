@@ -62,8 +62,9 @@ The Strudel bridge now matches the external audio FFT settings (2048 samples,
 
 Sound is integrated into the pass editor, project format and transactional
 Run/Undo flow. Chromium checks cover actual playback, failed-compile retention,
-stopped reload, Stop during generation and an image-driven Sound track. Dynamic Sound inputs and native
-Safari acceptance remain pending. See the
+stopped reload, Stop during generation and an image-driven Sound track. Native
+Safari Open/Play/Run/Undo/Stop/reload passes locally on `633dce6b3682` with muted
+output. Dynamic Sound inputs and production-origin acceptance remain pending. See the
 [Sound renderer checkpoint](algorave-runtime-decisions.md#sound-renderer-foundation--2026-09-15).
 
 Next: complete the remaining Strudel input/drawing/module scope and Shadertoy

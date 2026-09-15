@@ -1499,3 +1499,18 @@ This closes the gap between the independent renderer cancellation test and the
 user-facing Stop action. Dynamic Sound input behavior still needs authoritative
 contract verification and implementation; search results alone did not establish
 the reference application's handling of each dynamic input type.
+
+### Native Safari Sound checkpoint
+
+On local build `633dce6b3682`, native Safari opened the original Sound fixture
+through the file picker, visibly stopped with zero spectrum. Play advanced Sound
+time with nonzero spectrum. Editing 440 Hz to 660 Hz and clicking Run completed;
+Undo restored the exact original source and active analysis. Stop froze the time
+and cleared the spectrum. Reload showed Ready, Play, Sound 0.0s and spectrum 0.
+The Image output remained visibly green. The owned tab and temporary server closed.
+
+`node scripts/verify-algorave-sound-workspace.cjs --serve` supplies this local
+fixture and a visible analysis meter. Its parent AudioNode connection wrapper
+inserts a zero-gain node at the output destination, leaving the Sound analyser
+active. This is native runtime/UI evidence, not an acoustic/speaker measurement,
+production-origin acceptance, dynamic-input verification or a real AI reply.
