@@ -20,6 +20,8 @@ const root=path.resolve(__dirname,'../.algorave-preview');
   const afterInsert=await page.locator('.cm-playing-note').allTextContents();assert(afterInsert.every(text=>['bd','sd'].includes(text)),JSON.stringify(afterInsert));
   assert.equal(await page.evaluate(()=>algoravePreview.session.applied.music),source,'typing does not apply code');
   await page.locator('#run').click();await page.waitForFunction(()=>document.querySelector('.cm-playing-note'));
+  await page.getByLabel('Strudel music').fill('silence');await page.getByLabel('Strudel music').fill('\n'+source);
+  await page.waitForFunction(()=>[...document.querySelectorAll('.cm-playing-note')].some(el=>['bd','sd'].includes(el.textContent)));
   await page.locator('#play').click();await page.waitForFunction(()=>!algoravePreview.playing&&!document.querySelector('.cm-playing-note'));
   console.log('PASS: real Strudel event locations highlight both alternating sounds, markcss applies, unrun insertion remaps token positions, Run restores marks and Stop clears them. Silent sink; native acceptance pending.');
  }finally{await browser.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}

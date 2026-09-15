@@ -30595,7 +30595,13 @@ var sliderMarks = StateField.define({
     if (tr.docChanged) {
       const mapped = [];
       for (let it = value.iter(); it.value; it.next()) {
-        const spec = it.value.spec, from = tr.changes.mapPos(it.from, -1), to = tr.changes.mapPos(spec.to, 1);
+        const spec = it.value.spec;
+        let replaced = false;
+        tr.changes.iterChangedRanges((from2, to2) => {
+          if (from2 <= it.from && to2 >= spec.to && (from2 < it.from || to2 > spec.to)) replaced = true;
+        });
+        if (replaced) continue;
+        const from = tr.changes.mapPos(it.from, -1), to = tr.changes.mapPos(spec.to, 1);
         if (to > from) mapped.push(Decoration.widget({ ...spec, to }).range(from));
       }
       value = Decoration.set(mapped, true);
@@ -30740,6 +30746,7 @@ function codeEditor(parent, { language: language2, label }) {
     EditorView.updateListener.of((update) => {
       if (!update.docChanged) return;
       previousMarks = "";
+      if (!update.state.field(sliderMarks).size) sliderSource = null;
       if (highlightChanges) highlightChanges = highlightChanges.compose(update.changes);
       const ticket = ++serial;
       if (!muted) editor.oninput?.();
@@ -30797,7 +30804,7 @@ function codeEditor(parent, { language: language2, label }) {
     view.dispatch(setDiagnostics(view.state, [{ from, to: Math.min(row.to, from + 1), severity: "error", message: message2 }]));
   };
   editor.highlight = (marks2, source = view.state.doc.toString()) => {
-    if (source !== highlightSource) {
+    if (source !== highlightSource || source === view.state.doc.toString() && !highlightChanges?.empty) {
       const current2 = view.state.doc.toString();
       let start = 0, end = 0;
       while (start < source.length && start < current2.length && source[start] === current2[start]) start++;
@@ -33509,7 +33516,7 @@ music.onSlider = (sliderId, value) => {
   void bridge.request("slider", void 0, { sliderId, value }).catch(message);
 };
 status.textContent = session.recoveryError || initialVisualError || "Ready \xB7 \u2318/Ctrl Enter to run";
-$("build").textContent = "Algorave 142c577260bc";
+$("build").textContent = "Algorave 7e339e5a868f";
 var drawingRequest = false;
 var drawingState = "";
 function draw(now) {

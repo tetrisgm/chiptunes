@@ -83,12 +83,14 @@ Chromium pattern/audio/Run/Undo checks pass. Native acceptance remains pending.
 Mondo tagged templates now run with the upstream parser and retain markcss
 metadata. Chromium timing/audio/Run/Undo tests pass. Live event highlighting and
 markcss now pass Chromium checks, including remapping after an unrun insertion.
-Native highlighting verification remains pending.
+Native Safari note highlighting and restored-text mapping pass locally; native
+markcss-specific acceptance remains pending.
 
 The slider runtime now accepts upstream slider syntax and private-port value
 updates; Chromium checks cover live query changes and failed-edit rollback.
 Inline slider controls now change source and live values; Chromium keyboard,
-unrun insertion, Run and Undo checks pass. Native acceptance remains unfinished. See
+unrun insertion, Run and Undo checks pass. Native Safari pointer/Run/Undo and
+replacement recovery pass locally; production acceptance remains pending. See
 `scripts/verify-algorave-slider.cjs`.
 
 The six upstream underscore drawing methods now render in the isolated music
@@ -98,8 +100,9 @@ cover pixels, multiple widgets, unrun insertion, removal and narrow layout.
 A sustained-tone check verifies a non-flat inline waveform and matching analyser
 ID. Twenty source edits retain one runtime/editor canvas and close every received
 bitmap; stopped and non-widget playback avoid repeated snapshot requests. See
-`scripts/verify-algorave-inline-audio.cjs`. Native Safari and sustained performance
-acceptance remain pending.
+`scripts/verify-algorave-inline-audio.cjs`. Native Safari scope/slider/highlight
+checks pass locally; all-widget native and sustained performance acceptance remain
+pending. See the [native editor checkpoint](algorave-runtime-decisions.md#native-inline-editor-checkpoint--2026-09-15).
 
 Next: complete the remaining Strudel input/drawing/module scope and Shadertoy
 media and Sound contracts; complete final browser/acoustic

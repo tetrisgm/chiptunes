@@ -38,7 +38,10 @@ const sliderMarks=StateField.define({
     if(tr.docChanged){
       const mapped=[];
       for(let it=value.iter();it.value;it.next()){
-        const spec=it.value.spec,from=tr.changes.mapPos(it.from,-1),to=tr.changes.mapPos(spec.to,1);
+        const spec=it.value.spec;let replaced=false;
+        tr.changes.iterChangedRanges((from,to)=>{if(from<=it.from&&to>=spec.to&&(from<it.from||to>spec.to))replaced=true;});
+        if(replaced)continue;
+        const from=tr.changes.mapPos(it.from,-1),to=tr.changes.mapPos(spec.to,1);
         if(to>from)mapped.push(Decoration.widget({...spec,to}).range(from));
       }
       value=Decoration.set(mapped,true);
@@ -141,6 +144,7 @@ export function codeEditor(parent, { language, label }) {
     EditorView.updateListener.of(update => {
       if (!update.docChanged) return;
       previousMarks='';
+      if(!update.state.field(sliderMarks).size)sliderSource=null;
       if(highlightChanges)highlightChanges=highlightChanges.compose(update.changes);
       const ticket = ++serial;
       if (!muted) editor.oninput?.();
@@ -177,7 +181,7 @@ export function codeEditor(parent, { language, label }) {
     view.dispatch(setDiagnostics(view.state,[{from,to:Math.min(row.to,from+1),severity:'error',message}]));
   };
   editor.highlight=(marks,source=view.state.doc.toString())=>{
-    if(source!==highlightSource){
+    if(source!==highlightSource||(source===view.state.doc.toString()&&!highlightChanges?.empty)){
       const current=view.state.doc.toString();let start=0,end=0;
       while(start<source.length&&start<current.length&&source[start]===current[start])start++;
       while(end<source.length-start&&end<current.length-start&&source[source.length-1-end]===current[current.length-1-end])end++;

@@ -1666,3 +1666,28 @@ reanchors mapping; document/history replacement resets its cached state.
 Chromium verifies the actual insertion, preserved token text, unchanged applied
 source, Run and Stop. Native Safari and broader editing/performance acceptance
 remain pending. This supersedes the earlier hide-until-Run behavior.
+
+
+## Native inline editor checkpoint — 2026-09-15
+
+Native macOS Safari locally rendered a live `_scope()` sawtooth, note highlights,
+and a `slider(0.3,0,1)` control. Pointer dragging changed the source and waveform
+amplitude; an unrun leading insertion retained the controls. Run and Undo restored
+the original source and slider value. An invalid edit retained the playing music
+and canvas. These checks used build `142c577260bc`; Run/Undo was repeated on
+`af194e343cb4` after the slider replacement fix.
+
+Whole-source replacement exposed stale slider targets and detached highlight
+positions. CodeMirror now drops sliders whose containing text was replaced,
+recreates them when the applied text returns, and resets highlight mapping when
+source and editor match again. Chromium regression checks cover both fixes.
+Native Safari confirmed slider removal/restoration and live highlight restoration
+without Run on final build `7e339e5a868f`. Final Stop/reload showed the original
+source, Play/Ready, spectrum zero, no inline canvas and no active marks.
+
+`node scripts/verify-algorave-inline-audio.cjs --serve` serves an explicitly muted
+local fixture: gain-zero output is injected into both the parent and music frame;
+a visible meter reads the real DSP signal and editor counts. No speaker-quality,
+production-origin, all-six-widget native, or fresh-provider claim is made. The
+owned Safari tab and temporary server were closed. Sustained performance and
+final production acceptance remain pending.
