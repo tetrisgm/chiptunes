@@ -172,7 +172,8 @@ the isolated frame; credentials must already be supplied by the user's code.
 Stop cancels queued messages and disconnects; closeMqtt() also releases clients.
 
 Sound is an optional GLSL document with vec2 mainSound(int samp,float time),
-returning left/right samples in [-1,1]. Common code is shared. Sound renders a
+returning left/right samples in [-1,1]. Older mainSound(float time) code is also
+accepted. Common code is shared. Sound renders a
 finite 180-second track before applying the edit; Play/Stop pauses/resumes it.
 Sound has iSampleRate, iDate, iChannel0..3 and iChannelResolution. Its channels
 currently support image, cube and volume textures only; other Sound inputs are

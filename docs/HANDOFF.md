@@ -64,7 +64,8 @@ Sound is integrated into the pass editor, project format and transactional
 Run/Undo flow. Chromium checks cover actual playback, failed-compile retention,
 stopped reload, Stop during generation and an image-driven Sound track. Native
 Safari Open/Play/Run/Undo/Stop/reload passes locally on `633dce6b3682` with muted
-output. Dynamic Sound inputs and production-origin acceptance remain pending. See the
+output. Both modern two-argument and older one-argument mainSound entry points now pass
+PCM checks. Dynamic Sound inputs and production-origin acceptance remain pending. See the
 [Sound renderer checkpoint](algorave-runtime-decisions.md#sound-renderer-foundation--2026-09-15).
 
 The build fingerprint now includes `shader-sound.mjs`; earlier Sound checkpoint

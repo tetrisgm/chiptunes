@@ -31250,11 +31250,18 @@ void main(){
  vec2 packed=floor((v*.5+.5)*65535.+.5);
  ctSound=vec4(mod(packed.x,256.),floor(packed.x/256.),mod(packed.y,256.),floor(packed.y/256.))/255.;
 }`;
-    for (const [kind, code2] of [[g.VERTEX_SHADER, vertex], [g.FRAGMENT_SHADER, header + "\n#line 1 1\n" + common + "\n#line 1 0\n" + source + main]]) {
+    const fragmentPrefix = header + "\n#line 1 1\n" + common + "\n#line 1 0\n" + source;
+    for (const [kind, code2] of [[g.VERTEX_SHADER, vertex], [g.FRAGMENT_SHADER, fragmentPrefix + main]]) {
       const shader3 = g.createShader(kind);
       shaders.push(shader3);
       g.shaderSource(shader3, code2);
       g.compileShader(shader3);
+      if (!g.getShaderParameter(shader3, g.COMPILE_STATUS) && kind === g.FRAGMENT_SHADER) {
+        const modernError = g.getShaderInfoLog(shader3);
+        g.shaderSource(shader3, fragmentPrefix + main.replace("mainSound(samp,float(samp)/iSampleRate)", "mainSound(float(samp)/iSampleRate)"));
+        g.compileShader(shader3);
+        if (!g.getShaderParameter(shader3, g.COMPILE_STATUS)) throw Error("Sound: " + modernError);
+      }
       if (!g.getShaderParameter(shader3, g.COMPILE_STATUS)) throw Error("Sound: " + g.getShaderInfoLog(shader3));
       g.attachShader(program, shader3);
     }
@@ -33516,7 +33523,7 @@ music.onSlider = (sliderId, value) => {
   void bridge.request("slider", void 0, { sliderId, value }).catch(message);
 };
 status.textContent = session.recoveryError || initialVisualError || "Ready \xB7 \u2318/Ctrl Enter to run";
-$("build").textContent = "Algorave 3fcb8f67f2d7";
+$("build").textContent = "Algorave d710fe282529";
 var drawingRequest = false;
 var drawingState = "";
 function draw(now) {

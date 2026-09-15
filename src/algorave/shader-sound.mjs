@@ -36,8 +36,17 @@ void main(){
  vec2 packed=floor((v*.5+.5)*65535.+.5);
  ctSound=vec4(mod(packed.x,256.),floor(packed.x/256.),mod(packed.y,256.),floor(packed.y/256.))/255.;
 }`;
-    for(const [kind,code]of [[g.VERTEX_SHADER,vertex],[g.FRAGMENT_SHADER,header+'\n#line 1 1\n'+common+'\n#line 1 0\n'+source+main]]){
+    const fragmentPrefix=header+'\n#line 1 1\n'+common+'\n#line 1 0\n'+source;
+    for(const [kind,code]of [[g.VERTEX_SHADER,vertex],[g.FRAGMENT_SHADER,fragmentPrefix+main]]){
       const shader=g.createShader(kind);shaders.push(shader);g.shaderSource(shader,code);g.compileShader(shader);
+      if(!g.getShaderParameter(shader,g.COMPILE_STATUS)&&kind===g.FRAGMENT_SHADER){
+        const modernError=g.getShaderInfoLog(shader);
+        // Older Sound programs take only time. Let GLSL resolve the overload;
+        // inspecting declarations would misread macros, comments or Common code.
+        g.shaderSource(shader,fragmentPrefix+main.replace('mainSound(samp,float(samp)/iSampleRate)','mainSound(float(samp)/iSampleRate)'));
+        g.compileShader(shader);
+        if(!g.getShaderParameter(shader,g.COMPILE_STATUS))throw Error('Sound: '+modernError);
+      }
       if(!g.getShaderParameter(shader,g.COMPILE_STATUS))throw Error('Sound: '+g.getShaderInfoLog(shader));g.attachShader(program,shader);
     }
     g.linkProgram(program);if(!g.getProgramParameter(program,g.LINK_STATUS))throw Error('Sound: '+g.getProgramInfoLog(program));

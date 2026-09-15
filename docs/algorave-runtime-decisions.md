@@ -1872,3 +1872,18 @@ The hidden music frame needs explicit polling in this test; animation-frame poll
 caused an observation timeout. The standard Csound suite passes alongside it.
 These checks do not prove preemption of Csound compilation already executing in
 its worklet, native browser behavior or complete engine teardown after failure.
+
+### Sound entry-point compatibility — 2026-09-15
+
+Sound now accepts both mainSound(int samp,float time) and mainSound(float time).
+The renderer first compiles the modern call, then tries the older call if needed;
+the GLSL compiler resolves declarations, macros and Common code. When both valid
+overloads exist, the modern one wins. Invalid GLSL still returns the original
+compiler diagnostic. The PCM test compares identical 48 kHz output across three
+GPU blocks and checks overload preference, errors, cancellation and playback.
+
+The historical signature is evidenced by the author's direct shader capture in
+[this 2016 investigation](https://stackoverflow.com/questions/34859701/how-do-shadertoys-audio-shaders-work).
+This does not establish today's dynamic-input contract. The official editor at
+https://www.shadertoy.com/new remained on security verification during this check;
+no challenge was bypassed. Current dynamic Sound input acceptance remains open.
