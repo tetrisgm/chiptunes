@@ -59828,7 +59828,7 @@ ${JSON.stringify(t2, null, 2)}`);
     getLocations: (code) => getLocations(code, 0)
   });
 
-  // node_modules/hydra-synth/src/output.js
+  // src/algorave/vendor/hydra-synth/src/output.js
   var Output2 = function({ regl: regl2, precision, label = "", width, height }) {
     this.regl = regl2;
     this.precision = precision;
@@ -59926,10 +59926,10 @@ ${JSON.stringify(t2, null, 2)}`);
   };
   var output_default = Output2;
 
-  // node_modules/hydra-synth/src/hydra-synth.js
+  // src/algorave/vendor/hydra-synth/src/hydra-synth.js
   var import_raf_loop = __toESM(require_raf_loop(), 1);
 
-  // node_modules/hydra-synth/src/lib/webcam.js
+  // src/algorave/vendor/hydra-synth/src/lib/webcam.js
   function webcam_default(deviceId) {
     return navigator.mediaDevices.enumerateDevices().then((devices) => devices.filter((devices2) => devices2.kind === "videoinput")).then((cameras) => {
       let constraints = { audio: false, video: true };
@@ -59953,7 +59953,7 @@ ${JSON.stringify(t2, null, 2)}`);
     }).catch(console.log.bind(console));
   }
 
-  // node_modules/hydra-synth/src/lib/screenmedia.js
+  // src/algorave/vendor/hydra-synth/src/lib/screenmedia.js
   function screenmedia_default(options) {
     return new Promise(function(resolve, reject) {
       navigator.mediaDevices.getDisplayMedia(options).then((stream) => {
@@ -59967,7 +59967,7 @@ ${JSON.stringify(t2, null, 2)}`);
     });
   }
 
-  // node_modules/hydra-synth/src/hydra-source.js
+  // src/algorave/vendor/hydra-synth/src/hydra-source.js
   var HydraSource = class {
     constructor({ regl: regl2, width, height, pb, label = "" }) {
       this.label = label;
@@ -60101,7 +60101,7 @@ ${JSON.stringify(t2, null, 2)}`);
   };
   var hydra_source_default = HydraSource;
 
-  // node_modules/hydra-synth/src/lib/mouse-event.js
+  // src/algorave/vendor/hydra-synth/src/lib/mouse-event.js
   var mouse = {};
   function mouseButtons(ev) {
     if (typeof ev === "object") {
@@ -60154,7 +60154,7 @@ ${JSON.stringify(t2, null, 2)}`);
   mouse.y = mouseRelativeY;
   var mouse_event_default = mouse;
 
-  // node_modules/hydra-synth/src/lib/mouse.js
+  // src/algorave/vendor/hydra-synth/src/lib/mouse.js
   var mouse_default = mouseListen;
   function mouseListen(element, callback) {
     if (!callback) {
@@ -60325,7 +60325,7 @@ ${JSON.stringify(t2, null, 2)}`);
     return result;
   }
 
-  // node_modules/hydra-synth/src/lib/audio.js
+  // src/algorave/vendor/hydra-synth/src/lib/audio.js
   var import_meyda = __toESM(require_meyda_min(), 1);
   var Audio = class {
     constructor({
@@ -60337,6 +60337,7 @@ ${JSON.stringify(t2, null, 2)}`);
       isDrawing = false,
       parentEl = document.body
     }) {
+      this.disposed = false;
       this.vol = 0;
       this.scale = scale2;
       this.max = max;
@@ -60370,6 +60371,10 @@ ${JSON.stringify(t2, null, 2)}`);
       this.ctx.lineWidth = 0.5;
       if (window.navigator.mediaDevices) {
         window.navigator.mediaDevices.getUserMedia({ video: false, audio: true }).then((stream) => {
+          if (this.disposed) {
+            stream.getTracks().forEach((track) => track.stop());
+            return;
+          }
           this.stream = stream;
           this.context = new AudioContext();
           let audio_stream = this.context.createMediaStreamSource(stream);
@@ -60385,6 +60390,15 @@ ${JSON.stringify(t2, null, 2)}`);
           });
         }).catch((err2) => console.log("ERROR", err2));
       }
+    }
+    dispose() {
+      if (this.disposed) return;
+      this.disposed = true;
+      this.stream?.getTracks().forEach((track) => track.stop());
+      this.meyda?.stop();
+      void this.context?.close().catch(() => {
+      });
+      this.canvas.remove();
     }
     detectBeat(level) {
       if (level > this.beat._cutoff && level > this.beat.threshold) {
@@ -60490,7 +60504,7 @@ ${JSON.stringify(t2, null, 2)}`);
   };
   var audio_default = Audio;
 
-  // node_modules/hydra-synth/src/lib/video-recorder.js
+  // src/algorave/vendor/hydra-synth/src/lib/video-recorder.js
   var VideoRecorder = class {
     constructor(stream) {
       this.mediaSource = new MediaSource();
@@ -60560,7 +60574,7 @@ ${JSON.stringify(t2, null, 2)}`);
   };
   var video_recorder_default = VideoRecorder;
 
-  // node_modules/hydra-synth/src/lib/easing-functions.js
+  // src/algorave/vendor/hydra-synth/src/lib/easing-functions.js
   var easing_functions_default = {
     // no easing, no acceleration
     linear: function(t) {
@@ -60620,7 +60634,7 @@ ${JSON.stringify(t2, null, 2)}`);
     }
   };
 
-  // node_modules/hydra-synth/src/lib/array-utils.js
+  // src/algorave/vendor/hydra-synth/src/lib/array-utils.js
   var map2 = (num, in_min, in_max, out_min, out_max) => {
     return (num - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
   };
@@ -60679,7 +60693,7 @@ ${JSON.stringify(t2, null, 2)}`);
     }
   };
 
-  // node_modules/hydra-synth/src/lib/sandbox.js
+  // src/algorave/vendor/hydra-synth/src/lib/sandbox.js
   var sandbox_default = (parent2) => {
     var initialCode = ``;
     var sandbox = createSandbox(initialCode);
@@ -60704,7 +60718,7 @@ ${JSON.stringify(t2, null, 2)}`);
     }
   };
 
-  // node_modules/hydra-synth/src/eval-sandbox.js
+  // src/algorave/vendor/hydra-synth/src/eval-sandbox.js
   var EvalSandbox = class {
     constructor(parent2, makeGlobal, userProps = []) {
       this.makeGlobal = makeGlobal;
@@ -60738,7 +60752,7 @@ ${JSON.stringify(t2, null, 2)}`);
   };
   var eval_sandbox_default = EvalSandbox;
 
-  // node_modules/hydra-synth/src/format-arguments.js
+  // src/algorave/vendor/hydra-synth/src/format-arguments.js
   var DEFAULT_CONVERSIONS = {
     float: {
       "vec4": { name: "sum", args: [[1, 1, 1, 1]] },
@@ -60842,7 +60856,7 @@ ${JSON.stringify(t2, null, 2)}`);
     });
   }
 
-  // node_modules/hydra-synth/src/generate-glsl.js
+  // src/algorave/vendor/hydra-synth/src/generate-glsl.js
   function generate_glsl_default(transforms) {
     var shaderParams = {
       uniforms: [],
@@ -60930,7 +60944,7 @@ ${JSON.stringify(t2, null, 2)}`);
     return false;
   }
 
-  // node_modules/hydra-synth/src/glsl/utility-functions.js
+  // src/algorave/vendor/hydra-synth/src/glsl/utility-functions.js
   var utility_functions_default = {
     _luminance: {
       type: "util",
@@ -61039,7 +61053,7 @@ ${JSON.stringify(t2, null, 2)}`);
     }
   };
 
-  // node_modules/hydra-synth/src/glsl-source.js
+  // src/algorave/vendor/hydra-synth/src/glsl-source.js
   var GlslSource = function(obj) {
     this.transforms = [];
     this.transforms.push(obj);
@@ -61125,7 +61139,7 @@ ${JSON.stringify(t2, null, 2)}`);
   };
   var glsl_source_default = GlslSource;
 
-  // node_modules/hydra-synth/src/glsl/glsl-functions.js
+  // src/algorave/vendor/hydra-synth/src/glsl/glsl-functions.js
   var glsl_functions_default = () => [
     {
       name: "noise",
@@ -62096,7 +62110,7 @@ ${JSON.stringify(t2, null, 2)}`);
     }
   ];
 
-  // node_modules/hydra-synth/src/generator-factory.js
+  // src/algorave/vendor/hydra-synth/src/generator-factory.js
   var GeneratorFactory = class {
     constructor({
       defaultUniforms,
@@ -62204,7 +62218,7 @@ ${JSON.stringify(t2, null, 2)}`);
   }
   var generator_factory_default = GeneratorFactory;
 
-  // node_modules/hydra-synth/src/hydra-synth.js
+  // src/algorave/vendor/hydra-synth/src/hydra-synth.js
   var import_regl = __toESM(require_regl(), 1);
   var Mouse = mouse_default();
   var HydraRenderer = class {
@@ -62635,6 +62649,16 @@ ${JSON.stringify(t2, null, 2)}`);
     cancelAnimationFrame(frame);
     frame = void 0;
   }
+  function stopHydraAudio(record = active) {
+    const audio = record?.hydra.synth.a;
+    if (audio?.dispose) audio.dispose();
+    else {
+      audio?.stream?.getTracks().forEach((track) => track.stop());
+      audio?.meyda?.stop();
+      void audio?.context?.close().catch(() => {
+      });
+    }
+  }
   function startHydra() {
     stopHydra();
     if (!active || active.options.autoLoop === false) return;
@@ -62662,6 +62686,7 @@ ${JSON.stringify(t2, null, 2)}`);
     if (previous) {
       restore(previous.globals);
       if (running) startHydra();
+      else stopHydraAudio();
     }
   }
   function disposeHydra(record) {
@@ -62669,10 +62694,7 @@ ${JSON.stringify(t2, null, 2)}`);
     const h2 = record.hydra;
     h2.s.forEach((source) => source.clear());
     h2.captureStream?.getTracks().forEach((track) => track.stop());
-    h2.synth.a?.stream?.getTracks().forEach((track) => track.stop());
-    h2.synth.a?.meyda?.stop();
-    void h2.synth.a?.context?.close().catch(() => {
-    });
+    stopHydraAudio(record);
     const gl2 = h2.canvas.getContext("webgl");
     h2.regl.destroy();
     gl2?.getExtension("WEBGL_lose_context")?.loseContext();
@@ -62847,11 +62869,15 @@ ${JSON.stringify(t2, null, 2)}`);
     await xn(draw_exports);
     const canvases = () => [...document.querySelectorAll("canvas:not([data-drawing-preview])")];
     let drawer, pending;
-    const stop2 = () => {
+    const stop2 = (releaseAudio = false) => {
       drawer?.stop();
       pauseDraw();
       pauseAnimation();
       stopHydra();
+      if (releaseAudio) {
+        stopHydraAudio();
+        stopHydraAudio(pending?.hydra);
+      }
     };
     const report = () => {
       const nodes = canvases();
@@ -62899,7 +62925,7 @@ ${JSON.stringify(t2, null, 2)}`);
             }
           }
           if (!canvases().length && (hasDrawCallbacks() || hasAnimation())) getDrawContext();
-          if (!running) stop2();
+          if (!running) stop2(true);
           else startHydra();
           disposeHydra(snapshot.hydra);
           disposeDrawCanvases(snapshot.nodes.map((node) => node.canvas));
@@ -63013,7 +63039,7 @@ ${JSON.stringify(t2, null, 2)}`);
       audio.addEventListener("statechange", () => {
         if (!busy && engine.state.started && audio.state !== "running" && audio.state !== "closed") {
           engine.pause();
-          drawing.stop();
+          drawing.stop(true);
           epoch2++;
           events.length = 0;
           send({ type: "runtime-error", error: "Audio output was interrupted. Press Play to resume." });
@@ -63168,7 +63194,7 @@ ${JSON.stringify(t2, null, 2)}`);
             operation.stopped = true;
           }
           engine.stop();
-          drawing.stop();
+          drawing.stop(true);
           window.postMessage("strudel-stop", "*");
           await audio.suspend();
           epoch2++;

@@ -1717,8 +1717,26 @@ canvas-capture tracks, a frozen clock after Stop, and restoration of Strudel
 `shape` after removing Hydra. Existing drawing and runtime suites pass. Chromium
 uses the silent sink; this is not native Safari or speaker evidence.
 
-Remaining: native acceptance, broader Hydra programs/options, source-input and
-microphone permission/late-grant cleanup, repeated-resource/performance checks,
+Remaining: native acceptance, broader Hydra programs/options, camera/screen/media-source lifecycle, native microphone permission checks,
+repeated-resource/performance checks,
 and continuity expectations for feedback across source edits. Initial integration
 creates a candidate renderer for each source transaction; do not call this full
 Hydra parity until those checks and lifecycle cases are resolved.
+
+
+### Hydra microphone lifecycle — 2026-09-15
+
+Hydra's preferred renderer source is now bundled from
+`src/algorave/vendor/hydra-synth/`, preserving original hashes and the modified
+Audio source. Its audio object has idempotent disposal. Stop and renderer disposal
+stop tracks, stop the analyser, close its AudioContext and remove its meter.
+A microphone grant arriving after disposal stops the stream before constructing
+an AudioContext. Stop during a pending edit also disposes capture belonging to
+the retained previous renderer; rollback cannot restart it after Stop.
+
+`scripts/verify-algorave-hydra-audio.cjs` validates source provenance and tests a
+simulated late grant, active synthetic audio capture, repeated disposal and Stop
+during a pending edit. The tests use a generated MediaStream and never request a
+physical microphone. Hydra rendering/feed/rollback regression checks also pass.
+Camera, screen and other source-input cleanup plus native permission acceptance
+remain separate unfinished work.

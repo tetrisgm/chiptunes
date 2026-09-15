@@ -77,7 +77,7 @@ window.addEventListener('message', async event => {
     const drawing=await createDrawingHost(engine,(visible,inlineOnly,hasInline)=>send({type:'drawing',visible,inlineOnly,hasInline}));
     audio.addEventListener('statechange',()=>{
       if(!busy&&engine.state.started&&audio.state!=='running'&&audio.state!=='closed'){
-        engine.pause();drawing.stop();epoch++;events.length=0;
+        engine.pause();drawing.stop(true);epoch++;events.length=0;
         send({type:'runtime-error',error:'Audio output was interrupted. Press Play to resume.'});
       }
     });
@@ -184,7 +184,7 @@ window.addEventListener('message', async event => {
       if(!['run','stop','prepare','commit','discard'].includes(data.type))return;
       if(data.type==='stop'){
         if(operation){operation.cancelled=true;operation.stopped=true;}
-        engine.stop();drawing.stop();window.postMessage('strudel-stop','*');await audio.suspend();epoch++;events.length=0;candidate=null;
+        engine.stop();drawing.stop(true);window.postMessage('strudel-stop','*');await audio.suspend();epoch++;events.length=0;candidate=null;
         send({type:'reply',id:data.id,playing:false});return;
       }
       if(busy){send({type:'reply',id:data.id,error:'Another edit is still running.'});return;}

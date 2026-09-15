@@ -1,7 +1,7 @@
 import * as draw from '@strudel/draw';
 import { evalScope } from '@strudel/web';
 import './vendor/codemirror/drawing-widgets.mjs';
-import { pauseHydra, restoreHydra, disposeHydra, startHydra, stopHydra } from './vendor/hydra/hydra.mjs';
+import { pauseHydra, restoreHydra, disposeHydra, startHydra, stopHydra, stopHydraAudio } from './vendor/hydra/hydra.mjs';
 
 
 // Source callbacks stay inside the opaque music frame. Inline widgets export
@@ -10,7 +10,7 @@ export async function createDrawingHost(engine, visibility) {
   await evalScope(draw);
   const canvases = () => [...document.querySelectorAll('canvas:not([data-drawing-preview])')];
   let drawer, pending;
-  const stop = () => { drawer?.stop(); draw.pauseDraw(); draw.pauseAnimation(); stopHydra(); };
+  const stop = (releaseAudio=false) => { drawer?.stop(); draw.pauseDraw(); draw.pauseAnimation(); stopHydra();if(releaseAudio){stopHydraAudio();stopHydraAudio(pending?.hydra);} };
   const report = () => {const nodes=canvases();visibility(nodes.length>0,nodes.length>0&&nodes.every(canvas=>canvas.dataset.inlineDrawing!==undefined),nodes.some(canvas=>canvas.dataset.inlineDrawing!==undefined));};
   const observer = new MutationObserver(() => { if (!pending) report(); });
   observer.observe(document.body, { childList: true, subtree: true });
@@ -47,7 +47,7 @@ export async function createDrawingHost(engine, visibility) {
           }
         }
         if (!canvases().length&&(draw.hasDrawCallbacks() || draw.hasAnimation())) draw.getDrawContext();
-        if (!running) stop();else startHydra();
+        if (!running) stop(true);else startHydra();
         disposeHydra(snapshot.hydra);
         draw.disposeDrawCanvases(snapshot.nodes.map(node => node.canvas));
         snapshot.nodes.forEach(node => node.marker.remove());

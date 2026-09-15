@@ -106,7 +106,9 @@ pending. See the [native editor checkpoint](algorave-runtime-decisions.md#native
 
 Hydra is now integrated from pinned upstream source with local rendering, `H`,
 `feedStrudel`, transactional canvas/global restoration and Stop. Chromium shader,
-feed, Run/Undo and disposal checks pass; native, external inputs and broader
+feed, Run/Undo and disposal checks pass. Synthetic microphone tests now verify
+active/late-grant cleanup, including Stop during a pending edit; native permission,
+other external inputs and broader
 continuity/performance remain pending. See the
 [Hydra checkpoint](algorave-runtime-decisions.md#hydra-integration--2026-09-15).
 

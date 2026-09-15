@@ -18,6 +18,9 @@ function build({out=path.join(root,'.algorave-preview')}={}){
   for(const file of ['mondough.mjs','UPSTREAM.json'])id.update(fs.readFileSync(path.join(root,'src/algorave/vendor/mondo',file)));
   for(const file of ['drawing-widgets.mjs','UPSTREAM.json'])id.update(fs.readFileSync(path.join(root,'src/algorave/vendor/codemirror',file)));
   for(const file of ['hydra.mjs','UPSTREAM.json'])id.update(fs.readFileSync(path.join(root,'src/algorave/vendor/hydra',file)));
+  const hydraRoot=path.join(root,'src/algorave/vendor/hydra-synth');
+  const hydraManifest=fs.readFileSync(path.join(hydraRoot,'UPSTREAM.json'));id.update(hydraManifest);
+  for(const file of JSON.parse(hydraManifest).files)id.update(fs.readFileSync(path.join(hydraRoot,file.path)));
   id.update(fs.readFileSync(__filename));
   id.update(fs.readFileSync(path.join(root,'package-lock.json')));
   for(const file of ['index.mjs','midi.mjs','UPSTREAM.json'])id.update(fs.readFileSync(path.join(root,'src/algorave/vendor/midi',file)));
@@ -28,7 +31,7 @@ function build({out=path.join(root,'.algorave-preview')}={}){
       loader:{'.wasm':'binary'},external:['fs','path'],format:entry==='preview.mjs'?'esm':'iife',platform:'browser',target:'es2022',minify:false,legalComments:'inline',
       // Bundle upstream source, not its prebundled distribution, so the input
       // graph records every dependency for notices and corresponding source.
-      alias:{'@strudel/mondo':path.join(root,'src/algorave/vendor/mondo/mondough.mjs'),'mondolang':path.join(root,'node_modules/mondolang/mondo.mjs'),'@strudel/osc':path.join(root,'node_modules/@strudel/osc/osc.mjs'),'@strudel/web':path.join(root,'node_modules/@strudel/web/web.mjs'),'@strudel/soundfonts':path.join(root,'node_modules/@strudel/soundfonts/index.mjs'),'@strudel/xen':path.join(root,'node_modules/@strudel/xen/index.mjs'),'@strudel/draw':path.join(root,'src/algorave/vendor/draw/index.mjs')},
+      alias:{'hydra-synth':path.join(root,'src/algorave/vendor/hydra-synth/src/hydra-synth.js'),'@strudel/mondo':path.join(root,'src/algorave/vendor/mondo/mondough.mjs'),'mondolang':path.join(root,'node_modules/mondolang/mondo.mjs'),'@strudel/osc':path.join(root,'node_modules/@strudel/osc/osc.mjs'),'@strudel/web':path.join(root,'node_modules/@strudel/web/web.mjs'),'@strudel/soundfonts':path.join(root,'node_modules/@strudel/soundfonts/index.mjs'),'@strudel/xen':path.join(root,'node_modules/@strudel/xen/index.mjs'),'@strudel/draw':path.join(root,'src/algorave/vendor/draw/index.mjs')},
       define:{global:'globalThis',BUILD_ID:JSON.stringify('Algorave '+buildId)}});
     Object.keys(result.metafile.inputs).forEach(file=>inputs.add(file));
   }
