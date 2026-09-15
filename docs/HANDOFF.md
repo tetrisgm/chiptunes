@@ -87,7 +87,8 @@ Native highlighting verification remains pending.
 
 The slider runtime now accepts upstream slider syntax and private-port value
 updates; Chromium checks cover live query changes and failed-edit rollback.
-Inline slider controls and native acceptance remain unfinished. See
+Inline slider controls now change source and live values; Chromium keyboard,
+unrun insertion, Run and Undo checks pass. Native acceptance remains unfinished. See
 `scripts/verify-algorave-slider.cjs`.
 
 Next: complete the remaining Strudel input/drawing/module scope and Shadertoy

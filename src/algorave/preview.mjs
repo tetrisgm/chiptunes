@@ -339,10 +339,12 @@ frame.srcdoc = `<!doctype html><meta http-equiv="Content-Security-Policy" conten
 await new Promise(resolve => { frame.onload = resolve; $('music-editor').append(frame); });
 bridge = new MusicBridge(frame, next => { signal = next; signals.receive(next); }, error => { playing=false;shader.setPlaying(false); $('play').textContent='Play'; message(error); }, message,visible=>{frame.hidden=!visible;});
 await bridge.ready; lock(false);
+music.onSlider=(sliderId,value)=>{void bridge.request('slider',undefined,{sliderId,value}).catch(message);};
 status.textContent = session.recoveryError || initialVisualError || 'Ready · ⌘/Ctrl Enter to run'; $('build').textContent = BUILD_ID;
 function draw(now) {
   shader.render({playing,time:now/1000,delta:last?(now-last)/1000:0,...signals.at(performance.timeOrigin + now)});
   music.highlight(playing?signals.highlights(performance.timeOrigin+now):[],session.applied.music);
+  music.sliders(session.applied.music);
   last = now; requestAnimationFrame(draw);
 }
 requestAnimationFrame(draw);

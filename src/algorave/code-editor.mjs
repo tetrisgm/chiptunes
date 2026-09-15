@@ -1,5 +1,6 @@
 import { minimalSetup } from 'codemirror';
-import { EditorView, Decoration, keymap, lineNumbers } from '@codemirror/view';
+import { EditorView, Decoration, WidgetType, keymap, lineNumbers } from '@codemirror/view';
+import { parse } from 'acorn';
 import { EditorState, ChangeSet, StateEffect, StateField, Compartment, Prec } from '@codemirror/state';
 import { javascript } from '@codemirror/lang-javascript';
 import { StreamLanguage, bracketMatching, syntaxHighlighting, HighlightStyle } from '@codemirror/language';
@@ -9,6 +10,43 @@ import { tags } from '@lezer/highlight';
 import { setDiagnostics } from '@codemirror/lint';
 
 const activeNotes=StateEffect.define();
+const setSliders=StateEffect.define();
+const sliderMarks=StateField.define({
+  create:()=>Decoration.none,
+  update(value,tr){
+    if(tr.docChanged){
+      const mapped=[];
+      for(let it=value.iter();it.value;it.next()){
+        const spec=it.value.spec,from=tr.changes.mapPos(it.from,-1),to=tr.changes.mapPos(spec.to,1);
+        if(to>from)mapped.push(Decoration.widget({...spec,to}).range(from));
+      }
+      value=Decoration.set(mapped,true);
+    }
+    for(const effect of tr.effects)if(effect.is(setSliders))value=effect.value;
+    return value;
+  },provide:field=>EditorView.decorations.from(field),
+});
+class SliderWidget extends WidgetType {
+  constructor(config,onChange){super();Object.assign(this,config);this.onChange=onChange;this.id='slider_'+config.from;}
+  toDOM(view){
+    const input=document.createElement('input');input.type='range';input.className='cm-slider';
+    input.setAttribute('aria-label','Slider value');input.min=this.min;input.max=this.max;
+    input.step=this.step??(this.max-this.min)/1000;input.value=this.value;
+    for(let it=view.state.field(sliderMarks).iter();it.value;it.next())if(it.value.spec.widget===this){input.value=view.state.doc.sliceString(it.from,it.value.spec.to);break;}
+    input.style.cssText='width:64px;margin:0 6px;vertical-align:middle';
+    input.disabled=view.state.facet(EditorState.readOnly);
+    input.addEventListener('input',()=>{
+      if(view.state.facet(EditorState.readOnly))return;
+      let range;for(let it=view.state.field(sliderMarks).iter();it.value;it.next())if(it.value.spec.widget===this){range={from:it.from,to:it.value.spec.to};break;}
+      if(!range)return;
+      const next=input.value;
+      view.dispatch({changes:{...range,insert:next}});
+      this.onChange(this.id,Number(next));
+    });
+    return input;
+  }
+  ignoreEvent(){return true;}
+}
 const noteMarks=StateField.define({
   create:()=>Decoration.none,
   update(value,tr){
@@ -58,12 +96,12 @@ const theme = EditorView.theme({
 
 export function codeEditor(parent, { language, label }) {
   const readonly = new Compartment(), help = language === 'music' ? musicHelp : visualHelp;
-  let previousMarks='',highlightSource=null,highlightChanges=null;
+  let previousMarks='',highlightSource=null,highlightChanges=null,sliderSource=null;
   let muted = false, destroyed = false, serial = 0, readOnly = false, documentKey = 'default';
   const documents = new Map();
   const editor = { oninput:null, onfocus:null, onRun:null };
   const extensions = [
-    minimalSetup, noteMarks, lineNumbers(), language === 'music' ? javascript() : StreamLanguage.define(glsl),
+    minimalSetup, noteMarks, sliderMarks, lineNumbers(), language === 'music' ? javascript() : StreamLanguage.define(glsl),
     bracketMatching(), closeBrackets(), syntaxHighlighting(colors), theme,
     readonly.of([EditorState.readOnly.of(false), EditorView.editable.of(true)]),
     EditorView.contentAttributes.of({'aria-label':label,'aria-multiline':'true',spellcheck:'false'}),
@@ -94,7 +132,7 @@ export function codeEditor(parent, { language, label }) {
     documents.set(documentKey, view.state);
     const cached = documents.get(key);
     const state = key !== documentKey && cached?.doc.toString() === source ? cached : stateFor(source);
-    previousMarks='';highlightSource=null;highlightChanges=null;serial++; muted = true;
+    previousMarks='';highlightSource=null;highlightChanges=null;sliderSource=null;serial++; muted = true;
     try {
       view.setState(state); documentKey = key;
       view.dispatch({effects:readonly.reconfigure([EditorState.readOnly.of(readOnly),EditorView.editable.of(!readOnly)])});
@@ -102,13 +140,13 @@ export function codeEditor(parent, { language, label }) {
   }
   editor.switchDocument = replace;
   editor.resetHistory = () => {
-    documents.clear(); serial++;previousMarks='';highlightSource=null;highlightChanges=null;
+    documents.clear(); serial++;previousMarks='';highlightSource=null;highlightChanges=null;sliderSource=null;
     view.setState(stateFor(view.state.doc.toString()));
     view.dispatch({effects:readonly.reconfigure([EditorState.readOnly.of(readOnly),EditorView.editable.of(!readOnly)])});
   };
   Object.defineProperties(editor, {
     value:{get:()=>view.state.doc.toString(),set:source=>replace(source)},
-    readOnly:{set:value=>{readOnly=value;view.dispatch({effects:readonly.reconfigure([EditorState.readOnly.of(value),EditorView.editable.of(!value)])});}},
+    readOnly:{set:value=>{readOnly=value;view.dispatch({effects:readonly.reconfigure([EditorState.readOnly.of(value),EditorView.editable.of(!value)])});for(const input of view.dom.querySelectorAll('.cm-slider'))input.disabled=value;}},
     hasFocus:{get:()=>view.hasFocus},
   });
   editor.error = (message, {line,column=0} = {}) => {
@@ -129,6 +167,24 @@ export function codeEditor(parent, { language, label }) {
     view.dispatch({effects:activeNotes.of(marks)});
   };
   editor.focus = () => view.focus();
+  editor.sliders = source => {
+    if(language!=='music'||source===sliderSource)return;
+    // Use the same source positions and defaults as upstream sliderWithID.
+    // Existing decorations map through unrun edits without changing runtime IDs.
+    if(source!==view.state.doc.toString())return;
+    const widgets=[];
+    const visit=node=>{
+      if(!node||typeof node!=='object')return;
+      if(node.type==='CallExpression'&&node.callee.name==='slider'&&node.arguments[0]){
+        const [value,min,max,step]=node.arguments;
+        widgets.push({from:value.start,to:value.end,value:source.slice(value.start,value.end),min:min?.value??0,max:max?.value??1,step:step?.value});
+      }
+      for(const value of Object.values(node))if(Array.isArray(value))value.forEach(visit);else if(value&&typeof value==='object')visit(value);
+    };
+    try{visit(parse(source,{ecmaVersion:2022,allowAwaitOutsideFunction:true}));}catch{return;}
+    sliderSource=source;
+    view.dispatch({effects:setSliders.of(Decoration.set(widgets.map(config=>Decoration.widget({widget:new SliderWidget(config,(id,value)=>editor.onSlider?.(id,value)),to:config.to,side:-1}).range(config.from)),true))});
+  };
   editor.destroy = () => { destroyed=true;view.destroy(); };
   return editor;
 }
