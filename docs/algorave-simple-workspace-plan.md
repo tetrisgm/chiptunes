@@ -148,7 +148,7 @@ remains open; fixture responses are not model-quality evidence.
   legacy composer/export/render-parity checks where affected. Update obsolete UI
   expectations to this brief rather than retaining clutter to satisfy old tests.
   Run browser/audio suites serially; record reruns and unresolved failures.
-- [ ] Exercise a sustained 30-minute local performance with edits, bounded sample
+- [x] Exercise a sustained 30-minute local performance with edits, bounded sample
   resources and shader changes; observe audio continuity and resource growth.
 - [ ] Verify real provider behavior with bounded calls when authorized; otherwise
   identify that acceptance gate explicitly. Do not infer authorization from old

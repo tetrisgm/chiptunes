@@ -13,8 +13,8 @@ applicable exports. See the [plan](algorave-simple-workspace-plan.md),
 
 ## Remaining acceptance gates
 
-- Complete the sample-enabled 1800-second run. Its 60-second smoke passed; the
-  older fixed-bank 1800-second receipt does not cover the newer sample path.
+- The sample-enabled 1800-second run passed on this candidate; see the runtime
+  record for resource measurements and the unmeasured audio-frame heap scope.
 - Obtain the requested bounded provider authorization, capture actual music,
   visual and paired replies, then compile and exercise Apply/Undo with those
   replies in Chromium and native Safari. Fixture results do not close this gate.

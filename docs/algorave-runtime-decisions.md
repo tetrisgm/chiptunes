@@ -530,3 +530,25 @@ repeatedly applies bit crushing, and retains the previous music/shader/tempo
 checks. Its new receipt is `.algorave-preview/sample-soak-receipt.json`, preserving
 the completed fixed-bank baseline. It attempts a separate audio-frame CDP heap
 measurement and records whether that scope is available.
+
+### Sample-enabled 30-minute result — 2026-09-15
+
+Session `64814` exited 0 after 1800.010 seconds on build `1c68b1666ee5`,
+implementation commit `fb20e3c`. The browser and local server closed. Sixty
+observations cover repeated imported sample replacement, `.crush(4)`, tempo/note
+edits and shader changes. The receipt is
+`.algorave-preview/sample-soak-receipt.json`, SHA-256
+`7a9ad54d9dfaa255af096d470909e586fd1da47917ee5b8ab37e68dd8ab0b362`.
+
+The transport retained one epoch through 3599 scheduled kicks. Maximum kick gap
+was 0.535715 seconds, maximum signal delivery gap 82.900 ms, and maximum analyser
+silence 201.200 ms. There was one steady worker (two during replacement), one GL
+program, two textures, five audio blob URLs and a history capped at 20. Main-frame
+heap ranged from 8,593,396 to 11,786,428 bytes; its post-warmup spread was
+2,262,740 bytes. All harness thresholds passed.
+
+Separate audio-frame CDP heap measurement was unavailable and is recorded as
+false/null, not zero memory use. Decoded-buffer limits have separate unit/browser
+evidence; this result does not measure whole-process or GPU memory. It establishes
+the planned local sustained-edit run, not acoustic listening, physical display
+latency, native Safari endurance or live-provider quality.

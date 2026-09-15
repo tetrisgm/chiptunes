@@ -16,7 +16,7 @@ No live provider request or public deployment occurred.
 Code-plus-output fullscreen now works in all layouts; native Safari and Chromium
 checks passed on build `869b21f502ab`, including editing and Stop inside fullscreen.
 
-Next: finish the sample-enabled 30-minute performance run and full Mac/provider acceptance; review the recorded distribution details.
+Next: finish full Mac/provider acceptance; review the recorded distribution details.
 The baseline 1800-second run passed on build `869b21f502ab`; session `42681` is
 finished and its browser/server closed. See the runtime record for measurements.
 The newer sample-enabled build `48aa463e6fd2` now imports WAV files/public GitHub
@@ -24,10 +24,10 @@ raw URLs from a secondary menu, persists bytes in IndexedDB and exports portable
 sample projects. Chromium import/playback/Undo/reload/fresh-context tests and the
 preview/workflow/editor/worker/entry regressions pass. Native Safari sample checks
 found and fixed startup/effect-module issues; see the native Safari
-checkpoint in the runtime record. A sustained run exercising the new sample path
-is running against commit `fb20e3c` in exec session `64814`; its receipt is
-`.algorave-preview/sample-soak-receipt.json`. Poll that session before starting any
-other browser/audio checks. The updated harness passed its 60-second smoke check.
+checkpoint in the runtime record. The sample-enabled 1800-second run passed on
+build `1c68b1666ee5` / commit `fb20e3c`. Session `64814` exited successfully and
+closed its browser/server. Measurements and limitations are in the runtime record;
+the receipt is `.algorave-preview/sample-soak-receipt.json`.
 The prepared six-call provider test is awaiting the owner's authorization.
 The [release preparation](algorave-release-candidate.md) records the implementation
 candidate, remaining acceptance gates and coordinated web rollback requirements.
