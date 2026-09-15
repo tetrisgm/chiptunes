@@ -25283,7 +25283,7 @@ var MusicBridge = class {
       }, 15e3);
       this.pending.set(id2, { resolve, reject, timer });
       if (type === "unlock") this.frame.contentWindow.postMessage({ id: id2, type }, "*");
-      else this.port.postMessage({ id: id2, type, source, token: options.token, play: options.play === true, samples: options.samples, assets: options.assets, restore: options.restore === true, checkpoint: options.checkpoint, checkpoints: options.checkpoints, defer: options.defer === true });
+      else this.port.postMessage({ id: id2, type, source, sliderId: options.sliderId, value: options.value, token: options.token, play: options.play === true, samples: options.samples, assets: options.assets, restore: options.restore === true, checkpoint: options.checkpoint, checkpoints: options.checkpoints, defer: options.defer === true });
     });
   }
   dispose() {
@@ -27648,7 +27648,7 @@ bridge = new MusicBridge(frame, (next) => {
 await bridge.ready;
 lock(false);
 status.textContent = session.recoveryError || initialVisualError || "Ready \xB7 \u2318/Ctrl Enter to run";
-$("build").textContent = "Algorave 7376fffe6eb9";
+$("build").textContent = "Algorave ddf4addc0d95";
 function draw(now) {
   shader2.render({ playing, time: now / 1e3, delta: last2 ? (now - last2) / 1e3 : 0, ...signals.at(performance.timeOrigin + now) });
   music.highlight(playing ? signals.highlights(performance.timeOrigin + now) : [], session.applied.music);

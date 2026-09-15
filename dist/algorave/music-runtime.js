@@ -49557,6 +49557,22 @@ ${JSON.stringify(t2, null, 2)}`);
   f2.prototype.markcss = function(value) {
     return markcss(value, this);
   };
+  var sliderValues = /* @__PURE__ */ new Map();
+  var snapshotSliders = () => new Map(sliderValues);
+  function restoreSliders(values) {
+    sliderValues.clear();
+    for (const [id2, value] of values) sliderValues.set(id2, value);
+  }
+  var slider = (value) => C3(value);
+  var sliderWithID = (id2, value) => {
+    sliderValues.set(id2, value);
+    return ry(() => sliderValues.get(id2));
+  };
+  function updateSlider(id2, value) {
+    if (typeof id2 !== "string" || !/^slider_\d+$/.test(id2) || !Number.isFinite(value) || !sliderValues.has(id2)) return false;
+    sliderValues.set(id2, value);
+    return true;
+  }
   var CDN = "https://strudel.b-cdn.net";
   var BANKS = [
     ["piano", "piano/"],
@@ -49590,7 +49606,7 @@ ${JSON.stringify(t2, null, 2)}`);
     return response.json();
   }
   async function registerDefaultSounds() {
-    await xn(soundfonts_exports, xen_exports, edo_exports, gamepad_exports, osc_exports, midi_exports, motion_exports, serial_exports, tidal_exports, mondough_exports, { markcss });
+    await xn(soundfonts_exports, xen_exports, edo_exports, gamepad_exports, osc_exports, midi_exports, motion_exports, serial_exports, tidal_exports, mondough_exports, { markcss, slider, sliderWithID });
     hc2();
     registerSoundfonts();
     await ao2(DIRT, `${CDN}/Dirt-Samples/`, { prebake: true });
@@ -49802,6 +49818,7 @@ ${JSON.stringify(t2, null, 2)}`);
         if (next.defer && play) throw Error("An opened project must remain stopped until Play.");
         const previous = { pattern: engine.state.pattern, activeCode: engine.state.activeCode, cps: engine.scheduler.cps, playing: engine.state.started, registry: { ...ae2.get() } };
         const visual = drawing.prepare();
+        const previousSliders = snapshotSliders();
         try {
           if (!play) await audio.suspend();
           else {
@@ -49810,7 +49827,10 @@ ${JSON.stringify(t2, null, 2)}`);
           }
           if (next.registry) restoreRegistry(next.registry);
           evaluationBank = next.bank;
-          if (!next.defer) await engine.evaluate(next.source, false);
+          if (!next.defer) {
+            restoreSliders([]);
+            await engine.evaluate(next.source, false);
+          }
           if (current2.cancelled) throw Error("Music edit cancelled.");
           if (!next.defer && engine.state.error) throw engine.state.error;
           if (play) {
@@ -49827,6 +49847,7 @@ ${JSON.stringify(t2, null, 2)}`);
           registries.set(++checkpoint, { ...ae2.get() });
           visual.complete(play, next.defer ? null : engine.state.pattern);
         } catch (error) {
+          restoreSliders(previousSliders);
           let resumed = false;
           try {
             restoreRegistry(previous.registry);
@@ -49853,6 +49874,11 @@ ${JSON.stringify(t2, null, 2)}`);
         if (!data3 || !Number.isSafeInteger(data3.id)) return;
         if (data3.type === "cancel") {
           if (operation?.id === data3.id) operation.cancelled = true;
+          return;
+        }
+        if (data3.type === "slider") {
+          const accepted = !busy && updateSlider(data3.sliderId, data3.value);
+          send({ type: "reply", id: data3.id, ...accepted ? {} : { error: "Slider is unavailable." } });
           return;
         }
         if (data3.type === "retain") {

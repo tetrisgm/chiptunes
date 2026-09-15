@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Standard sound setup and piano helper follow Strudel contributors' REPL:
 // https://codeberg.org/uzu/strudel/src/branch/main/website/src/repl/prebake.mjs
-import { pure, registerControl, Pattern, noteToMidi, valueToMidi, evalScope, samples, aliasBank, registerZZFXSounds } from '@strudel/web';
+import { pure, ref, registerControl, Pattern, noteToMidi, valueToMidi, evalScope, samples, aliasBank, registerZZFXSounds } from '@strudel/web';
 import * as soundfonts from '@strudel/soundfonts';
 import * as xen from '@strudel/xen';
 import * as edo from './vendor/edo/index.mjs';
@@ -17,6 +17,23 @@ import * as mondo from '@strudel/mondo';
 const {markcss:markcssControl} = registerControl('markcss');
 export const markcss = (value,pattern) => markcssControl(typeof value==='string'?pure(value):value,pattern);
 Pattern.prototype.markcss = function(value){return markcss(value,this);};
+
+// @strudel/codemirror 1.2.6 slider.mjs semantics: evaluation seeds the
+// value; ref reads it again at query time. Transport stays on our private port.
+const sliderValues = new Map();
+export const snapshotSliders = () => new Map(sliderValues);
+export function restoreSliders(values) {
+  sliderValues.clear();for(const [id,value] of values)sliderValues.set(id,value);
+}
+export const slider = value => pure(value);
+export const sliderWithID = (id,value) => {
+  sliderValues.set(id,value);
+  return ref(()=>sliderValues.get(id));
+};
+export function updateSlider(id,value) {
+  if(typeof id!=='string'||!/^slider_\d+$/.test(id)||!Number.isFinite(value)||!sliderValues.has(id))return false;
+  sliderValues.set(id,value);return true;
+}
 
 export const CDN = 'https://strudel.b-cdn.net';
 export const BANKS = [
@@ -55,7 +72,7 @@ async function catalog(name) {
 }
 
 export async function registerDefaultSounds() {
-  await evalScope(soundfonts, xen, edo, gamepad, osc, midi, motion, serial, tidal, mondo, {markcss});
+  await evalScope(soundfonts, xen, edo, gamepad, osc, midi, motion, serial, tidal, mondo, {markcss,slider,sliderWithID});
   registerZZFXSounds(); soundfonts.registerSoundfonts();
   await samples(DIRT, `${CDN}/Dirt-Samples/`, {prebake:true});
   const tasks = BANKS.map(async ([name, base, tag]) => samples(await catalog(name), `${CDN}/${base}`, {prebake:true,tag}));

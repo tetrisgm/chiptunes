@@ -4,7 +4,7 @@ import { initStrudel, transpiler, getAudioContext, initAudio, getSuperdoughAudio
 import { drumWav } from './drum-samples.mjs';
 import { SampleByteStore } from './sample-assets.mjs';
 import { SampleBank } from './sample-bank.mjs';
-import { registerDefaultSounds } from './strudel-prebake.mjs';
+import { registerDefaultSounds, updateSlider, snapshotSliders, restoreSliders } from './strudel-prebake.mjs';
 import { createDrawingHost } from './strudel-drawing.mjs';
 
 let connected = false;
@@ -116,6 +116,7 @@ window.addEventListener('message', async event => {
       if(next.defer&&play)throw Error('An opened project must remain stopped until Play.');
       const previous={pattern:engine.state.pattern,activeCode:engine.state.activeCode,cps:engine.scheduler.cps,playing:engine.state.started,registry:{...soundMap.get()}};
       const visual=drawing.prepare();
+      const previousSliders=snapshotSliders();
       try {
         if(!play)await audio.suspend();else{
           await audio.resume();
@@ -123,7 +124,7 @@ window.addEventListener('message', async event => {
         }
         if(next.registry)restoreRegistry(next.registry);
         evaluationBank=next.bank;
-        if(!next.defer)await engine.evaluate(next.source,false);
+        if(!next.defer){restoreSliders([]);await engine.evaluate(next.source,false);}
         if(current.cancelled)throw Error('Music edit cancelled.');
         if(!next.defer&&engine.state.error)throw engine.state.error;
         if(play){if(!previous.playing){epoch++;events.length=0;}if(!engine.state.started)await engine.start();}
@@ -131,6 +132,7 @@ window.addEventListener('message', async event => {
         registries.set(++checkpoint,{...soundMap.get()});
         visual.complete(play,next.defer?null:engine.state.pattern);
       }catch(error){
+        restoreSliders(previousSliders);
         let resumed=false;
         try{
           restoreRegistry(previous.registry);
@@ -147,6 +149,10 @@ window.addEventListener('message', async event => {
     port.onmessage=async({data})=>{
       if(!data||!Number.isSafeInteger(data.id))return;
       if(data.type==='cancel'){if(operation?.id===data.id)operation.cancelled=true;return;}
+      if(data.type==='slider'){
+        const accepted=!busy&&updateSlider(data.sliderId,data.value);
+        send({type:'reply',id:data.id,...(accepted?{}:{error:'Slider is unavailable.'})});return;
+      }
       if(data.type==='retain'){
         if(Array.isArray(data.checkpoints)&&data.checkpoints.length<=21&&data.checkpoints.every(Number.isSafeInteger)){
           const keep=new Set([0,checkpoint,...data.checkpoints]);

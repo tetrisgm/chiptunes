@@ -40,7 +40,7 @@ export class MusicBridge {
       const timer = setTimeout(() => { this.pending.delete(id); this.port.postMessage({id,type:'cancel'}); reject(Error('Music evaluation timed out. Stop and reload the engine.')); }, 15000);
       this.pending.set(id, { resolve, reject, timer });
       if(type==='unlock')this.frame.contentWindow.postMessage({id,type},'*');
-      else this.port.postMessage({ id, type, source, token: options.token, play: options.play === true, samples:options.samples,assets:options.assets,restore:options.restore===true,checkpoint:options.checkpoint,checkpoints:options.checkpoints,defer:options.defer===true });
+      else this.port.postMessage({ id, type, source, sliderId:options.sliderId,value:options.value,token: options.token, play: options.play === true, samples:options.samples,assets:options.assets,restore:options.restore===true,checkpoint:options.checkpoint,checkpoints:options.checkpoints,defer:options.defer===true });
     });
   }
   dispose() {

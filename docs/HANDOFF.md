@@ -85,6 +85,11 @@ metadata. Chromium timing/audio/Run/Undo tests pass. Live event highlighting and
 markcss now pass Chromium checks, including remapping after an unrun insertion.
 Native highlighting verification remains pending.
 
+The slider runtime now accepts upstream slider syntax and private-port value
+updates; Chromium checks cover live query changes and failed-edit rollback.
+Inline slider controls and native acceptance remain unfinished. See
+`scripts/verify-algorave-slider.cjs`.
+
 Next: complete the remaining Strudel input/drawing/module scope and Shadertoy
 media and Sound contracts; complete final browser/acoustic
 acceptance and check performance appropriate to subsequent changes. Chromium DSP checks use an explicit
