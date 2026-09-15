@@ -12,6 +12,7 @@ function build({out=path.join(root,'.algorave-preview')}={}){
   for(const file of ['index.mjs','gamepad.mjs','UPSTREAM.json'])id.update(fs.readFileSync(path.join(root,'src/algorave/vendor/gamepad',file)));
   id.update(fs.readFileSync(path.join(root,'src/algorave/shader-images.mjs')));
   id.update(fs.readFileSync(path.join(root,'src/algorave/shader-channel-editor.mjs')));
+  for(const file of ['index.mjs','motion.mjs','UPSTREAM.json'])id.update(fs.readFileSync(path.join(root,'src/algorave/vendor/motion',file)));
   id.update(fs.readFileSync(__filename));
   id.update(fs.readFileSync(path.join(root,'package-lock.json')));
   for(const file of ['index.mjs','midi.mjs','UPSTREAM.json'])id.update(fs.readFileSync(path.join(root,'src/algorave/vendor/midi',file)));

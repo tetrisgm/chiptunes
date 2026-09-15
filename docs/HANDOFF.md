@@ -69,7 +69,8 @@ output. Dynamic Sound inputs and production-origin acceptance remain pending. Se
 
 The build fingerprint now includes `shader-sound.mjs`; earlier Sound checkpoint
 IDs identify the recorded tests but did not independently cover that source file.
-Motion module integration is next available Strudel work; see the
+Motion signals are integrated and synthetic Chromium checks pass; native/device
+permission acceptance remains pending. See the
 [motion inventory](algorave-runtime-decisions.md#motion-module-inventory--2026-09-15).
 
 Next: complete the remaining Strudel input/drawing/module scope and Shadertoy

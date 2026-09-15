@@ -145,6 +145,13 @@ void mainImage(out vec4 c, in vec2 p) {
   float rings = sin(length(uv)*20.-iTime*3.-ctKick*4.);
   c = vec4(vec3(.3,.7,1.)*smoothstep(0.,.2,rings),1.);
 }
+Motion input uses await enableMotion(), then accelerationX/Y/Z (accX/Y/Z),
+gravityX/Y/Z (gravX/Y/Z), rotationAlpha/Beta/Gamma (rotA/B/G),
+orientationAlpha/Beta/Gamma (oriA/B/G), and absoluteOrientationAlpha/Beta/Gamma
+(absOriA/B/G). These are ordinary Strudel signals; use range/segment to map them.
+Sensor availability and permission depend on the browser/device. Do not assume
+permission is granted or that a desktop has motion sensors.
+
 Sound is an optional GLSL document with vec2 mainSound(int samp,float time),
 returning left/right samples in [-1,1]. Common code is shared. Sound renders a
 finite 180-second track before applying the edit; Play/Stop pauses/resumes it.

@@ -37,6 +37,7 @@
     "test:algorave-drawing": "node build.js --algorave-preview && node scripts/verify-algorave-drawing.cjs",
     "test:algorave-image-project": "node scripts/verify-algorave-image-project.mjs && node build.js --algorave-preview && node scripts/verify-algorave-image-project.cjs",
     "test:algorave-audio-input": "node build.js --algorave-preview && node scripts/verify-algorave-audio-input.cjs",
+    "test:algorave-motion": "node build.js --algorave-preview && node scripts/verify-algorave-motion.cjs",
     "test:algorave-sound": "node scripts/verify-algorave-sound.cjs && node build.js --algorave-preview && node scripts/verify-algorave-sound-workspace.cjs",
     "test:algorave-camera": "node build.js --algorave-preview && node scripts/verify-algorave-camera.cjs",
     "test:algorave-video": "node build.js --algorave-preview && node scripts/verify-algorave-video.cjs",

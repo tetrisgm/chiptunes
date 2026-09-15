@@ -20303,7 +20303,7 @@ registerProcessor('${n2}', MyProcessor);
         symbols: () => symbols
       });
       module.exports = __toCommonJS(chord_type_exports);
-      var import_core19 = require_dist18();
+      var import_core20 = require_dist18();
       var import_pcset = require_dist11();
       var CHORDS = [
         ["1P 3M 5P", "major", "M ^  maj"],
@@ -20442,7 +20442,7 @@ registerProcessor('${n2}', MyProcessor);
       function get(type) {
         return index[type] || NoChordType;
       }
-      var chordType = (0, import_core19.deprecate)("ChordType.chordType", "ChordType.get", get);
+      var chordType = (0, import_core20.deprecate)("ChordType.chordType", "ChordType.get", get);
       function names() {
         return dictionary.map((chord) => chord.name).filter((x4) => x4);
       }
@@ -20455,7 +20455,7 @@ registerProcessor('${n2}', MyProcessor);
       function all() {
         return dictionary.slice();
       }
-      var entries = (0, import_core19.deprecate)("ChordType.entries", "ChordType.all", all);
+      var entries = (0, import_core20.deprecate)("ChordType.entries", "ChordType.all", all);
       function removeAll() {
         dictionary = [];
         index = {};
@@ -20779,7 +20779,7 @@ registerProcessor('${n2}', MyProcessor);
       module.exports = __toCommonJS(chord_exports);
       var import_chord_detect = require_dist13();
       var import_chord_type = require_dist19();
-      var import_core19 = require_dist18();
+      var import_core20 = require_dist18();
       var import_core22 = require_dist18();
       var import_pcset = require_dist11();
       var import_scale_type = require_dist20();
@@ -20883,12 +20883,12 @@ registerProcessor('${n2}', MyProcessor);
       }
       function degrees(chordName) {
         const { intervals, tonic } = get(chordName);
-        const transpose2 = (0, import_core19.tonicIntervalsTransposer)(intervals, tonic);
+        const transpose2 = (0, import_core20.tonicIntervalsTransposer)(intervals, tonic);
         return (degree) => degree ? transpose2(degree > 0 ? degree - 1 : degree) : "";
       }
       function steps(chordName) {
         const { intervals, tonic } = get(chordName);
-        return (0, import_core19.tonicIntervalsTransposer)(intervals, tonic);
+        return (0, import_core20.tonicIntervalsTransposer)(intervals, tonic);
       }
       var chord_default = {
         getChord,
@@ -46770,6 +46770,221 @@ registerProcessor('${n2}', MyProcessor);
   var getGamepadStates = () => Object.fromEntries(gamepadStates);
   var clearGamepadStates = () => gamepadStates.clear();
 
+  // src/algorave/vendor/motion/index.mjs
+  var motion_exports = {};
+  __export(motion_exports, {
+    absOriA: () => absOriA,
+    absOriB: () => absOriB,
+    absOriG: () => absOriG,
+    absOriX: () => absOriX,
+    absOriY: () => absOriY,
+    absOriZ: () => absOriZ,
+    absoluteOrientationAlpha: () => absoluteOrientationAlpha,
+    absoluteOrientationBeta: () => absoluteOrientationBeta,
+    absoluteOrientationGamma: () => absoluteOrientationGamma,
+    absoluteOrientationX: () => absoluteOrientationX,
+    absoluteOrientationY: () => absoluteOrientationY,
+    absoluteOrientationZ: () => absoluteOrientationZ,
+    accX: () => accX,
+    accY: () => accY,
+    accZ: () => accZ,
+    accelerationX: () => accelerationX,
+    accelerationY: () => accelerationY,
+    accelerationZ: () => accelerationZ,
+    enableMotion: () => enableMotion,
+    gravX: () => gravX,
+    gravY: () => gravY,
+    gravZ: () => gravZ,
+    gravityX: () => gravityX,
+    gravityY: () => gravityY,
+    gravityZ: () => gravityZ,
+    oriA: () => oriA,
+    oriB: () => oriB,
+    oriG: () => oriG,
+    oriX: () => oriX,
+    oriY: () => oriY,
+    oriZ: () => oriZ,
+    orientationA: () => orientationA,
+    orientationAlpha: () => orientationAlpha,
+    orientationB: () => orientationB,
+    orientationBeta: () => orientationBeta,
+    orientationG: () => orientationG,
+    orientationGamma: () => orientationGamma,
+    orientationX: () => orientationX,
+    orientationY: () => orientationY,
+    orientationZ: () => orientationZ,
+    rotA: () => rotA,
+    rotB: () => rotB,
+    rotG: () => rotG,
+    rotX: () => rotX,
+    rotY: () => rotY,
+    rotZ: () => rotZ,
+    rotationAlpha: () => rotationAlpha,
+    rotationBeta: () => rotationBeta,
+    rotationGamma: () => rotationGamma,
+    rotationX: () => rotationX,
+    rotationY: () => rotationY,
+    rotationZ: () => rotationZ
+  });
+
+  // src/algorave/vendor/motion/motion.mjs
+  init_dist2();
+  var DeviceMotionHandler = class {
+    constructor() {
+      this.GRAVITY = 9.81;
+      this._acceleration = {
+        x: 0,
+        y: 0,
+        z: 0
+      };
+      this._gravity = {
+        x: 0,
+        y: 0,
+        z: 0
+      };
+      this._rotation = {
+        alpha: 0,
+        beta: 0,
+        gamma: 0
+      };
+      this._orientation = {
+        alpha: 0,
+        beta: 0,
+        gamma: 0
+      };
+      this._absoluteOrientation = {
+        alpha: 0,
+        beta: 0,
+        gamma: 0
+      };
+      this._permissionStatus = "unknown";
+    }
+    async requestPermissions() {
+      if (this._listening) return;
+      if (typeof globalThis.DeviceMotionEvent === "undefined") throw Error("Device motion is unavailable in this browser.");
+      if (typeof globalThis.DeviceMotionEvent.requestPermission === "function") {
+        try {
+          const motionPermission = await DeviceMotionEvent.requestPermission();
+          const orientationPermission = await DeviceOrientationEvent.requestPermission();
+          this._permissionStatus = motionPermission === "granted" && orientationPermission === "granted" ? "granted" : "denied";
+          this.setupEventListeners();
+        } catch (error) {
+          console.error("Permission request failed:", error);
+          this._permissionStatus = "denied";
+        }
+      } else {
+        this._permissionStatus = "granted";
+        this.setupEventListeners();
+      }
+    }
+    setupEventListeners() {
+      if (this._permissionStatus === "granted" && !this._listening) {
+        this._listening = true;
+        window.addEventListener("devicemotion", this.handleDeviceMotion.bind(this), true);
+        window.addEventListener("deviceorientation", this.handleDeviceOrientation.bind(this), true);
+        window.addEventListener("deviceorientationabsolute", this.handleAbsoluteDeviceOrientation.bind(this), true);
+      }
+    }
+    handleDeviceMotion(event) {
+      if (event.acceleration) {
+        this._acceleration.x = (event.acceleration.x + 1) / 2;
+        this._acceleration.y = (event.acceleration.y + 1) / 2;
+        this._acceleration.z = (event.acceleration.z + 1) / 2;
+      }
+      if (event.accelerationIncludingGravity) {
+        this._gravity.x = (event.accelerationIncludingGravity.x + this.GRAVITY) / (2 * this.GRAVITY);
+        this._gravity.y = (event.accelerationIncludingGravity.y + this.GRAVITY) / (2 * this.GRAVITY);
+        this._gravity.z = (event.accelerationIncludingGravity.z + this.GRAVITY) / (2 * this.GRAVITY);
+      }
+      if (event.rotationRate) {
+        this._rotation.alpha = (event.rotationRate.alpha + 180) / 360;
+        this._rotation.beta = (event.rotationRate.beta + 180) / 360;
+        this._rotation.gamma = (event.rotationRate.gamma + 180) / 360;
+      }
+    }
+    handleDeviceOrientation(event) {
+      this._orientation.alpha = event.alpha / 360;
+      this._orientation.beta = (event.beta + 180) / 360;
+      this._orientation.gamma = (event.gamma + 90) / 180;
+    }
+    handleAbsoluteDeviceOrientation(event) {
+      this._absoluteOrientation.alpha = event.alpha / 360;
+      this._absoluteOrientation.beta = (event.beta + 180) / 360;
+      this._absoluteOrientation.gamma = (event.gamma + 90) / 180;
+    }
+    // Getter methods for current values
+    getAcceleration() {
+      return this._acceleration;
+    }
+    getGravity() {
+      return this._gravity;
+    }
+    getRotation() {
+      return this._rotation;
+    }
+    getOrientation() {
+      return this._orientation;
+    }
+    getAbsoluteOrientation() {
+      return this._absoluteOrientation;
+    }
+  };
+  var deviceMotion = new DeviceMotionHandler();
+  async function enableMotion() {
+    return deviceMotion.requestPermissions();
+  }
+  var accelerationX = j2(() => deviceMotion.getAcceleration().x);
+  var accelerationY = j2(() => deviceMotion.getAcceleration().y);
+  var accelerationZ = j2(() => deviceMotion.getAcceleration().z);
+  var accX = accelerationX;
+  var accY = accelerationY;
+  var accZ = accelerationZ;
+  var gravityX = j2(() => deviceMotion.getGravity().x);
+  var gravityY = j2(() => deviceMotion.getGravity().y);
+  var gravityZ = j2(() => deviceMotion.getGravity().z);
+  var gravX = gravityX;
+  var gravY = gravityY;
+  var gravZ = gravityZ;
+  var orientationAlpha = j2(() => deviceMotion.getOrientation().alpha);
+  var orientationBeta = j2(() => deviceMotion.getOrientation().beta);
+  var orientationGamma = j2(() => deviceMotion.getOrientation().gamma);
+  var orientationA = orientationAlpha;
+  var orientationB = orientationBeta;
+  var orientationG = orientationGamma;
+  var orientationX = orientationBeta;
+  var orientationY = orientationGamma;
+  var orientationZ = orientationAlpha;
+  var oriA = orientationAlpha;
+  var oriB = orientationBeta;
+  var oriG = orientationGamma;
+  var oriX = orientationX;
+  var oriY = orientationY;
+  var oriZ = orientationZ;
+  var absoluteOrientationAlpha = j2(() => deviceMotion.getAbsoluteOrientation().alpha);
+  var absoluteOrientationBeta = j2(() => deviceMotion.getAbsoluteOrientation().beta);
+  var absoluteOrientationGamma = j2(() => deviceMotion.getAbsoluteOrientation().gamma);
+  var absOriA = absoluteOrientationAlpha;
+  var absOriB = absoluteOrientationBeta;
+  var absOriG = absoluteOrientationGamma;
+  var absoluteOrientationX = absoluteOrientationBeta;
+  var absoluteOrientationY = absoluteOrientationGamma;
+  var absoluteOrientationZ = absoluteOrientationAlpha;
+  var absOriX = absoluteOrientationX;
+  var absOriY = absoluteOrientationY;
+  var absOriZ = absoluteOrientationZ;
+  var rotationAlpha = j2(() => deviceMotion.getRotation().alpha);
+  var rotationBeta = j2(() => deviceMotion.getRotation().beta);
+  var rotationGamma = j2(() => deviceMotion.getRotation().gamma);
+  var rotationX = rotationBeta;
+  var rotationY = rotationGamma;
+  var rotationZ = rotationAlpha;
+  var rotA = rotationAlpha;
+  var rotB = rotationBeta;
+  var rotG = rotationGamma;
+  var rotX = rotationX;
+  var rotY = rotationY;
+  var rotZ = rotationZ;
+
   // src/algorave/strudel-prebake.mjs
   var CDN = "https://strudel.b-cdn.net";
   var BANKS = [
@@ -46804,7 +47019,7 @@ registerProcessor('${n2}', MyProcessor);
     return response.json();
   }
   async function registerDefaultSounds() {
-    await xn(soundfonts_exports, xen_exports, edo_exports, gamepad_exports, osc_exports, midi_exports);
+    await xn(soundfonts_exports, xen_exports, edo_exports, gamepad_exports, osc_exports, midi_exports, motion_exports);
     hc2();
     registerSoundfonts();
     await ao2(DIRT, `${CDN}/Dirt-Samples/`, { prebake: true });

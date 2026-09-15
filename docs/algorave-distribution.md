@@ -96,3 +96,7 @@ does not authorize desktop reinstallation, broadcast changes or a license change
 to existing source files. The earlier six provider calls were separately authorized.
 Native Safari, sustained performance, asset handling and live-provider acceptance
 remain separate goal requirements. Preserve this record in the release review.
+
+The motion input module uses @strudel/motion 1.2.6 preferred source under
+AGPL-3.0-or-later. Its original checksums and import/lifecycle adaptations are
+recorded in src/algorave/vendor/motion/UPSTREAM.json.

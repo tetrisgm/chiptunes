@@ -1537,3 +1537,19 @@ inputs. It is now included. Existing source archives already contained it; this
 fix makes future Sound-only changes alter the visible build ID. Official live
 Shadertoy Sound-input code remained inaccessible (challenge/402); third-party
 copies are insufficient to establish its current dynamic-input contract.
+
+### Motion integration checkpoint
+
+Vendored preferred source from published @strudel/motion 1.2.6 is registered in
+the upstream evalScope. UPSTREAM.json records original file hashes, license and
+three small adaptations: core import resolution, a missing-API diagnostic and
+idempotent listener setup. Signal names, aliases and sensor formulas are unchanged.
+The iframe delegates accelerometer, gyroscope and magnetometer policy; permission
+is requested only through enableMotion, never at project load.
+
+`test:algorave-motion` passes on `187585571e17`: the real opaque-frame policies,
+missing API, fixture permission denial/grant, one listener per event after repeat
+enabling, fifteen formula outputs, aliases and source-driven audible DSP. Sensor
+subscriptions and permission functions are replaced in the fixture; the actual
+Web Audio output uses a silent sink. Native Safari/iOS, user activation transfer,
+physical sensor behavior and device permission acceptance remain unverified.
