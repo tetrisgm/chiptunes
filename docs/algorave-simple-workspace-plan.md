@@ -53,9 +53,10 @@ implemented starting point, not the final compatibility boundary. Keep additiona
 passes, media inputs and sampler settings behind secondary controls. Specify
 and test iResolution, iTime, iTimeDelta, iFrame, iMouse, iDate, iSampleRate,
 iChannel0-3, channel resolution/time and the audio texture layout against official
-references. Explicitly document unsupported channel types and Sound/VR/cubemap
+references. Explicitly document unsupported channel types and Sound/cubemap
 passes; do not promise arbitrary Shadertoy URLs work. No scraping shader galleries.
 Use original or appropriately licensed examples and assets.
+VR is excluded at the owner’s explicit request on 2026-09-15.
 
 Expose Strudel's actual audio analysis and scheduled musical time to shaders.
 Standard audio texture inputs provide waveform/spectrum; separately documented
@@ -107,9 +108,9 @@ sound/input/drawing modules, including their
 normal source-language APIs, rather than requiring rewritten examples.
 
 The visual runtime now has HTTPS and portable local 2D/cube image textures, sampler
-settings and keyboard input. Media input lifecycles, volume textures and Cubemap output,
-Sound and VR passes remain outstanding. Implement and test
-those against the official contracts, including persistence and resource cleanup;
+settings, keyboard input, volume textures and Cubemap output. Media input lifecycles
+and Sound output remain outstanding. VR is explicitly excluded by the owner.
+Implement and test the remaining capabilities against the official contracts, including persistence and resource cleanup;
 do not turn their absence into the final product specification. A valid shader
 must retain its GLSL rather than be rewritten to avoid an unsupported channel.
 Original test programs and appropriately licensed assets must prove each behavior.

@@ -4,6 +4,7 @@
 
 The active goal requires full Strudel and Shadertoy capability in their languages,
 real AI chat → Apply → Undo in native Safari and Chromium, and public deployment.
+VR is excluded at the owner’s explicit request on 2026-09-15.
 Do not close it using the earlier limited compatibility contract.
 
 The serialized music worker has been replaced by upstream evaluation, scheduler
@@ -42,8 +43,13 @@ Volume inputs now support standard sampler3D, local/HTTPS .bin data and portable
 projects, verified in Chromium and native Safari on `6e2c54863c46`; see the
 [volume checkpoint](algorave-runtime-decisions.md#volume-texture-inputs--2026-09-15).
 
+Video texture inputs now support HTTPS/local media, playback, standard uniforms,
+Run/Undo and portable persistence. Chromium passes on `0555234bba84`; native Safari
+playback/editing and final stopped reload pass locally. See the
+[video checkpoint](algorave-runtime-decisions.md#video-texture-inputs--2026-09-15).
+
 Next: complete the remaining Strudel input/drawing/module scope and Shadertoy
-media, Sound and VR contracts; complete final browser/acoustic
+media and Sound contracts; complete final browser/acoustic
 acceptance and check performance appropriate to subsequent changes. Chromium DSP checks use an explicit
 silent sink after default-device failures also affected upstream. Six saved real
 provider replies are available for zero-call replay. Native OpenAI music, visual

@@ -28,16 +28,16 @@ async function resolveImage(id){
   if(!store.has(id)){imageStorePromise=null;store=await imageStore();}
   return store.blob(id);
 }
-async function importImage(file,{volume=false}={}){
+async function importImage(file,{volume=false,video=false}={}){
   if(uiBusy)throw Error('Wait for the current edit to finish.');
   lock(true);
   try{
     if(file.size>IMAGE_BYTES)throw Error('Texture files must be at most 16 MiB.');
     const store=(await imageStore()).fork(),{id}=await store.put(new Uint8Array(await file.arrayBuffer()));
     const type=await validateVisualAsset(store.blob(id));
-    if(volume===type.startsWith('image/'))throw Error(volume?'Choose a Shadertoy .bin volume.':'Choose an image for this channel.');
+    if(video?!type.startsWith('video/'):volume?type!=='application/x-shadertoy-volume':!type.startsWith('image/'))throw Error(video?'Choose a supported video.':volume?'Choose a Shadertoy .bin volume.':'Choose an image for this channel.');
     await saveImages(store);imageStorePromise=Promise.resolve(store);
-    status.textContent=(type.startsWith('image/')?'Image':'Volume')+' imported · Set channels, then Run visuals';
+    status.textContent=(video?'Video':volume?'Volume':'Image')+' imported · Set channels, then Run visuals';
     return 'asset:'+id;
   }finally{lock(false);}
 }
@@ -176,10 +176,10 @@ $('play').onclick = async () => {
   if (!playing) { focus = 'music'; await run(); return; }
   stopGeneration++;
   if(uiBusy){
-    try{await bridge.request('stop');playing=false;$('play').textContent='Play';$('play').disabled=true;status.textContent='Stopped';}
+    try{await bridge.request('stop');playing=false;shader.setPlaying(false);$('play').textContent='Play';$('play').disabled=true;status.textContent='Stopped';}
     catch(error){message(error);}return;
   }
-  await action(async () => { await bridge.request('stop'); playing = false; status.textContent = 'Stopped'; });
+  await action(async () => { await bridge.request('stop'); playing = false; shader.setPlaying(false);status.textContent = 'Stopped'; });
 };
 async function openProject(next) {
   await action(async () => {
@@ -223,7 +223,7 @@ $('examples').onchange = async () => {
 async function leaveFor(path) {
   await action(async()=>{
     session.save();
-    await bridge.request('stop');playing=false;bridge.dispose();
+    await bridge.request('stop');playing=false;shader.setPlaying(false);bridge.dispose();
     // Change the query/path too, so this is a full navigation rather than a
     // same-document hash change that could leave another engine alive.
     window.top.location.assign(path);
@@ -335,11 +335,11 @@ const script = await response.text();
 // remain inaccessible because allow-same-origin is deliberately absent.
 frame.srcdoc = `<!doctype html><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' blob: data: https:; worker-src blob: data:; connect-src blob: data: https: http: ws://localhost:8080; img-src blob: data: https:; media-src blob: data: https:; style-src 'unsafe-inline'"><style>body{margin:0;background:#161821;color:#dbdbe9;overflow:hidden}body[data-drawing-pending] canvas:not([data-drawing-preview]){visibility:hidden!important}</style><body><script>${script.replace(/<\/script/gi,'<\\/script')}<\/script>`;
 await new Promise(resolve => { frame.onload = resolve; $('music-editor').append(frame); });
-bridge = new MusicBridge(frame, next => { signal = next; signals.receive(next); }, error => { playing=false; $('play').textContent='Play'; message(error); }, message,visible=>{frame.hidden=!visible;});
+bridge = new MusicBridge(frame, next => { signal = next; signals.receive(next); }, error => { playing=false;shader.setPlaying(false); $('play').textContent='Play'; message(error); }, message,visible=>{frame.hidden=!visible;});
 await bridge.ready; lock(false);
 status.textContent = session.recoveryError || initialVisualError || 'Ready · ⌘/Ctrl Enter to run'; $('build').textContent = BUILD_ID;
 function draw(now) {
-  shader.render({time:now/1000,delta:last?(now-last)/1000:0,...signals.at(performance.timeOrigin + now)});
+  shader.render({playing,time:now/1000,delta:last?(now-last)/1000:0,...signals.at(performance.timeOrigin + now)});
   last = now; requestAnimationFrame(draw);
 }
 requestAnimationFrame(draw);

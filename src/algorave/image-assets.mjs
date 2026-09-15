@@ -1,4 +1,5 @@
 import {IMAGE_BYTES,decodeShaderImage} from './shader-images.mjs';
+import {decodeShaderVideo} from './shader-video.mjs';
 import {isVolume,parseVolume,VOLUME_TYPE} from './shader-volume.mjs';
 export const IMAGE_LIMITS=Object.freeze({fileBytes:IMAGE_BYTES,totalBytes:64*1024*1024,count:32});
 // Identify encoded content independently of the filename or the archive metadata.
@@ -9,6 +10,8 @@ export function imageType(bytes){
   const word=(start,length)=>String.fromCharCode(...bytes.subarray(start,start+length));
   if([137,80,78,71,13,10,26,10].every((v,i)=>bytes[i]===v))return 'image/png';
   if(bytes[0]===255&&bytes[1]===216&&bytes[2]===255)return 'image/jpeg';
+  if([26,69,223,163].every((v,i)=>bytes[i]===v))return 'video/webm';
+  if(word(0,4)==='OggS')return 'video/ogg';
   if(word(0,4)==='RIFF'&&word(8,4)==='WEBP')return 'image/webp';
   if(['GIF87a','GIF89a'].includes(word(0,6)))return 'image/gif';
   if(word(0,2)==='BM')return 'image/bmp';
@@ -16,9 +19,10 @@ export function imageType(bytes){
     const size=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength).getUint32(0);
     if(size>=16&&size<=bytes.length&&size%4===0){
       for(let offset=8;offset<size;offset+=4)if(offset!==12&&['avif','avis'].includes(word(offset,4)))return 'image/avif';
+      for(let offset=8;offset<size;offset+=4)if(offset!==12&&['isom','iso2','mp41','mp42','avc1','M4V ','qt  '].includes(word(offset,4)))return 'video/mp4';
     }
   }
-  throw Error('Use a PNG, JPEG, WebP, AVIF, GIF, BMP image or Shadertoy .bin volume.');
+  throw Error('Use a PNG, JPEG, WebP, AVIF, GIF, BMP image, MP4/WebM/Ogg video or Shadertoy .bin volume.');
 }
 export class ImageByteStore {
   #items=new Map();#total=0;
@@ -40,6 +44,7 @@ export class ImageByteStore {
 
 export async function validateVisualAsset(blob){
   const type=imageType(new Uint8Array(await blob.arrayBuffer()));
-  if(type!==VOLUME_TYPE)(await decodeShaderImage(blob)).close();
+  if(type.startsWith('video/'))(await decodeShaderVideo(blob)).close();
+  else if(type!==VOLUME_TYPE)(await decodeShaderImage(blob)).close();
   return type;
 }

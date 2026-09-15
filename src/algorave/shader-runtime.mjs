@@ -1,6 +1,7 @@
 // A shader owns no transport. The caller supplies time, audio and event signals.
 import contract from './project.cjs';
 import {loadShaderImage,decodeShaderImage,imageKey,IMAGE_PIXELS} from './shader-images.mjs';
+import {loadShaderVideo,decodeShaderVideo} from './shader-video.mjs';
 import {loadShaderVolume,decodeShaderVolume} from './shader-volume.mjs';
 const inputInfo=input=>typeof input==='string'?{type:['audio','keyboard'].includes(input)?input:'buffer',source:input}:input||{type:'empty'};
 const VERTEX = `#version 300 es
@@ -65,6 +66,7 @@ export class ShaderRuntime {
       webglcontextlost: event => {
         event.preventDefault(); this.lost = true; this.generation++;
         for(const controller of this.loads)controller.abort();
+        for(const passes of [this.passes,...[...this.retained].map(p=>p.passes)])for(const texture of new Set(passes.flatMap(p=>p.images))){texture.media?.close();texture.media=null;}
         for(const previous of this.retained)previous.invalid=true;
         for (const candidate of [...this.candidates]) candidate.dispose();
         this.onStatus('Visuals paused while the graphics context recovers. Music continues.');
@@ -155,6 +157,22 @@ export class ShaderRuntime {
       g.texParameteri(g.TEXTURE_2D,g.TEXTURE_WRAP_S,g.CLAMP_TO_EDGE);g.texParameteri(g.TEXTURE_2D,g.TEXTURE_WRAP_T,g.CLAMP_TO_EDGE);
       return {texture,width:bitmap.width,height:bitmap.height};
     }catch(error){g.deleteTexture(texture);throw error;}
+  }
+  videoTexture(media,input){
+    const g=this.gl;
+    if(media.width>g.getParameter(g.MAX_TEXTURE_SIZE)||media.height>g.getParameter(g.MAX_TEXTURE_SIZE))throw Error('Video exceeds this graphics device’s size limit.');
+    const result={texture:g.createTexture(),width:media.width,height:media.height,media:media.retain(),source:input.src,vflip:input.vflip===true,srgb:input.srgb===true};
+    try{this.updateVideo(result);return result;}catch(error){this.deleteTarget(result);throw error;}
+  }
+  updateVideo(texture){
+    const g=this.gl,video=texture.media.video;if(video.readyState<2)return;
+    g.bindTexture(g.TEXTURE_2D,texture.texture);
+    g.pixelStorei(g.UNPACK_FLIP_Y_WEBGL,texture.vflip);g.pixelStorei(g.UNPACK_PREMULTIPLY_ALPHA_WEBGL,false);
+    try{
+      g.texImage2D(g.TEXTURE_2D,0,texture.srgb?g.SRGB8_ALPHA8:g.RGBA8,g.RGBA,g.UNSIGNED_BYTE,video);
+      if(g.getError()!==g.NO_ERROR)throw Error('Video texture upload failed.');
+      texture.width=video.videoWidth;texture.height=video.videoHeight;texture.mipmaps=false;
+    }finally{g.pixelStorei(g.UNPACK_FLIP_Y_WEBGL,false);}
   }
   cubeTexture(bitmaps,srgb=false){
     const g=this.gl,size=bitmaps[0].width;
@@ -269,13 +287,13 @@ export class ShaderRuntime {
         next.push(pass);
         for(let i=0;i<4;i++){
           const input=inputInfo(channels[i]);pass.samplers.push(this.sampler(channels[i]));
-          if(input.type==='texture'||input.type==='cubemap'||input.type==='volume'){
+          if(input.type==='texture'||input.type==='cubemap'||input.type==='volume'||input.type==='video'){
             const sources=contract.textureSources(input),bitmaps=sources.map(src=>images.get(imageKey({src,vflip:input.vflip,type:input.type})));
             if(bitmaps.some(bitmap=>!bitmap))throw Error('Texture is not loaded. Use asynchronous preparation.');
             const key=JSON.stringify([input.type,sources,input.vflip===true,input.srgb===true]);
             if(!imageTextures.has(key)){
               imagePixels+=bitmaps.reduce((sum,b)=>sum+b.width*b.height*(b.depth||1),0);if(imagePixels>IMAGE_PIXELS*4)throw Error('Combined texture resolution exceeds 64 million pixels/voxels.');
-              imageTextures.set(key,input.type==='cubemap'?this.cubeTexture(bitmaps,input.srgb===true):input.type==='volume'?this.volumeTexture(bitmaps[0],input.srgb===true):this.imageTexture(bitmaps[0],input.srgb===true));
+              imageTextures.set(key,input.type==='video'?this.videoTexture(bitmaps[0],input):input.type==='cubemap'?this.cubeTexture(bitmaps,input.srgb===true):input.type==='volume'?this.volumeTexture(bitmaps[0],input.srgb===true):this.imageTexture(bitmaps[0],input.srgb===true));
             }
             pass.images[i]=imageTextures.get(key);
           }
@@ -290,6 +308,7 @@ export class ShaderRuntime {
           candidate.dispose(); throw Error('The visual output changed. Run this edit again.');
         }
         settled = true; this.candidates.delete(candidate);
+        for(const texture of new Set(this.passes.flatMap(p=>p.images)))texture.media?.setPlaying(false);
         if(retainPrevious){previous={passes:this.passes,frame:this.frame,document:this.document};this.retained.add(previous);}else this.deletePasses(this.passes);
         this.passes = next; this.frame = 0; this.document = document;
       },
@@ -324,8 +343,9 @@ export class ShaderRuntime {
       for(const input of inputs){
         const key=imageKey(input);if(images.has(key))continue;
         const options={signal:controller.signal,vflip:input.vflip},id=contract.imageId(input.src);
-        const decode=input.type==='volume'?decodeShaderVolume:decodeShaderImage,load=input.type==='volume'?loadShaderVolume:loadShaderImage;
-        const bitmap=id?await decode(await this.resolveImage(id),options):await load(input.src,options);images.set(key,bitmap);
+        const decode=input.type==='video'?decodeShaderVideo:input.type==='volume'?decodeShaderVolume:decodeShaderImage,load=input.type==='video'?loadShaderVideo:input.type==='volume'?loadShaderVolume:loadShaderImage;
+        const existing=input.type==='video'&&this.passes.flatMap(pass=>pass.images).find(texture=>texture.media&&texture.source===input.src);
+        const bitmap=existing?existing.media.retain():id?await decode(await this.resolveImage(id),options):await load(input.src,options);images.set(key,bitmap);
         pixels+=bitmap.width*bitmap.height*(bitmap.depth||1);if(pixels>IMAGE_PIXELS*4)throw Error('Combined texture resolution exceeds 64 million pixels/voxels.');
       }
       if(controller.signal.aborted||generation!==this.generation||this.disposed||this.lost)throw Error('Visual output changed while textures loaded. Run again.');
@@ -337,7 +357,8 @@ export class ShaderRuntime {
     if (!pass.uniforms.has(name)) pass.uniforms.set(name, this.gl.getUniformLocation(pass.program, name));
     this.gl[kind](pass.uniforms.get(name), ...values);
   }
-  render({ time = 0, delta = 0, cycle = 0, kick = 0, sampleRate = 44100, frequency, waveform, date = new Date() } = {}) {
+  setPlaying(playing){for(const texture of new Set(this.passes.flatMap(pass=>pass.images)))texture.media?.setPlaying(playing,this.onStatus);}
+  render({ playing = true, time = 0, delta = 0, cycle = 0, kick = 0, sampleRate = 44100, frequency, waveform, date = new Date() } = {}) {
     const g = this.gl;
     if (this.disposed || this.lost || g.isContextLost()) return false;
     if (frequency?.length === 512 && waveform?.length === 512) {
@@ -347,6 +368,9 @@ export class ShaderRuntime {
       this.audio.mipmaps=false;
     }
     g.bindTexture(g.TEXTURE_2D,this.keyboard.texture);g.texSubImage2D(g.TEXTURE_2D,0,0,0,256,3,g.RED,g.UNSIGNED_BYTE,this.keyboardBytes);this.keyboard.mipmaps=false;
+    for(const texture of new Set(this.passes.flatMap(pass=>pass.images)))if(texture.media){
+      texture.media.setPlaying(playing,this.onStatus);this.updateVideo(texture);
+    }
     const completed = new Map();
     for (const pass of this.passes) {
       const write = pass.targets[1-pass.read];
@@ -372,7 +396,7 @@ export class ShaderRuntime {
         g.bindSampler(i,pass.samplers[i]);
         this.uniform(pass,`iChannel${i}`,'uniform1i',i);
         this.uniform(pass,`iChannelResolution[${i}]`,'uniform3f',texture.width,texture.height,texture.depth||1);
-        this.uniform(pass,`iChannelTime[${i}]`,'uniform1f',input.type === 'audio' ? time : 0);
+        this.uniform(pass,`iChannelTime[${i}]`,'uniform1f',texture.media ? texture.media.video.currentTime : input.type === 'audio' ? time : 0);
       }
       if(pass.name==='Cube'){
         for(let face=0;face<6;face++){
@@ -387,7 +411,7 @@ export class ShaderRuntime {
     this.keyboardBytes.fill(0,256,512);
     return true;
   }
-  deleteTarget(target) { this.gl.deleteTexture(target.texture); if (target.fbo) this.gl.deleteFramebuffer(target.fbo); }
+  deleteTarget(target) { target.media?.close();this.gl.deleteTexture(target.texture); if (target.fbo) this.gl.deleteFramebuffer(target.fbo); }
   deletePasses(passes) {
     const images=new Set();
     for (const pass of passes) { this.gl.deleteProgram(pass.program); pass.targets.forEach(t => this.deleteTarget(t));pass.images.forEach(t=>images.add(t));pass.samplers.forEach(s=>this.gl.deleteSampler(s)); }

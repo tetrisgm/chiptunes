@@ -46,7 +46,7 @@ var require_project = __commonJS({
       return typeof v === "string" && bytes(v) <= limit && !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(v);
     }
     var imageId = (src) => typeof src === "string" && /^asset:[a-f0-9]{64}$/.test(src) ? src.slice(6) : null;
-    var textureSources = (input) => input?.type === "cubemap" ? input.faces : ["texture", "volume"].includes(input?.type) ? [input.src] : [];
+    var textureSources = (input) => input?.type === "cubemap" ? input.faces : ["texture", "volume", "video"].includes(input?.type) ? [input.src] : [];
     function textureSource(src) {
       need(text(src, 4096), "Invalid texture URL.");
       if (imageId(src)) return src;
@@ -66,13 +66,13 @@ var require_project = __commonJS({
         return value;
       }
       need(keys(value, ["type", "source", "src", "faces", "filter", "wrap", "vflip", "srgb"], ["type"]), "Invalid visual input.");
-      need(["audio", "keyboard", "buffer", "texture", "cubemap", "volume"].includes(value.type), "Unsupported visual input type.");
+      need(["audio", "keyboard", "buffer", "texture", "cubemap", "volume", "video"].includes(value.type), "Unsupported visual input type.");
       const result = { type: value.type };
       if (value.type === "buffer") {
         need(["A", "B", "C", "D", "Cube"].includes(value.source) && Object.hasOwn(visuals, value.source), "Channel names a missing buffer.");
         result.source = value.source;
       } else need(!Object.hasOwn(value, "source"), "Only buffers have a source pass.");
-      if (value.type === "texture" || value.type === "cubemap" || value.type === "volume") {
+      if (value.type === "texture" || value.type === "cubemap" || value.type === "volume" || value.type === "video") {
         if (value.type !== "cubemap") {
           need(!Object.hasOwn(value, "faces"), "Only cube textures have faces.");
           result.src = textureSource(value.src);
@@ -25342,7 +25342,88 @@ async function decodeShaderImage(blob, { signal: signal2, vflip = false } = {}) 
   }
   return bitmap;
 }
-var imageKey = (input) => JSON.stringify([input.type === "volume" ? "volume" : "image", input.src, input.vflip === true]);
+var imageKey = (input) => JSON.stringify([["volume", "video"].includes(input.type) ? input.type : "image", input.src, input.vflip === true]);
+
+// src/algorave/shader-video.mjs
+var VIDEO_TYPES = ["video/mp4", "video/webm", "video/ogg"];
+async function loadShaderVideo(src, options = {}) {
+  return decodeShaderVideo(await fetchShaderBlob(src, { signal: options.signal, types: VIDEO_TYPES }), options);
+}
+async function decodeShaderVideo(blob, { signal: signal2 } = {}) {
+  if (signal2?.aborted) throw Error("Video loading cancelled.");
+  if (!blob.size || blob.size > IMAGE_BYTES) throw Error("Video file must contain between 1 byte and 16 MiB.");
+  const video = document.createElement("video"), url = URL.createObjectURL(blob);
+  video.muted = true;
+  video.defaultMuted = true;
+  video.playsInline = true;
+  video.loop = true;
+  video.preload = "auto";
+  let refs = 1, closed = false, wanted = false, failed = false;
+  const resource = {
+    video,
+    get width() {
+      return video.videoWidth;
+    },
+    get height() {
+      return video.videoHeight;
+    },
+    retain() {
+      if (closed) throw Error("Video was released.");
+      refs++;
+      return resource;
+    },
+    setPlaying(value, onError = () => {
+    }) {
+      if (closed || wanted === value) return;
+      wanted = value;
+      if (!value) {
+        video.pause();
+        return;
+      }
+      failed = false;
+      video.play().then(() => {
+        if (closed || !wanted) video.pause();
+      }).catch((error) => {
+        if (!closed && wanted && !failed) {
+          failed = true;
+          onError("Video playback failed: " + error.message);
+        }
+      });
+    },
+    close() {
+      if (closed || --refs > 0) return;
+      closed = true;
+      wanted = false;
+      video.pause();
+      video.removeAttribute("src");
+      video.load();
+      URL.revokeObjectURL(url);
+    }
+  };
+  try {
+    await new Promise((resolve, reject) => {
+      const finish = (error) => {
+        clearTimeout(timer);
+        video.removeEventListener("loadeddata", ready);
+        video.removeEventListener("error", errorHandler);
+        signal2?.removeEventListener("abort", abort);
+        error ? reject(error) : resolve();
+      };
+      const ready = () => finish(), errorHandler = () => finish(Error("Video could not decode. Use a browser-supported MP4, WebM or Ogg video.")), abort = () => finish(Error("Video loading cancelled."));
+      const timer = setTimeout(() => finish(Error("Video loading timed out.")), 15e3);
+      video.addEventListener("loadeddata", ready);
+      video.addEventListener("error", errorHandler);
+      signal2?.addEventListener("abort", abort, { once: true });
+      video.src = url;
+      video.load();
+    });
+    if (!video.videoWidth || !video.videoHeight || video.videoWidth * video.videoHeight > IMAGE_PIXELS) throw Error("Video resolution is too large or invalid (16 megapixels maximum).");
+    return resource;
+  } catch (error) {
+    resource.close();
+    throw error;
+  }
+}
 
 // src/algorave/shader-volume.mjs
 var VOLUME_TYPE = "application/x-shadertoy-volume";
@@ -25461,6 +25542,10 @@ var ShaderRuntime = class {
         this.lost = true;
         this.generation++;
         for (const controller of this.loads) controller.abort();
+        for (const passes of [this.passes, ...[...this.retained].map((p) => p.passes)]) for (const texture of new Set(passes.flatMap((p) => p.images))) {
+          texture.media?.close();
+          texture.media = null;
+        }
         for (const previous of this.retained) previous.invalid = true;
         for (const candidate of [...this.candidates]) candidate.dispose();
         this.onStatus("Visuals paused while the graphics context recovers. Music continues.");
@@ -25577,6 +25662,34 @@ var ShaderRuntime = class {
     } catch (error) {
       g.deleteTexture(texture);
       throw error;
+    }
+  }
+  videoTexture(media, input) {
+    const g = this.gl;
+    if (media.width > g.getParameter(g.MAX_TEXTURE_SIZE) || media.height > g.getParameter(g.MAX_TEXTURE_SIZE)) throw Error("Video exceeds this graphics device\u2019s size limit.");
+    const result = { texture: g.createTexture(), width: media.width, height: media.height, media: media.retain(), source: input.src, vflip: input.vflip === true, srgb: input.srgb === true };
+    try {
+      this.updateVideo(result);
+      return result;
+    } catch (error) {
+      this.deleteTarget(result);
+      throw error;
+    }
+  }
+  updateVideo(texture) {
+    const g = this.gl, video = texture.media.video;
+    if (video.readyState < 2) return;
+    g.bindTexture(g.TEXTURE_2D, texture.texture);
+    g.pixelStorei(g.UNPACK_FLIP_Y_WEBGL, texture.vflip);
+    g.pixelStorei(g.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+    try {
+      g.texImage2D(g.TEXTURE_2D, 0, texture.srgb ? g.SRGB8_ALPHA8 : g.RGBA8, g.RGBA, g.UNSIGNED_BYTE, video);
+      if (g.getError() !== g.NO_ERROR) throw Error("Video texture upload failed.");
+      texture.width = video.videoWidth;
+      texture.height = video.videoHeight;
+      texture.mipmaps = false;
+    } finally {
+      g.pixelStorei(g.UNPACK_FLIP_Y_WEBGL, false);
     }
   }
   cubeTexture(bitmaps, srgb = false) {
@@ -25733,14 +25846,14 @@ var ShaderRuntime = class {
         for (let i2 = 0; i2 < 4; i2++) {
           const input = inputInfo(channels[i2]);
           pass.samplers.push(this.sampler(channels[i2]));
-          if (input.type === "texture" || input.type === "cubemap" || input.type === "volume") {
+          if (input.type === "texture" || input.type === "cubemap" || input.type === "volume" || input.type === "video") {
             const sources = import_project4.default.textureSources(input), bitmaps = sources.map((src) => images.get(imageKey({ src, vflip: input.vflip, type: input.type })));
             if (bitmaps.some((bitmap) => !bitmap)) throw Error("Texture is not loaded. Use asynchronous preparation.");
             const key = JSON.stringify([input.type, sources, input.vflip === true, input.srgb === true]);
             if (!imageTextures.has(key)) {
               imagePixels += bitmaps.reduce((sum, b) => sum + b.width * b.height * (b.depth || 1), 0);
               if (imagePixels > IMAGE_PIXELS * 4) throw Error("Combined texture resolution exceeds 64 million pixels/voxels.");
-              imageTextures.set(key, input.type === "cubemap" ? this.cubeTexture(bitmaps, input.srgb === true) : input.type === "volume" ? this.volumeTexture(bitmaps[0], input.srgb === true) : this.imageTexture(bitmaps[0], input.srgb === true));
+              imageTextures.set(key, input.type === "video" ? this.videoTexture(bitmaps[0], input) : input.type === "cubemap" ? this.cubeTexture(bitmaps, input.srgb === true) : input.type === "volume" ? this.volumeTexture(bitmaps[0], input.srgb === true) : this.imageTexture(bitmaps[0], input.srgb === true));
             }
             pass.images[i2] = imageTextures.get(key);
           }
@@ -25763,6 +25876,7 @@ var ShaderRuntime = class {
         }
         settled = true;
         this.candidates.delete(candidate);
+        for (const texture of new Set(this.passes.flatMap((p) => p.images))) texture.media?.setPlaying(false);
         if (retainPrevious) {
           previous = { passes: this.passes, frame: this.frame, document: this.document };
           this.retained.add(previous);
@@ -25819,8 +25933,9 @@ var ShaderRuntime = class {
         const key = imageKey(input);
         if (images.has(key)) continue;
         const options = { signal: controller.signal, vflip: input.vflip }, id2 = import_project4.default.imageId(input.src);
-        const decode = input.type === "volume" ? decodeShaderVolume : decodeShaderImage, load = input.type === "volume" ? loadShaderVolume : loadShaderImage;
-        const bitmap = id2 ? await decode(await this.resolveImage(id2), options) : await load(input.src, options);
+        const decode = input.type === "video" ? decodeShaderVideo : input.type === "volume" ? decodeShaderVolume : decodeShaderImage, load = input.type === "video" ? loadShaderVideo : input.type === "volume" ? loadShaderVolume : loadShaderImage;
+        const existing = input.type === "video" && this.passes.flatMap((pass) => pass.images).find((texture) => texture.media && texture.source === input.src);
+        const bitmap = existing ? existing.media.retain() : id2 ? await decode(await this.resolveImage(id2), options) : await load(input.src, options);
         images.set(key, bitmap);
         pixels += bitmap.width * bitmap.height * (bitmap.depth || 1);
         if (pixels > IMAGE_PIXELS * 4) throw Error("Combined texture resolution exceeds 64 million pixels/voxels.");
@@ -25840,7 +25955,10 @@ var ShaderRuntime = class {
     if (!pass.uniforms.has(name2)) pass.uniforms.set(name2, this.gl.getUniformLocation(pass.program, name2));
     this.gl[kind](pass.uniforms.get(name2), ...values);
   }
-  render({ time = 0, delta = 0, cycle = 0, kick = 0, sampleRate = 44100, frequency, waveform, date = /* @__PURE__ */ new Date() } = {}) {
+  setPlaying(playing2) {
+    for (const texture of new Set(this.passes.flatMap((pass) => pass.images))) texture.media?.setPlaying(playing2, this.onStatus);
+  }
+  render({ playing: playing2 = true, time = 0, delta = 0, cycle = 0, kick = 0, sampleRate = 44100, frequency, waveform, date = /* @__PURE__ */ new Date() } = {}) {
     const g = this.gl;
     if (this.disposed || this.lost || g.isContextLost()) return false;
     if (frequency?.length === 512 && waveform?.length === 512) {
@@ -25853,6 +25971,10 @@ var ShaderRuntime = class {
     g.bindTexture(g.TEXTURE_2D, this.keyboard.texture);
     g.texSubImage2D(g.TEXTURE_2D, 0, 0, 0, 256, 3, g.RED, g.UNSIGNED_BYTE, this.keyboardBytes);
     this.keyboard.mipmaps = false;
+    for (const texture of new Set(this.passes.flatMap((pass) => pass.images))) if (texture.media) {
+      texture.media.setPlaying(playing2, this.onStatus);
+      this.updateVideo(texture);
+    }
     const completed = /* @__PURE__ */ new Map();
     for (const pass of this.passes) {
       const write = pass.targets[1 - pass.read];
@@ -25885,7 +26007,7 @@ var ShaderRuntime = class {
         g.bindSampler(i2, pass.samplers[i2]);
         this.uniform(pass, `iChannel${i2}`, "uniform1i", i2);
         this.uniform(pass, `iChannelResolution[${i2}]`, "uniform3f", texture.width, texture.height, texture.depth || 1);
-        this.uniform(pass, `iChannelTime[${i2}]`, "uniform1f", input.type === "audio" ? time : 0);
+        this.uniform(pass, `iChannelTime[${i2}]`, "uniform1f", texture.media ? texture.media.video.currentTime : input.type === "audio" ? time : 0);
       }
       if (pass.name === "Cube") {
         for (let face = 0; face < 6; face++) {
@@ -25907,6 +26029,7 @@ var ShaderRuntime = class {
     return true;
   }
   deleteTarget(target) {
+    target.media?.close();
     this.gl.deleteTexture(target.texture);
     if (target.fbo) this.gl.deleteFramebuffer(target.fbo);
   }
@@ -25963,11 +26086,12 @@ function shaderChannelEditor(root, textarea, { importImage: importImage2, onErro
     const row = channels?.[pass] || [];
     for (let index = 0; index < 4; index++) {
       let visibility = function() {
-        const texture = source.input.value === "texture", cube = source.input.value === "cubemap", vol = source.input.value === "volume", empty = source.input.value === "none";
+        const texture = source.input.value === "texture", cube = source.input.value === "cubemap", vol = source.input.value === "volume", vid = source.input.value === "video", empty = source.input.value === "none";
         image.show(texture);
         volume.show(vol);
+        video.show(vid);
         faces.forEach((face) => face.show(cube));
-        flip.label.hidden = srgb.label.hidden = !texture && !cube && !vol;
+        flip.label.hidden = srgb.label.hidden = !texture && !cube && !vol && !vid;
         filter.label.hidden = wrap.label.hidden = empty;
       }, update = function() {
         let current;
@@ -25983,8 +26107,9 @@ function shaderChannelEditor(root, textarea, { importImage: importImage2, onErro
           if (value.type === "buffer") value.source = chosen;
           if (chosen === "texture") value.src = image.value();
           if (chosen === "volume") value.src = volume.value();
+          if (chosen === "video") value.src = video.value();
           if (chosen === "cubemap") value.faces = faces.map((face) => face.value());
-          if (chosen === "texture" || chosen === "cubemap" || chosen === "volume") Object.assign(value, { vflip: flip.input.checked, srgb: srgb.input.checked });
+          if (chosen === "texture" || chosen === "cubemap" || chosen === "volume" || chosen === "video") Object.assign(value, { vflip: flip.input.checked, srgb: srgb.input.checked });
         }
         const inputs = [...current[pass] || []];
         while (inputs.length <= index) inputs.push(null);
@@ -25992,15 +26117,15 @@ function shaderChannelEditor(root, textarea, { importImage: importImage2, onErro
         current[pass] = inputs;
         textarea.value = JSON.stringify(current);
         visibility();
-      }, imageControl = function(urlLabel, fileLabel, initial2, isVolume2 = false) {
-        const importedLabel = isVolume2 ? "Imported volume (saved)" : "Imported image (saved)";
+      }, imageControl = function(urlLabel, fileLabel, initial2, isVolume2 = false, isVideo = false) {
+        const importedLabel = isVideo ? "Imported video (saved)" : isVolume2 ? "Imported volume (saved)" : "Imported image (saved)";
         let imported = import_project5.default.imageId(initial2) ? initial2 : "";
         const src = field(urlLabel, "url");
         src.input.value = imported ? "" : initial2 || "";
         src.input.placeholder = imported ? importedLabel : "https://\u2026";
         group.append(src.label);
         const file = field(fileLabel, "file");
-        file.input.accept = isVolume2 ? ".bin,application/octet-stream,application/x-shadertoy-volume" : "image/png,image/jpeg,image/webp,image/avif,image/gif,image/bmp";
+        file.input.accept = isVideo ? "video/mp4,video/webm,video/ogg" : isVolume2 ? ".bin,application/octet-stream,application/x-shadertoy-volume" : "image/png,image/jpeg,image/webp,image/avif,image/gif,image/bmp";
         group.append(file.label);
         src.input.oninput = () => {
           imported = "";
@@ -26012,7 +26137,7 @@ function shaderChannelEditor(root, textarea, { importImage: importImage2, onErro
           const selected = file.input.files[0];
           if (!selected) return;
           try {
-            const reference = await importImage2(selected, { volume: isVolume2 });
+            const reference = await importImage2(selected, { volume: isVolume2, video: isVideo });
             if (rendered !== version) return;
             imported = reference;
             src.input.value = "";
@@ -26033,10 +26158,11 @@ function shaderChannelEditor(root, textarea, { importImage: importImage2, onErro
       const group = documentElement("fieldset"), legend = documentElement("legend");
       legend.textContent = `iChannel${index}`;
       group.append(legend);
-      const source = select("Input", ["none", "audio", "keyboard", "texture", "cubemap", "volume", ...["A", "B", "C", "D", "Cube"].filter((name2) => document2[name2])], input.type === "buffer" ? input.source : input.type || "none");
+      const source = select("Input", ["none", "audio", "keyboard", "texture", "cubemap", "volume", "video", ...["A", "B", "C", "D", "Cube"].filter((name2) => document2[name2])], input.type === "buffer" ? input.source : input.type || "none");
       group.append(source.label);
       const image = imageControl("Image URL", "Import image", input.src);
       const volume = imageControl("Volume URL", "Import volume", input.type === "volume" ? input.src : void 0, true);
+      const video = imageControl("Video URL", "Import video", input.type === "video" ? input.src : void 0, false, true);
       const faces = ["+X", "-X", "+Y", "-Y", "+Z", "-Z"].map((name2, i2) => imageControl(name2 + " URL", "Import " + name2, input.faces?.[i2]));
       const filter = select("Filter", ["nearest", "linear", "mipmap"], input.filter || (input.type === "keyboard" ? "nearest" : "linear"));
       group.append(filter.label);
@@ -26071,7 +26197,7 @@ function shaderChannelEditor(root, textarea, { importImage: importImage2, onErro
     for (const item of values) {
       const option = documentElement("option");
       option.value = item;
-      option.textContent = { none: "None", audio: "Music audio", keyboard: "Keyboard", texture: "Image texture", cubemap: "Cube texture", volume: "Volume texture", Cube: "Cubemap A" }[item] || item;
+      option.textContent = { none: "None", audio: "Music audio", keyboard: "Keyboard", texture: "Image texture", cubemap: "Cube texture", volume: "Volume texture", video: "Video", Cube: "Cubemap A" }[item] || item;
       input.append(option);
     }
     input.value = value;
@@ -26329,6 +26455,8 @@ function imageType(bytes) {
   const word = (start, length) => String.fromCharCode(...bytes.subarray(start, start + length));
   if ([137, 80, 78, 71, 13, 10, 26, 10].every((v, i2) => bytes[i2] === v)) return "image/png";
   if (bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255) return "image/jpeg";
+  if ([26, 69, 223, 163].every((v, i2) => bytes[i2] === v)) return "video/webm";
+  if (word(0, 4) === "OggS") return "video/ogg";
   if (word(0, 4) === "RIFF" && word(8, 4) === "WEBP") return "image/webp";
   if (["GIF87a", "GIF89a"].includes(word(0, 6))) return "image/gif";
   if (word(0, 2) === "BM") return "image/bmp";
@@ -26336,9 +26464,10 @@ function imageType(bytes) {
     const size = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint32(0);
     if (size >= 16 && size <= bytes.length && size % 4 === 0) {
       for (let offset = 8; offset < size; offset += 4) if (offset !== 12 && ["avif", "avis"].includes(word(offset, 4))) return "image/avif";
+      for (let offset = 8; offset < size; offset += 4) if (offset !== 12 && ["isom", "iso2", "mp41", "mp42", "avc1", "M4V ", "qt  "].includes(word(offset, 4))) return "video/mp4";
     }
   }
-  throw Error("Use a PNG, JPEG, WebP, AVIF, GIF, BMP image or Shadertoy .bin volume.");
+  throw Error("Use a PNG, JPEG, WebP, AVIF, GIF, BMP image, MP4/WebM/Ogg video or Shadertoy .bin volume.");
 }
 var ImageByteStore = class _ImageByteStore {
   #items = /* @__PURE__ */ new Map();
@@ -26378,7 +26507,8 @@ var ImageByteStore = class _ImageByteStore {
 };
 async function validateVisualAsset(blob) {
   const type = imageType(new Uint8Array(await blob.arrayBuffer()));
-  if (type !== VOLUME_TYPE) (await decodeShaderImage(blob)).close();
+  if (type.startsWith("video/")) (await decodeShaderVideo(blob)).close();
+  else if (type !== VOLUME_TYPE) (await decodeShaderImage(blob)).close();
   return type;
 }
 
@@ -26518,17 +26648,17 @@ async function resolveImage(id2) {
   }
   return store.blob(id2);
 }
-async function importImage(file, { volume = false } = {}) {
+async function importImage(file, { volume = false, video = false } = {}) {
   if (uiBusy) throw Error("Wait for the current edit to finish.");
   lock(true);
   try {
     if (file.size > IMAGE_BYTES) throw Error("Texture files must be at most 16 MiB.");
     const store = (await imageStore()).fork(), { id: id2 } = await store.put(new Uint8Array(await file.arrayBuffer()));
     const type = await validateVisualAsset(store.blob(id2));
-    if (volume === type.startsWith("image/")) throw Error(volume ? "Choose a Shadertoy .bin volume." : "Choose an image for this channel.");
+    if (video ? !type.startsWith("video/") : volume ? type !== "application/x-shadertoy-volume" : !type.startsWith("image/")) throw Error(video ? "Choose a supported video." : volume ? "Choose a Shadertoy .bin volume." : "Choose an image for this channel.");
     await saveImages(store);
     imageStorePromise = Promise.resolve(store);
-    status.textContent = (type.startsWith("image/") ? "Image" : "Volume") + " imported \xB7 Set channels, then Run visuals";
+    status.textContent = (video ? "Video" : volume ? "Volume" : "Image") + " imported \xB7 Set channels, then Run visuals";
     return "asset:" + id2;
   } finally {
     lock(false);
@@ -26755,6 +26885,7 @@ $("play").onclick = async () => {
     try {
       await bridge.request("stop");
       playing = false;
+      shader2.setPlaying(false);
       $("play").textContent = "Play";
       $("play").disabled = true;
       status.textContent = "Stopped";
@@ -26766,6 +26897,7 @@ $("play").onclick = async () => {
   await action(async () => {
     await bridge.request("stop");
     playing = false;
+    shader2.setPlaying(false);
     status.textContent = "Stopped";
   });
 };
@@ -26828,6 +26960,7 @@ async function leaveFor(path) {
     session.save();
     await bridge.request("stop");
     playing = false;
+    shader2.setPlaying(false);
     bridge.dispose();
     window.top.location.assign(path);
   });
@@ -27010,6 +27143,7 @@ bridge = new MusicBridge(frame, (next) => {
   signals.receive(next);
 }, (error) => {
   playing = false;
+  shader2.setPlaying(false);
   $("play").textContent = "Play";
   message(error);
 }, message, (visible) => {
@@ -27018,9 +27152,9 @@ bridge = new MusicBridge(frame, (next) => {
 await bridge.ready;
 lock(false);
 status.textContent = session.recoveryError || initialVisualError || "Ready \xB7 \u2318/Ctrl Enter to run";
-$("build").textContent = "Algorave fbc2ea1f320f";
+$("build").textContent = "Algorave 0555234bba84";
 function draw(now) {
-  shader2.render({ time: now / 1e3, delta: last2 ? (now - last2) / 1e3 : 0, ...signals.at(performance.timeOrigin + now) });
+  shader2.render({ playing, time: now / 1e3, delta: last2 ? (now - last2) / 1e3 : 0, ...signals.at(performance.timeOrigin + now) });
   last2 = now;
   requestAnimationFrame(draw);
 }

@@ -2,6 +2,9 @@
 
 ## Current upstream runtime — 2026-09-15
 
+Scope update: the owner explicitly excluded VR on 2026-09-15. Earlier checkpoint
+references to remaining VR work are historical and no longer apply.
+
 The current build executes upstream @strudel/web 1.3.0 evaluation, scheduling and
 Web Audio together in the opaque-origin sandbox. It replaces the serialized
 pattern worker and custom transport. Source is parsed during preparation and
@@ -355,6 +358,43 @@ server cleanup completed before starting the next shader suite. This establishes
 the sustained DSP/resource check for that build, not separate audio-frame heap,
 speaker quality or later shader additions. Receipt:
 `.algorave-preview/upstream-soak-1800s-receipt.json`.
+
+## Video texture inputs — 2026-09-15
+
+Video channels now accept HTTPS URLs or portable imported assets, with standard
+sampler2D GLSL, real iChannelTime and iChannelResolution, flip, sRGB, filtering and
+wrap settings. The existing Channels disclosure has a Video choice and URL/file
+controls. Videos loop silently while Play is active and pause on Stop. Loading or
+opening a saved project never starts video playback. Browser codec support applies;
+MP4, WebM and Ogg containers are accepted, with the existing 16 MiB file bound.
+
+The loader fetches without credentials/referrers, validates decoded dimensions,
+and releases temporary blob URLs/decoders on cancellation or failure. Media has
+reference-counted ownership across prepared textures and retained transactions.
+Unchanged video inputs retain playback position across shader edits. Failed
+activation restores the old media; context loss/disposal releases decoders before
+recovery. Imported video bytes share the immutable asset store and portable
+archive with image/volume inputs.
+
+`node scripts/verify-algorave-video.cjs` passes on `0555234bba84`. It generates an
+original four-second H.264 fixture with ffmpeg and checks actual decoded GL pixels,
+seek/play/pause, flip/mips, channel uniforms, shared multipass media, transactional
+position retention, failed shader retention, context loss/recovery and disposal.
+Workspace checks cover portable Open, local file input, channel Run/Undo, download,
+stopped reload and narrow layout. This is an MP4 fixture test, not proof that every
+codec/file plays in every browser. Chromium audio uses the explicit silent sink.
+
+Native Safari on `24e6f3e0af9a` imported the original portable MP4 project, showed
+the red/blue first frame stopped, advanced to green/blue with Play, applied an
+inverted-color GLSL edit and restored the original shader/output with Undo.
+Final `19396882d9c7` also loaded the saved first frame with Play/Ready. Native
+verification was local; its owned tab and temporary listener were closed.
+Volume/image regression checks and six captured real-provider UI replays (zero
+new API calls) pass. Camera/external audio inputs and Sound output remain open;
+VR is excluded by the owner's request.
+
+References: [WebGL video upload rules](https://registry.khronos.org/webgl/specs/latest/1.0/)
+and [Shadertoy channel-time declaration](https://www.shadertoy.com/view/MtV3W1).
 
 ## Volume texture inputs — 2026-09-15
 

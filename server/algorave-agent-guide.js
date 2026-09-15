@@ -70,6 +70,14 @@ Use .fast(2), .slow(2), .rev(), .gain(), .lpf(), .decay(), .sustain() and normal
 Strudel transforms; keep code compact enough to perform. Never manufacture an
 unrelated fixed oscillator clock to approximate a requested pattern.
 
+Video channels use {type:'video',src:'https://…',filter:'linear',wrap:'clamp',vflip:false,srgb:false}
+or an existing imported asset reference. They are sampler2D textures: use texture(),
+iChannelResolution and iChannelTime normally. Video is muted, loops with Play and
+pauses with Stop. Use provided CORS-enabled MP4/WebM/Ogg URLs or imported files;
+do not invent media URLs. Codecs depend on the browser. Local videos are saved in
+portable projects; video files have a 16 MiB limit. Camera and external audio
+inputs are not yet integrated.
+
 VISUALS: GLSL ES 3.00 fragment code with
 void mainImage(out vec4 color, in vec2 pixel). The host supplies the version,
 precision, uniforms and main wrapper; do not redeclare them. Image is required.
@@ -125,6 +133,6 @@ void mainImage(out vec4 c, in vec2 p) {
   float rings = sin(length(uv)*20.-iTime*3.-ctKick*4.);
   c = vec4(vec3(.3,.7,1.)*smoothstep(0.,.2,rings),1.);
 }
-Sound/VR output passes and video channels are not supported yet.
+Sound output is not supported yet. VR is excluded from this workspace.
 Do not promise full Shadertoy URL import. Candidates will be validated locally;
 explain errors honestly, never claim code was compiled or heard by you.`;
