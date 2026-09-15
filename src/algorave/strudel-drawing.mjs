@@ -1,6 +1,7 @@
 import * as draw from '@strudel/draw';
 import { evalScope } from '@strudel/web';
 import './vendor/codemirror/drawing-widgets.mjs';
+import { pauseHydra, restoreHydra, disposeHydra, startHydra, stopHydra } from './vendor/hydra/hydra.mjs';
 
 
 // Source callbacks stay inside the opaque music frame. Inline widgets export
@@ -9,7 +10,7 @@ export async function createDrawingHost(engine, visibility) {
   await evalScope(draw);
   const canvases = () => [...document.querySelectorAll('canvas:not([data-drawing-preview])')];
   let drawer, pending;
-  const stop = () => { drawer?.stop(); draw.pauseDraw(); draw.pauseAnimation(); };
+  const stop = () => { drawer?.stop(); draw.pauseDraw(); draw.pauseAnimation(); stopHydra(); };
   const report = () => {const nodes=canvases();visibility(nodes.length>0,nodes.length>0&&nodes.every(canvas=>canvas.dataset.inlineDrawing!==undefined),nodes.some(canvas=>canvas.dataset.inlineDrawing!==undefined));};
   const observer = new MutationObserver(() => { if (!pending) report(); });
   observer.observe(document.body, { childList: true, subtree: true });
@@ -17,7 +18,7 @@ export async function createDrawingHost(engine, visibility) {
     if (pending) throw Error('A drawing transaction is already active.');
     drawer?.stop();
     document.body.dataset.drawingPending='';
-    const snapshot = { draw: draw.pauseDraw(), animation: draw.pauseAnimation(), drawer,
+    const snapshot = { draw: draw.pauseDraw(), animation: draw.pauseAnimation(), drawer, hydra:pauseHydra(),
       nodes: canvases().map(canvas => {
         // Keep the last image visible while async source evaluates. Remove its
         // ID so the candidate receives a different drawing surface.
@@ -46,18 +47,20 @@ export async function createDrawingHost(engine, visibility) {
           }
         }
         if (!canvases().length&&(draw.hasDrawCallbacks() || draw.hasAnimation())) draw.getDrawContext();
-        if (!running) stop();
+        if (!running) stop();else startHydra();
+        disposeHydra(snapshot.hydra);
         draw.disposeDrawCanvases(snapshot.nodes.map(node => node.canvas));
         snapshot.nodes.forEach(node => node.marker.remove());
         pending = undefined; report();
         delete document.body.dataset.drawingPending;
       },
       rollback(running) {
-        stop(); draw.disposeDrawCanvases(canvases());
+        stop();disposeHydra(pauseHydra());draw.disposeDrawCanvases(canvases());
         snapshot.nodes.forEach(({canvas, marker}) => marker.replaceWith(canvas));
         drawer = snapshot.drawer;
         draw.restoreDraw(snapshot.draw, running);
         draw.restoreAnimation(snapshot.animation, running);
+        restoreHydra(snapshot.hydra,running);
         if (running) drawer?.framer.start();
         pending = undefined; report();
         delete document.body.dataset.drawingPending;
@@ -66,8 +69,8 @@ export async function createDrawingHost(engine, visibility) {
   }
   return { prepare, stop, dispose() {
     observer.disconnect();
-    stop(); draw.disposeDrawCanvases(canvases());
-    if (pending) { draw.disposeDrawCanvases(pending.nodes.map(node => node.canvas)); pending.nodes.forEach(node => node.marker.remove()); }
+    stop();disposeHydra(pauseHydra());draw.disposeDrawCanvases(canvases());
+    if (pending) { disposeHydra(pending.hydra);draw.disposeDrawCanvases(pending.nodes.map(node => node.canvas)); pending.nodes.forEach(node => node.marker.remove()); }
     pending = undefined;
   } };
 }

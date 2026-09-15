@@ -258,6 +258,19 @@
   },
   {
     "supplementalNotice": null,
+    "name": "@strudel/hydra",
+    "version": "1.2.6",
+    "license": "AGPL-3.0-or-later",
+    "repository": {
+      "type": "git",
+      "url": "git+https://codeberg.org/uzu/strudel.git"
+    },
+    "noticeFiles": [
+      "LICENSE"
+    ]
+  },
+  {
+    "supplementalNotice": null,
     "name": "@strudel/midi",
     "version": "1.3.0",
     "license": "AGPL-3.0-or-later",
@@ -967,6 +980,20 @@
   },
   {
     "supplementalNotice": null,
+    "name": "events",
+    "version": "1.1.1",
+    "license": "MIT",
+    "repository": {
+      "type": "git",
+      "url": "git://github.com/Gozala/events.git",
+      "web": "https://github.com/Gozala/events"
+    },
+    "noticeFiles": [
+      "LICENSE"
+    ]
+  },
+  {
+    "supplementalNotice": null,
     "name": "fraction.js",
     "version": "5.3.4",
     "license": "MIT",
@@ -993,6 +1020,42 @@
   },
   {
     "supplementalNotice": null,
+    "name": "hydra-synth",
+    "version": "1.4.0",
+    "license": "AGPL",
+    "repository": {
+      "type": "git",
+      "url": "git+https://github.com/ojack/hydra-synth.git"
+    },
+    "noticeFiles": [
+      "LICENSE"
+    ]
+  },
+  {
+    "supplementalNotice": null,
+    "name": "inherits",
+    "version": "2.0.4",
+    "license": "ISC",
+    "repository": "git://github.com/isaacs/inherits",
+    "noticeFiles": [
+      "LICENSE"
+    ]
+  },
+  {
+    "supplementalNotice": null,
+    "name": "meyda",
+    "version": "5.6.3",
+    "license": "MIT",
+    "repository": {
+      "type": "git",
+      "url": "https://github.com/meyda/meyda.git"
+    },
+    "noticeFiles": [
+      "LICENSE.md"
+    ]
+  },
+  {
+    "supplementalNotice": null,
     "name": "mondolang",
     "version": "1.1.2",
     "license": "AGPL-3.0-or-later",
@@ -1012,6 +1075,71 @@
     "repository": "nanostores/nanostores",
     "noticeFiles": [
       "LICENSE"
+    ]
+  },
+  {
+    "supplementalNotice": null,
+    "name": "performance-now",
+    "version": "2.1.0",
+    "license": "MIT",
+    "repository": {
+      "type": "git",
+      "url": "git://github.com/braveg1rl/performance-now.git"
+    },
+    "noticeFiles": [
+      "license.txt"
+    ]
+  },
+  {
+    "supplementalNotice": null,
+    "name": "raf",
+    "version": "3.4.1",
+    "license": "MIT",
+    "repository": {
+      "type": "git",
+      "url": "git://github.com/chrisdickinson/raf.git"
+    },
+    "noticeFiles": [
+      "LICENSE"
+    ]
+  },
+  {
+    "supplementalNotice": null,
+    "name": "raf-loop",
+    "version": "1.1.3",
+    "license": "MIT",
+    "repository": {
+      "type": "git",
+      "url": "git://github.com/mattdesl/raf-loop.git"
+    },
+    "noticeFiles": [
+      "LICENSE.md"
+    ]
+  },
+  {
+    "supplementalNotice": null,
+    "name": "regl",
+    "version": "1.7.0",
+    "license": "MIT",
+    "repository": {
+      "type": "git",
+      "url": "git+https://github.com/regl-project/regl.git"
+    },
+    "noticeFiles": [
+      "LICENSE"
+    ]
+  },
+  {
+    "supplementalNotice": null,
+    "name": "right-now",
+    "version": "1.0.0",
+    "license": "MIT",
+    "repository": {
+      "type": "git",
+      "url": "git://github.com/hughsk/right-now.git"
+    },
+    "noticeFiles": [
+      "LICENSE.md"
     ]
   },
   {

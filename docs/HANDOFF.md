@@ -104,6 +104,12 @@ bitmap; stopped and non-widget playback avoid repeated snapshot requests. See
 checks pass locally; all-widget native and sustained performance acceptance remain
 pending. See the [native editor checkpoint](algorave-runtime-decisions.md#native-inline-editor-checkpoint--2026-09-15).
 
+Hydra is now integrated from pinned upstream source with local rendering, `H`,
+`feedStrudel`, transactional canvas/global restoration and Stop. Chromium shader,
+feed, Run/Undo and disposal checks pass; native, external inputs and broader
+continuity/performance remain pending. See the
+[Hydra checkpoint](algorave-runtime-decisions.md#hydra-integration--2026-09-15).
+
 Next: complete the remaining Strudel input/drawing/module scope and Shadertoy
 media and Sound contracts; complete final browser/acoustic
 acceptance and check performance appropriate to subsequent changes. Chromium DSP checks use an explicit

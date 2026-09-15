@@ -1,0 +1,42 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),http=require('node:http');
+const {chromium}=require('playwright'),{configureAudio}=require('./algorave-browser-audio.cjs');
+const root=path.resolve(__dirname,'../.algorave-preview');
+(async()=>{
+ const server=http.createServer((req,res)=>{const file=path.join(root,new URL(req.url,'http://localhost').pathname==='/'?'index.html':new URL(req.url,'http://localhost').pathname);if(!file.startsWith(root+path.sep)||!fs.existsSync(file)){res.writeHead(404);return res.end();}res.setHeader('content-type',file.endsWith('.js')?'text/javascript':'text/html');res.end(fs.readFileSync(file));});
+ await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const browser=await chromium.launch({headless:true});
+ try{
+  const page=await browser.newPage();page.on("pageerror",e=>console.error("PAGE",e.message));await configureAudio(page);await page.goto('http://127.0.0.1:'+server.address().port);await page.waitForFunction(()=>window.algoravePreview);
+  const frame=page.frames().find(f=>f!==page.mainFrame());
+  await frame.evaluate(()=>globalThis.originalShape=shape);
+  const source='globalThis.hydraProbe=await initHydra(); solid(1,0,0,1).out(); s("bd*4")';
+  await page.getByLabel('Strudel music').fill(source);await page.locator('#play').click();
+  await page.waitForFunction(()=>algoravePreview.playing).catch(async e=>{console.error(await page.locator('#status').innerText());throw e;});
+  await frame.waitForFunction(()=>{const c=document.getElementById('hydra-canvas');if(!c)return false;tick(0);const gl=c.getContext('webgl'),pixel=new Uint8Array(4);gl.readPixels(0,0,1,1,gl.RGBA,gl.UNSIGNED_BYTE,pixel);return pixel[0]>240&&pixel[1]<10;},null,{polling:50});
+  assert.equal(await frame.evaluate(()=>H(pure(.25))()),.25);
+  await frame.waitForFunction(()=>time>0,null,{polling:50});
+  await frame.evaluate(()=>{globalThis.oldHydra=hydraProbe;globalThis.oldGL=hydraProbe.canvas.getContext('webgl');});
+  const changed=source.replace('1,0,0,1','0,1,0,1');await page.getByLabel('Strudel music').fill(changed);await page.locator('#run').click();
+  await page.waitForFunction(source=>algoravePreview.session.applied.music===source,changed);
+  await frame.waitForFunction(()=>{tick(0);const gl=document.getElementById('hydra-canvas').getContext('webgl'),p=new Uint8Array(4);gl.readPixels(0,0,1,1,gl.RGBA,gl.UNSIGNED_BYTE,p);return p[1]>240&&p[0]<10;},null,{polling:50});
+  assert(await frame.evaluate(()=>oldGL.isContextLost()&&oldHydra.captureStream.getTracks().every(t=>t.readyState==='ended')));
+  await frame.evaluate(()=>{globalThis.goodCanvas=hydraProbe.canvas;globalThis.goodSolid=solid;});
+  await page.getByLabel('Strudel music').fill(changed+'; await new Promise(resolve=>globalThis.failHydra=resolve); missingHydraFunction()');
+  await page.locator('#run').click();await frame.waitForFunction(()=>typeof failHydra==='function',null,{polling:50,timeout:5000}).catch(async e=>{console.error(await page.locator('#status').innerText());throw e;});
+  const retained=await frame.evaluate(()=>{const c=document.querySelector('canvas[data-drawing-preview]');return [...c.getContext('2d').getImageData(0,0,1,1).data];});
+  assert(retained[1]>240&&retained[0]<10,JSON.stringify(retained));
+  await frame.evaluate(()=>failHydra());await page.waitForFunction(()=>!algoravePreview.session.busy&&!document.getElementById('run').disabled);
+  assert.equal(await page.evaluate(()=>algoravePreview.session.applied.music),changed);
+  assert(await frame.evaluate(()=>goodCanvas.isConnected&&solid===goodSolid&&!goodCanvas.getContext('webgl').isContextLost()));
+  await page.locator('#menu summary').click();await page.locator('#undo').click();await page.waitForFunction(()=>document.getElementById('status').textContent==='Undone');
+  assert.equal(await page.evaluate(()=>algoravePreview.session.applied.music),source);await page.locator('#menu summary').click();
+  const feed='await initHydra({feedStrudel:true,enableStreamCapture:false}); src(s0).out(); s("rect").x(.1).y(.1).w(.5).h(.5).fill("cyan").animate()';
+  await page.getByLabel('Strudel music').fill(feed);await page.locator('#run').click();await page.waitForFunction(feed=>algoravePreview.session.applied.music===feed,feed);
+  await frame.waitForFunction(()=>{tick(0);const c=document.getElementById('hydra-canvas'),gl=c.getContext('webgl'),p=new Uint8Array(4);gl.readPixels(Math.floor(c.width*.3),Math.floor(c.height*.7),1,1,gl.RGBA,gl.UNSIGNED_BYTE,p);return p[0]<10&&p[1]>240&&p[2]>240;},null,{polling:50,timeout:5000}).catch(async e=>{console.error(await frame.evaluate(()=>[...document.querySelectorAll('canvas')].map(c=>{if(c.id==='hydra-canvas'){tick(0);const gl=c.getContext('webgl'),a=new Uint8Array(4),b=new Uint8Array(4);gl.readPixels(Math.floor(c.width*.3),Math.floor(c.height*.3),1,1,gl.RGBA,gl.UNSIGNED_BYTE,a);gl.readPixels(Math.floor(c.width*.3),Math.floor(c.height*.7),1,1,gl.RGBA,gl.UNSIGNED_BYTE,b);return {id:c.id,size:[c.width,c.height],a:[...a],b:[...b]};}return {id:c.id,size:[c.width,c.height],pixel:[...c.getContext('2d').getImageData(Math.floor(c.width*.3),Math.floor(c.height*.3),1,1).data]};})));throw e;});
+  await page.locator('#play').click();await page.waitForFunction(()=>!algoravePreview.playing);
+  const stopped=await frame.evaluate(()=>time);await page.waitForTimeout(200);assert.equal(await frame.evaluate(()=>time),stopped);
+  await page.getByLabel('Strudel music').fill('s("bd*4")');await page.locator('#run').click();await page.waitForFunction(()=>algoravePreview.session.applied.music==='s("bd*4")'&&!algoravePreview.session.busy);
+  assert(await frame.evaluate(()=>!document.getElementById('hydra-canvas')&&shape===originalShape));
+  console.log('PASS: local Hydra renderer, solid shader pixels, H, feedStrudel canvas pixels, Run/Undo, failed-edit retention, disposed contexts/capture tracks, Stop clock and restored Strudel globals. Native, capture, broader grammar and resource acceptance pending.');
+ }finally{await browser.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
+})().catch(e=>{console.error(e);process.exitCode=1;});

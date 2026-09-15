@@ -11,7 +11,7 @@ import { Pattern, getTime, State, TimeSpan } from '@strudel/core';
 const canvasDisposers = new WeakMap();
 
 export const getDrawContext = (id = 'test-canvas', options) => {
-  let { contextType = '2d', pixelated = false, pixelRatio = window.devicePixelRatio } = options || {};
+  let { contextType = '2d', pixelated = false, pixelRatio = window.devicePixelRatio, contextAttributes = {} } = options || {};
   let canvas = document.querySelector('#' + id);
   if (!canvas) {
     canvas = document.createElement('canvas');
@@ -34,7 +34,7 @@ export const getDrawContext = (id = 'test-canvas', options) => {
     window.addEventListener('resize', resize);
     canvasDisposers.set(canvas, () => { clearTimeout(timeout); window.removeEventListener('resize', resize); });
   }
-  return canvas.getContext(contextType, { willReadFrequently: true });
+  return canvas.getContext(contextType, { willReadFrequently: true, ...contextAttributes });
 };
 
 let animationFrames = {};

@@ -1691,3 +1691,34 @@ a visible meter reads the real DSP signal and editor counts. No speaker-quality,
 production-origin, all-six-widget native, or fresh-provider claim is made. The
 owned Safari tab and temporary server were closed. Sustained performance and
 final production acceptance remain pending.
+
+
+## Hydra integration — 2026-09-15
+
+The published `@strudel/hydra@1.2.6` helper is adapted from preferred source,
+with exact `hydra-synth@1.4.0` bundled locally. Original helper, package/license
+and provenance live in `src/algorave/vendor/hydra/`. `initHydra`, `clearHydra`
+and `H` enter the music runtime scope. This follows the
+[official integration](https://strudel.cc/learn/hydra/), including `feedStrudel`.
+The default renderer no longer depends on an unpinned runtime CDN import;
+explicit custom `src` is still accepted.
+
+The renderer uses an owned animation loop so Stop pauses it. Source transactions
+retain the previous canvas, renderer and global bindings, dispose replaced WebGL
+contexts and canvas-capture tracks, and restore the previous renderer on failure.
+WebGL buffers are preserved for snapshotting without invoking user callbacks.
+Hidden Strudel animation canvases now use their backing-buffer dimensions, so
+`feedStrudel` can sample them while their CSS display is hidden.
+
+`scripts/verify-algorave-hydra.cjs` verifies real red/green shader pixels, scalar
+`H` lookup, cyan drawing pixels through `feedStrudel`, Run/Undo, delayed failing
+edits with retained pixels/renderer/globals, disposal of replaced contexts and
+canvas-capture tracks, a frozen clock after Stop, and restoration of Strudel
+`shape` after removing Hydra. Existing drawing and runtime suites pass. Chromium
+uses the silent sink; this is not native Safari or speaker evidence.
+
+Remaining: native acceptance, broader Hydra programs/options, source-input and
+microphone permission/late-grant cleanup, repeated-resource/performance checks,
+and continuity expectations for feedback across source edits. Initial integration
+creates a candidate renderer for each source transaction; do not call this full
+Hydra parity until those checks and lifecycle cases are resolved.

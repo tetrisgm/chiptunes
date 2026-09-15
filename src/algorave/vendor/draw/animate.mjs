@@ -31,6 +31,10 @@ Pattern.prototype.animate = function ({ callback, sync = false, smear = 0.5 } = 
     let { clientWidth: ww, clientHeight: wh } = ctx.canvas;
     ww *= window.devicePixelRatio;
     wh *= window.devicePixelRatio;
+    // Hydra's feedStrudel deliberately hides this canvas while sampling it.
+    // Its backing buffer remains the drawing surface when layout size is zero.
+    ww ||= ctx.canvas.width;
+    wh ||= ctx.canvas.height;
     let frame;
     /*     if (sync) {
       t = scheduler.now();

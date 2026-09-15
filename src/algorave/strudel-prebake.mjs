@@ -12,6 +12,7 @@ import * as motion from './vendor/motion/index.mjs';
 import * as serial from './vendor/serial/serial.mjs';
 import * as tidal from './vendor/tidal/tidal.mjs';
 import * as mondo from '@strudel/mondo';
+import { initHydra, clearHydra, H } from './vendor/hydra/hydra.mjs';
 
 // Matches @strudel/codemirror 1.2.6's control registration.
 const {markcss:markcssControl} = registerControl('markcss');
@@ -72,7 +73,7 @@ async function catalog(name) {
 }
 
 export async function registerDefaultSounds() {
-  await evalScope(soundfonts, xen, edo, gamepad, osc, midi, motion, serial, tidal, mondo, {markcss,slider,sliderWithID});
+  await evalScope(soundfonts, xen, edo, gamepad, osc, midi, motion, serial, tidal, mondo, {markcss,slider,sliderWithID,initHydra,clearHydra,H});
   registerZZFXSounds(); soundfonts.registerSoundfonts();
   await samples(DIRT, `${CDN}/Dirt-Samples/`, {prebake:true});
   const tasks = BANKS.map(async ([name, base, tag]) => samples(await catalog(name), `${CDN}/${base}`, {prebake:true,tag}));

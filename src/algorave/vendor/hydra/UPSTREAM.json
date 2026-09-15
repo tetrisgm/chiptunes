@@ -1,0 +1,7 @@
+{
+  "package": "@strudel/hydra",
+  "version": "1.2.6",
+  "source": "https://registry.npmjs.org/@strudel/hydra/-/hydra-1.2.6.tgz",
+  "sha256": "dc3c0bb5ff3831eb32bab0834730d14efcf7e38193689c3458f6a19c2896f9d8",
+  "adaptation": "Pinned bundled default renderer; explicit render-loop and transaction lifecycle, global restoration, context/canvas-capture disposal, and preserved WebGL buffer for retained snapshots. Custom src remains supported. Hidden feedStrudel animation uses backing-buffer dimensions."
+}
