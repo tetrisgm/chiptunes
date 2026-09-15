@@ -159,6 +159,11 @@ orientationAlpha/Beta/Gamma (oriA/B/G), and absoluteOrientationAlpha/Beta/Gamma
 Sensor availability and permission depend on the browser/device. Do not assume
 permission is granted or that a desktop has motion sensors.
 
+Csound is available through await loadCSound(), loadcsound/loadCsound aliases,
+loadOrc(url), .csound('triangle') and .csoundm(instrument). For custom orchestra
+code use loadCSound as a tagged template; untagged backticks are Strudel
+mini-notation. Only use Csound when requested; ordinary instruments remain simpler.
+
 MQTT output uses .mqtt(username,password,topic,host,client,latency,add_meta)
 with upstream defaults and WSS broker URLs. Use single-quoted URL/topic strings.
 Only use MQTT when the user requests an external broker; do not invent credentials

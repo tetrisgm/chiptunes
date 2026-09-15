@@ -19,6 +19,7 @@ function build({out=path.join(root,'.algorave-preview')}={}){
   for(const file of ['drawing-widgets.mjs','UPSTREAM.json'])id.update(fs.readFileSync(path.join(root,'src/algorave/vendor/codemirror',file)));
   for(const file of ['hydra.mjs','UPSTREAM.json'])id.update(fs.readFileSync(path.join(root,'src/algorave/vendor/hydra',file)));
   for(const file of ['mqtt/mqtt.mjs','mqtt/UPSTREAM.json','paho-mqtt/paho-mqtt.js','paho-mqtt/UPSTREAM.json'])id.update(fs.readFileSync(path.join(root,'src/algorave/vendor',file)));
+  for(const file of ['csound/index.mjs','csound/project.csd','csound/presets.orc','csound/UPSTREAM.json','csound-browser/dist/csound.js','csound-browser/UPSTREAM.json'])id.update(fs.readFileSync(path.join(root,'src/algorave/vendor',file)));
   const hydraRoot=path.join(root,'src/algorave/vendor/hydra-synth');
   const hydraManifest=fs.readFileSync(path.join(hydraRoot,'UPSTREAM.json'));id.update(hydraManifest);
   for(const file of JSON.parse(hydraManifest).files)id.update(fs.readFileSync(path.join(hydraRoot,file.path)));
@@ -30,7 +31,7 @@ function build({out=path.join(root,'.algorave-preview')}={}){
   const inputs=new Set();
   for(const [entry,name] of [['music-runtime.mjs','music-runtime.js'],['preview.mjs','workspace.js']]){
     const result=esbuild.buildSync({metafile:true,entryPoints:[path.join(root,'src/algorave',entry)],outfile:path.join(out,name),bundle:true,
-      loader:{'.wasm':'binary'},external:['fs','path'],format:entry==='preview.mjs'?'esm':'iife',platform:'browser',target:'es2022',minify:false,legalComments:'inline',
+      loader:{'.wasm':'binary','.csd':'text','.orc':'text'},external:['fs','path'],format:entry==='preview.mjs'?'esm':'iife',platform:'browser',target:'es2022',minify:false,legalComments:'inline',
       // Bundle upstream source, not its prebundled distribution, so the input
       // graph records every dependency for notices and corresponding source.
       alias:{'hydra-synth':path.join(root,'src/algorave/vendor/hydra-synth/src/hydra-synth.js'),'@strudel/mondo':path.join(root,'src/algorave/vendor/mondo/mondough.mjs'),'mondolang':path.join(root,'node_modules/mondolang/mondo.mjs'),'@strudel/osc':path.join(root,'node_modules/@strudel/osc/osc.mjs'),'@strudel/web':path.join(root,'node_modules/@strudel/web/web.mjs'),'@strudel/soundfonts':path.join(root,'node_modules/@strudel/soundfonts/index.mjs'),'@strudel/xen':path.join(root,'node_modules/@strudel/xen/index.mjs'),'@strudel/draw':path.join(root,'src/algorave/vendor/draw/index.mjs')},

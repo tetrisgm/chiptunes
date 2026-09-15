@@ -1821,3 +1821,28 @@ or native Safari test. Arbitrary external side effects cannot be undone.
 The published Csound 1.3.0 source was also inspected: it exports loadCSound aliases,
 loadOrc, csound and csoundm and uses @csound/browser 6.18.7 plus orchestra resources.
 That module remains unintegrated; its engine and source distribution need work.
+
+### Csound integration — 2026-09-15
+
+Integrated published @strudel/csound 1.3.0 with the unmodified local browser 6.18.7
+engine. The wrapper imports local orchestra text assets and the pinned engine;
+loadCSound/loadcsound/loadCsound, loadOrc, csound and csoundm retain upstream syntax.
+Orchestra source uses the loadCSound tagged template so the Strudel transpiler
+does not interpret it as mini-notation. The engine initializes on first use and
+shares Strudel's AudioContext. No package install or external runtime CDN is needed.
+
+`scripts/verify-algorave-csound.cjs` verifies original-source hashes and real
+WASM/worklet output with 220/330/440 Hz fundamentals. It covers built-in and custom
+instruments, cached GitHub-style loadOrc URLs through an HTTPS fixture, MIDI-style
+csoundm, Run/Undo, failed JavaScript edit retention, Stop and stopped reload.
+The silent audio sink measures DSP, not speakers. Native acceptance, initialization
+cancellation, compile/error behavior and broader engine lifecycle remain open.
+
+The browser distribution includes its original source map and preferred JavaScript
+sources, notices for the embedded JavaScript dependencies pinned by upstream's
+lockfile, and a source archive from commit c0922f0799e89588e35d0039750ff5ada11281e9.
+That archive contains the C source directories selected by wasm/src/csound.nix,
+all wasm/browser build sources and root files. Our artifact rebuild uses the exact
+published engine; an independent Csound/WASM rebuild and full embedded-dependency
+source/notice audit remain pending. Esbuild reports upstream Closure direct-eval
+warnings; the default worklet path passes the actual browser checks above.

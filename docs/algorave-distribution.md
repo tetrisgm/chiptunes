@@ -104,3 +104,11 @@ recorded in src/algorave/vendor/motion/UPSTREAM.json.
 The optional experimental Tidal helper includes preferred @strudel/tidal 0.1.0
 and hs2js 0.1.0 source (AGPL-3.0-or-later), with pinned web-tree-sitter 0.20.8
 and bundled WASM assets. Their provenance is in src/algorave/vendor.
+
+
+Csound checkpoint: vendor/csound contains the Strudel wrapper and orchestra source;
+vendor/csound-browser contains the pinned published browser artifact, source map,
+JavaScript source, COPYING/NOTICE, and upstream-source.tar.gz with the engine C and
+wasm/browser build sources at the recorded commit. The supplied app build reuses
+that unchanged compiled engine. Independent engine compilation and the full
+embedded WASM dependency/source audit are still pending before public release.

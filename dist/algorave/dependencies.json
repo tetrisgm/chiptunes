@@ -118,6 +118,20 @@
   },
   {
     "supplementalNotice": null,
+    "name": "@csound/browser",
+    "version": "6.18.7",
+    "license": "LGPL-2.1",
+    "repository": {
+      "type": "git",
+      "url": "https://github.com/csound/csound"
+    },
+    "noticeFiles": [
+      "COPYING",
+      "NOTICE"
+    ]
+  },
+  {
+    "supplementalNotice": null,
     "name": "@kabelsalat/web",
     "version": "0.4.1",
     "license": "AGPL-3.0-or-later",
@@ -208,6 +222,19 @@
     "supplementalNotice": null,
     "name": "@strudel/core",
     "version": "1.2.6",
+    "license": "AGPL-3.0-or-later",
+    "repository": {
+      "type": "git",
+      "url": "git+https://codeberg.org/uzu/strudel.git"
+    },
+    "noticeFiles": [
+      "LICENSE"
+    ]
+  },
+  {
+    "supplementalNotice": null,
+    "name": "@strudel/csound",
+    "version": "1.3.0",
     "license": "AGPL-3.0-or-later",
     "repository": {
       "type": "git",
