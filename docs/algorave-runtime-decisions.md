@@ -602,3 +602,21 @@ Safari execution of these replies, or the full visible chat sequence. In
 particular, OpenAI's generated shader uses reversed smoothstep edges, so
 successful compilation is not a blanket shader-portability assurance. Captures
 remain original evidence; no generated source was silently repaired.
+
+### Captured real replies through Chromium UI
+
+`node scripts/verify-algorave-provider-ui.cjs` passed for both providers. The
+local server requires the exact captured request and source, validates revision
+and candidate, and rebinds only the request ID. No API calls occur. Each of the
+six replies traversed chat submission, visible proposal, Apply, exact UI Undo,
+re-Apply and final save/reload without autoplay. An initial harness reused a
+stale status string while applying; it now waits for the matching response and
+exact applied candidate. Both complete sequences then passed. `--serve openai`
+or `--serve anthropic` exposes the same replay for native Safari verification.
+
+The owner's expanded parity requirement remains unproven. Current source
+explicitly excludes executable/stateful output callbacks and custom audio nodes;
+its sample path is not Strudel's full samples()/bank ecosystem. Shader channels
+currently allow only audio and A-D buffer references, with sampler2D uniforms.
+External textures/video, cubemap and VR passes are absent. These are concrete
+implementation gaps, not items that passing candidate compilation can close.

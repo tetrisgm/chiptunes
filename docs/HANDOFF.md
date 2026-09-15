@@ -2,6 +2,14 @@
 
 ## Current work — 2026-09-15
 
+The owner updated the goal: music must equal Strudel and use its language;
+visuals must equal Shadertoy and use its language; finish native/Chromium chat
+acceptance and deploy publicly. Deployment is now requested, but parity is not
+established: sample-loading/integration restrictions and missing shader channel/
+pass types require work. Do not treat the earlier bounded compatibility contract
+as satisfying this expanded goal. Chromium captured-reply UI checks now pass via
+`scripts/verify-algorave-provider-ui.cjs`; native Safari replay remains next.
+
 The active direction is [simple Strudel + GLSL Create](algorave-simple-workspace-plan.md).
 The shared local build now opens the minimal Strudel/GLSL workspace at `/` and
 `/create`. Chip projects, their saved data, links and export UI remain available

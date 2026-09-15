@@ -1,5 +1,13 @@
 # Simple algorave workspace: Strudel music and Shadertoy visuals
 
+Updated owner requirement, 2026-09-15: music MUST equal Strudel and use the same
+language; visuals MUST equal Shadertoy and use the same language. The complete
+chat → Apply → Undo flow must pass in native Safari and Chromium, followed by
+public deployment. This supersedes acceptance of intentionally limited channel,
+pass or music-integration support below. Existing checkmarks remain evidence for
+their stated checks, not proof of full parity. Inventory and close those gaps
+before claiming this updated objective is complete.
+
 Owner direction, 2026-09-14: the current app is too complex. The agent must write
 Strudel music, Shadertoy visuals, or both; the interface must be as simple as those
 reference apps. This plan supersedes the completion claim and the custom-language
