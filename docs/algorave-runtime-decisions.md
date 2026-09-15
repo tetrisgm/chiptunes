@@ -1564,3 +1564,18 @@ workspace test verifies denial leaves playback stopped and source unchanged,
 then verifies granted retry and sensor-driven playback. Original sensor formulas
 remain unchanged; the deviation from upstream's console-only error handling is
 recorded in the vendor provenance.
+
+## Serial integration — 2026-09-15
+
+Preferred @strudel/serial 1.2.6 source is registered in the upstream evalScope,
+with the same .serial(baudRate,sendcrc,singlecharids,name) API and message encoder.
+Vendor provenance records original source hashes and adaptations for chooser
+retry/cache, Stop cancelling scheduled writes, and late-granted port closure.
+The opaque frame delegates serial policy; no port is requested at module load.
+
+The standalone Chromium test checks fake-port denial/retry, cache, baud rate,
+action message encoding, scheduled-write cancellation, resumed writes and late
+port closure. No real chooser, hardware, CRC acceptance or native browser/device
+acceptance is claimed. Full workspace Run/Undo/Stop and unsupported Safari
+behavior remain to verify. Open ports currently follow upstream session lifetime;
+explicit disconnect/release handling remains work.

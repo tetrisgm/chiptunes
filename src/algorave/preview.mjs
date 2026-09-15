@@ -327,7 +327,7 @@ visual.onRun = () => { focus = 'visual'; run(); };
 
 // Only user-written music enters the opaque frame. No auth, storage or chat data.
 const frame = document.createElement('iframe');
-frame.hidden = true; frame.id='music-drawing'; frame.setAttribute('sandbox','allow-scripts'); frame.setAttribute('allow','autoplay; midi *; gamepad *; accelerometer *; gyroscope *; magnetometer *; local-network-access *; loopback-network *'); frame.title = 'Strudel music drawing';
+frame.hidden = true; frame.id='music-drawing'; frame.setAttribute('sandbox','allow-scripts'); frame.setAttribute('allow','autoplay; serial *; midi *; gamepad *; accelerometer *; gyroscope *; magnetometer *; local-network-access *; loopback-network *'); frame.title = 'Strudel music drawing';
 const response = await fetch('music-runtime.js');
 if (!response.ok) throw Error('Music engine could not load.');
 const script = await response.text();

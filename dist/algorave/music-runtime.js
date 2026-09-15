@@ -20303,7 +20303,7 @@ registerProcessor('${n2}', MyProcessor);
         symbols: () => symbols
       });
       module.exports = __toCommonJS(chord_type_exports);
-      var import_core20 = require_dist18();
+      var import_core21 = require_dist18();
       var import_pcset = require_dist11();
       var CHORDS = [
         ["1P 3M 5P", "major", "M ^  maj"],
@@ -20442,7 +20442,7 @@ registerProcessor('${n2}', MyProcessor);
       function get(type) {
         return index[type] || NoChordType;
       }
-      var chordType = (0, import_core20.deprecate)("ChordType.chordType", "ChordType.get", get);
+      var chordType = (0, import_core21.deprecate)("ChordType.chordType", "ChordType.get", get);
       function names() {
         return dictionary.map((chord) => chord.name).filter((x4) => x4);
       }
@@ -20455,7 +20455,7 @@ registerProcessor('${n2}', MyProcessor);
       function all() {
         return dictionary.slice();
       }
-      var entries = (0, import_core20.deprecate)("ChordType.entries", "ChordType.all", all);
+      var entries = (0, import_core21.deprecate)("ChordType.entries", "ChordType.all", all);
       function removeAll() {
         dictionary = [];
         index = {};
@@ -20779,7 +20779,7 @@ registerProcessor('${n2}', MyProcessor);
       module.exports = __toCommonJS(chord_exports);
       var import_chord_detect = require_dist13();
       var import_chord_type = require_dist19();
-      var import_core20 = require_dist18();
+      var import_core21 = require_dist18();
       var import_core22 = require_dist18();
       var import_pcset = require_dist11();
       var import_scale_type = require_dist20();
@@ -20883,12 +20883,12 @@ registerProcessor('${n2}', MyProcessor);
       }
       function degrees(chordName) {
         const { intervals, tonic } = get(chordName);
-        const transpose2 = (0, import_core20.tonicIntervalsTransposer)(intervals, tonic);
+        const transpose2 = (0, import_core21.tonicIntervalsTransposer)(intervals, tonic);
         return (degree) => degree ? transpose2(degree > 0 ? degree - 1 : degree) : "";
       }
       function steps(chordName) {
         const { intervals, tonic } = get(chordName);
-        return (0, import_core20.tonicIntervalsTransposer)(intervals, tonic);
+        return (0, import_core21.tonicIntervalsTransposer)(intervals, tonic);
       }
       var chord_default = {
         getChord,
@@ -46988,6 +46988,133 @@ registerProcessor('${n2}', MyProcessor);
   var rotY = rotationY;
   var rotZ = rotationZ;
 
+  // src/algorave/vendor/serial/serial.mjs
+  var serial_exports = {};
+  __export(serial_exports, {
+    getWriter: () => getWriter
+  });
+  init_dist2();
+  var writeMessagers = {};
+  var choosing = false;
+  var pendingWrites = /* @__PURE__ */ new Set();
+  var generation = 0;
+  if (typeof window !== "undefined") window.addEventListener("strudel-stop", () => {
+    generation++;
+    for (const timer of pendingWrites) clearTimeout(timer);
+    pendingWrites.clear();
+  });
+  async function getWriter(name2, br2) {
+    if (name2 in writeMessagers) return writeMessagers[name2];
+    if (choosing) {
+      return;
+    }
+    choosing = true;
+    const started = generation;
+    try {
+      if (name2 in writeMessagers) {
+        return writeMessagers[name2];
+      }
+      if ("serial" in navigator) {
+        const port = await navigator.serial.requestPort();
+        await port.open({ baudRate: br2 });
+        if (started !== generation) {
+          await port.close();
+          return;
+        }
+        const encoder = new TextEncoder();
+        const writer = port.writable.getWriter();
+        writeMessagers[name2] = function(message, chk) {
+          const encoded = encoder.encode(message);
+          if (!chk) {
+            writer.write(encoded);
+          } else {
+            const bytes = new Uint8Array(4);
+            bytes[0] = 124;
+            bytes[1] = chk >> 8 & 255;
+            bytes[2] = chk & 255;
+            bytes[3] = 59;
+            const withchk = new Uint8Array(encoded.length + 4);
+            withchk.set(encoded);
+            withchk.set(bytes, encoded.length);
+            writer.write(withchk);
+          }
+        };
+      } else {
+        throw Error("Webserial is not available in this browser.");
+      }
+      return writeMessagers[name2];
+    } finally {
+      choosing = false;
+    }
+  }
+  var latency = 0.1;
+  function crc16(data3) {
+    const length = data3.length;
+    if (length == 0) {
+      return 0;
+    }
+    var crc = 65535;
+    for (var i2 = 0; i2 < length; ++i2) {
+      crc ^= data3.charCodeAt(i2) << 8;
+      for (var j7 = 0; j7 < 8; ++j7) {
+        crc = (crc & 32768) > 0 ? crc << 1 ^ 4129 : crc << 1;
+      }
+    }
+    return crc & 65535;
+  }
+  f2.prototype.serial = function(br2 = 115200, sendcrc = false, singlecharids = false, name2 = "default") {
+    return this.withHap((hap) => {
+      if (!(name2 in writeMessagers)) {
+        getWriter(name2, br2);
+      }
+      const onTrigger = (hap2, currentTime, _cps, targetTime) => {
+        var message = "";
+        var chk = 0;
+        if (typeof hap2.value === "object") {
+          if ("action" in hap2.value) {
+            var action = hap2.value["action"];
+            if (singlecharids) {
+              action = action.charAt(0);
+            }
+            message += action + "(";
+            var first = true;
+            for (var [key, val] of Object.entries(hap2.value)) {
+              if (key === "action") {
+                continue;
+              }
+              if (first) {
+                first = false;
+              } else {
+                message += ",";
+              }
+              if (singlecharids) {
+                key = key.charAt(0);
+              }
+              message += key + ":" + val;
+            }
+            message += ")";
+            if (sendcrc) {
+              chk = crc16(message);
+            }
+          } else {
+            for (const [key2, val2] of Object.entries(hap2.value)) {
+              message += `${key2}:${val2}`;
+            }
+          }
+        } else {
+          message = hap2.value;
+        }
+        const offset2 = (targetTime - currentTime + latency) * 1e3;
+        const timer = window.setTimeout(function() {
+          pendingWrites.delete(timer);
+          writeMessagers[name2]?.(message, chk);
+        }, offset2);
+        pendingWrites.add(timer);
+      };
+      return hap.setContext({ ...hap.context, onTrigger, dominantTrigger: true });
+    });
+  };
+
   // src/algorave/strudel-prebake.mjs
   var CDN = "https://strudel.b-cdn.net";
   var BANKS = [
@@ -47022,7 +47149,7 @@ registerProcessor('${n2}', MyProcessor);
     return response.json();
   }
   async function registerDefaultSounds() {
-    await xn(soundfonts_exports, xen_exports, edo_exports, gamepad_exports, osc_exports, midi_exports, motion_exports);
+    await xn(soundfonts_exports, xen_exports, edo_exports, gamepad_exports, osc_exports, midi_exports, motion_exports, serial_exports);
     hc2();
     registerSoundfonts();
     await ao2(DIRT, `${CDN}/Dirt-Samples/`, { prebake: true });

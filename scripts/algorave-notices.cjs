@@ -5,7 +5,7 @@ const fs=require('node:fs'),path=require('node:path');
 function notices(out,inputs){
   const packages=new Map();
   for(const file of inputs){
-    const vendor=['edo','draw','gamepad','midi','motion'].find(name=>file.includes('src/algorave/vendor/'+name+'/'));
+    const vendor=['edo','draw','gamepad','midi','motion','serial'].find(name=>file.includes('src/algorave/vendor/'+name+'/'));
     if(vendor){
       const directory=path.resolve(__dirname,'../src/algorave/vendor',vendor);
       packages.set(directory,JSON.parse(fs.readFileSync(path.join(directory,'package.json'),'utf8')));

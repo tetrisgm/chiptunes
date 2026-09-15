@@ -1,0 +1,29 @@
+{
+  "package": "@strudel/serial",
+  "version": "1.2.6",
+  "tarball": "https://registry.npmjs.org/@strudel/serial/-/serial-1.2.6.tgz",
+  "license": "AGPL-3.0-or-later",
+  "files": [
+    {
+      "path": "serial.mjs",
+      "sha256": "26a8282a8e878a9d836d0dc172a0be23aebdacf2b964bc0cc59582cac41d1566"
+    },
+    {
+      "path": "package.json",
+      "sha256": "184e35c0130c367f9a682d5e7ee2ced84628fec256cbf164b072b00d498bc36a"
+    },
+    {
+      "path": "README.md",
+      "sha256": "a296801932a8e096aef2c42c233f76392b6b508f446b0eca9d905d86cef2d238"
+    },
+    {
+      "path": "LICENSE",
+      "sha256": "0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0"
+    }
+  ],
+  "changes": [
+    "Release chooser state on failure; return cached/new writers.",
+    "Cancel scheduled writes on strudel-stop and close ports acquired after Stop.",
+    "Ignore not-yet-ready writers instead of throwing from scheduled callback."
+  ]
+}

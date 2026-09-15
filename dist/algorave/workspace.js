@@ -27583,7 +27583,7 @@ var frame = document.createElement("iframe");
 frame.hidden = true;
 frame.id = "music-drawing";
 frame.setAttribute("sandbox", "allow-scripts");
-frame.setAttribute("allow", "autoplay; midi *; gamepad *; accelerometer *; gyroscope *; magnetometer *; local-network-access *; loopback-network *");
+frame.setAttribute("allow", "autoplay; serial *; midi *; gamepad *; accelerometer *; gyroscope *; magnetometer *; local-network-access *; loopback-network *");
 frame.title = "Strudel music drawing";
 var response = await fetch("music-runtime.js");
 if (!response.ok) throw Error("Music engine could not load.");
@@ -27607,7 +27607,7 @@ bridge = new MusicBridge(frame, (next) => {
 await bridge.ready;
 lock(false);
 status.textContent = session.recoveryError || initialVisualError || "Ready \xB7 \u2318/Ctrl Enter to run";
-$("build").textContent = "Algorave f55958d0abac";
+$("build").textContent = "Algorave 9b114bd0026c";
 function draw(now) {
   shader2.render({ playing, time: now / 1e3, delta: last2 ? (now - last2) / 1e3 : 0, ...signals.at(performance.timeOrigin + now) });
   last2 = now;
