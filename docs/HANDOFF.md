@@ -16,6 +16,8 @@ for limits, exact verification scopes and remaining work.
 
 Standard Strudel catalogs, ZZFX, GM soundfonts, the piano helper and xen tuning
 are integrated; see the [sound-library checkpoint](algorave-runtime-decisions.md#standard-sound-libraries--2026-09-15).
+The upstream `edoScale` module is also integrated from pinned source; see the
+[EDO checkpoint](algorave-runtime-decisions.md#edo-scale-module--2026-09-15).
 
 Image texture and keyboard inputs plus per-channel sampler controls are now
 implemented; see the [image/keyboard checkpoint](algorave-runtime-decisions.md#image-and-keyboard-channels--2026-09-15).
@@ -25,8 +27,11 @@ local imports, media, cube/volume textures, Cubemap, Sound and VR contracts; rep
 and sustained performance on the replacement. Chromium DSP checks use an explicit
 silent sink after default-device failures also affected upstream. Six saved real
 provider replies are available for zero-call replay. Native OpenAI music, visual
-and paired Apply/Undo plus stopped reload now pass on `3d78fc0bf069`; Anthropic
-replay on the replacement remains open. Old soak receipts are historical.
+and paired Apply/Undo plus stopped reload pass on `3d78fc0bf069`; Anthropic
+Apply/Undo and stopped saved reload pass on `5d59d4f4f9c2`.
+The captured Claude palette still cycles through warm colors despite its
+blue/violet explanation; guide updated, new provider output still unverified.
+Old soak receipts are historical.
 The public simpler app has not been deployed. Deployment of both
 site and gateway is already authorized; no box/desktop/store changes.
 

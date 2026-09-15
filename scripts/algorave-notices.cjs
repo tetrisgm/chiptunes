@@ -5,6 +5,11 @@ const fs=require('node:fs'),path=require('node:path');
 function notices(out,inputs){
   const packages=new Map();
   for(const file of inputs){
+    if(file.includes('src/algorave/vendor/edo/')){
+      const directory=path.resolve(__dirname,'../src/algorave/vendor/edo');
+      packages.set(directory,JSON.parse(fs.readFileSync(path.join(directory,'package.json'),'utf8')));
+      continue;
+    }
     if(!file.includes('node_modules/'))continue;
     let directory=path.dirname(path.resolve(file));
     while(directory.includes('node_modules')){

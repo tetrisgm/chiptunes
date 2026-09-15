@@ -23,10 +23,18 @@ preview command uses the same builder. `dependencies.json` inventories packages
 actually included by esbuild's input graph. The full runtime bundles upstream
 web.mjs source rather than its prebundled distribution, so transitive inputs and
 their notices remain visible. The pattern worker is no longer embedded.
-The current inventory has 85 package entries, declaring MIT, ISC, BSD-2-Clause,
+The current inventory has 86 package entries, declaring MIT, ISC, BSD-2-Clause,
 BSD-3-Clause or AGPL-3.0-or-later. `THIRD_PARTY_NOTICES.txt` preserves distributed
 license/notice files. This inventory is evidence about these installed packages,
 not a blanket legal assurance about future dependencies.
+
+The unpublished @strudel/edo 0.1.0 is copied unchanged from Strudel commit
+`8f81463b9cb5ddd5f117ed7baef6a1fde9445dc2` into `src/algorave/vendor/edo`.
+UPSTREAM.json records the original Git blob hashes for its source, tests,
+metadata and repository license. The input graph includes it in the dependency
+notices, and the source archive includes those exact files. Its original package
+metadata retains workspace dependency declarations; the enclosing application's
+lockfile supplies the actual bundled dependencies.
 
 Three npm packages omit a standalone license file:
 - @tonaljs/progression 4.9.2 declares MIT. Supplement its notices with Tonal's

@@ -30,6 +30,7 @@
     "test:algorave-entry": "node build.js && node scripts/verify-algorave-entry.cjs",
     "test:algorave-runtime": "node build.js --algorave-preview && node scripts/verify-algorave-runtime.cjs",
     "test:algorave-default-sounds": "node build.js --algorave-preview && node scripts/verify-algorave-default-sounds.cjs",
+    "test:algorave-edo": "node build.js --algorave-preview && node scripts/verify-algorave-edo.cjs",
     "test:algorave-shader-inputs": "node build.js --algorave-preview && node scripts/verify-algorave-shader-inputs.cjs",
     "test:algorave-editor": "node build.js --algorave-preview && node scripts/verify-algorave-editor.cjs",
     "test:algorave-workflow": "node scripts/verify-algorave-session.mjs && node build.js --algorave-preview && node scripts/verify-algorave-workflow.cjs",

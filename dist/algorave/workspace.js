@@ -26609,7 +26609,7 @@ bridge = new MusicBridge(frame, (next) => {
 await bridge.ready;
 lock(false);
 status.textContent = session.recoveryError || initialVisualError || "Ready \xB7 \u2318/Ctrl Enter to run";
-$("build").textContent = "Algorave d7b050ab6d65";
+$("build").textContent = "Algorave 5d59d4f4f9c2";
 function draw(now) {
   shader2.render({ time: now / 1e3, delta: last2 ? (now - last2) / 1e3 : 0, ...signals.at(performance.timeOrigin + now) });
   last2 = now;

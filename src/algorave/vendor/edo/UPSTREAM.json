@@ -1,0 +1,60 @@
+{
+  "repository": "https://codeberg.org/uzu/strudel",
+  "commit": "8f81463b9cb5ddd5f117ed7baef6a1fde9445dc2",
+  "license": "AGPL-3.0-or-later",
+  "files": [
+    {
+      "path": "README.md",
+      "gitBlob": "482ad9c136ccbd9c0aeb29408ccea220d31b74d5"
+    },
+    {
+      "path": "edo.mjs",
+      "gitBlob": "1e99c243427827e8ccad71eafff665a68228ddd8"
+    },
+    {
+      "path": "edoscale.mjs",
+      "gitBlob": "0320540894be5c91cd66f26e8e85c770d23136a9"
+    },
+    {
+      "path": "index.mjs",
+      "gitBlob": "0bd5a41a93ddc56c9b9f75526d3a8b98ccfd2662"
+    },
+    {
+      "path": "intervals.mjs",
+      "gitBlob": "e79afe3d2fd620207632522eaa4900f8473ae745"
+    },
+    {
+      "path": "package.json",
+      "gitBlob": "42097279ea53873462be0cab5cc15a61d0a512ac"
+    },
+    {
+      "path": "pitches.mjs",
+      "gitBlob": "003e15b72720b4e18dcdd5ee94685e383acea50e"
+    },
+    {
+      "path": "ratios.mjs",
+      "gitBlob": "b431a237d9e766374971e0f5148b67985c170636"
+    },
+    {
+      "path": "vite.config.js",
+      "gitBlob": "5df3edc1bf8e08741b8c0bc725407b464fe90561"
+    },
+    {
+      "path": "test/edo.test.mjs",
+      "gitBlob": "7cebc34b89396a9f90fba80385965ce7fb3ad441"
+    },
+    {
+      "path": "test/edoscale.test.mjs",
+      "gitBlob": "531a1b57ce5d0fcfa6a1d35018c820391ff6b43d"
+    },
+    {
+      "path": "test/ratios.test.mjs",
+      "gitBlob": "f833177d03b624ab63f4b7afb802e2673b12f5db"
+    },
+    {
+      "path": "LICENSE",
+      "upstreamPath": "LICENSE",
+      "gitBlob": "be3f7b28e564e7dd05eaf59d64adba1a4065ac0e"
+    }
+  ]
+}

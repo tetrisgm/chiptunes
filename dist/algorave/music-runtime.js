@@ -239,8 +239,8 @@
               p12 /= z5;
             }
             while (B6 <= N5 && D6 <= N5) {
-              let M2 = (A5 + C7) / (B6 + D6);
-              if (p12 === M2) {
+              let M3 = (A5 + C7) / (B6 + D6);
+              if (p12 === M3) {
                 if (B6 + D6 <= N5) {
                   n2 = A5 + C7;
                   d2 = B6 + D6;
@@ -253,7 +253,7 @@
                 }
                 break;
               } else {
-                if (p12 > M2) {
+                if (p12 > M3) {
                   A5 += C7;
                   B6 += D6;
                 } else {
@@ -4297,7 +4297,7 @@ When mixing down to 2 channels, the input channels are equally distributed over 
         throw new Error("no code to evaluate");
       try {
         H6({ code: b2, pending: true }), await Ie2(), ee2(() => x3.now()), await n2?.({ code: b2 }), ft2 = [], At3 && Vt3(), _7 && (b2 = `mondolang\`${b2}\``);
-        let { pattern: M2, meta: Tt3 } = await On(b2, i2, I4);
+        let { pattern: M3, meta: Tt3 } = await On(b2, i2, I4);
         if (Object.keys(D6).length) {
           let X3 = [], ht3 = false;
           for (const [st4, Ve5] of Object.entries(D6)) {
@@ -4307,22 +4307,22 @@ When mixing down to 2 channels, the input channels are equally distributed over 
               X3.push(He3);
             }
           }
-          tt4 && (X3 = X3.map((st4) => tt4(st4))), M2 = z(...X3);
-        } else tt4 && (M2 = tt4(M2));
+          tt4 && (X3 = X3.map((st4) => tt4(st4))), M3 = z(...X3);
+        } else tt4 && (M3 = tt4(M3));
         if (ft2.length)
           for (const X3 of ft2)
-            M2 = X3(M2);
-        return pe2(M2) || (M2 = q2), E2("[eval] code updated"), M2 = await Dt3(M2, k6), H6({
+            M3 = X3(M3);
+        return pe2(M3) || (M3 = q2), E2("[eval] code updated"), M3 = await Dt3(M3, k6), H6({
           miniLocations: Tt3?.miniLocations || [],
           widgets: Tt3?.widgets || [],
           activeCode: b2,
-          pattern: M2,
+          pattern: M3,
           evalError: void 0,
           schedulerError: void 0,
           pending: false
-        }), r?.({ code: b2, pattern: M2, meta: Tt3 }), M2;
-      } catch (M2) {
-        E2(`[eval] error: ${M2.message}`, "error"), console.error(M2), H6({ evalError: M2, pending: false }), e?.(M2);
+        }), r?.({ code: b2, pattern: M3, meta: Tt3 }), M3;
+      } catch (M3) {
+        E2(`[eval] error: ${M3.message}`, "error"), console.error(M3), H6({ evalError: M3, pending: false }), e?.(M3);
       }
     }, start: Ne4, stop: $e4, pause: Le4, setCps: St3, setPattern: Dt3, setCode: (b2) => H6({ code: b2 }), toggle: Re3, state: A5 };
   }
@@ -8088,8 +8088,8 @@ Please check with "npm ls @strudel/core".`
     s2 == null && (s2 = p2.some((y3) => y3 != null) ? l2 : 0);
     const u3 = d2 ?? 0, m4 = s2 + u3;
     if (Math.abs(m4 - u3)) {
-      const [f4, y3, M2, Z6] = $3(p2, i2, h);
-      _3(t, f4, y3, M2, Z6, u3, m4, n2, r, i2);
+      const [f4, y3, M3, Z6] = $3(p2, i2, h);
+      _3(t, f4, y3, M3, Z6, u3, m4, n2, r, i2);
     }
     return jt3(e, t, n2, o, c3);
   }
@@ -8108,19 +8108,19 @@ Please check with "npm ls @strudel/core".`
       skew: b2,
       shape: f4,
       rate: y3,
-      sync: M2
+      sync: M3
     } = o, Z6, W8;
     p2 === "ladder" ? (W8 = q3(e, "ladder-processor", { frequency: s2, q: r, drive: h }), Z6 = W8.parameters.get("frequency")) : (W8 = we3("filter", () => e.createBiquadFilter()), W8.type = i2, Object.entries({ Q: r, frequency: s2 }).forEach(([O2, w6]) => {
       W8[O2].value = w6;
     }), Z6 = W8.frequency);
-    const S6 = [o.attack, o.decay, o.sustain, o.release], [Q6, F5, N5, g3] = $3(S6, "exponential", [5e-3, 0.14, 0, 0.1]);
-    if ([...S6, l2].some((k6) => k6 !== void 0)) {
+    const S7 = [o.attack, o.decay, o.sustain, o.release], [Q6, F5, N5, g3] = $3(S7, "exponential", [5e-3, 0.14, 0, 0.1]);
+    if ([...S7, l2].some((k6) => k6 !== void 0)) {
       l2 = re3(l2, 1, true), d2 = re3(d2, 0, true);
       const k6 = Math.abs(l2), O2 = k6 * d2;
       let w6 = se2(2 ** -O2 * s2, 0, 2e4), E5 = se2(2 ** (k6 - O2) * s2, 0, 2e4);
       l2 < 0 && ([w6, E5] = [E5, w6]), _3(Z6, Q6, F5, N5, g3, w6, E5, t, n2, "exponential");
     }
-    M2 != null && (y3 = a2 * M2);
+    M3 != null && (y3 = a2 * M3);
     const K4 = [u3, m4, b2, f4, y3].some((k6) => k6 !== void 0);
     let I4;
     if (K4) {
@@ -8207,10 +8207,10 @@ Please check with "npm ls @strudel/core".`
             continue;
           }
           if (!c3[u3]) {
-            const W8 = u3 === 1 ? "" : u3, { osc: S6, freq: Q6 } = Sn2(e, t[`fmh${W8}`] ?? 1, t[`fmwave${W8}`] ?? "sine");
-            a2.push(S6);
-            const F5 = [S6], N5 = ["attack", "decay", "sustain", "release"].map((C7) => t[`fm${C7}${W8}`]);
-            let g3 = S6;
+            const W8 = u3 === 1 ? "" : u3, { osc: S7, freq: Q6 } = Sn2(e, t[`fmh${W8}`] ?? 1, t[`fmwave${W8}`] ?? "sine");
+            a2.push(S7);
+            const F5 = [S7], N5 = ["attack", "decay", "sustain", "release"].map((C7) => t[`fm${C7}${W8}`]);
+            let g3 = S7;
             if (N5.some((C7) => C7 !== void 0)) {
               const C7 = o.createGain(), [K4, I4, k6, O2] = $3(N5), w6 = n2 + t.duration, E5 = t[`fmenv${W8}`] ?? "exp";
               _3(
@@ -8224,12 +8224,12 @@ Please check with "npm ls @strudel/core".`
                 n2,
                 w6,
                 E5 === "exp" ? "exponential" : "linear"
-              ), F5.push(C7), g3 = S6.connect(C7);
+              ), F5.push(C7), g3 = S7.connect(C7);
             }
-            c3[u3] = { input: S6.frequency, output: g3, freq: Q6, osc: S6, toCleanup: F5 }, s2[`fm_${u3}`] = [S6];
+            c3[u3] = { input: S7.frequency, output: g3, freq: Q6, osc: S7, toCleanup: F5 }, s2[`fm_${u3}`] = [S7];
           }
-          const { input: m4, output: G6, freq: b2, osc: f4, toCleanup: y3 } = c3[u3], M2 = T2(p2), Z6 = T2(b2);
-          r.push(h ? G6.connect(M2).connect(Z6) : m4), kn2(f4, [...y3, M2, Z6]), s2[`fm_${u3}_gain`] = [M2];
+          const { input: m4, output: G6, freq: b2, osc: f4, toCleanup: y3 } = c3[u3], M3 = T2(p2), Z6 = T2(b2);
+          r.push(h ? G6.connect(M3).connect(Z6) : m4), kn2(f4, [...y3, M3, Z6]), s2[`fm_${u3}_gain`] = [M3];
         }
         if (!r[1]) {
           j3(
@@ -8333,7 +8333,7 @@ Please check with "npm ls @strudel/core".`
       return;
     const u3 = z2();
     let [m4, G6, b2, f4] = $3([t.attack, t.decay, t.sustain, t.release]);
-    const { bufferSource: y3, sliceDuration: M2, offset: Z6 } = await eo2(t, o, a2);
+    const { bufferSource: y3, sliceDuration: M3, offset: Z6 } = await eo2(t, o, a2);
     if (!y3) {
       j3(`[sampler] could not load "${c3}:${p2}"`, "error");
       return;
@@ -8342,10 +8342,10 @@ Please check with "npm ls @strudel/core".`
       j3(`[sampler] loading sound "${c3}:${p2}" took too long`, "highlight"), Y3(y3);
       return;
     }
-    const W8 = Te3(y3.detune, t, e), S6 = e + s2;
-    y3.start(S6, Z6);
+    const W8 = Te3(y3.detune, t, e), S7 = e + s2;
+    y3.start(S7, Z6);
     const Q6 = u3.createGain(), F5 = y3.connect(Q6);
-    i2 == null && l2 == null && t.release == null && (h = M2);
+    i2 == null && l2 == null && t.release == null && (h = M3);
     let N5 = e + h;
     _3(F5.gain, m4, G6, b2, f4, 0, 1, e, N5, "linear"), He2(y3.detune, t, e, N5);
     const g3 = u3.createGain();
@@ -8359,7 +8359,7 @@ Please check with "npm ls @strudel/core".`
     }, I4 = { node: g3, nodes: { source: [y3], ...W8?.nodes }, stop: K4 };
     if (d2 !== void 0) {
       const k6 = Kt3[d2];
-      k6 && (k6.node.gain.setValueAtTime(1, S6), k6.node.gain.linearRampToValueAtTime(0, S6 + 0.01)), Kt3[d2] = I4;
+      k6 && (k6.node.gain.setValueAtTime(1, S7), k6.node.gain.linearRampToValueAtTime(0, S7 + 0.01)), Kt3[d2] = I4;
     }
     return I4;
   }
@@ -8433,12 +8433,12 @@ Please check with "npm ls @strudel/core".`
     const { s: s2, n: d2 = 0, duration: l2, clip: i2 } = t, p2 = z2(), [r, h, u3, m4] = $3([t.attack, t.decay, t.sustain, t.release]);
     let { warpmode: G6 } = t;
     typeof G6 == "string" && (G6 = gt3[G6.toUpperCase()] ?? gt3.NONE);
-    const b2 = Xe3(t), { url: f4, label: y3 } = It3(t, o), M2 = await mo2(f4, y3, c3);
+    const b2 = Xe3(t), { url: f4, label: y3 } = It3(t, o), M3 = await mo2(f4, y3, c3);
     let Z6 = e + l2;
     i2 !== void 0 && (Z6 = Math.min(e + i2 * l2, Z6));
-    const W8 = Z6 + m4, S6 = W8 + 0.01, Q6 = {
+    const W8 = Z6 + m4, S7 = W8 + 0.01, Q6 = {
       begin: e,
-      end: S6,
+      end: S7,
       frequency: b2,
       freqspread: t.detune,
       position: t.wt,
@@ -8451,7 +8451,7 @@ Please check with "npm ls @strudel/core".`
     if (Object.entries(Q6).forEach(([Ye4, oe4]) => {
       const me5 = N5.parameters.get(Ye4), Ee4 = oe4 !== void 0 ? oe4 : me5.defaultValue;
       me5.value = Ee4;
-    }), N5.port.postMessage({ type: "initialize", payload: M2 }), p2.currentTime > e) {
+    }), N5.port.postMessage({ type: "initialize", payload: M3 }), p2.currentTime > e) {
       j3(`[wavetable] still loading sound "${s2}:${d2}"`, "highlight");
       return;
     }
@@ -8522,7 +8522,7 @@ Please check with "npm ls @strudel/core".`
         ht2(N5), he5?.stop(), Re3?.stop(), Y3(w6), Y3(ee6), n2();
       },
       e,
-      S6
+      S7
     );
     return be5.stop = (Ye4) => {
       ve5.stop(Ye4);
@@ -8728,8 +8728,8 @@ Please check with "npm ls @strudel/core".`
           return u3?.(y3), h(y3), {
             node: b2,
             nodes: r,
-            stop: (M2) => {
-              h(M2);
+            stop: (M3) => {
+              h(M3);
             }
           };
         },
@@ -8750,14 +8750,14 @@ Please check with "npm ls @strudel/core".`
         ue3(u3, () => {
           Y3(u3), Y3(m4), Y3(f4), Y3(G6.node), Y3(b2), Y3(y3), n2();
         });
-        const M2 = u3.connect(f4).connect(m4).connect(y3);
+        const M3 = u3.connect(f4).connect(m4).connect(y3);
         G6.node.connect(b2).connect(y3);
         let W8 = e + a2 + 0.01;
         return d2 != null && (W8 = Math.min(e + d2 * o, W8)), y3.gain.setValueAtTime(h, W8 - 0.01), y3.gain.linearRampToValueAtTime(0, W8), u3.stop(W8), G6.stop(W8), {
-          node: M2,
+          node: M3,
           nodes: { source: [u3] },
-          stop: (S6) => {
-            u3.stop(S6);
+          stop: (S7) => {
+            u3.stop(S7);
           }
         };
       },
@@ -8788,20 +8788,20 @@ Please check with "npm ls @strudel/core".`
         }), Z6.port.postMessage({ type: "initialize" });
         const W8 = 1 / Math.sqrt(b2);
         He2(Z6.parameters.get("detune"), t, e, m4);
-        const S6 = Te3(Z6.parameters.get("detune"), t, e), Q6 = je3(Z6.parameters.get("frequency"), t, e);
+        const S7 = Te3(Z6.parameters.get("detune"), t, e), Q6 = je3(Z6.parameters.get("frequency"), t, e);
         let F5 = T2(1);
         F5 = Z6.connect(F5), _3(F5.gain, p2, r, h, u3, 0, 0.3 * W8, e, m4, "linear");
         let N5 = pe3(
           o,
           () => {
-            ht2(Z6), n2(), Q6?.stop(), S6?.stop();
+            ht2(Z6), n2(), Q6?.stop(), S7?.stop();
           },
           e,
           G6
         );
         return {
           node: F5,
-          nodes: { source: [Z6], ...Q6?.nodes, ...S6?.nodes },
+          nodes: { source: [Z6], ...Q6?.nodes, ...S7?.nodes },
           stop: (g3) => {
             N5.stop(g3);
           }
@@ -8860,8 +8860,8 @@ Please check with "npm ls @strudel/core".`
         return {
           node: f4,
           source: b2,
-          stop: (M2) => {
-            y3.stop(M2);
+          stop: (M3) => {
+            y3.stop(M3);
           }
         };
       },
@@ -8895,19 +8895,19 @@ Please check with "npm ls @strudel/core".`
         const b2 = Te3(G6.parameters.get("detune"), t, e), f4 = je3(G6.parameters.get("frequency"), t, e);
         let y3 = T2(1);
         y3 = G6.connect(y3), _3(y3.gain, i2, p2, r, h, 0, 1, e, u3, "linear");
-        let M2;
-        c3 != 0 && (M2 = Fe2(o, { frequency: a2, depth: c3, begin: e, end: m4 }), M2.connect(G6.parameters.get("pulsewidth")));
+        let M3;
+        c3 != 0 && (M3 = Fe2(o, { frequency: a2, depth: c3, begin: e, end: m4 }), M3.connect(G6.parameters.get("pulsewidth")));
         let Z6 = pe3(
           o,
           () => {
-            Y3(G6), Y3(M2), n2(), f4?.stop(), b2?.stop();
+            Y3(G6), Y3(M3), n2(), f4?.stop(), b2?.stop();
           },
           e,
           m4
         );
         return {
           node: y3,
-          nodes: { source: [G6], pw_lfo: [M2], ...f4?.nodes, ...b2?.nodes },
+          nodes: { source: [G6], pw_lfo: [M3], ...f4?.nodes, ...b2?.nodes },
           stop: (W8) => {
             Z6.stop(W8);
           }
@@ -8964,8 +8964,8 @@ Please check with "npm ls @strudel/core".`
           return h?.(y3), r(y3), {
             node: b2,
             nodes: { source: [p2] },
-            stop: (M2) => {
-              r(M2);
+            stop: (M3) => {
+              r(M3);
             }
           };
         },
@@ -8987,8 +8987,8 @@ Please check with "npm ls @strudel/core".`
       const h = e[r], [u3, m4] = i2[n2](r + 1), G6 = t?.[r] ?? 0;
       let b2 = u3 * h, f4 = m4 * h;
       if (G6 !== 0) {
-        const y3 = Math.cos(Tt2 * G6), M2 = Math.sin(Tt2 * G6);
-        b2 = y3 * b2 - M2 * f4, f4 = M2 * b2 + y3 * f4;
+        const y3 = Math.cos(Tt2 * G6), M3 = Math.sin(Tt2 * G6);
+        b2 = y3 * b2 - M3 * f4, f4 = M3 * b2 + y3 * f4;
       }
       c3[r + 1] = b2, s2[r + 1] = f4;
     }
@@ -9023,10 +9023,10 @@ Please check with "npm ls @strudel/core".`
       }
     };
   }
-  function ko2(e = 1, t = 0.05, n2 = 220, o = 0, a2 = 0, c3 = 0.1, s2 = 0, d2 = 1, l2 = 0, i2 = 0, p2 = 0, r = 0, h = 0, u3 = 0, m4 = 0, G6 = 0, b2 = 0, f4 = 1, y3 = 0, M2 = 0) {
-    let Z6 = Math.PI * 2, W8 = z2().sampleRate, S6 = (he5) => he5 > 0 ? 1 : -1, Q6 = l2 *= 500 * Z6 / W8 / W8, F5 = n2 *= (1 + t * 2 * Math.random() - t) * Z6 / W8, N5 = [], g3 = 0, C7 = 0, K4 = 0, I4 = 1, k6 = 0, O2 = 0, w6 = 0, E5, ee6;
+  function ko2(e = 1, t = 0.05, n2 = 220, o = 0, a2 = 0, c3 = 0.1, s2 = 0, d2 = 1, l2 = 0, i2 = 0, p2 = 0, r = 0, h = 0, u3 = 0, m4 = 0, G6 = 0, b2 = 0, f4 = 1, y3 = 0, M3 = 0) {
+    let Z6 = Math.PI * 2, W8 = z2().sampleRate, S7 = (he5) => he5 > 0 ? 1 : -1, Q6 = l2 *= 500 * Z6 / W8 / W8, F5 = n2 *= (1 + t * 2 * Math.random() - t) * Z6 / W8, N5 = [], g3 = 0, C7 = 0, K4 = 0, I4 = 1, k6 = 0, O2 = 0, w6 = 0, E5, ee6;
     for (o = o * W8 + 9, y3 *= W8, a2 *= W8, c3 *= W8, b2 *= W8, i2 *= 500 * Z6 / W8 ** 3, m4 *= Z6 / W8, p2 *= Z6 / W8, r *= W8, h = h * W8 | 0, ee6 = o + y3 + a2 + c3 + b2 | 0; K4 < ee6; N5[K4++] = w6)
-      ++O2 % (G6 * 100 | 0) || (w6 = s2 ? s2 > 1 ? s2 > 2 ? s2 > 3 ? Math.sin((g3 % Z6) ** 3) : Math.max(Math.min(Math.tan(g3), 1), -1) : 1 - (2 * g3 / Z6 % 2 + 2) % 2 : 1 - 4 * Math.abs(Math.round(g3 / Z6) - g3 / Z6) : Math.sin(g3), w6 = (h ? 1 - M2 + M2 * Math.sin(Z6 * K4 / h) : 1) * S6(w6) * Math.abs(w6) ** d2 * // curve 0=square, 2=pointy
+      ++O2 % (G6 * 100 | 0) || (w6 = s2 ? s2 > 1 ? s2 > 2 ? s2 > 3 ? Math.sin((g3 % Z6) ** 3) : Math.max(Math.min(Math.tan(g3), 1), -1) : 1 - (2 * g3 / Z6 % 2 + 2) % 2 : 1 - 4 * Math.abs(Math.round(g3 / Z6) - g3 / Z6) : Math.sin(g3), w6 = (h ? 1 - M3 + M3 * Math.sin(Z6 * K4 / h) : 1) * S7(w6) * Math.abs(w6) ** d2 * // curve 0=square, 2=pointy
       e * 1 * // envelope
       (K4 < o ? K4 / o : K4 < o + y3 ? 1 - (K4 - o) / y3 * (1 - f4) : K4 < o + y3 + a2 ? f4 : K4 < ee6 - b2 ? (ee6 - K4 - b2) / c3 * // release falloff
       f4 : 0), w6 = b2 ? w6 / 2 + (b2 > K4 ? 0 : (K4 < ee6 - b2 ? 1 : (ee6 - K4) / b2) * // release delay
@@ -9643,14 +9643,14 @@ registerProcessor('${n2}', MyProcessor);
         if (!u3.length) return;
         let G6 = u3[0].value;
         G6 = G6 === 0 ? 1 : G6;
-        const { min: b2, max: f4 } = Gt2(m4, G6), y3 = r ?? p2 * G6, M2 = {
+        const { min: b2, max: f4 } = Gt2(m4, G6), y3 = r ?? p2 * G6, M3 = {
           ...h,
           frequency: a2 !== void 0 ? a2 * c3 : o,
           time: s2 / c3,
           depth: y3,
           min: b2,
           max: f4
-        }, Z6 = Fe2(z2(), M2);
+        }, Z6 = Fe2(z2(), M3);
         return n2.main[`lfo_${e}`] = [Z6], u3.forEach((W8) => Z6.connect(W8)), Z6;
       };
       Dn2 = (e, t, n2) => {
@@ -9667,7 +9667,7 @@ registerProcessor('${n2}', MyProcessor);
           decayCurve: s2,
           releaseCurve: d2
         });
-        return n2.main[`env_${e}`] = [y3], h.forEach((M2) => y3.connect(M2)), y3;
+        return n2.main[`env_${e}`] = [y3], h.forEach((M3) => y3.connect(M3)), y3;
       };
       An2 = (e, t, n2) => {
         const o = z2(), { control: a2, subControl: c3, depth: s2 = 1, depthabs: d2, fxi: l2 = "main" } = e, { targetParams: i2, paramName: p2 } = Xt3(a2, t[l2], c3);
@@ -9678,16 +9678,16 @@ registerProcessor('${n2}', MyProcessor);
         r.connect(u3);
         let m4 = i2[0].value;
         m4 = m4 === 0 ? 1 : m4;
-        const { min: G6, max: b2 } = Gt2(p2, m4), f4 = d2 ?? s2 * m4, y3 = T2(Math.sign(f4) * Math.abs(f4) / 0.3), M2 = u3.connect(y3), Z6 = [];
-        let W8 = M2;
+        const { min: G6, max: b2 } = Gt2(p2, m4), f4 = d2 ?? s2 * m4, y3 = T2(Math.sign(f4) * Math.abs(f4) / 0.3), M3 = u3.connect(y3), Z6 = [];
+        let W8 = M3;
         if (G6 !== void 0 && b2 !== void 0) {
-          const S6 = En2(M2, G6, b2);
-          W8 = S6.modulator, Z6.push(...S6.toCleanup);
+          const S7 = En2(M3, G6, b2);
+          W8 = S7.modulator, Z6.push(...S7.toCleanup);
         }
         return pe3(
           o,
           () => {
-            i2.forEach((S6) => W8.connect(S6));
+            i2.forEach((S7) => W8.connect(S7));
           },
           0,
           e.begin
@@ -10002,10 +10002,10 @@ registerProcessor('${n2}', MyProcessor);
           duckdepth: b2,
           djf: f4,
           release: y3 = U3("release"),
-          dry: M2,
+          dry: M3,
           delay: Z6 = U3("delay"),
           delayfeedback: W8 = U3("delayfeedback"),
-          delaysync: S6 = U3("delaysync"),
+          delaysync: S7 = U3("delaysync"),
           delaytime: Q6,
           orbit: F5 = U3("orbit"),
           bus: N5,
@@ -10026,15 +10026,15 @@ registerProcessor('${n2}', MyProcessor);
           FX: de4 = [],
           FXrelease: be5
         } = e;
-        Q6 = Q6 ?? Lt3(S6, o);
+        Q6 = Q6 ?? Lt3(S7, o);
         const ve5 = Ht2(
           tn2 && F5 > 0 ? [F5 * 2 - 1, F5 * 2] : U3("channels")
         ), Ye4 = e.channels != null ? Ht2(e.channels) : ve5, oe4 = d2.getOrbit(F5, Ye4);
         u3 != null && d2.duck(u3, t, m4, G6, b2), h = ie3(h), Z6 = ie3(Z6), g3 = ie3(g3);
         const me5 = t + n2, Ee4 = Math.max(y3, be5 ?? 0), le4 = me5 + Ee4, Oe4 = Math.round(Math.random() * 1e6);
         for (let R6 = 0; R6 <= Ne2.size - en3; R6++) {
-          const X3 = Ne2.entries().next(), v2 = X3.value[1].deref(), L5 = X3.value[0], P4 = t + 0.25;
-          v2?.node?.gain?.linearRampToValueAtTime(0, P4), v2?.stop?.(P4), Ne2.delete(L5);
+          const X3 = Ne2.entries().next(), v2 = X3.value[1].deref(), L6 = X3.value[0], P4 = t + 0.25;
+          v2?.node?.gain?.linearRampToValueAtTime(0, P4), v2?.stop?.(P4), Ne2.delete(L6);
         }
         if (["-", "~", "_"].includes(i2))
           return;
@@ -10065,7 +10065,7 @@ registerProcessor('${n2}', MyProcessor);
         for (let [R6, X3] of Object.entries(de4)) {
           const v2 = R6 == de4.length - 1 ? "main" : R6;
           c3[v2] ??= {};
-          const L5 = c3[v2];
+          const L6 = c3[v2];
           let {
             gain: P4 = U3("gain"),
             velocity: te5 = U3("velocity"),
@@ -10088,7 +10088,7 @@ registerProcessor('${n2}', MyProcessor);
           }
           if (X3.stretch !== void 0) {
             const V5 = q3(s2, "phase-vocoder-processor", { pitchFactor: X3.stretch });
-            x3.connect(V5), L5.stretch = [V5];
+            x3.connect(V5), L6.stretch = [V5];
           }
           if (X3.transient !== void 0) {
             const V5 = q3(
@@ -10104,10 +10104,10 @@ registerProcessor('${n2}', MyProcessor);
                 }
               }
             );
-            x3.connect(V5), L5.transient = V5;
+            x3.connect(V5), L6.transient = V5;
           }
           const Mt3 = T2(P4);
-          L5.gain = [Mt3], x3.connect(Mt3);
+          L6.gain = [Mt3], x3.connect(Mt3);
           const qe4 = So2(e.ftype), Ze3 = (V5) => xn2(s2, t, me5, V5, o, a2);
           if (X3.cutoff !== void 0) {
             const H6 = et3(X3, {
@@ -10131,9 +10131,9 @@ registerProcessor('${n2}', MyProcessor);
             });
             H6.type = "lowpass";
             const { filter: B6, lfo: J6 } = Ze3(H6);
-            if (L5.lpf = [B6], L5.lpf_lfo = [J6], x3.connect(B6), J6 && x3.audioNodes.push(J6), qe4 === "24db") {
+            if (L6.lpf = [B6], L6.lpf_lfo = [J6], x3.connect(B6), J6 && x3.audioNodes.push(J6), qe4 === "24db") {
               const { filter: D6, lfo: A5 } = Ze3(H6);
-              L5.lpf.push(D6), L5.lpf_lfo.push(A5), x3.connect(D6), A5 && x3.audioNodes.push(A5);
+              L6.lpf.push(D6), L6.lpf_lfo.push(A5), x3.connect(D6), A5 && x3.audioNodes.push(A5);
             }
           }
           if (X3.hcutoff !== void 0) {
@@ -10158,9 +10158,9 @@ registerProcessor('${n2}', MyProcessor);
             });
             H6.type = "highpass";
             const { filter: B6, lfo: J6 } = Ze3(H6);
-            if (L5.hpf = [B6], L5.hpf_lfo = [J6], J6 && x3.audioNodes.push(J6), x3.connect(B6), qe4 === "24db") {
+            if (L6.hpf = [B6], L6.hpf_lfo = [J6], J6 && x3.audioNodes.push(J6), x3.connect(B6), qe4 === "24db") {
               const { filter: D6, lfo: A5 } = Ze3(H6);
-              L5.hpf.push(D6), L5.hpf_lfo.push(A5), x3.connect(D6), A5 && x3.audioNodes.push(A5);
+              L6.hpf.push(D6), L6.hpf_lfo.push(A5), x3.connect(D6), A5 && x3.audioNodes.push(A5);
             }
           }
           if (X3.bandf !== void 0) {
@@ -10185,30 +10185,30 @@ registerProcessor('${n2}', MyProcessor);
             });
             H6.type = "bandpass";
             const { filter: B6, lfo: J6 } = Ze3(H6);
-            if (L5.bpf = [B6], L5.bpf_lfo = [J6], x3.connect(B6), J6 && x3.audioNodes.push(J6), qe4 === "24db") {
+            if (L6.bpf = [B6], L6.bpf_lfo = [J6], x3.connect(B6), J6 && x3.audioNodes.push(J6), qe4 === "24db") {
               const { filter: D6, lfo: A5 } = Ze3(H6);
-              L5.bpf.push(D6), L5.bpf_lfo.push(A5), x3.connect(D6), A5 && x3.audioNodes.push(A5);
+              L6.bpf.push(D6), L6.bpf_lfo.push(A5), x3.connect(D6), A5 && x3.audioNodes.push(A5);
             }
           }
           if (X3.vowel !== void 0) {
             const V5 = s2.createVowelFilter(X3.vowel);
-            L5.vowel = V5.filters, x3.connect(V5);
+            L6.vowel = V5.filters, x3.connect(V5);
           }
           if (X3.coarse !== void 0) {
             const V5 = q3(s2, "coarse-processor", { coarse: X3.coarse });
-            L5.coarse = [V5], x3.connect(V5);
+            L6.coarse = [V5], x3.connect(V5);
           }
           if (X3.crush !== void 0) {
             const V5 = q3(s2, "crush-processor", { crush: X3.crush });
-            L5.crush = [V5], x3.connect(V5);
+            L6.crush = [V5], x3.connect(V5);
           }
           if (X3.shape !== void 0) {
             const V5 = q3(s2, "shape-processor", { shape: X3.shape, postgain: De3 });
-            L5.shape = [V5], x3.connect(V5);
+            L6.shape = [V5], x3.connect(V5);
           }
           if (X3.distort !== void 0) {
             const V5 = Cn2(X3.distort, Ae4, sn2);
-            L5.distort = [V5], x3.connect(V5);
+            L6.distort = [V5], x3.connect(V5);
           }
           let _e4 = X3.tremolo;
           if (X3.tremolosync != null && (_e4 = o * X3.tremolosync), _e4 !== void 0) {
@@ -10226,7 +10226,7 @@ registerProcessor('${n2}', MyProcessor);
               begin: t,
               end: le4
             });
-            L5.tremolo = [J6], L5.tremolo_gain = [H6], J6.connect(H6.gain), x3.audioNodes.push(J6), x3.connect(H6);
+            L6.tremolo = [J6], L6.tremolo_gain = [H6], J6.connect(H6.gain), x3.audioNodes.push(J6), x3.connect(H6);
           }
           if (X3.compressor !== void 0) {
             const V5 = Ln2(
@@ -10237,11 +10237,11 @@ registerProcessor('${n2}', MyProcessor);
               X3.compressorAttack,
               X3.compressorRelease
             );
-            L5.compressor = [V5], x3.connect(V5);
+            L6.compressor = [V5], x3.connect(V5);
           }
           if (X3.pan !== void 0) {
             const V5 = s2.createStereoPanner();
-            L5.pan = [V5], V5.pan.value = 2 * X3.pan - 1, x3.connect(V5);
+            L6.pan = [V5], V5.pan.value = 2 * X3.pan - 1, x3.connect(V5);
           }
           if (X3.phaserrate !== void 0 && Wt3 > 0) {
             const { filterChain: V5, lfo: H6 } = Yo2(
@@ -10252,13 +10252,13 @@ registerProcessor('${n2}', MyProcessor);
               X3.phasercenter,
               X3.phasersweep
             );
-            L5.phaser = [...V5], L5.phaser_lfo = [H6], V5.forEach((B6) => x3.connect(B6)), x3.audioNodes.push(H6);
+            L6.phaser = [...V5], L6.phaser_lfo = [H6], V5.forEach((B6) => x3.connect(B6)), x3.audioNodes.push(H6);
           }
           if (v2 !== "main" && ft2 > 0 && Ie2 > 0 && Pe3 > 0) {
             const V5 = T2(1);
             Pe3 = se2(Pe3, 0, 0.98);
             const H6 = s2.createFeedbackDelay(1, Ie2, Pe3), B6 = T2(ft2), J6 = T2(X3.dry ?? 1), D6 = new GainNode(s2, { gain: 1, channelCount: 2, channelCountMode: "explicit" });
-            x3.connect(V5).connect(J6, H6).connectOne(1, B6).connect(D6), x3.audioNodes.push(H6.feedbackGain, H6.delayGain), L5.delay = [H6], L5.delay_mix = [B6];
+            x3.connect(V5).connect(J6, H6).connectOne(1, B6).connect(D6), x3.audioNodes.push(H6.feedbackGain, H6.delayGain), L6.delay = [H6], L6.delay_mix = [B6];
           }
           if (v2 !== "main" && X3.room > 0) {
             let V5;
@@ -10275,7 +10275,7 @@ registerProcessor('${n2}', MyProcessor);
               X3.irspeed,
               X3.irbegin
             ), J6 = T2(X3.room), D6 = T2(X3.dry ?? 1), A5 = new GainNode(s2, { gain: 1, channelCount: 2, channelCountMode: "explicit" });
-            x3.connect(H6).connect(D6, B6).connectOne(1, J6).connect(A5), L5.room = [B6], L5.room_mix = [J6];
+            x3.connect(H6).connect(D6, B6).connectOne(1, J6).connect(A5), L6.room = [B6], L6.room_mix = [J6];
           }
         }
         if (be5 !== void 0 && be5 > y3) {
@@ -10292,8 +10292,8 @@ registerProcessor('${n2}', MyProcessor);
         if (C7 > 0) {
           let R6;
           if (w6 !== void 0) {
-            let L5, P4 = Me3(w6);
-            Array.isArray(P4) ? L5 = P4.data.samples[he5 % P4.data.samples.length] : typeof P4 == "object" && (L5 = Object.values(P4.data.samples).flat()[he5 % Object.values(P4.data.samples).length]), R6 = await dt3(L5, s2, w6, 0);
+            let L6, P4 = Me3(w6);
+            Array.isArray(P4) ? L6 = P4.data.samples[he5 % P4.data.samples.length] : typeof P4 == "object" && (L6 = Object.values(P4.data.samples).flat()[he5 % Object.values(P4.data.samples).length]), R6 = await dt3(L6, s2, w6, 0);
           }
           const X3 = oe4.getReverb(O2, K4, I4, k6, R6, E5, ee6);
           c3.main.room = [X3];
@@ -10312,20 +10312,20 @@ registerProcessor('${n2}', MyProcessor);
           const R6 = Ko2(Re3, 2 ** (Qe3 + 5)), X3 = Ue3(Ge2, R6, 1);
           x3.audioNodes.push(X3);
         }
-        if (M2 != null) {
-          M2 = ie3(M2);
-          const R6 = new GainNode(s2, { gain: M2 });
+        if (M3 != null) {
+          M3 = ie3(M3);
+          const R6 = new GainNode(s2, { gain: M3 });
           x3.connect(R6), oe4.connectToOutput(R6);
         } else
           oe4.connectToOutput(Ge2);
         de4.forEach((R6, X3) => {
           const v2 = X3 === de4.length - 1 ? "main" : X3;
           if (R6.lfo)
-            for (const L5 of R6.lfo.__ids) {
-              const P4 = R6.lfo[L5];
+            for (const L6 of R6.lfo.__ids) {
+              const P4 = R6.lfo[L6];
               P4.fxi ??= v2;
               const te5 = On2(
-                L5,
+                L6,
                 {
                   ...P4,
                   cps: o,
@@ -10338,11 +10338,11 @@ registerProcessor('${n2}', MyProcessor);
               te5 && x3.audioNodes.push(te5);
             }
           if (R6.env)
-            for (const L5 of R6.env.__ids) {
-              const P4 = R6.env[L5];
+            for (const L6 of R6.env.__ids) {
+              const P4 = R6.env[L6];
               P4.fxi ??= v2;
               const te5 = Dn2(
-                L5,
+                L6,
                 {
                   ...P4,
                   begin: t,
@@ -10353,8 +10353,8 @@ registerProcessor('${n2}', MyProcessor);
               te5 && x3.audioNodes.push(te5);
             }
           if (R6.bmod)
-            for (const L5 of R6.bmod.__ids) {
-              const P4 = R6.bmod[L5];
+            for (const L6 of R6.bmod.__ids) {
+              const P4 = R6.bmod[L6];
               P4.fxi ??= v2;
               const { toCleanup: te5 } = An2({ ...P4, begin: t, end: le4 }, c3, ye3);
               x3.audioNodes.push(...te5);
@@ -10392,10 +10392,10 @@ registerProcessor('${n2}', MyProcessor);
           znoise: b2 = 0,
           zmod: f4 = 0,
           zcrush: y3 = 0,
-          zdelay: M2 = 0,
+          zdelay: M3 = 0,
           tremolo: Z6 = 0,
           duration: W8 = 0.2,
-          zzfx: S6
+          zzfx: S7
         } = e;
         const Q6 = Math.max(W8 - s2 - d2, 0);
         typeof o == "string" && (o = Be3(o)), !a2 && typeof o == "number" && (a2 = kt3(o)), n2 = n2.replace("z_", "");
@@ -10403,7 +10403,7 @@ registerProcessor('${n2}', MyProcessor);
         p2 = n2 === "square" ? 0 : p2;
         const g3 = (
           /* ZZFX. */
-          ko2(...S6 || [
+          ko2(...S7 || [
             0.25,
             // volume
             c3,
@@ -10421,7 +10421,7 @@ registerProcessor('${n2}', MyProcessor);
             b2,
             f4,
             y3,
-            M2,
+            M3,
             l2,
             // sustain volume!
             d2,
@@ -10485,7 +10485,7 @@ registerProcessor('${n2}', MyProcessor);
     timeframe: p2,
     fold: k6 = 1,
     vertical: h = 0,
-    labels: S6 = false,
+    labels: S7 = false,
     fill: A5 = 1,
     fillActive: v2 = false,
     strokeActive: y3 = true,
@@ -10500,17 +10500,17 @@ registerProcessor('${n2}', MyProcessor);
     let z5 = -n2 * o, j7 = n2 * (1 - o);
     _7 && (e = e.filter((m4) => m4.hasTag(_7))), p2 && (console.warn("timeframe is deprecated! use from/to instead"), z5 = 0, j7 = p2);
     const N5 = h ? I4 : T7, E5 = h ? T7 : I4;
-    let L5 = h ? [N5, 0] : [0, N5];
+    let L6 = h ? [N5, 0] : [0, N5];
     const J6 = j7 - z5, te5 = h ? [0, E5] : [E5, 0];
     let K4 = d2 - b2 + 1, D6 = E5 / K4, Q6 = [];
-    a2 && L5.reverse(), r && te5.reverse();
+    a2 && L6.reverse(), r && te5.reverse();
     const { min: ke4, max: Pe3, values: Te5 } = e.reduce(
       ({ min: m4, max: F5, values: X3 }, Y6) => {
-        const M2 = he3(Y6);
+        const M3 = he3(Y6);
         return {
-          min: M2 < m4 ? M2 : m4,
-          max: M2 > F5 ? M2 : F5,
-          values: X3.includes(M2) ? X3 : [...X3, M2]
+          min: M3 < m4 ? M3 : m4,
+          max: M3 > F5 ? M3 : F5,
+          values: X3.includes(M3) ? X3 : [...X3, M3]
         };
       },
       { min: 1 / 0, max: -1 / 0, values: [] }
@@ -10522,15 +10522,15 @@ registerProcessor('${n2}', MyProcessor);
       let X3 = P4 ?? (y3 && F5), Y6 = !F5 && A5 || F5 && v2;
       if (H6 && !F5)
         return;
-      let M2 = m4.value?.color;
-      i2 = M2 || i2, f4 = q8 && M2 || f4, M2 = F5 ? i2 : f4, s2.fillStyle = Y6 ? M2 : "transparent", s2.strokeStyle = M2;
+      let M3 = m4.value?.color;
+      i2 = M3 || i2, f4 = q8 && M3 || f4, M3 = F5 ? i2 : f4, s2.fillStyle = Y6 ? M3 : "transparent", s2.strokeStyle = M3;
       const { velocity: Ae4 = 1, gain: qe4 = 1 } = m4.value || {};
       s2.globalAlpha = Ae4 * qe4;
-      const Fe4 = (m4.whole.begin - (a2 ? j7 : z5)) / J6, ne5 = G2(Fe4, ...L5);
+      const Fe4 = (m4.whole.begin - (a2 ? j7 : z5)) / J6, ne5 = G2(Fe4, ...L6);
       let B6 = G2(m4.duration / J6, 0, N5);
       const re7 = he3(m4), Me5 = k6 ? Q6.indexOf(re7) / Q6.length : (Number(re7) - b2) / K4, ae5 = G2(Me5, ...te5);
       let oe4 = 0;
-      const ie6 = G2(t / J6, ...L5);
+      const ie6 = G2(t / J6, ...L6);
       let V5;
       if (h ? V5 = [
         ae5 + 1 - (r ? D6 : 0),
@@ -10550,14 +10550,14 @@ registerProcessor('${n2}', MyProcessor);
         // widith
         D6 - 2
         // height
-      ], X3 && s2.strokeRect(...V5), Y6 && s2.fillRect(...V5), S6) {
+      ], X3 && s2.strokeRect(...V5), Y6 && s2.fillRect(...V5), S7) {
         const Se4 = m4.value.note ?? m4.value.s + (m4.value.n ? `:${m4.value.n}` : ""), { label: le4, activeLabel: Ce5 } = m4.value, He3 = (F5 && Ce5 || le4) ?? Se4;
         let Ie2 = h ? B6 : D6 * 0.75;
         s2.font = `${Ie2}px ${C7 || "monospace"}`, s2.fillStyle = /* isActive &&  */
-        Y6 ? "black" : M2, s2.textBaseline = "top", s2.fillText(He3, ...V5);
+        Y6 ? "black" : M3, s2.textBaseline = "top", s2.fillText(He3, ...V5);
       }
     }), s2.globalAlpha = 1;
-    const U8 = G2(-z5 / J6, ...L5);
+    const U8 = G2(-z5 / J6, ...L6);
     return s2.strokeStyle = c3, s2.beginPath(), h ? (s2.moveTo(0, U8), s2.lineTo(E5, U8)) : (s2.moveTo(U8, 0), s2.lineTo(U8, E5)), s2.stroke(), this;
   }
   function ve3(t, e = {}) {
@@ -10592,8 +10592,8 @@ registerProcessor('${n2}', MyProcessor);
     const k6 = 1 / 60;
     let h = n2;
     for (; h <= o; ) {
-      const [S6, A5] = ue4(h, a2, r, l2, f4);
-      e.globalAlpha = (h - n2) / (o - n2) * d2, e.lineTo(S6, A5), h += k6;
+      const [S7, A5] = ue4(h, a2, r, l2, f4);
+      e.globalAlpha = (h - n2) / (o - n2) * d2, e.lineTo(S7, A5), h += k6;
     }
     e.stroke();
   }
@@ -10619,7 +10619,7 @@ registerProcessor('${n2}', MyProcessor);
       ctx: p2,
       time: k6,
       haps: h,
-      drawTime: S6,
+      drawTime: S7,
       id: A5
     } = t;
     A5 && (h = h.filter((T7) => T7.hasTag(A5)));
@@ -10638,9 +10638,9 @@ registerProcessor('${n2}', MyProcessor);
       from: r - f4,
       to: r,
       color: l2
-    }, [s2] = S6, _7 = u3 * k6;
+    }, [s2] = S7, _7 = u3 * k6;
     h.forEach((T7) => {
-      const I4 = T7.whole.begin <= k6 && T7.endClipped > k6, z5 = T7.whole.begin - k6 + r, j7 = T7.endClipped - k6 + r - g3, N5 = T7.value?.color || c3, E5 = d2 || I4 ? N5 : b2, L5 = w6 ? 1 - Math.abs((T7.whole.begin - k6) / s2) : 1;
+      const I4 = T7.whole.begin <= k6 && T7.endClipped > k6, z5 = T7.whole.begin - k6 + r, j7 = T7.endClipped - k6 + r - g3, N5 = T7.value?.color || c3, E5 = d2 || I4 ? N5 : b2, L6 = w6 ? 1 - Math.abs((T7.whole.begin - k6) / s2) : 1;
       me3({
         ctx: p2,
         ...q8,
@@ -10648,8 +10648,8 @@ registerProcessor('${n2}', MyProcessor);
         to: j7,
         rotate: _7,
         color: E5,
-        fromOpacity: L5,
-        toOpacity: L5
+        fromOpacity: L6,
+        toOpacity: L6
       });
     }), me3({
       ctx: p2,
@@ -10672,9 +10672,9 @@ registerProcessor('${n2}', MyProcessor);
   } = {}) {
     const c3 = g3 === "polygon", b2 = g3 === "flake", d2 = e.canvas.width, w6 = e.canvas.height;
     e.clearRect(0, 0, d2, w6);
-    const p2 = W3().foreground, h = Math.min(d2, w6) / 2 - f4 / 2 - i2 - u3, S6 = d2 / 2, A5 = w6 / 2;
-    n2 && (t = t.filter((y3) => y3.hasTag(n2))), e.strokeStyle = p2, e.fillStyle = p2, e.globalAlpha = 1, e.lineWidth = f4, a2 && (e.beginPath(), e.arc(S6, A5, h, 0, 2 * Math.PI), e.stroke()), r && (Array.from({ length: r }, (y3, P4) => {
-      const H6 = be3(l2 * Math.pow(2, P4 / r), l2), [q8, C7] = ge4(S6, A5, h, H6);
+    const p2 = W3().foreground, h = Math.min(d2, w6) / 2 - f4 / 2 - i2 - u3, S7 = d2 / 2, A5 = w6 / 2;
+    n2 && (t = t.filter((y3) => y3.hasTag(n2))), e.strokeStyle = p2, e.fillStyle = p2, e.globalAlpha = 1, e.lineWidth = f4, a2 && (e.beginPath(), e.arc(S7, A5, h, 0, 2 * Math.PI), e.stroke()), r && (Array.from({ length: r }, (y3, P4) => {
+      const H6 = be3(l2 * Math.pow(2, P4 / r), l2), [q8, C7] = ge4(S7, A5, h, H6);
       e.beginPath(), e.arc(q8, C7, i2, 0, 2 * Math.PI), e.fill();
     }), e.stroke());
     let v2 = [];
@@ -10685,10 +10685,10 @@ registerProcessor('${n2}', MyProcessor);
       } catch {
         return;
       }
-      const H6 = be3(P4, l2), [q8, C7] = ge4(S6, A5, h, H6), s2 = y3.value.color || p2;
+      const H6 = be3(P4, l2), [q8, C7] = ge4(S7, A5, h, H6), s2 = y3.value.color || p2;
       e.strokeStyle = s2, e.fillStyle = s2;
       const { velocity: _7 = 1, gain: T7 = 1 } = y3.value || {}, I4 = _7 * T7;
-      e.globalAlpha = I4, v2.push([q8, C7, H6, s2, I4]), e.beginPath(), o && (e.moveTo(q8 + i2, C7), e.arc(q8, C7, i2, 0, 2 * Math.PI), e.fill()), b2 && (e.moveTo(S6, A5), e.lineTo(q8, C7)), e.stroke();
+      e.globalAlpha = I4, v2.push([q8, C7, H6, s2, I4]), e.beginPath(), o && (e.moveTo(q8 + i2, C7), e.arc(q8, C7, i2, 0, 2 * Math.PI), e.fill()), b2 && (e.moveTo(S7, A5), e.lineTo(q8, C7)), e.stroke();
     }), e.strokeStyle = p2, e.globalAlpha = 1, c3 && v2.length && (v2 = v2.sort((y3, P4) => y3[2] - P4[2]), e.beginPath(), e.moveTo(v2[0][0], v2[0][1]), v2.forEach(([y3, P4, H6, q8, C7]) => {
       e.strokeStyle = q8, e.globalAlpha = C7, e.lineTo(y3, P4);
     }), e.lineTo(v2[0][0], v2[0][1]), e.stroke());
@@ -10757,14 +10757,14 @@ registerProcessor('${n2}', MyProcessor);
         const f4 = (i2) => {
           let g3;
           i2 = Math.round(i2), g3 = this.slow(1e3).queryArc(i2, i2), o.fillStyle = fe4, o.fillRect(0, 0, a2, r), g3.forEach((u3) => {
-            let { x: c3, y: b2, w: d2, h: w6, s: p2, r: k6, angle: h = 0, fill: S6 = "darkseagreen" } = u3.value;
+            let { x: c3, y: b2, w: d2, h: w6, s: p2, r: k6, angle: h = 0, fill: S7 = "darkseagreen" } = u3.value;
             if (d2 *= a2, w6 *= r, k6 !== void 0 && h !== void 0) {
               const v2 = h * 2 * Math.PI, [y3, P4] = [(a2 - d2) / 2, (r - w6) / 2];
               c3 = y3 + Math.cos(v2) * k6 * y3, b2 = P4 + Math.sin(v2) * k6 * P4;
             } else
               c3 *= a2 - d2, b2 *= r - w6;
             const A5 = { ...u3.value, x: c3, y: b2, w: d2, h: w6 };
-            o.fillStyle = S6, p2 === "rect" ? o.fillRect(c3, b2, d2, w6) : p2 === "ellipse" && (o.beginPath(), o.ellipse(c3 + d2 / 2, b2 + w6 / 2, d2 / 2, w6 / 2, 0, 0, 2 * Math.PI), o.fill()), t && t(o, A5, u3);
+            o.fillStyle = S7, p2 === "rect" ? o.fillRect(c3, b2, d2, w6) : p2 === "ellipse" && (o.beginPath(), o.ellipse(c3 + d2 / 2, b2 + w6 / 2, d2 / 2, w6 / 2, 0, 0, 2 * Math.PI), o.fill()), t && t(o, A5, u3);
           }), window.frame = requestAnimationFrame(f4);
         };
         return window.frame = requestAnimationFrame(f4), q2;
@@ -11605,7 +11605,7 @@ registerProcessor('${n2}', MyProcessor);
       var u3;
       return u3 = jr2(), u3;
     }
-    function M2() {
+    function M3() {
       var u3, r;
       return h++, u3 = n2, er2(), r = ou2(), r !== e ? (ur2(), Qt3(), $5 = u3, u3 = ot5()) : (n2 = u3, u3 = e), h--, u3 === e && h === 0 && d2(de4), u3;
     }
@@ -11731,11 +11731,11 @@ registerProcessor('${n2}', MyProcessor);
     }
     function fr2() {
       var u3, r, s2;
-      return u3 = n2, E5(), r = t.charAt(n2), De3.test(r) ? n2++ : (r = e, h === 0 && d2(Le4)), r !== e ? (s2 = M2(), s2 === e && (s2 = null), $5 = u3, u3 = Ft4(s2)) : (n2 = u3, u3 = e), u3;
+      return u3 = n2, E5(), r = t.charAt(n2), De3.test(r) ? n2++ : (r = e, h === 0 && d2(Le4)), r !== e ? (s2 = M3(), s2 === e && (s2 = null), $5 = u3, u3 = Ft4(s2)) : (n2 = u3, u3 = e), u3;
     }
     function or2() {
       var u3, r, s2;
-      return u3 = n2, E5(), t.charCodeAt(n2) === 33 ? (r = ne5, n2++) : (r = e, h === 0 && d2(Oe4)), r !== e ? (s2 = M2(), s2 === e && (s2 = null), $5 = u3, u3 = ht3(s2)) : (n2 = u3, u3 = e), u3;
+      return u3 = n2, E5(), t.charCodeAt(n2) === 33 ? (r = ne5, n2++) : (r = e, h === 0 && d2(Oe4)), r !== e ? (s2 = M3(), s2 === e && (s2 = null), $5 = u3, u3 = ht3(s2)) : (n2 = u3, u3 = e), u3;
     }
     function ar2() {
       var u3, r, s2, o, B6, x3, j7;
@@ -11751,7 +11751,7 @@ registerProcessor('${n2}', MyProcessor);
     }
     function Ar2() {
       var u3, r, s2;
-      return u3 = n2, t.charCodeAt(n2) === 63 ? (r = ae5, n2++) : (r = e, h === 0 && d2(We3)), r !== e ? (s2 = M2(), s2 === e && (s2 = null), $5 = u3, u3 = dt4(s2)) : (n2 = u3, u3 = e), u3;
+      return u3 = n2, t.charCodeAt(n2) === 63 ? (r = ae5, n2++) : (r = e, h === 0 && d2(We3)), r !== e ? (s2 = M3(), s2 === e && (s2 = null), $5 = u3, u3 = dt4(s2)) : (n2 = u3, u3 = e), u3;
     }
     function pr2() {
       var u3, r, s2;
@@ -11837,19 +11837,19 @@ registerProcessor('${n2}', MyProcessor);
     }
     function vr2() {
       var u3, r, s2;
-      return u3 = n2, t.substr(n2, 4) === _u2 ? (r = _u2, n2 += 4) : (r = e, h === 0 && d2(Je3)), r !== e ? (E5(), s2 = M2(), s2 !== e ? ($5 = u3, u3 = qt4(s2)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
+      return u3 = n2, t.substr(n2, 4) === _u2 ? (r = _u2, n2 += 4) : (r = e, h === 0 && d2(Je3)), r !== e ? (E5(), s2 = M3(), s2 !== e ? ($5 = u3, u3 = qt4(s2)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
     }
     function $r2() {
       var u3, r, s2;
-      return u3 = n2, t.substr(n2, 4) === yu2 ? (r = yu2, n2 += 4) : (r = e, h === 0 && d2(Ke3)), r !== e ? (E5(), s2 = M2(), s2 !== e ? ($5 = u3, u3 = jt4(s2)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
+      return u3 = n2, t.substr(n2, 4) === yu2 ? (r = yu2, n2 += 4) : (r = e, h === 0 && d2(Ke3)), r !== e ? (E5(), s2 = M3(), s2 !== e ? ($5 = u3, u3 = jt4(s2)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
     }
     function mr2() {
       var u3, r, s2;
-      return u3 = n2, t.substr(n2, 4) === wu2 ? (r = wu2, n2 += 4) : (r = e, h === 0 && d2(Qe3)), r !== e ? (E5(), s2 = M2(), s2 !== e ? ($5 = u3, u3 = St3(s2)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
+      return u3 = n2, t.substr(n2, 4) === wu2 ? (r = wu2, n2 += 4) : (r = e, h === 0 && d2(Qe3)), r !== e ? (E5(), s2 = M3(), s2 !== e ? ($5 = u3, u3 = St3(s2)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
     }
     function _r2() {
       var u3, r, s2;
-      return u3 = n2, t.substr(n2, 4) === bu2 ? (r = bu2, n2 += 4) : (r = e, h === 0 && d2(ut4)), r !== e ? (E5(), s2 = M2(), s2 !== e ? ($5 = u3, u3 = Rt4(s2)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
+      return u3 = n2, t.substr(n2, 4) === bu2 ? (r = bu2, n2 += 4) : (r = e, h === 0 && d2(ut4)), r !== e ? (E5(), s2 = M3(), s2 !== e ? ($5 = u3, u3 = Rt4(s2)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
     }
     function yr2() {
       var u3, r, s2, o, B6;
@@ -11921,11 +11921,11 @@ registerProcessor('${n2}', MyProcessor);
     }
     function Nr2() {
       var u3, r, s2;
-      return u3 = n2, t.substr(n2, 6) === Nu2 ? (r = Nu2, n2 += 6) : (r = e, h === 0 && d2(st4)), r !== e ? (E5(), s2 = M2(), s2 !== e ? ($5 = u3, u3 = Wt3(s2)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
+      return u3 = n2, t.substr(n2, 6) === Nu2 ? (r = Nu2, n2 += 6) : (r = e, h === 0 && d2(st4)), r !== e ? (E5(), s2 = M3(), s2 !== e ? ($5 = u3, u3 = Wt3(s2)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
     }
     function Pr2() {
       var u3, r, s2;
-      return u3 = n2, t.substr(n2, 6) === Pu2 ? (r = Pu2, n2 += 6) : (r = e, h === 0 && d2(it5)), r !== e ? (E5(), s2 = M2(), s2 !== e ? ($5 = u3, u3 = Ut4(s2)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
+      return u3 = n2, t.substr(n2, 6) === Pu2 ? (r = Pu2, n2 += 6) : (r = e, h === 0 && d2(it5)), r !== e ? (E5(), s2 = M3(), s2 !== e ? ($5 = u3, u3 = Ut4(s2)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
     }
     function qr2() {
       var u3, r;
@@ -19682,7 +19682,7 @@ registerProcessor('${n2}', MyProcessor);
         symbols: () => symbols
       });
       module.exports = __toCommonJS(chord_type_exports);
-      var import_core10 = require_dist18();
+      var import_core11 = require_dist18();
       var import_pcset = require_dist11();
       var CHORDS = [
         ["1P 3M 5P", "major", "M ^  maj"],
@@ -19821,7 +19821,7 @@ registerProcessor('${n2}', MyProcessor);
       function get(type) {
         return index[type] || NoChordType;
       }
-      var chordType = (0, import_core10.deprecate)("ChordType.chordType", "ChordType.get", get);
+      var chordType = (0, import_core11.deprecate)("ChordType.chordType", "ChordType.get", get);
       function names() {
         return dictionary.map((chord) => chord.name).filter((x3) => x3);
       }
@@ -19834,7 +19834,7 @@ registerProcessor('${n2}', MyProcessor);
       function all() {
         return dictionary.slice();
       }
-      var entries = (0, import_core10.deprecate)("ChordType.entries", "ChordType.all", all);
+      var entries = (0, import_core11.deprecate)("ChordType.entries", "ChordType.all", all);
       function removeAll() {
         dictionary = [];
         index = {};
@@ -20158,7 +20158,7 @@ registerProcessor('${n2}', MyProcessor);
       module.exports = __toCommonJS(chord_exports);
       var import_chord_detect = require_dist13();
       var import_chord_type = require_dist19();
-      var import_core10 = require_dist18();
+      var import_core11 = require_dist18();
       var import_core22 = require_dist18();
       var import_pcset = require_dist11();
       var import_scale_type = require_dist20();
@@ -20262,12 +20262,12 @@ registerProcessor('${n2}', MyProcessor);
       }
       function degrees(chordName) {
         const { intervals, tonic } = get(chordName);
-        const transpose2 = (0, import_core10.tonicIntervalsTransposer)(intervals, tonic);
+        const transpose2 = (0, import_core11.tonicIntervalsTransposer)(intervals, tonic);
         return (degree) => degree ? transpose2(degree > 0 ? degree - 1 : degree) : "";
       }
       function steps(chordName) {
         const { intervals, tonic } = get(chordName);
-        return (0, import_core10.tonicIntervalsTransposer)(intervals, tonic);
+        return (0, import_core11.tonicIntervalsTransposer)(intervals, tonic);
       }
       var chord_default = {
         getChord,
@@ -23530,23 +23530,23 @@ registerProcessor('${n2}', MyProcessor);
     voicings: () => S1
   });
   function d1(m4) {
-    const M2 = (m4 || "").match(/^([A-G][b#]*)([^/]*)[/]?([A-G][b#]*)?$/);
-    return M2 ? M2.slice(1) : [];
+    const M3 = (m4 || "").match(/^([A-G][b#]*)([^/]*)[/]?([A-G][b#]*)?$/);
+    return M3 ? M3.slice(1) : [];
   }
-  function s1(m4, M2, P4 = 1) {
+  function s1(m4, M3, P4 = 1) {
     m4 = m4.map((e) => typeof e == "string" ? gt2(e) : e);
-    const t = Math.floor(M2 / m4.length) * P4 * 12;
-    return M2 = bt2(M2, m4.length), m4[M2] + t;
+    const t = Math.floor(M3 / m4.length) * P4 * 12;
+    return M3 = bt2(M3, m4.length), m4[M3] + t;
   }
-  function U7(m4, M2, P4) {
+  function U7(m4, M3, P4) {
     let t = 0, e = 1 / 0;
-    return M2.forEach((n2, s2) => {
+    return M3.forEach((n2, s2) => {
       const o = Math.abs(n2 - m4);
       (!P4 && o < e || P4 && o <= e) && (t = s2, e = o);
     }), t;
   }
-  function c1(m4, M2, P4, t) {
-    const [e, n2] = import_tonal.Scale.tokenize(M2), s2 = G4(e), o = S5(s2);
+  function c1(m4, M3, P4, t) {
+    const [e, n2] = import_tonal.Scale.tokenize(M3), s2 = G4(e), o = S5(s2);
     if (!j6[n2]) {
       const { intervals: a2 } = import_tonal.Scale.get(`C ${n2}`);
       j6[n2] = a2.map(R5);
@@ -23563,10 +23563,10 @@ registerProcessor('${n2}', MyProcessor);
     const c3 = Math.floor(m4 / d2.length) * 12;
     return m4 = bt2(m4, d2.length), d2[m4] + i2 + c3;
   }
-  function i1({ chord: m4, dictionary: M2, offset: P4 = 0, n: t, mode: e = "below", anchor: n2 = "c5", octaves: s2 = 1 }) {
+  function i1({ chord: m4, dictionary: M3, offset: P4 = 0, n: t, mode: e = "below", anchor: n2 = "c5", octaves: s2 = 1 }) {
     const [o, d2] = d1(m4), i2 = o1(o);
     n2 = G4(n2?.note || n2, 4);
-    const c3 = S5(n2), r = M2[d2].map(
+    const c3 = S5(n2), r = M3[d2].map(
       (u3) => (typeof u3 == "string" ? u3.split(" ") : u3).map(R5)
     );
     let a2, l2, y3 = r.map((u3, $5) => {
@@ -23580,32 +23580,32 @@ registerProcessor('${n2}', MyProcessor);
   }
   function _6(m4) {
     m4 = m4.replaceAll(":", " ");
-    const M2 = import_tonal.Scale.get(m4), { tonic: P4, empty: t } = M2;
+    const M3 = import_tonal.Scale.get(m4), { tonic: P4, empty: t } = M3;
     if (t && Mt2(m4) || t && !P4)
       throw new Error(
         `Scale name ${m4} is incomplete. Make sure to use ":" instead of spaces, example: .scale("C:major")`
       );
     if (t)
       throw new Error(`Invalid scale name "${m4}"`);
-    return M2;
+    return M3;
   }
-  function l1(m4, M2) {
+  function l1(m4, M3) {
     m4 = Math.ceil(m4);
-    let { intervals: P4, tonic: t } = _6(M2);
+    let { intervals: P4, tonic: t } = _6(M3);
     t = t || "C";
     const { pc: e, oct: n2 = 3 } = import_tonal.Note.get(t), s2 = Math.floor(m4 / P4.length), o = bt2(m4, P4.length), d2 = import_tonal.Interval.add(P4[o], a1(s2));
     return import_tonal.Note.transpose(e + n2, d2);
   }
-  function J4(m4, M2, P4) {
+  function J4(m4, M3, P4) {
     let { notes: t } = _6(m4);
-    if (t = t.map((r) => import_tonal.Note.get(r).pc), M2 = Number(M2), isNaN(M2))
-      throw new Error(`scale offset "${M2}" not a number`);
+    if (t = t.map((r) => import_tonal.Note.get(r).pc), M3 = Number(M3), isNaN(M3))
+      throw new Error(`scale offset "${M3}" not a number`);
     const { pc: e, oct: n2 = 3 } = import_tonal.Note.get(P4), s2 = t.indexOf(e);
     if (s2 === -1)
       throw new Error(`note "${P4}" is not in scale "${m4}"`);
     let o = s2, d2 = n2, i2 = e;
-    const c3 = Math.sign(M2);
-    for (; Math.abs(o - s2) < Math.abs(M2); ) {
+    const c3 = Math.sign(M3);
+    for (; Math.abs(o - s2) < Math.abs(M3); ) {
       o += c3;
       const r = bt2(o, t.length);
       c3 < 0 && i2[0] === "C" && (d2 += c3), i2 = t[r], c3 > 0 && i2[0] === "C" && (d2 += c3);
@@ -23613,20 +23613,20 @@ registerProcessor('${n2}', MyProcessor);
     return i2 + d2;
   }
   function u1(m4) {
-    let M2 = Number(m4), P4 = 0;
-    if (isNaN(M2)) {
+    let M3 = Number(m4), P4 = 0;
+    if (isNaN(M3)) {
       m4 = String(m4);
       const t = /^(-?\d+)([#bsf]*)$/.exec(m4);
       if (!t)
         throw new Error(`invalid scale step "${m4}", expected number or integer with optional # b suffixes`);
-      M2 = Number(t[1]);
+      M3 = Number(t[1]);
       const e = t[2] || "";
       P4 = Ye2(e);
     }
-    return [M2, P4];
+    return [M3, P4];
   }
-  function f1(m4, M2, P4 = true) {
-    let t = typeof M2 == "string" ? gt2(M2) : M2;
+  function f1(m4, M3, P4 = true) {
+    let t = typeof M3 == "string" ? gt2(M3) : M3;
     if (k5[m4] === void 0) {
       const { intervals: r, tonic: a2 } = _6(m4), { pc: l2 } = import_tonal.Note.get(a2), A5 = r.concat("8P").map((x3) => import_tonal.Note.transpose(l2 + "0", x3)), N5 = A5.map(gt2);
       k5[m4] = [N5, A5];
@@ -23634,9 +23634,9 @@ registerProcessor('${n2}', MyProcessor);
     const [e, n2] = k5[m4], s2 = e[0], o = Math.floor((t - s2) / 12), d2 = e.map((r) => r + 12 * o), i2 = U7(t, d2, P4), c3 = n2[i2];
     return import_tonal.Note.transpose(c3, import_tonal.Interval.fromSemitones(12 * o));
   }
-  function D4(m4, M2, P4) {
+  function D4(m4, M3, P4) {
     P4 = Array.isArray(P4) ? P4 : [P4], P4.forEach((t) => {
-      t[M2] = t[m4];
+      t[M3] = t[m4];
     });
   }
   function O1() {
@@ -23653,23 +23653,23 @@ registerProcessor('${n2}', MyProcessor);
       e1 = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
       n1 = { b: -1, "#": 1 };
       o1 = (m4) => {
-        const [M2, ...P4] = m4.split("");
-        return t1.indexOf(M2.toLowerCase()) + P4.reduce((t, e) => t + n1[e], 0);
+        const [M3, ...P4] = m4.split("");
+        return t1.indexOf(M3.toLowerCase()) + P4.reduce((t, e) => t + n1[e], 0);
       };
       S5 = (m4) => m4 % 12;
       R5 = (m4) => {
-        let M2 = Number(m4);
-        return isNaN(M2) ? import_tonal.Interval.semitones(m4) : M2;
+        let M3 = Number(m4);
+        return isNaN(M3) ? import_tonal.Interval.semitones(m4) : M3;
       };
-      G4 = (m4, M2) => {
+      G4 = (m4, M3) => {
         if (typeof m4 == "number")
           return m4;
         if (typeof m4 == "string")
-          return gt2(m4, M2);
+          return gt2(m4, M3);
       };
-      r1 = (m4, M2 = false) => {
+      r1 = (m4, M3 = false) => {
         const P4 = Math.floor(m4 / 12) - 1;
-        return (M2 ? e1 : P1)[m4 % 12] + P4;
+        return (M3 ? e1 : P1)[m4 % 12] + P4;
       };
       j6 = {};
       H5 = {
@@ -23679,25 +23679,25 @@ registerProcessor('${n2}', MyProcessor);
         root: (m4) => m4[0]
       };
       a1 = (m4) => (m4 <= 0 ? -1 : 1) + m4 * 7 + "P";
-      ({ transpose: D1, trans: I1 } = l(["transpose", "trans"], function(M2, P4) {
+      ({ transpose: D1, trans: I1 } = l(["transpose", "trans"], function(M3, P4) {
         return P4.withHap((t) => {
           const e = t.value.note ?? t.value;
           if (typeof e == "number") {
             let o;
-            typeof M2 == "number" ? o = M2 : typeof M2 == "string" && (o = import_tonal.Interval.semitones(M2) || 0);
+            typeof M3 == "number" ? o = M3 : typeof M3 == "string" && (o = import_tonal.Interval.semitones(M3) || 0);
             const d2 = e + o;
             return typeof t.value == "object" ? t.withValue(() => ({ ...t.value, note: d2 })) : t.withValue(() => d2);
           }
           if (typeof e != "string" || !Mt2(e))
             return E2(`[tonal] transpose: not a note "${e}"`, "warning"), t;
-          const n2 = isNaN(Number(M2)) ? String(M2) : import_tonal.Interval.fromSemitones(M2), s2 = import_tonal.Note.transpose(e, n2);
+          const n2 = isNaN(Number(M3)) ? String(M3) : import_tonal.Interval.fromSemitones(M3), s2 = import_tonal.Note.transpose(e, n2);
           return typeof t.value == "object" ? t.withValue(() => ({ ...t.value, note: s2 })) : t.withValue(() => s2);
         });
       }));
       ({ scaleTranspose: $1, scaleTrans: E1, strans: j1 } = l(
         ["scaleTranspose", "scaleTrans", "strans"],
-        function(m4, M2) {
-          return M2.withHap((P4) => {
+        function(m4, M3) {
+          return M3.withHap((P4) => {
             if (!P4.context.scale)
               throw new Error("can only use scaleTranspose after .scale");
             if (typeof P4.value == "object")
@@ -23714,8 +23714,8 @@ registerProcessor('${n2}', MyProcessor);
       k5 = {};
       k1 = l(
         "scale",
-        function(m4, M2) {
-          return Array.isArray(m4) && (m4 = m4.flat().join(" ")), M2.withHaps((P4) => (P4 = P4.map((t) => {
+        function(m4, M3) {
+          return Array.isArray(m4) && (m4 = m4.flat().join(" ")), M3.withHaps((P4) => (P4 = P4.map((t) => {
             let e = t.value;
             const n2 = typeof e == "object";
             e = n2 ? e : { n: e };
@@ -24330,15 +24330,15 @@ registerProcessor('${n2}', MyProcessor);
       };
       W6 = "ireal";
       y1 = (m4) => W6 = m4;
-      T1 = (m4, M2) => A1(m4, v[m4].dictionary, M2);
-      A1 = (m4, M2, P4 = ["F3", "A4"]) => {
-        Object.assign(v, { [m4]: { dictionary: M2, range: P4 } });
+      T1 = (m4, M3) => A1(m4, v[m4].dictionary, M3);
+      A1 = (m4, M3, P4 = ["F3", "A4"]) => {
+        Object.assign(v, { [m4]: { dictionary: M3, range: P4 } });
       };
-      q6 = (m4, M2, P4 = {}) => {
-        Object.assign(v, { [m4]: { dictionary: M2, ...P4 } });
+      q6 = (m4, M3, P4 = {}) => {
+        Object.assign(v, { [m4]: { dictionary: M3, ...P4 } });
       };
-      N1 = (m4, M2, P4) => {
-        const { dictionary: t, range: e } = v[M2];
+      N1 = (m4, M3, P4) => {
+        const { dictionary: t, range: e } = v[M3];
         return b1({
           chord: m4,
           dictionary: t,
@@ -24347,19 +24347,19 @@ registerProcessor('${n2}', MyProcessor);
           lastVoicing: P4
         });
       };
-      S1 = l("voicings", function(m4, M2) {
-        return M2.fmap((P4) => (C5 = N1(P4, m4, C5), z(...C5))).outerJoin();
+      S1 = l("voicings", function(m4, M3) {
+        return M3.fmap((P4) => (C5 = N1(P4, m4, C5), z(...C5))).outerJoin();
       });
-      G1 = l("rootNotes", function(m4, M2) {
-        return M2.fmap((P4) => {
+      G1 = l("rootNotes", function(m4, M3) {
+        return M3.fmap((P4) => {
           const n2 = (P4.chord || P4).match(/^([a-gA-G][b#]?).*$/)[1] + m4;
           return P4.chord ? { note: n2 } : n2;
         });
       });
       F1 = l("voicing", function(m4) {
-        return m4.fmap((M2) => {
-          M2 = typeof M2 == "string" ? { chord: M2 } : M2;
-          let { dictionary: P4 = W6, chord: t, anchor: e, offset: n2, mode: s2, n: o, octaves: d2, ...i2 } = M2;
+        return m4.fmap((M3) => {
+          M3 = typeof M3 == "string" ? { chord: M3 } : M3;
+          let { dictionary: P4 = W6, chord: t, anchor: e, offset: n2, mode: s2, n: o, octaves: d2, ...i2 } = M3;
           P4 = typeof P4 == "string" ? v[P4] : { dictionary: P4, mode: "below", anchor: "c5" };
           try {
             let c3 = i1({ ...P4, chord: t, anchor: e, offset: n2, mode: s2, n: o, octaves: d2 });
@@ -24372,16 +24372,16 @@ registerProcessor('${n2}', MyProcessor);
       D4("^", "", [g2, w4]);
       Object.keys(g2).forEach((m4) => {
         if (m4.includes("-")) {
-          let M2 = m4.replace("-", "m");
-          D4(m4, M2, [w4, g2]);
+          let M3 = m4.replace("-", "m");
+          D4(m4, M3, [w4, g2]);
         }
         if (m4.includes("^")) {
-          let M2 = m4.replace("^", "M");
-          D4(m4, M2, [w4, g2]);
+          let M3 = m4.replace("^", "M");
+          D4(m4, M3, [w4, g2]);
         }
         if (m4.includes("+")) {
-          let M2 = m4.replace("+", "aug");
-          D4(m4, M2, [w4, g2]);
+          let M3 = m4.replace("+", "aug");
+          D4(m4, M3, [w4, g2]);
         }
       });
       q6("ireal", g2);
@@ -24765,9 +24765,9 @@ registerProcessor('${n2}', MyProcessor);
             }, u3 = function(e2, t2, r2, n3, o2, s3) {
               for (var u4 = [], l3 = 0; l3 < e2.length; l3++) {
                 for (var f4 = e2[l3], d2 = e2[l3 + 1], p2 = f4.bagIndex, h = d2 ? d2.bagIndex : t2.length, y3 = [], v2 = void 0, g3 = p2; g3 < h; g3++) {
-                  var E5 = a2(g3, t2, r2), m4 = c3(g3, t2, n3), b2 = m4[i2.GeneratorType.KeyRange] && m4[i2.GeneratorType.KeyRange].range, S6 = m4[s3];
-                  if (S6) {
-                    var T7 = o2[S6.value];
+                  var E5 = a2(g3, t2, r2), m4 = c3(g3, t2, n3), b2 = m4[i2.GeneratorType.KeyRange] && m4[i2.GeneratorType.KeyRange].range, S7 = m4[s3];
+                  if (S7) {
+                    var T7 = o2[S7.value];
                     T7 && y3.push({ keyRange: b2, modulators: E5, generators: m4, reference: T7 });
                   } else g3 - p2 == 0 && (v2 = { keyRange: b2, modulators: E5, generators: m4 });
                 }
@@ -31525,10 +31525,10 @@ registerProcessor('${n2}', MyProcessor);
         const { template: C7, patternExprs: k6 } = B4(o);
         if (k6.length) {
           const d2 = [{ type: "Literal", value: C7 }, ...k6, ...h];
-          let L5 = r.callee;
-          return L5.type === "ChainExpression" && (L5 = L5.expression), L5.type === "MemberExpression" ? this.replace({
+          let L6 = r.callee;
+          return L6.type === "ChainExpression" && (L6 = L6.expression), L6.type === "MemberExpression" ? this.replace({
             type: "CallExpression",
-            callee: W5(L5.object),
+            callee: W5(L6.object),
             arguments: d2,
             optional: false
           }) : this.replace({
@@ -31538,17 +31538,17 @@ registerProcessor('${n2}', MyProcessor);
             optional: false
           });
         }
-        const M2 = [{ type: "Literal", value: S4(o) }, ...h];
+        const M3 = [{ type: "Literal", value: S4(o) }, ...h];
         let w6 = r.callee;
         return w6.type === "ChainExpression" && (w6 = w6.expression), w6.type === "MemberExpression" ? this.replace({
           type: "CallExpression",
           callee: W5(w6.object),
-          arguments: M2,
+          arguments: M3,
           optional: false
         }) : this.replace({
           type: "CallExpression",
           callee: { type: "Identifier", name: "worklet" },
-          arguments: M2,
+          arguments: M3,
           optional: false
         });
       }
@@ -36140,8 +36140,8 @@ registerProcessor('${n2}', MyProcessor);
     const s2 = import_soundfont2.DEFAULT_GENERATOR_VALUES[e];
     if (typeof s2 != "number")
       throw new Error(`no default value found for generator with index ${e}`);
-    const a2 = t.generators[e], c3 = (g3 = (h = n2.globalZone) == null ? void 0 : h.generators) == null ? void 0 : g3[e], i2 = (y3 = o == null ? void 0 : o.generators) == null ? void 0 : y3[e], l2 = (b2 = (E5 = r.globalZone) == null ? void 0 : E5.generators) == null ? void 0 : b2[e], d2 = a2 && "value" in a2 ? a2.value : void 0, u3 = c3 && "value" in c3 ? c3.value : void 0, f4 = i2 && "value" in i2 ? i2.value : void 0, v2 = l2 && "value" in l2 ? l2.value : void 0, p2 = (A5 = d2 != null ? d2 : u3) != null ? A5 : s2, M2 = (O2 = f4 != null ? f4 : v2) != null ? O2 : 0;
-    return p2 + M2;
+    const a2 = t.generators[e], c3 = (g3 = (h = n2.globalZone) == null ? void 0 : h.generators) == null ? void 0 : g3[e], i2 = (y3 = o == null ? void 0 : o.generators) == null ? void 0 : y3[e], l2 = (b2 = (E5 = r.globalZone) == null ? void 0 : E5.generators) == null ? void 0 : b2[e], d2 = a2 && "value" in a2 ? a2.value : void 0, u3 = c3 && "value" in c3 ? c3.value : void 0, f4 = i2 && "value" in i2 ? i2.value : void 0, v2 = l2 && "value" in l2 ? l2.value : void 0, p2 = (A5 = d2 != null ? d2 : u3) != null ? A5 : s2, M3 = (O2 = f4 != null ? f4 : v2) != null ? O2 : 0;
+    return p2 + M3;
   };
   var J5 = (e) => import_soundfont2.DEFAULT_GENERATOR_VALUES[e] !== void 0;
   var W7 = (e, t, n2) => {
@@ -36177,7 +36177,7 @@ registerProcessor('${n2}', MyProcessor);
       type: f4,
       sampleModes: v2 = 0,
       overridingRootKey: p2,
-      fineTune: M2 = 0,
+      fineTune: M3 = 0,
       startloopAddrsOffset: h = 0,
       startloopAddrsCoarseOffset: g3 = 0,
       endloopAddrsOffset: y3 = 0,
@@ -36187,13 +36187,13 @@ registerProcessor('${n2}', MyProcessor);
       holdVolEnv: O2 = -12e3,
       decayVolEnv: N5 = -12e3,
       sustainVolEnv: F5 = 0,
-      releaseVolEnv: L5 = -12e3,
+      releaseVolEnv: L6 = -12e3,
       pan: P4 = 0,
       ...Z6
-    } = n2, B6 = 100 * (p2 !== void 0 && p2 !== -1 ? p2 : d2) + u3 - M2, I4 = r * 100 - B6, K4 = 1 * Math.pow(2, I4 / 1200);
+    } = n2, B6 = 100 * (p2 !== void 0 && p2 !== -1 ? p2 : d2) + u3 - M3, I4 = r * 100 - B6, K4 = 1 * Math.pow(2, I4 / 1200);
     t.playbackRate.value = K4;
-    const j7 = c3 + h + g3 * 32768, S6 = i2 + y3 + E5 * 32768;
-    S6 > j7 && v2 === 1 ? (t.loopStart = j7 / l2, t.loopEnd = S6 / l2, t.loop = true) : v2 === 3 && console.warn("unimplemented sampleMode 3 (play till end on note off)"), Object.keys(Z6).filter(
+    const j7 = c3 + h + g3 * 32768, S7 = i2 + y3 + E5 * 32768;
+    S7 > j7 && v2 === 1 ? (t.loopStart = j7 / l2, t.loopEnd = S7 / l2, t.loop = true) : v2 === 3 && console.warn("unimplemented sampleMode 3 (play till end on note off)"), Object.keys(Z6).filter(
       (V5) => !["name", "instrument", "keyRange", "sampleID", "end"].includes(V5)
     ).length;
     const k6 = e.createGain(), H6 = [
@@ -36205,10 +36205,10 @@ registerProcessor('${n2}', MyProcessor);
       m3(O2),
       m3(N5),
       F5 >= 960 ? 0 : 1 - Q5(F5),
-      m3(L5)
+      m3(L6)
     ], U8 = k6.gain.dahdsr(...H6), R6 = e.createStereoPanner();
     return R6.pan.value = P4 / 1e3, k6.connect(R6), t.connect(k6), R6.connect(e.destination), t.start(o), (V5 = e.currentTime) => {
-      t.stop(V5 + m3(L5)), U8(V5);
+      t.stop(V5 + m3(L6)), U8(V5);
     };
   }
   function Y5(e, t, n2 = {}) {
@@ -36385,9 +36385,9 @@ registerProcessor('${n2}', MyProcessor);
       octave += octaveIn;
     }
     var scaleDegree = stepIn % this.scale.length;
-    var ratio = Math.pow(2, octave) * this.scale[scaleDegree];
-    ratio = Math.floor(ratio * 1e11) / 1e11;
-    return ratio;
+    var ratio3 = Math.pow(2, octave) * this.scale[scaleDegree];
+    ratio3 = Math.floor(ratio3 * 1e11) / 1e11;
+    return ratio3;
   };
   Tune.prototype.MIDI = function(stepIn, octaveIn) {
     var newvalue = this.frequency(stepIn, octaveIn);
@@ -36475,6 +36475,531 @@ registerProcessor('${n2}', MyProcessor);
     });
   });
 
+  // src/algorave/vendor/edo/index.mjs
+  var edo_exports = {};
+  __export(edo_exports, {
+    edoScale: () => edoScale,
+    packageName: () => packageName
+  });
+
+  // src/algorave/vendor/edo/edo.mjs
+  init_dist2();
+
+  // src/algorave/vendor/edo/edoscale.mjs
+  var M2 = 2;
+  var L5 = 1;
+  var S6 = 0;
+  var LABELS = ["s", "L", "M"];
+  var EdoScale = class {
+    constructor(large, small, sequence, medium) {
+      this.stepbackup = [L5, L5, S6, L5, L5, L5, S6, L5, L5, L5, S6, L5, L5, L5, S6, L5];
+      this.large = large;
+      this.medium = medium || large;
+      this.small = small;
+      this.divisions = [];
+      this.edivisions = null;
+      this.sequence = null;
+      this.tonic = 1;
+      this.mode = 1;
+      this.max_steps = 12;
+      this.min_steps = 3;
+      this.setSequence(sequence);
+    }
+    hasMedium() {
+      return this.step.some((_7, i2) => this.step[this.offset(i2)] === M2);
+    }
+    stepSize(i2) {
+      return LABELS[this.step[this.offset(i2)]];
+    }
+    sequence() {
+      return this.step.map((_7, i2) => this.stepSize(i2)).join("");
+    }
+    stepValue(i2) {
+      const step = this.step[this.offset(i2)];
+      return step === L5 ? this.large : step === M2 ? this.medium : this.small;
+    }
+    offset(i2) {
+      if (this.mode === 1) {
+        return i2;
+      } else {
+        const offset2 = (this.mode - 1 + i2) % this.length;
+        return offset2 === 0 ? this.length : offset2;
+      }
+    }
+    static setMaxSteps(max) {
+      this.max_steps = max;
+    }
+    static setMinSteps(min) {
+      this.min_steps = min;
+    }
+    setSequence(sequence) {
+      if (this.sequence !== sequence) {
+        this.sequence = sequence;
+        this.length = sequence.length;
+        this.step = [];
+        for (let i2 = 0; i2 < sequence.length; i2++) {
+          const char = sequence[i2];
+          this.step[i2] = char === "L" ? L5 : char === "M" ? M2 : S6;
+        }
+        this.updateEdo();
+      } else {
+        return false;
+      }
+    }
+    setLarge(l2) {
+      if (this.large !== l2) {
+        this.large = l2;
+        this.updateEdo();
+      } else {
+        return false;
+      }
+    }
+    setMedium(m4) {
+      if (this.medium !== m4) {
+        this.medium = m4;
+        this.updateEdo();
+      } else {
+        return false;
+      }
+    }
+    setSmall(s2) {
+      if (this.small !== s2) {
+        this.small = s2;
+        this.updateEdo();
+      } else {
+        return false;
+      }
+    }
+    setMode(mode) {
+      this.mode = mode;
+    }
+    setTonic(tonic) {
+      this.tonic = tonic;
+    }
+    changeMode(d2) {
+      const orig = this.mode;
+      this.mode = Math.max(1, Math.min(this.mode + d2, this.length));
+      return orig !== this.mode;
+    }
+    changeTonic(d2) {
+      const orig = this.tonic;
+      this.tonic = Math.max(1, Math.min(this.tonic + d2, this.edivisions));
+      return orig !== this.tonic;
+    }
+    updateEdo() {
+      const orig = this.edivisions;
+      this.edivisions = this.step.reduce((sum, _7, i2) => {
+        this.divisions[i2] = sum;
+        return sum + this.stepValue(i2);
+      }, 0);
+      const changed = orig !== this.edivisions;
+      if (changed) {
+        this.tonic = Math.max(1, Math.min(this.tonic, this.edivisions));
+      }
+      return changed;
+    }
+    changeStep(d2, i2) {
+      const index = this.offset(i2);
+      const orig = this.step[index];
+      this.step[index] = Math.max(S6, Math.min(this.step[index] + d2, M2));
+      this.stepbackup[index] = this.step[index];
+      const changed = orig !== this.step[index];
+      if (changed) {
+        this.updateEdo();
+      }
+      return changed;
+    }
+    changeLarge(d2) {
+      const orig = this.large;
+      this.setLarge(Math.max(this.small + 1, Math.min(this.large + d2, this.large + 1)));
+      const changed = this.large !== orig;
+      if (changed) {
+        if (this.large <= this.medium) {
+          this.setMedium(Math.max(this.small + 1, Math.min(this.large - 1, this.large)));
+        }
+        this.updateEdo();
+      }
+      return changed;
+    }
+    changeMedium(d2) {
+      const orig = this.medium;
+      this.setMedium(Math.max(this.small + 1, Math.min(this.medium + d2, this.large - 1)));
+      const changed = this.medium !== orig;
+      if (changed) {
+        this.updateEdo();
+      }
+      return changed;
+    }
+    changeSmall(d2) {
+      const orig = this.small;
+      const value = this.small + d2;
+      if (this.hasMedium()) {
+        this.setSmall(Math.max(1, Math.min(value, this.medium - 1)));
+      } else {
+        this.setSmall(Math.max(1, Math.min(value, this.large - 1)));
+      }
+      const changed = this.small !== orig;
+      if (changed) {
+        if (this.small >= this.medium) {
+          this.setMedium(Math.max(this.small + 1, Math.min(this.large)));
+        }
+        this.updateEdo();
+      }
+      return changed;
+    }
+    changeLength(d2) {
+      const orig = this.length;
+      if (d2 === 1) {
+        this.length = Math.min(this.length + 1, this.max_steps);
+      } else if (d2 === -1) {
+        this.length = Math.max(this.length - 1, this.min_steps);
+      }
+      const changed = this.length !== orig;
+      if (changed) {
+        this.mode = 1;
+        if (d2 === 1) {
+          this.step[this.length] = this.stepbackup[this.length] || L5;
+        } else if (d2 === -1 && this.length >= this.min_steps) {
+          this.step.pop();
+        }
+        this.updateEdo();
+      }
+      return changed;
+    }
+  };
+
+  // src/algorave/vendor/edo/ratios.mjs
+  var ratiointervals = {};
+  ratiointervals.list = /* @__PURE__ */ new Map([
+    [1, ["P1", "P1", "P1", 1, 1]],
+    // unison P1
+    [16 / 15, ["m2", "m2", "m2_5", 16, 15]],
+    // minor second m2
+    [15 / 14, ["A1", "A1", "A1^5_7", 15, 14]],
+    // augmented unison
+    [13 / 12, ["t2", "m2", "m2^13", 13, 12]],
+    // tridecimal neutral second
+    [12 / 11, ["N2", "M2", "M2_11", 12, 11]],
+    // undecimal neutral second
+    [11 / 10, ["n2", "m2", "m2^11_5", 11, 10]],
+    // undecimal submajor second
+    [10 / 9, ["T2", "M2", "M2^5", 10, 9]],
+    // classic (whole) tone
+    [9 / 8, ["M2", "M2", "M2", 9, 8]],
+    // major second M2
+    [8 / 7, ["S2", "M2", "M2_7", 8, 7]],
+    // septimal major second
+    [7 / 6, ["s3", "m3", "m3^7", 7, 6]],
+    // septimal minor third
+    [19 / 16, ["o3", "m3", "m3^19", 19, 16]],
+    // otonal minor third
+    [6 / 5, ["m3", "m3", "m3_5", 6, 5]],
+    // minor third m3
+    [17 / 14, ["t3", "m3", "m3^17_7", 17, 14]],
+    // septendecimal supraminor third
+    [11 / 9, ["n3", "m3", "m3^11", 11, 9]],
+    // undecimal neutral third
+    [5 / 4, ["M3", "M3", "M3^5", 5, 4]],
+    // major third M3
+    [9 / 7, ["S3", "M3", "M3_7", 9, 7]],
+    // septimal major third SM3
+    [13 / 10, ["d4", "d4", "d4^13_5", 13, 10]],
+    // Barbados third
+    [4 / 3, ["P4", "P4", "P4", 4, 3]],
+    // perfect fourth P4
+    [19 / 14, ["N4", "P4", "P4^19_7", 19, 14]],
+    // undevicesimal wide fourth
+    [11 / 8, ["n4", "P4", "P4^11", 11, 8]],
+    // super-fourth
+    [25 / 18, ["a4", "A4", "A4^5,5", 25, 18]],
+    // classic augmented fourth
+    [7 / 5, ["sT", "d5", "d5^7_5", 7, 5]],
+    // lesser septimal tritone
+    [45 / 32, ["A4", "A4", "A4^5", 45, 32]],
+    // just augmented fourth
+    [17 / 12, ["d5", "d5", "d5^17", 17, 12]],
+    // larger septendecimal tritone
+    [10 / 7, ["ST", "A4", "A4^5_7", 10, 7]],
+    // greater septimal tritone
+    [13 / 9, ["t5", "d5", "d5^13", 13, 9]],
+    // tridecimal diminished fifth
+    [3 / 2, ["P5", "P5", "P5", 3, 2]],
+    // perfect fifth P5
+    [14 / 9, ["s6", "M6", "m6^7", 14, 9]],
+    // subminor sixth or septimal sixth
+    [25 / 16, ["a5", "A5", "A5^5,5", 25, 16]],
+    // classic augmented fifth
+    [11 / 7, ["A5", "P5", "P5^11_7", 11, 7]],
+    // undecimal minor sixth
+    [8 / 5, ["m6", "m6", "m6_5", 8, 5]],
+    // minor sixth m6
+    [13 / 8, ["N6", "m6", "m6^13", 13, 8]],
+    // tridecimal neutral sixth
+    [18 / 11, ["n6", "M6", "M6_11", 18, 11]],
+    // undecimal neutral sixth
+    [5 / 3, ["M6", "M6", "M6^5", 5, 3]],
+    // just major sixth M6
+    [128 / 75, ["d7", "d7", "d7_5,5", 128, 75]],
+    // diminished seventh
+    [17 / 10, ["T6", "d7", "d7^17_5", 17, 10]],
+    // septendecimal diminished seventh
+    [12 / 7, ["S6", "M6", "M6_7", 12, 7]],
+    // septimal major sixth
+    [7 / 4, ["s7", "m7", "m7^7", 7, 4]],
+    // septimal minor seventh
+    [16 / 9, ["m7", "m7", "m7", 16, 9]],
+    // lesser minor seventh
+    [9 / 5, ["g7", "m7", "m7_5", 9, 5]],
+    // greater just minor seventh
+    [11 / 6, ["n7", "m7", "m7^11", 11, 6]],
+    // undecimal neutral seventh
+    [13 / 7, ["N7", "m7", "m7^13_7", 13, 7]],
+    // tridecimal neutral seventh
+    [15 / 8, ["M7", "M7", "M7^5", 15, 8]],
+    // major seventh
+    [17 / 9, ["T7", "d8", "d8^17", 17, 9]],
+    // large septendecimal major seventh
+    [19 / 10, ["d8", "d8", "d8^19_5", 19, 10]],
+    // large undevicesimal major seventh
+    [2, ["P8", "P8", "P8", 2, 1]]
+    // octave P8
+  ]);
+  ratiointervals.key = function(ratio3) {
+    return ratio3 == null ? "" : ratiointervals.list.get(ratio3)?.[0] || "";
+  };
+  ratiointervals.label = function(ratio3) {
+    return ratio3 == null ? "" : ratiointervals.list.get(ratio3)?.[1] || "";
+  };
+  ratiointervals.fjs = function(ratio3) {
+    return ratio3 == null ? "" : ratiointervals.list.get(ratio3)?.[2] || "";
+  };
+  ratiointervals.nom = function(ratio3) {
+    return ratio3 == null ? null : ratiointervals.list.get(ratio3)?.[3] || null;
+  };
+  ratiointervals.denom = function(ratio3) {
+    return ratio3 == null ? null : ratiointervals.list.get(ratio3)?.[4] || null;
+  };
+  ratiointervals.nearestInterval = function(v2) {
+    let min = 1;
+    let match = null;
+    for (const [ratio3, _labels] of ratiointervals.list) {
+      const diff = Math.abs((ratio3 - v2) / ratio3);
+      if (diff < min) {
+        min = diff;
+        match = ratio3;
+      }
+    }
+    return min < 0.01 ? [min, match] : [null, null];
+  };
+  var ratios_default = ratiointervals;
+
+  // src/algorave/vendor/edo/intervals.mjs
+  function ratio(division, edivisions) {
+    return division === 0 ? 1 : Math.pow(2, division / edivisions);
+  }
+  var Intervals = class {
+    constructor(scale) {
+      this.scale = scale;
+      this.intLabels = [];
+      this.intNoms = [];
+      this.intRatios = [];
+      this.uniqLabels = [];
+      this.intErrors = [];
+      this.ratios = [];
+      const BLANK = "";
+      let division = 0;
+      const labToErr = {};
+      const labToInd = {};
+      this.ratios[0] = 1;
+      for (let i2 = 0; i2 < scale.length; i2++) {
+        division += scale.stepValue(i2);
+        this.ratios[i2 + 1] = ratio(division, scale.edivisions);
+        if (i2 < scale.length) {
+          const nearest = ratios_default.nearestInterval(this.ratios[i2 + 1]);
+          const closeness = nearest[0];
+          const ratio3 = nearest[1];
+          const intLabel = ratios_default.key(ratio3);
+          this.intLabels[i2 + 1] = intLabel;
+          this.intErrors[i2 + 1] = closeness;
+          this.intNoms[i2 + 1] = ratio3 ? ratios_default.nom(ratio3) : 0;
+          this.intRatios[i2 + 1] = ratio3 ? `${ratios_default.nom(ratio3)}/${ratios_default.denom(ratio3)}` : "";
+          this.uniqLabels[i2 + 1] = BLANK;
+          if (intLabel && intLabel !== "P1" && intLabel !== "P8") {
+            if (!labToErr[intLabel]) {
+              this.uniqLabels[i2 + 1] = intLabel;
+              labToInd[intLabel] = i2 + 1;
+              labToErr[intLabel] = closeness;
+            } else if (closeness < labToErr[intLabel]) {
+              this.uniqLabels[labToInd[intLabel]] = BLANK;
+              this.uniqLabels[i2 + 1] = intLabel;
+              labToInd[intLabel] = i2 + 1;
+              labToErr[intLabel] = closeness;
+            }
+          }
+        }
+      }
+    }
+    ratio(i2) {
+      return this.ratios[i2];
+    }
+    intervalLabel(i2) {
+      return this.intLabels[i2];
+    }
+    intervalNominator(i2) {
+      return this.intNoms[i2];
+    }
+    intervalRatio(i2) {
+      return this.intRatios[i2];
+    }
+    uniqIntervalLabel(i2) {
+      return this.uniqLabels[i2];
+    }
+    intervalError(i2) {
+      return this.intErrors[i2];
+    }
+    nearestDegreeTo(r, threshold) {
+      let min = 1;
+      let degree = null;
+      for (const [i2, v2] of Object.entries(this.ratios)) {
+        const diff = Math.abs((r - v2) / r);
+        if (diff < min) {
+          min = diff;
+          degree = parseInt(i2, 10);
+        }
+      }
+      if (threshold == null) {
+        return degree;
+      } else {
+        return min < threshold ? degree : 1;
+      }
+    }
+  };
+
+  // src/algorave/vendor/edo/pitches.mjs
+  function ratio2(division, edivisions) {
+    return division === 0 ? 1 : Math.pow(2, division / edivisions);
+  }
+  function get_freq(base_freq, edo2, index, oct, base_octave) {
+    let f4 = base_freq * ratio2(index - 1, edo2);
+    if (oct < base_octave) {
+      f4 /= Math.pow(2, base_octave - oct);
+    } else if (oct > base_octave) {
+      f4 *= Math.pow(2, oct - base_octave);
+    }
+    return f4;
+  }
+  function midi_to_hz(n2, tuning2) {
+    return tuning2 * Math.pow(2, (n2 - 69) / 12);
+  }
+  var denom = Math.log(2);
+  function hz_to_midi(freq, tuning2) {
+    return 12 * (Math.log(freq / tuning2) / denom) + 69;
+  }
+  var Pitches = class {
+    constructor(scale, intervals, tuning2, midi_start, root_octave) {
+      this.scale = scale;
+      this.intervals = intervals;
+      this.base_freq = midi_to_hz(midi_start, tuning2);
+      this.root_octave = root_octave;
+      this.freqs = {};
+      this.midis = {};
+      this.degrees = {};
+      this.octdegfreqs = {};
+      this.octdegmidis = {};
+      let index = 0;
+      let f4 = null;
+      for (let oct = 0; oct <= 8; oct++) {
+        this.octdegfreqs[oct] = {};
+        this.octdegmidis[oct] = {};
+        f4 = get_freq(this.base_freq, scale.edivisions, scale.tonic, oct, this.root_octave);
+        for (let deg = 0; deg < scale.length; deg++) {
+          index = index + 1;
+          this.freqs[index] = parseFloat((f4 * intervals.ratio(deg)).toFixed(3));
+          this.midis[index] = parseFloat(hz_to_midi(f4 * intervals.ratio(deg), tuning2).toFixed(4));
+          this.degrees[index] = deg;
+          this.octdegfreqs[oct][deg + 1] = this.freqs[index];
+          this.octdegmidis[oct][deg + 1] = this.midis[index];
+        }
+      }
+      this.base_freq = parseFloat(this.base_freq).toFixed(4);
+    }
+    base_freq() {
+      return this.base_freq;
+    }
+    degree(index) {
+      return this.degrees[index];
+    }
+    freq(index) {
+      return this.freqs[index];
+    }
+    octdeg(deg) {
+      const higherOcatve = deg > this.scale.length;
+      const octave = this.root_octave + (higherOcatve ? Math.floor((deg - 1) / this.scale.length) : 0);
+      const degree = higherOcatve ? deg % this.scale.length === 0 ? this.scale.length : deg % this.scale.length : deg;
+      return [octave, degree];
+    }
+    octdegfreq(oct, deg) {
+      if (this.octdegfreqs[oct]) {
+        return this.octdegfreqs[oct][deg];
+      } else {
+        return null;
+      }
+    }
+    octdegmidi(oct, deg) {
+      if (this.octdegmidis[oct]) {
+        return this.octdegmidis[oct][deg];
+      } else {
+        return null;
+      }
+    }
+  };
+
+  // src/algorave/vendor/edo/edo.mjs
+  var pitchesCache = /* @__PURE__ */ new Map();
+  var edoScale = l(
+    "edoScale",
+    function(scaleDefinition, pat) {
+      const key = scaleDefinition.flat().join(":");
+      let pitches;
+      if (pitchesCache.has(key)) {
+        pitches = pitchesCache.get(key);
+      } else {
+        const [base_note, sequence, large, small] = scaleDefinition;
+        const root_octave = Ue2(base_note)[2] || 3;
+        const scale = new EdoScale(large, small, sequence);
+        const intervals = new Intervals(scale);
+        pitches = new Pitches(scale, intervals, 440, gt2(base_note), root_octave);
+        pitchesCache.set(key, pitches);
+      }
+      return pat.fmap((value) => {
+        const isObject = typeof value === "object";
+        const n2 = isObject ? value.n : value;
+        if (isObject) {
+          delete value.n;
+        }
+        if (Mt2(n2)) {
+          return C2(n2);
+        }
+        const deg = (typeof n2 === "string" ? parseInt(n2, 10) : Number.isInteger(n2) ? n2 : Math.round(n2)) + 1;
+        const [oct, degree] = pitches.octdeg(deg);
+        const freq = pitches.octdegfreq(oct, degree);
+        const note = pitches.octdegmidi(oct, degree);
+        const edo2 = pitches.scale.edivisions;
+        const root = pitches.base_freq;
+        const degreeIndexes = pitches.scale.divisions;
+        const intLabels = pitches.intervals.intLabels;
+        value = C2(isObject ? { ...value, degree, degreeIndexes, intLabels, root, freq, edo: edo2 } : note);
+        return value;
+      }).outerJoin().withHap((hap) => hap.setContext({ ...hap.context, scaleDefinition }));
+    },
+    true,
+    true
+    // preserve tactus
+  );
+
+  // src/algorave/vendor/edo/index.mjs
+  var packageName = "@strudel/edo";
+
   // src/algorave/strudel-prebake.mjs
   var CDN = "https://strudel.b-cdn.net";
   var BANKS = [
@@ -36509,7 +37034,7 @@ registerProcessor('${n2}', MyProcessor);
     return response.json();
   }
   async function registerDefaultSounds() {
-    await xn(soundfonts_exports, xen_exports);
+    await xn(soundfonts_exports, xen_exports, edo_exports);
     hc2();
     registerSoundfonts();
     await ao2(DIRT, `${CDN}/Dirt-Samples/`, { prebake: true });

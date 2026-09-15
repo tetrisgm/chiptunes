@@ -115,10 +115,59 @@ quality or broad native acceptance. All browsers and local test servers closed.
 Upstream website/src/repl/util.mjs additionally loads draw, edoScale, codemirror
 helpers, hydra, serial, csound, tidal, gamepad, motion, mqtt, mondo, dough, MIDI and
 OSC modules. Inventory their user-facing APIs and integrate the remaining runtime
-scope with appropriate browser/device boundaries. The @strudel/edo package is
-not published on npm; its upstream source is available. Native bank acceptance,
+scope with appropriate browser/device boundaries. The unpublished @strudel/edo
+package is now integrated from pinned source (see the EDO checkpoint below). Native bank acceptance,
 new-runtime soak, Shadertoy inputs/passes and public site/gateway deployment still
 remain. This library checkpoint does not establish full parity by itself.
+
+## EDO scale module — 2026-09-15
+
+The music evaluation scope now includes upstream `edoScale`, both as a standalone
+function and the Pattern method. Ordinary Strudel source such as
+`n("0 2 4 6").edoScale("A3:LLsLLLs:2:1").s("triangle")` executes without
+translation. This is the REPL's scale-degree mapping, separate from xen's
+equal-step tuning API. It preserves upstream frequency rounding, pattern timing,
+other controls, and scale metadata. No additional scale validation was inserted;
+an invalid string does not necessarily throw synchronously in upstream.
+
+The unpublished package is vendored unchanged from commit
+`8f81463b9cb5ddd5f117ed7baef6a1fde9445dc2`, with its tests, metadata, original
+license and Git blob hashes. See the [distribution record](algorave-distribution.md).
+The REPL module inventory was re-read from
+[upstream util.mjs](https://codeberg.org/uzu/strudel/src/commit/8f81463b9cb5ddd5f117ed7baef6a1fde9445dc2/website/src/repl/util.mjs).
+
+`test:algorave-edo` checks every copied file against its upstream Git blob hash,
+then checks exact scheduling and independently calculated 12/16-EDO frequencies,
+both source API forms, retained controls/context, colon-notation playback, Undo,
+and stopped reload. Chromium uses the explicit silent sink for DSP checks.
+These tests do not establish native speaker acceptance or full REPL parity.
+
+Build `5d59d4f4f9c2` passes EDO, upstream runtime, workflow, agent contract and
+all 35 legacy chat groups. Its source archive rebuilds both browser bundles
+byte-for-byte with a fresh npm ci and includes the EDO notice/provenance files.
+
+Native Safari on that visibly identified local build replayed all three captured
+Anthropic replies: bass, kick-reactive tunnel and paired darker music/palette.
+Each waited for Apply; Undo visibly restored the preceding source(s). The bass
+case also passed Stop → Play → one Undo. Screenshots showed the tunnel replacing
+the rings and Undo restoring them. Safari showed its audio-output indicator;
+there was no silent-sink injection, acoustic listening or latency measurement.
+The paired capture's cosine palette still cycles through warm colors despite its
+blue/violet explanation: this proves edit-flow behavior, not color fidelity.
+The agent guide now calls for mixing explicit colors for a restricted palette,
+and no longer incorrectly says external image textures are unsupported. New
+provider output under that guidance is unverified, so color fidelity remains
+open. After a temporary computer-use app-change
+guard interruption, Save → reload also passed: the restored bass source and
+tunnel returned with Play/Ready and no autoplay. The temporary tab was closed.
+No new provider call was made.
+
+Drawing is still unfinished: upstream scope/pianoroll functions can create a
+canvas in the isolated music frame, but that frame is hidden. The next drawing
+integration must display that canvas and handle its animation lifecycle through
+Run/Undo/Stop; exporting names alone would not make the feature usable. Remaining
+REPL modules, Shadertoy inputs/passes, native acceptance, soak and deployment
+remain part of the full goal.
 
 ## Image and keyboard channels — 2026-09-15
 
