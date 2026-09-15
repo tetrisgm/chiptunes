@@ -1846,3 +1846,11 @@ all wasm/browser build sources and root files. Our artifact rebuild uses the exa
 published engine; an independent Csound/WASM rebuild and full embedded-dependency
 source/notice audit remain pending. Esbuild reports upstream Closure direct-eval
 warnings; the default worklet path passes the actual browser checks above.
+
+### Csound orchestra retry — 2026-09-15
+
+`loadOrc` now rejects HTTP failures and nonzero Csound compile results, removing
+failed cached promises. Successful orchestra URLs remain cached. The real-engine
+browser test attempts one URL with HTTP 503, then invalid orchestra text, then
+valid source. Both failures retain the previously applied music; the third Run
+loads the corrected instrument and produces its 220 Hz fundamental without reload.

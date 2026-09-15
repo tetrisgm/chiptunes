@@ -32,9 +32,22 @@ endin\`; note("e4").gain(.5).csound('probe')`;
   const midi=`await loadOrc('github:fixture/orchestra/main/test.orc'); await loadOrc('github:fixture/orchestra/main/test.orc'); note("a4").csoundm('midiProbe')`;
   await page.getByLabel('Strudel music').fill(midi);await page.locator('#run').click();await page.waitForFunction(s=>algoravePreview.session.applied.music===s,midi);
   await page.waitForFunction(()=>{const f=algoravePreview.signal.frequency;return Math.abs(f.indexOf(Math.max(...f))-20)<=1});assert.equal(fetched,1);
-  await page.getByLabel('Strudel music').fill('missingCsoundFunction()');await page.locator('#run').click();await page.waitForFunction(()=>!algoravePreview.session.busy&&!document.getElementById('run').disabled);assert.equal(await page.evaluate(()=>algoravePreview.session.applied.music),midi);
+  let attempts=0;
+  await page.route('https://orchestra.example.test/retry.orc',route=>{
+    attempts++;
+    return route.fulfill(attempts===1?{status:503,body:'Unavailable'}:attempts===2?{status:200,body:'this is invalid orchestra code'}:{status:200,body:'instr retryProbe\nasig oscili p5, p4\nouts asig, asig\nendin'});
+  });
+  const retry=`await loadOrc('https://orchestra.example.test/retry.orc'); note("a3").csound('retryProbe')`;
+  await page.getByLabel('Strudel music').fill(retry);
+  for(const message of ['HTTP 503','could not be compiled']){
+    await page.locator('#run').click();await page.waitForFunction(message=>!algoravePreview.session.busy&&document.getElementById('status').textContent.includes(message),message);
+    assert.equal(await page.evaluate(()=>algoravePreview.session.applied.music),midi);
+  }
+  await page.locator('#run').click();await page.waitForFunction(s=>algoravePreview.session.applied.music===s,retry);assert.equal(attempts,3);
+  await page.waitForFunction(()=>{const f=algoravePreview.signal.frequency;return Math.abs(f.indexOf(Math.max(...f))-10)<=1});
+  await page.getByLabel('Strudel music').fill('missingCsoundFunction()');await page.locator('#run').click();await page.waitForFunction(()=>!algoravePreview.session.busy&&!document.getElementById('run').disabled);assert.equal(await page.evaluate(()=>algoravePreview.session.applied.music),retry);
   await page.locator('#play').click();await page.waitForFunction(()=>!algoravePreview.playing);
   await page.reload();await page.waitForFunction(()=>window.algoravePreview);assert.equal(await page.evaluate(()=>algoravePreview.playing),false);
-  console.log('PASS: real local Csound WASM/worklet audio, 220/330/440 Hz fundamentals, aliases, custom instruments, cached loadOrc, csoundm, Run/Undo, failed-edit retention, Stop and deferred reload. Silent sink; native and broader lifecycle acceptance pending.');
+  console.log('PASS: real local Csound WASM/worklet audio, 220/330/440 Hz fundamentals, aliases, custom instruments, cached loadOrc, HTTP/compile failure retry, csoundm, Run/Undo, failed-edit retention, Stop and deferred reload. Silent sink; native and broader lifecycle acceptance pending.');
  }finally{await browser.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
 })().catch(e=>{console.error(e);process.exitCode=1;});

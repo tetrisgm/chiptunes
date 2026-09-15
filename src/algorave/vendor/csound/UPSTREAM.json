@@ -36,6 +36,7 @@
     "index.mjs"
   ],
   "changes": [
-    "Import local pinned browser engine and orchestra text assets."
+    "Import local pinned browser engine and orchestra text assets.",
+    "Reject failed HTTP and orchestra compilation results; evict failed orchestra promises so Run can retry."
   ]
 }

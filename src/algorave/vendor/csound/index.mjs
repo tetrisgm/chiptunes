@@ -106,7 +106,7 @@ async function init() {
   return csoundLoader;
 }
 
-let orcCache = {};
+const orcCache = Object.create(null);
 export async function loadOrc(url) {
   await init();
   if (typeof url !== 'string') {
@@ -118,8 +118,15 @@ export async function loadOrc(url) {
   }
   if (!orcCache[url]) {
     orcCache[url] = fetch(url)
-      .then((res) => res.text())
-      .then((code) => _csound.compileOrc(code));
+      .then((res) => {
+        if (!res.ok) throw Error(`Csound orchestra download failed: HTTP ${res.status}`);
+        return res.text();
+      })
+      .then(async (code) => {
+        const result = await _csound.compileOrc(code);
+        if (result !== 0) throw Error('Csound orchestra could not be compiled.');
+      })
+      .catch(error => { delete orcCache[url]; throw error; });
   }
   await orcCache[url];
 }

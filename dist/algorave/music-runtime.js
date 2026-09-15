@@ -71402,7 +71402,7 @@ ${JSON.stringify(t2, null, 2)}`);
     csoundLoader = csoundLoader || load2();
     return csoundLoader;
   }
-  var orcCache = {};
+  var orcCache = /* @__PURE__ */ Object.create(null);
   async function loadOrc(url2) {
     await init2();
     if (typeof url2 !== "string") {
@@ -71413,7 +71413,16 @@ ${JSON.stringify(t2, null, 2)}`);
       url2 = `https://raw.githubusercontent.com/${path}`;
     }
     if (!orcCache[url2]) {
-      orcCache[url2] = fetch(url2).then((res) => res.text()).then((code) => _csound.compileOrc(code));
+      orcCache[url2] = fetch(url2).then((res) => {
+        if (!res.ok) throw Error(`Csound orchestra download failed: HTTP ${res.status}`);
+        return res.text();
+      }).then(async (code) => {
+        const result = await _csound.compileOrc(code);
+        if (result !== 0) throw Error("Csound orchestra could not be compiled.");
+      }).catch((error) => {
+        delete orcCache[url2];
+        throw error;
+      });
     }
     await orcCache[url2];
   }
