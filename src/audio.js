@@ -327,8 +327,6 @@ const Audio = (()=>{
       gbNode = new AudioWorkletNode(ctx, GB_WORKLET_NAME, {numberOfInputs:0, numberOfOutputs:1, outputChannelCount:[2]});
       gbNode.connect(gbChipGain);
       gbNode.port.onmessage = function(ev){
-        if(ev.data && ev.data.type==='musicState') musicAck(ev.data);
-        if(ev.data && ev.data.type==='musicEvents') musicAcceptEvents(ev.data);
         if(ev.data && ev.data.type==='stat' && typeof window!=='undefined'){
           window.__rrrChip = ev.data;
           // WHERE THE MUSIC ACTUALLY IS. The deck opens 0.18s in the future and
@@ -343,10 +341,6 @@ const Audio = (()=>{
         }
         if(ev.data && ev.data.type==='msgError'){ try{ console.error('[chiptunes] chip message failed:', ev.data.in, ev.data.message); }catch(_){} }
       };
-      gbNode.onprocessorerror=function(){ musicVisualAck.status='error';musicEmit({type:'musicState',status:'error',revision:musicCurrent?musicCurrent.revision:null,frame:0,message:'Audio processor failed'}); };
-      ctx.addEventListener('statechange',function(){
-        if(chipOwner==='create' && (musicCurrent||musicPending)) musicEmit({type:'musicState',status:ctx.state==='running'?'resumed':'suspended',revision:musicCurrent?musicCurrent.revision:null,frame:window.__rrrChip?window.__rrrChip.frame:0});
-      });
       // A track may have started before the module finished loading; play it now.
       if(gbPending){ gbNode.port.postMessage(gbPending); gbPending=null; }
       if(typeof document!=='undefined' && document.documentElement) document.documentElement.dataset.rrrChip='gb';
@@ -367,342 +361,6 @@ const Audio = (()=>{
   // holds the chip, those reposts must bounce off or the radio steals the
   // speaker back mid-composition.
   var chipOwner='radio';
-  var musicListeners=new Set(), musicEpoch=0, musicRequest=0, musicActivation=0, musicCurrent=null, musicPending=null, musicRevisions=new Map(), musicIdentities=new Map();
-  var musicVisualAck={frame:0,status:'stopped'}, musicVisualClocks=new WeakMap();
-  var musicJournal=globalThis.CT_MUSIC_EVENT_STREAM?globalThis.CT_MUSIC_EVENT_STREAM.create():null;
-  var musicObserved={activation:null,discontinuity:0,next:0,dropped:0,rejected:0,contextTime:0,exhausted:false};
-  var musicAnalysisCache=null,musicAnalysisTime=null,musicAnalysisFreq=null;
-  function musicEventReader(options){
-    if(!musicJournal)throw Error('Music event stream unavailable');
-    return musicJournal.reader(options);
-  }
-  function musicClearEvents(reason){
-    musicObserved={activation:null,discontinuity:0,next:0,dropped:0,rejected:0,contextTime:0,exhausted:false};
-    musicClearJournal(reason);
-    musicAnalysisCache=null;
-  }
-  function musicClearJournal(reason){
-    try{if(musicJournal)musicJournal.clear(reason);}catch(_){musicJournal=null;musicObserved.exhausted=true;}
-  }
-  function musicRecord(event){
-    // Visual delivery is optional: a failed observer must never change audio.
-    try{if(musicJournal)musicJournal.append(event);}catch(_){musicObserved.rejected++;}
-  }
-  function musicEventIdentity(){
-    return {epoch:musicEpoch,activation:musicCurrent.activation,revision:musicCurrent.revision,
-      discontinuity:musicObserved.discontinuity};
-  }
-  function musicObserveAck(state){
-    if(!Number.isSafeInteger(state.discontinuity)||state.discontinuity<1)return;
-    var changed=musicObserved.activation!==state.activation||musicObserved.discontinuity!==state.discontinuity;
-    if(changed){
-      if(!['activate','seek'].includes(state.reason)&&state.status!=='loop')return;
-      if(state.reason==='seek')musicClearJournal('seek');
-      musicObserved.activation=state.activation;musicObserved.discontinuity=state.discontinuity;
-      musicObserved.next=0;musicObserved.contextTime=0;musicObserved.exhausted=false;musicAnalysisCache=null;
-    }
-    if(changed||['paused','ended','stopped','error'].includes(state.status)||state.status==='playing'){
-      musicRecord(Object.assign(musicEventIdentity(),{kind:'transport',reason:changed?(state.reason||'loop'):state.status,
-        frame:Number.isFinite(state.frame)?state.frame:0,contextTime:Number.isFinite(state.contextTime)?state.contextTime:0}));
-    }
-  }
-  function musicAcceptEvents(message){
-    if(chipOwner!=='create'||!musicCurrent||message.epoch!==musicEpoch||message.activation!==musicCurrent.activation||
-      message.revision!==musicCurrent.revision||message.discontinuity!==musicObserved.discontinuity||
-      musicObserved.activation!==message.activation)return false;
-    var events=message.events,start=musicObserved.next,lastTime=musicObserved.contextTime;
-    if(!Array.isArray(events)||events.length>256||!Number.isSafeInteger(message.dropped)||message.dropped<0||
-      !Number.isSafeInteger(message.nextSequence)||message.nextSequence<start||
-      (message.nextSequence===start&&!message.exhausted)||
-      message.nextSequence-start!==events.length+message.dropped){musicObserved.rejected++;return false;}
-    // A whole batch is validated before publication. No partial malformed batch,
-    // late activation or duplicate message can mint another onset identity.
-    for(var i=0;i<events.length;i++){
-      var e=events[i];
-      if(!e||!['noteOn','noteOff','continuation','sample','register'].includes(e.kind)||e.sequence!==start+i||
-        !Number.isInteger(e.sourceIndex)||e.sourceIndex<0||e.sourceIndex>=50000||
-        !Number.isInteger(e.frame)||e.frame<0||e.frame>musicCurrent.totalFrames||
-        !Number.isFinite(e.contextTime)||e.contextTime<lastTime||
-        !Number.isInteger(e.channel)||e.channel< -1||e.channel>3||
-        !(e.midi===null||Number.isFinite(e.midi))||
-        !Number.isInteger(e.durationFrames)||e.durationFrames<0||e.durationFrames>216000||
-        !(e.velocity===null||Number.isFinite(e.velocity)&&e.velocity>=0&&e.velocity<=3)||
-        !Number.isFinite(e.strength)||e.strength<0||e.strength>1||
-        !(e.register===null||Number.isInteger(e.register)&&e.register>=0x10&&e.register<=0x3f)||
-        !(e.value===null||Number.isInteger(e.value)&&e.value>=0&&e.value<=255)||!musicEventSourceMatches(e)){
-        musicObserved.rejected++;return false;
-      }
-      lastTime=e.contextTime;
-    }
-    var identity=musicEventIdentity();
-    events.forEach(function(e){
-      musicRecord(Object.assign({},identity,{id:[musicEpoch,message.activation,message.discontinuity,e.sequence].join(':'),
-        sequence:e.sequence,kind:e.kind,sourceIndex:e.sourceIndex,frame:e.frame,contextTime:e.contextTime,
-        channel:e.channel,midi:e.midi,durationFrames:e.durationFrames,velocity:e.velocity,strength:e.strength,
-        register:e.register,value:e.value}));
-    });
-    if(message.dropped)musicRecord(Object.assign({},identity,{kind:'gap',reason:'processor-capacity',count:message.dropped,
-      firstSequence:start+events.length,nextSequence:message.nextSequence,contextTime:lastTime}));
-    musicObserved.next=message.nextSequence;musicObserved.contextTime=lastTime;musicObserved.dropped+=message.dropped;
-    musicObserved.exhausted=!!message.exhausted;
-    return true;
-  }
-  function musicEventSourceMatches(e){
-    var schedule=musicCurrent.schedule;
-    if(e.kind==='sample')return e.channel===2&&schedule.kitIndexAt[e.frame]===e.sourceIndex&&schedule.kitAt[e.frame]===e.value;
-    if(e.kind==='register')return (schedule.auto[e.frame]||[]).some(function(w){return w.index===e.sourceIndex&&w.r===e.register&&w.v===e.value;});
-    return (schedule.byFrame[e.frame]||[]).some(function(command){
-      if(command.index!==e.sourceIndex)return false;
-      if(e.kind==='noteOff')return command.t===0&&command.ch===e.channel;
-      var n=command.n;if(!command.t||!n)return false;
-      var kind=n.trigger===false&&n.ch<2?'continuation':'noteOn';
-      return e.kind===kind&&n.ch===e.channel&&e.midi===(Number.isFinite(n.midi)?n.midi:null)&&e.durationFrames===n.frames;
-    });
-  }
-  // Read the existing INTERNAL master tap, before EQ/compression/limiting. This
-  // is measured audio, not per-role estimates or a measurement at the speakers.
-  // Byte frequency bins encode normalized dB magnitudes, not linear power:
-  // https://developer.mozilla.org/en-US/docs/Web/API/AnalyserNode/getByteFrequencyData
-  // Analysis has separate scratch buffers and never touches radio onset state.
-  function musicAnalysis(paused){
-    var empty={available:false,tap:'internal-master-pre-fx',frequencyScale:'normalized-decibel-magnitude',
-      contextTime:ctx&&Number.isFinite(ctx.currentTime)?ctx.currentTime:0,rms:0,peak:0,
-      bands:{bass:0,mid:0,treble:0},waveform:[],spectrum:[]};
-    if(paused||typeof _masterAna==='undefined'||!_masterAna||!ctx||!Number.isFinite(ctx.currentTime))return empty;
-    try{
-      if(!musicAnalysisCache||ctx.currentTime<musicAnalysisCache.contextTime||ctx.currentTime-musicAnalysisCache.contextTime>=1/30){
-        var size=_masterAna.fftSize,count=_masterAna.frequencyBinCount;
-        if(!Number.isInteger(size)||size<32||size>32768||count!==size/2)return empty;
-        if(!musicAnalysisTime||musicAnalysisTime.length!==size)musicAnalysisTime=new Uint8Array(size);
-        if(!musicAnalysisFreq||musicAnalysisFreq.length!==count)musicAnalysisFreq=new Uint8Array(count);
-        _masterAna.getByteTimeDomainData(musicAnalysisTime);_masterAna.getByteFrequencyData(musicAnalysisFreq);
-        var sum=0,peak=0,waveform=[],spectrum=[];
-        for(var i=0;i<size;i++){var x=(musicAnalysisTime[i]-128)/128;sum+=x*x;peak=Math.max(peak,Math.abs(x));}
-        for(var i=0;i<160;i++)waveform.push((musicAnalysisTime[Math.floor(i*size/160)]-128)/128);
-        function magnitude(from,to){
-          var a=Math.max(0,Math.floor(from)),b=Math.min(count,Math.max(a+1,Math.ceil(to))),total=0;
-          for(var j=a;j<b;j++)total+=musicAnalysisFreq[j];return b>a?total/(255*(b-a)):0;
-        }
-        var hz=ctx.sampleRate/size;
-        for(var i=0;i<64;i++)spectrum.push(magnitude(i*count/64,(i+1)*count/64));
-        musicAnalysisCache=Object.assign({},empty,{available:true,rms:Math.sqrt(sum/size),peak:peak,
-          bands:{bass:magnitude(20/hz,250/hz),mid:magnitude(250/hz,2000/hz),treble:magnitude(2000/hz,16000/hz)},
-          fftSize:size,sampleRate:ctx.sampleRate,spectrumBinHz:ctx.sampleRate/128,
-          minDecibels:_masterAna.minDecibels,maxDecibels:_masterAna.maxDecibels,waveform:waveform,spectrum:spectrum});
-      }
-      return Object.assign({},musicAnalysisCache,{bands:Object.assign({},musicAnalysisCache.bands),
-        waveform:musicAnalysisCache.waveform.slice(),spectrum:musicAnalysisCache.spectrum.slice()});
-    }catch(_){return empty;}
-  }
-  // Read-only presentation of the AUDIO-ACKNOWLEDGED activation. Never advances
-  // a transport or consults the radio clock; position is held between reports.
-  function musicVisualState(){
-    if(chipOwner!=='create')return null;
-    var current=musicCurrent,frame=current?Math.min(current.totalFrames,Math.max(0,musicVisualAck.frame||0)):0;
-    var status=current?musicVisualAck.status:'stopped';
-    var paused=status!=='playing'||!ctx||ctx.state!=='running';
-    var settings=current&&current.visualSettings||{},clock=current&&musicVisualClocks.get(current);
-    if(current&&!clock&&globalThis.CT_MUSIC_LANGUAGE){
-      clock=globalThis.CT_MUSIC_LANGUAGE.createClock(settings);musicVisualClocks.set(current,clock);
-    }
-    var step=0,phase=0,bpm=settings.tempo||120;
-    if(clock){
-      var lo=0,hi=1048576;
-      while(lo+1<hi){var mid=Math.floor((lo+hi)/2);if(clock(mid/4)<=frame)lo=mid;else hi=mid;}
-      step=lo;var start=clock(step/4),end=clock((step+1)/4);
-      phase=Math.max(0,Math.min(1,(frame-start)/Math.max(1,end-start)));
-      var fps=(globalThis.CT_GB_HARDWARE||globalThis.CT_GB||{}).FPS||59.727500569606;
-      bpm=60*fps/Math.max(1,clock(Math.floor(step/4)+1)-clock(Math.floor(step/4)));
-    }
-    var grid={gstep:step,phase:phase,beat:Math.floor(step/4),bar:Math.floor(step/16),bpm:bpm,spb:60/bpm,step16:15/bpm,paused:paused};
-    // Snapshots never drain events. Each renderer consumes its own cursor once
-    // per draw and adds only newly observed triggers to these empty role lanes.
-    var roles={lead:_emptyRole(),counter:_emptyRole(),bass:_emptyRole(),perc:_emptyRole(),noise:_emptyRole()};
-    roles.primary=roles.lead;roles.melody=roles.lead;
-    var analysis=musicAnalysis(paused),energy=paused?0:Math.min(1,analysis.rms*4);
-    var barPhase=((step%16)+phase)/16,beatPhase=((step%4)+phase)/4;
-    var visual={bpm:bpm,beat:grid.beat,bar:grid.bar,phrase:Math.floor(grid.bar/4),barPhase:barPhase,
-      pulse:paused?0:1-beatPhase,beatPulse:paused?0:1-beatPhase,barPulse:paused?0:1-barPhase,
-      phrasePulse:paused?0:1-((grid.bar%4+barPhase)/4),energy:energy,energyLevel:energy*10,intensity:energy,
-      bands:analysis.bands,analysis:analysis,roleSignal:'executed-command-strength-estimate',
-      roles:roles,noteOns:[],primaryNotes:[],section:null,hue:0.5,kick:0,snare:0,hat:0,
-      drop:false,idle:paused,paused:paused,spectrum:analysis.spectrum,waveform:analysis.waveform};
-    return {revision:current?current.revision:null,activation:current?current.activation:null,frame:frame,status:status,
-      epoch:musicEpoch,discontinuity:musicObserved.discontinuity,renderContextTime:ctx&&Number.isFinite(ctx.currentTime)?ctx.currentTime:0,
-      eventStream:{available:!!musicJournal,nextSequence:musicObserved.next,sourceDropped:musicObserved.dropped,rejectedBatches:musicObserved.rejected,exhausted:musicObserved.exhausted},
-      paused:paused,suspended:!!ctx&&ctx.state!=='running',grid:grid,clock:visual};
-  }
-  function musicEmit(state){ musicListeners.forEach(function(fn){ try{ fn(state); }catch(_){} }); }
-  function musicAck(state){
-    if(state.epoch!==musicEpoch) return;
-    if(state.activation===musicObserved.activation&&Number.isSafeInteger(state.discontinuity)&&state.discontinuity<musicObserved.discontinuity)return;
-    if(state.status==='playing' && !musicRevisions.has(state.activation)) return;
-    if(state.status==='playing'&&musicRevisions.get(state.activation).revision!==state.revision)return;
-    if(state.status==='position' && (!musicCurrent||state.activation!==musicCurrent.activation)) return;
-    if(state.status==='playing' && musicRevisions.get(state.activation)){
-      var previous=musicCurrent;
-      musicCurrent=musicRevisions.get(state.activation);
-      if(previous && previous.activation!==state.activation) musicRevisions.delete(previous.activation);
-      if(musicPending && state.activation===musicPending.activation) musicPending=null;
-    }
-    if(['cancelled','superseded','stale'].includes(state.status)) {
-      musicRevisions.delete(state.activation);
-      if(musicPending&&musicPending.activation===state.activation)musicPending=null;
-    }
-    if(musicCurrent&&state.activation===musicCurrent.activation&&state.revision===musicCurrent.revision){
-      musicObserveAck(state);
-      if(['playing','paused','ended','stopped','error'].includes(state.status))musicVisualAck.status=state.status;
-      if(['playing','paused','position','loop','ended'].includes(state.status)&&Number.isFinite(state.frame))musicVisualAck.frame=state.frame;
-    }
-    musicEmit(state);
-  }
-  function musicPost(message){
-    if(!gbNode) throw new Error('Music engine unavailable');
-    gbNode.port.postMessage(Object.assign({epoch:musicEpoch},message));
-  }
-  function musicInvalidate(reason){
-    musicClearEvents(reason||'stop');
-    musicVisualAck={frame:0,status:'stopped'};
-    musicEpoch++; musicRequest++; musicPending=null; musicCurrent=null; musicRevisions.clear(); musicIdentities.clear(); gbPending=null;
-    if(gbNode) musicPost({type:'musicStop',reason:reason||'stop'});
-  }
-  function musicPrepare(gb, options, base){
-    var G=globalThis.CT_GB_APU;
-    if(!G) throw new Error('GB sequencer unavailable');
-    if(!gb || !Number.isInteger(gb.totalFrames) || gb.totalFrames<1 || gb.totalFrames>216000)
-      throw new Error('Music length must be 1..216000 frames');
-    var revision=options.revision;
-    if(!((typeof revision==='string' && revision.length>0 && revision.length<=128) ||
-         (typeof revision==='number' && Number.isSafeInteger(revision)))) throw new Error('Invalid revision');
-    var count=['notes','auto','vibOff','waveLoads','kit'].reduce(function(n,k){return n+(gb[k]||[]).length;},0);
-    if(count>50000) throw new Error('Music event limit exceeded');
-    if(JSON.stringify(gb).length>8000000) throw new Error('Music asset limit exceeded');
-    gb=structuredClone(gb);
-    var boundaries=options.boundaries==null?[]:Array.from(options.boundaries);
-    if(boundaries.length>256 || boundaries.some(function(f,i){return !Number.isInteger(f)||f<0||f>216000||(i&&f<=boundaries[i-1]);}))
-      throw new Error('Boundaries must be at most 256 ascending GB frames');
-    var seq=new G.Sequencer(gb,ctx.sampleRate), changed=[Infinity,Infinity,Infinity,Infinity,Infinity];
-    seq.setMix(MIX);
-    seq.kitBank={};
-    (gb.kit||[]).forEach(function(k){
-      if(!Number.isInteger(k.id)||k.id<0||k.id>127||!globalThis.CT_GB_KITS) throw new Error('Invalid kit asset');
-      seq.kitBank[k.id]=globalThis.CT_GB_KITS.byId(k.id);
-    });
-    var density={};
-    ['byFrame','auto','vibOffAt','waveAt','kitAt'].forEach(function(k){Object.keys(seq[k]).forEach(function(f){
-      if(+f<0 || +f>216000) throw new Error('Event frame outside music limits');
-      density[f]=(density[f]||0)+(Array.isArray(seq[k][f])?seq[k][f].length:1);
-      if(density[f]>128) throw new Error('Music frame event limit exceeded');
-    });});
-    // Exact serialized event histories, including resolved instrument/wave data.
-    // This comparison and register replay run on the page, never the audio thread.
-    function history(s){
-      var h=[{}, {}, {}, {}, {}];
-      function add(ch,f,value){(h[ch][f]||(h[ch][f]=[])).push(value);}
-      Object.keys(s.byFrame).forEach(function(f){s.byFrame[f].forEach(function(e){
-        var ch=e.t?e.n.ch:e.ch, n=e.n;
-        // Source indices describe observations, not a change to the sound.
-        var event={t:e.t,ch:e.ch};
-        if(n){ var note=Object.assign({},n); delete note.frames; event={t:e.t,n:note}; }
-        var slot=n&&ch===2?(globalThis.CT_GB_HARDWARE||globalThis.CT_GB).waveSlotOf(s.inst,n.inst):0;
-        add(ch,f,[event,n?s.inst[n.inst]:null,n&&ch===2?(s.bank.waveTables||[])[slot]:null]);
-      });});
-      Object.keys(s.auto).forEach(function(f){s.auto[f].forEach(function(w){
-        var ch=w.r>=0x10&&w.r<=0x14?0:w.r<=0x19&&w.r>=0x16?1:w.r>=0x1a&&w.r<=0x1e?2:w.r>=0x20&&w.r<=0x23?3:-1;
-        if(w.r>=0x30&&w.r<=0x3f) ch=2;
-        var write={r:w.r,v:w.v};
-        if(ch<0) for(var c=0;c<5;c++) add(c,f,write); else add(ch,f,write);
-      });});
-      Object.keys(s.vibOffAt).forEach(function(f){s.vibOffAt[f].forEach(function(ch){add(ch,f,'vibOff');});});
-      Object.keys(s.waveAt).forEach(function(f){add(2,f,['wave',s.waveAt[f],(s.bank.waveTables||[])[s.waveAt[f]]]);});
-      Object.keys(s.kitAt).forEach(function(f){add(2,f,['kit',s.kitAt[f]]);});
-      return h;
-    }
-    if(base){
-      var a=history(base.schedule), b=history(seq);
-      for(var ch=0;ch<5;ch++) new Set(Object.keys(a[ch]).concat(Object.keys(b[ch]))).forEach(function(f){
-        if(JSON.stringify(a[ch][f])!==JSON.stringify(b[ch][f])) changed[ch]=Math.min(changed[ch],+f);
-      });
-      boundaries=boundaries.filter(function(f){return f<=base.totalFrames;});
-      if(!boundaries.includes(base.totalFrames)) boundaries.push(base.totalFrames);
-    }
-    var offset=options.offsetFrames==null?0:options.offsetFrames;
-    if(!Number.isInteger(offset)||offset<0) throw new Error('Invalid offsetFrames');
-    var targets=base?boundaries:[Math.min(offset,gb.totalFrames)];
-    var snapshots=targets.map(function(f){
-      var target=Math.min(f,gb.totalFrames); seq.seek(target);
-      var state={};
-      ['apu','vib','frame','acc','waveSlot','kit','kitPos','kitLeft','kitCyc'].forEach(function(k){state[k]=structuredClone(seq[k]);});
-      return {at:f,state:state,preserve:changed.slice(0,4).map(function(first){return f===target&&first>=target;}),preserveGlobal:f===target&&changed[4]>=target};
-    });
-    // Schedules are sent once; snapshots contain only bounded chip state.
-    var schedule={};
-    ['sr','samplesPerFrame','rate','gainScalar','mix','bank','inst','auto','vibOffAt','waveAt','kitAt','kitIndexAt','kitBank','byFrame'].forEach(function(k){schedule[k]=seq[k];});
-    return {revision:revision,activation:++musicActivation,totalFrames:gb.totalFrames,loop:!!options.loop,schedule:schedule,snapshots:snapshots,
-      visualSettings:structuredClone(options.settings||{})};
-  }
-  function musicIdentity(gb){
-    return JSON.stringify(gb,function(k,v){
-      if(v && typeof v==='object' && !Array.isArray(v) && !ArrayBuffer.isView(v)){
-        var sorted={}; Object.keys(v).sort().forEach(function(key){sorted[key]=v[key];}); return sorted;
-      } return v;
-    });
-  }
-  // Boundary selection only. The language compiler owns the sole conversion.
-  function musicBoundaries(compiled,options){
-    options=options||{};
-    var s=compiled.settings||{}, gb=compiled.gb, language=globalThis.CT_MUSIC_LANGUAGE;
-    if(!gb || !Number.isInteger(gb.totalFrames)||gb.totalFrames<1) throw new Error('Compiled music required');
-    if(!language || !language.createClock) throw new Error('Shared music clock unavailable');
-    var from=options.fromFrame==null?0:options.fromFrame, limit=options.limit==null?256:options.limit;
-    if(!Number.isInteger(from)||from<0||!Number.isInteger(limit)||limit<1||limit>256) throw new Error('Invalid boundary range');
-    var clock=language.createClock(s);
-    function at(bar){return clock(bar*4);}
-    var lo=0, hi=65536;
-    while(lo<hi){var mid=(lo+hi)>>1;if(at(mid)<from)lo=mid+1;else hi=mid;}
-    var out=[];
-    for(var bar=lo;bar<=65536 && out.length<limit;bar++){
-      var frame=at(bar);if(frame>=gb.totalFrames)break;
-      if(!out.length||frame>out[out.length-1])out.push(frame);
-    }
-    if(out.length<limit && gb.totalFrames>=from)out.push(gb.totalFrames);
-    return out;
-  }
-  async function musicPlay(gb,options){
-    options=options||{};
-    startAudio(true); chipOwner='create';
-    var request=++musicRequest;
-    await ensureGbChip();
-    if(request!==musicRequest || chipOwner!=='create') return false;
-    if(!gbNode) throw new Error('Music engine unavailable');
-    var prepared=musicPrepare(gb,options,null);
-    musicClearEvents('play');
-    musicEpoch++; musicCurrent=null; musicPending=null; musicRevisions.clear(); musicIdentities.clear();
-    musicPending=prepared;
-    musicRevisions.set(prepared.activation,prepared); musicIdentities.set(prepared.revision,musicIdentity(gb));
-    gbActive=true; gbPending=null;
-    gbSynthGain.gain.setTargetAtTime(0.0001,ctx.currentTime,0.01);
-    gbChipGain.gain.setTargetAtTime(1,ctx.currentTime,0.01);
-    musicPost({type:'musicPlay',prepared:prepared});
-    if(ctx.state!=='running') await ctx.resume();
-    return true;
-  }
-  function musicQueue(gb,options){
-    options=options||{};
-    if(!musicCurrent || chipOwner!=='create' || options.baseRevision!==musicCurrent.revision)
-      throw new Error('Stale music base revision');
-    if(Array.from(musicRevisions.values()).filter(Boolean).length>=8) throw new Error('Music engine acknowledgment backlog');
-    var prepared=musicPrepare(gb,Object.assign({},options,{loop:musicCurrent.loop}),musicCurrent);
-    var identity=musicIdentity(gb), known=musicIdentities.get(options.revision);
-    if(known!=null && known!==identity) throw new Error('Revision ID reused with different music');
-    if(known==null && Array.from(musicIdentities.values()).reduce(function(n,s){return n+s.length;},identity.length)>16000000)
-      throw new Error('Music revision identity budget exceeded; restart playback');
-    musicIdentities.set(options.revision,identity);
-    musicPending=prepared;
-    musicRevisions.set(prepared.activation,prepared);
-    musicPost({type:'musicQueue',baseRevision:options.baseRevision,baseActivation:musicCurrent.activation,prepared:prepared});
-    return true;
-  }
   function gbPlay(score, offsetFrames, paused, leadSec){
     if(chipOwner!=='radio') return false;
     var gb = score && score.gb;
@@ -717,7 +375,7 @@ const Audio = (()=>{
     if(!on){ if(gbNode) gbNode.port.postMessage({type:'stop'}); return false; }
     // the WHOLE song: automation, wave swaps, vibrato hand-offs and kit hits are
     // as much the music as the note-ons (playCreate had the same omission)
-    var msg = {type:'play', gb:{notes:gb.notes, bank:gb.bank, totalFrames:gb.totalFrames,gainScalar:gb.gainScalar,
+    var msg = {type:'play', gb:{notes:gb.notes, bank:gb.bank, totalFrames:gb.totalFrames,
                                 auto:gb.auto||null, vibOff:gb.vibOff||null,
                                 waveLoads:gb.waveLoads||null, kit:gb.kit||null},
                offsetFrames:Math.max(0, offsetFrames|0), paused:!!paused,
@@ -742,31 +400,34 @@ const Audio = (()=>{
   // a device the games and the playhead ran exactly that far ahead of the
   // music -- which reads, correctly, as "the audio is late".
   //
-  // Prefer the browser's outputLatency. The Web Audio specification explicitly
-  // warns that currentTime - timestamp.contextTime is NOT reliable latency:
-  // currentTime advances in uneven increments, and timestamps can be old.
-  // https://webaudio.github.io/web-audio-api/#dom-audiocontext-getoutputtimestamp
-  // Without that API, use a bounded, age-adjusted timestamp approximation,
-  // then a baseLatency heuristic. Neither fallback proves speaker timing.
+  // getOutputTimestamp().contextTime is the context time of the sample being
+  // played out RIGHT NOW, so the difference from currentTime is the true
+  // latency. It is the only measurement of this that Safari has: WebKit has
+  // never shipped AudioContext.outputLatency, so on the browser where this
+  // matters most, ctx.outputLatency is undefined and the old code had no way
+  // to know. Fall back to it where it exists, then to baseLatency.
   var _outLat = 0, _outLatSeen = 0;
   function outLatency(){
     if(!ctx) return 0;
-    var reported = ctx.outputLatency;
-    var raw = Number.isFinite(reported) && reported >= 0 ? reported : -1;
+    // The LARGER of the two signals, not the first that answers. WebKit returns
+    // a getOutputTimestamp whose contextTime equals currentTime -- a latency of
+    // exactly zero, which no real output has -- while its ctx.outputLatency
+    // reports 15.8ms. A zero from a timestamp that is not actually trailing is
+    // a non-measurement, and preferring it threw away the only real number on
+    // the engine this correction exists for.
+    var raw = -1;
     try{
-      if(raw < 0 && ctx.getOutputTimestamp){
+      if(ctx.getOutputTimestamp){
         var ts = ctx.getOutputTimestamp();
-        var age = ts ? (performance.now() - ts.performanceTime) / 1000 : NaN;
-        if(ts && Number.isFinite(ts.contextTime) && ts.contextTime > 0 &&
-           Number.isFinite(age) && age >= 0 && age <= 0.25){
-          var estimate = ctx.currentTime - ts.contextTime - age;
-          if(Number.isFinite(estimate) && estimate > 0 && estimate <= 0.5) raw = estimate;
-        }
+        if(ts && ts.contextTime > 0) raw = Math.max(raw, ctx.currentTime - ts.contextTime);
       }
     }catch(e){}
-    if(raw < 0) raw = Number.isFinite(ctx.baseLatency) ? Math.max(0, Math.min(0.5, ctx.baseLatency * 2)) : 0;
-    // Bound uncertain fallback estimates, not an explicit device report:
-    // wireless outputs can legitimately have more than half a second of delay.
+    if(typeof ctx.outputLatency === 'number') raw = Math.max(raw, ctx.outputLatency);
+    if(!(raw > 0)) raw = (ctx.baseLatency || 0) * 2;
+    // half a second is already absurd for a local device; beyond that we are
+    // reading a stalled timestamp, not a buffer, and shifting the picture by it
+    // would be worse than the thing being fixed
+    raw = Math.max(0, Math.min(0.5, raw));
     var a = _outLatSeen < 8 ? 0.4 : 0.05;      // settle fast, then hold
     _outLatSeen++;
     _outLat += (raw - _outLat) * a;
@@ -1442,10 +1103,6 @@ const Audio = (()=>{
     var cs=compileScore(tok);
     // live join failure: caller falls back to private — never substitute a random mint (desyncs the room)
     if(!cs){ _autoRetryAt=(ctx?ctx.currentTime:0)+5; return null; }
-    // A successful live join is an explicit track start, just like startTrack.
-    // Leaving the cold-landing hold set makes the next Pause pick a new mood
-    // instead, even though the live station is already sounding.
-    _holdForPick=false;
     if(ctx && started){
       Engine.killAll(opts.fade!=null?opts.fade:0.12);
       Engine.clearFuture(ctx.currentTime+0.02);
@@ -2275,18 +1932,6 @@ const Audio = (()=>{
   }
 
   return {
-    musicPlay:musicPlay, musicQueue:musicQueue, musicBoundaries:musicBoundaries, musicVisualState:musicVisualState, musicEventReader:musicEventReader,
-    musicCancel(revision){ musicPost({type:'musicCancel',revision:revision}); if(musicPending&&musicPending.revision===revision) musicPending=null; },
-    musicPause(paused){ musicPost({type:'musicPause',paused:!!paused}); },
-    musicSeek(frame){
-      if(!musicCurrent) return false;
-      if(!Number.isInteger(frame)||frame<0) throw new Error('Invalid seek frame');
-      var s=musicCurrent.schedule, seq=new globalThis.CT_GB_APU.Sequencer(null,ctx.sampleRate);
-      Object.assign(seq,s); seq.seek(Math.min(frame,musicCurrent.totalFrames));
-      musicPending=null; musicPost({type:'musicSeek',state:seq}); return true;
-    },
-    musicStop(){ musicInvalidate('stop'); },
-    onMusicState(listener){ musicListeners.add(listener); return function(){musicListeners.delete(listener);}; },
     init,
     resume(force){ return resumeCtx(!!force); },
     running(){ return !!(ctx && ctx.state==='running' && !transportPaused); },        // is audio actually sounding (autoplay gate cleared)?
@@ -2365,8 +2010,9 @@ const Audio = (()=>{
                lag:lag, next:deckNext?deckNext.tok:null }; },
     audibleLag(){ var FPS=(typeof CT_GB_HARDWARE!=='undefined')?CT_GB_HARDWARE.FPS:59.7275;
       return _chipLag/FPS/Math.max(0.25,chipRate()) + outLatency(); },
-    // outMs is the applied estimate; timestampMs is the raw clock difference
-    // for diagnosis only, NOT an independent measurement of speaker latency.
+    // Readable in a real browser's console, which is the only place the Safari
+    // number can be read at all: outMs is what this machine's output actually
+    // costs, and `src` says whether the browser told us or we had to measure it.
     latencyDiag(){
       if(!ctx) return null;
       var ts=null; try{ ts=ctx.getOutputTimestamp?ctx.getOutputTimestamp():null; }catch(e){}
@@ -2383,19 +2029,17 @@ const Audio = (()=>{
     currentScore(){ return deckCur ? deckCur.score : null; },
     // on=true runs the exported cartridge; on=false returns to the composition
     // at the position the track has reached.
-    playRom(bytes){ musicInvalidate('ownerreturn'); return gbPlayRom(bytes); },
-    playScore(){ musicInvalidate('ownerreturn'); if(gbNode) gbNode.port.postMessage({type:'chmute', mask:null}); chipOwner='radio'; return gbPlayScore(); },
+    playRom(bytes){ return gbPlayRom(bytes); },
+    playScore(){ if(gbNode) gbNode.port.postMessage({type:'chmute', mask:null}); chipOwner='radio'; return gbPlayScore(); },
     // CREATE editor: loop a user-authored gb song on the chip. Shares the
     // radio's chip node; playScore() hands it back afterwards.
     // Entering the editor: the radio goes quiet NOW, not at first play.
     enterCreate(){
-      musicInvalidate('enter');
       chipOwner='create';
       if(gbNode) gbNode.port.postMessage({type:'stop'});
     },
     playCreate(gb, loopFrames, offsetFrames){
       if(!gb || !gb.notes){ return false; }
-      musicInvalidate('legacy');
       startAudio(true); if(this.resume) this.resume(true);
       chipOwner='create';
       gbActive=true;
@@ -2411,7 +2055,7 @@ const Audio = (()=>{
       // hand-offs and kit hits are as much the music as the note-ons, and
       // leaving them out here meant the cartridge played things the browser
       // never did.
-      var msg={type:'play', gb:{notes:gb.notes, bank:gb.bank, totalFrames:gb.totalFrames,gainScalar:gb.gainScalar,
+      var msg={type:'play', gb:{notes:gb.notes, bank:gb.bank, totalFrames:gb.totalFrames,
                                 auto:gb.auto||null, vibOff:gb.vibOff||null,
                                 waveLoads:gb.waveLoads||null, kit:gb.kit||null},
                offsetFrames:off, paused:false, loopFrames:loopFrames|0, rate:1,
@@ -2426,7 +2070,7 @@ const Audio = (()=>{
       if(gbNode) gbNode.port.postMessage({type:'kit', id:id|0}); },
     stopPoke(ch){ if(gbNode) gbNode.port.postMessage({type:'pokeoff', ch:(ch==null?null:ch|0)}); },
     setChipMute(mask){ ensureGbChip(); if(gbNode) gbNode.port.postMessage({type:'chmute', mask:mask||null}); },
-    stopCreate(){ musicInvalidate('stop'); if(gbNode) gbNode.port.postMessage({type:'stop'}); },  // editor stop: chip quiet, ownership stays; playScore() is the way back
+    stopCreate(){ if(gbNode) gbNode.port.postMessage({type:'stop'}); },  // editor stop: chip quiet, ownership stays; playScore() is the way back
     romMode(){ return gbRomMode; },
     // the song on air, as a Create document -- this is what makes "edit what I
     // am hearing" the same song rather than a near-enough copy of it
@@ -2492,8 +2136,7 @@ function resize(){
   // the player bar owns the bottom of the window; the picture ends above it
   var _inset = 0;
   try{ _inset = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--barh')) || 0; }catch(e){}
-  var viewport = window.__ctVisualViewport && window.__ctVisualViewport();
-  var vw = viewport ? viewport.width : window.innerWidth, vh = viewport ? viewport.height : Math.max(160, window.innerHeight - _inset);
+  var vw = window.innerWidth, vh = Math.max(160, window.innerHeight - _inset);
   // On the Game Boy panel the stage IS the console's framebuffer: the games draw
   // at the LCD's own resolution, one canvas pixel per cell, and the panel shows
   // those pixels. Drawing at full device resolution and downsampling afterwards
@@ -2505,8 +2148,7 @@ function resize(){
              : mode === 'nes' ? window.CT_NES_NATIVE : null;
   if (native) {
     W = native.w; H = native.h; DPR = 1;
-    if(cv.width!==W) cv.width = W;
-    if(cv.height!==H) cv.height = H;
+    cv.width = W; cv.height = H;
     // A 16px sprite lands at about a tenth of the screen, the proportion it has
     // on the real console. The NES framebuffer is ~1.67x the Game Boy's at the
     // same window, so the divisor moves with it or sprites shrink by a third.
@@ -2514,12 +2156,11 @@ function resize(){
                             : Math.max(2, Math.round(Math.min(W,H)/90));
   } else {
     W = vw; H = vh;
-    var rawDpr = viewport ? viewport.dpr : (window.devicePixelRatio||1);
+    var rawDpr = window.devicePixelRatio||1;
     var maxCanvasPixels = 3200000; // pixel art does not need a giant Retina backbuffer; keep render cost bounded.
     var area = Math.max(1, W*H);
-    DPR = viewport && viewport.stageDpr || Math.max(1, Math.min(2, rawDpr, Math.sqrt(maxCanvasPixels/area)));
-    if(cv.width!==Math.floor(W*DPR)) cv.width = Math.floor(W*DPR);
-    if(cv.height!==Math.floor(H*DPR)) cv.height = Math.floor(H*DPR);
+    DPR = Math.max(1, Math.min(2, rawDpr, Math.sqrt(maxCanvasPixels/area)));
+    cv.width = Math.floor(W*DPR); cv.height = Math.floor(H*DPR);
     pxBase = Math.max(3, Math.round(Math.min(W,H)/150));
   }
   cv.style.width = vw+'px'; cv.style.height = vh+'px';

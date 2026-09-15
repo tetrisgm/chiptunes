@@ -1,10 +1,5 @@
 // Build the one shared artifact used by web, desktop, and broadcast. The fixed
 // game roster is concatenated directly; there is no runtime pack platform.
-// Explicit local proof; never enters the release dist directory.
-if (process.argv.includes('--algorave-preview')) {
-  require('./scripts/build-algorave-preview.cjs').build();
-  return;
-}
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -55,27 +50,10 @@ const ORDER = [
   'src/chip-instruments.js',
   'src/composer.js',
   'src/live.js',        // the shared broadcast schedule (pure fn of wall clock; needs Song + CT_COMPOSERS)
-  'src/music-event-stream.js', // bounded independent cursors for actual chip observations
   'src/audio.js',
   'src/radio.js',
-  'src/lsdj.js',              // .lsdsng export: a song an LSDj composer can keep writing
-  'src/lsdj-native-document.js', // authoritative editable native model (byte-honest)
-  'src/lsdj-native-editor.js',   // user-facing native structure editor (structural, no playback)
   'src/reference-styles.js',  // "like Castlevania" -> genre dials, read back out loud
   'src/api.js',         // the agent API, also reachable in the page as CT_API
-  'src/music-language.js',
-  'src/music-cycle-examples.js',
-  'src/music-project.js',
-  'src/music-chat.js',
-  'src/music-exports.js',
-  'src/music-agent-connection.js',
-  'src/music-project-transfer.js',
-  'src/music-preview.js',
-  'src/music-chart-index.js',
-  'src/visual-language.js',
-  'src/visual-renderer.js',
-  'src/visual-stage.js',
-  'src/music-workspace.js',
   'src/webmcp.js',      // window.chiptunes + WebMCP tools: an agent driving the live page
   'src/helpers.js',
   'src/visualizer.js',
@@ -95,33 +73,14 @@ const ORDER = [
 
 const shellPath = path.join(ROOT, 'src', 'shell.html');
 if (!fs.existsSync(shellPath)) die('missing src/shell.html (the HTML template with the __SCRIPTS__ marker)');
-const {usesSimple}=require('./src/create-entry.js');
-const entryHash=crypto.createHash('sha256').update(fs.readFileSync(path.join(ROOT,'src/create-entry.js'))).digest('hex').slice(0,12);
-const shell = fs.readFileSync(shellPath, 'utf8').replace('<head>',()=>'<head><script>globalThis.CT_SIMPLE_CREATE=('+usesSimple.toString()+')(location);</script>').replace('</style>',
-  fs.readFileSync(path.join(ROOT, 'src/music-workspace.css'), 'utf8') +
-  fs.readFileSync(path.join(ROOT, 'src/music-chat-ui.css'), 'utf8') + '\n</style>');
+const shell = fs.readFileSync(shellPath, 'utf8');
 if (!shell.includes('__SCRIPTS__')) die('src/shell.html has no __SCRIPTS__ marker');
 
-const musicAssetVersion = crypto.createHash('sha256');
-for (const file of ['src/gb-hardware.js','src/gb-kits.js','src/gb-apu.js']) musicAssetVersion.update(fs.readFileSync(path.join(ROOT,file)));
-const musicEditorHash = crypto.createHash('sha256');
-for (const file of ['src/music-code-editor.mjs','src/music-inline-rolls.mjs','src/music-source-controls.mjs','package-lock.json']) musicEditorHash.update(fs.readFileSync(path.join(ROOT,file)));
-const musicEditorVersion = musicEditorHash.digest('hex').slice(0,12);
-const chatVersion=crypto.createHash('sha256').update(fs.readFileSync(path.join(ROOT,'src/music-chat-ui.jsx'))).update(fs.readFileSync(path.join(ROOT,'package-lock.json'))).digest('hex').slice(0,12);
-const previewHash=crypto.createHash('sha256');
-for(const file of ['music-preview-worker.js','gb-hardware.js','gb-kits.js','music-language.js'])previewHash.update(fs.readFileSync(path.join(ROOT,'src',file)));
-const previewVersion=previewHash.digest('hex').slice(0,12);
-const appSources = ORDER.map(f => {
+const js = ORDER.map(f => {
   const p = path.join(ROOT, f);
   if (!fs.existsSync(p)) die('missing source ' + f);
   return '/* ===== ' + f + ' ===== */\n' + fs.readFileSync(p, 'utf8');
 }).join('\n');
-const musicBuildVersion = crypto.createHash('sha256').update(appSources).update(shell).update(musicEditorVersion).update(chatVersion).update(previewVersion).digest('hex').slice(0,12);
-const js = 'globalThis.CT_MUSIC_ASSETS_VERSION="'+musicAssetVersion.digest('hex').slice(0,16)+'";\n'+
-  'globalThis.CT_MUSIC_EDITOR_VERSION="'+musicEditorVersion+'";\n'+
-  'globalThis.CT_MUSIC_CHAT_UI_VERSION="'+chatVersion+'";\n'+
-  'globalThis.CT_MUSIC_PREVIEW_VERSION="'+previewVersion+'";\n'+
-  'globalThis.CT_MUSIC_BUILD_VERSION="'+musicBuildVersion+'";\n'+appSources;
 
 // fail loud before writing if the bundle doesn't parse
 try { new Function(js); } catch (e) { die('ABORTED — bundle syntax error: ' + e.message); }
@@ -129,31 +88,6 @@ try { new Function(js); } catch (e) { die('ABORTED — bundle syntax error: ' + 
 // ---- publish dist/ — the ONLY directory the dev server exposes ----
 const DIST = path.join(ROOT, 'dist');
 fs.mkdirSync(path.join(DIST, 'lib'), { recursive: true });
-require('esbuild').buildSync({entryPoints:[path.join(ROOT,'src/music-chat-ui.jsx')],outfile:path.join(DIST,'lib/music-chat-ui.js'),
-  bundle:true,format:'iife',globalName:'CT_MUSIC_CHAT_UI',platform:'browser',target:'es2020',minify:true,legalComments:'inline',define:{'process.env.NODE_ENV':'"production"'}});
-fs.copyFileSync(path.join(ROOT,'src/music-preview-worker.js'),path.join(DIST,'lib/music-preview-worker.js'));
-for(const file of ['gb-hardware.js','gb-kits.js','music-language.js'])fs.copyFileSync(path.join(ROOT,'src',file),path.join(DIST,'lib',file));
-// Lazy-loaded editor component: one locally bundled dependency, same artifact
-// for every surface. Retain the licenses of all shipped editor dependencies.
-require('esbuild').buildSync({
-  entryPoints:[path.join(ROOT,'src/music-code-editor.mjs')],
-  outfile:path.join(DIST,'lib/music-code-editor.js'),bundle:true,format:'iife',
-  platform:'browser',target:'es2020',minify:true,legalComments:'inline'
-});
-const editorLicenses=[], editorSeen=new Set();
-function editorLicense(name) {
-  if(editorSeen.has(name)) return; editorSeen.add(name);
-  const dir=path.join(ROOT,'node_modules',name), pkg=JSON.parse(fs.readFileSync(path.join(dir,'package.json'),'utf8'));
-  const file=['LICENSE','LICENSE.txt','LICENSE.md'].map(n=>path.join(dir,n)).find(p=>fs.existsSync(p));
-  if(!file) die('editor dependency has no license file: '+name);
-  editorLicenses.push(name+' '+pkg.version+' ('+pkg.license+')\n'+fs.readFileSync(file,'utf8'));
-  Object.keys(pkg.dependencies||{}).forEach(editorLicense);
-}
-['codemirror','@codemirror/lang-javascript','@codemirror/autocomplete','@codemirror/lint'].forEach(editorLicense);
-fs.writeFileSync(path.join(DIST,'lib/music-code-editor.LICENSE.txt'),editorLicenses.join('\n\n'));
-editorLicenses.length=0;editorSeen.clear();['react','react-dom'].forEach(editorLicense);
-fs.writeFileSync(path.join(DIST,'lib/music-chat-ui.LICENSE.txt'),fs.readFileSync(path.join(ROOT,'src/music-chat-ui.LICENSE.txt'),'utf8')+'\n\n'+editorLicenses.join('\n\n'));
-fs.copyFileSync(path.join(ROOT,'src/music-chat-ui.NOTICE.md'),path.join(DIST,'lib/music-chat-ui.NOTICE.md'));
 // A FUNCTION, not a string. String.replace treats $', $`, $& and $$ in the
 // replacement as special patterns, so any source containing one of them is
 // silently corrupted -- and the corruption is not local: `$'` splices in
@@ -170,7 +104,7 @@ fs.copyFileSync(path.join(ROOT,'src/music-chat-ui.NOTICE.md'),path.join(DIST,'li
 // compiled once, and `defer` lets the page draw first.
 const bundleHash = crypto.createHash('sha256').update(js).digest('hex').slice(0, 12);
 const bundleName = 'app.' + bundleHash + '.js';
-const html = shell.replace('__SCRIPTS__', () => '<script src="/lib/create-entry.js?v='+entryHash+'" data-legacy="/'+bundleName+'" defer></script>');
+const html = shell.replace('__SCRIPTS__', () => '<script src="' + bundleName + '" defer></script>');
 // Prove the page's script survived templating -- the corruption this guards
 // against produced a perfectly plausible artifact that simply did not run.
 {
@@ -181,7 +115,7 @@ const html = shell.replace('__SCRIPTS__', () => '<script src="/lib/create-entry.
     try { new Function(m[1]); }
     catch (e) { die('emitted inline script block ' + n + ' does not parse: ' + e.message); }
   }
-  if (!html.includes('data-legacy="/' + bundleName + '"')) die('the bundle tag was altered while being templated into the shell');
+  if (!html.includes('src="' + bundleName + '"')) die('the bundle tag was altered while being templated into the shell');
 }
 // clear yesterday's bundles so dist/ never accumulates them
 for (const f of fs.readdirSync(DIST)) if (/^app\.[0-9a-f]+\.js$/.test(f) && f !== bundleName) fs.unlinkSync(path.join(DIST, f));
@@ -204,7 +138,6 @@ let pageHtml;
     throw new Error('build: the orientation tool is missing from the descriptors');
   const registrar = `<script>
 (function(G){
-  if(G.CT_SIMPLE_CREATE)return;
   var D=${JSON.stringify(descriptors)};
   // The introduction is the one answer that must not wait for anything. It is
   // the tool an agent calls FIRST, on a cold page, and "still loading" is a
@@ -262,8 +195,6 @@ let pageHtml;
     throw new Error('build: matched a <body> inside the stylesheet, not the document body');
   pageHtml = html.replace(bodyTag, found[0] + '\n' + registrar);
 }
-fs.copyFileSync(path.join(ROOT,'src/create-entry.js'),path.join(DIST,'lib/create-entry.js'));
-require('./scripts/build-algorave-preview.cjs').build({out:path.join(DIST,'algorave')});
 fs.writeFileSync(path.join(DIST, 'index.html'), pageHtml);
 
 // /radio is the public “listen anywhere” page.

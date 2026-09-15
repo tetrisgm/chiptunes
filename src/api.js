@@ -46,7 +46,6 @@ var Song = _req ? _req('./seed.js') : _G.Song;
 var composer = _req ? _req('./composer.js')
                     : ((_G.CT_COMPOSERS && _G.CT_COMPOSERS.rrr_core) || null);
 var REF = _req ? _req('./reference-styles.js') : _G.CT_REFERENCE_STYLES;
-var LSDJ = _req ? _req('./lsdj.js') : _G.CT_LSDJ;
 var CT_CREATE = _req ? _req('./create.js') : _G.CT_CREATE;
 var GB_ROM = _req ? _req('./gb-rom.js') : _G.CT_GB_ROM;
 var GB_APU = _req ? _req('./gb-apu.js') : _G.CT_GB_APU;
@@ -122,16 +121,6 @@ function capabilities() {
     gameGenres: Object.keys(WORD_GAME_GENRES),
     forms: Object.keys(WORD_FORMS),
     techniques: Object.keys(WORD_TECHNIQUES),
-    exports: {
-      formats: ['share link', 'wav', 'stems', 'midi', 'gb cartridge', 'lsdsng', 'lsdj sav'],
-      lsdsng: 'One LSDj song, the unit LSDj musicians pass around. Notes arrive laid out in phrases and chains with the tempo and the groove, so somebody who writes on a Game Boy gets an arrangement to build on. Drums move to the noise channel (a .sav cannot carry kit samples, which live in the ROM) and instrument voicing is left stock on purpose. toLsdsng() returns those caveats as `warnings`; relay them.',
-      sav: 'toLsdjSav() writes a whole LSDj cartridge -- up to 32 songs in one .sav, ready to copy onto a flash cart. That is the fastest route from \'I want to write something\' to actually writing: every slot on the machine already has a starting point in it.'
-    },
-    tempo: {
-      reachable: CT_CREATE.tempos ? CT_CREATE.tempos(16) : [],
-      note: 'A ladder, not a range. A step lasts a WHOLE number of frames on this hardware, so only these tempi exist; asking for one in between gives you the nearest rung. The gaps widen as it gets faster, which is a property of the machine rather than a choice.',
-      groove: 'Tempi off the plain ladder are reached with a GROOVE -- a short repeating list of tick counts, like [6,7,6,7]. The same mechanism carries swing. describe() reports the groove a song plays.'
-    },
     meter: 'Everything is in four. There is no time-signature dial, so a waltz is not expressible and asking for one says so rather than pretending.',
     titles: REF && REF.names ? REF.names() : [],
     references: 'Naming a game from `titles` is READ AS a genre description -- genre, styles, major/minor, a tempo band, a mood, one technique -- and the reading is always said back so you can disagree with it. It is not an imitation: nothing here is trained on or derived from anybody else\'s music, and a title can only set dials you could type yourself. A name that is not on the list is REFUSED rather than quietly ignored, because it maps to nothing at all.',
@@ -140,53 +129,39 @@ function capabilities() {
                  'shape', 'fade', 'chordtones', 'arc', 'smooth', 'accent'],
     writing: 'chordtones, arc, smooth and accent are the operations that change how the music is WRITTEN rather than how it is set: consonance against the chord underneath, the rise or fall of a phrase, leaps turned into steps, and emphasis on the beat. analyse() measures all four so a caller can check a word did what it said.',
     layers: LAYER_SETS.map(function (l) { return { name: l.name, lanes: l.keep, use: l.use }; }),
-    variety: 'soundtrack() shares the requested key, or its first cue\'s generated key. A shared motif needs motif:true and is varied per cue. A shared key constrains harmony; different soundtracks still need distinct phrases and rhythms.',
-    limits: { maxTitle: 48 },
-    premise: {
-      note: 'Optional bounded dials on compose()/brief(), each in [-1, 1], applied BEFORE generation. They never override an explicit key, mode, tempo or genre.',
-      energy: 'section intensity (drums, form, accompaniment); it does not move the tempo, which the band and any tempo word already own',
-      density: 'how many melody and bass onsets are written',
-      motion: 'how far the composed melodic and bass contour roams'
-    }
+    variety: 'Cohesion devices are opt-in on purpose. soundtrack() shares a KEY by default, which costs no variety; a shared motif needs motif:true and is transposed per cue rather than copied. Nothing is shared between two different soundtracks.',
+    limits: { maxTitle: 48 }
   };
 }
 
 // ------------------------------------------------------------------- composing
 //
 // One token in, one score out. A premise constrains the composer's own dials
-// before generation; it never scores or filters candidates afterwards. Besides
-// styles, mode and a tempo band, it accepts three bounded character dials --
-// energy, density and motion, each in [-1, 1] -- which lean intensity, onset
-// count and motif reach, and never override an explicit key/mode/tempo/genre.
+// before generation; it never scores or filters candidates afterwards.
 function compose(opts) {
   opts = opts || {};
   var score, token;
   if (opts.mood) {
-    // This entry point accepts the published mood chips. Free-text requests
-    // use ask(); both ultimately share that interpreter and document path.
+    // moodSong composes SOMETHING for any string -- an unrecognised word just
+    // leaves the composer unconstrained -- which would hand an agent a song it
+    // did not ask for and no way to tell. Check the word first.
     var known = CT_CREATE.moods();
     if (known.indexOf(String(opts.mood)) < 0)
       throw new Error('compose: no song for mood ' + JSON.stringify(opts.mood) +
                       '. Known moods: ' + known.join(', '));
-    var m = CT_CREATE.moodSong(String(opts.mood), opts.token ? { token: String(opts.token) } : {});
+    var m = CT_CREATE.moodSong(String(opts.mood));
     if (!m) throw new Error('compose: no song for mood ' + JSON.stringify(opts.mood) +
                             '. Known moods: ' + CT_CREATE.moods().join(', '));
     return { doc: m.code, title: m.title, bpm: m.bpm, bars: m.bars, mood: String(opts.mood) };
   }
   token = opts.token ? String(opts.token) : Song.mint();
   var premise = null;
-  if (opts.styles || opts.mode || opts.bpmMin != null || opts.bpmMax != null ||
-      opts.energy || opts.density || opts.motion) {
+  if (opts.styles || opts.mode || opts.bpmMin != null || opts.bpmMax != null) {
     premise = {};
     if (opts.styles) premise.styles = [].concat(opts.styles);
     if (opts.mode) premise.mode = opts.mode;
     if (opts.bpmMin != null) premise.bpmMin = opts.bpmMin;
     if (opts.bpmMax != null) premise.bpmMax = opts.bpmMax;
-    // The bounded character dials. Zero is dropped so a plain premise is
-    // recorded as exactly {styles,mode,bpmMin,bpmMax}.
-    if (opts.energy) premise.energy = opts.energy;
-    if (opts.density) premise.density = opts.density;
-    if (opts.motion) premise.motion = opts.motion;
   }
   score = premise ? composer.compile(token, premise) : composer.compile(token);
   if (!score) throw new Error('compose: nothing satisfies that premise');
@@ -220,7 +195,6 @@ function toJSON(doc) {
     var motion = x.u ? 'rise' : x.z ? 'fall' : x.q ? 'arp' : x.g ? 'roll' : x.f ? 'echo' : null;
     if (motion) n.motion = motion;
     if (x.inst != null) n.instrument = x.inst;
-    if (x.nt) n.trigger = x.nt === 1;
     if (x.st) n.stamp = x.st;
     // the chip settings, when the note carries its own rather than the lane's
     var snd = {};
@@ -275,7 +249,6 @@ function fromJSON(obj) {
     }
     if (cell.ch === undefined) delete cell.ch;
     if (n.instrument != null) cell.inst = n.instrument;
-    if (n.trigger != null) cell.nt = n.trigger ? 1 : 2;
     switch (n.motion) {
       case 'rise': cell.u = 1; break;
       case 'fall': cell.z = 1; break;
@@ -318,8 +291,6 @@ function validate(obj) {
     var lane = LANES.indexOf(n.lane);
     if (lane < 0) { errors.push(at + ': unknown lane ' + JSON.stringify(n.lane) + '. Use ' + LANES.join(', ')); return; }
     if ((n.step | 0) < 0) errors.push(at + ': step must be 0 or more');
-    if (n.trigger != null && (typeof n.trigger !== 'boolean' || lane > 1))
-      errors.push(at + ': native trigger state is a boolean on a pulse lane');
     if (lane === 3) {
       if (n.drum && DRUMS.indexOf(n.drum) < 0)
         errors.push(at + ': unknown drum ' + JSON.stringify(n.drum) + '. Use ' + DRUMS.join(', '));
@@ -369,15 +340,7 @@ function describe(doc) {
   var rom = null;
   try { rom = GB_ROM.buildRom({ gb: gb, name: song.title || 'SONG' }).length; } catch (e) { rom = null; }
   return {
-    title: song.title || '', bpm: song.bpm,
-    // The tick pattern the song actually plays. bpm is the average of it; the
-    // groove is what the machine is really doing, and for a swung or
-    // between-the-rungs tempo the average alone does not describe it.
-    groove: (function () {
-      try { var s2 = CT_CREATE.docState(typeof doc === 'string' ? doc : fromJSON(doc));
-            return s2 && s2.groove ? s2.groove.slice() : null; } catch (e) { return null; }
-    })(),
-    bars: song.bars,
+    title: song.title || '', bpm: song.bpm, bars: song.bars,
     seconds: +(gb.totalFrames / fps).toFixed(2),
     notes: gb.notes.length,
     perLane: { Melody: perLane[0], Harmony: perLane[1], Bass: perLane[2], Drums: perLane[3] },
@@ -425,138 +388,6 @@ function load(doc) {
 
 // A shareable link. The document rides in the FRAGMENT, which browsers never
 // send to a server, so this needs no backend and stores nothing.
-// A SONG AN LSDJ COMPOSER CAN OPEN AND KEEP WRITING. `.lsdsng` is the unit
-// LSDj users pass around -- one song, droppable into a save. What arrives is
-// the arrangement: notes laid out in phrases and chains, the tempo, the groove.
-// What does not arrive is the voicing, on purpose; see src/lsdj.js.
-//
-// Returns the file AND the warnings, because every one of them is something the
-// receiving musician would otherwise discover by ear.
-function toLsdsng(doc, opts) {
-  if (!LSDJ) throw new Error('toLsdsng: lsdj.js is not loaded');
-  var r = LSDJ.lsdsng(typeof doc === 'string' ? doc : fromJSON(doc), opts || {});
-  return {
-    bytes: r.file, filename: (((opts && opts.name) || r.title || 'chiptune')
-      .replace(/[^A-Za-z0-9 _-]/g, '').trim() || 'chiptune') + '.lsdsng',
-    phrases: r.phrases, chains: r.chains, notes: r.notes, sequencedNotes: r.sequencedNotes,
-    tempo: r.tempo, groove: r.groove, framesPerRow: r.framesPerRow, warnings: r.warnings
-  };
-}
-
-// THE OTHER DIRECTION. A song written in LSDj, opened here.
-//
-// Export alone is half a relationship: it makes this app a place songs leave.
-// Reading LSDj's own files is what makes it a place they can come back to, and
-// it is the same walk LSDj does -- sequence to chains to phrases to rows.
-//
-// Accepts a `.lsdsng` (a name, a version byte and the compressed song) or a
-// `.sav` (whose working-memory song sits uncompressed at offset 0). Returns the
-// document plus `warnings` for anything the format genuinely cannot carry back.
-function fromLsdsng(bytes, opts) {
-  if (!LSDJ) throw new Error('fromLsdsng: lsdj.js is not loaded');
-  var b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-  // A .sav is 128 KB and starts with a whole song; a .lsdsng is small and starts
-  // with an 8-byte name. Telling them apart by SIZE is the reliable way -- the
-  // name bytes are arbitrary text and cannot be used as a signature.
-  var parsed = b.length >= LSDJ.SAV_SIZE ? LSDJ.parseSav(b) : LSDJ.parseLsdsng(b);
-  var model = LSDJ.readSong(parsed.song);
-  var out = LSDJ.toSongJSON(model, { name: (opts && opts.name) || parsed.name });
-  var doc = fromJSON(out.json);
-  // A TABLE IS PLAYED OUT INTO NOTES, one per tick, at the pitch and the frame
-  // each tick sounds. The document is row-based, but a cell carries `of` (frames
-  // off the grid), `midi` and `lf` (an exact length in frames), which between
-  // them can put a note wherever the machine can -- the same mechanism a
-  // composed song already uses to survive import at frame resolution.
-  //
-  // So a table plays EXACTLY, and no new document format was needed for it.
-  if (out.tableNotes && out.tableNotes.length) {
-    var st = CT_CREATE.docState(doc);
-    var melRows = T.melodicRows || 15;
-    var laneRow = function (x) {
-      return x.r >= melRows ? 3
-        : (x.ch === 0 || x.ch === 1) ? x.ch
-        : (x.st === 'bassg' || x.st === 'cello') ? 2 : 0;
-    };
-    if (st && LSDJ.expandTables(model, st, out.tableNotes, laneRow)) {
-      var grown = CT_CREATE.docFromState(st);
-      if (grown) doc = grown;
-    }
-  }
-  // T and M are SONG-WIDE. T changes the tempo from a row onward and M sets the
-  // master volume; the document carries both as of version 14, and a song using
-  // neither still encodes exactly as it did before.
-  if ((out.tempoAt && out.tempoAt.length) || out.master != null) {
-    var stt = CT_CREATE.docState(doc);
-    if (stt) {
-      if (out.tempoAt && out.tempoAt.length) stt.tempoAt = out.tempoAt.slice();
-      // NR50 is (left << 4) | right, each 0..7; the loudest side is the level.
-      if (out.master != null)
-        stt.master = Math.max((out.master >> 4) & 7, out.master & 7) * 2 + 1;
-      var gt = CT_CREATE.docFromState(stt);
-      if (gt) doc = gt;
-    }
-  }
-  // The commands that MOVE A REGISTER and have a home in the document: E is a
-  // volume, O a pan, S a sweep, P a pitch bend read as a detune. Each was
-  // measured by playing it and watching the chip.
-  if (out.patches && out.patches.length) {
-    var stp = CT_CREATE.docState(doc);
-    var melP = T.melodicRows || 15;
-    var laneP = function (x) {
-      return x.r >= melP ? 3 : (x.ch === 0 || x.ch === 1) ? x.ch
-        : (x.st === 'bassg' || x.st === 'cello') ? 2 : 0;
-    };
-    var byKey = {};
-    out.patches.forEach(function (p) { byKey[p.lane + ':' + p.step] = p.f; });
-    var hit = 0;
-    if (stp) stp.cells.forEach(function (x) {
-      var f = x.midi == null ? null : byKey[laneP(x) + ':' + (x.c | 0)];
-      if (!f) return;
-      for (var k in f) x[k] = f[k];
-      hit++;
-    });
-    if (hit) { var gp = CT_CREATE.docFromState(stp); if (gp) doc = gp; }
-  }
-  // VIBRATO rides as a cell flag rather than a motion, so it is set here for the
-  // same reason -- it was written on the way out and dropped on the way in.
-  if (out.vibratoNotes && out.vibratoNotes.length) {
-    var st2 = CT_CREATE.docState(doc);
-    var mel2 = T.melodicRows || 15;
-    var lane2 = function (x) {
-      return x.r >= mel2 ? 3 : (x.ch === 0 || x.ch === 1) ? x.ch
-        : (x.st === 'bassg' || x.st === 'cello') ? 2 : 0;
-    };
-    var wantV = {};
-    out.vibratoNotes.forEach(function (n) { wantV[n.lane + ':' + n.step] = 1; });
-    var touched = 0;
-    if (st2) st2.cells.forEach(function (x) {
-      if (x.midi != null && wantV[lane2(x) + ':' + (x.c | 0)]) { x.vb = 1; touched++; }
-    });
-    if (touched) { var g2 = CT_CREATE.docFromState(st2); if (g2) doc = g2; }
-  }
-  return {
-    doc: doc, title: out.json.title, bpm: out.json.bpm,
-    groove: out.groove, notes: out.json.notes.length, warnings: out.warnings
-  };
-}
-
-// A WHOLE CART. `.lsdsng` is one song and still needs importing; a `.sav` IS
-// the cartridge -- copy it to a flash cart and every slot has something in it.
-// This is the fastest way from "I want to write something" to "I am writing".
-function toLsdjSav(docs, opts) {
-  if (!LSDJ) throw new Error('toLsdjSav: lsdj.js is not loaded');
-  var list = [].concat(docs || []).map(function (d) {
-    return typeof d === 'string' ? d : fromJSON(d);
-  });
-  var r = LSDJ.sav(list, opts || {});
-  return {
-    bytes: r.bytes,
-    filename: (((opts && opts.name) || 'chiptunes').replace(/[^A-Za-z0-9 _-]/g, '').trim() || 'chiptunes') + '.sav',
-    songs: r.songs, titles: r.titles,
-    blocksUsed: r.blocksUsed, blocksFree: r.blocksFree, warnings: r.warnings
-  };
-}
-
 function shareUrl(doc, base) {
   return (base || 'https://chiptunes.app') + '/#s=' + String(typeof doc === 'string' ? doc : fromJSON(doc));
 }
@@ -643,98 +474,6 @@ var MOODS = {
                { op: 'fade', fade: 0 }, { op: 'motion', lane: 'Melody', motion: 'echo' },
                { op: 'tempo', percent: -8 }]
 };
-
-// EACH PUBLISHED MOOD ALSO CARRIES A PRE-GENERATION PREMISE. The recipe above
-// reshapes an EXISTING song; this steers the composer for a NEW one along the
-// three bounded axes it accepts. energy is intensity WITHOUT tempo (the recipe's
-// tempo op already owns that, so nothing is doubled), density is how many
-// melody/bass onsets are written, and motion is how far the line roams.
-//
-// No lane's density is processed twice: this premise governs melody/bass
-// GENERATION, while the recipes' `thin` targets harmony/drums. `tense` is the one
-// mood whose recipe thins the melody, so its premise density is deliberately 0.
-// The two mode-flipping pairs (happier/sadder, brighter/darker) are kept modest
-// so the measured happy/sad separability in verify-language is not disturbed;
-// the dials' full range is exercised directly in verify-composition-character.
-var MOOD_PREMISE = {
-  happier:    { energy: 0.25, motion: 0.15 },
-  sadder:     { energy: -0.3, motion: -0.15 },
-  darker:     { energy: -0.2, density: -0.1, motion: -0.15 },
-  brighter:   { energy: 0.2, motion: 0.2 },
-  calmer:     { energy: -0.5, density: -0.25, motion: -0.3 },
-  intense:    { energy: 0.6, density: 0.3, motion: 0.25 },
-  sparser:    { density: -0.5 },
-  dreamier:   { energy: -0.35, density: -0.15, motion: -0.2 },
-  heroic:     { energy: 0.45, motion: 0.3 },
-  mysterious: { energy: -0.3, density: -0.2, motion: 0.15 },
-  menacing:   { energy: 0.25, density: -0.1, motion: -0.2 },
-  frantic:    { energy: 0.6, density: 0.45, motion: 0.4 },
-  playful:    { energy: 0.3, density: 0.2, motion: 0.35 },
-  solemn:     { energy: -0.55, density: -0.2, motion: -0.3 },
-  tense:      { energy: 0.2, motion: 0.1 },
-  exploratory:{ energy: -0.2, density: -0.15, motion: 0.15 }
-};
-// Sum a list of moods per axis, clamped to the composer's [-1,1], and track
-// which axes were TOUCHED at all -- an axis a user's moods cancel to zero is
-// still owned by the user and must not be refilled from a reference.
-function _moodPremise(words) {
-  var sum = { energy: 0, density: 0, motion: 0 };
-  var has = { energy: false, density: false, motion: false };
-  (words || []).forEach(function (w) {
-    var p = MOOD_PREMISE[w]; if (!p) return;
-    ['energy', 'density', 'motion'].forEach(function (axis) {
-      if (p[axis] != null) { sum[axis] += p[axis]; has[axis] = true; }
-    });
-  });
-  var c = function (v) { return Math.max(-1, Math.min(1, Math.round(v * 100) / 100)); };
-  return { energy: c(sum.energy), density: c(sum.density), motion: c(sum.motion), has: has };
-}
-// The DIMENSION an op occupies, so a reference trait can be merged with the
-// user's own moods by dimension rather than discarded wholesale. Lane-scoped
-// operations key on their lane so, e.g., thinning drums and thinning harmony are
-// distinct dimensions but two arcs on the melody are not.
-function _opDim(o) {
-  var lane = ':' + (o.lane || 'all');
-  switch (o.op) {
-    // DENSITY of a lane is ONE axis: adding, thinning, subdividing or dropping
-    // onsets all move it, so a reference must not subdivide a lane the user
-    // already thinned (or vice versa).
-    case 'thin': case 'subdivide': case 'double': case 'drop': return 'density' + lane;
-    // The rest are distinct, documented axes and do not overwrite one another:
-    // register (octave), arc (contour), smooth (leap size), chordtones
-    // (consonance), motion (articulation), shape (duty), fade (envelope).
-    case 'register': case 'arc': case 'smooth': case 'chordtones':
-    case 'motion': case 'shape': case 'fade':
-      return o.op + lane;
-    default: return o.op;
-  }
-}
-// The set of dimensions the user's own moods touch, read straight off the
-// recipes so an explicit request overrides a reference on exactly those axes.
-function _moodDims(moods) {
-  var seen = {};
-  (moods || []).forEach(function (w) {
-    (MOODS[w] || []).forEach(function (o) { seen[_opDim(o)] = 1; });
-  });
-  return seen;
-}
-
-function _referenceLine(reference, uses) {
-  function dimension(d) {
-    var parts = d.split(':'), names = { arc: 'contour', register: 'register',
-      smooth: 'leap smoothing', chordtones: 'consonance', motion: 'articulation',
-      shape: 'pulse shape', fade: 'fade', density: 'density' };
-    return parts.length > 1 ? (parts[1] === 'all' ? '' : parts[1].toLowerCase() + ' ') + (names[parts[0]] || parts[0]) : d;
-  }
-  var labels = uses.map(function (u) {
-    if (u.kind !== 'character') return u.text;
-    // Character words are bundles. Name the surviving axes rather than implying
-    // the whole bundle won when, for example, its register was overridden.
-    return u.text + ' (hints: ' + u.dimensions.map(dimension).join(' + ') + ')';
-  });
-  return 'like ' + reference.name + ' (' + reference.genre + '), used for: ' +
-    (labels.length ? labels.join(', ') : 'nothing; stronger settings took precedence');
-}
 
 // CONSONANCE, DEFINED ONCE. This was wrong in both the operation and the
 // measurement, identically, which is exactly why sharing it matters: a melody
@@ -1064,9 +803,9 @@ function transform(doc, ops) {
                      Math.max(1, (o.bars || 2)) + ' bars (' + arcMoved + ' notes)'); break;
       }
       case 'smooth': {
-        // Reduce large leaps by octave displacement, preserving pitch classes.
-        // This cannot turn every interval into a step (a third remains a
-        // third), or guarantee a limit below the nearest octave equivalent.
+        // Stepwise motion, by octave displacement -- which keeps the pitch
+        // class, so the harmony is untouched and only the line becomes
+        // singable. This is what makes a lullaby a lullaby.
         var maxLeap = o.maxLeap != null ? (o.maxLeap | 0) : 5;
         var seq = st.cells.filter(function (c) { return pick(c) && !isDrum(c) && c.midi != null; })
                           .sort(function (a, b) { return (a.c | 0) - (b.c | 0); });
@@ -1080,7 +819,7 @@ function transform(doc, ops) {
           }
           cur2.r = rowFor(cur2.midi);
         }
-        applied.push('reduced large leaps with ' + smoothed + ' octave shifts'); break;
+        applied.push('smoothed ' + smoothed + ' leaps into steps'); break;
       }
       case 'accent': {
         // Metric emphasis: the downbeat loudest, the half-bar next, the
@@ -1145,34 +884,20 @@ function brief(b) {
   if (spec.bpmMin != null) opts.bpmMin = spec.bpmMin;
   if (spec.bpmMax != null) opts.bpmMax = spec.bpmMax;
   if (spec.title != null) opts.title = spec.title;
-  // The bounded character dials ride to the composer as a premise, so a new
-  // piece is generated with the requested energy/density/motion rather than
-  // having them approximated afterwards.
-  if (spec.energy) opts.energy = spec.energy;
-  if (spec.density) opts.density = spec.density;
-  if (spec.motion) opts.motion = spec.motion;
   // A variation number is a SEED, not randomness: the same brief and the same
   // variation give the same song forever, so an agent can explore and still get
   // back the one that was liked.
   if (spec.token) opts.token = spec.token;
   else if (spec.variation != null) opts.token = Song.mint(); // caller keeps the token we return
-  // Resolve an impossible style/band combination before generation. Retrying a
-  // failed composition used to compile the same seed twice and also caught
-  // unrelated composer errors as if they were constraint conflicts.
-  if (!composer.canCompose(opts) && (opts.styles || opts.mode)) {
+  var made;
+  try { made = compose(opts); }
+  catch (e) {
+    if (!opts.styles && !opts.mode) throw e;
     delete opts.styles; unmet.push('style constraint could not be met');
+    made = compose(opts);
   }
-  var made = compose(opts);
 
   var ops = [];
-  if (spec.key != null) {
-    var targetKey = midiOf(String(spec.key) + '4');
-    if (targetKey == null) throw new Error('brief: unknown key ' + JSON.stringify(spec.key));
-    var sourceKey = CT_CREATE.docState(made.doc).key;
-    var shift = ((targetKey - sourceKey) % 12 + 12) % 12;
-    if (shift > 6) shift -= 12;
-    if (shift) ops.push({ op: 'transpose', semitones: shift });
-  }
   if (spec.exclude) [].concat(spec.exclude).forEach(function (l) { ops.push({ op: 'drop', lane: l }); });
   if (spec.intensity > 0) ops.push({ op: 'velocity', delta: 0.1 });
   // SCENES has carried `resolve: true` on victory and game_over since scenes
@@ -1222,24 +947,14 @@ function soundtrack(b) {
     if (!SCENES[s]) throw new Error('soundtrack: unknown scene ' + JSON.stringify(s) +
                                     '. Known: ' + Object.keys(SCENES).join(', '));
   });
-  var rootName = b.key || null;
-  var root = rootName == null ? null : midiOf(rootName + '4');
-  if (rootName != null && root == null) throw new Error('soundtrack: ' + JSON.stringify(rootName) + ' is not a key, e.g. "D"');
-  var targetKey = root == null ? null : ((root % 12) + 12) % 12;
-  var soundtrackToken = b.token ? String(b.token) : Song.mint();
-  var cues = list.map(function (name, index) {
-    // One deterministic composition per cue. Reusing the same seed for every
-    // scene can clone a phrase when their style constraints overlap.
-    var cueToken = soundtrackToken + '-cue-' + index + '-' + name;
-    var cue = brief(Object.assign({}, b, { scene: name, scenes: undefined, token: cueToken }));
+  var rootName = b.key || 'D';
+  var root = midiOf(rootName + '4');
+  if (root == null) throw new Error('soundtrack: ' + JSON.stringify(rootName) + ' is not a key, e.g. "D"');
+  var targetKey = ((root % 12) + 12) % 12;
+  var cues = list.map(function (name) {
+    var cue = brief(Object.assign({}, b, { scene: name, scenes: undefined }));
     // pull every cue into the same key, so they belong together
     var st = CT_CREATE.docState(cue.doc);
-    // Cohesion within a game does not require every game to default to D.
-    // Use the first composition's own key unless the caller chose one.
-    if (targetKey == null) {
-      targetKey = st.key | 0;
-      rootName = NOTE_NAMES[targetKey];
-    }
     var shift = ((targetKey - (st.key | 0)) % 12 + 12) % 12;
     if (shift > 6) shift -= 12;
     if (shift) {
@@ -1257,7 +972,7 @@ function soundtrack(b) {
   // ⚠️ A SHARED MOTIF IS OFF BY DEFAULT, and that is a deliberate reversal.
   // Cohesion devices are exactly how a generator starts sounding the same, and
   // the owner has been burned by that repeatedly. Shared KEY already makes cues
-  // belong together but constrains harmonic variety; a recurring figure is a stronger,
+  // belong together and costs no variety; a recurring figure is a stronger,
   // riskier claim, so it is opt-in with `motif: true`.
   //
   // And when it is on, the figure is VARIED rather than copied: each cue gets it
@@ -1273,26 +988,6 @@ function soundtrack(b) {
     // all -- which read as the feature being broken rather than the cue being
     // sparse there.
     var figure = [], motifBar = 0, motifLane = 0, why = null;
-    // A mechanically repeated short cell is accompaniment, not a distinctive
-    // soundtrack figure. The first eligible window used to pick the same
-    // tonic arpeggio across unrelated games in a shared key. Search the existing
-    // cue for a phrase instead; never compose replacement candidates.
-    function shortLoop(notes) {
-      // Include a final partial repetition: trimming a two-bar window must not
-      // turn the same arpeggio into a "new phrase" by dropping its last note.
-      for (var period = 1; period <= 4 && notes.length >= Math.max(2, period * 2 - 1); period++) {
-        var repeated = true;
-        for (var ni = period; ni < notes.length; ni++) {
-          var a = notes[ni], b = notes[ni - period];
-          if (a.midi !== b.midi || (a.len || 1) !== (b.len || 1) ||
-              (ni > period && a.c - notes[ni - 1].c !== b.c - notes[ni - period - 1].c)) {
-            repeated = false; break;
-          }
-        }
-        if (repeated) return true;
-      }
-      return false;
-    }
     // Search the WHOLE cue, and take Harmony if Melody has nothing: both are
     // pulse voices, and a figure stated on the second pulse is an ordinary
     // thing for this hardware. Some cues genuinely have no melodic phrase at
@@ -1303,8 +998,8 @@ function soundtrack(b) {
         var lo = w * grid0, hi = lo + grid0 * 2;
         var got = src.cells.filter(function (c) {
           return !isDrum(c) && c.midi != null && laneOf(c) === ln && (c.c | 0) >= lo && (c.c | 0) < hi;
-        }).sort(function (a, b) { return a.c - b.c; });
-        if (got.length >= 3 && !shortLoop(got)) {
+        });
+        if (got.length >= 3) {
           motifBar = w; motifLane = ln;
           figure = got.map(function (c) {
             var cp = JSON.parse(JSON.stringify(c)); cp.c = (c.c | 0) - lo; return cp;
@@ -1312,7 +1007,7 @@ function soundtrack(b) {
         }
       }
     }
-    if (figure.length < 2) why = 'the first cue has no non-repeating melodic phrase to build on';
+    if (figure.length < 2) why = 'the first cue has no melodic phrase to build on';
     if (figure.length >= 2) {
       motif = { notes: figure.length, bars: 2, fromBar: motifBar,
                 lane: LANES[motifLane],
@@ -1346,7 +1041,7 @@ function soundtrack(b) {
       }
     }
   }
-  return { token: soundtrackToken, key: rootName, mode: b.mode || null, motif: motif,
+  return { key: rootName, mode: b.mode || null, motif: motif,
            motifSkipped: (b.motif === true && !motif) ? why : undefined, cues: cues };
 }
 
@@ -1483,10 +1178,10 @@ var WORD_MOODS = {
 // a genre word onto them is a true statement about what the machine will do --
 // unlike a franchise name, which could only be a guess wearing a trademark.
 var WORD_GENRES = {
-  anthem: ['anthem'], anthemic: ['anthem'], epic: ['anthem'],
+  anthem: ['anthem'], anthemic: ['anthem'],
   house: ['house'], techno: ['techno'], trance: ['trance'],
   dnb: ['dnb'], jungle: ['dnb'], breakbeat: ['breaks'], breaks: ['breaks'],
-  arcade: ['arcade'], retro: ['arcade'], rock: ['rock'], punk: ['punk'], hardcore: ['punk'],
+  arcade: ['arcade'], rock: ['rock'], punk: ['punk'], hardcore: ['punk'],
   funk: ['funk'], funky: ['funk'], groovy: ['funk'],
   hiphop: ['boombap'], boombap: ['boombap'], lofi: ['boombap', 'chill'],
   ambient: ['drone', 'chill'], drone: ['drone'],
@@ -1826,55 +1521,42 @@ function interpret(text, opts) {
     moods.push(m2); understood.push('mood: ' + m2);
   });
 
-  // The mode a user's OWN moods imply, computed once: it steers a new piece's
-  // composer mode below, and it blocks a reference's mode transform from silently
-  // overriding it -- that made "a cheerful song like Castlevania" read major but
-  // sound minor.
-  var moodMode = null;
-  moods.forEach(function (mood) {
-    (MOODS[mood] || []).forEach(function (o) {
-      if (o.op === 'mode' && !moodMode) moodMode = String(o.to).indexOf('min') === 0 ? 'minor' : 'major';
-    });
-  });
-
-  var refUses = [], userDims = _moodDims(moods);
-  ops.forEach(function (o) { userDims[_opDim(o)] = 1; });
-  function refOp(o) { var index = ops.length; ops.push(o); return index; }
-  function refUse(kind, text, indices) {
-    var use = { kind: kind, text: text, ops: indices || [], axes: [], dimensions: [] };
-    refUses.push(use); return use;
-  }
-
   // 11. and NOW the title fills whatever nobody named. Gap-fill is what keeps
   //     a reference a suggestion rather than an override.
   if (title) {
-    if (!spec.styles) { spec.styles = title.styles.slice(); refUse('styles', title.styles.join('/')); }
+    var took = [];
+    if (!spec.styles) { spec.styles = title.styles.slice(); took.push(title.styles.join('/')); }
 
-    // A TITLE'S MODE IS APPLIED AS A TRANSFORM, not a composer constraint. Since
-    // 16a2398 an explicit genre plus an explicit mode composes on the first try,
-    // so this is RETAINED FOR COMPATIBILITY and because a title is an atmosphere
-    // hint layered over the genre in force. A mode the user TYPED wins, a named
-    // scene keeps its own, and a mode the user's own MOOD implies wins too --
-    // otherwise "a cheerful song like Castlevania" reads major but sounds minor.
-    if (!modeTyped && !spec.scene && !moodMode && spec.mode !== title.mode) {
-      refUse('mode', title.mode, [refOp({ op: 'mode', to: title.mode })]);
+    // A TITLE'S MODE IS A TRANSFORM, NOT A CONSTRAINT, and that is not a
+    // stylistic choice -- it is what the composer's style table permits. Ten of
+    // its fourteen styles are major-only (`modes:'maj'`), so asking for `rock`
+    // AND `minor` empties the eligible pool, and brief()'s fallback then throws
+    // the STYLES away and keeps the mode. Forty-eight of the titles here were
+    // silently losing their genre that way while the summary still named it.
+    //
+    // A NAMED SCENE KEEPS ITS OWN MODE: a scene is a functional requirement --
+    // a game-over cue must not come out jaunty -- while a title is an
+    // atmosphere hint. A mode the user TYPED beats both.
+    if (!modeTyped && !spec.scene && spec.mode !== title.mode) {
+      ops.push({ op: 'mode', to: title.mode });
+      took.push(title.mode);
     }
 
     // TEMPO: the band when the styles in force can reach it, and a pull towards
     // it when they cannot. Dropping it outright was the bug -- it meant naming
     // a slow, brooding game next to a fast genre changed nothing at all.
-    var tempoHandled = !!userDims.tempo || spec.bpmMin != null || spec.bpmMax != null;
-    if (title.bpmMin && !tempoHandled) {
+    var tempoHandled = false;
+    if (title.bpmMin && spec.bpmMin == null) {
       if (_bandIsReachable(spec.styles, title.bpmMin, title.bpmMax)) {
         spec.bpmMin = title.bpmMin; spec.bpmMax = title.bpmMax;
-        refUse('tempo', title.bpmMin + '-' + title.bpmMax + ' bpm');
+        took.push(title.bpmMin + '-' + title.bpmMax + ' bpm');
         tempoHandled = true;
       } else {
         var pull = _bandPull(spec.styles, title.bpmMin, title.bpmMax);
         if (pull) {
-          refUse('tempo', Math.abs(pull) + '% ' + (pull < 0 ? 'slower' : 'faster') +
-                    ', towards its ' + title.bpmMin + '-' + title.bpmMax + ' bpm',
-                    [refOp({ op: 'tempo', percent: pull })]);
+          ops.push({ op: 'tempo', percent: pull });
+          took.push(Math.abs(pull) + '% ' + (pull < 0 ? 'slower' : 'faster') +
+                    ', towards its ' + title.bpmMin + '-' + title.bpmMax + ' bpm');
           tempoHandled = true;
         }
       }
@@ -1887,24 +1569,12 @@ function interpret(text, opts) {
     // Genre says what the piece is FOR, character says what it FEELS like, and
     // the two are orthogonal. A mood the user typed themselves still wins,
     // because that is a more specific request than a reference.
-    // The reference's own CHARACTER, merged with the user's moods by DIMENSION
-    // rather than discarded the moment they name one. A reference op survives
-    // only on a dimension the user's moods do not already touch, so an explicit
-    // request overrides the reference on that axis alone and the rest stays --
-    // and a lane the user already thins is never thinned twice.
-    if (title.character && title.character.length) {
-      var blended = [];
-      _blendMoods(title.character, { skipTempo: tempoHandled }).forEach(function (o) {
-        if (!userDims[_opDim(o)] && (spec.exclude || []).indexOf(o.lane) < 0)
-          blended.push(refOp(o));
-      });
-      title.character.forEach(function (word) {
-        var dims = _moodDims([word]);
-        refUse('character', word, blended.filter(function (i) { return dims[_opDim(ops[i])]; }));
-      });
+    if (!moods.length && title.character && title.character.length) {
+      _blendMoods(title.character, { skipTempo: tempoHandled }).forEach(function (o) { ops.push(o); });
+      took.push(title.character.join(', '));
     }
     if (!namedTechnique && title.tech && WORD_TECHNIQUES[title.tech]) {
-      refUse('technique', title.tech, [refOp(Object.assign({}, WORD_TECHNIQUES[title.tech]))]);
+      ops.push(Object.assign({}, WORD_TECHNIQUES[title.tech])); took.push(title.tech);
     }
     // The wording is deliberate and load-bearing. READ AS, not "sounds like":
     // the mapping is a genre description somebody wrote down, and the composer
@@ -1912,53 +1582,20 @@ function interpret(text, opts) {
     // actually set -- when the user named "a platformer like Metroid" the genre
     // is theirs, and a summary saying "read as: metroidvania" would be
     // describing a dial that lost.
+    understood.unshift('like ' + title.name + ' (' + title.genre + '), used for: ' +
+                       (took.length ? took.join(', ') : 'nothing, you named it all yourself'));
     sawNew = true;
   }
 
   // is this a new piece or a change to one?
-  var editWording = re('\\b(make it|make this|turn it|turn this|change it|change this)\\b');
-  var changeish = editWording || re('\\b(more|less|instead|now|but)\\b') || (ops.length > 0 && !sawNew);
-  // An explicit EDIT on a song already in hand stays a change even when it names
-  // a key, mode or length: "make it cheerful in D minor" transposes and recolours
-  // the document you have rather than composing a fresh one.
-  var kind = (opts.hasSong && editWording) ? 'change'
-           : (sawNew || (!opts.hasSong && !ops.length && !moods.length)) ? 'brief'
+  var changeish = re('\\b(make it|more|less|instead|now|turn it|but)\\b') || (ops.length > 0 && !sawNew);
+  var kind = (sawNew || (!opts.hasSong && !ops.length && !moods.length)) ? 'brief'
            : (changeish || moods.length || ops.length) ? 'change' : 'brief';
 
-  // WHETHER WE WILL ACTUALLY COMPOSE, not how the sentence is phrased. A
-  // mood-only request ("a sparse song") reads as a change but composes when no
-  // song is in hand, so the premise below must key off real generation, exactly
-  // as ask() does with `composesNew`.
-  var newSong = kind === 'brief' || !opts.hasSong;
-
-  // A mood on a NEW piece steers the composer's MODE (moodMode, computed above).
-  // A named scene keeps its own mode, and a TYPED mode wins over both. On a
-  // change the mood is a recipe applied as a transform (below).
-  if (newSong && moodMode && !spec.mode && !spec.scene) {
-    spec.mode = moodMode; understood.push('mode: ' + moodMode);
-  }
-
-  // ENERGY / DENSITY / MOTION as a PRE-GENERATION premise for a new piece. The
-  // user's own moods set an axis (even one that nets to zero -- that axis is
-  // OWNED); a named reference fills only the axes the user did not touch at all,
-  // instead of the whole reference being discarded the moment any mood appears.
-  // Tempo, key, mode and genre are settled elsewhere and never overridden here.
-  if (newSong) {
-    var prem = _moodPremise(moods);
-    if (title && title.character && title.character.length) {
-      var refPrem = _moodPremise(title.character);
-      ['energy', 'density', 'motion'].forEach(function (axis) {
-        if (!prem.has[axis] && refPrem.has[axis]) {
-          prem[axis] = refPrem[axis]; prem.has[axis] = true;
-          if (refPrem[axis]) refUses.forEach(function (u) {
-            if (u.kind === 'character' && _moodPremise([u.text]).has[axis]) u.axes.push(axis);
-          });
-        }
-      });
-    }
-    ['energy', 'density', 'motion'].forEach(function (axis) {
-      if (prem[axis]) spec[axis] = prem[axis];
-    });
+  // a mood on a NEW piece steers the composer; on a change it is a recipe
+  if (kind === 'brief' && moods.length) {
+    var toMode = { sadder: 'minor', darker: 'minor', happier: 'major', brighter: 'major' }[moods[0]];
+    if (toMode && !spec.mode) { spec.mode = toMode; understood.push('mode: ' + toMode); }
   }
 
   // THINGS THIS MACHINE CANNOT DO, said out loud. Dropping them silently and
@@ -1983,14 +1620,6 @@ function interpret(text, opts) {
   var refName = refm ? refm[1].trim().replace(/[.,!?;:]+$/, '') : null;
   var reference = title ? { name: title.name, genre: title.genre, reads: title.reads, known: true }
                 : refName ? { name: refName, known: false } : null;
-  if (title) {
-    refUses.forEach(function (u) {
-      u.dimensions = u.axes.concat(u.ops.map(function (i) { return _opDim(ops[i]); }))
-        .filter(function (d, i, a) { return a.indexOf(d) === i; });
-    });
-    reference.uses = refUses.filter(function (u) { return u.kind !== 'character' || u.dimensions.length; });
-    understood.unshift(_referenceLine(reference, reference.uses));
-  }
   if (reference && !reference.known)
     unsupported.push({ asked: '"like ' + refName + '"',
                        why: 'I do not know that one. I match names against a published list of about a hundred games and read each as a genre, rather than imitating anything; nothing here is derived from anybody’s music. Ask for the genre instead, or name a game the list knows: Castlevania, Metroid, Tetris, Mega Man, Final Fantasy (the full list is capabilities().titles)' });
@@ -2147,44 +1776,16 @@ function ask(text, opts) {
   // how much of what was asked for actually landed
   var words = String(text || '').split(/[^A-Za-z0-9#]+/).filter(function (w) { return w.length > 2; }).length;
   var doc = opts.doc || null, applied = [], skipped = [], made = null;
-  var composesNew = read.kind === 'brief' || !doc;
-  var briefOpts = opts.brief || {};
-  var effSpec = Object.assign({}, read.spec, briefOpts);
-  var callerBand = composesNew && (briefOpts.bpmMin != null || briefOpts.bpmMax != null);
-  // A caller range is one constraint, not one half of a reference's old range.
-  if (callerBand) {
-    delete effSpec.bpmMin; delete effSpec.bpmMax;
-    if (briefOpts.bpmMin != null) effSpec.bpmMin = briefOpts.bpmMin;
-    if (briefOpts.bpmMax != null) effSpec.bpmMax = briefOpts.bpmMax;
-  }
-  if (composesNew) {
-    made = brief(effSpec);
+  if (read.kind === 'brief' || !doc) {
+    made = brief(Object.assign({}, read.spec, opts.brief || {}));
     doc = made.doc;
-    // `spec` remains the parsed request. The visible reading reflects explicit
-    // caller overrides, not the discarded parse (e.g. 100 BPM replaced by 150).
-    function replaceReading(pattern, line) {
-      var found = false;
-      read.understood = read.understood.map(function (s) {
-        if (!pattern.test(s)) return s;
-        found = true; return line;
-      });
-      if (!found) read.understood.push(line);
-    }
-    if (briefOpts.mode != null) replaceReading(/^mode:/, 'mode: ' +
-      (String(briefOpts.mode).indexOf('min') === 0 ? 'minor' : 'major'));
-    if (briefOpts.key != null) replaceReading(/^key:/, 'key: ' + briefOpts.key);
-    if (briefOpts.styles != null && !(made.unmet || []).some(function (s) { return /style constraint/.test(s); }))
-      replaceReading(/^(game genre|genre):/, 'genre: ' + [].concat(briefOpts.styles).join('/'));
-    if ((made.unmet || []).some(function (s) { return /style constraint/.test(s); }))
-      read.understood = read.understood.filter(function (s) { return !/^(game genre|genre):/.test(s); });
-    if (callerBand) replaceReading(/^tempo:/, 'tempo: ' + describe(doc).bpm + ' bpm (caller range)');
     // Everything the brief itself decided. The narrower list this used to
     // carry (scene/length/key/mode/without) silently dropped the genre, the
     // form and the title reading -- exactly the parts a user most wants
     // confirmed, since those are the ones they cannot verify by ear in a
     // second. Ops report themselves separately, below, so nothing doubles up.
     applied = applied.concat(read.understood.filter(function (u) {
-      return /^(like |scene|game genre|genre|form|mood|length|key|mode|tempo|without|loops|ends on|technique|[A-Z][a-z]+ (and|only))/.test(u);
+      return /^(like |scene|game genre|genre|form|mood|length|key|mode|without|loops|ends on|technique|[A-Z][a-z]+ (and|only))/.test(u);
     }));
     if (made.unmet && made.unmet.length) skipped = skipped.concat(made.unmet);
   }
@@ -2192,85 +1793,17 @@ function ask(text, opts) {
   // transform: brief() honours spec.exclude itself, so the op finds nothing and
   // the summary reads "dropped Drums (0 notes)" under a line that already said
   // "without Drums".
-  var already = (made && effSpec.exclude) ? [].concat(effSpec.exclude) : [];
-  // A CONSTRAINT PINNED BY THE CALLER (opts.brief) WINS OVER A REFERENCE OP ON
-  // THE SAME DIMENSION. brief() already composes in that mode/tempo, but a
-  // lingering reference transform -- a title's mode-flip or its tempo pull --
-  // would override it after the fact, so it is dropped and reported as skipped
-  // rather than silently colliding or being listed as applied.
-  var ops = read.ops.filter(function (o) {
-    if (o.op === 'drop' && already.indexOf(o.lane) >= 0) return false;
-    if (composesNew && o.op === 'mode' && briefOpts.mode != null) {
-      skipped.push('the reference\'s ' + o.to + ' gave way to your ' +
-                   (briefOpts.mode === 'min' ? 'minor' : briefOpts.mode === 'maj' ? 'major' : briefOpts.mode));
-      return false;
-    }
-    if (callerBand && o.op === 'tempo') {
-      skipped.push('a requested tempo change gave way to your tempo range'); return false;
-    }
-    return true;
-  });
-  // ON A NEW PIECE the mode is settled at the composer premise, so the mood's own
-  // mode op must NOT run again (that turned "a cheerful song in D minor" major).
-  // ON A CHANGE there is no premise: the document in hand is TRANSPOSED and
-  // recoloured in place -- a key names a transpose, a mode a mode op -- neither
-  // regenerating the arrangement, and a TYPED mode wins over the mood.
-  if (!composesNew) {
-    if (read.spec.key != null) {
-      var targetK = midiOf(String(read.spec.key) + '4');
-      var src = CT_CREATE.docState(doc);
-      if (targetK != null && src) {
-        var sh = ((targetK - (src.key | 0)) % 12 + 12) % 12; if (sh > 6) sh -= 12;
-        if (sh) ops.unshift({ op: 'transpose', semitones: sh });
-      }
-    }
-    if (read.spec.mode) ops.push({ op: 'mode', to: read.spec.mode });
-  }
-  // A TEMPO THE SENTENCE ALREADY ASKED FOR WINS: "a cheerful fast platformer" has
-  // both an explicit "fast" and happier's own +8%; compounding them ran past 180.
+  var already = (made && read.spec.exclude) ? [].concat(read.spec.exclude) : [];
+  var ops = read.ops.filter(function (o) { return !(o.op === 'drop' && already.indexOf(o.lane) >= 0); });
+  // Blended, for the same reason a title's character is: concatenating three
+  // recipes adds their tempo changes and their octave shifts together.
+  // A TEMPO THE SENTENCE ALREADY ASKED FOR WINS. "a cheerful fast platformer"
+  // has both an explicit "fast" and `happier`'s own +8%, and compounding them
+  // ran the song to 180 bpm -- neither word asked for that.
   ops = ops.concat(_blendMoods(read.moods, {
-    keepMode: !composesNew && !read.spec.mode,
-    skipTempo: callerBand || ops.some(function (o) { return o.op === 'tempo'; })
+    keepMode: true,
+    skipTempo: ops.some(function (o) { return o.op === 'tempo'; })
   }));
-  if (callerBand && _blendMoods(read.moods).some(function (o) { return o.op === 'tempo'; }))
-    skipped.push('the mood\'s tempo change gave way to your tempo range');
-  // The premise DENSITY dial owns melody and bass onset count AT GENERATION, so a
-  // post-hoc thin/subdivide of those lanes -- whether from a reference trait
-  // (e.g. a title whose character includes `tense`) or a user mood -- would
-  // process density twice. Drop them when the premise is in force; harmony and
-  // drums are untouched by the premise, so their density ops stay.
-  if (composesNew && effSpec.density) {
-    ops = ops.filter(function (o) {
-      if ((o.op === 'thin' || o.op === 'subdivide') && (o.lane === 'Melody' || o.lane === 'Bass')) {
-        skipped.push('a ' + o.op + ' of ' + o.lane + ' gave way to the density premise'); return false;
-      }
-      return true;
-    });
-  }
-  // Rebuild reference provenance from the operations and premise axes that
-  // survived caller overrides. Never leave the parsed claim in `applied` when
-  // the requested mode/range/style actually came from somewhere else.
-  if (read.reference && read.reference.known) {
-    var ref = read.reference;
-    var used = ref.uses.map(function (u) {
-      var indices = u.ops.filter(function (i) { return ops.indexOf(read.ops[i]) >= 0; });
-      var axes = u.axes.filter(function (axis) { return composesNew && briefOpts[axis] == null && effSpec[axis]; });
-      if (u.kind === 'character') {
-        var dims = axes.concat(indices.map(function (i) { return _opDim(read.ops[i]); }));
-        return dims.length ? Object.assign({}, u, { ops: indices, axes: axes, dimensions: dims }) : null;
-      }
-      if (u.ops.length) return indices.length ? u : null;
-      if (!composesNew) return null; // spec-only reference hints do not edit an existing document
-      if (u.kind === 'styles' && (briefOpts.styles != null || (made.unmet || []).some(function (s) { return /style constraint/.test(s); }))) return null;
-      if (u.kind === 'tempo' && callerBand) return null;
-      return u;
-    }).filter(Boolean);
-    ref.uses = used;
-    var line = _referenceLine(ref, used);
-    read.understood = read.understood.map(function (s) { return /^like /.test(s) ? line : s; });
-    applied = applied.filter(function (s) { return !/^like /.test(s); });
-    applied.unshift(line);
-  }
   if (ops.length) {
     var r = transform(doc, ops);
     doc = r.doc; applied = applied.concat(r.applied); skipped = skipped.concat(r.skipped);
@@ -2452,8 +1985,7 @@ var EXPORTS = {
   toJSON: toJSON,
   fromJSON: fromJSON,
   validate: validate,
-  describe: describe, analyse: analyse, toLsdsng: toLsdsng, toLsdjSav: toLsdjSav,
-  fromLsdsng: fromLsdsng,
+  describe: describe, analyse: analyse,
   buildCartridge: buildCartridge,
   renderWav: renderWav,
   shareUrl: shareUrl,

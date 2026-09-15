@@ -191,16 +191,9 @@ console.log("the user's own adjectives reach the notes");
      api.describe(made.doc).bpm + ' vs ' + plainCave.bpm + ' bpm)');
 
   // a tempo the sentence asked for is not compounded by a mood's own tempo
-  // COMPARED AGAINST "fast" ALONE, not against a number. This asserted bpm <=
-  // 175 and started failing at 179 -- which is not compounding, it is the top
-  // rung of the tempo ladder, and a fixed ceiling cannot tell those apart. The
-  // property is that adding "cheerful" does not make it faster than "fast" did.
-  const tok = { brief: { token: '7f3a12bc55de90aa' } };
-  const fastOnly = api.describe(api.ask('a fast platformer', tok).doc).bpm;
-  const f = api.ask('a cheerful fast platformer', tok);
-  ok(f.ok && api.describe(f.doc).bpm <= fastOnly,
-     'an explicit "fast" is not compounded by cheerful\'s own +8% (' +
-     api.describe(f.doc).bpm + ' bpm, same as "fast" alone at ' + fastOnly + ')');
+  const f = api.ask('a cheerful fast platformer', { brief: { token: '7f3a12bc55de90aa' } });
+  ok(f.ok && api.describe(f.doc).bpm <= 175,
+     'an explicit "fast" is not compounded by cheerful\'s own +8% (' + api.describe(f.doc).bpm + ' bpm)');
 }
 
 /* -------------------------------------------------------- reading a title in */
@@ -522,24 +515,9 @@ console.log('the composing operations');
   ok(keyKept, 'and it does not detune the tune');
 
   const smoothed = after({ op: 'smooth', lane: 'Melody' });
-  const melody = d => api.toJSON(d).notes.filter(n => n.lane === 'Melody' && n.note)
-    .sort((a, b) => a.step - b.step).map(n => api.midiOf(n.note));
-  const meanLeap = d => {
-    const ns = melody(d);
-    return ns.slice(1).reduce((sum, n, i) => sum + Math.abs(n - ns[i]), 0) / Math.max(1, ns.length - 1);
-  };
-  ok(smoothed.every((d, i) => meanLeap(d) <= meanLeap(docs[i]) + 1e-9),
-     'octave smoothing never increases the generated melodies\' mean leap');
-  // Random songs can already contain only compact intervals. A deliberate
-  // fixture catches a no-op without requiring octave folding to change thirds
-  // into seconds, which is mathematically impossible with fixed pitch classes.
-  const angular = api.fromJSON({ bpm: 128, bars: 1, notes: ['C4', 'G5', 'D4', 'F5'].map((note, i) =>
-    ({ lane: 'Melody', step: i * 4, note, len: 2 })) });
-  const folded = api.transform(angular, [{ op: 'smooth', lane: 'Melody' }]).doc;
-  ok(meanLeap(folded) < meanLeap(angular) / 2,
-     'smooth substantially reduces deliberate large leaps (' + meanLeap(angular).toFixed(2) + ' -> ' + meanLeap(folded).toFixed(2) + ')');
-  ok(melody(folded).every((n, i) => n % 12 === melody(angular)[i] % 12),
-     'octave smoothing preserves every pitch class');
+  ok(avg(smoothed, x => x.melody.stepRatio) > avg(docs, x => x.melody.stepRatio),
+     'smooth turns leaps into steps (' + avg(docs, x => x.melody.stepRatio).toFixed(2) + ' -> ' +
+     avg(smoothed, x => x.melody.stepRatio).toFixed(2) + ')');
 
   // accent must emphasise the beat WITHOUT silencing anything: velocity 0 is a
   // rest and is dropped from the song entirely.
@@ -578,38 +556,6 @@ console.log('the bundle');
   ok(!leaked.length, 'reference-styles.js leaks nothing but CT_REFERENCE_STYLES' +
      (leaked.length ? ' -- ' + leaked.join(', ') : ''));
 }
-
-console.log('Create and the API share one interpreter');
-const create = require('../src/create.js');
-const composer = require('../src/composer.js');
-for (let i = 0; i < 12; i++) {
-  const score = composer.compile('key-metadata-' + i);
-  const doc = create.songFrom(score).code;
-  ok(create.docState(doc).key === score.musical.rootMidi % 12,
-    'a composed document retains its actual tonic (' + i + ')');
-}
-const keyC = api.toJSON(api.brief({ token: 'key-direction', key: 'C' }).doc);
-const keyD = api.toJSON(api.brief({ token: 'key-direction', key: 'D' }).doc);
-ok(keyC.key === 0 && keyD.key === 2, 'a requested key reaches the song document');
-const cState = create.docState(api.brief({ token: 'key-direction', key: 'C' }).doc);
-const dState = create.docState(api.brief({ token: 'key-direction', key: 'D' }).doc);
-ok(cState.cells.length === dState.cells.length && cState.cells.every((n, i) =>
-  n.midi == null || dState.cells[i].midi - n.midi === 2 || dState.cells[i].midi - n.midi === -10),
-  'key changes transpose every pitched note, not just the label');
-for (const prompt of create.moods().concat(['a dreamy cave in D minor, no drums', 'like Metroid', 'happy glorb'])) {
-  const token = 'shared-prompt-' + prompt;
-  const expected = api.ask(prompt, { brief: { token } });
-  const actual = create.moodSong(prompt, { token });
-  ok(expected.ok && actual && actual.code === expected.doc,
-    JSON.stringify(prompt) + ' gives Create exactly the API document');
-  ok(actual && actual.reading.startsWith('Read as:'), 'the interpretation is available to show');
-  if (prompt === 'happy glorb') ok(actual && actual.reading.includes('glorb'), 'unknown words are reported');
-}
-ok(create.moodSong('glorb blarg', { token: 'invalid-prompt' }) === null,
-  'unrecognized prompts do not produce an unrelated song');
-ok(api.compose({ mood: 'happy', token: 'seeded-mood' }).doc ===
-   api.compose({ mood: 'happy', token: 'seeded-mood' }).doc,
-   'the mood composition entry point honors its token');
 
 console.log(fail ? '\nverify-language: ' + fail + ' FAILED' : '\nverify-language: it understands the sentence');
 process.exit(fail ? 1 : 0);

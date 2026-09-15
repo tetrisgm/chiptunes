@@ -53,14 +53,7 @@ async function colours(p, tag) {
   // A 3200x2000 headed Metal capture occasionally finishes just beyond
   // Playwright's 30s action default even though the page and fonts are ready.
   // Keep the real-GPU assertion; give the actual pixel readback enough time.
-  //
-  // 60s was not enough either: a full suite run on a busy machine (load average
-  // 19, which this one reaches just by running the rest of the suite) timed the
-  // capture out and took the whole run down with it -- reported as an uncaught
-  // TimeoutError with no failing assertion, which is the least useful way for a
-  // gate to fail. What is being asserted is that the face DRAWS, not that it
-  // draws inside a minute, so the limit is generous on purpose.
-  await p.screenshot({ path: f, timeout: 180000 });
+  await p.screenshot({ path: f, timeout: 60000 });
   const png = PNG.sync.read(fs.readFileSync(f));
   const s = new Set();
   for (let i = 0; i < png.data.length; i += 4 * 97) s.add((png.data[i] << 16) | (png.data[i + 1] << 8) | png.data[i + 2]);
@@ -97,7 +90,7 @@ const SNAP = `(() => {
   console.log('  renderer: ' + renderer);
   ok(!/SwiftShader/i.test(renderer), 'measuring on a real GPU, not SwiftShader');
 
-  await p.goto(`http://127.0.0.1:${h.port}/listen`, { waitUntil: 'domcontentloaded' });
+  await p.goto(`http://127.0.0.1:${h.port}/`, { waitUntil: 'domcontentloaded' });
   await wait(3000);
   await p.evaluate(() => { const x = [...document.querySelectorAll('.rmood')].find(y => y.textContent === 'chill'); if (x) x.click(); });
   await p.waitForFunction(() => !document.querySelector('.rmood.busy'), null, { timeout: 30000 });
@@ -153,7 +146,7 @@ const SNAP = `(() => {
   {
     const p2 = await b.newPage({ viewport: { width: 1200, height: 820 } });
     const e2 = []; p2.on('pageerror', e => e2.push(String(e).slice(0, 160)));
-    await p2.goto(`http://127.0.0.1:${h.port}/listen`, { waitUntil: 'domcontentloaded' });
+    await p2.goto(`http://127.0.0.1:${h.port}/`, { waitUntil: 'domcontentloaded' });
     await wait(2200);
     const FACES = ['crt', 'dmg', 'nes'];
     // force the next toss to land on `face`, tap a mood, report what happened
@@ -199,7 +192,7 @@ const SNAP = `(() => {
     for (const [eng, launcher] of [['webkit', webkit], ['chromium', chromium]]) {
       const eb = await launcher.launch();
       const ep = await eb.newPage({ viewport: { width: 900, height: 700 } });
-      await ep.goto(`http://127.0.0.1:${h.port}/listen?screen=crt`, { waitUntil: 'domcontentloaded' });
+      await ep.goto(`http://127.0.0.1:${h.port}/?screen=crt`, { waitUntil: 'domcontentloaded' });
       await wait(3500);
       const d = await ep.evaluate(() => {
         const diag = window.__rrrCrtDiag ? window.__rrrCrtDiag() : null;

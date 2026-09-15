@@ -1,12 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script>globalThis.CT_SIMPLE_CREATE=(function usesSimple(location){
-    var path=(location.pathname||'/').replace(/\/+$/,'')||'/';
-    var query=new URLSearchParams(location.search||'');
-    if(query.get('broadcast')==='1'||query.get('editor')==='chip')return false;
-    if(path!=='/'&&path!=='/create')return false;
-    return !/(?:^#|&)s=|^#music(?:=|$|-transfer=)/.test(location.hash||'');
-  })(location);</script>
+<head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <meta name="theme-color" content="#0a0814" />
@@ -42,10 +36,10 @@
   if(location.hostname==='www.chiptunes.app'){
     location.replace('https://chiptunes.app'+location.pathname+location.search+location.hash); return;
   }
-  // /player was the old generated-player address. Keep old bookmarks on the
-  // explicit listening path; root now opens the music-code workspace.
+  // /player was the old generated-player address. Root is the only landing
+  // address now, so collapse an old bookmark before the page can boot there.
   if((location.pathname||'/').replace(/\/+$/,'')==='/player'){
-    location.replace('/listen'+(location.search||'')+(location.hash||'')); return;
+    location.replace('/'+(location.search||'')+(location.hash||'')); return;
   }
   // player-route boot: hide the Home overlay pre-paint for direct track/watch links.
   // /track/<slug> (generated; slug may carry a '<composerId>.' prefix)
@@ -56,10 +50,10 @@
   var parts=slug.split('/').filter(Boolean);
   var aiTrackRoute=!!(parts[0]==='track' && parts[1] && !parts[2] && /^[a-z0-9][a-z0-9._-]*$/.test(parts[1]));
   var modeRoute=(parts.length===1 && (parts[0]==='watch' || parts[0]==='gameboy' || parts[0]==='create'));
-  // Composition has no mood setup wall, including its first paint. Broadcast
-  // root retains its existing rendering/boot contract. This starts no audio.
-  var musicRoot=!parts.length && new URLSearchParams(location.search||'').get('broadcast')!=='1';
-  if(aiTrackRoute || modeRoute || musicRoot){
+  // Root is always the landing page. Once a visitor starts a song the runtime
+  // gives it a /track URL, so restoring or reloading / can never resurrect a
+  // playing screen under the homepage address.
+  if(aiTrackRoute || modeRoute){
     document.documentElement.classList.add('boot-player-route');
     window.__RRR_BOOT_PLAYER_ROUTE=true;
   }
@@ -320,9 +314,8 @@
      grey-green oval sits in the middle of a grey-green screen looking like a
      rendering fault. A CARD has an edge, and an edge is what makes something
      read as deliberate. See #rmoods below. */
-  body.awaiting-mood{ overflow-y:auto; }
-  body.awaiting-mood #presets{ position:relative; inset:auto; min-height:calc(100dvh - 140px);
-    height:auto; align-items:center; padding:24px 14px; overflow:visible; pointer-events:auto;
+  body.awaiting-mood #presets{ top:0; bottom:0; align-items:center;
+    padding-bottom:calc(var(--ribh,44px) + 96px);
     opacity:1 !important; transition:opacity .35s ease; }
   body.awaiting-mood #presets .rbtn{ pointer-events:auto; }
   /* THE HERO IS A SCREEN IN A BEZEL.
@@ -529,11 +522,13 @@
   body:not(.awaiting-mood) #madeby .plink svg{ width:19px; height:19px; }
   @media (max-width:1100px){
     body:not(.awaiting-mood) #madeby{ right:0; flex-wrap:wrap; } }
-  body.awaiting-mood #madeby{ position:relative; inset:auto; transform:none; margin:0 auto 24px;
-    justify-content:center; width:calc(100% - 32px); max-width:1100px; opacity:1 !important; pointer-events:auto; }
-  body.awaiting-mood #madeby .plmade-line{ flex-wrap:wrap; justify-content:center; white-space:normal; }
-  body.awaiting-mood #madeby .plmade-row{ flex-wrap:wrap; justify-content:center; }
+  body.awaiting-mood #madeby{ top:18px; bottom:auto; left:26px; right:auto; transform:none;
+    justify-content:flex-start; max-width:calc(100vw - 52px); opacity:1 !important; pointer-events:auto; }
+  body.awaiting-mood #madeby .plmade-row{ flex-wrap:nowrap; }
   body.awaiting-mood #madeby .plmade-name{ display:none; }
+  @media (max-width:1100px){
+    body.awaiting-mood #madeby{ position:fixed; top:18px; bottom:auto;
+      max-width:calc(100vw - 36px); flex-wrap:nowrap; } }
   #presets .rbtn.rmood-scratch{ border-color:rgba(123,220,160,.45); color:#bfe9cf; }
   /* How it works is a SELECT-key control, like Start from scratch: it is not one
      of the "write me a song" answers, so it does not wear the A/B burgundy. */
@@ -834,66 +829,6 @@
     :root{ --fade-out:.25s ease; --fade-in:.12s ease-out; }
   }
 
-  /* THE NATIVE LSDj STRUCTURE EDITOR is its own bottom sheet, above Create.
-     Byte-level, keyboard-reachable, phone-sized. It states plainly that it does
-     not play; the banner is not decoration. */
-  #nativeeditor{ position:fixed; inset:auto 0 0; height:96dvh; max-height:calc(100dvh - 16px);
-    z-index:90; display:none; flex-direction:column; overflow:hidden;
-    background:#080610; border:1px solid rgba(255,255,255,.14); border-bottom:0;
-    border-radius:20px 20px 0 0; box-shadow:0 -28px 80px rgba(0,0,0,.6);
-    color:var(--ink); font-family:var(--ui); }
-  #nativeeditor.show{ display:flex; }
-  #nativeeditor .ne-top{ flex:0 0 auto; display:flex; align-items:center; gap:12px;
-    padding:12px 16px; border-bottom:1px solid var(--mat-edge); }
-  #nativeeditor .ne-title b{ font:700 18px/1 var(--ui); }
-  #nativeeditor .ne-name{ color:var(--ink-2); font:500 14px/1 var(--ui); }
-  #nativeeditor .ne-close{ margin-left:auto; width:40px; height:40px; border-radius:999px; cursor:pointer;
-    border:1px solid var(--mat-edge); background:rgba(255,255,255,.06); color:var(--ink); font-size:16px; }
-  #nativeeditor .ne-close:hover{ background:rgba(255,255,255,.12); }
-  #nativeeditor .ne-banner{ flex:0 0 auto; margin:0; padding:8px 16px; font:600 12.5px/1.4 var(--ui);
-    color:#ffd9a8; background:rgba(255,170,60,.12); border-bottom:1px solid var(--mat-edge); }
-  #nativeeditor .ne-banner b{ color:#ffb454; }
-  #nativeeditor .ne-cats{ flex:0 0 auto; display:flex; gap:6px; padding:10px 16px 0; overflow-x:auto; }
-  #nativeeditor .ne-cat{ flex:0 0 auto; height:34px; padding:0 12px; border-radius:999px; cursor:pointer;
-    border:1px solid var(--mat-edge); background:rgba(255,255,255,.05); color:var(--ink-2); font:600 13px/1 var(--ui); }
-  #nativeeditor .ne-cat.on{ background:rgba(155,188,15,.18); border-color:rgba(155,188,15,.6); color:var(--ink); }
-  #nativeeditor .ne-bar{ flex:0 0 auto; display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:10px 16px; }
-  #nativeeditor .ne-slotlab{ display:inline-flex; align-items:center; gap:8px; font:600 13px/1 var(--ui); color:var(--ink); }
-  #nativeeditor .ne-slot{ width:84px; height:34px; padding:0 8px; border-radius:8px;
-    border:1px solid var(--mat-edge); background:rgba(255,255,255,.05); color:var(--ink); font:600 14px var(--mono); }
-  #nativeeditor .ne-slothex{ font:600 12px/1 var(--mono); color:var(--ink-2); }
-  #nativeeditor .ne-sp{ flex:1 1 8px; min-width:8px; }
-  #nativeeditor .ne-btn{ height:34px; padding:0 12px; border-radius:999px; cursor:pointer;
-    border:1px solid var(--mat-edge); background:rgba(255,255,255,.06); color:var(--ink); font:600 13px/1 var(--ui); }
-  #nativeeditor .ne-btn:hover{ background:rgba(255,255,255,.12); }
-  #nativeeditor .ne-btn:disabled{ opacity:.4; cursor:default; }
-  #nativeeditor .ne-grid{ flex:1 1 auto; min-height:0; overflow:auto; padding:6px 16px 16px; }
-  #nativeeditor .ne-table{ border-collapse:collapse; width:auto; }
-  #nativeeditor .ne-table th{ position:sticky; top:0; background:#0d0a18; color:var(--ink-2);
-    font:600 11px/1 var(--ui); padding:6px 8px; text-align:center; }
-  #nativeeditor .ne-table th.ne-rh{ left:0; z-index:2; font-family:var(--mono); }
-  #nativeeditor .ne-table td{ padding:2px; }
-  #nativeeditor .ne-byte{ width:44px; height:34px; text-align:center; text-transform:uppercase;
-    border:1px solid var(--mat-edge); border-radius:6px; background:rgba(255,255,255,.04);
-    color:var(--ink); font:600 14px/1 var(--mono); }
-  #nativeeditor .ne-byte:focus{ outline:2px solid rgba(155,188,15,.75); outline-offset:0; }
-  #nativeeditor .ne-byte[readonly]{ opacity:.55; }
-  #nativeeditor .ne-apply{ height:34px; padding:0 10px; border-radius:8px; cursor:pointer;
-    border:1px solid var(--mat-edge); background:rgba(255,255,255,.06); color:var(--ink-2); font:600 11px/1 var(--ui); }
-  #nativeeditor .ne-apply:disabled{ opacity:.4; cursor:default; }
-  #nativeeditor .ne-apply.staged{ background:rgba(155,188,15,.22); border-color:rgba(155,188,15,.65); color:var(--ink); }
-  #nativeeditor tr.staged .ne-byte{ border-color:rgba(155,188,15,.6); }
-  #nativeeditor tr.invalid .ne-byte{ border-color:rgba(248,120,120,.75); }
-  #nativeeditor .ne-rowname{ font:600 11px/1 var(--mono); color:var(--ink-2); white-space:nowrap; padding:0 8px; text-align:left; }
-  #nativeeditor :focus-visible{ outline:2px solid #9bbc0f; outline-offset:2px; }
-  #nativeeditor .ne-status{ flex:0 0 auto; margin:0; padding:8px 16px; min-height:20px;
-    font:500 12px/1.4 var(--ui); color:var(--ink-2); border-top:1px solid var(--mat-edge); }
-  @media (max-width:560px){
-    #nativeeditor{ height:100dvh; max-height:100dvh; border-radius:0; }
-    #nativeeditor .ne-byte{ width:40px; height:38px; font-size:15px; }
-    #nativeeditor .ne-bar{ gap:6px; }
-  }
-
   /* CREATE is a tall bottom sheet. Its exposed strip keeps the game visibly
      behind it, while its own transport and actions remain self-contained. */
   #createscreen{ position:fixed; inset:auto 0 0; height:93dvh; max-height:calc(100dvh - 28px);
@@ -1062,41 +997,10 @@
   /* the ask is the first row now, and it leaves room for the corner X */
   #createscreen .n-moodrow{ flex:0 0 auto; display:flex; align-items:center; gap:10px;
     min-height:var(--cr-row1,56px); box-sizing:border-box;
-    margin-right:var(--cr-closew,52px); min-width:0;
-    padding:8px 8px 8px 18px; overflow-x:auto; scrollbar-width:none; }
+    padding:8px var(--cr-closew,52px) 8px 18px; overflow-x:auto; scrollbar-width:none; }
   #createscreen .n-moodrow::-webkit-scrollbar{ display:none; }
   #createscreen .n-moodlab{ flex:0 0 auto; font:700 17px/1.2 var(--ui); color:var(--ink); letter-spacing:-.01em; }
-  #createscreen .n-moodchips{ display:flex; flex:0 0 auto; gap:7px; }
-  #createscreen .n-prompt{ display:flex; flex:0 0 auto; gap:8px; padding:0 18px 6px; }
-  #createscreen .n-prompt .cr-mood{ flex:1; min-width:0; width:auto; }
-  /* THE READING IS TWO THINGS: the interpretation a person asked for, which
-     they want to see, and the caveats about what could not be applied, which
-     they want only when something reads wrong. One 3.8em scroll box buried the
-     first behind the second on a phone. The primary line now stays in view; the
-     caveats fold into an expandable summary with its own bounded scroll. */
-  #createscreen .n-prompt-result{ flex:0 0 auto; padding:0 18px 6px;
-    color:var(--ink); font:12px/1.5 var(--ui); }
-  #createscreen .n-prompt-result:empty{ display:none; }
-  /* The primary reading is bounded to two lines so a long brief (many traits
-     plus unsupported words) cannot grow the status panel until it pushes the
-     transport off a phone. The full list and the caveats live in the
-     disclosure below, which has its own bounded scroll. */
-  #createscreen .npr-primary{ margin:0; display:-webkit-box; -webkit-line-clamp:2;
-    -webkit-box-orient:vertical; overflow:hidden; }
-  #createscreen .npr-more{ margin-top:3px; }
-  #createscreen .npr-more > summary{ cursor:pointer; color:var(--ink-2);
-    font-weight:600; list-style:none; }
-  #createscreen .npr-more > summary::-webkit-details-marker{ display:none; }
-  #createscreen .npr-more > summary::before{ content:'\25B8  '; }
-  #createscreen .npr-more[open] > summary::before{ content:'\25BE  '; }
-  #createscreen .npr-detail{ margin:3px 0 0; max-height:3.8em; overflow:auto;
-    color:var(--ink-2); }
-  /* Compact, always-visible listen help: a tooltip does not appear on touch,
-     so the way to hear or keep a song is stated as plain text. Muted and
-     one-line; the flex column's #createscreen .n-mid absorbs its height. */
-  #createscreen .n-listenhelp{ flex:0 0 auto; margin:0; padding:0 18px 6px;
-    color:var(--ink-2); font:500 11px/1.4 var(--ui); }
-  #createscreen .n-listenhelp b{ color:var(--ink); font-weight:650; }
+  #createscreen .n-moodchips{ display:flex; gap:7px; }
   #createscreen .cr-chip{ height:36px; padding:0 16px; border-radius:999px; cursor:pointer; flex:0 0 auto;
     background:rgba(255,255,255,.08); border:1px solid var(--mat-edge-hi); color:var(--ink); font:700 13px var(--ui); }
   #createscreen .cr-chip:hover{ background:rgba(123,220,160,.2); border-color:rgba(123,220,160,.6); }
@@ -1110,9 +1014,9 @@
     padding:0 10px; cursor:pointer; border-top:1px solid rgba(255,255,255,.05); color:var(--vc,#fff); }
   #createscreen .n-lane b{ font:800 12px var(--ui); }
   /* the lane says which sound the next note there will use, and changes it */
-  #createscreen .n-lsnd{ justify-self:start; min-height:24px; max-width:100%; padding:3px 6px; border-radius:6px; cursor:pointer;
+  #createscreen .n-lsnd{ justify-self:start; height:19px; padding:0 7px; border-radius:6px; cursor:pointer;
     background:rgba(255,255,255,.06); border:1px solid var(--mat-edge); color:var(--ink-2);
-    font:700 10px/1.25 var(--ui); }
+    font:700 10px var(--ui); }
   #createscreen .n-lsnd:hover{ border-color:var(--mat-edge-hi); color:var(--ink); }
   #createscreen .n-lane.pen{ background:rgba(255,255,255,.06); }
   #createscreen .n-lane.muted b{ opacity:.4; text-decoration:line-through; }
@@ -1241,7 +1145,7 @@
     gap:14px; padding:10px 14px 14px; border-top:1px solid var(--mat-edge-hi);
     background:rgba(255,255,255,.03); }
   /* the same transport the player uses at the bottom of the screen */
-  #createscreen .n-tctrl{ display:flex; flex:0 0 auto; align-items:center; gap:8px; }
+  #createscreen .n-tctrl{ display:flex; align-items:center; gap:8px; }
   #createscreen .n-tbtn{ background:none; border:none; color:var(--ink); cursor:pointer;
     display:inline-flex; align-items:center; justify-content:center; width:38px; height:38px;
     border-radius:50%; touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
@@ -1310,13 +1214,9 @@
     #createscreen .n-pick{ padding:9px; gap:5px; max-width:94vw; }
     #createscreen .n-pn{ min-width:38px; height:34px; font-size:11px; padding:0 5px; }
     #createscreen .n-pv{ font-size:10px; padding:0 6px; }
-    #createscreen .n-transport{ display:grid; grid-template-columns:auto auto minmax(0,1fr);
-      gap:6px; padding:8px 8px max(8px, env(safe-area-inset-bottom)); }
-    #createscreen .n-tctrl{ grid-column:1; grid-row:1; }
-    #createscreen .n-tfollow{ justify-self:start; grid-column:2; grid-row:1; padding:0 10px; }
-    #createscreen .n-transport > label.cr-lab{ grid-column:1 / -1; grid-row:2; min-width:0; }
-    #createscreen .n-transport input[type=range]{ flex:1; min-width:60px; width:auto; }
-    #createscreen .n-transport .n-gridpick{ grid-column:3; grid-row:1; justify-self:end; gap:4px; }
+    #createscreen .n-transport{ gap:8px; padding:8px; }
+
+    #createscreen .n-transport input[type=range]{ width:96px; }
     #createscreen .n-spk{ width:16px; height:16px; font-size:10px; }
     #createscreen .n-hb{ font-size:9px; padding:0 3px; height:32px; }
     #createscreen .n-edit{ gap:10px; padding:6px 10px; }
@@ -2523,8 +2423,7 @@
     text-shadow:0 1px 0 rgba(255,255,255,.22); max-width:none; }
   body.awaiting-mood #rmoods .rmood-brand.landing-copy{
     display:flex; flex-direction:column; align-items:stretch;
-    justify-content:flex-start; width:100%; min-width:0; box-sizing:border-box;
-    padding:22px 24px; text-align:left; }
+    justify-content:flex-start; padding:22px 24px; text-align:left; }
   body.awaiting-mood #rmoods .landing-copy .rmood-title{
     flex:0 0 auto; display:block; text-align:center; }
   body.awaiting-mood #rmoods .landing-copy .rmood-copy{
@@ -2646,24 +2545,32 @@
     body.awaiting-mood #rmoods .rmood-brand{ min-height:160px; padding:14px 16px; }
     body.awaiting-mood #rmoods .rmood-brand i{ font-size:13px !important; line-height:1.7 !important; } }
 
-  /* A taller desktop can use a wider case. Content controls its height;
-     the page scrolls instead of cropping the screen or its buttons. */
+  /* On a tall desktop the credit becomes the footer and the console uses the
+     column it leaves behind. The LCD grows with the case, so opening the
+     explanation never changes the Game Boy's dimensions. */
   @media (min-width:1200px) and (min-height:901px){
+    body.awaiting-mood{ --landing-vspace:24px; }
+    body.awaiting-mood #presets{
+      align-items:flex-start; padding:var(--landing-vspace) 8px 96px; }
     body.awaiting-mood #rmoods{
-      width:min(600px,93vw); height:auto; min-height:0;
+      width:min(600px,93vw); height:calc(100vh - 120px); min-height:0;
       justify-content:flex-start; flex-wrap:nowrap; }
     body.awaiting-mood #rmoods .rmood-brand{
-      flex:0 0 auto; width:100%; min-height:0; }
+      flex:0 0 auto; width:100%; min-height:0; aspect-ratio:47 / 43; }
     body.awaiting-mood #rmoods .landing-copy p{
       font-size:16px; line-height:1.4; }
     body.awaiting-mood #rmoods .landing-copy .rmood-section strong{
       font-size:18px; line-height:1.3; }
     body.awaiting-mood #rmoods .rmood-ask{
-      margin-top:26px; padding-left:14px; padding-right:14px; row-gap:14px; }
+      margin-top:84px; padding-left:14px; padding-right:14px; row-gap:14px; }
     body.awaiting-mood #rmoods .rmood-ask .rmood-pills{
       column-gap:12px; row-gap:12px; }
     body.awaiting-mood #presets .rbtn.rmood-scratch{
       margin-top:20px; }
+    body.awaiting-mood #madeby{
+      top:auto; bottom:var(--landing-vspace); left:50%; right:auto;
+      transform:translateX(-50%); justify-content:center;
+      max-width:calc(100vw - 36px); }
   }
 
   /* Give the two control rows more air when the case has room for it. Keeping
@@ -2800,11 +2707,7 @@
   body.ai-visual #playbar .pb-center .pb-ctrl{
     position:static !important; order:2; left:auto !important; bottom:auto !important;
     transform:none !important; width:auto !important; flex:1 1 auto;
-    min-width:0 !important; opacity:1 !important;   /* NOT 420: a hard floor here
-      pushed the LCD wider than its grid column at ~1280, so the total-time
-      label overflowed rightward and printed under the opaque volume dial.
-      flex-grow already fills the column; 0 lets it also shrink to fit, which
-      keeps #pbTotal inside the column and clear of .pb-voldial. */
+    min-width:420px !important; opacity:1 !important;
     background:var(--mat) !important; border:1px solid var(--mat-edge) !important;
     box-shadow:var(--mat-shadow) !important;
     backdrop-filter:var(--mat-blur) !important;
@@ -2833,7 +2736,7 @@
     body.ai-visual #playbar .pb-right .pb-voldial input[type=range]{ display:block !important; width:105px !important; min-width:105px; }
     body.ai-visual #playbar .pb-left{ width:min(320px,28vw); }
     body.ai-visual #playbar.show{ grid-template-columns:minmax(260px,320px) minmax(0,1fr) auto !important; column-gap:10px !important; }
-    body.ai-visual #playbar .pb-center .pb-ctrl{ min-width:0 !important; }
+    body.ai-visual #playbar .pb-center .pb-ctrl{ min-width:300px !important; }
   }
 
   /* Phone layout. These rules deliberately live last: the desktop player has
@@ -2865,7 +2768,7 @@
       padding:18px 16px !important;
     }
     body.awaiting-mood #rmoods .landing-copy .rmood-title{
-      font-size:clamp(17px,5.5vw,25px) !important; margin-bottom:12px !important;
+      font-size:clamp(19px,6.6vw,27px) !important; margin-bottom:18px !important;
     }
     body.awaiting-mood #rmoods .landing-copy .rmood-copy{ gap:10px !important; }
     body.awaiting-mood #rmoods .landing-copy .rmood-section strong{
@@ -3074,256 +2977,17 @@
   body.track-transition #stage{filter:contrast(1.8) brightness(1.35) saturate(.25)!important;}
   @keyframes trackSnow{0%{opacity:0;background-position:0 0}18%{opacity:.78;background-position:19px -7px}72%{opacity:.58;background-position:-11px 17px}100%{opacity:0;background-position:7px -13px}}
 
-#musicworkspace{position:fixed;inset:0;z-index:85;background:#0b0d14;color:#e7eaf4;display:flex;flex-direction:column;font:14px/1.5 var(--ui,system-ui);padding:16px;gap:12px}
-#musicworkspace[hidden]{display:none}
-#musicworkspace *{box-sizing:border-box}
-#musicworkspace button,#musicworkspace select,#musicworkspace input,#musicworkspace textarea{font:inherit;color:inherit;background:#202534;border:1px solid #3d455a;border-radius:8px;padding:8px 12px}
-#musicworkspace button{cursor:pointer;white-space:nowrap}
-#musicworkspace button:hover{background:#30394c}
-#musicworkspace button:disabled{opacity:.45;cursor:default}
-#musicworkspace :focus-visible{outline:2px solid #b9d968;outline-offset:2px}
-#musicworkspace .mw-top,#musicworkspace .mw-transport,#musicworkspace .mw-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-#musicworkspace h1{font-size:20px;margin:0 auto 0 0}
-#musicworkspace .mw-primary{background:#b9d968;color:#182009;border-color:#b9d968}
-#musicworkspace .mw-state{font:12px/1.5 ui-monospace,monospace;color:#b6bfd5}
-#musicworkspace .mw-live-feedback{display:flex;gap:10px 16px;align-items:center;flex-wrap:wrap;min-height:28px}
-#musicworkspace .mw-position{font:13px/1.5 ui-monospace,monospace;color:#d4efa3}
-#musicworkspace .mw-beats{display:flex;gap:5px}
-#musicworkspace .mw-beats i{width:8px;height:8px;border-radius:50%;background:#394333}
-#musicworkspace[data-sounding=true][data-beat="0"] .mw-beats i:nth-child(1),#musicworkspace[data-sounding=true][data-beat="1"] .mw-beats i:nth-child(2),#musicworkspace[data-sounding=true][data-beat="2"] .mw-beats i:nth-child(3),#musicworkspace[data-sounding=true][data-beat="3"] .mw-beats i:nth-child(4){background:#b9d968}
-#musicworkspace .mw-primary kbd{font:11px var(--ui,system-ui);opacity:.75;margin-left:6px}
-#musicworkspace [data-action=new-loop]{border-color:#849e4f;color:#d4efa3}
-#musicworkspace .mw-source-mode{font-size:12px;color:#d4efa3;padding:10px 12px;margin:0;border-bottom:1px solid #303748;flex-shrink:0}
-#musicworkspace .mw-exports summary{cursor:pointer;padding:8px;color:#bdc5d8}
-#musicworkspace .mw-exports[open]{flex-basis:100%}
-#musicworkspace .mw-selection{font-size:11px;color:#929bb4}
-#musicworkspace .mw-body{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:12px;min-height:0;min-width:0;flex:1}
-#musicworkspace[data-chat-open=false] .mw-body{grid-template-columns:minmax(0,1fr)}
-#musicworkspace .mw-creative{display:grid;grid-template-columns:minmax(0,var(--music-share,62fr)) 16px minmax(0,var(--visuals-share,38fr));min-height:0;min-width:0}
-#musicworkspace .mw-main,#musicworkspace .mw-chat,#musicworkspace .mw-visuals{min-height:0;min-width:0;border:1px solid #303748;border-radius:12px;overflow:hidden;background:#10121b;display:flex;flex-direction:column}
-#musicworkspace .mw-main{overflow-y:auto}
-#musicworkspace .mw-visuals{align-self:stretch;overflow-y:auto}
-#musicworkspace .mw-visual-header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;flex-shrink:0}
-#musicworkspace .mw-visual-header h2{font-size:14px;margin:0;font-weight:600}
-#musicworkspace .mw-visual-header button{font-size:12px;padding:5px 8px}
-#musicworkspace .mw-stage-viewport{position:sticky;top:0;z-index:4;isolation:isolate;overflow:hidden;width:100%;aspect-ratio:16/9;flex-shrink:0;background:#050609;contain:layout paint}
-#musicworkspace .mw-stage-viewport:fullscreen{width:100vw;height:100vh;max-width:none;max-height:none;aspect-ratio:auto;background:#000}
-#musicworkspace .mw-stage-viewport:-webkit-full-screen{width:100vw;height:100vh;max-width:none;max-height:none;aspect-ratio:auto;background:#000}
-/* Fullscreening an output layout fullscreens the whole output, so the root needs
-   its own sizing: without it the workspace keeps its windowed geometry inside a
-   100vw/100vh box, the mount clip never resizes, and _fitVisualSurface() never
-   rescales -- a window-sized stage letterboxed on a projector, which looks like
-   a broken renderer and is not. */
-#musicworkspace:fullscreen,#musicworkspace:-webkit-full-screen{width:100vw;height:100vh;max-width:none;max-height:none;background:#000}
-#musicworkspace:fullscreen>.mw-body,#musicworkspace:-webkit-full-screen>.mw-body{flex:1;min-height:0}
-#musicworkspace .mw-stage-empty{position:absolute;z-index:20;inset:0;display:flex;align-items:center;justify-content:center;margin:0;padding:16px;color:#929bb4;font-size:12px;pointer-events:none;background:#050609}
-#musicworkspace .mw-scene-controls{display:flex;align-items:center;gap:8px;padding:12px;flex-shrink:0}
-#musicworkspace .mw-scene-controls label{font-size:12px;color:#b6bfd5}
-#musicworkspace .mw-scene{min-width:0;flex:1;padding:6px 8px;font-size:12px}
-#musicworkspace .mw-stage-status{margin:0;padding:0 12px 10px;font-size:12px;color:#d4efa3}
-#musicworkspace .mw-stage-status[data-state=error]{color:#ffb3af}
-#musicworkspace .mw-visual-parameters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 14px;padding:0 12px 12px}
-#musicworkspace .mw-visual-parameters label{display:grid;grid-template-columns:1fr auto;gap:2px 8px;font-size:12px;color:#b6bfd5;min-width:0}
-#musicworkspace .mw-visual-parameters output{font:11px/1.5 ui-monospace,monospace;color:#d4efa3}
-#musicworkspace .mw-visual-parameters input{grid-column:1/-1;width:100%;padding:0;accent-color:#b9d968}
-#musicworkspace .mw-visual-apply,#musicworkspace .mw-visual-performance{display:flex;flex-wrap:wrap;gap:6px;padding:0 12px 12px;flex-shrink:0}
-#musicworkspace .mw-visual-apply>*,#musicworkspace .mw-visual-performance button{font-size:12px;padding:6px 8px;min-width:0}
-#musicworkspace .mw-visual-performance [aria-pressed=true]{background:#383346;border-color:#c5a1fa;color:#e1cbff}
-#musicworkspace [data-action=visual-panic]{margin-left:auto;color:#ffb3af}
-#musicworkspace .mw-visual-authoring{flex-shrink:0}
-#musicworkspace .mw-visual-code-disclosure{border-top:1px solid #303748;margin-bottom:12px}
-#musicworkspace .mw-visual-code-disclosure summary{cursor:pointer;padding:10px 12px;font-size:12px}
-#musicworkspace .mw-visual-code-disclosure summary small{color:#929bb4;font-size:10px;margin-left:8px}
-#musicworkspace .mw-visual-code{height:260px;min-height:180px;border-block:1px solid #303748}
-#musicworkspace .mw-visual-code .cm-editor{font-size:12px!important}
-#musicworkspace .mw-visual-reference{margin:0;padding:8px 12px;color:#929bb4;font-size:11px}
-#musicworkspace .mw-stage-help{margin:auto 0 0;padding:12px;border-top:1px solid #303748;color:#929bb4;font-size:12px}
-#musicworkspace .mw-stage-splitter{position:relative;cursor:col-resize;touch-action:none;user-select:none;border-inline:4px solid #0b0d14;background:#202534}
-#musicworkspace .mw-stage-splitter::after{content:'';position:absolute;top:calc(50% - 24px);left:2px;height:48px;border-left:2px solid #929bb4}
-#musicworkspace .mw-stage-splitter:focus-visible{outline-offset:-3px}
-#musicworkspace .mw-composition{display:grid;grid-template-rows:minmax(120px,var(--chart-share,45fr)) 16px minmax(160px,var(--code-share,55fr));min-height:360px;min-width:0;flex:1}
-#musicworkspace .mw-composition>*{min-width:0}
-#musicworkspace .mw-splitter{cursor:row-resize;touch-action:none;user-select:none;background:#202534;border-block:1px solid #3d455a;position:relative}
-#musicworkspace .mw-splitter::after{content:'';position:absolute;left:calc(50% - 24px);top:6px;width:48px;border-top:2px solid #929bb4}
-#musicworkspace .mw-splitter:focus-visible{outline-offset:-2px}
-#musicworkspace .mw-mainview{flex:1;min-height:0;overflow:auto}
-#musicworkspace .cm-inline-roll select{font:12px/1.4 system-ui;padding:3px 6px;border-radius:4px;background:#202c3c;border-color:#536078}
-#musicworkspace .cm-inline-note{height:12px;min-width:3px;padding:0;border:1px solid #75cbb0;border-radius:2px;background:#2a715e;box-sizing:border-box}
-#musicworkspace .cm-inline-note:hover{background:#368770}
-#musicworkspace .cm-inline-note[data-sounding=true]{background:#d9f77c;border-color:#f0ffc1}
-#musicworkspace [hidden]{display:none!important}
-#musicworkspace .mw-notes{position:relative;min-height:0;overflow:auto;padding:12px;overscroll-behavior:contain}
-#musicworkspace .mw-lane{position:relative;border-top:1px solid #414b60;background:#121621}
-#musicworkspace .mw-lane-label{position:sticky;left:0;z-index:2;font-size:11px;line-height:24px;background:#171c29;width:max-content;max-width:100%;padding:0 6px}
-#musicworkspace .mw-pitch-row{position:absolute;left:0;right:0;height:14px;border-top:1px solid #ffffff09;pointer-events:none}
-#musicworkspace .mw-pitch-row[data-accidental=true]{background:#0003}
-#musicworkspace .mw-pitch-label{display:block;position:sticky;left:0;z-index:2;width:66px;height:13px;line-height:13px;font:9px/13px ui-monospace,monospace;text-align:right;padding-right:6px;background:#1c2230;color:#b6bfd5;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-#musicworkspace .mw-pitch-row[data-accidental=true] .mw-pitch-label{background:#10141e;color:#929bb4}
-#musicworkspace .mw-lane-empty{position:absolute;left:80px;top:34px;font-size:11px;color:#929bb4}
-#musicworkspace .mw-note{position:absolute;height:12px;min-width:6px;padding:0;border-radius:2px;background:#83a75a;border-color:#adc98b;overflow:hidden;font:9px/10px ui-monospace,monospace;z-index:1}
-#musicworkspace .mw-note[data-pitch=null]{font-size:9px}
-#musicworkspace .mw-note-sounding{filter:brightness(1.8);box-shadow:0 0 8px #e7eaf488;outline:1px solid #fff}
-#musicworkspace .mw-note[aria-pressed=true]{outline:2px solid #fff}
-#musicworkspace .mw-time-grid{position:absolute;pointer-events:none;top:26px;bottom:0;border-left:1px solid #ffffff09;z-index:1}
-#musicworkspace .mw-time-grid[data-strength=bar]{border-color:#ffffff29}
-#musicworkspace .mw-time-grid[data-strength=beat]{border-color:#ffffff15}
-#musicworkspace .mw-overview{display:block;position:relative;flex-shrink:0;height:44px;min-height:44px;padding:0;margin:0 12px 6px;overflow:hidden;border-radius:4px;line-height:0}
-#musicworkspace .mw-overview canvas{display:block;width:100%;height:100%;pointer-events:none}
-#musicworkspace .mw-overview-window{position:absolute;top:0;bottom:0;border:1px solid #d4efa3;background:#d4efa310;pointer-events:none}
-#musicworkspace .mw-overview-playhead{position:absolute;top:0;bottom:0;border-left:2px solid #f8d36e;pointer-events:none}
-#musicworkspace .mw-playhead{position:absolute;top:0;bottom:0;width:2px;background:#f8d36e;pointer-events:none;z-index:3}
-#musicworkspace .mw-diagnostics,#musicworkspace .mw-selection{padding:6px 12px;white-space:pre-wrap;font-size:12px;flex-shrink:0}
-#musicworkspace .mw-diagnostics{max-height:100px;overflow:auto}
-#musicworkspace .mw-status{max-height:80px;overflow:auto;flex-shrink:0}
-#musicworkspace .mw-diagnostics:empty{display:none}
-#musicworkspace .mw-chat{padding:12px;gap:10px;overflow:hidden}
-#musicworkspace .mw-chat>*{flex-shrink:0}
-#musicworkspace .mw-chat-header{display:flex;align-items:center;justify-content:space-between;gap:12px}
-#musicworkspace .mw-chat-header h2{margin-right:auto}
-#musicworkspace .mw-chat-access-status{font-size:12px;color:#bdc5d8;margin:0}
-#musicworkspace .mw-chat-log{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable}
-#musicworkspace .mw-message{padding:10px 12px;margin:0 0 12px;border-radius:10px;overflow-wrap:anywhere;white-space:pre-wrap}
-#musicworkspace .mw-message[data-role=user]{background:#222a38;margin-left:20px}
-#musicworkspace .mw-message[data-role=assistant]{background:#171c27;margin-right:8px}
-#musicworkspace .mw-message b{font-size:12px;color:#bdc5d8}
-#musicworkspace .mw-message p{margin:6px 0 0}
-#musicworkspace .mw-chat-empty{color:#929bb4;padding:12px;font-size:13px}
-#musicworkspace .mw-composer{border-top:1px solid #303748;padding-top:10px}
-#musicworkspace .mw-composer small{display:block;font-size:11px;color:#929bb4;margin:6px 0}
-#musicworkspace .mw-composer textarea{max-height:180px}
-#musicworkspace .mw-composer .mw-actions{justify-content:flex-end}
-#musicworkspace .mw-chat-settings{color:#e7eaf4;background:#10121b;border:1px solid #46503a;border-radius:12px;width:min(540px,calc(100vw - 32px));max-height:85dvh;padding:20px;overflow:auto}
-#musicworkspace .mw-chat-settings::backdrop{background:#0009}
-#musicworkspace .mw-chat-settings h2{font-size:18px;margin:0}
-#musicworkspace .mw-chat-settings label{display:block}
-#musicworkspace .mw-generate summary{padding:8px;cursor:pointer;color:#bdc5d8}
-#musicworkspace .mw-generate[open]{flex-basis:100%}
-#musicworkspace .mw-external-mcp summary{cursor:pointer;padding:8px 0;color:#bdc5d8}
-#musicworkspace .mw-chat h2{font-size:16px;margin:0}
-#musicworkspace .mw-chat textarea{width:100%;min-height:80px;resize:vertical}
-#musicworkspace .mw-chat label{display:block}
-#musicworkspace .mw-chat pre{font:12px/1.5 ui-monospace,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
-#musicworkspace .mw-proposal{padding:10px;border:1px solid #46503a;border-radius:8px}
-#musicworkspace .mw-connect{border:1px solid #46503a;border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:8px}
-#musicworkspace .mw-connect p{margin:0;font-size:12px;overflow-wrap:anywhere}
-#musicworkspace .mw-client{display:block;width:100%;margin-top:4px}
-#musicworkspace .mw-sign-in{color:#d4efa3}
-#musicworkspace .mw-mcp-setup{display:flex;flex-direction:column;gap:8px}
-#musicworkspace .mw-mcp-endpoint{width:100%;font-size:12px;margin-top:4px}
-#musicworkspace .mw-chat-access{border:1px solid #3d455a;border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:8px}
-#musicworkspace .mw-chat-access p{margin:0;font-size:12px}
-#musicworkspace .mw-settings-content{display:flex;flex-direction:column;gap:8px;padding-top:10px}
-#musicworkspace .mw-chat-access input,#musicworkspace .mw-chat-provider{display:block;width:100%}
-#musicworkspace .mw-project-handoff,#musicworkspace .mw-transfer-offer{border:1px solid #46503a;border-radius:8px;padding:10px}
-#musicworkspace .mw-project-handoff p,#musicworkspace .mw-transfer-offer p{font-size:12px;margin:6px 0}
-#musicworkspace>.mw-transfer-offer{flex-shrink:0;max-height:30dvh;overflow:auto}
-#musicworkspace .mw-project-handoff button{white-space:normal;width:100%}
-#musicworkspace .mw-status{min-height:22px;margin:0;font-size:13px;white-space:pre-wrap}
-#musicworkspace .mw-help{font-size:12px;padding:6px 12px;border-top:1px solid #303748;color:#bdc5d8}
-#musicworkspace .mw-help pre{white-space:pre-wrap}
-#musicworkspace .mw-live-guide{font-size:12px;border-top:1px solid #303748;color:#bdc5d8;flex-shrink:0}
-#musicworkspace .mw-live-guide summary{cursor:pointer;padding:6px 12px;color:#d4efa3}
-#musicworkspace .mw-live-guide-content{padding:0 12px 8px;max-height:180px;overflow:auto}
-#musicworkspace .mw-live-step-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
-#musicworkspace .mw-live-step-actions select{flex:1;min-width:0;width:160px}
-#musicworkspace .mw-live-guide-content p{margin:6px 0 0}
-#musicworkspace #mw-live-step-warning{color:#929bb4;font-size:11px}
-#musicworkspace .mw-footer{flex-shrink:0;max-height:25dvh;overflow:auto}
-#musicworkspace .mw-project-tools summary{cursor:pointer;padding:8px;color:#bdc5d8}
-#musicworkspace .mw-project-tools[open]{flex-basis:100%}
-#musicworkspace .mw-project-tools>.mw-actions{padding:8px}
-#musicworkspace .mw-build{font-size:10px;color:#929bb4;overflow-wrap:anywhere}
-#musicworkspace .mw-seek{flex:1;min-width:80px;max-width:260px}
-@media(max-width:1499px){
-  #musicworkspace .mw-body{display:grid;grid-template-columns:minmax(0,1fr)}
-  #musicworkspace .mw-chat{position:absolute;z-index:5;inset:0 0 0 auto;width:min(100%,360px);box-shadow:-12px 0 32px #0009}
-}
-@media(max-width:979px){
-  #musicworkspace .mw-creative{display:flex;flex-direction:column;gap:12px;overflow:auto;overscroll-behavior:contain}
-  #musicworkspace .mw-stage-splitter{display:none}
-  #musicworkspace .mw-main{flex:0 0 auto;min-height:440px;height:max(440px,58dvh)}
-  #musicworkspace .mw-visuals{flex:0 0 auto;min-height:0}
-  #musicworkspace .mw-stage-viewport{max-width:533.333px;align-self:center;aspect-ratio:16/9}
-}
-@media(max-width:760px){
-  #musicworkspace{padding:8px;gap:8px}
-  #musicworkspace .mw-top{gap:6px}
-  #musicworkspace h1{font-size:16px;flex-basis:100%}
-  #musicworkspace .mw-source-mode{font-size:11px;padding:6px 8px}
-  #musicworkspace .mw-state{font-size:10px}
-  #musicworkspace .mw-composition{min-height:320px}
-  #musicworkspace .mw-transport{gap:5px}
-  #musicworkspace button{padding:7px 9px}
-}
-#musicworkspace .mw-note.mw-source-selected{outline:2px solid #e8efff;outline-offset:1px;filter:brightness(1.25)}
-#musicworkspace .mw-chat-island{flex:1;min-height:0;display:flex;flex-direction:column}
-#musicworkspace .mw-chart-status{margin:0;padding:6px 12px;font-size:12px;color:#b6bfd5}
-#musicworkspace .mw-note-group{position:absolute;top:28px;height:24px;min-width:12px;padding:0;font-size:10px;overflow:hidden;background:#3b4059}
-#musicworkspace .mw-chart-reset{align-self:flex-start;margin:0 12px 4px}
-#musicworkspace[data-presentation=visualizer]>.mw-top>:not(h1):not([data-action=visualizer]):not(.mw-output-mode),#musicworkspace[data-presentation=visualizer]>.mw-transport,#musicworkspace[data-presentation=visualizer]>.mw-footer,#musicworkspace[data-presentation=visualizer]>.mw-live-feedback,#musicworkspace[data-presentation=visualizer]>.mw-status{display:none}
-#musicworkspace[data-presentation=visualizer]>.mw-transfer-offer{display:none}
-#musicworkspace[data-presentation=visualizer] .mw-body{grid-template-columns:minmax(0,1fr)}
-#musicworkspace[data-presentation=visualizer] .mw-creative{display:flex;flex-direction:column;overflow:hidden}
-#musicworkspace[data-presentation=visualizer] .mw-main,#musicworkspace[data-presentation=visualizer] .mw-chat,#musicworkspace[data-presentation=visualizer] .mw-stage-splitter,#musicworkspace[data-presentation=visualizer] .mw-stage-help,#musicworkspace[data-presentation=visualizer] .mw-visual-authoring{display:none}
-#musicworkspace[data-presentation=visualizer] .mw-visuals{flex:1;min-height:0;overflow:hidden}
-#musicworkspace[data-presentation=visualizer] .mw-stage-viewport{flex:1;min-height:0;aspect-ratio:auto;max-height:none;max-width:none;align-self:stretch}
-/* Audience output, code + visuals. Same exclusions as visuals-only, but the
-   readable performance program stays on screen beside the stage. Chat, account
-   and provider settings, private history, project tools and every editing or
-   error affordance are excluded; the whole app DOM is never the output. */
-#musicworkspace[data-presentation=performance]>.mw-top>:not(h1):not([data-action=visualizer]):not(.mw-output-mode),#musicworkspace[data-presentation=performance]>.mw-transport,#musicworkspace[data-presentation=performance]>.mw-footer,#musicworkspace[data-presentation=performance]>.mw-live-feedback,#musicworkspace[data-presentation=performance]>.mw-status,#musicworkspace[data-presentation=performance]>.mw-transfer-offer{display:none}
-#musicworkspace[data-presentation=performance] .mw-body{grid-template-columns:minmax(0,1fr)}
-#musicworkspace[data-presentation=performance] .mw-creative{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;overflow:hidden}
-#musicworkspace[data-presentation=performance] .mw-chat,#musicworkspace[data-presentation=performance] .mw-stage-splitter,#musicworkspace[data-presentation=performance] .mw-stage-help,#musicworkspace[data-presentation=performance] .mw-visual-authoring,#musicworkspace[data-presentation=performance] .mw-diagnostics,#musicworkspace[data-presentation=performance] .mw-live-guide,#musicworkspace[data-presentation=performance] .mw-help,#musicworkspace[data-presentation=performance] .mw-selection,#musicworkspace[data-presentation=performance] .mw-source-mode,#musicworkspace[data-presentation=performance] .mw-splitter,#musicworkspace[data-presentation=performance] .mw-notes{display:none}
-#musicworkspace[data-presentation=performance] .mw-main{display:flex;flex-direction:column;min-height:0;overflow:hidden}
-#musicworkspace[data-presentation=performance] .mw-composition{display:flex;flex-direction:column;min-height:0;flex:1}
-#musicworkspace[data-presentation=performance] .mw-code{flex:1;min-height:0}
-#musicworkspace[data-presentation=performance] .mw-visuals{display:flex;flex-direction:column;min-height:0;overflow:hidden}
-#musicworkspace[data-presentation=performance] .mw-stage-viewport{flex:1;min-height:0;aspect-ratio:auto;max-height:none;max-width:none;align-self:stretch}
-@media (max-width:980px){#musicworkspace[data-presentation=performance] .mw-creative{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) minmax(0,1fr)}}
-#musicworkspace .mw-output-build{display:none}
-#musicworkspace[data-presentation=visualizer] .mw-output-build,#musicworkspace[data-presentation=performance] .mw-output-build{display:block;position:absolute;right:10px;bottom:8px;margin:0;font-size:11px;opacity:.55;pointer-events:none;z-index:3}
-/* Scoped adaptation of AI Elements layout; no Tailwind, reset, or global theme. */
-.mcui { display:flex; flex-direction:column; min-height:0; height:100%; color:inherit; font:inherit; }
-.mcui *, .mcui *::before, .mcui *::after { box-sizing:border-box; }
-.mcui button, .mcui textarea { font:inherit; color:inherit; }
-.mcui button { border:1px solid #718096; border-radius:6px; background:#202637; padding:.45rem .7rem; cursor:pointer; }
-.mcui button:disabled { opacity:.5; cursor:default; }
-.mcui button:focus-visible, .mcui textarea:focus-visible, .mcui-log:focus-visible { outline:2px solid #a9c7ff; outline-offset:3px; }
-.mcui-header, .mcui-header > div, .mcui-actions, .mcui-suggestions { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; }
-.mcui-header { justify-content:space-between; padding:.75rem; }
-.mcui-header h2 { font-size:1rem; margin:0; }
-.mcui-status { margin:0; padding:0 .75rem; font-size:.85rem; }
-.mcui-status:empty { display:none; }
-.mcui-transcript { position:relative; flex:1; min-height:0; }
-.mcui-log { height:100%; overflow-y:auto; overscroll-behavior:contain; overflow-anchor:none; }
-.mcui-content { display:flex; flex-direction:column; gap:1rem; padding:1rem .75rem 3rem; }
-.mcui-message { max-width:95%; overflow-wrap:anywhere; }
-.mcui-message p, .mcui-proposal p { white-space:pre-wrap; margin:.4rem 0; }
-.mcui-user { align-self:flex-end; border-radius:10px; background:#272f44; padding:.65rem .8rem; }
-.mcui-assistant { align-self:flex-start; }
-.mcui-empty { color:#c5ccdc; }
-.mcui-latest { position:absolute; bottom:.5rem; right:.75rem; }
-.mcui-proposal { border:1px solid #718096; border-radius:8px; padding:.75rem; overflow-wrap:anywhere; }
-.mcui-proposal pre { white-space:pre-wrap; overflow-wrap:anywhere; max-height:16rem; overflow:auto; font-size:.85rem; }
-.mcui-error { color:#ffb8b8; white-space:pre-wrap; overflow-wrap:anywhere; }
-.mcui-composer { flex:none; padding:.75rem; border-top:1px solid #718096; }
-.mcui-composer label { display:block; }
-.mcui-composer textarea { display:block; width:100%; resize:vertical; min-height:4.5rem; max-height:12rem; margin:.35rem 0; border:1px solid #718096; border-radius:6px; background:#121725; padding:.65rem; }
-.mcui-composer small { display:block; color:#c5ccdc; margin:.4rem 0; }
-
 </style>
 </head>
 <body>
 <script>
 (function(G){
-  if(G.CT_SIMPLE_CREATE)return;
-  var D=[{"name":"what_can_i_do_here","description":"What this page offers and how to use it. Call this when the user asks what they can do here, what this site is, or how it works — and consider calling it once when you first encounter this page, to introduce it to the user. Returns a short introduction meant to be relayed. Answers instantly, even before the page has finished loading.","inputSchema":{"type":"object","properties":{},"required":[],"additionalProperties":false}},{"name":"chiptunes_now_playing","description":"What the station is playing right now: title, tempo, position, whether it is paused, which screen face is on, and whether the editor is open.","inputSchema":{"type":"object","properties":{},"required":[],"additionalProperties":false}},{"name":"chiptunes_play_mood","description":"Compose a complete song for a mood word and play it. Use chiptunes_now_playing to see the available moods.","inputSchema":{"type":"object","properties":{"mood":{"type":"string"}},"required":["mood"],"additionalProperties":false}},{"name":"chiptunes_transport","description":"Control playback: next, previous, play, pause or toggle.","inputSchema":{"type":"object","properties":{"action":{"type":"string","enum":["next","previous","toggle","play","pause"]}},"required":["action"],"additionalProperties":false}},{"name":"chiptunes_current_song","description":"The document of the song on air. It is the whole arrangement as a string, and it round-trips: hand it to chiptunes_play_song, to a share link, or to the Node API to edit or export it.","inputSchema":{"type":"object","properties":{},"required":[],"additionalProperties":false}},{"name":"chiptunes_play_song","description":"Put a specific song document on the deck and play it, with its visuals and transport, exactly as a shared link would.","inputSchema":{"type":"object","properties":{"document":{"type":"string"}},"required":["document"],"additionalProperties":false}},{"name":"chiptunes_editor","description":"Open the tracker on the song that is playing, on a given document, or on an empty song; or close it and hand the screen back to the station.","inputSchema":{"type":"object","properties":{"action":{"type":"string","enum":["open","open_blank","close"]},"document":{"type":"string","description":"optional: open this song instead of the one playing"}},"required":["action"],"additionalProperties":false}},{"name":"chiptunes_variant","description":"Make a version of the song on air with a different feeling and play it: sadder for a death screen, intense for a boss, calmer for a menu. The original document is returned too, so you can go back.","inputSchema":{"type":"object","properties":{"mood":{"type":"string","description":"happier, sadder, darker, brighter, calmer, intense, sparser, dreamier"}},"required":["mood"],"additionalProperties":false}},{"name":"chiptunes_screen","description":"Choose the display: crt (Modern), dmg (Game Boy), nes, or mix to let it re-roll on every track.","inputSchema":{"type":"object","properties":{"mode":{"type":"string","enum":["crt","dmg","nes","mix"]}},"required":["mode"],"additionalProperties":false}},{"name":"chiptunes_lsdj_cart","description":"Fill a Game Boy cartridge with starting points. Writes an LSDj .sav -- up to 32 songs in one file -- and hands it to the user to copy onto a flash cart. This is the fastest route from \"I want to write something\" to actually writing, because every slot on the machine already has an arrangement in it to argue with. Say the warnings out loud: drums move to the noise channel and instruments are left stock on purpose.","inputSchema":{"type":"object","properties":{"scenes":{"type":"array","items":{"type":"string"},"description":"one song per scene: title, menu, overworld, town, shop, cave, battle, boss, victory, game_over, credits"},"seconds":{"type":"number"},"key":{"type":"string"},"name":{"type":"string","description":"the .sav filename"}},"required":[],"additionalProperties":false}},{"name":"chiptunes_capabilities","description":"Every word this understands and every knob it has: scenes, moods, musical genres, game genres, forms, techniques, the hundred-odd game titles it can read as a style, the transform operations, and the things it deliberately cannot do. Read this BEFORE composing rather than guessing at vocabulary.","inputSchema":{"type":"object","properties":{},"required":[],"additionalProperties":false}},{"name":"chiptunes_ask","description":"Describe music in a sentence and hear it: \"a dungeon theme like Castlevania, 40 seconds, no drums\", \"a gloomy song about exploring a cave\", or a change to what is on air like \"make it much slower\". Returns exactly what it understood, what it ignored, and anything it refused, so you can tell the user the truth rather than guessing whether it worked.","inputSchema":{"type":"object","properties":{"text":{"type":"string","description":"the request, in plain English"},"apply_to_current":{"type":"boolean","description":"treat it as a change to the song on air rather than a new one"},"play":{"type":"boolean","description":"put the result on the deck (default true)"}},"required":["text"],"additionalProperties":false}},{"name":"chiptunes_compose","description":"Compose from a structured brief rather than a sentence: a scene, a length in seconds, a key and mode, voices to leave out. Anything it could not satisfy comes back in `unmet` instead of being quietly dropped.","inputSchema":{"type":"object","properties":{"scene":{"type":"string","description":"title, menu, overworld, town, shop, cave, battle, boss, victory, game_over, credits"},"seconds":{"type":"number"},"bars":{"type":"number"},"key":{"type":"string","description":"C, D, F#, A# ..."},"mode":{"type":"string","enum":["major","minor"]},"exclude":{"type":"array","items":{"type":"string"},"description":"lanes to leave out: Melody, Harmony, Bass, Drums"},"play":{"type":"boolean"}},"required":[],"additionalProperties":false}},{"name":"chiptunes_variations","description":"Compose several DIFFERENT songs from one brief and get them all back, unranked, each with its measurements. This is the thing that is cheap here and expensive everywhere else: twenty complete songs take about thirty milliseconds and cost nothing, so you can offer the user a real choice instead of one take. Nothing is scored or pre-selected; the choosing is yours.","inputSchema":{"type":"object","properties":{"scene":{"type":"string"},"seconds":{"type":"number"},"key":{"type":"string"},"mode":{"type":"string","enum":["major","minor"]},"n":{"type":"number","description":"how many, 1 to 20"}},"required":[],"additionalProperties":false}},{"name":"chiptunes_analyse","description":"Measure a song instead of listening to it: how major or minor its pitch material is, whether its phrases climb or fall, how much the melody agrees with the chords under it, how high it sits, how busy it is, whether it ends on the tonic. You cannot hear the output; this is how you check that what you asked for is what you got.","inputSchema":{"type":"object","properties":{"document":{"type":"string","description":"omit to measure whatever is on air"}},"required":[],"additionalProperties":false}},{"name":"chiptunes_export","description":"Take the music away: a share link that carries the whole arrangement in the URL, a Standard MIDI file, a 32 KB .gb cartridge that boots on real Game Boy hardware, or an LSDj .lsdsng the user can drop into their save and keep writing. The link needs no server and stores nothing; the files are built in the page and handed straight to the user.","inputSchema":{"type":"object","properties":{"format":{"type":"string","enum":["link","midi","rom","lsdsng"]},"document":{"type":"string","description":"omit to export whatever is on air"}},"required":["format"],"additionalProperties":false}}];
+  var D=[{"name":"what_can_i_do_here","description":"What this page offers and how to use it. Call this when the user asks what they can do here, what this site is, or how it works — and consider calling it once when you first encounter this page, to introduce it to the user. Returns a short introduction meant to be relayed. Answers instantly, even before the page has finished loading.","inputSchema":{"type":"object","properties":{},"required":[],"additionalProperties":false}},{"name":"chiptunes_now_playing","description":"What the station is playing right now: title, tempo, position, whether it is paused, which screen face is on, and whether the editor is open.","inputSchema":{"type":"object","properties":{},"required":[],"additionalProperties":false}},{"name":"chiptunes_play_mood","description":"Compose a complete song for a mood word and play it. Use chiptunes_now_playing to see the available moods.","inputSchema":{"type":"object","properties":{"mood":{"type":"string"}},"required":["mood"],"additionalProperties":false}},{"name":"chiptunes_transport","description":"Control playback: next, previous, play, pause or toggle.","inputSchema":{"type":"object","properties":{"action":{"type":"string","enum":["next","previous","toggle","play","pause"]}},"required":["action"],"additionalProperties":false}},{"name":"chiptunes_current_song","description":"The document of the song on air. It is the whole arrangement as a string, and it round-trips: hand it to chiptunes_play_song, to a share link, or to the Node API to edit or export it.","inputSchema":{"type":"object","properties":{},"required":[],"additionalProperties":false}},{"name":"chiptunes_play_song","description":"Put a specific song document on the deck and play it, with its visuals and transport, exactly as a shared link would.","inputSchema":{"type":"object","properties":{"document":{"type":"string"}},"required":["document"],"additionalProperties":false}},{"name":"chiptunes_editor","description":"Open the tracker on the song that is playing, on a given document, or on an empty song; or close it and hand the screen back to the station.","inputSchema":{"type":"object","properties":{"action":{"type":"string","enum":["open","open_blank","close"]},"document":{"type":"string","description":"optional: open this song instead of the one playing"}},"required":["action"],"additionalProperties":false}},{"name":"chiptunes_variant","description":"Make a version of the song on air with a different feeling and play it: sadder for a death screen, intense for a boss, calmer for a menu. The original document is returned too, so you can go back.","inputSchema":{"type":"object","properties":{"mood":{"type":"string","description":"happier, sadder, darker, brighter, calmer, intense, sparser, dreamier"}},"required":["mood"],"additionalProperties":false}},{"name":"chiptunes_screen","description":"Choose the display: crt (Modern), dmg (Game Boy), nes, or mix to let it re-roll on every track.","inputSchema":{"type":"object","properties":{"mode":{"type":"string","enum":["crt","dmg","nes","mix"]}},"required":["mode"],"additionalProperties":false}},{"name":"chiptunes_capabilities","description":"Every word this understands and every knob it has: scenes, moods, musical genres, game genres, forms, techniques, the hundred-odd game titles it can read as a style, the transform operations, and the things it deliberately cannot do. Read this BEFORE composing rather than guessing at vocabulary.","inputSchema":{"type":"object","properties":{},"required":[],"additionalProperties":false}},{"name":"chiptunes_ask","description":"Describe music in a sentence and hear it: \"a dungeon theme like Castlevania, 40 seconds, no drums\", \"a gloomy song about exploring a cave\", or a change to what is on air like \"make it much slower\". Returns exactly what it understood, what it ignored, and anything it refused, so you can tell the user the truth rather than guessing whether it worked.","inputSchema":{"type":"object","properties":{"text":{"type":"string","description":"the request, in plain English"},"apply_to_current":{"type":"boolean","description":"treat it as a change to the song on air rather than a new one"},"play":{"type":"boolean","description":"put the result on the deck (default true)"}},"required":["text"],"additionalProperties":false}},{"name":"chiptunes_compose","description":"Compose from a structured brief rather than a sentence: a scene, a length in seconds, a key and mode, voices to leave out. Anything it could not satisfy comes back in `unmet` instead of being quietly dropped.","inputSchema":{"type":"object","properties":{"scene":{"type":"string","description":"title, menu, overworld, town, shop, cave, battle, boss, victory, game_over, credits"},"seconds":{"type":"number"},"bars":{"type":"number"},"key":{"type":"string","description":"C, D, F#, A# ..."},"mode":{"type":"string","enum":["major","minor"]},"exclude":{"type":"array","items":{"type":"string"},"description":"lanes to leave out: Melody, Harmony, Bass, Drums"},"play":{"type":"boolean"}},"required":[],"additionalProperties":false}},{"name":"chiptunes_variations","description":"Compose several DIFFERENT songs from one brief and get them all back, unranked, each with its measurements. This is the thing that is cheap here and expensive everywhere else: twenty complete songs take about thirty milliseconds and cost nothing, so you can offer the user a real choice instead of one take. Nothing is scored or pre-selected; the choosing is yours.","inputSchema":{"type":"object","properties":{"scene":{"type":"string"},"seconds":{"type":"number"},"key":{"type":"string"},"mode":{"type":"string","enum":["major","minor"]},"n":{"type":"number","description":"how many, 1 to 20"}},"required":[],"additionalProperties":false}},{"name":"chiptunes_analyse","description":"Measure a song instead of listening to it: how major or minor its pitch material is, whether its phrases climb or fall, how much the melody agrees with the chords under it, how high it sits, how busy it is, whether it ends on the tonic. You cannot hear the output; this is how you check that what you asked for is what you got.","inputSchema":{"type":"object","properties":{"document":{"type":"string","description":"omit to measure whatever is on air"}},"required":[],"additionalProperties":false}},{"name":"chiptunes_export","description":"Take the music away: a share link that carries the whole arrangement in the URL, a Standard MIDI file, or a 32 KB .gb cartridge that boots on real Game Boy hardware. The link needs no server and stores nothing; the files are built in the page and handed straight to the user.","inputSchema":{"type":"object","properties":{"format":{"type":"string","enum":["link","midi","rom"]},"document":{"type":"string","description":"omit to export whatever is on air"}},"required":["format"],"additionalProperties":false}}];
   // The introduction is the one answer that must not wait for anything. It is
   // the tool an agent calls FIRST, on a cold page, and "still loading" is a
   // worse greeting than silence -- so the text is right here, not fetched from
   // the bundle that has not run yet.
-  var INTRO="Introduce this page to the user (your own voice is fine):\n\nThis is Chiptunes: a register-level Game Boy sound chip running in this tab,\nwith a deterministic composer and a cartridge exporter. Nothing is uploaded,\nthere is no account and no API key, and nothing is metered. Every note is\nwritten here, in this browser, in about 1.6 ms.\n\nYou can drive all of it for them:\n\n- \"Write me a dungeon theme like Castlevania, 40 seconds, no drums\" —\n  chiptunes_ask takes a plain sentence and plays the result, and tells you\n  exactly what it understood, ignored, or refused.\n- \"Give me a dozen boss themes to choose from\" — chiptunes_variations\n  returns twelve complete, different songs in about 70 ms, unranked.\n- \"Is that really in a minor key? How busy is it?\" — chiptunes_analyse\n  measures the music. You cannot listen; this is how you check your own work.\n- \"Make it gloomier\" — chiptunes_variant recomposes the exact song on air.\n- \"I will take it as a cartridge\" — chiptunes_export hands back a share link,\n  a MIDI file, or a 32 KB .gb ROM that boots on real hardware.\n- \"Fill a cartridge for me\" — chiptunes_lsdj_cart writes an LSDj .sav with\n  a starting point in every slot, ready to copy onto a flash cart.\n- chiptunes_transport, chiptunes_play_song and chiptunes_screen operate the\n  session the user is listening to right now, so they hear you work.\n\nCall chiptunes_capabilities before composing to see the vocabulary it knows\n(scenes, moods, genres, techniques, and about a hundred game titles it reads\nas a style) rather than guessing at words.";
+  var INTRO="Introduce this page to the user (your own voice is fine):\n\nThis is Chiptunes: a register-level Game Boy sound chip running in this tab,\nwith a deterministic composer and a cartridge exporter. Nothing is uploaded,\nthere is no account and no API key, and nothing is metered. Every note is\nwritten here, in this browser, in about 1.6 ms.\n\nYou can drive all of it for them:\n\n- \"Write me a dungeon theme like Castlevania, 40 seconds, no drums\" —\n  chiptunes_ask takes a plain sentence and plays the result, and tells you\n  exactly what it understood, ignored, or refused.\n- \"Give me a dozen boss themes to choose from\" — chiptunes_variations\n  returns twelve complete, different songs in about 70 ms, unranked.\n- \"Is that really in a minor key? How busy is it?\" — chiptunes_analyse\n  measures the music. You cannot listen; this is how you check your own work.\n- \"Make it gloomier\" — chiptunes_variant recomposes the exact song on air.\n- \"I will take it as a cartridge\" — chiptunes_export hands back a share link,\n  a MIDI file, or a 32 KB .gb ROM that boots on real hardware.\n- chiptunes_transport, chiptunes_play_song and chiptunes_screen operate the\n  session the user is listening to right now, so they hear you work.\n\nCall chiptunes_capabilities before composing to see the vocabulary it knows\n(scenes, moods, genres, techniques, and about a hundred game titles it reads\nas a style) rather than guessing at words.";
   function hosts(){var o=[];try{if(document.modelContext)o.push(['document',document.modelContext]);}catch(e){}
     try{if(G.navigator&&G.navigator.modelContext)o.push(['navigator',G.navigator.modelContext]);}catch(e){}
     try{if(G.modelContext)o.push(['window',G.modelContext]);}catch(e){}return o;}
@@ -3379,7 +3043,7 @@
     <button id="start" hidden></button>
   </div>
 
-<script src="/lib/create-entry.js?v=37d0d78ccf07" data-legacy="/app.647cdf49bcf1.js" defer></script>
+<script src="../app.a41aa43f43dc.js" defer></script>
 
 </body>
 </html>

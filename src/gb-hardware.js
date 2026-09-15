@@ -236,10 +236,8 @@
     // written; that is what gives one instrument its dynamics. Neither the
     // cartridge nor the APU can multiply at play time, so it is baked in here.
     var v0 = (rec[1] >> 4) & 15;
-    var nativePulse = ch < 2 && n.trigger != null;
-    var vol = Math.max(0, Math.min(15, Math.round(nativePulse ? 15 * (n.vel == null ? 1 : n.vel)
-      : v0 * (0.35 + 0.65 * (n.vel == null ? 1 : n.vel)))));
-    var nrx1, nrx2 = (vol << 4) | (nativePulse ? 8 : rec[1] & 0x0F), nrx3, nrx4, p;
+    var vol = Math.max(0, Math.min(15, Math.round(v0 * (0.35 + 0.65 * (n.vel == null ? 1 : n.vel)))));
+    var nrx1, nrx2 = (vol << 4) | (rec[1] & 0x0F), nrx3, nrx4, p;
     // A note may ask for a period the twelve-tone table has no name for: det
     // shifts it by whole period units. That is what detuning two channels
     // against each other is, and there is no other way to say it.
@@ -282,207 +280,13 @@
     return Math.min(WAVE_SLOTS - 1, rec[0] & 0xFF);
   }
 
-  // A native pitch-only row continues the current voice, including its silent
-  // state after KILL. Suppress a note-off at the continuation boundary (also
-  // accepting the legacy one-frame articulation gap); longer gaps still cut.
-  // Shared by browser and cartridge scheduling.
-  function noteOffFrames(notes) {
-    var order = notes.map(function (n, i) { return { n: n, i: i }; });
-    order.sort(function (a, b) { return a.n.frame - b.n.frame || a.i - b.i; });
-    var next = [], off = [];
-    for (var i = order.length - 1; i >= 0; i--) {
-      var item = order[i], n = item.n, ch = n.ch | 0;
-      var end = (n.frame | 0) + Math.max(1, n.frames | 0), following = next[ch];
-      off[item.i] = following && following.trigger === false &&
-        Math.abs(following.frame - end) <= 1 ? null : end;
-      next[ch] = n;
-    }
-    return off;
-  }
-
-  // ---- GROOVE: the only clock a tracker has --------------------------------
-  //
-  // A row lasts a whole number of frames, and a GROOVE is the short repeating
-  // list of those tick counts. It does two jobs with one mechanism: it reaches
-  // tempi between the rungs of the ladder, and it is where SWING lives.
-  //
-  // That second job is why this moved here from the editor. Swing used to be a
-  // fractional nudge applied to each offbeat note -- which is not a thing LSDj
-  // can hold, because LSDj has no position between two rows. It put 92% of our
-  // off-grid notes off the grid. Expressed as a groove instead, the ROWS are
-  // uneven and every note still sits exactly on one, which is both what a
-  // tracker does and what the hardware does.
-  //
-  // ⚠️ ONLY TWO SHAPES, and that is the whole point. The first version reached
-  // any tempo by making k of every four rows one tick longer -- [6,7,7,7],
-  // [5,5,5,6] -- which is arithmetically neat and musically a LIMP; the ear
-  // locks onto anything repeating every bar. So: [n] is even, [n,n+1] is a
-  // symmetric alternation (a mild shuffle, a feel a musician would choose), and
-  // a swing groove is an explicit long-short PAIR. Nothing lopsided.
-  function grooveSpread(base, k) {
-    if (k <= 0) return [base];
-    if (k >= 2) return [base + 1];
-    return [base, base + 1];
-  }
-  // CHOSEN BY SEARCH, not by arithmetic, because the answer has to be a tempo
-  // the DOCUMENT can hold as well as one the machine can play. Rounding
-  // straight to the nearest groove put bpm 70 on a 32nd grid at 68.9, below the
-  // storable minimum -- the header wrote a negative offset, it wrapped through
-  // the mask, and the song came back at 179. So: enumerate the grooves around
-  // the target, discard any whose tempo cannot be represented, keep the closest.
-  function grooveFor(bpm, swing, stepsPerBar) {
-    var want = (60 / bpm) * 4 / stepsPerBar * FPS;      // frames per row, real
-    var best = null, cand = [], i, b;
-    if (swing) {
-      // A shuffle is a long-short PAIR, defined on the pair rather than on the
-      // average, so it keeps its character at every tempo.
-      // `swing` may arrive as a RATIO (0.56 -- how much of the pair the long
-      // half takes) or as a bare flag from the editor, which means the default
-      // shuffle. Anything outside a sane ratio is treated as the flag, so a
-      // `true` cannot silently become a pair of [pair, 2].
-      var ratio = (typeof swing === 'number' && swing > 0.5 && swing < 0.8) ? swing : 0.62;
-      for (i = -1; i <= 1; i++) {
-        var pair = Math.max(4, Math.round(want * 2) + i);
-        var lng = Math.max(2, Math.round(pair * ratio));
-        cand.push([lng, Math.max(2, pair - lng)]);
-      }
-    } else {
-      for (var base = Math.max(2, Math.floor(want) - 1); base <= Math.floor(want) + 1; base++)
-        cand.push([base]);
-    }
-    for (i = 0; i < cand.length; i++) {
-      b = bpmOfGroove(cand[i], stepsPerBar);
-      if (b < 70 || b > 180) continue;                  // the header cannot carry it
-      var d = Math.abs(b - bpm);
-      if (!best || d < best.d) best = { g: cand[i], d: d };
-    }
-    return best ? best.g : [Math.max(2, Math.round(want))];
-  }
-  // The TRUE tempo of a groove, which is what the song actually plays at. A
-  // document may carry any bpm; what it gets is the nearest one the machine can
-  // hold, and reporting the asked-for number instead of the played one is how a
-  // player comes to disagree with its own clock.
-  function bpmOfGroove(g, stepsPerBar) {
-    var sum = 0;
-    for (var i = 0; i < g.length; i++) sum += g[i];
-    return (240 * FPS) / (stepsPerBar * (sum / g.length));
-  }
-  // The frame a ROW starts on: sum the groove around the loop. Integer by
-  // construction, which is the point -- there is no rounding here to drift.
-  function rowFrame(g, row) {
-    var n = g.length, sum = 0, i;
-    for (i = 0; i < n; i++) sum += g[i];
-    row = row | 0;
-    var f = Math.floor(row / n) * sum, rem = row % n;
-    for (i = 0; i < rem; i++) f += g[i];
-    return f;
-  }
-  // frames in ONE row -- the average over the groove, for note lengths
-  function framesPerRow(g) {
-    var sum = 0;
-    for (var i = 0; i < g.length; i++) sum += g[i];
-    return sum / g.length;
-  }
-
-  // ---- LSDJ'S OWN CLOCK ----------------------------------------------------
-  //
-  // Measured off the real ROM in mGBA with a one-note-per-row ruler song, tempo
-  // 60 to 255 (scripts/verify-lsdj-emulator.js):
-  //
-  //   ticks per second = 0.4 x TEMPO
-  //   frames per tick  = 149.31875 / TEMPO        (149.31875 = 2.5 x FPS)
-  //
-  // A GROOVE is how many ticks each row lasts, default 6 -- which makes a row
-  // 895.9125/TEMPO frames, so TEMPO is bpm with four rows to the beat.
-  //
-  // ⚠️ FRAMES PER TICK IS FRACTIONAL AND LSDJ DOES NOT ROUND IT. It runs an
-  // accumulator, so rows come out as a MIX of two whole frame counts -- at tempo
-  // 120 the trace is 7s and 8s interleaved. That matters twice over:
-  //
-  //   * it is why LSDj reaches every tempo and our eight-rung ladder did not.
-  //     The ladder was our invention, and it offers LESS than the machine.
-  //   * it is NOT the limp this project removed earlier. That was a four-step
-  //     pattern with one odd step out, repeating every bar, which the ear locks
-  //     onto instantly. An accumulator spreads the same total unevenness with no
-  //     short period at all, which is why nobody has ever called LSDj lopsided.
-  // ⚠️ 895.88, NOT 895.9125, AND ROUND, NOT CEIL -- both measured rather than
-  // derived. The physical constant is 15 x FPS = 895.9125, and a model built on
-  // it disagreed with LSDj about which individual rows get the spare frame on up
-  // to 20% of rows. Fitting the real thing instead -- eight tempi, a hundred row
-  // gaps each, straight off the ROM -- lands on
-  //
-  //     row k starts at round(k * 895.88 / TEMPO)
-  //
-  // which reproduces 796 of 800 measured gaps. Six of the eight tempi match
-  // PERFECTLY; the four misses are two adjacent pairs, which is the signature of
-  // the trace sampling at a frame edge rather than of the model being wrong.
-  //
-  // The averages were always right. This is about the ORDER of the spare frames,
-  // which is what makes two players sound identical rather than merely equal in
-  // tempo.
-  var LSDJ_ROW_NUM = 895.88;                  // frames per row x TEMPO, measured
-  var LSDJ_TICK_NUM = LSDJ_ROW_NUM / 6;       // ...and LSDj's default row is 6 ticks
-
-  function lsdjFramesPerTick(tempo) { return LSDJ_TICK_NUM / tempo; }
-
-  // The frame a tick STARTS on.
-  function lsdjTickFrame(tempo, tick) {
-    return Math.round(tick * LSDJ_TICK_NUM / tempo);
-  }
-
-  // The frame a ROW starts on, given the groove in TICKS.
-  function lsdjRowFrame(tempo, ticks, row) {
-    var n = ticks.length, sum = 0, i;
-    for (i = 0; i < n; i++) sum += ticks[i];
-    row = row | 0;
-    var whole = Math.floor(row / n), rem = row % n, t = whole * sum;
-    for (i = 0; i < rem; i++) t += ticks[i];
-    return lsdjTickFrame(tempo, t);
-  }
-
-  function lsdjFramesPerRow(tempo, ticks) {
-    return framesPerRow(ticks) * LSDJ_TICK_NUM / tempo;
-  }
-
-  // The tempo whose default 6-tick row is closest to this many frames. Integer,
-  // because LSDj cannot store a fractional tempo either -- that is a limit we
-  // SHARE with it rather than one we add.
-  function lsdjTempoForRow(frames) {
-    return Math.max(40, Math.min(255, Math.round(6 * LSDJ_TICK_NUM / frames)));
-  }
-
-  // THE GROOVE, IN LSDJ'S UNITS. Six ticks a row is LSDj's default and makes
-  // TEMPO mean bpm; a shuffle keeps the same total so the tempo does not move,
-  // and moves the beat inside it. [7,5] is the mild swing an LSDj musician
-  // reaches for, [8,4] the hard one.
-  //
-  // These are the only shapes on offer because they are the only ones LSDj has:
-  // whole ticks, and a pair that sums to twice the base. Our old frame-groove
-  // could express ratios between them, which sounds like more and is really
-  // just a number the machine cannot hold.
-  function lsdjGrooveTicks(swing, stepsPerBar) {
-    var base = Math.max(1, Math.round(6 * 16 / (stepsPerBar || 16)));
-    if (!swing) return [base];
-    var lng = Math.max(1, Math.min(2 * base - 1, Math.round(2 * base * (
-      typeof swing === 'number' && swing > 0.5 && swing < 0.8 ? swing : 0.583))));
-    return [lng, 2 * base - lng];
-  }
-  var LSDJ_TEMPO_MIN = 40, LSDJ_TEMPO_MAX = 255;
-
   var API = {
     FPS: FPS, CH: CH, DUTIES: DUTIES, WAVE_LEVELS: WAVE_LEVELS,
-    noteRegisters: noteRegisters, waveSlotOf: waveSlotOf, noteOffFrames: noteOffFrames,
+    noteRegisters: noteRegisters, waveSlotOf: waveSlotOf,
     NOISE_DIVISORS: NOISE_DIVISORS, RANGE: RANGE, WAVE_SLOTS: WAVE_SLOTS,
     midiToHz: midiToHz, midiToPeriod: midiToPeriod, inRange: inRange,
     beatToFrame: beatToFrame, frameToSec: frameToSec,
-    quantDuty: quantDuty, patchToInstrument: patchToInstrument, buildBank: buildBank,
-    grooveSpread: grooveSpread, grooveFor: grooveFor, bpmOfGroove: bpmOfGroove,
-    rowFrame: rowFrame, framesPerRow: framesPerRow,
-    LSDJ_TICK_NUM: LSDJ_TICK_NUM, lsdjFramesPerTick: lsdjFramesPerTick,
-    lsdjTickFrame: lsdjTickFrame, lsdjRowFrame: lsdjRowFrame,
-    lsdjFramesPerRow: lsdjFramesPerRow, lsdjTempoForRow: lsdjTempoForRow,
-    lsdjGrooveTicks: lsdjGrooveTicks,
-    LSDJ_TEMPO_MIN: LSDJ_TEMPO_MIN, LSDJ_TEMPO_MAX: LSDJ_TEMPO_MAX
+    quantDuty: quantDuty, patchToInstrument: patchToInstrument, buildBank: buildBank
   };
   G.CT_GB = API;
   if (typeof module !== 'undefined' && module.exports) module.exports = API;

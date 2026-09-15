@@ -75,7 +75,7 @@ const LIVE = process.env.VERIFY_URL || '';
   const errs = [];
   p.on('pageerror', e => errs.push(String(e).slice(0, 160)));
   await p.addInitScript(SHIM);
-  await p.goto(BASE + '/listen', { waitUntil: 'domcontentloaded' });
+  await p.goto(BASE + '/', { waitUntil: 'domcontentloaded' });
   await wait(4000);
 
   const reg = await p.evaluate(() => ({
@@ -87,8 +87,8 @@ const LIVE = process.env.VERIFY_URL || '';
   }));
   ok(/^document\.modelContext\.registerTool/.test(reg.where || ''),
      'the tools register on document.modelContext, which is the surface the spec defines (' + reg.where + ')');
-  ok(reg.count === 16, 'and all of them arrive, exactly once each (' + reg.count + ' tools)' + (reg.err ? ' -- ' + reg.err : ''));
-  ok(reg.pre && reg.pre.count === 16,
+  ok(reg.count === 15, 'and all of them arrive, exactly once each (' + reg.count + ' tools)' + (reg.err ? ' -- ' + reg.err : ''));
+  ok(reg.pre && reg.pre.count === 15,
      'the PRE-HYDRATION registrar got there first, before the deferred bundle ran (' +
      (reg.pre ? reg.pre.count + ' via ' + reg.pre.where.join(', ') : 'it did not run') + ')');
 
@@ -201,10 +201,10 @@ const LIVE = process.env.VERIFY_URL || '';
     heading: (document.querySelector('#wmcp h1') || {}).textContent || ''
   }));
   ok(demo.panel && demo.heading.length > 10, 'the /webmcp route mounts the explainer ("' + demo.heading + '")');
-  ok(demo.registered >= 16 && /^document\.modelContext/.test(demo.webmcp || ''),
+  ok(demo.registered >= 15 && /^document\.modelContext/.test(demo.webmcp || ''),
      'AND is the real app, so the tools register where an agent will look (' +
      demo.registered + ' on ' + demo.webmcp + ')');
-  ok(demo.cards >= 16, 'it lists every tool from the live surface (' + demo.cards + ')');
+  ok(demo.cards >= 15, 'it lists every tool from the live surface (' + demo.cards + ')');
   ok(demo.prompts >= 4 && demo.buttons >= 8,
      'with prompts to copy and buttons that call the tools (' + demo.prompts + ' prompts, ' + demo.buttons + ' buttons)');
 
@@ -241,7 +241,7 @@ const LIVE = process.env.VERIFY_URL || '';
     ok(st.width < 500, 'which does not span the page (' + st.width + 'px)');
     // /webmcp is not a route runtime.js knows, so the station never entered its
     // landing state -- in agent mode that left a person staring at nothing.
-    ok(st.landing && st.url === '/listen#webmcp',
+    ok(st.landing && st.url === '/#webmcp',
        'and the station behind it is in its normal landing state (' + st.url + ')');
     const reopened = await agent.evaluate(() => {
       document.querySelector('#wmcp .bar button').click();
@@ -255,7 +255,7 @@ const LIVE = process.env.VERIFY_URL || '';
     document.querySelector('#wmcp .x').click();
     return { gone: !document.getElementById('wmcp'), path: location.pathname };
   });
-  ok(closed.gone && closed.path === '/listen', 'and it closes onto the station, which was playing underneath all along');
+  ok(closed.gone && closed.path === '/', 'and it closes onto the station, which was playing underneath all along');
   ok(!errs2.length, 'no page errors on /webmcp' + (errs2.length ? ' -- ' + errs2[0] : ''));
 
   // AGENT WORK HAS TO BE VISIBLE. A person watching should never have the music
@@ -306,7 +306,7 @@ const LIVE = process.env.VERIFY_URL || '';
   // context at load; one appears afterwards; the polling must find it.
   {
     const late = await b.newPage({ viewport: { width: 1200, height: 800 } });
-    await late.goto(BASE + '/listen', { waitUntil: 'domcontentloaded' });
+    await late.goto(BASE + '/', { waitUntil: 'domcontentloaded' });
     await wait(3000);
     const before = await late.evaluate(() => window.chiptunes && window.chiptunes.webmcp);
     ok(!before, 'with no host at load, nothing is registered (' + String(before) + ')');
@@ -318,7 +318,7 @@ const LIVE = process.env.VERIFY_URL || '';
     const after = await late.evaluate(() => ({
       n: window.__late.length, where: window.chiptunes && window.chiptunes.webmcp
     }));
-    ok(after.n >= 16 && /navigator/.test(after.where || ''),
+    ok(after.n >= 15 && /navigator/.test(after.where || ''),
        'and a host injected AFTER load is picked up within a second and a half (' +
        after.n + ' tools on ' + after.where + ')');
     const worked = await late.evaluate(async () => {
@@ -329,17 +329,6 @@ const LIVE = process.env.VERIFY_URL || '';
     ok(worked.ok && /scene: town/.test((worked.applied || []).join(' ')),
        'and its tools really work, not just register');
     await late.close();
-  }
-
-  // ---- the cart, which is the point for an LSDj musician -----------------
-  {
-    const cart = await p.evaluate(() => window.__mcpCall('chiptunes_lsdj_cart',
-      { scenes: ['title', 'battle', 'boss', 'cave'], seconds: 25 }));
-    ok(cart.songs === 4 && cart.blocksFree > 0,
-       'an agent can fill a Game Boy cartridge in one call (' + cart.songs +
-       ' slots, ' + cart.blocksFree + ' blocks free, ' + cart.tookMs + 'ms)');
-    ok((cart.warnings || []).some(w => /drum/i.test(w)),
-       'and is told what did not survive, so it can pass that on');
   }
 
   ok(!errs.length, 'no page errors throughout' + (errs.length ? ' -- ' + errs[0] : ''));

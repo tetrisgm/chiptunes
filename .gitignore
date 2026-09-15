@@ -52,8 +52,3 @@ dist/_paneltest.html
 
 # Gate screenshots, written by scripts/verify-chrome.js for eyeballing.
 .shots/
-.vercel
-.env*
-
-# Local algorave runtime proof; excluded from every release artifact.
-.algorave-preview/

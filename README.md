@@ -4,16 +4,6 @@ A register-level emulation of the Game Boy sound chip in the browser, a
 composer that writes complete songs for it, and an exporter that turns any of
 them into a 32 KB cartridge that boots on real hardware.
 
-The current source opens a live-coding workspace: write a pattern or ask the
-agent, inspect its notes, then Run. Music and note feedback sit beside a
-resizable visual stage; the bundled games are visual output. Chat collapses,
-and explicit Listen keeps the existing listening experience available.
-Opening a project does not play it. [TidalCycles](https://tidalcycles.org/) is
-the musical workflow guide, not a claim of full Tidal syntax compatibility.
-See the [active implementation plan](docs/algorave-stage-plan.md) and
-[build/verification notes](docs/HANDOFF.md) for what is implemented versus
-deployed.
-
 The browser and the cartridge are not two implementations of the same music.
 They are checked against each other: the same register writes, on the same
 frames, in the same order.
@@ -32,7 +22,7 @@ frames, in the same order.
 
 The composer, a register-level Game Boy sound chip, the MIDI writer and the
 cartridge builder are **already running in the tab**, because the website needs
-them. `src/webmcp.js` exposes them as **16 tools** on `document.modelContext`.
+them. `src/webmcp.js` exposes them as **15 tools** on `document.modelContext`.
 So an agent that can open a tab can write music — **no server, no API key, no
 account, nothing metered.**
 
@@ -43,8 +33,7 @@ account, nothing metered.**
 | **check its own work** — it can't listen, so it measures | `chiptunes_analyse` |
 | get **twelve complete, different songs in ~70 ms**, unranked | `chiptunes_variations` |
 | recompose the exact song on air: *"make it gloomier"* | `chiptunes_variant` |
-| hand over a share link, a MIDI file, a **32 KB `.gb` cartridge**, or an **LSDj `.lsdsng`** | `chiptunes_export` |
-| **fill a Game Boy cartridge** with a starting point in every slot | `chiptunes_lsdj_cart` |
+| hand over a share link, a MIDI file, or a **32 KB `.gb` cartridge** | `chiptunes_export` |
 | drive the session the user is watching — play, skip, screen, tracker | 8 more |
 
 Three things follow that a hosted model behind a key cannot do:
@@ -146,49 +135,9 @@ Three consequences worth stating plainly, because they are unusual:
 (The radio stream is a server, because listening in a car needs one. Making
 music is not.)
 
-## For people who write on the hardware
-
-```bash
-npx chiptunes lsdjcart --scenes title,overworld,battle,boss,cave --out cart.sav
-npx chiptunes lsdsng song.doc --out song.lsdsng
-```
-
-**A `.sav` is the cartridge.** Copy it to a flash cart and every slot already
-has an arrangement in it to argue with — up to 32 of them, written in about
-40 ms. That is the shortest distance between *"I want to write something"* and
-actually writing. An agent can do it in one call (`chiptunes_lsdj_cart`), and
-`.lsdsng` is there for one song at a time, from the CLI, the *Download LSDj*
-button in the tracker, or `chiptunes_export`.
-
-It is one LSDj song, the unit LSDj musicians pass around. What arrives is an
-**arrangement to keep writing**: the notes laid out in phrases and chains, the
-sequence, the tempo and the groove. An arpeggio arrives as a `C` command rather
-than as three spelled-out notes, so the phrase is one a person can read.
-
-This is faithful rather than converted, because the composer already works the
-way a tracker does: sixteen steps to a bar, four channels that map one-to-one
-onto PU1/PU2/WAV/NOI, and a step that lasts a whole number of frames with a
-groove for the rest. A bar **is** a phrase. Nothing is quantised on the way out.
-
-Two things do not survive, and the export says so rather than letting you find
-them by ear:
-
-- **Drums move to the noise channel.** Ours are 4-bit PCM streamed into wave RAM
-  — the same technique LSDj kits use — but a `.sav` cannot carry samples,
-  because kits live in the ROM.
-- **Instruments are stock defaults, one per channel.** Deliberately: voicing is
-  the part an LSDj composer enjoys and is better at than a translator would be.
-
-`npm run test:lsdj` reads the output back with **liblsdj itself**, and, given a
-copy of the LSDj ROM, **boots it in mGBA and checks the pitches LSDj actually
-plays** — every note in the document is played, and nothing is played that we
-did not write. Neither check uses our own reader — the same
-mistake that once let a WebMCP registration ship against the wrong API is
-exactly what a self-round-trip would repeat.
-
 ## Verification
 
-`npm test` runs 23 gates. Most of them exist because the thing they check was
+`npm test` runs 22 gates. Most of them exist because the thing they check was
 once wrong, and the comment above each one says what went wrong.
 
 | gate | what it holds | in `npm test` |
@@ -199,8 +148,7 @@ once wrong, and the comment above each one says what went wrong.
 | `test:sync` | the picture sits on the sound, corrected for measured output latency | yes |
 | `test:screens` | all three screen faces actually draw, and sleeping one frees its GPU targets | yes |
 | `test:language` | every claim the prompt parser makes about a sentence is true, and every title composes with the genre it named | yes |
-| `test:webmcp` | the tools register on `document.modelContext` and all 16 work, called for real against the built bundle | yes |
-| `test:lsdj` | the `.lsdsng` export opens in LSDj, checked by reading it back with liblsdj | yes |
+| `test:webmcp` | the tools register on `document.modelContext` and all 14 work, called for real against the built bundle | yes |
 | `test:rom-audio` | browser chip vs. the ROM executing on the emulated CPU, spectrally | run on its own |
 | `test:kit` | sampled drums match across both paths; the sample and refill clocks are in step | run on its own |
 | `test:render-parity` | offline render matches live playback to ≥ 0.995 correlation | run on its own |
@@ -351,6 +299,5 @@ and is not affiliated with or endorsed by Nintendo.
 
 ## License
 
-MIT; see [LICENSE](LICENSE) — kept as unmodified MIT text so GitHub detects it.
-The vendored Game Boy display shader pipeline is Apache-2.0 and unmodified; its
-terms are in [NOTICE](NOTICE).
+MIT; see [LICENSE](LICENSE). The vendored Game Boy display shader pipeline is
+Apache-2.0 and unmodified; see its NOTICE.

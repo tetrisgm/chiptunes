@@ -238,10 +238,8 @@
     // written; that is what gives one instrument its dynamics. Neither the
     // cartridge nor the APU can multiply at play time, so it is baked in here.
     var v0 = (rec[1] >> 4) & 15;
-    var nativePulse = ch < 2 && n.trigger != null;
-    var vol = Math.max(0, Math.min(15, Math.round(nativePulse ? 15 * (n.vel == null ? 1 : n.vel)
-      : v0 * (0.35 + 0.65 * (n.vel == null ? 1 : n.vel)))));
-    var nrx1, nrx2 = (vol << 4) | (nativePulse ? 8 : rec[1] & 0x0F), nrx3, nrx4, p;
+    var vol = Math.max(0, Math.min(15, Math.round(v0 * (0.35 + 0.65 * (n.vel == null ? 1 : n.vel)))));
+    var nrx1, nrx2 = (vol << 4) | (rec[1] & 0x0F), nrx3, nrx4, p;
     // A note may ask for a period the twelve-tone table has no name for: det
     // shifts it by whole period units. That is what detuning two channels
     // against each other is, and there is no other way to say it.
@@ -284,207 +282,13 @@
     return Math.min(WAVE_SLOTS - 1, rec[0] & 0xFF);
   }
 
-  // A native pitch-only row continues the current voice, including its silent
-  // state after KILL. Suppress a note-off at the continuation boundary (also
-  // accepting the legacy one-frame articulation gap); longer gaps still cut.
-  // Shared by browser and cartridge scheduling.
-  function noteOffFrames(notes) {
-    var order = notes.map(function (n, i) { return { n: n, i: i }; });
-    order.sort(function (a, b) { return a.n.frame - b.n.frame || a.i - b.i; });
-    var next = [], off = [];
-    for (var i = order.length - 1; i >= 0; i--) {
-      var item = order[i], n = item.n, ch = n.ch | 0;
-      var end = (n.frame | 0) + Math.max(1, n.frames | 0), following = next[ch];
-      off[item.i] = following && following.trigger === false &&
-        Math.abs(following.frame - end) <= 1 ? null : end;
-      next[ch] = n;
-    }
-    return off;
-  }
-
-  // ---- GROOVE: the only clock a tracker has --------------------------------
-  //
-  // A row lasts a whole number of frames, and a GROOVE is the short repeating
-  // list of those tick counts. It does two jobs with one mechanism: it reaches
-  // tempi between the rungs of the ladder, and it is where SWING lives.
-  //
-  // That second job is why this moved here from the editor. Swing used to be a
-  // fractional nudge applied to each offbeat note -- which is not a thing LSDj
-  // can hold, because LSDj has no position between two rows. It put 92% of our
-  // off-grid notes off the grid. Expressed as a groove instead, the ROWS are
-  // uneven and every note still sits exactly on one, which is both what a
-  // tracker does and what the hardware does.
-  //
-  // ⚠️ ONLY TWO SHAPES, and that is the whole point. The first version reached
-  // any tempo by making k of every four rows one tick longer -- [6,7,7,7],
-  // [5,5,5,6] -- which is arithmetically neat and musically a LIMP; the ear
-  // locks onto anything repeating every bar. So: [n] is even, [n,n+1] is a
-  // symmetric alternation (a mild shuffle, a feel a musician would choose), and
-  // a swing groove is an explicit long-short PAIR. Nothing lopsided.
-  function grooveSpread(base, k) {
-    if (k <= 0) return [base];
-    if (k >= 2) return [base + 1];
-    return [base, base + 1];
-  }
-  // CHOSEN BY SEARCH, not by arithmetic, because the answer has to be a tempo
-  // the DOCUMENT can hold as well as one the machine can play. Rounding
-  // straight to the nearest groove put bpm 70 on a 32nd grid at 68.9, below the
-  // storable minimum -- the header wrote a negative offset, it wrapped through
-  // the mask, and the song came back at 179. So: enumerate the grooves around
-  // the target, discard any whose tempo cannot be represented, keep the closest.
-  function grooveFor(bpm, swing, stepsPerBar) {
-    var want = (60 / bpm) * 4 / stepsPerBar * FPS;      // frames per row, real
-    var best = null, cand = [], i, b;
-    if (swing) {
-      // A shuffle is a long-short PAIR, defined on the pair rather than on the
-      // average, so it keeps its character at every tempo.
-      // `swing` may arrive as a RATIO (0.56 -- how much of the pair the long
-      // half takes) or as a bare flag from the editor, which means the default
-      // shuffle. Anything outside a sane ratio is treated as the flag, so a
-      // `true` cannot silently become a pair of [pair, 2].
-      var ratio = (typeof swing === 'number' && swing > 0.5 && swing < 0.8) ? swing : 0.62;
-      for (i = -1; i <= 1; i++) {
-        var pair = Math.max(4, Math.round(want * 2) + i);
-        var lng = Math.max(2, Math.round(pair * ratio));
-        cand.push([lng, Math.max(2, pair - lng)]);
-      }
-    } else {
-      for (var base = Math.max(2, Math.floor(want) - 1); base <= Math.floor(want) + 1; base++)
-        cand.push([base]);
-    }
-    for (i = 0; i < cand.length; i++) {
-      b = bpmOfGroove(cand[i], stepsPerBar);
-      if (b < 70 || b > 180) continue;                  // the header cannot carry it
-      var d = Math.abs(b - bpm);
-      if (!best || d < best.d) best = { g: cand[i], d: d };
-    }
-    return best ? best.g : [Math.max(2, Math.round(want))];
-  }
-  // The TRUE tempo of a groove, which is what the song actually plays at. A
-  // document may carry any bpm; what it gets is the nearest one the machine can
-  // hold, and reporting the asked-for number instead of the played one is how a
-  // player comes to disagree with its own clock.
-  function bpmOfGroove(g, stepsPerBar) {
-    var sum = 0;
-    for (var i = 0; i < g.length; i++) sum += g[i];
-    return (240 * FPS) / (stepsPerBar * (sum / g.length));
-  }
-  // The frame a ROW starts on: sum the groove around the loop. Integer by
-  // construction, which is the point -- there is no rounding here to drift.
-  function rowFrame(g, row) {
-    var n = g.length, sum = 0, i;
-    for (i = 0; i < n; i++) sum += g[i];
-    row = row | 0;
-    var f = Math.floor(row / n) * sum, rem = row % n;
-    for (i = 0; i < rem; i++) f += g[i];
-    return f;
-  }
-  // frames in ONE row -- the average over the groove, for note lengths
-  function framesPerRow(g) {
-    var sum = 0;
-    for (var i = 0; i < g.length; i++) sum += g[i];
-    return sum / g.length;
-  }
-
-  // ---- LSDJ'S OWN CLOCK ----------------------------------------------------
-  //
-  // Measured off the real ROM in mGBA with a one-note-per-row ruler song, tempo
-  // 60 to 255 (scripts/verify-lsdj-emulator.js):
-  //
-  //   ticks per second = 0.4 x TEMPO
-  //   frames per tick  = 149.31875 / TEMPO        (149.31875 = 2.5 x FPS)
-  //
-  // A GROOVE is how many ticks each row lasts, default 6 -- which makes a row
-  // 895.9125/TEMPO frames, so TEMPO is bpm with four rows to the beat.
-  //
-  // ⚠️ FRAMES PER TICK IS FRACTIONAL AND LSDJ DOES NOT ROUND IT. It runs an
-  // accumulator, so rows come out as a MIX of two whole frame counts -- at tempo
-  // 120 the trace is 7s and 8s interleaved. That matters twice over:
-  //
-  //   * it is why LSDj reaches every tempo and our eight-rung ladder did not.
-  //     The ladder was our invention, and it offers LESS than the machine.
-  //   * it is NOT the limp this project removed earlier. That was a four-step
-  //     pattern with one odd step out, repeating every bar, which the ear locks
-  //     onto instantly. An accumulator spreads the same total unevenness with no
-  //     short period at all, which is why nobody has ever called LSDj lopsided.
-  // ⚠️ 895.88, NOT 895.9125, AND ROUND, NOT CEIL -- both measured rather than
-  // derived. The physical constant is 15 x FPS = 895.9125, and a model built on
-  // it disagreed with LSDj about which individual rows get the spare frame on up
-  // to 20% of rows. Fitting the real thing instead -- eight tempi, a hundred row
-  // gaps each, straight off the ROM -- lands on
-  //
-  //     row k starts at round(k * 895.88 / TEMPO)
-  //
-  // which reproduces 796 of 800 measured gaps. Six of the eight tempi match
-  // PERFECTLY; the four misses are two adjacent pairs, which is the signature of
-  // the trace sampling at a frame edge rather than of the model being wrong.
-  //
-  // The averages were always right. This is about the ORDER of the spare frames,
-  // which is what makes two players sound identical rather than merely equal in
-  // tempo.
-  var LSDJ_ROW_NUM = 895.88;                  // frames per row x TEMPO, measured
-  var LSDJ_TICK_NUM = LSDJ_ROW_NUM / 6;       // ...and LSDj's default row is 6 ticks
-
-  function lsdjFramesPerTick(tempo) { return LSDJ_TICK_NUM / tempo; }
-
-  // The frame a tick STARTS on.
-  function lsdjTickFrame(tempo, tick) {
-    return Math.round(tick * LSDJ_TICK_NUM / tempo);
-  }
-
-  // The frame a ROW starts on, given the groove in TICKS.
-  function lsdjRowFrame(tempo, ticks, row) {
-    var n = ticks.length, sum = 0, i;
-    for (i = 0; i < n; i++) sum += ticks[i];
-    row = row | 0;
-    var whole = Math.floor(row / n), rem = row % n, t = whole * sum;
-    for (i = 0; i < rem; i++) t += ticks[i];
-    return lsdjTickFrame(tempo, t);
-  }
-
-  function lsdjFramesPerRow(tempo, ticks) {
-    return framesPerRow(ticks) * LSDJ_TICK_NUM / tempo;
-  }
-
-  // The tempo whose default 6-tick row is closest to this many frames. Integer,
-  // because LSDj cannot store a fractional tempo either -- that is a limit we
-  // SHARE with it rather than one we add.
-  function lsdjTempoForRow(frames) {
-    return Math.max(40, Math.min(255, Math.round(6 * LSDJ_TICK_NUM / frames)));
-  }
-
-  // THE GROOVE, IN LSDJ'S UNITS. Six ticks a row is LSDj's default and makes
-  // TEMPO mean bpm; a shuffle keeps the same total so the tempo does not move,
-  // and moves the beat inside it. [7,5] is the mild swing an LSDj musician
-  // reaches for, [8,4] the hard one.
-  //
-  // These are the only shapes on offer because they are the only ones LSDj has:
-  // whole ticks, and a pair that sums to twice the base. Our old frame-groove
-  // could express ratios between them, which sounds like more and is really
-  // just a number the machine cannot hold.
-  function lsdjGrooveTicks(swing, stepsPerBar) {
-    var base = Math.max(1, Math.round(6 * 16 / (stepsPerBar || 16)));
-    if (!swing) return [base];
-    var lng = Math.max(1, Math.min(2 * base - 1, Math.round(2 * base * (
-      typeof swing === 'number' && swing > 0.5 && swing < 0.8 ? swing : 0.583))));
-    return [lng, 2 * base - lng];
-  }
-  var LSDJ_TEMPO_MIN = 40, LSDJ_TEMPO_MAX = 255;
-
   var API = {
     FPS: FPS, CH: CH, DUTIES: DUTIES, WAVE_LEVELS: WAVE_LEVELS,
-    noteRegisters: noteRegisters, waveSlotOf: waveSlotOf, noteOffFrames: noteOffFrames,
+    noteRegisters: noteRegisters, waveSlotOf: waveSlotOf,
     NOISE_DIVISORS: NOISE_DIVISORS, RANGE: RANGE, WAVE_SLOTS: WAVE_SLOTS,
     midiToHz: midiToHz, midiToPeriod: midiToPeriod, inRange: inRange,
     beatToFrame: beatToFrame, frameToSec: frameToSec,
-    quantDuty: quantDuty, patchToInstrument: patchToInstrument, buildBank: buildBank,
-    grooveSpread: grooveSpread, grooveFor: grooveFor, bpmOfGroove: bpmOfGroove,
-    rowFrame: rowFrame, framesPerRow: framesPerRow,
-    LSDJ_TICK_NUM: LSDJ_TICK_NUM, lsdjFramesPerTick: lsdjFramesPerTick,
-    lsdjTickFrame: lsdjTickFrame, lsdjRowFrame: lsdjRowFrame,
-    lsdjFramesPerRow: lsdjFramesPerRow, lsdjTempoForRow: lsdjTempoForRow,
-    lsdjGrooveTicks: lsdjGrooveTicks,
-    LSDJ_TEMPO_MIN: LSDJ_TEMPO_MIN, LSDJ_TEMPO_MAX: LSDJ_TEMPO_MAX
+    quantDuty: quantDuty, patchToInstrument: patchToInstrument, buildBank: buildBank
   };
   G.CT_GB = API;
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
@@ -662,10 +466,10 @@
     this.nr50 = 0x77; this.nr51 = 0xFF; this.power = true;
     this.hp = 0;                           // DC blocker (the DMG's output capacitor)
     this.ch = [
-      { dac:false, on:false, freq:0, duty:2, pos:0, t:0, vol:0, vol0:0, dir:0, pace:0, ec:0, envActive:false },
-      { dac:false, on:false, freq:0, duty:2, pos:0, t:0, vol:0, vol0:0, dir:0, pace:0, ec:0, envActive:false },
+      { dac:false, on:false, freq:0, duty:2, pos:0, t:0, vol:0, vol0:0, dir:0, pace:0, ec:0 },
+      { dac:false, on:false, freq:0, duty:2, pos:0, t:0, vol:0, vol0:0, dir:0, pace:0, ec:0 },
       { dac:false, on:false, freq:0, pos:0, t:0, level:0 },
-      { dac:false, on:false, lfsr:0x7FFF, width:0, div:8, shift:0, t:0, vol:0, vol0:0, dir:0, pace:0, ec:0, envActive:false }
+      { dac:false, on:false, lfsr:0x7FFF, width:0, div:8, shift:0, t:0, vol:0, vol0:0, dir:0, pace:0, ec:0 }
     ];
   };
 
@@ -707,13 +511,6 @@
   // NRx2. The upper five bits are the DAC: all zero and the channel is not
   // merely quiet, it is switched off. That is precisely how a note ends.
   Apu.prototype._env = function (ch, val) {
-    // Portable manual volume control: an unlocked, held increasing envelope
-    // increments modulo 16 when another x8 value is written, without a trigger.
-    // Pan Docs, Audio details / Obscure Behavior. This is the common operation
-    // across tested DMG/CGB units; arbitrary NRx2 transitions are model-specific
-    // and are NOT implemented here (including LSDj's shorter 09/11/18 decrement).
-    if (ch.on && ch.envActive && ch.pace === 0 && ch.dir === 1 && (val & 15) === 8)
-      ch.vol = (ch.vol + 1) & 15;
     ch.vol0 = (val >> 4) & 15;
     ch.dir = (val >> 3) & 1;
     ch.pace = val & 7;
@@ -724,7 +521,6 @@
   Apu.prototype._trigger = function (i) {
     var ch = this.ch[i];
     ch.on = ch.dac;                        // triggering a dead DAC does nothing
-    if (i !== 2) ch.envActive = ch.on;
     if (i === 2) { ch.pos = 0; ch.t = (2048 - ch.freq) * 2; }
     else if (i === 3) { ch.lfsr = 0x7FFF; ch.t = ch.div << ch.shift; ch.vol = ch.vol0; ch.ec = ch.pace; }
     else { ch.t = (2048 - ch.freq) * 4; ch.vol = ch.vol0; ch.ec = ch.pace; }
@@ -758,12 +554,11 @@
     var idx = [0, 1, 3], k, ch, v;
     for (k = 0; k < 3; k++) {
       ch = this.ch[idx[k]];
-      if (!ch.pace || !ch.on || !ch.envActive) continue;
+      if (!ch.pace || !ch.on) continue;
       if (--ch.ec > 0) continue;
       ch.ec = ch.pace;
       v = ch.vol + (ch.dir ? 1 : -1);
       if (v >= 0 && v <= 15) ch.vol = v;
-      else ch.envActive = false;           // overflow stops updates until trigger
     }
   };
 
@@ -858,8 +653,6 @@
     this.sr = sampleRate;
     this.samplesPerFrame = sampleRate / (MASTER / FRAME_CYCLES);
     this.rate = 1;               // tempo scale: pinned bpm / native bpm
-    this.gainScalar = gb && gb.gainScalar != null ? gb.gainScalar : 1;
-    if(!Number.isFinite(this.gainScalar) || this.gainScalar<0 || this.gainScalar>1) throw new Error('Invalid gb.gainScalar');
     this.mix = null;             // {kick,snare,hat,bass,lead,arp,pad} in 0..3
     this.vib = [{ on: false, base: 0, age: 0 }, { on: false, base: 0, age: 0 }];
     this.frame = 0; this.acc = 0;
@@ -870,8 +663,8 @@
     // is what gets written every frame, not just what a note-on says, so these
     // ride in the score and BOTH players read the same array.
     var auto = this.auto = {}, vibOff = this.vibOffAt = {};
-    (gb && gb.auto || []).forEach(function (w, index) {
-      (auto[w.f | 0] = auto[w.f | 0] || []).push({ r: w.r & 0xFF, v: w.v & 0xFF, index: index });
+    (gb && gb.auto || []).forEach(function (w) {
+      (auto[w.f | 0] = auto[w.f | 0] || []).push({ r: w.r & 0xFF, v: w.v & 0xFF });
     });
     (gb && gb.vibOff || []).forEach(function (w) {
       (vibOff[w.f | 0] = vibOff[w.f | 0] || []).push(w.ch | 0);
@@ -883,16 +676,15 @@
     // KIT SAMPLES: four-bit PCM streamed into wave RAM, buffer by buffer. The
     // cartridge does this from its timer interrupt; here the same writes are
     // made at the same cycle counts, which is what makes the two agree.
-    var ka = this.kitAt = {}, ki = this.kitIndexAt = {};
-    (gb && gb.kit || []).forEach(function (k, index) { ka[k.f | 0] = k.id | 0; ki[k.f | 0] = index; });
+    var ka = this.kitAt = {};
+    (gb && gb.kit || []).forEach(function (k) { ka[k.f | 0] = k.id | 0; });
     this.kit = null; this.kitPos = 0; this.kitLeft = 0; this.kitCyc = 0;
     var byFrame = this.byFrame = {};
     var inst = (this.bank && this.bank.instruments) || [];
-    var scoreNotes = gb && gb.notes || [], offFrames = H.noteOffFrames(scoreNotes);
-    scoreNotes.forEach(function (n, index) {
-      var f = n.frame | 0, off = offFrames[index];
-      (byFrame[f] = byFrame[f] || []).push({ t: 1, n: n, index: index });
-      if (off != null) (byFrame[off] = byFrame[off] || []).push({ t: 0, ch: n.ch | 0, index: index });
+    (gb && gb.notes || []).forEach(function (n) {
+      var f = n.frame | 0, off = f + Math.max(1, n.frames | 0);
+      (byFrame[f] = byFrame[f] || []).push({ t: 1, n: n });
+      (byFrame[off] = byFrame[off] || []).push({ t: 0, ch: n.ch | 0 });
     });
     Object.keys(byFrame).forEach(function (k) {
       byFrame[k].sort(function (a, b) { return a.t - b.t; });
@@ -935,8 +727,7 @@
   Sequencer.prototype._kitStart = function (id) {
     var K = G.CT_GB_KITS;
     if (!K) return;
-    var k = this.kitBank ? this.kitBank[id] : K.byId(id);
-    if(!k) return;
+    var k = K.byId(id);
     this.kit = k.data; this.kitPos = 0; this.kitLeft = k.buffers;
     this.apu.write(0x1C, 0x20);              // NR32: full output
     this.apu.write(0x1D, K.PERIOD & 0xFF);   // NR33: 8192 samples a second
@@ -950,25 +741,6 @@
     if (!mix || typeof mix !== 'object') return;
     var m = this.mix || (this.mix = {});
     for (var k in mix) { var v = +mix[k]; if (isFinite(v)) m[k] = Math.max(0, Math.min(3, v)); }
-  };
-  // Optional scalar observation, enabled only by the live-music processor.
-  // No callbacks, source evaluation or register writes. Seek/preparation and
-  // offline renders leave it absent. This reports executed commands, not a
-  // promise that every trigger survives later writes or makes audible PCM.
-  Sequencer.prototype._observe = function (kind, index, ch, note, register, value) {
-    var out=this.observations;
-    if(!out)return;
-    if(!Number.isSafeInteger(out.next)||out.next>=Number.MAX_SAFE_INTEGER){out.exhausted=true;return;}
-    var sequence=out.next++;
-    if(out.events.length>=256){out.dropped++;return;}
-    var voice=this.apu.ch[ch],level=0;
-    if(voice&&voice.on&&voice.dac&&this.apu.power)
-      level=ch===2?([0,1,0.5,0.25][voice.level]||0):(voice.vol||0)/15;
-    out.events.push({sequence:sequence,kind:kind,sourceIndex:Number.isInteger(index)?index:-1,
-      frame:this.frame,contextTime:out.contextTime,channel:ch,
-      midi:note&&Number.isFinite(note.midi)?note.midi:null,
-      durationFrames:note?note.frames:0,velocity:note?(note.vel==null?1:note.vel):null,
-      strength:level,register:register==null?null:register,value:value==null?null:value});
   };
   Sequencer.prototype._runFrame = function () {
     // Vibrato steps BEFORE this frame's events, exactly like the cartridge
@@ -991,18 +763,9 @@
       if (e.t === 0) {
         this.apu.write(base + 1, 0x00); this.apu.write(base + 3, 0x80);
         if ((e.ch | 0) < 2) this.vib[e.ch | 0].on = false;
-        if(this.observations)this._observe('noteOff',e.index,e.ch);
         continue;
       }
       note = e.n; g = 1;
-      if (note.trigger === false && (note.ch | 0) < 2) {
-        r = H.noteRegisters(note, this.bank);
-        this.apu.write(base + 2, r[2]);
-        this.apu.write(base + 3, r[3] & 7);
-        this.vib[note.ch | 0].on = false;
-        if(this.observations)this._observe('continuation',e.index,note.ch,note);
-        continue;
-      }
       // live channel mute (the Create editor's lanes): skip the trigger, let
       // note-offs still run. Never set on the radio or offline paths.
       if (this.chMute && this.chMute[note.ch | 0]) continue;
@@ -1025,12 +788,11 @@
       r = H.noteRegisters(note, this.bank);
       this.apu.write(base, r[0]); this.apu.write(base + 1, r[1]);
       this.apu.write(base + 2, r[2]); this.apu.write(base + 3, r[3]);
-      if(this.observations)this._observe('noteOn',e.index,note.ch,note);
       if ((note.ch | 0) < 2) {
         var vst = this.vib[note.ch | 0];
         vst.base = ((r[3] & 7) << 8) | r[2];
         vst.age = 0;
-        vst.on = note.trigger == null && !((note.ch | 0) === 0 && note.sweep);
+        vst.on = !((note.ch | 0) === 0 && note.sweep);
       }
     }
     // ...then this frame's automation, after the note-ons it belongs to
@@ -1039,18 +801,9 @@
     var wls = this.waveAt[this.frame];
     if (wls != null) this._loadWave(wls);
     var kid = this.kitAt[this.frame];
-    if (kid != null) {
-      this._kitStart(kid);
-      if(this.observations&&this.kit)this._observe('sample',this.kitIndexAt&&this.kitIndexAt[this.frame],2,null,null,kid);
-    }
+    if (kid != null) this._kitStart(kid);
     var aw = this.auto[this.frame];
-    if (aw) for (i = 0; i < aw.length; i++) {
-      this.apu.write(aw[i].r, aw[i].v);
-      if(this.observations){
-        var reg=aw[i].r,ch=reg>=0x10&&reg<=0x14?0:reg>=0x16&&reg<=0x19?1:reg>=0x1a&&reg<=0x1e||reg>=0x30&&reg<=0x3f?2:reg>=0x20&&reg<=0x23?3:-1;
-        this._observe('register',aw[i].index,ch,null,reg,aw[i].v);
-      }
-    }
+    if (aw) for (i = 0; i < aw.length; i++) this.apu.write(aw[i].r, aw[i].v);
     this.frame++;
   };
 
@@ -1076,7 +829,6 @@
       base = 0x11 + (e.ch | 0) * 5;
       this.apu.write(base + 1, 0x00); this.apu.write(base + 3, 0x80);
       if ((e.ch | 0) < 2) this.vib[e.ch | 0].on = false;
-      if(this.observations)this._observe('noteOff',e.index,e.ch);
     }
     this.frame = 0;
   };
@@ -1088,33 +840,6 @@
   Sequencer.prototype.seek = function (frame) {
     while (this.frame < frame) this._runFrame();
     this.acc = 0;
-  };
-
-  // Prepared on the page, never in the render callback. Structured-cloneable
-  // sequencers retain schedules; only prototypes need restoring in the worklet.
-  Sequencer.restore = function (data) {
-    Object.setPrototypeOf(data, Sequencer.prototype);
-    Object.setPrototypeOf(data.apu, Apu.prototype);
-    return data;
-  };
-  Sequencer.prototype.handover = function (old, preserve, preserveGlobal) {
-    var fresh = this.apu, apu = old.apu;
-    for (var ch = 0; ch < 4; ch++) {
-      if (preserve[ch]) {
-        if (ch < 2) this.vib[ch] = old.vib[ch];
-      } else apu.ch[ch] = fresh.ch[ch];
-    }
-    if (!preserve[0]) {
-      ['swPace','swDir','swShift','swShadow','swTimer','swEnabled'].forEach(function(k){ apu[k] = fresh[k]; });
-    }
-    if (preserve[2]) {
-      this.waveSlot = old.waveSlot;
-      this.kit = old.kit; this.kitPos = old.kitPos;
-      this.kitLeft = old.kitLeft; this.kitCyc = old.kitCyc;
-    } else apu.wave = fresh.wave;
-    if(!preserveGlobal) { apu.nr50 = fresh.nr50; apu.nr51 = fresh.nr51; apu.power = fresh.power; }
-    this.apu = apu; this.acc = old.acc;
-    this.chMute = old.chMute; this.mix = old.mix; this.rate = old.rate;
   };
 
   Sequencer.prototype.render = function (out, from, count) {
@@ -1136,7 +861,7 @@
       }
       if (this.kit) this.kitCyc -= cy;
       this.apu._advance(cy);
-      out[from + i] = this.apu._mix() * this.gainScalar;
+      out[from + i] = this.apu._mix();
     }
   };
 
@@ -1376,16 +1101,10 @@ class GbChipProcessor extends AudioWorkletProcessor {
         // an exception here would otherwise vanish: the handler dies silently
         // and the chip just never plays. Say what happened.
         this.port.postMessage({ type: 'msgError', message: String((e && e.message) || e), in: (ev.data || {}).type });
-        if(this.music) this.musicState('error',this.music.revision,{message:String(e.message||e)});
       }
     };
     this._onmsg = (ev) => {
       const m = ev.data || {};
-      if (m.type.startsWith('music')) { this.musicMessage(m); return; }
-      if (['play','stop','rom'].includes(m.type) && this.music) {
-        this.musicState('stopped',this.music.revision,{reason:'ownerreturn'});
-        this.music=null; this.musicQueued=null;
-      }
       if (m.type === 'play') {
         var prevSeq = this.seq;
         this.gb = m.gb || null;
@@ -1504,138 +1223,6 @@ class GbChipProcessor extends AudioWorkletProcessor {
       }
     };
   }
-  musicState(status, revision, extra) {
-    this.port.postMessage(Object.assign({type:'musicState',status:status,revision:revision,
-      frame:this.seq?this.seq.frame:0,epoch:this.musicEpoch,activation:this.music?this.music.activation:null,
-      discontinuity:this.musicDiscontinuity||0,contextTime:typeof currentTime==='number'?currentTime:0},extra||{}));
-  }
-  musicFlushEvents() {
-    const observed=this.seq&&this.seq.observations;
-    if(!this.music||!observed||(!observed.events.length&&!observed.dropped&&(!observed.exhausted||observed.reportedExhausted)))return;
-    try{
-      this.port.postMessage({type:'musicEvents',epoch:this.musicEpoch,activation:this.music.activation,
-        revision:this.music.revision,discontinuity:this.musicDiscontinuity,
-        events:observed.events,dropped:observed.dropped,nextSequence:observed.next,exhausted:!!observed.exhausted});
-      observed.events=[];observed.dropped=0;observed.reportedExhausted=!!observed.exhausted;
-    }catch(_){
-      // Retain the bounded first 256 records for a later delivery attempt;
-      // subsequent observations count as drops, without interrupting PCM.
-    }
-  }
-  musicObserve() {
-    if(this.musicDiscontinuity>=Number.MAX_SAFE_INTEGER){this.seq.observations=null;return;}
-    this.musicDiscontinuity=(this.musicDiscontinuity||0)+1;
-    this.seq.observations={events:[],dropped:0,next:0,contextTime:0};
-  }
-  musicMessage(m) {
-    if(m.epoch < (this.musicEpoch||0)) return;
-    if(m.type==='musicStop') {
-      this.musicFlushEvents();
-      this.musicEpoch=m.epoch;
-      if(this.musicQueued) this.musicState('cancelled',this.musicQueued.revision,{reason:m.reason,activation:this.musicQueued.activation});
-      this.musicQueued=null;
-      this.musicState('stopped',this.music?this.music.revision:null,{reason:m.reason});
-      this.music=null; this.seq=null; this.gb=null; return;
-    }
-    if(m.type==='musicPlay') {
-      if(m.epoch===this.musicEpoch && m.prepared.activation<=this.musicSeen) return;
-      this.musicFlushEvents();
-      this.musicSeen=m.prepared.activation;
-      this.musicEpoch=m.epoch; this.musicQueued=null; this.mode='score';
-      this.music=m.prepared; this.paused=false; this.lead=0; this.loopFrames=0;
-      this.musicState('prepared',m.prepared.revision);
-      this.musicActivate(m.prepared,m.prepared.snapshots[0],false); return;
-    }
-    if(m.epoch!==this.musicEpoch || !this.music) return;
-    if(m.type==='musicQueue') {
-      if(m.prepared.activation<=this.musicSeen) return;
-      this.musicSeen=m.prepared.activation;
-      if(m.baseRevision!==this.music.revision || (m.baseActivation!=null && m.baseActivation!==this.music.activation)) {
-        this.musicState('stale',m.prepared.revision,{activation:m.prepared.activation}); return;
-      }
-      if(this.musicQueued) this.musicState('superseded',this.musicQueued.revision,{activation:this.musicQueued.activation});
-      this.musicQueued=m.prepared;
-      this.musicState('prepared',m.prepared.revision,{activation:m.prepared.activation});
-      this.musicState('queued',m.prepared.revision,{activation:m.prepared.activation}); return;
-    }
-    if(m.type==='musicCancel') {
-      if(this.musicQueued && this.musicQueued.revision===m.revision) {
-        const activation=this.musicQueued.activation;
-        this.musicQueued=null; this.musicState('cancelled',m.revision,{activation:activation});
-      }
-      return;
-    }
-    if(m.type==='musicPause') {
-      this.paused=m.paused; this.musicState(this.paused?'paused':'playing',this.music.revision); return;
-    }
-    if(m.type==='musicSeek') {
-      this.musicFlushEvents();
-      if(this.musicQueued) this.musicState('cancelled',this.musicQueued.revision,{reason:'seek',activation:this.musicQueued.activation});
-      this.musicQueued=null;
-      const old=this.seq;
-      this.seq=globalThis.CT_GB_APU.Sequencer.restore(m.state);
-      this.seq.mix=old.mix; this.seq.chMute=old.chMute; this.seq.rate=old.rate;
-      this.musicObserve();
-      this.musicDeclickLeft=0; this.musicDeclickStart=false; this.musicLastSample=null;
-      this.musicState(this.paused?'paused':'playing',this.music.revision,{reason:'seek',resetChannels:[0,1,2,3]});
-    }
-  }
-  musicActivate(prepared,snapshot,live,at) {
-    if(live)this.musicFlushEvents();
-    const seq=globalThis.CT_GB_APU.Sequencer.restore(Object.assign({},prepared.schedule,snapshot.state));
-    const declick=live && this.musicLastSample!=null &&
-      (snapshot.preserve.some(keep=>!keep) || seq.gainScalar!==this.seq.gainScalar);
-    if(!live) { this.musicDeclickLeft=0; this.musicDeclickStart=false; this.musicLastSample=null; }
-    if(declick) this.musicDeclickStart=true;
-    if(live) seq.handover(this.seq,snapshot.preserve,snapshot.preserveGlobal);
-    this.seq=seq; this.music=prepared; this.musicQueued=null; this.pokeOffs=null;
-    this.musicObserve();
-    this.musicState('playing',prepared.revision,{reason:'activate',declickSamples:declick?64:0,
-      contextTime:at==null?(typeof currentTime==='number'?currentTime:0):at,
-      resetChannels:live?[0,1,2,3].filter(ch=>!snapshot.preserve[ch]):[0,1,2,3]});
-  }
-  musicRender(L) {
-    // At most one boundary decision per chip frame. Never compile, seek,
-    // compare histories or replay audio here; the page supplied ready states.
-    for(let i=0;i<L.length;i++) {
-      if(this.seq.acc<=0) {
-        const at=(typeof currentTime==='number'?currentTime:0)+i/sampleRate;
-        const pending=this.musicQueued;
-        if(pending) {
-          const snapshot=pending.snapshots.find(s=>s.at>=this.seq.frame);
-          if(snapshot && snapshot.at===this.seq.frame) this.musicActivate(pending,snapshot,true,at);
-        }
-        if(this.seq.frame>=this.music.totalFrames) {
-          if(this.music.loop) {
-            if(this.seq.observations)this.seq.observations.contextTime=at;
-            this.seq.rewind();this.musicFlushEvents();this.musicObserve();
-            this.musicState('loop',this.music.revision,{contextTime:at});
-          }
-          else {
-            this.musicFlushEvents();
-            this.seq.cutNotes(); this.paused=true;
-            this.musicState('ended',this.music.revision,{contextTime:at}); L.fill(0,i); return;
-          }
-        }
-        if(this.seq.observations)this.seq.observations.contextTime=at;
-      }
-      this.seq.render(L,i,1);
-      // Output-only correction: retain every APU/sample clock and event. The
-      // first changed sample meets the previous output exactly; the offset
-      // reaches zero on sample 64. No-op activations never start a correction.
-      if(this.musicDeclickStart) {
-        this.musicDeclickOffset=this.musicLastSample-L[i];
-        this.musicDeclickLeft=64; this.musicDeclickStart=false;
-      }
-      if(this.musicDeclickLeft>0) {
-        L[i]=this.musicDeclickLeft===64 ? this.musicLastSample :
-          L[i]+this.musicDeclickOffset*(this.musicDeclickLeft-1)/63;
-        this.musicDeclickLeft--;
-      }
-      this.musicLastSample=L[i];
-    }
-    this.musicFlushEvents();
-  }
   // Report the level back about twice a second. Silence that should not be
   // silent is the failure mode this whole change guards against, and it is
   // invisible from the page otherwise.
@@ -1646,7 +1233,6 @@ class GbChipProcessor extends AudioWorkletProcessor {
     this.blocks = (this.blocks || 0) + 1;
     if (this.blocks >= 40) {
       this.port.postMessage({ type: 'stat', peak: this.peak, frame: frame, mode: this.mode });
-      if(this.music) this.musicState('position',this.music.revision);
       this.peak = 0; this.blocks = 0;
     }
   }
@@ -1674,11 +1260,6 @@ class GbChipProcessor extends AudioWorkletProcessor {
       return true;
     }
     if (!this.seq || this.paused) { L.fill(0); if (R) R.fill(0); return true; }
-    if(this.music) {
-      try { this.musicRender(L); }
-      catch(e) { this.paused=true; L.fill(0); this.musicState('error',this.music.revision,{message:String(e.message||e)}); }
-      if(R) R.set(L); this.report(L,this.seq.frame); return true;
-    }
     if (this.loopFrames && this.seq.frame >= this.loopFrames) this.seq.rewind();
     if (this.pokeOffs) {
       for (var pc = 0; pc < 4; pc++) {

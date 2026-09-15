@@ -222,40 +222,6 @@ const TOOLS = [
     run: (a) => writeFileArg(a.path, api.toMidi(resolveDoc(a.song)), 'MIDI')
   },
   {
-    name: 'export_lsdsng',
-    description: 'Write the song as an LSDj .lsdsng -- one song, the unit LSDj musicians pass around. Notes arrive laid out in phrases and chains with the tempo and the groove, so somebody who writes on a Game Boy gets an arrangement to build on instead of a blank screen. Relay the `warnings`: they say what did NOT survive the trip (drums move to the noise channel, and instrument voicing is left stock on purpose).',
-    inputSchema: { type: 'object', properties: { song: { type: 'string' }, path: { type: 'string' }, name: { type: 'string', description: 'up to 8 characters, LSDj\'s own alphabet' } }, required: ['song', 'path'], additionalProperties: false },
-    run: (a) => {
-      const r = api.toLsdsng(resolveDoc(a.song), { name: a.name });
-      const w = writeFileArg(a.path, r.bytes, 'LSDj song');
-      return Object.assign({}, w, {
-        phrases: r.phrases, chains: r.chains, notes: r.notes,
-        tempo: r.tempo, groove: r.groove, warnings: r.warnings
-      });
-    }
-  },
-  {
-    name: 'export_lsdj_cart',
-    description: 'Fill a Game Boy cartridge with starting points: an LSDj .sav holding up to 32 songs, ready to copy onto a flash cart. The fastest route from wanting to write something to actually writing, because every slot already has an arrangement in it. Relay the warnings.',
-    inputSchema: { type: 'object', properties: {
-      songs: { type: 'array', items: { type: 'string' }, description: 'song ids or documents' },
-      scenes: { type: 'array', items: { type: 'string' }, description: 'or compose one per scene' },
-      seconds: { type: 'number' }, path: { type: 'string' }
-    }, required: ['path'], additionalProperties: false },
-    run: (a) => {
-      const docs = (a.songs && a.songs.length)
-        ? a.songs.map(resolveDoc)
-        : (a.scenes || ['title', 'overworld', 'battle', 'boss', 'cave', 'town', 'victory', 'game_over'])
-            .map(scene => api.brief({ scene, seconds: a.seconds || 30 }).doc);
-      const cart = api.toLsdjSav(docs, {});
-      const w = writeFileArg(a.path, cart.bytes, 'LSDj save');
-      return Object.assign({}, w, {
-        songs: cart.songs, titles: cart.titles,
-        blocksUsed: cart.blocksUsed, blocksFree: cart.blocksFree, warnings: cart.warnings
-      });
-    }
-  },
-  {
     name: 'variations',
     description: 'Compose n different songs for the same brief and return them all, UNRANKED and unselected, in the order composed. Nothing scores them for you: pick with describe(), or play them. Composition is about 1.6 ms, so asking for twenty is reasonable.',
     inputSchema: {

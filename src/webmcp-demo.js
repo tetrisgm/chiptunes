@@ -32,16 +32,14 @@
   // never entered its landing state -- in agent mode, where this panel demotes
   // to a bar, that left a person staring at an empty page.
   //
-  // The demo keeps its compatibility listening surface. The public root now
-  // opens composition, so use the explicit listening route instead.
-  // Rewriting to '/listen#webmcp' gives the app that route while
+  // Rewriting to '/#webmcp' gives the app the root route it understands while
   // keeping the demo addressable: the hash still matches onDemoRoute() above,
   // so a reload comes back here. This runs at bundle execution, which is before
   // runtime.js in the concatenation order -- doing it at mount would be too
   // late, since the app has booted by then.
   try {
     if (/^\/webmcp\/?$/.test(location.pathname) && history && history.replaceState)
-      history.replaceState(null, '', '/listen#webmcp');
+      history.replaceState(null, '', '/#webmcp');
   } catch (e) {}
 
   var CSS = [
@@ -122,9 +120,6 @@
     'Write me a dungeon theme like Castlevania, 40 seconds, no drums.',
     'Is that actually in a minor key? How busy is it?',
     'Give me a dozen boss themes to choose from, then play the third one.',
-    // The one that matters to somebody who writes on the hardware: a cart full
-    // of starting points is a different offer from a finished track.
-    'I write in LSDj. Fill a cartridge with starting points for me.',
     'Make it gloomier, then hand me the cartridge.'
   ];
 
@@ -165,7 +160,7 @@
     close.addEventListener('click', function () {
       root.remove();
       // drop the #webmcp too, or a reload reopens what was just closed
-      try { history.replaceState(null, '', '/listen'); } catch (e) {}
+      try { history.replaceState(null, '', '/'); } catch (e) {}
     });
     wrap.appendChild(close);
 
@@ -176,9 +171,6 @@
       'The composer and a register-level Game Boy sound chip are already running in this page. ' +
       'That means an agent can write music here with no API key, no account and nothing metered — ' +
       'and a song takes 1.6 ms, so it can afford to write twenty and let you pick.'));
-    wrap.appendChild(el('p', null,
-      'If you write in LSDj: it exports .lsdsng, and it will fill a whole .sav — a starting point ' +
-      'in every slot, phrases and chains and groove intact, ready to copy onto a flash cart.'));
     wrap.appendChild(el('p', null,
       'The station is playing behind this panel. Close it at any time; every tool below moves that same ' +
       'session, so you and the agent are never looking at different things.'));
@@ -335,9 +327,6 @@
       ['make it gloomier', 'chiptunes_variant', { mood: 'darker' }],
       ['share link', 'chiptunes_export', { format: 'link' }],
       ['.gb cartridge', 'chiptunes_export', { format: 'rom' }],
-      ['LSDj song', 'chiptunes_export', { format: 'lsdsng' }],
-      ['LSDj cartridge (8 songs)', 'chiptunes_lsdj_cart',
-       { scenes: ['title', 'overworld', 'battle', 'boss', 'cave', 'town', 'victory', 'game_over'], seconds: 30 }],
       ['MIDI file', 'chiptunes_export', { format: 'midi' }],
       ['now playing', 'chiptunes_now_playing', {}]
     ].forEach(function (spec) {
@@ -366,7 +355,7 @@
     var t2 = 0, tt = setInterval(function () { paintTools(); if (grid.childNodes.length || ++t2 > 40) clearInterval(tt); }, 250);
 
     var foot = el('div', 'foot');
-    [['The station', '/'], ['Source (MIT)', 'https://github.com/tetrisgm/chiptunes'],
+    [['The station', '/'], ['Source (MIT)', 'https://github.com/VaporWorks/chiptunes'],
      ['How it was built', '/docs/WEBMCP.md']].forEach(function (l) {
       var a = el('a', null, l[0]); a.href = l[1]; foot.appendChild(a);
     });

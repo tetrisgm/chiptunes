@@ -12,12 +12,6 @@
 (function (G) {
   'use strict';
 
-  // The groove maths lives in gb-hardware, and this file reads it at load time,
-  // so under Node it has to be pulled in HERE rather than left to whichever
-  // gate happened to require it first. It always was ordered that way by luck;
-  // the luck ran out the moment anything required create.js on its own.
-  if (typeof module !== 'undefined' && module.exports && !G.CT_GB) require('./gb-hardware.js');
-
   var FPS = 59.7275;
   var FRAME_CYCLES = 70224;               // master cycles in one LCD frame
   var MAJOR = [0, 2, 4, 5, 7, 9, 11];
@@ -243,13 +237,8 @@
   // asks spb() now, because a bar is not a fixed number of columns any more.
   var GRIDS = [16, 24, 32];
   function freshState() {
-    // `tempoAt` is a list of [row, tempo] -- LSDj's T command, a tempo change
-    // partway through a song. `master` is its M command, NR50's master volume,
-    // which is song-wide rather than a note's. Both are empty for anything this
-    // app composes; they exist so a song somebody else wrote survives import.
     return { key: 0, minor: 0, bars: 4, bpm: 128, swing: 0, grid: 16,
-             cells: [], cur: 'piano', cmd: 0, wob: 0, title: '',
-             tempoAt: [], master: null };
+             cells: [], cur: 'piano', cmd: 0, wob: 0, title: '' };
   }
   function spb() { return (S && S.grid) || 16; }
   function cols() { return S.bars * spb(); }
@@ -268,88 +257,12 @@
     var d = (MEL_ROWS - 1) - r;              // degree from the bottom
     return 48 + S.key + scaleArr()[d % 7] + 12 * Math.floor(d / 7);
   }
-  // ---- TIME IS TICKS, AND A GROOVE IS THE ONLY WAY TO BEND IT --------------
-  //
-  // The hardware has no fractional frames. A step lasts an INTEGER number of
-  // them. That is not a simplification, it is the whole timing model of every
-  // Game Boy tracker, because it is the only thing the machine can do.
-  //
-  // This used to be a float: framesPer16() returned 6.27 and colFrame() rounded
-  // the running total, so a "6.27 frame step" was really some steps of 6 frames
-  // and some of 7, in whatever pattern the rounding happened to produce. That is
-  // swing nobody asked for, it drifted with tempo, and it meant our tempi were
-  // not reachable on the machine at all -- measured across 40 songs, only 7 sat
-  // within a tenth of a frame of an integer step.
-  //
-  // A GROOVE is that unevenness made deliberate: a short repeating list of tick
-  // counts. It is how a tracker reaches a tempo between the rungs of the ladder,
-  // and it is how feel is expressed. Both jobs, one mechanism.
-  //
-  // Four steps is the longest groove used here on purpose. It gives quarter-of-
-  // a-frame resolution on tempo, which is finer than the ear, and it stays a
-  // pattern you could read off a screen. Eight would reach finer tempi and start
-  // to sound like a limp.
-  // ⚠️ ONLY TWO SHAPES ARE ALLOWED, AND THAT IS THE WHOLE POINT.
-  //
-  // The first version of this reached any tempo by making k of every four steps
-  // one tick longer, which is arithmetically neat and musically wrong. A
-  // four-step pattern with one odd step out -- [6,7,7,7], [5,5,5,6] -- is a
-  // LIMP, and the ear locks onto anything that repeats every bar. It landed on
-  // 51 songs out of 60, one step up to 19% off the average, and it is what made
-  // the station sound worse after the tick rewrite than before it.
-  //
-  // The float rounding it replaced spread the same total error quasi-randomly
-  // across steps, so it never formed a pattern and never became audible. That is
-  // the thing to preserve: not the drift, but the absence of a repeating shape.
-  //
-  // So: [n] is even, and [n, n+1] is a symmetric alternation -- a mild shuffle,
-  // which is a real feel a musician would choose. Nothing lopsided.
-  var grooveSpread = G.CT_GB.grooveSpread;
-  // CHOSEN BY SEARCH, not by arithmetic, because the answer has to be a tempo
-  // the DOCUMENT can hold as well as one the machine can play. Rounding
-  // straight to the nearest groove put bpm 70 on a 32nd grid at 68.9, which is
-  // below the storable minimum -- the header wrote a negative offset, it wrapped
-  // through the mask, and the song came back at 179. So: enumerate the grooves
-  // around the target, discard any whose tempo cannot be represented, and keep
-  // the closest of what remains.
-  // ⚠️ ALL FOUR LIVE IN gb-hardware.js NOW, and these are the editor's handles
-  // on them. They used to be written out here as well, which is two
-  // implementations of the clock -- and the composer needed the same maths the
-  // moment swing stopped being a nudge and became a groove. Two copies of a
-  // clock is how a player comes to disagree with its own exporter.
-  var grooveFor = G.CT_GB.grooveFor;
-  var bpmOfGroove = G.CT_GB.bpmOfGroove;
-  // ⚠️ THE CLOCK IS LSDJ'S NOW, and a groove is in TICKS. Measured off the real
-  // ROM: ticks per second = 0.4 x TEMPO, so six ticks a row makes TEMPO ordinary
-  // bpm with four rows to the beat, and a shuffle is a pair summing to twelve.
-  //
-  // What this replaces is a groove measured in FRAMES plus an eight-rung ladder
-  // of the tempi that divide evenly into frames. LSDj has no such ladder: it
-  // runs an accumulator and reaches every integer tempo, spending the leftover
-  // as a mix of two whole frame counts. Our ladder was therefore offering LESS
-  // than the machine, which is the one thing parity does not allow.
-  function grooveTicks() {
-    if (!S._groove || S._groove.bpm !== S.bpm || S._groove.sw !== S.swing || S._groove.spb !== spb())
-      S._groove = { bpm: S.bpm, sw: S.swing, spb: spb(), g: G.CT_GB.lsdjGrooveTicks(S.swing, spb()) };
-    return S._groove.g;
-  }
-  var groove = grooveTicks;
-  // frames in ONE STEP -- the average over the groove, for note lengths
-  function framesPer16() { return G.CT_GB.lsdjFramesPerRow(S.bpm, grooveTicks()); }
-  // ⚠️ PIECEWISE, because the tempo can change partway through. With no changes
-  // this is one call and behaves exactly as it always did; with them the frame
-  // of a row is the sum over the segments before it. LSDj's T command is the
-  // only thing that produces them, so nothing this app composes takes the slow
-  // path.
+  // frames in ONE STEP -- a bar is four beats however many steps it is cut into
+  function framesPer16() { return (60 / S.bpm) * 4 / spb() * FPS; }
   function colFrame(c) {
-    var g = grooveTicks(), chg = S.tempoAt;
-    if (!chg || !chg.length) return G.CT_GB.lsdjRowFrame(S.bpm, g, c);
-    var f = 0, cur = S.bpm, at = 0, i;
-    for (i = 0; i < chg.length && chg[i][0] < c; i++) {
-      f += G.CT_GB.lsdjRowFrame(cur, g, chg[i][0] - at);
-      cur = chg[i][1]; at = chg[i][0];
-    }
-    return f + G.CT_GB.lsdjRowFrame(cur, g, c - at);
+    var f = c * framesPer16();
+    if (S.swing && (c % 4) >= 2) f += 0.28 * framesPer16();   // swung eighth pair
+    return Math.round(f);
   }
   // WHERE A NOTE ACTUALLY STARTS. The grid is where you place notes by hand;
   // a note may also carry an offset in frames, which is how a composed song
@@ -467,7 +380,7 @@
       var here = byCol[c] || [];
       here.sort(function (a, b) { return (a.t || 0) - (b.t || 0); });
       here.forEach(function (x) {
-        if (x.vel === 0 && !x.nt) { x.rch = x.r >= MEL_ROWS ? 3 : x.rch; return; }   // native zero-volume triggers still change state
+        if (x.vel === 0) { x.rch = x.r >= MEL_ROWS ? 3 : x.rch; return; }   // volume zero: a rest that keeps its place
         if (x.r >= MEL_ROWS) {                              // drum lane
           var d = DRUMS[x.r - MEL_ROWS];
           var dF = cellFrame(x), dLen = Math.max(2, Math.round(per * (x.len || 0.6)));
@@ -508,13 +421,11 @@
         if (!voice || voice === 'noise') { x.x = 1; return; }
         var steps = x.len ? x.len : (x.w ? 8 : 0.96);
         var totalF = x.lf ? Math.max(1, x.lf | 0) : Math.max(2, Math.round(per * steps) - 1);
-        if (x.nt && !x.lf) totalF = Math.max(1, colFrame(c + steps) - cellFrame(x));
         var mInst = instOf(x, voice === 'wave' ? 2 : (x.ch === 1 ? 1 : 0));
         var note = { frame: cellFrame(x), frames: totalF, det: x.dt | 0,
                      midi: x.midi != null ? x.midi : rowMidi(x.r),
                      inst: mInst != null ? mInst : (x.inst != null ? x.inst : INSTOF[x.st]),
                      vel: x.vel != null ? x.vel : 0.8, pri: 5 };
-        if (x.nt) note.trigger = x.nt === 1;
         if (voice === 'wave') {
           if (!voiceFree(2, note.frame, note.frame + totalF)) { x.x = 1; return; }
           claim(2, note.frame, note.frame + totalF); note.ch = 2; x.rch = 2;
@@ -559,9 +470,6 @@
       });
     }
     notes.sort(function (a, b) { return a.frame - b.frame; });
-    notes.forEach(function (n) {
-      if (n.trigger != null && n.ch < 2) moves.vibOff.push({ f: n.frame, ch: n.ch });
-    });
     panWrites(moves.pan, moves.auto);
     // What this song would cost a 32KB cartridge. The export throws when it
     // does not fit, and a toast after the click is a poor way to learn.
@@ -574,11 +482,7 @@
                }, 0);
     moves.auto.sort(function (a, b) { return a.f - b.f; });
     var total = Math.round(cols() * per);
-    // M, LSDj's master volume, arrives as a document field and leaves as the
-    // score's gain -- the same knob the player already honours for a composed
-    // score, so nothing downstream needed teaching.
     return { notes: notes, bank: songBank || BANK, totalFrames: total,
-             gainScalar: S.master == null ? undefined : Math.max(0.05, Math.min(1, (S.master + 1) / 16)),
              auto: moves.auto, vibOff: moves.vibOff, waveLoads: moves.waveLoads,
              kit: moves.kit, loopFrames: total };
   }
@@ -621,43 +525,19 @@
     // v13: the TITLE rides inside the document. Names are derived from a token
     // and a document has no token, so without this a song opens under a
     // different name than the one the sender was looking at when they shared it.
-    // The round trip is a fixed point because the tempo is simply CARRIED now.
-    // It used to be snapped on both sides -- a document was born on an
-    // eight-rung ladder, because a row had to be a whole number of frames. LSDj
-    // proved that wrong: it accumulates, so every integer tempo is playable and
-    // the rows come out as a mix of two frame counts. Nothing to snap to.
-    var bpm = Math.max(70, Math.min(180, S.bpm | 0));
-    // v14: a tempo-change list and a master volume, so a song that uses LSDj's
-    // T or M commands survives import. Both are empty for anything composed
-    // here, and a document with neither encodes IDENTICALLY to v13 apart from
-    // the version byte -- so the new fields cost nothing when they are unused.
-    var tAt = (S.tempoAt || []).filter(function (p2) {
-      return p2 && p2.length === 2 && p2[0] >= 0 && p2[1] >= 40 && p2[1] <= 255;
-    }).slice(0, 63);
-    // v15 carries native pulse trigger state; ordinary documents stay v13/14.
-    var nativeTriggers = S.cells.some(function (x) { return !!x.nt; });
-    var out = [nativeTriggers ? 15 : tAt.length || S.master != null ? 14 : 13,
-               S.key, S.minor, S.bars & 63, (bpm - 70) & 63,
-               S.swing | (((bpm - 70) >> 6) << 1), (S.bars >> 6) & 63,
+    var out = [13, S.key, S.minor, S.bars & 63, (S.bpm - 70) & 63,
+               S.swing | (((S.bpm - 70) >> 6) << 1), (S.bars >> 6) & 63,
                Math.max(0, GRIDS.indexOf(spb()))];
     var t = String(S.title || '').slice(0, 48);
     out.push(t.length & 63);
     for (var ti = 0; ti < t.length; ti++) out.push(TITLE_A.indexOf(t.charAt(ti)) + 1 & 63);
-    if (out[0] >= 14) {
-      out.push((S.master == null ? 0 : (S.master & 15) + 1) & 63);
-      out.push(tAt.length & 63);
-      for (var qi = 0; qi < tAt.length; qi++)
-        out.push(tAt[qi][0] & 63, (tAt[qi][0] >> 6) & 63,       // row, 12 bits
-                 tAt[qi][1] & 63, (tAt[qi][1] >> 6) & 3);       // tempo, 8 bits
-    }
     S.cells.forEach(function (x) {
       var st = x.r >= MEL_ROWS ? 15 : (x.st && x.st.charAt(0) === 'i' ? 14 : Math.max(0, ids.indexOf(x.st)));
       var ext = x.inst != null || x.vel != null || x.midi != null || (x.len || 1) > 1 || x.sweep != null || x.ch != null;
       var snd = x.dy != null || x.fd != null || x.wv != null || x.nz != null || x.ns != null;
       var mov = !!(x.vb || x.sq || x.mp || x.pn || x.gl || x.kt || x.dt || x.of || x.lf);
-      var cmd = (x.u ? 1 : x.q ? 2 : x.g ? 3 : x.f ? 4 : 0) | (snd ? 8 : 0) | (mov ? 16 : 0) | (x.nt ? 32 : 0);
+      var cmd = (x.u ? 1 : x.q ? 2 : x.g ? 3 : x.f ? 4 : 0) | (snd ? 8 : 0) | (mov ? 16 : 0);
       out.push(x.c & 63, (x.c >> 6) & 63, x.r | (x.z ? 32 : 0), st | (x.w ? 16 : 0) | (ext ? 32 : 0), cmd);
-      if (x.nt) out.push(x.nt & 3);
       if (ext) {
         var ip1 = x.inst != null ? x.inst + 1 : 0;           // 0 = no exact instrument
         var midi = x.midi != null ? (x.midi | 0) : 0;
@@ -688,7 +568,7 @@
     try {
       var v = []; for (var i = 0; i < str.length; i++) { var ix = B64.indexOf(str[i]); if (ix < 0) return null; v.push(ix); }
       var ver = v[0];
-      if (ver < 1 || ver > 15) return null;
+      if (ver < 1 || ver > 13) return null;
       var st2 = freshState();
       st2.key = v[1] % 12; st2.minor = v[2] & 1;
       st2.bars = ver === 1 ? ([2, 4, 8].indexOf(v[3]) >= 0 ? v[3] : 4)
@@ -698,18 +578,6 @@
                           : Math.max(70, Math.min(180, ver >= 5 ? 70 + v[4] * 2 : v[4] * 2));
       st2.swing = v[5] & 1;
       st2.grid = ver >= 12 ? (GRIDS[v[7]] || 16) : ver >= 9 ? (GRIDS[v[6]] || 16) : 16;
-      // TEMPO IS SNAPPED TO WHAT THE MACHINE CAN ACTUALLY HOLD. A document may
-      // carry any bpm; what it gets is the nearest groove the hardware can play,
-      // and the state has to report the tempo it PLAYS rather than the one it was
-      // asked for. Reporting the asked-for number is how a player comes to
-      // disagree with its own clock.
-      // ⚠️ NO LONGER SNAPPED. A document used to be pulled onto an eight-rung
-      // ladder of tempi whose rows divide evenly into frames, on the way in AND
-      // on the way out, so the round trip stayed a fixed point. LSDj has no such
-      // ladder -- it runs an accumulator and plays every integer tempo -- so the
-      // snap was throwing away 103 of the 111 tempi in our own range and telling
-      // the user it was a hardware limit. It was ours.
-      st2.groove = G.CT_GB.lsdjGrooveTicks(st2.swing, st2.grid);
       var head = ver >= 12 ? 8 : ver >= 9 ? 7 : 6;
       if (ver >= 13) {                       // the title block, then the cells
         var tn = v[head] | 0, tt = '';
@@ -719,22 +587,6 @@
         }
         st2.title = tt.trim();
         head += 1 + tn;
-      }
-      // v14's two extra song-level fields, after the title and before the cells.
-      // A v13 document simply has neither, which is why the version guards the
-      // read rather than a flag inside it.
-      if (ver >= 14) {
-        var mv = v[head] | 0;
-        st2.master = mv > 0 ? (mv - 1) & 15 : null;
-        var tc2 = v[head + 1] | 0;
-        head += 2;
-        st2.tempoAt = [];
-        for (var qj = 0; qj < tc2; qj++) {
-          var row = (v[head] | 0) | ((v[head + 1] | 0) << 6);
-          var tmp = (v[head + 2] | 0) | (((v[head + 3] | 0) & 3) << 6);
-          if (tmp >= 40 && tmp <= 255) st2.tempoAt.push([row, tmp]);
-          head += 4;
-        }
       }
       var ids = STAMPS.map(function (s) { return s.id; });
       if (ver === 1) {
@@ -760,7 +612,6 @@
             if (cc && r2 < MEL_ROWS + DRUM_LANES) cell2[cc] = 1;
             k += 1;
           }
-          if (ver >= 15 && (cmdRaw & 32)) cell2.nt = v[k++] & 3;
           if (ver >= 3 && (b2 & 32) && k + 5 < v.length + 1) {
             var e1 = v[k + 1];
             var rawInst = v[k] | ((e1 & 3) << 6);
@@ -842,7 +693,6 @@
       var m = { ch: n.ch, frame: n.frame - f0, frames: Math.min(n.frames, f1 - n.frame),
                 midi: n.midi, inst: n.inst, vel: n.vel, pri: n.pri };
       if (n.sweep) m.sweep = n.sweep;
-      if (n.trigger != null) m.trigger = n.trigger;
       notes.push(m);
     });
     return { notes: notes, bank: song.bank, totalFrames: f1 - f0, loopFrames: f1 - f0 };
@@ -870,7 +720,6 @@
   // The editor owns the address bar while it is open: a refresh has to land
   // back here, with the song intact.
   function ownRoute(enc) {
-    if(G.CT_MUSIC_WORKSPACE&&G.CT_MUSIC_WORKSPACE.isOpen())return;
     var want = '/create' + (enc ? '#s=' + enc : (location.hash || ''));
     if (location.pathname + location.hash === want) return;
     try { history.replaceState(null, '', want); } catch (e) {}
@@ -1038,37 +887,70 @@
       Audio.playCreate({ notes: [], bank: BANK, totalFrames: 0x7fffffff }, 0);
   }
 
-  // Mood chips and written prompts share the public interpreter. A failed
-  // request is reported before replacing the current document.
-  var promptError = '';
-  // The reading arrives as two parts: the interpretation the writer asked for,
-  // which they want to see, and the caveats about what could NOT be applied,
-  // which they want only when something reads wrong. One 3.8em scroll box on a
-  // phone buried the first behind the second. Show the primary line always and
-  // fold the caveats into an expandable summary. A plain string -- an error,
-  // say -- is shown as the primary line alone, unchanged from before.
-  function promptFeedback(msg) {
-    var el = root && root.querySelector('.n-prompt-result');
-    if (!el) return;
-    el.textContent = '';
-    if (!msg) return;
-    var primary = typeof msg === 'string' ? msg : (msg.primary || '');
-    var detail = typeof msg === 'string' ? '' : (msg.detail || '');
-    var p = document.createElement('p');
-    p.className = 'npr-primary';
-    p.textContent = primary;
-    el.appendChild(p);
-    if (detail) {
-      var d = document.createElement('details');
-      d.className = 'npr-more';
-      var sm = document.createElement('summary');
-      sm.textContent = (typeof msg === 'string' ? '' : msg.summary) || 'Full interpretation';
-      var body = document.createElement('p');
-      body.className = 'npr-detail';
-      body.textContent = detail;
-      d.appendChild(sm); d.appendChild(body);
-      el.appendChild(d);
-    }
+  // ---- moods: words -> the composer's own dials ----------------------------
+  var MOOD = {
+    happy: { mode: 'maj', bpmMin: 110 }, cheerful: { mode: 'maj', bpmMin: 110 }, joyful: { mode: 'maj', bpmMin: 110 },
+    sunny: { mode: 'maj', bpmMin: 104 }, bright: { mode: 'maj', bpmMin: 104 }, fun: { mode: 'maj', bpmMin: 110 },
+    sad: { mode: 'min' }, melancholy: { mode: 'min' }, blue: { mode: 'min' },
+    gloomy: { mode: 'min' }, lonely: { mode: 'min' }, moody: { mode: 'min' },
+    dark: { mode: 'min', styles: ['techno', 'dnb', 'funk', 'boombap'] },
+    spooky: { mode: 'min', styles: ['techno', 'funk', 'boombap', 'ballad'] },
+    creepy: { mode: 'min', styles: ['techno', 'funk', 'boombap', 'ballad'] },
+    scary: { mode: 'min', styles: ['techno', 'dnb', 'punk'] },
+    haunted: { mode: 'min', styles: ['ballad', 'drone', 'techno'] },
+    fast: { bpmMin: 145 }, quick: { bpmMin: 145 }, hyper: { bpmMin: 155 },
+    frantic: { bpmMin: 155 }, racing: { bpmMin: 150 }, speedy: { bpmMin: 150 },
+    slow: { bpmMax: 100 }, lazy: { bpmMax: 100 }, sleepy: { bpmMax: 92 },
+    upbeat: { bpmMin: 124, mode: 'maj' }, energetic: { bpmMin: 132 },
+    party: { styles: ['house', 'trance', 'anthem'] },
+    dance: { styles: ['house', 'trance', 'anthem', 'techno'] },
+    bouncy: { styles: ['house', 'breaks', 'funk'] },
+    chill: { styles: ['chill', 'ballad'] }, calm: { styles: ['chill', 'ballad', 'drone'] },
+    relaxed: { styles: ['chill', 'ballad'] }, mellow: { styles: ['chill', 'ballad'] },
+    peaceful: { styles: ['chill', 'ballad', 'drone'] }, cozy: { styles: ['chill', 'boombap'] },
+    dreamy: { styles: ['drone', 'ballad', 'trance'] }, ambient: { styles: ['drone'] },
+    floaty: { styles: ['drone', 'trance'] },
+    epic: { styles: ['anthem'] }, heroic: { styles: ['anthem'], mode: 'maj' },
+    triumphant: { styles: ['anthem'], mode: 'maj' },
+    retro: { styles: ['arcade'] }, arcade: { styles: ['arcade'] }, game: { styles: ['arcade'] },
+    rock: { styles: ['rock', 'punk'] }, punk: { styles: ['punk'] }, metal: { styles: ['punk', 'rock'] },
+    funky: { styles: ['funk', 'boombap'] }, groovy: { styles: ['funk', 'house', 'boombap'] },
+    swing: { styles: ['funk', 'boombap', 'house', 'breaks'] },
+    jazzy: { styles: ['funk', 'boombap', 'chill'], mode: 'min' },
+    battle: { styles: ['dnb', 'punk', 'techno'], mode: 'min' },
+    boss: { styles: ['dnb', 'techno', 'punk'], mode: 'min' },
+    intense: { bpmMin: 140, mode: 'min' },
+    house: { styles: ['house'] }, trance: { styles: ['trance'] }, techno: { styles: ['techno'] },
+    dnb: { styles: ['dnb'] }, drum: { styles: ['dnb'] }, breaks: { styles: ['breaks'] },
+    anthem: { styles: ['anthem'] }, boombap: { styles: ['boombap'] }, hiphop: { styles: ['boombap'] },
+    ballad: { styles: ['ballad'] }, drone: { styles: ['drone'] }, funk: { styles: ['funk'] }
+  };
+  function parseMood(text) {
+    var want = { styles: null, mode: null, bpmMin: 0, bpmMax: 999 };
+    String(text || '').toLowerCase().split(/[^a-z]+/).forEach(function (w) {
+      var m = MOOD[w]; if (!m) return;
+      if (m.mode) want.mode = m.mode;
+      if (m.bpmMin) want.bpmMin = Math.max(want.bpmMin, m.bpmMin);
+      if (m.bpmMax) want.bpmMax = Math.min(want.bpmMax, m.bpmMax);
+      if (m.styles) {
+        if (!want.styles) want.styles = m.styles.slice();
+        else {
+          var both = want.styles.filter(function (x) { return m.styles.indexOf(x) >= 0; });
+          want.styles = both.length ? both : want.styles.concat(m.styles);
+        }
+      }
+    });
+    return want;
+  }
+  function composeMood(moodText) {
+    var C = (G.CT_COMPOSERS && G.CT_COMPOSERS.rrr_core) || null;
+    if (!C || typeof C.compile !== 'function') return null;
+    var tok = (G.Song && G.Song.mint) ? G.Song.mint() : Math.random().toString(36).slice(2, 18);
+    var score = null;
+    try { score = C.compile(tok, parseMood(moodText)); } catch (e) { return null; }
+    if (!score || !score.gb || !score.gb.notes || !score.gb.notes.length) return null;
+    score._tok = tok;
+    return score;
   }
 
   // The dice and the mood box compose a REAL track: the same composer the
@@ -1079,19 +961,17 @@
   // with the editor; importScore fills whatever state is current, so the
   // radio can materialise a song without the editor being open at all.
   function composeIntoGrid(moodText, auto) {
-    var made = moodSong(moodText);
-    var st = made && decode(made.code);
-    if (!st) { promptFeedback(promptError || 'Could not compose that request. Your song is unchanged.'); return false; }
     if (!auto) tourAdvance(3);
     if (auto) dropLiveScore(); else snapshot();
     resolveBank();
-    S = st; order = S.cells.length;
-    liveScore = made.gb;
-    liveBpm = made.bpm;
-    var bpmLabel = root && root.querySelector('.n-bpmval');
-    var bpmSlider = root && root.querySelector('[data-cr="bpm"]');
-    if (bpmLabel) bpmLabel.textContent = S.bpm;
-    if (bpmSlider) bpmSlider.value = S.bpm;
+    var score = composeMood(moodText);
+    var gb = score && score.gb;
+    if (!gb || !gb.notes || !gb.notes.length) return;
+    importScore(score, moodText);
+    var capF = Math.round(S.bars * spb() * framesPer16());   // the verbatim score, same length
+    liveScore = { notes: gb.notes.filter(function (n) { return n.frame < capF; }),
+                  bank: gb.bank, totalFrames: Math.min(gb.totalFrames, capF), loopFrames: 0 };
+    liveBpm = score.bpm || S.bpm;
     liveMood = String(moodText || '');
     try { buildSong(); } catch (e) {}          // resolve channel marks
     loopBar = -1; queuedBar = null;
@@ -1101,8 +981,6 @@
     dirty();
     startPlayback(0);   // after dirty: its clearTimeout cancels the queued repost,
                         // which used to seek past the song's first notes
-    promptFeedback({ primary: made.readingPrimary || made.reading, detail: made.readingDetail || '', summary: made.readingSummary });
-    return true;
   }
   // Fill the CURRENT state from a composed Score. Everything here reads S, so
   // withState() is how it is pointed at a scratch song instead of the editor's.
@@ -1151,11 +1029,13 @@
     // of loss when a composed song came in -- a hundred notes of a long song
     // simply gone. Playback has no reason to stop at a bar count; only the
     // cartridge does, and checkRoom() says so while there is time to act.
-    S.key = ((keyRoot % 12) + 12) % 12; S.minor = scl.indexOf(3) >= 0 ? 1 : 0;
+    S.key = 0; S.minor = scl.indexOf(3) >= 0 ? 1 : 0;
     S.bars = Math.max(1, Math.ceil((gb.totalFrames || winF) / (spb() * per16f)));
     // the EXACT tempo, not the nearest even one: rounding it moved every note
     // in the song, which is most of why an imported song stopped matching
     S.bpm = Math.max(70, Math.min(180, Math.round(score.bpm || 120)));
+    var bv0 = root && root.querySelector('.n-bpmval');
+    if (bv0) { bv0.textContent = S.bpm; var sl0 = root.querySelector('[data-cr="bpm"]'); if (sl0) sl0.value = S.bpm; }
     S.cells = []; order = 0;
     var sorted = gb.notes.slice().sort(function (a, b) { return a.frame - b.frame || (b.pri || 0) - (a.pri || 0); });
     var LANE = { 9: 2, 7: 1, 3: 0 };           // kick / snare / hat, by note priority
@@ -1231,44 +1111,20 @@
                 title: S.title || '', cells: S.cells.length };
       } catch (e) { out = null; }
     });
-    return (out && out.gb && Array.isArray(out.gb.notes)) ? out : null;
+    return (out && out.gb && out.gb.notes && out.gb.notes.length) ? out : null;
   }
-  // The station, editor chips, and written briefs use the same interpretation
-  // and resulting document. Optional token support makes this path reproducible
-  // without opening an editor or minting a different song for each caller.
-  function moodSong(moodText, opts) {
+  // A MOOD, STRAIGHT TO A SONG, with no editor open. The station's mood buttons
+  // and the editor's are the same act on the same machinery -- constrain one
+  // composition with the word, then materialise it as a document, which is
+  // what both views play. Exposed rather than duplicated so the two can never
+  // drift into meaning different things by the same name.
+  function moodSong(moodText) {
     resolveBank();
-    promptError = '';
-    try {
-      var api = G.CT_API;
-      if (!api || !api.ask) throw new Error('The song interpreter is unavailable in this build.');
-      var r = api.ask(String(moodText || ''), { brief: opts || {} });
-      if (!r.ok) { promptError = r.error; return null; }
-      var made = songOf(r.doc);
-      if (!made) throw new Error('That request produced no playable notes.');
-      // Split the reading so the panel shows a concise interpretation first and
-      // the rest on demand: a long brief (many traits + unsupported words) must
-      // not grow the status panel until it pushes the transport off a phone.
-      // The primary names the first few traits with a "+N more" count; the full
-      // list and the caveats live in the disclosure. `reading` stays the
-      // one-line form other callers (and existing tests) already read.
-      var applied = r.applied || [];
-      var shown = applied.slice(0, 3);
-      var extra = applied.length - shown.length;
-      made.readingPrimary = 'Read as: ' + shown.join(', ') + (extra > 0 ? ' +' + extra + ' more' : '');
-      var gaps = (r.skipped || []).concat(r.notUnderstood || []);
-      (r.unsupported || []).forEach(function (u) { gaps.push(u.asked + ': ' + u.why); });
-      var detailBits = [];
-      // Always retain the full reading: even one long reference description
-      // can exceed the primary's two-line display on a phone.
-      if (applied.length) detailBits.push('Read as: ' + applied.join('; '));
-      if (gaps.length) detailBits.push('Not applied: ' + gaps.join('; '));
-      made.readingDetail = detailBits.join('. ');
-      made.readingSummary = gaps.length ? gaps.length + ' not applied · full interpretation' : 'Full interpretation';
-      made.reading = 'Read as: ' + applied.join('; ') + (gaps.length ? '. Not applied: ' + gaps.join('; ') : '');
-      made.interpretation = r;
-      return made;
-    } catch (e) { promptError = String(e.message || e); return null; }
+    var score = composeMood(moodText);
+    if (!score) return null;
+    var nm = '';
+    try { nm = (G.Song && G.Song.title) ? G.Song.title(score._tok || '') : ''; } catch (e) {}
+    return songFrom(score, nm);
   }
   function songFrom(score, title) {
     resolveBank();
@@ -1359,35 +1215,6 @@
       if (G._toast) G._toast('Downloaded my-creation.mid');
     } catch (e) { if (G._toast) G._toast('MIDI export failed: ' + (e && e.message || e)); }
   }
-
-  // AN ARRANGEMENT TO KEEP WRITING, not a finished file to admire. What lands
-  // in LSDj is the notes, the phrases, the chains, the tempo and the groove; the
-  // voicing is deliberately left stock, because that is the part the musician
-  // receiving it is better at than we are. The toast says what did not survive
-  // rather than leaving it to be found by ear.
-  function exportLsdsng() {
-    try {
-      if (!G.CT_API || !G.CT_API.toLsdsng) { if (G._toast) G._toast('LSDj export is unavailable in this build'); return; }
-      var r = G.CT_API.toLsdsng(encode(), { name: (S.title || 'CHIPTUNE') });
-      _saveBlob(new Blob([r.bytes], { type: 'application/octet-stream' }), r.filename);
-      if (G._toast) G._toast('Downloaded ' + r.filename + ' \u2014 ' + r.phrases +
-        ' phrases, tempo ' + r.tempo + '. Drums move to noise; instruments are stock.', { ms: 4200 });
-    } catch (e) { if (G._toast) G._toast('LSDj export failed: ' + (e && e.message || e)); }
-  }
-
-  // ---- native LSDj structural editing (a separate authority) ---------------
-  // The native editor owns an imported .lsdsng/.sav as a NativeDocument; it does
-  // not read or write this Create document. Opening it stops Create's playback.
-  function openNative() {
-    if (!G.CT_LSDJ_NATIVE_EDITOR || !G.CT_LSDJ_NATIVE_EDITOR.pick) {
-      if (G._toast) G._toast('Native LSDj editing is unavailable in this build'); return;
-    }
-    try { G.CT_LSDJ_NATIVE_EDITOR.pick(); }
-    catch (e) { if (G._toast) G._toast('Could not open the file picker'); }
-  }
-  function stopForNative() { try { if (playing) pausePlayback(); } catch (e) {} }
-  function openNativeJson() { G.CT_LSDJ_NATIVE_EDITOR.pickJson(); }
-  function resumeNative() { G.CT_LSDJ_NATIVE_EDITOR.resume(); }
 
   // ---- hints + tour --------------------------------------------------------
   var hintTimer = 0, hintedSulk = false;
@@ -1622,8 +1449,6 @@
     var b = root.querySelector('[data-cr="play"]');
     if (b) {
       b.innerHTML = _pb(playing ? 'pause' : 'play');
-      b.setAttribute('aria-label', playing ? 'Pause song' : 'Play song');
-      b.setAttribute('aria-pressed', String(playing));
       b.classList.toggle('waiting', !playing && wantStart);
     }
   }
@@ -2299,9 +2124,6 @@
         '<span class="n-moodchips">' +
         CHIPS.map(function (c) { return '<button type="button" class="cr-chip" data-mood="' + c + '">' + c + '</button>'; }).join('') +
         '</span></div>' +
-      '<form class="n-prompt"><input class="cr-mood" aria-label="Describe your song" maxlength="500" placeholder="A dreamy cave theme in D minor, no drums" autocomplete="off">' +
-        '<button type="submit" class="cr-btn">Write song</button></form>' +
-      '<div class="n-prompt-result" role="status" aria-live="polite"></div>' +
       // ONE ROW THAT SCROLLS, not a wrapping block. Five pills do not fit
       // across a phone, and wrapping them cost a whole line of a screen that
       // is mostly song. This is the same nowrap + overflow-x treatment the
@@ -2309,28 +2131,11 @@
       '<div class="n-utils">' +
         '<button type="button" class="cr-btn" data-cr="undo">↩ Undo</button>' +
         '<button type="button" class="cr-btn" data-cr="redo">↪ Redo</button>' +
-        // The link is how a song made here is kept and heard elsewhere: closing
-        // the editor returns to the game/landing rather than handing this edit
-        // to the station, so the durable "listen to this" path is the link.
-        '<button type="button" class="cr-btn cr-dl" data-cr="share" aria-describedby="n-listenhelp" title="Copy a link that plays this exact song \u2014 how you keep it and listen anywhere">' + _ic('share') + 'Copy link</button>' +
+        '<button type="button" class="cr-btn cr-dl" data-cr="share">' + _ic('share') + 'Copy link</button>' +
         '<button type="button" class="cr-btn cr-dl" data-cr="wav">' + _ic('wave') + 'Download WAV</button>' +
         '<button type="button" class="cr-btn cr-dl" data-cr="rom">' + _ic('rom') + 'Download ROM</button>' +
-        // For the people who write on the hardware: an arrangement to open in
-        // LSDj and keep working on, rather than a finished thing to admire.
-        '<button type="button" class="cr-btn cr-dl" data-cr="lsdsng" title="One LSDj song: notes, phrases, chains, tempo and groove, ready to keep writing">' + _ic('rom') + 'Download LSDj</button>' +
         '<button type="button" class="cr-btn cr-dl" data-cr="midi" title="Standard MIDI, one track per voice">' + _ic('wave') + 'Download MIDI</button>' +
-        // OPEN, not download: a local .lsdsng or .sav whose NATIVE structure you
-        // edit byte-for-byte. Separate authority from this flattened score; it
-        // does not touch or re-export the document you are composing here.
-        '<button type="button" class="cr-btn" data-cr="opennative" title="Open a local .lsdsng or .sav and edit its native LSDj structure (no playback yet)">' + _ic('rom') + 'Open LSDj</button>' +
-        '<button type="button" class="cr-btn" data-cr="opennativejson">Open native JSON</button>' +
-        '<button type="button" class="cr-btn" data-cr="resumenative">Resume LSDj edit</button>' +
-        '<button type="button" class="cr-btn" data-cr="workspace">Compose</button>' +
       '</div>' +
-      // COMPACT VISIBLE LISTEN HELP. A tooltip does not show on a touch screen,
-      // so the two ways to hear or keep a song are stated as plain, visible
-      // text. This changes no close/play behaviour; it only names them.
-      '<p class="n-listenhelp" id="n-listenhelp">\u25B6 plays this song here. <b>Copy link</b> keeps it to play or share anywhere.</p>' +
       // CLOSE IS AN X IN THE CORNER, not a labelled button in the utility row.
       // It is the one control that LEAVES, every sheet puts it top-right, and
       // as a worded pill it read as one more export action. Outside both rows
@@ -2356,12 +2161,12 @@
       '<div class="n-transport">' +
         '<div class="n-tctrl">' +
           '<button type="button" class="n-tbtn" data-cr="rewind" title="Back to the start">' + _pb('prev') + '</button>' +
-          '<button type="button" class="n-tbtn n-play" data-cr="play" title="Play this song / Pause" aria-label="Play song" aria-pressed="false">' + _pb('play') + '</button>' +
+          '<button type="button" class="n-tbtn n-play" data-cr="play" title="Play / Pause">' + _pb('play') + '</button>' +
         '</div>' +
         '<button type="button" class="n-tfollow' + (camFollow ? ' on' : '') + '" data-cr="follow" ' +
           'title="Keep the view on the music">Follow</button>' +
         '<label class="cr-lab">Speed <b class="n-bpmval">' + S.bpm + '</b> BPM' +
-        '<input type="range" min="70" max="180" step="1" value="' + S.bpm + '" data-cr="bpm"></label>' +
+        '<input type="range" min="70" max="180" step="2" value="' + S.bpm + '" data-cr="bpm"></label>' +
         '<span class="cr-lab n-gridpick">Grid' + GRIDS.map(function (g) {
           return '<button type="button" class="n-gbtn" data-cr="grid' + g + '">' + g + '</button>';
         }).join('') + '</span>' +
@@ -2558,17 +2363,9 @@
   }
 
   function wireEvents() {
-    root.querySelector('.n-prompt').addEventListener('submit', function (ev) {
-      ev.preventDefault();
-      gestured = true; wantStart = false;
-      try { if (typeof Audio !== 'undefined' && Audio.resume) Audio.resume(true); } catch (e) {}
-      composeIntoGrid(root.querySelector('.cr-mood').value);
-    });
     // Space plays/pauses
     document.addEventListener('keydown', function (ev) {
       if (ev.code !== 'Space' || !isOpen() || ev.metaKey || ev.altKey || ev.ctrlKey) return;
-      if (G.CT_LSDJ_NATIVE_EDITOR && G.CT_LSDJ_NATIVE_EDITOR.isOpen()) return;
-      if (G.CT_MUSIC_WORKSPACE && G.CT_MUSIC_WORKSPACE.isOpen()) return;
       var tag = (ev.target && ev.target.tagName) || '';
       if (/^(INPUT|TEXTAREA|SELECT)$/.test(tag)) return;
       ev.preventDefault(); ev.stopPropagation();
@@ -2867,18 +2664,7 @@
       else if (k === 'share') { shareSong(b); }
       else if (k === 'wav') { exportWav(); }
       else if (k === 'rom') { exportRom(); }
-      else if (k === 'lsdsng') { exportLsdsng(); }
       else if (k === 'midi') { exportMidi(); }
-      else if (k === 'opennative') { openNative(); }
-      else if (k === 'opennativejson') { openNativeJson(); }
-      else if (k === 'resumenative') { resumeNative(); }
-      else if (k === 'livecoding') {
-        G.CT_MUSIC_WORKSPACE.open().catch(function(e){if(G._toast)G._toast(e.message);});
-      }
-      else if (k === 'workspace') {
-        var source=G.CT_MUSIC_LANGUAGE.materialize(liveScore||buildSong(),{tempo:S.bpm,bars:S.bars,title:S.title,tempoAt:S.tempoAt||[],stepsPerBar:spb(),swing:!!S.swing});
-        G.CT_MUSIC_WORKSPACE.open({source:source,explicit:true}).then(function(){if(G.CT_MUSIC_WORKSPACE.isOpen())root.classList.remove('show');}).catch(function(e){if(G._toast)G._toast(e.message);});
-      }
     });
     root.addEventListener('input', function (ev) {
       var b = ev.target.closest('[data-cr="bpm"]'); if (!b) return;
@@ -2998,7 +2784,7 @@
     closeSnd();
     if (root) root.classList.remove('show');
     document.body.classList.remove('create-open');
-    try { history.replaceState(null, '', typeof G._generatedRoute === 'function' ? G._generatedRoute() : '/listen'); } catch (e) {}
+    try { history.replaceState(null, '', '/'); } catch (e) {}
     following = false; owning = false;
     if (justAView) { if (G._closeCreateView) G._closeCreateView(); return; }
     if (G._closeCreateReturn) G._closeCreateReturn();
@@ -3013,8 +2799,6 @@
     return false;
   }
   G.CT_CREATE = { open: open, close: close, isOpen: isOpen, togglePlay: togglePlay, escape: escape,
-    // Entering the native structure editor silences Create's own playback.
-    stopForNative: stopForNative,
     // THE STATION'S SONGS ARE CREATE'S SONGS. songFrom() turns a composed Score
     // into a Create document -- a playable gb and the code that opens it in the
     // editor -- without the editor being open, so the radio can play documents
@@ -3037,21 +2821,6 @@
         withState(JSON.parse(JSON.stringify(state)), function () { out = encode(); });
       } catch (e) { out = null; }
       return out;
-    },
-    // EVERY INTEGER, because that is what LSDj plays. This used to return eight
-    // values -- the tempi whose rows divide evenly into whole frames -- and call
-    // them the ladder the machine imposes. Measuring the real ROM showed LSDj
-    // accumulates instead, spending the remainder as a mix of two frame counts,
-    // so it reaches all of them. The eight were ours, not the machine's.
-    tempos: function (grid) {
-      var out = [];
-      for (var b = 70; b <= 180; b++) out.push(b);
-      return out;
-    },
-    // The groove a tempo resolves to, in LSDJ TICKS: how long each row lasts.
-    grooveOf: function (bpm, swing, grid) {
-      grid = GRIDS.indexOf(grid | 0) >= 0 ? (grid | 0) : 16;
-      return G.CT_GB.lsdjGrooveTicks(swing ? 1 : 0, grid).slice();
     },
     // the tables an agent has to obey, read off the same constants the editor uses
     tables: function () {

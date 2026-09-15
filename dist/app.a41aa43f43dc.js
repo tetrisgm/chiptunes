@@ -1,8 +1,3 @@
-globalThis.CT_MUSIC_ASSETS_VERSION="e84045bcb7186729";
-globalThis.CT_MUSIC_EDITOR_VERSION="fd0c405e6c3b";
-globalThis.CT_MUSIC_CHAT_UI_VERSION="8580dba9317d";
-globalThis.CT_MUSIC_PREVIEW_VERSION="155578e509d1";
-globalThis.CT_MUSIC_BUILD_VERSION="bc82e9eae22f";
 /* ===== src/seed.js ===== */
 // ===== seed.js — deterministic generated-track identity. =====
 // Loads FIRST (before composer.js/audio.js) so any composer can seed itself from a URL token.
@@ -433,10 +428,8 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     // written; that is what gives one instrument its dynamics. Neither the
     // cartridge nor the APU can multiply at play time, so it is baked in here.
     var v0 = (rec[1] >> 4) & 15;
-    var nativePulse = ch < 2 && n.trigger != null;
-    var vol = Math.max(0, Math.min(15, Math.round(nativePulse ? 15 * (n.vel == null ? 1 : n.vel)
-      : v0 * (0.35 + 0.65 * (n.vel == null ? 1 : n.vel)))));
-    var nrx1, nrx2 = (vol << 4) | (nativePulse ? 8 : rec[1] & 0x0F), nrx3, nrx4, p;
+    var vol = Math.max(0, Math.min(15, Math.round(v0 * (0.35 + 0.65 * (n.vel == null ? 1 : n.vel)))));
+    var nrx1, nrx2 = (vol << 4) | (rec[1] & 0x0F), nrx3, nrx4, p;
     // A note may ask for a period the twelve-tone table has no name for: det
     // shifts it by whole period units. That is what detuning two channels
     // against each other is, and there is no other way to say it.
@@ -479,207 +472,13 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     return Math.min(WAVE_SLOTS - 1, rec[0] & 0xFF);
   }
 
-  // A native pitch-only row continues the current voice, including its silent
-  // state after KILL. Suppress a note-off at the continuation boundary (also
-  // accepting the legacy one-frame articulation gap); longer gaps still cut.
-  // Shared by browser and cartridge scheduling.
-  function noteOffFrames(notes) {
-    var order = notes.map(function (n, i) { return { n: n, i: i }; });
-    order.sort(function (a, b) { return a.n.frame - b.n.frame || a.i - b.i; });
-    var next = [], off = [];
-    for (var i = order.length - 1; i >= 0; i--) {
-      var item = order[i], n = item.n, ch = n.ch | 0;
-      var end = (n.frame | 0) + Math.max(1, n.frames | 0), following = next[ch];
-      off[item.i] = following && following.trigger === false &&
-        Math.abs(following.frame - end) <= 1 ? null : end;
-      next[ch] = n;
-    }
-    return off;
-  }
-
-  // ---- GROOVE: the only clock a tracker has --------------------------------
-  //
-  // A row lasts a whole number of frames, and a GROOVE is the short repeating
-  // list of those tick counts. It does two jobs with one mechanism: it reaches
-  // tempi between the rungs of the ladder, and it is where SWING lives.
-  //
-  // That second job is why this moved here from the editor. Swing used to be a
-  // fractional nudge applied to each offbeat note -- which is not a thing LSDj
-  // can hold, because LSDj has no position between two rows. It put 92% of our
-  // off-grid notes off the grid. Expressed as a groove instead, the ROWS are
-  // uneven and every note still sits exactly on one, which is both what a
-  // tracker does and what the hardware does.
-  //
-  // ⚠️ ONLY TWO SHAPES, and that is the whole point. The first version reached
-  // any tempo by making k of every four rows one tick longer -- [6,7,7,7],
-  // [5,5,5,6] -- which is arithmetically neat and musically a LIMP; the ear
-  // locks onto anything repeating every bar. So: [n] is even, [n,n+1] is a
-  // symmetric alternation (a mild shuffle, a feel a musician would choose), and
-  // a swing groove is an explicit long-short PAIR. Nothing lopsided.
-  function grooveSpread(base, k) {
-    if (k <= 0) return [base];
-    if (k >= 2) return [base + 1];
-    return [base, base + 1];
-  }
-  // CHOSEN BY SEARCH, not by arithmetic, because the answer has to be a tempo
-  // the DOCUMENT can hold as well as one the machine can play. Rounding
-  // straight to the nearest groove put bpm 70 on a 32nd grid at 68.9, below the
-  // storable minimum -- the header wrote a negative offset, it wrapped through
-  // the mask, and the song came back at 179. So: enumerate the grooves around
-  // the target, discard any whose tempo cannot be represented, keep the closest.
-  function grooveFor(bpm, swing, stepsPerBar) {
-    var want = (60 / bpm) * 4 / stepsPerBar * FPS;      // frames per row, real
-    var best = null, cand = [], i, b;
-    if (swing) {
-      // A shuffle is a long-short PAIR, defined on the pair rather than on the
-      // average, so it keeps its character at every tempo.
-      // `swing` may arrive as a RATIO (0.56 -- how much of the pair the long
-      // half takes) or as a bare flag from the editor, which means the default
-      // shuffle. Anything outside a sane ratio is treated as the flag, so a
-      // `true` cannot silently become a pair of [pair, 2].
-      var ratio = (typeof swing === 'number' && swing > 0.5 && swing < 0.8) ? swing : 0.62;
-      for (i = -1; i <= 1; i++) {
-        var pair = Math.max(4, Math.round(want * 2) + i);
-        var lng = Math.max(2, Math.round(pair * ratio));
-        cand.push([lng, Math.max(2, pair - lng)]);
-      }
-    } else {
-      for (var base = Math.max(2, Math.floor(want) - 1); base <= Math.floor(want) + 1; base++)
-        cand.push([base]);
-    }
-    for (i = 0; i < cand.length; i++) {
-      b = bpmOfGroove(cand[i], stepsPerBar);
-      if (b < 70 || b > 180) continue;                  // the header cannot carry it
-      var d = Math.abs(b - bpm);
-      if (!best || d < best.d) best = { g: cand[i], d: d };
-    }
-    return best ? best.g : [Math.max(2, Math.round(want))];
-  }
-  // The TRUE tempo of a groove, which is what the song actually plays at. A
-  // document may carry any bpm; what it gets is the nearest one the machine can
-  // hold, and reporting the asked-for number instead of the played one is how a
-  // player comes to disagree with its own clock.
-  function bpmOfGroove(g, stepsPerBar) {
-    var sum = 0;
-    for (var i = 0; i < g.length; i++) sum += g[i];
-    return (240 * FPS) / (stepsPerBar * (sum / g.length));
-  }
-  // The frame a ROW starts on: sum the groove around the loop. Integer by
-  // construction, which is the point -- there is no rounding here to drift.
-  function rowFrame(g, row) {
-    var n = g.length, sum = 0, i;
-    for (i = 0; i < n; i++) sum += g[i];
-    row = row | 0;
-    var f = Math.floor(row / n) * sum, rem = row % n;
-    for (i = 0; i < rem; i++) f += g[i];
-    return f;
-  }
-  // frames in ONE row -- the average over the groove, for note lengths
-  function framesPerRow(g) {
-    var sum = 0;
-    for (var i = 0; i < g.length; i++) sum += g[i];
-    return sum / g.length;
-  }
-
-  // ---- LSDJ'S OWN CLOCK ----------------------------------------------------
-  //
-  // Measured off the real ROM in mGBA with a one-note-per-row ruler song, tempo
-  // 60 to 255 (scripts/verify-lsdj-emulator.js):
-  //
-  //   ticks per second = 0.4 x TEMPO
-  //   frames per tick  = 149.31875 / TEMPO        (149.31875 = 2.5 x FPS)
-  //
-  // A GROOVE is how many ticks each row lasts, default 6 -- which makes a row
-  // 895.9125/TEMPO frames, so TEMPO is bpm with four rows to the beat.
-  //
-  // ⚠️ FRAMES PER TICK IS FRACTIONAL AND LSDJ DOES NOT ROUND IT. It runs an
-  // accumulator, so rows come out as a MIX of two whole frame counts -- at tempo
-  // 120 the trace is 7s and 8s interleaved. That matters twice over:
-  //
-  //   * it is why LSDj reaches every tempo and our eight-rung ladder did not.
-  //     The ladder was our invention, and it offers LESS than the machine.
-  //   * it is NOT the limp this project removed earlier. That was a four-step
-  //     pattern with one odd step out, repeating every bar, which the ear locks
-  //     onto instantly. An accumulator spreads the same total unevenness with no
-  //     short period at all, which is why nobody has ever called LSDj lopsided.
-  // ⚠️ 895.88, NOT 895.9125, AND ROUND, NOT CEIL -- both measured rather than
-  // derived. The physical constant is 15 x FPS = 895.9125, and a model built on
-  // it disagreed with LSDj about which individual rows get the spare frame on up
-  // to 20% of rows. Fitting the real thing instead -- eight tempi, a hundred row
-  // gaps each, straight off the ROM -- lands on
-  //
-  //     row k starts at round(k * 895.88 / TEMPO)
-  //
-  // which reproduces 796 of 800 measured gaps. Six of the eight tempi match
-  // PERFECTLY; the four misses are two adjacent pairs, which is the signature of
-  // the trace sampling at a frame edge rather than of the model being wrong.
-  //
-  // The averages were always right. This is about the ORDER of the spare frames,
-  // which is what makes two players sound identical rather than merely equal in
-  // tempo.
-  var LSDJ_ROW_NUM = 895.88;                  // frames per row x TEMPO, measured
-  var LSDJ_TICK_NUM = LSDJ_ROW_NUM / 6;       // ...and LSDj's default row is 6 ticks
-
-  function lsdjFramesPerTick(tempo) { return LSDJ_TICK_NUM / tempo; }
-
-  // The frame a tick STARTS on.
-  function lsdjTickFrame(tempo, tick) {
-    return Math.round(tick * LSDJ_TICK_NUM / tempo);
-  }
-
-  // The frame a ROW starts on, given the groove in TICKS.
-  function lsdjRowFrame(tempo, ticks, row) {
-    var n = ticks.length, sum = 0, i;
-    for (i = 0; i < n; i++) sum += ticks[i];
-    row = row | 0;
-    var whole = Math.floor(row / n), rem = row % n, t = whole * sum;
-    for (i = 0; i < rem; i++) t += ticks[i];
-    return lsdjTickFrame(tempo, t);
-  }
-
-  function lsdjFramesPerRow(tempo, ticks) {
-    return framesPerRow(ticks) * LSDJ_TICK_NUM / tempo;
-  }
-
-  // The tempo whose default 6-tick row is closest to this many frames. Integer,
-  // because LSDj cannot store a fractional tempo either -- that is a limit we
-  // SHARE with it rather than one we add.
-  function lsdjTempoForRow(frames) {
-    return Math.max(40, Math.min(255, Math.round(6 * LSDJ_TICK_NUM / frames)));
-  }
-
-  // THE GROOVE, IN LSDJ'S UNITS. Six ticks a row is LSDj's default and makes
-  // TEMPO mean bpm; a shuffle keeps the same total so the tempo does not move,
-  // and moves the beat inside it. [7,5] is the mild swing an LSDj musician
-  // reaches for, [8,4] the hard one.
-  //
-  // These are the only shapes on offer because they are the only ones LSDj has:
-  // whole ticks, and a pair that sums to twice the base. Our old frame-groove
-  // could express ratios between them, which sounds like more and is really
-  // just a number the machine cannot hold.
-  function lsdjGrooveTicks(swing, stepsPerBar) {
-    var base = Math.max(1, Math.round(6 * 16 / (stepsPerBar || 16)));
-    if (!swing) return [base];
-    var lng = Math.max(1, Math.min(2 * base - 1, Math.round(2 * base * (
-      typeof swing === 'number' && swing > 0.5 && swing < 0.8 ? swing : 0.583))));
-    return [lng, 2 * base - lng];
-  }
-  var LSDJ_TEMPO_MIN = 40, LSDJ_TEMPO_MAX = 255;
-
   var API = {
     FPS: FPS, CH: CH, DUTIES: DUTIES, WAVE_LEVELS: WAVE_LEVELS,
-    noteRegisters: noteRegisters, waveSlotOf: waveSlotOf, noteOffFrames: noteOffFrames,
+    noteRegisters: noteRegisters, waveSlotOf: waveSlotOf,
     NOISE_DIVISORS: NOISE_DIVISORS, RANGE: RANGE, WAVE_SLOTS: WAVE_SLOTS,
     midiToHz: midiToHz, midiToPeriod: midiToPeriod, inRange: inRange,
     beatToFrame: beatToFrame, frameToSec: frameToSec,
-    quantDuty: quantDuty, patchToInstrument: patchToInstrument, buildBank: buildBank,
-    grooveSpread: grooveSpread, grooveFor: grooveFor, bpmOfGroove: bpmOfGroove,
-    rowFrame: rowFrame, framesPerRow: framesPerRow,
-    LSDJ_TICK_NUM: LSDJ_TICK_NUM, lsdjFramesPerTick: lsdjFramesPerTick,
-    lsdjTickFrame: lsdjTickFrame, lsdjRowFrame: lsdjRowFrame,
-    lsdjFramesPerRow: lsdjFramesPerRow, lsdjTempoForRow: lsdjTempoForRow,
-    lsdjGrooveTicks: lsdjGrooveTicks,
-    LSDJ_TEMPO_MIN: LSDJ_TEMPO_MIN, LSDJ_TEMPO_MAX: LSDJ_TEMPO_MAX
+    quantDuty: quantDuty, patchToInstrument: patchToInstrument, buildBank: buildBank
   };
   G.CT_GB = API;
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
@@ -703,33 +502,12 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   var H = (typeof require !== 'undefined' && typeof module !== 'undefined')
     ? require('./gb-hardware.js') : G.CT_GB;
 
-  function Voices(bpm, groove) {
+  function Voices(bpm) {
     this.bpm = bpm;
-    this.groove = (groove && groove.length) ? groove : null;
     this.lanes = [[], [], [], []];
   }
 
-  // A NOTE STARTS ON A ROW. Not a fraction of the way between two -- LSDj has
-  // no such place and neither does any other tracker, so a note written there
-  // cannot survive an export. With a groove the row boundaries are integers by
-  // construction, which is also where SWING lives: the rows are uneven and the
-  // note still sits exactly on one.
-  Voices.prototype.frameOf = function (beat) {
-    // The groove is in LSDJ TICKS and the clock is LSDj's accumulator, so this
-    // is the same arithmetic the real machine does -- not our approximation of
-    // it. Four rows to the beat at a sixteenth grid.
-    if (this.groove) return H.lsdjRowFrame(this.bpm, this.groove, Math.round(beat * 4));
-    return H.beatToFrame(beat, this.bpm);
-  };
-  // LENGTH is not a row count. A staccato kick is a couple of frames and
-  // rounding it up to a row would make every drum a whole sixteenth long. LSDj
-  // does not store a length at all -- a note runs until the next one or a KILL
-  // -- so this is the envelope we RENDER, not something an export carries.
-  Voices.prototype.framesFor = function (durBeats) {
-    var perBeat = this.groove ? H.lsdjFramesPerRow(this.bpm, this.groove) * 4
-                              : H.beatToFrame(1, this.bpm);
-    return Math.max(1, Math.round(durBeats * perBeat));
-  };
+  Voices.prototype.frameOf = function (beat) { return H.beatToFrame(beat, this.bpm); };
 
   // Notes arrive in whatever order the composer thinks of them (drums come in
   // three passes, melody later still), so placement records intent and the
@@ -789,74 +567,20 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
 /* ===== src/melody.js ===== */
 // Melodic writing: phrases that answer each other.
 //
-// A section-aware whole-song plan allocates a restrained melody budget.
-// Cached A/B/C motifs supply statements, varied returns and cadences; short
-// sections receive fitted fragments rather than an accidentally cut phrase.
+// The previous generator picked ONE learned interval cell and cycled it for the
+// whole song, so the tune was periodic by construction -- and because the
+// learned cells are dominated by "0,0,0,0" (162,831 hits vs 9,100 for the next,
+// an artefact of counting sustained notes as zero-intervals), the common case
+// was a single pitch repeated. Same for rhythm: "1-1-1-1" outweighs everything.
+//
+// Those statistics are a DISTRIBUTION to sample, not a riff to loop. Here each
+// note draws its own interval, steered by a contour plan, and phrases are
+// written in question/answer pairs where the answer TRANSFORMS the question
+// (sequence, inversion, or a re-harmonised ending) instead of repeating it.
 (function (G) {
   'use strict';
 
   var CONTOURS = ['arch', 'rise', 'fall', 'wave', 'valley'];
-
-  // Plan phrase positions once, before writing any notes. The old prefix
-  // ratio forced groups two and three off after an opening statement, making
-  // every seed share an eight-bar early gap. A whole-song budget has no such
-  // debt. This selects structural slots, not candidates from generated songs.
-  function allocatePhraseGroups(opts) {
-    var bars = opts.bars, sections = opts.sections || [], hash = opts.hash;
-    var candidates = [], picked = [], covered = 0;
-    var density = opts.melDensity == null ? 1 : opts.melDensity;
-    var presence = Math.min(0.64, (0.28 + hash(opts.token + ':mel-presence') % 37 / 100)
-      * Math.min(1.15, Math.max(0.55, density)));
-    var budget = Math.floor(bars * presence);
-    sections.forEach(function (section, index) {
-      var end = Math.min(bars, section.startBar + section.bars);
-      if (section.role === 'resolve') return;
-      for (var start = Math.max(0, section.startBar); start < end; start += 4)
-        candidates.push({startBar:start, bars:Math.min(4, end-start),
-          role:section.role, sectionIndex:index});
-    });
-    function jitter(c, label) { return (hash(opts.token + ':mel-' + label + ':' + c.startBar) >>> 0) / 4294967296; }
-    function take(c) { if (!c) return; picked.push(c); covered += c.bars; }
-    function available(c) { return picked.indexOf(c) < 0 && covered + c.bars <= budget; }
-    // Establish a statement in the first body section, with seed-dependent
-    // placement within it. Short openings may carry an additional fragment,
-    // but do not consume a mandatory quota before the body has even arrived.
-    var body = candidates.filter(function (c) { return c.role !== 'opening'; });
-    var first = body.length ? body[0].sectionIndex : candidates.length ? candidates[0].sectionIndex : -1;
-    var early = candidates.filter(function (c) { return c.sectionIndex === first && available(c); });
-    early.sort(function (a,b) { return jitter(a,'entry')-jitter(b,'entry') || a.startBar-b.startBar; });
-    take(early[0]);
-    // Reserve a return in the latter part when the budget can afford one,
-    // before filling intermediate slots. This prevents all melody spending
-    // from accumulating at the beginning of an otherwise long arrangement.
-    var later = candidates.filter(function (c) { return c.startBar >= bars * 0.55 && available(c); });
-    later.sort(function (a,b) { return b.sectionIndex-a.sectionIndex || jitter(a,'return')-jitter(b,'return') || a.startBar-b.startBar; });
-    take(later[0]);
-    var weights = {opening:0.6, flow:0.9, groove:1, lift:1.1, drive:1,
-      break:1.2, hush:1.2, build:1, drop:0.8};
-    function priority(c) {
-      var distance = bars, represented = false;
-      picked.forEach(function (p) {
-        represented = represented || p.sectionIndex === c.sectionIndex;
-        distance = Math.min(distance, Math.max(0, c.startBar-(p.startBar+p.bars), p.startBar-(c.startBar+c.bars)));
-      });
-      return (weights[c.role] || 1) + (represented ? 0 : 2)
-        + Math.min(8,distance)/8 + jitter(c,'slot');
-    }
-    while (true) {
-      var remaining = candidates.filter(available);
-      if (!remaining.length) break;
-      remaining.sort(function (a,b) { return priority(b)-priority(a) || a.startBar-b.startBar; });
-      take(remaining[0]);
-    }
-    picked.sort(function (a,b) { return a.startBar-b.startBar; });
-    picked.forEach(function (c,i) {
-      c.letter = ['A','A','B','A','C','C','B','A'][i % 8];
-      if (picked.length === 3 && i === 1) c.letter = 'B';
-      if (i === picked.length-1) c.letter = 'A';
-    });
-    return picked;
-  }
 
   // Flatten learned 4-note cells into a weighted pool of single intervals.
   // Zero-motion is kept but heavily discounted: real melodies do repeat notes,
@@ -936,11 +660,20 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     var rcells = lead.rhythmCells || [];
     var out = [];
 
-    // Melody presence varies by seed and style; accompaniment can carry the
-    // intervals between phrases. Up to three cached themes recur, adjusted
-    // to each bar's harmony. The allocation ends with an A return when there
-    // is room for more than one statement; this is a writing choice, not proof
-    // of perceived musical quality.
+    // This is radio you put on behind something, not an album. A tune that
+    // never stops takes the attention; real background game music states an
+    // idea, leaves, and comes back. So melody arrives in EPISODES -- a couple
+    // of phrase groups on, then a stretch off -- and how melodic a given song
+    // is at all varies from song to song, so some tracks are carried by texture
+    // and some by a hook.
+    // THE THEME RETURNS. The old writer generated brand-new material for every
+    // 4-bar group -- new contour, new span, new rhythm -- and its answer rule
+    // said "never repeat". A song where nothing recurs is noodling: repetition
+    // is what turns a phrase into a tune (Margulis' On Repeat experiments --
+    // splicing literal repeats into even atonal music made listeners rate it
+    // more enjoyable and more human). So a song now owns TWO phrases, A and B,
+    // written once and restated in an AABA rotation, transposed diatonically to
+    // sit on the local chord. The cadence note still re-resolves per return.
     // MOTIF-BUILT, not walked. The owner's verdict on the walk was exact:
     // "the overall patterns of when notes play sound mostly correct" but the
     // pitches read as random. A random walk IS random -- steering it toward a
@@ -952,10 +685,6 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     // everything between moves by step; the motif's own rhythm stamps all
     // four bars, which is what makes it register as a motif at all.
     var scaleLen = opts.scaleLen || 7;
-    // MOTION widens (or narrows) the intervallic reach of each phrase. It scales
-    // the motif's contour offsets and its development lift. Zero is a no-op, so
-    // an unprompted song is byte-identical and the pinned digests cannot move.
-    var motion = opts.motion == null ? 0 : opts.motion;
     // Snap a degree offset onto the TRIAD, in any octave. Rounding to even
     // degrees is wrong past the fifth: +6 is the seventh and +8 wraps to the
     // second. The chord-tone set is {0,2,4} modulo the scale length.
@@ -1081,7 +810,6 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
         for (var i = 0; i < use.length; i++) {
           var off = shape[i % shape.length];
           if (inv) off = -off;
-          if (motion) off = Math.round(off * (1 + motion * 0.5));
           var d = anchor + off;
           // the mid-bar strong beat is a chord tone too, not just the downbeat:
           // round its distance from the chord root onto the triad (even degrees)
@@ -1111,8 +839,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       // ones brood. And it is where the RHYTHM moves too, not only the pitch.
       var dev = hash(opts.token + ':mtf-dev:' + letter) % 3 < 2;
       var devKind = hash(opts.token + ':mtf-vary:' + letter) % 5;
-      var devLift = dev ? (motion ? Math.max(1, Math.round(2 * (1 + motion * 0.5))) : 2) : 0;
-      state(2, rootAt(bar + 2) + anchorOff + devLift, !dev, rootAt(bar + 2),
+      state(2, rootAt(bar + 2) + anchorOff + (dev ? 2 : 0), !dev, rootAt(bar + 2),
             varyRh(rh, devKind));
       // cadence: a stepwise 3-2-1 run that LANDS ON THE ROOT. The old goal was
       // the 2nd degree -- the unresolved tone, which is the sound of longing.
@@ -1129,47 +856,69 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       cad.forEach(function (p, i) {
         notes.push({ rb: 3, pos16: p, deg: goal + (2 - i), accent: false, answer: i === 2 });
       });
-      return { notes: notes, homeRoot: homeRoot,
-        roots:[rootAt(bar),rootAt(bar+1),rootAt(bar+2),rootAt(bar+3)] };
+      return { notes: notes, homeRoot: homeRoot };
     }
 
-    var plan = allocatePhraseGroups(opts), returns = {};
-    for (var group = 0; group < plan.length; group++) {
-      var phrase = plan[group], bar = phrase.startBar, role = phrase.role;
-      var letter = phrase.letter;
+    // Capped at .64: the smoke contract holds the lead under 72% of bars (this
+    // is background radio), and the AABA rotation plus the sparse-section
+    // override lands above that when presence runs to .75.
+    var presence = (0.28 + (hash(opts.token + ':mel-presence') % 37) / 100)
+                 * Math.min(1.15, Math.max(0.55, opts.melDensity == null ? 1 : opts.melDensity));
+    var onRun  = 1 + hash(opts.token + ':mel-onrun') % 2;                    // 1-2 groups
+    var offRun = Math.max(1, Math.round(onRun * (1 - presence) / Math.max(0.2, presence)));
+    var cycle = onRun + offRun;
+    var group = 0, played = 0, eligible = 0;
+    for (var bar = 0; bar < bars; bar += 4, group++) {
+      var sec = null;
+      for (var s = 0; s < sections.length; s++) {
+        if (bar >= sections[s].startBar && bar < sections[s].startBar + sections[s].bars) sec = sections[s];
+      }
+      var role = sec ? sec.role : 'drop';
+      if (role === 'resolve') continue;
+      // When the texture thins out, the tune is what is left holding the song
+      // up -- that is what a break is FOR. So the episode rest is suspended in
+      // sparse sections rather than compounding their silence.
+      var sparse = role === 'break' || role === 'hush' || role === 'opening';
+      eligible++;
+      // HARD budget, not a probabilistic one. The sparse-section override plays
+      // unconditionally, so a song whose form is mostly breaks and hushes blew
+      // straight through the presence dice -- 78% of bars carried lead against
+      // the 72% attention contract. Whatever the dice say, the lead stops when
+      // it has already had two thirds of the song.
+      if (played > 0 && (played + 1) / eligible > 0.62) continue;
+      if (!sparse && (group % cycle) >= onRun) continue;
+      if (!sparse && hash(opts.token + ':mel-skip:' + group) % 9 === 0) continue;
+
+      // "Keeps playing the same sections over and over": two phrases for a
+      // whole song was too few. Three now, rotating AABA CCBA -- the back half
+      // opens with NEW material (C) before the theme comes home, so the second
+      // minute is not a rerun of the first.
+      var letter = ['A','A','B','A','C','C','B','A'][played % 8];
+      played++;
       if (!themes[letter]) themes[letter] = materialize(letter, bar, role);
       var th = themes[letter];
-      var firstReturn = !returns[letter];
-      returns[letter] = (returns[letter] || 0) + 1;
-      // Fit statement/restatement/cadence material to the actual section span,
-      // retaining its ending rather than clipping a four-bar phrase halfway.
-      var sourceBars = phrase.bars === 1 ? [3] : phrase.bars === 2 ? [0,3]
-        : phrase.bars === 3 ? [0,1,3] : [0,1,2,3];
+      var lift = rootAt(bar) - th.homeRoot;          // diatonic transposition onto the local chord
+      var firstReturn = played <= 1 || letter === 'B';
       var lastIdx = -1;
       th.notes.forEach(function (n, ix) {
-        var local = sourceBars.indexOf(n.rb);
-        if (local < 0) return;
-        var ob = bar + local;
+        var ob = bar + n.rb;
         if (ob >= bars) return;
         // A return is the same phrase BREATHING, not a stamp: after the first
         // statement, one note in seven sits out. Enough that no two returns
         // are byte-identical, never enough to lose the tune.
         if (!firstReturn && !n.accent && !n.answer
-            && hash(opts.token + ':mel-var:' + bar + ':' + ix) % 7 === 0) return;
-        var lift = rootAt(ob) - th.roots[n.rb];
+            && hash(opts.token + ':mel-var:' + group + ':' + ix) % 7 === 0) return;
         out.push({ bar: ob, pos16: n.pos16, degree: n.deg + lift,
                    accent: n.accent, answer: !!n.answer });
         if (n.answer) lastIdx = out.length - 1;
       });
       // the cadence still lands on the chord that is coming, every time
-      if (lastIdx >= 0) out[lastIdx].degree = rootAt(Math.min(bars - 1, bar + phrase.bars));
+      if (lastIdx >= 0) out[lastIdx].degree = rootAt(Math.min(bars - 1, bar + 4));
     }
-    out.phrasePlan = plan;
     return out;
   }
 
-  var API = { write: write, allocatePhraseGroups: allocatePhraseGroups,
-    CONTOURS: CONTOURS, intervalPool: intervalPool };
+  var API = { write: write, CONTOURS: CONTOURS, intervalPool: intervalPool };
   G.CT_MELODY = API;
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
 })(typeof globalThis !== 'undefined' ? globalThis : window);
@@ -1348,10 +1097,10 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     this.nr50 = 0x77; this.nr51 = 0xFF; this.power = true;
     this.hp = 0;                           // DC blocker (the DMG's output capacitor)
     this.ch = [
-      { dac:false, on:false, freq:0, duty:2, pos:0, t:0, vol:0, vol0:0, dir:0, pace:0, ec:0, envActive:false },
-      { dac:false, on:false, freq:0, duty:2, pos:0, t:0, vol:0, vol0:0, dir:0, pace:0, ec:0, envActive:false },
+      { dac:false, on:false, freq:0, duty:2, pos:0, t:0, vol:0, vol0:0, dir:0, pace:0, ec:0 },
+      { dac:false, on:false, freq:0, duty:2, pos:0, t:0, vol:0, vol0:0, dir:0, pace:0, ec:0 },
       { dac:false, on:false, freq:0, pos:0, t:0, level:0 },
-      { dac:false, on:false, lfsr:0x7FFF, width:0, div:8, shift:0, t:0, vol:0, vol0:0, dir:0, pace:0, ec:0, envActive:false }
+      { dac:false, on:false, lfsr:0x7FFF, width:0, div:8, shift:0, t:0, vol:0, vol0:0, dir:0, pace:0, ec:0 }
     ];
   };
 
@@ -1393,13 +1142,6 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   // NRx2. The upper five bits are the DAC: all zero and the channel is not
   // merely quiet, it is switched off. That is precisely how a note ends.
   Apu.prototype._env = function (ch, val) {
-    // Portable manual volume control: an unlocked, held increasing envelope
-    // increments modulo 16 when another x8 value is written, without a trigger.
-    // Pan Docs, Audio details / Obscure Behavior. This is the common operation
-    // across tested DMG/CGB units; arbitrary NRx2 transitions are model-specific
-    // and are NOT implemented here (including LSDj's shorter 09/11/18 decrement).
-    if (ch.on && ch.envActive && ch.pace === 0 && ch.dir === 1 && (val & 15) === 8)
-      ch.vol = (ch.vol + 1) & 15;
     ch.vol0 = (val >> 4) & 15;
     ch.dir = (val >> 3) & 1;
     ch.pace = val & 7;
@@ -1410,7 +1152,6 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   Apu.prototype._trigger = function (i) {
     var ch = this.ch[i];
     ch.on = ch.dac;                        // triggering a dead DAC does nothing
-    if (i !== 2) ch.envActive = ch.on;
     if (i === 2) { ch.pos = 0; ch.t = (2048 - ch.freq) * 2; }
     else if (i === 3) { ch.lfsr = 0x7FFF; ch.t = ch.div << ch.shift; ch.vol = ch.vol0; ch.ec = ch.pace; }
     else { ch.t = (2048 - ch.freq) * 4; ch.vol = ch.vol0; ch.ec = ch.pace; }
@@ -1444,12 +1185,11 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     var idx = [0, 1, 3], k, ch, v;
     for (k = 0; k < 3; k++) {
       ch = this.ch[idx[k]];
-      if (!ch.pace || !ch.on || !ch.envActive) continue;
+      if (!ch.pace || !ch.on) continue;
       if (--ch.ec > 0) continue;
       ch.ec = ch.pace;
       v = ch.vol + (ch.dir ? 1 : -1);
       if (v >= 0 && v <= 15) ch.vol = v;
-      else ch.envActive = false;           // overflow stops updates until trigger
     }
   };
 
@@ -1544,8 +1284,6 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     this.sr = sampleRate;
     this.samplesPerFrame = sampleRate / (MASTER / FRAME_CYCLES);
     this.rate = 1;               // tempo scale: pinned bpm / native bpm
-    this.gainScalar = gb && gb.gainScalar != null ? gb.gainScalar : 1;
-    if(!Number.isFinite(this.gainScalar) || this.gainScalar<0 || this.gainScalar>1) throw new Error('Invalid gb.gainScalar');
     this.mix = null;             // {kick,snare,hat,bass,lead,arp,pad} in 0..3
     this.vib = [{ on: false, base: 0, age: 0 }, { on: false, base: 0, age: 0 }];
     this.frame = 0; this.acc = 0;
@@ -1556,8 +1294,8 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     // is what gets written every frame, not just what a note-on says, so these
     // ride in the score and BOTH players read the same array.
     var auto = this.auto = {}, vibOff = this.vibOffAt = {};
-    (gb && gb.auto || []).forEach(function (w, index) {
-      (auto[w.f | 0] = auto[w.f | 0] || []).push({ r: w.r & 0xFF, v: w.v & 0xFF, index: index });
+    (gb && gb.auto || []).forEach(function (w) {
+      (auto[w.f | 0] = auto[w.f | 0] || []).push({ r: w.r & 0xFF, v: w.v & 0xFF });
     });
     (gb && gb.vibOff || []).forEach(function (w) {
       (vibOff[w.f | 0] = vibOff[w.f | 0] || []).push(w.ch | 0);
@@ -1569,16 +1307,15 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     // KIT SAMPLES: four-bit PCM streamed into wave RAM, buffer by buffer. The
     // cartridge does this from its timer interrupt; here the same writes are
     // made at the same cycle counts, which is what makes the two agree.
-    var ka = this.kitAt = {}, ki = this.kitIndexAt = {};
-    (gb && gb.kit || []).forEach(function (k, index) { ka[k.f | 0] = k.id | 0; ki[k.f | 0] = index; });
+    var ka = this.kitAt = {};
+    (gb && gb.kit || []).forEach(function (k) { ka[k.f | 0] = k.id | 0; });
     this.kit = null; this.kitPos = 0; this.kitLeft = 0; this.kitCyc = 0;
     var byFrame = this.byFrame = {};
     var inst = (this.bank && this.bank.instruments) || [];
-    var scoreNotes = gb && gb.notes || [], offFrames = H.noteOffFrames(scoreNotes);
-    scoreNotes.forEach(function (n, index) {
-      var f = n.frame | 0, off = offFrames[index];
-      (byFrame[f] = byFrame[f] || []).push({ t: 1, n: n, index: index });
-      if (off != null) (byFrame[off] = byFrame[off] || []).push({ t: 0, ch: n.ch | 0, index: index });
+    (gb && gb.notes || []).forEach(function (n) {
+      var f = n.frame | 0, off = f + Math.max(1, n.frames | 0);
+      (byFrame[f] = byFrame[f] || []).push({ t: 1, n: n });
+      (byFrame[off] = byFrame[off] || []).push({ t: 0, ch: n.ch | 0 });
     });
     Object.keys(byFrame).forEach(function (k) {
       byFrame[k].sort(function (a, b) { return a.t - b.t; });
@@ -1621,8 +1358,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   Sequencer.prototype._kitStart = function (id) {
     var K = G.CT_GB_KITS;
     if (!K) return;
-    var k = this.kitBank ? this.kitBank[id] : K.byId(id);
-    if(!k) return;
+    var k = K.byId(id);
     this.kit = k.data; this.kitPos = 0; this.kitLeft = k.buffers;
     this.apu.write(0x1C, 0x20);              // NR32: full output
     this.apu.write(0x1D, K.PERIOD & 0xFF);   // NR33: 8192 samples a second
@@ -1636,25 +1372,6 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     if (!mix || typeof mix !== 'object') return;
     var m = this.mix || (this.mix = {});
     for (var k in mix) { var v = +mix[k]; if (isFinite(v)) m[k] = Math.max(0, Math.min(3, v)); }
-  };
-  // Optional scalar observation, enabled only by the live-music processor.
-  // No callbacks, source evaluation or register writes. Seek/preparation and
-  // offline renders leave it absent. This reports executed commands, not a
-  // promise that every trigger survives later writes or makes audible PCM.
-  Sequencer.prototype._observe = function (kind, index, ch, note, register, value) {
-    var out=this.observations;
-    if(!out)return;
-    if(!Number.isSafeInteger(out.next)||out.next>=Number.MAX_SAFE_INTEGER){out.exhausted=true;return;}
-    var sequence=out.next++;
-    if(out.events.length>=256){out.dropped++;return;}
-    var voice=this.apu.ch[ch],level=0;
-    if(voice&&voice.on&&voice.dac&&this.apu.power)
-      level=ch===2?([0,1,0.5,0.25][voice.level]||0):(voice.vol||0)/15;
-    out.events.push({sequence:sequence,kind:kind,sourceIndex:Number.isInteger(index)?index:-1,
-      frame:this.frame,contextTime:out.contextTime,channel:ch,
-      midi:note&&Number.isFinite(note.midi)?note.midi:null,
-      durationFrames:note?note.frames:0,velocity:note?(note.vel==null?1:note.vel):null,
-      strength:level,register:register==null?null:register,value:value==null?null:value});
   };
   Sequencer.prototype._runFrame = function () {
     // Vibrato steps BEFORE this frame's events, exactly like the cartridge
@@ -1677,18 +1394,9 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       if (e.t === 0) {
         this.apu.write(base + 1, 0x00); this.apu.write(base + 3, 0x80);
         if ((e.ch | 0) < 2) this.vib[e.ch | 0].on = false;
-        if(this.observations)this._observe('noteOff',e.index,e.ch);
         continue;
       }
       note = e.n; g = 1;
-      if (note.trigger === false && (note.ch | 0) < 2) {
-        r = H.noteRegisters(note, this.bank);
-        this.apu.write(base + 2, r[2]);
-        this.apu.write(base + 3, r[3] & 7);
-        this.vib[note.ch | 0].on = false;
-        if(this.observations)this._observe('continuation',e.index,note.ch,note);
-        continue;
-      }
       // live channel mute (the Create editor's lanes): skip the trigger, let
       // note-offs still run. Never set on the radio or offline paths.
       if (this.chMute && this.chMute[note.ch | 0]) continue;
@@ -1711,12 +1419,11 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       r = H.noteRegisters(note, this.bank);
       this.apu.write(base, r[0]); this.apu.write(base + 1, r[1]);
       this.apu.write(base + 2, r[2]); this.apu.write(base + 3, r[3]);
-      if(this.observations)this._observe('noteOn',e.index,note.ch,note);
       if ((note.ch | 0) < 2) {
         var vst = this.vib[note.ch | 0];
         vst.base = ((r[3] & 7) << 8) | r[2];
         vst.age = 0;
-        vst.on = note.trigger == null && !((note.ch | 0) === 0 && note.sweep);
+        vst.on = !((note.ch | 0) === 0 && note.sweep);
       }
     }
     // ...then this frame's automation, after the note-ons it belongs to
@@ -1725,18 +1432,9 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     var wls = this.waveAt[this.frame];
     if (wls != null) this._loadWave(wls);
     var kid = this.kitAt[this.frame];
-    if (kid != null) {
-      this._kitStart(kid);
-      if(this.observations&&this.kit)this._observe('sample',this.kitIndexAt&&this.kitIndexAt[this.frame],2,null,null,kid);
-    }
+    if (kid != null) this._kitStart(kid);
     var aw = this.auto[this.frame];
-    if (aw) for (i = 0; i < aw.length; i++) {
-      this.apu.write(aw[i].r, aw[i].v);
-      if(this.observations){
-        var reg=aw[i].r,ch=reg>=0x10&&reg<=0x14?0:reg>=0x16&&reg<=0x19?1:reg>=0x1a&&reg<=0x1e||reg>=0x30&&reg<=0x3f?2:reg>=0x20&&reg<=0x23?3:-1;
-        this._observe('register',aw[i].index,ch,null,reg,aw[i].v);
-      }
-    }
+    if (aw) for (i = 0; i < aw.length; i++) this.apu.write(aw[i].r, aw[i].v);
     this.frame++;
   };
 
@@ -1762,7 +1460,6 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       base = 0x11 + (e.ch | 0) * 5;
       this.apu.write(base + 1, 0x00); this.apu.write(base + 3, 0x80);
       if ((e.ch | 0) < 2) this.vib[e.ch | 0].on = false;
-      if(this.observations)this._observe('noteOff',e.index,e.ch);
     }
     this.frame = 0;
   };
@@ -1774,33 +1471,6 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   Sequencer.prototype.seek = function (frame) {
     while (this.frame < frame) this._runFrame();
     this.acc = 0;
-  };
-
-  // Prepared on the page, never in the render callback. Structured-cloneable
-  // sequencers retain schedules; only prototypes need restoring in the worklet.
-  Sequencer.restore = function (data) {
-    Object.setPrototypeOf(data, Sequencer.prototype);
-    Object.setPrototypeOf(data.apu, Apu.prototype);
-    return data;
-  };
-  Sequencer.prototype.handover = function (old, preserve, preserveGlobal) {
-    var fresh = this.apu, apu = old.apu;
-    for (var ch = 0; ch < 4; ch++) {
-      if (preserve[ch]) {
-        if (ch < 2) this.vib[ch] = old.vib[ch];
-      } else apu.ch[ch] = fresh.ch[ch];
-    }
-    if (!preserve[0]) {
-      ['swPace','swDir','swShift','swShadow','swTimer','swEnabled'].forEach(function(k){ apu[k] = fresh[k]; });
-    }
-    if (preserve[2]) {
-      this.waveSlot = old.waveSlot;
-      this.kit = old.kit; this.kitPos = old.kitPos;
-      this.kitLeft = old.kitLeft; this.kitCyc = old.kitCyc;
-    } else apu.wave = fresh.wave;
-    if(!preserveGlobal) { apu.nr50 = fresh.nr50; apu.nr51 = fresh.nr51; apu.power = fresh.power; }
-    this.apu = apu; this.acc = old.acc;
-    this.chMute = old.chMute; this.mix = old.mix; this.rate = old.rate;
   };
 
   Sequencer.prototype.render = function (out, from, count) {
@@ -1822,7 +1492,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       }
       if (this.kit) this.kitCyc -= cy;
       this.apu._advance(cy);
-      out[from + i] = this.apu._mix() * this.gainScalar;
+      out[from + i] = this.apu._mix();
     }
   };
 
@@ -2454,23 +2124,15 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     var inst = (gb.bank && gb.bank.instruments) || [];
     var evs = [];
 
-    var offFrames = HW.noteOffFrames(gb.notes);
-    gb.notes.forEach(function (n, index) {
+    gb.notes.forEach(function (n) {
       var ch = n.ch | 0;
       var regs = HW.noteRegisters(n, gb.bank);
-
-      if (ch < 2 && n.trigger === false) {
-        evs.push({ f: n.frame | 0, ch: ch, type: 4, d: [0x13 + ch * 5, regs[2]] });
-        evs.push({ f: n.frame | 0, ch: ch, type: 4, d: [0x14 + ch * 5, regs[3] & 7] });
-        if (offFrames[index] != null) evs.push({ f: offFrames[index], ch: ch, type: 0, d: [] });
-        return;
-      }
 
       // channel 1's sweep byte rides ahead of every note-on (zero clears), the
       // exact write the browser Sequencer makes -- the two cannot disagree
       if (ch === 0) evs.push({ f: n.frame | 0, ch: 0, type: 3, d: [(n.sweep || 0) & 0xFF] });
       evs.push({ f: n.frame | 0, ch: ch, type: 1, d: regs });
-      if (offFrames[index] != null) evs.push({ f: offFrames[index], ch: ch, type: 0, d: [] });
+      evs.push({ f: (n.frame | 0) + Math.max(1, n.frames | 0), ch: ch, type: 0, d: [] });
     });
 
     // Channel 3 needs a table in wave RAM before it can make a sound. Pick the
@@ -2919,12 +2581,6 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
 (function (G) {
   'use strict';
 
-  // The groove maths lives in gb-hardware, and this file reads it at load time,
-  // so under Node it has to be pulled in HERE rather than left to whichever
-  // gate happened to require it first. It always was ordered that way by luck;
-  // the luck ran out the moment anything required create.js on its own.
-  if (typeof module !== 'undefined' && module.exports && !G.CT_GB) require('./gb-hardware.js');
-
   var FPS = 59.7275;
   var FRAME_CYCLES = 70224;               // master cycles in one LCD frame
   var MAJOR = [0, 2, 4, 5, 7, 9, 11];
@@ -3150,13 +2806,8 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   // asks spb() now, because a bar is not a fixed number of columns any more.
   var GRIDS = [16, 24, 32];
   function freshState() {
-    // `tempoAt` is a list of [row, tempo] -- LSDj's T command, a tempo change
-    // partway through a song. `master` is its M command, NR50's master volume,
-    // which is song-wide rather than a note's. Both are empty for anything this
-    // app composes; they exist so a song somebody else wrote survives import.
     return { key: 0, minor: 0, bars: 4, bpm: 128, swing: 0, grid: 16,
-             cells: [], cur: 'piano', cmd: 0, wob: 0, title: '',
-             tempoAt: [], master: null };
+             cells: [], cur: 'piano', cmd: 0, wob: 0, title: '' };
   }
   function spb() { return (S && S.grid) || 16; }
   function cols() { return S.bars * spb(); }
@@ -3175,88 +2826,12 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     var d = (MEL_ROWS - 1) - r;              // degree from the bottom
     return 48 + S.key + scaleArr()[d % 7] + 12 * Math.floor(d / 7);
   }
-  // ---- TIME IS TICKS, AND A GROOVE IS THE ONLY WAY TO BEND IT --------------
-  //
-  // The hardware has no fractional frames. A step lasts an INTEGER number of
-  // them. That is not a simplification, it is the whole timing model of every
-  // Game Boy tracker, because it is the only thing the machine can do.
-  //
-  // This used to be a float: framesPer16() returned 6.27 and colFrame() rounded
-  // the running total, so a "6.27 frame step" was really some steps of 6 frames
-  // and some of 7, in whatever pattern the rounding happened to produce. That is
-  // swing nobody asked for, it drifted with tempo, and it meant our tempi were
-  // not reachable on the machine at all -- measured across 40 songs, only 7 sat
-  // within a tenth of a frame of an integer step.
-  //
-  // A GROOVE is that unevenness made deliberate: a short repeating list of tick
-  // counts. It is how a tracker reaches a tempo between the rungs of the ladder,
-  // and it is how feel is expressed. Both jobs, one mechanism.
-  //
-  // Four steps is the longest groove used here on purpose. It gives quarter-of-
-  // a-frame resolution on tempo, which is finer than the ear, and it stays a
-  // pattern you could read off a screen. Eight would reach finer tempi and start
-  // to sound like a limp.
-  // ⚠️ ONLY TWO SHAPES ARE ALLOWED, AND THAT IS THE WHOLE POINT.
-  //
-  // The first version of this reached any tempo by making k of every four steps
-  // one tick longer, which is arithmetically neat and musically wrong. A
-  // four-step pattern with one odd step out -- [6,7,7,7], [5,5,5,6] -- is a
-  // LIMP, and the ear locks onto anything that repeats every bar. It landed on
-  // 51 songs out of 60, one step up to 19% off the average, and it is what made
-  // the station sound worse after the tick rewrite than before it.
-  //
-  // The float rounding it replaced spread the same total error quasi-randomly
-  // across steps, so it never formed a pattern and never became audible. That is
-  // the thing to preserve: not the drift, but the absence of a repeating shape.
-  //
-  // So: [n] is even, and [n, n+1] is a symmetric alternation -- a mild shuffle,
-  // which is a real feel a musician would choose. Nothing lopsided.
-  var grooveSpread = G.CT_GB.grooveSpread;
-  // CHOSEN BY SEARCH, not by arithmetic, because the answer has to be a tempo
-  // the DOCUMENT can hold as well as one the machine can play. Rounding
-  // straight to the nearest groove put bpm 70 on a 32nd grid at 68.9, which is
-  // below the storable minimum -- the header wrote a negative offset, it wrapped
-  // through the mask, and the song came back at 179. So: enumerate the grooves
-  // around the target, discard any whose tempo cannot be represented, and keep
-  // the closest of what remains.
-  // ⚠️ ALL FOUR LIVE IN gb-hardware.js NOW, and these are the editor's handles
-  // on them. They used to be written out here as well, which is two
-  // implementations of the clock -- and the composer needed the same maths the
-  // moment swing stopped being a nudge and became a groove. Two copies of a
-  // clock is how a player comes to disagree with its own exporter.
-  var grooveFor = G.CT_GB.grooveFor;
-  var bpmOfGroove = G.CT_GB.bpmOfGroove;
-  // ⚠️ THE CLOCK IS LSDJ'S NOW, and a groove is in TICKS. Measured off the real
-  // ROM: ticks per second = 0.4 x TEMPO, so six ticks a row makes TEMPO ordinary
-  // bpm with four rows to the beat, and a shuffle is a pair summing to twelve.
-  //
-  // What this replaces is a groove measured in FRAMES plus an eight-rung ladder
-  // of the tempi that divide evenly into frames. LSDj has no such ladder: it
-  // runs an accumulator and reaches every integer tempo, spending the leftover
-  // as a mix of two whole frame counts. Our ladder was therefore offering LESS
-  // than the machine, which is the one thing parity does not allow.
-  function grooveTicks() {
-    if (!S._groove || S._groove.bpm !== S.bpm || S._groove.sw !== S.swing || S._groove.spb !== spb())
-      S._groove = { bpm: S.bpm, sw: S.swing, spb: spb(), g: G.CT_GB.lsdjGrooveTicks(S.swing, spb()) };
-    return S._groove.g;
-  }
-  var groove = grooveTicks;
-  // frames in ONE STEP -- the average over the groove, for note lengths
-  function framesPer16() { return G.CT_GB.lsdjFramesPerRow(S.bpm, grooveTicks()); }
-  // ⚠️ PIECEWISE, because the tempo can change partway through. With no changes
-  // this is one call and behaves exactly as it always did; with them the frame
-  // of a row is the sum over the segments before it. LSDj's T command is the
-  // only thing that produces them, so nothing this app composes takes the slow
-  // path.
+  // frames in ONE STEP -- a bar is four beats however many steps it is cut into
+  function framesPer16() { return (60 / S.bpm) * 4 / spb() * FPS; }
   function colFrame(c) {
-    var g = grooveTicks(), chg = S.tempoAt;
-    if (!chg || !chg.length) return G.CT_GB.lsdjRowFrame(S.bpm, g, c);
-    var f = 0, cur = S.bpm, at = 0, i;
-    for (i = 0; i < chg.length && chg[i][0] < c; i++) {
-      f += G.CT_GB.lsdjRowFrame(cur, g, chg[i][0] - at);
-      cur = chg[i][1]; at = chg[i][0];
-    }
-    return f + G.CT_GB.lsdjRowFrame(cur, g, c - at);
+    var f = c * framesPer16();
+    if (S.swing && (c % 4) >= 2) f += 0.28 * framesPer16();   // swung eighth pair
+    return Math.round(f);
   }
   // WHERE A NOTE ACTUALLY STARTS. The grid is where you place notes by hand;
   // a note may also carry an offset in frames, which is how a composed song
@@ -3374,7 +2949,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       var here = byCol[c] || [];
       here.sort(function (a, b) { return (a.t || 0) - (b.t || 0); });
       here.forEach(function (x) {
-        if (x.vel === 0 && !x.nt) { x.rch = x.r >= MEL_ROWS ? 3 : x.rch; return; }   // native zero-volume triggers still change state
+        if (x.vel === 0) { x.rch = x.r >= MEL_ROWS ? 3 : x.rch; return; }   // volume zero: a rest that keeps its place
         if (x.r >= MEL_ROWS) {                              // drum lane
           var d = DRUMS[x.r - MEL_ROWS];
           var dF = cellFrame(x), dLen = Math.max(2, Math.round(per * (x.len || 0.6)));
@@ -3415,13 +2990,11 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
         if (!voice || voice === 'noise') { x.x = 1; return; }
         var steps = x.len ? x.len : (x.w ? 8 : 0.96);
         var totalF = x.lf ? Math.max(1, x.lf | 0) : Math.max(2, Math.round(per * steps) - 1);
-        if (x.nt && !x.lf) totalF = Math.max(1, colFrame(c + steps) - cellFrame(x));
         var mInst = instOf(x, voice === 'wave' ? 2 : (x.ch === 1 ? 1 : 0));
         var note = { frame: cellFrame(x), frames: totalF, det: x.dt | 0,
                      midi: x.midi != null ? x.midi : rowMidi(x.r),
                      inst: mInst != null ? mInst : (x.inst != null ? x.inst : INSTOF[x.st]),
                      vel: x.vel != null ? x.vel : 0.8, pri: 5 };
-        if (x.nt) note.trigger = x.nt === 1;
         if (voice === 'wave') {
           if (!voiceFree(2, note.frame, note.frame + totalF)) { x.x = 1; return; }
           claim(2, note.frame, note.frame + totalF); note.ch = 2; x.rch = 2;
@@ -3466,9 +3039,6 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       });
     }
     notes.sort(function (a, b) { return a.frame - b.frame; });
-    notes.forEach(function (n) {
-      if (n.trigger != null && n.ch < 2) moves.vibOff.push({ f: n.frame, ch: n.ch });
-    });
     panWrites(moves.pan, moves.auto);
     // What this song would cost a 32KB cartridge. The export throws when it
     // does not fit, and a toast after the click is a poor way to learn.
@@ -3481,11 +3051,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
                }, 0);
     moves.auto.sort(function (a, b) { return a.f - b.f; });
     var total = Math.round(cols() * per);
-    // M, LSDj's master volume, arrives as a document field and leaves as the
-    // score's gain -- the same knob the player already honours for a composed
-    // score, so nothing downstream needed teaching.
     return { notes: notes, bank: songBank || BANK, totalFrames: total,
-             gainScalar: S.master == null ? undefined : Math.max(0.05, Math.min(1, (S.master + 1) / 16)),
              auto: moves.auto, vibOff: moves.vibOff, waveLoads: moves.waveLoads,
              kit: moves.kit, loopFrames: total };
   }
@@ -3528,43 +3094,19 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     // v13: the TITLE rides inside the document. Names are derived from a token
     // and a document has no token, so without this a song opens under a
     // different name than the one the sender was looking at when they shared it.
-    // The round trip is a fixed point because the tempo is simply CARRIED now.
-    // It used to be snapped on both sides -- a document was born on an
-    // eight-rung ladder, because a row had to be a whole number of frames. LSDj
-    // proved that wrong: it accumulates, so every integer tempo is playable and
-    // the rows come out as a mix of two frame counts. Nothing to snap to.
-    var bpm = Math.max(70, Math.min(180, S.bpm | 0));
-    // v14: a tempo-change list and a master volume, so a song that uses LSDj's
-    // T or M commands survives import. Both are empty for anything composed
-    // here, and a document with neither encodes IDENTICALLY to v13 apart from
-    // the version byte -- so the new fields cost nothing when they are unused.
-    var tAt = (S.tempoAt || []).filter(function (p2) {
-      return p2 && p2.length === 2 && p2[0] >= 0 && p2[1] >= 40 && p2[1] <= 255;
-    }).slice(0, 63);
-    // v15 carries native pulse trigger state; ordinary documents stay v13/14.
-    var nativeTriggers = S.cells.some(function (x) { return !!x.nt; });
-    var out = [nativeTriggers ? 15 : tAt.length || S.master != null ? 14 : 13,
-               S.key, S.minor, S.bars & 63, (bpm - 70) & 63,
-               S.swing | (((bpm - 70) >> 6) << 1), (S.bars >> 6) & 63,
+    var out = [13, S.key, S.minor, S.bars & 63, (S.bpm - 70) & 63,
+               S.swing | (((S.bpm - 70) >> 6) << 1), (S.bars >> 6) & 63,
                Math.max(0, GRIDS.indexOf(spb()))];
     var t = String(S.title || '').slice(0, 48);
     out.push(t.length & 63);
     for (var ti = 0; ti < t.length; ti++) out.push(TITLE_A.indexOf(t.charAt(ti)) + 1 & 63);
-    if (out[0] >= 14) {
-      out.push((S.master == null ? 0 : (S.master & 15) + 1) & 63);
-      out.push(tAt.length & 63);
-      for (var qi = 0; qi < tAt.length; qi++)
-        out.push(tAt[qi][0] & 63, (tAt[qi][0] >> 6) & 63,       // row, 12 bits
-                 tAt[qi][1] & 63, (tAt[qi][1] >> 6) & 3);       // tempo, 8 bits
-    }
     S.cells.forEach(function (x) {
       var st = x.r >= MEL_ROWS ? 15 : (x.st && x.st.charAt(0) === 'i' ? 14 : Math.max(0, ids.indexOf(x.st)));
       var ext = x.inst != null || x.vel != null || x.midi != null || (x.len || 1) > 1 || x.sweep != null || x.ch != null;
       var snd = x.dy != null || x.fd != null || x.wv != null || x.nz != null || x.ns != null;
       var mov = !!(x.vb || x.sq || x.mp || x.pn || x.gl || x.kt || x.dt || x.of || x.lf);
-      var cmd = (x.u ? 1 : x.q ? 2 : x.g ? 3 : x.f ? 4 : 0) | (snd ? 8 : 0) | (mov ? 16 : 0) | (x.nt ? 32 : 0);
+      var cmd = (x.u ? 1 : x.q ? 2 : x.g ? 3 : x.f ? 4 : 0) | (snd ? 8 : 0) | (mov ? 16 : 0);
       out.push(x.c & 63, (x.c >> 6) & 63, x.r | (x.z ? 32 : 0), st | (x.w ? 16 : 0) | (ext ? 32 : 0), cmd);
-      if (x.nt) out.push(x.nt & 3);
       if (ext) {
         var ip1 = x.inst != null ? x.inst + 1 : 0;           // 0 = no exact instrument
         var midi = x.midi != null ? (x.midi | 0) : 0;
@@ -3595,7 +3137,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     try {
       var v = []; for (var i = 0; i < str.length; i++) { var ix = B64.indexOf(str[i]); if (ix < 0) return null; v.push(ix); }
       var ver = v[0];
-      if (ver < 1 || ver > 15) return null;
+      if (ver < 1 || ver > 13) return null;
       var st2 = freshState();
       st2.key = v[1] % 12; st2.minor = v[2] & 1;
       st2.bars = ver === 1 ? ([2, 4, 8].indexOf(v[3]) >= 0 ? v[3] : 4)
@@ -3605,18 +3147,6 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
                           : Math.max(70, Math.min(180, ver >= 5 ? 70 + v[4] * 2 : v[4] * 2));
       st2.swing = v[5] & 1;
       st2.grid = ver >= 12 ? (GRIDS[v[7]] || 16) : ver >= 9 ? (GRIDS[v[6]] || 16) : 16;
-      // TEMPO IS SNAPPED TO WHAT THE MACHINE CAN ACTUALLY HOLD. A document may
-      // carry any bpm; what it gets is the nearest groove the hardware can play,
-      // and the state has to report the tempo it PLAYS rather than the one it was
-      // asked for. Reporting the asked-for number is how a player comes to
-      // disagree with its own clock.
-      // ⚠️ NO LONGER SNAPPED. A document used to be pulled onto an eight-rung
-      // ladder of tempi whose rows divide evenly into frames, on the way in AND
-      // on the way out, so the round trip stayed a fixed point. LSDj has no such
-      // ladder -- it runs an accumulator and plays every integer tempo -- so the
-      // snap was throwing away 103 of the 111 tempi in our own range and telling
-      // the user it was a hardware limit. It was ours.
-      st2.groove = G.CT_GB.lsdjGrooveTicks(st2.swing, st2.grid);
       var head = ver >= 12 ? 8 : ver >= 9 ? 7 : 6;
       if (ver >= 13) {                       // the title block, then the cells
         var tn = v[head] | 0, tt = '';
@@ -3626,22 +3156,6 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
         }
         st2.title = tt.trim();
         head += 1 + tn;
-      }
-      // v14's two extra song-level fields, after the title and before the cells.
-      // A v13 document simply has neither, which is why the version guards the
-      // read rather than a flag inside it.
-      if (ver >= 14) {
-        var mv = v[head] | 0;
-        st2.master = mv > 0 ? (mv - 1) & 15 : null;
-        var tc2 = v[head + 1] | 0;
-        head += 2;
-        st2.tempoAt = [];
-        for (var qj = 0; qj < tc2; qj++) {
-          var row = (v[head] | 0) | ((v[head + 1] | 0) << 6);
-          var tmp = (v[head + 2] | 0) | (((v[head + 3] | 0) & 3) << 6);
-          if (tmp >= 40 && tmp <= 255) st2.tempoAt.push([row, tmp]);
-          head += 4;
-        }
       }
       var ids = STAMPS.map(function (s) { return s.id; });
       if (ver === 1) {
@@ -3667,7 +3181,6 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
             if (cc && r2 < MEL_ROWS + DRUM_LANES) cell2[cc] = 1;
             k += 1;
           }
-          if (ver >= 15 && (cmdRaw & 32)) cell2.nt = v[k++] & 3;
           if (ver >= 3 && (b2 & 32) && k + 5 < v.length + 1) {
             var e1 = v[k + 1];
             var rawInst = v[k] | ((e1 & 3) << 6);
@@ -3749,7 +3262,6 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       var m = { ch: n.ch, frame: n.frame - f0, frames: Math.min(n.frames, f1 - n.frame),
                 midi: n.midi, inst: n.inst, vel: n.vel, pri: n.pri };
       if (n.sweep) m.sweep = n.sweep;
-      if (n.trigger != null) m.trigger = n.trigger;
       notes.push(m);
     });
     return { notes: notes, bank: song.bank, totalFrames: f1 - f0, loopFrames: f1 - f0 };
@@ -3777,7 +3289,6 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   // The editor owns the address bar while it is open: a refresh has to land
   // back here, with the song intact.
   function ownRoute(enc) {
-    if(G.CT_MUSIC_WORKSPACE&&G.CT_MUSIC_WORKSPACE.isOpen())return;
     var want = '/create' + (enc ? '#s=' + enc : (location.hash || ''));
     if (location.pathname + location.hash === want) return;
     try { history.replaceState(null, '', want); } catch (e) {}
@@ -3945,37 +3456,70 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       Audio.playCreate({ notes: [], bank: BANK, totalFrames: 0x7fffffff }, 0);
   }
 
-  // Mood chips and written prompts share the public interpreter. A failed
-  // request is reported before replacing the current document.
-  var promptError = '';
-  // The reading arrives as two parts: the interpretation the writer asked for,
-  // which they want to see, and the caveats about what could NOT be applied,
-  // which they want only when something reads wrong. One 3.8em scroll box on a
-  // phone buried the first behind the second. Show the primary line always and
-  // fold the caveats into an expandable summary. A plain string -- an error,
-  // say -- is shown as the primary line alone, unchanged from before.
-  function promptFeedback(msg) {
-    var el = root && root.querySelector('.n-prompt-result');
-    if (!el) return;
-    el.textContent = '';
-    if (!msg) return;
-    var primary = typeof msg === 'string' ? msg : (msg.primary || '');
-    var detail = typeof msg === 'string' ? '' : (msg.detail || '');
-    var p = document.createElement('p');
-    p.className = 'npr-primary';
-    p.textContent = primary;
-    el.appendChild(p);
-    if (detail) {
-      var d = document.createElement('details');
-      d.className = 'npr-more';
-      var sm = document.createElement('summary');
-      sm.textContent = (typeof msg === 'string' ? '' : msg.summary) || 'Full interpretation';
-      var body = document.createElement('p');
-      body.className = 'npr-detail';
-      body.textContent = detail;
-      d.appendChild(sm); d.appendChild(body);
-      el.appendChild(d);
-    }
+  // ---- moods: words -> the composer's own dials ----------------------------
+  var MOOD = {
+    happy: { mode: 'maj', bpmMin: 110 }, cheerful: { mode: 'maj', bpmMin: 110 }, joyful: { mode: 'maj', bpmMin: 110 },
+    sunny: { mode: 'maj', bpmMin: 104 }, bright: { mode: 'maj', bpmMin: 104 }, fun: { mode: 'maj', bpmMin: 110 },
+    sad: { mode: 'min' }, melancholy: { mode: 'min' }, blue: { mode: 'min' },
+    gloomy: { mode: 'min' }, lonely: { mode: 'min' }, moody: { mode: 'min' },
+    dark: { mode: 'min', styles: ['techno', 'dnb', 'funk', 'boombap'] },
+    spooky: { mode: 'min', styles: ['techno', 'funk', 'boombap', 'ballad'] },
+    creepy: { mode: 'min', styles: ['techno', 'funk', 'boombap', 'ballad'] },
+    scary: { mode: 'min', styles: ['techno', 'dnb', 'punk'] },
+    haunted: { mode: 'min', styles: ['ballad', 'drone', 'techno'] },
+    fast: { bpmMin: 145 }, quick: { bpmMin: 145 }, hyper: { bpmMin: 155 },
+    frantic: { bpmMin: 155 }, racing: { bpmMin: 150 }, speedy: { bpmMin: 150 },
+    slow: { bpmMax: 100 }, lazy: { bpmMax: 100 }, sleepy: { bpmMax: 92 },
+    upbeat: { bpmMin: 124, mode: 'maj' }, energetic: { bpmMin: 132 },
+    party: { styles: ['house', 'trance', 'anthem'] },
+    dance: { styles: ['house', 'trance', 'anthem', 'techno'] },
+    bouncy: { styles: ['house', 'breaks', 'funk'] },
+    chill: { styles: ['chill', 'ballad'] }, calm: { styles: ['chill', 'ballad', 'drone'] },
+    relaxed: { styles: ['chill', 'ballad'] }, mellow: { styles: ['chill', 'ballad'] },
+    peaceful: { styles: ['chill', 'ballad', 'drone'] }, cozy: { styles: ['chill', 'boombap'] },
+    dreamy: { styles: ['drone', 'ballad', 'trance'] }, ambient: { styles: ['drone'] },
+    floaty: { styles: ['drone', 'trance'] },
+    epic: { styles: ['anthem'] }, heroic: { styles: ['anthem'], mode: 'maj' },
+    triumphant: { styles: ['anthem'], mode: 'maj' },
+    retro: { styles: ['arcade'] }, arcade: { styles: ['arcade'] }, game: { styles: ['arcade'] },
+    rock: { styles: ['rock', 'punk'] }, punk: { styles: ['punk'] }, metal: { styles: ['punk', 'rock'] },
+    funky: { styles: ['funk', 'boombap'] }, groovy: { styles: ['funk', 'house', 'boombap'] },
+    swing: { styles: ['funk', 'boombap', 'house', 'breaks'] },
+    jazzy: { styles: ['funk', 'boombap', 'chill'], mode: 'min' },
+    battle: { styles: ['dnb', 'punk', 'techno'], mode: 'min' },
+    boss: { styles: ['dnb', 'techno', 'punk'], mode: 'min' },
+    intense: { bpmMin: 140, mode: 'min' },
+    house: { styles: ['house'] }, trance: { styles: ['trance'] }, techno: { styles: ['techno'] },
+    dnb: { styles: ['dnb'] }, drum: { styles: ['dnb'] }, breaks: { styles: ['breaks'] },
+    anthem: { styles: ['anthem'] }, boombap: { styles: ['boombap'] }, hiphop: { styles: ['boombap'] },
+    ballad: { styles: ['ballad'] }, drone: { styles: ['drone'] }, funk: { styles: ['funk'] }
+  };
+  function parseMood(text) {
+    var want = { styles: null, mode: null, bpmMin: 0, bpmMax: 999 };
+    String(text || '').toLowerCase().split(/[^a-z]+/).forEach(function (w) {
+      var m = MOOD[w]; if (!m) return;
+      if (m.mode) want.mode = m.mode;
+      if (m.bpmMin) want.bpmMin = Math.max(want.bpmMin, m.bpmMin);
+      if (m.bpmMax) want.bpmMax = Math.min(want.bpmMax, m.bpmMax);
+      if (m.styles) {
+        if (!want.styles) want.styles = m.styles.slice();
+        else {
+          var both = want.styles.filter(function (x) { return m.styles.indexOf(x) >= 0; });
+          want.styles = both.length ? both : want.styles.concat(m.styles);
+        }
+      }
+    });
+    return want;
+  }
+  function composeMood(moodText) {
+    var C = (G.CT_COMPOSERS && G.CT_COMPOSERS.rrr_core) || null;
+    if (!C || typeof C.compile !== 'function') return null;
+    var tok = (G.Song && G.Song.mint) ? G.Song.mint() : Math.random().toString(36).slice(2, 18);
+    var score = null;
+    try { score = C.compile(tok, parseMood(moodText)); } catch (e) { return null; }
+    if (!score || !score.gb || !score.gb.notes || !score.gb.notes.length) return null;
+    score._tok = tok;
+    return score;
   }
 
   // The dice and the mood box compose a REAL track: the same composer the
@@ -3986,19 +3530,17 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   // with the editor; importScore fills whatever state is current, so the
   // radio can materialise a song without the editor being open at all.
   function composeIntoGrid(moodText, auto) {
-    var made = moodSong(moodText);
-    var st = made && decode(made.code);
-    if (!st) { promptFeedback(promptError || 'Could not compose that request. Your song is unchanged.'); return false; }
     if (!auto) tourAdvance(3);
     if (auto) dropLiveScore(); else snapshot();
     resolveBank();
-    S = st; order = S.cells.length;
-    liveScore = made.gb;
-    liveBpm = made.bpm;
-    var bpmLabel = root && root.querySelector('.n-bpmval');
-    var bpmSlider = root && root.querySelector('[data-cr="bpm"]');
-    if (bpmLabel) bpmLabel.textContent = S.bpm;
-    if (bpmSlider) bpmSlider.value = S.bpm;
+    var score = composeMood(moodText);
+    var gb = score && score.gb;
+    if (!gb || !gb.notes || !gb.notes.length) return;
+    importScore(score, moodText);
+    var capF = Math.round(S.bars * spb() * framesPer16());   // the verbatim score, same length
+    liveScore = { notes: gb.notes.filter(function (n) { return n.frame < capF; }),
+                  bank: gb.bank, totalFrames: Math.min(gb.totalFrames, capF), loopFrames: 0 };
+    liveBpm = score.bpm || S.bpm;
     liveMood = String(moodText || '');
     try { buildSong(); } catch (e) {}          // resolve channel marks
     loopBar = -1; queuedBar = null;
@@ -4008,8 +3550,6 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     dirty();
     startPlayback(0);   // after dirty: its clearTimeout cancels the queued repost,
                         // which used to seek past the song's first notes
-    promptFeedback({ primary: made.readingPrimary || made.reading, detail: made.readingDetail || '', summary: made.readingSummary });
-    return true;
   }
   // Fill the CURRENT state from a composed Score. Everything here reads S, so
   // withState() is how it is pointed at a scratch song instead of the editor's.
@@ -4058,11 +3598,13 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     // of loss when a composed song came in -- a hundred notes of a long song
     // simply gone. Playback has no reason to stop at a bar count; only the
     // cartridge does, and checkRoom() says so while there is time to act.
-    S.key = ((keyRoot % 12) + 12) % 12; S.minor = scl.indexOf(3) >= 0 ? 1 : 0;
+    S.key = 0; S.minor = scl.indexOf(3) >= 0 ? 1 : 0;
     S.bars = Math.max(1, Math.ceil((gb.totalFrames || winF) / (spb() * per16f)));
     // the EXACT tempo, not the nearest even one: rounding it moved every note
     // in the song, which is most of why an imported song stopped matching
     S.bpm = Math.max(70, Math.min(180, Math.round(score.bpm || 120)));
+    var bv0 = root && root.querySelector('.n-bpmval');
+    if (bv0) { bv0.textContent = S.bpm; var sl0 = root.querySelector('[data-cr="bpm"]'); if (sl0) sl0.value = S.bpm; }
     S.cells = []; order = 0;
     var sorted = gb.notes.slice().sort(function (a, b) { return a.frame - b.frame || (b.pri || 0) - (a.pri || 0); });
     var LANE = { 9: 2, 7: 1, 3: 0 };           // kick / snare / hat, by note priority
@@ -4138,44 +3680,20 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
                 title: S.title || '', cells: S.cells.length };
       } catch (e) { out = null; }
     });
-    return (out && out.gb && Array.isArray(out.gb.notes)) ? out : null;
+    return (out && out.gb && out.gb.notes && out.gb.notes.length) ? out : null;
   }
-  // The station, editor chips, and written briefs use the same interpretation
-  // and resulting document. Optional token support makes this path reproducible
-  // without opening an editor or minting a different song for each caller.
-  function moodSong(moodText, opts) {
+  // A MOOD, STRAIGHT TO A SONG, with no editor open. The station's mood buttons
+  // and the editor's are the same act on the same machinery -- constrain one
+  // composition with the word, then materialise it as a document, which is
+  // what both views play. Exposed rather than duplicated so the two can never
+  // drift into meaning different things by the same name.
+  function moodSong(moodText) {
     resolveBank();
-    promptError = '';
-    try {
-      var api = G.CT_API;
-      if (!api || !api.ask) throw new Error('The song interpreter is unavailable in this build.');
-      var r = api.ask(String(moodText || ''), { brief: opts || {} });
-      if (!r.ok) { promptError = r.error; return null; }
-      var made = songOf(r.doc);
-      if (!made) throw new Error('That request produced no playable notes.');
-      // Split the reading so the panel shows a concise interpretation first and
-      // the rest on demand: a long brief (many traits + unsupported words) must
-      // not grow the status panel until it pushes the transport off a phone.
-      // The primary names the first few traits with a "+N more" count; the full
-      // list and the caveats live in the disclosure. `reading` stays the
-      // one-line form other callers (and existing tests) already read.
-      var applied = r.applied || [];
-      var shown = applied.slice(0, 3);
-      var extra = applied.length - shown.length;
-      made.readingPrimary = 'Read as: ' + shown.join(', ') + (extra > 0 ? ' +' + extra + ' more' : '');
-      var gaps = (r.skipped || []).concat(r.notUnderstood || []);
-      (r.unsupported || []).forEach(function (u) { gaps.push(u.asked + ': ' + u.why); });
-      var detailBits = [];
-      // Always retain the full reading: even one long reference description
-      // can exceed the primary's two-line display on a phone.
-      if (applied.length) detailBits.push('Read as: ' + applied.join('; '));
-      if (gaps.length) detailBits.push('Not applied: ' + gaps.join('; '));
-      made.readingDetail = detailBits.join('. ');
-      made.readingSummary = gaps.length ? gaps.length + ' not applied · full interpretation' : 'Full interpretation';
-      made.reading = 'Read as: ' + applied.join('; ') + (gaps.length ? '. Not applied: ' + gaps.join('; ') : '');
-      made.interpretation = r;
-      return made;
-    } catch (e) { promptError = String(e.message || e); return null; }
+    var score = composeMood(moodText);
+    if (!score) return null;
+    var nm = '';
+    try { nm = (G.Song && G.Song.title) ? G.Song.title(score._tok || '') : ''; } catch (e) {}
+    return songFrom(score, nm);
   }
   function songFrom(score, title) {
     resolveBank();
@@ -4266,35 +3784,6 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       if (G._toast) G._toast('Downloaded my-creation.mid');
     } catch (e) { if (G._toast) G._toast('MIDI export failed: ' + (e && e.message || e)); }
   }
-
-  // AN ARRANGEMENT TO KEEP WRITING, not a finished file to admire. What lands
-  // in LSDj is the notes, the phrases, the chains, the tempo and the groove; the
-  // voicing is deliberately left stock, because that is the part the musician
-  // receiving it is better at than we are. The toast says what did not survive
-  // rather than leaving it to be found by ear.
-  function exportLsdsng() {
-    try {
-      if (!G.CT_API || !G.CT_API.toLsdsng) { if (G._toast) G._toast('LSDj export is unavailable in this build'); return; }
-      var r = G.CT_API.toLsdsng(encode(), { name: (S.title || 'CHIPTUNE') });
-      _saveBlob(new Blob([r.bytes], { type: 'application/octet-stream' }), r.filename);
-      if (G._toast) G._toast('Downloaded ' + r.filename + ' \u2014 ' + r.phrases +
-        ' phrases, tempo ' + r.tempo + '. Drums move to noise; instruments are stock.', { ms: 4200 });
-    } catch (e) { if (G._toast) G._toast('LSDj export failed: ' + (e && e.message || e)); }
-  }
-
-  // ---- native LSDj structural editing (a separate authority) ---------------
-  // The native editor owns an imported .lsdsng/.sav as a NativeDocument; it does
-  // not read or write this Create document. Opening it stops Create's playback.
-  function openNative() {
-    if (!G.CT_LSDJ_NATIVE_EDITOR || !G.CT_LSDJ_NATIVE_EDITOR.pick) {
-      if (G._toast) G._toast('Native LSDj editing is unavailable in this build'); return;
-    }
-    try { G.CT_LSDJ_NATIVE_EDITOR.pick(); }
-    catch (e) { if (G._toast) G._toast('Could not open the file picker'); }
-  }
-  function stopForNative() { try { if (playing) pausePlayback(); } catch (e) {} }
-  function openNativeJson() { G.CT_LSDJ_NATIVE_EDITOR.pickJson(); }
-  function resumeNative() { G.CT_LSDJ_NATIVE_EDITOR.resume(); }
 
   // ---- hints + tour --------------------------------------------------------
   var hintTimer = 0, hintedSulk = false;
@@ -4529,8 +4018,6 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     var b = root.querySelector('[data-cr="play"]');
     if (b) {
       b.innerHTML = _pb(playing ? 'pause' : 'play');
-      b.setAttribute('aria-label', playing ? 'Pause song' : 'Play song');
-      b.setAttribute('aria-pressed', String(playing));
       b.classList.toggle('waiting', !playing && wantStart);
     }
   }
@@ -5206,9 +4693,6 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
         '<span class="n-moodchips">' +
         CHIPS.map(function (c) { return '<button type="button" class="cr-chip" data-mood="' + c + '">' + c + '</button>'; }).join('') +
         '</span></div>' +
-      '<form class="n-prompt"><input class="cr-mood" aria-label="Describe your song" maxlength="500" placeholder="A dreamy cave theme in D minor, no drums" autocomplete="off">' +
-        '<button type="submit" class="cr-btn">Write song</button></form>' +
-      '<div class="n-prompt-result" role="status" aria-live="polite"></div>' +
       // ONE ROW THAT SCROLLS, not a wrapping block. Five pills do not fit
       // across a phone, and wrapping them cost a whole line of a screen that
       // is mostly song. This is the same nowrap + overflow-x treatment the
@@ -5216,28 +4700,11 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       '<div class="n-utils">' +
         '<button type="button" class="cr-btn" data-cr="undo">↩ Undo</button>' +
         '<button type="button" class="cr-btn" data-cr="redo">↪ Redo</button>' +
-        // The link is how a song made here is kept and heard elsewhere: closing
-        // the editor returns to the game/landing rather than handing this edit
-        // to the station, so the durable "listen to this" path is the link.
-        '<button type="button" class="cr-btn cr-dl" data-cr="share" aria-describedby="n-listenhelp" title="Copy a link that plays this exact song \u2014 how you keep it and listen anywhere">' + _ic('share') + 'Copy link</button>' +
+        '<button type="button" class="cr-btn cr-dl" data-cr="share">' + _ic('share') + 'Copy link</button>' +
         '<button type="button" class="cr-btn cr-dl" data-cr="wav">' + _ic('wave') + 'Download WAV</button>' +
         '<button type="button" class="cr-btn cr-dl" data-cr="rom">' + _ic('rom') + 'Download ROM</button>' +
-        // For the people who write on the hardware: an arrangement to open in
-        // LSDj and keep working on, rather than a finished thing to admire.
-        '<button type="button" class="cr-btn cr-dl" data-cr="lsdsng" title="One LSDj song: notes, phrases, chains, tempo and groove, ready to keep writing">' + _ic('rom') + 'Download LSDj</button>' +
         '<button type="button" class="cr-btn cr-dl" data-cr="midi" title="Standard MIDI, one track per voice">' + _ic('wave') + 'Download MIDI</button>' +
-        // OPEN, not download: a local .lsdsng or .sav whose NATIVE structure you
-        // edit byte-for-byte. Separate authority from this flattened score; it
-        // does not touch or re-export the document you are composing here.
-        '<button type="button" class="cr-btn" data-cr="opennative" title="Open a local .lsdsng or .sav and edit its native LSDj structure (no playback yet)">' + _ic('rom') + 'Open LSDj</button>' +
-        '<button type="button" class="cr-btn" data-cr="opennativejson">Open native JSON</button>' +
-        '<button type="button" class="cr-btn" data-cr="resumenative">Resume LSDj edit</button>' +
-        '<button type="button" class="cr-btn" data-cr="workspace">Compose</button>' +
       '</div>' +
-      // COMPACT VISIBLE LISTEN HELP. A tooltip does not show on a touch screen,
-      // so the two ways to hear or keep a song are stated as plain, visible
-      // text. This changes no close/play behaviour; it only names them.
-      '<p class="n-listenhelp" id="n-listenhelp">\u25B6 plays this song here. <b>Copy link</b> keeps it to play or share anywhere.</p>' +
       // CLOSE IS AN X IN THE CORNER, not a labelled button in the utility row.
       // It is the one control that LEAVES, every sheet puts it top-right, and
       // as a worded pill it read as one more export action. Outside both rows
@@ -5263,12 +4730,12 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       '<div class="n-transport">' +
         '<div class="n-tctrl">' +
           '<button type="button" class="n-tbtn" data-cr="rewind" title="Back to the start">' + _pb('prev') + '</button>' +
-          '<button type="button" class="n-tbtn n-play" data-cr="play" title="Play this song / Pause" aria-label="Play song" aria-pressed="false">' + _pb('play') + '</button>' +
+          '<button type="button" class="n-tbtn n-play" data-cr="play" title="Play / Pause">' + _pb('play') + '</button>' +
         '</div>' +
         '<button type="button" class="n-tfollow' + (camFollow ? ' on' : '') + '" data-cr="follow" ' +
           'title="Keep the view on the music">Follow</button>' +
         '<label class="cr-lab">Speed <b class="n-bpmval">' + S.bpm + '</b> BPM' +
-        '<input type="range" min="70" max="180" step="1" value="' + S.bpm + '" data-cr="bpm"></label>' +
+        '<input type="range" min="70" max="180" step="2" value="' + S.bpm + '" data-cr="bpm"></label>' +
         '<span class="cr-lab n-gridpick">Grid' + GRIDS.map(function (g) {
           return '<button type="button" class="n-gbtn" data-cr="grid' + g + '">' + g + '</button>';
         }).join('') + '</span>' +
@@ -5465,17 +4932,9 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
   }
 
   function wireEvents() {
-    root.querySelector('.n-prompt').addEventListener('submit', function (ev) {
-      ev.preventDefault();
-      gestured = true; wantStart = false;
-      try { if (typeof Audio !== 'undefined' && Audio.resume) Audio.resume(true); } catch (e) {}
-      composeIntoGrid(root.querySelector('.cr-mood').value);
-    });
     // Space plays/pauses
     document.addEventListener('keydown', function (ev) {
       if (ev.code !== 'Space' || !isOpen() || ev.metaKey || ev.altKey || ev.ctrlKey) return;
-      if (G.CT_LSDJ_NATIVE_EDITOR && G.CT_LSDJ_NATIVE_EDITOR.isOpen()) return;
-      if (G.CT_MUSIC_WORKSPACE && G.CT_MUSIC_WORKSPACE.isOpen()) return;
       var tag = (ev.target && ev.target.tagName) || '';
       if (/^(INPUT|TEXTAREA|SELECT)$/.test(tag)) return;
       ev.preventDefault(); ev.stopPropagation();
@@ -5774,18 +5233,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
       else if (k === 'share') { shareSong(b); }
       else if (k === 'wav') { exportWav(); }
       else if (k === 'rom') { exportRom(); }
-      else if (k === 'lsdsng') { exportLsdsng(); }
       else if (k === 'midi') { exportMidi(); }
-      else if (k === 'opennative') { openNative(); }
-      else if (k === 'opennativejson') { openNativeJson(); }
-      else if (k === 'resumenative') { resumeNative(); }
-      else if (k === 'livecoding') {
-        G.CT_MUSIC_WORKSPACE.open().catch(function(e){if(G._toast)G._toast(e.message);});
-      }
-      else if (k === 'workspace') {
-        var source=G.CT_MUSIC_LANGUAGE.materialize(liveScore||buildSong(),{tempo:S.bpm,bars:S.bars,title:S.title,tempoAt:S.tempoAt||[],stepsPerBar:spb(),swing:!!S.swing});
-        G.CT_MUSIC_WORKSPACE.open({source:source,explicit:true}).then(function(){if(G.CT_MUSIC_WORKSPACE.isOpen())root.classList.remove('show');}).catch(function(e){if(G._toast)G._toast(e.message);});
-      }
     });
     root.addEventListener('input', function (ev) {
       var b = ev.target.closest('[data-cr="bpm"]'); if (!b) return;
@@ -5905,7 +5353,7 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     closeSnd();
     if (root) root.classList.remove('show');
     document.body.classList.remove('create-open');
-    try { history.replaceState(null, '', typeof G._generatedRoute === 'function' ? G._generatedRoute() : '/listen'); } catch (e) {}
+    try { history.replaceState(null, '', '/'); } catch (e) {}
     following = false; owning = false;
     if (justAView) { if (G._closeCreateView) G._closeCreateView(); return; }
     if (G._closeCreateReturn) G._closeCreateReturn();
@@ -5920,8 +5368,6 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
     return false;
   }
   G.CT_CREATE = { open: open, close: close, isOpen: isOpen, togglePlay: togglePlay, escape: escape,
-    // Entering the native structure editor silences Create's own playback.
-    stopForNative: stopForNative,
     // THE STATION'S SONGS ARE CREATE'S SONGS. songFrom() turns a composed Score
     // into a Create document -- a playable gb and the code that opens it in the
     // editor -- without the editor being open, so the radio can play documents
@@ -5944,21 +5390,6 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
         withState(JSON.parse(JSON.stringify(state)), function () { out = encode(); });
       } catch (e) { out = null; }
       return out;
-    },
-    // EVERY INTEGER, because that is what LSDj plays. This used to return eight
-    // values -- the tempi whose rows divide evenly into whole frames -- and call
-    // them the ladder the machine imposes. Measuring the real ROM showed LSDj
-    // accumulates instead, spending the remainder as a mix of two frame counts,
-    // so it reaches all of them. The eight were ours, not the machine's.
-    tempos: function (grid) {
-      var out = [];
-      for (var b = 70; b <= 180; b++) out.push(b);
-      return out;
-    },
-    // The groove a tempo resolves to, in LSDJ TICKS: how long each row lasts.
-    grooveOf: function (bpm, swing, grid) {
-      grid = GRIDS.indexOf(grid | 0) >= 0 ? (grid | 0) : 16;
-      return G.CT_GB.lsdjGrooveTicks(swing ? 1 : 0, grid).slice();
     },
     // the tables an agent has to obey, read off the same constants the editor uses
     tables: function () {
@@ -6016,16 +5447,14 @@ if(typeof module!=='undefined' && module.exports) module.exports = Song;
 // selection, critics, candidates, templates, and taste models do not.
 (function(){
 'use strict';
-var G=typeof globalThis!=='undefined'?globalThis:window,REV='musician-13',SEED_REV='musician-12';
+var G=typeof globalThis!=='undefined'?globalThis:window,REV='musician-12';
 if(typeof module!=='undefined'&&!G.CT_STYLE_CORPUS){try{require('./style-corpus.js');}catch(e){}}
 if(typeof module!=='undefined'&&module.exports&&!G.CT_CHIP_INSTRUMENTS)require('./chip-instruments.js');
 if(typeof module!=='undefined'&&module.exports&&!G.CT_MELODY)require('./melody.js');
 if(typeof module!=='undefined'&&module.exports&&!G.CT_GB)require('./gb-hardware.js');
 if(typeof module!=='undefined'&&module.exports&&!G.CT_GB_VOICES)require('./gb-voices.js');
 function hash(s){s=String(s);var h=2166136261>>>0;for(var i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
-// Report the new composition revision without reseeding unrelated style,
-// harmony, form and accompaniment streams during a melodic-writing change.
-function rng(seed,label){var a=hash(SEED_REV+':'+seed+':'+label);return function(){a=(a+0x6D2B79F5)|0;var t=Math.imul(a^(a>>>15),1|a);t=(t+Math.imul(t^(t>>>7),61|t))^t;return((t^(t>>>14))>>>0)/4294967296;};}
+function rng(seed,label){var a=hash(REV+':'+seed+':'+label);return function(){a=(a+0x6D2B79F5)|0;var t=Math.imul(a^(a>>>15),1|a);t=(t+Math.imul(t^(t>>>7),61|t))^t;return((t^(t>>>14))>>>0)/4294967296;};}
 function pick(r,a){return a[Math.floor(r()*a.length)%a.length];}function ri(r,a,b){return a+Math.floor(r()*(b-a+1));}
 function chance(r,p){return r()<p;}function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
 function mod(v,n){return((v%n)+n)%n;}function round(v){return Math.round(v*1000)/1000;}
@@ -6059,28 +5488,21 @@ function mutateRows(r,rows,amount){var out=rows.slice();if(chance(r,amount)&&out
 // two-step break for dnb, boom-bap swing, backbeat rock, funk syncopation).
 // Fourteen styles crossed with progression, rhythm-cell, pad and kit
 // variation puts the distinct-basis count in the hundreds.
-// These windows are a CONTINUUM again, and every integer inside one is
-// reachable. They were briefly widened to span several rungs of a tempo ladder
-// -- eight tempi whose rows divide evenly into whole frames -- on the belief
-// that the machine had nothing in between. The real LSDj disagreed when it was
-// finally asked: it runs an accumulator, reaches every integer tempo, and pays
-// for it with a mix of two whole frame counts per row. The widening did no harm
-// and the ladder is gone.
 var STYLES=[
- {id:'anthem', w:9,bpm:[128,152],sw:0,   kick:'four',    hats:'off8',   bass:'pump',   pads:'arp16', modes:'maj',prog:'anthem',mel:1.0},
- {id:'house',  w:7,bpm:[112,128],sw:0.56,kick:'four',    hats:'off8',   bass:'offbeat',pads:'arp8',  modes:'maj',prog:'vamp2', mel:0.8},
- {id:'trance', w:7,bpm:[128,152],sw:0,   kick:'four',    hats:'off8',   bass:'roll',   pads:'arp16', modes:'any',prog:'vamp2', mel:0.9},
- {id:'techno', w:6,bpm:[112,136],sw:0,   kick:'four',    hats:'roll16', bass:'roll',   pads:'arp16', modes:'min',prog:'static',mel:0.55},
- {id:'dnb',    w:6,bpm:[149,180],sw:0,   kick:'break',   hats:'roll16', bass:'roll',   pads:'echo',  modes:'min',prog:'vamp2', mel:0.7},
- {id:'breaks', w:6,bpm:[112,134],sw:0.56,kick:'break',   hats:'eighth', bass:'pump',   pads:'alberti',modes:'maj',prog:'func', mel:0.9},
- {id:'arcade', w:8,bpm:[128,180],sw:0,   kick:'sync',    hats:'eighth', bass:'pump',   pads:'arp8',  modes:'maj',prog:'func',  mel:1.1},
- {id:'rock',   w:7,bpm:[112,142],sw:0,   kick:'backbeat',hats:'eighth', bass:'root5',  pads:'none',  modes:'maj',prog:'func',  mel:1.0},
- {id:'punk',   w:5,bpm:[149,180],sw:0,   kick:'backbeat',hats:'eighth', bass:'root5',  pads:'none',  modes:'maj',prog:'func',  mel:1.1},
- {id:'funk',   w:5,bpm:[90,112],sw:0.56,kick:'sync',    hats:'off8',   bass:'offbeat',pads:'echo',  modes:'min',prog:'vamp2', mel:0.85},
- {id:'boombap',w:4,bpm:[81,100],  sw:0.60,kick:'boom',    hats:'eighth', bass:'walk',   pads:'held',  modes:'min',prog:'vamp2', mel:0.6},
- {id:'chill',  w:5,bpm:[90,112], sw:0,   kick:'half',    hats:'quarter',bass:'walk',   pads:'held',  modes:'maj',prog:'func',  mel:0.5},
- {id:'ballad', w:3,bpm:[74,90],  sw:0,   kick:'half',    hats:'sparse', bass:'walk',   pads:'held',  modes:'any',prog:'func',  mel:0.6},
- {id:'drone',  w:2,bpm:[70,90],  sw:0,   kick:'none',    hats:'sparse', bass:'walk',   pads:'held',  modes:'maj',prog:'static',mel:0.35}
+ {id:'anthem', w:9,bpm:[140,152],sw:0,   kick:'four',    hats:'off8',   bass:'pump',   pads:'arp16', modes:'maj',prog:'anthem',mel:1.0},
+ {id:'house',  w:7,bpm:[120,128],sw:0.56,kick:'four',    hats:'off8',   bass:'offbeat',pads:'arp8',  modes:'maj',prog:'vamp2', mel:0.8},
+ {id:'trance', w:7,bpm:[134,142],sw:0,   kick:'four',    hats:'off8',   bass:'roll',   pads:'arp16', modes:'any',prog:'vamp2', mel:0.9},
+ {id:'techno', w:6,bpm:[128,136],sw:0,   kick:'four',    hats:'roll16', bass:'roll',   pads:'arp16', modes:'min',prog:'static',mel:0.55},
+ {id:'dnb',    w:6,bpm:[160,172],sw:0,   kick:'break',   hats:'roll16', bass:'roll',   pads:'echo',  modes:'min',prog:'vamp2', mel:0.7},
+ {id:'breaks', w:6,bpm:[126,134],sw:0.56,kick:'break',   hats:'eighth', bass:'pump',   pads:'alberti',modes:'maj',prog:'func', mel:0.9},
+ {id:'arcade', w:8,bpm:[148,158],sw:0,   kick:'sync',    hats:'eighth', bass:'pump',   pads:'arp8',  modes:'maj',prog:'func',  mel:1.1},
+ {id:'rock',   w:7,bpm:[130,142],sw:0,   kick:'backbeat',hats:'eighth', bass:'root5',  pads:'none',  modes:'maj',prog:'func',  mel:1.0},
+ {id:'punk',   w:5,bpm:[150,162],sw:0,   kick:'backbeat',hats:'eighth', bass:'root5',  pads:'none',  modes:'maj',prog:'func',  mel:1.1},
+ {id:'funk',   w:5,bpm:[102,112],sw:0.56,kick:'sync',    hats:'off8',   bass:'offbeat',pads:'echo',  modes:'min',prog:'vamp2', mel:0.85},
+ {id:'boombap',w:4,bpm:[84,94],  sw:0.60,kick:'boom',    hats:'eighth', bass:'walk',   pads:'held',  modes:'min',prog:'vamp2', mel:0.6},
+ {id:'chill',  w:5,bpm:[96,108], sw:0,   kick:'half',    hats:'quarter',bass:'walk',   pads:'held',  modes:'maj',prog:'func',  mel:0.5},
+ {id:'ballad', w:3,bpm:[76,88],  sw:0,   kick:'half',    hats:'sparse', bass:'walk',   pads:'held',  modes:'any',prog:'func',  mel:0.6},
+ {id:'drone',  w:2,bpm:[70,82],  sw:0,   kick:'none',    hats:'sparse', bass:'walk',   pads:'held',  modes:'maj',prog:'static',mel:0.35}
 ];
 // Each style reads its pattern pools from the corpus bucket that matches its
 // feel: 74,552 VGM MIDI files mined on the PC into joint kit patterns
@@ -6101,8 +5523,6 @@ function pickPair(r,rows){
   for(i=0;i<rows.length;i++){at-=rows[i][1];if(at<=0)return rows[i][0];}
   return rows[rows.length-1][0];
 }
-// Bounded premise dials are clamped to [-1,1]; a non-finite value reads as 0.
-function premiseDial(v){return Number.isFinite(v)?Math.max(-1,Math.min(1,v)):0;}
 function normalizedPremise(raw){
   if(!raw||typeof raw!=='object')return null;
   var known={};STYLES.forEach(function(s){known[s.id]=1;});
@@ -6110,15 +5530,9 @@ function normalizedPremise(raw){
   var mode=raw.mode==='maj'||raw.mode==='min'?raw.mode:null;
   var bpmMin=Number.isFinite(raw.bpmMin)?Math.max(0,Math.round(raw.bpmMin)):0;
   var bpmMax=Number.isFinite(raw.bpmMax)?Math.max(0,Math.round(raw.bpmMax)):999;
-  // energy/density/motion are BOUNDED CHARACTER DIALS applied before generation:
-  // energy leans section intensity (never the tempo the band and caller already
-  // own), density scales how many melody and bass onsets are written, and motion
-  // widens or narrows the composed motif contour. All-zero is indistinguishable
-  // from no premise, so the unprompted station stays byte-for-byte identical.
-  var energy=premiseDial(raw.energy),density=premiseDial(raw.density),motion=premiseDial(raw.motion);
   if(!styles||!styles.length)styles=null;
-  if(!styles&&!mode&&bpmMin<=0&&bpmMax>=999&&!energy&&!density&&!motion)return null;
-  return{styles:styles,mode:mode,bpmMin:bpmMin,bpmMax:bpmMax,energy:energy,density:density,motion:motion};
+  if(!styles&&!mode&&bpmMin<=0&&bpmMax>=999)return null;
+  return{styles:styles,mode:mode,bpmMin:bpmMin,bpmMax:bpmMax};
 }
 function styleModes(style){
   if(style&&style.modes==='maj')return MODES.filter(function(m){return MAJ_MODES[m.name];});
@@ -6127,10 +5541,7 @@ function styleModes(style){
 }
 function styleAnswers(style,p){
   if(p.styles&&p.styles.indexOf(style.id)<0)return false;
-  // A named genre's mode set is a default, not a prohibition on explicit
-  // requests such as minor rock. Mode-only station premises retain their
-  // existing genre preferences.
-  if(p.mode&&!p.styles&&!styleModes(style).some(function(m){return (p.mode==='maj')===!!MAJ_MODES[m.name];}))return false;
+  if(p.mode&&!styleModes(style).some(function(m){return (p.mode==='maj')===!!MAJ_MODES[m.name];}))return false;
   return Math.max(style.bpm[0],p.bpmMin)<=Math.min(style.bpm[1],p.bpmMax);
 }
 function pickStyle(token,premise){
@@ -6150,7 +5561,7 @@ var MODES=[
 var MAJ_MODES={ionian:1,mixolydian:1,lydian:1,'pent-major':1};
 function pickMode(r,style,premise){
   var pool=styleModes(style);
-  if(premise&&premise.mode){var constrained=(premise.styles?MODES:pool).filter(function(m){return (premise.mode==='maj')===!!MAJ_MODES[m.name];});if(constrained.length)pool=constrained;}
+  if(premise&&premise.mode){var constrained=pool.filter(function(m){return (premise.mode==='maj')===!!MAJ_MODES[m.name];});if(constrained.length)pool=constrained;}
   var t=0,i;for(i=0;i<pool.length;i++)t+=pool[i].w;var at=r()*t;
   for(i=0;i<pool.length;i++){at-=pool[i].w;if(at<=0)return pool[i];}return pool[0];}
 // Sections used to differ only in drum-mutation rate and a velocity nudge, so
@@ -6426,32 +5837,8 @@ function pickBank(token,style){
     hat:at(hatPool,'v-hat'), snare:at(ns.slice(third,third*2),'v-snare'),
     kick:at(ns.slice(-third),'v-kick')}};
 }
-// The tempi a whole number of frames per step can hold, at the sixteenth grid
-// the composer writes on. Derived, not typed: 240*FPS/(16*ticks).
-// EVERY INTEGER TEMPO IN THE BAND, because that is what LSDj plays.
-//
-// There was a ladder here -- playableBpms() returned the eight tempi whose rows
-// divide evenly into whole frames, and nearestPlayableBpm() snapped every song
-// onto one. Measuring the real ROM in mGBA killed both: LSDj runs an
-// accumulator and reaches all of them, spending the remainder as a mix of two
-// whole frame counts. The ladder was ours, and it offered 8 tempi where the
-// machine offers 111.
-//
-// What is reported now is simply the reachable set -- the union of the style
-// bands, which is what a caller actually wants to know.
-function reachableBpms(){
-  var lo=999,hi=0,out=[],i;
-  for(i=0;i<STYLES.length;i++){lo=Math.min(lo,STYLES[i].bpm[0]);hi=Math.max(hi,STYLES[i].bpm[1]);}
-  for(i=lo;i<=hi;i++)out.push(i);
-  return out;
-}
-
 function compile(token,rawPremise){
   var premise=normalizedPremise(rawPremise);
-  // Pulled out once so the generation body can read them. Each is 0 for an
-  // ordinary premise, which is exactly what keeps the unprompted score
-  // identical: nothing below fires on a zero.
-  var pEnergy=premise?premise.energy:0,pDensity=premise?premise.density:0,pMotion=premise?premise.motion:0;
   token=String(token||'chiptunes');var pr=rng(token,'premise'),trained=trainedModel(pr),model=trained.model;
   var style=pickStyle(token,premise);
   if(!style)throw new Error('No composer style satisfies this premise');
@@ -6462,78 +5849,29 @@ function compile(token,rawPremise){
   // the style owns its tempo band; heat leans toward its top
   var bpmLo=style.bpm[0],bpmHi=style.bpm[1];
   if(premise){var lo=Math.max(bpmLo,premise.bpmMin),hi=Math.min(bpmHi,premise.bpmMax);if(lo<=hi){bpmLo=lo;bpmHi=hi;}}
-  // ANY INTEGER IN THE BAND. There was a ladder here -- eight tempi whose rows
-  // divide evenly into whole frames -- on the reasoning that a row has to be a
-  // whole number of frames and everything between had to be faked with an uneven
-  // groove nobody asked for.
-  //
-  // The first half of that is true and the conclusion was wrong, and the real
-  // LSDj settled it. Measured off the ROM in mGBA: LSDj runs an ACCUMULATOR, so
-  // at tempo 120 its rows come out as 7 frames and 8 frames interleaved, and it
-  // reaches every integer tempo that way. It has done this for twenty years and
-  // nobody has ever called it lopsided, because an accumulator has no short
-  // period -- unlike the four-step pattern with one odd step out that this
-  // project shipped briefly and that was audible on every bar.
-  //
-  // So the ladder was ours, not the machine's, and it offered 8 tempi where the
-  // machine offers 111. Parity means we do not get to be more restrictive than
-  // the thing we are matching.
   var bpm=Math.round(bpmLo+(bpmHi-bpmLo)*(((hash(token+':bpmf')%100)/100)*0.6+heat*0.4));
-  // ENERGY leans the intensity used for form, drums and accompaniment AFTER the
-  // tempo is fixed, so the band and caller keep sole ownership of bpm and no
-  // dimension is processed twice. Zero energy leaves heat exactly as drawn.
-  if(pEnergy)heat=clamp(heat+pEnergy*0.35,0.05,0.98);
   // "Tracks too long, sections too long": ~85 seconds, not two minutes.
-  // LENGTH MUST NOT BE A PURE FUNCTION OF TEMPO. This was a flat 88 seconds
-  // converted to bars, which was fine while tempo was continuous and became a
-  // problem the moment it was quantised: eight tempi gave four song lengths
-  // where there had been six, and consecutive bars started repeating their
-  // rhythm 14.6% of the time instead of 10.9%. Songs are not all exactly the
-  // same length anyway, so the target varies per token and the variety comes
-  // back without bending the tempo grid.
-  var wantSecs=80+(hash(token+':length')%17);
-  var bars=clamp(Math.round((wantSecs*bpm/240)/4)*4,36,56),form=makeForm(token,bars,model,bpm,heat),harm=makeHarmony(token,model,mode,style),groove=makeGroove(token,model,heat,style);
+  var bars=clamp(Math.round((88*bpm/240)/4)*4,36,56),form=makeForm(token,bars,model,bpm,heat),harm=makeHarmony(token,model,mode,style),groove=makeGroove(token,model,heat,style);
   var bassMotif=makeMotif(token,'bass-motif',3,6,model,'bass'),leadMotif=makeMotif(token,'lead-motif',5,10,model,'lead'),events=[],ordinal=0;
-  // DENSITY scales how many onsets are written; MOTION widens the composed
-  // contour. Both are post-draw transforms of deterministic values, so they
-  // never disturb the RNG streams -- a neutral dial reproduces the unprompted
-  // melody budget, bass onset count and motif exactly. The lead's own motion is
-  // carried into CT_MELODY.write below (the walking bass reads bassMotif here).
-  var melDensity=style.mel;
-  if(pDensity)melDensity=clamp(melDensity*(1+pDensity*0.5),0.2,1.6);
-  var bassCap=clamp((heat<0.5?3:4)+Math.round(pDensity*2),1,6);
-  if(pMotion){
-    var stretch=function(d){return clamp(Math.round(d*(1+pMotion*0.7)),-7,11);};
-    bassMotif={steps:bassMotif.steps,degrees:bassMotif.degrees.map(stretch),gaps:bassMotif.gaps};
-  }
   // The composer writes ONTO THE MACHINE. Every note is placed on one of the
   // four channels as it is thought of; a channel cannot hold two notes, so
   // nothing downstream ever removes anything and the browser and the ROM are
   // playing the same piece rather than two versions of it.
   var PLAN=PLANS[hash(token+':plan')%PLANS.length],GBB=pickBank(token,style);
-  // SWING IS THE GROOVE, not a nudge. Half the station shuffles, and this used
-  // to do it by sliding every offbeat eighth late by a fraction of a beat --
-  // which sounds right and cannot be written down. LSDj has no position between
-  // two rows, so 4514 of our 4894 un-exportable notes were this one line.
-  //
-  // A tracker swings by making the rows themselves uneven: a long-short pair of
-  // TICKS, summing to twice the base so the tempo does not move. [7,5] is the
-  // mild shuffle an LSDj musician reaches for, [8,4] the hard one, and those are
-  // the only shapes on offer because they are the only ones LSDj has.
-  //
-  // The tempo needs no adjusting: a shuffle keeps the same total, so bpm still
-  // means bpm. This is the whole reason to work in LSDj's units -- the number we
-  // write is the number it plays, with nothing converted on the way.
-  var tickGroove=G.CT_GB?G.CT_GB.lsdjGrooveTicks(style.sw||0,16):[6];
-  var V=(G.CT_GB_VOICES&&GBB)?new G.CT_GB_VOICES.Voices(bpm,tickGroove):null;
+  // SWING. Half the station shuffles: every offbeat eighth slides late by a
+  // fixed fraction of the beat. It is the single cheapest unit of fun the
+  // grid owns, and the NES songbook leaned on it constantly.
+  var SW=style.sw||0;
+  function sw8(t){ if(!SW)return t; var f=t-Math.floor(t); return Math.abs(f-0.5)<0.03?t+(SW-0.5):t; }
+  var V=(G.CT_GB_VOICES&&GBB)?new G.CT_GB_VOICES.Voices(bpm):null;
   var CH={lead:PLAN.mel,extra:PLAN.mel,arp:PLAN.harm>=0?PLAN.harm:PLAN.mel,
           pad:PLAN.harm,echo:PLAN.harm,bass:PLAN.bass,kick:3,snare:3,hat:3};
   var PRI={kick:9,snare:7,hat:3,lead:8,extra:6,arp:4,echo:3,pad:2,bass:5};
   var INS=GBB?{lead:GBB.inst.lead,extra:GBB.inst.lead,arp:GBB.inst.harm,pad:GBB.inst.harm,
                echo:GBB.inst.lead,bass:GBB.inst.bass,kick:GBB.inst.kick,snare:GBB.inst.snare,hat:GBB.inst.hat}:{};
-  function add(t,dur,ch,note,vel,artic,extra,instOv,sweep){var e={tBeat:round(t),dur:round(dur),ch:ch,vel:round(vel),seed:hash(token+':event:'+ordinal++)};
+  function add(t,dur,ch,note,vel,artic,extra,instOv,sweep){t=sw8(t);var e={tBeat:round(t),dur:round(dur),ch:ch,vel:round(vel),seed:hash(token+':event:'+ordinal++)};
     if(note!=null)e.midi=Math.round(note);if(artic)e.artic=artic;if(extra)Object.assign(e,extra);events.push(e);
-    if(V){var c=CH[ch];if(c!=null&&c>=0){var f=V.frameOf(t),fr=V.framesFor(dur);
+    if(V){var c=CH[ch];if(c!=null&&c>=0){var f=V.frameOf(t),fr=Math.max(1,V.frameOf(t+dur)-f);
       var ins=instOv!=null?instOv:INS[ch];
       // A plan can route harmony to the WAVE channel, and that role carries a
       // pulse instrument -- whose byte0 is a duty, not a wave slot. It played
@@ -6615,33 +5953,17 @@ function compile(token,rawPremise){
     // half of walking basses stride on onsets mined from real VGM bass lines
     var minedBass=(hash(token+':bass-mined')%2===0)?(function(){var B2=corpusBucket(style);
       var m=B2?pickPair(rng(token,'bass-mask'),B2.bass):null;
-      return m?maskRows(m).slice(0,bassCap):null;})():null;
-    var bassRows=!VC.bass?[]:FEEL==='half'?[0,8]:thin?[0]:(minedBass&&minedBass.length?minedBass:bassMotif.steps.map(function(x){return mod(x*2,16);}).filter(function(x,i,a){return a.indexOf(x)===i;}).sort(function(a,b){return a-b;}).slice(0,bassCap));
+      return m?maskRows(m).slice(0,heat<0.5?3:4):null;})():null;
+    var bassRows=!VC.bass?[]:FEEL==='half'?[0,8]:thin?[0]:(minedBass&&minedBass.length?minedBass:bassMotif.steps.map(function(x){return mod(x*2,16);}).filter(function(x,i,a){return a.indexOf(x)===i;}).sort(function(a,b){return a-b;}).slice(0,heat<0.5?3:4));
     bassRows.forEach(function(row,i){var md=bassMotif.degrees[i%bassMotif.degrees.length],degree=root+(i===bassRows.length-1&&row>=12?mod(nextRoot-root+3,SLEN)-3:md);
       var next=i+1<bassRows.length?bassRows[i+1]:16,art=i&&Math.abs(md-bassMotif.degrees[(i-1)%bassMotif.degrees.length])>2?{from:midi(root,key,mode.scale,36)}:null;
       add(bar*4+row/4,clamp((next-row)/4-.04,.1,1.7),'bass',midi(degree,key,mode.scale,36),.43+(sec.e-5)*.012,art);});
     }
     var gesture=hash(token+':gesture:'+Math.floor(bar/8))%4;
-    // The FIGURE is the block's texture and is meant to hold for eight bars.
-    // WHERE it lands is not, and stamping the same three onsets every other bar
-    // for eight bars running was 76% of every repeated bar in the arrangement.
-    // It reads worst on a plan with no free harmony channel, because there the
-    // arpeggio is written onto the LEAD and those bars are the whole tune. The
-    // anchor walks per firing instead; the texture survives, the bar breathes.
-    var fire=hash(token+':arpat:'+Math.floor(bar/2));
     if(VC.arp&&bar%(heat<0.45?4:2)===0){
-      // A CHORD, not three notes a frame and a half apart. This was written as
-      // three separate notes 0.05 beats apart -- which is a frame-rate stab, the
-      // right SOUND, but LSDj cannot hold two notes inside one row, let alone
-      // three. It is a chord there: one note, arpeggiated by the instrument.
-      // That is also what the machine does, so this is the same stab written
-      // the way the machine and the tracker both already understood it.
-      if(gesture===0){var a0=[1.5,2.5,1.5,3.5][fire%4];
-        add(bar*4+a0,.32,'arp',midi(root,key,mode.scale,48),.095,null,
-            {arp:[0,mode.scale[2],mode.scale[4]]});}
+      if(gesture===0)[0,2,4].forEach(function(d,i){add(bar*4+1.5+i*.05,.32,'arp',midi(root+d,key,mode.scale,48),.095);});
       else if(gesture===1)add(bar*4+.5,1.25,'arp',midi(root,key,mode.scale,48),.1,{arp:[0,mode.scale[2],mode.scale[4],12]});
-      else if(gesture===2){var a2=[0,0,.5,.25][fire%4],sp=fire%3===2?.75:.5;
-        [0,2,4].forEach(function(d,i){add(bar*4+a2+i*sp,.28,'arp',midi(root+d,key,mode.scale,48),.09);});}
+      else if(gesture===2)[0,2,4].forEach(function(d,i){add(bar*4+i*.5,.28,'arp',midi(root+d,key,mode.scale,48),.09);});
       else if(VC.pad)padTexture(bar*4,3.5,root);
     }else if(VC.pad&&bar%4===0)padTexture(bar*4,Math.min(7.5,(sec.bars-local)*4-.2),root);
   }
@@ -6651,7 +5973,7 @@ function compile(token,rawPremise){
     var rootFor=function(b){var ph=Math.floor(b/harm.roots.length),rr=ph%3===2?harm.altered:harm.roots;return rr[b%rr.length];};
     var mel=G.CT_MELODY.write({token:token,rng:rng(token,'melody'),hash:hash,model:model,
       semiDegree:semiDegree,bars:bars,sections:form,rootAt:rootFor,scaleLen:SLEN,
-      melDensity:melDensity,motion:pMotion});
+      melDensity:style.mel});
     var mr2=rng(token,'melody-art');
     // Three LSDJ habits land here. LEGATO: a note holds until the next one
     // arrives instead of stabbing and dying, which is most of the difference
@@ -6705,22 +6027,12 @@ function compile(token,rawPremise){
   var gbNotes=V?V.collect():[];
   var lastN=gbNotes.length?gbNotes[gbNotes.length-1]:null;
   var tracker={format:'CTRACK-1',hardware:'CHIP',mode:mode.name,trainedModel:trained.id,instrumentBank:G.CT_CHIP_INSTRUMENTS&&G.CT_CHIP_INSTRUMENTS.corpusFingerprint||''};
-  if(premise){tracker.premise={styles:premise.styles?premise.styles.slice():null,mode:premise.mode,bpmMin:premise.bpmMin,bpmMax:premise.bpmMax};
-    // Only surface the new dials when they are actually engaged, so a plain
-    // {styles,mode,bpmMin,bpmMax} premise still records exactly those four keys.
-    if(premise.energy)tracker.premise.energy=premise.energy;
-    if(premise.density)tracker.premise.density=premise.density;
-    if(premise.motion)tracker.premise.motion=premise.motion;}
-  // THE GROOVE TRAVELS WITH THE SONG. It is the clock: with swing the rows are
-  // uneven, so "which row is this note on" is unanswerable without it, and any
-  // reader that assumes a uniform row -- exporter, player, gate -- gets a
-  // different piece of music than the one that was written.
-  return{v:4,composerRevision:REV,token:token,bpm:bpm,groove:tickGroove.slice(),
-    gb:{plan:PLAN.id,fps:(G.CT_GB?G.CT_GB.FPS:59.7275),notes:gbNotes,groove:tickGroove.slice(),
+  if(premise)tracker.premise={styles:premise.styles?premise.styles.slice():null,mode:premise.mode,bpmMin:premise.bpmMin,bpmMax:premise.bpmMax};
+  return{v:4,composerRevision:REV,token:token,bpm:bpm,
+    gb:{plan:PLAN.id,fps:(G.CT_GB?G.CT_GB.FPS:59.7275),notes:gbNotes,
         bank:GBB?GBB.bank:null,instruments:GBB?GBB.inst:null,
         totalFrames:lastN?lastN.frame+lastN.frames:0},beatsPerBar:4,totalBars:bars,endsCleanAtBeat:end,transitionTailBeats:1.25,
-    gainScalar:.76,palette:palette(token,trained.id),sections:form,musical:{scale:mode.scale.slice(),rootMidi:60+key,motifDegs:leadMotif.degrees.slice(),leadHint:'lead',
-      phrasePlan:mel && mel.phrasePlan ? mel.phrasePlan : []},
+    gainScalar:.76,palette:palette(token,trained.id),sections:form,musical:{scale:mode.scale.slice(),rootMidi:60+key,motifDegs:leadMotif.degrees.slice(),leadHint:'lead'},
     form:form.formId,style:style.id,tracker:tracker,background:{attentionBudget:.1},events:events};
 }
 function duration(token){var s=compile(token);return s.totalBars*4*60/s.bpm;}
@@ -6730,10 +6042,8 @@ function duration(token){var s=compile(token);return s.totalBars*4*60/s.bpm;}
 // with an incompatible mode or tempo band leaves pickStyle() with an empty
 // pool -- and the caller's fallback then drops the styles, which is the one
 // part of the request it was least entitled to throw away.
-// `modes` describes defaults; an explicit named-style premise can override it.
 function styles(){return STYLES.map(function(s){return {id:s.id,bpm:s.bpm.slice(),modes:s.modes};});}
-function canCompose(rawPremise){return !!pickStyle('',normalizedPremise(rawPremise));}
-var API={V:3,id:'rrr_core',revision:REV,compile:compile,canCompose:canCompose,duration:duration,styles:styles,tempos:reachableBpms};
+var API={V:3,id:'rrr_core',revision:REV,compile:compile,duration:duration,styles:styles};
 G.CT_COMPOSERS=G.CT_COMPOSERS||{};G.CT_COMPOSERS.rrr_core=API;if(typeof module!=='undefined'&&module.exports)module.exports=API;
 })();
 
@@ -6851,145 +6161,6 @@ var API = {
 if (isNode) module.exports = API;
 return API;
 })();
-
-/* ===== src/music-event-stream.js ===== */
-// Bounded, pull-only journal. Source validation/identity belongs to the caller.
-// CT_MUSIC_EVENT_STREAM.create({capacity=2048}) accepts capacities 1..4096.
-// append(event) -> journal sequence (1-based, never reset by clear). Records
-// have Object.prototype or null prototypes and <=24 own data fields. Keys are
-// 1..64 UTF-16 units; string values are 0..256. Strings must be well-formed and
-// contain no C0/C1 controls. Prototype keys, symbols, accessors, nested values,
-// undefined, functions, bigints and nonfinite numbers are rejected. Other
-// values are strings, booleans or null. No source fields are added/rewritten.
-// clear(reason?) -> new generation (initially 0); an optional bounded string
-// reason is validated but not retained. Deliberately cleared events aren't loss.
-// reader({replay=false}) -> {read(limit=256), close()}; limits are 1..512.
-// read -> {events,dropped,reset,generation,cursor}. Events are detached records;
-// cursor is the last consumed/skipped JOURNAL sequence, not event.sequence.
-// dropped counts unread overflow losses since this reader's last successful
-// read (or creation), including losses before/intervening clears. reset means
-// at least one clear since that read/creation, then recovery at oldest retained.
-// snapshot -> {capacity,size,generation,sequence,overflow}; overflow is lifetime
-// evictions, including already-read entries. All counters are safe integers;
-// exhausted sequence/generation counters throw before changing journal state.
-(function(G){
-  'use strict';
-  var MAX_COUNTER=Number.MAX_SAFE_INTEGER;
-  var hasOwn=Object.prototype.hasOwnProperty;
-
-  function validString(value,max,nonempty){
-    if(typeof value!=='string'||value.length>max||(nonempty&&!value.length))return false;
-    for(var i=0;i<value.length;i++){
-      var code=value.charCodeAt(i);
-      if(code<32||(code>=127&&code<=159))return false;
-      if(code>=0xd800&&code<=0xdbff){
-        var next=value.charCodeAt(++i);
-        if(!(next>=0xdc00&&next<=0xdfff))return false;
-      }else if(code>=0xdc00&&code<=0xdfff)return false;
-    }
-    return true;
-  }
-
-  function copyRecord(record){
-    if(!record||typeof record!=='object'||Array.isArray(record))throw TypeError('Event must be a plain scalar record');
-    var proto=Object.getPrototypeOf(record);
-    if(proto!==null&&proto!==Object.prototype)throw TypeError('Event must have a plain or null prototype');
-    var keys=Reflect.ownKeys(record);
-    if(keys.length>24)throw RangeError('Event must have at most 24 fields');
-    var copy=Object.create(null);
-    for(var i=0;i<keys.length;i++){
-      var key=keys[i];
-      if(!validString(key,64,true)||key==='prototype'||hasOwn.call(Object.prototype,key))throw TypeError('Invalid event field name');
-      // Descriptors also cover nonenumerable fields, without invoking getters.
-      var descriptor=Object.getOwnPropertyDescriptor(record,key);
-      if(!descriptor||!hasOwn.call(descriptor,'value'))throw TypeError('Event accessors are not allowed');
-      var value=descriptor.value,type=typeof value;
-      if(!(value===null||type==='boolean'||(type==='number'&&Number.isFinite(value))||validString(value,256,false)))
-        throw TypeError('Event values must be finite scalars with bounded valid strings');
-      copy[key]=value;
-    }
-    return copy;
-  }
-
-  function option(options,name,fallback){
-    if(options===undefined)return fallback;
-    var copy=copyRecord(options),keys=Object.keys(copy);
-    if(keys.length>1||(keys.length===1&&keys[0]!==name))throw TypeError('Only '+name+' is supported');
-    return keys.length?copy[name]:fallback;
-  }
-
-  function boundedInteger(value,max,name){
-    if(!Number.isInteger(value)||value<1||value>max)throw RangeError(name+' must be an integer from 1 through '+max);
-    return value;
-  }
-
-  function create(options){
-    var capacity=boundedInteger(option(options,'capacity',2048),4096,'Capacity');
-    var slots=new Array(capacity),head=0,size=0,sequence=0,overflow=0;
-    // Readers pin only one tiny scalar record, never a retired ring or a chain
-    // of generations. A clear replaces this record; old readers can still see
-    // precisely where overflow stopped in their original generation.
-    var epoch={generation:0,evictedThrough:0,overflowTotal:0};
-
-    function append(event){
-      var copy=copyRecord(event);
-      if(sequence>=MAX_COUNTER)throw RangeError('Journal sequence exhausted');
-      sequence++;
-      if(size===capacity){
-        slots[head]=copy;
-        head=(head+1)%capacity;
-        overflow++;
-        epoch.evictedThrough=sequence-capacity;
-        epoch.overflowTotal=overflow;
-      }else{
-        slots[(head+size)%capacity]=copy;
-        size++;
-      }
-      return sequence;
-    }
-
-    function clear(reason){
-      if(reason!==undefined&&!validString(reason,256,false))throw TypeError('Clear reason must be a bounded valid string');
-      if(epoch.generation>=MAX_COUNTER)throw RangeError('Journal generation exhausted');
-      slots.fill(undefined);
-      head=0;size=0;
-      epoch={generation:epoch.generation+1,evictedThrough:sequence,overflowTotal:overflow};
-      return epoch.generation;
-    }
-
-    function reader(options){
-      var replay=option(options,'replay',false);
-      if(typeof replay!=='boolean')throw TypeError('Replay must be boolean');
-      var cursor=replay?sequence-size:sequence,seen=epoch,closed=false;
-      function read(limit){
-        if(closed)throw Error('Music event reader is closed');
-        limit=boundedInteger(limit===undefined?256:limit,512,'Read limit');
-        var reset=seen!==epoch;
-        // In the reader's original generation, only evictions AFTER its cursor
-        // were unread. Every later generation's eviction was unread. Cleared
-        // entries never enter either term, however many clears were missed.
-        var dropped=Math.max(0,seen.evictedThrough-cursor)+(overflow-seen.overflowTotal);
-        var base=sequence-size,next=reset?base:Math.max(cursor,base);
-        var count=Math.min(limit,sequence-next),events=[];
-        // Subtract sequence values before adding small ring offsets, so even
-        // the intermediate arithmetic stays exact at MAX_SAFE_INTEGER.
-        for(var i=0;i<count;i++)events.push(Object.assign({},slots[(head+(next-base)+i)%capacity]));
-        cursor=next+count;seen=epoch;
-        return {events:events,dropped:dropped,reset:reset,generation:epoch.generation,cursor:cursor};
-      }
-      function close(){closed=true;seen=null;}
-      return Object.freeze({read:read,close:close});
-    }
-
-    function snapshot(){
-      return {capacity:capacity,size:size,generation:epoch.generation,sequence:sequence,overflow:overflow};
-    }
-    return Object.freeze({append:append,clear:clear,reader:reader,snapshot:snapshot});
-  }
-
-  var api=Object.freeze({create:create});G.CT_MUSIC_EVENT_STREAM=api;
-  if(typeof module!=='undefined'&&module.exports)module.exports=api;
-})(typeof globalThis!=='undefined'?globalThis:this);
 
 /* ===== src/audio.js ===== */
 // AUTO-SPLIT from index.html — classic script, shares global scope (load order matters).
@@ -7321,8 +6492,6 @@ const Audio = (()=>{
       gbNode = new AudioWorkletNode(ctx, GB_WORKLET_NAME, {numberOfInputs:0, numberOfOutputs:1, outputChannelCount:[2]});
       gbNode.connect(gbChipGain);
       gbNode.port.onmessage = function(ev){
-        if(ev.data && ev.data.type==='musicState') musicAck(ev.data);
-        if(ev.data && ev.data.type==='musicEvents') musicAcceptEvents(ev.data);
         if(ev.data && ev.data.type==='stat' && typeof window!=='undefined'){
           window.__rrrChip = ev.data;
           // WHERE THE MUSIC ACTUALLY IS. The deck opens 0.18s in the future and
@@ -7337,10 +6506,6 @@ const Audio = (()=>{
         }
         if(ev.data && ev.data.type==='msgError'){ try{ console.error('[chiptunes] chip message failed:', ev.data.in, ev.data.message); }catch(_){} }
       };
-      gbNode.onprocessorerror=function(){ musicVisualAck.status='error';musicEmit({type:'musicState',status:'error',revision:musicCurrent?musicCurrent.revision:null,frame:0,message:'Audio processor failed'}); };
-      ctx.addEventListener('statechange',function(){
-        if(chipOwner==='create' && (musicCurrent||musicPending)) musicEmit({type:'musicState',status:ctx.state==='running'?'resumed':'suspended',revision:musicCurrent?musicCurrent.revision:null,frame:window.__rrrChip?window.__rrrChip.frame:0});
-      });
       // A track may have started before the module finished loading; play it now.
       if(gbPending){ gbNode.port.postMessage(gbPending); gbPending=null; }
       if(typeof document!=='undefined' && document.documentElement) document.documentElement.dataset.rrrChip='gb';
@@ -7361,342 +6526,6 @@ const Audio = (()=>{
   // holds the chip, those reposts must bounce off or the radio steals the
   // speaker back mid-composition.
   var chipOwner='radio';
-  var musicListeners=new Set(), musicEpoch=0, musicRequest=0, musicActivation=0, musicCurrent=null, musicPending=null, musicRevisions=new Map(), musicIdentities=new Map();
-  var musicVisualAck={frame:0,status:'stopped'}, musicVisualClocks=new WeakMap();
-  var musicJournal=globalThis.CT_MUSIC_EVENT_STREAM?globalThis.CT_MUSIC_EVENT_STREAM.create():null;
-  var musicObserved={activation:null,discontinuity:0,next:0,dropped:0,rejected:0,contextTime:0,exhausted:false};
-  var musicAnalysisCache=null,musicAnalysisTime=null,musicAnalysisFreq=null;
-  function musicEventReader(options){
-    if(!musicJournal)throw Error('Music event stream unavailable');
-    return musicJournal.reader(options);
-  }
-  function musicClearEvents(reason){
-    musicObserved={activation:null,discontinuity:0,next:0,dropped:0,rejected:0,contextTime:0,exhausted:false};
-    musicClearJournal(reason);
-    musicAnalysisCache=null;
-  }
-  function musicClearJournal(reason){
-    try{if(musicJournal)musicJournal.clear(reason);}catch(_){musicJournal=null;musicObserved.exhausted=true;}
-  }
-  function musicRecord(event){
-    // Visual delivery is optional: a failed observer must never change audio.
-    try{if(musicJournal)musicJournal.append(event);}catch(_){musicObserved.rejected++;}
-  }
-  function musicEventIdentity(){
-    return {epoch:musicEpoch,activation:musicCurrent.activation,revision:musicCurrent.revision,
-      discontinuity:musicObserved.discontinuity};
-  }
-  function musicObserveAck(state){
-    if(!Number.isSafeInteger(state.discontinuity)||state.discontinuity<1)return;
-    var changed=musicObserved.activation!==state.activation||musicObserved.discontinuity!==state.discontinuity;
-    if(changed){
-      if(!['activate','seek'].includes(state.reason)&&state.status!=='loop')return;
-      if(state.reason==='seek')musicClearJournal('seek');
-      musicObserved.activation=state.activation;musicObserved.discontinuity=state.discontinuity;
-      musicObserved.next=0;musicObserved.contextTime=0;musicObserved.exhausted=false;musicAnalysisCache=null;
-    }
-    if(changed||['paused','ended','stopped','error'].includes(state.status)||state.status==='playing'){
-      musicRecord(Object.assign(musicEventIdentity(),{kind:'transport',reason:changed?(state.reason||'loop'):state.status,
-        frame:Number.isFinite(state.frame)?state.frame:0,contextTime:Number.isFinite(state.contextTime)?state.contextTime:0}));
-    }
-  }
-  function musicAcceptEvents(message){
-    if(chipOwner!=='create'||!musicCurrent||message.epoch!==musicEpoch||message.activation!==musicCurrent.activation||
-      message.revision!==musicCurrent.revision||message.discontinuity!==musicObserved.discontinuity||
-      musicObserved.activation!==message.activation)return false;
-    var events=message.events,start=musicObserved.next,lastTime=musicObserved.contextTime;
-    if(!Array.isArray(events)||events.length>256||!Number.isSafeInteger(message.dropped)||message.dropped<0||
-      !Number.isSafeInteger(message.nextSequence)||message.nextSequence<start||
-      (message.nextSequence===start&&!message.exhausted)||
-      message.nextSequence-start!==events.length+message.dropped){musicObserved.rejected++;return false;}
-    // A whole batch is validated before publication. No partial malformed batch,
-    // late activation or duplicate message can mint another onset identity.
-    for(var i=0;i<events.length;i++){
-      var e=events[i];
-      if(!e||!['noteOn','noteOff','continuation','sample','register'].includes(e.kind)||e.sequence!==start+i||
-        !Number.isInteger(e.sourceIndex)||e.sourceIndex<0||e.sourceIndex>=50000||
-        !Number.isInteger(e.frame)||e.frame<0||e.frame>musicCurrent.totalFrames||
-        !Number.isFinite(e.contextTime)||e.contextTime<lastTime||
-        !Number.isInteger(e.channel)||e.channel< -1||e.channel>3||
-        !(e.midi===null||Number.isFinite(e.midi))||
-        !Number.isInteger(e.durationFrames)||e.durationFrames<0||e.durationFrames>216000||
-        !(e.velocity===null||Number.isFinite(e.velocity)&&e.velocity>=0&&e.velocity<=3)||
-        !Number.isFinite(e.strength)||e.strength<0||e.strength>1||
-        !(e.register===null||Number.isInteger(e.register)&&e.register>=0x10&&e.register<=0x3f)||
-        !(e.value===null||Number.isInteger(e.value)&&e.value>=0&&e.value<=255)||!musicEventSourceMatches(e)){
-        musicObserved.rejected++;return false;
-      }
-      lastTime=e.contextTime;
-    }
-    var identity=musicEventIdentity();
-    events.forEach(function(e){
-      musicRecord(Object.assign({},identity,{id:[musicEpoch,message.activation,message.discontinuity,e.sequence].join(':'),
-        sequence:e.sequence,kind:e.kind,sourceIndex:e.sourceIndex,frame:e.frame,contextTime:e.contextTime,
-        channel:e.channel,midi:e.midi,durationFrames:e.durationFrames,velocity:e.velocity,strength:e.strength,
-        register:e.register,value:e.value}));
-    });
-    if(message.dropped)musicRecord(Object.assign({},identity,{kind:'gap',reason:'processor-capacity',count:message.dropped,
-      firstSequence:start+events.length,nextSequence:message.nextSequence,contextTime:lastTime}));
-    musicObserved.next=message.nextSequence;musicObserved.contextTime=lastTime;musicObserved.dropped+=message.dropped;
-    musicObserved.exhausted=!!message.exhausted;
-    return true;
-  }
-  function musicEventSourceMatches(e){
-    var schedule=musicCurrent.schedule;
-    if(e.kind==='sample')return e.channel===2&&schedule.kitIndexAt[e.frame]===e.sourceIndex&&schedule.kitAt[e.frame]===e.value;
-    if(e.kind==='register')return (schedule.auto[e.frame]||[]).some(function(w){return w.index===e.sourceIndex&&w.r===e.register&&w.v===e.value;});
-    return (schedule.byFrame[e.frame]||[]).some(function(command){
-      if(command.index!==e.sourceIndex)return false;
-      if(e.kind==='noteOff')return command.t===0&&command.ch===e.channel;
-      var n=command.n;if(!command.t||!n)return false;
-      var kind=n.trigger===false&&n.ch<2?'continuation':'noteOn';
-      return e.kind===kind&&n.ch===e.channel&&e.midi===(Number.isFinite(n.midi)?n.midi:null)&&e.durationFrames===n.frames;
-    });
-  }
-  // Read the existing INTERNAL master tap, before EQ/compression/limiting. This
-  // is measured audio, not per-role estimates or a measurement at the speakers.
-  // Byte frequency bins encode normalized dB magnitudes, not linear power:
-  // https://developer.mozilla.org/en-US/docs/Web/API/AnalyserNode/getByteFrequencyData
-  // Analysis has separate scratch buffers and never touches radio onset state.
-  function musicAnalysis(paused){
-    var empty={available:false,tap:'internal-master-pre-fx',frequencyScale:'normalized-decibel-magnitude',
-      contextTime:ctx&&Number.isFinite(ctx.currentTime)?ctx.currentTime:0,rms:0,peak:0,
-      bands:{bass:0,mid:0,treble:0},waveform:[],spectrum:[]};
-    if(paused||typeof _masterAna==='undefined'||!_masterAna||!ctx||!Number.isFinite(ctx.currentTime))return empty;
-    try{
-      if(!musicAnalysisCache||ctx.currentTime<musicAnalysisCache.contextTime||ctx.currentTime-musicAnalysisCache.contextTime>=1/30){
-        var size=_masterAna.fftSize,count=_masterAna.frequencyBinCount;
-        if(!Number.isInteger(size)||size<32||size>32768||count!==size/2)return empty;
-        if(!musicAnalysisTime||musicAnalysisTime.length!==size)musicAnalysisTime=new Uint8Array(size);
-        if(!musicAnalysisFreq||musicAnalysisFreq.length!==count)musicAnalysisFreq=new Uint8Array(count);
-        _masterAna.getByteTimeDomainData(musicAnalysisTime);_masterAna.getByteFrequencyData(musicAnalysisFreq);
-        var sum=0,peak=0,waveform=[],spectrum=[];
-        for(var i=0;i<size;i++){var x=(musicAnalysisTime[i]-128)/128;sum+=x*x;peak=Math.max(peak,Math.abs(x));}
-        for(var i=0;i<160;i++)waveform.push((musicAnalysisTime[Math.floor(i*size/160)]-128)/128);
-        function magnitude(from,to){
-          var a=Math.max(0,Math.floor(from)),b=Math.min(count,Math.max(a+1,Math.ceil(to))),total=0;
-          for(var j=a;j<b;j++)total+=musicAnalysisFreq[j];return b>a?total/(255*(b-a)):0;
-        }
-        var hz=ctx.sampleRate/size;
-        for(var i=0;i<64;i++)spectrum.push(magnitude(i*count/64,(i+1)*count/64));
-        musicAnalysisCache=Object.assign({},empty,{available:true,rms:Math.sqrt(sum/size),peak:peak,
-          bands:{bass:magnitude(20/hz,250/hz),mid:magnitude(250/hz,2000/hz),treble:magnitude(2000/hz,16000/hz)},
-          fftSize:size,sampleRate:ctx.sampleRate,spectrumBinHz:ctx.sampleRate/128,
-          minDecibels:_masterAna.minDecibels,maxDecibels:_masterAna.maxDecibels,waveform:waveform,spectrum:spectrum});
-      }
-      return Object.assign({},musicAnalysisCache,{bands:Object.assign({},musicAnalysisCache.bands),
-        waveform:musicAnalysisCache.waveform.slice(),spectrum:musicAnalysisCache.spectrum.slice()});
-    }catch(_){return empty;}
-  }
-  // Read-only presentation of the AUDIO-ACKNOWLEDGED activation. Never advances
-  // a transport or consults the radio clock; position is held between reports.
-  function musicVisualState(){
-    if(chipOwner!=='create')return null;
-    var current=musicCurrent,frame=current?Math.min(current.totalFrames,Math.max(0,musicVisualAck.frame||0)):0;
-    var status=current?musicVisualAck.status:'stopped';
-    var paused=status!=='playing'||!ctx||ctx.state!=='running';
-    var settings=current&&current.visualSettings||{},clock=current&&musicVisualClocks.get(current);
-    if(current&&!clock&&globalThis.CT_MUSIC_LANGUAGE){
-      clock=globalThis.CT_MUSIC_LANGUAGE.createClock(settings);musicVisualClocks.set(current,clock);
-    }
-    var step=0,phase=0,bpm=settings.tempo||120;
-    if(clock){
-      var lo=0,hi=1048576;
-      while(lo+1<hi){var mid=Math.floor((lo+hi)/2);if(clock(mid/4)<=frame)lo=mid;else hi=mid;}
-      step=lo;var start=clock(step/4),end=clock((step+1)/4);
-      phase=Math.max(0,Math.min(1,(frame-start)/Math.max(1,end-start)));
-      var fps=(globalThis.CT_GB_HARDWARE||globalThis.CT_GB||{}).FPS||59.727500569606;
-      bpm=60*fps/Math.max(1,clock(Math.floor(step/4)+1)-clock(Math.floor(step/4)));
-    }
-    var grid={gstep:step,phase:phase,beat:Math.floor(step/4),bar:Math.floor(step/16),bpm:bpm,spb:60/bpm,step16:15/bpm,paused:paused};
-    // Snapshots never drain events. Each renderer consumes its own cursor once
-    // per draw and adds only newly observed triggers to these empty role lanes.
-    var roles={lead:_emptyRole(),counter:_emptyRole(),bass:_emptyRole(),perc:_emptyRole(),noise:_emptyRole()};
-    roles.primary=roles.lead;roles.melody=roles.lead;
-    var analysis=musicAnalysis(paused),energy=paused?0:Math.min(1,analysis.rms*4);
-    var barPhase=((step%16)+phase)/16,beatPhase=((step%4)+phase)/4;
-    var visual={bpm:bpm,beat:grid.beat,bar:grid.bar,phrase:Math.floor(grid.bar/4),barPhase:barPhase,
-      pulse:paused?0:1-beatPhase,beatPulse:paused?0:1-beatPhase,barPulse:paused?0:1-barPhase,
-      phrasePulse:paused?0:1-((grid.bar%4+barPhase)/4),energy:energy,energyLevel:energy*10,intensity:energy,
-      bands:analysis.bands,analysis:analysis,roleSignal:'executed-command-strength-estimate',
-      roles:roles,noteOns:[],primaryNotes:[],section:null,hue:0.5,kick:0,snare:0,hat:0,
-      drop:false,idle:paused,paused:paused,spectrum:analysis.spectrum,waveform:analysis.waveform};
-    return {revision:current?current.revision:null,activation:current?current.activation:null,frame:frame,status:status,
-      epoch:musicEpoch,discontinuity:musicObserved.discontinuity,renderContextTime:ctx&&Number.isFinite(ctx.currentTime)?ctx.currentTime:0,
-      eventStream:{available:!!musicJournal,nextSequence:musicObserved.next,sourceDropped:musicObserved.dropped,rejectedBatches:musicObserved.rejected,exhausted:musicObserved.exhausted},
-      paused:paused,suspended:!!ctx&&ctx.state!=='running',grid:grid,clock:visual};
-  }
-  function musicEmit(state){ musicListeners.forEach(function(fn){ try{ fn(state); }catch(_){} }); }
-  function musicAck(state){
-    if(state.epoch!==musicEpoch) return;
-    if(state.activation===musicObserved.activation&&Number.isSafeInteger(state.discontinuity)&&state.discontinuity<musicObserved.discontinuity)return;
-    if(state.status==='playing' && !musicRevisions.has(state.activation)) return;
-    if(state.status==='playing'&&musicRevisions.get(state.activation).revision!==state.revision)return;
-    if(state.status==='position' && (!musicCurrent||state.activation!==musicCurrent.activation)) return;
-    if(state.status==='playing' && musicRevisions.get(state.activation)){
-      var previous=musicCurrent;
-      musicCurrent=musicRevisions.get(state.activation);
-      if(previous && previous.activation!==state.activation) musicRevisions.delete(previous.activation);
-      if(musicPending && state.activation===musicPending.activation) musicPending=null;
-    }
-    if(['cancelled','superseded','stale'].includes(state.status)) {
-      musicRevisions.delete(state.activation);
-      if(musicPending&&musicPending.activation===state.activation)musicPending=null;
-    }
-    if(musicCurrent&&state.activation===musicCurrent.activation&&state.revision===musicCurrent.revision){
-      musicObserveAck(state);
-      if(['playing','paused','ended','stopped','error'].includes(state.status))musicVisualAck.status=state.status;
-      if(['playing','paused','position','loop','ended'].includes(state.status)&&Number.isFinite(state.frame))musicVisualAck.frame=state.frame;
-    }
-    musicEmit(state);
-  }
-  function musicPost(message){
-    if(!gbNode) throw new Error('Music engine unavailable');
-    gbNode.port.postMessage(Object.assign({epoch:musicEpoch},message));
-  }
-  function musicInvalidate(reason){
-    musicClearEvents(reason||'stop');
-    musicVisualAck={frame:0,status:'stopped'};
-    musicEpoch++; musicRequest++; musicPending=null; musicCurrent=null; musicRevisions.clear(); musicIdentities.clear(); gbPending=null;
-    if(gbNode) musicPost({type:'musicStop',reason:reason||'stop'});
-  }
-  function musicPrepare(gb, options, base){
-    var G=globalThis.CT_GB_APU;
-    if(!G) throw new Error('GB sequencer unavailable');
-    if(!gb || !Number.isInteger(gb.totalFrames) || gb.totalFrames<1 || gb.totalFrames>216000)
-      throw new Error('Music length must be 1..216000 frames');
-    var revision=options.revision;
-    if(!((typeof revision==='string' && revision.length>0 && revision.length<=128) ||
-         (typeof revision==='number' && Number.isSafeInteger(revision)))) throw new Error('Invalid revision');
-    var count=['notes','auto','vibOff','waveLoads','kit'].reduce(function(n,k){return n+(gb[k]||[]).length;},0);
-    if(count>50000) throw new Error('Music event limit exceeded');
-    if(JSON.stringify(gb).length>8000000) throw new Error('Music asset limit exceeded');
-    gb=structuredClone(gb);
-    var boundaries=options.boundaries==null?[]:Array.from(options.boundaries);
-    if(boundaries.length>256 || boundaries.some(function(f,i){return !Number.isInteger(f)||f<0||f>216000||(i&&f<=boundaries[i-1]);}))
-      throw new Error('Boundaries must be at most 256 ascending GB frames');
-    var seq=new G.Sequencer(gb,ctx.sampleRate), changed=[Infinity,Infinity,Infinity,Infinity,Infinity];
-    seq.setMix(MIX);
-    seq.kitBank={};
-    (gb.kit||[]).forEach(function(k){
-      if(!Number.isInteger(k.id)||k.id<0||k.id>127||!globalThis.CT_GB_KITS) throw new Error('Invalid kit asset');
-      seq.kitBank[k.id]=globalThis.CT_GB_KITS.byId(k.id);
-    });
-    var density={};
-    ['byFrame','auto','vibOffAt','waveAt','kitAt'].forEach(function(k){Object.keys(seq[k]).forEach(function(f){
-      if(+f<0 || +f>216000) throw new Error('Event frame outside music limits');
-      density[f]=(density[f]||0)+(Array.isArray(seq[k][f])?seq[k][f].length:1);
-      if(density[f]>128) throw new Error('Music frame event limit exceeded');
-    });});
-    // Exact serialized event histories, including resolved instrument/wave data.
-    // This comparison and register replay run on the page, never the audio thread.
-    function history(s){
-      var h=[{}, {}, {}, {}, {}];
-      function add(ch,f,value){(h[ch][f]||(h[ch][f]=[])).push(value);}
-      Object.keys(s.byFrame).forEach(function(f){s.byFrame[f].forEach(function(e){
-        var ch=e.t?e.n.ch:e.ch, n=e.n;
-        // Source indices describe observations, not a change to the sound.
-        var event={t:e.t,ch:e.ch};
-        if(n){ var note=Object.assign({},n); delete note.frames; event={t:e.t,n:note}; }
-        var slot=n&&ch===2?(globalThis.CT_GB_HARDWARE||globalThis.CT_GB).waveSlotOf(s.inst,n.inst):0;
-        add(ch,f,[event,n?s.inst[n.inst]:null,n&&ch===2?(s.bank.waveTables||[])[slot]:null]);
-      });});
-      Object.keys(s.auto).forEach(function(f){s.auto[f].forEach(function(w){
-        var ch=w.r>=0x10&&w.r<=0x14?0:w.r<=0x19&&w.r>=0x16?1:w.r>=0x1a&&w.r<=0x1e?2:w.r>=0x20&&w.r<=0x23?3:-1;
-        if(w.r>=0x30&&w.r<=0x3f) ch=2;
-        var write={r:w.r,v:w.v};
-        if(ch<0) for(var c=0;c<5;c++) add(c,f,write); else add(ch,f,write);
-      });});
-      Object.keys(s.vibOffAt).forEach(function(f){s.vibOffAt[f].forEach(function(ch){add(ch,f,'vibOff');});});
-      Object.keys(s.waveAt).forEach(function(f){add(2,f,['wave',s.waveAt[f],(s.bank.waveTables||[])[s.waveAt[f]]]);});
-      Object.keys(s.kitAt).forEach(function(f){add(2,f,['kit',s.kitAt[f]]);});
-      return h;
-    }
-    if(base){
-      var a=history(base.schedule), b=history(seq);
-      for(var ch=0;ch<5;ch++) new Set(Object.keys(a[ch]).concat(Object.keys(b[ch]))).forEach(function(f){
-        if(JSON.stringify(a[ch][f])!==JSON.stringify(b[ch][f])) changed[ch]=Math.min(changed[ch],+f);
-      });
-      boundaries=boundaries.filter(function(f){return f<=base.totalFrames;});
-      if(!boundaries.includes(base.totalFrames)) boundaries.push(base.totalFrames);
-    }
-    var offset=options.offsetFrames==null?0:options.offsetFrames;
-    if(!Number.isInteger(offset)||offset<0) throw new Error('Invalid offsetFrames');
-    var targets=base?boundaries:[Math.min(offset,gb.totalFrames)];
-    var snapshots=targets.map(function(f){
-      var target=Math.min(f,gb.totalFrames); seq.seek(target);
-      var state={};
-      ['apu','vib','frame','acc','waveSlot','kit','kitPos','kitLeft','kitCyc'].forEach(function(k){state[k]=structuredClone(seq[k]);});
-      return {at:f,state:state,preserve:changed.slice(0,4).map(function(first){return f===target&&first>=target;}),preserveGlobal:f===target&&changed[4]>=target};
-    });
-    // Schedules are sent once; snapshots contain only bounded chip state.
-    var schedule={};
-    ['sr','samplesPerFrame','rate','gainScalar','mix','bank','inst','auto','vibOffAt','waveAt','kitAt','kitIndexAt','kitBank','byFrame'].forEach(function(k){schedule[k]=seq[k];});
-    return {revision:revision,activation:++musicActivation,totalFrames:gb.totalFrames,loop:!!options.loop,schedule:schedule,snapshots:snapshots,
-      visualSettings:structuredClone(options.settings||{})};
-  }
-  function musicIdentity(gb){
-    return JSON.stringify(gb,function(k,v){
-      if(v && typeof v==='object' && !Array.isArray(v) && !ArrayBuffer.isView(v)){
-        var sorted={}; Object.keys(v).sort().forEach(function(key){sorted[key]=v[key];}); return sorted;
-      } return v;
-    });
-  }
-  // Boundary selection only. The language compiler owns the sole conversion.
-  function musicBoundaries(compiled,options){
-    options=options||{};
-    var s=compiled.settings||{}, gb=compiled.gb, language=globalThis.CT_MUSIC_LANGUAGE;
-    if(!gb || !Number.isInteger(gb.totalFrames)||gb.totalFrames<1) throw new Error('Compiled music required');
-    if(!language || !language.createClock) throw new Error('Shared music clock unavailable');
-    var from=options.fromFrame==null?0:options.fromFrame, limit=options.limit==null?256:options.limit;
-    if(!Number.isInteger(from)||from<0||!Number.isInteger(limit)||limit<1||limit>256) throw new Error('Invalid boundary range');
-    var clock=language.createClock(s);
-    function at(bar){return clock(bar*4);}
-    var lo=0, hi=65536;
-    while(lo<hi){var mid=(lo+hi)>>1;if(at(mid)<from)lo=mid+1;else hi=mid;}
-    var out=[];
-    for(var bar=lo;bar<=65536 && out.length<limit;bar++){
-      var frame=at(bar);if(frame>=gb.totalFrames)break;
-      if(!out.length||frame>out[out.length-1])out.push(frame);
-    }
-    if(out.length<limit && gb.totalFrames>=from)out.push(gb.totalFrames);
-    return out;
-  }
-  async function musicPlay(gb,options){
-    options=options||{};
-    startAudio(true); chipOwner='create';
-    var request=++musicRequest;
-    await ensureGbChip();
-    if(request!==musicRequest || chipOwner!=='create') return false;
-    if(!gbNode) throw new Error('Music engine unavailable');
-    var prepared=musicPrepare(gb,options,null);
-    musicClearEvents('play');
-    musicEpoch++; musicCurrent=null; musicPending=null; musicRevisions.clear(); musicIdentities.clear();
-    musicPending=prepared;
-    musicRevisions.set(prepared.activation,prepared); musicIdentities.set(prepared.revision,musicIdentity(gb));
-    gbActive=true; gbPending=null;
-    gbSynthGain.gain.setTargetAtTime(0.0001,ctx.currentTime,0.01);
-    gbChipGain.gain.setTargetAtTime(1,ctx.currentTime,0.01);
-    musicPost({type:'musicPlay',prepared:prepared});
-    if(ctx.state!=='running') await ctx.resume();
-    return true;
-  }
-  function musicQueue(gb,options){
-    options=options||{};
-    if(!musicCurrent || chipOwner!=='create' || options.baseRevision!==musicCurrent.revision)
-      throw new Error('Stale music base revision');
-    if(Array.from(musicRevisions.values()).filter(Boolean).length>=8) throw new Error('Music engine acknowledgment backlog');
-    var prepared=musicPrepare(gb,Object.assign({},options,{loop:musicCurrent.loop}),musicCurrent);
-    var identity=musicIdentity(gb), known=musicIdentities.get(options.revision);
-    if(known!=null && known!==identity) throw new Error('Revision ID reused with different music');
-    if(known==null && Array.from(musicIdentities.values()).reduce(function(n,s){return n+s.length;},identity.length)>16000000)
-      throw new Error('Music revision identity budget exceeded; restart playback');
-    musicIdentities.set(options.revision,identity);
-    musicPending=prepared;
-    musicRevisions.set(prepared.activation,prepared);
-    musicPost({type:'musicQueue',baseRevision:options.baseRevision,baseActivation:musicCurrent.activation,prepared:prepared});
-    return true;
-  }
   function gbPlay(score, offsetFrames, paused, leadSec){
     if(chipOwner!=='radio') return false;
     var gb = score && score.gb;
@@ -7711,7 +6540,7 @@ const Audio = (()=>{
     if(!on){ if(gbNode) gbNode.port.postMessage({type:'stop'}); return false; }
     // the WHOLE song: automation, wave swaps, vibrato hand-offs and kit hits are
     // as much the music as the note-ons (playCreate had the same omission)
-    var msg = {type:'play', gb:{notes:gb.notes, bank:gb.bank, totalFrames:gb.totalFrames,gainScalar:gb.gainScalar,
+    var msg = {type:'play', gb:{notes:gb.notes, bank:gb.bank, totalFrames:gb.totalFrames,
                                 auto:gb.auto||null, vibOff:gb.vibOff||null,
                                 waveLoads:gb.waveLoads||null, kit:gb.kit||null},
                offsetFrames:Math.max(0, offsetFrames|0), paused:!!paused,
@@ -7736,31 +6565,34 @@ const Audio = (()=>{
   // a device the games and the playhead ran exactly that far ahead of the
   // music -- which reads, correctly, as "the audio is late".
   //
-  // Prefer the browser's outputLatency. The Web Audio specification explicitly
-  // warns that currentTime - timestamp.contextTime is NOT reliable latency:
-  // currentTime advances in uneven increments, and timestamps can be old.
-  // https://webaudio.github.io/web-audio-api/#dom-audiocontext-getoutputtimestamp
-  // Without that API, use a bounded, age-adjusted timestamp approximation,
-  // then a baseLatency heuristic. Neither fallback proves speaker timing.
+  // getOutputTimestamp().contextTime is the context time of the sample being
+  // played out RIGHT NOW, so the difference from currentTime is the true
+  // latency. It is the only measurement of this that Safari has: WebKit has
+  // never shipped AudioContext.outputLatency, so on the browser where this
+  // matters most, ctx.outputLatency is undefined and the old code had no way
+  // to know. Fall back to it where it exists, then to baseLatency.
   var _outLat = 0, _outLatSeen = 0;
   function outLatency(){
     if(!ctx) return 0;
-    var reported = ctx.outputLatency;
-    var raw = Number.isFinite(reported) && reported >= 0 ? reported : -1;
+    // The LARGER of the two signals, not the first that answers. WebKit returns
+    // a getOutputTimestamp whose contextTime equals currentTime -- a latency of
+    // exactly zero, which no real output has -- while its ctx.outputLatency
+    // reports 15.8ms. A zero from a timestamp that is not actually trailing is
+    // a non-measurement, and preferring it threw away the only real number on
+    // the engine this correction exists for.
+    var raw = -1;
     try{
-      if(raw < 0 && ctx.getOutputTimestamp){
+      if(ctx.getOutputTimestamp){
         var ts = ctx.getOutputTimestamp();
-        var age = ts ? (performance.now() - ts.performanceTime) / 1000 : NaN;
-        if(ts && Number.isFinite(ts.contextTime) && ts.contextTime > 0 &&
-           Number.isFinite(age) && age >= 0 && age <= 0.25){
-          var estimate = ctx.currentTime - ts.contextTime - age;
-          if(Number.isFinite(estimate) && estimate > 0 && estimate <= 0.5) raw = estimate;
-        }
+        if(ts && ts.contextTime > 0) raw = Math.max(raw, ctx.currentTime - ts.contextTime);
       }
     }catch(e){}
-    if(raw < 0) raw = Number.isFinite(ctx.baseLatency) ? Math.max(0, Math.min(0.5, ctx.baseLatency * 2)) : 0;
-    // Bound uncertain fallback estimates, not an explicit device report:
-    // wireless outputs can legitimately have more than half a second of delay.
+    if(typeof ctx.outputLatency === 'number') raw = Math.max(raw, ctx.outputLatency);
+    if(!(raw > 0)) raw = (ctx.baseLatency || 0) * 2;
+    // half a second is already absurd for a local device; beyond that we are
+    // reading a stalled timestamp, not a buffer, and shifting the picture by it
+    // would be worse than the thing being fixed
+    raw = Math.max(0, Math.min(0.5, raw));
     var a = _outLatSeen < 8 ? 0.4 : 0.05;      // settle fast, then hold
     _outLatSeen++;
     _outLat += (raw - _outLat) * a;
@@ -8436,10 +7268,6 @@ const Audio = (()=>{
     var cs=compileScore(tok);
     // live join failure: caller falls back to private — never substitute a random mint (desyncs the room)
     if(!cs){ _autoRetryAt=(ctx?ctx.currentTime:0)+5; return null; }
-    // A successful live join is an explicit track start, just like startTrack.
-    // Leaving the cold-landing hold set makes the next Pause pick a new mood
-    // instead, even though the live station is already sounding.
-    _holdForPick=false;
     if(ctx && started){
       Engine.killAll(opts.fade!=null?opts.fade:0.12);
       Engine.clearFuture(ctx.currentTime+0.02);
@@ -9269,18 +8097,6 @@ const Audio = (()=>{
   }
 
   return {
-    musicPlay:musicPlay, musicQueue:musicQueue, musicBoundaries:musicBoundaries, musicVisualState:musicVisualState, musicEventReader:musicEventReader,
-    musicCancel(revision){ musicPost({type:'musicCancel',revision:revision}); if(musicPending&&musicPending.revision===revision) musicPending=null; },
-    musicPause(paused){ musicPost({type:'musicPause',paused:!!paused}); },
-    musicSeek(frame){
-      if(!musicCurrent) return false;
-      if(!Number.isInteger(frame)||frame<0) throw new Error('Invalid seek frame');
-      var s=musicCurrent.schedule, seq=new globalThis.CT_GB_APU.Sequencer(null,ctx.sampleRate);
-      Object.assign(seq,s); seq.seek(Math.min(frame,musicCurrent.totalFrames));
-      musicPending=null; musicPost({type:'musicSeek',state:seq}); return true;
-    },
-    musicStop(){ musicInvalidate('stop'); },
-    onMusicState(listener){ musicListeners.add(listener); return function(){musicListeners.delete(listener);}; },
     init,
     resume(force){ return resumeCtx(!!force); },
     running(){ return !!(ctx && ctx.state==='running' && !transportPaused); },        // is audio actually sounding (autoplay gate cleared)?
@@ -9359,8 +8175,9 @@ const Audio = (()=>{
                lag:lag, next:deckNext?deckNext.tok:null }; },
     audibleLag(){ var FPS=(typeof CT_GB_HARDWARE!=='undefined')?CT_GB_HARDWARE.FPS:59.7275;
       return _chipLag/FPS/Math.max(0.25,chipRate()) + outLatency(); },
-    // outMs is the applied estimate; timestampMs is the raw clock difference
-    // for diagnosis only, NOT an independent measurement of speaker latency.
+    // Readable in a real browser's console, which is the only place the Safari
+    // number can be read at all: outMs is what this machine's output actually
+    // costs, and `src` says whether the browser told us or we had to measure it.
     latencyDiag(){
       if(!ctx) return null;
       var ts=null; try{ ts=ctx.getOutputTimestamp?ctx.getOutputTimestamp():null; }catch(e){}
@@ -9377,19 +8194,17 @@ const Audio = (()=>{
     currentScore(){ return deckCur ? deckCur.score : null; },
     // on=true runs the exported cartridge; on=false returns to the composition
     // at the position the track has reached.
-    playRom(bytes){ musicInvalidate('ownerreturn'); return gbPlayRom(bytes); },
-    playScore(){ musicInvalidate('ownerreturn'); if(gbNode) gbNode.port.postMessage({type:'chmute', mask:null}); chipOwner='radio'; return gbPlayScore(); },
+    playRom(bytes){ return gbPlayRom(bytes); },
+    playScore(){ if(gbNode) gbNode.port.postMessage({type:'chmute', mask:null}); chipOwner='radio'; return gbPlayScore(); },
     // CREATE editor: loop a user-authored gb song on the chip. Shares the
     // radio's chip node; playScore() hands it back afterwards.
     // Entering the editor: the radio goes quiet NOW, not at first play.
     enterCreate(){
-      musicInvalidate('enter');
       chipOwner='create';
       if(gbNode) gbNode.port.postMessage({type:'stop'});
     },
     playCreate(gb, loopFrames, offsetFrames){
       if(!gb || !gb.notes){ return false; }
-      musicInvalidate('legacy');
       startAudio(true); if(this.resume) this.resume(true);
       chipOwner='create';
       gbActive=true;
@@ -9405,7 +8220,7 @@ const Audio = (()=>{
       // hand-offs and kit hits are as much the music as the note-ons, and
       // leaving them out here meant the cartridge played things the browser
       // never did.
-      var msg={type:'play', gb:{notes:gb.notes, bank:gb.bank, totalFrames:gb.totalFrames,gainScalar:gb.gainScalar,
+      var msg={type:'play', gb:{notes:gb.notes, bank:gb.bank, totalFrames:gb.totalFrames,
                                 auto:gb.auto||null, vibOff:gb.vibOff||null,
                                 waveLoads:gb.waveLoads||null, kit:gb.kit||null},
                offsetFrames:off, paused:false, loopFrames:loopFrames|0, rate:1,
@@ -9420,7 +8235,7 @@ const Audio = (()=>{
       if(gbNode) gbNode.port.postMessage({type:'kit', id:id|0}); },
     stopPoke(ch){ if(gbNode) gbNode.port.postMessage({type:'pokeoff', ch:(ch==null?null:ch|0)}); },
     setChipMute(mask){ ensureGbChip(); if(gbNode) gbNode.port.postMessage({type:'chmute', mask:mask||null}); },
-    stopCreate(){ musicInvalidate('stop'); if(gbNode) gbNode.port.postMessage({type:'stop'}); },  // editor stop: chip quiet, ownership stays; playScore() is the way back
+    stopCreate(){ if(gbNode) gbNode.port.postMessage({type:'stop'}); },  // editor stop: chip quiet, ownership stays; playScore() is the way back
     romMode(){ return gbRomMode; },
     // the song on air, as a Create document -- this is what makes "edit what I
     // am hearing" the same song rather than a near-enough copy of it
@@ -9486,8 +8301,7 @@ function resize(){
   // the player bar owns the bottom of the window; the picture ends above it
   var _inset = 0;
   try{ _inset = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--barh')) || 0; }catch(e){}
-  var viewport = window.__ctVisualViewport && window.__ctVisualViewport();
-  var vw = viewport ? viewport.width : window.innerWidth, vh = viewport ? viewport.height : Math.max(160, window.innerHeight - _inset);
+  var vw = window.innerWidth, vh = Math.max(160, window.innerHeight - _inset);
   // On the Game Boy panel the stage IS the console's framebuffer: the games draw
   // at the LCD's own resolution, one canvas pixel per cell, and the panel shows
   // those pixels. Drawing at full device resolution and downsampling afterwards
@@ -9499,8 +8313,7 @@ function resize(){
              : mode === 'nes' ? window.CT_NES_NATIVE : null;
   if (native) {
     W = native.w; H = native.h; DPR = 1;
-    if(cv.width!==W) cv.width = W;
-    if(cv.height!==H) cv.height = H;
+    cv.width = W; cv.height = H;
     // A 16px sprite lands at about a tenth of the screen, the proportion it has
     // on the real console. The NES framebuffer is ~1.67x the Game Boy's at the
     // same window, so the divisor moves with it or sprites shrink by a third.
@@ -9508,12 +8321,11 @@ function resize(){
                             : Math.max(2, Math.round(Math.min(W,H)/90));
   } else {
     W = vw; H = vh;
-    var rawDpr = viewport ? viewport.dpr : (window.devicePixelRatio||1);
+    var rawDpr = window.devicePixelRatio||1;
     var maxCanvasPixels = 3200000; // pixel art does not need a giant Retina backbuffer; keep render cost bounded.
     var area = Math.max(1, W*H);
-    DPR = viewport && viewport.stageDpr || Math.max(1, Math.min(2, rawDpr, Math.sqrt(maxCanvasPixels/area)));
-    if(cv.width!==Math.floor(W*DPR)) cv.width = Math.floor(W*DPR);
-    if(cv.height!==Math.floor(H*DPR)) cv.height = Math.floor(H*DPR);
+    DPR = Math.max(1, Math.min(2, rawDpr, Math.sqrt(maxCanvasPixels/area)));
+    cv.width = Math.floor(W*DPR); cv.height = Math.floor(H*DPR);
     pxBase = Math.max(3, Math.round(Math.min(W,H)/150));
   }
   cv.style.width = vw+'px'; cv.style.height = vh+'px';
@@ -9682,2302 +8494,6 @@ const Radio=(()=>{
     onChange:function(fn){if(typeof fn==='function')listeners.push(fn);}
   };
 })();
-
-/* ===== src/lsdj.js ===== */
-// SONGS AN LSDJ COMPOSER CAN OPEN AND KEEP WRITING.
-//
-// This exports a `.lsdsng` -- one song, the unit LSDj users actually pass
-// around -- built from the same document the browser plays. The point is not
-// interoperability for its own sake. It is that somebody who writes on a Game
-// Boy can take a generated arrangement as a STARTING POINT: the notes, the
-// structure, the tempo and the groove arrive laid out in phrases and chains,
-// and they get on with the part that is fun.
-//
-// WHY THIS IS A FAITHFUL EXPORT RATHER THAN A CONVERSION. Our composer already
-// works the way a tracker does: sixteen steps to a bar, four channels that map
-// one-to-one onto PU1/PU2/WAV/NOI, instruments that are literally DMG register
-// bytes, and -- since the tick rewrite -- a step that lasts a whole number of
-// frames with a groove for the rest. So a bar IS a phrase. Nothing is
-// quantised on the way out and nothing is approximated.
-//
-// WHAT SURVIVES A ROUND TRIP, all of it verified against the real ROM in mGBA
-// by scripts/verify-lsdj-emulator.js: tempo, groove, pitch, lane, step, note
-// LENGTH (LSDj stores none, so the export says where a note stops with a KILL),
-// which drum it was, the timbre, the loudness, and the gesture.
-//
-// ⚠️ THE OLD VERSION OF THIS NOTE WAS WRONG ABOUT OUR OWN DRUMS. It said "ours
-// are 4-bit PCM streamed into wave RAM -- the same technique LSDj kits use", and
-// they are not: the composer puts drums on CHANNEL 3, NOISE, with no kit data on
-// the score at all. That stale claim made "drums are a real loss" look
-// inevitable and sent a whole session looking at kits. LSDj noise plays noise;
-// drums-on-noise is an ordinary LSDj arrangement, and kits would cost the WAVE
-// channel, which is where the bass lives.
-//
-// WHAT STILL DOES NOT CARRY, said here rather than discovered later:
-//   * ECHO. Our echo is a delayed repeat and no single LSDj command says that.
-//   * LSDJ'S ENVELOPE SHAPES. Byte 1's low nibble is a HOLD in frames before the
-//     note is cut (measured: 0 sustains, 1..f hold 1,1,1,1,1,2,2,3,4,5,6,8,11,
-//     15,20). We write 0 -- sustain -- which is what a tracker uses, and say
-//     where a note stops with a KILL instead. Its other shapes are unused.
-//   * TABLES. LSDj's 32 tables are a per-instrument modulation sequence and
-//     nothing here writes or reads one.
-//
-// The format is implemented from liblsdj (MIT, Stijn Frishert with Johan
-// Kotlinski) and Kotlinski's own lsdj-doc. scripts/verify-lsdj.js checks the
-// output by reading it back with liblsdj itself where that library is present,
-// so this file is never graded by its own homework -- the mistake that let a
-// WebMCP registration ship against the wrong surface.
-(function (G) {
-  'use strict';
-
-  var _req = (typeof require === 'function') ? require : null;
-  var CT_CREATE = _req ? _req('./create.js') : G.CT_CREATE;
-
-  var SONG_BYTES = 0x8000;
-
-  // Offsets, from liblsdj's song_offsets.h.
-  var O = {
-    PHRASE_NOTES: 0x0000, GROOVES: 0x1090, SEQUENCE: 0x1290,
-    INSTRUMENT_NAMES: 0x1E7A, TABLE_ALLOC: 0x2020, INSTRUMENT_ALLOC: 0x2040,
-    CHAIN_PHRASES: 0x2080, CHAIN_TRANSPOSE: 0x2880, INSTRUMENT_PARAMS: 0x3080,
-    PHRASE_ALLOC: 0x3E82, CHAIN_ALLOC: 0x3EA2,
-    TEMPO: 0x3FB4, TRANSPOSE: 0x3FB5,
-    PHRASE_COMMANDS: 0x4000, PHRASE_COMMAND_VALUES: 0x4FF0,
-    // WAVES, found by looking rather than by guessing: the default wave appears
-    // in the empty song at exactly 256 contiguous 16-byte slots from 0x6000 to
-    // 0x6FF0, which is the whole of the gap our field map had. Confirmed on the
-    // machine -- a marker table planted at frame 0 comes back out of LSDj's wave
-    // RAM byte for byte.
-    WAVES: 0x6000,
-    PHRASE_INSTRUMENTS: 0x7000, FORMAT_VERSION: 0x7FFF
-  };
-  var NO_NOTE = 0, NO_INSTRUMENT = 0xFF, NO_CHAIN = 0xFF, NO_PHRASE = 0xFF;
-  var MAX_PHRASES = 255, MAX_CHAINS = 128, MAX_INSTRUMENTS = 64;
-  // command indices, from liblsdj's command.h
-  var CMD = { NONE: 0, A: 1, C: 2, D: 3, E: 4, F: 5, G: 6, H: 7, K: 8, L: 9,
-              M: 10, O: 11, P: 12, R: 13, S: 14, T: 15, V: 16, W: 17, Z: 18,
-              N: 19, X: 20, Q: 21, Y: 22, B: 23 };
-  // Canonical identities are separate from stored bytes. Native format 8
-  // inserts B at raw 1 and moves A to raw 2. This identifies commands; it does
-  // not claim their execution semantics are supported. Unknown bytes/versions
-  // return null and remain untouched by readSong/writeSong.
-  function decodeCommand(raw, version) {
-    if (!Number.isInteger(raw) || raw < 0 || raw > 255 ||
-        !Number.isInteger(version) || version < 0 || version > 22) return null;
-    if (version < 8) return raw <= 22 ? raw : null;
-    return raw === 0 ? CMD.NONE : raw === 1 ? CMD.B : raw <= 23 ? raw - 1 : null;
-  }
-  function encodeCommand(id, version) {
-    if (!Number.isInteger(id) || id < 0 || id > CMD.B ||
-        !Number.isInteger(version) || version < 0 || version > 22 ||
-        (version < 8 && id === CMD.B)) throw new Error('lsdj: command cannot be encoded in this format');
-    return version < 8 || id === CMD.NONE ? id : id === CMD.B ? 1 : id + 1;
-  }
-  var INST_TYPE = { PULSE: 0, WAVE: 1, KIT: 2, NOISE: 3 };
-
-  // THE NOTE BYTE IS AN INDEX INTO WHAT THAT CHANNEL CAN PLAY, and it is a
-  // different pitch on each one. This started as one constant and a guess. It
-  // is now MEASURED: LSDj 9.4.2 carries a table of 16-bit DMG period values,
-  // and reading it says exactly what every note index sounds like.
-  //
-  //   note 1 through 131072/(2048-x)  ->  65.41 Hz  =  C2, MIDI 36, 0.0 cents
-  //   note 1 through  65536/(2048-x)  ->  32.70 Hz  =  C1, MIDI 24, 0.0 cents
-  //
-  // One table serves both, and the wave channel's halved frequency formula puts
-  // it an octave below the pulses -- which is why the base differs per channel
-  // rather than per song. Our own register-level model agrees to the note:
-  // gb-hardware holds pulse at MIDI 36..108 and wave at 24..96, and
-  // verify-lsdj asserts this table against it so the two can never drift.
-  //
-  // The table runs to 89 entries before it stops climbing. Our composer's
-  // highest pulse note is MIDI 108, which is index 73, so everything we write
-  // fits with room to spare -- but NOTE_MAX is the measured length rather than
-  // a comfortable round number, because an index past the end of a period table
-  // is not a wrong note, it is whatever bytes happen to be next.
-  //
-  // ✅ CONFIRMED ON THE MACHINE, 2026-09-04. This carried a warning for a while
-  // saying it could not be proved from a file and had to be heard: liblsdj
-  // reports the note BYTE and never claims which pitch it sounds. LSDj itself
-  // now answers, in mGBA -- `scripts/verify-lsdj-emulator.js` plays a song with
-  // ONE note in it and reads the pitch off the APU. Byte 1 sounds MIDI 36 on
-  // both pulses and MIDI 24 on the wave, and bytes 13 and 25 agree an octave and
-  // two octaves up. These numbers are right.
-  //
-  // ⚠️ It has to be ONE note. The first attempt used an ascending ruler, which
-  // repeats -- the trace starts mid-phrase, the sequences line up three notches
-  // out, and the result is a clean, believable, WRONG answer: it reported every
-  // base an octave low and would have had us "fix" a constant that was correct.
-  //
-  // (LSDj is Johan Kotlinski's and is freeware for personal and educational use;
-  // nothing from the ROM is copied here. These are two frequencies and a count.)
-  var NOTE_BASE = [36, 36, 24, 36];             // PU1, PU2, WAV, NOI
-  var NOTE_MAX = 89;
-
-  var RLE = 0xC0, SA = 0xE0, DEF_WAVE = 0xF0, DEF_INST = 0xF1, EOF_BLOCK = 0xFF;
-  var BLOCK = 0x200, BLOCK_COUNT = 191;
-  var DEFAULT_WAVE = [0x8E, 0xCD, 0xCC, 0xBB, 0xAA, 0xA9, 0x99, 0x88,
-                      0x87, 0x76, 0x66, 0x55, 0x54, 0x43, 0x32, 0x31];
-  var DEFAULT_INSTRUMENT = [0xA8, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x03, 0x00,
-                            0x00, 0xD0, 0x00, 0x00, 0x00, 0xF3, 0x00, 0x00];
-
-  // LSDj's own empty song, compressed with LSDj's own scheme (1 KB), rather
-  // than 32 KB of literal bytes or a hand-built guess at every unrelated field.
-  // From liblsdj's song_empty.c, MIT.
-  var EMPTY_B64 =
-    'wAD/wAD/wAD/wAD/wAD/wAD/wAD/wAD/wAD/wAD/wAD/wAD/wAD/wAD/wAD/wAD/wP9AwABgBgbAAA4GBsAADgYGwAAOBgbA' +
-    'AA4GBsAADgYGwAAOBgbAAA4GBsAADgYGwAAOBgbAAA4GBsAADgYGwAAOBgbAAA4GBsAADgYGwAAOBgbAAA4GBsAADgYGwAAO' +
-    'BgbAAA4GBsAADgYGwAAOBgbAAA4GBsAADgYGwAAOBgbAAA4GBsAADgYGwAAOBgbAAA4GBsAADgYGwAAOBgbAAA4GBsAADsD/' +
-    '/8D//8D//8D//8D/BMAA/8AA/8AA/8AA/8AA/8AA/8AA/8AAR0MgMiBDIzIgRCAyIEQjMiBFIDIgRiAyIEYjMiBHIDIgRyMy' +
-    'IEEgMiBBIzIgQiAyIEMgMyBDIzMgRCAzIEQjMyBFIDMgRiAzIEYjMyBHIDMgRyMzIEEgMyBBIzMgQiAzIEMgNCBDIzQgRCA0' +
-    'IEQjNCBFIDQgRiA0IEYjNCBHIDQgRyM0IEEgNCBBIzQgQiA0IEMgNSBDIzUgRCA1IEQjNSBFIDUgRiA1IHJiwAD/wAD/wAAI' +
-    'wP//wP//wP//wP//wP//wP//wP//wP//wP8IwAD/wAD/wAD/wAD/wAD/wAD/wAD/wAD/wAAJ4PFAwAD/wAD/wAD/wAD/wAD/' +
-    'wAD/4AIAAADAAP/AAP/AAP/AAP/AAAlyYsAANRD/AAAQ/8AAChD/AAAQ/8AAChD/AAAQ/8AAChD/AAAQ/8AAChD/AAAQ/8AA' +
-    'ChD/AAAQ/8AAChD/AAAQ/8AAChD/AAAQ/8AAChD/AAAQ/8AAChD/AAAQ/8AAChD/AAAQ/8AAChD/AAAQ/8AAChD/AAAQ/8AA' +
-    'ChD/AAAQ/8AAChD/AAAQ/8AAChD/AAAQ/8AAB4DAAAUHAsAABwHAAP/AAP/AAP/AAP/AAP/AAP/AAP/AAP/AAP/AAP/AAP/A' +
-    'AP/AAP/AAP/AAP/AAP/AAP/AAP/AAP/AAP/AAP/AAP/AAP/AAP/AAP/AAP/AAP/AAP/AAP/AAP/AAP/AAP/AAFzg8P/g8AHA' +
-    '///A///A///A///A///A///A///A///A///A///A///A///A///A///A///A//9yYsAADQfg/wAAAAAAAAAAAAAAAAAAAAAA' +
-    'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' +
-    'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' +
-    'AAAAAAAAAAAAAAAAAAAAAA==';
-
-  function b64bytes(s) {
-    if (typeof Buffer !== 'undefined') return new Uint8Array(Buffer.from(s, 'base64'));
-    var bin = G.atob(s), out = new Uint8Array(bin.length);
-    for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-    return out;
-  }
-
-  /* ------------------------------------------------------------ compression */
-  // LSDj's own scheme: run-length runs, two escape bytes, and special actions
-  // for the default wave and default instrument (which is why an empty song is
-  // a kilobyte). Data is laid into 512-byte blocks, each ending in a jump to
-  // the next. Implemented from liblsdj's compression.c.
-  function matches(d, at, arr) {
-    for (var i = 0; i < arr.length; i++) if (d[at + i] !== arr[i]) return false;
-    return true;
-  }
-  function compress(data, blockOffset) {
-    var out = [], block = blockOffset == null ? 1 : blockOffset, size = 0;
-    var read = 0, end = data.length, i;
-    while (read < end) {
-      var ev = null, n = 0;
-      // NOTE the strict `<`: liblsdj will not match a default run that ends
-      // exactly at the buffer end, and a decompressor built to the same rule
-      // has to agree byte for byte.
-      while (read + 16 < end && matches(data, read, DEFAULT_WAVE) && n !== 0xFF) { read += 16; n++; }
-      if (n > 0) ev = [SA, DEF_WAVE, n];
-      else {
-        var m = 0;
-        while (read + 16 < end && matches(data, read, DEFAULT_INSTRUMENT) && m !== 0xFF) { read += 16; m++; }
-        if (m > 0) ev = [SA, DEF_INST, m];
-        else if (data[read] === RLE) { ev = [RLE, RLE]; read++; }
-        else if (data[read] === SA) { ev = [SA, SA]; read++; }
-        else {
-          var c = data[read];
-          if (read + 3 < end && data[read + 1] === c && data[read + 2] === c && data[read + 3] === c) {
-            var k = 0;
-            while (read < end && data[read] === c && k !== 0xFF) { k++; read++; }
-            ev = [RLE, c, k];
-          } else { ev = [data[read++]]; }
-        }
-      }
-      if (size + ev.length + 2 >= BLOCK) {
-        out.push(SA, block + 1); size += 2;
-        while (size < BLOCK) { out.push(0); size++; }
-        block++; size = 0;
-        if (block === BLOCK_COUNT + 1) throw new Error('lsdj: song does not fit in a save');
-      }
-      for (i = 0; i < ev.length; i++) out.push(ev[i]);
-      size += ev.length;
-    }
-    out.push(SA, EOF_BLOCK);
-    if (size > 0) { size += 2; while (size < BLOCK) { out.push(0); size++; } }
-    return Uint8Array.from(out);
-  }
-  // ⚠️ BLOCKS ARE NUMBERED FROM 1, so block N begins at (N - base) * 512 in this
-  // buffer -- the same off-by-one the .sav block table has. This read `a * BLOCK`
-  // and so landed one whole block past every jump. It went unnoticed because the
-  // only thing ever round-tripped through here was the empty song, which
-  // compresses to well under 512 bytes and therefore never jumps at all. On
-  // anything with real note data the codec silently lost 512 bytes per block.
-  //
-  // `base` is the block number this buffer STARTS at: 1 for a bare song, and
-  // the project's first block inside a .sav, where jumps are absolute.
-  function decompress(bytes, base) {
-    base = base == null ? 1 : base;
-    // The base is the 1-based block this buffer starts at (1 for a bare song,
-    // the project's first block inside a .sav). It drives the jump arithmetic,
-    // so a bad base would silently relocate every jump; reject it up front.
-    if (!Number.isInteger(base) || base < 1 || base > BLOCK_COUNT)
-      throw new Error('lsdj: decompress base out of range');
-    var out = [], i = 0, j, k;
-    // Hostile or corrupt input must terminate and be rejected, never hang or pad
-    // silently. Real block jumps -- especially inside a .sav, where they are
-    // absolute -- may be noncontiguous or point at an earlier block, so a jump is
-    // not wrong for going backward, for skipping a block number, or for not
-    // matching our own compressor's contiguous block+1 output. What a valid
-    // stream never does is re-enter a block it has already been in: the chain of
-    // blocks is a finite simple path that ends in EOF. Recording every block we
-    // enter -- the starting block (offset 0) included -- rejects exactly the
-    // cyclic streams the old decoder looped forever on, and leaves every acyclic
-    // layout untouched.
-    var visited = { 0: 1 }, ended = false, truncated = false;
-    while (i < bytes.length) {
-      var b = bytes[i++];
-      if (b === RLE) {
-        if (i >= bytes.length) { truncated = true; break; }
-        var v = bytes[i++];
-        if (v === RLE) out.push(RLE);
-        else {
-          if (i >= bytes.length) { truncated = true; break; }
-          var cnt = bytes[i++]; for (j = 0; j < cnt; j++) out.push(v);
-        }
-      } else if (b === SA) {
-        if (i >= bytes.length) { truncated = true; break; }
-        var a = bytes[i++];
-        if (a === SA) out.push(SA);
-        else if (a === DEF_WAVE) {
-          if (i >= bytes.length) { truncated = true; break; }
-          var wc = bytes[i++]; for (j = 0; j < wc; j++) for (k = 0; k < 16; k++) out.push(DEFAULT_WAVE[k]);
-        } else if (a === DEF_INST) {
-          if (i >= bytes.length) { truncated = true; break; }
-          var ic = bytes[i++]; for (j = 0; j < ic; j++) for (k = 0; k < 16; k++) out.push(DEFAULT_INSTRUMENT[k]);
-        } else if (a === EOF_BLOCK) { ended = true; break; }
-        else {
-          var target = (a - base) * BLOCK;           // jump to that block, 1-based
-          if (target < 0 || target >= bytes.length)
-            throw new Error('lsdj: block jump out of range');
-          if (visited[target]) throw new Error('lsdj: cyclic block jump');
-          visited[target] = 1;
-          i = target;
-        }
-      } else out.push(b);
-      // An event that writes past the song is corrupt. Slicing it to fit would
-      // silently accept that corruption, so reject the overrun instead.
-      if (out.length > SONG_BYTES)
-        throw new Error('lsdj: decompressed output overruns a song image');
-    }
-    // A complete song is exactly SONG_BYTES followed by an EOF marker -- which is
-    // what our compressor (and liblsdj's) emit. A stream that ran out mid-operand
-    // or without an EOF is truncated; an EOF that arrives before the song is full
-    // is short. Neither is accepted merely because the old decoder padded it.
-    if (truncated || !ended)
-      throw new Error('lsdj: truncated compressed stream');
-    if (out.length !== SONG_BYTES)
-      throw new Error('lsdj: compressed stream ended at ' + out.length + ' of ' + SONG_BYTES + ' bytes');
-    return Uint8Array.from(out);
-  }
-
-  function emptySong() { return decompress(b64bytes(EMPTY_B64)); }
-
-  /* --------------------------------------------------------- writing a song */
-  function setBit(song, base, index, on) {
-    var byte = base + (index >> 3), mask = 1 << (index & 7);
-    if (on) song[byte] |= mask; else song[byte] &= ~mask;
-  }
-
-  // PHRASES ARE SIXTEEN STEPS, not one bar. At our default sixteenth grid those
-  // are the same thing, which is the happy case and the common one; at a 24th
-  // or 32nd grid a phrase is a fraction of a bar instead. Chunking by STEPS
-  // rather than by bars keeps the export structurally correct either way, and
-  // the caller is warned when the two stop coinciding.
-  var PHRASE_STEPS = 16;
-
-  // OUR wave tables, packed the way the hardware wants them: 32 four-bit samples
-  // into 16 bytes, high nibble first. The slots come from the same bank the
-  // browser plays, so the table LSDj loads is the one you heard.
-  var WAVE_SLOT = { bassg: 1, cello: 4 };          // saw (buzzy), sine (mellow)
-  function waveTableFor(stamp) {
-    var HW = (typeof require !== 'undefined' && typeof module !== 'undefined')
-      ? require('./gb-hardware.js') : G.CT_GB;
-    var CI = (typeof require !== 'undefined' && typeof module !== 'undefined')
-      ? require('./chip-instruments.js') : G.CT_CHIP_INSTRUMENTS;
-    if (!HW || !CI || !HW.buildBank) return null;
-    var slot = WAVE_SLOT[stamp];
-    if (slot == null) return null;
-    var tables = HW.buildBank(CI.patches).waveTables;
-    var t = tables && tables[slot];
-    if (!t || t.length < 32) return null;
-    var out = [];
-    for (var i = 0; i < 16; i++) out.push(((t[i * 2] & 0xF) << 4) | (t[i * 2 + 1] & 0xF));
-    return out;
-  }
-
-  function laneOfCell(x, melRows) {
-    if (x.r >= melRows) return 3;                        // drum rows
-    if (x.ch === 0 || x.ch === 1) return x.ch;
-    if (x.rch != null) return x.rch;
-    if (x.st === 'bassg' || x.st === 'cello') return 2;
-    return 0;
-  }
-
-  function fromDocument(doc, opts) {
-    opts = opts || {};
-    var st = CT_CREATE.docState(typeof doc === 'string' ? doc : String(doc || ''));
-    if (!st) throw new Error('lsdj: not a readable song document');
-    var melRows = (CT_CREATE.tables && CT_CREATE.tables().melodicRows) || 12;
-    var warn = [], song = emptySong(), i, ch;
-
-    if ((st.grid || 16) !== PHRASE_STEPS)
-      warn.push('this song is on a ' + st.grid + '-step bar, so one LSDj phrase is ' +
-                (PHRASE_STEPS / st.grid).toFixed(2) + ' of a bar rather than exactly one');
-
-    // ---- lay the notes out per channel, one slot per step ------------------
-    var lastStep = 0;
-    st.cells.forEach(function (x) { if ((x.c | 0) > lastStep) lastStep = x.c | 0; });
-    (st.tempoAt || []).forEach(function (change) {
-      if (change[0] > lastStep) lastStep = change[0];
-    }); // include command-only tail before deciding which note-offs fit
-    var steps = Math.max(lastStep + 1, st.bars * (st.grid || 16));
-    var grid = [[], [], [], []];
-    for (ch = 0; ch < 4; ch++) for (i = 0; i < steps; i++) grid[ch].push(null);
-
-    // FIT THE RANGE BY MOVING WHOLE OCTAVES, NEVER BY CLAMPING. Our composer
-    // writes down to MIDI 24 and LSDj's note 1 sits higher than that, so a
-    // straight mapping pushed a third of the notes of a busy song against the
-    // floor -- and a clamped note is not a quiet mistake, it is a WRONG note
-    // sitting in somebody's phrase. Shifting by octaves keeps every interval
-    // and every pitch class; the musician undoes it with one transpose if they
-    // want it lower, and the warning tells them it happened.
-    var lowest = null, highest = null;
-    st.cells.forEach(function (x) {
-      if (laneOfCell(x, melRows) === 3 || x.midi == null) return;
-      var m = x.midi | 0;
-      if (lowest === null || m < lowest) lowest = m;
-      if (highest === null || m > highest) highest = m;
-    });
-    // With a per-channel base the bass no longer collides with the floor, so
-    // this is a safety net rather than the load-bearing part it used to be.
-    var octaves = 0;
-    if (lowest !== null) {
-      var floorBase = Math.min.apply(null, NOTE_BASE);
-      while (lowest + octaves * 12 < floorBase) octaves++;
-      while (highest + octaves * 12 - floorBase + 1 > NOTE_MAX && octaves > 0) octaves--;
-    }
-    if (octaves) warn.push('transposed up ' + octaves + ' octave' + (octaves > 1 ? 's' : '') +
-                           ' so the low notes fit LSDj\'s range; transpose it back down if you want');
-
-    // ---- one instrument per voice the song uses ----------------------------
-    // A stamp IS an instrument -- a duty crossed with an envelope character --
-    // and so is a drum. Giving each its own slot is both what an LSDj musician
-    // would do and what makes the song survive a round trip: with one shared
-    // noise instrument, a kick and a hat come back indistinguishable.
-    var DUTY_INDEX = { 0.125: 0, 0.25: 1, 0.5: 2, 0.75: 3 };
-    var STAMP_DUTY = { piano: 0.5, trumpet: 0.25, flute: 0.5, bell: 0.125 };
-    var instruments = [], instOf = {};
-    // WHICH DRUM lives in the cell's ROW, not in a field: the editor stacks the
-    // drum lanes under the melodic ones, so row - melodicRows is the index into
-    // the drum list. Reading it is what lets a kick come back as a kick.
-    var DRUM_IDS = (CT_CREATE.tables && CT_CREATE.tables().drums) || ['hat', 'snare', 'kick'];
-    // Measured note bytes, one note per song, read off NR43: 33 -> divisor 6,
-    // 49 -> divisor 3, 61 -> divisor 1. Higher divisor is a lower noise pitch.
-    var DRUM_NOTE = { kick: 33, snare: 49, hat: 61 };
-    // ⚠️ VOLUME IS PART OF THE INSTRUMENT'S IDENTITY, because in LSDj it has
-    // nowhere else to live -- there is no per-note volume column. Our renderer
-    // plays an accent by making one note louder, and a single instrument per
-    // voice could not carry that: the export flattened every accent.
-    //
-    // The LSDj answer is not to flatten the music, it is to have MORE
-    // INSTRUMENTS -- which is what an LSDj musician does, and what the 64 slots
-    // are for. A voice at four playing levels is four instruments. We use around
-    // thirty of the sixty-four, and the accents survive.
-    function instrumentFor(x, lane) {
-      var isDrum = lane === 3;
-      var drum = isDrum ? (DRUM_IDS[(x.r | 0) - melRows] || 'kick') : null;
-      var vol = Math.max(x.nt ? 0 : 1, Math.min(15, Math.round((x.vel != null ? x.vel : 0.8) * 15)));
-      // A FALL AND A RISE ARE A HARDWARE SWEEP, and the sweep unit belongs to
-      // PU1 alone -- so only the first pulse lane can carry them, which is the
-      // same limit the machine has. NR10 is pace<<4 | direction<<3 | shift, and
-      // direction 1 means the frequency DECREASES, which is the pitch falling.
-      var sweep = 0;
-      if (lane === 0 && x.sweep != null) sweep = x.sweep & 0x7F;
-      else if (lane === 0 && x.z) sweep = 0x3E;         // pace 3, down, shift 6
-      else if (lane === 0 && x.u) sweep = 0x36;         // pace 3, up,   shift 6
-      var id = (isDrum ? ('drum:' + drum) : (lane + ':' + (x.st || 'piano'))) +
-               (sweep ? ':s' + sweep : '') + (lane < 2 && x.dy != null ? ':d' + (x.dy & 3) : '') + ':v' + vol;
-      if (instOf[id] != null) return instOf[id];
-      // Out of slots: reuse the nearest instrument for this voice rather than
-      // dropping to the lane default, so the timbre survives even when the
-      // loudness has to be approximated.
-      if (instruments.length >= MAX_INSTRUMENTS) {
-        var stem = id.slice(0, id.lastIndexOf(':v')), best = lane, bd = 99;
-        for (var q2 = 0; q2 < instruments.length; q2++) {
-          if (instruments[q2].stem !== stem) continue;
-          var d2 = Math.abs(instruments[q2].vol - vol);
-          if (d2 < bd) { bd = d2; best = q2; }
-        }
-        return best;
-      }
-      var type = isDrum ? INST_TYPE.NOISE : lane === 2 ? INST_TYPE.WAVE : INST_TYPE.PULSE;
-      var duty = DUTY_INDEX[STAMP_DUTY[x.st]] != null ? DUTY_INDEX[STAMP_DUTY[x.st]] : 2;
-      if (lane < 2 && x.dy != null) duty = x.dy & 3;
-      // The NAME is the voice without the volume, so LSDj shows PIANO for every
-      // loudness of piano and import can still read the drum back off it.
-      var stem2 = id.slice(0, id.lastIndexOf(':v'));
-      var name = String(stem2.replace(/^\d+:|^drum:/, '')).toUpperCase().slice(0, 5);
-      instOf[id] = instruments.length;
-      instruments.push({ type: type, vol: vol, duty: duty, name: name, stem: stem2, sweep: sweep });
-      return instOf[id];
-    }
-
-    var outOfRange = 0, dropped = 0;
-    st.cells.forEach(function (x) {
-      var lane = laneOfCell(x, melRows), step = x.c | 0;
-      var slot = { note: NO_NOTE, cmd: CMD.NONE, val: 0,
-        inst: lane < 2 && x.nt === 2 ? NO_INSTRUMENT : instrumentFor(x, lane) };
-      if (lane === 3) {
-        // ⚠️ A NOISE NOTE IS A PITCH, AND THE WRONG ONE IS SILENCE. This wrote
-        // note 25 for every drum, on the reasoning that noise is not melodic.
-        // Measured against the ROM one note at a time: LSDj writes nothing to
-        // NR43 for any noise note below 33, so every drum this project ever
-        // exported was SILENT -- and had they sounded, all three would have been
-        // the same pitch anyway, because they shared the one note.
-        //
-        // These values are measured, and the divisor is the pitch: note 33 is
-        // divisor 6 (low), 49 is divisor 3, 61 is divisor 1 (high). Kick low,
-        // snare in the middle, hat on top -- what the kit sounds like, and what
-        // an LSDj musician would have typed.
-        slot.note = DRUM_NOTE[DRUM_IDS[(x.r | 0) - melRows]] || 49;
-      } else if (x.midi != null) {
-        var n = (x.midi | 0) + octaves * 12 - NOTE_BASE[lane] + 1;
-        // A note that STILL does not fit after the octave shift is dropped
-        // rather than clamped: a missing note reads as a rest, a clamped one
-        // reads as a mistake somebody made on purpose.
-        if (n < 1 || n > NOTE_MAX) { outOfRange++; return; }
-        slot.note = n;
-      } else return;
-      // An arpeggio is a COMMAND here, not three notes. Our document carries the
-      // gesture as a flag and only the player expands it, so the export can say
-      // what was meant rather than what was rendered -- which is the difference
-      // between a phrase somebody can read and 300 rows they cannot.
-      if (x.q && lane !== 3) { slot.cmd = CMD.C; slot.val = st.minor ? 0x37 : 0x47; }
-      else if (x.g && lane !== 3) { slot.cmd = CMD.R; slot.val = 0x00; }
-      else if (x.vb && lane !== 3) { slot.cmd = CMD.V; slot.val = 0x84; }
-      if (grid[lane][step]) dropped++;
-      slot.len = Math.max(1, x.len | 0 || 1);
-      grid[lane][step] = slot;
-
-      // AN ECHO IS TWO NOTES, and that is all it ever was. Our renderer plays it
-      // as the note shortened to a row and a quieter repeat one row later on the
-      // same channel; LSDj has no echo flag, so writing it as the flag lost it
-      // entirely. Written out, both play the same thing -- and a musician
-      // opening the file sees the repeat, which is what is actually happening.
-      if (x.f && lane !== 3 && slot.note && !grid[lane][step + 1] && step + 1 < steps) {
-        var quiet = Object.assign({}, x, { vel: (x.vel != null ? x.vel : 0.8) * 0.6 });
-        grid[lane][step] = Object.assign({}, slot, { len: 1 });
-        grid[lane][step + 1] = { note: slot.note, cmd: CMD.NONE, val: 0,
-                                 inst: instrumentFor(quiet, lane), len: 1 };
-      }
-    });
-    if (outOfRange) warn.push(outOfRange + ' notes were still outside LSDj\'s range after transposing and were left out');
-    if (dropped) warn.push(dropped + ' notes shared a step with another on the same channel and were replaced');
-
-    // ---- KILL, because LSDj does not store a note length ------------------
-    // A note in LSDj RUNS UNTIL THE NEXT ONE. Ours have lengths, so a staccato
-    // note exported without saying where it stops becomes a sustained one that
-    // holds until the next note arrives -- which is a different piece of music,
-    // and was audible on anything with space in it.
-    //
-    // The envelope cannot fix this. Measured off the ROM, byte 1's low nibble is
-    // a HOLD IN FRAMES -- 1,1,1,1,1,2,2,3,4,5,6,8,11,15,20 for 1..f, and 0 means
-    // sustain -- so it tops out at twenty frames and is tied to the instrument
-    // rather than the note. A tracker says this with a command, and the command
-    // is KILL: put it on the row the note stops on.
-    var kills = 0;
-    for (ch = 0; ch < 4; ch++) {
-      // Drums are one-shots; killing them would cut the sample short.
-      if (ch === 3) continue;
-      for (var gs = 0; gs < steps; gs++) {
-        var here = grid[ch][gs];
-        if (!here || !here.note) continue;
-        var endsAt = gs + here.len;
-        // ⚠️ THE PHRASE GRID IS PADDED TO A MULTIPLE OF SIXTEEN, and the KILL
-        // may live in the padding. Bounding this by `steps` -- the last column
-        // that holds a note -- dropped the kill for the LAST note of a song
-        // exactly when its end landed on that boundary, so the final note
-        // sustained on import instead of stopping where it was written.
-        if (endsAt >= Math.ceil(steps / PHRASE_STEPS) * PHRASE_STEPS) continue;
-        // find the next note on this channel
-        var nxt = -1;
-        for (var gt = gs + 1; gt < steps; gt++) if (grid[ch][gt] && grid[ch][gt].note) { nxt = gt; break; }
-        if (nxt >= 0 && nxt <= endsAt) continue;       // the next note ends it
-        // ...and only if that row is free: a row holds one command, and an
-        // arpeggio or a vibrato already there is the more musical thing to keep.
-        if (grid[ch][endsAt] && (grid[ch][endsAt].note || grid[ch][endsAt].cmd !== CMD.NONE)) continue;
-        grid[ch][endsAt] = { note: NO_NOTE, cmd: CMD.K, val: 0, inst: here.inst, len: 1 };
-        kills++;
-      }
-    }
-
-    // Tempo changes belong to the whole song. Put T on an available command
-    // column without replacing a note effect or KILL. The phrase pass below
-    // preserves empty time before a command-only channel starts.
-    (st.tempoAt || []).forEach(function (change) {
-      var step = change[0], tempo = change[1], lane = -1;
-      if (!Number.isInteger(step) || step < 0 || !Number.isInteger(tempo) || tempo < 40 || tempo > 255)
-        throw new Error('lsdj: invalid tempo change');
-      for (var tc = 0; tc < 4; tc++) {
-        if (!grid[tc][step] || grid[tc][step].cmd === CMD.NONE) { lane = tc; break; }
-      }
-      if (lane < 0) throw new Error('lsdj: no free command column for tempo change at row ' + step);
-      var slot = grid[lane][step];
-      if (!slot) slot = grid[lane][step] = { note:NO_NOTE, inst:NO_INSTRUMENT, len:1 };
-      slot.cmd = CMD.T; slot.val = tempo;
-      steps = Math.max(steps, step + 1);
-    });
-
-    // ---- phrases, deduplicated --------------------------------------------
-    var phrases = [], byKey = {}, chainsOf = [[], [], [], []];
-    var full = Math.ceil(steps / PHRASE_STEPS);
-    var silentDocument = !grid.some(function (channel) {
-      return channel.some(function (slot) { return !!slot; });
-    });
-    for (ch = 0; ch < 4; ch++) {
-      // A wholly blank document still has a declared loop duration. Give it
-      // one silent timing channel; leave the other three absent.
-      var channelUsed = (silentDocument && ch === 0) || grid[ch].some(function (slot) { return !!slot; });
-      for (var p = 0; p < full; p++) {
-        var slots = [], any = false;
-        for (i = 0; i < PHRASE_STEPS; i++) {
-          var s = grid[ch][p * PHRASE_STEPS + i] || null;
-          if (s) any = true;
-          slots.push(s);
-        }
-        // FF ends a native chain; it is not sixteen rows of silence. Every
-        // active channel needs actual empty phrases for gaps and trailing time
-        // through the declared document end. Empty phrases deduplicate normally.
-        // A wholly unused channel stays absent instead of consuming chains.
-        if (!any && !channelUsed) { chainsOf[ch].push(NO_PHRASE); continue; }
-        // THE INSTRUMENT IS PART OF THE PHRASE. Leaving it out of the key merges
-        // two bars that play the same notes on different voices into one phrase,
-        // and the second one silently changes instrument.
-        var key = slots.map(function (s2) {
-          return s2 ? s2.note + ':' + s2.cmd + ':' + s2.val + ':' + s2.inst : '-';
-        }).join(',');
-        if (byKey[key] == null) {
-          if (phrases.length >= MAX_PHRASES) { chainsOf[ch].push(NO_PHRASE); continue; }
-          byKey[key] = phrases.length;
-          phrases.push({ slots: slots, ch: ch });
-        }
-        chainsOf[ch].push(byKey[key]);
-      }
-    }
-    if (phrases.length >= MAX_PHRASES)
-      warn.push('this song needs more than ' + MAX_PHRASES + ' phrases; the tail was dropped');
-
-    // ---- chains ------------------------------------------------------------
-    var chains = [], seq = [[], [], [], []];
-    for (ch = 0; ch < 4; ch++) {
-      for (var c0 = 0; c0 < chainsOf[ch].length; c0 += 16) {
-        var run = chainsOf[ch].slice(c0, c0 + 16);
-        while (run.length < 16) run.push(NO_PHRASE);
-        if (run.every(function (v) { return v === NO_PHRASE; })) { seq[ch].push(NO_CHAIN); continue; }
-        if (chains.length >= MAX_CHAINS) { seq[ch].push(NO_CHAIN); continue; }
-        chains.push(run);
-        seq[ch].push(chains.length - 1);
-      }
-    }
-    if (chains.length >= MAX_CHAINS) warn.push('this song needs more than ' + MAX_CHAINS + ' chains; the tail was dropped');
-
-    // ---- write it out ------------------------------------------------------
-    for (i = 0; i < phrases.length; i++) {
-      var base = i * PHRASE_STEPS;
-      for (var k = 0; k < PHRASE_STEPS; k++) {
-        var sl = phrases[i].slots[k];
-        song[O.PHRASE_NOTES + base + k] = sl ? sl.note : NO_NOTE;
-        song[O.PHRASE_INSTRUMENTS + base + k] = sl ? (sl.inst != null ? sl.inst : phrases[i].ch) : NO_INSTRUMENT;
-        song[O.PHRASE_COMMANDS + base + k] = sl ? sl.cmd : CMD.NONE;
-        song[O.PHRASE_COMMAND_VALUES + base + k] = sl ? sl.val : 0;
-      }
-      setBit(song, O.PHRASE_ALLOC, i, true);
-    }
-    for (i = 0; i < chains.length; i++) {
-      for (var q = 0; q < 16; q++) {
-        song[O.CHAIN_PHRASES + i * 16 + q] = chains[i][q];
-        song[O.CHAIN_TRANSPOSE + i * 16 + q] = 0;
-      }
-      setBit(song, O.CHAIN_ALLOC, i, true);
-    }
-    var rows = Math.max.apply(null, seq.map(function (s3) { return s3.length; }));
-    for (var r = 0; r < Math.min(rows, 255); r++)
-      for (ch = 0; ch < 4; ch++)
-        song[O.SEQUENCE + r * 4 + ch] = seq[ch][r] == null ? NO_CHAIN : seq[ch][r];
-
-    // ONE INSTRUMENT PER VOICE THE SONG ACTUALLY USES, carrying our own duty and
-    // volume rather than a stock blank.
-    //
-    // The byte layout is MEASURED, not looked up -- vary one byte of instrument
-    // 0, play one note, read the APU, and whatever moves is what that byte
-    // means (scripts/verify-lsdj-emulator.js keeps it honest):
-    //
-    //   byte 0   type: 0 pulse, 1 wave, 2 kit, 3 noise
-    //   byte 1   high nibble is VOLUME -> NR12 as volume<<4 | 8
-    //   byte 3   length
-    //   byte 4   complemented sweep, channel 1 only -> NR10
-    //   byte 7   bits 6-7 DUTY -> NR11; bits 0-1 pan -> NR51 (3 is both sides)
-    //   byte 11  transpose / finetune -> NR13, NR14
-    //
-    // ⚠️ LSDJ'S ENVELOPE IS SOFTWARE. It writes NR12 repeatedly as a note plays
-    // rather than setting the hardware pace once, so byte 1's low nibble is
-    // LSDj's own envelope shape and not a DMG field. We write a plain sustain
-    // there; matching its shapes means reproducing its stepping, which is not
-    // done and is the honest edge of sound parity today.
-    for (i = 0; i < instruments.length && i < MAX_INSTRUMENTS; i++) {
-      var inst = instruments[i], at = O.INSTRUMENT_PARAMS + i * 16;
-      for (var b2 = 0; b2 < 16; b2++) song[at + b2] = DEFAULT_INSTRUMENT[b2];
-      song[at] = inst.type;
-      song[at + 1] = (Math.max(0, Math.min(15, inst.vol)) << 4);
-      // Pulse durations are scheduled by the next note/KILL, not the DMG
-      // length counter. FF enabled a one-tick counter and truncated held notes.
-      if (inst.type === INST_TYPE.PULSE) song[at + 3] = 0;
-      if (inst.type === INST_TYPE.PULSE) song[at + 7] = (inst.duty << 6) | 0x03;
-      else song[at + 7] = (song[at + 7] & 0xFC) | 0x03;
-      // A WAVE INSTRUMENT'S TIMBRE IS ITS TABLE, so pin it to the frame we
-      // wrote ours into. Left alone, LSDj ANIMATES through a run of frames --
-      // that is its wave synth, and it is a lovely thing that is not what our
-      // bass sounds like. Byte 9 = 0x03 holds it on frame 0; measured.
-      if (inst.type === INST_TYPE.WAVE) song[at + 9] = 0x03;
-      // LSDj complements this byte before writing NR10. 00 enabled an
-      // unintended 7/7 downward sweep on every plain note; FF disables it.
-      // Real-ROM plain/fall/rise fixtures verify the resulting register.
-      if (inst.type === INST_TYPE.PULSE) song[at + 4] = (inst.sweep ^ 0xFF) & 0xFF;
-      song[O.INSTRUMENT_ALLOC + i] = 1;
-      for (var nm = 0; nm < 5; nm++) {
-        var chr = inst.name.charCodeAt(nm);
-        song[O.INSTRUMENT_NAMES + i * 5 + nm] = chr ? chr : 0;
-      }
-    }
-    // ---- and the wave the bass is actually made of -------------------------
-    // Everything above carries the pulse and noise voices. The WAVE voice's
-    // whole timbre is its 32-nibble table, and without writing it the export
-    // handed LSDj a bass playing the right notes through LSDj's default
-    // waveform -- the correct tune in somebody else's voice.
-    var waveStamps = {};
-    st.cells.forEach(function (x) { if (laneOfCell(x, melRows) === 2 && x.st) waveStamps[x.st] = 1; });
-    var usedWaves = Object.keys(waveStamps);
-    if (usedWaves.length) {
-      var table = waveTableFor(usedWaves[0]);
-      if (table) for (i = 0; i < 16; i++) song[O.WAVES + i] = table[i];
-      // ⚠️ ONE FRAME. Pinning is what stops LSDj animating through its synth,
-      // and the pin found on the machine holds frame 0 specifically -- so a song
-      // using two different wave voices has to share one table. Said out loud
-      // rather than left for somebody to notice by ear.
-      if (usedWaves.length > 1)
-        warn.push('this song uses ' + usedWaves.length + ' wave voices (' + usedWaves.join(', ') +
-                  ') and a pinned LSDj instrument holds one table, so they share ' +
-                  usedWaves[0] + '\'s');
-    }
-    warn.push('instruments carry the duty, volume and wave table this song plays; ' +
-              'LSDj\'s own envelope shapes are left plain, so voicing is still yours to finish');
-    warn.push('drums are on the noise channel: a .sav cannot carry kit samples, which live in the ROM');
-
-    // ---- tempo and groove --------------------------------------------------
-    // ⚠️ AN LSDJ GROOVE IS IN TICKS, NOT FRAMES, and this wrote our frame counts
-    // straight into it. Measured against the real ROM in mGBA: a song we
-    // exported as 128 bpm with a 7-frame row played at 8.17 frames a row, which
-    // is 110 bpm -- 17% slow, on every song we ever exported.
-    //
-    // What LSDj actually does, measured the same way across tempo 60..255 with
-    // a one-note-per-row ruler song:
-    //
-    //   ticks per second = 0.4 x TEMPO
-    //   frames per tick  = 149.31875 / TEMPO          (149.31875 = 2.5 x FPS)
-    //   frames per row   = ticks x 149.31875 / TEMPO
-    //
-    // so the DEFAULT groove of 6 ticks makes a row 895.9125/TEMPO frames, and
-    // TEMPO is then bpm in the ordinary sense with four rows to the beat. That
-    // is exactly our own constant, which is the good news: TEMPO carries the
-    // tempo unchanged, and the groove only has to carry the SHAPE.
-    var FR_PER_TICK_NUM = 149.31875;
-    var bpm = Math.max(40, Math.min(255, st.bpm | 0));
-    song[O.TEMPO] = bpm;
-    // NOTHING IS CONVERTED HERE ANY MORE. The document's groove is already in
-    // LSDj ticks, because the composer and the editor both run LSDj's clock --
-    // which is the point of the whole exercise. A conversion step is a place for
-    // the two sides to disagree, and this one did: it wrote frame counts into
-    // the tick field and made every export play 17% slow.
-    var ticks = st.groove && st.groove.length ? st.groove.slice() : [6];
-    for (i = 0; i < 16; i++) song[O.GROOVES + i] = i < ticks.length ? (ticks[i] & 0xFF) : 0;
-
-    return {
-      bytes: song, warnings: warn,
-      phrases: phrases.length, chains: chains.length, rows: Math.min(rows, 255),
-      // TWO COUNTS, BECAUSE THEY ARE DIFFERENT QUESTIONS. `notes` is what lives
-      // in the unique phrases -- what LSDj shows, and what liblsdj counts, since
-      // identical bars share one phrase. `sequencedNotes` is what a listener
-      // hears, following the sequence through its chains. Reporting only the
-      // first made a 217-note song look like a 61-note one.
-      notes: phrases.reduce(function (a, ph) {
-        return a + ph.slots.filter(function (s4) { return s4 && s4.note !== NO_NOTE; }).length;
-      }, 0),
-      sequencedNotes: (function () {
-        var total = 0;
-        for (var r2 = 0; r2 < Math.min(rows, 255); r2++) for (var c2 = 0; c2 < 4; c2++) {
-          var cid = seq[c2][r2];
-          if (cid == null || cid === NO_CHAIN) continue;
-          for (var q2 = 0; q2 < 16; q2++) {
-            var pid = chains[cid][q2];
-            if (pid === NO_PHRASE) continue;
-            total += phrases[pid].slots.filter(function (s5) { return s5 && s5.note !== NO_NOTE; }).length;
-          }
-        }
-        return total;
-      })(),
-      // `groove` is TICKS, LSDj's own unit. `framesPerRow` is what that works
-      // out to on the machine at this tempo, reported so a caller never has to
-      // rediscover the conversion -- which is where the 17% error lived.
-      tempo: song[O.TEMPO], groove: ticks.slice(),
-      framesPerRow: (function () {
-        var s = 0;
-        for (var t = 0; t < ticks.length; t++) s += ticks[t];
-        return (s / ticks.length) * FR_PER_TICK_NUM / bpm;
-      })(),
-      title: st.title || ''
-    };
-  }
-
-  // LSDj project names are eight characters of its own alphabet.
-  function projectName(title) {
-    var s = String(title || 'CHIPTUNE').toUpperCase().replace(/[^A-Z0-9 -]/g, '').trim();
-    if (!s) s = 'CHIPTUNE';
-    var out = new Uint8Array(8);
-    for (var i = 0; i < 8; i++) out[i] = i < s.length ? s.charCodeAt(i) : 0;
-    return out;
-  }
-
-  function lsdsng(doc, opts) {
-    var built = fromDocument(doc, opts);
-    var name = projectName((opts && opts.name) || built.title);
-    var body = compress(built.bytes, 1);
-    var file = new Uint8Array(9 + body.length);
-    file.set(name, 0);
-    file[8] = 0;                                        // project version
-    file.set(body, 9);
-    built.file = file;
-    return built;
-  }
-
-  /* --------------------------------------------------------- a whole cart */
-  // THE THING THAT ACTUALLY SAVES TIME. A `.lsdsng` is one song and still needs
-  // importing; a `.sav` IS the cartridge. Generate a dozen starting points,
-  // write one file, copy it to a flash cart, and every slot on the machine has
-  // something in it to argue with.
-  //
-  // Layout: the working-memory song, a 512-byte header, then 191 blocks of 512.
-  // The block allocation table says which project owns each block, and blocks
-  // are numbered from 1 -- block N lives at (N-1)*512 in the block area, which
-  // is the off-by-one to get wrong.
-  var SAV_SIZE = 0x20000, SAV_PROJECTS = 32, SAV_HEADER = SONG_BYTES;
-  var BLOCK_AREA = SAV_HEADER + 0x200, EMPTY_BLOCK = 0xFF;
-
-  function sav(docs, opts) {
-    opts = opts || {};
-    var list = [].concat(docs || []).slice(0, SAV_PROJECTS);
-    if (!list.length) throw new Error('lsdj: a save needs at least one song');
-    var out = new Uint8Array(SAV_SIZE);
-    var names = [], built = [], warnings = [], i;
-
-    var blockCursor = 1;                       // blocks are 1-based
-    var alloc = new Uint8Array(191); alloc.fill(EMPTY_BLOCK);
-    for (i = 0; i < list.length; i++) {
-      var b = fromDocument(list[i], opts);
-      var body = compress(b.bytes, blockCursor);
-      var blocks = body.length / BLOCK;
-      if (blockCursor - 1 + blocks > 191) {
-        warnings.push('the save filled up after ' + i + ' songs; the rest were left out');
-        break;
-      }
-      out.set(body, BLOCK_AREA + (blockCursor - 1) * BLOCK);
-      for (var k = 0; k < blocks; k++) alloc[blockCursor - 1 + k] = i;
-      blockCursor += blocks;
-      names.push(projectName((opts.names && opts.names[i]) || b.title));
-      built.push(b);
-      b.warnings.forEach(function (w) { if (warnings.indexOf(w) < 0) warnings.push(w); });
-    }
-
-    // The working-memory song is what the cart opens on, so it is the first one
-    // rather than a blank screen.
-    out.set(built[0].bytes, 0);
-    for (i = 0; i < names.length; i++) out.set(names[i], SAV_HEADER + i * 8);
-    for (i = 0; i < names.length; i++) out[SAV_HEADER + 256 + i] = 0;   // project version
-    out[SAV_HEADER + 256 + 32 + 30] = 0x6A;                             // 'j'
-    out[SAV_HEADER + 256 + 32 + 31] = 0x6B;                             // 'k'
-    out[SAV_HEADER + 256 + 32 + 32] = 0;                                // active project
-    out.set(alloc, SAV_HEADER + 256 + 32 + 33);
-
-    return { bytes: out, songs: built.length, warnings: warnings,
-             blocksUsed: blockCursor - 1, blocksFree: 191 - (blockCursor - 1),
-             titles: built.map(function (b2) { return b2.title; }) };
-  }
-
-  /* ------------------------------------------------------- reading a song --- */
-  // THE SONG IMAGE, UNDERSTOOD RATHER THAN COPIED.
-  //
-  // Export alone never needed this: `fromDocument` starts from the empty song
-  // and writes fields into it. Import does, and so does the claim that we can
-  // hold everything LSDj can -- which is only true if a song LSDj wrote survives
-  // being read into our model and written back out UNCHANGED, byte for byte.
-  //
-  // The map below is the part we UNDERSTAND. Everything outside it is carried in
-  // `raw` verbatim, so a round trip is exact from the first day rather than once
-  // the last field is done. `coverage()` says how much is understood, and that
-  // number is the honest measure of how much of LSDj we actually model. It is
-  // meant to go up; the round trip is exact either way.
-  var FIELDS = [
-    { k: 'phraseNotes',       at: O.PHRASE_NOTES,          n: 255, w: 16 },
-    { k: 'grooves',           at: O.GROOVES,               n: 32,  w: 16 },
-    // ⚠️ ROW-MAJOR: the sequence is 256 ROWS of four channels, at
-    // SEQUENCE + row*4 + channel -- not four channel-length columns. Both
-    // readings round-trip byte-for-byte, so identity cannot catch this; what
-    // catches it is that the wrong one hands channel 0 every channel's chains
-    // interleaved and leaves the other three empty, which is what it did.
-    { k: 'sequence',          at: O.SEQUENCE,              n: 256, w: 4 },
-    { k: 'instrumentNames',   at: O.INSTRUMENT_NAMES,      n: 64,  w: 5 },
-    { k: 'tableAlloc',        at: O.TABLE_ALLOC,           n: 1,   w: 32 },
-    { k: 'instrumentAlloc',   at: O.INSTRUMENT_ALLOC,      n: 1,   w: 64 },
-    { k: 'chainPhrases',      at: O.CHAIN_PHRASES,         n: 128, w: 16 },
-    { k: 'chainTranspose',    at: O.CHAIN_TRANSPOSE,       n: 128, w: 16 },
-    { k: 'instrumentParams',  at: O.INSTRUMENT_PARAMS,     n: 64,  w: 16 },
-    { k: 'phraseAlloc',       at: O.PHRASE_ALLOC,          n: 1,   w: 32 },
-    { k: 'chainAlloc',        at: O.CHAIN_ALLOC,           n: 1,   w: 16 },
-    { k: 'tempo',             at: O.TEMPO,                 n: 1,   w: 1 },
-    { k: 'transpose',         at: O.TRANSPOSE,             n: 1,   w: 1 },
-    { k: 'phraseCommands',    at: O.PHRASE_COMMANDS,       n: 255, w: 16 },
-    { k: 'phraseCommandVals', at: O.PHRASE_COMMAND_VALUES, n: 255, w: 16 },
-    { k: 'waves',             at: O.WAVES,                 n: 256, w: 16 },
-    // TABLES: five 512-byte regions, 32 tables of 16 rows each, found by
-    // probing rather than by reading a header. What is measured so far:
-    //   * INSTRUMENT BYTE 6 = 0x20 turns a table on. The default is 0x03 and
-    //     nothing runs; with 0x20 a held note starts moving.
-    //   * The data is in 0x3480..0x3E80 and nowhere else -- filling every other
-    //     unmapped gap in the song changes nothing.
-    //   * Regions 3 and 4 (0x3A80 and 0x3C80) are the command/value pair: a
-    //     table runs with those two alone and with no other combination.
-    // ⚠️ NOTHING PLAYS THESE YET. They are named so they are addressable and so
-    // the coverage number stops flattering us; `toSongJSON` warns when an
-    // imported song uses one.
-    { k: 'tables0',           at: 0x3480,                  n: 32,  w: 16 },
-    { k: 'tables1',           at: 0x3680,                  n: 32,  w: 16 },
-    { k: 'tables2',           at: 0x3880,                  n: 32,  w: 16 },
-    { k: 'tableCommands',     at: 0x3A80,                  n: 32,  w: 16 },
-    { k: 'tableValues',       at: 0x3C80,                  n: 32,  w: 16 },
-    { k: 'phraseInstruments', at: O.PHRASE_INSTRUMENTS,    n: 255, w: 16 },
-    { k: 'formatVersion',     at: O.FORMAT_VERSION,        n: 1,   w: 1 }
-  ];
-
-  function readSong(song) {
-    if (!song || song.length < SONG_BYTES) throw new Error('lsdj: not a song image');
-    var m = { raw: Uint8Array.from(song.subarray(0, SONG_BYTES)) }, i, j, f;
-    for (i = 0; i < FIELDS.length; i++) {
-      f = FIELDS[i];
-      if (f.n === 1 && f.w === 1) { m[f.k] = song[f.at]; continue; }
-      var rows = [];
-      for (j = 0; j < f.n; j++) rows.push(Uint8Array.from(song.subarray(f.at + j * f.w, f.at + (j + 1) * f.w)));
-      m[f.k] = f.n === 1 ? rows[0] : rows;
-    }
-    return m;
-  }
-
-  function writeSong(m) {
-    // Start from the bytes we were given, so anything the map does not name
-    // survives untouched. A field we DO understand is written back from the
-    // model, which is what makes an edit to the model actually take effect.
-    var song = Uint8Array.from(m.raw || emptySong()), i, j, f, v;
-    for (i = 0; i < FIELDS.length; i++) {
-      f = FIELDS[i]; v = m[f.k];
-      if (v == null) continue;
-      if (f.n === 1 && f.w === 1) { song[f.at] = v & 0xFF; continue; }
-      var rows = f.n === 1 ? [v] : v;
-      for (j = 0; j < rows.length && j < f.n; j++) song.set(rows[j].subarray(0, f.w), f.at + j * f.w);
-    }
-    return song;
-  }
-
-  // Structural sequence order, including empty-note rows and source addresses.
-  // This is NOT a native execution engine: H/G/control flow, tick effects and
-  // cross-channel timing still require interpretation. Keep the raw commands
-  // so a note-only projection cannot silently erase their existence.
-  function walkSequenceRows(m, ch, visit, stopAtEnds) {
-    if (ch !== (ch | 0) || ch < 0 || ch > 3) throw new Error('lsdj: channel must be 0..3');
-    var row = 0, s, cr, st;
-    for (s = 0; s < 256; s++) {
-      var chain = m.sequence[s][ch];
-      if (chain === NO_CHAIN) { if (stopAtEnds) break; continue; }
-      if (stopAtEnds && m.chainPhrases[chain][0] === NO_PHRASE) break;
-      for (cr = 0; cr < 16; cr++) {
-        var ph = m.chainPhrases[chain][cr];
-        if (ph === NO_PHRASE) { if (stopAtEnds) break; continue; }
-        var tr = m.chainTranspose[chain][cr];
-        for (st = 0; st < 16; st++) {
-          visit({
-            row: row + st, channel: ch, sequenceRow: s,
-            chain: chain, chainRow: cr, phrase: ph, phraseRow: st,
-            note: m.phraseNotes[ph][st], transpose: tr,
-            instrument: m.phraseInstruments[ph][st],
-            command: m.phraseCommands[ph][st], value: m.phraseCommandVals[ph][st],
-            commandId: decodeCommand(m.phraseCommands[ph][st], m.formatVersion)
-          });
-        }
-        row += 16;
-      }
-    }
-    return row;
-  }
-
-  function sequenceRows(m, ch) {
-    var out = [];
-    walkSequenceRows(m, ch, function (r) { out.push(r); });
-    return out;
-  }
-
-  // Canonical row-zero, end-marker arrangement cycle. Channels loop
-  // independently, so repeat their rows to the common arrangement period.
-  // This does not execute H/G or model persistent tick/instrument state.
-  function arrangementRows(m) {
-    var channels = [], period = 0;
-    function gcd(a, b) { while (b) { var r = a % b; a = b; b = r; } return a; }
-    for (var ch = 0; ch < 4; ch++) {
-      var rows = [];
-      walkSequenceRows(m, ch, function (r) { rows.push(r); }, true);
-      channels.push(rows);
-      if (rows.length) period = period ? period / gcd(period, rows.length) * rows.length : rows.length;
-      // Cell and tempo row addresses still have 12 bits even though the bar
-      // count has 12 bits too. Do not let encoding wrap later notes to row 0.
-      if (period > 4096)
-        throw new Error('lsdj: independent channel arrangement cycle exceeds the document\'s 4096-row address limit');
-    }
-    return channels.map(function (cycle) {
-      if (!cycle.length) return [];
-      var out = [];
-      for (var row = 0; row < period; row++)
-        out.push(Object.assign({}, cycle[row % cycle.length], { row: row }));
-      return out;
-    });
-  }
-
-  // Legacy note projection over the shared structural walk. A zero note byte
-  // means no new pitch, not an audible rest. Raw and selected instruments stay
-  // separate because selecting an instrument and triggering it are different.
-  function playedNotes(m, ch) {
-    return notesFromRows(sequenceRows(m, ch), ch);
-  }
-
-  function notesFromRows(rows, ch) {
-    var out = [], instrument = NO_INSTRUMENT, selectedOnEmptyRow = false;
-    rows.forEach(function (r) {
-      if (r.instrument !== NO_INSTRUMENT) {
-        if (r.note !== NO_NOTE) selectedOnEmptyRow = false;
-        else if (r.instrument !== instrument) selectedOnEmptyRow = true;
-        instrument = r.instrument;
-      }
-      if (r.note !== NO_NOTE) out.push({
-        row: r.row, note: r.note, transpose: r.transpose,
-        midi: NOTE_BASE[ch] + (r.note - 1) + (r.transpose << 24 >> 24),
-        instrument: r.instrument, effectiveInstrument: instrument,
-        instrumentOnlyChange: selectedOnEmptyRow, command: r.command, value: r.value,
-        commandId: r.commandId
-      });
-    });
-    return out;
-  }
-
-  /* -------------------------------------------------------------- import --- */
-  // A .lsdsng is a name, a version byte, and the compressed song.
-  function parseLsdsng(bytes) {
-    if (!bytes || bytes.length < 10) throw new Error('lsdj: not a .lsdsng');
-    var name = '';
-    for (var i = 0; i < 8 && bytes[i]; i++) name += String.fromCharCode(bytes[i]);
-    return { name: name, song: decompress(bytes.subarray(9), 1) };
-  }
-
-  // The working-memory song of a .sav is UNCOMPRESSED at offset 0 -- it is what
-  // the cart opens on, and what LSDj plays when you press START.
-  function parseSav(bytes) {
-    if (!bytes || bytes.length < SONG_BYTES) throw new Error('lsdj: not a .sav');
-    return { song: Uint8Array.from(bytes.subarray(0, SONG_BYTES)) };
-  }
-
-  var LANES = ['Melody', 'Harmony', 'Bass', 'Drums'];
-  var NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-  function noteName(m) { return NAMES[((m % 12) + 12) % 12] + (Math.floor(m / 12) - 1); }
-
-  // A partial LSDj-to-editor projection. Arrangement end markers and channel
-  // cycle lengths are interpreted, but jumps and many sound effects are not.
-  //
-  // WHICH DRUM comes back from the INSTRUMENT, not the note. Every drum sounds
-  // on the noise channel as the same pitch -- a .sav carries no kit samples,
-  // they live in the ROM -- so the note byte cannot tell a kick from a hat. The
-  // instrument slot can, because each drum is written to its own, which is also
-  // what an LSDj musician would do by hand.
-  //
-  // NOTE LENGTH comes back from the KILL, when there is one. LSDj stores no
-  // length -- a note runs until the next note or a K command -- so a length is
-  // exactly "where it stops", and that is a row we wrote. Read the K and the
-  // length survives; with no K the note really does run to the next note, and
-  // the reconstructed gap is the truth rather than a guess.
-  // LSDJ'S ENVELOPE, MEASURED. Byte 1 is volume<<4 | shape, and the shape is a
-  // HOLD IN FRAMES before the note is cut -- not a decay curve. Index 0 sustains
-  // until something else stops the note, which is what a tracker uses and what
-  // we write; 1..f hold for these many frames. Read off the real ROM one value
-  // at a time, with notes retriggering so the steps land on separate frames.
-  //
-  // On the way IN this is how long an imported note lasts, which is a thing our
-  // document already knows how to say. A foreign instrument with shape 9 is a
-  // four-frame note, and without reading it that note would sustain to the next
-  // one -- audibly wrong, and silently so.
-  var ENVELOPE_HOLD = [0, 1, 1, 1, 1, 1, 2, 2, 3, 4, 5, 6, 8, 11, 15, 20];
-
-  // AN ENABLED TABLE IS PRESENT WHETHER OR NOT IT TRANSPOSES. Instrument byte 6
-  // = 0x20 | index turns a table on; the index selects one of 32 tables whose
-  // columns the model reads as tables0 (transpose), tables1, tables2 and the
-  // tableCommands/tableValues command pair. This USED to test only the
-  // transpose column, so a table that moved nothing but ran volume or duty
-  // commands was classified absent -- no note carried it, no warning named it,
-  // and the song came back looking as if it used no table at all (HANDOFF
-  // 2026-09-05). Detection now asks whether the referenced table carries ANY
-  // data in ANY column. This does NOT execute the table; the caller decides
-  // the transpose approximation separately, and only for a table that
-  // actually transposes -- expanding a command-only table would fabricate
-  // pitch motion and per-tick retriggers the file never asked for.
-  function tableIndex(m, slot) {
-    if (slot == null || slot === NO_INSTRUMENT) return null;
-    var p = m.instrumentParams[slot];
-    if (!p || (p[6] & 0xE0) !== 0x20) return null;
-    return p[6] & 0x1F;
-  }
-  function rowsNonZero(rows) {
-    if (!rows) return false;
-    for (var i = 0; i < 16; i++) if (rows[i]) return true;
-    return false;
-  }
-  // Whether the table's TRANSPOSE column moves the pitch. Only this column has
-  // a document projection (the arpeggio approximation in expandTables); the
-  // other columns are detected but not executed.
-  function tableTransposes(m, idx) {
-    return idx != null && rowsNonZero(m.tables0 && m.tables0[idx]);
-  }
-  function tableOf(m, slot) {
-    var idx = tableIndex(m, slot);
-    if (idx == null) return null;
-    var regions = [m.tables0, m.tables1, m.tables2, m.tableCommands, m.tableValues], r;
-    for (r = 0; r < regions.length; r++)
-      if (rowsNonZero(regions[r] && regions[r][idx])) return idx;
-    // Enabled but wholly empty: honestly absent, not a phantom table.
-    return null;
-  }
-
-  function instrumentName(m, slot) {
-    if (slot == null || slot === NO_INSTRUMENT || !m.instrumentNames[slot]) return '';
-    var s = '';
-    for (var i = 0; i < 5; i++) { var c = m.instrumentNames[slot][i]; if (c) s += String.fromCharCode(c); }
-    return s.toLowerCase();
-  }
-  // Approximate a table's transpose column using document cells.
-  //
-  // A table steps every TICK -- six to a row -- and transposes the note. Our
-  // document is row-based, which is why this first arrived as "call it an
-  // arpeggio and warn"; but a cell also carries `of` (an offset in FRAMES),
-  // `midi` (an exact pitch) and `lf` (an exact length in frames), which between
-  // them can put a note anywhere the machine can. That is the same mechanism a
-  // composed song already uses to survive import at frame resolution.
-  //
-  // This does not execute table commands/envelopes. Average groove positioning,
-  // retriggered cells and representability limits below prevent exact parity.
-  function expandTables(m, st, tableNotes, laneRow) {
-    var H = (typeof require !== 'undefined' && typeof module !== 'undefined')
-      ? require('./gb-hardware.js') : G.CT_GB;
-    if (!H || !H.lsdjRowFrame) return 0;
-    var ticks = [], t;
-    for (t = 0; t < 16 && m.grooves[0][t]; t++) ticks.push(m.grooves[0][t]);
-    if (!ticks.length) ticks = [6];
-    var perRow = 0;
-    for (t = 0; t < ticks.length; t++) perRow += ticks[t];
-    perRow = perRow / ticks.length;                       // ticks in a row
-    var tempo = Math.max(1, m.tempo || 128), added = 0, out = [];
-    var melodicRows = (CT_CREATE.tables && CT_CREATE.tables().melodicRows) || 15;
-    // every (column, row) already spoken for, so nothing overwrites anything
-    var taken = {};
-    st.cells.forEach(function (c0) { taken[(c0.c | 0) + ':' + (c0.r | 0)] = 1; });
-
-    // which (lane, step) pairs run a table, from the model rather than the doc
-    var want = {};
-    tableNotes.forEach(function (n) { want[n.lane + ':' + n.step] = n; });
-
-    st.cells.forEach(function (x) {
-      out.push(x);
-      var hit = x.midi == null ? null : want[laneRow(x) + ':' + (x.c | 0)];
-      if (!hit) return;
-      var rows = m.tables0[hit.table];
-      if (!rows) return;
-      var startRow = x.c | 0, lenRows = Math.max(1, x.len | 0 || 1);
-      var startTick = Math.round(startRow * perRow);
-      var totalTicks = Math.max(1, Math.round(lenRows * perRow));
-      var tickFrame = function (j) { return H.lsdjTickFrame(tempo, startTick + j); };
-      var baseMidi = x.midi | 0;
-      x.midi = baseMidi + ((rows[0] << 24) >> 24);
-      x.lf = Math.max(1, tickFrame(1) - tickFrame(0));
-      taken[startRow + ':' + x.r] = 1;
-
-      // ⚠️ EACH TICK GOES IN THE COLUMN NEAREST ITS OWN FRAME, on a free row.
-      // Piling them all onto the starting cell fails twice over: `of` is a
-      // SIGNED SIX-BIT field, so it clips past +-32 frames and a long note's
-      // later ticks land in the wrong place; and cells are keyed by (column,
-      // row), so they overwrite each other and only a handful survive -- which
-      // looked right for four ticks and silently truncated everything after.
-      for (var j = 1; j < totalTicks; j++) {
-        var tr = (rows[j % 16] << 24) >> 24;
-        var f = tickFrame(j);
-        var col = Math.max(0, Math.round((startTick + j) / perRow));
-        var off = f - H.lsdjRowFrame(tempo, ticks, col);
-        if (off > 31 || off < -32) continue;               // cannot be placed
-        var row = -1;
-        for (var rr = 0; rr < melodicRows; rr++)
-          if (!taken[col + ':' + rr]) { row = rr; break; }
-        if (row < 0) continue;                             // column is full
-        taken[col + ':' + row] = 1;
-        out.push({
-          c: col, r: row, st: x.st, ch: x.ch, inst: x.inst, vel: x.vel,
-          midi: baseMidi + tr, of: off,
-          lf: Math.max(1, tickFrame(j + 1) - f), len: 1
-        });
-        added++;
-      }
-    });
-    st.cells = out;
-    return added;
-  }
-
-  function toSongJSON(m, opts) {
-    opts = opts || {};
-    var warn = [], notes = [], ch, i;
-    var arrangement = arrangementRows(m);
-    if (m.formatVersion > 22) warn.push('native format ' + m.formatVersion +
-      ' is not recognized; command bytes are preserved in the raw model but not interpreted');
-    else if (m.formatVersion !== 7) warn.push('native format ' + m.formatVersion +
-      ' has normalized command identities but its full instrument/effect semantics are not verified by this document projection');
-    var ticks = [], t;
-    for (t = 0; t < 16 && m.grooves[0][t]; t++) ticks.push(m.grooves[0][t]);
-    if (!ticks.length) ticks = [6];
-    var known = { hat: 1, snare: 1, kick: 1 };
-    // How long a row lasts on this machine, so an envelope hold measured in
-    // FRAMES can be turned into the row count our document speaks in.
-    var tSum = 0;
-    for (t = 0; t < ticks.length; t++) tSum += ticks[t];
-    var rowFrames = (tSum / ticks.length) * 149.31875 / Math.max(1, m.tempo || 128);
-    var lastRow = 0, unnamedDrums = 0, tableNotes = [], vibratoNotes = [], patches = [];
-    var tempoAt = [], master = null, pendingInstrumentNotes = 0;
-    var tempoByRow = {};
-    for (ch = 0; ch < 4; ch++) arrangement[ch].forEach(function (r) {
-      if (r.commandId !== CMD.T || r.value < 40) return; // lower values are not interpreted as BPM here
-      if (tempoByRow[r.row] != null && tempoByRow[r.row] !== r.value)
-        throw new Error('lsdj: conflicting tempo commands at row ' + r.row + ' are not supported');
-      tempoByRow[r.row] = r.value;
-      if (r.row > lastRow) lastRow = r.row;
-    });
-    Object.keys(tempoByRow).forEach(function (row) { tempoAt.push([+row, tempoByRow[row]]); });
-    if (tempoAt.length > 63)
-      throw new Error('lsdj: arrangement exceeds the document\'s 63 tempo-command limit');
-    for (ch = 0; ch < 4; ch++) {
-      var played = notesFromRows(arrangement[ch], ch), kills = arrangement[ch].filter(function (r) {
-        return r.commandId === CMD.K;
-      }).map(function (r) { return r.row; });
-      var chLastRow = Math.max(arrangement[ch].length - 1,
-                               played.length ? played[played.length - 1].row : 0);
-      lastRow = Math.max(lastRow, chLastRow);
-      for (i = 0; i < played.length; i++) {
-        var n = played[i], next = played[i + 1];
-        if (n.instrumentOnlyChange) pendingInstrumentNotes++;
-        // Where does this note STOP? A KILL before the next note is the answer
-        // and is exact; otherwise it runs to the next note, which is also exact
-        // because that is what LSDj does.
-        // ⚠️ THE LAST NOTE ON A CHANNEL SUSTAINS. With no next note and no KILL,
-        // LSDj holds it -- so giving it one row was simply wrong, and on a song
-        // whose instrument runs a table it also cut the table off after a sixth
-        // of a row. It runs to the end of what the channel plays.
-        var stop = next ? next.row : Math.max(n.row + 1, chLastRow + 1);
-        for (var ki = 0; ki < kills.length; ki++)
-          if (kills[ki] > n.row && kills[ki] < stop) { stop = kills[ki]; break; }
-        var len = Math.max(1, Math.min(16, stop - n.row));
-        // ...and an instrument with a HOLD ends the note sooner than either.
-        // LSDj's envelope cuts it after that many frames whatever the phrase
-        // says, so the shorter of the two is what a listener hears.
-        var ip = m.instrumentParams[n.effectiveInstrument];
-        if (ip && (ip[1] & 0x0F)) {
-          var holdFrames = ENVELOPE_HOLD[ip[1] & 0x0F];
-          var rowsHeld = Math.max(1, Math.round(holdFrames / rowFrames));
-          if (rowsHeld < len) len = rowsHeld;
-        }
-        if (n.row > lastRow) lastRow = n.row;
-        if (ch === 3) {
-          var nm2 = instrumentName(m, n.instrument);
-          if (!known[nm2]) { unnamedDrums++; nm2 = 'kick'; }
-          notes.push({ lane: 'Drums', step: n.row, drum: nm2, len: 1 });
-        } else {
-          // ...AND THE VOICE IT WAS PLAYED WITH. Without this an imported song
-          // plays back in OUR default timbre at OUR default loudness, which is
-          // the app performing somebody else's notes rather than their song.
-          // The instrument in the file says both: byte 1's high nibble is the
-          // volume, byte 7's top two bits are the duty.
-          var p = m.instrumentParams[n.effectiveInstrument];
-          var note = { lane: LANES[ch], step: n.row, note: noteName(n.midi), len: len };
-          if (ch < 2) note.trigger = n.instrument !== NO_INSTRUMENT;
-          // THE COMMAND IS PART OF THE NOTE. An arpeggio is C and a roll is R on
-          // the way out; without reading them back, a song exported with either
-          // came home plain, and the round trip quietly flattened the gestures
-          // it had just written.
-          if (n.commandId === CMD.C) note.motion = 'arp';
-          else if (n.commandId === CMD.R) note.motion = 'roll';
-          // A TABLE THAT MOVES THE PITCH IS AN ARPEGGIO, and that is a thing our
-          // document can say. Measured: instrument byte 6 = 0x20 | index turns
-          // one on, the transposes live at 0x3480 + table*16 + row, and a row
-          // runs every TICK -- six to a row -- looping through all sixteen.
-          //
-          // ⚠️ THIS IS AN APPROXIMATION AND THE WARNING SAYS SO. A table can do
-          // far more than an arpeggio, and ours runs at the renderer's own rate
-          // rather than the table's, because our document is ROW-based and a
-          // table is per-TICK. It gets the character; it does not get the table.
-          // VIBRATO is written on the way out and was dropped on the way in --
-          // the same one-way asymmetry the arpeggio and the roll had. The
-          // document carries it as a cell flag rather than a motion, so it is
-          // set in the state pass alongside the tables.
-          else if (n.commandId === CMD.V) vibratoNotes.push({ lane: ch, step: n.row });
-          // ...and the rest of the commands that MOVE A REGISTER, each measured
-          // by playing it and watching the chip:
-          //
-          //   E -> NR12   the envelope, so a volume
-          //   O -> NR51   panning
-          //   S -> NR10   the sweep, which is what a fall or a rise is
-          //   P -> NR13   a pitch bend, which lands as a detune
-          //
-          // These have document projections. Register observations on a simple
-          // ruler do not prove all values or stateful contexts are equivalent.
-          // In particular D/F/H were later observed to act, but are not carried.
-          if (n.commandId === CMD.E) patches.push({ lane: ch, step: n.row, f: { vel: Math.max(0.05, Math.min(1, (n.value >> 4) / 15)) } });
-          else if (n.commandId === CMD.O) patches.push({ lane: ch, step: n.row, f: { pn: n.value & 3 } });
-          else if (n.commandId === CMD.S) patches.push({ lane: ch, step: n.row, f: { sweep: n.value & 0xFF } });
-          else if (n.commandId === CMD.P) patches.push({ lane: ch, step: n.row, f: { dt: ((n.value << 24) >> 24) } });
-          // L is a pitch SLIDE. One note cannot show it -- the pitch is right
-          // either way -- but a ruler with a note on every row goes from 100
-          // distinct pitches to 112 with shorter gaps, which is the slide
-          // filling in between. The document calls it a glide.
-          else if (n.commandId === CMD.L) patches.push({ lane: ch, step: n.row, f: { gl: 1 } });
-          // T and M are SONG-WIDE, not a note's: T changes the tempo from here
-          // on (measured with a ruler -- 100 rows became 56 and the mean gap
-          // went 6.98 -> 12.32), and M sets NR50, the master volume.
-          else if (n.commandId === CMD.M) master = n.value & 0xFF;
-          // W is the DUTY. Value 1, 2 and 3 set NR11's duty bits directly, which
-          // the document keeps as `dy`. I first recorded W as doing nothing --
-          // that was a flawed measurement watching only channel 1's PITCH
-          // registers, where a duty change is invisible.
-          else if (n.commandId === CMD.W && (n.value & 3)) patches.push({ lane: ch, step: n.row, f: { dy: n.value & 3 } });
-          var tbl = tableOf(m, n.instrument);
-          // Only a table whose TRANSPOSE column actually moves the pitch is
-          // approximated as an arpeggio. A command/volume-only table is present
-          // (and warned about below) but expanding it here would fabricate
-          // pitch motion and per-tick retriggers the table does not ask for.
-          if (tbl != null && tableTransposes(m, tbl)) tableNotes.push({ lane: ch, step: n.row, table: tbl, len: len });
-          // Instrument sweep is stored complemented, not as raw NR10.
-          // Preserve its exact hardware value unless the row overrides it.
-          else if (ch === 0 && p && p[0] === INST_TYPE.PULSE && ((p[4] ^ 0xFF) & 0x7F)) {
-            var instrumentSweep = (p[4] ^ 0xFF) & 0x7F;
-            note.motion = (instrumentSweep & 0x08) ? 'fall' : 'rise';
-            if (n.commandId !== CMD.S) patches.push({ lane: ch, step: n.row, f: { sweep: instrumentSweep } });
-          }
-          if (p) {
-            note.velocity = Math.max(ch < 2 ? 0 : 0.05, Math.min(1, (p[1] >> 4) / 15));
-            if (ch < 2) note.sound = { shape: (p[7] >> 6) & 3 };
-            // 75% duty is 25% inverted -- the same timbre on this chip -- so it
-            // shares a stamp rather than inventing one that sounds identical.
-            note.stamp = ch === 2 ? 'bassg' : ['bell', 'trumpet', 'piano', 'trumpet'][(p[7] >> 6) & 3];
-          }
-          notes.push(note);
-        }
-      }
-    }
-    if (unnamedDrums) warn.push(unnamedDrums + ' drums came back as kicks: their instrument was ' +
-                                'not one this app names, and the noise channel cannot say which drum it was');
-    if (pendingInstrumentNotes) warn.push(pendingInstrumentNotes +
-      ' notes follow instrument-only changes on empty rows; this latched instrument state is not fully reproduced');
-    // Tables are only a transpose-row approximation here, not a native
-    // per-instrument modulation engine. Make that limitation visible, and
-    // separate the tables we approximate (transpose) from the ones we merely
-    // detect (volume/command only) so neither is claimed to play.
-    var projectedTables = {}, detectedOnlyTables = {};
-    for (ch = 0; ch < 4; ch++) notesFromRows(arrangement[ch], ch).forEach(function (n) {
-      var t = tableOf(m, n.instrument);
-      if (t == null) return;
-      if (tableTransposes(m, t)) projectedTables[t] = 1; else detectedOnlyTables[t] = 1;
-    });
-    var projectedCount = Object.keys(projectedTables).length;
-    if (projectedCount) warn.push(projectedCount + ' LSDj table' + (projectedCount > 1 ? 's' : '') +
-      ' projected approximately from transpose rows; table commands, envelopes, ' +
-      'groove timing and note retriggers are not fully preserved');
-    var detectedOnlyCount = Object.keys(detectedOnlyTables).length;
-    if (detectedOnlyCount) warn.push(detectedOnlyCount + ' enabled LSDj table' +
-      (detectedOnlyCount > 1 ? 's' : '') + ' carry only volume/command modulation with no ' +
-      'transpose; they are detected but not executed by this document projection');
-    // Commands we do not act on, counted rather than silently dropped.
-    var unknownCmds = {}, emptyCommands = {};
-    for (ch = 0; ch < 4; ch++) arrangement[ch].forEach(function (n) {
-      if (n.note === NO_NOTE) {
-        if (n.command && n.commandId !== CMD.K && !(n.commandId === CMD.T && n.value >= 40))
-          emptyCommands[n.command] = (emptyCommands[n.command] || 0) + 1;
-        return;
-      }
-      if ((n.command && n.commandId !== CMD.C && n.commandId !== CMD.R &&
-          n.commandId !== CMD.K && n.commandId !== CMD.V && n.commandId !== CMD.E &&
-          n.commandId !== CMD.O && n.commandId !== CMD.S && n.commandId !== CMD.P &&
-          n.commandId !== CMD.L && n.commandId !== CMD.T && n.commandId !== CMD.M &&
-          n.commandId !== CMD.W) || (n.commandId === CMD.T && n.value < 40))
-        unknownCmds[n.command] = (unknownCmds[n.command] || 0) + 1;
-    });
-    var unknownTotal = Object.keys(unknownCmds).reduce(function (a, k) { return a + unknownCmds[k]; }, 0);
-    if (unknownTotal) warn.push(unknownTotal + ' notes carry an LSDj command this app does not ' +
-      'play; the notes arrive, the effect does not. C, R, K, V, E, O, S, P ' +
-      'L, T, M and W are understood; D, F and H are seen but not carried');
-    var emptyTotal = Object.keys(emptyCommands).reduce(function (a, k) { return a + emptyCommands[k]; }, 0);
-    if (emptyTotal) {
-      // Command letters depend on the native format version; report raw bytes
-      // rather than mislabel newer files with this exporter's format-7 enum.
-      var commandBytes = Object.keys(emptyCommands).map(function (value) {
-        return ('0' + (+value).toString(16).toUpperCase()).slice(-2);
-      });
-      warn.push(emptyTotal + ' command-only rows are not applied (command bytes ' + commandBytes.join(', ') +
-        '); their native effects are not preserved in document playback');
-    }
-    notes.sort(function (a, b) { return a.step - b.step; });
-    return {
-      json: {
-        title: (opts.name || 'Imported').slice(0, 48),
-        grid: 16, bpm: Math.max(70, Math.min(180, m.tempo || 128)),
-        bars: Math.max(1, Math.ceil((lastRow + 1) / 16)),
-        notes: notes
-      },
-      groove: ticks, tempo: m.tempo, warnings: warn,
-      tableNotes: tableNotes, vibratoNotes: vibratoNotes, patches: patches,
-      tempoAt: tempoAt.sort(function (a, b) { return a[0] - b[0]; }), master: master
-    };
-  }
-
-  // How much of a song image the map above accounts for, as bytes and percent.
-  function coverage() {
-    var seen = 0, i, f;
-    for (i = 0; i < FIELDS.length; i++) { f = FIELDS[i]; seen += f.n * f.w; }
-    return { bytes: seen, total: SONG_BYTES, percent: 100 * seen / SONG_BYTES };
-  }
-
-  var API = {
-    SONG_BYTES: SONG_BYTES, SAV_SIZE: SAV_SIZE, SAV_PROJECTS: SAV_PROJECTS,
-    OFFSETS: O, COMMANDS: CMD, sav: sav, FIELDS: FIELDS,
-    NOTE_BASE: NOTE_BASE.slice(), NOTE_MAX: NOTE_MAX, PHRASE_STEPS: PHRASE_STEPS,
-    compress: compress, decompress: decompress, emptySong: emptySong,
-    fromDocument: fromDocument, lsdsng: lsdsng,
-    readSong: readSong, writeSong: writeSong, coverage: coverage, playedNotes: playedNotes,
-    sequenceRows: sequenceRows, arrangementRows: arrangementRows,
-    decodeCommand: decodeCommand, encodeCommand: encodeCommand,
-    expandTables: expandTables, tableOf: tableOf, tableTransposes: tableTransposes,
-    parseLsdsng: parseLsdsng, parseSav: parseSav, toSongJSON: toSongJSON
-  };
-  G.CT_LSDJ = API;
-  if (typeof module !== 'undefined' && module.exports) module.exports = API;
-})(typeof globalThis !== 'undefined' ? globalThis : window);
-
-/* ===== src/lsdj-native-document.js ===== */
-// THE EDITABLE AUTHORITY FOR AN IMPORTED NATIVE LSDj SONG (STRUCTURE ONLY).
-//
-// `readSong` (src/lsdj.js) reads a 0x8000 song image into raw byte arrays that
-// mirror the file exactly, and `writeSong` inverts it, so a native round trip
-// is byte-identical. This module wraps that model as the single source of truth
-// and lets callers edit ACTUAL native slots/rows while EXPORT rewrites only the
-// regions that were edited and copies every untouched byte verbatim. That is
-// the lossless edit/export boundary.
-//
-// WHAT THIS IS NOT: a player. It runs no audio engine and makes NO claim that
-// any note, instrument, command, table or format version sounds correct.
-// `playbackStatus()` says so unconditionally. Structural edit support is a
-// different question from playback and is the only thing claimed here.
-//
-// Full (nd1) shares use a separate, strictly bounded canonical validator rather
-// than the foreign-file decoder (which permits noncanonical acyclic layouts).
-// The validator below enforces forward
-// in-bounds jumps, complete operands, exact 32768-byte output with no padding
-// fill, and canonical form via recompression equality. Sizes are bounded before
-// base64 or JSON is touched, and base64 must be canonical (round-trip equal).
-// serialize() always emits a share this module's own deserializer will accept,
-// falling back from the compact diff to the standalone full image when a diff
-// would exceed the size bound (or when the full image is simply smaller).
-(function (G) {
-  'use strict';
-  var _req = (typeof require === 'function') ? require : null;
-  var LSDJ = _req ? _req('./lsdj.js') : G.CT_LSDJ;
-  if (!LSDJ) throw new Error('lsdj-native-document: lsdj.js must load first');
-
-  var SONG_BYTES = 0x8000, VERSION = 'nd1';
-  var DEFAULT_HISTORY = 256, MAX_TITLE = 64, MAX_RUNS = 16384;
-  var BLOCK = 512, MAX_BLOCKS = 191;
-  var MAX_B64_CHARS = Math.ceil(MAX_BLOCKS * BLOCK / 3) * 4;   // largest canonical stream
-  var MAX_SHARE_CHARS = 262144;                               // reject hostile huge JSON early
-  var RLE = 0xC0, SA = 0xE0, DEF_WAVE = 0xF0, DEF_INST = 0xF1, EOF = 0xFF;
-  // From liblsdj (MIT); canonical-share validation expands these runs separately
-  // from the more permissive layout rules of the foreign-file decoder.
-  var DEFAULT_WAVE = Object.freeze([0x8E, 0xCD, 0xCC, 0xBB, 0xAA, 0xA9, 0x99, 0x88,
-                                    0x87, 0x76, 0x66, 0x55, 0x54, 0x43, 0x32, 0x31]);
-  var DEFAULT_INSTRUMENT = Object.freeze([0xA8, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x03, 0x00,
-                                          0x00, 0xD0, 0x00, 0x00, 0x00, 0xF3, 0x00, 0x00]);
-
-  if (LSDJ.SONG_BYTES !== SONG_BYTES) throw new Error('lsdj-native-document: unexpected SONG_BYTES');
-
-  // Snapshot + freeze field descriptors so external mutation of LSDJ.FIELDS
-  // cannot change our addressing.
-  var FIELD = Object.create(null);
-  LSDJ.FIELDS.forEach(function (f) { FIELD[f.k] = Object.freeze({ k: f.k, at: f.at, n: f.n, w: f.w }); });
-  Object.freeze(FIELD);
-
-  var PRIV = new WeakMap();
-  function priv(self) { var s = PRIV.get(self); if (!s) throw new Error('lsdj-native-document: not a NativeDocument'); return s; }
-
-  function equalBytes(a, b) { if (a.length !== b.length) return false; for (var i = 0; i < a.length; i++) if (a[i] !== b[i]) return false; return true; }
-  function validateInt(v, lo, hi, what) {
-    if (typeof v !== 'number' || !Number.isInteger(v) || v < lo || v > hi)
-      throw new RangeError('lsdj-native-document: ' + what + ' must be an integer in [' + lo + '..' + hi + '] (got ' + JSON.stringify(v) + ')');
-    return v;
-  }
-  function validateByte(v, what) { return validateInt(v, 0, 255, what || 'byte value'); }
-  function validateTitle(t) {
-    if (t == null) return '';
-    if (typeof t !== 'string') throw new TypeError('lsdj-native-document: title must be a string');
-    if (t.length > MAX_TITLE) throw new RangeError('lsdj-native-document: title exceeds ' + MAX_TITLE + ' chars');
-    return t;
-  }
-
-  // Resolve one addressable byte, validating indices against the field's shape.
-  // Scalar and single-row indices are validated consistently (a scalar's row and
-  // offset must both be 0), so the generic API can never silently ignore them.
-  function resolveTarget(model, key, i, j) {
-    var f = FIELD[key];
-    if (!f) throw new RangeError('lsdj-native-document: unknown field "' + key + '"');
-    if (f.n === 1 && f.w === 1) {
-      validateInt(i, 0, 0, key + ' index'); validateInt(j, 0, 0, key + ' offset');
-      return { get: function () { return model[key]; }, set: function (v) { model[key] = v; } };
-    }
-    if (f.n === 1) {
-      validateInt(i, 0, 0, key + ' index'); validateInt(j, 0, f.w - 1, key + ' offset');
-      var row = model[key];
-      return { get: function () { return row[j]; }, set: function (v) { row[j] = v; } };
-    }
-    validateInt(i, 0, f.n - 1, key + ' index'); validateInt(j, 0, f.w - 1, key + ' offset');
-    var row2 = model[key][i];
-    return { get: function () { return row2[j]; }, set: function (v) { row2[j] = v; } };
-  }
-
-  // ---- hashing / canonical base64 ----------------------------------------
-  function fnv1a(bytes) {
-    var h = 0x811c9dc5, i;
-    for (i = 0; i < bytes.length; i++) { h ^= bytes[i]; h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0; }
-    return ('0000000' + h.toString(16)).slice(-8);
-  }
-  var B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-  function b64enc(bytes) {
-    var s = '', i;
-    for (i = 0; i < bytes.length; i += 3) {
-      var a = bytes[i], b = bytes[i + 1], c = bytes[i + 2];
-      var h1 = i + 1 < bytes.length, h2 = i + 2 < bytes.length;
-      s += B64[a >> 2] + B64[((a & 3) << 4) | (h1 ? b >> 4 : 0)] +
-           (h1 ? B64[((b & 15) << 2) | (h2 ? c >> 6 : 0)] : '=') + (h2 ? B64[c & 63] : '=');
-    }
-    return s;
-  }
-  function b64decCanonical(str, maxChars) {
-    if (typeof str !== 'string') throw new Error('lsdj-native-document: base64 payload is not a string');
-    if (str.length === 0 || str.length % 4 !== 0) throw new Error('lsdj-native-document: base64 payload is truncated');
-    if (str.length > maxChars) throw new Error('lsdj-native-document: base64 payload exceeds the size limit');
-    var out = [], i;
-    for (i = 0; i < str.length; i += 4) {
-      var s2 = str[i + 2], s3 = str[i + 3];
-      var c0 = B64.indexOf(str[i]), c1 = B64.indexOf(str[i + 1]);
-      var c2 = s2 === '=' ? 0 : B64.indexOf(s2), c3 = s3 === '=' ? 0 : B64.indexOf(s3);
-      if (c0 < 0 || c1 < 0 || c2 < 0 || c3 < 0) throw new Error('lsdj-native-document: base64 has invalid characters');
-      if ((s2 === '=' || s3 === '=') && i + 4 < str.length) throw new Error('lsdj-native-document: base64 padding is misplaced');
-      if (s2 === '=' && s3 !== '=') throw new Error('lsdj-native-document: base64 padding is misplaced');
-      var n = (c0 << 18) | (c1 << 12) | (c2 << 6) | c3;
-      out.push((n >> 16) & 0xFF);
-      if (s2 !== '=') out.push((n >> 8) & 0xFF);
-      if (s3 !== '=') out.push(n & 0xFF);
-    }
-    var bytes = Uint8Array.from(out);
-    if (b64enc(bytes) !== str) throw new Error('lsdj-native-document: base64 is not canonical (unused padding bits set)');
-    return bytes;
-  }
-
-  // ---- strict, bounded compressed-stream decoder -------------------------
-  // Canonical LSDJ.compress(song, 1) output only: 512-byte blocks, forward
-  // sequential (+1) block jumps, complete operands, exactly 32768 output bytes.
-  // Terminates on any deviation; never loops (i and block index only advance).
-  function strictDecodeSong(bytes) {
-    var len = bytes.length;
-    if (len < BLOCK || len % BLOCK !== 0 || len > MAX_BLOCKS * BLOCK)
-      throw new Error('lsdj-native-document: compressed payload is not a whole number of canonical blocks');
-    var out = new Uint8Array(SONG_BYTES), n = 0, i = 0, done = false;
-    var guard = 0, guardMax = len + SONG_BYTES + 16;
-    function need(k) { if (i + k > len) throw new Error('lsdj-native-document: truncated compressed operand'); }
-    function put(v) { if (n >= SONG_BYTES) throw new Error('lsdj-native-document: compressed payload overflows a song'); out[n++] = v; }
-    while (!done) {
-      if (++guard > guardMax) throw new Error('lsdj-native-document: compressed stream did not terminate');
-      if (i >= len) throw new Error('lsdj-native-document: compressed stream ended without EOF');
-      var b = bytes[i++];
-      if (b === RLE) {
-        need(1); var v = bytes[i++];
-        if (v === RLE) put(RLE);
-        else { need(1); var cnt = bytes[i++]; for (var r = 0; r < cnt; r++) put(v); }
-      } else if (b === SA) {
-        need(1); var a = bytes[i++];
-        if (a === SA) put(SA);
-        else if (a === DEF_WAVE) { need(1); var wc = bytes[i++]; for (var p = 0; p < wc; p++) for (var kw = 0; kw < 16; kw++) put(DEFAULT_WAVE[kw]); }
-        else if (a === DEF_INST) { need(1); var ic = bytes[i++]; for (var q = 0; q < ic; q++) for (var ki = 0; ki < 16; ki++) put(DEFAULT_INSTRUMENT[ki]); }
-        else if (a === EOF) { done = true; }
-        else {
-          var curBlock = Math.floor((i - 2) / BLOCK) + 1;      // 1-based, base 1
-          if (a !== curBlock + 1) throw new Error('lsdj-native-document: non-forward or non-sequential block jump');
-          var target = (a - 1) * BLOCK;
-          if (target >= len) throw new Error('lsdj-native-document: block jump out of bounds');
-          i = target;
-        }
-      } else put(b);
-    }
-    if (n !== SONG_BYTES) throw new Error('lsdj-native-document: compressed payload did not fill exactly one song');
-    // Canonical form: the stream must be exactly what compress() emits for this
-    // song. This rejects trailing/padding tampering and any non-canonical encoding.
-    var re = LSDJ.compress(out, 1);
-    if (!equalBytes(re, bytes)) throw new Error('lsdj-native-document: full share is not the canonical compression of its song');
-    return out;
-  }
-
-  // ---- construction ------------------------------------------------------
-  function NativeDocument(base, meta) {
-    if (!(this instanceof NativeDocument)) throw new Error('lsdj-native-document: use NativeDocument.fromSong');
-    if (!(base instanceof Uint8Array)) throw new TypeError('lsdj-native-document: fromSong expects a Uint8Array song image');
-    if (base.length !== SONG_BYTES) throw new RangeError('lsdj-native-document: fromSong expects exactly ' + SONG_BYTES + ' bytes; parse .sav/.lsdsng upstream');
-    var title = validateTitle(meta && meta.title);
-    var limit = (meta && meta.historyLimit != null) ? validateInt(meta.historyLimit, 1, 1 << 20, 'historyLimit') : DEFAULT_HISTORY;
-    var img = Uint8Array.from(base);
-    PRIV.set(this, { base: img, model: LSDJ.readSong(img), touched: Object.create(null), undo: [], redo: [], historyLimit: limit, title: title });
-    Object.freeze(this);
-  }
-  NativeDocument.fromSong = function (bytes, meta) { return new NativeDocument(bytes, meta); };
-  var P = NativeDocument.prototype;
-
-  P.title = function () { return priv(this).title; };
-
-  // ---- copying readers ---------------------------------------------------
-  P.field = function (key) {
-    var s = priv(this), f = FIELD[key];
-    if (!f) throw new RangeError('lsdj-native-document: unknown field "' + key + '"');
-    if (f.n === 1 && f.w === 1) return s.model[key];
-    if (f.n === 1) return Uint8Array.from(s.model[key]);
-    return s.model[key].map(function (r) { return Uint8Array.from(r); });
-  };
-  P.fieldRow = function (key, i) {
-    var s = priv(this), f = FIELD[key];
-    if (!f) throw new RangeError('lsdj-native-document: unknown field "' + key + '"');
-    if (f.n === 1) throw new RangeError('lsdj-native-document: "' + key + '" is not indexed by row');
-    validateInt(i, 0, f.n - 1, key + ' index');
-    return Uint8Array.from(s.model[key][i]);
-  };
-  P.phrase = function (p) {
-    return { notes: this.fieldRow('phraseNotes', p), instruments: this.fieldRow('phraseInstruments', p),
-             commands: this.fieldRow('phraseCommands', p), values: this.fieldRow('phraseCommandVals', p) };
-  };
-  P.chain = function (c) { return { phrases: this.fieldRow('chainPhrases', c), transpose: this.fieldRow('chainTranspose', c) }; };
-  P.sequenceRow = function (s) { return this.fieldRow('sequence', s); };
-  P.instrument = function (i) { return this.fieldRow('instrumentParams', i); };
-  P.instrumentName = function (i) { return this.fieldRow('instrumentNames', i); };
-  P.groove = function (g) { return this.fieldRow('grooves', g); };
-  P.wave = function (w) { return this.fieldRow('waves', w); };
-  P.tableTranspose = function (t) { return this.fieldRow('tables0', t); };
-  P.tableCommandColumn = function (t) { return this.fieldRow('tableCommands', t); };
-  P.tableValueColumn = function (t) { return this.fieldRow('tableValues', t); };
-  P.tempo = function () { return this.field('tempo'); };
-  P.transpose = function () { return this.field('transpose'); };
-  P.formatVersion = function () { return this.field('formatVersion'); };
-
-  // ---- private commit: atomic, validated, no duplicate targets -----------
-  function commit(self, list) {
-    var s = priv(self), i, seen = Object.create(null);
-    var resolved = [];
-    for (i = 0; i < list.length; i++) {
-      var w = list[i], tag = w.key + '#' + w.i + '#' + w.j;
-      if (seen[tag]) throw new Error('lsdj-native-document: a single edit may not write the same byte twice');
-      seen[tag] = true;
-      validateByte(w.value, (w.key || 'field') + ' value');
-      resolved.push({ key: w.key, i: w.i, j: w.j, value: w.value & 0xFF, target: resolveTarget(s.model, w.key, w.i, w.j) });
-    }
-    var writes = [];
-    for (i = 0; i < resolved.length; i++) {
-      var r = resolved[i], before = r.target.get();
-      if (before === r.value) continue;
-      r.target.set(r.value);
-      writes.push({ key: r.key, i: r.i, j: r.j, before: before, after: r.value });
-      s.touched[r.key] = true;
-    }
-    if (writes.length) {
-      s.undo.push({ writes: writes });
-      if (s.undo.length > s.historyLimit) s.undo.shift();
-      s.redo.length = 0;
-    }
-    return self;
-  }
-
-  // One bounded transaction of { key, i, j, value } byte writes. Snapshot
-  // caller-owned entries before commit validates every address/value and applies
-  // any changes. A song-sized bound also caps work before inspecting entries.
-  P.setBytes = function (writes) {
-    if (!Array.isArray(writes)) throw new TypeError('lsdj-native-document: writes must be an array');
-    var length = writes.length;
-    validateInt(length, 1, SONG_BYTES, 'writes length');
-    var list = [];
-    for (var n = 0; n < length; n++) {
-      var w = writes[n];
-      if (!w || typeof w !== 'object' || Array.isArray(w))
-        throw new TypeError('lsdj-native-document: each write must be an object');
-      var key = w.key;
-      if (typeof key !== 'string') throw new TypeError('lsdj-native-document: write key must be a string');
-      list.push({ key: key, i: w.i, j: w.j, value: w.value });
-    }
-    return commit(this, list);
-  };
-  P.setFieldByte = function (key, i, j, value) { return commit(this, [{ key: key, i: i, j: j, value: value }]); };
-  P.setScalar = function (key, value) {
-    var f = FIELD[key];
-    if (!f || f.n !== 1 || f.w !== 1) throw new RangeError('lsdj-native-document: "' + key + '" is not a scalar field');
-    return commit(this, [{ key: key, i: 0, j: 0, value: value }]);
-  };
-  P.setPhraseNote = function (p, r, v) { return commit(this, [{ key: 'phraseNotes', i: p, j: r, value: v }]); };
-  P.setPhraseInstrument = function (p, r, v) { return commit(this, [{ key: 'phraseInstruments', i: p, j: r, value: v }]); };
-  P.setPhraseCommand = function (p, r, v) { return commit(this, [{ key: 'phraseCommands', i: p, j: r, value: v }]); };
-  P.setPhraseValue = function (p, r, v) { return commit(this, [{ key: 'phraseCommandVals', i: p, j: r, value: v }]); };
-  P.setPhraseRow = function (p, r, o) {
-    if (!o || typeof o !== 'object') throw new TypeError('lsdj-native-document: row spec must be an object');
-    var list = [];
-    if (o.note != null) list.push({ key: 'phraseNotes', i: p, j: r, value: o.note });
-    if (o.instrument != null) list.push({ key: 'phraseInstruments', i: p, j: r, value: o.instrument });
-    if (o.command != null) list.push({ key: 'phraseCommands', i: p, j: r, value: o.command });
-    if (o.value != null) list.push({ key: 'phraseCommandVals', i: p, j: r, value: o.value });
-    if (!list.length) throw new Error('lsdj-native-document: row spec set no fields');
-    return commit(this, list);
-  };
-  P.setChainPhrase = function (c, r, v) { return commit(this, [{ key: 'chainPhrases', i: c, j: r, value: v }]); };
-  P.setChainTranspose = function (c, r, v) { return commit(this, [{ key: 'chainTranspose', i: c, j: r, value: v }]); };
-  P.setSequence = function (s, ch, chain) { return commit(this, [{ key: 'sequence', i: s, j: ch, value: chain }]); };
-  P.setInstrumentByte = function (i, off, v) { return commit(this, [{ key: 'instrumentParams', i: i, j: off, value: v }]); };
-  P.setInstrumentNameByte = function (i, off, v) { return commit(this, [{ key: 'instrumentNames', i: i, j: off, value: v }]); };
-  P.setInstrumentAllocByte = function (off, v) { return commit(this, [{ key: 'instrumentAlloc', i: 0, j: off, value: v }]); };
-  P.setTableAllocByte = function (off, v) { return commit(this, [{ key: 'tableAlloc', i: 0, j: off, value: v }]); };
-  P.setPhraseAllocByte = function (off, v) { return commit(this, [{ key: 'phraseAlloc', i: 0, j: off, value: v }]); };
-  P.setChainAllocByte = function (off, v) { return commit(this, [{ key: 'chainAlloc', i: 0, j: off, value: v }]); };
-  P.setTableTranspose = function (t, r, v) { return commit(this, [{ key: 'tables0', i: t, j: r, value: v }]); };
-  P.setTableCommand = function (t, r, v) { return commit(this, [{ key: 'tableCommands', i: t, j: r, value: v }]); };
-  P.setTableValue = function (t, r, v) { return commit(this, [{ key: 'tableValues', i: t, j: r, value: v }]); };
-  P.setGroove = function (g, step, v) { return commit(this, [{ key: 'grooves', i: g, j: step, value: v }]); };
-  P.setWaveByte = function (w, off, v) { return commit(this, [{ key: 'waves', i: w, j: off, value: v }]); };
-  P.setTempo = function (v) { return this.setScalar('tempo', v); };
-  P.setTranspose = function (v) { return this.setScalar('transpose', v); };
-
-  // ---- undo / redo -------------------------------------------------------
-  function replay(s, entry, useAfter) {
-    for (var k = 0; k < entry.writes.length; k++) {
-      var w = entry.writes[k];
-      resolveTarget(s.model, w.key, w.i, w.j).set(useAfter ? w.after : w.before);
-      s.touched[w.key] = true;
-    }
-  }
-  P.canUndo = function () { return priv(this).undo.length > 0; };
-  P.canRedo = function () { return priv(this).redo.length > 0; };
-  P.undoDepth = function () { return priv(this).undo.length; };
-  P.redoDepth = function () { return priv(this).redo.length; };
-  P.undo = function () { var s = priv(this), e = s.undo.pop(); if (!e) return false; replay(s, e, false); s.redo.push(e); return true; };
-  P.redo = function () { var s = priv(this), e = s.redo.pop(); if (!e) return false; replay(s, e, true); s.undo.push(e); return true; };
-  P.dirtyFields = function () { return Object.keys(priv(this).touched); };
-
-  // ---- export ------------------------------------------------------------
-  P.toSong = function () {
-    var s = priv(this), out = Uint8Array.from(s.base);
-    Object.keys(s.touched).forEach(function (k) {
-      var f = FIELD[k], v = s.model[k], j;
-      if (f.n === 1 && f.w === 1) { out[f.at] = v & 0xFF; return; }
-      var rows = f.n === 1 ? [v] : v;
-      for (j = 0; j < rows.length && j < f.n; j++) out.set(rows[j].subarray(0, f.w), f.at + j * f.w);
-    });
-    return out;
-  };
-
-  // ---- diff / share ------------------------------------------------------
-  P.diff = function () {
-    var s = priv(this), out = this.toSong(), runs = [], i = 0;
-    while (i < SONG_BYTES) {
-      if (out[i] === s.base[i]) { i++; continue; }
-      var start = i, d = [];
-      while (i < SONG_BYTES && out[i] !== s.base[i]) { d.push(out[i]); i++; }
-      runs.push({ o: start, d: d });
-    }
-    return { base: fnv1a(s.base), runs: runs };
-  };
-  NativeDocument.applyDiff = function (baseBytes, diff) {
-    if (!(baseBytes instanceof Uint8Array) || baseBytes.length !== SONG_BYTES)
-      throw new Error('lsdj-native-document: base must be a 32768-byte song image');
-    var out = Uint8Array.from(baseBytes);
-    if (!diff || typeof diff !== 'object') throw new Error('lsdj-native-document: malformed diff');
-    if (typeof diff.base !== 'string' || diff.base !== fnv1a(out))
-      throw new Error('lsdj-native-document: diff base hash is missing or does not match this song');
-    if (!Array.isArray(diff.runs) || diff.runs.length > MAX_RUNS) throw new Error('lsdj-native-document: diff runs are missing or excessive');
-    var prevEnd = -1, total = 0, r, k, val;
-    for (var ri = 0; ri < diff.runs.length; ri++) {
-      r = diff.runs[ri];
-      if (!r || typeof r !== 'object' || !Number.isInteger(r.o) || !Array.isArray(r.d) || r.d.length === 0)
-        throw new Error('lsdj-native-document: malformed or empty diff run');
-      if (ri > 0 && r.o <= prevEnd + 1) throw new Error('lsdj-native-document: diff runs must be ordered, non-overlapping and non-adjacent');
-      if (ri === 0 && r.o < 0) throw new Error('lsdj-native-document: diff run out of bounds');
-      if (r.o + r.d.length > SONG_BYTES) throw new Error('lsdj-native-document: diff run out of bounds');
-      total += r.d.length;
-      if (total > SONG_BYTES) throw new Error('lsdj-native-document: diff is larger than a song');
-      for (k = 0; k < r.d.length; k++) {
-        val = r.d[k];
-        if (!Number.isInteger(val) || val < 0 || val > 255) throw new Error('lsdj-native-document: diff run contains a non-byte value');
-        out[r.o + k] = val;
-      }
-      prevEnd = r.o + r.d.length - 1;
-    }
-    return out;
-  };
-  // A share the module's OWN deserializer will accept for ANY valid edit. The
-  // diff form is compact but can exceed the deserializer's size bound when an
-  // edit touches most of the song; and for a large edit the standalone full
-  // image is often smaller anyway. So serialize() emits the diff only when it is
-  // within the bound AND no larger than the full image, and otherwise falls back
-  // to the full share. Both forms stay valid inputs to deserialize(); the
-  // hostile-input size bound is unchanged. serializeFull() forces the full form.
-  P.serialize = function () {
-    var diffStr = JSON.stringify({ v: VERSION, mode: 'diff', title: this.title(), diff: this.diff() });
-    var fullStr = this.serializeFull();
-    var best = (diffStr.length <= MAX_SHARE_CHARS && diffStr.length <= fullStr.length) ? diffStr : fullStr;
-    if (best.length > MAX_SHARE_CHARS)
-      throw new Error('lsdj-native-document: share exceeds the size limit even as a full image');
-    return best;
-  };
-  P.serializeFull = function () {
-    var song = this.toSong();
-    return JSON.stringify({ v: VERSION, mode: 'full', title: this.title(), hash: fnv1a(song), song: b64enc(LSDJ.compress(song, 1)) });
-  };
-  NativeDocument.deserialize = function (str, base) {
-    if (typeof str === 'string' && str.length > MAX_SHARE_CHARS) throw new Error('lsdj-native-document: share exceeds the size limit');
-    var o = (typeof str === 'string') ? JSON.parse(str) : str;
-    if (!o || typeof o !== 'object') throw new Error('lsdj-native-document: malformed share');
-    if (o.v !== VERSION) throw new Error('lsdj-native-document: unknown or missing share version "' + o.v + '"');
-    var title = validateTitle(o.title);
-    if (o.mode === 'full') {
-      if (typeof o.hash !== 'string' || typeof o.song !== 'string') throw new Error('lsdj-native-document: malformed full share');
-      var bytes = b64decCanonical(o.song, MAX_B64_CHARS);
-      var song = strictDecodeSong(bytes);               // bounded, canonical, no legacy decoder
-      if (fnv1a(song) !== o.hash) throw new Error('lsdj-native-document: full share failed its content-hash integrity check');
-      return new NativeDocument(song, { title: title });
-    }
-    if (o.mode === 'diff') {
-      if (!base) throw new Error('lsdj-native-document: a diff share needs its base song');
-      return new NativeDocument(NativeDocument.applyDiff(base, o.diff), { title: title });
-    }
-    throw new Error('lsdj-native-document: unknown share mode "' + o.mode + '"');
-  };
-
-  // ---- factual inventory & honest playback status ------------------------
-  function countNonzero(row) { var c = 0, i; for (i = 0; i < row.length; i++) if (row[i] !== 0) c++; return c; }
-  P.inventory = function () {
-    var s = priv(this);
-    // instrumentAlloc/tableAlloc are per-slot bytes (the exporter sets the slot
-    // byte to a nonzero value): count nonzero slots, do not popcount. phrase/
-    // chain allocation are bitmaps whose semantics we do not reinterpret here,
-    // so return their raw bytes rather than a claimed count.
-    return {
-      formatVersion: s.model.formatVersion, tempo: s.model.tempo,
-      allocatedInstrumentSlots: countNonzero(s.model.instrumentAlloc),
-      allocatedTableSlots: countNonzero(s.model.tableAlloc),
-      phraseAllocRaw: Uint8Array.from(s.model.phraseAlloc),
-      chainAllocRaw: Uint8Array.from(s.model.chainAlloc),
-      editedFields: Object.keys(s.touched)
-    };
-  };
-  P.playbackStatus = function () {
-    return { available: false, verified: false,
-      reason: 'lsdj-native-document edits native song STRUCTURE only. It runs no ' +
-        'audio engine and makes no claim that any note, instrument, command, ' +
-        'table or format version plays correctly. Playback fidelity is ' +
-        'established by the audio and verification layers, not here.' };
-  };
-
-  var API = { NativeDocument: NativeDocument, VERSION: VERSION, fnv1a: fnv1a };
-  G.CT_LSDJ_DOC = API;
-  if (typeof module !== 'undefined' && module.exports) module.exports = API;
-})(typeof globalThis !== 'undefined' ? globalThis : window);
-
-/* ===== src/lsdj-native-editor.js ===== */
-// THE USER-FACING NATIVE LSDj STRUCTURE EDITOR.
-//
-// Reached from Create ("Open LSDj" for a local .lsdsng/.sav, "Open native JSON"
-// for a standalone structure share, "Resume LSDj edit" to reopen an in-progress
-// edit). A NativeDocument is the SOLE authority; the flattened Create score is
-// never read or re-exported here. Every mapped native field is reachable --
-// sequence, chains, phrases, instrument params, instrument names, all five
-// table columns, grooves, waves, the allocation maps, and the scalar tempo /
-// transpose / (read-only) format version -- edited as raw hex bytes. Nothing
-// decodes or auto-allocates unproven bits.
-//
-// NOT A PLAYER. It runs no audio engine and says so. Entering it stops Create's
-// playback. It is MODAL: the background is inert and Tab is trapped inside the
-// panel (visible controls only), so focus cannot reach hidden Create controls;
-// Escape closes only this panel (via runtime), with no implicit play; focus is
-// restored on close.
-//
-// EDITS ARE ATOMIC PER ROW AND NEVER SILENTLY LOST. Typed cells are held in a
-// persistent DRAFT map keyed by native (field/slot/row), independent of DOM
-// re-renders. "Apply" (or Enter) commits ONE row through setBytes() as one undo
-// entry and clears only that row's drafts; every other staged row survives.
-// Navigating slots/categories, undo/redo, and closing all preserve drafts
-// (invalid ones included) -- they clear only on explicit "Revert pending" or by
-// being applied. Exports flush ALL pending drafts first (blocking on invalid).
-// A closed edit is retained; "Resume" reopens it without re-importing.
-//
-// Import uses the shared strict foreign-file parser; native JSON goes through
-// the document's strict deserializer. Replacement requires confirmation when
-// edits exist, and leaving the page warns about unsaved session work. A
-// a request-start generation token means the last-requested import wins and a
-// slow earlier read cannot clobber it. Closing invalidates in-flight reads.
-//
-// Export: .lsdsng from document.toSong() through the real compressor, REUSING
-// the original 8-byte name + version bytes when a .lsdsng was opened. .sav only
-// when a .sav was opened, replacing its first 32768 bytes and keeping the rest.
-// The uploaded file is never overwritten. Native sharing is a standalone
-// serializeFull() JSON (structure only) -- a file to reopen here, not a link.
-(function (G) {
-  'use strict';
-
-  var SONG = 0x8000;
-
-  var panel = null, fileInput = null, jsonInput = null;
-  var state = null;                 // { doc, savBytes, header, title, draft, dirty }
-  var curCat = 0, curSlot = 0;
-  var importGen = 0;
-  var lastFocus = null, inerted = [];
-  var SHAPE = null;
-
-  function LS() { return G.CT_LSDJ; }
-  function DOC() { return G.CT_LSDJ_DOC; }
-  function shape() {
-    if (!SHAPE && LS()) {
-      SHAPE = {};
-      LS().FIELDS.forEach(function (f) { SHAPE[f.k] = { scalar: f.n === 1 && f.w === 1, singleRow: f.n === 1 && f.w > 1 }; });
-    }
-    return SHAPE;
-  }
-  function hex2(v) { return ('0' + (v & 0xFF).toString(16).toUpperCase()).slice(-2); }
-  function parseHexByte(s) { if (!/^[0-9a-fA-F]{1,2}$/.test(s)) return null; var v = parseInt(s, 16); return (v >= 0 && v <= 255) ? v : null; }
-  function attr(s) { return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
-  function hasEdits() { return !!state && (Object.keys(state.draft).length > 0 || state.doc.diff().runs.length > 0); }
-  function confirmReplacement() {
-    return !hasEdits() || G.confirm('Replace the current native edit, including pending changes? Export it first if you want to keep it. Cancel keeps your work.');
-  }
-  G.addEventListener('beforeunload', function (ev) {
-    if (hasEdits()) { ev.preventDefault(); ev.returnValue = ''; }
-  });
-  function safeName(t) { return (String(t || 'lsdj').replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'lsdj').slice(0, 24); }
-  function projName(t) {
-    var s = String(t || 'CHIPTUNE').toUpperCase().replace(/[^A-Z0-9 -]/g, '').trim(); if (!s) s = 'CHIPTUNE';
-    var out = new Uint8Array(8); for (var i = 0; i < 8; i++) out[i] = i < s.length ? s.charCodeAt(i) : 0; return out;
-  }
-
-
-  // ---- categories ---------------------------------------------------------
-  function mrow(label, key) { return { l: label, at: function (s, r) { return { key: key, i: s, j: r }; } }; }
-  function seqCol(label, ch) { return { l: label, at: function (s) { return { key: 'sequence', i: s, j: ch }; } }; }
-  var ALLOC = ['instrumentAlloc', 'tableAlloc', 'phraseAlloc', 'chainAlloc'];
-  var SONGF = ['tempo', 'transpose', 'formatVersion'];
-  var CATS = [
-    { id: 'sequence', label: 'Sequence', unit: 'row', slots: 256, rows: 1, rowLabel: '',
-      cols: [ seqCol('PU1', 0), seqCol('PU2', 1), seqCol('WAV', 2), seqCol('NOI', 3) ] },
-    { id: 'chains', label: 'Chains', unit: 'chain', slots: 128, rows: 16, rowLabel: 'Row',
-      cols: [ mrow('Phrase', 'chainPhrases'), mrow('Transpose', 'chainTranspose') ] },
-    { id: 'phrases', label: 'Phrases', unit: 'phrase', slots: 255, rows: 16, rowLabel: 'Step',
-      cols: [ mrow('Note', 'phraseNotes'), mrow('Inst', 'phraseInstruments'), mrow('Cmd', 'phraseCommands'), mrow('Val', 'phraseCommandVals') ] },
-    { id: 'instruments', label: 'Instruments', unit: 'instrument', slots: 64, rows: 16, rowLabel: 'Byte',
-      cols: [ mrow('Param', 'instrumentParams') ] },
-    { id: 'instrnames', label: 'Instr names', unit: 'instrument', slots: 64, rows: 5, rowLabel: 'Char',
-      cols: [ mrow('Byte', 'instrumentNames') ] },
-    { id: 'tables', label: 'Tables', unit: 'table', slots: 32, rows: 16, rowLabel: 'Row',
-      cols: [ mrow('tables0', 'tables0'), mrow('tables1', 'tables1'), mrow('tables2', 'tables2'), mrow('cmd', 'tableCommands'), mrow('val', 'tableValues') ] },
-    { id: 'groove', label: 'Groove', unit: 'groove', slots: 32, rows: 16, rowLabel: 'Step',
-      cols: [ mrow('Ticks', 'grooves') ] },
-    { id: 'waves', label: 'Waves', unit: 'wave', slots: 256, rows: 16, rowLabel: 'Byte',
-      cols: [ mrow('Sample', 'waves') ] },
-    { id: 'alloc', label: 'Alloc', unit: 'map', slots: 4, rowLabel: 'Byte',
-      slotName: function (s) { return ALLOC[s]; }, rowsFor: function (s) { return [64, 32, 32, 16][s]; },
-      cols: [ { l: 'Value', at: function (s, r) { return { key: ALLOC[s], i: 0, j: r }; } } ] },
-    { id: 'song', label: 'Song', unit: '', slots: 1, rows: 3, rowLabel: 'Field',
-      rowName: function (r) { return SONGF[r]; },
-      cols: [ { l: 'Value', readonlyFor: function (r) { return r === 2; }, at: function (s, r) { return { key: SONGF[r], i: 0, j: 0 }; } } ] }
-  ];
-  function rowsOf(cat, slot) { return cat.rowsFor ? cat.rowsFor(slot) : cat.rows; }
-  function readByte(a) {
-    var f = shape()[a.key];
-    if (f.scalar) return state.doc.field(a.key);
-    if (f.singleRow) return state.doc.field(a.key)[a.j];
-    return state.doc.fieldRow(a.key, a.i)[a.j];
-  }
-  function committedHex(a) { return hex2(readByte(a)); }
-  function draftKey(a) { return a.key + '/' + a.i + '/' + a.j; }
-  function addrOf(inp) { return CATS[curCat].cols[+inp.dataset.col].at(curSlot, +inp.dataset.row); }
-  function cellValue(a) {
-    var dk = draftKey(a), c = committedHex(a);
-    if (state.draft[dk] != null) {
-      return state.draft[dk];
-    }
-    return c;
-  }
-
-  function status(m) { var s = panel && panel.querySelector('.ne-status'); if (s) s.textContent = m; }
-  function toast(m) { if (G._toast) G._toast(m); status(m); }
-  function saveBytes(bytes, name, type) {
-    try {
-      var blob = new Blob([bytes], { type: type || 'application/octet-stream' });
-      if (G._saveBlob) { G._saveBlob(blob, name); return true; }
-      var url = URL.createObjectURL(blob), a = document.createElement('a');
-      a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(function () { URL.revokeObjectURL(url); }, 4000); return true;
-    } catch (e) { return false; }
-  }
-
-  // ---- inputs -------------------------------------------------------------
-  function ensureInputs() {
-    if (!fileInput) {
-      fileInput = document.createElement('input'); fileInput.type = 'file'; fileInput.accept = '.lsdsng,.sav';
-      fileInput.style.display = 'none'; fileInput.setAttribute('aria-hidden', 'true');
-      fileInput.addEventListener('change', function () { var f = fileInput.files && fileInput.files[0]; fileInput.value = ''; if (f) openFromFile(f); });
-      document.body.appendChild(fileInput);
-    }
-    if (!jsonInput) {
-      jsonInput = document.createElement('input'); jsonInput.type = 'file'; jsonInput.accept = '.json,application/json';
-      jsonInput.style.display = 'none'; jsonInput.setAttribute('aria-hidden', 'true');
-      jsonInput.addEventListener('change', function () { var f = jsonInput.files && jsonInput.files[0]; jsonInput.value = ''; if (f) importJsonFile(f); });
-      document.body.appendChild(jsonInput);
-    }
-  }
-  function pick() { ensureInputs(); fileInput.click(); }
-  function pickJson() { ensureInputs(); jsonInput.click(); }
-
-  // ---- imports (token bumps at request START; last request wins) ----------
-  function openFromFile(f) {
-    var gen = ++importGen;                               // supersede any earlier pending read, even if this proves invalid
-    var lower = String(f.name || '').toLowerCase();
-    var isSav = /\.sav$/.test(lower), isSng = /\.lsdsng$/.test(lower);
-    if (!isSav && !isSng) { toast('Choose a .lsdsng or .sav file'); return; }
-    if (isSav && f.size !== 0x20000) { toast('A .sav must be exactly 128 KB'); return; }
-    if (isSng && (f.size < 10 || f.size > 200000)) { toast('That .lsdsng is not a valid size'); return; }
-    if (!DOC()) { toast('LSDj support is unavailable in this build'); return; }
-    var rd = new FileReader();
-    rd.onerror = function () { if (gen === importGen) toast('Could not read that file'); };
-    rd.onload = function () {
-      if (gen !== importGen) return;                     // superseded or cancelled by close
-      try {
-        var bytes = new Uint8Array(rd.result), song, sav = null, header = null, name = 'CHIPTUNE';
-        if (isSav) { song = Uint8Array.from(bytes.subarray(0, SONG)); sav = Uint8Array.from(bytes); name = 'WORKMEM'; }
-        else { var parsed = LS().parseLsdsng(bytes); song = parsed.song; name = parsed.name || 'CHIPTUNE'; header = { name: Uint8Array.from(bytes.subarray(0, 8)), version: bytes[8] & 0xFF }; }
-        open({ doc: DOC().NativeDocument.fromSong(song, { title: name }), savBytes: sav, header: header, name: name });
-      } catch (e) { toast('That file is not a valid LSDj song'); }   // current document untouched
-    };
-    rd.readAsArrayBuffer(f);
-  }
-  function importJsonFile(f) {
-    var gen = ++importGen;
-    if (!f) return;
-    if (f.size > 400000) { toast('That native JSON is too large'); return; }
-    if (!DOC()) { toast('LSDj support is unavailable in this build'); return; }
-    var rd = new FileReader();
-    rd.onerror = function () { if (gen === importGen) toast('Could not read that file'); };
-    rd.onload = function () {
-      if (gen !== importGen) return;
-      try {
-        var d = DOC().NativeDocument.deserialize(String(rd.result));
-        if (open({ doc: d, savBytes: null, header: null, name: d.title() || 'CHIPTUNE' }))
-          status('Opened native structure from JSON (structure only, no playback)');
-      } catch (e) { toast('That native JSON is not valid'); }
-    };
-    rd.readAsText(f);
-  }
-
-  // ---- modal focus --------------------------------------------------------
-  function setBackgroundInert(on) {
-    if (on) {
-      inerted = []; var kids = document.body.children;
-      for (var i = 0; i < kids.length; i++) {
-        var el = kids[i]; if (el === panel || el === fileInput || el === jsonInput) continue;
-        if (!el.hasAttribute('inert')) { try { el.setAttribute('inert', ''); inerted.push(el); } catch (e) {} }
-      }
-    } else { inerted.forEach(function (el) { try { el.removeAttribute('inert'); } catch (e) {} }); inerted = []; }
-  }
-  function focusables() {
-    return [].slice.call(panel.querySelectorAll('button:not([disabled]), input:not([disabled]), [tabindex="0"]'))
-      .filter(function (el) { return el.getClientRects().length > 0; });      // visible only (skip hidden Save .sav)
-  }
-  function trapTab(ev) {
-    var f = focusables(); if (!f.length) return;
-    var first = f[0], last = f[f.length - 1], a = document.activeElement;
-    if (ev.shiftKey && (a === first || !panel.contains(a))) { last.focus(); ev.preventDefault(); }
-    else if (!ev.shiftKey && (a === last || !panel.contains(a))) { first.focus(); ev.preventDefault(); }
-  }
-
-  // ---- panel --------------------------------------------------------------
-  function buildPanel() {
-    if (panel) return;
-    panel = document.createElement('div');
-    panel.id = 'nativeeditor';
-    panel.setAttribute('role', 'dialog'); panel.setAttribute('aria-modal', 'true');
-    panel.setAttribute('aria-label', 'LSDj native structure editor');
-    panel.innerHTML =
-      '<div class="ne-top"><div class="ne-title"><b>LSDj</b> <span class="ne-name"></span></div>' +
-        '<button type="button" class="ne-close" aria-label="Close native editor" title="Close">\u2715</button></div>' +
-      '<p class="ne-banner" role="note">Structural editor \u2014 native playback is <b>not implemented</b>. ' +
-        'Edits change raw bytes only; nothing here plays, and no sound approximation is claimed.</p>' +
-      '<div class="ne-cats" role="tablist" aria-label="Native field category"></div>' +
-      '<div class="ne-bar">' +
-        '<label class="ne-slotlab">Slot <input class="ne-slot" type="number" min="0" step="1" value="0" inputmode="numeric" aria-label="Slot index"></label>' +
-        '<span class="ne-slothex"></span><span class="ne-sp"></span>' +
-        '<button type="button" class="ne-btn ne-undo">\u21A9 Undo</button>' +
-        '<button type="button" class="ne-btn ne-redo">\u21AA Redo</button>' +
-        '<button type="button" class="ne-btn ne-discard" title="Discard all uncommitted edits">Revert pending</button>' +
-        '<span class="ne-sp"></span>' +
-        '<button type="button" class="ne-btn ne-exp-sng">Save .lsdsng</button>' +
-        '<button type="button" class="ne-btn ne-exp-sav">Save .sav</button>' +
-        '<button type="button" class="ne-btn ne-exp-json" title="Structure only \u2014 a file to reopen here, not a playable link">Save native JSON</button>' +
-        '<button type="button" class="ne-btn ne-imp-json">Open native JSON</button>' +
-      '</div>' +
-      '<div class="ne-grid" role="region" aria-label="Native byte grid"></div>' +
-      '<p class="ne-status" role="status" aria-live="polite"></p>';
-    document.body.appendChild(panel);
-    wire();
-  }
-  function renderTabs() {
-    panel.querySelector('.ne-cats').innerHTML = CATS.map(function (c, i) {
-      return '<button type="button" class="ne-cat' + (i === curCat ? ' on' : '') + '" role="tab" aria-selected="' + (i === curCat) + '" data-cat="' + i + '">' + c.label + '</button>';
-    }).join('');
-  }
-  function renderSlotMax() {
-    var cat = CATS[curCat], si = panel.querySelector('.ne-slot');
-    si.max = cat.slots - 1; si.value = curSlot;
-    var nm = cat.slotName ? cat.slotName(curSlot) : (cat.unit ? cat.unit + ' ' + curSlot : 'song');
-    panel.querySelector('.ne-slothex').textContent = nm + '  (' + cat.slots + ' total, hex ' + hex2(curSlot) + ')';
-  }
-  function renderExports() { var sav = panel.querySelector('.ne-exp-sav'); if (sav) sav.style.display = (state && state.savBytes) ? '' : 'none'; }
-  function renderGrid() {
-    var active = document.activeElement, focusRow = null, focusCol = null;
-    if (active && panel.contains(active)) {
-      if (active.classList.contains('ne-byte')) { focusRow = active.dataset.row; focusCol = active.dataset.col; }
-      else if (active.classList.contains('ne-apply')) { focusRow = active.dataset.applyrow; focusCol = '0'; }
-    }
-    var cat = CATS[curCat], rows = rowsOf(cat, curSlot), showHead = rows > 1 || !!cat.rowName;
-    var h = '<table class="ne-table"><thead><tr>';
-    if (showHead) h += '<th scope="col" class="ne-rh">' + (cat.rowLabel || '') + '</th>';
-    for (var c = 0; c < cat.cols.length; c++) h += '<th scope="col">' + cat.cols[c].l + '</th>';
-    h += '<th scope="col">Apply</th></tr></thead><tbody>';
-    for (var r = 0; r < rows; r++) {
-      h += '<tr data-row="' + r + '">';
-      if (showHead) h += '<th scope="row" class="ne-rowname">' + (cat.rowName ? cat.rowName(r) : hex2(r)) + '</th>';
-      for (var ci = 0; ci < cat.cols.length; ci++) {
-        var col = cat.cols[ci], a = col.at(curSlot, r), ro = !!(col.readonlyFor && col.readonlyFor(r));
-        var val = cellValue(a), lab = cat.label + ' ' + (cat.rowName ? cat.rowName(r) : (cat.unit + ' ' + curSlot + (rows > 1 ? ' ' + cat.rowLabel + ' ' + r : ''))) + ' ' + col.l;
-        h += '<td><input class="ne-byte" type="text" spellcheck="false" autocomplete="off" maxlength="2" ' +
-          (ro ? 'readonly ' : '') + 'data-row="' + r + '" data-col="' + ci + '" data-doc="' + committedHex(a) + '" aria-label="' + attr(lab) + '" value="' + attr(val) + '"></td>';
-      }
-      h += '<td><button type="button" class="ne-apply" data-applyrow="' + r + '" disabled>Apply</button></td></tr>';
-    }
-    h += '</tbody></table>';
-    panel.querySelector('.ne-grid').innerHTML = h;
-    for (var rr = 0; rr < rows; rr++) refreshRow(rr);
-    updatePending();
-    if (focusRow != null) {
-      var next = panel.querySelector('.ne-byte[data-row="' + focusRow + '"][data-col="' + focusCol + '"]');
-      if (next) next.focus();
-    }
-  }
-  function updateHistory() { var u = panel.querySelector('.ne-undo'), r = panel.querySelector('.ne-redo'); if (u) u.disabled = !state.doc.canUndo(); if (r) r.disabled = !state.doc.canRedo(); }
-  function updatePending() { var d = panel.querySelector('.ne-discard'); if (d) d.disabled = !state || !Object.keys(state.draft).length; }
-
-  function rowInputs(r) { return [].slice.call(panel.querySelectorAll('.ne-byte[data-row="' + r + '"]')); }
-  function refreshRow(r) {
-    var cat = CATS[curCat], dirty = false, bad = false;
-    rowInputs(r).forEach(function (inp) {
-      if (inp.readOnly) return;
-      var dk = draftKey(addrOf(inp)); if (state.draft[dk] == null) return;
-      var v = parseHexByte((state.draft[dk] || '').trim());
-      if (v == null) bad = true; else dirty = true;
-    });
-    var tr = panel.querySelector('tr[data-row="' + r + '"]');
-    var btn = panel.querySelector('.ne-apply[data-applyrow="' + r + '"]');
-    if (tr) { tr.classList.toggle('staged', dirty || bad); tr.classList.toggle('invalid', bad); }
-    if (btn) { btn.disabled = !(dirty && !bad); btn.classList.toggle('staged', dirty && !bad); }
-  }
-  function onCellInput(inp) {
-    var a = addrOf(inp), dk = draftKey(a), raw = inp.value || '';
-    if (raw.trim().toUpperCase() === committedHex(a)) delete state.draft[dk];
-    else state.draft[dk] = raw;
-    refreshRow(+inp.dataset.row); updatePending();
-  }
-  function applyRow(r) {
-    var cat = CATS[curCat], writes = [], dks = [], bad = false;
-    rowInputs(r).forEach(function (inp) {
-      if (inp.readOnly) return;
-      var a = addrOf(inp), dk = draftKey(a); if (state.draft[dk] == null) return;
-      var v = parseHexByte((state.draft[dk] || '').trim());
-      if (v == null) { bad = true; return; }
-      writes.push({ key: a.key, i: a.i, j: a.j, value: v }); dks.push(dk);
-    });
-    if (bad) { status('This row has an invalid byte (00\u2013FF); fix it before applying'); return false; }
-    if (!writes.length) return true;
-    try { state.doc.setBytes(writes); } catch (e) { status(String(e && e.message || e)); return false; }
-    dks.forEach(function (dk) { delete state.draft[dk]; });   // clear ONLY this row's drafts
-    state.dirty = true; updateHistory(); renderGrid();        // other rows' drafts persist
-    status('Applied ' + cat.label + ' row (one atomic edit)'); return true;
-  }
-  // Commit ALL pending drafts across the whole song (block on any invalid), so
-  // nothing typed is silently dropped on export.
-  function flushAllOrBlock() {
-    var writes = [], bad = false;
-    Object.keys(state.draft).forEach(function (dk) {
-      var v = parseHexByte((state.draft[dk] || '').trim());
-      if (v == null) { bad = true; return; }
-      var pz = dk.split('/'); writes.push({ key: pz[0], i: +pz[1], j: +pz[2], value: v });
-    });
-    if (bad) { status('Some pending edits are invalid (00\u2013FF). Fix or Revert pending before exporting.'); return false; }
-    if (writes.length) {
-      try { state.doc.setBytes(writes); } catch (e) { status(String(e && e.message || e)); return false; }
-      state.draft = {}; state.dirty = true; updateHistory(); renderGrid();
-      status('Applied ' + writes.length + ' pending edit(s) before export');
-    }
-    return true;
-  }
-  function discardPending() {
-    if (!G.confirm('Discard all pending byte edits? Applied edits will be kept.')) return;
-    state.draft = {}; renderGrid(); status('Discarded pending edits');
-  }
-  function doUndo() { if (state.doc.undo()) { renderGrid(); updateHistory(); status('Undid one edit'); } else status('Nothing to undo'); }
-  function doRedo() { if (state.doc.redo()) { renderGrid(); updateHistory(); status('Redid one edit'); } else status('Nothing to redo'); }
-
-  function exportLsdsng() {
-    if (!flushAllOrBlock()) return;
-    try {
-      var song = state.doc.toSong(), body = LS().compress(song, 1);
-      var name = state.header ? state.header.name : projName(state.title), ver = state.header ? (state.header.version & 0xFF) : 0;
-      var file = new Uint8Array(9 + body.length); file.set(name.subarray(0, 8), 0); file[8] = ver; file.set(body, 9);
-      if (saveBytes(file, safeName(state.title) + '-edited.lsdsng'))
-        status('Saved ' + safeName(state.title) + '-edited.lsdsng \u2014 original header retained, ' + state.doc.dirtyFields().length + ' field group(s) changed');
-    } catch (e) { status('Export failed: ' + String(e && e.message || e)); }
-  }
-  function exportSav() {
-    if (!state.savBytes) { status('No .sav was opened, so only .lsdsng can be written'); return; }
-    if (!flushAllOrBlock()) return;
-    try {
-      var out = Uint8Array.from(state.savBytes); out.set(state.doc.toSong(), 0);
-      if (saveBytes(out, safeName(state.title) + '-edited.sav'))
-        status('Saved ' + safeName(state.title) + '-edited.sav \u2014 working-memory song updated, other slots untouched');
-    } catch (e) { status('Export failed: ' + String(e && e.message || e)); }
-  }
-  function exportJson() {
-    if (!flushAllOrBlock()) return;
-    try {
-      var s = state.doc.serializeFull();
-      if (saveBytes(new TextEncoder().encode(s), safeName(state.title) + '-native.json', 'application/json'))
-        status('Saved native structure JSON \u2014 structure only, a file to reopen here, not a playable link');
-    } catch (e) { status('Export failed: ' + String(e && e.message || e)); }
-  }
-
-  function setSlot(v) {
-    var cat = CATS[curCat]; v = Math.round(+v || 0); if (!(v >= 0)) v = 0; v = Math.max(0, Math.min(cat.slots - 1, v));
-    if (v === curSlot) { renderSlotMax(); return; }
-    curSlot = v; renderSlotMax(); renderGrid();          // drafts persist (keyed by absolute address)
-  }
-  function wire() {
-    panel.addEventListener('click', function (ev) {
-      var t = ev.target;
-      if (t.closest('.ne-close')) { close(); return; }
-      var ap = t.closest('.ne-apply'); if (ap) { applyRow(+ap.dataset.applyrow); return; }
-      var cat = t.closest('.ne-cat'); if (cat) { selectCategory(+cat.dataset.cat); return; }
-      if (t.closest('.ne-undo')) { doUndo(); return; }
-      if (t.closest('.ne-redo')) { doRedo(); return; }
-      if (t.closest('.ne-discard')) { discardPending(); return; }
-      if (t.closest('.ne-exp-sng')) { exportLsdsng(); return; }
-      if (t.closest('.ne-exp-sav')) { exportSav(); return; }
-      if (t.closest('.ne-exp-json')) { exportJson(); return; }
-      if (t.closest('.ne-imp-json')) { pickJson(); return; }
-    });
-    panel.addEventListener('input', function (ev) {
-      var b = ev.target.closest('.ne-byte'); if (b) { onCellInput(b); return; }
-      var s = ev.target.closest('.ne-slot'); if (s) setSlot(s.value);
-    });
-    panel.addEventListener('change', function (ev) { var s = ev.target.closest('.ne-slot'); if (s) setSlot(s.value); });
-    panel.addEventListener('keydown', function (ev) {
-      // Local controls retain native key behaviour; app/game shortcuts never
-      // receive bubbling keys from this modal (including Shift+D screen mode).
-      ev.stopPropagation();
-      if (ev.target.closest('.ne-cat') && ['ArrowLeft', 'ArrowRight', 'Home', 'End'].indexOf(ev.key) >= 0) {
-        ev.preventDefault(); ev.stopPropagation();
-        var next = ev.key === 'Home' ? 0 : ev.key === 'End' ? CATS.length - 1 : (curCat + (ev.key === 'ArrowRight' ? 1 : -1) + CATS.length) % CATS.length;
-        selectCategory(next); return;
-      }
-      if (ev.key === 'Tab') { trapTab(ev); return; }
-      if (ev.key === 'Escape') { ev.preventDefault(); ev.stopImmediatePropagation(); close(); return; }
-      if (ev.key === 'Enter') { var b = ev.target.closest('.ne-byte'); if (b) { ev.preventDefault(); applyRow(+b.dataset.row); } }
-    });
-  }
-
-  function selectCategory(index) {
-    curCat = index; curSlot = 0; renderTabs(); renderSlotMax(); renderGrid();
-    panel.querySelector('.ne-cat[data-cat="' + curCat + '"]').focus();
-  }
-
-  function applyState(o) {
-    state = { doc: o.doc, savBytes: o.savBytes || null, header: o.header || null, title: o.name || 'CHIPTUNE', draft: {}, dirty: false };
-    curCat = 0; curSlot = 0;
-  }
-  function showPanel() {
-    ensureInputs();
-    var already = isOpen();
-    if (G.CT_CREATE && G.CT_CREATE.stopForNative) { try { G.CT_CREATE.stopForNative(); } catch (e) {} }
-    buildPanel();
-    panel.querySelector('.ne-name').textContent = state.title;
-    renderExports(); renderTabs(); renderSlotMax(); renderGrid(); updateHistory();
-    if (!already) { lastFocus = document.activeElement; setBackgroundInert(true); }
-    panel.classList.add('show'); document.body.classList.add('native-open');
-    var c = panel.querySelector('.ne-close'); if (c) c.focus();
-  }
-  function open(o) {
-    if (!confirmReplacement()) { status('Replacement cancelled; current edit preserved'); return false; }
-    applyState(o); showPanel();
-    status('Opened ' + state.title + ' — structure only, no playback. Edits stay in this tab; export before leaving.');
-    return true;
-  }
-  function resume() {
-    if (!state) { toast('No native edit in progress \u2014 use Open LSDj or Open native JSON'); return; }
-    showPanel(); status('Resumed native edit (pending changes preserved)');
-  }
-  function close() {
-    if (!isOpen()) return;
-    importGen++;                                          // cancel any in-flight read so it cannot reopen us
-    panel.classList.remove('show'); document.body.classList.remove('native-open');
-    setBackgroundInert(false);
-    if (lastFocus && lastFocus.isConnected && typeof lastFocus.focus === 'function') { try { lastFocus.focus(); } catch (e) {} }
-    lastFocus = null;                                    // state (incl. drafts) is retained for resume()
-  }
-  function isOpen() { return !!(panel && panel.classList.contains('show')); }
-  function hasState() { return !!state; }
-
-  G.CT_LSDJ_NATIVE_EDITOR = { pick: pick, pickJson: pickJson, resume: resume, open: open, close: close, isOpen: isOpen, hasState: hasState };
-  if (typeof module !== 'undefined' && module.exports) module.exports = G.CT_LSDJ_NATIVE_EDITOR;
-})(typeof globalThis !== 'undefined' ? globalThis : window);
 
 /* ===== src/reference-styles.js ===== */
 // "MAKE IT SOUND LIKE <a game everybody knows>"
@@ -12313,7 +8829,6 @@ var Song = _req ? _req('./seed.js') : _G.Song;
 var composer = _req ? _req('./composer.js')
                     : ((_G.CT_COMPOSERS && _G.CT_COMPOSERS.rrr_core) || null);
 var REF = _req ? _req('./reference-styles.js') : _G.CT_REFERENCE_STYLES;
-var LSDJ = _req ? _req('./lsdj.js') : _G.CT_LSDJ;
 var CT_CREATE = _req ? _req('./create.js') : _G.CT_CREATE;
 var GB_ROM = _req ? _req('./gb-rom.js') : _G.CT_GB_ROM;
 var GB_APU = _req ? _req('./gb-apu.js') : _G.CT_GB_APU;
@@ -12389,16 +8904,6 @@ function capabilities() {
     gameGenres: Object.keys(WORD_GAME_GENRES),
     forms: Object.keys(WORD_FORMS),
     techniques: Object.keys(WORD_TECHNIQUES),
-    exports: {
-      formats: ['share link', 'wav', 'stems', 'midi', 'gb cartridge', 'lsdsng', 'lsdj sav'],
-      lsdsng: 'One LSDj song, the unit LSDj musicians pass around. Notes arrive laid out in phrases and chains with the tempo and the groove, so somebody who writes on a Game Boy gets an arrangement to build on. Drums move to the noise channel (a .sav cannot carry kit samples, which live in the ROM) and instrument voicing is left stock on purpose. toLsdsng() returns those caveats as `warnings`; relay them.',
-      sav: 'toLsdjSav() writes a whole LSDj cartridge -- up to 32 songs in one .sav, ready to copy onto a flash cart. That is the fastest route from \'I want to write something\' to actually writing: every slot on the machine already has a starting point in it.'
-    },
-    tempo: {
-      reachable: CT_CREATE.tempos ? CT_CREATE.tempos(16) : [],
-      note: 'A ladder, not a range. A step lasts a WHOLE number of frames on this hardware, so only these tempi exist; asking for one in between gives you the nearest rung. The gaps widen as it gets faster, which is a property of the machine rather than a choice.',
-      groove: 'Tempi off the plain ladder are reached with a GROOVE -- a short repeating list of tick counts, like [6,7,6,7]. The same mechanism carries swing. describe() reports the groove a song plays.'
-    },
     meter: 'Everything is in four. There is no time-signature dial, so a waltz is not expressible and asking for one says so rather than pretending.',
     titles: REF && REF.names ? REF.names() : [],
     references: 'Naming a game from `titles` is READ AS a genre description -- genre, styles, major/minor, a tempo band, a mood, one technique -- and the reading is always said back so you can disagree with it. It is not an imitation: nothing here is trained on or derived from anybody else\'s music, and a title can only set dials you could type yourself. A name that is not on the list is REFUSED rather than quietly ignored, because it maps to nothing at all.',
@@ -12407,53 +8912,39 @@ function capabilities() {
                  'shape', 'fade', 'chordtones', 'arc', 'smooth', 'accent'],
     writing: 'chordtones, arc, smooth and accent are the operations that change how the music is WRITTEN rather than how it is set: consonance against the chord underneath, the rise or fall of a phrase, leaps turned into steps, and emphasis on the beat. analyse() measures all four so a caller can check a word did what it said.',
     layers: LAYER_SETS.map(function (l) { return { name: l.name, lanes: l.keep, use: l.use }; }),
-    variety: 'soundtrack() shares the requested key, or its first cue\'s generated key. A shared motif needs motif:true and is varied per cue. A shared key constrains harmony; different soundtracks still need distinct phrases and rhythms.',
-    limits: { maxTitle: 48 },
-    premise: {
-      note: 'Optional bounded dials on compose()/brief(), each in [-1, 1], applied BEFORE generation. They never override an explicit key, mode, tempo or genre.',
-      energy: 'section intensity (drums, form, accompaniment); it does not move the tempo, which the band and any tempo word already own',
-      density: 'how many melody and bass onsets are written',
-      motion: 'how far the composed melodic and bass contour roams'
-    }
+    variety: 'Cohesion devices are opt-in on purpose. soundtrack() shares a KEY by default, which costs no variety; a shared motif needs motif:true and is transposed per cue rather than copied. Nothing is shared between two different soundtracks.',
+    limits: { maxTitle: 48 }
   };
 }
 
 // ------------------------------------------------------------------- composing
 //
 // One token in, one score out. A premise constrains the composer's own dials
-// before generation; it never scores or filters candidates afterwards. Besides
-// styles, mode and a tempo band, it accepts three bounded character dials --
-// energy, density and motion, each in [-1, 1] -- which lean intensity, onset
-// count and motif reach, and never override an explicit key/mode/tempo/genre.
+// before generation; it never scores or filters candidates afterwards.
 function compose(opts) {
   opts = opts || {};
   var score, token;
   if (opts.mood) {
-    // This entry point accepts the published mood chips. Free-text requests
-    // use ask(); both ultimately share that interpreter and document path.
+    // moodSong composes SOMETHING for any string -- an unrecognised word just
+    // leaves the composer unconstrained -- which would hand an agent a song it
+    // did not ask for and no way to tell. Check the word first.
     var known = CT_CREATE.moods();
     if (known.indexOf(String(opts.mood)) < 0)
       throw new Error('compose: no song for mood ' + JSON.stringify(opts.mood) +
                       '. Known moods: ' + known.join(', '));
-    var m = CT_CREATE.moodSong(String(opts.mood), opts.token ? { token: String(opts.token) } : {});
+    var m = CT_CREATE.moodSong(String(opts.mood));
     if (!m) throw new Error('compose: no song for mood ' + JSON.stringify(opts.mood) +
                             '. Known moods: ' + CT_CREATE.moods().join(', '));
     return { doc: m.code, title: m.title, bpm: m.bpm, bars: m.bars, mood: String(opts.mood) };
   }
   token = opts.token ? String(opts.token) : Song.mint();
   var premise = null;
-  if (opts.styles || opts.mode || opts.bpmMin != null || opts.bpmMax != null ||
-      opts.energy || opts.density || opts.motion) {
+  if (opts.styles || opts.mode || opts.bpmMin != null || opts.bpmMax != null) {
     premise = {};
     if (opts.styles) premise.styles = [].concat(opts.styles);
     if (opts.mode) premise.mode = opts.mode;
     if (opts.bpmMin != null) premise.bpmMin = opts.bpmMin;
     if (opts.bpmMax != null) premise.bpmMax = opts.bpmMax;
-    // The bounded character dials. Zero is dropped so a plain premise is
-    // recorded as exactly {styles,mode,bpmMin,bpmMax}.
-    if (opts.energy) premise.energy = opts.energy;
-    if (opts.density) premise.density = opts.density;
-    if (opts.motion) premise.motion = opts.motion;
   }
   score = premise ? composer.compile(token, premise) : composer.compile(token);
   if (!score) throw new Error('compose: nothing satisfies that premise');
@@ -12487,7 +8978,6 @@ function toJSON(doc) {
     var motion = x.u ? 'rise' : x.z ? 'fall' : x.q ? 'arp' : x.g ? 'roll' : x.f ? 'echo' : null;
     if (motion) n.motion = motion;
     if (x.inst != null) n.instrument = x.inst;
-    if (x.nt) n.trigger = x.nt === 1;
     if (x.st) n.stamp = x.st;
     // the chip settings, when the note carries its own rather than the lane's
     var snd = {};
@@ -12542,7 +9032,6 @@ function fromJSON(obj) {
     }
     if (cell.ch === undefined) delete cell.ch;
     if (n.instrument != null) cell.inst = n.instrument;
-    if (n.trigger != null) cell.nt = n.trigger ? 1 : 2;
     switch (n.motion) {
       case 'rise': cell.u = 1; break;
       case 'fall': cell.z = 1; break;
@@ -12585,8 +9074,6 @@ function validate(obj) {
     var lane = LANES.indexOf(n.lane);
     if (lane < 0) { errors.push(at + ': unknown lane ' + JSON.stringify(n.lane) + '. Use ' + LANES.join(', ')); return; }
     if ((n.step | 0) < 0) errors.push(at + ': step must be 0 or more');
-    if (n.trigger != null && (typeof n.trigger !== 'boolean' || lane > 1))
-      errors.push(at + ': native trigger state is a boolean on a pulse lane');
     if (lane === 3) {
       if (n.drum && DRUMS.indexOf(n.drum) < 0)
         errors.push(at + ': unknown drum ' + JSON.stringify(n.drum) + '. Use ' + DRUMS.join(', '));
@@ -12636,15 +9123,7 @@ function describe(doc) {
   var rom = null;
   try { rom = GB_ROM.buildRom({ gb: gb, name: song.title || 'SONG' }).length; } catch (e) { rom = null; }
   return {
-    title: song.title || '', bpm: song.bpm,
-    // The tick pattern the song actually plays. bpm is the average of it; the
-    // groove is what the machine is really doing, and for a swung or
-    // between-the-rungs tempo the average alone does not describe it.
-    groove: (function () {
-      try { var s2 = CT_CREATE.docState(typeof doc === 'string' ? doc : fromJSON(doc));
-            return s2 && s2.groove ? s2.groove.slice() : null; } catch (e) { return null; }
-    })(),
-    bars: song.bars,
+    title: song.title || '', bpm: song.bpm, bars: song.bars,
     seconds: +(gb.totalFrames / fps).toFixed(2),
     notes: gb.notes.length,
     perLane: { Melody: perLane[0], Harmony: perLane[1], Bass: perLane[2], Drums: perLane[3] },
@@ -12692,138 +9171,6 @@ function load(doc) {
 
 // A shareable link. The document rides in the FRAGMENT, which browsers never
 // send to a server, so this needs no backend and stores nothing.
-// A SONG AN LSDJ COMPOSER CAN OPEN AND KEEP WRITING. `.lsdsng` is the unit
-// LSDj users pass around -- one song, droppable into a save. What arrives is
-// the arrangement: notes laid out in phrases and chains, the tempo, the groove.
-// What does not arrive is the voicing, on purpose; see src/lsdj.js.
-//
-// Returns the file AND the warnings, because every one of them is something the
-// receiving musician would otherwise discover by ear.
-function toLsdsng(doc, opts) {
-  if (!LSDJ) throw new Error('toLsdsng: lsdj.js is not loaded');
-  var r = LSDJ.lsdsng(typeof doc === 'string' ? doc : fromJSON(doc), opts || {});
-  return {
-    bytes: r.file, filename: (((opts && opts.name) || r.title || 'chiptune')
-      .replace(/[^A-Za-z0-9 _-]/g, '').trim() || 'chiptune') + '.lsdsng',
-    phrases: r.phrases, chains: r.chains, notes: r.notes, sequencedNotes: r.sequencedNotes,
-    tempo: r.tempo, groove: r.groove, framesPerRow: r.framesPerRow, warnings: r.warnings
-  };
-}
-
-// THE OTHER DIRECTION. A song written in LSDj, opened here.
-//
-// Export alone is half a relationship: it makes this app a place songs leave.
-// Reading LSDj's own files is what makes it a place they can come back to, and
-// it is the same walk LSDj does -- sequence to chains to phrases to rows.
-//
-// Accepts a `.lsdsng` (a name, a version byte and the compressed song) or a
-// `.sav` (whose working-memory song sits uncompressed at offset 0). Returns the
-// document plus `warnings` for anything the format genuinely cannot carry back.
-function fromLsdsng(bytes, opts) {
-  if (!LSDJ) throw new Error('fromLsdsng: lsdj.js is not loaded');
-  var b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-  // A .sav is 128 KB and starts with a whole song; a .lsdsng is small and starts
-  // with an 8-byte name. Telling them apart by SIZE is the reliable way -- the
-  // name bytes are arbitrary text and cannot be used as a signature.
-  var parsed = b.length >= LSDJ.SAV_SIZE ? LSDJ.parseSav(b) : LSDJ.parseLsdsng(b);
-  var model = LSDJ.readSong(parsed.song);
-  var out = LSDJ.toSongJSON(model, { name: (opts && opts.name) || parsed.name });
-  var doc = fromJSON(out.json);
-  // A TABLE IS PLAYED OUT INTO NOTES, one per tick, at the pitch and the frame
-  // each tick sounds. The document is row-based, but a cell carries `of` (frames
-  // off the grid), `midi` and `lf` (an exact length in frames), which between
-  // them can put a note wherever the machine can -- the same mechanism a
-  // composed song already uses to survive import at frame resolution.
-  //
-  // So a table plays EXACTLY, and no new document format was needed for it.
-  if (out.tableNotes && out.tableNotes.length) {
-    var st = CT_CREATE.docState(doc);
-    var melRows = T.melodicRows || 15;
-    var laneRow = function (x) {
-      return x.r >= melRows ? 3
-        : (x.ch === 0 || x.ch === 1) ? x.ch
-        : (x.st === 'bassg' || x.st === 'cello') ? 2 : 0;
-    };
-    if (st && LSDJ.expandTables(model, st, out.tableNotes, laneRow)) {
-      var grown = CT_CREATE.docFromState(st);
-      if (grown) doc = grown;
-    }
-  }
-  // T and M are SONG-WIDE. T changes the tempo from a row onward and M sets the
-  // master volume; the document carries both as of version 14, and a song using
-  // neither still encodes exactly as it did before.
-  if ((out.tempoAt && out.tempoAt.length) || out.master != null) {
-    var stt = CT_CREATE.docState(doc);
-    if (stt) {
-      if (out.tempoAt && out.tempoAt.length) stt.tempoAt = out.tempoAt.slice();
-      // NR50 is (left << 4) | right, each 0..7; the loudest side is the level.
-      if (out.master != null)
-        stt.master = Math.max((out.master >> 4) & 7, out.master & 7) * 2 + 1;
-      var gt = CT_CREATE.docFromState(stt);
-      if (gt) doc = gt;
-    }
-  }
-  // The commands that MOVE A REGISTER and have a home in the document: E is a
-  // volume, O a pan, S a sweep, P a pitch bend read as a detune. Each was
-  // measured by playing it and watching the chip.
-  if (out.patches && out.patches.length) {
-    var stp = CT_CREATE.docState(doc);
-    var melP = T.melodicRows || 15;
-    var laneP = function (x) {
-      return x.r >= melP ? 3 : (x.ch === 0 || x.ch === 1) ? x.ch
-        : (x.st === 'bassg' || x.st === 'cello') ? 2 : 0;
-    };
-    var byKey = {};
-    out.patches.forEach(function (p) { byKey[p.lane + ':' + p.step] = p.f; });
-    var hit = 0;
-    if (stp) stp.cells.forEach(function (x) {
-      var f = x.midi == null ? null : byKey[laneP(x) + ':' + (x.c | 0)];
-      if (!f) return;
-      for (var k in f) x[k] = f[k];
-      hit++;
-    });
-    if (hit) { var gp = CT_CREATE.docFromState(stp); if (gp) doc = gp; }
-  }
-  // VIBRATO rides as a cell flag rather than a motion, so it is set here for the
-  // same reason -- it was written on the way out and dropped on the way in.
-  if (out.vibratoNotes && out.vibratoNotes.length) {
-    var st2 = CT_CREATE.docState(doc);
-    var mel2 = T.melodicRows || 15;
-    var lane2 = function (x) {
-      return x.r >= mel2 ? 3 : (x.ch === 0 || x.ch === 1) ? x.ch
-        : (x.st === 'bassg' || x.st === 'cello') ? 2 : 0;
-    };
-    var wantV = {};
-    out.vibratoNotes.forEach(function (n) { wantV[n.lane + ':' + n.step] = 1; });
-    var touched = 0;
-    if (st2) st2.cells.forEach(function (x) {
-      if (x.midi != null && wantV[lane2(x) + ':' + (x.c | 0)]) { x.vb = 1; touched++; }
-    });
-    if (touched) { var g2 = CT_CREATE.docFromState(st2); if (g2) doc = g2; }
-  }
-  return {
-    doc: doc, title: out.json.title, bpm: out.json.bpm,
-    groove: out.groove, notes: out.json.notes.length, warnings: out.warnings
-  };
-}
-
-// A WHOLE CART. `.lsdsng` is one song and still needs importing; a `.sav` IS
-// the cartridge -- copy it to a flash cart and every slot has something in it.
-// This is the fastest way from "I want to write something" to "I am writing".
-function toLsdjSav(docs, opts) {
-  if (!LSDJ) throw new Error('toLsdjSav: lsdj.js is not loaded');
-  var list = [].concat(docs || []).map(function (d) {
-    return typeof d === 'string' ? d : fromJSON(d);
-  });
-  var r = LSDJ.sav(list, opts || {});
-  return {
-    bytes: r.bytes,
-    filename: (((opts && opts.name) || 'chiptunes').replace(/[^A-Za-z0-9 _-]/g, '').trim() || 'chiptunes') + '.sav',
-    songs: r.songs, titles: r.titles,
-    blocksUsed: r.blocksUsed, blocksFree: r.blocksFree, warnings: r.warnings
-  };
-}
-
 function shareUrl(doc, base) {
   return (base || 'https://chiptunes.app') + '/#s=' + String(typeof doc === 'string' ? doc : fromJSON(doc));
 }
@@ -12910,98 +9257,6 @@ var MOODS = {
                { op: 'fade', fade: 0 }, { op: 'motion', lane: 'Melody', motion: 'echo' },
                { op: 'tempo', percent: -8 }]
 };
-
-// EACH PUBLISHED MOOD ALSO CARRIES A PRE-GENERATION PREMISE. The recipe above
-// reshapes an EXISTING song; this steers the composer for a NEW one along the
-// three bounded axes it accepts. energy is intensity WITHOUT tempo (the recipe's
-// tempo op already owns that, so nothing is doubled), density is how many
-// melody/bass onsets are written, and motion is how far the line roams.
-//
-// No lane's density is processed twice: this premise governs melody/bass
-// GENERATION, while the recipes' `thin` targets harmony/drums. `tense` is the one
-// mood whose recipe thins the melody, so its premise density is deliberately 0.
-// The two mode-flipping pairs (happier/sadder, brighter/darker) are kept modest
-// so the measured happy/sad separability in verify-language is not disturbed;
-// the dials' full range is exercised directly in verify-composition-character.
-var MOOD_PREMISE = {
-  happier:    { energy: 0.25, motion: 0.15 },
-  sadder:     { energy: -0.3, motion: -0.15 },
-  darker:     { energy: -0.2, density: -0.1, motion: -0.15 },
-  brighter:   { energy: 0.2, motion: 0.2 },
-  calmer:     { energy: -0.5, density: -0.25, motion: -0.3 },
-  intense:    { energy: 0.6, density: 0.3, motion: 0.25 },
-  sparser:    { density: -0.5 },
-  dreamier:   { energy: -0.35, density: -0.15, motion: -0.2 },
-  heroic:     { energy: 0.45, motion: 0.3 },
-  mysterious: { energy: -0.3, density: -0.2, motion: 0.15 },
-  menacing:   { energy: 0.25, density: -0.1, motion: -0.2 },
-  frantic:    { energy: 0.6, density: 0.45, motion: 0.4 },
-  playful:    { energy: 0.3, density: 0.2, motion: 0.35 },
-  solemn:     { energy: -0.55, density: -0.2, motion: -0.3 },
-  tense:      { energy: 0.2, motion: 0.1 },
-  exploratory:{ energy: -0.2, density: -0.15, motion: 0.15 }
-};
-// Sum a list of moods per axis, clamped to the composer's [-1,1], and track
-// which axes were TOUCHED at all -- an axis a user's moods cancel to zero is
-// still owned by the user and must not be refilled from a reference.
-function _moodPremise(words) {
-  var sum = { energy: 0, density: 0, motion: 0 };
-  var has = { energy: false, density: false, motion: false };
-  (words || []).forEach(function (w) {
-    var p = MOOD_PREMISE[w]; if (!p) return;
-    ['energy', 'density', 'motion'].forEach(function (axis) {
-      if (p[axis] != null) { sum[axis] += p[axis]; has[axis] = true; }
-    });
-  });
-  var c = function (v) { return Math.max(-1, Math.min(1, Math.round(v * 100) / 100)); };
-  return { energy: c(sum.energy), density: c(sum.density), motion: c(sum.motion), has: has };
-}
-// The DIMENSION an op occupies, so a reference trait can be merged with the
-// user's own moods by dimension rather than discarded wholesale. Lane-scoped
-// operations key on their lane so, e.g., thinning drums and thinning harmony are
-// distinct dimensions but two arcs on the melody are not.
-function _opDim(o) {
-  var lane = ':' + (o.lane || 'all');
-  switch (o.op) {
-    // DENSITY of a lane is ONE axis: adding, thinning, subdividing or dropping
-    // onsets all move it, so a reference must not subdivide a lane the user
-    // already thinned (or vice versa).
-    case 'thin': case 'subdivide': case 'double': case 'drop': return 'density' + lane;
-    // The rest are distinct, documented axes and do not overwrite one another:
-    // register (octave), arc (contour), smooth (leap size), chordtones
-    // (consonance), motion (articulation), shape (duty), fade (envelope).
-    case 'register': case 'arc': case 'smooth': case 'chordtones':
-    case 'motion': case 'shape': case 'fade':
-      return o.op + lane;
-    default: return o.op;
-  }
-}
-// The set of dimensions the user's own moods touch, read straight off the
-// recipes so an explicit request overrides a reference on exactly those axes.
-function _moodDims(moods) {
-  var seen = {};
-  (moods || []).forEach(function (w) {
-    (MOODS[w] || []).forEach(function (o) { seen[_opDim(o)] = 1; });
-  });
-  return seen;
-}
-
-function _referenceLine(reference, uses) {
-  function dimension(d) {
-    var parts = d.split(':'), names = { arc: 'contour', register: 'register',
-      smooth: 'leap smoothing', chordtones: 'consonance', motion: 'articulation',
-      shape: 'pulse shape', fade: 'fade', density: 'density' };
-    return parts.length > 1 ? (parts[1] === 'all' ? '' : parts[1].toLowerCase() + ' ') + (names[parts[0]] || parts[0]) : d;
-  }
-  var labels = uses.map(function (u) {
-    if (u.kind !== 'character') return u.text;
-    // Character words are bundles. Name the surviving axes rather than implying
-    // the whole bundle won when, for example, its register was overridden.
-    return u.text + ' (hints: ' + u.dimensions.map(dimension).join(' + ') + ')';
-  });
-  return 'like ' + reference.name + ' (' + reference.genre + '), used for: ' +
-    (labels.length ? labels.join(', ') : 'nothing; stronger settings took precedence');
-}
 
 // CONSONANCE, DEFINED ONCE. This was wrong in both the operation and the
 // measurement, identically, which is exactly why sharing it matters: a melody
@@ -13331,9 +9586,9 @@ function transform(doc, ops) {
                      Math.max(1, (o.bars || 2)) + ' bars (' + arcMoved + ' notes)'); break;
       }
       case 'smooth': {
-        // Reduce large leaps by octave displacement, preserving pitch classes.
-        // This cannot turn every interval into a step (a third remains a
-        // third), or guarantee a limit below the nearest octave equivalent.
+        // Stepwise motion, by octave displacement -- which keeps the pitch
+        // class, so the harmony is untouched and only the line becomes
+        // singable. This is what makes a lullaby a lullaby.
         var maxLeap = o.maxLeap != null ? (o.maxLeap | 0) : 5;
         var seq = st.cells.filter(function (c) { return pick(c) && !isDrum(c) && c.midi != null; })
                           .sort(function (a, b) { return (a.c | 0) - (b.c | 0); });
@@ -13347,7 +9602,7 @@ function transform(doc, ops) {
           }
           cur2.r = rowFor(cur2.midi);
         }
-        applied.push('reduced large leaps with ' + smoothed + ' octave shifts'); break;
+        applied.push('smoothed ' + smoothed + ' leaps into steps'); break;
       }
       case 'accent': {
         // Metric emphasis: the downbeat loudest, the half-bar next, the
@@ -13412,34 +9667,20 @@ function brief(b) {
   if (spec.bpmMin != null) opts.bpmMin = spec.bpmMin;
   if (spec.bpmMax != null) opts.bpmMax = spec.bpmMax;
   if (spec.title != null) opts.title = spec.title;
-  // The bounded character dials ride to the composer as a premise, so a new
-  // piece is generated with the requested energy/density/motion rather than
-  // having them approximated afterwards.
-  if (spec.energy) opts.energy = spec.energy;
-  if (spec.density) opts.density = spec.density;
-  if (spec.motion) opts.motion = spec.motion;
   // A variation number is a SEED, not randomness: the same brief and the same
   // variation give the same song forever, so an agent can explore and still get
   // back the one that was liked.
   if (spec.token) opts.token = spec.token;
   else if (spec.variation != null) opts.token = Song.mint(); // caller keeps the token we return
-  // Resolve an impossible style/band combination before generation. Retrying a
-  // failed composition used to compile the same seed twice and also caught
-  // unrelated composer errors as if they were constraint conflicts.
-  if (!composer.canCompose(opts) && (opts.styles || opts.mode)) {
+  var made;
+  try { made = compose(opts); }
+  catch (e) {
+    if (!opts.styles && !opts.mode) throw e;
     delete opts.styles; unmet.push('style constraint could not be met');
+    made = compose(opts);
   }
-  var made = compose(opts);
 
   var ops = [];
-  if (spec.key != null) {
-    var targetKey = midiOf(String(spec.key) + '4');
-    if (targetKey == null) throw new Error('brief: unknown key ' + JSON.stringify(spec.key));
-    var sourceKey = CT_CREATE.docState(made.doc).key;
-    var shift = ((targetKey - sourceKey) % 12 + 12) % 12;
-    if (shift > 6) shift -= 12;
-    if (shift) ops.push({ op: 'transpose', semitones: shift });
-  }
   if (spec.exclude) [].concat(spec.exclude).forEach(function (l) { ops.push({ op: 'drop', lane: l }); });
   if (spec.intensity > 0) ops.push({ op: 'velocity', delta: 0.1 });
   // SCENES has carried `resolve: true` on victory and game_over since scenes
@@ -13489,24 +9730,14 @@ function soundtrack(b) {
     if (!SCENES[s]) throw new Error('soundtrack: unknown scene ' + JSON.stringify(s) +
                                     '. Known: ' + Object.keys(SCENES).join(', '));
   });
-  var rootName = b.key || null;
-  var root = rootName == null ? null : midiOf(rootName + '4');
-  if (rootName != null && root == null) throw new Error('soundtrack: ' + JSON.stringify(rootName) + ' is not a key, e.g. "D"');
-  var targetKey = root == null ? null : ((root % 12) + 12) % 12;
-  var soundtrackToken = b.token ? String(b.token) : Song.mint();
-  var cues = list.map(function (name, index) {
-    // One deterministic composition per cue. Reusing the same seed for every
-    // scene can clone a phrase when their style constraints overlap.
-    var cueToken = soundtrackToken + '-cue-' + index + '-' + name;
-    var cue = brief(Object.assign({}, b, { scene: name, scenes: undefined, token: cueToken }));
+  var rootName = b.key || 'D';
+  var root = midiOf(rootName + '4');
+  if (root == null) throw new Error('soundtrack: ' + JSON.stringify(rootName) + ' is not a key, e.g. "D"');
+  var targetKey = ((root % 12) + 12) % 12;
+  var cues = list.map(function (name) {
+    var cue = brief(Object.assign({}, b, { scene: name, scenes: undefined }));
     // pull every cue into the same key, so they belong together
     var st = CT_CREATE.docState(cue.doc);
-    // Cohesion within a game does not require every game to default to D.
-    // Use the first composition's own key unless the caller chose one.
-    if (targetKey == null) {
-      targetKey = st.key | 0;
-      rootName = NOTE_NAMES[targetKey];
-    }
     var shift = ((targetKey - (st.key | 0)) % 12 + 12) % 12;
     if (shift > 6) shift -= 12;
     if (shift) {
@@ -13524,7 +9755,7 @@ function soundtrack(b) {
   // ⚠️ A SHARED MOTIF IS OFF BY DEFAULT, and that is a deliberate reversal.
   // Cohesion devices are exactly how a generator starts sounding the same, and
   // the owner has been burned by that repeatedly. Shared KEY already makes cues
-  // belong together but constrains harmonic variety; a recurring figure is a stronger,
+  // belong together and costs no variety; a recurring figure is a stronger,
   // riskier claim, so it is opt-in with `motif: true`.
   //
   // And when it is on, the figure is VARIED rather than copied: each cue gets it
@@ -13540,26 +9771,6 @@ function soundtrack(b) {
     // all -- which read as the feature being broken rather than the cue being
     // sparse there.
     var figure = [], motifBar = 0, motifLane = 0, why = null;
-    // A mechanically repeated short cell is accompaniment, not a distinctive
-    // soundtrack figure. The first eligible window used to pick the same
-    // tonic arpeggio across unrelated games in a shared key. Search the existing
-    // cue for a phrase instead; never compose replacement candidates.
-    function shortLoop(notes) {
-      // Include a final partial repetition: trimming a two-bar window must not
-      // turn the same arpeggio into a "new phrase" by dropping its last note.
-      for (var period = 1; period <= 4 && notes.length >= Math.max(2, period * 2 - 1); period++) {
-        var repeated = true;
-        for (var ni = period; ni < notes.length; ni++) {
-          var a = notes[ni], b = notes[ni - period];
-          if (a.midi !== b.midi || (a.len || 1) !== (b.len || 1) ||
-              (ni > period && a.c - notes[ni - 1].c !== b.c - notes[ni - period - 1].c)) {
-            repeated = false; break;
-          }
-        }
-        if (repeated) return true;
-      }
-      return false;
-    }
     // Search the WHOLE cue, and take Harmony if Melody has nothing: both are
     // pulse voices, and a figure stated on the second pulse is an ordinary
     // thing for this hardware. Some cues genuinely have no melodic phrase at
@@ -13570,8 +9781,8 @@ function soundtrack(b) {
         var lo = w * grid0, hi = lo + grid0 * 2;
         var got = src.cells.filter(function (c) {
           return !isDrum(c) && c.midi != null && laneOf(c) === ln && (c.c | 0) >= lo && (c.c | 0) < hi;
-        }).sort(function (a, b) { return a.c - b.c; });
-        if (got.length >= 3 && !shortLoop(got)) {
+        });
+        if (got.length >= 3) {
           motifBar = w; motifLane = ln;
           figure = got.map(function (c) {
             var cp = JSON.parse(JSON.stringify(c)); cp.c = (c.c | 0) - lo; return cp;
@@ -13579,7 +9790,7 @@ function soundtrack(b) {
         }
       }
     }
-    if (figure.length < 2) why = 'the first cue has no non-repeating melodic phrase to build on';
+    if (figure.length < 2) why = 'the first cue has no melodic phrase to build on';
     if (figure.length >= 2) {
       motif = { notes: figure.length, bars: 2, fromBar: motifBar,
                 lane: LANES[motifLane],
@@ -13613,7 +9824,7 @@ function soundtrack(b) {
       }
     }
   }
-  return { token: soundtrackToken, key: rootName, mode: b.mode || null, motif: motif,
+  return { key: rootName, mode: b.mode || null, motif: motif,
            motifSkipped: (b.motif === true && !motif) ? why : undefined, cues: cues };
 }
 
@@ -13750,10 +9961,10 @@ var WORD_MOODS = {
 // a genre word onto them is a true statement about what the machine will do --
 // unlike a franchise name, which could only be a guess wearing a trademark.
 var WORD_GENRES = {
-  anthem: ['anthem'], anthemic: ['anthem'], epic: ['anthem'],
+  anthem: ['anthem'], anthemic: ['anthem'],
   house: ['house'], techno: ['techno'], trance: ['trance'],
   dnb: ['dnb'], jungle: ['dnb'], breakbeat: ['breaks'], breaks: ['breaks'],
-  arcade: ['arcade'], retro: ['arcade'], rock: ['rock'], punk: ['punk'], hardcore: ['punk'],
+  arcade: ['arcade'], rock: ['rock'], punk: ['punk'], hardcore: ['punk'],
   funk: ['funk'], funky: ['funk'], groovy: ['funk'],
   hiphop: ['boombap'], boombap: ['boombap'], lofi: ['boombap', 'chill'],
   ambient: ['drone', 'chill'], drone: ['drone'],
@@ -14093,55 +10304,42 @@ function interpret(text, opts) {
     moods.push(m2); understood.push('mood: ' + m2);
   });
 
-  // The mode a user's OWN moods imply, computed once: it steers a new piece's
-  // composer mode below, and it blocks a reference's mode transform from silently
-  // overriding it -- that made "a cheerful song like Castlevania" read major but
-  // sound minor.
-  var moodMode = null;
-  moods.forEach(function (mood) {
-    (MOODS[mood] || []).forEach(function (o) {
-      if (o.op === 'mode' && !moodMode) moodMode = String(o.to).indexOf('min') === 0 ? 'minor' : 'major';
-    });
-  });
-
-  var refUses = [], userDims = _moodDims(moods);
-  ops.forEach(function (o) { userDims[_opDim(o)] = 1; });
-  function refOp(o) { var index = ops.length; ops.push(o); return index; }
-  function refUse(kind, text, indices) {
-    var use = { kind: kind, text: text, ops: indices || [], axes: [], dimensions: [] };
-    refUses.push(use); return use;
-  }
-
   // 11. and NOW the title fills whatever nobody named. Gap-fill is what keeps
   //     a reference a suggestion rather than an override.
   if (title) {
-    if (!spec.styles) { spec.styles = title.styles.slice(); refUse('styles', title.styles.join('/')); }
+    var took = [];
+    if (!spec.styles) { spec.styles = title.styles.slice(); took.push(title.styles.join('/')); }
 
-    // A TITLE'S MODE IS APPLIED AS A TRANSFORM, not a composer constraint. Since
-    // 16a2398 an explicit genre plus an explicit mode composes on the first try,
-    // so this is RETAINED FOR COMPATIBILITY and because a title is an atmosphere
-    // hint layered over the genre in force. A mode the user TYPED wins, a named
-    // scene keeps its own, and a mode the user's own MOOD implies wins too --
-    // otherwise "a cheerful song like Castlevania" reads major but sounds minor.
-    if (!modeTyped && !spec.scene && !moodMode && spec.mode !== title.mode) {
-      refUse('mode', title.mode, [refOp({ op: 'mode', to: title.mode })]);
+    // A TITLE'S MODE IS A TRANSFORM, NOT A CONSTRAINT, and that is not a
+    // stylistic choice -- it is what the composer's style table permits. Ten of
+    // its fourteen styles are major-only (`modes:'maj'`), so asking for `rock`
+    // AND `minor` empties the eligible pool, and brief()'s fallback then throws
+    // the STYLES away and keeps the mode. Forty-eight of the titles here were
+    // silently losing their genre that way while the summary still named it.
+    //
+    // A NAMED SCENE KEEPS ITS OWN MODE: a scene is a functional requirement --
+    // a game-over cue must not come out jaunty -- while a title is an
+    // atmosphere hint. A mode the user TYPED beats both.
+    if (!modeTyped && !spec.scene && spec.mode !== title.mode) {
+      ops.push({ op: 'mode', to: title.mode });
+      took.push(title.mode);
     }
 
     // TEMPO: the band when the styles in force can reach it, and a pull towards
     // it when they cannot. Dropping it outright was the bug -- it meant naming
     // a slow, brooding game next to a fast genre changed nothing at all.
-    var tempoHandled = !!userDims.tempo || spec.bpmMin != null || spec.bpmMax != null;
-    if (title.bpmMin && !tempoHandled) {
+    var tempoHandled = false;
+    if (title.bpmMin && spec.bpmMin == null) {
       if (_bandIsReachable(spec.styles, title.bpmMin, title.bpmMax)) {
         spec.bpmMin = title.bpmMin; spec.bpmMax = title.bpmMax;
-        refUse('tempo', title.bpmMin + '-' + title.bpmMax + ' bpm');
+        took.push(title.bpmMin + '-' + title.bpmMax + ' bpm');
         tempoHandled = true;
       } else {
         var pull = _bandPull(spec.styles, title.bpmMin, title.bpmMax);
         if (pull) {
-          refUse('tempo', Math.abs(pull) + '% ' + (pull < 0 ? 'slower' : 'faster') +
-                    ', towards its ' + title.bpmMin + '-' + title.bpmMax + ' bpm',
-                    [refOp({ op: 'tempo', percent: pull })]);
+          ops.push({ op: 'tempo', percent: pull });
+          took.push(Math.abs(pull) + '% ' + (pull < 0 ? 'slower' : 'faster') +
+                    ', towards its ' + title.bpmMin + '-' + title.bpmMax + ' bpm');
           tempoHandled = true;
         }
       }
@@ -14154,24 +10352,12 @@ function interpret(text, opts) {
     // Genre says what the piece is FOR, character says what it FEELS like, and
     // the two are orthogonal. A mood the user typed themselves still wins,
     // because that is a more specific request than a reference.
-    // The reference's own CHARACTER, merged with the user's moods by DIMENSION
-    // rather than discarded the moment they name one. A reference op survives
-    // only on a dimension the user's moods do not already touch, so an explicit
-    // request overrides the reference on that axis alone and the rest stays --
-    // and a lane the user already thins is never thinned twice.
-    if (title.character && title.character.length) {
-      var blended = [];
-      _blendMoods(title.character, { skipTempo: tempoHandled }).forEach(function (o) {
-        if (!userDims[_opDim(o)] && (spec.exclude || []).indexOf(o.lane) < 0)
-          blended.push(refOp(o));
-      });
-      title.character.forEach(function (word) {
-        var dims = _moodDims([word]);
-        refUse('character', word, blended.filter(function (i) { return dims[_opDim(ops[i])]; }));
-      });
+    if (!moods.length && title.character && title.character.length) {
+      _blendMoods(title.character, { skipTempo: tempoHandled }).forEach(function (o) { ops.push(o); });
+      took.push(title.character.join(', '));
     }
     if (!namedTechnique && title.tech && WORD_TECHNIQUES[title.tech]) {
-      refUse('technique', title.tech, [refOp(Object.assign({}, WORD_TECHNIQUES[title.tech]))]);
+      ops.push(Object.assign({}, WORD_TECHNIQUES[title.tech])); took.push(title.tech);
     }
     // The wording is deliberate and load-bearing. READ AS, not "sounds like":
     // the mapping is a genre description somebody wrote down, and the composer
@@ -14179,53 +10365,20 @@ function interpret(text, opts) {
     // actually set -- when the user named "a platformer like Metroid" the genre
     // is theirs, and a summary saying "read as: metroidvania" would be
     // describing a dial that lost.
+    understood.unshift('like ' + title.name + ' (' + title.genre + '), used for: ' +
+                       (took.length ? took.join(', ') : 'nothing, you named it all yourself'));
     sawNew = true;
   }
 
   // is this a new piece or a change to one?
-  var editWording = re('\\b(make it|make this|turn it|turn this|change it|change this)\\b');
-  var changeish = editWording || re('\\b(more|less|instead|now|but)\\b') || (ops.length > 0 && !sawNew);
-  // An explicit EDIT on a song already in hand stays a change even when it names
-  // a key, mode or length: "make it cheerful in D minor" transposes and recolours
-  // the document you have rather than composing a fresh one.
-  var kind = (opts.hasSong && editWording) ? 'change'
-           : (sawNew || (!opts.hasSong && !ops.length && !moods.length)) ? 'brief'
+  var changeish = re('\\b(make it|more|less|instead|now|turn it|but)\\b') || (ops.length > 0 && !sawNew);
+  var kind = (sawNew || (!opts.hasSong && !ops.length && !moods.length)) ? 'brief'
            : (changeish || moods.length || ops.length) ? 'change' : 'brief';
 
-  // WHETHER WE WILL ACTUALLY COMPOSE, not how the sentence is phrased. A
-  // mood-only request ("a sparse song") reads as a change but composes when no
-  // song is in hand, so the premise below must key off real generation, exactly
-  // as ask() does with `composesNew`.
-  var newSong = kind === 'brief' || !opts.hasSong;
-
-  // A mood on a NEW piece steers the composer's MODE (moodMode, computed above).
-  // A named scene keeps its own mode, and a TYPED mode wins over both. On a
-  // change the mood is a recipe applied as a transform (below).
-  if (newSong && moodMode && !spec.mode && !spec.scene) {
-    spec.mode = moodMode; understood.push('mode: ' + moodMode);
-  }
-
-  // ENERGY / DENSITY / MOTION as a PRE-GENERATION premise for a new piece. The
-  // user's own moods set an axis (even one that nets to zero -- that axis is
-  // OWNED); a named reference fills only the axes the user did not touch at all,
-  // instead of the whole reference being discarded the moment any mood appears.
-  // Tempo, key, mode and genre are settled elsewhere and never overridden here.
-  if (newSong) {
-    var prem = _moodPremise(moods);
-    if (title && title.character && title.character.length) {
-      var refPrem = _moodPremise(title.character);
-      ['energy', 'density', 'motion'].forEach(function (axis) {
-        if (!prem.has[axis] && refPrem.has[axis]) {
-          prem[axis] = refPrem[axis]; prem.has[axis] = true;
-          if (refPrem[axis]) refUses.forEach(function (u) {
-            if (u.kind === 'character' && _moodPremise([u.text]).has[axis]) u.axes.push(axis);
-          });
-        }
-      });
-    }
-    ['energy', 'density', 'motion'].forEach(function (axis) {
-      if (prem[axis]) spec[axis] = prem[axis];
-    });
+  // a mood on a NEW piece steers the composer; on a change it is a recipe
+  if (kind === 'brief' && moods.length) {
+    var toMode = { sadder: 'minor', darker: 'minor', happier: 'major', brighter: 'major' }[moods[0]];
+    if (toMode && !spec.mode) { spec.mode = toMode; understood.push('mode: ' + toMode); }
   }
 
   // THINGS THIS MACHINE CANNOT DO, said out loud. Dropping them silently and
@@ -14250,14 +10403,6 @@ function interpret(text, opts) {
   var refName = refm ? refm[1].trim().replace(/[.,!?;:]+$/, '') : null;
   var reference = title ? { name: title.name, genre: title.genre, reads: title.reads, known: true }
                 : refName ? { name: refName, known: false } : null;
-  if (title) {
-    refUses.forEach(function (u) {
-      u.dimensions = u.axes.concat(u.ops.map(function (i) { return _opDim(ops[i]); }))
-        .filter(function (d, i, a) { return a.indexOf(d) === i; });
-    });
-    reference.uses = refUses.filter(function (u) { return u.kind !== 'character' || u.dimensions.length; });
-    understood.unshift(_referenceLine(reference, reference.uses));
-  }
   if (reference && !reference.known)
     unsupported.push({ asked: '"like ' + refName + '"',
                        why: 'I do not know that one. I match names against a published list of about a hundred games and read each as a genre, rather than imitating anything; nothing here is derived from anybody’s music. Ask for the genre instead, or name a game the list knows: Castlevania, Metroid, Tetris, Mega Man, Final Fantasy (the full list is capabilities().titles)' });
@@ -14414,44 +10559,16 @@ function ask(text, opts) {
   // how much of what was asked for actually landed
   var words = String(text || '').split(/[^A-Za-z0-9#]+/).filter(function (w) { return w.length > 2; }).length;
   var doc = opts.doc || null, applied = [], skipped = [], made = null;
-  var composesNew = read.kind === 'brief' || !doc;
-  var briefOpts = opts.brief || {};
-  var effSpec = Object.assign({}, read.spec, briefOpts);
-  var callerBand = composesNew && (briefOpts.bpmMin != null || briefOpts.bpmMax != null);
-  // A caller range is one constraint, not one half of a reference's old range.
-  if (callerBand) {
-    delete effSpec.bpmMin; delete effSpec.bpmMax;
-    if (briefOpts.bpmMin != null) effSpec.bpmMin = briefOpts.bpmMin;
-    if (briefOpts.bpmMax != null) effSpec.bpmMax = briefOpts.bpmMax;
-  }
-  if (composesNew) {
-    made = brief(effSpec);
+  if (read.kind === 'brief' || !doc) {
+    made = brief(Object.assign({}, read.spec, opts.brief || {}));
     doc = made.doc;
-    // `spec` remains the parsed request. The visible reading reflects explicit
-    // caller overrides, not the discarded parse (e.g. 100 BPM replaced by 150).
-    function replaceReading(pattern, line) {
-      var found = false;
-      read.understood = read.understood.map(function (s) {
-        if (!pattern.test(s)) return s;
-        found = true; return line;
-      });
-      if (!found) read.understood.push(line);
-    }
-    if (briefOpts.mode != null) replaceReading(/^mode:/, 'mode: ' +
-      (String(briefOpts.mode).indexOf('min') === 0 ? 'minor' : 'major'));
-    if (briefOpts.key != null) replaceReading(/^key:/, 'key: ' + briefOpts.key);
-    if (briefOpts.styles != null && !(made.unmet || []).some(function (s) { return /style constraint/.test(s); }))
-      replaceReading(/^(game genre|genre):/, 'genre: ' + [].concat(briefOpts.styles).join('/'));
-    if ((made.unmet || []).some(function (s) { return /style constraint/.test(s); }))
-      read.understood = read.understood.filter(function (s) { return !/^(game genre|genre):/.test(s); });
-    if (callerBand) replaceReading(/^tempo:/, 'tempo: ' + describe(doc).bpm + ' bpm (caller range)');
     // Everything the brief itself decided. The narrower list this used to
     // carry (scene/length/key/mode/without) silently dropped the genre, the
     // form and the title reading -- exactly the parts a user most wants
     // confirmed, since those are the ones they cannot verify by ear in a
     // second. Ops report themselves separately, below, so nothing doubles up.
     applied = applied.concat(read.understood.filter(function (u) {
-      return /^(like |scene|game genre|genre|form|mood|length|key|mode|tempo|without|loops|ends on|technique|[A-Z][a-z]+ (and|only))/.test(u);
+      return /^(like |scene|game genre|genre|form|mood|length|key|mode|without|loops|ends on|technique|[A-Z][a-z]+ (and|only))/.test(u);
     }));
     if (made.unmet && made.unmet.length) skipped = skipped.concat(made.unmet);
   }
@@ -14459,85 +10576,17 @@ function ask(text, opts) {
   // transform: brief() honours spec.exclude itself, so the op finds nothing and
   // the summary reads "dropped Drums (0 notes)" under a line that already said
   // "without Drums".
-  var already = (made && effSpec.exclude) ? [].concat(effSpec.exclude) : [];
-  // A CONSTRAINT PINNED BY THE CALLER (opts.brief) WINS OVER A REFERENCE OP ON
-  // THE SAME DIMENSION. brief() already composes in that mode/tempo, but a
-  // lingering reference transform -- a title's mode-flip or its tempo pull --
-  // would override it after the fact, so it is dropped and reported as skipped
-  // rather than silently colliding or being listed as applied.
-  var ops = read.ops.filter(function (o) {
-    if (o.op === 'drop' && already.indexOf(o.lane) >= 0) return false;
-    if (composesNew && o.op === 'mode' && briefOpts.mode != null) {
-      skipped.push('the reference\'s ' + o.to + ' gave way to your ' +
-                   (briefOpts.mode === 'min' ? 'minor' : briefOpts.mode === 'maj' ? 'major' : briefOpts.mode));
-      return false;
-    }
-    if (callerBand && o.op === 'tempo') {
-      skipped.push('a requested tempo change gave way to your tempo range'); return false;
-    }
-    return true;
-  });
-  // ON A NEW PIECE the mode is settled at the composer premise, so the mood's own
-  // mode op must NOT run again (that turned "a cheerful song in D minor" major).
-  // ON A CHANGE there is no premise: the document in hand is TRANSPOSED and
-  // recoloured in place -- a key names a transpose, a mode a mode op -- neither
-  // regenerating the arrangement, and a TYPED mode wins over the mood.
-  if (!composesNew) {
-    if (read.spec.key != null) {
-      var targetK = midiOf(String(read.spec.key) + '4');
-      var src = CT_CREATE.docState(doc);
-      if (targetK != null && src) {
-        var sh = ((targetK - (src.key | 0)) % 12 + 12) % 12; if (sh > 6) sh -= 12;
-        if (sh) ops.unshift({ op: 'transpose', semitones: sh });
-      }
-    }
-    if (read.spec.mode) ops.push({ op: 'mode', to: read.spec.mode });
-  }
-  // A TEMPO THE SENTENCE ALREADY ASKED FOR WINS: "a cheerful fast platformer" has
-  // both an explicit "fast" and happier's own +8%; compounding them ran past 180.
+  var already = (made && read.spec.exclude) ? [].concat(read.spec.exclude) : [];
+  var ops = read.ops.filter(function (o) { return !(o.op === 'drop' && already.indexOf(o.lane) >= 0); });
+  // Blended, for the same reason a title's character is: concatenating three
+  // recipes adds their tempo changes and their octave shifts together.
+  // A TEMPO THE SENTENCE ALREADY ASKED FOR WINS. "a cheerful fast platformer"
+  // has both an explicit "fast" and `happier`'s own +8%, and compounding them
+  // ran the song to 180 bpm -- neither word asked for that.
   ops = ops.concat(_blendMoods(read.moods, {
-    keepMode: !composesNew && !read.spec.mode,
-    skipTempo: callerBand || ops.some(function (o) { return o.op === 'tempo'; })
+    keepMode: true,
+    skipTempo: ops.some(function (o) { return o.op === 'tempo'; })
   }));
-  if (callerBand && _blendMoods(read.moods).some(function (o) { return o.op === 'tempo'; }))
-    skipped.push('the mood\'s tempo change gave way to your tempo range');
-  // The premise DENSITY dial owns melody and bass onset count AT GENERATION, so a
-  // post-hoc thin/subdivide of those lanes -- whether from a reference trait
-  // (e.g. a title whose character includes `tense`) or a user mood -- would
-  // process density twice. Drop them when the premise is in force; harmony and
-  // drums are untouched by the premise, so their density ops stay.
-  if (composesNew && effSpec.density) {
-    ops = ops.filter(function (o) {
-      if ((o.op === 'thin' || o.op === 'subdivide') && (o.lane === 'Melody' || o.lane === 'Bass')) {
-        skipped.push('a ' + o.op + ' of ' + o.lane + ' gave way to the density premise'); return false;
-      }
-      return true;
-    });
-  }
-  // Rebuild reference provenance from the operations and premise axes that
-  // survived caller overrides. Never leave the parsed claim in `applied` when
-  // the requested mode/range/style actually came from somewhere else.
-  if (read.reference && read.reference.known) {
-    var ref = read.reference;
-    var used = ref.uses.map(function (u) {
-      var indices = u.ops.filter(function (i) { return ops.indexOf(read.ops[i]) >= 0; });
-      var axes = u.axes.filter(function (axis) { return composesNew && briefOpts[axis] == null && effSpec[axis]; });
-      if (u.kind === 'character') {
-        var dims = axes.concat(indices.map(function (i) { return _opDim(read.ops[i]); }));
-        return dims.length ? Object.assign({}, u, { ops: indices, axes: axes, dimensions: dims }) : null;
-      }
-      if (u.ops.length) return indices.length ? u : null;
-      if (!composesNew) return null; // spec-only reference hints do not edit an existing document
-      if (u.kind === 'styles' && (briefOpts.styles != null || (made.unmet || []).some(function (s) { return /style constraint/.test(s); }))) return null;
-      if (u.kind === 'tempo' && callerBand) return null;
-      return u;
-    }).filter(Boolean);
-    ref.uses = used;
-    var line = _referenceLine(ref, used);
-    read.understood = read.understood.map(function (s) { return /^like /.test(s) ? line : s; });
-    applied = applied.filter(function (s) { return !/^like /.test(s); });
-    applied.unshift(line);
-  }
   if (ops.length) {
     var r = transform(doc, ops);
     doc = r.doc; applied = applied.concat(r.applied); skipped = skipped.concat(r.skipped);
@@ -14719,8 +10768,7 @@ var EXPORTS = {
   toJSON: toJSON,
   fromJSON: fromJSON,
   validate: validate,
-  describe: describe, analyse: analyse, toLsdsng: toLsdsng, toLsdjSav: toLsdjSav,
-  fromLsdsng: fromLsdsng,
+  describe: describe, analyse: analyse,
   buildCartridge: buildCartridge,
   renderWav: renderWav,
   shareUrl: shareUrl,
@@ -14749,4561 +10797,6 @@ var EXPORTS = {
   if (typeof module !== 'undefined' && module.exports) module.exports = EXPORTS;
   try { _G.CT_API = EXPORTS; } catch (e) {}
 })(typeof globalThis !== 'undefined' ? globalThis : window);
-
-/* ===== src/music-language.js ===== */
-/* Restricted music source v1. No JavaScript evaluation.
- * Explicit mode is lossless for finite JSON data (including extra note/bank
- * fields). Undefined object properties are omitted by JSON normalization;
- * undefined array entries, sparse arrays, class instances and cycles fail.
- * song({totalFrames,loopFrames?,settings?}) selects exact mode; song({tempo,
- * bars,...}) selects shorthand defaults. performance({bank:{...},...}) supplies
- * other GB fields, never notes or the dedicated event arrays. Empty optional
- * arrays are declared with performance({auto:[]}) etc. Calls are order-stable.
- * notes accepts space-separated pitches/rests, optionally C4:2@0.5 (step length,
- * velocity); chains: stepsPerBar, gate, velocity, transpose, register (octave).
- * register preserves pitch class at that point in the ordered transformation.
- * cycleV1 is the second pattern constructor, accepted only as pattern()'s
- * second argument; it never reinterprets a saved notes() string. Equal slots
- * divide one cycle: [..] subdivides a slot, <..> alternates one branch per
- * visit, ~ rests, *N repeats in place (1-16), and C2(k,n,r) distributes k hits
- * over n slots on a single pitch atom, with positive r rotating LEFT.
- * cycleV1 chains: fast, slow (integer 1-16), rev(), every(period,'rev',offset)
- * (period 1-64, explicit zero-based offset), wrapping the preceding expression
- * in written order; gate applies after rhythm and the last gate wins; velocity,
- * transpose and register behave as on notes; stepsPerBar is rejected.
- * One output cycle is one four-beat bar here, through the same clock below;
- * a cycle is not inherently a bar in Tidal. Phase is song-global, so
- * play({atBar,repeat}) selects the onset window [atBar, atBar+repeat) without
- * restarting alternation, without manufacturing a retrigger by slicing a
- * sustain, and without trimming a tail. Reversal of an event crossing its own
- * reversal cycle is rejected with a located diagnostic, never approximated.
- * Evaluation uses bounded BigInt rationals with absolute endpoint conversion.
- * This is a bounded dialect guided by Tidal, not Tidal compatibility.
- * Tracks: lead/pulse1=0, arp/pad/pulse2=1, bass/wave=2, drums/noise=3.
- * Instrument names are bank.meta name/id/patch.authored; wave-bass aliases
- * w-triangle. No pitch clamping, truncation, sorting or overlap suppression.
- * Mapping indexes gb.notes; span is definition/event, occurrenceSpan is play.
- * Pattern notes additionally carry tokenSpan (raw pitch, including escapes),
- * playSpan (only the dot through this play call's closing parenthesis), and
- * trackSpan (the entire track declaration, including its transformations), plus
- * occurrenceStartFrame/occurrenceEndFrame (full repeat, including rests/gaps).
- * cycleV1 rows additionally carry patternType:'cycleV1' and cycleEvent, a
- * stable token@start/end rational identity used to deduplicate fragments of
- * one event inside a single play. notes() rows carry no patternType at all,
- * so a consumer must read an absent patternType as notes(). For cycles,
- * occurrence counts output cycles from the play's own start, and its
- * occurrenceStartFrame/EndFrame span a fixed four beats.
- * Legacy occurrenceSpan still extends from after the dot to the track end.
- * Exact events have none of these pattern-only fields; all-rest plays emit no
- * note mappings. Occurrence ends are exclusive and are not clipped to song end.
- * Each span has start/end {offset,line,column}: UTF-16 offsets, exclusive end,
- * one-based line/column. Successful compiles also expose controls for direct
- * literal gate/velocity/transpose on notes and transpose on tracks, once per
- * source call (including unused declarations). literalSpan is the numeric
- * token, callSpan runs from the dot through the close, and ownerSpan covers
- * the declaration through its final close, excluding trailing trivia/semicolon.
- * Controls are source ordered and published only after all validation succeeds.
- * The first LIMITS.controls calls are retained; controlsOmitted counts the rest
- * without changing musical validity. Failed compiles expose controls:[] and
- * controlsOmitted:0.
- * tempoAt:[[row,tempo],...] opts into Create's LSDj
- * segment clock; rows use settings.stepsPerBar (16 default), swing uses the
- * shared groove. Fractional gate rows interpolate adjacent boundary frames.
- * Resource limits are deterministic operation/data budgets, not wall time.
- */
-(function (G) {
-  'use strict';
-  var H = typeof module !== 'undefined' && module.exports ? require('./gb-hardware.js') : G.CT_GB;
-  var K = typeof module !== 'undefined' && module.exports ? require('./gb-kits.js') : G.CT_GB_KITS;
-  var LIMITS = Object.freeze({ source: 1048576, depth: 32, nodes: 500000, events: 50000, controls: 50000,
-    frames: 216000, repeats: 4096, steps: 65536, work: 2000000, instruments: 50128,
-    cycleNodes: 4096, cycleDepth: 16, cycleTransforms: 32, cycleWork: 200000, cycleBits: 256 });
-  var CONTROL_BOUNDS = { gate: [0.001, 1, false], velocity: [0, 1, false], transpose: [-128, 128, true] };
-  var NOTE_BOUNDS = { stepsPerBar: [1, 256, true], gate: CONTROL_BOUNDS.gate,
-    velocity: CONTROL_BOUNDS.velocity, transpose: CONTROL_BOUNDS.transpose, register: [-128, 128, true] };
-  var own = function (o, k) { return Object.prototype.hasOwnProperty.call(o, k); };
-  function fail(message, at) { var e = new Error(message); e.at = at || 0; throw e; }
-  function object(v) { return v !== null && typeof v === 'object' && !Array.isArray(v); }
-  function num(v, lo, hi, integer) { return typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi && (!integer || Number.isInteger(v)); }
-  function need(ok, message, at) { if (!ok) fail(message, at); }
-  // The one clock used by compilation and host bar-boundary calculations.
-  // Snapshot settings into segments so callers may reuse a clock efficiently.
-  function createClock(settings) {
-    settings = settings == null ? {} : settings;
-    need(object(settings), 'Clock settings must be an object');
-    need(H && H.beatToFrame, 'CT_GB hardware dependency is required');
-    var tempo = settings.tempo == null ? 120 : settings.tempo;
-    var grid = settings.stepsPerBar == null ? 16 : settings.stepsPerBar;
-    need(num(tempo, 1, 1000), 'Invalid tempo');
-    need(num(grid, 1, 256, true), 'Invalid settings.stepsPerBar');
-    var changes = settings.tempoAt, ticks, segments = [{ row: 0, frame: 0, tempo: tempo }];
-    if (changes != null) {
-      need(Array.isArray(changes) && changes.length <= 4096 && num(tempo, 40, 255, true), 'Invalid tempoAt clock');
-      need(settings.swing == null || typeof settings.swing === 'boolean' || num(settings.swing, 0.5, 0.8), 'Invalid swing');
-      ticks = H.lsdjGrooveTicks(settings.swing, grid);
-      var prevRow = -1;
-      changes.forEach(function (pair) {
-        need(Array.isArray(pair) && pair.length === 2 && num(pair[0], 0, LIMITS.steps, true) && pair[0] > prevRow && num(pair[1], 40, 255, true), 'tempoAt requires increasing [row, tempo] pairs');
-        var prev = segments[segments.length - 1];
-        segments.push({ row: pair[0], tempo: pair[1], frame: prev.frame + H.lsdjRowFrame(prev.tempo, ticks, pair[0] - prev.row) });
-        prevRow = pair[0];
-      });
-    }
-    return function (beat) {
-      // The largest allowed arrangement can have 65536 bars plus 4096
-      // repetitions of 65536 steps at one step/bar. Reject unsafe row math.
-      need(num(beat, 0, 4 * (65536 + 4096 * 65536)), 'Invalid beat position');
-      if (!ticks) return H.beatToFrame(beat, tempo);
-      var row = beat * grid / 4;
-      need(row < 2147483647, 'Clock row limit');
-      var lo = 0, hi = segments.length;
-      while (lo + 1 < hi) { var mid = (lo + hi) >> 1; if (segments[mid].row <= row) lo = mid; else hi = mid; }
-      var seg = segments[lo], relative = row - seg.row, floor = Math.floor(relative);
-      var start = H.lsdjRowFrame(seg.tempo, ticks, floor);
-      return Math.round(seg.frame + start + (relative - floor) * (H.lsdjRowFrame(seg.tempo, ticks, floor + 1) - start));
-    };
-  }
-  function beatToFrame(settings, beat) { return createClock(settings)(beat); }
-  function Parser(s) { this.s = s; this.i = 0; this.nodes = 0; }
-  Parser.prototype.skip = function () {
-    var s = this.s;
-    while (this.i < s.length) {
-      if (/\s/.test(s[this.i])) { this.i++; continue; }
-      if (s.slice(this.i, this.i + 2) === '//') { while (this.i < s.length && s[this.i] !== '\n') this.i++; continue; }
-      if (s.slice(this.i, this.i + 2) === '/*') { var end = s.indexOf('*/', this.i + 2); need(end >= 0, 'Unclosed comment', this.i); this.i = end + 2; continue; }
-      break;
-    }
-  };
-  Parser.prototype.take = function (c) { this.skip(); if (this.s[this.i] === c) { this.i++; return true; } return false; };
-  Parser.prototype.expect = function (c) { need(this.take(c), 'Expected ' + c, this.i); };
-  Parser.prototype.id = function () { this.skip(); var m = /^[A-Za-z_][A-Za-z_0-9]*/.exec(this.s.slice(this.i)); need(m, 'Expected name', this.i); this.i += m[0].length; return m[0]; };
-  Parser.prototype.string = function (raw) {
-    this.skip(); var start = this.i, quote = this.s[this.i++], out = '';
-    while (this.i < this.s.length) {
-      var c = this.s[this.i++];
-      if (c === quote) { if (raw) raw.push(this.i - 1); return out; }
-      // One decoded UTF-16 unit per iteration, even for a Unicode escape.
-      // Adjacent raw boundaries also preserve escapes used as whitespace.
-      if (raw) raw.push(this.i - 1);
-      need(c.charCodeAt(0) >= 32, 'Control character in string', this.i - 1);
-      if (c === '\\') {
-        c = this.s[this.i++];
-        var escapes = { '"': '"', "'": "'", '\\': '\\', '/': '/', b: '\b', f: '\f', n: '\n', r: '\r', t: '\t' };
-        if (c === 'u') { var h = this.s.slice(this.i, this.i + 4); need(/^[0-9a-fA-F]{4}$/.test(h), 'Invalid Unicode escape', this.i); out += String.fromCharCode(parseInt(h, 16)); this.i += 4; }
-        else { need(own(escapes, c), 'Invalid escape', this.i); out += escapes[c]; }
-      } else out += c;
-    }
-    fail('Unclosed string', start);
-  };
-  Parser.prototype.value = function (depth, raw, numberSpan) {
-    need(depth <= LIMITS.depth && ++this.nodes <= LIMITS.nodes, 'Data resource limit', this.i);
-    this.skip(); var c = this.s[this.i], v, k;
-    if (c === '"' || c === "'") return this.string(raw);
-    if (c === '{' || c === '[') {
-      this.i++; var arr = c === '[', close = arr ? ']' : '}'; v = arr ? [] : {};
-      if (this.take(close)) return v;
-      do {
-        if (arr) v.push(this.value(depth + 1));
-        else {
-          this.skip(); k = /['"]/.test(this.s[this.i] || ' ') ? this.string() : this.id();
-          need(!['__proto__', 'constructor', 'prototype'].includes(k) && !own(v, k), 'Forbidden or duplicate key', this.i);
-          this.expect(':'); v[k] = this.value(depth + 1);
-        }
-        if (this.take(close)) return v;
-        this.expect(',');
-      } while (true);
-    }
-    var m = /^-?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?/.exec(this.s.slice(this.i));
-    if (m) {
-      // Only the direct numeric token gets a span; nested data and surrounding
-      // trivia never contribute. Keep spelling in the source, not a reprint.
-      if (numberSpan) numberSpan.push(this.i, this.i + m[0].length);
-      this.i += m[0].length; v = Number(m[0]); need(Number.isFinite(v), 'Non-finite number', this.i); return v;
-    }
-    k = this.id(); if (k === 'true') return true; if (k === 'false') return false; if (k === 'null') return null;
-    fail('Only literal data is allowed', this.i - k.length);
-  };
-  // Transform controls use exactly one argument. Capture its token while the
-  // existing literal parser consumes it; argument validation remains unchanged.
-  Parser.prototype.args = function (rawArgs, firstNumberSpan) { var a = []; this.expect('('); if (!this.take(')')) { do { var raw = rawArgs ? [] : null; a.push(this.value(0, raw, a.length === 0 ? firstNumberSpan : null)); if (rawArgs) rawArgs.push(raw); } while (this.take(',')); this.expect(')'); } return a; };
-  Parser.prototype.chain = function () { var a = []; while (this.take('.')) { var at = this.i, name = this.id(), numberSpan = own(CONTROL_BOUNDS, name) ? [] : null, args = this.args(null, numberSpan); a.push({ name: name, args: args, at: at, end: this.i, numberSpan: numberSpan }); } return a; };
-  // cycleV1 is explicit syntax, never a reinterpretation of saved notes().
-  // Parsing constructs bounded data; expansion still belongs to compile().
-  function cycleTree(text, raw, spend) {
-    var i = 0, nodes = 0, atoms = 0;
-    function at() { return raw[i]; }
-    function skip() { while (i < text.length && /\s/.test(text[i])) i++; }
-    function integer() { skip(); var start = i; while (/[0-9]/.test(text[i] || ' ')) i++; need(i > start, 'Expected cycle integer', at()); return Number(text.slice(start, i)); }
-    function expect(c) { skip(); need(text[i] === c, 'Expected cycle ' + c, at()); i++; }
-    function node(type, data, children, offset) {
-      spend(offset); need(++nodes <= LIMITS.cycleNodes, 'Cycle syntax node limit', offset);
-      var depth = 1;
-      (children || []).forEach(function (child) { depth = Math.max(depth, child.depth + 1); });
-      need(depth <= LIMITS.cycleDepth, 'Cycle nesting limit', offset);
-      return Object.assign({ type: type, depth: depth, at: offset }, data);
-    }
-    function euclid(hits, slots) {
-      // Distribute the shorter collection among the longer, retaining the
-      // remainder at each Euclidean step. This fixes a reproducible phase.
-      if (hits === 0 || hits === slots) return Array(slots).fill(hits !== 0);
-      var a = Array.from({ length: hits }, function () { return [true]; });
-      var b = Array.from({ length: slots - hits }, function () { return [false]; });
-      while (a.length > 1 && b.length > 1) {
-        var count = Math.min(a.length, b.length), combined = [];
-        for (var n = 0; n < count; n++) combined.push(a[n].concat(b[n]));
-        var rest = a.length > count ? a.slice(count) : b.slice(count);
-        a = combined; b = rest;
-      }
-      return a.concat(b).flat();
-    }
-    function sequence(close, alternate, nesting) {
-      need(nesting <= LIMITS.cycleDepth, 'Cycle nesting limit', at());
-      skip(); var start = at(), children = [];
-      while (i < text.length && text[i] !== close) {
-        children.push(item(nesting));
-        var before = i; skip();
-        need(i === text.length || text[i] === close || i > before, 'Separate cycle slots with whitespace', at());
-      }
-      need(children.length > 0, 'Empty cycle group', start);
-      if (close) expect(close);
-      return node(alternate ? 'alternate' : 'sequence', { children: children }, children, start);
-    }
-    function item(nesting) {
-      skip(); var start = at(), value;
-      if (text[i] === '[' || text[i] === '<') {
-        var alternate = text[i++] === '<'; value = sequence(alternate ? '>' : ']', alternate, nesting + 1);
-      } else if (text[i] === '~') { i++; value = node('rest', {}, [], start); }
-      else {
-        var match = /^([A-Ga-g])([#b]?)(-?\d+)/.exec(text.slice(i));
-        need(match, 'Expected cycle pitch, ~, [group] or <alternation>', start);
-        var octave = Number(match[3]); need(num(octave, -128, 128, true), 'Invalid cycle octave', start);
-        i += match[0].length;
-        value = node('note', { token: atoms++, from: start, to: at(), midi: (octave + 1) * 12 +
-          { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }[match[1].toUpperCase()] + (match[2] === '#' ? 1 : match[2] === 'b' ? -1 : 0) }, [], start);
-      }
-      // Postfix operators are adjacent to their item, never free-floating slots.
-      while (text[i] === '*' || text[i] === '(') {
-        var operation = text[i++], offset = raw[i - 1], n;
-        if (operation === '*') {
-          n = integer(); need(num(n, 1, 16, true), 'Cycle repetition must be an integer 1–16', offset);
-          value = node('repeat', { child: value, count: n }, [value], offset);
-        } else {
-          need(value.type === 'note', 'Euclidean suffix requires one pitch atom', offset);
-          var hits = integer(); expect(','); n = integer(); skip(); var rotation = 0;
-          if (text[i] === ',') { i++; rotation = integer(); }
-          expect(')');
-          need(num(n, 1, 64, true) && num(hits, 0, n, true) && num(rotation, 0, n - 1, true), 'Invalid Euclidean hits, slots or left rotation', offset);
-          var mask = euclid(hits, n);
-          value = node('euclid', { child: value, mask: mask.map(function (_, index) { return mask[(index + rotation) % n]; }) }, [value], offset);
-        }
-      }
-      return value;
-    }
-    var root = sequence(null, false, 0); skip(); need(i === text.length, 'Unexpected cycle notation', at()); return root;
-  }
-  function cycleRows(pat, atBar, repeat, gate, spend, playAt) {
-    // Only bounded integer arithmetic is used before the common clock boundary.
-    // Intermediate products have at most twice the bounded operand bit count.
-    var MAX = (1n << BigInt(LIMITS.cycleBits)) - 1n;
-    function rational(n, d) {
-      d = d === undefined ? 1n : d; if (d < 0n) { n = -n; d = -d; }
-      var a = n < 0n ? -n : n, b = d;
-      while (b) { var rem = a % b; a = b; b = rem; }
-      n /= a; d /= a;
-      need(d > 0n && d <= MAX && n <= MAX && n >= -MAX, 'Cycle rational precision limit', playAt);
-      return { n: n, d: d };
-    }
-    function add(a, b) { return rational(a.n * b.d + b.n * a.d, a.d * b.d); }
-    function sub(a, b) { return rational(a.n * b.d - b.n * a.d, a.d * b.d); }
-    function mul(a, b) { return rational(a.n * b.n, a.d * b.d); }
-    function div(a, b) { return rational(a.n * b.d, a.d * b.n); }
-    function cmp(a, b) { var delta = a.n * b.d - b.n * a.d; return delta < 0n ? -1 : delta > 0n ? 1 : 0; }
-    function floor(a) { return a.n >= 0n ? a.n / a.d : (a.n - a.d + 1n) / a.d; }
-    function ceil(a) { return -floor({ n: -a.n, d: a.d }); }
-    function minimum(a, b) { return cmp(a, b) < 0 ? a : b; }
-    function maximum(a, b) { return cmp(a, b) > 0 ? a : b; }
-    function number(a) { return Number(a.n) / Number(a.d); }
-    function decimal(n) {
-      var parts = String(n).toLowerCase().split('e'), mantissa = parts[0].split('.');
-      var exponent = Number(parts[1] || 0) - (mantissa[1] || '').length;
-      var digits = BigInt(mantissa.join(''));
-      return exponent >= 0 ? rational(digits * 10n ** BigInt(exponent)) : rational(digits, 10n ** BigInt(-exponent));
-    }
-    function push(out, event) { need(out.length <= LIMITS.events, 'Cycle intermediate event limit', playAt); out.push(event); }
-    function identity(event) { return event.note.token + '@' + event.start.n + '/' + event.start.d + ':' + event.end.n + '/' + event.end.d; }
-    function unique(events) {
-      var seen = new Set(), out = [];
-      events.forEach(function (event) { spend(playAt); var key = identity(event); if (!seen.has(key)) { seen.add(key); push(out, event); } });
-      return out;
-    }
-    function tree(node, phase, start, end, from, to, out) {
-      spend(node.at);
-      if (cmp(end, from) <= 0 || cmp(start, to) >= 0) return;
-      if (node.type === 'rest') return;
-      if (node.type === 'note') { push(out, { note: node, start: start, end: end }); return; }
-      if (node.type === 'alternate') {
-        var count = BigInt(node.children.length);
-        tree(node.children[Number(phase % count)], phase / count, start, end, from, to, out); return;
-      }
-      var n = node.type === 'sequence' ? node.children.length : node.type === 'repeat' ? node.count : node.mask.length;
-      var size = div(sub(end, start), rational(BigInt(n)));
-      for (var index = 0; index < n; index++) {
-        spend(node.at);
-        if (node.type === 'euclid' && !node.mask[index]) continue;
-        var next = node.type === 'sequence' ? node.children[index] : node.child;
-        var a = add(start, mul(size, rational(BigInt(index))));
-        var b = add(start, mul(size, rational(BigInt(index + 1))));
-        tree(next, node.type === 'repeat' ? phase * BigInt(n) + BigInt(index) : phase, a, b, from, to, out);
-      }
-    }
-    var wrappers = pat.chains.filter(function (c) { return ['fast', 'slow', 'rev', 'every'].includes(c.name); });
-    function query(level, from, to) {
-      spend(playAt); var out = [];
-      if (level >= 0) {
-        var wrapper = wrappers[level];
-        if (wrapper.name === 'fast' || wrapper.name === 'slow') {
-          var factor = wrapper.name === 'fast' ? rational(BigInt(wrapper.args[0])) : rational(1n, BigInt(wrapper.args[0]));
-          return query(level - 1, mul(from, factor), mul(to, factor)).map(function (event) {
-            spend(wrapper.at); return { note: event.note, start: div(event.start, factor), end: div(event.end, factor) };
-          });
-        }
-      }
-      var first = floor(from), last = ceil(to);
-      need(last - first <= BigInt(LIMITS.cycleWork), 'Cycle query work limit', playAt);
-      for (var cycle = first; cycle < last; cycle++) {
-        spend(playAt);
-        var start = rational(cycle), end = rational(cycle + 1n), a = maximum(from, start), b = minimum(to, end);
-        if (level < 0) tree(pat.cycle, cycle, start, end, a, b, out);
-        else {
-          var reverse = wrapper.name === 'rev' || Number(cycle % BigInt(wrapper.args[0])) === wrapper.args[2];
-          var pivot = rational(2n * cycle + 1n);
-          var events = query(level - 1, reverse ? sub(pivot, b) : a, reverse ? sub(pivot, a) : b);
-          if (reverse) events.reverse();
-          events.forEach(function (event) {
-            spend(wrapper.at);
-            if (reverse) {
-              need(cmp(event.start, start) >= 0 && cmp(event.end, end) <= 0,
-                'Cannot reverse a note crossing a cycle; put rev before slow', wrapper.at);
-              event = { note: event.note, start: sub(pivot, event.end), end: sub(pivot, event.start) };
-            }
-            push(out, event);
-          });
-        }
-      }
-      return level < 0 ? out : unique(out);
-    }
-    var from = decimal(atBar), to = add(from, rational(BigInt(repeat))), gateRatio = decimal(gate);
-    return unique(query(wrappers.length - 1, from, to)).filter(function (event) {
-      return cmp(event.start, from) >= 0 && cmp(event.start, to) < 0;
-    }).map(function (event) {
-      spend(playAt);
-      return { start: number(event.start), end: number(add(event.start, mul(sub(event.end, event.start), gateRatio))), midi: event.note.midi, vel: 1,
-        token: event.note.token, from: event.note.from, to: event.note.to, cycleEvent: identity(event), occurrence: Number(floor(sub(event.start, from))) };
-    });
-  }
-  function compile(source) {
-    var settings = {}, mapping = [], diagnostics = [], p, gb = null;
-    var lines = [0];
-    function pos(offset) { var lo = 0, hi = lines.length; while (lo + 1 < hi) { var mid = (lo + hi) >> 1; if (lines[mid] <= offset) lo = mid; else hi = mid; } return { offset: offset, line: lo + 1, column: offset - lines[lo] + 1 }; }
-    function span(a, b) { return { start: pos(a), end: pos(b) }; }
-    try {
-      need(typeof source === 'string' && source.length <= LIMITS.source, 'Source size limit');
-      for (var li = 0; li < source.length; li++) if (source[li] === '\n') lines.push(li + 1);
-      need(H && H.beatToFrame, 'CT_GB hardware dependency is required');
-      p = new Parser(source); var patterns = Object.create(null), plays = [], seen = Object.create(null), eventCount = 0, eventSpans = {}, work = 0, cycleWork = 0, controlCalls = [], controlsOmitted = 0;
-      function spend(n, at) { work += n; need(work <= LIMITS.work, 'Compilation work limit', at); }
-      function spendCycle(at) { need(++cycleWork <= LIMITS.cycleWork, 'Cycle compilation work limit', at); spend(1, at); }
-      function recordControls(chains, ownerType, ownerName, at, end) {
-        var ownerSpan;
-        // Visit declarations, never expanded plays/notes: source order and one
-        // descriptor per call follow directly, even for repeated or silent uses.
-        chains.forEach(function (c) {
-          if (!own(CONTROL_BOUNDS, c.name) || ownerType === 'track' && c.name !== 'transpose') return;
-          // This is view metadata, not a new music resource gate. The source
-          // limit bounds the total call count; retain only the first 50,000.
-          if (controlCalls.length === LIMITS.controls) { controlsOmitted++; return; }
-          if (!ownerSpan) ownerSpan = span(at, end);
-          controlCalls.push({ call: c, ownerType: ownerType, ownerName: ownerName, ownerSpan: ownerSpan });
-        });
-      }
-      gb = { notes: [] };
-      function add(key, value, at, end) {
-        need(object(value), key + ' requires an object', at);
-        need(++eventCount <= LIMITS.events, 'Event expansion limit', at);
-        if (!own(gb, key)) gb[key] = [];
-        gb[key].push(value);
-        (eventSpans[key] || (eventSpans[key] = [])).push(at);
-        if (key === 'notes') mapping.push({ noteIndex: gb.notes.length - 1, span: span(at, end), pattern: null, occurrence: null });
-      }
-      while (true) {
-        p.skip(); if (p.i === source.length) break;
-        var at = p.i, name = p.id(), args, chains;
-        if (name === 'pattern') {
-          p.expect('('); var pn = p.value(0); need(typeof pn === 'string' && !own(patterns, pn), 'Invalid or duplicate pattern name', at);
-          p.expect(','); var constructor = p.id(); need(constructor === 'notes' || constructor === 'cycleV1', 'Pattern requires notes() or cycleV1()', p.i); var rawArgs = []; args = p.args(rawArgs); chains = p.chain(); p.expect(')');
-          need(args.length === 1 && typeof args[0] === 'string', constructor + ' requires a string', at);
-          var rhythmic = 0;
-          chains.forEach(function (c) {
-            if (constructor === 'cycleV1' && ['fast', 'slow', 'rev', 'every'].includes(c.name)) {
-              need(++rhythmic <= LIMITS.cycleTransforms, 'Cycle transformation limit', c.at);
-              if (c.name === 'rev') need(c.args.length === 0, 'rev takes no arguments', c.at);
-              else if (c.name === 'every') need(c.args.length === 3 && num(c.args[0], 1, 64, true) && c.args[1] === 'rev' && num(c.args[2], 0, c.args[0] - 1, true), 'Use every(period, "rev", offset)', c.at);
-              else need(c.args.length === 1 && num(c.args[0], 1, 16, true), 'Cycle speed must be an integer 1–16', c.at);
-              return;
-            }
-            need(own(NOTE_BOUNDS, c.name), 'Unknown notes transformation', c.at);
-            need(constructor !== 'cycleV1' || c.name !== 'stepsPerBar', 'cycleV1 uses cycles; stepsPerBar belongs to notes()', c.at);
-            var b = NOTE_BOUNDS[c.name]; need(c.args.length === 1 && num(c.args[0], b[0], b[1], b[2]), 'Invalid notes transformation argument', c.at);
-          });
-          patterns[pn] = { text: args[0], raw: rawArgs[0], chains: chains, at: at, end: p.i,
-            cycle: constructor === 'cycleV1' ? cycleTree(args[0], rawArgs[0], spendCycle) : null };
-          recordControls(chains, 'pattern', pn, at, p.i);
-        } else {
-          args = p.args(); chains = p.chain();
-          need(args.length === 1, name + ' requires one argument', at);
-          var v = args[0];
-          if (name === 'track') {
-            need(typeof v === 'string', 'Track requires a lane name', at); plays.push({ lane: v, chains: chains, at: at, end: p.i });
-            // chain() skips trivia when looking for the next dot. Its last
-            // call end is the declaration close; keep legacy mapping ends as-is.
-            if (chains.length) recordControls(chains, 'track', v, at, chains[chains.length - 1].end);
-          }
-          else {
-            need(chains.length === 0, 'Unsupported chain', at);
-            var eventNames = { event: 'notes', automation: 'auto', vibratoOff: 'vibOff', waveLoad: 'waveLoads', kit: 'kit' };
-            var key = own(eventNames, name) ? eventNames[name] : null;
-            if (key) add(key, v, at, p.i);
-            else if (['song', 'instruments', 'waves', 'performance'].includes(name)) {
-              need(!seen[name], 'Duplicate ' + name, at); seen[name] = true;
-              if (name === 'song') {
-                need(object(v), 'song requires settings', at);
-                if (own(v, 'totalFrames')) { need(Object.keys(v).every(function (k) { return ['totalFrames', 'loopFrames', 'settings'].includes(k); }), 'Exact song accepts totalFrames, loopFrames, settings', at); settings = v.settings || {}; need(object(settings), 'Invalid settings', at); gb.totalFrames = v.totalFrames; if (own(v, 'loopFrames')) gb.loopFrames = v.loopFrames; }
-                else { settings = v; }
-              } else if (name === 'performance') {
-                need(object(v), 'performance requires an object', at);
-                Object.keys(v).forEach(function (k) {
-                  need(!['notes', 'totalFrames', 'loopFrames'].includes(k), 'Reserved performance field ' + k, at);
-                  if (['auto', 'vibOff', 'waveLoads', 'kit'].includes(k)) need(Array.isArray(v[k]) && !v[k].length, 'Use individual event calls for ' + k, at);
-                  if (k === 'bank') { need(object(v[k]) && !own(v[k], 'instruments') && !own(v[k], 'waveTables'), 'Use instruments() and waves() for bank assets', at); gb.bank = Object.assign(gb.bank || {}, v[k]); }
-                  else { need(!own(gb, k), 'Duplicate performance field', at); gb[k] = v[k]; }
-                });
-              } else { need(Array.isArray(v), name + ' requires an array', at); gb.bank = gb.bank || {}; gb.bank[name === 'waves' ? 'waveTables' : 'instruments'] = v; }
-            } else fail('Unknown call ' + name, at);
-          }
-        }
-        p.take(';');
-      }
-      need(seen.song, 'song() is required');
-      var tempo = settings.tempo == null ? 120 : settings.tempo;
-      var changes = settings.tempoAt, time = createClock(settings);
-      if (!own(gb, 'totalFrames') || plays.length) {
-        need(num(tempo, 1, 1000), 'Invalid tempo');
-        need(settings.beatsPerBar == null || settings.beatsPerBar === 4, 'Only four beats per bar are supported');
-        if (!own(gb, 'totalFrames')) { need(num(settings.bars, 1, 65536, true), 'Finite bars required'); gb.totalFrames = time(settings.bars * 4); gb.loopFrames = gb.totalFrames; }
-        if (!gb.bank) gb.bank = H.buildBank([]);
-      }
-      need(num(gb.totalFrames, 0, LIMITS.frames, true), 'Invalid totalFrames');
-      if (own(gb, 'loopFrames')) need(num(gb.loopFrames, 0, gb.totalFrames, true), 'Invalid loopFrames');
-      if (gb.bank) {
-        var b = gb.bank;
-        // Create appends sound variants to the 128 stock records. Indices are
-        // array addresses, not seven-bit hardware IDs; ROM emits registers.
-        if (own(b, 'instruments')) need(Array.isArray(b.instruments) && b.instruments.length <= LIMITS.instruments && b.instruments.every(function (r) { return Array.isArray(r) && r.length === 4 && r.every(function (v) { return num(v, 0, 255, true); }); }), 'Invalid instrument bank: at most ' + LIMITS.instruments + ' four-byte records');
-        if (own(b, 'waveTables')) need(Array.isArray(b.waveTables) && b.waveTables.length <= H.WAVE_SLOTS && b.waveTables.every(function (r) { return Array.isArray(r) && r.length === 32 && r.every(function (v) { return num(v, 0, 15, true); }); }), 'Invalid wave bank: at most 32 tables of 32 nibbles');
-        if (own(b, 'arpTables')) need(Array.isArray(b.arpTables) && b.arpTables.length <= 256 && b.arpTables.every(function (r) { return Array.isArray(r) && r.length <= 256 && r.every(function (v) { return num(v, -128, 255, true); }); }), 'Invalid arpeggio tables');
-        if (own(b, 'meta')) need(Array.isArray(b.meta) && b.meta.length <= ((b.instruments || []).length) && b.meta.every(function (m) { return object(m) && num(m.index, 0, (b.instruments || []).length - 1, true) && ['pulse', 'wave', 'noise'].includes(m.type) && (!own(m, 'patch') || object(m.patch) && (!own(m.patch, 'table4bit') || Array.isArray(m.patch.table4bit) && m.patch.table4bit.length === 32 && m.patch.table4bit.every(function (v) { return num(v, 0, 15, true); }))); }), 'Invalid bank metadata');
-      }
-      var lanes = { lead: 0, pulse1: 0, arp: 1, pad: 1, pulse2: 1, bass: 2, wave: 2, drums: 3, noise: 3 };
-      function instrument(v, at) {
-        if (typeof v === 'string') {
-          if (v === 'wave-bass') v = 'w-triangle';
-          var matches = ((gb.bank || {}).meta || []).filter(function (m) { return m.name === v || m.id === v || m.patch && m.patch.authored === v; });
-          need(matches.length === 1, 'Unknown or ambiguous instrument ' + v, at); v = matches[0].index;
-        }
-        need(num(v, 0, ((gb.bank || {}).instruments || []).length - 1, true), 'Invalid instrument', at); return v;
-      }
-      plays.forEach(function (t) {
-        need(own(lanes, t.lane), 'Unknown track lane', t.at); var inst = null, transforms = [];
-        t.chains.forEach(function (c) {
-          if (c.name === 'instrument') { need(c.args.length === 1, 'instrument requires one argument', c.at); inst = instrument(c.args[0], c.at); return; }
-          if (c.name === 'transpose' || c.name === 'register') { need(c.args.length === 1 && num(c.args[0], -128, 128, true), 'Invalid pitch transformation', c.at); transforms.push(c); return; }
-          need(c.name === 'play' && c.args.length >= 1 && c.args.length <= 2, 'Unsupported track operation', c.at);
-          need(inst !== null, 'Set instrument before play', c.at);
-          need(typeof c.args[0] === 'string', 'play requires a pattern name', c.at);
-          var pat = patterns[c.args[0]], opt = c.args.length === 2 ? c.args[1] : {};
-          need(pat && object(opt) && Object.keys(opt).every(function (k) { return ['atBar', 'repeat'].includes(k); }), 'Invalid pattern or play options', c.at);
-          var atBar = opt.atBar == null ? 0 : opt.atBar, repeat = opt.repeat == null ? 1 : opt.repeat;
-          need(num(atBar, 0, 65536) && num(repeat, 1, LIMITS.repeats, true), 'Invalid arrangement bounds', c.at);
-          if (pat.cycle) {
-            var cycleGate = 1;
-            pat.chains.forEach(function (x) { if (x.name === 'gate') cycleGate = x.args[0]; });
-            var cycleNotes = cycleRows(pat, atBar, repeat, cycleGate, spendCycle, c.at);
-            pat.chains.concat(transforms).forEach(function (x) {
-              spend(1, x.at);
-              if (x.name === 'velocity' || x.name === 'transpose' || x.name === 'register') cycleNotes.forEach(function (row) {
-                spend(1, x.at);
-                if (x.name === 'velocity') row.vel = x.args[0];
-                else row.midi = x.name === 'transpose' ? row.midi + x.args[0] : (x.args[0] + 1) * 12 + ((row.midi % 12) + 12) % 12;
-              });
-            });
-            need(eventCount + cycleNotes.length <= LIMITS.events, 'Event expansion limit', c.at);
-            cycleNotes.forEach(function (row) {
-              spend(1, c.at); var frame = time(row.start * 4);
-              add('notes', { ch: lanes[t.lane], frame: frame, frames: Math.max(1, time(row.end * 4) - frame), midi: row.midi, inst: inst, vel: row.vel }, pat.at, pat.end);
-              Object.assign(mapping[mapping.length - 1], { pattern: c.args[0], patternType: 'cycleV1', occurrence: row.occurrence,
-                patternNote: row.token, cycleEvent: row.cycleEvent, track: t.lane, tokenSpan: span(row.from, row.to),
-                occurrenceSpan: span(c.at, t.end), playSpan: span(c.at - 1, c.end), trackSpan: span(t.at, t.end),
-                occurrenceStartFrame: time((atBar + row.occurrence) * 4), occurrenceEndFrame: time((atBar + row.occurrence + 1) * 4) });
-            });
-            return;
-          }
-          var tokens = pat.text.match(/\S+/g) || [], tokenOffset = 0, step = 0, rows = [], spb = 16, gate = 1;
-          spend(tokens.length * (1 + pat.chains.length + transforms.length), c.at);
-          need(tokens.length > 0 && tokens.length <= LIMITS.steps, 'Pattern step limit', pat.at);
-          tokens.forEach(function (token) {
-            tokenOffset = pat.text.indexOf(token, tokenOffset);
-            var m = /^(\.|[A-Ga-g][#b]?-?\d+)(?::(\d+(?:\.\d+)?))?(?:@(\d+(?:\.\d+)?))?$/.exec(token);
-            need(m, 'Invalid note token ' + token, pat.at); var length = m[2] == null ? 1 : Number(m[2]), vel = m[3] == null ? 1 : Number(m[3]);
-            need(num(length, 0.001, LIMITS.steps) && num(vel, 0, 1), 'Invalid length or velocity', pat.at);
-            if (m[1] !== '.') { var pitch = /^([A-Ga-g])([#b]?)(-?\d+)$/.exec(m[1]); rows.push({ step: step, length: length, midi: (Number(pitch[3]) + 1) * 12 + { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }[pitch[1].toUpperCase()] + (pitch[2] === '#' ? 1 : pitch[2] === 'b' ? -1 : 0), vel: vel }); }
-            if (m[1] !== '.') rows[rows.length - 1].tokenSpan = span(pat.raw[tokenOffset], pat.raw[tokenOffset + m[1].length]);
-            tokenOffset += token.length;
-            step += length; need(step <= LIMITS.steps, 'Pattern length limit', pat.at);
-          });
-          pat.chains.concat(transforms).forEach(function (x) {
-            var n = x.args[0]; need(x.args.length === 1, 'Transformation requires one argument', x.at);
-            if (x.name === 'stepsPerBar') { need(num(n, 1, 256, true), 'Invalid stepsPerBar', x.at); spb = n; }
-            else if (x.name === 'gate') { need(num(n, 0.001, 1), 'Invalid gate', x.at); gate = n; }
-            else if (x.name === 'velocity') { need(num(n, 0, 1), 'Invalid velocity', x.at); rows.forEach(function (r) { r.vel = n; }); }
-            else if (x.name === 'transpose' || x.name === 'register') { need(num(n, -128, 128, true), 'Invalid pitch transformation', x.at); rows.forEach(function (r) { r.midi = x.name === 'transpose' ? r.midi + n : (n + 1) * 12 + ((r.midi % 12) + 12) % 12; }); }
-            else fail('Unknown notes transformation', x.at);
-          });
-          need(eventCount + rows.length * repeat <= LIMITS.events, 'Event expansion limit', c.at);
-          spend(repeat * (1 + rows.length * (1 + (changes ? changes.length : 0))), c.at);
-          for (var rep = 0; rows.length && rep < repeat; rep++) {
-            var occurrenceStartFrame = time(atBar * 4 + rep * step * 4 / spb);
-            var occurrenceEndFrame = time(atBar * 4 + (rep + 1) * step * 4 / spb);
-            rows.forEach(function (r, ri) {
-            var beat = atBar * 4 + (rep * step + r.step) * 4 / spb, frame = time(beat);
-            add('notes', { ch: lanes[t.lane], frame: frame, frames: Math.max(1, time(beat + r.length * gate * 4 / spb) - frame), midi: r.midi, inst: inst, vel: r.vel }, pat.at, pat.end);
-            Object.assign(mapping[mapping.length - 1], { pattern: c.args[0], occurrence: rep, patternNote: ri, track: t.lane, occurrenceSpan: span(c.at, t.end),
-              tokenSpan: r.tokenSpan, playSpan: span(c.at - 1, c.end), trackSpan: span(t.at, t.end), occurrenceStartFrame: occurrenceStartFrame, occurrenceEndFrame: occurrenceEndFrame });
-          });
-          }
-        });
-      });
-      gb.notes.forEach(function (n, i) {
-        var at = mapping[i].span.start.offset;
-        need(num(n.ch, 0, 3, true) && num(n.frame, 0, LIMITS.frames, true) && num(n.frames, 1, LIMITS.frames, true), 'Invalid note channel or timing', at);
-        need(n.frame < gb.totalFrames, 'Note starts at or beyond song end', at);
-        need(n.frame + n.frames <= LIMITS.frames, 'Note end exceeds global frame limit', at);
-        if (n.frame + n.frames > gb.totalFrames) {
-          need(mapping[i].pattern === null, 'Note extends beyond song end', at);
-          diagnostics.push({ severity: 'warning', code: 'SONG_END_CUT',
-            message: 'Finite song end cuts this exact event; its source duration is preserved',
-            span: mapping[i].span, noteIndex: i, cutFrame: gb.totalFrames,
-            noteEndFrame: n.frame + n.frames });
-        }
-        need(typeof n.inst === 'number', 'Explicit event inst must be an index', at);
-        instrument(n.inst, at);
-        if (n.ch !== 3) need(num(n.midi, 0, 127, true) && H.inRange(n.midi, n.ch === 2 ? 'wave' : 'pulse'), 'Pitch outside chip range', at);
-        if (own(n, 'vel')) need(num(n.vel, 0, 1), 'Invalid velocity', at);
-        if (own(n, 'trigger')) need(typeof n.trigger === 'boolean', 'Invalid trigger state', at);
-      });
-      ['auto', 'vibOff', 'waveLoads', 'kit'].forEach(function (k) {
-        (gb[k] || []).forEach(function (e, i) {
-          var at = eventSpans[k][i];
-          need(num(e.f, 0, gb.totalFrames), 'Invalid ' + k + ' frame', at);
-          if (k === 'auto') need(num(e.r, 16, 63, true) && num(e.v, 0, 255, true), 'Invalid register write', at);
-          if (k === 'vibOff') need(num(e.ch, 0, 1, true), 'Invalid vibrato channel', at);
-          if (k === 'waveLoads') need(num(e.slot, 0, ((gb.bank || {}).waveTables || []).length - 1, true), 'Invalid wave slot', at);
-          if (k === 'kit') need(num(e.id, 0, 255, true) && K && K.kits().some(function (kit) { return kit.id === e.id; }), 'Unknown kit id or missing CT_GB_KITS', at);
-        });
-      });
-      var ends = [-1, -1, -1, -1];
-      gb.notes.map(function (n, i) { return { n: n, i: i }; }).sort(function (a, b) { return a.n.frame - b.n.frame || a.i - b.i; }).forEach(function (item) {
-        var n = item.n;
-        if (n.frame < ends[n.ch]) diagnostics.push({ severity: 'warning', code: 'CHIP_OVERLAP', message: 'Overlapping notes on chip channel ' + n.ch, span: mapping[item.i].span, noteIndex: item.i });
-        ends[n.ch] = Math.max(ends[n.ch], n.frame + n.frames);
-      });
-      // Tracks, emitted pitches/timing, banks and dedicated event arrays have
-      // all validated. Every retained call now has one direct numeric token.
-      var controls = controlCalls.map(function (entry) {
-        var c = entry.call, b = CONTROL_BOUNDS[c.name];
-        return { kind: c.name, value: c.args[0], literalSpan: span(c.numberSpan[0], c.numberSpan[1]),
-          callSpan: span(c.at - 1, c.end), ownerSpan: entry.ownerSpan, ownerType: entry.ownerType,
-          ownerName: entry.ownerName, min: b[0], max: b[1], integer: b[2] };
-      });
-      return { gb: gb, settings: settings, mapping: mapping, diagnostics: diagnostics, controls: controls, controlsOmitted: controlsOmitted };
-    } catch (e) { return { gb: null, settings: settings, mapping: [], controls: [], controlsOmitted: 0, diagnostics: [{ severity: 'error', code: 'INVALID_SOURCE', message: e.message, span: span(e.at == null ? p ? p.i : 0 : e.at, e.at == null ? p ? p.i : 0 : e.at) }] }; }
-  }
-  function materialize(gb, meta) {
-    var nodes = 0, active = new Set();
-    function check(v, depth) {
-      need(depth <= LIMITS.depth && ++nodes <= LIMITS.nodes, 'Data resource limit');
-      if (v === null || typeof v === 'string' || typeof v === 'boolean' || typeof v === 'number' && Number.isFinite(v)) return;
-      need(typeof v === 'object' && v && !active.has(v), 'Only acyclic finite JSON data is supported');
-      need(Array.isArray(v) || Object.getPrototypeOf(v) === Object.prototype || Object.getPrototypeOf(v) === null, 'Only plain data is supported');
-      active.add(v);
-      if (Array.isArray(v)) need(Object.keys(v).length === v.length, 'Sparse or decorated arrays are unsupported');
-      Object.keys(v).forEach(function (k) { need(!['__proto__', 'constructor', 'prototype'].includes(k), 'Forbidden data key'); var d = Object.getOwnPropertyDescriptor(v, k); need(d && own(d, 'value'), 'Accessors are unsupported'); if (d.value !== undefined || Array.isArray(v)) check(d.value, depth + 1); });
-      need(Object.getOwnPropertySymbols(v).length === 0, 'Symbol fields are unsupported'); active.delete(v);
-    }
-    check(gb, 0); check(meta || {}, 0); need(object(gb) && Array.isArray(gb.notes), 'GB notes required');
-    var out = [], song = { totalFrames: gb.totalFrames, settings: meta || {} }, extra = {};
-    if (own(gb, 'loopFrames')) song.loopFrames = gb.loopFrames;
-    function emit(name, v) {
-      if (name === 'song') out.push('// Song and source settings\n' + name + '(' + JSON.stringify(v, null, 2) + ');');
-      else if (name === 'instruments' || name === 'waves') out.push('// ' + (name === 'instruments' ? 'Instrument records' : 'Wave tables (32 nibbles each)') + '\n' + name + '([\n' + v.map(function (row) { return '  ' + JSON.stringify(row); }).join(',\n') + '\n]);');
-      else if (name === 'performance') out.push('// Performance and bank metadata\nperformance(' + JSON.stringify(v) + ');');
-      else out.push(name + '(' + JSON.stringify(v) + ');');
-    }
-    emit('song', song);
-    if (gb.bank) {
-      if (own(gb.bank, 'instruments')) emit('instruments', gb.bank.instruments);
-      if (own(gb.bank, 'waveTables')) emit('waves', gb.bank.waveTables);
-      extra.bank = {}; Object.keys(gb.bank).forEach(function (k) { if (!['instruments', 'waveTables'].includes(k)) extra.bank[k] = gb.bank[k]; });
-    }
-    Object.keys(gb).forEach(function (k) { if (!['notes', 'bank', 'totalFrames', 'loopFrames', 'auto', 'vibOff', 'waveLoads', 'kit'].includes(k)) extra[k] = gb[k]; });
-    var calls = { notes: 'event', auto: 'automation', vibOff: 'vibratoOff', waveLoads: 'waveLoad', kit: 'kit' };
-    Object.keys(calls).forEach(function (k) { if (own(gb, k) && k !== 'notes' && gb[k].length === 0) extra[k] = []; });
-    if (Object.keys(extra).length) emit('performance', extra);
-    Object.keys(calls).forEach(function (k) { if (own(gb, k)) { need(Array.isArray(gb[k]), 'Expected event array'); if (gb[k].length) out.push('\n// ' + { notes: 'Note events', auto: 'Register automation', vibOff: 'Vibrato off', waveLoads: 'Wave loads', kit: 'Kit events' }[k]); gb[k].forEach(function (e) { emit(calls[k], e); }); } });
-    var source = out.join('\n') + '\n', result = compile(source);
-    need(result.gb, result.diagnostics.map(function (d) { return d.message; }).join('; '));
-    function canonical(v) { if (Array.isArray(v)) return v.map(canonical); if (object(v)) { var o = {}; Object.keys(v).sort().forEach(function (k) { o[k] = canonical(v[k]); }); return o; } return v; }
-    need(JSON.stringify(canonical(result.gb)) === JSON.stringify(canonical(gb)), 'Unsupported GB representation');
-    return source;
-  }
-  var API = Object.freeze({ VERSION: '1', LIMITS: LIMITS, compile: compile, materialize: materialize,
-    beatToFrame: beatToFrame, createClock: createClock });
-  G.CT_MUSIC_LANGUAGE = API;
-  if (typeof module !== 'undefined' && module.exports) module.exports = API;
-})(typeof globalThis !== 'undefined' ? globalThis : window);
-
-/* ===== src/music-cycle-examples.js ===== */
-// Seven edits of one finite performance, following docs/music-cycle-v1.md.
-// Source data only: the existing music language and chip player execute it.
-(function (G) {
-  'use strict';
-
-  // Restoration deliberately reuses this exact text for Run/Undo demos.
-  var fullArrangement = `song({tempo:132,bars:8})
-
-pattern("beat",cycleV1("C2(3,8)").gate(.15))
-pattern("bass",cycleV1("C2 [E2 G2] ~ G2").gate(.65))
-pattern("lead",cycleV1("<C4 E4> [G4 B4] E4 ~").every(4,"rev",3).gate(.55))
-
-track("drums").instrument("n-tick").play("beat",{repeat:8})
-track("bass").instrument("wave-bass").play("bass",{repeat:8})
-track("lead").instrument("p0").play("lead",{repeat:8})`;
-
-  var steps = [
-    {
-      id: 'noise-groove',
-      title: 'Noise groove',
-      description: 'Start eight bars at 132 BPM with a short noise tick on each beat.',
-      source: `song({tempo:132,bars:8})
-
-pattern("beat",cycleV1("C2 C2 C2 C2").gate(.15))
-
-track("drums").instrument("n-tick").play("beat",{repeat:8})`
-    },
-    {
-      id: 'subdivided-bass',
-      title: 'Add subdivided bass',
-      description: 'Add a C-major bass phrase. The bracketed E2 and G2 share one beat; ~ leaves a rest.',
-      source: `song({tempo:132,bars:8})
-
-pattern("beat",cycleV1("C2 C2 C2 C2").gate(.15))
-pattern("bass",cycleV1("C2 [E2 G2] ~ G2").gate(.65))
-
-track("drums").instrument("n-tick").play("beat",{repeat:8})
-track("bass").instrument("wave-bass").play("bass",{repeat:8})`
-    },
-    {
-      id: 'alternating-melody',
-      title: 'Add alternating melody',
-      description: 'Let <C4 E4> alternate the opening pitch each bar, followed by a bright G4-B4 figure.',
-      source: `song({tempo:132,bars:8})
-
-pattern("beat",cycleV1("C2 C2 C2 C2").gate(.15))
-pattern("bass",cycleV1("C2 [E2 G2] ~ G2").gate(.65))
-pattern("lead",cycleV1("<C4 E4> [G4 B4] E4 ~").gate(.55))
-
-track("drums").instrument("n-tick").play("beat",{repeat:8})
-track("bass").instrument("wave-bass").play("bass",{repeat:8})
-track("lead").instrument("p0").play("lead",{repeat:8})`
-    },
-    {
-      id: 'periodic-reverse',
-      title: 'Turn the melody around',
-      description: 'Reverse the melody on zero-based cycles 3 and 7 (bars 4 and 8), keeping the bass steady.',
-      source: `song({tempo:132,bars:8})
-
-pattern("beat",cycleV1("C2 C2 C2 C2").gate(.15))
-pattern("bass",cycleV1("C2 [E2 G2] ~ G2").gate(.65))
-pattern("lead",cycleV1("<C4 E4> [G4 B4] E4 ~").every(4,"rev",3).gate(.55))
-
-track("drums").instrument("n-tick").play("beat",{repeat:8})
-track("bass").instrument("wave-bass").play("bass",{repeat:8})
-track("lead").instrument("p0").play("lead",{repeat:8})`
-    },
-    {
-      id: 'euclidean-drums',
-      title: 'Vary the drums',
-      description: 'Use C2(3,8) for three noise hits across eight equal slots, keeping both pitched parts.',
-      source: fullArrangement
-    },
-    {
-      id: 'rest-breakdown',
-      title: 'Make room with rests',
-      description: 'Leave a downbeat tick, two bass anchors and two surviving melody notes. The periodic reversal continues.',
-      source: `song({tempo:132,bars:8})
-
-pattern("beat",cycleV1("C2 ~ ~ ~").gate(.15))
-pattern("bass",cycleV1("C2 ~ ~ G2").gate(.65))
-pattern("lead",cycleV1("<C4 E4> [G4 ~] ~ ~").every(4,"rev",3).gate(.55))
-
-track("drums").instrument("n-tick").play("beat",{repeat:8})
-track("bass").instrument("wave-bass").play("bass",{repeat:8})
-track("lead").instrument("p0").play("lead",{repeat:8})`
-    },
-    {
-      id: 'restore-arrangement',
-      title: 'Bring it all back',
-      description: 'Restore exactly the full Euclidean arrangement from step 5, ready to compare or Undo.',
-      source: fullArrangement
-    }
-  ].map(function (step) { return Object.freeze(step); });
-
-  var API = Object.freeze({ steps: Object.freeze(steps) });
-  G.CT_MUSIC_CYCLE_EXAMPLES = API;
-  if (typeof module !== 'undefined' && module.exports) module.exports = API;
-})(typeof globalThis !== 'undefined' ? globalThis : this);
-
-/* ===== src/music-project.js ===== */
-/* Revision authority for Code/Notes. No audio or storage side effects on create/apply.
- * UMD, synchronous compiler injection: compile(source) -> {gb,settings,mapping,diagnostics}.
- * All returned data is detached. Source offsets are UTF-16, ranges half-open.
- * Locks use chip channel numbers, never model-provided track names or summaries.
- * Unknown GB fields and shared registers are conservatively global for constraints.
- */
-(function (root, factory) {
-  var api = factory(root);
-  if (typeof module === 'object' && module.exports) module.exports = api;
-  else root.CT_MUSIC_PROJECT = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (root) {
-  'use strict';
-  var FORMAT = 'ct-music-project', VERSION = 1;
-  var sessionCounter = 0;
-  var LIMITS = { source: 1048576, record: 8388608, provenance: 65536, edits: 256, history: 64, requests: 1024 };
-  function fail(code, message) { return { ok: false, code: code, message: message || code }; }
-  function assert(ok, message) { if (!ok) throw new Error(message); }
-  // Preserve typed instrument banks in memory; compiled artifacts are never persisted.
-  function copy(value, depth) {
-    depth = depth || 0;
-    assert(depth < 100, 'Data nesting limit');
-    if (value == null || typeof value === 'string' || typeof value === 'boolean') return value;
-    if (typeof value === 'number') { assert(Number.isFinite(value), 'Non-finite data'); return value; }
-    if (ArrayBuffer.isView(value)) {
-      assert(!(value instanceof DataView), 'Unsupported DataView');
-      return new value.constructor(value);
-    }
-    assert(typeof value === 'object', 'Non-data value');
-    var result = Array.isArray(value) ? [] : {};
-    Object.keys(value).forEach(function (key) {
-      assert(key !== '__proto__' && key !== 'constructor' && key !== 'prototype', 'Unsafe data key');
-      var descriptor = Object.getOwnPropertyDescriptor(value, key);
-      assert(descriptor && 'value' in descriptor, 'Accessor data');
-      if (descriptor.value !== undefined) result[key] = copy(descriptor.value, depth + 1);
-    });
-    return result;
-  }
-  function stable(value) {
-    if (value === undefined) return 'undefined';
-    if (value === null || typeof value !== 'object') return JSON.stringify(value);
-    if (ArrayBuffer.isView(value)) return value.constructor.name + ':' + stable(Array.from(value));
-    if (Array.isArray(value)) return '[' + value.map(stable).join(',') + ']';
-    return '{' + Object.keys(value).sort().map(function (k) { return JSON.stringify(k) + ':' + stable(value[k]); }).join(',') + '}';
-  }
-  function equal(a, b) { return stable(a) === stable(b); }
-  function sourceOK(source) { return typeof source === 'string' && source.length <= LIMITS.source; }
-  function provenanceData(value) {
-    var data = copy(value == null ? null : value);
-    assert(JSON.stringify(data).length <= LIMITS.provenance, 'Provenance limit');
-    return data;
-  }
-  function channels(tracks) {
-    assert(Array.isArray(tracks) && tracks.length > 0 && tracks.length <= 4 && tracks.every(function (t) {
-      return Number.isInteger(t) && t >= 0 && t <= 3;
-    }), 'tracks must contain chip channels 0–3');
-    return tracks;
-  }
-  function minus(a, b) {
-    var counts = new Map();
-    b.forEach(function (n) { var k = stable(n); counts.set(k, (counts.get(k) || 0) + 1); });
-    return a.filter(function (n) { var k = stable(n), c = counts.get(k) || 0; if (c) { counts.set(k, c - 1); return false; } return true; });
-  }
-  function musicalDiff(before, after) {
-    var a = before.gb, b = after.gb, removed = minus(a.notes, b.notes), added = minus(b.notes, a.notes);
-    var fields = Array.from(new Set(Object.keys(a).concat(Object.keys(b)))).filter(function (k) {
-      return k !== 'notes' && !equal(a[k], b[k]);
-    }).sort();
-    // Ordering of surviving events matters for same-frame register/trigger priority,
-    // including when an unrelated addition/removal accompanies the reorder.
-    var orderChanged = !equal(minus(a.notes, removed), minus(b.notes, added));
-    var settingsChanged = !equal(before.settings, after.settings);
-    return copy({ added: added, removed: removed, changedFields: fields, orderChanged: orderChanged,
-      settingsChanged: settingsChanged, unchanged: !added.length && !removed.length && !fields.length && !orderChanged && !settingsChanged,
-      summary: added.length + ' notes added; ' + removed.length + ' notes removed' +
-        (fields.length ? '; GB fields changed: ' + fields.join(', ') : '') +
-        (orderChanged ? '; note ordering changed' : '') + (settingsChanged ? '; song settings changed' : '') });
-  }
-  function projection(gb, tracks, type) {
-    var notes = gb.notes.filter(function (n) { return tracks.indexOf(n.ch) !== -1; });
-    if (type === 'track') return notes;
-    // Anchor each assignment to its channel/start and occurrence order. Pitch,
-    // velocity and gate edits remain possible; moving/adding/removing assignments
-    // needs an unlocked instrument lane because correspondence is ambiguous.
-    if (type === 'instrument') return notes.map(function (n) { return { ch: n.ch, frame: n.frame, inst: n.inst }; });
-    return notes.map(function (n) {
-      if (type === 'arrangement') return { ch: n.ch, frame: n.frame, frames: n.frames };
-      var p = copy(n); delete p.inst; delete p.vel; delete p.pri; return p;
-    });
-  }
-  function usedBank(gb, tracks) {
-    var bank = gb.bank || {}, used = {}, waves = {}, arps = {}, unknown = {};
-    gb.notes.forEach(function (n) {
-      if (tracks.indexOf(n.ch) === -1) return;
-      var record = (bank.instruments || [])[n.inst];
-      used[n.inst] = { record: record, meta: (bank.meta || [])[n.inst] };
-      if (record && record[2] !== undefined && record[2] !== 255) arps[record[2]] = (bank.arpTables || [])[record[2]];
-      if (n.ch === 2) {
-        var hw = root.CT_GB_HARDWARE;
-        var slot = hw && hw.waveSlotOf ? hw.waveSlotOf(bank.instruments, n.inst) :
-          (!record || !(record[3] & 1) ? 0 : Math.min(31, record[0] & 255));
-        waves[slot] = (bank.waveTables || [])[slot];
-      }
-    });
-    if (tracks.indexOf(2) !== -1) (gb.waveLoads || []).forEach(function (w) { waves[w.slot] = (bank.waveTables || [])[w.slot]; });
-    Object.keys(bank).forEach(function (k) {
-      if (['instruments', 'waveTables', 'arpTables', 'meta'].indexOf(k) === -1) unknown[k] = bank[k];
-    });
-    return { used: used, waves: waves, arps: arps, unknown: unknown };
-  }
-  function checkConstraints(before, after, constraints) {
-    constraints = copy(constraints || {});
-    assert(Object.keys(constraints).every(function (k) { return k === 'locks' || k === 'scope'; }), 'Unknown constraint');
-    var locks = constraints.locks || [], scope = constraints.scope, diff = musicalDiff(before, after);
-    assert(Array.isArray(locks) && locks.length <= 32, 'Invalid locks');
-    locks.forEach(function (lock) {
-      assert(['track', 'pitchrhythm', 'instrument', 'arrangement'].indexOf(lock.type) !== -1, 'Unknown lock');
-      assert(Object.keys(lock).every(function (k) { return k === 'type' || k === 'tracks'; }), 'Unknown lock field');
-      var tracks = channels(lock.tracks || [0, 1, 2, 3]);
-      // Shared automation can change held notes and instruments without a note edit.
-      var globalFields = diff.changedFields.filter(function (field) { return field !== 'bank'; });
-      assert(!diff.settingsChanged && !globalFields.length && !diff.orderChanged, 'Lock conflicts with global/shared musical changes');
-      if (diff.changedFields.indexOf('bank') !== -1)
-        assert(equal(usedBank(before.gb, tracks), usedBank(after.gb, tracks)), 'Lock conflicts with used instrument-bank assets');
-      assert(equal(projection(before.gb, tracks, lock.type), projection(after.gb, tracks, lock.type)), lock.type + ' lock violated');
-    });
-    if (scope) {
-      assert(Object.keys(scope).every(function (k) { return ['tracks', 'fromFrame', 'toFrame'].indexOf(k) !== -1; }), 'Unknown scope field');
-      var tracks = channels(scope.tracks || [0, 1, 2, 3]);
-      var from = scope.fromFrame === undefined ? 0 : scope.fromFrame;
-      var to = scope.toFrame === undefined ? Number.MAX_SAFE_INTEGER : scope.toFrame;
-      assert(Number.isSafeInteger(from) && Number.isSafeInteger(to) && from >= 0 && to > from, 'Invalid frame scope');
-      assert(!diff.settingsChanged && !diff.changedFields.length && !diff.orderChanged, 'Scope conflicts with global/shared musical changes');
-      diff.added.concat(diff.removed).forEach(function (n) {
-        assert(tracks.indexOf(n.ch) !== -1 && n.frame >= from && n.frame < to &&
-          Number.isFinite(n.frames) && n.frames >= 0 && n.frame + n.frames <= to, 'Change outside requested track/region');
-      });
-    }
-    return diff;
-  }
-  function create(source, options) {
-    options = options || {};
-    assert(sourceOK(source), 'Invalid or oversized source');
-    var language = root.CT_MUSIC_LANGUAGE;
-    var compiler = options.compile || (language && language.compile && language.compile.bind(language));
-    assert(typeof compiler === 'function', 'A synchronous music compiler is required');
-    var versions = { language: options.languageVersion || (language && language.VERSION) || '1',
-      compiler: options.compilerVersion || (language && language.COMPILER_VERSION) || '1', assets: options.assetsVersion || 'unspecified' };
-    versions = copy(versions);
-    var metadata = copy({ seeds: options.seeds || [], assets: options.assets || [] });
-    var privateData = copy({ chat: options.chat || [], provenance: provenanceData(options.provenance) });
-    var draft = source, draftEpoch = 0, history = [], cursor = -1, serial = 0, queueSerial = 0;
-    var visualData = null;
-    var sessionId = ++sessionCounter;
-    var playing = null, pending = null, diagnostics = [], active = null, requests = new Map();
-    function current() { return history[cursor] || null; }
-    function compile(text) {
-      try {
-        var c = compiler(text);
-        assert(c && typeof c.then !== 'function', 'Compiler must be synchronous');
-        c = copy(c);
-        var ds = c.diagnostics || [];
-        assert(Array.isArray(ds), 'Invalid diagnostics');
-        if (c.ok === false || ds.some(function (d) { return d && (d.severity === 'error' || d.level === 'error'); })) return { ok: false, code: 'invalid', diagnostics: ds };
-        assert(c.gb && Array.isArray(c.gb.notes), 'Compiler did not produce GB notes');
-        assert(c.gb.notes.length <= 200000, 'Compiled event limit');
-        c.gb.notes.forEach(function (n) {
-          assert(Number.isInteger(n.ch) && n.ch >= 0 && n.ch <= 3 && Number.isFinite(n.frame) && n.frame >= 0 &&
-            Number.isFinite(n.frames) && n.frames >= 0, 'Invalid compiled note timing/channel');
-        });
-        // View descriptors come only from this compile, never persisted input
-        // or agent-supplied metadata. They cannot influence musical diffs/audio.
-        assert(c.controls === undefined || Array.isArray(c.controls) && c.controls.length <= 50000, 'Invalid source-control descriptors');
-        assert(c.controlsOmitted === undefined || Number.isSafeInteger(c.controlsOmitted) && c.controlsOmitted >= 0 && c.controlsOmitted <= LIMITS.source, 'Invalid source-control omissions');
-        return { ok: true, compiled: { gb: c.gb, settings: c.settings || {}, mapping: c.mapping || [], controls: c.controls || [], controlsOmitted: c.controlsOmitted || 0, diagnostics: ds }, diagnostics: ds };
-      } catch (e) { return { ok: false, code: 'invalid', diagnostics: [{ severity: 'error', message: String(e.message || e) }] }; }
-    }
-    function supersede() {
-      if (active) { requests.set(active, { id: active, status: 'superseded' }); active = null; }
-    }
-    function install(text, compiled) {
-      var previous = pending;
-      supersede(); pending = null;
-      history = history.slice(0, cursor + 1);
-      var revision = { id: 'r' + (++serial), source: text, compiled: copy(compiled) };
-      history.push(revision);
-      if (history.length > LIMITS.history) history.shift();
-      cursor = history.length - 1; draft = text; draftEpoch++; diagnostics = copy(compiled.diagnostics);
-      return { ok: true, revision: copy(revision), superseded: copy(previous) };
-    }
-    function validate() {
-      var result = compile(draft); diagnostics = copy(result.diagnostics);
-      return copy(result);
-    }
-    function move(delta) {
-      var next = cursor + delta;
-      if (next < 0 || next >= history.length) return fail('history-boundary');
-      var previous = pending;
-      supersede(); pending = null; cursor = next; draft = current().source; draftEpoch++;
-      diagnostics = copy(current().compiled.diagnostics);
-      return { ok: true, revision: copy(current()), superseded: copy(previous) };
-    }
-    var project = {
-      snapshot: function () { return copy({ draft: draft, draftEpoch: draftEpoch, validated: current(),
-        playing: playing, pending: pending, diagnostics: diagnostics, versions: versions,
-        canUndo: cursor > 0, canRedo: cursor + 1 < history.length,
-        request: active ? { id: active, status: requests.get(active).status } : null }); },
-      editDraft: function (text) {
-        if (!sourceOK(text)) return fail('source-limit');
-        if (text !== draft) { supersede(); draft = text; draftEpoch++; diagnostics = []; }
-        return { ok: true, draftEpoch: draftEpoch };
-      },
-      validate: validate,
-      // Conversation is private project data, not musical source or authority.
-      // Legacy unknown chat records remain serialized, but are not rendered.
-      getChat: function () {
-        var messages=Array.isArray(privateData.chat)?privateData.chat:[];
-        var recent=messages.filter(function(m){return m&&['user','assistant'].indexOf(m.role)!==-1&&typeof m.content==='string'&&m.content.length<=10000;}).slice(-64).map(function(m){return {role:m.role,content:m.content};});
-        while(new TextEncoder().encode(JSON.stringify(recent)).length>131072)recent.shift();
-        return recent;
-      },
-      setChat: function (messages) {
-        try {
-          var data=copy(messages);
-          assert(Array.isArray(data)&&data.length<=64,'Conversation message limit');
-          data.forEach(function(m){assert(m&&Object.keys(m).length===2&&['user','assistant'].indexOf(m.role)!==-1&&typeof m.content==='string'&&m.content.length<=10000,'Invalid conversation message');});
-          assert(new TextEncoder().encode(JSON.stringify(data)).length<=131072,'Conversation size limit');
-          privateData.chat=data;return {ok:true};
-        }catch(e){return fail('invalid-conversation',String(e.message||e));}
-      },
-      // Call after a generated composition is applied to an existing project.
-      // Private provenance is persisted only with serialize/save includePrivate.
-      setProvenance: function (value) {
-        try { privateData.provenance = provenanceData(value); return { ok: true }; }
-        catch (e) { return fail('invalid-provenance', String(e.message || e)); }
-      },
-      applyDraft: function () {
-        var result = validate(); if (!result.ok) return result;
-        if (current() && current().source === draft && equal(current().compiled, result.compiled)) return { ok: true, revision: copy(current()), unchanged: true };
-        return install(draft, result.compiled);
-      },
-      undo: function () { return move(-1); }, redo: function () { return move(1); },
-      queue: function (revisionId) {
-        if (!current() || revisionId !== current().id) return fail('stale-revision');
-        var previous = pending;
-        pending = { revisionId: revisionId, queueId: 'q' + sessionId + '-' + (++queueSerial) };
-        return { ok: true, pending: copy(pending), superseded: copy(previous) };
-      },
-      ack: function (revisionId, queueId) {
-        if (!pending || pending.revisionId !== revisionId || pending.queueId !== queueId) return fail('stale-ack');
-        playing = revisionId; pending = null; return { ok: true, playing: playing };
-      },
-      cancel: function (queueId) {
-        if (!pending || pending.queueId !== queueId) return fail('stale-queue');
-        pending = null; return { ok: true };
-      },
-      stop: function () { playing = null; pending = null; return { ok: true }; },
-      beginRequest: function (id) {
-        if (typeof id !== 'string' || !id.length || id.length > 128) return fail('invalid-request-id');
-        if (requests.has(id)) return fail('duplicate-request');
-        if (active) return fail('request-active', 'Cancel or apply the active request before starting another');
-        // Do not evict tombstones and accidentally admit replay. Start a new project session at the cap.
-        if (requests.size >= LIMITS.requests) return fail('request-limit');
-        if (!current() || draft !== current().source) return fail('unapplied-draft');
-        active = id;
-        var request = { id: id, status: 'proposed', baseRevision: current().id, baseSource: draft, epoch: draftEpoch };
-        requests.set(id, request); return copy({ ok: true, id: id, baseRevision: request.baseRevision, baseSource: request.baseSource });
-      },
-      cancelRequest: function (id) {
-        if (active !== id) return fail('stale-request');
-        requests.set(id, { id: id, status: 'cancelled' }); active = null; return { ok: true };
-      },
-      validateProposal: function (proposal, constraints) {
-        var request;
-        try {
-          proposal = copy(proposal);
-          assert(proposal && typeof proposal.id === 'string', 'Missing proposal id');
-          request = requests.get(proposal.id);
-          if (!request || active !== proposal.id) return fail('stale-request');
-          if (request.status !== 'proposed') return fail('duplicate-response');
-          // A response is consumed even when malformed/invalid; retries require a new request id.
-          request.status = 'invalid';
-          assert(Object.keys(proposal).every(function (k) { return ['id', 'baseRevision', 'baseSource', 'edits'].indexOf(k) !== -1; }), 'Unknown proposal field');
-          assert(current() && proposal.baseRevision === current().id && proposal.baseRevision === request.baseRevision &&
-            proposal.baseSource === draft && draft === request.baseSource && request.epoch === draftEpoch, 'Stale proposal base');
-          assert(Array.isArray(proposal.edits) && proposal.edits.length > 0 && proposal.edits.length <= LIMITS.edits, 'Invalid edit count');
-          var edits = proposal.edits.slice().sort(function (a, b) { return a.from - b.from || a.to - b.to; });
-          var end = -1, lastFrom = -1, text = '', pos = 0;
-          edits.forEach(function (e) {
-            assert(Object.keys(e).every(function (k) { return ['from', 'to', 'text'].indexOf(k) !== -1; }), 'Unknown edit field');
-            assert(Number.isSafeInteger(e.from) && Number.isSafeInteger(e.to) && e.from >= 0 && e.to >= e.from && e.to <= draft.length &&
-              e.from >= end && e.from !== lastFrom && sourceOK(e.text), 'Invalid/overlapping edit');
-            text += draft.slice(pos, e.from) + e.text; pos = e.to; end = e.to; lastFrom = e.from;
-            assert(text.length <= LIMITS.source, 'Source limit');
-          });
-          text += draft.slice(pos); assert(sourceOK(text), 'Source limit');
-          var result = compile(text);
-          if (!result.ok) return result;
-          var diff = checkConstraints(current().compiled, result.compiled, constraints);
-          request.status = 'ready'; request.source = text; request.compiled = result.compiled; request.diff = diff;
-          return copy({ ok: true, id: proposal.id, source: text, compiled: result.compiled, diff: diff, status: 'ready' });
-        } catch (e) { return fail('invalid-proposal', String(e.message || e)); }
-      },
-      applyProposal: function (id) {
-        var request = requests.get(id);
-        if (!request || active !== id || request.status !== 'ready') return fail('stale-request');
-        if (!current() || request.baseRevision !== current().id || request.baseSource !== draft || request.epoch !== draftEpoch) return fail('stale-base');
-        var result = install(request.source, request.compiled); request.status = 'applied';
-        requests.set(id, { id: id, status: 'applied' }); result.diff = copy(request.diff); return result;
-      },
-      // Portable audiovisual composition data. The record key is optional, so a
-      // record written here still restores on a build that predates it, and a
-      // record written there still restores here. VERSION deliberately unchanged.
-      setVisual: function (data) {
-        if (data === null || data === undefined) { visualData = null; return { ok: true }; }
-        if (typeof data !== 'object' || typeof data.scene !== 'string') return fail('invalid-visual');
-        if (data.source !== undefined && (typeof data.source !== 'string' || data.source.length > 32768)) return fail('invalid-visual');
-        if (data.values !== undefined && (typeof data.values !== 'object' || data.values === null || Array.isArray(data.values) ||
-          !Object.keys(data.values).every(function (k) { return typeof data.values[k] === 'number' && Number.isFinite(data.values[k]); }))) return fail('invalid-visual');
-        if (data.off !== undefined && typeof data.off !== 'boolean') return fail('invalid-visual');
-        visualData = copy({ scene: data.scene, source: data.source || '', values: data.values || {} });
-        if (data.off === true) visualData.off = true;
-        return { ok: true };
-      },
-      serialize: function (opts) {
-        var record = { format: FORMAT, version: VERSION, versions: versions, metadata: metadata,
-          draft: draft, lastValid: current() ? { id: current().id, source: current().source } : null, revisionCounter: serial };
-        if (opts && opts.includePrivate) record.private = privateData;
-        // Visuals are portable, not private; a caller may still omit them to fit
-        // a self-contained link budget.
-        if (visualData && !(opts && opts.excludeVisual)) record.visual = visualData;
-        var text = JSON.stringify(record); assert(text.length <= LIMITS.record, 'Project record limit'); return text;
-      }
-    };
-    Object.defineProperties(project, {
-      draft: { enumerable: true, get: function () { return draft; } },
-      validated: { enumerable: true, get: function () { return copy(current()); } },
-      pending: { enumerable: true, get: function () { return copy(pending); } },
-      playing: { enumerable: true, get: function () { return playing; } },
-      visual: { enumerable: true, get: function () { return copy(visualData); } }
-    });
-    if (options.visual) project.setVisual(options.visual);
-    project.propose = project.validateProposal;
-    var initial = compile(source); diagnostics = copy(initial.diagnostics);
-    if (initial.ok) install(source, initial.compiled);
-    // Private recovery entry point, not exposed on the project API.
-    if (options._restore) {
-      var saved = options._restore;
-      if (saved.lastValid) {
-        // This source compiled when it was saved, so a failure here is usually a
-        // build difference -- a record written by a newer dialect opened on an
-        // older build -- not broken music. Surface the compiler's own reason so
-        // the message points at the build rather than blaming the source, and
-        // say plainly that nothing was discarded.
-        assert(current(), 'Saved validated source no longer compiles in this build' +
-          (diagnostics && diagnostics[0] && diagnostics[0].message ? ' (' + diagnostics[0].message + ')' : '') +
-          '. The saved project is unchanged.');
-        current().id = saved.lastValid.id;
-      }
-      serial = saved.revisionCounter;
-      draft = saved.draft; draftEpoch++;
-      diagnostics = copy(compile(draft).diagnostics);
-    }
-    return project;
-  }
-  function restore(serialized, options) {
-    try {
-      assert(typeof serialized === 'string' && serialized.length <= LIMITS.record, 'Project record limit');
-      var saved = copy(JSON.parse(serialized));
-      assert(saved.format === FORMAT && saved.version === VERSION, 'Unsupported project format/version');
-      assert(saved.versions && saved.metadata && sourceOK(saved.draft), 'Malformed project');
-      assert(Number.isSafeInteger(saved.revisionCounter) && saved.revisionCounter >= 0, 'Invalid revision counter');
-      assert(saved.lastValid === null || (saved.lastValid && sourceOK(saved.lastValid.source) && /^r[1-9][0-9]*$/.test(saved.lastValid.id) &&
-        Number(saved.lastValid.id.slice(1)) <= saved.revisionCounter), 'Invalid validated revision');
-      options = Object.assign({}, options || {});
-      var language = root.CT_MUSIC_LANGUAGE;
-      var expected = { language: options.languageVersion || (language && language.VERSION) || '1',
-        compiler: options.compilerVersion || (language && language.COMPILER_VERSION) || '1', assets: options.assetsVersion || 'unspecified' };
-      // 88062941 added read-only event observations to the APU, changing its
-      // file hash without changing instruments or PCM. Only this verified pair
-      // is compatible; do not relax checks for future engines or languages.
-      var observedAssets = expected.language === '1' && expected.compiler === '1' &&
-        expected.assets === 'e84045bcb7186729' && equal(saved.versions,
-          {language: '1', compiler: '1', assets: '5fba76c2aeb5e170'});
-      assert(equal(saved.versions, expected) || observedAssets, 'Incompatible language/compiler/instrument assets versions');
-      // Keep the original version metadata on save as well as source/private
-      // data. Opening a compatible project is not a destructive migration.
-      if (observedAssets) options.assetsVersion = saved.versions.assets;
-      options.seeds = saved.metadata.seeds; options.assets = saved.metadata.assets;
-      // An absent or malformed visual block never fails a music restore.
-      options.visual = saved.visual || null;
-      if (saved.private) { options.chat = saved.private.chat; options.provenance = saved.private.provenance; }
-      options._restore = saved;
-      var project = create(saved.lastValid ? saved.lastValid.source : saved.draft, options);
-      return { ok: true, project: project };
-    } catch (e) { return { ok: false, code: 'incompatible-project', message: String(e.message || e), original: serialized }; }
-  }
-  /* One setItem writes draft + valid source atomically. Baseline comparison detects
-   * observed external writes. localStorage has no compare-and-swap: simultaneous
-   * read/write races require host coordination (e.g. Web Locks), not a false CAS claim.
-   * load first; a failed save never advances this adapter's baseline.
-   */
-  function createStorageAdapter(storage, key) {
-    assert(storage && typeof storage.getItem === 'function' && typeof storage.setItem === 'function' && typeof key === 'string' && key.length, 'Invalid storage adapter');
-    var baseline, loaded = false;
-    return {
-      load: function () {
-        try { baseline = storage.getItem(key); loaded = true; return { ok: true, serialized: baseline }; }
-        catch (e) { return fail('storage-error', String(e.message || e)); }
-      },
-      save: function (project, options) {
-        if (!loaded) return fail('baseline-required');
-        try {
-          if (storage.getItem(key) !== baseline) return fail('storage-conflict');
-          var serialized = project.serialize(options);
-          if (serialized !== baseline) storage.setItem(key, serialized);
-          if (storage.getItem(key) !== serialized) return fail('storage-conflict');
-          baseline = serialized; return { ok: true };
-        } catch (e) { return fail('storage-error', String(e.message || e)); }
-      }
-    };
-  }
-  return { FORMAT: FORMAT, VERSION: VERSION, LIMITS: copy(LIMITS), create: create, restore: restore,
-    musicalDiff: musicalDiff, checkConstraints: checkConstraints, createStorageAdapter: createStorageAdapter };
-});
-
-/* ===== src/music-chat.js ===== */
-// Transport only. A configured server authenticates and bills model requests.
-// Source/comments/history are data; replies are text or localized proposals.
-(function(G){
-  'use strict';
-  var LIMIT=1024*1024,SOURCE_LIMIT=524288,HISTORY_LIMIT=16384;
-  function exact(o,fields){return o&&typeof o==='object'&&!Array.isArray(o)&&Object.keys(o).length===fields.length&&fields.every(function(k){return Object.prototype.hasOwnProperty.call(o,k);});}
-  function unicode(s){
-    for(var i=0;i<s.length;i++){
-      var c=s.charCodeAt(i);
-      if(c>=0xD800&&c<=0xDBFF){var n=s.charCodeAt(++i);if(!(n>=0xDC00&&n<=0xDFFF))return false;}
-      else if(c>=0xDC00&&c<=0xDFFF)return false;
-    }return true;
-  }
-  function boundary(s,i){return !(i>0&&i<s.length&&/[\uD800-\uDBFF]/.test(s[i-1])&&/[\uDC00-\uDFFF]/.test(s[i]));}
-  function cancelStream(stream){try{if(stream&&stream.cancel)Promise.resolve(stream.cancel()).catch(function(){});}catch(e){}}
-  function validate(value,context){
-    function need(ok){if(!ok)throw Error('Invalid chat proposal response');}
-    need(exact(value,['id','baseRevision','edits','explanation']));
-    need(value.id===context.id&&value.baseRevision===context.baseRevision&&
-      typeof value.explanation==='string'&&value.explanation.length<=5000&&unicode(value.explanation));
-    need(Array.isArray(value.edits)&&value.edits.length<=32);
-    if(value.edits.length===0)return; // Text-only answer, still bound to id/revision.
-    var end=0,previous=-1,inserted=0,removed=0,candidate='',encoder=new TextEncoder();
-    value.edits.forEach(function(e){
-      need(exact(e,['from','to','text']));
-      need(Number.isSafeInteger(e.from)&&Number.isSafeInteger(e.to)&&e.from>=end&&e.from>previous&&
-        e.to>=e.from&&e.to<=context.source.length&&typeof e.text==='string'&&unicode(e.text));
-      need(boundary(context.source,e.from)&&boundary(context.source,e.to));
-      need(!(e.from===0&&e.to===context.source.length));
-      inserted+=encoder.encode(e.text).length;removed+=encoder.encode(context.source.slice(e.from,e.to)).length;
-      need(inserted<=16384&&removed<=16384);
-      candidate+=context.source.slice(end,e.from)+e.text;end=e.to;previous=e.from;
-    });
-    candidate+=context.source.slice(end);
-    need(candidate!==context.source&&encoder.encode(candidate).length<=SOURCE_LIMIT&&removed<encoder.encode(context.source).length);
-  }
-  function Client(options){
-    options=options||{};
-    this.endpoint=options.endpoint||'/api/music/chat';
-    if(!/^\/api\/[a-z0-9/_-]+$/i.test(this.endpoint)) throw Error('Chat endpoint must be a same-origin API path');
-    this.fetch=options.fetch||(G.fetch&&G.fetch.bind(G)); this.active=null; this.serial=0;this.requests=new Set();
-    this.provider=options.provider||'openai';
-  }
-  Client.prototype.cancel=function(){
-    if(this.active){this.active.stop('Chat request cancelled');this.active=null;}
-    this.serial++;
-  };
-  Client.prototype.request=async function(context){
-    var provider=this.provider;
-    if(['openai','anthropic'].indexOf(provider)===-1)throw Error('Unknown chat provider');
-    if(this.active) throw Error('A chat request is already active');
-    if(!context||typeof context.request!=='string'||context.request.length>2000) throw Error('Request must be at most 2000 characters');
-    if(typeof context.source==='string'&&new TextEncoder().encode(context.source).length>SOURCE_LIMIT)
-      throw Error('Source too large for Chat: limit is 512 KiB UTF-8. This project remains editable and downloadable; no request was sent.');
-    if(Object.prototype.hasOwnProperty.call(context,'conversation')){
-      if(!Array.isArray(context.conversation)||context.conversation.length>12)throw Error('Invalid chat conversation');
-      var historyBytes=0;
-      for(var i=0;i<context.conversation.length;i++){
-        var turn=context.conversation[i];
-        if(!exact(turn,['role','content'])||['user','assistant'].indexOf(turn.role)===-1||
-          typeof turn.content!=='string'||!unicode(turn.content))throw Error('Invalid chat conversation');
-        historyBytes+=new TextEncoder().encode(turn.content).length;
-        if(historyBytes>HISTORY_LIMIT)throw Error('Chat conversation exceeds 16384 UTF-8 bytes');
-      }
-    }
-    var body=JSON.stringify(context);
-    if(new TextEncoder().encode(body).length>LIMIT) throw Error('Chat context is too large');
-    // Snapshot the exact wire base: caller mutation while fetch is pending must
-    // not change the identity or offsets against which the reply is checked.
-    context=JSON.parse(body);
-    if(!/^[A-Za-z0-9_-]{1,128}$/.test(context.id||'')||typeof context.id!=='string'||
-       typeof context.baseRevision!=='string'||!/^[A-Za-z0-9_-]{1,128}$/.test(context.baseRevision)||
-       typeof context.source!=='string'||!unicode(context.source))throw Error('Invalid chat context');
-    if(this.requests.has(context.id))throw Error('Duplicate chat request');
-    if(this.requests.size>=1024)throw Error('Chat request limit reached');
-    this.requests.add(context.id); // Keep tombstones on every outcome; never evict.
-    var seq=++this.serial,controller=new AbortController(),self=this;
-    var rejection,stopped=null,reader=null,response=null,complete=false;
-    var aborted=new Promise(function(_,reject){rejection=reject;});aborted.catch(function(){});
-    function stop(message){if(stopped)return;stopped=Error(message);rejection(stopped);controller.abort();cancelStream(reader||response&&response.body);}
-    function run(fn){return stopped?Promise.reject(stopped):Promise.race([Promise.resolve().then(function(){if(stopped)throw stopped;return fn();}),aborted]);}
-    this.active={seq:seq,controller:controller,stop:stop};
-    var timer=setTimeout(function(){stop('Chat request timed out');},30000);
-    try{
-      response=await run(async function(){
-        var result=await self.fetch(self.endpoint,{method:'POST',headers:{'Content-Type':'application/json','X-Music-Provider':provider},credentials:'same-origin',redirect:'error',body:body,signal:controller.signal});
-        if(stopped)cancelStream(result&&result.body);
-        return result;
-      });
-      if(!response.ok){
-        var error=Error(response.status===401||response.status===403?'Chat is locked. Unlock with the owner password.':response.status===404||response.status===503?'Chat provider is not configured. Code and playback remain available.':response.status===429?'Chat is rate limited. Try again later.':'Chat request failed ('+response.status+')');
-        if(response.status===401||response.status===403)error.code='locked';throw error;
-      }
-      var length=+(response.headers.get('content-length')||0);
-      if(length>LIMIT) throw Error('Chat response is too large');
-      reader=response.body&&response.body.getReader();var raw='';
-      if(reader){
-        var decoder=new TextDecoder('utf-8',{fatal:true}),bytes=0;
-        while(true){
-          var chunk=await run(function(){return reader.read();}); if(chunk.done){complete=true;break;}
-          bytes+=chunk.value.length;
-          if(bytes>LIMIT)throw Error('Chat response is too large');
-          raw+=decoder.decode(chunk.value,{stream:true});
-        }
-        raw+=decoder.decode();
-      }else{raw=await run(function(){return response.text();});if(new TextEncoder().encode(raw).length>LIMIT)throw Error('Chat response is too large');complete=true;}
-      if(seq!==this.serial||controller.signal.aborted)throw Error('Chat request cancelled');
-      var value=JSON.parse(raw);
-      validate(value,context);
-      return value;
-    }finally{
-      clearTimeout(timer);controller.abort();if(!complete)cancelStream(reader||response&&response.body);
-      if(reader)try{reader.releaseLock();}catch(e){}
-      if(self.active&&self.active.seq===seq)self.active=null;
-    }
-  };
-  function Access(options){this.fetch=options&&options.fetch||G.fetch.bind(G);this.active=null;}
-  Access.prototype.cancel=function(){if(this.active)this.active.abort();this.active=null;};
-  Access.prototype.request=async function(method,password){
-    this.cancel();var controller=new AbortController(),timer,self=this;this.active=controller;
-    try{return await Promise.race([(async function(){
-      var response=await self.fetch('/api/music/chat/access',{method:method,credentials:'same-origin',cache:'no-store',redirect:'error',signal:controller.signal,
-        headers:method==='POST'?{'Content-Type':'application/json'}:{},body:method==='POST'?JSON.stringify({password:password}):undefined});
-      if(!response.ok)throw Error(response.status===401||response.status===403?'Owner password was not accepted.':response.status===429?'Too many unlock attempts. Try again later.':'Chat access is unavailable.');
-      var result=await response.json();if(!result||result.ok!==true)throw Error('Chat access is unavailable.');return result;
-    })(),new Promise(function(_,reject){controller.signal.addEventListener('abort',function(){reject(Error('Chat access request cancelled or timed out.'));},{once:true});timer=setTimeout(function(){controller.abort();},4000);})]);}
-    finally{clearTimeout(timer);if(this.active===controller)this.active=null;}
-  };
-  var api={Client:Client,Access:Access}; G.CT_MUSIC_CHAT=api;
-  if(typeof module!=='undefined'&&module.exports)module.exports=api;
-})(typeof globalThis!=='undefined'?globalThis:window);
-
-/* ===== src/music-exports.js ===== */
-/* Compiled revision export boundary; no compiler or native-import conversion.
- * Input: {id: nonempty string, validated: true, compiled: {gb, settings}}.
- * settings are compilation metadata: timing/master register writes MUST already
- * be in gb. No transport rate, mixer or audition state is applied here.
- * MIDI is a note sketch: fixed 62500 us/quarter, 16384 PPQN, 4389 ticks/frame
- * gives EXACT 70224/4194304 second frame times, including compiled tempo maps.
- * Chip registers, timbres, envelopes, detune/sweep/vibrato, trigger suppression,
- * wave changes and PCM kits cannot be represented faithfully by these notes.
- * MIDI note-offs beyond totalFrames are capped at the finite song boundary.
- * WAV is mono PCM16, clipped/rounded from the shared Sequencer, ending at the
- * finite totalFrames boundary (no added tail). opts: sampleRate (8000..96000),
- * allowLosses (strict true), yield (optional async callback between PCM chunks).
- * revision in the result is the selected id, not a mutable revision object.
- *
- * LSDj capability audit (2026-09-08): no certified exact subset THROUGH THE
- * EXISTING EXPORTER. This is not a claim that the LSDj format cannot express
- * a subset. src/lsdj.js fromDocument/lsdsng takes CT_CREATE document cells,
- * not gb; it schedules c/len and ignores the exact of/lf timing fields.
- * instrumentFor rebuilds stamp/velocity instruments (and silently reuses a
- * nearest-volume instrument at 64 slots); the instrument writer uses plain
- * software sustain rather than arbitrary bank envelope bytes. waveTableFor
- * selects stock stamp tables, with multiple wave voices sharing one table.
- * Arbitrary auto/vibOff/waveLoads/kit arrays have no input mapping. Phrase
- * padding and omitted boundary KILLs do not certify totalFrames/song-end state.
- * readSong/writeSong prove native byte preservation, not gb equivalence;
- * toSongJSON is a document projection with additional semantic limitations.
- * Even the plain pulse/no-automation candidate lacks a certified start phase,
- * frame clock and finite end: verify-lsdj-emulator permits +/-1 frame note
- * lengths and <=2% row-gap mismatch after searching 40 phase offsets.
- * Enabling a subset requires a gb->native mapping, fail-closed capacity checks,
- * and an independent target-version execution comparison of exact event times,
- * relevant chip state and finite end. Neither installing CT_LSDJ nor accepting
- * losses supplies that proof. Native byte passthrough remains out of scope.
- */
-(function (G) {
-  'use strict';
-  var node = typeof module !== 'undefined' && module.exports;
-  var H = node ? require('./gb-hardware.js') : G.CT_GB_HARDWARE;
-  if (node) require('./gb-kits.js');
-  var A = node ? require('./gb-apu.js') : G.CT_GB_APU;
-  var R = node ? require('./gb-rom.js') : G.CT_GB_ROM;
-  var FPS = 4194304 / 70224;
-  var LIMITS = Object.freeze({ seconds: 600, samples: 28800000, events: 100000, nodes: 1000000 });
-  var LOSS = 'MIDI preserves note frame times only: chip timbres, envelopes, noise pitch, detune, sweep, vibrato, trigger state, register automation, wave loads and PCM kits are not reproduced; velocity is quantized to MIDI and note-offs are capped at the finite totalFrames boundary.';
-  function fail(message) { throw new Error('music-exports: ' + message); }
-  function integer(x, lo, hi) { return Number.isInteger(x) && x >= lo && x <= hi; }
-  function lsdjErrors(g) {
-    var errors = [
-      'LSDj capability unavailable: no verified exact compiled-gb conversion. Existing fromDocument/lsdsng accepts document rows, not gb frame events.',
-      'LSDj exact timing/end unverified even for plain pulse notes: document of/lf are ignored; phrase padding and boundary KILL omission cannot certify totalFrames. Existing emulator checks tolerate timing differences; native byte roundtrip is not playback equivalence.'
-    ];
-    if (g.notes.length) errors.push('LSDj instrument mapping unverified: exporter rebuilds stamp/velocity instruments with plain software sustain, not the compiled bank; instrument exhaustion can silently approximate volume.');
-    if ((g.auto || []).length || (g.vibOff || []).length) errors.push('LSDj register automation/vibrato handoff has no exact compiled-event mapping.');
-    if ((g.waveLoads || []).length || g.notes.some(function (n) { return n.ch === 2; })) errors.push('LSDj compiled wave tables/reloads have no exact mapping: existing exporter selects stock stamp waves and shares one pinned table.');
-    if ((g.kit || []).length) errors.push('LSDj PCM kit data requires compatible target ROM assets; existing document exporter does not serialize compiled kits.');
-    return errors;
-  }
-  // Bound and copy before the first await: edits while a WAV yields cannot change it.
-  function snapshot(value) {
-    var count = 0, seen = new Set();
-    function copy(v, depth) {
-      if (++count > LIMITS.nodes || depth > 32) fail('compiled allocation limit');
-      // CT.songOf includes optional gainScalar: undefined. Preserve that value
-      // instead of rejecting otherwise valid renderer input or JSON-coercing it.
-      if (v === undefined || v === null || typeof v === 'boolean') return v;
-      if (typeof v === 'number' && Number.isFinite(v)) return v;
-      if (typeof v === 'string' && v.length <= 65536) return v;
-      if (!v || typeof v !== 'object' || seen.has(v)) fail('compiled data must be finite acyclic data');
-      seen.add(v);
-      var out;
-      if (Array.isArray(v) || ArrayBuffer.isView(v) && !(v instanceof DataView)) {
-        if (v.length > LIMITS.nodes) fail('compiled allocation limit');
-        out = Array.from(v, function (x) { return copy(x, depth + 1); });
-      } else {
-        out = {};
-        Object.keys(v).forEach(function (k) {
-          if (k === '__proto__' || k === 'constructor') fail('invalid data key');
-          out[k] = copy(v[k], depth + 1);
-        });
-      }
-      seen.delete(v); return out;
-    }
-    return copy(value, 0);
-  }
-  function validate(c) {
-    if (!c || !c.gb || c.native || c.nativeDocument || c.gb.native) fail('compiled gb required; native imports unsupported');
-    if (c.diagnostics && (!Array.isArray(c.diagnostics) || c.diagnostics.some(function (d) { return d.severity === 'error'; }))) fail('compiled revision has error diagnostics');
-    var g = c.gb;
-    if (!integer(g.totalFrames, 1, Math.floor(FPS * LIMITS.seconds))) fail('duration limit (1 frame to 600 seconds)');
-    if (!Array.isArray(g.notes) || !g.bank || !Array.isArray(g.bank.instruments) || !Array.isArray(g.bank.waveTables)) fail('notes and instrument/wave bank required');
-    var count = g.notes.length;
-    ['auto', 'vibOff', 'waveLoads', 'kit'].forEach(function (k) {
-      if (g[k] != null && !Array.isArray(g[k])) fail('invalid ' + k);
-      count += (g[k] || []).length;
-    });
-    if (count > LIMITS.events) fail('event limit');
-    // 128 is the default bank size, not an instrument-address limit. Appended
-    // Create instruments (including index 128+) are resolved by both shared
-    // renderers before register encoding. The snapshot budget bounds the bank.
-    g.bank.instruments.forEach(function (r) { if (!Array.isArray(r) || r.length !== 4 || !r.every(function (v) { return integer(v, 0, 255); })) fail('invalid instrument'); });
-    g.bank.waveTables.forEach(function (r) { if (!Array.isArray(r) || r.length !== 32 || !r.every(function (v) { return integer(v, 0, 15); })) fail('invalid wave table'); });
-    g.notes.forEach(function (n) {
-      // A generated held note can extend past the finite render boundary. WAV
-      // renders the untouched score through totalFrames; ROM checks this below.
-      if (!integer(n.ch, 0, 3) || !integer(n.frame, 0, g.totalFrames - 1) || !integer(n.frames, 1, Math.floor(FPS * LIMITS.seconds)) || !(n.ch === 3 || integer(n.midi, 0, 127)) || !integer(n.inst, 0, g.bank.instruments.length - 1)) fail('invalid note');
-      if (n.vel != null && !(Number.isFinite(n.vel) && n.vel >= 0 && n.vel <= 1)) fail('invalid velocity');
-    });
-    ['auto', 'vibOff', 'waveLoads', 'kit'].forEach(function (k) { (g[k] || []).forEach(function (e) {
-      if (!(Number.isFinite(e.f) && e.f >= 0 && e.f <= g.totalFrames)) fail('invalid ' + k + ' frame');
-      if (k === 'auto' && (!integer(e.r, 0x10, 0x3f) || !integer(e.v, 0, 255))) fail('invalid register write');
-      if (k === 'vibOff' && !integer(e.ch, 0, 1)) fail('invalid vibrato channel');
-      if (k === 'waveLoads' && !integer(e.slot, 0, g.bank.waveTables.length - 1)) fail('invalid wave slot');
-      if (k === 'kit' && (!integer(e.id, 0, 7) || !G.CT_GB_KITS)) fail('kit capability unavailable');
-    }); });
-  }
-  function check(c, format) {
-    var errors = [], losses = [];
-    try {
-      validate(c);
-      if (format === 'wav') { if (!A || !A.Sequencer) fail('shared APU unavailable'); }
-      else if (format === 'midi') {
-        if (c.gb.notes.some(function (n) { return !integer(n.midi, 0, 127); })) fail('MIDI capability unavailable: noise note has no MIDI pitch in 0..127; no faithful percussion mapping is defined');
-        losses.push(LOSS);
-      }
-      else if (format === 'rom') {
-        if (!R || !H) fail('shared ROM exporter unavailable');
-        if (c.gb.notes.some(function (n) { return n.frame + n.frames > c.gb.totalFrames; })) fail('ROM capability unavailable: note extends beyond finite song end; shared exporter would encode its late note-off');
-        // waveBytes serializes exactly this many slots; explicit reloads are
-        // byte-addressed by ROM but the offline Sequencer can read larger banks.
-        var romWaveSlots = Math.max(16, H.WAVE_SLOTS || 16);
-        if ((c.gb.waveLoads || []).some(function (w) { return w.slot >= romWaveSlots; })) fail('ROM capability unavailable: wave load exceeds ' + romWaveSlots + ' stored wave slots');
-        R.buildRom({ gb: c.gb }); // Capacity and encoding checked by the shared exporter.
-      } else if (format === 'lsdsng') errors = lsdjErrors(c.gb);
-      else fail('unsupported format: ' + format);
-    } catch (e) { errors.push(e.message); }
-    return { ok: errors.length === 0, losses: losses, errors: errors };
-  }
-  function inspect(c, format) {
-    try { return check(snapshot(c), format); }
-    catch (e) { return { ok: false, losses: [], errors: [e.message] }; }
-  }
-  function midi(g) {
-    var events = [], track = [0, 255, 81, 3, 0, 244, 36]; // 62500 us/qn
-    g.notes.forEach(function (n, i) {
-      events.push({ f: n.frame, off: false, n: n, i: i });
-      events.push({ f: Math.min(g.totalFrames, n.frame + n.frames), off: true, n: n, i: i });
-    });
-    events.sort(function (a, b) { return a.f - b.f || Number(b.off) - Number(a.off) || a.i - b.i; });
-    function vlq(v) { var b = [v & 127]; while ((v = Math.floor(v / 128))) b.unshift((v & 127) | 128); track.push.apply(track, b); }
-    var last = 0;
-    events.forEach(function (e) {
-      vlq((e.f - last) * 4389); last = e.f;
-      track.push((e.off ? 128 : 144) | e.n.ch, e.n.midi, e.off ? 0 : Math.max(1, Math.round((e.n.vel == null ? 1 : e.n.vel) * 127)));
-    });
-    vlq((g.totalFrames - last) * 4389); track.push(255, 47, 0);
-    var bytes = new Uint8Array(22 + track.length), v = new DataView(bytes.buffer);
-    bytes.set([77,84,104,100,0,0,0,6,0,0,0,1,64,0,77,84,114,107]);
-    v.setUint32(18, track.length); bytes.set(track, 22); return bytes;
-  }
-  async function wav(g, opts) {
-    var sr = opts.sampleRate == null ? 44100 : opts.sampleRate;
-    if (!integer(sr, 8000, 96000)) fail('sampleRate must be an integer from 8000 to 96000');
-    var length = Math.ceil(g.totalFrames / FPS * sr);
-    if (length > LIMITS.samples) fail('sample allocation limit');
-    var bytes = new Uint8Array(44 + length * 2), v = new DataView(bytes.buffer);
-    bytes.set([82,73,70,70]); v.setUint32(4, bytes.length - 8, true);
-    bytes.set([87,65,86,69,102,109,116,32], 8); v.setUint32(16, 16, true);
-    v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, sr, true);
-    v.setUint32(28, sr * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
-    bytes.set([100,97,116,97], 36); v.setUint32(40, length * 2, true);
-    var seq = new A.Sequencer(g, sr), chunk = new Float32Array(8192);
-    for (var at = 0; at < length; at += chunk.length) {
-      var n = Math.min(chunk.length, length - at); seq.render(chunk, 0, n);
-      for (var j = 0; j < n; j++) { var s = Math.max(-1, Math.min(1, chunk[j])); v.setInt16(44 + (at + j) * 2, Math.round(s * (s < 0 ? 32768 : 32767)), true); }
-      if (opts.yield && at + n < length) await opts.yield();
-    }
-    return bytes;
-  }
-  async function exportRevision(revision, format, opts) {
-    opts = Object.assign({}, opts || {});
-    if (!revision || revision.validated !== true || typeof revision.id !== 'string' || !/^[A-Za-z0-9._:-]{1,128}$/.test(revision.id)) fail('validated revision with stable id required');
-    var id = revision.id, c = snapshot(revision.compiled), report = check(c, format);
-    if (!report.ok) fail(report.errors.join('; '));
-    if (report.losses.length && opts.allowLosses !== true) fail('explicit allowLosses: true required: ' + report.losses.join('; '));
-    if (opts.yield != null && typeof opts.yield !== 'function') fail('yield must be a function');
-    var bytes = format === 'wav' ? await wav(c.gb, opts) : format === 'midi' ? midi(c.gb) : R.buildRom({ gb: c.gb });
-    var ext = { wav: 'wav', midi: 'mid', rom: 'gb' }[format];
-    return { bytes: bytes, mime: { wav: 'audio/wav', midi: 'audio/midi', rom: 'application/octet-stream' }[format], name: 'revision-' + id.replace(/[^A-Za-z0-9._-]/g, '_') + '.' + ext, warnings: report.losses.slice(), revision: id };
-  }
-  var API = { inspect: inspect, exportRevision: exportRevision, limits: LIMITS };
-  G.CT_MUSIC_EXPORTS = API;
-  if (node) module.exports = API;
-})(typeof globalThis !== 'undefined' ? globalThis : window);
-
-/* ===== src/music-agent-connection.js ===== */
-// Same-origin browser transport. No credentials or reconnect state are persisted.
-(function(G){
-  'use strict';
-  function create(options){
-    var w=options.workspace,fetcher=options.fetch||G.fetch.bind(G),notify=options.onChange||function(){};
-    var tabNonce=Array.from(G.crypto.getRandomValues(new Uint8Array(32)),function(b){return b.toString(16).padStart(2,'0');}).join('');
-    // An explicit injected fetch is a test boundary; production always bootstraps
-    // same-origin auth. Cache the module, never a session token.
-    var auth=options.tokenProvider||(options.fetch?null:undefined);
-    async function ready(){
-      var controller=new AbortController(),timeout;
-      requests.add(controller);
-      try{
-        await Promise.race([(async function(){
-          if(auth===undefined)auth=await import('/api/auth');
-          if(controller.signal.aborted)throw Error('unavailable');
-          if(auth)await auth.ready();
-        })(),new Promise(function(_,reject){
-          controller.signal.addEventListener('abort',function(){reject(Error('unavailable'));},{once:true});
-          timeout=setTimeout(function(){controller.abort();},15000);
-        })]);
-      }finally{clearTimeout(timeout);requests.delete(controller);}
-    }
-    var opened=false,epoch=0,session=null,base=null,generation=null,pending=null,timer=null;
-    var requests=new Set(),clients=[],phase='closed',message='',available=false;
-    function copy(v){return JSON.parse(JSON.stringify(v));}
-    function same(a,b){return JSON.stringify(a)===JSON.stringify(b);}
-    function snapshot(c){return {source:c.source,baseRevision:c.baseRevision,draftEpoch:c.draftEpoch,selection:c.policy.selection,constraints:c.policy.constraints};}
-    function identity(){return {generation:generation,baseRevision:base.baseRevision,draftEpoch:base.draftEpoch};}
-    function state(){return {phase:phase,message:message,clients:copy(clients),connected:phase==='connected',available:available};}
-    function report(p,m){phase=p;message=m;notify(state());}
-    async function request(body,detached){
-      var controller=new AbortController(),timeout;
-      if(!detached)requests.add(controller);
-      try{
-        // Race explicitly: injected fetch implementations may ignore abort.
-        return await Promise.race([(async function(){
-          var headers={'X-Music-Tab':tabNonce};
-          if(body)headers['Content-Type']='application/json';
-          if(auth){
-            var token=await auth.getSessionToken();
-            if(typeof token!=='string'||!token)throw Error('signed-out');
-            headers.Authorization='Bearer '+token;
-          }
-          if(controller.signal.aborted)throw Error('unavailable');
-          var response=await fetcher('/api/music-agent',{method:body?'POST':'GET',credentials:'same-origin',cache:'no-store',redirect:'error',
-            headers:headers,body:body?JSON.stringify(body):undefined,signal:controller.signal,keepalive:!!detached});
-          if(!response.ok)throw Error(response.status===401?'signed-out':response.status===403?'access-denied':response.status===503?'unconfigured':'unavailable');
-          var result=await response.json();if(!result||result.ok!==true)throw Error('unavailable');return result;
-        })(),new Promise(function(_,reject){
-          controller.signal.addEventListener('abort',function(){reject(Error('unavailable'));},{once:true});
-          timeout=setTimeout(function(){controller.abort();},4000);
-        })]);
-      }finally{clearTimeout(timeout);requests.delete(controller);}
-    }
-    function post(action,input){return request(Object.assign({action:action,sessionId:session},input));}
-    function disconnect(reason){
-      var old=session;epoch++;clearTimeout(timer);timer=null;
-      requests.forEach(function(c){c.abort();});requests.clear();
-      session=null;base=null;generation=null;pending=null;
-      w.agentDisconnect();report(opened?'disconnected':'closed',reason||'Disconnected. Connect explicitly to start a new session.');
-      if(old)request({action:'revoke',sessionId:old},true).catch(function(){});
-    }
-    function fail(e){
-      available=false;
-      disconnect();
-      if(opened)report(e.message==='signed-out'?'signed-out':e.message==='access-denied'?'access-denied':e.message==='unconfigured'?'unconfigured':'unavailable',
-        (e.appliedLocally?'Applied locally; remote acknowledgement could not be confirmed. ':'')+
-        (e.message==='signed-out'?'Sign in to connect.':e.message==='access-denied'?'Access denied. Sign in or check this client’s authorization, then refresh.':e.message==='unconfigured'?'Connection unavailable: gateway authentication is unconfigured.':'Connection unavailable. No active connection.'));
-    }
-    async function refresh(){
-      if(!opened||session||phase==='connecting'||phase==='checking')return;
-      var run=epoch;report('checking','Checking available clients…');
-      try{
-        await ready();if(run!==epoch||!opened)return;
-        var result=await request();if(run!==epoch||!opened)return;
-        if(!Array.isArray(result.clients))throw Error('unavailable');
-        available=true;
-        clients=result.clients.filter(function(c){return c&&typeof c.clientId==='string'&&c.clientId.length>0;}).map(function(c){return {clientId:c.clientId};});
-        report('disconnected',clients.length?'Choose a client, then Connect.':'No authorized clients available.');
-      }catch(e){if(run===epoch)fail(e);}
-    }
-    async function publish(c){
-      var run=epoch,result=await post('publish',{snapshot:snapshot(c)});if(run!==epoch)return;
-      if(!Number.isSafeInteger(result.generation)||result.generation<1)throw Error('unavailable');
-      base=copy(c);generation=result.generation;
-    }
-    async function connect(clientId){
-      if(!opened||phase!=='disconnected'||!clients.some(function(c){return c.clientId===clientId;}))return;
-      var c=w.agentContext();if(!c.ok||!c.editable){report('disconnected','Apply valid code before connecting.');return;}
-      var run=++epoch;report('connecting','Connecting and uploading source…');
-      try{
-        var result=await request({action:'create',clientId:clientId});
-        if(run!==epoch)return;
-        if(typeof result.sessionId!=='string'||!result.sessionId)throw Error('unavailable');
-        session=result.sessionId;await publish(c);if(run!==epoch)return;
-        if(!same(c,w.agentContext())){disconnect('Context changed during connection. Connect again.');return;}
-        report('connected','Connected. Proposals require your explicit Apply.');schedule();
-      }catch(e){if(run===epoch)fail(e);}
-    }
-    function schedule(){if(opened&&session)timer=setTimeout(tick,1000);}
-    function contextChanged(){
-      if(!session||!base)return;
-      var c=w.agentContext();
-      if(!c.ok||!c.editable||c.projectInstance!==base.projectInstance)
-        disconnect('Draft or project changed. Apply valid code and connect again.');
-    }
-    async function tick(){
-      timer=null;var run=epoch;
-      try{
-        var c=w.agentContext();
-        if(!opened||!session)return;
-        if(!c.ok||!c.editable||c.projectInstance!==base.projectInstance){disconnect('Draft or project changed. Apply valid code and connect again.');return;}
-        await post('heartbeat',identity());if(run!==epoch)return;
-        contextChanged();if(run!==epoch)return;c=w.agentContext();
-        if(pending){
-          var s=w.agentProposalStatus(pending.id),ack=null;
-          // ready is validation only; revision evidence comes from the Apply UI.
-          if(s.ok&&s.revision&&s.revision!==base.baseRevision&&c.baseRevision===s.revision&&c.draftEpoch>base.draftEpoch&&
-            ['validated','applied','queued','playing'].indexOf(s.status)!==-1)ack='applied';
-          else if(!same(c,base))ack='failed';
-          else if(!s.ok||['invalid','superseded','cancelled','rejected'].indexOf(s.status)!==-1)ack=s.status==='rejected'?'rejected':'failed';
-          if(ack){
-            var result;
-            try{result=await post('acknowledge',Object.assign(identity(),{id:pending.id,status:ack,snapshot:ack==='applied'?snapshot(c):null}));}
-            catch(e){e.appliedLocally=ack==='applied';throw e;}
-            if(run!==epoch)return;
-            if(ack==='applied'){
-              if(!Number.isSafeInteger(result.generation)||result.generation<=generation)throw Error('unavailable');
-              generation=result.generation;base=copy(c);
-            }
-            pending=null;report('connected',ack==='applied'?'Applied in browser · '+s.status:'Proposal '+ack+'.');
-            schedule();return;
-          }
-        }
-        c=w.agentContext();
-        if(!same(c,base)){await publish(c);if(run!==epoch)return;schedule();return;}
-        if(!pending){
-          var polled=await post('poll',identity());if(run!==epoch)return;
-          var p=polled.proposal;
-          // Reconcile after I/O, before handing any edits to the local validator.
-          if(p){
-            if(!same(base,w.agentContext())||p.generation!==generation||p.baseRevision!==base.baseRevision||p.draftEpoch!==base.draftEpoch){disconnect('Stale proposal discarded. Connect again.');return;}
-            var accepted=w.agentPropose({id:p.id,context:copy(base),edits:p.edits,explanation:p.explanation});
-            pending={id:p.id};
-            if(!accepted.ok){await post('acknowledge',Object.assign(identity(),{id:p.id,status:'failed',snapshot:null}));if(run!==epoch)return;pending=null;}
-            report('connected',accepted.ok?'Proposal ready and validated. Review it below; Apply is required.':'Proposal failed local validation.');
-          }
-        }
-      }catch(e){if(run===epoch)fail(e);}
-      if(run===epoch)schedule();
-    }
-    return {open:function(){if(opened)return;opened=true;available=false;epoch++;refresh();},close:function(){opened=false;disconnect();},
-      connect:connect,disconnect:disconnect,refresh:refresh,state:state,contextChanged:contextChanged};
-  }
-  G.CT_MUSIC_AGENT_CONNECTION={create:create};
-})(typeof globalThis!=='undefined'?globalThis:window);
-
-/* ===== src/music-project-transfer.js ===== */
-/* Explicit, one-shot project transfer. No import, storage, fetch or model calls.
- * send(project.serialize()) MUST run inside the user's click handler.
- * receive().offer resolves to metadata; only an explicit UI Accept calls accept().
- * Message nonce is a capability; in URLs it appears ONLY in the initial fragment.
- * Do not log messages or persist nonce/source. COOP must preserve window.opener.
- */
-(function (root, factory) {
-  var api = factory(root);
-  if (typeof module === 'object' && module.exports) module.exports = api;
-  else root.CT_MUSIC_PROJECT_TRANSFER = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (root) {
-  'use strict';
-  var SENDER = 'https://chiptunes.app', RECEIVER = 'https://chiptunes-agent-gateway.vercel.app';
-  var MAX_BYTES = 8 * 1024 * 1024, TIMEOUT_MS = 120000, PROTOCOL = 'ct-project-transfer-v1';
-  var seen = new WeakMap();
-  function deferred() { var resolve; var promise = new Promise(function (r) { resolve = r; }); return { promise: promise, resolve: resolve }; }
-  function error(code) { return { ok: false, code: code }; }
-  function validate(serialized) {
-    if (typeof serialized !== 'string' || serialized.length > MAX_BYTES) throw Error('project_limit');
-    var bytes = new TextEncoder().encode(serialized).byteLength;
-    if (bytes > MAX_BYTES) throw Error('project_limit');
-    var value;
-    try { value = JSON.parse(serialized); } catch (_) { throw Error('invalid_json'); }
-    if (!value || typeof value !== 'object' || Array.isArray(value)) throw Error('invalid_json');
-    return bytes;
-  }
-  function environment(options, origin) {
-    var win = options.window || root, ms = options.timeoutMs == null ? TIMEOUT_MS : options.timeoutMs;
-    if (win.location.origin !== origin) throw Error('wrong_origin');
-    if (!Number.isInteger(ms) || ms < 1 || ms > TIMEOUT_MS) throw Error('invalid_timeout');
-    return { win: win, ms: ms };
-  }
-  // All deadlines use local monotonic time. Timers are session-local and removed
-  // on every terminal path; delayed event dispatch cannot revive an expired offer.
-  function channel(win, peer, origin, nonce, ms, onMessage, onEnd) {
-    var active = true, expires = win.performance.now() + ms;
-    function post(type, extra) {
-      if (!active) return false;
-      try { peer.postMessage(Object.assign({ protocol: PROTOCOL, nonce: nonce, type: type }, extra || {}), origin); return true; }
-      catch (_) { finish(error('peer_unavailable')); return false; }
-    }
-    function finish(result, notify) {
-      if (!active) return;
-      if (notify) { try { peer.postMessage({ protocol: PROTOCOL, nonce: nonce, type: 'cancel' }, origin); } catch (_) {} }
-      active = false; win.clearTimeout(timer);
-      win.removeEventListener('message', message); win.removeEventListener('pagehide', leave);
-      onEnd(result);
-    }
-    function live() {
-      if (active && win.performance.now() >= expires) finish(error('expired'), true);
-      return active;
-    }
-    function message(event) {
-      if (!live() || event.origin !== origin || event.source !== peer) return;
-      var data = event.data;
-      if (!data || typeof data !== 'object' || data.protocol !== PROTOCOL || data.nonce !== nonce) return;
-      if (data.type === 'cancel') return finish(error('cancelled'));
-      onMessage(data);
-    }
-    function leave() { finish(error('cancelled'), true); }
-    var timer = win.setTimeout(function () { finish(error('expired'), true); }, ms);
-    win.addEventListener('message', message); win.addEventListener('pagehide', leave);
-    return { post: post, finish: finish, live: live, cancel: leave };
-  }
-  function send(serialized, options) {
-    options = options || {};
-    var env = environment(options, SENDER), win = env.win, bytes = validate(serialized);
-    var random = new Uint8Array(32);
-    win.crypto.getRandomValues(random);
-    var nonce = Array.from(random, function (b) { return b.toString(16).padStart(2, '0'); }).join('');
-    var done = deferred(), phase = 'hello', ch;
-    // An opener is required; do not use noopener or a reusable named window.
-    var popup = win.open(RECEIVER + '/create#music-transfer=' + nonce, '_blank');
-    if (!popup) return Object.freeze({ result: Promise.resolve(error('popup_blocked')), cancel: function () {} });
-    ch = channel(win, popup, RECEIVER, nonce, env.ms, function (data) {
-      if (phase === 'hello' && data.type === 'hello') {
-        phase = 'accept'; ch.post('offer', { bytes: bytes });
-      } else if (phase === 'accept' && data.type === 'accept') {
-        phase = 'ack';
-        ch.post('project', { serialized: serialized });
-        serialized = null;
-      } else if (phase === 'ack' && data.type === 'received') {
-        ch.finish({ ok: true, code: 'received' });
-      }
-    }, function (result) { serialized = null; done.resolve(result); });
-    return Object.freeze({ result: done.promise, cancel: ch.cancel });
-  }
-  function receive(options) {
-    options = options || {};
-    var env = environment(options, RECEIVER), win = env.win;
-    var match = /^#music-transfer=([0-9a-f]{64})$/.exec(win.location.hash);
-    if (!match) return null;
-    var nonce = match[1], peer = win.opener;
-    // Remove capability from browser history before displaying the offer.
-    win.history.replaceState(null, '', win.location.pathname + win.location.search + '#music');
-    var used = seen.get(win);
-    if (!used) { used = new Set(); seen.set(win, used); }
-    if (!peer || peer === win || used.has(nonce) || used.size >= 64) return null;
-    used.add(nonce);
-    var offer = deferred(), done = deferred(), phase = 'offer', bytes, ch;
-    ch = channel(win, peer, SENDER, nonce, env.ms, function (data) {
-      if (phase === 'offer' && data.type === 'offer') {
-        if (!Number.isSafeInteger(data.bytes) || data.bytes < 2 || data.bytes > MAX_BYTES) return ch.finish(error('project_limit'), true);
-        bytes = data.bytes; phase = 'consent'; offer.resolve({ ok: true, bytes: bytes });
-      } else if (phase === 'project' && data.type === 'project') {
-        try {
-          if (validate(data.serialized) !== bytes) throw Error('size_mismatch');
-        } catch (e) { return ch.finish(error(e.message), true); }
-        if (!ch.live()) return;
-        if (ch.post('received')) ch.finish({ ok: true, serialized: data.serialized });
-      }
-    }, function (result) {
-      // Terminal protocol ack/cancel has already been sent. Release only this
-      // receiver's opener capability; never close or navigate either window.
-      try { win.opener = null; } catch (_) {}
-      phase = 'done'; offer.resolve(result); done.resolve(result);
-    });
-    ch.post('hello');
-    return Object.freeze({ offer: offer.promise, result: done.promise,
-      accept: function () {
-        if (ch.live() && phase === 'consent') { phase = 'project'; ch.post('accept'); }
-        return done.promise;
-      }, cancel: ch.cancel });
-  }
-  return Object.freeze({ send: send, receive: receive, MAX_BYTES: MAX_BYTES, TIMEOUT_MS: TIMEOUT_MS,
-    SENDER_ORIGIN: SENDER, RECEIVER_ORIGIN: RECEIVER });
-});
-
-/* ===== src/music-preview.js ===== */
-// Disposable preview transport. Never installs a revision or touches playback.
-(function(G){
-  'use strict';
-  var SOURCE_LIMIT=1048576,EVENT_LIMIT=50000,FRAME_LIMIT=216000;
-  var DEBOUNCE_MS=250,TIMEOUT_MS=3000;
-  function object(value){return !!value&&typeof value==='object'&&!Array.isArray(value);}
-  function integer(value,max){return Number.isSafeInteger(value)&&value>=0&&value<=max;}
-  function inputOK(value){
-    return object(value)&&typeof value.source==='string'&&value.source.length<=SOURCE_LIMIT&&
-      typeof value.projectId==='string'&&value.projectId.length>0&&value.projectId.length<=128&&
-      integer(value.draftEpoch,Number.MAX_SAFE_INTEGER);
-  }
-  function resultOK(result,source){
-    function span(s){return object(s)&&object(s.start)&&object(s.end)&&
-      integer(s.start.offset,source.length)&&integer(s.end.offset,source.length)&&s.end.offset>=s.start.offset&&
-      integer(s.start.line,SOURCE_LIMIT+1)&&s.start.line>0&&integer(s.end.line,SOURCE_LIMIT+1)&&s.end.line>0&&
-      integer(s.start.column,SOURCE_LIMIT+1)&&s.start.column>0&&integer(s.end.column,SOURCE_LIMIT+1)&&s.end.column>0;}
-    if(!object(result)||!object(result.settings)||!Array.isArray(result.mapping)||!Array.isArray(result.diagnostics)||
-      result.mapping.length>EVENT_LIMIT||result.diagnostics.length>2*EVENT_LIMIT+1)return false;
-    if(!result.diagnostics.every(function(d){return object(d)&&typeof d.message==='string'&&d.message.length<=SOURCE_LIMIT&&
-      ['error','warning','info'].indexOf(d.severity)!==-1&&(!d.span||span(d.span));}))return false;
-    if(result.controlsOmitted!==undefined&&!integer(result.controlsOmitted,SOURCE_LIMIT))return false;
-    if(result.controls!==undefined&&(!Array.isArray(result.controls)||result.controls.length>EVENT_LIMIT||!result.controls.every(function(c){
-      var bounds={gate:[.001,1,false],velocity:[0,1,false],transpose:[-128,128,true]},b=object(c)&&Object.prototype.hasOwnProperty.call(bounds,c.kind)&&bounds[c.kind];
-      if(!b||!['pattern','track'].includes(c.ownerType)||(c.ownerType==='track'&&c.kind!=='transpose')||
-        typeof c.ownerName!=='string'||c.ownerName.length>SOURCE_LIMIT||c.min!==b[0]||c.max!==b[1]||c.integer!==b[2]||
-        !Number.isFinite(c.value)||c.value<b[0]||c.value>b[1]||(b[2]&&!Number.isInteger(c.value))||
-        !span(c.literalSpan)||!span(c.callSpan)||!span(c.ownerSpan))return false;
-      if(c.ownerSpan.start.offset>c.callSpan.start.offset||c.callSpan.start.offset>c.literalSpan.start.offset||
-        c.literalSpan.end.offset>c.callSpan.end.offset||c.callSpan.end.offset>c.ownerSpan.end.offset)return false;
-      var text=source.slice(c.literalSpan.start.offset,c.literalSpan.end.offset);
-      return /^-?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(text)&&Number(text)===c.value;
-    })))return false;
-    var errors=result.diagnostics.some(function(d){return d.severity==='error';});
-    if(result.gb===null)return errors&&result.mapping.length===0&&!(result.controls||[]).length&&!result.controlsOmitted;
-    if(errors||!object(result.gb)||!Array.isArray(result.gb.notes)||result.gb.notes.length>EVENT_LIMIT||
-      !integer(result.gb.totalFrames,FRAME_LIMIT)||result.mapping.length!==result.gb.notes.length)return false;
-    var count=0;
-    if(!['notes','auto','vibOff','waveLoads','kit'].every(function(key){
-      if(result.gb[key]===undefined)return true;
-      if(!Array.isArray(result.gb[key]))return false;count+=result.gb[key].length;return count<=EVENT_LIMIT;
-    }))return false;
-    if(!result.gb.notes.every(function(n){return object(n)&&integer(n.ch,3)&&integer(n.frame,FRAME_LIMIT)&&
-      integer(n.frames,FRAME_LIMIT)&&n.frames>0&&n.frame+n.frames<=FRAME_LIMIT;}))return false;
-    var seen=new Set();
-    return result.mapping.every(function(m){
-      if(!object(m)||!integer(m.noteIndex,result.gb.notes.length-1)||seen.has(m.noteIndex)||!span(m.span)||
-        !['occurrenceSpan','tokenSpan','playSpan','trackSpan'].every(function(key){return m[key]===undefined||span(m[key]);}))return false;
-      if(m.tokenSpan&&(m.tokenSpan.start.offset<m.span.start.offset||m.tokenSpan.end.offset>m.span.end.offset||m.tokenSpan.start.offset===m.tokenSpan.end.offset))return false;
-      if(m.occurrenceStartFrame!==undefined||m.occurrenceEndFrame!==undefined){
-        if(!integer(m.occurrenceStartFrame,Number.MAX_SAFE_INTEGER)||!integer(m.occurrenceEndFrame,Number.MAX_SAFE_INTEGER)||m.occurrenceEndFrame<m.occurrenceStartFrame)return false;
-      }
-      seen.add(m.noteIndex);return true;
-    });
-  }
-  function create(options){
-    options=options||{};
-    var url=options.workerUrl||'/lib/music-preview-worker.js';
-    // Only bundled same-origin classic workers, optionally cache-versioned.
-    if(typeof url!=='string'||!/^\/lib\/[A-Za-z0-9_/-]+\.js(?:\?[A-Za-z0-9_.~%=&+-]*)?$/.test(url))
-      throw Error('Preview worker must be a same-origin /lib JavaScript asset');
-    var sequence=0,pending=null,worker=null,timer=null,deadline=null,destroyed=false;
-    function clear(){
-      if(timer!==null)G.clearTimeout(timer);if(deadline!==null)G.clearTimeout(deadline);
-      timer=null;deadline=null;
-      if(worker){worker.onmessage=worker.onerror=worker.onmessageerror=null;worker.terminate();worker=null;}
-      pending=null;
-    }
-    function cancel(){sequence++;clear();}
-    function current(capture){return !destroyed&&pending===capture&&capture.sequence===sequence;}
-    function envelope(capture,extra){return Object.assign({},capture,extra);}
-    function fail(capture,code,message){
-      if(!current(capture))return;
-      clear();if(typeof options.onError==='function')options.onError(envelope(capture,{code:code,message:message}));
-    }
-    function start(capture){
-      timer=null;if(!current(capture))return;
-      try{
-        worker=new G.Worker(url);
-        deadline=G.setTimeout(function(){fail(capture,'timeout','Draft preview timed out. Previous chart kept.');},TIMEOUT_MS);
-        worker.onmessage=function(event){
-          if(!current(capture))return;
-          var data=event.data;
-          // A stale/foreign result never changes the latest request's state.
-          if(!object(data)||data.sequence!==capture.sequence||data.projectId!==capture.projectId||data.draftEpoch!==capture.draftEpoch)return;
-          if(data.error){fail(capture,'worker-error','Draft preview is unavailable. Previous chart kept.');return;}
-          if(!resultOK(data.compiled,capture.source)){fail(capture,'invalid-result','Draft preview returned invalid data. Previous chart kept.');return;}
-          clear();if(typeof options.onResult==='function')options.onResult(envelope(capture,{compiled:data.compiled}));
-        };
-        worker.onerror=function(event){if(event&&event.preventDefault)event.preventDefault();fail(capture,'worker-error','Draft preview is unavailable. Previous chart kept.');};
-        worker.onmessageerror=function(){fail(capture,'invalid-result','Draft preview returned unreadable data. Previous chart kept.');};
-        worker.postMessage(envelope(capture));
-      }catch(e){fail(capture,'worker-unavailable','Draft preview is unavailable. Previous chart kept.');}
-    }
-    return {
-      schedule:function(value){
-        if(destroyed)return {ok:false,code:'destroyed'};
-        cancel();
-        if(!inputOK(value)){
-          if(typeof options.onError==='function')options.onError({sequence:sequence,code:'invalid-input',message:'Draft preview input exceeds supported bounds.'});
-          return {ok:false,code:'invalid-input'};
-        }
-        var capture=pending={source:value.source,projectId:value.projectId,draftEpoch:value.draftEpoch,sequence:sequence};
-        timer=G.setTimeout(function(){start(capture);},DEBOUNCE_MS);
-        if(typeof options.onPending==='function')options.onPending(envelope(capture));
-        return {ok:true,sequence:capture.sequence};
-      },
-      cancel:cancel,
-      destroy:function(){if(destroyed)return;destroyed=true;cancel();}
-    };
-  }
-  var api=Object.freeze({create:create});G.CT_MUSIC_PREVIEW=api;
-  if(typeof module!=='undefined'&&module.exports)module.exports=api;
-})(typeof globalThis!=='undefined'?globalThis:window);
-
-/* ===== src/music-chart-index.js ===== */
-// Visual-only index over one immutable compiled note array. No music transforms.
-// create(notes).query({fromFrame,toFrame,channels?,limit=1000}) returns
-// {items:[{note,index}], bins:[], count, overflow}. Note indices always refer to
-// the original array. Notes and query windows are half-open: [start,end).
-// A match requires start < toFrame && end > fromFrame (positive durations).
-// Queries accept fractional frame bounds; compiled note timings are integers.
-// On overflow, items is empty and <=limit nonempty bins cover ALL matches.
-// Bins {channel,fromFrame,toFrame,count} partition max(note.start,query.fromFrame),
-// so counts sum exactly to the total. If limit < occupied channels, one bin has
-// channel:null plus channels and channelCounts:[{channel,count}]. Query a bin's
-// window/channel to drill down: crossing notes from earlier bins also intersect
-// that narrower window, so detail count may exceed the bin's onset count.
-(function(G){
-  'use strict';
-  var MAX_NOTES=50000,MAX_LIMIT=1000;
-  function need(ok,message){if(!ok)throw Error(message);}
-  function finiteFrame(value){return typeof value==='number'&&Number.isFinite(value)&&value>=0&&value<=Number.MAX_SAFE_INTEGER;}
-  function lowerBound(values,value){
-    var lo=0,hi=values.length;
-    while(lo<hi){var mid=(lo+hi)>>>1;if(values[mid]<value)lo=mid+1;else hi=mid;}
-    return lo;
-  }
-  function upperBound(values,value){
-    var lo=0,hi=values.length;
-    while(lo<hi){var mid=(lo+hi)>>>1;if(values[mid]<=value)lo=mid+1;else hi=mid;}
-    return lo;
-  }
-  function create(notes){
-    need(Array.isArray(notes)&&notes.length<=MAX_NOTES,'Chart index requires at most 50000 notes');
-    var lanes=[[],[],[],[]];
-    notes.forEach(function(note,index){
-      need(note&&Number.isInteger(note.ch)&&note.ch>=0&&note.ch<4&&
-        Number.isSafeInteger(note.frame)&&note.frame>=0&&Number.isSafeInteger(note.frames)&&note.frames>0&&
-        Number.isSafeInteger(note.frame+note.frames),'Invalid chart note channel or interval');
-      // Capture timing, but preserve the original note object and array index.
-      // Callers treat compiled notes as immutable and rebuild for a new score.
-      lanes[note.ch].push({note:note,index:index,start:note.frame,end:note.frame+note.frames});
-    });
-    lanes=lanes.map(function(entries){
-      entries.sort(function(a,b){return a.start-b.start||a.index-b.index;});
-      var starts=entries.map(function(e){return e.start;}),ends=entries.map(function(e){return e.end;}).sort(function(a,b){return a-b;});
-      var size=1;while(size<entries.length)size*=2;
-      var maximum=new Float64Array(size*2);
-      entries.forEach(function(e,i){maximum[size+i]=e.end;});
-      for(var i=size-1;i>0;i--)maximum[i]=Math.max(maximum[i*2],maximum[i*2+1]);
-      return {entries:entries,starts:starts,ends:ends,size:size,maximum:maximum};
-    });
-    function count(lane,from,to){return lowerBound(lane.starts,to)-upperBound(lane.ends,from);}
-    function collect(lane,from,to,items){
-      // Augmented interval tree includes old, long notes crossing the viewport.
-      function visit(node,lo,hi){
-        if(lo>=lane.entries.length||lane.starts[lo]>=to||lane.maximum[node]<=from)return;
-        if(hi-lo===1){var e=lane.entries[lo];items.push({note:e.note,index:e.index});return;}
-        var mid=(lo+hi)>>>1;visit(node*2,lo,mid);visit(node*2+1,mid,hi);
-      }
-      visit(1,0,lane.size);
-    }
-    return Object.freeze({
-      query:function(options){
-        options=options||{};
-        var from=options.fromFrame,to=options.toFrame,limit=options.limit===undefined?MAX_LIMIT:options.limit;
-        need(finiteFrame(from)&&finiteFrame(to)&&to>from,'Chart query requires a finite nonempty [fromFrame,toFrame) window');
-        need(Number.isInteger(limit)&&limit>=1&&limit<=MAX_LIMIT,'Chart query limit must be 1 through 1000');
-        var channels=options.channels===undefined?[0,1,2,3]:options.channels;
-        need(Array.isArray(channels)&&channels.length<=4&&channels.every(function(ch){return Number.isInteger(ch)&&ch>=0&&ch<4;}),'Invalid chart channels');
-        channels=Array.from(new Set(channels)).sort(function(a,b){return a-b;});
-        var counts=channels.map(function(ch){return {channel:ch,count:count(lanes[ch],from,to)};}).filter(function(c){return c.count>0;});
-        var total=counts.reduce(function(n,c){return n+c.count;},0);
-        var result={items:[],bins:[],count:total,overflow:total>limit};
-        if(!result.overflow){
-          counts.forEach(function(c){collect(lanes[c.channel],from,to,result.items);});
-          // Deterministic ordering: channel, start frame, then original index.
-          return result;
-        }
-        if(limit<counts.length){
-          // One explicit mixed-channel bin is necessary when even one bin per
-          // occupied channel would exceed the caller's mounted-element budget.
-          result.bins.push({channel:null,channels:counts.map(function(c){return c.channel;}),channelCounts:counts,
-            fromFrame:from,toFrame:to,count:total});return result;
-        }
-        var perChannel=Math.floor(limit/counts.length),extra=limit%counts.length;
-        counts.forEach(function(c,channelIndex){
-          var lane=lanes[c.channel],number=Math.min(c.count,perChannel+(channelIndex<extra?1:0));
-          var expired=upperBound(lane.ends,from);
-          for(var i=0;i<number;i++){
-            var a=from+(to-from)*i/number,b=i===number-1?to:from+(to-from)*(i+1)/number;
-            if(b<=a)continue;
-            // Partition by max(note.start, viewport.from), not by duration.
-            // Thus bins sum exactly to count and spanning notes appear once.
-            var n=lowerBound(lane.starts,b)-(a===from?expired:lowerBound(lane.starts,a));
-            if(n)result.bins.push({channel:c.channel,fromFrame:a,toFrame:b,count:n});
-          }
-        });
-        return result;
-      }
-    });
-  }
-  var api=Object.freeze({create:create});G.CT_MUSIC_CHART_INDEX=api;
-  if(typeof module!=='undefined'&&module.exports)module.exports=api;
-})(typeof globalThis!=='undefined'?globalThis:window);
-
-/* ===== src/visual-language.js ===== */
-/* Bounded visual source, version 1. See docs/visual-language.md.
- * The lexer and parser only construct data; source never becomes JavaScript.
- * Tokens include punctuation, but exclude comments, whitespace and EOF. Depth
- * counts nested objects, arrays and reference calls, excluding statement calls.
- * Diagnostic offsets/columns use UTF-16; lines/columns are one-based, ends
- * exclusive. Source size is UTF-8, including comments and replacement bytes
- * for unpaired surrogates. Labels count Unicode code points.
- */
-(function (root, factory) {
-  'use strict';
-  if (typeof module === 'object' && module.exports) module.exports = factory();
-  else if (typeof define === 'function' && define.amd) define([], factory);
-  else root.CT_VISUAL_LANGUAGE = factory();
-})(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this, function () {
-  'use strict';
-
-  function own(object, key) { return Object.prototype.hasOwnProperty.call(object, key); }
-  function freeze(value) {
-    if (value && typeof value === 'object' && !Object.isFrozen(value)) {
-      Object.keys(value).forEach(function (key) { freeze(value[key]); });
-      Object.freeze(value);
-    }
-    return value;
-  }
-
-  var LIMITS = freeze({ sourceBytes: 32768, tokens: 4096, depth: 16, layers: 8,
-    controls: 8, paletteMin: 2, paletteMax: 8, count: 128, totalCount: 512,
-    primitivesPerItem: 4 });
-  var OPERATIONS = freeze(['tunnel', 'tiles', 'orbits', 'ribbons', 'sparks']);
-  var BLENDS = freeze(['source-over', 'lighter', 'screen']);
-  var SIGNALS = freeze(['audio.bass', 'audio.mid', 'audio.treble', 'audio.level',
-    'beat.phase', 'bar.phase', 'lead.hit', 'lead.pitch', 'counter.hit',
-    'counter.pitch', 'bass.hit', 'bass.pitch', 'drums.hit']);
-  // Shared renderer schema: dynamic numeric properties resolve and clamp to
-  // min/max; static fields must already satisfy their range or enum.
-  var LAYER_SCHEMA = freeze({
-    count: { default: 24, min: 1, max: LIMITS.count, integer: true, dynamic: false },
-    size: { default: 0.5, min: 0.01, max: 2, dynamic: true },
-    speed: { default: 0.5, min: -4, max: 4, dynamic: true },
-    spin: { default: 0, min: -4, max: 4, dynamic: true },
-    spread: { default: 0.7, min: 0, max: 2, dynamic: true },
-    hue: { default: 0, min: -8, max: 8, dynamic: true },
-    opacity: { default: 0.8, min: 0, max: 1, dynamic: true },
-    react: { default: 0, min: 0, max: 2, dynamic: true },
-    thickness: { default: 1, min: 0.25, max: 8, dynamic: true },
-    blend: { default: 'source-over', values: BLENDS, dynamic: false }
-  });
-  var VISUAL_DEFAULTS = freeze({ background: '#090615',
-    palette: ['#84f3d5', '#b089ff', '#ffbf69'], feedback: 0.8, seed: 1 });
-  var CONTROL_KEYS = ['label', 'min', 'max', 'step', 'value'];
-  var ESCAPES = { '"': '"', '\\': '\\', '/': '/', b: '\b', f: '\f', n: '\n', r: '\r', t: '\t' };
-
-  function Failure(code, message, at) {
-    this.code = code;
-    this.message = message;
-    this.start = at ? at.start : 0;
-    this.end = at ? at.end : this.start;
-  }
-  function fail(code, message, at) { throw new Failure(code, message, at); }
-  function need(condition, code, message, at) { if (!condition) fail(code, message, at); }
-  function nameText(value) { return JSON.stringify(value.length > 64 ? value.slice(0, 64) + '…' : value); }
-  function newline(c) { return c === '\n' || c === '\r' || c === '\u2028' || c === '\u2029'; }
-  function paired(source, index) {
-    var first = source.charCodeAt(index), second = source.charCodeAt(index + 1);
-    return first >= 0xd800 && first <= 0xdbff && second >= 0xdc00 && second <= 0xdfff;
-  }
-  function sourceBound(source) {
-    // Stop at the first excess byte, even if the supplied string is enormous.
-    var bytes = 0;
-    for (var i = 0; i < source.length; i++) {
-      var code = source.charCodeAt(i), width = paired(source, i) ? 2 : 1;
-      bytes += code < 0x80 ? 1 : code < 0x800 ? 2 : width === 2 ? 4 : 3;
-      need(bytes <= LIMITS.sourceBytes, 'SOURCE_LIMIT', 'Source exceeds 32768 UTF-8 bytes', { start: i, end: i + width });
-      i += width - 1;
-    }
-  }
-  function position(source, offset) {
-    var line = 1, column = 1;
-    for (var i = 0; i < offset; i++) {
-      var c = source[i];
-      if (c === '\r') { line++; column = 1; }
-      else if (c === '\n') { if (source[i - 1] !== '\r') line++; column = 1; }
-      else if (c === '\u2028' || c === '\u2029') { line++; column = 1; }
-      else column++;
-    }
-    return { offset: offset, line: line, column: column };
-  }
-
-  function lex(source) {
-    var tokens = [], i = 0;
-    while (i < source.length) {
-      var c = source[i];
-      if (/\s/.test(c)) { i++; continue; }
-      if (c === '/' && source[i + 1] === '/') {
-        i += 2;
-        while (i < source.length && !newline(source[i])) i++;
-        continue;
-      }
-      var start = i, kind, value;
-      need(tokens.length < LIMITS.tokens, 'TOKEN_LIMIT', 'Source exceeds 4096 tokens', { start: i, end: i + 1 });
-      if ('(){}[],:;'.indexOf(c) !== -1) { kind = c; value = c; i++; }
-      else if (c === '"') {
-        kind = 'string'; value = ''; i++;
-        while (i < source.length && source[i] !== '"') {
-          c = source[i++];
-          need(c.charCodeAt(0) >= 32, 'STRING_SYNTAX', 'Unescaped control character in JSON string', { start: i - 1, end: i });
-          if (c === '\\') {
-            var escapeStart = i - 1, escaped = source[i++];
-            if (escaped === 'u') {
-              var hex = source.slice(i, i + 4);
-              need(/^[0-9a-fA-F]{4}$/.test(hex), 'STRING_SYNTAX', 'Expected four hexadecimal digits after \\u',
-                { start: escapeStart, end: Math.min(i + 4, source.length) });
-              value += String.fromCharCode(parseInt(hex, 16)); i += 4;
-            } else {
-              need(own(ESCAPES, escaped), 'STRING_SYNTAX', 'Invalid JSON string escape',
-                { start: escapeStart, end: Math.min(i, source.length) });
-              value += ESCAPES[escaped];
-            }
-          } else value += c;
-        }
-        need(source[i] === '"', 'STRING_SYNTAX', 'Unterminated JSON string', { start: start, end: source.length });
-        i++;
-      } else if (/[A-Za-z_]/.test(c)) {
-        kind = 'identifier'; i++;
-        while (i < source.length && /[A-Za-z0-9_]/.test(source[i])) i++;
-        value = source.slice(start, i);
-      } else if (/[0-9.\-]/.test(c)) {
-        // Decimal literals, including .5, 1. and exponent notation. No radix
-        // prefixes, leading-zero integers, separators, unary + or expressions.
-        var match = /^-?(?:(?:0|[1-9][0-9]*)(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?/.exec(source.slice(i));
-        need(match, 'NUMBER_SYNTAX', 'Expected a decimal number literal', { start: start, end: start + 1 });
-        i += match[0].length;
-        need(i === source.length || !/[A-Za-z0-9_.$]/.test(source[i]), 'NUMBER_SYNTAX', 'Invalid decimal number literal', { start: start, end: i + 1 });
-        value = Number(match[0]); kind = 'number';
-        need(Number.isFinite(value), 'NUMBER_FINITE', 'Number literals must be finite', { start: start, end: i });
-      } else fail('SYNTAX', 'Unexpected character ' + nameText(c), { start: start, end: start + 1 });
-      tokens.push({ kind: kind, value: value, start: start, end: i });
-    }
-    tokens.push({ kind: 'eof', start: source.length, end: source.length });
-    return tokens;
-  }
-
-  function Parser(tokens) { this.tokens = tokens; this.index = 0; }
-  Parser.prototype.peek = function () { return this.tokens[this.index]; };
-  Parser.prototype.take = function (kind) {
-    if (this.peek().kind !== kind) return null;
-    return this.tokens[this.index++];
-  };
-  Parser.prototype.expect = function (kind) {
-    var token = this.peek();
-    need(token.kind === kind, 'SYNTAX', 'Expected ' + kind, token);
-    this.index++;
-    return token;
-  };
-  Parser.prototype.value = function (depth) {
-    var token = this.peek(), kind = token.kind, node;
-    if (kind === 'number' || kind === 'string') { this.index++; return token; }
-    need(kind === '{' || kind === '[' || (kind === 'identifier' && (token.value === 'param' || token.value === 'signal')),
-      'VALUE_SYNTAX', 'Expected a literal, object, array, param or signal', token);
-    need(depth < LIMITS.depth, 'DEPTH_LIMIT', 'Values exceed nesting depth 16', token);
-    this.index++;
-    node = { kind: kind === '{' ? 'object' : kind === '[' ? 'array' : 'reference', start: token.start };
-    if (kind === '{') {
-      node.fields = Object.create(null);
-      if (this.peek().kind !== '}') {
-        do {
-          var key = this.peek();
-          need(key.kind === 'identifier' || key.kind === 'string', 'SYNTAX', 'Expected an object key', key);
-          this.index++;
-          need(!own(node.fields, key.value), 'DUPLICATE_KEY', 'Duplicate key ' + nameText(key.value), key);
-          this.expect(':');
-          node.fields[key.value] = { key: key, value: this.value(depth + 1) };
-        } while (this.take(','));
-      }
-      node.end = this.expect('}').end;
-    } else {
-      node.items = [];
-      var end = kind === '[' ? ']' : ')';
-      if (kind === 'identifier') { node.name = token.value; this.expect('('); }
-      if (this.peek().kind !== end) {
-        do { node.items.push(this.value(depth + 1)); } while (this.take(','));
-      }
-      node.end = this.expect(end).end;
-    }
-    return node;
-  };
-  Parser.prototype.parse = function () {
-    var statements = [], counts = { visual: 0, control: 0, layer: 0 };
-    while (this.peek().kind !== 'eof') {
-      var token = this.expect('identifier'), name = token.value;
-      need(own(counts, name), 'STATEMENT', 'Unknown statement ' + nameText(name), token);
-      counts[name]++;
-      if (name === 'visual') need(counts.visual === 1, 'DUPLICATE_VISUAL', 'Exactly one visual declaration is allowed', token);
-      if (name === 'control') need(counts.control <= LIMITS.controls, 'CONTROL_LIMIT', 'At most 8 controls are allowed', token);
-      if (name === 'layer') need(counts.layer <= LIMITS.layers, 'LAYER_LIMIT', 'At most 8 layers are allowed', token);
-      this.expect('(');
-      var label = null;
-      if (name !== 'visual') { label = this.expect('string'); this.expect(','); }
-      var value = this.value(0);
-      this.expect(')');
-      this.expect(';');
-      statements.push({ name: name, label: label, value: value, start: token.start, end: value.end });
-    }
-    need(counts.visual === 1, 'MISSING_VISUAL', 'Exactly one visual declaration is required', this.peek());
-    return statements;
-  };
-
-  function fields(node, allowed, required) {
-    need(node.kind === 'object', 'TYPE', 'Expected an object', node);
-    Object.keys(node.fields).forEach(function (key) {
-      need(allowed.indexOf(key) !== -1, 'UNKNOWN_KEY', 'Unknown key ' + nameText(key), node.fields[key].key);
-    });
-    (required || []).forEach(function (key) {
-      need(own(node.fields, key), 'MISSING_KEY', 'Missing required key ' + nameText(key), node);
-    });
-    return node.fields;
-  }
-  function number(node, min, max, integer) {
-    need(node.kind === 'number', 'TYPE', 'Expected a static number', node);
-    need(node.value >= min && node.value <= max && (!integer || Number.isInteger(node.value)), 'RANGE',
-      'Expected ' + (integer ? 'an integer' : 'a number') + ' between ' + min + ' and ' + max, node);
-    return node.value;
-  }
-  function string(node) {
-    need(node.kind === 'string', 'TYPE', 'Expected a double-quoted string', node);
-    return node.value;
-  }
-  function color(node) {
-    var value = string(node);
-    need(/^#[0-9a-fA-F]{6}$/.test(value), 'COLOR', 'Expected a six-digit hex color', node);
-    return value;
-  }
-  function controlName(node) {
-    var value = string(node);
-    need(/^[a-z][a-z0-9_]{0,23}$/.test(value), 'CONTROL_NAME', 'Control names must match [a-z][a-z0-9_]{0,23}', node);
-    return value;
-  }
-  function visual(node) {
-    var f = fields(node, Object.keys(VISUAL_DEFAULTS));
-    var result = { background: VISUAL_DEFAULTS.background, palette: VISUAL_DEFAULTS.palette.slice(),
-      feedback: VISUAL_DEFAULTS.feedback, seed: VISUAL_DEFAULTS.seed };
-    if (own(f, 'background')) result.background = color(f.background.value);
-    if (own(f, 'palette')) {
-      var palette = f.palette.value;
-      need(palette.kind === 'array', 'TYPE', 'Palette must be an array', palette);
-      need(palette.items.length >= LIMITS.paletteMin && palette.items.length <= LIMITS.paletteMax,
-        'PALETTE_LIMIT', 'Palette must contain 2 to 8 colors', palette);
-      result.palette = palette.items.map(color);
-    }
-    if (own(f, 'feedback')) result.feedback = number(f.feedback.value, 0, 0.95);
-    if (own(f, 'seed')) result.seed = number(f.seed.value, 0, 65535, true);
-    return result;
-  }
-  function control(statement) {
-    var name = controlName(statement.label), f = fields(statement.value, CONTROL_KEYS, CONTROL_KEYS);
-    var label = string(f.label.value), length = 0;
-    for (var i = 0; i < label.length && length <= 40; i++, length++) if (paired(label, i)) i++;
-    need(length >= 1 && length <= 40, 'CONTROL_LABEL', 'Control labels must contain 1 to 40 characters', f.label.value);
-    var min = number(f.min.value, -16, 16), max = number(f.max.value, -16, 16);
-    need(min < max, 'CONTROL_RANGE', 'Control min must be less than max', f.max.value);
-    var step = number(f.step.value, 0, max - min);
-    need(step > 0, 'CONTROL_STEP', 'Control step must be greater than zero', f.step.value);
-    return { name: name, label: label, min: min, max: max, step: step, value: number(f.value.value, min, max) };
-  }
-  function dynamic(node, schema, controls) {
-    if (node.kind === 'number') {
-      // A literal is already resolved. Clamp it now; renderers clamp reference
-      // results using this same schema after reading external control/signals.
-      return Math.max(schema.min, Math.min(schema.max, node.value));
-    }
-    need(node.kind === 'reference', 'TYPE', 'Expected a number, param or signal', node);
-    var args = node.items;
-    if (node.name === 'param') {
-      need(args.length === 1, 'ARITY', 'param expects one control name', node);
-      var name = controlName(args[0]);
-      need(own(controls, name), 'UNKNOWN_CONTROL', 'Unknown control ' + nameText(name), args[0]);
-      return { type: 'param', name: name };
-    }
-    need(args.length >= 1 && args.length <= 3, 'ARITY', 'signal expects a name and optional scale, offset', node);
-    var signal = string(args[0]);
-    need(SIGNALS.indexOf(signal) !== -1, 'UNKNOWN_SIGNAL', 'Unknown signal ' + nameText(signal), args[0]);
-    return { type: 'signal', name: signal, scale: args.length > 1 ? number(args[1], -16, 16) : 1,
-      offset: args.length > 2 ? number(args[2], -16, 16) : 0 };
-  }
-  function layer(statement, controls) {
-    var op = string(statement.label);
-    need(OPERATIONS.indexOf(op) !== -1, 'OPERATION', 'Unknown layer operation ' + nameText(op), statement.label);
-    var f = fields(statement.value, Object.keys(LAYER_SCHEMA)), result = { op: op };
-    Object.keys(LAYER_SCHEMA).forEach(function (key) {
-      var schema = LAYER_SCHEMA[key], node = own(f, key) ? f[key].value : null;
-      if (!node) result[key] = schema.default;
-      else if (schema.dynamic) result[key] = dynamic(node, schema, controls);
-      else if (schema.values) {
-        var value = string(node);
-        need(schema.values.indexOf(value) !== -1, 'BLEND', 'Unknown blend ' + nameText(value), node);
-        result[key] = value;
-      } else result[key] = number(node, schema.min, schema.max, schema.integer);
-    });
-    return result;
-  }
-  function build(statements) {
-    var result = { version: 1, visual: null, controls: [], layers: [] }, controls = Object.create(null), total = 0;
-    // Resolve all declarations before references, while preserving layer order.
-    statements.forEach(function (statement) {
-      if (statement.name === 'visual') result.visual = visual(statement.value);
-      if (statement.name === 'control') {
-        var item = control(statement);
-        need(!own(controls, item.name), 'DUPLICATE_CONTROL', 'Duplicate control ' + nameText(item.name), statement.label);
-        controls[item.name] = item;
-        result.controls.push(item);
-      }
-    });
-    statements.forEach(function (statement) {
-      if (statement.name !== 'layer') return;
-      var item = layer(statement, controls);
-      total += item.count;
-      need(total <= LIMITS.totalCount, 'COUNT_LIMIT', 'The sum of layer counts must not exceed 512',
-        own(statement.value.fields, 'count') ? statement.value.fields.count.value : statement.label);
-      result.layers.push(item);
-    });
-    return freeze(result);
-  }
-  function compile(source) {
-    try {
-      need(typeof source === 'string', 'SOURCE_TYPE', 'Source must be a string');
-      sourceBound(source);
-      return { ok: true, program: build(new Parser(lex(source)).parse()), diagnostics: [] };
-    } catch (error) {
-      var known = error instanceof Failure, input = typeof source === 'string' ? source : '';
-      return { ok: false, program: null, diagnostics: [{ severity: 'error',
-        code: known ? error.code : 'INTERNAL', message: known ? error.message : 'Unable to compile visual source',
-        span: { start: position(input, known ? error.start : 0), end: position(input, known ? error.end : 0) } }] };
-    }
-  }
-
-  var PRESETS = freeze([
-    {
-      id: 'visual:neon-tunnel', label: 'Neon Tunnel',
-      source: [
-        '// Bass opens the tunnel; drums scatter bright sparks through its wake.',
-        '// Remix the palette, swap the hit routes, or move a layer to the front.',
-        'visual({',
-        '  background: "#090615",',
-        '  palette: ["#84f3d5", "#b089ff", "#ff729f", "#ffbf69"],',
-        '  feedback: 0.86, seed: 17',
-        '});',
-        'control("motion", {label: "Motion", min: 0, max: 2, step: 0.01, value: 0.82});',
-        'control("glow", {label: "Glow", min: 0, max: 1, step: 0.01, value: 0.72});',
-        'control("twist", {label: "Twist", min: -2, max: 2, step: 0.01, value: 0.08});',
-        '',
-        '// Nested frames give the scene its depth.',
-        'layer("tunnel", {',
-        '  count: 32, size: 1.2, speed: param("motion"), spin: param("twist"),',
-        '  spread: 0.85, hue: signal("lead.pitch", 2), opacity: param("glow"),',
-        '  react: signal("bass.hit", 0.95), thickness: 1.5',
-        '});',
-        '// Broad, slow ribbons cross the tunnel with a soft screen blend.',
-        'layer("ribbons", {',
-        '  count: 5, size: 0.32, speed: -0.25, spin: 0.15, spread: 1.3,',
-        '  hue: 2, opacity: 0.22, react: signal("audio.mid", 1.2),',
-        '  thickness: 2, blend: "screen"',
-        '});',
-        'layer("sparks", {',
-        '  count: 48, size: 0.02, speed: 0.6, spin: 0.2, spread: 1.4,',
-        '  hue: signal("bar.phase", 4), opacity: param("glow"),',
-        '  react: signal("drums.hit", 1.4), thickness: 0.75, blend: "lighter"',
-        '});'
-      ].join('\n')
-    },
-    {
-      id: 'visual:pulse-grid', label: 'Pulse Grid',
-      source: [
-        '// A drum-driven tile field, bass ribbons, and lead accents.',
-        'visual({',
-        '  background: "#06121c",',
-        '  palette: ["#40e0ff", "#ffe082", "#ff648d", "#9b8aff"],',
-        '  feedback: 0.68, seed: 83',
-        '});',
-        'control("motion", {label: "Drift", min: -2, max: 2, step: 0.01, value: 0.25});',
-        'control("cell", {label: "Tile size", min: 0.05, max: 0.6, step: 0.01, value: 0.28});',
-        'control("glow", {label: "Glow", min: 0, max: 1, step: 0.01, value: 0.8});',
-        '',
-        '// Count changes the grid density; cell changes the space between tiles.',
-        'layer("tiles", {',
-        '  count: 64, size: param("cell"), speed: param("motion"), spread: 1.25,',
-        '  hue: signal("beat.phase", 3), opacity: param("glow"),',
-        '  react: signal("drums.hit", 1.7), thickness: 1.5',
-        '});',
-        'layer("ribbons", {',
-        '  count: 6, size: 0.5, speed: -0.3, spin: signal("bass.pitch", 0.5, -0.25),',
-        '  spread: 1.4, hue: 1, opacity: 0.3, react: signal("audio.bass", 1.1),',
-        '  thickness: 2, blend: "screen"',
-        '});',
-        '// Swap lead.hit for counter.hit to move the bright accents to another lane.',
-        'layer("sparks", {',
-        '  count: 24, size: 0.04, speed: 0.9, spin: -0.4, spread: 1.2,',
-        '  hue: 2, opacity: 0.7, react: signal("lead.hit", 1.2), blend: "lighter"',
-        '});'
-      ].join('\n')
-    },
-    {
-      id: 'visual:orbit-loom', label: 'Orbit Loom',
-      source: [
-        '// Two counter-moving orbit fields weave through translucent ribbons.',
-        'visual({',
-        '  background: "#110d20",',
-        '  palette: ["#ffd6a5", "#c8a7ff", "#76e6cc", "#ff8ba7"],',
-        '  feedback: 0.9, seed: 211',
-        '});',
-        'control("motion", {label: "Orbit speed", min: -2, max: 2, step: 0.01, value: 0.4});',
-        'control("twist", {label: "Weave", min: -2, max: 2, step: 0.01, value: 0.3});',
-        'control("glow", {label: "Thread glow", min: 0, max: 1, step: 0.01, value: 0.65});',
-        '',
-        'layer("orbits", {',
-        '  count: 18, size: 0.2, speed: param("motion"), spin: param("twist"),',
-        '  spread: 1.3, hue: signal("lead.pitch", 3), opacity: param("glow"),',
-        '  react: signal("lead.hit", 0.8), thickness: 2, blend: "lighter"',
-        '});',
-        '// Counter pitch bends the ribbons; the measured mid band widens them.',
-        'layer("ribbons", {',
-        '  count: 8, size: 0.6, speed: -0.35, spin: signal("counter.pitch", 0.6, -0.3),',
-        '  spread: 1.1, hue: 1, opacity: 0.38, react: signal("audio.mid", 1.2),',
-        '  thickness: 2, blend: "screen"',
-        '});',
-        '// A smaller reverse orbit makes the bass pulse visible inside the weave.',
-        'layer("orbits", {',
-        '  count: 9, size: 0.08, speed: -0.65, spin: -0.25, spread: 0.7,',
-        '  hue: 2, opacity: param("glow"), react: signal("bass.hit", 0.9),',
-        '  thickness: 1, blend: "lighter"',
-        '});'
-      ].join('\n')
-    }
-  ]);
-
-  return freeze({ compile: compile, PRESETS: PRESETS, LIMITS: LIMITS,
-    LAYER_SCHEMA: LAYER_SCHEMA, OPERATIONS: OPERATIONS, SIGNALS: SIGNALS,
-    BLENDS: BLENDS, VISUAL_DEFAULTS: VISUAL_DEFAULTS });
-});
-
-/* ===== src/visual-renderer.js ===== */
-// Bounded visual IR v1. No clock/transport ownership: the caller supplies one
-// fresh clock.noteOns batch per render. Canvas resources live for this instance.
-(function (G) {
-  'use strict';
-  var TAU = Math.PI * 2, MAX_DT = 0.1, MAX_ITEMS = 512, MAX_EVENTS = 64;
-  // Floor on shedding. Below this a scene stops reading as itself, and the
-  // right answer is a simpler program, not an emptier one.
-  var MIN_QUALITY = 0.25;
-  var own = Object.prototype.hasOwnProperty;
-  var OPS = ['tunnel', 'tiles', 'orbits', 'ribbons', 'sparks'];
-  var SIGNALS = ['audio.bass', 'audio.mid', 'audio.treble', 'audio.level',
-    'beat.phase', 'bar.phase', 'lead.hit', 'lead.pitch', 'counter.hit',
-    'counter.pitch', 'bass.hit', 'bass.pitch', 'drums.hit'];
-  var PARAMS = {
-    size: [0.5, 0.01, 2], speed: [0.5, -4, 4], spin: [0, -4, 4],
-    spread: [0.7, 0, 2], hue: [0, -8, 8], opacity: [0.8, 0, 1],
-    react: [0, 0, 2], thickness: [1, 0.25, 8]
-  };
-  var PARAM_NAMES = Object.keys(PARAMS);
-  var DEFAULT_PALETTE = ['#84f3d5', '#b089ff', '#ffbf69'];
-
-  function finite(n) { return typeof n === 'number' && Number.isFinite(n); }
-  function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
-  function unit(n) { return finite(n) ? clamp(n, 0, 1) : 0; }
-  function fract(n) { return n - Math.floor(n); }
-  function fail(message) { throw TypeError(message); }
-  function message(error) {
-    try { if (error && typeof error.message === 'string') return error.message.slice(0, 240); } catch (_) {}
-    return 'Visual rendering failed';
-  }
-  function number(n, min, max, label) {
-    if (!finite(n) || n < min || n > max) fail('Invalid ' + label);
-    return n;
-  }
-  function integer(n, min, max, label) {
-    number(n, min, max, label);
-    if (!Number.isInteger(n)) fail('Invalid ' + label);
-    return n;
-  }
-  function color(c) {
-    if (typeof c !== 'string' || c.length !== 7 || !/^#[0-9a-f]{6}$/i.test(c)) fail('Invalid visual color');
-    return c;
-  }
-  function controlName(n) {
-    return typeof n === 'string' && n.length <= 24 && /^[a-z][a-z0-9_]{0,23}$/.test(n);
-  }
-  function validLabel(label) {
-    if (typeof label !== 'string' || !label.length || label.length > 80) return false;
-    var length = 0;
-    for (var i = 0; i < label.length; i++, length++) {
-      var a = label.charCodeAt(i), b = label.charCodeAt(i + 1);
-      if (a >= 0xd800 && a <= 0xdbff && b >= 0xdc00 && b <= 0xdfff) i++;
-    }
-    return length <= 40;
-  }
-  // Only bounded, own data fields are copied. Getters, inherited fields, exotic
-  // prototypes, extra keys and sparse/decorated arrays are not compiled data.
-  function record(input, keys, label) {
-    if (!input || typeof input !== 'object' || Array.isArray(input)) fail('Invalid ' + label);
-    var proto = Object.getPrototypeOf(input);
-    if (proto !== null && proto !== Object.prototype) fail('Invalid ' + label + ' prototype');
-    var names = Reflect.ownKeys(input), out = Object.create(null);
-    if (names.length > keys.length) fail('Too many ' + label + ' fields');
-    for (var i = 0; i < names.length; i++) {
-      var key = names[i], d = Object.getOwnPropertyDescriptor(input, key);
-      if (!keys.includes(key) || !d || !own.call(d, 'value')) fail('Invalid ' + label + ' field');
-      out[key] = d.value;
-    }
-    return out;
-  }
-  function list(input, max, label) {
-    if (!Array.isArray(input)) fail('Invalid ' + label);
-    var length = Object.getOwnPropertyDescriptor(input, 'length').value;
-    integer(length, 0, max, label + ' length');
-    if (Reflect.ownKeys(input).length !== length + 1) fail('Invalid ' + label + ' entries');
-    var out = [];
-    for (var i = 0; i < length; i++) {
-      var d = Object.getOwnPropertyDescriptor(input, String(i));
-      if (!d || !own.call(d, 'value')) fail('Invalid ' + label + ' entry');
-      out.push(d.value);
-    }
-    return out;
-  }
-  function fallback(object, key, value) { return own.call(object, key) ? object[key] : value; }
-  function expression(value, controls) {
-    if (finite(value)) return value;
-    var ref = record(value, ['type', 'name', 'scale', 'offset'], 'reference');
-    if (ref.type === 'param') {
-      if (own.call(ref, 'scale') || own.call(ref, 'offset') || !controlName(ref.name) || !own.call(controls, ref.name))
-        fail('Invalid parameter reference');
-      return { type: 'param', name: ref.name };
-    }
-    if (ref.type !== 'signal' || !SIGNALS.includes(ref.name)) fail('Invalid signal reference');
-    return { type: 'signal', name: ref.name,
-      scale: number(fallback(ref, 'scale', 1), -16, 16, 'signal scale'),
-      offset: number(fallback(ref, 'offset', 0), -16, 16, 'signal offset') };
-  }
-  function validate(input) {
-    var p = record(input, ['version', 'visual', 'controls', 'layers'], 'program');
-    if (p.version !== 1) fail('Unsupported visual program version');
-    var v = record(p.visual, ['background', 'palette', 'feedback', 'seed'], 'visual');
-    var palette = list(fallback(v, 'palette', DEFAULT_PALETTE), 8, 'palette');
-    if (palette.length < 2) fail('Palette needs at least two colors');
-    palette = palette.map(color);
-    var visual = { background: color(fallback(v, 'background', '#090615')), palette: palette,
-      feedback: number(fallback(v, 'feedback', 0.8), 0, 0.95, 'feedback'),
-      seed: integer(fallback(v, 'seed', 1), 0, 65535, 'seed') };
-    var controls = Object.create(null), declarations = list(p.controls, 8, 'controls');
-    for (var i = 0; i < declarations.length; i++) {
-      var c = record(declarations[i], ['name', 'label', 'min', 'max', 'step', 'value'], 'control');
-      if (!controlName(c.name) || own.call(controls, c.name)) fail('Invalid or duplicate control name');
-      if (!validLabel(c.label)) fail('Invalid control label');
-      number(c.min, -16, 16, 'control minimum'); number(c.max, -16, 16, 'control maximum');
-      if (c.min >= c.max || !finite(c.step) || c.step <= 0 || c.step > c.max - c.min) fail('Invalid control range or step');
-      number(c.value, c.min, c.max, 'control value');
-      controls[c.name] = c;
-    }
-    var layers = list(p.layers, 8, 'layers'), count = 0;
-    layers = layers.map(function (input) {
-      var l = record(input, ['op', 'count', 'blend'].concat(PARAM_NAMES), 'layer');
-      if (!OPS.includes(l.op)) fail('Unknown visual operation');
-      var layer = { op: l.op, count: integer(fallback(l, 'count', 24), 1, 128, 'layer count'),
-        blend: fallback(l, 'blend', 'source-over') };
-      if (!['source-over', 'lighter', 'screen'].includes(layer.blend)) fail('Invalid layer blend');
-      count += layer.count;
-      if (count > MAX_ITEMS) fail('Visual item limit exceeded');
-      PARAM_NAMES.forEach(function (name) { layer[name] = expression(fallback(l, name, PARAMS[name][0]), controls); });
-      return layer;
-    });
-    return { visual: visual, controls: controls, layers: layers, count: count,
-      colors: palette.map(function (c) { var n = parseInt(c.slice(1), 16); return [n >>> 16, (n >>> 8) & 255, n & 255]; }) };
-  }
-  function hash(seed, item, salt) {
-    var h = (seed ^ Math.imul(item + 1, 0x9e3779b1) ^ Math.imul(salt + 1, 0x85ebca6b)) >>> 0;
-    h = Math.imul(h ^ (h >>> 16), 0x7feb352d);
-    h = Math.imul(h ^ (h >>> 15), 0x846ca68b);
-    return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
-  }
-  function paint(colors, position) {
-    var index = fract(position / colors.length) * colors.length;
-    var a = colors[Math.floor(index)], b = colors[(Math.floor(index) + 1) % colors.length], mix = fract(index);
-    return 'rgb(' + Math.round(a[0] + (b[0] - a[0]) * mix) + ',' +
-      Math.round(a[1] + (b[1] - a[1]) * mix) + ',' + Math.round(a[2] + (b[2] - a[2]) * mix) + ')';
-  }
-  function saved(ctx, draw) { ctx.save(); try { draw(); } finally { ctx.restore(); } }
-  // A primitive means a completed stroke, fill, rect, or image draw. Neon uses
-  // two strokes of the same bounded path, never a blur/filter or extra surface.
-  function neon(ctx, tint, alpha, width) {
-    ctx.strokeStyle = tint; ctx.globalAlpha = alpha * 0.15; ctx.lineWidth = width * 3.5; ctx.stroke();
-    ctx.globalAlpha = alpha; ctx.lineWidth = width; ctx.stroke();
-  }
-  function polygon(ctx, x, y, radius, angle) {
-    ctx.beginPath();
-    for (var k = 0; k < 4; k++) {
-      var a = angle + k * TAU / 4, px = x + Math.cos(a) * radius, py = y + Math.sin(a) * radius;
-      if (!k) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-    }
-    ctx.closePath();
-  }
-  function tunnel(ctx, p, env) {
-    var t = env.phase, s = env.small, turn = t * p.spin * 0.22;
-    var cx = env.width / 2 + Math.sin(t * p.speed * 0.17) * s * 0.12 * p.spread;
-    var cy = env.height / 2 + Math.cos(t * p.speed * 0.13) * s * 0.08 * p.spread;
-    for (var i = 0; i < p.count; i++) {
-      var depth = fract(i / p.count + t * p.speed * 0.14), scale = Math.pow(depth, 2.1);
-      var r = s * (0.012 + scale * 1.6 * p.size) * (1 + p.react * 0.22);
-      var angle = Math.PI / 4 + turn + (1 - depth) * p.spread * 0.9;
-      var alpha = p.opacity * Math.sin(depth * Math.PI) * (0.35 + depth * 0.65);
-      var tint = paint(env.colors, i * 0.16 + p.hue + depth * 1.3);
-      polygon(ctx, cx, cy, r, angle);
-      neon(ctx, tint, alpha, p.thickness * (0.45 + depth * 1.5));
-      // Two short perspective rails share one path: three primitives/item.
-      var farther = Math.max(0, depth - 1 / p.count);
-      var r2 = s * (0.012 + Math.pow(farther, 2.1) * 1.6 * p.size) * (1 + p.react * 0.22);
-      var a2 = Math.PI / 4 + turn + (1 - farther) * p.spread * 0.9;
-      ctx.beginPath();
-      for (var k = 0; k < 2; k++) {
-        var offset = k * Math.PI;
-        ctx.moveTo(cx + Math.cos(angle + offset) * r, cy + Math.sin(angle + offset) * r);
-        ctx.lineTo(cx + Math.cos(a2 + offset) * r2, cy + Math.sin(a2 + offset) * r2);
-      }
-      ctx.globalAlpha = alpha * 0.32; ctx.lineWidth = p.thickness * 0.6; ctx.stroke();
-    }
-  }
-  function tiles(ctx, p, env) {
-    var cols = Math.min(p.count, Math.max(1, Math.ceil(Math.sqrt(p.count * env.width / env.height))));
-    var rows = Math.ceil(p.count / cols), cell = Math.min(env.width / cols, env.height / rows) * (0.45 + p.spread);
-    ctx.translate(env.width / 2, env.height / 2); ctx.rotate(env.phase * p.spin * 0.08);
-    for (var i = 0; i < p.count; i++) {
-      var x = (i % cols - (cols - 1) / 2) * cell, y = (Math.floor(i / cols) - (rows - 1) / 2) * cell;
-      var wave = 0.5 + 0.5 * Math.sin(Math.hypot(x, y) / Math.max(1, cell) * 0.85 - env.phase * p.speed * 2.2);
-      var d = Math.max(0.5, cell * 0.58 * p.size * (0.55 + wave * 0.45 + p.react * 0.35));
-      var left = Math.round(x - d / 2), top = Math.round(y - d / 2);
-      var tint = paint(env.colors, i / cols + wave + p.hue);
-      ctx.fillStyle = tint; ctx.globalAlpha = p.opacity * (0.08 + wave * 0.18);
-      ctx.fillRect(left, top, d, d);
-      ctx.strokeStyle = tint; ctx.lineWidth = p.thickness; ctx.globalAlpha = p.opacity * (0.22 + wave * 0.7);
-      ctx.strokeRect(left, top, d, d);
-      ctx.fillStyle = '#f0fcff'; ctx.globalAlpha = p.opacity * wave * 0.7;
-      var dot = Math.max(0.5, Math.min(d / 3, p.thickness * (1.5 + p.react)));
-      ctx.fillRect(left, top, dot, dot);
-    }
-  }
-  function orbits(ctx, p, env) {
-    for (var i = 0; i < p.count; i++) {
-      var h = hash(env.seed, i, env.layer), u = (i + 0.5) / p.count;
-      var turn = env.phase * p.spin * 0.16 + h * Math.PI;
-      var angle = env.phase * p.speed * (0.45 + h) + u * TAU;
-      var rx = env.small * (0.1 + u * 0.52 * p.spread) * (0.35 + p.size) * (1 + p.react * 0.18);
-      var ry = rx * (0.28 + h * 0.5);
-      var cx = env.width / 2 + Math.cos(h * TAU) * env.small * p.spread * 0.08;
-      var cy = env.height / 2 + Math.sin(h * TAU) * env.small * p.spread * 0.08;
-      var tint = paint(env.colors, u * env.colors.length + p.hue);
-      ctx.strokeStyle = tint; ctx.lineWidth = p.thickness * 0.5; ctx.globalAlpha = p.opacity * 0.1;
-      ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, turn, 0, TAU); ctx.stroke();
-      ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, turn, angle - 0.6 - p.react * 0.5, angle);
-      neon(ctx, tint, p.opacity * (0.5 + h * 0.5), p.thickness);
-      var x = rx * Math.cos(angle), y = ry * Math.sin(angle);
-      ctx.globalAlpha = p.opacity; ctx.fillStyle = '#edffff'; ctx.beginPath();
-      ctx.arc(cx + x * Math.cos(turn) - y * Math.sin(turn), cy + x * Math.sin(turn) + y * Math.cos(turn),
-        Math.max(0.5, p.thickness * (1.25 + p.react)), 0, TAU); ctx.fill();
-    }
-  }
-  function ribbons(ctx, p, env) {
-    var w = env.width, h = env.height, t = env.phase * p.speed;
-    ctx.translate(w / 2, h / 2); ctx.rotate(Math.sin(env.phase * 0.13) * p.spin * 0.24); ctx.translate(-w / 2, -h / 2);
-    for (var i = 0; i < p.count; i++) {
-      var u = (i + 0.5) / p.count, salt = hash(env.seed, i, env.layer);
-      var y = h * (0.5 + (u - 0.5) * p.spread * 1.2);
-      var amplitude = h * 0.3 * p.size * (0.45 + p.react * 0.4);
-      var a = Math.sin(t * 0.73 + u * 4.5), b = Math.cos(t * 0.61 + u * 3.4 + salt * 0.25);
-      var tint = paint(env.colors, u * env.colors.length + p.hue + Math.sin(t * 0.1) * 0.3);
-      ctx.beginPath(); ctx.moveTo(-w * 0.12, y + a * amplitude);
-      ctx.bezierCurveTo(w * 0.1, y - b * amplitude * 1.6, w * 0.32, y + a * amplitude * 1.7, w * 0.5, y);
-      ctx.bezierCurveTo(w * 0.7, y - a * amplitude * 1.7, w * 0.88, y + b * amplitude * 1.6, w * 1.12, y - a * amplitude);
-      neon(ctx, tint, p.opacity * (0.35 + 0.65 * Math.sin(u * Math.PI)), p.thickness * (0.6 + p.size));
-    }
-  }
-  function sparks(ctx, p, env) {
-    var t = env.phase;
-    for (var i = 0; i < p.count; i++) {
-      var salt = hash(env.seed, i, env.layer), jitter = hash(env.seed, i, env.layer + 19);
-      var life = fract(salt + t * p.speed * (0.11 + jitter * 0.1));
-      var angle = jitter * TAU + t * p.spin * 0.2 + life * p.spin * 0.35;
-      var radius = env.small * Math.pow(life, 0.8) * (0.15 + p.spread * 0.8) * (1 + p.react * 0.3);
-      var cx = env.width / 2, cy = env.height / 2;
-      var x = cx + Math.cos(angle) * radius, y = cy + Math.sin(angle) * radius;
-      var trail = env.small * (0.008 + life * 0.04) * p.size * (0.3 + Math.abs(p.speed));
-      var alpha = p.opacity * Math.sin(life * Math.PI) * (0.4 + jitter * 0.6);
-      var tint = paint(env.colors, jitter * env.colors.length + life + p.hue);
-      ctx.beginPath(); ctx.moveTo(x - Math.cos(angle) * trail, y - Math.sin(angle) * trail); ctx.lineTo(x, y);
-      neon(ctx, tint, alpha, p.thickness * (0.5 + p.size * 0.4));
-      var size = Math.max(0.5, (1 + p.size * 2) * (0.5 + jitter) * (1 + p.react * 0.5));
-      ctx.fillStyle = '#f0fcff'; ctx.globalAlpha = alpha; ctx.fillRect(Math.round(x - size / 2), Math.round(y - size / 2), size, size);
-    }
-  }
-  var DRAW = { tunnel: tunnel, tiles: tiles, orbits: orbits, ribbons: ribbons, sparks: sparks };
-
-  function create(options) {
-    options = options || {};
-    if (typeof options.createCanvas !== 'function') fail('createCanvas is required');
-    var width = finite(options.width) ? clamp(Math.floor(options.width), 1, 960) : 960;
-    var height = finite(options.height) ? clamp(Math.floor(options.height), 1, 540) : 540;
-    var front = options.createCanvas(width, height), back = options.createCanvas(width, height);
-    if (!front || !back || front === back) fail('createCanvas must return two distinct canvases');
-    front.width = back.width = width; front.height = back.height = height;
-    var frontCtx = front.getContext('2d'), backCtx = back.getContext('2d');
-    if (!frontCtx || !backCtx || frontCtx === backCtx) fail('Two distinct 2D contexts are required');
-    var program = null, values = Object.create(null), signals = Object.create(null);
-    var phase = 0, frameCount = 0, renderErrors = 0, error = null, lastTime = null, lastIdentity = null;
-    var wasPaused = true, hasFrame = false, feedbackValid = false, dirty = true, dt = 0;
-    // The renderer owns no clock and no ambient services, so it cannot measure
-    // its own cost. The host measures frame cost and hands back a quality
-    // level; this module only spends it. MIN_QUALITY keeps a shed frame
-    // recognisable instead of degenerating to one item per layer.
-    var quality = 1, drawnItems = 0;
-    var acknowledgedGrid = { gstep: 0, phase: 0, bar: 0, bpm: 120 };
-    SIGNALS.forEach(function (name) { signals[name] = 0; });
-
-    // Invalid Apply throws before any renderer state changes; the stage owns
-    // draft diagnostics. Rendering failures are instead recoverable results.
-    // Explicit values win; otherwise matching saved controls survive an Apply.
-    function apply(input, suppliedValues) {
-      var next = validate(input), names = Object.keys(next.controls);
-      var supplied = suppliedValues === undefined ? Object.create(null) : record(suppliedValues, names, 'control values');
-      var nextValues = Object.create(null);
-      names.forEach(function (name) {
-        var c = next.controls[name], value = own.call(supplied, name) ? supplied[name] :
-          own.call(values, name) ? values[name] : c.value;
-        if (!finite(value)) fail('Invalid saved control value');
-        nextValues[name] = clamp(value, c.min, c.max);
-      });
-      program = next; values = nextValues; dirty = true;
-      return { ok: true, error: null };
-    }
-    function setControl(name, value) {
-      if (!controlName(name) || !program || !own.call(program.controls, name) || !finite(value))
-        return { ok: false, error: 'Invalid control or value' };
-      var c = program.controls[name], next = clamp(value, c.min, c.max);
-      if (values[name] !== next) { values[name] = next; dirty = true; }
-      return { ok: true, value: next, error: null };
-    }
-    function resolve(layer) {
-      // Shedding lever: every draw operation loops over p.count, so scaling it
-      // reduces real drawn work rather than merely reporting a lower quality.
-      // At least one item per layer always survives, so a shed frame is still
-      // the same composition, thinner — never a blank stage.
-      var p = { count: Math.max(1, Math.round(layer.count * quality)) };
-      PARAM_NAMES.forEach(function (name) {
-        var ref = layer[name], v = typeof ref === 'number' ? ref :
-          ref.type === 'param' ? values[ref.name] : signals[ref.name] * ref.scale + ref.offset;
-        p[name] = clamp(v, PARAMS[name][1], PARAMS[name][2]);
-      });
-      return p;
-    }
-    function updateSignals(clock, grid, paused) {
-      // Positive executed events alone trigger role envelopes. Unknown raw MIDI
-      // never overwrites the last known pitch, and semantic role summaries are
-      // deliberately not an onset source. No event ids/history are retained.
-      var roles = ['lead', 'counter', 'bass', 'drums'];
-      for (var i = 0; i < roles.length; i++) {
-        var key = roles[i] + '.hit', hit = signals[key] * Math.exp(-dt * (roles[i] === 'bass' ? 5 : 8));
-        signals[key] = hit < 0.00001 ? 0 : hit;
-      }
-      var notes = clock.noteOns;
-      if (!paused && Array.isArray(notes)) {
-        for (var i = 0, n = Math.min(MAX_EVENTS, notes.length); i < n; i++) {
-          var event = notes[i];
-          if (!event || typeof event !== 'object') continue;
-          if (event.kind !== undefined && !['noteOn', 'sample', 'register'].includes(event.kind)) continue;
-          var role = event.role, strength = finite(event.strength) ? event.strength : event.mag;
-          if (role === 'perc' || role === 'noise') role = 'drums';
-          if (!roles.includes(role) || !finite(strength) || strength <= 0) continue;
-          signals[role + '.hit'] = Math.max(signals[role + '.hit'], unit(strength));
-          if (role !== 'drums' && event.kind !== 'register' && event.kind !== 'sample' && finite(event.midi))
-            signals[role + '.pitch'] = unit((event.midi - 24) / 84);
-        }
-      }
-      var analysis = clock.analysis, measured = !paused && analysis && analysis.available === true;
-      var bands = measured && analysis.bands || {};
-      signals['audio.bass'] = unit(bands.bass); signals['audio.mid'] = unit(bands.mid); signals['audio.treble'] = unit(bands.treble);
-      signals['audio.level'] = measured ? unit(analysis.rms) : 0;
-      var step = finite(grid.gstep) && grid.gstep >= 0 ? Math.floor(grid.gstep) : 0;
-      var fraction = unit(grid.phase);
-      acknowledgedGrid.gstep = step; acknowledgedGrid.phase = fraction;
-      acknowledgedGrid.bar = finite(grid.bar) && grid.bar >= 0 ? Math.floor(grid.bar) : Math.floor(step / 16);
-      acknowledgedGrid.bpm = finite(grid.bpm) && grid.bpm > 0 ? clamp(grid.bpm, 1, 1000) : 120;
-      signals['beat.phase'] = ((step % 4) + fraction) / 4;
-      signals['bar.phase'] = ((step % 16) + fraction) / 16;
-    }
-    function render(input) {
-      try {
-        input = input || {};
-        var time = finite(input.contextTime) && input.contextTime >= 0 ? input.contextTime : null;
-        // Identity is a caller-owned scalar token, never coerced/stringified.
-        // Retaining arbitrary objects here could pin an unbounded transport graph.
-        var id = input.identity;
-        if (!(id == null || typeof id === 'string' && id.length <= 256 || finite(id))) fail('Invalid visual transport identity');
-        id = id == null ? null : id;
-        var paused = input.paused === true, clock = input.clock || {}, grid = input.grid || {};
-        // Clamped rather than rejected: a bad quality hint must never turn into
-        // a render failure that blanks the stage.
-        quality = finite(input.quality) ? clamp(input.quality, MIN_QUALITY, 1) : 1;
-        dt = !paused && !wasPaused && id === lastIdentity && time !== null && lastTime !== null ? clamp(time - lastTime, 0, MAX_DT) : 0;
-        lastTime = time; lastIdentity = id; wasPaused = paused;
-        // At most 100 ms of visual catch-up; a backwards/invalid clock only
-        // reanchors. Pause/unfreeze do not replay elapsed wall time or events.
-        phase = (phase + dt) % 1048576;
-        updateSignals(clock, grid, paused);
-        if (paused && hasFrame && !dirty && !error) return { canvas: front, error: null };
-        if (!program) return { canvas: front, error: null };
-        if (front.width !== width || front.height !== height || back.width !== width || back.height !== height)
-          fail('Visual canvas dimensions changed externally');
-        var env = { phase: phase, width: width, height: height, small: Math.min(width, height),
-          colors: program.colors, seed: program.visual.seed, layer: 0 };
-        saved(backCtx, function () {
-          backCtx.setTransform(1, 0, 0, 1, 0, 0); backCtx.globalCompositeOperation = 'source-over';
-          backCtx.globalAlpha = 1; backCtx.shadowBlur = 0; backCtx.lineCap = 'round'; backCtx.lineJoin = 'round';
-          backCtx.fillStyle = program.visual.background; backCtx.fillRect(0, 0, width, height);
-          if (feedbackValid && program.visual.feedback > 0) {
-            // A small outward drift gives motion real trails without allocating
-            // histories, gradients, patterns, images, or per-particle resources.
-            var zoom = 1 + dt * (0.035 + signals['bass.hit'] * 0.025);
-            backCtx.globalAlpha = Math.pow(program.visual.feedback, Math.max(dt, 1 / 60) * 60);
-            backCtx.drawImage(front, (width - width * zoom) / 2, (height - height * zoom) / 2, width * zoom, height * zoom);
-          }
-          drawnItems = 0;
-          program.layers.forEach(function (layer, index) {
-            var p = resolve(layer); env.layer = index;
-            drawnItems += p.count;
-            if (p.opacity === 0) return;
-            saved(backCtx, function () {
-              backCtx.globalCompositeOperation = layer.blend;
-              DRAW[layer.op](backCtx, p, env);
-            });
-          });
-        });
-        var swap = front; front = back; back = swap;
-        swap = frontCtx; frontCtx = backCtx; backCtx = swap;
-        hasFrame = feedbackValid = true; dirty = false; error = null;
-        frameCount = Math.min(Number.MAX_SAFE_INTEGER, frameCount + 1);
-        return { canvas: front, error: null };
-      } catch (e) {
-        error = message(e); renderErrors = Math.min(Number.MAX_SAFE_INTEGER, renderErrors + 1);
-        return { canvas: front, error: error };
-      }
-    }
-    function reset() {
-      phase = 0; dt = 0; lastTime = null; lastIdentity = null; wasPaused = true;
-      SIGNALS.forEach(function (name) { signals[name] = 0; });
-      // Invalidate feedback; leave the published pixels intact until the next
-      // complete draw, so even a draw failure just after Reset keeps last-good.
-      feedbackValid = false; dirty = true; error = null;
-      return snapshot();
-    }
-    function snapshot() {
-      return { values: Object.assign({}, values), phase: phase, frames: frameCount,
-        canvasCount: 2, width: width, height: height, error: error, renderErrors: renderErrors,
-        dt: dt, signals: Object.assign({}, signals), grid: Object.assign({}, acknowledgedGrid), layers: program ? program.layers.length : 0,
-        items: program ? program.count : 0, hasFrame: hasFrame,
-        quality: quality, drawnItems: drawnItems };
-    }
-    return Object.freeze({ apply: apply, setControl: setControl, render: render, reset: reset, snapshot: snapshot });
-  }
-  var api = Object.freeze({ create: create }); G.CT_VISUAL_RENDERER = api;
-  if (typeof module !== 'undefined' && module.exports) module.exports = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this);
-
-/* ===== src/visual-stage.js ===== */
-// Independent visual draft/live state. No music mutation or autonomous clock.
-(function(G,factory){
-  var api=factory();if(typeof module==='object'&&module.exports)module.exports=api;
-  else G.CT_VISUAL_STAGE=api;
-})(typeof globalThis==='object'?globalThis:this,function(){
-  'use strict';
-  function copy(value){return JSON.parse(JSON.stringify(value));}
-  function identity(t){return t?[t.epoch,t.activation,t.revision,t.discontinuity].join(':'):null;}
-  function create(options){
-    options=options||{};
-    var language=options.language,renderer=options.renderer;
-    if(!language||!renderer)throw Error('Visual language and renderer required');
-    var presets=language.PRESETS,scenes=presets.map(function(p){return {id:p.id,label:p.label};}).concat(options.games||[]);
-    var draft=presets[0].source,draftScene=presets[0].id,live=null,pending=null,suspended=null;
-    var error=null,renderError=null,diagnostics=[],notice='',frozen=false,blackout=false,revision=0,reanchor=0,lastFrame=null;
-    function changed(){if(options.onChange)options.onChange();}
-    function find(id){return presets.find(function(p){return p.id===id;});}
-    function isProgram(id){return id.indexOf('visual:')===0;}
-    function snapshot(){
-      var rs=renderer.snapshot();
-      return {scene:live?live.scene:'off',enabled:!!live&&live.scene!=='off',scenes:copy(scenes),
-        draftScene:draftScene,draft:draft,liveSource:live&&live.source||'',revision:revision,
-        state:(error||renderError)?'error':pending?'queued':(!live||draftScene!==live.scene||(isProgram(draftScene)&&draft!==live.source))?'draft':'live',
-        error:error||renderError,diagnostics:copy(diagnostics),notice:notice,frozen:frozen,blackout:blackout,
-        edited:!!live&&!!live.program&&(!find(live.scene)||find(live.scene).source!==live.source),
-        controls:live&&live.program?live.program.controls.map(function(c){return Object.assign({},c,{value:rs.values[c.name]});}):[],
-        pending:pending?{scene:pending.scene,label:label(pending.scene),bar:pending.targetStep/16+1,step:pending.targetStep}:null,
-        renderer:rs};
-    }
-    function label(id){var s=scenes.find(function(s){return s.id===id;});return s?s.label:id==='off'?'Off':'Custom visual';}
-    function candidate(){
-      if(!isProgram(draftScene))return {scene:draftScene,source:'',program:null,values:{}};
-      var compiled=language.compile(draft);
-      if(!compiled.ok){diagnostics=compiled.diagnostics||[];error=diagnostics[0]&&diagnostics[0].message||'Invalid visual program';return null;}
-      var values={},previous=renderer.snapshot().values||{};
-      var same=live&&(draftScene===live.scene||(live.scene==='off'&&suspended&&draftScene===suspended.scene));
-      compiled.program.controls.forEach(function(c){values[c.name]=same&&Object.prototype.hasOwnProperty.call(previous,c.name)?Math.max(c.min,Math.min(c.max,previous[c.name])):c.value;});
-      return {scene:draftScene,source:draft,program:compiled.program,values:values};
-    }
-    function activate(next){
-      // The renderer validates before mutation. Recoverable errors leave live
-      // state and its last complete framebuffer unchanged.
-      try{if(next.program)renderer.apply(next.program,next.values);}
-      catch(e){error='Visual apply failed: '+e.message;return false;}
-      if(next.scene==='off'&&live&&live.scene!=='off')suspended=live;
-      live=next;revision++;pending=null;error=null;renderError=null;diagnostics=[];notice='';reanchor++;
-      return true;
-    }
-    function apply(when,t){
-      if(when!=='now'&&when!=='bar')throw Error('Visual boundary must be now or bar');
-      error=null;diagnostics=[];notice='';var next=candidate();
-      if(!next){changed();return snapshot();}
-      if(when==='bar'){
-        if(!t||t.paused||t.status!=='playing'||!t.grid||!Number.isFinite(t.grid.gstep)){
-          error='Play music before queueing a visual for the next bar.';
-        }else pending=Object.assign(next,{identity:identity(t),targetStep:(Math.floor(t.grid.gstep/16)+1)*16});
-      }else activate(next);
-      changed();return snapshot();
-    }
-    function selectDraft(id){
-      var preset=find(id);
-      if(id!=='off'&&id!=='visual:custom'&&!scenes.some(function(s){return s.id===id;}))throw Error('Unknown visual scene');
-      if(live&&live.scene==='off'&&suspended&&id===suspended.scene&&suspended.program)draft=suspended.source;
-      else if(preset)draft=preset.source;
-      draftScene=id;error=null;diagnostics=[];notice='';changed();return snapshot();
-    }
-    function setDraft(source){
-      if(typeof source!=='string'||source.length>32768)throw Error('Visual source is limited to 32 KiB');
-      draft=source;
-      // Preserve a preset identity while editing it: it is an editable program,
-      // not a preset engine. Switching away and back explicitly reloads it.
-      if(!isProgram(draftScene))draftScene='visual:custom';
-      error=null;diagnostics=[];notice='';changed();return snapshot();
-    }
-    function cancel(reason){pending=null;notice=reason||'Queued visual cancelled.';changed();return snapshot();}
-    function observe(t){
-      if(pending){
-        if(!t||!['playing','paused'].includes(t.status)||identity(t)!==pending.identity)cancel('Queued visual cancelled: music timeline changed.');
-        else if(!t.paused&&t.grid.gstep>=pending.targetStep){activate(pending);changed();}
-      }
-    }
-    function tick(t,clock,quality){
-      observe(t);
-      if(!live||!live.program)return {canvas:null,error:error};
-      if(frozen)return lastFrame||{canvas:null,error:error};
-      // The stage does not decide how much work to spend; the host measures
-      // frame cost and passes a quality level straight through. The renderer
-      // clamps it, so an absent or bad value is simply full quality.
-      var result=renderer.render({contextTime:t&&t.renderContextTime||0,paused:!t||t.paused,
-        identity:identity(t)+':'+reanchor,grid:t&&t.grid||{},clock:clock||{noteOns:[]},quality:quality});
-      lastFrame=result;
-      var currentError=result.error?String(result.error):null;
-      if(currentError!==renderError){renderError=currentError;changed();}
-      return result;
-    }
-    function setControl(name,value){
-      if(!live||!live.program)throw Error('This scene has no visual program controls');
-      var result=renderer.setControl(name,value);
-      if(result&&result.ok===false)throw Error(result.error||'Invalid visual control');
-      changed();return snapshot();
-    }
-    // Portable visual composition data: the live scene, its edited source and
-    // its named control values. Draft-only edits, queued boundaries, freeze,
-    // blackout and renderer internals are session state and are NOT saved.
-    function serialize(){
-      if(!live)return null;
-      // Off suspends a world rather than discarding it, so saving while Off
-      // must carry the suspended program, not an empty scene. Otherwise
-      // switching visuals Off and saving would silently destroy the source and
-      // control values the performer had applied.
-      var off=live.scene==='off',subject=off?suspended:live;
-      if(!subject)return off?{scene:'off',source:'',values:{},off:true}:null;
-      var values={},current=renderer.snapshot().values||{},tuned=false;
-      if(subject.program)subject.program.controls.forEach(function(c){
-        if(Object.prototype.hasOwnProperty.call(current,c.name)){
-          values[c.name]=current[c.name];
-          if(current[c.name]!==c.value)tuned=true;
-        }
-      });
-      // The stage always boots into the first preset, so an untouched default
-      // is not composition data. Saving it would give every music-only project
-      // a visual block it never asked for and change records that should be
-      // byte-identical to ones written before visuals were persisted.
-      if(!off&&subject.scene===presets[0].id&&subject.source===presets[0].source&&!tuned)return null;
-      var out={scene:subject.scene,source:subject.program?subject.source:'',values:values};
-      if(off)out.off=true;
-      return out;
-    }
-    // A saved visual is untrusted input from a project record. It may name a
-    // scene this build no longer has, or a program that no longer compiles;
-    // neither may prevent the stage from starting.
-    function toDefault(){
-      draft=presets[0].source;draftScene=presets[0].id;
-      error=null;renderError=null;diagnostics=[];
-      activate(candidate());
-    }
-    function restoreSaved(saved){
-      // Absent is not malformed: a project that never used visuals opens on the
-      // default scene silently, while a broken saved visual says so.
-      if(saved===null||saved===undefined){toDefault();notice='';return true;}
-      try{
-        if(typeof saved!=='object'||typeof saved.scene!=='string')throw Error('Malformed saved visual');
-        var id=saved.scene;
-        if(id!=='off'&&!isProgram(id)&&!scenes.some(function(s){return s.id===id;}))throw Error('Unknown saved visual scene');
-        if(isProgram(id)){
-          if(typeof saved.source!=='string'||saved.source.length>32768)throw Error('Invalid saved visual source');
-          // A preset this build no longer ships must not discard the saved
-          // program: the source is self-contained, so keep it and relabel it
-          // as an edited custom scene rather than retaining an id that
-          // selectDraft would later reject.
-          if(id!=='visual:custom'&&!scenes.some(function(s){return s.id===id;}))id='visual:custom';
-          draft=saved.source;
-        }else{var preset=find(id);if(preset)draft=preset.source;}
-        draftScene=id;
-        var next=candidate();
-        if(!next)throw Error('Saved visual no longer compiles');
-        if(saved.values&&typeof saved.values==='object'&&next.program)next.program.controls.forEach(function(c){
-          var v=saved.values[c.name];
-          if(typeof v==='number'&&Number.isFinite(v))next.values[c.name]=Math.max(c.min,Math.min(c.max,v));
-        });
-        if(!activate(next))throw Error('Saved visual could not be applied');
-        // Restore the suspended world first, then suspend it again, so Off
-        // reopens Off while still retaining the program behind it.
-        if(saved.off===true){draftScene='off';if(!activate(candidate()))throw Error('Saved visual could not be suspended');}
-        return true;
-      }catch(e){
-        toDefault();
-        notice='Saved visual could not be restored; the default scene is running.';
-        return false;
-      }
-    }
-    function freeze(value){frozen=!!value;reanchor++;changed();return snapshot();}
-    function mask(value){blackout=!!value;changed();return snapshot();}
-    function reset(){renderer.reset();lastFrame=null;reanchor++;notice='Visual state reset; music unchanged.';changed();return snapshot();}
-    function panic(){pending=null;blackout=true;notice='Panic: visual output blacked out.';changed();return snapshot();}
-    if(options.restore)restoreSaved(options.restore);else activate(candidate());
-    return {snapshot:snapshot,setDraft:setDraft,selectDraft:selectDraft,apply:apply,cancel:cancel,observe:observe,tick:tick,
-      serialize:serialize,restoreSaved:function(saved){var ok=restoreSaved(saved);changed();return ok;},
-      setScene:function(id,t){selectDraft(id);return apply('now',t);},setControl:setControl,
-      freeze:freeze,blackout:mask,reset:reset,panic:panic};
-  }
-  return Object.freeze({create:create});
-});
-
-/* ===== src/music-workspace.js ===== */
-// One source authority. Notes and exports use validated revisions; typing never
-// changes audio. Legacy and native editors retain their own document boundaries.
-(function(G){
-  'use strict';
-  var root,editor,project,storage,client,sourceLoading=false,saveTimer,queueTokens={},queueRevisions={},queueActivations={},playingRevision=null,audioState={status:'stopped',frame:0};
-  var selection=null,proposal=null,requestId=null,serial=0,previousFocus,inerted=[],conflict=false,unsub=null;
-  var unsaved=false,saveEpoch=0,editorLoading=null,previousRoute=null,openEpoch=0,fileImportSerial=0;
-  var agentInstance=null,agentRecords=new Map(),policyEpoch=0;
-  var connection=null;
-  var chatUI=null,chatLoading=null,chatDraft='',chatAccessMessage='Checking chat access…',chatUISignature=null;
-  var viewEpoch=0,chatFocus=null,desktopChatOpen=true,mobileChatOpen=false,chartShare=55,musicShare=62;
-  var soundingIndex=null,lastHighlight=null;
-  var preview=null,previewChart=null,previewOwner=null,previewStatus='Validated chart';
-  var chartIndex=null,chartRange=null,chartViewportKey='',chartRenderFrame=null;
-  var inlineContext=null;
-  var codeProject=null,codeProjectId=0;
-  var CHART_GUTTER=68,NOTE_ROW=14,LANE_HEADER=25;
-  var visualizerOpen=false,presentationOwner=null,presentationFocus=null,stageError='';
-  var visualEditor=null,visualEditorLoading=false,visualControlSignature='',visualRenderQueued=false;
-  // Restoring a saved visual is not a user edit and must not mark the project
-  // unsaved, or opening a project would immediately dirty it.
-  var visualRestoring=false;
-  // The stage boots into its default scene before a project's saved visual can
-  // be handed to it. Until that handover happens the stage's state says nothing
-  // about this project, and treating it as an edit would erase the saved
-  // visual on every reload.
-  // Ownership, not a boolean: this is the exact project the stage was last
-  // handed over to. project is reassigned on several paths (file import,
-  // transfer accept, new loop, generate) and any path that does NOT re-run the
-  // handover leaves owner !== project, which makes it read-only by default
-  // rather than writing one project's visuals into another.
-  var visualOwner=null;
-  // A saved visual that could not be restored must never be erased by the
-  // fallback default that replaced it. While this is set, "the stage is at its
-  // default" means "nothing to say", not "delete what is stored".
-  var visualRestoreFailed=false;
-  function visualAdapter(){return G.CT_CREATE_PRESENTATION;}
-  function renderVisualEditor(state){
-    $('.mw-visual-authoring').hidden=!state;
-    $('.mw-visual-performance').hidden=!state;
-    if(!state)return;
-    if(visualEditor&&visualEditor.value()!==state.draft){visualEditorLoading=true;visualEditor.set(state.draft);visualEditorLoading=false;}
-    if(visualEditor)visualEditor.diagnostics((state.diagnostics||[]).map(function(d){return {
-      from:d.span&&d.span.start?d.span.start.offset:0,to:d.span&&d.span.end?d.span.end.offset:0,message:d.message,severity:d.severity};}));
-    $('[data-action=visual-cancel]').hidden=!state.pending;
-    $('[data-action=visual-apply]').textContent=state.pending?'Replace queued visual':'Apply visuals';
-    $('[data-action=visual-freeze]').textContent=state.frozen?'Unfreeze':'Freeze';
-    $('[data-action=visual-freeze]').setAttribute('aria-pressed',String(state.frozen));
-    $('[data-action=visual-blackout]').setAttribute('aria-pressed',String(state.blackout));
-    var signature=JSON.stringify(state.controls.map(function(c){return [c.name,c.label,c.min,c.max,c.step];}));
-    if(signature!==visualControlSignature){
-      visualControlSignature=signature;var host=$('.mw-visual-parameters');host.replaceChildren();
-      state.controls.forEach(function(c){
-        var label=document.createElement('label'),title=document.createElement('span'),value=document.createElement('output'),input=document.createElement('input');
-        title.textContent=c.label;value.dataset.controlOutput=c.name;input.type='range';input.min=c.min;input.max=c.max;input.step=c.step;
-        input.dataset.visualControl=c.name;input.setAttribute('aria-label',c.label+' (visual)');
-        label.append(title,value,input);host.appendChild(label);
-        input.addEventListener('input',function(){try{visualAdapter().setVisualControl(c.name,+this.value);}catch(e){status(e.message);}});
-      });
-    }
-    state.controls.forEach(function(c){
-      var input=root.querySelector('[data-visual-control="'+c.name+'"]'),output=root.querySelector('[data-control-output="'+c.name+'"]');
-      input.value=c.value;output.value=String(Math.round(c.value*1000)/1000);
-    });
-    $('.mw-visual-code-disclosure').hidden=state.draftScene.indexOf('visual:')!==0;
-  }
-  function ensureVisualEditor(){
-    if(visualEditor||!G.CT_MUSIC_CODE_EDITOR)return;
-    var state=visualAdapter().snapshot().visual;if(!state)return;
-    visualEditor=G.CT_MUSIC_CODE_EDITOR.mount($('.mw-visual-code'),state.draft,function(source){
-      if(!visualEditorLoading)try{visualAdapter().setVisualDraft(source);}catch(e){status(e.message);}
-    },{dialect:'visual',onLimit:status});
-  }
-  function renderStage(){
-    if(!root)return;
-    var adapter=G.CT_CREATE_PRESENTATION,scene=$('.mw-scene'),state=adapter&&adapter.snapshot&&adapter.snapshot();
-    if(state&&state.mounted){
-      var options=[{id:'off',label:'Off'}].concat(state.scenes||[]);
-      if(state.visual&&state.visual.draftScene==='visual:custom')options.push({id:'visual:custom',label:'Custom visual'});
-      if(Array.from(scene.options).map(function(o){return o.value;}).join(',')!==options.map(function(o){return o.id;}).join(',')){
-        scene.replaceChildren();options.forEach(function(item){var option=document.createElement('option');option.value=item.id;option.textContent=item.label;scene.appendChild(option);});
-      }
-      scene.value=state.visual?state.visual.draftScene:state.enabled?state.scene:'off';scene.disabled=false;
-      $('.mw-stage-empty').hidden=!!state.enabled;
-      $('.mw-stage-empty').textContent='Visuals off';
-      $('.mw-visuals').dataset.enabled=String(!!state.enabled);
-      $('.mw-stage-status').textContent=!state.enabled?'Visuals off · music is independent':audioState.status==='playing'?'Following live music':audioState.status==='paused'?'Music paused':'Ready · Run your music to drive this scene';
-      if(state.visual){
-        var v=state.visual,liveLabel=options.find(function(o){return o.id===state.scene;});
-        var pendingLabel=v.pending?'Queued '+v.pending.label+' · bar '+v.pending.bar:'';
-        $('.mw-stage-status').textContent=(v.error?'Error · '+v.error+' · Last working visual retained.'+(pendingLabel?' · '+pendingLabel:''):pendingLabel|| (v.state==='draft'?'Draft · Apply visuals to update the stage':v.notice||'Live · '+(liveLabel?liveLabel.label:'Custom visual')+(v.edited?' (edited)':'')))+(v.frozen?' · Frozen':'')+(v.blackout?' · Blackout':'');
-        $('.mw-stage-status').dataset.state=v.state;
-      }
-      renderVisualEditor(state.visual);
-    }else{
-      scene.disabled=true;$('.mw-stage-empty').hidden=false;
-      $('.mw-stage-empty').textContent='Visual stage unavailable';
-      $('.mw-stage-status').textContent=stageError||'Code, notes and playback are still available.';
-    }
-    $('[data-action=visualizer]').disabled=!(state&&state.mounted);
-    $('[data-action=stage-fullscreen]').disabled=!(state&&state.mounted);
-  }
-  function mountStage(){
-    try{
-      stageError='';
-      if(G.CT_CREATE_PRESENTATION&&G.CT_CREATE_PRESENTATION.mount)G.CT_CREATE_PRESENTATION.mount($('.mw-stage-viewport'));
-    }catch(e){stageError='Visual stage could not start. Music remains available.';}
-    renderStage();
-  }
-  function fullscreenStage(){
-    // In an output layout the whole output is the picture; fullscreening only
-    // the stage would drop the code half that makes code-plus-visuals a
-    // performance surface rather than a screensaver. requestFullscreen must
-    // stay synchronous inside the click to keep user activation.
-    var host=visualizerOpen?root:$('.mw-stage-viewport');
-    var request=host.requestFullscreen||host.webkitRequestFullscreen;
-    if(!request){status('Fullscreen is unavailable in this browser. Use Focus visuals to enlarge the stage.');return;}
-    // Called directly from the click to preserve browser user activation.
-    try{var result=request.call(host);if(result&&result.catch)result.catch(function(){status('Fullscreen was declined. The stage and music are unchanged.');});}
-    catch(e){status('Fullscreen was declined. The stage and music are unchanged.');}
-  }
-  function setVisualizer(visible){
-    if(!G.CT_CREATE_PRESENTATION||!G.CT_CREATE_PRESENTATION.snapshot||!G.CT_CREATE_PRESENTATION.snapshot().mounted){status('Visualizer is unavailable in this build.');return;}
-    if(visible&&!visualizerOpen)presentationFocus=document.activeElement;
-    visualizerOpen=!!visible;presentationOwner=visible?project:null;
-    root.dataset.presentation=visible?outputMode:'composition';
-    var button=$('[data-action=visualizer]');button.textContent=visible?'Return to composition':'Focus visuals';button.setAttribute('aria-pressed',String(visible));
-    // Presentation changes only layout. The same stage stays mounted and music
-    // keeps its acknowledged phase; private chat is never part of output.
-    $('.mw-main').inert=!!visible;$('.mw-chat').inert=!!visible;
-    if(visible)button.focus({preventScroll:true});
-    if(!visible&&project)renderNotes();
-    if(!visible&&presentationFocus&&presentationFocus.isConnected&&presentationFocus.getClientRects().length)presentationFocus.focus({preventScroll:true});
-  }
-  function chartContext(s){s=s||snap();return previewOwner===project&&previewChart&&(!s.validated||s.draft!==s.validated.source)?previewChart:s.validated;}
-  function cancelPreview(){if(preview)preview.cancel();previewChart=null;previewOwner=null;previewStatus='Validated chart';}
-  function schedulePreview(){
-    var s=snap();
-    if(s.validated&&s.draft===s.validated.source){cancelPreview();renderNotes();diagnostics(s.diagnostics);return;}
-    if(!G.CT_MUSIC_PREVIEW){previewStatus='Previous chart · preview unavailable';return;}
-    if(!preview)preview=G.CT_MUSIC_PREVIEW.create({workerUrl:'/lib/music-preview-worker.js?v='+(G.CT_MUSIC_PREVIEW_VERSION||'0'),
-      onPending:function(){previewStatus='Previous chart · preview pending';$('.mw-chart-status').textContent=previewStatus;},
-      onResult:function(result){
-        var current=snap();if(root.hidden||result.projectId!==agentInstance||result.draftEpoch!==current.draftEpoch||result.source!==current.draft)return;
-        if(result.compiled.gb){previewOwner=project;previewChart={id:'preview-'+result.sequence,source:result.source,compiled:result.compiled};previewStatus='Draft preview · not applied';}
-        else previewStatus='Previous chart · draft has errors';
-        diagnostics(result.compiled.diagnostics);renderNotes();renderState();
-      },
-      onError:function(result){if(root.hidden||result.projectId!==agentInstance)return;previewStatus=result.message;$('.mw-chart-status').textContent=previewStatus;}
-    });
-    preview.schedule({source:s.draft,projectId:agentInstance,draftEpoch:s.draftEpoch});
-  }
-  var mobileView=G.matchMedia('(max-width:1499px)');
-  var outboundTransfer=null,inboundTransfer=null,transferProtected=false,transferBase=null;
-  function sendProject(){
-    var transport=G.CT_MUSIC_PROJECT_TRANSFER;
-    if(!transport||location.origin!==transport.SENDER_ORIGIN)return;
-    if(outboundTransfer)outboundTransfer.cancel();
-    // Must stay synchronous inside the real click, before the action Promise.
-    var sent=outboundTransfer=transport.send(project.serialize());
-    status('Web Chat opened. Accept the copy in the new window.');
-    sent.result.then(function(result){if(outboundTransfer!==sent)return;outboundTransfer=null;
-      status(result.ok?'Project sent. Review it in web Chat. Original remains here.':'Project transfer ended ('+result.code+'). Your original project is unchanged.');});
-  }
-  function stageTransfer(received){
-    inboundTransfer=received;$('.mw-transfer-offer').hidden=false;
-    transferBase={owner:project,epoch:snap().draftEpoch,instance:agentInstance};
-    $('[data-action=transfer-cancel]').textContent='Cancel';
-    $('.mw-transfer-description').textContent='Waiting for the project offer…';
-    $('[data-action=transfer-accept]').disabled=true;
-    received.offer.then(function(offer){
-      if(inboundTransfer!==received)return;
-      if(!offer.ok){$('.mw-transfer-description').textContent='Transfer ended ('+offer.code+').';return;}
-      $('.mw-transfer-description').textContent='Accept '+offer.bytes+' bytes from chiptunes.app? This copies the draft and last validated revision, without private chat or provenance. Your hosted saved project stays intact. Download the copy to keep it, or use Save draft locally to explicitly replace the hosted saved project.';
-      $('[data-action=transfer-accept]').disabled=false;
-    });
-    received.result.then(function(result){if(inboundTransfer===received&&!result.ok){inboundTransfer=null;
-      $('.mw-transfer-description').textContent='Transfer ended ('+result.code+'). Your hosted project is unchanged.';
-      $('[data-action=transfer-accept]').disabled=true;}});
-  }
-  async function acceptTransfer(){
-    var received=inboundTransfer;if(!received||$('[data-action=transfer-accept]').disabled)return;
-    var owner=transferBase.owner,epoch=transferBase.epoch,instance=transferBase.instance;
-    if(project!==owner||snap().draftEpoch!==epoch||agentInstance!==instance){
-      received.cancel();inboundTransfer=null;$('.mw-transfer-description').textContent='Workspace changed while the offer was open. Import cancelled; your edits are kept. Send a fresh copy.';return;
-    }
-    $('[data-action=transfer-accept]').disabled=true;
-    if(unsaved){
-      await save();
-      if(inboundTransfer!==received||root.hidden)return;
-      if(unsaved||project!==owner||snap().draftEpoch!==epoch||agentInstance!==instance){
-        received.cancel();inboundTransfer=null;$('.mw-transfer-description').textContent='Hosted edits could not be saved safely. Import cancelled; download or save your current project first.';return;
-      }
-    }
-    var result=await received.accept();
-    if(inboundTransfer!==received||root.hidden)return;
-    inboundTransfer=null;
-    if(!result.ok)return;
-    if(project!==owner||snap().draftEpoch!==epoch||agentInstance!==instance){$('.mw-transfer-description').textContent='Workspace changed during transfer. Import cancelled; send a fresh copy.';return;}
-    // Restore only after explicit Accept; never route through applied()/play.
-    var loaded=api().restore(result.serialized,opts());
-    if(!loaded.ok){$('.mw-transfer-description').textContent='Project is incompatible. Hosted project unchanged.';return;}
-    clearTimeout(saveTimer);saveTimer=null;saveEpoch++;transferProtected=true;
-    if(connection)connection.disconnect();cancelChat('superseded');resetAudio();
-    project=loaded.project;selection=null;proposal=null;agentInstance=G.crypto.randomUUID();unsaved=true;
-    restoreProjectVisuals();
-    defaultProjectLoop();
-    syncEditor();renderNotes();renderProposal();renderState();diagnostics(snap().diagnostics);
-    $('.mw-transfer-description').textContent='Project accepted as a temporary copy. Hosted saved project preserved. Download to keep your edits, or choose Save draft locally and confirm replacement. Apply and playback remain explicit.';
-    $('[data-action=transfer-cancel]').textContent='Dismiss';
-    status('Transferred draft and last validated revision restored. Nothing was applied or played.');
-  }
-  var chatAccess=null,chatAccessEpoch=0,chatUnlocked=false,chatAccessBusy=false,chatProviders=[];
-  function renderChatAccess(message){
-    var select=$('.mw-chat-provider'),chosen=select.value;
-    if(Array.from(select.options).map(function(o){return o.value;}).join(',')!==chatProviders.map(function(p){return p.id;}).join(',')){
-      select.replaceChildren();
-      chatProviders.forEach(function(p){var option=document.createElement('option');option.value=p.id;option.textContent=p.id==='openai'?'OpenAI':'Claude';select.appendChild(option);});
-      if(chatProviders.some(function(p){return p.id===chosen;}))select.value=chosen;
-    }
-    select.disabled=chatAccessBusy||!!requestId||!chatProviders.length;
-    $('[data-action=chat-unlock]').disabled=chatAccessBusy||chatUnlocked;
-    $('[data-action=chat-logout]').disabled=chatAccessBusy||!chatUnlocked;
-    $('[data-action=chat-access-refresh]').disabled=chatAccessBusy;
-    $('.mw-owner-password').disabled=chatAccessBusy||chatUnlocked;
-    if(message){chatAccessMessage=message;$('.mw-settings-status').textContent=message;}
-    renderChatUI();
-  }
-  async function updateChatAccess(method){
-    if(chatAccessBusy)return;
-    var password=$('.mw-owner-password').value;$('.mw-owner-password').value='';
-    if(method==='POST'&&!password){renderChatAccess('Enter the owner password.');return;}
-    var run=++chatAccessEpoch;chatAccessBusy=true;
-    if(method==='DELETE'){cancelChat('cancelled');chatUnlocked=false;renderProposal();}
-    renderChatAccess('Checking chat access…');
-    try{
-      if(method!=='GET')await chatAccess.request(method,password);
-      password='';if(run!==chatAccessEpoch)return;
-      var result=await chatAccess.request('GET');if(run!==chatAccessEpoch)return;
-      if(typeof result.authenticated!=='boolean'||!Array.isArray(result.providers)||!result.limits||!Number.isSafeInteger(result.limits.dailyCalls)||result.limits.dailyCalls<1)throw Error('Chat access is unavailable.');
-      chatProviders=result.providers.filter(function(p){return p&&['openai','anthropic'].indexOf(p.id)!==-1;});chatUnlocked=result.authenticated;
-      renderChatAccess(!chatProviders.length?'Chat providers are unavailable.':(chatUnlocked?'Unlocked.':'Locked. Open Settings to unlock.')+' Daily limit: '+result.limits.dailyCalls+' calls.');
-    }catch(e){if(run!==chatAccessEpoch)return;chatUnlocked=false;renderChatAccess(e.name==='SyntaxError'?'Chat is unavailable on this server. Code and playback still work.':e.message);}
-    finally{password='';if(run===chatAccessEpoch){chatAccessBusy=false;renderChatAccess();}}
-  }
-  function renderConnection(s){
-    $('.mw-connect-status').textContent=s.message;
-    var gateway=location.protocol==='https:'&&s.available;
-    $('.mw-mcp-setup').hidden=!gateway;$('.mw-mcp-unavailable').hidden=gateway;
-    $('.mw-mcp-endpoint').value=gateway?location.origin+'/api/mcp':'';
-    $('.mw-sign-in').hidden=s.phase!=='signed-out'&&s.phase!=='access-denied';
-    var select=$('.mw-client'),chosen=select.value;select.replaceChildren();
-    var placeholder=document.createElement('option');placeholder.value='';placeholder.textContent='Choose an authorized client';select.appendChild(placeholder);
-    s.clients.forEach(function(c){var option=document.createElement('option');option.value=c.clientId;option.textContent=c.clientId;select.appendChild(option);});
-    select.value=chosen;select.disabled=s.phase!=='disconnected';
-    $('[data-action=connect]').disabled=s.phase!=='disconnected'||!select.value;
-    $('[data-action=disconnect]').disabled=!s.connected&&s.phase!=='connecting';
-    $('[data-action=refresh-clients]').disabled=['connecting','connected','checking'].indexOf(s.phase)!==-1;
-  }
-  // Local page bridge only: these methods confer no authentication or transport trust.
-  function detached(value){return JSON.parse(JSON.stringify(value));}
-  function validUnicode(s){
-    for(var i=0;i<s.length;i++){var c=s.charCodeAt(i);
-      if(c>=0xD800&&c<=0xDBFF){var n=s.charCodeAt(++i);if(!(n>=0xDC00&&n<=0xDFFF))return false;}
-      else if(c>=0xDC00&&c<=0xDFFF)return false;
-    }return true;
-  }
-  function boundedProposal(input){
-    function need(ok){if(!ok)throw Error('Invalid bounded proposal');}
-    function bytes(s,limit){need(typeof s==='string'&&s.length<=limit&&validUnicode(s));var n=new TextEncoder().encode(s).length;need(n<=limit);return n;}
-    function boundary(s,i){return !(i>0&&i<s.length&&/[\uD800-\uDBFF]/.test(s[i-1])&&/[\uDC00-\uDFFF]/.test(s[i]));}
-    var source=input.context&&input.context.source,sourceBytes=bytes(source,524288);
-    need(validUnicode(input.explanation));
-    need(Array.isArray(input.edits)&&input.edits.length>0&&input.edits.length<=32);
-    var end=0,previous=-1,inserted=0,removed=0,candidate='';
-    input.edits.forEach(function(e){
-      need(e&&Object.keys(e).length===3&&['from','to','text'].every(function(k){return Object.prototype.hasOwnProperty.call(e,k);}));
-      need(Number.isSafeInteger(e.from)&&Number.isSafeInteger(e.to)&&e.from>=end&&e.from>previous&&e.to>=e.from&&e.to<=source.length);
-      need(boundary(source,e.from)&&boundary(source,e.to)&&!(e.from===0&&e.to===source.length));
-      inserted+=bytes(e.text,16384);removed+=new TextEncoder().encode(source.slice(e.from,e.to)).length;
-      need(inserted<=16384&&removed<=16384);
-      candidate+=source.slice(end,e.from)+e.text;end=e.to;previous=e.from;
-    });
-    candidate+=source.slice(end);need(candidate!==source&&removed<sourceBytes);bytes(candidate,524288);
-  }
-  function exactContext(a,b){
-    if(a===b)return true;
-    if(!a||!b||typeof a!=='object'||typeof b!=='object'||Array.isArray(a)!==Array.isArray(b))return false;
-    var keys=Object.keys(a);return keys.length===Object.keys(b).length&&keys.every(function(k){return Object.prototype.hasOwnProperty.call(b,k)&&exactContext(a[k],b[k]);});
-  }
-  function agentContext(){
-    if(!project||!root||root.hidden)return {ok:false,code:'workspace-closed'};
-    var s=snap(),tracks=+$('.mw-scope').value,lock=$('.mw-lock').value,region=$('.mw-region').checked;
-    var constraints={locks:lock==='none'?[]:[{type:lock,tracks:[0]}]};
-    if(tracks>=0)constraints.scope={tracks:[tracks]};
-    if(region&&selection)constraints.scope={tracks:[selection.ch],fromFrame:selection.fromFrame,toFrame:selection.toFrame};
-    return detached({ok:true,projectInstance:agentInstance,draftEpoch:s.draftEpoch,baseRevision:s.validated?s.validated.id:null,source:s.draft,
-      editable:!!s.validated&&s.draft===s.validated.source&&!conflict,
-      policy:{epoch:policyEpoch,scope:tracks,lock:lock,region:region,selection:selection,constraints:constraints}});
-  }
-  function invalidateAgent(){
-    if(proposal&&proposal.capturedContext&&['ready','proposed'].indexOf(proposal.status)!==-1&&!exactContext(proposal.capturedContext,agentContext())){
-      project.cancelRequest(proposal.id);proposal.status='superseded';
-      if(requestId===proposal.id){requestId=null;if(client)client.cancel();}
-      return true;
-    }return false;
-  }
-  function agentPolicyChanged(){policyEpoch++;if(invalidateAgent())renderProposal();renderState();}
-  function agentProposalStatus(id){
-    if(invalidateAgent()){renderProposal();renderState();}
-    var record=agentRecords.get(id);
-    return record?detached({ok:true,id:id,status:record.status,revision:record.revision||null,diff:record.diff||null}):{ok:false,code:'unknown-proposal'};
-  }
-  function agentPropose(input){
-    try{
-      if(!input||Object.keys(input).some(function(k){return ['id','context','edits','explanation'].indexOf(k)===-1;})||
-        typeof input.id!=='string'||!input.id.length||input.id.length>128||typeof input.explanation!=='string'||input.explanation.length>5000)
-        return {ok:false,code:'invalid-proposal'};
-      boundedProposal(input);
-      var context=agentContext();
-      if(!context.ok||!context.editable||!exactContext(input.context,context))return {ok:false,code:'stale-context'};
-      input={id:input.id,explanation:input.explanation,edits:input.edits.map(function(e){return {from:e.from,to:e.to,text:e.text};})};
-      if(agentRecords.has(input.id))return {ok:false,code:'duplicate-request'};
-      if(agentRecords.size>=1024)return {ok:false,code:'request-limit'};
-      var started=project.beginRequest(input.id);if(!started.ok)return started;
-      var result=project.validateProposal({id:input.id,baseRevision:context.baseRevision,baseSource:context.source,edits:input.edits},context.policy.constraints);
-      if(!result.ok){project.cancelRequest(input.id);agentRecords.set(input.id,{status:'invalid'});return result;}
-      proposal={id:input.id,status:'ready',agentContext:context,capturedContext:context,explanation:input.explanation,edits:input.edits,diff:result.diff};
-      agentRecords.set(input.id,proposal);renderProposal();renderState();
-      return agentProposalStatus(input.id);
-    }catch(e){return {ok:false,code:'invalid-proposal'};}
-  }
-  function agentDisconnect(){
-    if(proposal&&proposal.agentContext&&proposal.status==='ready'){project.cancelRequest(proposal.id);proposal.status='cancelled';}
-    agentInstance=G.crypto.randomUUID();
-    if(root&&!root.hidden){renderProposal();renderState();}
-    return {ok:true};
-  }
-  var KEY='ct-music-workspace-v1',ASSETS=G.CT_MUSIC_ASSETS_VERSION||'ct-gb-bank-1',view='code';
-  var LOOP_SOURCE=[
-    '// A four-bar loop. Edit a pattern, then Run (Cmd/Ctrl+Enter).',
-    '// A dot is a rest. Eight steps make one bar; repeat fills four bars.',
-    'song({tempo:128, bars:4})',
-    '',
-    'pattern("lead", notes("C4 . E4 . G4 . E4 .").stepsPerBar(8).gate(0.5))',
-    'pattern("bass", notes("C2 C2 . C2 G2 . C2 .").stepsPerBar(8).gate(0.65))',
-    'pattern("beat", notes("C2 . C2 . C2 . C2 .").stepsPerBar(8).gate(0.15))',
-    '',
-    '// Pulse, triangle bass, and a noise tick: the existing chip voices.',
-    'track("lead").instrument("p0").play("lead", {repeat:4})',
-    'track("bass").instrument("wave-bass").play("bass", {repeat:4})',
-    'track("drums").instrument("n-tick").play("beat", {repeat:4})',
-    '',
-    '// Loop repeats the audition only. Downloads and exports stay finite.',
-    ''
-  ].join('\n');
-  function loopProject(){
-    var next=api().create(LOOP_SOURCE,opts());
-    if(!next.snapshot().validated)throw Error('Starter loop could not compile. Current project kept.');
-    return next;
-  }
-  function defaultProjectLoop(){
-    var v=snap().validated,m=v&&v.compiled.mapping;
-    $('.mw-loop').checked=!!(m&&m.length&&m.every(function(note){return !!note.pattern;}));
-  }
-  function newLoop(){
-    var next=loopProject(); // Validate before offering to replace anything.
-    if(project&&!G.confirm('Replace this workspace with a new loop? Download the current project first to keep its source and unfinished edits. The new loop will replace the local save when saving is available.'))return;
-    if(outboundTransfer)outboundTransfer.cancel();outboundTransfer=null;
-    if(inboundTransfer)inboundTransfer.cancel();inboundTransfer=null;$('.mw-transfer-offer').hidden=true;
-    if(connection)connection.disconnect();cancelChat('superseded');resetAudio();
-    project=next;selection=null;proposal=null;agentInstance=G.crypto.randomUUID();
-    restoreProjectVisuals();
-    $('.mw-loop').checked=true;
-    syncEditor();renderNotes();renderProposal();renderState();diagnostics(snap().diagnostics);selectView('code');scheduleSave();
-    status('New four-bar loop. Edit the patterns, then Run to hear it.');
-  }
-  function runDraft(){
-    var start=audioState.status!=='playing'&&audioState.status!=='paused';
-    var result=project.applyDraft();diagnostics(result.diagnostics);applied(result);
-    if(start)activate(result.revision,true);
-  }
-  async function loadCycleExample(){
-    var owner=project,epoch=openEpoch,draft=snap().draft,steps=G.CT_MUSIC_CYCLE_EXAMPLES&&G.CT_MUSIC_CYCLE_EXAMPLES.steps;
-    var step=steps&&steps.find(function(item){return item.id===$('.mw-live-step').value;});
-    if(!step)throw Error('Live-set example is unavailable in this build.');
-    await ensureEditor();
-    // Editor loading may outlive this project or a user's more recent edit.
-    if(root.hidden||project!==owner||openEpoch!==epoch||snap().draft!==draft)return;
-    editor.replaceDraft(step.source); // One undoable edit, same project/player.
-    status(step.title+' loaded into code. Draft only; Run to hear it. Cmd/Ctrl-Z restores your previous code.');
-  }
-  function scheduledNoteLanes(gb,mapping){
-    // Match the shared sequencer's off-before-on ordering, including an old
-    // overlapping note's off cutting a newer voice. Pitch-only native rows
-    // inherit the channel's current state; they cannot revive a killed voice.
-    // This is scheduled note activity, not an amplitude/envelope meter.
-    var lanes=[[],[],[],[]],active=[null,null,null,null],events=[],off=G.CT_GB.noteOffFrames(gb.notes),unmapped=[false,false,!!(gb.kit&&gb.kit.length),false];
-    gb.notes.forEach(function(n,index){
-      events.push({frame:n.frame,type:1,ch:n.ch,note:n,index:index});
-      if(off[index]!=null)events.push({frame:off[index],type:0,ch:n.ch});
-    });
-    // Raw register writes have no pitch-token identity or lifetime. In
-    // particular DAC/power-off can outlive later mapped triggers. Omit token
-    // attribution for affected channels, rather than simulate a second APU.
-    (gb.auto||[]).forEach(function(a){
-      var ch=a.r>=0x10&&a.r<=0x14?0:a.r>=0x16&&a.r<=0x19?1:a.r>=0x1a&&a.r<=0x1e?2:a.r>=0x20&&a.r<=0x23?3:null;
-      if(ch!==null)unmapped[ch]=true;
-      else if(a.r>=0x24&&a.r<=0x26)unmapped=[true,true,true,true];
-      else if(a.r>=0x30&&a.r<=0x3f)unmapped[2]=true;
-    });
-    events.sort(function(a,b){return a.frame-b.frame||a.type-b.type;});
-    events.forEach(function(e){
-      var ch=e.ch,n=e.note;
-      // Kits can retrigger wave RAM between score frames, including after a
-      // mapped note. Without sample ownership mappings the whole wave lane is
-      // intentionally unattributed; do not approximate another audio engine.
-      if(e.type!==1||unmapped[ch])active[ch]=null;
-      else if(n.trigger===false&&ch<2){if(active[ch]!==null)active[ch]=e.index;}
-      else{
-        // Generic velocity has a 35% floor. Ask the shared register encoder,
-        // rather than incorrectly treating vel:0 as a mute.
-        var registers=G.CT_GB.noteRegisters(n,gb.bank);
-        active[ch]=(ch===2?registers[1]&0x60:registers[1]&0xf8)?e.index:null;
-      }
-      var index=active[ch],item={frame:e.frame,index:index,span:index===null?null:mapping.get(index)},lane=lanes[ch];
-      if(lane.length&&lane[lane.length-1].frame===e.frame)lane[lane.length-1]=item;else lane.push(item);
-    });
-    return lanes;
-  }
-  function renderPosition(s){
-    var text='Stopped · Run to hear your code',beat=null;
-    var spans=[],soundingNotes=[];
-    if(playingRevision&&s.playing){
-      if(!soundingIndex||soundingIndex.revision!==playingRevision){
-        var mapping=new Map();playingRevision.compiled.mapping.forEach(function(m){mapping.set(m.noteIndex,m.tokenSpan||m.span);});
-        var soundingClock=null;try{soundingClock=G.CT_MUSIC_LANGUAGE.createClock(playingRevision.compiled.settings||{});}catch(_){}
-        soundingIndex={revision:playingRevision,clock:soundingClock,lanes:scheduledNoteLanes(playingRevision.compiled.gb,mapping)};
-      }
-      var clock=soundingIndex.clock,frame=Math.max(0,audioState.frame||0);
-      var position='Frame '+Math.floor(frame);
-      if(clock)try{
-        var lo=0,hi=262144;
-        while(lo<hi){var mid=Math.ceil((lo+hi)/2),at=clock(mid);if(!Number.isFinite(at))throw Error('Invalid clock');if(at<=frame)lo=mid;else hi=mid-1;}
-        beat=lo%4;position='Bar '+(Math.floor(lo/4)+1)+' · Beat '+(beat+1)+'/4';
-      }catch(_){soundingIndex.clock=null;}
-      text=(audioState.suspended?'Audio suspended':audioState.status==='paused'?'Paused':'Sounding')+' '+s.playing+' · '+position;
-      if(audioState.status==='playing'&&!audioState.suspended){
-        soundingIndex.lanes.forEach(function(lane){
-          var low=0,high=lane.length;
-          while(low<high){var mid=(low+high)>>1;if(lane[mid].frame<=frame)low=mid+1;else high=mid;}
-          var note=lane[low-1];if(note&&note.index!==null){
-            soundingNotes.push(note.index);
-            if(s.draft===playingRevision.source&&note.span)spans.push({from:note.span.start.offset,to:note.span.end.offset});
-          }
-        });
-      }
-    }else if(s.pending)text='Preparing first sound…';
-    else soundingIndex=null;
-    if(editor&&typeof editor.highlightPlaying==='function'){
-      var signature=JSON.stringify(spans);if(signature!==lastHighlight){editor.highlightPlaying(spans);lastHighlight=signature;}
-    }
-    var chart=chartContext(s),chartPlaying=chart&&playingRevision&&chart.source===playingRevision.source;
-    $('.mw-notes').querySelectorAll('.mw-note').forEach(function(el){
-      el.classList.toggle('mw-note-sounding',!!chartPlaying&&soundingNotes.includes(Number(el.dataset.note)));
-    });
-    if(editor&&editor.setPatternPlayback)editor.setPatternPlayback({source:playingRevision&&playingRevision.source,frame:audioState.frame||0,
-      playing:!!s.playing&&audioState.status==='playing'&&!audioState.suspended,noteIndices:soundingNotes});
-    var overviewCursor=$('.mw-overview-playhead');
-    if(overviewCursor){overviewCursor.hidden=!chartPlaying;overviewCursor.style.left=(chartPlaying?Math.max(0,Math.min(100,(audioState.frame||0)/(chart.compiled.gb.totalFrames||1)*100)):0)+'%';}
-    if($('.mw-position').textContent!==text)$('.mw-position').textContent=text;
-    root.dataset.beat=beat==null?'':String(beat);
-    root.dataset.sounding=String(!!s.playing&&audioState.status==='playing'&&!audioState.suspended);
-  }
-  var $=function(s){return root.querySelector(s);};
-  function api(){return G.CT_MUSIC_PROJECT;}
-  function engine(){return Audio;}
-  function opts(){return {compile:G.CT_MUSIC_LANGUAGE.compile,assetsVersion:ASSETS};}
-  function snap(){return project.snapshot();}
-  function status(text){$('.mw-status').textContent=text;}
-  function check(result){if(!result||!result.ok)throw Error(result&&result.message||result&&result.code||'Operation failed');return result;}
-  function announceError(e){status(e.message||String(e));}
-  function diagnostics(items){
-    items=items||[];
-    $('.mw-diagnostics').textContent=items.map(function(d){return (d.severity||'error')+': '+d.message;}).join('\n');
-    if(editor)editor.diagnostics(items.map(function(d){return Object.assign({},d,{from:d.span&&d.span.start.offset||d.from||0,to:d.span&&d.span.end.offset||d.to||0});}));
-  }
-  function scheduleSave(){unsaved=true;saveEpoch++;clearTimeout(saveTimer);saveTimer=setTimeout(save,250);}
-  // The stage owns live visual state; the project record only carries it. A
-  // session that never opened visuals contributes nothing and clears nothing.
-  function captureVisual(p){
-    try{
-      var a=visualAdapter();
-      // Only the project the stage was actually handed over to may be written.
-      if(!p||p!==visualOwner||!a||typeof a.serializeVisuals!=='function')return;
-      var next=a.serializeVisuals()||null;
-      // null clears a stale visual when the user really did return to the
-      // default, but never when the saved one simply failed to restore.
-      if(next===null&&visualRestoreFailed)return;
-      p.setVisual(next);
-    }catch(e){/* visuals must never block a music save */}
-  }
-  // The stage emits state for many reasons that are not composition edits
-  // (mounting, focus, scaling, renderer notices). Saving on all of them would
-  // rewrite a project record merely because it was opened, so compare against
-  // what the project already holds and save only a real difference.
-  function visualChanged(){
-    if(visualRestoring||!project||project!==visualOwner||transferProtected)return;
-    try{
-      var a=visualAdapter();
-      if(!a||typeof a.serializeVisuals!=='function')return;
-      var next=a.serializeVisuals()||null;
-      // A default stage after a failed restore is not an instruction to delete
-      // the visual that failed; only a real authored change is.
-      if(next===null&&visualRestoreFailed)return;
-      if(JSON.stringify(next)===JSON.stringify(project.visual||null))return;
-      // The user authored something, so the stage is authoritative again.
-      if(next!==null)visualRestoreFailed=false;
-      project.setVisual(next);scheduleSave();
-    }catch(e){/* visuals must never block music editing */}
-  }
-  // Hand this project's saved visual to the stage and record that the stage now
-  // represents it. Called on every path that replaces `project`.
-  function restoreProjectVisuals(){
-    visualOwner=null;visualRestoreFailed=false;
-    try{
-      var a=visualAdapter();
-      if(!project||!a||typeof a.restoreVisuals!=='function')return;
-      var ok;
-      visualRestoring=true;
-      try{ok=a.restoreVisuals(project.visual);}finally{visualRestoring=false;}
-      // A failed restore still takes ownership, so a newly authored visual can
-      // be saved; it just may not delete the block it could not read.
-      visualRestoreFailed=ok===false;
-      visualOwner=project;
-    }catch(e){visualRestoring=false;}
-  }
-  async function save(){
-    clearTimeout(saveTimer);saveTimer=null;
-    if(!storage||conflict||transferProtected){unsaved=true;return;}
-    var p=project,epoch=saveEpoch;
-    var write=function(){
-      if(p!==project||transferProtected)return;
-      captureVisual(p);
-      var result=storage.save(p,{includePrivate:true});
-      if(!result.ok){unsaved=true;conflict=result.code==='storage-conflict';status(conflict?'Another tab changed this project. Download your project before reloading.':'Draft could not be saved locally. Download a project file to keep it.');}
-      else if(epoch===saveEpoch)unsaved=false;
-    };
-    try{if(G.navigator&&navigator.locks)await navigator.locks.request(KEY,write);else write();}
-    catch(e){if(p===project){unsaved=true;status('Draft could not be saved locally. Download a project file to keep it.');}}
-  }
-  function cancelChat(state){
-    if(client)client.cancel();
-    var active=project&&snap().request;
-    if(active)project.cancelRequest(active.id);
-    requestId=null;
-    if(proposal&&(proposal.status==='ready'||proposal.status==='proposed'))proposal.status=state||'superseded';
-  }
-  function resetAudio(){
-    try{engine().musicStop();}
-    finally{
-      if(project)project.stop();queueTokens={};queueRevisions={};queueActivations={};playingRevision=null;
-      audioState={status:'stopped',frame:0};
-      if(root){$('.mw-seek').value='0';var cursor=$('.mw-playhead');if(cursor)cursor.style.left='0px';}
-    }
-  }
-  function sourceChanged(text){
-    if(sourceLoading)return;
-    inlineContext=null;
-    var result=project.editDraft(text);if(!result.ok){announceError(result);return;}
-    cancelChat('superseded');renderProposal();renderState();scheduleSave();
-    schedulePreview();
-  }
-  async function ensureEditor(){
-    if(editor)return;
-    if(editorLoading)return editorLoading;
-    editorLoading=(async function(){
-    if(!G.CT_MUSIC_CODE_EDITOR){
-      await new Promise(function(resolve,reject){
-        var script=document.createElement('script');script.src='/lib/music-code-editor.js?v='+encodeURIComponent(G.CT_MUSIC_EDITOR_VERSION||'1');
-        script.onload=resolve;script.onerror=function(){script.remove();reject(Error('Code editor could not load'));};document.head.appendChild(script);
-      });
-    }
-    editor=G.CT_MUSIC_CODE_EDITOR.mount($('.mw-code'),snap().draft,sourceChanged,{onSelectionChange:sourceSelected,onNoteSelect:selectChartNote});
-    syncPatternContext();
-    $('.mw-help pre').textContent=Object.values(G.CT_MUSIC_CODE_EDITOR.help).join('\n');
-    })();
-    try{await editorLoading;}finally{editorLoading=null;}
-  }
-  function syncEditor(){cancelPreview();if(visualizerOpen&&presentationOwner!==project)setVisualizer(false);if(editor){
-    var draft=snap().draft;if(editor.value()!==draft)inlineContext=null;
-    sourceLoading=true;editor.set(draft);sourceLoading=false;
-  }}
-  function syncPatternContext(){
-    if(!editor||!editor.setPatternContext)return;
-    if(codeProject!==project){
-      codeProject=project;codeProjectId++;inlineContext=null;
-      if(editor.cancelSourceGesture)editor.cancelSourceGesture();
-    }
-    var s=snap(),v=chartContext(s),context=v&&s.draft===v.source?v:null;
-    // Project snapshots are detached copies. Compare revision identity rather
-    // than object identity so scrolling cannot reset an inline occurrence picker.
-    if(context?(!inlineContext||inlineContext.owner!==project||inlineContext.id!==context.id||inlineContext.source!==context.source):!!inlineContext){
-      editor.setPatternContext(context?{source:context.source,compiled:context.compiled,projectId:codeProjectId}:null);
-      inlineContext=context?{owner:project,id:context.id,source:context.source}:null;
-    }
-  }
-  function selectChartNote(item){
-    var s=snap(),v=chartContext(s),i=typeof item==='number'?item:item.noteIndex;
-    if(!v)return;
-    var n=v.compiled.gb.notes[i],m=v.compiled.mapping.find(function(entry){return entry.noteIndex===i;});
-    if(!n||!m)return;
-    selection={ch:n.ch,fromFrame:n.frame,toFrame:n.frame+n.frames};agentPolicyChanged();
-    $('.mw-notes').querySelectorAll('.mw-note').forEach(function(el){el.setAttribute('aria-pressed',String(Number(el.dataset.note)===i));});
-    $('.mw-selection').textContent='Selected '+['Melody','Harmony','Bass','Drums'][n.ch]+' · '+(m.pattern!=null?'pattern '+m.pattern+', occurrence '+m.occurrence:'explicit event')+' · frames '+n.frame+'–'+(n.frame+n.frames);
-    renderState();
-    if(s.draft!==v.source){$('.mw-selection').textContent+=' · Source navigation unavailable while the draft differs from the chart.';return;}
-    var mappingOwner=project,selected=selection;
-    selectView('code');ensureEditor().then(function(){
-      if(root.hidden||project!==mappingOwner||selection!==selected)return;
-      if(snap().draft!==v.source||!chartContext()||chartContext().id!==v.id){$('.mw-selection').textContent+=' · Source navigation unavailable while the draft differs from the chart.';return;}
-      var span=m.tokenSpan||m.span;editor.select(span.start.offset,span.end.offset);
-    }).catch(announceError);
-  }
-  function sourceSelected(ranges){
-    if(!project||!root)return;
-    var s=snap(),v=chartContext(s),indices=new Set();
-    if(v&&s.draft===v.source){
-      function overlaps(span){return span&&ranges.some(function(r){
-        var a=span.start.offset,b=span.end.offset;
-        return r.from===r.to?r.from>=a&&r.from<b:r.from<b&&r.to>a;
-      });}
-      // Within a token select its occurrences, not every note in the containing
-      // declaration. Outside tokens the definition/play remains a useful scope.
-      var tokenMatches=v.compiled.mapping.filter(function(m){return overlaps(m.tokenSpan);});
-      if(!ranges.every(function(r){return tokenMatches.some(function(m){return r.from>=m.span.start.offset&&r.to<=m.span.end.offset;});}))tokenMatches=[];
-      (tokenMatches.length?tokenMatches:v.compiled.mapping).forEach(function(m){if(tokenMatches.length||overlaps(m.span)||overlaps(m.playSpan||m.occurrenceSpan))indices.add(m.noteIndex);});
-    }
-    // Cursor movement is visual feedback, never a change to agent edit scope.
-    $('.mw-notes').querySelectorAll('.mw-note').forEach(function(el){el.classList.toggle('mw-source-selected',indices.has(Number(el.dataset.note)));});
-  }
-  function selectView(next,focusCode){
-    var epoch=++viewEpoch;
-    // Compatibility for existing callers: reveal/focus, never switch panes.
-    view=next;
-    if(next==='chat'){setChatOpen(true,focusCode!==false);return;}
-    if(next==='notes'&&focusCode!==false)$('.mw-notes').focus({preventScroll:true});
-    if(next==='code')ensureEditor().then(function(){if(epoch===viewEpoch&&focusCode!==false&&!root.hidden&&view==='code')editor.focus();}).catch(announceError);
-  }
-  // Panel geometry is a local viewing preference, not composition data. It
-  // lives under its own key so it can never travel in a project record, a
-  // download, a share link or a transfer: those carry what the music and
-  // visuals ARE, not how this browser happened to be arranged.
-  var LAYOUT_KEY='ct-music-layout-v1',layoutTimer=null,layoutLoaded=false,visualCodeOpen=false;
-  // Audience output layout, independent of the authoring layout: 'visualizer'
-  // is visuals only, 'performance' keeps the readable code beside them. Both
-  // exclude chat, account/provider settings, private history and editing or
-  // error chrome; neither ever exposes the whole app DOM.
-  var outputMode='visualizer';
-  function loadLayout(){
-    if(layoutLoaded)return;layoutLoaded=true;
-    try{
-      var raw=localStorage.getItem(LAYOUT_KEY);if(!raw)return;
-      var saved=JSON.parse(raw);if(!saved||typeof saved!=='object')return;
-      // Every value is clamped by its own setter, so a hand-edited or stale
-      // record cannot produce an unusable layout.
-      if(typeof saved.musicShare==='number'&&isFinite(saved.musicShare))musicShare=Math.max(45,Math.min(75,Math.round(saved.musicShare)));
-      if(typeof saved.chartShare==='number'&&isFinite(saved.chartShare))chartShare=Math.max(20,Math.min(75,Math.round(saved.chartShare)));
-      if(typeof saved.desktopChatOpen==='boolean')desktopChatOpen=saved.desktopChatOpen;
-      if(typeof saved.mobileChatOpen==='boolean')mobileChatOpen=saved.mobileChatOpen;
-      if(typeof saved.visualCodeOpen==='boolean')visualCodeOpen=saved.visualCodeOpen;
-      if(saved.outputMode==='visualizer'||saved.outputMode==='performance')outputMode=saved.outputMode;
-    }catch(e){/* a broken layout preference must never block the workspace */}
-  }
-  function scheduleLayoutSave(){
-    clearTimeout(layoutTimer);
-    layoutTimer=setTimeout(function(){
-      layoutTimer=null;
-      try{
-        localStorage.setItem(LAYOUT_KEY,JSON.stringify({musicShare:musicShare,chartShare:chartShare,
-          desktopChatOpen:desktopChatOpen,mobileChatOpen:mobileChatOpen,visualCodeOpen:visualCodeOpen,
-          outputMode:outputMode}));
-      }catch(e){/* layout is a convenience; never report or block on it */}
-    },250);
-  }
-  function chatIsOpen(){return mobileView.matches?mobileChatOpen:desktopChatOpen;}
-  function renderChatLayout(){
-    var expanded=chatIsOpen(),panel=$('.mw-chat');
-    if(!expanded&&panel.contains(document.activeElement)){
-      chatFocus=document.activeElement;$('[data-action=toggle-chat]').focus({preventScroll:true});
-    }
-    panel.hidden=!expanded;root.dataset.chatOpen=String(expanded);
-    var button=$('[data-action=toggle-chat]');button.setAttribute('aria-expanded',String(expanded));button.textContent=expanded?'Hide chat':'Show chat';
-  }
-  function setChatOpen(expanded,focus){
-    if(mobileView.matches)mobileChatOpen=expanded;else desktopChatOpen=expanded;
-    scheduleLayoutSave();
-    renderChatLayout();
-    if(expanded&&focus){
-      var target=chatFocus&&chatFocus.isConnected&&!chatFocus.disabled&&chatFocus.getClientRects().length?chatFocus:
-        null;
-      if(target)target.focus({preventScroll:true});else if(chatUI)chatUI.focus();
-    }
-  }
-  function setChartShare(value){
-    chartShare=Math.max(20,Math.min(75,Math.round(value)));
-    $('.mw-composition').style.setProperty('--chart-share',chartShare+'fr');
-    $('.mw-composition').style.setProperty('--code-share',(100-chartShare)+'fr');
-    $('.mw-splitter').setAttribute('aria-valuenow',String(chartShare));
-    $('.mw-splitter').setAttribute('aria-valuetext','Chart '+chartShare+' percent; code '+(100-chartShare)+' percent');
-    scheduleLayoutSave();
-  }
-  function setMusicShare(value){
-    musicShare=Math.max(45,Math.min(75,Math.round(value)));
-    $('.mw-creative').style.setProperty('--music-share',musicShare+'fr');
-    $('.mw-creative').style.setProperty('--visuals-share',(100-musicShare)+'fr');
-    $('.mw-stage-splitter').setAttribute('aria-valuenow',String(musicShare));
-    $('.mw-stage-splitter').setAttribute('aria-valuetext','Music '+musicShare+' percent; visuals '+(100-musicShare)+' percent');
-    scheduleLayoutSave();
-  }
-  function renderState(){
-    renderChatAccess();
-    if(connection)connection.contextChanged();
-    var s=snap(),v=s.validated;
-    $('.mw-loop').disabled=audioState.status==='playing'||audioState.status==='paused'||!!s.pending;
-    $('.mw-loop').title=$('.mw-loop').disabled?'Stop to change loop playback':'';
-    $('.mw-state').title='Draft '+(v&&s.draft===v.source?'validated':'edited')+' · Valid '+(v?v.id:'none')+
-      ' · Queued '+(s.pending?s.pending.revisionId:'none')+' · Playing '+(s.playing||'none')+' · '+audioState.status+(audioState.suspended?' (audio suspended)':'');
-    var state=(v&&s.draft===v.source?'Code ready':'Edits waiting for Run')+(s.pending?' · Update queued for a musical boundary':'')+' · '+audioState.status+(audioState.suspended?' (audio suspended)':'');
-    if($('.mw-state').textContent!==state)$('.mw-state').textContent=state;
-    renderPosition(s);
-    renderStage();
-    $('[data-action=undo]').disabled=!s.canUndo;$('[data-action=redo]').disabled=!s.canRedo;
-    $('[data-action=play]').disabled=!v;
-    $('.mw-seek').max=v?Math.max(0,v.compiled.gb.totalFrames-1):0;
-    $('.mw-context').textContent='Base '+(v?v.id:'none')+' · '+(selection?['Melody','Harmony','Bass','Drums'][selection.ch]+' · frames '+selection.fromFrame+'–'+selection.toFrame:'Whole song');
-    renderChatUI();
-  }
-  function noteName(midi){return ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'][((midi%12)+12)%12]+(Math.floor(midi/12)-1);}
-  function chartLanes(gb){
-    var rows=[[],[],[],[]],metadata=new Map(((gb.bank||{}).meta||[]).map(function(m){return [m.index,m];}));
-    gb.notes.forEach(function(n){rows[n.ch].push(n);});
-    return rows.map(function(notes,ch){
-      if(ch===3){
-        var instruments=Array.from(new Set(notes.map(function(n){return n.inst;}))).sort(function(a,b){return a-b;});
-        var shown=instruments.slice(0,16),overflow=instruments.length>shown.length;
-        var labels=shown.map(function(inst){var m=metadata.get(inst);return m&&(m.name||m.id||m.patch&&m.patch.authored)||'Noise '+inst;});
-        if(overflow)labels.push('Other drums');if(!labels.length)labels.push('Noise');
-        return {labels:labels,drums:true,count:notes.length,overflow:overflow,
-          row:function(n){var i=shown.indexOf(n.inst);return i<0?labels.length-1:i;},
-          name:function(n){var m=metadata.get(n.inst);return m&&(m.name||m.id||m.patch&&m.patch.authored)||'Noise '+n.inst;}};
-      }
-      var min=notes.reduce(function(v,n){return Math.min(v,n.midi);},127),max=notes.reduce(function(v,n){return Math.max(v,n.midi);},0);
-      if(!notes.length){min=[60,48,24][ch];max=min+11;}
-      var low=Math.max(0,Math.floor(min/12)*12),high=Math.min(127,Math.ceil((max+1)/12)*12-1),labels=[];
-      for(var midi=high;midi>=low;midi--)labels.push(noteName(midi));
-      return {labels:labels,low:low,high:high,count:notes.length,row:function(n){return high-n.midi;},name:function(n){return noteName(n.midi);}};
-    });
-  }
-  function renderOverview(v,from,to){
-    var holder=$('.mw-overview'),gb=v.compiled.gb,total=gb.totalFrames||1;
-    if(!chartIndex.overview){
-      var canvas=document.createElement('canvas');canvas.width=1024;canvas.height=56;canvas.setAttribute('aria-hidden','true');
-      var ctx=canvas.getContext('2d');
-      if(ctx){
-        ctx.fillStyle='#10121b';ctx.fillRect(0,0,1024,56);
-        gb.notes.forEach(function(n){ctx.fillStyle=['#79d59d','#71bbeb','#e8b264','#bf9fde'][n.ch];
-          ctx.globalAlpha=0.75;ctx.fillRect(n.frame/total*1024,n.ch*14+3,Math.max(1,Math.min(n.frames,total-n.frame)/total*1024),8);});
-        ctx.globalAlpha=1;
-      }
-      chartIndex.overview=canvas;
-    }
-    if(holder.firstElementChild!==chartIndex.overview)holder.prepend(chartIndex.overview);
-    Array.from(holder.querySelectorAll('canvas')).forEach(function(canvas){if(canvas!==chartIndex.overview)canvas.remove();});
-    holder.setAttribute('aria-label','Whole song overview, '+gb.notes.length+' notes across four tracks. Activate to zoom near playback, or click a point to inspect it.');
-    var window=$('.mw-overview-window');window.style.left=Math.max(0,from/total*100)+'%';window.style.width=Math.min(100,(to-from)/total*100)+'%';
-  }
-  function renderNotes(){
-    var s=snap(),v=chartContext(s),pane=$('.mw-notes'),scrollTop=pane.scrollTop,scrollLeft=pane.scrollLeft;
-    var focused=pane.contains(document.activeElement)?document.activeElement.dataset.chartKey:null;
-    pane.replaceChildren();
-    $('.mw-chart-status').textContent=previewStatus;
-    $('.mw-source-mode').textContent=v&&v.compiled.mapping.some(function(m){return m.pattern===null;})?
-      'Exact song source preserved. For a readable live-coding sketch, choose New loop above. Download this project first to keep it.':
-      'Edit patterns or their gate, velocity and transpose controls, then Run (Cmd/Ctrl+Enter). Controls edit source literals only; changes join at a musical boundary while playing.';
-    if(v&&((v.compiled.gb.auto||[]).length||(v.compiled.gb.kit||[]).length))$('.mw-source-mode').textContent+=' Token playback markers are unavailable on register/sample-driven tracks.';
-    syncPatternContext();
-    $('.mw-overview').hidden=!v;
-    if(!v){pane.textContent='Apply valid code to see notes.';return;}
-    var gb=v.compiled.gb,settings=v.compiled.settings||{},bars=settings.bars||Math.max(1,Math.ceil(gb.totalFrames/120));
-    if(!chartIndex||chartIndex.owner!==project||chartIndex.id!==v.id||chartIndex.source!==v.source){
-      chartIndex={owner:project,id:v.id,source:v.source,index:G.CT_MUSIC_CHART_INDEX&&G.CT_MUSIC_CHART_INDEX.create(gb.notes),
-        mapping:new Map(v.compiled.mapping.map(function(m){return [m.noteIndex,m];})),
-        lanes:chartLanes(gb),
-        overlaps:new Set((v.compiled.diagnostics||[]).filter(function(d){return d.code==='CHIP_OVERLAP';}).map(function(d){return d.noteIndex;}))};
-      chartRange=null;scrollLeft=0;
-    }
-    var total=gb.totalFrames||1,rangeStart=chartRange?chartRange.fromFrame:0,rangeEnd=chartRange?chartRange.toFrame:total,span=rangeEnd-rangeStart;
-    var width=Math.max(120,pane.clientWidth-28-CHART_GUTTER,Math.min(12000,bars*80*(span/total)));
-    var from=Math.min(rangeEnd-0.000001,rangeStart+Math.max(0,scrollLeft-80)/width*span),to=Math.min(rangeEnd,rangeStart+(scrollLeft+pane.clientWidth-CHART_GUTTER+80)/width*span);
-    var visible=chartIndex.index?chartIndex.index.query({fromFrame:from,toFrame:Math.max(from+0.000001,to),limit:399}):{items:gb.notes.map(function(n,i){return {note:n,index:i};}),bins:[],overflow:false};
-    if(focused&&focused.startsWith('note-')){
-      var pinned=Number(focused.slice(5));
-      if(gb.notes[pinned]&&!visible.items.some(function(item){return item.index===pinned;}))visible.items.push({note:gb.notes[pinned],index:pinned});
-    }
-    $('.mw-chart-reset').hidden=!chartRange;
-    if(visible.overflow)$('.mw-chart-status').textContent=previewStatus+' · Dense region: '+visible.count+' notes shown as counted groups. Select a group to zoom.';
-    renderOverview(v,rangeStart,rangeEnd);
-    var inner=document.createElement('div');inner.style.width=(width+CHART_GUTTER)+'px';inner.style.position='relative';
-    var ruler=document.createElement('div');ruler.className='mw-bar-ruler';ruler.setAttribute('aria-label','Bar boundaries on the compiled song clock');
-    ruler.style.cssText='height:26px;position:relative;font-size:11px;color:#b6bfd5';
-    inner.appendChild(ruler);
-    // Reuse the compiler clock. Thin labels (not timing) to at most 256 marks;
-    // label indices remain absolute, including after a tempo-map segment.
-    try{
-      var clock=G.CT_MUSIC_LANGUAGE.createClock(settings);
-      function barAt(frame){var lo=0,hi=65536;while(lo<hi){var mid=Math.ceil((lo+hi)/2);if(clock(mid*4)<=frame)lo=mid;else hi=mid-1;}return lo;}
-      var first=barAt(from),last=barAt(to),stride=Math.max(1,Math.ceil((last-first+1)/255));
-      for(var i=first;i<=last;i+=stride){
-        var frame=clock(i*4);
-        if(frame>=rangeEnd)continue;
-        var mark=document.createElement('span');mark.textContent='Bar '+(i+1);mark.title='Frame '+frame;
-        if(frame>=rangeStart){mark.style.cssText='position:absolute;white-space:nowrap;top:0;left:'+(CHART_GUTTER+(frame-rangeStart)/span*width)+'px';ruler.appendChild(mark);}
-        var barWidth=(clock((i+1)*4)-frame)/span*width,divisions=stride>1?1:barWidth>=192?16:barWidth>=64?4:1;
-        for(var sub=0;sub<divisions;sub++){
-          var gridFrame=clock(i*4+sub*4/divisions);if(gridFrame<rangeStart||gridFrame>=rangeEnd)continue;
-          var line=document.createElement('div');line.className='mw-time-grid';line.dataset.frame=String(gridFrame);line.dataset.strength=sub===0?'bar':sub%(divisions/4)===0?'beat':'step';line.setAttribute('aria-hidden','true');
-          line.style.left=(CHART_GUTTER+(gridFrame-rangeStart)/span*width)+'px';inner.appendChild(line);
-        }
-      }
-      var end=document.createElement('span');end.textContent=chartRange?'Frame '+Math.ceil(rangeEnd):'End';end.title='Frame '+rangeEnd;
-      end.style.cssText='position:absolute;right:0;top:0';ruler.appendChild(end);
-    }catch(e){ruler.textContent='Bar clock unavailable: '+e.message;}
-    ['Melody','Harmony','Bass','Drums'].forEach(function(name,ch){
-      var layout=chartIndex.lanes[ch],lane=document.createElement('div');lane.className='mw-lane';lane.setAttribute('aria-label',name);lane.dataset.channel=String(ch);
-      lane.style.height=(layout.count?LANE_HEADER+layout.labels.length*NOTE_ROW+1:46)+'px';
-      var label=document.createElement('div');label.className='mw-lane-label';label.textContent=name+' · '+(!layout.count?'empty':layout.drums?'percussion':noteName(layout.low)+'–'+noteName(layout.high));lane.appendChild(label);
-      var laneColor=['#79d59d','#71bbeb','#e8b264','#bf9fde'][ch];label.style.color=laneColor;
-      (layout.count?layout.labels:[]).forEach(function(text,row){
-        var pitchRow=document.createElement('div');pitchRow.className='mw-pitch-row';pitchRow.style.top=(LANE_HEADER+row*NOTE_ROW)+'px';
-        if(!layout.drums){pitchRow.dataset.pitch=String(layout.high-row);pitchRow.dataset.accidental=String([1,3,6,8,10].includes((layout.high-row)%12));}
-        var pitchLabel=document.createElement('span');pitchLabel.className='mw-pitch-label';pitchLabel.textContent=text;pitchLabel.title=text;pitchRow.appendChild(pitchLabel);lane.appendChild(pitchRow);
-      });
-      if(!layout.count){var empty=document.createElement('span');empty.className='mw-lane-empty';empty.textContent='No notes';lane.appendChild(empty);}
-      if(layout.overflow)label.title='First 16 instruments have individual rows; remaining percussion is labelled on its notes in Other drums.';
-      visible.items.forEach(function(item){var n=item.note,i=item.index;
-        if(n.ch!==ch)return;
-        var b=document.createElement('button');b.className='mw-note';b.type='button';
-        b.style.background=['#244d38','#173e59','#553d22','#40304e'][ch];b.style.borderColor=laneColor;
-        b.style.left=(CHART_GUTTER+(Math.max(n.frame,rangeStart)-rangeStart)/span*width)+'px';b.style.width=Math.max(6,(Math.min(n.frame+n.frames,rangeEnd)-Math.max(n.frame,rangeStart))/span*width)+'px';
-        b.style.top=(LANE_HEADER+layout.row(n)*NOTE_ROW+1)+'px';
-        b.setAttribute('aria-label',name+' note '+(n.midi==null?'noise':n.midi)+' frame '+n.frame+' length '+n.frames);
-        b.textContent=layout.name(n);b.title=b.textContent+' · frame '+n.frame+' · '+n.frames+' frames';b.dataset.pitch=String(n.midi);b.dataset.instrument=String(n.inst);
-        b.setAttribute('aria-pressed','false');b.dataset.note=String(i);b.dataset.chartKey='note-'+i;
-        if(chartIndex.overlaps.has(i)){b.style.background='#c46a54';b.title='Chip overlap: inspect diagnostics';}
-        if(n.frame+n.frames>total){b.style.background='#c46a54';b.title='Finite song end cuts this event; source duration is retained.';}
-        b.addEventListener('click',function(){selectChartNote(i);});lane.appendChild(b);
-      });
-      visible.bins.forEach(function(bin){
-        if(bin.channel!==ch)return;
-        var group=document.createElement('button');group.type='button';group.className='mw-note-group';group.textContent=String(bin.count);
-        group.dataset.chartKey='group-'+ch+'-'+bin.fromFrame;group.setAttribute('aria-label',bin.count+' '+name+' notes in frames '+Math.floor(bin.fromFrame)+'–'+Math.ceil(bin.toFrame)+'. Zoom into group');
-        group.style.left=(CHART_GUTTER+(bin.fromFrame-rangeStart)/span*width)+'px';group.style.width=Math.max(12,(bin.toFrame-bin.fromFrame)/span*width)+'px';
-        group.addEventListener('click',function(){
-          if(bin.toFrame-bin.fromFrame<1){status(bin.count+' simultaneous notes in this region. Inspect their exact events in the code.');selectView('code');return;}
-          chartRange={fromFrame:bin.fromFrame,toFrame:bin.toFrame};pane.scrollLeft=0;renderNotes();
-        });lane.appendChild(group);
-      });inner.appendChild(lane);
-    });
-    var cursor=document.createElement('div');cursor.className='mw-playhead';cursor.style.left=(CHART_GUTTER+Math.max(0,((audioState.frame||0)-rangeStart)/span*width))+'px';inner.appendChild(cursor);pane.appendChild(inner);
-    cursor.dataset.rangeStart=String(rangeStart);cursor.dataset.rangeEnd=String(rangeEnd);
-    cursor.hidden=!playingRevision||playingRevision.source!==v.source||audioState.frame<rangeStart||audioState.frame>=rangeEnd;
-    pane.scrollTop=scrollTop;pane.scrollLeft=scrollLeft;if(editor&&editor.selection)sourceSelected(editor.selection());
-    chartViewportKey=pane.scrollLeft+':'+pane.clientWidth;
-    if(focused){var retained=Array.from(pane.querySelectorAll('[data-chart-key]')).find(function(el){return el.dataset.chartKey===focused;});if(retained)retained.focus({preventScroll:true});}
-    renderPosition(s);
-  }
-  function boundaries(revision){
-    if(typeof engine().musicBoundaries!=='function')throw Error('Tempo-aware audio boundaries are unavailable');
-    // Activation is scheduled on the sounding revision's clock, not the draft's.
-    // Reserve one slot for musicPrepare's terminal boundary (engine cap: 256).
-    return engine().musicBoundaries(revision.compiled,{fromFrame:Math.max(0,Math.ceil(audioState.frame||0)),limit:255});
-  }
-  function onAudio(e){
-    if(!root||root.hidden||!project)return;
-    var proposalStatus=proposal&&proposal.status;
-    if(e.status==='suspended')audioState.suspended=true;
-    if(e.status==='resumed')audioState.suspended=false;
-    // Notifications describe an event, not a transport mode. In particular a
-    // queued/prepared revision must not turn a paused transport into playing.
-    if(['playing','paused','stopped','ended','error'].indexOf(e.status)!==-1)
-      audioState.status=e.status==='ended'?'stopped':e.status;
-    if(e.frame!=null&&['position','loop','playing','paused'].indexOf(e.status)!==-1)audioState.frame=e.frame;
-    if(e.status==='prepared'&&queueTokens[e.revision])queueActivations[e.revision]=e.activation;
-    if(e.status==='playing'&&e.reason==='activate'&&e.revision&&queueTokens[e.revision]){
-      var ack=project.ack(e.revision,queueTokens[e.revision]);
-      if(ack.ok){playingRevision=queueRevisions[e.revision];if(proposal&&proposal.revision===e.revision)proposal.status='playing';}
-      delete queueTokens[e.revision];delete queueRevisions[e.revision];delete queueActivations[e.revision];
-    }
-    if(['cancelled','superseded','stale'].indexOf(e.status)!==-1&&queueTokens[e.revision]&&
-      (queueActivations[e.revision]==null||queueActivations[e.revision]===e.activation)){
-      project.cancel(queueTokens[e.revision]);delete queueTokens[e.revision];delete queueRevisions[e.revision];delete queueActivations[e.revision];
-      if(proposal&&proposal.revision===e.revision)proposal.status=e.status==='stale'?'superseded':e.status;
-    }
-    if(e.status==='stopped'||e.status==='ended'||e.status==='error'){
-      project.stop();queueTokens={};queueRevisions={};queueActivations={};playingRevision=null;audioState.frame=0;
-      if(e.status==='error')status(e.message||'Audio engine failed');
-    }
-    renderState();if(proposalStatus!==(proposal&&proposal.status))renderProposal();
-    var v=chartContext(),cursor=$('.mw-playhead');
-    if(v&&cursor){var start=Number(cursor.dataset.rangeStart),end=Number(cursor.dataset.rangeEnd);cursor.hidden=!playingRevision||playingRevision.source!==v.source||audioState.frame<start||audioState.frame>=end;var inner=cursor.parentElement;cursor.style.left=(CHART_GUTTER+(Math.max(0,audioState.frame||0)-start)/(end-start)*(inner.clientWidth-CHART_GUTTER))+'px';}
-    $('.mw-seek').value=String(audioState.frame||0);
-  }
-  function activate(revision,forcePlay){
-    if(!revision)throw Error('Apply valid code before playing');
-    var previous=Object.keys(queueTokens);
-    // An Apply while musicPlay awaits initialization supersedes that start too.
-    if(previous.length&&!playingRevision){resetAudio();forcePlay=true;previous=[];}
-    previous.forEach(function(id){if(engine().musicCancel)engine().musicCancel(id);project.cancel(queueTokens[id]);});queueTokens={};queueRevisions={};queueActivations={};
-    if(forcePlay||audioState.status==='playing'||audioState.status==='paused'){
-      var owner=project,queued=check(project.queue(revision.id)),token=queued.pending.queueId;
-      queueTokens[revision.id]=token;queueRevisions[revision.id]=revision;
-      function rejected(error){
-        if(project!==owner||queueTokens[revision.id]!==token)return;
-        owner.cancel(token);delete queueTokens[revision.id];delete queueRevisions[revision.id];delete queueActivations[revision.id];
-        if(proposal&&proposal.revision===revision.id)proposal.status='validated';
-        try{if(forcePlay)resetAudio();else if(engine().musicCancel)engine().musicCancel(revision.id);}catch(_){}
-        announceError(error);renderState();renderProposal();
-      }
-      try{
-        var settings={revision:revision.id,baseRevision:snap().playing,boundaries:forcePlay?[]:boundaries(playingRevision||revision),loop:$('.mw-loop').checked,settings:revision.compiled.settings};
-        var result=forcePlay?engine().musicPlay(revision.compiled.gb,settings):engine().musicQueue(revision.compiled.gb,settings);
-        if(result&&typeof result.then==='function')Promise.resolve(result).then(function(value){
-          if(value===false||value&&value.ok===false)rejected(Error(value&&value.message||'Audio revision rejected'));
-        },rejected);
-        else if(result===false||result&&result.ok===false)throw Error(result&&result.message||'Audio revision rejected');
-      }catch(e){rejected(e);throw e;}
-    }
-    renderState();
-  }
-  function applied(result){
-    check(result);cancelChat('superseded');syncEditor();renderNotes();diagnostics(result.revision.compiled.diagnostics);scheduleSave();activate(result.revision,false);
-    status(result.unchanged?'Source is already validated':'Validated '+result.revision.id);renderState();
-  }
-  function download(bytes,name,mime){
-    var blob=new Blob([bytes],{type:mime||'application/octet-stream'}),url=URL.createObjectURL(blob),a=document.createElement('a');
-    a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(url);},4000);
-  }
-  function createSource(text,provenance){
-    var next=api().create(text,Object.assign(opts(),{provenance:provenance}));
-    if(!next.snapshot().validated)throw Error(next.snapshot().diagnostics.map(function(d){return d.message;}).join('\n'));
-    cancelChat();resetAudio();project=next;selection=null;proposal=null;agentInstance=G.crypto.randomUUID();
-    restoreProjectVisuals();
-    syncEditor();renderNotes();renderProposal();renderState();scheduleSave();
-  }
-  function generate(){
-    var request=$('.mw-generate-text').value.trim();if(!request)throw Error('Describe the song to generate');
-    var current=snap();
-    if(current.validated&&current.draft!==current.validated.source&&!G.confirm('Replace the unfinished draft with a generated song? Download the project first to keep the draft.'))return;
-    var token=Song.mint(),result=G.CT_API.ask(request,{brief:{token:token}});
-    if(!result.ok)throw Error(result.error||'Could not interpret that musical request');
-    var song=G.CT_CREATE.songOf(result.doc);
-    var source=G.CT_MUSIC_LANGUAGE.materialize(song.gb,{title:song.title,tempo:song.bpm,bars:song.bars});
-    if(snap().validated){
-      check(project.editDraft(source));var revision=check(project.applyDraft());
-      check(project.setProvenance({prompt:request,seed:token}));applied(revision);
-    }
-    else createSource(source,{prompt:request,seed:token});
-    status('Generated once. '+(result.applied||[]).join('; '));selectView('code');
-  }
-  function boundedChat(messages,count,limit){
-    var result=[],encoder=new TextEncoder();
-    // Preserve a contiguous recent suffix. Count JSON overhead as well as text.
-    for(var i=messages.length-1;i>=0&&result.length<count;i--){
-      var m=messages[i];
-      if(!m||['user','assistant'].indexOf(m.role)===-1||typeof m.content!=='string'||m.content.length>10000||!validUnicode(m.content))continue;
-      var next=[{role:m.role,content:m.content}].concat(result);
-      if(encoder.encode(JSON.stringify(next)).length>limit)break;
-      result=next;
-    }return result;
-  }
-  function appendChat(role,content){
-    check(project.setChat(boundedChat(project.getChat().concat([{role:role,content:content}]),64,131072)));
-    scheduleSave();
-  }
-  function renderChatUI(){
-    if(!chatUI||!project)return;
-    var p=proposal,source=p&&p.edits?snap().draft:'';
-    var state={input:chatDraft,messages:project.getChat(),pending:!!requestId,canSend:!chatAccessBusy,
-      accessMessage:chatAccessMessage,suggestions:['A happy four-bar loop','A dreamy cave theme','Simplify the drums, keep the melody'],
-      proposal:p?{id:p.id,status:p.status,canApply:p.status==='ready',
-        summary:p.diff?p.diff.summary:p.explanation||'',
-        preview:(p.edits||[]).map(function(e){return '− '+source.slice(e.from,e.to)+'\n+ '+e.text;}).join('\n')}:null};
-    var signature=JSON.stringify(state);if(signature===chatUISignature)return;
-    chatUISignature=signature;chatUI.update(state);
-  }
-  function resolveChatProposal(id,apply){
-    try{
-      if(!proposal||proposal.id!==id||proposal.status!=='ready')return;
-      if(proposal.capturedContext&&(invalidateAgent()||proposal.status!=='ready'))throw Error('Proposal context changed; request a new proposal');
-      if(apply){var r=check(project.applyProposal(id));proposal.revision=r.revision.id;proposal.status='queued';applied(r);if(!snap().pending)proposal.status='validated';status(r.diff.summary);}
-      else{project.cancelRequest(id);proposal.status='rejected';}
-      renderProposal();
-    }catch(e){if(proposal)proposal.status='superseded';announceError(e);renderProposal();}
-  }
-  async function ensureChat(){
-    if(chatUI)return;if(chatLoading)return chatLoading;
-    chatLoading=(async function(){
-      if(!G.CT_MUSIC_CHAT_UI)await new Promise(function(resolve,reject){
-        var script=document.createElement('script');script.src='/lib/music-chat-ui.js?v='+encodeURIComponent(G.CT_MUSIC_CHAT_UI_VERSION||'1');
-        script.onload=resolve;script.onerror=function(){script.remove();reject(Error('Chat UI could not load. Code and playback remain available.'));};document.head.appendChild(script);
-      });
-      chatUI=G.CT_MUSIC_CHAT_UI.mount($('.mw-chat-island'),{input:chatDraft,messages:[],pending:false,canSend:false},{
-        onInput:function(text){chatDraft=text;renderChatUI();},
-        onSend:function(){requestChat().catch(announceError);},
-        onStop:function(){cancelChat('rejected');proposal={status:'rejected',explanation:'Request cancelled'};renderProposal();renderState();},
-        onApply:function(id){resolveChatProposal(id,true);},onReject:function(id){resolveChatProposal(id,false);},
-        onSettings:function(){$('.mw-chat-settings').showModal();},onHide:function(){setChatOpen(false);}
-      });renderChatUI();
-    })();
-    try{await chatLoading;}finally{chatLoading=null;}
-  }
-  async function requestChat(){
-    if(chatAccessBusy)return;
-    if(!chatUnlocked||!chatProviders.some(function(p){return p.id===$('.mw-chat-provider').value;})){$('.mw-chat-settings').showModal();return;}
-    client.provider=$('.mw-chat-provider').value;
-    if(requestId)return;
-    var s=snap(),text=chatDraft.trim();if(!text)throw Error('Write a musical request');
-    var conversation=boundedChat(project.getChat(),12,16384);
-    var capturedContext=agentContext();
-    cancelChat('superseded');
-    var owner=project,id='request-'+crypto.randomUUID(),req=check(project.beginRequest(id));requestId=id;
-    appendChat('user',text);chatDraft='';
-    proposal={id:id,status:'proposed',capturedContext:capturedContext};renderProposal();renderState();
-    var tracks=+$('.mw-scope').value,constraints={locks:[]};
-    if($('.mw-lock').value!=='none')constraints.locks.push({type:$('.mw-lock').value,tracks:[0]});
-    if(/\bkeep (?:the )?melody\b/i.test(text)&&!constraints.locks.some(function(lock){return lock.type==='track';}))constraints.locks.push({type:'track',tracks:[0]});
-    if(tracks>=0)constraints.scope={tracks:[tracks]};
-    // This explicit intent is narrower than the default Whole song selector.
-    if(tracks<0&&/\bsimplify\s+(?:the\s+)?drums\b/i.test(text)&&/\bkeep\s+(?:the\s+)?melody\b/i.test(text))constraints.scope={tracks:[3]};
-    if($('.mw-region').checked&&selection)constraints.scope={tracks:[selection.ch],fromFrame:selection.fromFrame,toFrame:selection.toFrame};
-    try{
-      var response=await client.request({id:id,request:text,source:req.baseSource,baseRevision:req.baseRevision,selection:selection,
-        constraints:constraints,conversation:conversation,language:{version:G.CT_MUSIC_LANGUAGE.VERSION,help:G.CT_MUSIC_CODE_EDITOR&&G.CT_MUSIC_CODE_EDITOR.help||{}},diagnostics:(s.diagnostics||[]).slice(0,32)});
-      if(project!==owner||root.hidden||requestId!==id)return;
-      if(invalidateAgent()){renderProposal();renderState();return;}
-      if(response.id!==id)throw Error('Chat response belongs to another request');
-      if(response.edits.length===0){
-        owner.cancelRequest(id);appendChat('assistant',response.explanation);proposal=null;return;
-      }
-      var validated=project.validateProposal({id:id,baseRevision:response.baseRevision,baseSource:req.baseSource,edits:response.edits},constraints);
-      check(validated);
-      appendChat('assistant',response.explanation);
-      proposal={id:id,status:'ready',chat:true,capturedContext:capturedContext,explanation:response.explanation,edits:response.edits,diff:validated.diff};
-    }catch(e){
-      if(project!==owner||requestId!==id)return;
-      if(e.code==='locked'){chatUnlocked=false;renderChatAccess(e.message);}
-      owner.cancelRequest(id);proposal={status:'invalid',explanation:e.message};status(e.message);
-    }
-    finally{if(project===owner&&requestId===id){requestId=null;renderProposal();renderState();}}
-  }
-  function renderProposal(){
-    invalidateAgent();
-    renderChatUI();
-  }
-  function build(){
-    root=document.createElement('section');root.id='musicworkspace';root.hidden=true;root.dataset.presentation='composition';root.setAttribute('aria-label','Create music workspace');
-    root.innerHTML='<header class="mw-top"><h1>Chiptunes · Chip projects</h1><button data-action="algorave">Strudel + GLSL</button><button data-action="new-loop">New loop</button><button data-action="toggle-chat" aria-controls="mw-panel-chat" aria-expanded="true">Hide chat</button><button data-action="listen" title="Leave composition and listen to generated songs">Listen</button></header>'+
-      '<div class="mw-transport"><button data-action="play">▶ Play</button><button data-action="pause">Pause</button><button data-action="stop">■ Stop</button>'+
-      '<label><input type="checkbox" class="mw-loop"> Loop</label><input class="mw-seek" type="range" min="0" max="0" value="0" aria-label="Seek frame">'+
-      '<button class="mw-primary" data-action="apply" title="Run code (Cmd/Ctrl+Enter)" aria-keyshortcuts="Meta+Enter Control+Enter">Run <kbd>⌘/Ctrl ↵</kbd></button><button data-action="undo">Undo revision</button><button data-action="redo">Redo revision</button></div>'+
-      '<div class="mw-live-feedback"><div class="mw-position" aria-live="off">Stopped · Run to hear your code</div><div class="mw-beats" aria-hidden="true"><i></i><i></i><i></i><i></i></div><div class="mw-state" aria-live="polite"></div></div>'+
-      '<section class="mw-transfer-offer" aria-label="Incoming project" hidden><p class="mw-transfer-description" role="status"></p><div class="mw-actions"><button data-action="transfer-accept" disabled>Accept</button><button data-action="transfer-cancel">Cancel</button></div></section>'+
-      '<div class="mw-body"><div class="mw-creative"><main id="mw-panel-music" class="mw-main" aria-label="Composition"><p class="mw-source-mode"></p><div class="mw-selection" role="status">Notes show the validated revision. Select a note to locate its source.</div><div class="mw-composition"><div id="mw-panel-notes" role="region" aria-label="Note chart" tabindex="0" class="mw-mainview mw-notes"></div><div class="mw-splitter" role="separator" tabindex="0" aria-label="Resize chart and code" aria-orientation="horizontal" aria-controls="mw-panel-notes mw-panel-code" aria-valuemin="20" aria-valuemax="75" aria-valuenow="45" title="Drag or use Up/Down arrows to resize chart and code; Home/End for limits"></div><div id="mw-panel-code" role="region" aria-label="Code editor" class="mw-mainview mw-code"></div></div>'+
-      '<div class="mw-diagnostics" role="status"></div><details class="mw-live-guide"><summary>Build a live set</summary><div class="mw-live-guide-content"><label for="mw-live-step">Tidal-inspired patterns</label><div class="mw-live-step-actions"><select id="mw-live-step" class="mw-live-step" aria-describedby="mw-live-step-description mw-live-step-warning"></select><button data-action="load-cycle-example">Load into code</button></div><p id="mw-live-step-description" class="mw-live-step-description" aria-live="polite"></p><p id="mw-live-step-warning">Replaces your draft in one undoable edit. Run to hear it; the current music keeps playing until then.</p></div></details><details class="mw-help"><summary>Music help and limits</summary><pre></pre><p>Audio/file exports are limited to 10 minutes; project downloads preserve longer songs.</p></details></main>'+
-      '<div class="mw-stage-splitter" role="separator" tabindex="0" aria-label="Resize music and visuals" aria-orientation="vertical" aria-controls="mw-panel-music mw-panel-visuals" aria-valuemin="45" aria-valuemax="75" aria-valuenow="62" title="Drag or use Left/Right arrows to resize music and visuals; Home/End for limits"></div>'+
-      '<section id="mw-panel-visuals" class="mw-visuals" aria-label="Visual stage"><header class="mw-visual-header"><h2>Visuals</h2><button data-action="stage-fullscreen" title="Show only this visual output in fullscreen">Fullscreen</button></header>'+
-      '<div class="mw-stage-viewport" role="img" aria-label="Music-driven visual output"><p class="mw-stage-empty">Preparing the visual stage…</p></div>'+
-      '<div class="mw-scene-controls"><label for="mw-scene">Scene</label><select id="mw-scene" class="mw-scene" aria-label="Visual scene" disabled></select></div>'+
-      '<div class="mw-visual-authoring" hidden><div class="mw-visual-parameters" aria-label="Live visual controls"></div><div class="mw-visual-apply"><select class="mw-visual-boundary" aria-label="Visual activation boundary"><option value="now">Now</option><option value="bar">Next bar</option></select><button data-action="visual-apply">Apply visuals</button><button data-action="visual-cancel" hidden>Cancel queued</button></div>'+
-      '<details class="mw-visual-code-disclosure"><summary>Visual code <small>⌘/Ctrl ↵ applies visuals only</small></summary><div class="mw-visual-code" role="region" aria-label="Visual editor"></div><p class="mw-visual-reference">Compose layers: tunnel, tiles, orbits, ribbons, sparks. Read named controls with param("motion"), music with signal("bass.hit") or signal("audio.bass"). This bounded language does not run JavaScript.</p></details></div>'+
-      '<p class="mw-stage-status" role="status">Preparing the visual stage…</p><div class="mw-visual-performance" hidden><button data-action="visual-freeze" aria-pressed="false" title="Hold visual state; music continues">Freeze</button><button data-action="visual-blackout" aria-pressed="false" title="Mask output; music and visual state continue">Blackout</button><button data-action="visual-reset" title="Clear visual feedback and phase only">Reset visuals</button><button data-action="visual-panic" title="Stop music, cancel queued visuals and black out output">Panic</button></div><p class="mw-stage-help">Code makes the music. The scene follows it. The applied scene, its source and its control values are saved with your project.</p></section></div>'+
-      '<aside id="mw-panel-chat" class="mw-chat" aria-label="Musical collaboration">'+
-      '<section class="mw-project-handoff" hidden><p>Web Chat runs in the hosted workspace. Open this project there to unlock Chat and request proposals.</p><button data-action="project-handoff">Open this project in web Chat</button><p>Copies your draft and last validated revision to web Chat without private chat or provenance. Accept in the new window; your original project stays here.</p></section>'+
-      '<div class="mw-chat-island"></div></aside></div>'+
-      '<dialog class="mw-chat-settings" aria-labelledby="mw-settings-title"><header class="mw-chat-header"><h2 id="mw-settings-title">Chat settings</h2><button data-action="chat-settings-close">Done</button></header><div class="mw-settings-content"><p class="mw-context"></p><section class="mw-chat-access" aria-label="Built-in chat access"><p class="mw-settings-status" role="status">Checking chat access…</p><p>Use the owner password, not an API key. Sending shares your music source, request, and recent conversation with the selected provider. Unlocking makes no model call.</p><p>Saved chat is private: public shares and transfers exclude it. Full project downloads include it.</p>'+
-      '<label>Provider<select class="mw-chat-provider" aria-label="Chat provider"></select></label><label>Owner password<input class="mw-owner-password" type="password" autocomplete="off" maxlength="1024"></label>'+
-      '<div class="mw-actions"><button data-action="chat-unlock">Unlock chat</button><button data-action="chat-logout" disabled>Lock chat</button><button data-action="chat-access-refresh">Refresh access</button></div></section><small>Chat supports source up to 512 KiB UTF-8; larger projects remain editable and downloadable.</small>'+
-      '<label>Edit scope <select class="mw-scope"><option value="-1">Whole song</option><option value="0">Melody</option><option value="1">Harmony</option><option value="2">Bass</option><option value="3">Drums</option></select></label>'+
-      '<label>Melody lock <select class="mw-lock"><option value="none">Unlocked</option><option value="track">Whole track</option><option value="pitchrhythm">Pitch and rhythm</option><option value="instrument">Instrument</option><option value="arrangement">Arrangement</option></select></label>'+
-      '<label><input class="mw-region" type="checkbox"> Restrict to selected note region</label>'+
-      '<details class="mw-external-mcp"><summary>External agent via MCP (optional)</summary><section class="mw-connect" aria-label="Connect a music agent"><h2>Connect</h2>'+
-      '<div class="mw-mcp-setup" hidden><p>Add this remote MCP server in your agent, sign in with the same account, then refresh clients. Authorizing a client does not share a song; Connect below does.</p><label>Remote MCP server<input class="mw-mcp-endpoint" type="text" readonly></label><button data-action="copy-mcp">Copy MCP endpoint</button></div>'+
-      '<p class="mw-mcp-unavailable">Remote MCP setup requires the HTTPS gateway and an available connection API. It is unavailable on the Cloudflare site without that API. Sign in if prompted, then refresh clients.</p>'+
-      '<p>Connecting uploads your current music source, selected region, and edit constraints to this service for the client you choose. Validated edits and context changes are shared while connected. Every proposal requires your explicit Apply.</p>'+
-      '<label>Agent client<select class="mw-client"><option value="">Choose an authorized client</option></select></label><div class="mw-actions"><button data-action="refresh-clients">Refresh clients</button><button data-action="connect" disabled>Connect</button><button data-action="disconnect" disabled>Disconnect</button></div>'+
-      '<p class="mw-connect-status" role="status">Connection unavailable in this build.</p><a class="mw-sign-in" href="/sign-in" hidden>Sign in to connect</a></section></details></div></dialog>'+
-      '<footer class="mw-actions mw-footer"><details class="mw-project-tools"><summary>Project tools</summary><div class="mw-actions"><button data-action="save">Save draft locally</button><button data-action="download">Download project</button><button data-action="open">Open project</button><button data-action="share">Copy project link</button>'+
-      '<details class="mw-generate"><summary>Generate a full song (exact source)</summary><label>Describe the song<input class="mw-generate-text" maxlength="500" placeholder="Make something happy"></label><button data-action="generate">Generate song</button></details>'+
-      '<details class="mw-exports"><summary>Export audio / files</summary><div class="mw-actions"><select class="mw-format" aria-label="Export format"><option value="wav">WAV</option><option value="midi">MIDI</option><option value="rom">Game Boy ROM</option><option value="lsdsng">LSDj</option></select><button data-action="export">Export validated revision</button></div></details></div></details><small class="mw-build"></small></footer>'+
-      '<p class="mw-output-build" aria-hidden="true"></p>'+
-      '<p class="mw-status" role="status" aria-live="polite"></p>';
-    document.body.appendChild(root);
-    var cycleSteps=G.CT_MUSIC_CYCLE_EXAMPLES&&G.CT_MUSIC_CYCLE_EXAMPLES.steps||[];
-    cycleSteps.forEach(function(step,index){var option=document.createElement('option');option.value=step.id;option.textContent=(index+1)+'. '+step.title;$('.mw-live-step').appendChild(option);});
-    function describeCycleStep(){var step=cycleSteps.find(function(item){return item.id===$('.mw-live-step').value;});$('.mw-live-step-description').textContent=step?step.description:'';}
-    $('.mw-live-step').addEventListener('change',describeCycleStep);describeCycleStep();
-    $('.mw-live-guide').hidden=!cycleSteps.length;
-    // Derived, not hardcoded: the options come from CT_MUSIC_CYCLE_EXAMPLES and
-    // the browser check only counts them, so a literal label could quietly lie
-    // about how many steps the guide actually offers.
-    $('.mw-live-guide>summary').textContent='Build a live set · '+cycleSteps.length+' steps';
-    var outputSelect=document.createElement('select');
-    outputSelect.className='mw-output-mode';outputSelect.setAttribute('aria-label','Audience output layout');
-    [['visualizer','Output: visuals only'],['performance','Output: code + visuals']].forEach(function(pair){
-      var option=document.createElement('option');option.value=pair[0];option.textContent=pair[1];outputSelect.appendChild(option);
-    });
-    outputSelect.value=outputMode;
-    outputSelect.addEventListener('change',function(){
-      outputMode=this.value==='performance'?'performance':'visualizer';
-      scheduleLayoutSave();
-      // Switching while output is showing re-lays it out immediately; it never
-      // recomposes, restarts audio or resets the visual world.
-      if(visualizerOpen)root.dataset.presentation=outputMode;
-    });
-    var visualizerButton=document.createElement('button');visualizerButton.dataset.action='visualizer';visualizerButton.textContent='Focus visuals';visualizerButton.setAttribute('aria-pressed','false');visualizerButton.setAttribute('aria-controls','mw-panel-visuals');
-    $('.mw-top').insertBefore(outputSelect,$('[data-action=toggle-chat]'));
-    $('.mw-top').insertBefore(visualizerButton,$('[data-action=toggle-chat]'));
-    var chartStatus=document.createElement('p');chartStatus.className='mw-chart-status';chartStatus.setAttribute('role','status');
-    $('.mw-main').insertBefore(chartStatus,$('.mw-selection'));
-    var chartReset=document.createElement('button');chartReset.className='mw-chart-reset';chartReset.dataset.action='chart-reset';chartReset.textContent='Show full song';chartReset.hidden=true;chartStatus.after(chartReset);
-    var overview=document.createElement('button');overview.type='button';overview.className='mw-overview';overview.title='Whole song overview · click to inspect four bars; Enter inspects the current playback position';
-    overview.innerHTML='<span class="mw-overview-window" aria-hidden="true"></span><span class="mw-overview-playhead" aria-hidden="true" hidden></span>';
-    $('.mw-main').insertBefore(overview,$('.mw-composition'));
-    overview.addEventListener('click',function(e){
-      var v=chartContext();if(!v)return;
-      var total=v.compiled.gb.totalFrames||1,rect=overview.getBoundingClientRect();
-      var frame=e.detail?Math.max(0,Math.min(total,(e.clientX-rect.left)/rect.width*total)):audioState.frame||0;
-      var clock=G.CT_MUSIC_LANGUAGE.createClock(v.compiled.settings||{}),lo=0,hi=65536;
-      while(lo<hi){var mid=Math.ceil((lo+hi)/2);if(clock(mid*4)<=frame)lo=mid;else hi=mid-1;}
-      var first=Math.max(0,lo-1),start=clock(first*4),end=Math.min(total,clock((first+4)*4));
-      if(end<=start)return;
-      chartRange={fromFrame:start,toFrame:end};$('.mw-notes').scrollLeft=0;renderNotes();
-    });
-    function refreshChartViewport(){
-      if(root.hidden||!project||chartViewportKey===$('.mw-notes').scrollLeft+':'+$('.mw-notes').clientWidth||chartRenderFrame)return;
-      chartRenderFrame=requestAnimationFrame(function(){chartRenderFrame=null;if(!root.hidden)renderNotes();});
-    }
-    $('.mw-notes').addEventListener('scroll',refreshChartViewport,{passive:true});
-    if(G.ResizeObserver)new ResizeObserver(refreshChartViewport).observe($('.mw-notes'));
-    $('.mw-help').appendChild($('.mw-source-mode'));
-    var nativeTools=document.createElement('details');nativeTools.className='mw-native-tools';
-    nativeTools.innerHTML='<summary>Native format tools</summary><p>Separate LSDj structure editor; your musical code stays here. No native playback.</p><button data-action="native-pick">Open LSDj</button><button data-action="native-json">Open native JSON</button><button data-action="native-resume">Resume LSDj edit</button>';
-    $('.mw-project-tools>.mw-actions').appendChild(nativeTools);
-    if(location.origin==='https://chiptunes-agent-gateway.vercel.app'){
-      var recovery=document.createElement('p');recovery.className='mw-origin-recovery';
-      recovery.appendChild(document.createTextNode('This is the compatibility address. Your saved draft and private chat remain in this browser origin. Download the project here, then open it in '));
-      var canonical=document.createElement('a');canonical.href='https://chiptunes.app/create';canonical.target='_blank';canonical.rel='noopener';canonical.textContent='Chiptunes Create';recovery.appendChild(canonical);
-      recovery.appendChild(document.createTextNode('. Nothing is moved or deleted automatically.'));$('.mw-project-tools').appendChild(recovery);
-    }
-    $('.mw-chat').addEventListener('focusin',function(e){chatFocus=e.target;});
-    $('.mw-chat-settings').addEventListener('close',function(){$('.mw-owner-password').value='';});
-    $('.mw-chat-settings').addEventListener('cancel',function(e){
-      e.preventDefault();e.stopImmediatePropagation();this.close();
-    });
-    mobileView.addEventListener('change',function(){
-      if(!root.hidden)renderChatLayout();
-    });
-    var splitter=$('.mw-splitter'),dragPointer=null;
-    loadLayout();
-    setChartShare(chartShare);setMusicShare(musicShare);renderChatLayout();
-    if(visualCodeOpen)$('.mw-visual-code-disclosure').open=true;
-    // The chooser is built before the stored layout is read, so apply it here
-    // rather than at construction.
-    $('.mw-output-mode').value=outputMode;
-    splitter.addEventListener('keydown',function(e){
-      var delta=e.shiftKey?10:5;
-      if(['ArrowUp','ArrowDown','Home','End'].indexOf(e.key)===-1)return;
-      e.preventDefault();e.stopPropagation();setChartShare(e.key==='Home'?20:e.key==='End'?75:chartShare+(e.key==='ArrowUp'?-delta:delta));
-    });
-    splitter.addEventListener('pointerdown',function(e){
-      if(e.button!==0||!e.isPrimary)return;
-      e.preventDefault();splitter.focus({preventScroll:true});dragPointer=e.pointerId;splitter.setPointerCapture(e.pointerId);
-    });
-    splitter.addEventListener('pointermove',function(e){
-      if(e.pointerId!==dragPointer)return;
-      var rect=$('.mw-composition').getBoundingClientRect();setChartShare((e.clientY-rect.top)/rect.height*100);
-    });
-    function endResize(e){if(e.pointerId===dragPointer){dragPointer=null;if(splitter.hasPointerCapture(e.pointerId))splitter.releasePointerCapture(e.pointerId);}}
-    splitter.addEventListener('pointerup',endResize);splitter.addEventListener('pointercancel',endResize);splitter.addEventListener('lostpointercapture',function(){dragPointer=null;});
-    var stageSplitter=$('.mw-stage-splitter'),stagePointer=null;
-    stageSplitter.addEventListener('keydown',function(e){
-      if(['ArrowLeft','ArrowRight','Home','End'].indexOf(e.key)===-1)return;
-      e.preventDefault();e.stopPropagation();var delta=e.shiftKey?10:5;
-      setMusicShare(e.key==='Home'?45:e.key==='End'?75:musicShare+(e.key==='ArrowLeft'?-delta:delta));
-    });
-    stageSplitter.addEventListener('pointerdown',function(e){
-      if(e.button!==0||!e.isPrimary)return;
-      e.preventDefault();stageSplitter.focus({preventScroll:true});stagePointer=e.pointerId;stageSplitter.setPointerCapture(e.pointerId);
-    });
-    stageSplitter.addEventListener('pointermove',function(e){
-      if(e.pointerId!==stagePointer)return;
-      var rect=$('.mw-creative').getBoundingClientRect();if(rect.width)setMusicShare((e.clientX-rect.left)/rect.width*100);
-    });
-    function endStageResize(e){if(e.pointerId===stagePointer){stagePointer=null;if(stageSplitter.hasPointerCapture(e.pointerId))stageSplitter.releasePointerCapture(e.pointerId);}}
-    stageSplitter.addEventListener('pointerup',endStageResize);stageSplitter.addEventListener('pointercancel',endStageResize);stageSplitter.addEventListener('lostpointercapture',function(){stagePointer=null;});
-    $('.mw-scene').addEventListener('change',function(){
-      try{
-        var a=visualAdapter();if(a.snapshot().visual)a.selectVisualDraft(this.value);else a.setScene(this.value);
-        renderStage();
-      }catch(e){status('This visual scene could not be selected. Music is unchanged.');renderStage();}
-    });
-    $('.mw-visual-code-disclosure').addEventListener('toggle',function(){
-      visualCodeOpen=this.open;scheduleLayoutSave();
-      if(this.open)ensureVisualEditor();
-    });
-    G.addEventListener('ct-visual-state',function(){
-      // CodeMirror change listeners run during an editor update. UI/diagnostic
-      // synchronization must not dispatch another transaction reentrantly.
-      visualChanged();
-      if(visualRenderQueued)return;visualRenderQueued=true;
-      queueMicrotask(function(){visualRenderQueued=false;if(root&&!root.hidden)renderStage();});
-    });
-    // Legacy transfer recovery remains supported, but normal Chat is same-origin.
-    $('.mw-project-handoff').hidden=true;
-    var buildLabel='Music v'+G.CT_MUSIC_LANGUAGE.VERSION+' · '+(G.CT_MUSIC_BUILD_VERSION||'development');
-    $('.mw-build').textContent=buildLabel;
-    // The footer carries the build id for authoring, but output hides the whole
-    // footer, so audience layouts need their own uncached on-screen copy. A
-    // build id read at a different moment than the observation is inference,
-    // not evidence -- which is exactly what a native acceptance note needs.
-    $('.mw-output-build').textContent=buildLabel;
-    root.addEventListener('keydown',function(e){
-      if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)&&!e.altKey&&!e.isComposing&&e.target.closest('.mw-visual-code')){
-        e.preventDefault();e.stopImmediatePropagation();try{visualAdapter().applyVisual($('.mw-visual-boundary').value);}catch(error){announceError(error);}return;
-      }
-      if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)&&!e.altKey&&!e.isComposing&&e.target.closest('.mw-code')){
-        e.preventDefault();e.stopImmediatePropagation();try{runDraft();}catch(error){announceError(error);}return;
-      }
-    },true);
-    root.addEventListener('keydown',function(e){
-      if(e.defaultPrevented){e.stopPropagation();return;}
-      if(e.key==='Escape'&&visualizerOpen){e.preventDefault();e.stopImmediatePropagation();setVisualizer(false);return;}
-      if($('.mw-chat-settings').open){
-        // The native modal owns focus trapping; Escape must not close Create.
-        if(e.key==='Escape'){e.preventDefault();e.stopImmediatePropagation();$('.mw-chat-settings').close();return;}
-        e.stopPropagation();return;
-      }
-      if(e.key==='Tab'&&!e.defaultPrevented){
-        var focusable=Array.from(root.querySelectorAll('button,input,select,textarea,a[href],[tabindex],[contenteditable=true],summary')).filter(function(el){
-          return !el.disabled&&el.tabIndex>=0&&!el.closest('[hidden],[inert]')&&el.getClientRects().length>0;
-        });
-        var first=focusable[0],last=focusable[focusable.length-1];
-        if(first&&((e.shiftKey&&document.activeElement===first)||(!e.shiftKey&&document.activeElement===last))){e.preventDefault();(e.shiftKey?last:first).focus();}
-      }
-      if(e.key==='Escape'&&!e.ctrlKey&&!e.metaKey){
-        e.preventDefault();e.stopImmediatePropagation();
-        if(chatIsOpen())setChatOpen(false,false);
-        // Composition is the primary product now. Escape never leaves it for
-        // radio or starts another song; Listen is an explicit separate action.
-        return;
-      }
-      if(e.code==='Space'&&!e.target.closest('input,textarea,select,button,[contenteditable=true]')){
-        e.preventDefault();try{if(audioState.status==='playing')engine().musicPause(true);else if(snap().validated)activate(snap().validated,true);}catch(error){announceError(error);}
-      }
-      e.stopPropagation();
-    });
-    root.addEventListener('click',function(e){
-      var tab=e.target.closest('button[data-view]');if(tab){selectView(tab.dataset.view);return;}
-      var b=e.target.closest('[data-action]');if(!b)return;
-      if(b.dataset.action==='stage-fullscreen'){fullscreenStage();return;}
-      if(b.dataset.action==='project-handoff'){try{sendProject();}catch(error){status('Project transfer could not start. Check project size and popup permissions.');}return;}
-      Promise.resolve().then(function(){return action(b.dataset.action);}).catch(announceError);
-    });
-    $('.mw-seek').addEventListener('change',function(){engine().musicSeek(+this.value);});
-    $('.mw-client').addEventListener('change',function(){if(connection)renderConnection(connection.state());});
-    ['.mw-scope','.mw-lock','.mw-region'].forEach(function(s){$(s).addEventListener('change',agentPolicyChanged);});
-    G.addEventListener('storage',function(e){if(e.key===KEY&&root&&!root.hidden){conflict=true;invalidateAgent();renderProposal();renderState();status('Another tab changed this project. Download this draft before reloading.');}});
-    G.addEventListener('beforeunload',function(e){if(conflict||saveTimer||unsaved){save();e.preventDefault();e.returnValue='';}});
-  }
-  async function action(name){
-    if(name==='algorave'){
-      await save();
-      if(unsaved)throw Error('Download this chip project before switching; it could not be saved.');
-      resetAudio();location.assign('/create?mode=algorave');
-    }
-    else if(name==='toggle-chat')setChatOpen(!chatIsOpen(),true);
-    else if(name==='hide-chat')setChatOpen(false,false);
-    else if(name==='chat-settings')$('.mw-chat-settings').showModal();
-    else if(name==='chat-settings-close')$('.mw-chat-settings').close();
-    else if(name==='transfer-accept')await acceptTransfer();
-    else if(name==='transfer-cancel'){
-      if(inboundTransfer)inboundTransfer.cancel();inboundTransfer=null;$('.mw-transfer-offer').hidden=true;
-    }
-    else if(name==='chat-unlock')await updateChatAccess('POST');
-    else if(name==='chat-logout')await updateChatAccess('DELETE');
-    else if(name==='chat-access-refresh')await updateChatAccess('GET');
-    else if(name==='copy-mcp'){
-      if(!connection||!connection.state().available||location.protocol!=='https:')throw Error('MCP endpoint unavailable');
-      await navigator.clipboard.writeText(location.origin+'/api/mcp');status('Copied remote MCP endpoint. Add it in your agent, then refresh clients.');
-    }
-    else if(name==='connect'){if(connection)await connection.connect($('.mw-client').value);}
-    else if(name==='disconnect'){if(connection)connection.disconnect();}
-    else if(name==='refresh-clients'){if(connection)await connection.refresh();}
-    else if(name==='new-loop')newLoop();
-    else if(name==='load-cycle-example')await loadCycleExample();
-    else if(name==='apply')runDraft();
-    else if(name==='undo'||name==='redo')applied(project[name]());
-    else if(name==='play'){var v=snap().validated;if(v)activate(v,true);}
-    else if(name==='pause')engine().musicPause(audioState.status!=='paused');
-    else if(name==='stop'){resetAudio();renderState();}
-    else if(name==='close')close();
-    else if(name==='listen')close({listen:true});
-    else if(name==='visualizer')setVisualizer(!visualizerOpen);
-    else if(name==='visual-apply')visualAdapter().applyVisual($('.mw-visual-boundary').value);
-    else if(name==='visual-cancel')visualAdapter().cancelVisual();
-    else if(name==='visual-freeze')visualAdapter().freezeVisuals(!visualAdapter().snapshot().visual.frozen);
-    else if(name==='visual-blackout')visualAdapter().blackoutVisuals(!visualAdapter().snapshot().visual.blackout);
-    else if(name==='visual-reset')visualAdapter().resetVisuals();
-    else if(name==='visual-panic'){visualAdapter().panicVisuals();resetAudio();renderState();}
-    else if(name==='chart-reset'){chartRange=null;$('.mw-notes').scrollLeft=0;renderNotes();}
-    else if(name==='native-pick'||name==='native-json'||name==='native-resume'){
-      if(!G.CT_LSDJ_NATIVE_EDITOR)throw Error('Native format tools are unavailable');
-      resetAudio();renderState();
-      G.CT_LSDJ_NATIVE_EDITOR[name==='native-pick'?'pick':name==='native-json'?'pickJson':'resume']();
-    }
-    else if(name==='generate')generate();
-    else if(name==='chat')await requestChat();
-    else if(name==='cancel'){cancelChat('rejected');proposal={status:'rejected',explanation:'Request cancelled'};renderProposal();renderState();}
-    else if(name==='save'){
-      if(transferProtected){
-        if(!storage||conflict){status('Cannot safely replace the saved project. Download this copy to keep your edits.');return;}
-        if(!G.confirm('Save this temporary copy as the browser recovery project? Any existing saved draft will be replaced. Cancel and download any project you want to keep first.')){
-          status('This is a temporary copy. Existing saved project preserved.');return;
-        }
-        var savingProject=project;transferProtected=false;await save();
-        if(project!==savingProject)return;
-        if(unsaved){transferProtected=true;status('The temporary copy could not be fully saved. Download it to keep your latest edits.');}
-        else{
-          $('.mw-transfer-description').textContent='Transferred project saved locally after your confirmation. Reload restores this draft and its last validated revision.';
-          status('Project saved locally.');
-        }
-      }else await save();
-    }
-    else if(name==='download')download(project.serialize({includePrivate:true}),'chiptunes-project.json','application/json');
-    else if(name==='share'){
-      captureVisual(project);
-      var text=project.serialize(),bytes=new TextEncoder().encode(text),visualOmitted=false;
-      // Visual source is allowed 32 KiB, larger than the whole link budget.
-      // Drop visuals to keep the music shareable rather than refusing outright.
-      if(bytes.length>12000&&project.visual){
-        visualOmitted=true;text=project.serialize({excludeVisual:true});bytes=new TextEncoder().encode(text);
-      }
-      if(bytes.length>12000)throw Error('Project is too large for a self-contained link. Download a project file.');
-      var binary='';bytes.forEach(function(b){binary+=String.fromCharCode(b);});
-      var link=location.origin+'/create#music='+encodeURIComponent(btoa(binary));
-      await navigator.clipboard.writeText(link);
-      status('Copied project link. '+(visualOmitted?'Visuals were too large for the link and were omitted; download a project file to keep them. ':'')+
-        'Chat and private provenance excluded; opening does not play.');
-    }else if(name==='open'){
-      var importRun=++fileImportSerial,importOpen=openEpoch,importProject=project,importSave=saveEpoch;
-      function currentImport(){return importRun===fileImportSerial&&importOpen===openEpoch&&project===importProject&&importSave===saveEpoch&&!root.hidden;}
-      var input=document.createElement('input');input.type='file';input.accept='.json,application/json';
-      input.onchange=async function(){try{
-        if(!currentImport())return;
-        var file=input.files[0];if(!file)return;if(file.size>8388608)throw Error('Project file is too large');
-        var serialized=await file.text();if(!currentImport())return;
-        var loaded=check(api().restore(serialized,opts()));
-        if(!G.confirm('Replace this workspace? Download the current project first to keep a copy.'))return;
-        cancelChat();resetAudio();project=loaded.project;selection=null;proposal=null;agentInstance=G.crypto.randomUUID();
-        restoreProjectVisuals();
-        defaultProjectLoop();
-        syncEditor();renderNotes();renderProposal();renderState();diagnostics(snap().diagnostics);scheduleSave();
-      }catch(e){if(currentImport())announceError(e);}};input.click();
-    }else if(name==='export'){
-      var v=snap().validated;if(!v)throw Error('Apply valid code before exporting');
-      var format=$('.mw-format').value,report=G.CT_MUSIC_EXPORTS.inspect(v.compiled,format);
-      if(!report.ok)throw Error((report.errors||report.losses||[]).join('\n')||'This revision cannot be exported to '+format);
-      var allowLosses=false;
-      if(report.losses&&report.losses.length){allowLosses=G.confirm(report.losses.join('\n')+'\nExport with these limitations?');if(!allowLosses)return;}
-      status('Rendering '+v.id+'…');
-      var output=await G.CT_MUSIC_EXPORTS.exportRevision(Object.assign({validated:true},v),format,{allowLosses:allowLosses});
-      download(output.bytes,output.name,output.mime);status('Exported validated '+v.id+(output.warnings&&output.warnings.length?' · '+output.warnings.join('; '):''));
-    }
-  }
-  async function open(initial){
-    var opening=++openEpoch;
-    // Validate explicit links before touching recovery, playback or the route.
-    var explicit=initial&&initial.explicit===true,importedProject=null;
-    if(explicit){
-      if(typeof initial.source!=='string')throw Error('An explicit import needs musical source');
-      importedProject=api().create(initial.source,opts());
-      if(!importedProject.snapshot().validated)throw Error('Shared musical source is invalid');
-    }
-    if(!root)build();
-    var alreadyOpen=!root.hidden;
-    if(alreadyOpen&&!explicit)return;
-    if(explicit&&project&&unsaved){
-      var importOwner=project,importDraft=snap().draftEpoch;
-      await save();
-      if(opening!==openEpoch)return;
-      if(project!==importOwner||snap().draftEpoch!==importDraft)throw Error('The draft changed while opening the song. Open the link again after saving.');
-      if(unsaved)throw Error('Save or download the current draft before opening another song. Your edits are unchanged.');
-    }
-    var received=null,transport=G.CT_MUSIC_PROJECT_TRANSFER;
-    // receive() must consume the capability before any workspace hash rewrite.
-    if(transport&&location.origin===transport.RECEIVER_ORIGIN&&/^#music-transfer=/.test(location.hash))received=transport.receive();
-    if(!alreadyOpen){
-      previousFocus=document.activeElement;
-      previousRoute=location.pathname==='/create'||/^#s=/.test(location.hash)?'/':location.pathname+location.search+location.hash;
-    }
-    if(!project){
-      client=new G.CT_MUSIC_CHAT.Client();
-      try{
-        storage=api().createStorageAdapter(localStorage,KEY);var saved=storage.load();
-        if(!saved.ok)throw Error(saved.message||'Storage unavailable');
-        // Legacy entry supplies the current radio song as a fallback, not an
-        // explicit import. Recovery wins; #music and file imports override below.
-        if(saved.serialized){var restored=api().restore(saved.serialized,opts());if(restored.ok)project=restored.project;else{conflict=true;status(restored.message+' · Original saved project preserved');}}
-      }catch(e){storage=null;status('Local storage unavailable. Download a project file to keep your work.');}
-      if(!project&&!explicit&&!conflict&&G.CT_CREATE&&typeof G.CT_CREATE.songOf==='function')try{
-        var legacy=localStorage.getItem('ct-create-draft');
-        if(legacy){
-          var legacySong=G.CT_CREATE.songOf(legacy),legacyState=G.CT_CREATE.docState(legacy);
-          if(!legacySong||!legacyState)throw Error('Legacy draft could not be decoded');
-          project=api().create(G.CT_MUSIC_LANGUAGE.materialize(legacySong.gb,{tempo:legacySong.bpm,bars:legacySong.bars,title:legacySong.title,
-            tempoAt:legacyState.tempoAt||[],stepsPerBar:legacyState.grid||16,swing:!!legacyState.swing}),opts());
-          unsaved=true;status('Recovered your previous composition as exact source. The original legacy draft is preserved.');
-        }
-      }catch(e){status('Previous composition could not be recovered. Its original browser record is preserved.');}
-      if(!project){
-        // The legacy entry deliberately supplies a song; preserve it exactly.
-        // Only a fresh open without an initial song starts authored patterns.
-        if(initial&&!explicit){
-          var initialSettings=Object.assign({},initial.settings||{});
-          if(initialSettings.stepsPerBar==null&&initialSettings.grid!=null)initialSettings.stepsPerBar=initialSettings.grid;
-          project=api().create(G.CT_MUSIC_LANGUAGE.materialize(initial.gb,initialSettings),opts());
-        }else{project=loopProject();$('.mw-loop').checked=true;}
-        unsaved=true;
-      }
-      var shared=location.hash.match(/^#music=(.+)$/);
-      if(shared){try{
-        if(shared[1].length>20000)throw Error('Share is too large');
-        var decoded=atob(decodeURIComponent(shared[1])),bytes=Uint8Array.from(decoded,function(c){return c.charCodeAt(0);});
-        var imported=check(api().restore(new TextDecoder().decode(bytes),opts()));project=imported.project;unsaved=true;
-        // Consume a successful public import once. Reload must recover edits,
-        // not replay the original share over this browser's saved revision.
-        history.replaceState(null,'','/create#music');
-        if(saved&&saved.serialized){conflict=true;status('Shared project opened separately. Your existing local draft is preserved; download this project to keep it.');}
-      }catch(e){announceError(e);}}
-      defaultProjectLoop();
-    }
-    if(explicit){
-      clearTimeout(saveTimer);saveTimer=null;saveEpoch++;
-      if(connection)connection.disconnect();cancelChat('superseded');resetAudio();
-      // Opening a link is not permission to overwrite this origin's recovery.
-      transferProtected=true;project=importedProject;selection=null;proposal=null;unsaved=true;
-      defaultProjectLoop();
-      status('Shared song opened as a temporary copy. Existing saved draft preserved. Save draft locally asks before replacing it.');
-    }
-    if(G.CT_CREATE.stopForNative)G.CT_CREATE.stopForNative();engine().enterCreate();
-    if(!/^#music(?:=|$)/.test(location.hash))history.replaceState(null,'',((location.pathname==='/'||location.pathname==='/create')?location.pathname:'/create')+location.search+'#music');
-    agentInstance=G.crypto.randomUUID();root.hidden=false;if(!alreadyOpen)inerted=[];renderChatLayout();
-    mountStage();
-    restoreProjectVisuals();
-    if(!chatAccess)chatAccess=new G.CT_MUSIC_CHAT.Access();
-    chatUnlocked=false;updateChatAccess('GET');
-    if(!connection&&G.CT_MUSIC_AGENT_CONNECTION)connection=G.CT_MUSIC_AGENT_CONNECTION.create({workspace:G.CT_MUSIC_WORKSPACE,onChange:renderConnection});
-    if(connection&&!received)connection.open();
-    if(received)stageTransfer(received);
-    Array.from(document.body.children).forEach(function(el){if(el!==root&&el.id!=='nativeeditor'&&!(el.tagName==='INPUT'&&el.type==='file')&&!el.hasAttribute('inert')){el.setAttribute('inert','');inerted.push(el);}});
-    if(!unsub)unsub=engine().onMusicState(onAudio);
-    renderNotes();renderProposal();renderState();diagnostics(snap().diagnostics);selectView(view);
-    $('[data-action=play]').focus();
-    await ensureEditor();syncEditor();if(unsaved&&!conflict)scheduleSave();
-    if(snap().validated&&snap().draft!==snap().validated.source)schedulePreview();
-    try{await ensureChat();}catch(e){announceError(e);}
-  }
-  function close(options){
-    if(!root||root.hidden)return;
-    openEpoch++;
-    // A closed workspace must not write stage activity back to the project it
-    // was showing; the next open re-establishes the handover.
-    visualOwner=null;visualRestoreFailed=false;
-    cancelPreview();
-    inlineContext=null;if(editor&&editor.cancelSourceGesture)editor.cancelSourceGesture();
-    if(visualizerOpen)setVisualizer(false);
-    if($('.mw-chat-settings').open)$('.mw-chat-settings').close();
-    if(outboundTransfer)outboundTransfer.cancel();outboundTransfer=null;
-    if(inboundTransfer)inboundTransfer.cancel();inboundTransfer=null;$('.mw-transfer-offer').hidden=true;
-    chatAccessEpoch++;chatAccessBusy=false;chatUnlocked=false;$('.mw-owner-password').value='';if(chatAccess)chatAccess.cancel();
-    if(connection)connection.close();
-    save();cancelChat('superseded');try{resetAudio();}catch(e){announceError(e);}
-    if(G.CT_CREATE_PRESENTATION&&G.CT_CREATE_PRESENTATION.unmount)G.CT_CREATE_PRESENTATION.unmount();
-    root.hidden=true;inerted.forEach(function(el){el.removeAttribute('inert');});inerted=[];
-    document.body.classList.remove('create-open');
-    if(options&&options.listen)history.replaceState(null,'','/listen');
-    else if(previousRoute)history.replaceState(null,'',previousRoute);
-    if(unsub){unsub();unsub=null;}
-    // Only a deliberate Listen action may start the secondary station path.
-    if(typeof G._closeCreateReturn==='function')G._closeCreateReturn(options||{});
-    if(previousFocus&&previousFocus.isConnected)previousFocus.focus();
-  }
-  G.CT_MUSIC_WORKSPACE={open:open,close:close,isOpen:function(){return !!root&&!root.hidden;},snapshot:function(){return project&&snap();},
-    isVisualizerOpen:function(){return !!root&&!root.hidden&&visualizerOpen;},
-    agentContext:agentContext,agentPropose:agentPropose,agentProposalStatus:agentProposalStatus,agentDisconnect:agentDisconnect};
-})(typeof globalThis!=='undefined'?globalThis:window);
 
 /* ===== src/webmcp.js ===== */
 // THE PAGE, DRIVEN BY AN AGENT.
@@ -19386,8 +10879,6 @@ track("lead").instrument("p0").play("lead",{repeat:8})`
     '- "Make it gloomier" — chiptunes_variant recomposes the exact song on air.',
     '- "I will take it as a cartridge" — chiptunes_export hands back a share link,',
     '  a MIDI file, or a 32 KB .gb ROM that boots on real hardware.',
-    '- "Fill a cartridge for me" \u2014 chiptunes_lsdj_cart writes an LSDj .sav with',
-    '  a starting point in every slot, ready to copy onto a flash cart.',
     '- chiptunes_transport, chiptunes_play_song and chiptunes_screen operate the',
     '  session the user is listening to right now, so they hear you work.',
     '',
@@ -19547,42 +11038,6 @@ track("lead").instrument("p0").play("lead",{repeat:8})`
     // song is 1.6 ms, so an agent can afford to generate twenty, measure them
     // and keep one -- a loop that is unaffordable against a hosted model.
     {
-      name: 'chiptunes_lsdj_cart',
-      description: 'Fill a Game Boy cartridge with starting points. Writes an LSDj .sav -- up to 32 songs in one file -- and hands it to the user to copy onto a flash cart. This is the fastest route from "I want to write something" to actually writing, because every slot on the machine already has an arrangement in it to argue with. Say the warnings out loud: drums move to the noise channel and instruments are left stock on purpose.',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          scenes: { type: 'array', items: { type: 'string' },
-                    description: 'one song per scene: title, menu, overworld, town, shop, cave, battle, boss, victory, game_over, credits' },
-          seconds: { type: 'number' },
-          key: { type: 'string' },
-          name: { type: 'string', description: 'the .sav filename' }
-        }
-      },
-      run: function (a) {
-        if (!api()) return { ok: false, error: 'the composer is not loaded' };
-        a = a || {};
-        var scenes = (a.scenes && a.scenes.length) ? a.scenes
-          : ['title', 'overworld', 'battle', 'boss', 'cave', 'town', 'shop', 'victory', 'game_over', 'credits'];
-        var started = safe(function () { return Date.now(); }, 0), docs = [];
-        try {
-          for (var i = 0; i < scenes.length && i < 32; i++) {
-            var spec = { scene: String(scenes[i]) };
-            if (a.seconds) spec.seconds = a.seconds;
-            if (a.key) spec.key = a.key;
-            docs.push(G.CT_API.brief(spec).doc);
-          }
-          var cart = G.CT_API.toLsdjSav(docs, { name: a.name });
-          var saved = download(cart.bytes, cart.filename, 'application/octet-stream');
-          return { ok: saved, filename: cart.filename, songs: cart.songs, titles: cart.titles,
-                   blocksUsed: cart.blocksUsed, blocksFree: cart.blocksFree,
-                   tookMs: safe(function () { return Date.now() - started; }, null),
-                   warnings: cart.warnings,
-                   note: 'An LSDj save. Copy it onto a flash cart, or merge the slots into an existing .sav, and start writing.' };
-        } catch (e) { return { ok: false, error: e && e.message ? e.message : String(e) }; }
-      }
-    },
-    {
       name: 'chiptunes_capabilities',
       description: 'Every word this understands and every knob it has: scenes, moods, musical genres, game genres, forms, techniques, the hundred-odd game titles it can read as a style, the transform operations, and the things it deliberately cannot do. Read this BEFORE composing rather than guessing at vocabulary.',
       inputSchema: { type: 'object', properties: {} },
@@ -19717,11 +11172,11 @@ track("lead").instrument("p0").play("lead",{repeat:8})`
     },
     {
       name: 'chiptunes_export',
-      description: 'Take the music away: a share link that carries the whole arrangement in the URL, a Standard MIDI file, a 32 KB .gb cartridge that boots on real Game Boy hardware, or an LSDj .lsdsng the user can drop into their save and keep writing. The link needs no server and stores nothing; the files are built in the page and handed straight to the user.',
+      description: 'Take the music away: a share link that carries the whole arrangement in the URL, a Standard MIDI file, or a 32 KB .gb cartridge that boots on real Game Boy hardware. The link needs no server and stores nothing; the files are built in the page and handed straight to the user.',
       inputSchema: {
         type: 'object',
         properties: {
-          format: { type: 'string', enum: ['link', 'midi', 'rom', 'lsdsng'] },
+          format: { type: 'string', enum: ['link', 'midi', 'rom'] },
           document: { type: 'string', description: 'omit to export whatever is on air' }
         },
         required: ['format']
@@ -19737,14 +11192,6 @@ track("lead").instrument("p0").play("lead",{repeat:8})`
             note: 'The whole song is in the fragment, which browsers never send to a server.' };
           var name = safe(function () { return (G.CT_API.describe(doc).title || 'song'); }, 'song')
                        .replace(/[^A-Za-z0-9 _-]+/g, '').trim() || 'song';
-          if (fmt === 'lsdsng') {
-            var ls = G.CT_API.toLsdsng(doc, { name: name });
-            var okL = download(ls.bytes, ls.filename, 'application/octet-stream');
-            return { ok: okL, filename: ls.filename, bytes: ls.bytes.length,
-                     phrases: ls.phrases, chains: ls.chains, tempo: ls.tempo, groove: ls.groove,
-                     warnings: ls.warnings,
-                     note: 'One LSDj song. Drop it into a .sav with lsdsng-import, or copy it onto a cart, and keep writing. Tell the user the warnings: they are what does NOT survive the trip.' };
-          }
           var bytes = fmt === 'midi' ? G.CT_API.toMidi(doc) : G.CT_API.buildCartridge(doc);
           var saved = download(bytes, name + (fmt === 'midi' ? '.mid' : '.gb'),
                                fmt === 'midi' ? 'audio/midi' : 'application/octet-stream');
@@ -19809,8 +11256,7 @@ track("lead").instrument("p0").play("lead",{repeat:8})`
     chiptunes_play_song: function () { return 'put a song on the deck'; },
     chiptunes_now_playing: function () { return 'checked what is playing'; },
     chiptunes_current_song: function () { return 'took a copy of the song'; },
-    what_can_i_do_here: function () { return 'asked what this page can do'; },
-    chiptunes_lsdj_cart: function (a) { return 'filled a cartridge with ' + ((a && a.scenes && a.scenes.length) || 10) + ' songs'; }
+    what_can_i_do_here: function () { return 'asked what this page can do'; }
   };
   function narrate(t, args, bad) {
     try {
@@ -22292,16 +13738,15 @@ var BLIT_FS = '#version 300 es\nprecision highp float;in vec2 v;out vec4 o;unifo
     // synchronous layout. _watchSize sets the flag when the box really changes.
     if (this._ro && !this._sizeDirty) return;
     this._sizeDirty = false;
-    var viewport = G.__ctVisualViewport && G.__ctVisualViewport('dmg');
-    var dpr = Math.min(1.5, viewport ? viewport.dpr : (G.devicePixelRatio || 1));
+    var dpr = Math.min(1.5, (G.devicePixelRatio || 1));
     // Keep the full-screen shader chain below roughly two million output
     // fragments per pass. Above that point the extra pixels are display
     // oversampling, not recoverable Game Boy detail, and Safari pays for all
     // of them on every pass.
-    var maxPx = 2000000, px = (viewport ? viewport.width : (G.innerWidth || 1)) * (viewport ? viewport.height : (G.innerHeight || 1)) * dpr * dpr;
+    var maxPx = 2000000, px = (G.innerWidth || 1) * (G.innerHeight || 1) * dpr * dpr;
     if (px > maxPx) dpr *= Math.sqrt(maxPx / px);
-    var w = viewport && viewport.outputWidth || Math.max(1, Math.round((viewport ? viewport.width : (this.canvas.clientWidth || G.innerWidth || 1)) * dpr));
-    var h = viewport && viewport.outputHeight || Math.max(1, Math.round((viewport ? viewport.height : (this.canvas.clientHeight || G.innerHeight || 1)) * dpr));
+    var w = Math.max(1, Math.round((this.canvas.clientWidth || G.innerWidth || 1) * dpr));
+    var h = Math.max(1, Math.round((this.canvas.clientHeight || G.innerHeight || 1) * dpr));
     if (this.vw === w && this.vh === h) return;
     this.vw = w; this.vh = h;
     this.canvas.width = w; this.canvas.height = h;
@@ -22852,15 +14297,14 @@ var BLIT_FS = '#version 300 es\nprecision highp float;in vec2 v;out vec4 o;unifo
     // synchronous layout. _watchSize sets the flag when the box really changes.
     if (this._ro && !this._sizeDirty) return;
     this._sizeDirty = false;
-    var viewport = G.__ctVisualViewport && G.__ctVisualViewport('nes');
-    var dpr = Math.min(1.5, viewport ? viewport.dpr : (G.devicePixelRatio || 1));
+    var dpr = Math.min(1.5, (G.devicePixelRatio || 1));
     // The console signal cannot carry detail beyond this output budget, while
     // every CRT pass still pays for each pixel. Bound the full-screen chain so
     // high-DPI Safari does not rasterize display oversampling indefinitely.
-    var maxPx = 2000000, px = (viewport ? viewport.width : (G.innerWidth || 1)) * (viewport ? viewport.height : (G.innerHeight || 1)) * dpr * dpr;
+    var maxPx = 2000000, px = (G.innerWidth || 1) * (G.innerHeight || 1) * dpr * dpr;
     if (px > maxPx) dpr *= Math.sqrt(maxPx / px);
-    var w = viewport && viewport.outputWidth || Math.max(1, Math.round((viewport ? viewport.width : (this.canvas.clientWidth || G.innerWidth || 1)) * dpr));
-    var h = viewport && viewport.outputHeight || Math.max(1, Math.round((viewport ? viewport.height : (this.canvas.clientHeight || G.innerHeight || 1)) * dpr));
+    var w = Math.max(1, Math.round((this.canvas.clientWidth || G.innerWidth || 1) * dpr));
+    var h = Math.max(1, Math.round((this.canvas.clientHeight || G.innerHeight || 1) * dpr));
     if (this.vw === w && this.vh === h) return;
     this.vw = w; this.vh = h;
     this.canvas.width = w; this.canvas.height = h;
@@ -42595,16 +34039,14 @@ if(typeof VisualizerGame !== 'undefined' && typeof CT_GAMES !== 'undefined' && C
   // never entered its landing state -- in agent mode, where this panel demotes
   // to a bar, that left a person staring at an empty page.
   //
-  // The demo keeps its compatibility listening surface. The public root now
-  // opens composition, so use the explicit listening route instead.
-  // Rewriting to '/listen#webmcp' gives the app that route while
+  // Rewriting to '/#webmcp' gives the app the root route it understands while
   // keeping the demo addressable: the hash still matches onDemoRoute() above,
   // so a reload comes back here. This runs at bundle execution, which is before
   // runtime.js in the concatenation order -- doing it at mount would be too
   // late, since the app has booted by then.
   try {
     if (/^\/webmcp\/?$/.test(location.pathname) && history && history.replaceState)
-      history.replaceState(null, '', '/listen#webmcp');
+      history.replaceState(null, '', '/#webmcp');
   } catch (e) {}
 
   var CSS = [
@@ -42685,9 +34127,6 @@ if(typeof VisualizerGame !== 'undefined' && typeof CT_GAMES !== 'undefined' && C
     'Write me a dungeon theme like Castlevania, 40 seconds, no drums.',
     'Is that actually in a minor key? How busy is it?',
     'Give me a dozen boss themes to choose from, then play the third one.',
-    // The one that matters to somebody who writes on the hardware: a cart full
-    // of starting points is a different offer from a finished track.
-    'I write in LSDj. Fill a cartridge with starting points for me.',
     'Make it gloomier, then hand me the cartridge.'
   ];
 
@@ -42728,7 +34167,7 @@ if(typeof VisualizerGame !== 'undefined' && typeof CT_GAMES !== 'undefined' && C
     close.addEventListener('click', function () {
       root.remove();
       // drop the #webmcp too, or a reload reopens what was just closed
-      try { history.replaceState(null, '', '/listen'); } catch (e) {}
+      try { history.replaceState(null, '', '/'); } catch (e) {}
     });
     wrap.appendChild(close);
 
@@ -42739,9 +34178,6 @@ if(typeof VisualizerGame !== 'undefined' && typeof CT_GAMES !== 'undefined' && C
       'The composer and a register-level Game Boy sound chip are already running in this page. ' +
       'That means an agent can write music here with no API key, no account and nothing metered — ' +
       'and a song takes 1.6 ms, so it can afford to write twenty and let you pick.'));
-    wrap.appendChild(el('p', null,
-      'If you write in LSDj: it exports .lsdsng, and it will fill a whole .sav — a starting point ' +
-      'in every slot, phrases and chains and groove intact, ready to copy onto a flash cart.'));
     wrap.appendChild(el('p', null,
       'The station is playing behind this panel. Close it at any time; every tool below moves that same ' +
       'session, so you and the agent are never looking at different things.'));
@@ -42898,9 +34334,6 @@ if(typeof VisualizerGame !== 'undefined' && typeof CT_GAMES !== 'undefined' && C
       ['make it gloomier', 'chiptunes_variant', { mood: 'darker' }],
       ['share link', 'chiptunes_export', { format: 'link' }],
       ['.gb cartridge', 'chiptunes_export', { format: 'rom' }],
-      ['LSDj song', 'chiptunes_export', { format: 'lsdsng' }],
-      ['LSDj cartridge (8 songs)', 'chiptunes_lsdj_cart',
-       { scenes: ['title', 'overworld', 'battle', 'boss', 'cave', 'town', 'victory', 'game_over'], seconds: 30 }],
       ['MIDI file', 'chiptunes_export', { format: 'midi' }],
       ['now playing', 'chiptunes_now_playing', {}]
     ].forEach(function (spec) {
@@ -42929,7 +34362,7 @@ if(typeof VisualizerGame !== 'undefined' && typeof CT_GAMES !== 'undefined' && C
     var t2 = 0, tt = setInterval(function () { paintTools(); if (grid.childNodes.length || ++t2 > 40) clearInterval(tt); }, 250);
 
     var foot = el('div', 'foot');
-    [['The station', '/'], ['Source (MIT)', 'https://github.com/tetrisgm/chiptunes'],
+    [['The station', '/'], ['Source (MIT)', 'https://github.com/VaporWorks/chiptunes'],
      ['How it was built', '/docs/WEBMCP.md']].forEach(function (l) {
       var a = el('a', null, l[0]); a.href = l[1]; foot.appendChild(a);
     });
@@ -42999,254 +34432,6 @@ let _bgAudioOnlySince=0;
 function _nowMs(){ return (typeof performance!=='undefined'&&performance.now) ? performance.now() : Date.now(); }
 function _backgroundAudioOnlyActive(){ return !!_bgAudioOnly; }
 function _backgroundUiDormant(){ return (typeof _backgroundAudioOnlyActive==='function' && _backgroundAudioOnlyActive()); }
-function _musicWorkspaceOpen(){return typeof CT_MUSIC_WORKSPACE!=='undefined'&&CT_MUSIC_WORKSPACE.isOpen();}
-var _musicPresentationEpoch=0;
-var _visualMount=null, _visualEnabled=true;
-var _visualSession=null;
-// A project's saved visual arrives before the stage is lazily created, so it
-// waits here. It is consumed once; later project loads restore the live stage.
-var _visualRestore=null;
-// Phase F item 1: an explicit visual work budget, spent by the host because the
-// renderer deliberately owns no clock. VISUAL_BUDGET_MS is the share of a 60fps
-// frame the stage may take before it must draw less; audio is never the thing
-// that gives way. The measurement is a slow EMA so one expensive frame does not
-// visibly thin the scene, and recovery is slower than shedding so the quality
-// level does not oscillate on a marginal machine.
-var VISUAL_BUDGET_MS=6, _visualCostMs=0, _visualQuality=1;
-function _visualWorkQuality(){ return _visualQuality; }
-function _recordVisualCost(ms){
-  if(typeof ms!=='number'||!isFinite(ms)||ms<0)return;
-  _visualCostMs=_visualCostMs?_visualCostMs*0.9+ms*0.1:ms;
-  if(_visualCostMs>VISUAL_BUDGET_MS)_visualQuality=Math.max(0.25,_visualQuality-0.05);
-  else if(_visualCostMs<VISUAL_BUDGET_MS*0.6)_visualQuality=Math.min(1,_visualQuality+0.01);
-}
-function _syncVisualSession(){
-  if(!_visualSession)return;
-  var state=_visualSession.snapshot();_visualEnabled=state.enabled;
-  if(state.enabled&&state.scene.indexOf('visual:')!==0){
-    randomMode=false;
-    if(!selGame||curGameKey!==state.scene)showGame(state.scene);
-  }
-  if(_visualMount){
-    _visualMount.clip.hidden=!state.enabled;
-    _visualMount.mask.hidden=!state.blackout;
-  }
-  // A stopped native panel must still display an explicit visual edit/reset.
-  if(typeof _pnlHold!=='undefined')_pnlHold=3;
-  _syncCreateRendering();
-  window.dispatchEvent(new CustomEvent('ct-visual-state'));
-}
-function _ensureVisualSession(){
-  if(!_visualSession&&typeof CT_VISUAL_STAGE!=='undefined'&&typeof CT_VISUAL_LANGUAGE!=='undefined'&&typeof CT_VISUAL_RENDERER!=='undefined'){
-    _visualSession=CT_VISUAL_STAGE.create({language:CT_VISUAL_LANGUAGE,restore:_visualRestore,
-      renderer:CT_VISUAL_RENDERER.create({createCanvas:function(){return document.createElement('canvas');},width:960,height:540}),
-      games:GAMES.filter(function(g){return !g.hiddenFromRandom;}).map(function(g){return {id:g.key,label:g.name||g.key};}),
-      onChange:_syncVisualSession});
-    // Boundary/cancellation state follows acknowledgements even while drawing
-    // is hidden/Off. This listener neither renders nor creates a second clock.
-    if(Audio.onMusicState)Audio.onMusicState(function(){_visualSession.observe(_musicPresentationState());});
-    _syncVisualSession();
-  }
-  return _visualSession;
-}
-// A stable presentation viewport, not a second simulation. Native panels and
-// the stage sizing code use this while host/layout changes only scale the group.
-window.__ctVisualViewport=function(kind){
-  if(!_visualMount)return null;
-  var v=_visualMount, panel=v.panels[kind];
-  return {width:v.width,height:v.height,dpr:v.dpr,stageDpr:v.stageDpr,
-    outputWidth:panel&&panel.width,outputHeight:panel&&panel.height};
-};
-function _visualLayer(node){
-  var v=_visualMount;
-  if(!v||!node||v.layers.some(function(r){return r.node===node;}))return;
-  var marker=document.createComment('visual-layer');
-  if(node.parentNode===v.surface){
-    // Newly-created native/gain layers follow an existing layer. Mirror that
-    // insertion at its original position for later detach.
-    var prev=node.previousSibling, record;
-    while(prev&&!record){record=v.layers.find(function(r){return r.node===prev;});prev=prev.previousSibling;}
-    if(record&&record.marker.parentNode)record.marker.parentNode.insertBefore(marker,record.marker.nextSibling);
-    else v.origin.appendChild(marker);
-  }else if(node.parentNode)node.parentNode.insertBefore(marker,node);
-  else v.origin.appendChild(marker);
-  v.layers.push({node:node,marker:marker});
-  if(node.parentNode!==v.surface)v.surface.appendChild(node);
-}
-function _fitVisualSurface(){
-  var v=_visualMount;if(!v)return;
-  var w=v.clip.clientWidth,h=v.clip.clientHeight;
-  var scale=Math.max(0,Math.min(w/v.width,h/v.height));
-  v.surface.style.transform='translate('+((w-v.width*scale)/2)+'px,'+((h-v.height*scale)/2)+'px) scale('+scale+')';
-}
-function _visualSnapshot(){
-  var visual=_visualSession&&_visualSession.snapshot();
-  return {mounted:!!_visualMount,enabled:_visualEnabled,scene:visual?visual.scene:_visualEnabled?(typeof curGameKey==='string'?curGameKey:'off'):'off',
-    scenes:visual?visual.scenes:GAMES.filter(function(g){return !g.hiddenFromRandom;}).map(function(g){return {id:g.key,label:g.name||g.key};}),visual:visual,
-    width:_visualMount?_visualMount.width:(typeof W==='number'?W:0),height:_visualMount?_visualMount.height:(typeof H==='number'?H:0)};
-}
-function _mountVisual(host){
-  if(!host||host.nodeType!==1||host.ownerDocument!==document)throw Error('Visual host must be an element in this document');
-  if(_visualMount){
-    if(_visualMount.surface.contains(host))throw Error('Visual host cannot be inside its output');
-    if(_visualMount.host!==host){_visualMount.host=host;host.appendChild(_visualMount.clip);}
-    _fitVisualSurface();return _visualSnapshot();
-  }
-  var stage=document.getElementById('stage');if(!stage)throw Error('Visual stage unavailable');
-  if(stage===host||stage.contains(host))throw Error('Invalid visual host');
-  var live=!!selGame&&!!(Audio.started||(typeof _watchOnly!=='undefined'&&_watchOnly));
-  var width=live?(parseFloat(stage.style.width)||W||960):960;
-  var height=live?(parseFloat(stage.style.height)||H||540):540;
-  var clip=document.createElement('div'),surface=document.createElement('div'),style=document.createElement('style');
-  clip.className='ct-visual-viewport';clip.style.cssText='position:relative;width:100%;height:100%;overflow:hidden;isolation:isolate;background:#000;pointer-events:none';
-  surface.className='ct-visual-surface';
-  surface.style.cssText='position:absolute;left:0;top:0;transform-origin:0 0;width:'+width+'px;height:'+height+'px;overflow:hidden;isolation:isolate;--barh:0px';
-  style.textContent='.ct-visual-surface > #stage,.ct-visual-surface > .crt{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;pointer-events:none!important}';
-  var mask=document.createElement('div');mask.className='ct-visual-blackout';mask.hidden=true;
-  mask.style.cssText='position:absolute;inset:0;background:#000;z-index:100;pointer-events:none';
-  clip.appendChild(style);clip.appendChild(surface);clip.appendChild(mask);
-  _visualMount={host:host,clip:clip,surface:surface,mask:mask,origin:stage.parentNode,layers:[],width:width,height:height,dpr:window.devicePixelRatio||1,stageDpr:live?DPR:null,panels:{},stageStyle:{width:stage.style.width,height:stage.style.height}};
-  if(live){
-    if(typeof _dmg!=='undefined'&&_dmg&&_dmg.vw)_visualMount.panels.dmg={width:_dmg.vw,height:_dmg.vh};
-    if(typeof _nes!=='undefined'&&_nes&&_nes.vw)_visualMount.panels.nes={width:_nes.vw,height:_nes.vh};
-  }
-  Array.from(document.querySelectorAll('#stage,.crt')).forEach(_visualLayer);
-  host.appendChild(clip);clip.hidden=!_visualEnabled;
-  // Station-change snow is chrome, not part of the visual world. Never carry
-  // its full-page overlay or inherited stage filters into composition.
-  clearTimeout(_trackTransitionTimer);
-  var transition=document.getElementById('track-transition');if(transition)transition.classList.remove('on');
-  document.body.classList.remove('track-transition');
-  if(typeof ResizeObserver!=='undefined'){
-    _visualMount.observer=new ResizeObserver(_fitVisualSurface);_visualMount.observer.observe(clip);
-  }
-  _fitVisualSurface();
-  // Establish the cold viewport before making a world; live output is retained.
-  if(!live){
-    [typeof _dmg!=='undefined'&&_dmg,typeof _nes!=='undefined'&&_nes].forEach(function(panel){
-      if(panel){panel._sizeDirty=true;if(panel.ready&&!panel._asleep)panel.resize();}
-    });
-    resize();
-  }
-  if(!selGame)showGame(_fallbackGameKey()||'random');
-  _ensureVisualSession();_syncVisualSession();
-  if(window.__rrrCrtBuild)window.__rrrCrtBuild();
-  _syncCreateRendering();return _visualSnapshot();
-}
-function _unmountVisual(){
-  var v=_visualMount;if(!v)return _visualSnapshot();
-  if(_visualSession)_visualSession.observe(null);
-  if(v.observer)v.observer.disconnect();
-  v.layers.forEach(function(r){if(r.marker.parentNode){r.marker.parentNode.replaceChild(r.node,r.marker);}});
-  var stage=document.getElementById('stage');stage.style.width=v.stageStyle.width;stage.style.height=v.stageStyle.height;
-  v.clip.remove();_visualMount=null;
-  // No scene reset, framebuffer resize, screen-mode change or audio handover.
-  _syncCreateRendering();return _visualSnapshot();
-}
-function _musicPresentationState(){
-  if(!_musicWorkspaceOpen())return null;
-  var state=Audio.musicVisualState&&Audio.musicVisualState();
-  return state||{paused:true,revision:null,frame:0,status:'stopped',grid:{gstep:0,phase:0,beat:0,bar:0,bpm:120,spb:0.5,step16:0.125,paused:true},
-    clock:{paused:true,idle:true,energy:0,energyLevel:0,beat:0,bar:0,phrase:0,beatPulse:0,bands:{},roles:{},noteOns:[],primaryNotes:[]}};
-}
-// One draw consumer, separate from read-only transport/presentation snapshots.
-// Other visual renderers can request independent Audio.musicEventReader cursors.
-// Backlogs are bounded, old/inactive events are discarded explicitly, and one
-// onset cannot reappear merely because two frames examined the same chip frame.
-var _musicDrawReader=null,_musicDrawPending=[],_musicDrawDropped=0;
-function _musicPresentationFrame(state){
-  if(!state){
-    if(_musicDrawReader)_musicDrawReader.close();
-    _musicDrawReader=null;_musicDrawPending=[];_musicDrawDropped=0;return null;
-  }
-  var clock=state.clock,notes=[],roles={};
-  ['lead','counter','bass','perc','noise'].forEach(function(role){
-    roles[role]=Object.assign({},clock.roles[role]||{},{energy:0,onset:0,notes:[]});
-  });
-  var batch=null;
-  if(state.eventStream&&state.eventStream.available){
-    try{
-      if(!_musicDrawReader)_musicDrawReader=Audio.musicEventReader({replay:true});
-      batch=_musicDrawReader.read(512);
-      if(batch.reset){_musicDrawDropped+=_musicDrawPending.length;_musicDrawPending=[];}
-      _musicDrawDropped+=batch.dropped;
-      for(var i=0;i<batch.events.length;i++){
-        var e=batch.events[i];
-        // Authored NRx4 retriggers have no declared pitch/duration. Retain that
-        // honesty (kind/register, midi:null), but don't miss their real onset.
-        var registerTrigger=e.kind==='register'&&[0x14,0x19,0x1e,0x23].includes(e.register)&&(e.value&0x80);
-        if(e.kind!=='noteOn'&&e.kind!=='sample'&&!registerTrigger)continue;
-        if(_musicDrawPending.length===512){_musicDrawPending.shift();_musicDrawDropped++;}
-        _musicDrawPending.push(e);
-      }
-    }catch(_){if(_musicDrawReader)_musicDrawReader.close();_musicDrawReader=null;}
-  }
-  var pending=[];
-  for(var i=0;i<_musicDrawPending.length;i++){
-    var e=_musicDrawPending[i],age=state.renderContextTime-e.contextTime;
-    if(state.paused||e.epoch!==state.epoch||e.activation!==state.activation||e.discontinuity!==state.discontinuity||age>0.25){_musicDrawDropped++;continue;}
-    if(age<0){pending.push(e);continue;}
-    if(e.strength<=0)continue;
-    if(notes.length>=64){_musicDrawDropped++;continue;}
-    var role=e.kind==='sample'?'perc':['lead','counter','bass','noise'][e.channel];
-    if(!role)continue;
-    var note=Object.assign({},e,{hi:Math.max(0,Math.min(1,((e.midi==null?60:e.midi)-24)/84)),
-      mag:e.strength,role:role,source:'music',native:true});
-    notes.push(note);roles[role].notes.push(note);
-    roles[role].energy=Math.max(roles[role].energy,e.strength);roles[role].onset=roles[role].energy;
-  }
-  _musicDrawPending=pending;roles.primary=roles.lead;roles.melody=roles.lead;
-  return Object.assign({},clock,{roles:roles,noteOns:notes,primaryNotes:roles.lead.notes,
-    eventDelivery:{dropped:_musicDrawDropped,pending:pending.length,generation:batch?batch.generation:null},
-    musicActivation:[state.epoch,state.activation,state.discontinuity,_musicPresentationEpoch].join(':')});
-}
-function _syncCreateRendering(){
-  var on=_shouldBackgroundAudioOnly();
-  if(on!==_bgAudioOnly)lastFrame=_nowMs();
-  _bgAudioOnly=on;
-  document.documentElement.classList.toggle('audio-background',on);
-  document.body.classList.toggle('audio-background',on);
-  if(on)_stopFrameLoop();else _scheduleFrameLoop();
-  return on;
-}
-window.CT_CREATE_PRESENTATION=Object.freeze({mount:_mountVisual,unmount:_unmountVisual,snapshot:_visualSnapshot,setScene:function(id){
-  if(_ensureVisualSession()){_visualSession.setScene(id,_musicPresentationState());return _visualSnapshot();}
-  if(id!=='off'&&!GAMES.some(function(g){return g.key===id&&!g.hiddenFromRandom;}))throw Error('Unknown visual scene');
-  _visualEnabled=id!=='off';
-  if(_visualEnabled){randomMode=false;if(!selGame||curGameKey!==id)showGame(id);}
-  if(_visualMount)_visualMount.clip.hidden=!_visualEnabled;
-  _syncCreateRendering();return _visualSnapshot();
-},setVisualDraft:function(source){return _ensureVisualSession().setDraft(source);},
-  selectVisualDraft:function(id){return _ensureVisualSession().selectDraft(id);},
-  applyVisual:function(when){return _ensureVisualSession().apply(when||'now',_musicPresentationState());},
-  cancelVisual:function(){return _ensureVisualSession().cancel();},
-  setVisualControl:function(name,value){return _ensureVisualSession().setControl(name,value);},
-  freezeVisuals:function(value){return _ensureVisualSession().freeze(value);},
-  blackoutVisuals:function(value){return _ensureVisualSession().blackout(value);},
-  resetVisuals:function(){
-    var s=_ensureVisualSession();s.reset();
-    if(s.snapshot().scene.indexOf('visual:')!==0&&selGame){selState=_safeMake(selGame,fullArea(_gameUnit(W,H)),_gameUnit(W,H),selVar);gameT=0;}
-    return _visualSnapshot();
-  },panicVisuals:function(){return _ensureVisualSession().panic();},
-  // Portable visual composition data. Reading must never create a stage: a
-  // music-only session that never opened visuals has nothing to save.
-  // Measured visual work, so the budget is observable rather than asserted.
-  visualBudget:function(){return {budgetMs:VISUAL_BUDGET_MS,costMs:_visualCostMs,quality:_visualQuality};},
-  serializeVisuals:function(){return _visualSession?_visualSession.serialize():(_visualRestore||null);},
-  restoreVisuals:function(saved){
-    _visualRestore=saved||null;
-    if(_visualSession)return _visualSession.restoreSaved(_visualRestore);
-    return true;
-  },
-  setVisualizer:function(visible){
-  visible=!!visible&&_musicWorkspaceOpen();
-  document.body.classList.toggle('create-visualizer',visible);
-  // Workspace owns transparency, panes and focus. The original stage stays in
-  // place (and may remain inert); this API touches no player/project state.
-  if(visible&&!selGame)showGame(_fallbackGameKey()||'random');
-  _fitVisualSurface();
-  _syncCreateRendering();return visible;
-}});
 function _shouldBackgroundAudioOnly(){
   if(typeof document==='undefined') return false;
   // Stand down to audio-only ONLY when the page is truly hidden — minimised, another tab, or fully
@@ -43255,8 +34440,6 @@ function _shouldBackgroundAudioOnly(){
   // (Blur was never a reliable "background" signal anyway: touch devices, and any window with a playing
   // media element, report unfocused while fully visible.)
   if(document.hidden) return true;
-  if(_visualMount)return !_visualEnabled;
-  if(_musicWorkspaceOpen())return !(CT_MUSIC_WORKSPACE.isVisualizerOpen&&CT_MUSIC_WORKSPACE.isVisualizerOpen());
   // The Create editor is an opaque full-screen takeover: simulating and painting the stage
   // beneath it is pure waste, and it visibly drags the editor's own frame rate down.
   try{ if(typeof CT_CREATE!=='undefined' && CT_CREATE.isOpen()) return true; }catch(e){}
@@ -43276,7 +34459,6 @@ function _publishAudioOnlyMode(on, reason){
   }catch(e){}
 }
 function _syncBackgroundAudioOnly(){
-  if(_musicWorkspaceOpen())return _syncCreateRendering();
   var on=_shouldBackgroundAudioOnly();
   if(_bgAudioOnly!==on){
     _bgAudioOnly=on;
@@ -43479,10 +34661,7 @@ function makeCachedFrameSND(base, rx){
 function runGame(game, state, dt, U, A, events){
   const paused = (typeof _transportIsPaused === 'function' && _transportIsPaused());
   const snd = _frameSND || (paused ? quietPausedSND() : makeCachedFrameSND(Audio && Audio.SND, _frameRX));
-  if(paused||(_frameRX&&_frameRX.musicActivation!==undefined&&state&&
-    (state._musicActivation!==_frameRX.musicActivation||state._musicStep>snd.grid().gstep))) primePausedGameState(state, snd);
-  if(state&&_frameRX&&_frameRX.musicActivation!==undefined)state._musicActivation=_frameRX.musicActivation;
-  if(state&&_frameRX&&_frameRX.musicActivation!==undefined)state._musicStep=snd.grid().gstep;
+  if(paused) primePausedGameState(state, snd);
   if(state && typeof MV !== 'undefined' && MV.frame){
     state._mvFrame = MV.frame(snd, state, (game && (game.key || game.name)) || 'game');
   }
@@ -43919,7 +35098,7 @@ function _reelStart(){
   _reelTimer=setInterval(function(){
     try{
       if(!document.body || !document.body.classList.contains('awaiting-mood')){ _reelStop(); return; }
-      if(document.hidden||_musicWorkspaceOpen()) return; // workspace owns presentation, not the radio reel
+      if(document.hidden) return;            // no work while nobody is looking
       if(!_reelKeys || !_reelKeys.length){
         _reelKeys=(typeof _pickerGameKeys==='function' ? _pickerGameKeys() : []).filter(function(k){ return k && k!=='random'; });
         // start somewhere other than the top of the list every load
@@ -43932,7 +35111,6 @@ function _reelStart(){
   }, 2000);
 }
 function _syncReel(){
-  if(_musicWorkspaceOpen()){_reelStop();return;}
   var wait = !!(document.body && document.body.classList.contains('awaiting-mood'));
   if(wait) _reelStart(); else _reelStop();
 }
@@ -44141,9 +35319,8 @@ function frame(now){
   // games, and freezing the simulation left every one of them drawing its empty
   // first frame: a flat fill, four colours on the stage, for as long as anybody
   // looked at it. Pausing a SONG stops the games; having no song yet does not.
-  const musicPresentation=_musicPresentationState();
-  const holding = !musicPresentation&&(function(){ try{ return !!(Audio.isHolding && Audio.isHolding()); }catch(e){ return false; } })();
-  const paused = musicPresentation?musicPresentation.paused:(typeof _transportIsPaused==='function' && _transportIsPaused()) && !holding;
+  const holding = (function(){ try{ return !!(Audio.isHolding && Audio.isHolding()); }catch(e){ return false; } })();
+  const paused = (typeof _transportIsPaused==='function' && _transportIsPaused()) && !holding;
   const simDt = paused ? 0 : dt;
   if(paused){
     if(typeof INP!=='undefined') INP.clickPulse = false;
@@ -44151,39 +35328,23 @@ function frame(now){
   }
   const U = _gameUnit(W, H);
   if(_reseatScene){ _reseatScene=false;                    // returned from a long background stint: rebuild the scene so it plays live (no fast-forward catch-up)
-    if(!musicPresentation&&sceneKind==='game' && selGame){ try{ selState = selGame.make(fullArea(U), U, selVar); }catch(e){ selState = selState||{}; } } }
-  const silentWatch = !musicPresentation&&!!(_watchOnly && !_watchMicActive);
-  const cur = musicPresentation?{bpm:musicPresentation.grid.bpm,sect:null}:(Audio.started && !silentWatch) ? Audio.current() : null;
+    if(sceneKind==='game' && selGame){ try{ selState = selGame.make(fullArea(U), U, selVar); }catch(e){ selState = selState||{}; } } }
+  const silentWatch = !!(_watchOnly && !_watchMicActive);
+  const cur = (Audio.started && !silentWatch) ? Audio.current() : null;
   const bpm = cur?cur.bpm:120, sect = cur?cur.sect:'verse';
-  const events = (!musicPresentation&&!paused && Audio.started && !silentWatch) ? Audio.consumeEvents() : [];
+  const events = (!paused && Audio.started && !silentWatch) ? Audio.consumeEvents() : [];
   // HARD-RESET the context each frame: unwind any unbalanced save()/translate()/clip() a game
   // module may have leaked, then restore the base transform — so nothing accumulates across frames.
   for(let i=0;i<8;i++) g.restore();
   g.setTransform(DPR,0,0,DPR,0,0); g.globalAlpha = 1;
-  const musicFrame=_musicPresentationFrame(musicPresentation);
-  const RX = musicPresentation?musicFrame:(Audio.started && Audio.vis && !silentWatch) ? Audio.vis() : null;
-  const _visualStart=musicPresentation&&_visualSession&&typeof performance!=='undefined'?performance.now():null;
-  const visualOutput=musicPresentation&&_visualSession?_visualSession.tick(musicPresentation,musicFrame,_visualWorkQuality()):null;
-  if(_visualStart!==null)_recordVisualCost(performance.now()-_visualStart);
-  const visualState=musicPresentation&&_visualSession?_visualSession.snapshot():null;
-  const procedural=!!visualState&&visualState.scene.indexOf('visual:')===0;
-  const visualFrozen=!!visualState&&visualState.frozen;
-  const visualFailed=procedural&&visualOutput&&visualOutput.error;
-  const visualHeld=visualFrozen||visualFailed;
+  const RX = (Audio.started && Audio.vis && !silentWatch) ? Audio.vis() : null;   // the music bus, read ONCE per frame
   _frameRX = RX;
-  _frameSND = musicPresentation ? {grid:()=>musicPresentation.grid,clock:()=>RX,vis:()=>RX,energy:()=>RX.energy,
-    event(){},note(){},lead(){},fx(){},tone(){},drum(){},bass(){},act(){}}
-            : silentWatch ? watchClockSND()                                       // watch mode: wall-clock grid, games play FULLY, no AudioContext
+  _frameSND = silentWatch ? watchClockSND()                                       // watch mode: wall-clock grid, games play FULLY, no AudioContext
             : (paused ? quietPausedSND() : makeCachedFrameSND(Audio && Audio.SND, RX));
   _writeDiagnostics(RX, paused, now);
   // one field claim per frame (see dmg-palette.js): the pack's first
   // screen-covering fill is the Game Boy's reflector, the rest are art
   if(_panelMode() && typeof CT_PAL!=='undefined') CT_PAL.beginFrame();
-  if(!visualHeld&&procedural){
-    g.fillStyle='#000';g.fillRect(0,0,W,H);
-    if(visualOutput&&visualOutput.canvas)g.drawImage(visualOutput.canvas,0,0,W,H);
-  }
-  if(!visualHeld&&!procedural){
   if(RX && !paused) _beatPump(RX);                                // no camera pump while paused; games may still draw subtle idle state
   scnGame(simDt,U,bpm,sect,events);   // single scene path — games are always available; the no-game case renders black
   if(RX){ g.restore(); g.setTransform(DPR,0,0,DPR,0,0); g.globalAlpha=1;
@@ -44210,7 +35371,6 @@ function frame(now){
   if(flash>0.01 && !_panelMode()){ g.fillStyle=`rgba(${flashColor},${0.10*flash})`; g.fillRect(0,0,W,H); }
   if(flash>0.01) flash=Math.max(0,flash-dt*3);
   if(!paused) drawParts(dt);
-  }
   var _pnl = _panel();
   if(_pnl){
     // the panel decides the framebuffer size; the stage follows it
@@ -44221,9 +35381,9 @@ function frame(now){
     // so the little that still moves while paused -- a decaying particle, a
     // flash tailing off -- flips whole blocks of output and the picture reads
     // as alive. Two more frames after the pause settle the tail, then hold.
-    if(!paused&&!visualHeld) _pnlHold = 2;
+    if(!paused) _pnlHold = 2;
     else if(_pnlHold > 0) _pnlHold--;
-    if(!visualFailed&&((!paused&&!visualFrozen) || _pnlHold > 0)){
+    if(!paused || _pnlHold > 0){
       try{ _pnl.frame(); }catch(e){ _screenMode='crt'; _applyScreenMode(); }
     }
   }
@@ -44376,14 +35536,6 @@ var _screenMode = (function(){
   _screenMix = true;
   return _tossScreen();
 })();
-function _nativePanelReady(panel){
-  if(panel!==_panel())return;
-  // Shader loading may finish after the stopped workspace's settling frames.
-  // Size once before drawing, then allow a few frames to present the ready
-  // panel. Do not reset the visual world or re-apply/sleep its screen mode.
-  panel._sizeDirty=true;panel.resize();resize();_pnlHold=3;
-  _syncCreateRendering();
-}
 function _applyScreenMode(){
   var stage = document.getElementById('stage');
   // Both of these used to be silent give-ups, and nothing ever came back to
@@ -44402,12 +35554,12 @@ function _applyScreenMode(){
     try{
       _dmg = new CT_DMG_SCREEN.DmgScreen(stage, {});
       if(!_dmg.ok){ _dmg = null; _screenMode='crt'; }
-      else { stage.parentNode.insertBefore(_dmg.canvas, stage.nextSibling);_visualLayer(_dmg.canvas);
-             _dmg.load().then(_nativePanelReady).catch(function(e){
+      else { stage.parentNode.insertBefore(_dmg.canvas, stage.nextSibling);
+             _dmg.load().catch(function(e){
                // Do not fail silently. This reverted the screen with no trace,
                // which is exactly how a broken shader path went unnoticed.
                try{ console.error('[chiptunes] Game Boy panel unavailable:', e && e.message || e); }catch(_){}
-               _dmg=null;if(_screenMode==='dmg'){_screenMode='crt'; _applyScreenMode();}
+               _dmg=null; _screenMode='crt'; _applyScreenMode();
                try{ if(window._syncGameBoyPill) window._syncGameBoyPill(); }catch(_){}
              }); }
     }catch(e){ _dmg = null; _screenMode = 'crt'; }
@@ -44419,10 +35571,10 @@ function _applyScreenMode(){
     try{
       _nes = new CT_NES_SCREEN.NesScreen(stage, {});
       if(!_nes.ok){ _nes = null; _screenMode='crt'; }
-      else { stage.parentNode.insertBefore(_nes.canvas, stage.nextSibling);_visualLayer(_nes.canvas);
-             _nes.load().then(_nativePanelReady).catch(function(e){
+      else { stage.parentNode.insertBefore(_nes.canvas, stage.nextSibling);
+             _nes.load().catch(function(e){
                try{ console.error('[chiptunes] NES panel unavailable:', e && e.message || e); }catch(_){}
-               _nes=null;if(_screenMode==='nes'){_screenMode='crt'; _applyScreenMode();}
+               _nes=null; _screenMode='crt'; _applyScreenMode();
                try{ if(window._syncGameBoyPill) window._syncGameBoyPill(); }catch(_){}
              }); }
     }catch(e){ _nes = null; _screenMode = 'crt'; }
@@ -44543,7 +35695,6 @@ if(typeof window!=='undefined'){
 // grid clock ran far ahead) flag the scene to re-seat — otherwise the game replays every missed beat-step in a visible fast-forward.
 document.addEventListener('visibilitychange', ()=>{
   if(_syncBackgroundAudioOnly()){ _hiddenAt = _nowMs(); _syncWakeLock(); return; }
-  if(_musicWorkspaceOpen()){_musicPresentationEpoch++;_hiddenAt=0;return;}
   const away = _hiddenAt ? _nowMs()-_hiddenAt : 0;
   lastFrame = _nowMs();
   if(Audio.resume) Audio.resume();                                                    // make sure the context didn't stay suspended
@@ -44560,7 +35711,6 @@ window.addEventListener('blur', function(){
 });
 window.addEventListener('focus', function(){
   if(_syncBackgroundAudioOnly()){ _syncWakeLock(); return; }
-  if(_musicWorkspaceOpen()){_musicPresentationEpoch++;_hiddenAt=0;return;}
   const away = _hiddenAt ? _nowMs()-_hiddenAt : 0;
   lastFrame = _nowMs();
   if(Audio.resume) Audio.resume();
@@ -44612,8 +35762,6 @@ function watchOnlyToast(){
   if(typeof _toast==='function') _toast('The games are the visualiser \u2014 they play themselves, to the music. Nothing to control: sit back and listen \ud83c\udfa7', { big:true, ms:dur });
 }
 function shortcutTargetBlocked(ev){
-  if(typeof CT_MUSIC_WORKSPACE!=='undefined' && CT_MUSIC_WORKSPACE.isOpen()) return true;
-  if(typeof CT_LSDJ_NATIVE_EDITOR!=='undefined' && CT_LSDJ_NATIVE_EDITOR.isOpen()) return true;
   var el=ev&&ev.target;
   if(!el) return false;
   if(el.closest && el.closest('input,textarea,select,[contenteditable=""],[contenteditable="true"],[role="textbox"],[data-shortcuts-off]')) return true;
@@ -44644,15 +35792,6 @@ function panelVisible(id){
   return !!(el && el.style.display!=='none' && !el.hidden && !el.classList.contains('hidden'));
 }
 function handleEscapeShortcut(ev){
-  if(ev && ev.key==='Escape' && !ev.metaKey && !ev.altKey && !ev.ctrlKey &&
-     typeof CT_LSDJ_NATIVE_EDITOR!=='undefined' && CT_LSDJ_NATIVE_EDITOR.isOpen()){
-    CT_LSDJ_NATIVE_EDITOR.close(); consumeKeyEvent(ev); return true; }
-  if(ev && ev.key==='Escape' && !ev.metaKey && !ev.altKey && !ev.ctrlKey &&
-     typeof CT_MUSIC_WORKSPACE!=='undefined' && CT_MUSIC_WORKSPACE.isOpen()){
-    // The primary workspace owns Escape in its root (focus/chat/dialogs).
-    // Fullscreen can restore focus to body: that is not permission to close
-    // the composition. Leave browser fullscreen and native dialog handling intact.
-    return false; }
   if(!ev || ev.key!=='Escape' || shortcutTargetBlocked(ev) || ev.metaKey || ev.altKey || ev.ctrlKey) return false;
   if(typeof CT_CREATE!=='undefined' && CT_CREATE.isOpen()){
     // the editor's own panels close first; Escape only leaves once nothing is open
@@ -45049,10 +36188,10 @@ function buildRadioUI(){
       var brand=document.createElement('span'); brand.className='rmood-brand landing-copy';
       brand.innerHTML='<b class="rmood-title">Chiptunes.app</b>'+ 
         '<span class="rmood-copy">'+
-          '<span class="rmood-section"><strong>CREATE OR LISTEN.</strong><p>Choose a mood for complete Game Boy songs, automatically, one after another. Or start from scratch.</p></span>'+
-          '<span class="rmood-section"><strong>COMPLETE SONGS.</strong><p>Full arrangements, not loops: pulse, wave and drums.</p></span>'+
-          '<span class="rmood-section"><strong>AUTHENTIC HARDWARE.</strong><p>Register-level chip emulation. Export a cartridge for a real Game Boy.</p></span>'+
-          '<span class="rmood-section"><strong>MAKE IT YOURS.</strong><p>Edit notes and sounds. Share a link or export audio. LSDj export is available; some sounds and effects still differ. AI agents can use <a class="rmood-link" href="/webmcp">WebMCP tools</a>.</p></span>'+
+          '<span class="rmood-section"><strong>CREATE OR LISTEN.</strong><p>Choose a mood and Chiptunes composes complete Game Boy songs for you, automatically, one after another. Or open the tracker and write your own \u2014 or let an AI agent drive it, through 15 <a class="rmood-link" href="/webmcp">WebMCP tools</a>.</p></span>'+
+          '<span class="rmood-section"><strong>COMPLETE SONGS.</strong><p>The composer writes full arrangements, not loops, from pulse and wave instruments, noise and sampled drums.</p></span>'+
+          '<span class="rmood-section"><strong>AUTHENTIC HARDWARE.</strong><p>Every note runs through register-level emulation of the original four-channel sound chip. Download a cartridge that boots on a real Game Boy.</p></span>'+
+          '<span class="rmood-section"><strong>MAKE IT YOURS.</strong><p>Edit every note, instrument and effect. Share it as a link, WAV or cartridge.</p></span>'+
           '<small class="rmood-legal">Game Boy is a trademark of Nintendo. Independent project; not affiliated with or endorsed by Nintendo.</small>'+
         '</span>';
       row.appendChild(brand);
@@ -45079,10 +36218,10 @@ function buildRadioUI(){
       });
       // ...or none of the above: an empty grid and your own hands.
       var scratch=mkRbtn('Start from scratch', function(){
-        location.assign('/create?mode=algorave');
+        if(typeof _openCreate==='function') _openCreate(true);
       });
       scratch.classList.add('rmood','rmood-scratch');
-      scratch.title='Open Strudel music and GLSL visuals';
+      scratch.title='Open the editor with an empty song';
       pills.appendChild(scratch);
       // HOW IT WORKS LIVES HERE, not in the left rail. The rail is desktop-only
       // (it is never built on a phone) and its copy of this button was
@@ -45339,7 +36478,7 @@ function _buildPlayerLinks(){
     else if(k==='wav'){ _downloadAudio('wav'); }
     else if(k==='try'){ _toggleGameBoyEmulator(); }
     else if(k==='how'){ _toggleHowModal(); }
-    else if(k==='create'){ location.assign('/create?mode=algorave'); }
+    else if(k==='create'){ _openCreate(); }
     else if(k==='screen'){ _toggleGameBoyScreen(); }
   });
   document.body.appendChild(wrap);
@@ -45353,15 +36492,8 @@ function _buildPlayerLinks(){
 // CREATE: the Mario-Paint-spirit editor (src/create.js). Entering hands the
 // chip to the user's song; leaving hands it back to the radio.
 var _createStandalone=false;      // true when /create booted without the radio behind it
-var _createEntryEpoch=0;
-window.addEventListener('popstate',function(){_createEntryEpoch++;});
-window.addEventListener('hashchange',function(){_createEntryEpoch++;});
 function _openCreate(blank){
-  if(typeof CT_CREATE==='undefined'||typeof CT_MUSIC_WORKSPACE==='undefined') return;
-  var epoch=++_createEntryEpoch;
-  var route=location.pathname+location.search+location.hash;
-  function current(){return epoch===_createEntryEpoch&&route===location.pathname+location.search+location.hash;}
-  function failed(e){if(current()){if(window._toast)window._toast(e.message);else console.error('Music workspace:',e.message);}}
+  if(typeof CT_CREATE==='undefined') return;
   if(document.body) document.body.classList.add('ai-visual');
   if(_createStandalone){
     if(typeof _stopHomeBackdrop==='function') _stopHomeBackdrop();
@@ -45372,18 +36504,23 @@ function _openCreate(blank){
   // whether it wanted it. Since the station is already playing this document,
   // opening the notes view usually needs to take nothing at all. The editor
   // calls enterCreate itself at the moment it actually takes the chip.
-  window._closeCreateReturn=function(options){
-    _createEntryEpoch++;
-    _unmountVisual();
-    if(options&&options.listen===true){
+  window._closeCreateReturn=function(){
+    if(_createStandalone){                       // the station has not played yet: start it now
       _createStandalone=false;
-      try{history.replaceState(null,'','/listen');}catch(e){}
-      _startEndlessRadio();
-      if(Audio.playScore)Audio.playScore();
-      resize();
+      try{ _startEndlessRadio(); }catch(e){}
+      // ...and take the chip back off the editor. This branch returned before
+      // the playScore() below, so closing a cold-booted /create left the
+      // worklet holding the editor's song and the station came back SILENT --
+      // pause and play could not rescue it, because neither reposts a score.
+      try{ if(typeof Audio!=='undefined'&&Audio.playScore) Audio.playScore(); }catch(e){}
+      try{ _syncBackgroundAudioOnly(); }catch(e){}
+      return;
     }
-    // Ordinary close/Escape is never permission to start or resume a station.
-    _syncCreateRendering();
+    try{ if(typeof Audio!=='undefined'&&Audio.playScore) Audio.playScore(); }catch(e){}
+    // The frame loop parked itself while the editor was open (audio-only mode); nothing
+    // else recalls the sync on close, and the game restarts live rather than mid-stumble.
+    if(sceneKind==='game' && selGame && selState) _reseatScene=true;
+    try{ _syncBackgroundAudioOnly(); }catch(e){}
   };
   // CLOSING A VIEW IS NOT A HANDOVER. When the editor never took the chip --
   // it was showing the song the station was already playing -- there is nothing
@@ -45393,30 +36530,12 @@ function _openCreate(blank){
     if(sceneKind==='game' && selGame && selState) _reseatScene=true;
     try{ _syncBackgroundAudioOnly(); }catch(e){}
   };
-  // Decode without mounting the legacy editor or starting its transport.
-  function songInput(code){
-    var state=CT_CREATE.docState(code),song=state&&CT_CREATE.songOf(code);
-    if(!song)throw Error('Cannot open this song document. Your saved draft is unchanged.');
-    return {gb:song.gb,settings:{tempo:song.bpm,bars:song.bars,title:song.title,
-      tempoAt:state.tempoAt||[],grid:state.grid||16,stepsPerBar:state.grid||16,swing:!!state.swing}};
-  }
-  var shared=_readSharedDoc();
-  if(shared){
-    return _unpackDoc(shared).then(function(code){
-      if(!current())return;
-      var initial=songInput(code);
-      var source=CT_MUSIC_LANGUAGE.materialize(initial.gb,initial.settings);
-      if(current())return CT_MUSIC_WORKSPACE.open({source:source,explicit:true});
-    }).catch(failed);
-  }
-  try{
-    var initial;
-    if(!blank&&!/^#music(?:=|$|-transfer=)/.test(location.hash)){
-      var code=typeof Audio!=='undefined'&&Audio.currentDoc&&Audio.currentDoc();
-      if(code)initial=songInput(code);
-    }
-    return (initial?CT_MUSIC_WORKSPACE.open(initial):CT_MUSIC_WORKSPACE.open()).catch(failed);
-  }catch(e){failed(e);}
+  // hand the editor the song that is playing, if there is one -- unless the
+  // whole point was to start from nothing
+  if(blank){ try{ CT_CREATE.openBlank(); }catch(e){ CT_CREATE.open(''); } return; }
+  var _doc=null;
+  try{ if(typeof Audio!=='undefined'&&Audio.currentDoc) _doc=Audio.currentDoc(); }catch(e){}
+  CT_CREATE.open(_doc||undefined);
 }
 window._openCreate=_openCreate;
 
@@ -46092,8 +37211,7 @@ function buildPlaybar(){ _pbEl=document.getElementById('playbar'); if(!_pbEl||_p
 }
 function _transportIsGated(){ return !!(_nowSource==='generated' && Audio.running && !Audio.running() && !(Audio.isPaused&&Audio.isPaused())); }
 function _transportNeedsResume(){ return !!(Audio.started && Audio.running && !Audio.running() && !(Audio.isPaused&&Audio.isPaused())); }
-function _transportIsPaused(){ var music=_musicPresentationState();if(music)return music.paused;
-  if(_watchOnly && !_watchMicActive) return false;
+function _transportIsPaused(){ if(_watchOnly && !_watchMicActive) return false;
   // waiting to be asked for a mood is a paused station: nothing is playing, so
   // the button must offer play and the game must not run
   try{ if(Audio.isHolding && Audio.isHolding()) return true; }catch(e){}
@@ -46406,7 +37524,7 @@ var LiveCtl = (function(){
     }
     try{ if(typeof Radio!=='undefined'&&Radio.setLive) Radio.setLive(true); }catch(e2){}
     if(!timer) timer=setInterval(tick, 1000);
-    try{ if(history.replaceState && !window.__RRR_BOOT_PLAYER_ROUTE) history.replaceState(null,'',_generatedRoute()+(typeof _routeQueryExtras==='function'?_routeQueryExtras():'')); }catch(e3){}
+    try{ if(history.replaceState && !window.__RRR_BOOT_PLAYER_ROUTE) history.replaceState(null,'','/'+(typeof _routeQueryExtras==='function'?_routeQueryExtras():'')); }catch(e3){}
     if(typeof _updatePlaybar==='function') _updatePlaybar();
     if(typeof _syncVisualChrome==='function') _syncVisualChrome();
     return true;
@@ -46732,7 +37850,7 @@ function _closeGameBoy(opts){
   document.body.classList.remove('gb-open');
   if(Audio.playScore) Audio.playScore();      // back to the composition, where it had got to
   _syncTryPill();
-  if(!opts.noRoute){ try{ if(history.pushState) history.pushState({},'',_generatedRoute()); }catch(e){} }
+  if(!opts.noRoute){ try{ if(history.pushState) history.pushState({},'','/'); }catch(e){} }
 }
 function _toggleGameBoyEmulator(){ if(_gbEmuOn) _closeGameBoy(); else _openGameBoy(); }
 // A cold load of /gameboy has no track yet: the station has to mint one first.
@@ -47269,13 +38387,12 @@ function setMediaMeta(){
     // baking it to the whole window put its vignette a bar's height too low
     var _bi=0;
     try{ _bi=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--barh'))||0; }catch(e){}
-    var viewport=window.__ctVisualViewport&&window.__ctVisualViewport();
-    var w=viewport?viewport.width:window.innerWidth, h=viewport?viewport.height:Math.max(160, window.innerHeight-_bi);
+    var w=window.innerWidth, h=Math.max(160, window.innerHeight-_bi);
     // The gain layer is a soft multiply mask over the whole window, composited
     // every frame -- at DPR 2 on a 1440p display that is five megapixels of
     // blending for a texture whose finest detail is a scanline. Capped at 1.5
     // it is indistinguishable and costs 44% fewer pixels.
-    var dpr=Math.min(1.5, viewport?viewport.dpr:(window.devicePixelRatio||1));
+    var dpr=Math.min(1.5, window.devicePixelRatio||1);
     var key=w+'x'+h+'@'+dpr+'#'+_RRR_SCANLINE_STRENGTH;
     if(key===_gainKey){ setMode(_mode==='legacy'?'legacy':'gain'); window.__rrrCrtReady=true; return; }
     window.__rrrCrtReady=false;
@@ -47300,7 +38417,6 @@ function setMediaMeta(){
         var vigEl=document.querySelector('.crt.vignette');
         if(vigEl && vigEl.parentNode) vigEl.parentNode.insertBefore(_gainCv, vigEl.nextSibling);
         else document.body.appendChild(_gainCv);
-        _visualLayer(_gainCv);
       }
       _gainCv.width=built.width; _gainCv.height=built.height;
       _gainCv.getContext('2d').drawImage(built,0,0);
@@ -47400,8 +38516,7 @@ function _pathParts(path){
 }
 function _generatedRoute(){
   var p=(location.pathname||'/');
-  if(_RRR_BROADCAST)return '/';
-  return p==='/watch' ? p : '/listen';
+  return p==='/watch' ? p : '/';
 }
 function _queryFlag(name){
   try{
@@ -47432,7 +38547,6 @@ function _routeQueryExtras(){                                 // ?game= survives
 }
 function syncRoute(slug){
   if(!slug || typeof history==='undefined' || !history.replaceState) return;
-  if(typeof CT_MUSIC_WORKSPACE!=='undefined'&&CT_MUSIC_WORKSPACE.isOpen())return;
   if(typeof LiveCtl!=='undefined' && LiveCtl.active()) return;   // LIVE owns the /radio route: reload rejoins the broadcast, not a /track replay
   if(Audio.extActive && Audio.extActive()) return;   // an external source (mic/file) owns the URL — don't overwrite it with the generated slug
   try{ if(typeof CT_CREATE!=='undefined' && CT_CREATE.isOpen()) return; }catch(eC){}  // the editor owns /create; a refresh must land back in it
@@ -47441,9 +38555,8 @@ function syncRoute(slug){
   var want = _generatedRoute() + _routeQueryExtras();
   if((location.pathname + (location.search||'')) !== want){ try{ history.replaceState(null,'',want); }catch(e){} }
 }
-window.addEventListener('popstate', ()=>{
+window.addEventListener('popstate', ()=>{ if(!bootDone) return;
   if(window._productRouteTo && _productRouteTo(location.pathname+location.search)) return; // / · /radio · /watch (+ legacy heads) are product routes, not track history
-  if(!bootDone)return;
   if(typeof Audio==='undefined' || !Audio.gotoTrack) return;
   var s=_readSlug(); if(s && s!==_curSlug){ _forkFromLive(); if(_watchOnly && typeof _exitWatchMode==='function') _exitWatchMode(); _trkHist=[s]; _trkI=0; Audio.gotoTrack(s); } });
 
@@ -47469,9 +38582,7 @@ function _onTrack(slug, gen){
 var _trackTransitionTimer=0;
 function _showTrackTransition(){
   var el=document.getElementById('track-transition'); if(!el || !document.body) return;
-  clearTimeout(_trackTransitionTimer); el.classList.remove('on');
-  if(_visualMount||_musicWorkspaceOpen()){document.body.classList.remove('track-transition');return;}
-  void el.offsetWidth;
+  clearTimeout(_trackTransitionTimer); el.classList.remove('on'); void el.offsetWidth;
   el.classList.add('on'); document.body.classList.add('track-transition');
   _trackTransitionTimer=setTimeout(function(){ el.classList.remove('on'); document.body.classList.remove('track-transition'); },310);
 }
@@ -47653,7 +38764,6 @@ function _resumePausedFromGesture(ev){
   return true;
 }
 function _firstGesture(ev){
-  if(_musicWorkspaceOpen()||(!_RRR_BROADCAST&&['','create'].includes(String(_pathParts(location.pathname)[0]||'').toLowerCase())))return;
   if(shortcutTargetBlocked(ev)) return;
   var intro=document.getElementById('intro');
   var awaitingChoice=!!(document.body && document.body.classList.contains('awaiting-mood'));
@@ -48115,36 +39225,23 @@ window.openProductHome=openProductHome;
 //  library/track routes. -----
 function _productRouteFromPath(path){
   var head=String(_pathParts(path)[0]||'').toLowerCase();
-  if(!head) return {mode:_RRR_BROADCAST?'radio':'create'};
+  if(!head) return {mode:'radio'};                 // '/' IS the player now
   if(head==='player') return {mode:'radio', legacy:true};
   if(head==='get') return {mode:'home'};
   if(head==='gameboy') return {mode:'gameboy'};
   if(head==='watch') return {mode:'watch'};
-  if(head==='listen'||head==='radio')return {mode:'radio'};
-  if(head==='play'||head==='wip') return {mode:'radio', legacy:true};
+  if(head==='listen'||head==='play'||head==='wip') return {mode:'radio', legacy:true};
   if(head==='create') return {mode:'create'};
   return null;
 }
 window._productRouteTo=function(path, opts){
-  _createEntryEpoch++;
   var r=_productRouteFromPath(path);
   if(!r) return false;
   opts=Object.assign({replace:true}, opts||{});
-  if(r.legacy && typeof history!=='undefined' && history.replaceState){ try{ history.replaceState(null,'','/listen'); }catch(e){} }
-  var closedWorkspace=r.mode!=='create'&&_musicWorkspaceOpen();
-  if(closedWorkspace){
-    // Close may restore its prior URL; the requested route remains authoritative.
-    var target=location.pathname+location.search+location.hash;
-    CT_MUSIC_WORKSPACE.close();
-    try{history.replaceState(null,'',target);}catch(e){}
-  }
+  if(r.legacy && typeof history!=='undefined' && history.replaceState){ try{ history.replaceState(null,'','/'); }catch(e){} }
   if(r.mode==='gameboy'){ _startEndlessRadio(); _openGameBoyWhenReady(); return true; }
-  if(r.mode==='create'){
-    if(window.CT_USES_SIMPLE_CREATE&&window.CT_USES_SIMPLE_CREATE(location)){location.reload();return true;}
-    _createStandalone=true; _openCreate(); return true;
-  }
-  if(r.mode==='radio'&&_readSharedDoc()){_createStandalone=true;_openCreate();return true;}
-  if(r.mode==='radio'){ _startEndlessRadio(); if(closedWorkspace&&Audio.playScore)Audio.playScore(); return true; }
+  if(r.mode==='create'){ _createStandalone=true; _openCreate(); return true; }
+  if(r.mode==='radio'){ _startEndlessRadio(); return true; }
   if(r.mode==='watch'){ enterWatchMode({noRoute:true}); return true; }
   openProductHome(Object.assign({noRoute:true}, opts));   // already ON /get; do not push it again
   return true;
@@ -48224,14 +39321,15 @@ if(String(_pathParts(location.pathname||'/')[0]||'').toLowerCase()==='get') buil
 (function(){
   var head=String(_pathParts(location.pathname||'/')[0]||'').toLowerCase();
   // 'create' left this retired-routes list 2026-08-26: it is the editor now
-  if(head==='player'||head==='play'||head==='wip'){
-    if(typeof history!=='undefined' && history.replaceState){ try{ history.replaceState(null,'','/listen'); }catch(e){} }
-    head='listen';
+  if(head==='player'||head==='listen'||head==='play'||head==='wip'){
+    if(typeof history!=='undefined' && history.replaceState){ try{ history.replaceState(null,'','/'); }catch(e){} }
+    head='';
   }
   if(head==='gameboy'){ if(document.body) document.body.classList.add('ai-visual');
     startAudio(false); _openGameBoyWhenReady(); return; }
-  // Shared documents belong to composition, before radio boot can play them.
-  if(head==='create'||(head===''&&!_RRR_BROADCAST)||((head==='listen'||head==='radio')&&_readSharedDoc())){ if(document.body) document.body.classList.add('ai-visual');
+  // Create is a bottom sheet over the game, including on a direct refresh.
+  if(head==='create'){ if(document.body) document.body.classList.add('ai-visual');
+    startAudio(false);
     document.body.classList.add('create-open');
     _createStandalone=true; _openCreate(); return; }
   if(head==='get') return;                                       // the platform page; #intro is already up
@@ -48242,7 +39340,7 @@ if(String(_pathParts(location.pathname||'/')[0]||'').toLowerCase()==='get') buil
   // no-gesture path reveals the game immediately and arms the first tap to
   // start the sound, which is the same thing a shared /track link has always
   // done -- so autoplay policy costs a tap, not the whole experience.
-  if(head===''||head==='listen'||head==='radio'){
+  if(head===''){
     if(document.body) document.body.classList.add('ai-visual');
     startAudio(false);                                           // holds for a choice; sound arms when the visitor starts something
   }

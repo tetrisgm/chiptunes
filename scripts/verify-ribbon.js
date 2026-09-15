@@ -24,9 +24,6 @@ let fail = 0;
       if (b) b.click();
     });
     await pg.waitForFunction(() => !document.querySelector('.rmood.busy'), null, { timeout: 25000 });
-    // A baked strip is not evidence that the audio worklet has started. The
-    // progress test needs real playback before taking its first pixel sample.
-    await pg.waitForFunction(() => Audio.outputProbe().peak > .02, null, { timeout: 25000 });
   };
 const ok = (c, m) => { console.log((c ? '  ok   ' : '  FAIL ') + m); if (!c) fail++; };
 
@@ -45,13 +42,10 @@ function server() {
     s.listen(0, '127.0.0.1', () => res({ s, port: s.address().port }));
   });
 }
-// The unified workspace covers and inerts the station rather than necessarily
-// deleting its layout boxes. Check exposed hit surface, not only computed size.
+// a canvas whose PARENT is display:none still computes display:block itself
 const shown = p => p.evaluate(() => {
   const c = document.getElementById('noteribbon');
-  if(!c||!c.getClientRects().length)return false;
-  const r=c.getBoundingClientRect(),hit=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);
-  return !!hit&&!!hit.closest('#playbar');
+  return !!c && c.getClientRects().length > 0;
 });
 const pixels = p => p.evaluate(() => {
   const c = document.getElementById('noteribbon');
@@ -67,11 +61,8 @@ const pixels = p => p.evaluate(() => {
   const p = await b.newPage({ viewport: { width: 1600, height: 1000 }, deviceScaleFactor: 2 });
   const errs = [];
   p.on('pageerror', e => errs.push(String(e).slice(0, 120)));
-  await p.goto(`http://127.0.0.1:${h.port}/listen`, { waitUntil: 'domcontentloaded' });
+  await p.goto(`http://127.0.0.1:${h.port}/`, { waitUntil: 'domcontentloaded' });
   await wait(3500);
-  // Rendering/progress coverage uses one known arrangement. Composer diversity
-  // is independently tested; this must not race a random silent intro or seam.
-  await p.evaluate(() => { Song.mint = () => '523e26qcl13jeeuu'; });
   await startStation(p);
   await wait(7000);
 
@@ -148,18 +139,8 @@ const pixels = p => p.evaluate(() => {
   ok(drawn >= Math.min(3, sounding),
      'each voice is drawn in its own editor colour (' + drawn + ' of ' + sounding +
      ' sounding voices found: ' + voices.hit.join('/') + ')');
-  // THIS IS ABOUT THE DRAWING, NOT THE SONG. The check above is the real one --
-  // three or more voices each painted in their own colour. This one exists to
-  // catch a ribbon painted entirely in ONE colour, which the counts above could
-  // in principle miss.
-  //
-  // It was set at 75%, which measured the composition rather than the renderer:
-  // the station serves a random song, and a legitimately drum-heavy one puts 77%
-  // of the lit pixels on the noise voice. That is a real song, not a bug. 90%
-  // still catches a strip drawn in a single colour and never fails on a
-  // perfectly good arrangement.
   const tot = voices.hit.reduce((a, c) => a + c, 0) || 1;
-  ok(Math.max(...voices.hit) / tot < 0.90,
+  ok(Math.max(...voices.hit) / tot < 0.75,
      'and no single voice swamps the strip (' + (100 * Math.max(...voices.hit) / tot).toFixed(0) + '% at most)');
 
   const a = await pixels(p);
@@ -167,10 +148,6 @@ const pixels = p => p.evaluate(() => {
   ok(a.any > 500, 'it has drawn the track (' + notes + ' notes, ' + a.any + ' painted pixels)');
   await wait(7000);
   const c2 = await pixels(p);
-  if(c2.lit<=a.lit)console.log('  progress diagnostics '+JSON.stringify(await p.evaluate(()=>({
-    elapsed:document.getElementById('pbElapsed').textContent,chip:Audio.chipDiag(),
-    processor:window.__rrrChip,holding:Audio.isHolding(),probe:Audio.outputProbe()
-  }))));
   ok(c2.lit > a.lit, 'and the played part grows as the song plays (' + a.lit + ' -> ' + c2.lit + ' lit pixels)');
   ok(Math.abs(c2.any - a.any) < a.any * 0.25, 'while the track itself stays put (baked once, not redrawn)');
 
@@ -179,31 +156,29 @@ const pixels = p => p.evaluate(() => {
   const rib = await p.evaluate(() => window.__rrrFrame.rib);
   ok(rib < 1.5, 'drawing it costs ' + rib + 'ms a frame (baked once, blitted twice)');
 
-  // The strip opens canonical composition with the exact current document.
-  const radioGB=await p.evaluate(()=>JSON.parse(JSON.stringify(Audio.currentScore().gb)));
+  // it belongs to the station: the editor has its own grid
+  // ...and the strip is itself the way in: clicking it opens the editor
   await p.evaluate(() => { document.getElementById('noteribbon').click(); });
-  await p.waitForFunction(()=>window.CT_MUSIC_WORKSPACE?.isOpen()&&CT_MUSIC_WORKSPACE.snapshot()?.validated,null,{timeout:30000});
+  await wait(4500);
   ok(!(await shown(p)), 'the station bar leaves while Create owns the screen');
   const inset = await p.evaluate(() => {
-    const cs = document.getElementById('musicworkspace');
+    const cs = document.getElementById('createscreen');
     const pb = document.getElementById('playbar');
     if (!cs || !pb) return null;
     const a = cs.getBoundingClientRect(), b2 = pb.getBoundingClientRect();
-    const hit=document.elementFromPoint(b2.left+b2.width/2,b2.top+b2.height/2);
     return { top:Math.round(a.top), bottom:Math.round(a.bottom), height:Math.round(a.height), vh:innerHeight,
-      dockVisible:!!hit&&!!hit.closest('#playbar'),dockInert:!!pb.closest('[inert]') };
+      dockVisible:!!pb.getClientRects().length };
   });
-  ok(inset && inset.height >= inset.vh*.9 && inset.top === 0 && Math.abs(inset.bottom-inset.vh)<2,
-     'unified composition fills the viewport');
-  ok(inset && !inset.dockVisible&&inset.dockInert, 'station transport is covered and excluded from keyboard interaction');
-  const opened=await p.evaluate(()=>CT_MUSIC_WORKSPACE.snapshot());
-  ok(require('node:util').isDeepStrictEqual(opened.validated.compiled.gb,radioGB),'ribbon entry preserves the entire radio score');
-  ok(opened.playing===null&&opened.pending===null,'opening composition does not start workspace playback');
-  ok(await p.locator('.mw-notes').isVisible()&&await p.locator('.mw-code').isVisible(),'chart and source are visible together');
-  await p.getByRole('button',{name:'Listen',exact:true}).click();
+  ok(inset && inset.height >= inset.vh*.9 && inset.top > 0 && Math.abs(inset.bottom-inset.vh)<2,
+     'the editor is a tall bottom sheet over the game');
+  ok(inset && !inset.dockVisible, 'with no duplicate player bar underneath it');
+  await p.evaluate(() => {
+    const t = document.querySelector('.cr-tour'); if (t) t.remove();
+    const c = document.querySelector('[data-cr="close"]');
+    if (c) c.click();
+  });
   await wait(4000);
-  ok(await shown(p), 'and comes back on explicit Listen');
-  ok(await p.evaluate(()=>location.pathname==='/listen'),'Listen keeps the listening route');
+  ok(await shown(p), 'and comes back on Close');
   ok(!errs.length, 'no page errors' + (errs.length ? ' -- ' + errs[0] : ''));
 
   await b.close(); h.s.close();

@@ -47,50 +47,20 @@ const shape = song => ({
   // Build a real edited song containing both movement and a sampled drum, then
   // exercise the actual Create download buttons.
   const create = await browser.newPage({ viewport: { width: 1380, height: 900 }, acceptDownloads: true });
-  // ⚠️ LOAD A KNOWN SONG. This opened bare /create and edited whatever the
-  // editor happened to put there -- a different song every run, and one run in
-  // several has no DRUMS at all, so the kit loop had nothing to click and the
-  // fixture came back without kit or wave data. The gate then reported that
-  // exports drop data, when the truth was that the fixture never had any.
-  const api = require(path.join(__dirname, '..', 'src', 'api.js'));
-  const NOTE = n => ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'][n % 12] + (Math.floor(n / 12) - 1);
-  const fixture = { title: 'Boundaries', grid: 16, bpm: 128, bars: 4, notes: [] };
-  for (let s = 0; s < 16; s++) {
-    fixture.notes.push({ lane: 'Melody', step: s * 4, note: NOTE(60 + (s % 12)), len: 2 });
-    fixture.notes.push({ lane: 'Bass', step: s * 4, note: NOTE(36 + (s % 7)), len: 3 });
-    fixture.notes.push({ lane: 'Drums', step: s * 4, drum: ['kick', 'hat', 'snare', 'hat'][s % 4] });
-  }
-  const code = api.fromJSON(fixture);
-  // This fixture exercises the retained native/legacy editing export controls.
-  // Canonical source exports and shared-entry fidelity have separate coverage.
-  await create.goto(`http://127.0.0.1:${host.port}/get`, { waitUntil: 'domcontentloaded' });
-  await create.evaluate(code=>CT_CREATE.open(code),code);
+  await create.goto(`http://127.0.0.1:${host.port}/create`, { waitUntil: 'domcontentloaded' });
   await create.waitForFunction(() => document.querySelector('#createscreen.show'), null, { timeout: 40000 });
   await wait(3500);
   const prepared = await create.evaluate(async () => {
     const delay = ms => new Promise(r => setTimeout(r, ms));
-    // ⚠️ WAIT FOR THE PANEL, don't race a timer. This drove the editor on flat
-    // 80ms delays: fine idle, and on a loaded machine the picker had not opened
-    // yet, so the click landed on nothing and the fixture came back with no kit
-    // and no wave load. It then failed for being "not rich enough" -- a gate
-    // reporting that the editor is broken when the editor was merely slower than
-    // the test's stopwatch.
-    const until = async (fn, ms) => {
-      const t0 = Date.now();
-      while (Date.now() - t0 < (ms || 4000)) { if (fn()) return true; await delay(25); }
-      return false;
-    };
     const tour = document.querySelector('.cr-tour'); if (tour) tour.remove();
     const pulseCount = document.querySelectorAll('.n-note[data-ch="0"],.n-note[data-ch="1"]').length;
     for (let i = 0; i < pulseCount; i++) {
       const pulse = document.querySelectorAll('.n-note[data-ch="0"],.n-note[data-ch="1"]')[i];
       if (!pulse) break;
-      pulse.click();
-      await until(() => document.querySelector('[data-ed="mvvb"]'));
+      pulse.click(); await delay(80);
       const wobble = document.querySelector('[data-ed="mvvb"]'); if (wobble && !wobble.classList.contains('on')) wobble.click();
-      await until(() => CT_CREATE._score().auto.length && CT_CREATE._score().vibOff.length, 1500);
+      await delay(80);
       const close = document.querySelector('.n-pclose'); if (close) close.click();
-      await until(() => !document.querySelector('.n-pick'), 1500);
       const probe = CT_CREATE._score();
       if (probe.auto.length && probe.vibOff.length) break;
     }
@@ -98,12 +68,10 @@ const shape = song => ({
     for (let i = 0; i < drumCount; i++) {
       const drum = document.querySelectorAll('.n-note[data-ch="3"]')[i];
       if (!drum) break;
-      drum.click();
-      await until(() => document.querySelector('.n-pick [data-full="Kick"]'));
+      drum.click(); await delay(80);
       const kick = document.querySelector('.n-pick [data-full="Kick"]'); if (kick && !kick.classList.contains('on')) kick.click();
-      await until(() => CT_CREATE._score().kit.length && CT_CREATE._score().waveLoads.length, 1500);
+      await delay(80);
       const close = document.querySelector('.n-pclose'); if (close) close.click();
-      await until(() => !document.querySelector('.n-pick'), 1500);
       const probe = CT_CREATE._score();
       if (probe.kit.length && probe.waveLoads.length) break;
     }
@@ -142,7 +110,7 @@ const shape = song => ({
   // The station WAV/AAC helper shares one PCM boundary. Sentinels make every
   // adjacent array visible without depending on a particular generated song.
   const station = await browser.newPage({ viewport: { width: 1380, height: 900 }, acceptDownloads: true });
-  await station.goto(`http://127.0.0.1:${host.port}/listen`, { waitUntil: 'domcontentloaded' });
+  await station.goto(`http://127.0.0.1:${host.port}/`, { waitUntil: 'domcontentloaded' });
   await wait(3000);
   const stationShape = await station.evaluate(async () => {
     const gb = { notes: [{ ch: 0, frame: 0, frames: 2, midi: 60, inst: 0 }],

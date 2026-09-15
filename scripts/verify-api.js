@@ -113,36 +113,8 @@ function mcp(messages) {
   const back = api.toJSON(doc);
   ok(back.notes.length === hand.notes.length,
      'a hand-written song survives JSON -> document -> JSON (' + hand.notes.length + ' notes)');
-  ok(back.title === hand.title && back.grid === hand.grid, 'with its title and grid');
-  // TEMPO IS A LADDER, NOT A RANGE, and this used to assert it was a range. A
-  // step lasts a whole number of frames, so 120 bpm is not playable on this
-  // machine at a 16th grid -- 119 is. Asking for the number back unchanged was
-  // asking the document to store a tempo it does not play.
-  {
-    const ladder = api.capabilities().tempo.reachable;
-    // EIGHT RUNGS, and that is the whole ladder: a step lasts a whole number of
-    // frames, so 179.2, 149.3, 128.0, 112.0, 99.5, 89.6, 81.4 and 74.7 are the
-    // tempi this machine has. Reaching anything between them needs an uneven
-    // groove, which is a FEEL, and a feel nobody asked for is a defect -- that
-    // was the limp. Variety comes from the styles spanning several rungs now,
-    // not from bending the grid.
-    ok(ladder.length >= 6 && ladder.indexOf(back.bpm) >= 0,
-       'and a tempo from the reachable ladder (' + hand.bpm + ' -> ' + back.bpm +
-       ', ' + ladder.length + ' rungs)');
-    // NEAREST, stated as "nothing is closer" rather than as one chosen number,
-    // because 120 is a TIE: it sits exactly 8 bpm from 112 and from 128. Naming
-    // a winner here just encodes a tie-break, and the two sides broke it in
-    // opposite directions -- the search walks candidates fastest-first and keeps
-    // the faster rung, this line's reduce kept the slower. Either is a fine
-    // answer; picking a rung that something else beats is not.
-    const gap = Math.abs(back.bpm - hand.bpm);
-    const closest = ladder.reduce((a, b) => Math.abs(b - hand.bpm) < Math.abs(a - hand.bpm) ? b : a);
-    ok(ladder.every(t => Math.abs(t - hand.bpm) >= gap),
-       'which is a NEAREST rung, not merely a legal one (' + hand.bpm + ' -> ' + back.bpm +
-       ', ' + gap + ' away; closest is ' + Math.abs(closest - hand.bpm) + ')');
-    ok(ladder.every(t => api.toJSON(api.fromJSON(Object.assign({}, hand, {bpm: t}))).bpm === t),
-       'and every rung survives a round trip unchanged');
-  }
+  ok(back.title === hand.title && back.bpm === hand.bpm && back.grid === hand.grid,
+     'with its title, tempo and grid');
   const same = hand.notes.every((n, i) => {
     const b = back.notes[i];
     return b && b.lane === n.lane && b.step === n.step && (b.note || b.drum) === (n.note || n.drum) &&
@@ -278,13 +250,10 @@ function mcp(messages) {
 
   // the four things the plan still listed as open
   console.log('closing the plan');
-  // Fixed seeds cover both outcomes: sparse/repeating cues legitimately skip
-  // sharing a motif, so randomly minted input cannot require one every run.
-  const ost2 = api.soundtrack({ scenes: ['title', 'battle', 'game_over'], key: 'D', motif: true,
-                               token: 'audit-motif-0' });
+  const ost2 = api.soundtrack({ scenes: ['title', 'battle', 'game_over'], key: 'D', motif: true });
   ok(!!ost2.motif && ost2.motif.notes >= 2, 'a soundtrack shares a motif (' +
      (ost2.motif ? ost2.motif.pitches.slice(0, 4).join(' ') + ' on ' + ost2.motif.lane : 'none') + ')');
-  if (ost2.motif) {
+  {
     // COMPARE INTERVALS, NOT PITCHES. The figure is transposed into each cue on
     // purpose -- a copied motif is what makes a soundtrack sound like one song
     // played five times -- so the thing that survives, and the thing that makes
@@ -317,11 +286,6 @@ function mcp(messages) {
     ok(new Set(pitchHeads).size > 1 || ost2.cues.length <= 2,
        'at different pitches, so the cues are related rather than identical (' + pitchHeads.join(', ') + ')');
   }
-  const noMotif = api.soundtrack({ scenes: ['title', 'battle', 'game_over'], key: 'D', motif: true,
-                                  token: 'audit-motif-1' });
-  ok(noMotif.motif === null &&
-     noMotif.motifSkipped === 'the first cue has no non-repeating melodic phrase to build on',
-     'a cue without an eligible phrase explicitly skips the shared motif');
   const vic = api.brief({ scene: 'victory', seconds: 12 }).doc;
   const res = api.transform(vic, [{ op: 'resolve' }]);
   ok(res.applied.some(x => /resolved to the tonic/.test(x)), 'resolve ends on the tonic (' + res.applied.join('; ') + ')');
@@ -590,7 +554,7 @@ function mcp(messages) {
       value: { registerTool: t => window.__registered.push(t.name) }
     });
   });
-  await p.goto(`http://127.0.0.1:${h.port}/listen`, { waitUntil: 'domcontentloaded' });
+  await p.goto(`http://127.0.0.1:${h.port}/`, { waitUntil: 'domcontentloaded' });
   await wait(2500);
   const page = await p.evaluate(() => ({
     present: typeof window.chiptunes === 'object',
@@ -668,21 +632,6 @@ function mcp(messages) {
              canGoBack: !!r.previous && r.previous === before };
   });
   ok(inPage.api, 'the API is reachable in the page as CT_API');
-  const pinnedComposition = await p.evaluate(() => {
-    const r = CT_API.ask('a cheerful song like castlevania, 100 bpm', {
-      brief: { token: 'browser-pinned-composition', mode: 'major', bpmMin: 150, bpmMax: 150 }
-    });
-    return { doc: r.doc, bpm: CT_API.describe(r.doc).bpm, mode: CT_API.analyse(r.doc).mode,
-      line: r.understood.find(s => /^like /.test(s)), uses: r.reference.uses,
-      staleTempo: r.understood.some(s => /^tempo: 100/.test(s)) };
-  });
-  ok(pinnedComposition.bpm === 150 && pinnedComposition.mode === 'major',
-     'the bundled browser API preserves caller tempo/mode against sentence, mood and reference');
-  ok(pinnedComposition.doc === api.ask('a cheerful song like castlevania, 100 bpm', {
-    brief: { token: 'browser-pinned-composition', mode: 'major', bpmMin: 150, bpmMax: 150 }
-  }).doc, 'the same prompt, token and character premise produce identical documents in Node and the browser');
-  ok(!pinnedComposition.staleTempo && !pinnedComposition.uses.some(u => u.kind === 'mode' || u.kind === 'tempo'),
-     'the bundled browser reading does not claim discarded reference or sentence settings');
   ok(inPage.ok && inPage.applied.some(x => /minor/.test(x)),
      'a variant of the song on air is composed in the browser (' + (inPage.applied || []).join('; ') + ')');
   ok(inPage.changed && inPage.canGoBack,

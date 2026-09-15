@@ -52,254 +52,6 @@ let _bgAudioOnlySince=0;
 function _nowMs(){ return (typeof performance!=='undefined'&&performance.now) ? performance.now() : Date.now(); }
 function _backgroundAudioOnlyActive(){ return !!_bgAudioOnly; }
 function _backgroundUiDormant(){ return (typeof _backgroundAudioOnlyActive==='function' && _backgroundAudioOnlyActive()); }
-function _musicWorkspaceOpen(){return typeof CT_MUSIC_WORKSPACE!=='undefined'&&CT_MUSIC_WORKSPACE.isOpen();}
-var _musicPresentationEpoch=0;
-var _visualMount=null, _visualEnabled=true;
-var _visualSession=null;
-// A project's saved visual arrives before the stage is lazily created, so it
-// waits here. It is consumed once; later project loads restore the live stage.
-var _visualRestore=null;
-// Phase F item 1: an explicit visual work budget, spent by the host because the
-// renderer deliberately owns no clock. VISUAL_BUDGET_MS is the share of a 60fps
-// frame the stage may take before it must draw less; audio is never the thing
-// that gives way. The measurement is a slow EMA so one expensive frame does not
-// visibly thin the scene, and recovery is slower than shedding so the quality
-// level does not oscillate on a marginal machine.
-var VISUAL_BUDGET_MS=6, _visualCostMs=0, _visualQuality=1;
-function _visualWorkQuality(){ return _visualQuality; }
-function _recordVisualCost(ms){
-  if(typeof ms!=='number'||!isFinite(ms)||ms<0)return;
-  _visualCostMs=_visualCostMs?_visualCostMs*0.9+ms*0.1:ms;
-  if(_visualCostMs>VISUAL_BUDGET_MS)_visualQuality=Math.max(0.25,_visualQuality-0.05);
-  else if(_visualCostMs<VISUAL_BUDGET_MS*0.6)_visualQuality=Math.min(1,_visualQuality+0.01);
-}
-function _syncVisualSession(){
-  if(!_visualSession)return;
-  var state=_visualSession.snapshot();_visualEnabled=state.enabled;
-  if(state.enabled&&state.scene.indexOf('visual:')!==0){
-    randomMode=false;
-    if(!selGame||curGameKey!==state.scene)showGame(state.scene);
-  }
-  if(_visualMount){
-    _visualMount.clip.hidden=!state.enabled;
-    _visualMount.mask.hidden=!state.blackout;
-  }
-  // A stopped native panel must still display an explicit visual edit/reset.
-  if(typeof _pnlHold!=='undefined')_pnlHold=3;
-  _syncCreateRendering();
-  window.dispatchEvent(new CustomEvent('ct-visual-state'));
-}
-function _ensureVisualSession(){
-  if(!_visualSession&&typeof CT_VISUAL_STAGE!=='undefined'&&typeof CT_VISUAL_LANGUAGE!=='undefined'&&typeof CT_VISUAL_RENDERER!=='undefined'){
-    _visualSession=CT_VISUAL_STAGE.create({language:CT_VISUAL_LANGUAGE,restore:_visualRestore,
-      renderer:CT_VISUAL_RENDERER.create({createCanvas:function(){return document.createElement('canvas');},width:960,height:540}),
-      games:GAMES.filter(function(g){return !g.hiddenFromRandom;}).map(function(g){return {id:g.key,label:g.name||g.key};}),
-      onChange:_syncVisualSession});
-    // Boundary/cancellation state follows acknowledgements even while drawing
-    // is hidden/Off. This listener neither renders nor creates a second clock.
-    if(Audio.onMusicState)Audio.onMusicState(function(){_visualSession.observe(_musicPresentationState());});
-    _syncVisualSession();
-  }
-  return _visualSession;
-}
-// A stable presentation viewport, not a second simulation. Native panels and
-// the stage sizing code use this while host/layout changes only scale the group.
-window.__ctVisualViewport=function(kind){
-  if(!_visualMount)return null;
-  var v=_visualMount, panel=v.panels[kind];
-  return {width:v.width,height:v.height,dpr:v.dpr,stageDpr:v.stageDpr,
-    outputWidth:panel&&panel.width,outputHeight:panel&&panel.height};
-};
-function _visualLayer(node){
-  var v=_visualMount;
-  if(!v||!node||v.layers.some(function(r){return r.node===node;}))return;
-  var marker=document.createComment('visual-layer');
-  if(node.parentNode===v.surface){
-    // Newly-created native/gain layers follow an existing layer. Mirror that
-    // insertion at its original position for later detach.
-    var prev=node.previousSibling, record;
-    while(prev&&!record){record=v.layers.find(function(r){return r.node===prev;});prev=prev.previousSibling;}
-    if(record&&record.marker.parentNode)record.marker.parentNode.insertBefore(marker,record.marker.nextSibling);
-    else v.origin.appendChild(marker);
-  }else if(node.parentNode)node.parentNode.insertBefore(marker,node);
-  else v.origin.appendChild(marker);
-  v.layers.push({node:node,marker:marker});
-  if(node.parentNode!==v.surface)v.surface.appendChild(node);
-}
-function _fitVisualSurface(){
-  var v=_visualMount;if(!v)return;
-  var w=v.clip.clientWidth,h=v.clip.clientHeight;
-  var scale=Math.max(0,Math.min(w/v.width,h/v.height));
-  v.surface.style.transform='translate('+((w-v.width*scale)/2)+'px,'+((h-v.height*scale)/2)+'px) scale('+scale+')';
-}
-function _visualSnapshot(){
-  var visual=_visualSession&&_visualSession.snapshot();
-  return {mounted:!!_visualMount,enabled:_visualEnabled,scene:visual?visual.scene:_visualEnabled?(typeof curGameKey==='string'?curGameKey:'off'):'off',
-    scenes:visual?visual.scenes:GAMES.filter(function(g){return !g.hiddenFromRandom;}).map(function(g){return {id:g.key,label:g.name||g.key};}),visual:visual,
-    width:_visualMount?_visualMount.width:(typeof W==='number'?W:0),height:_visualMount?_visualMount.height:(typeof H==='number'?H:0)};
-}
-function _mountVisual(host){
-  if(!host||host.nodeType!==1||host.ownerDocument!==document)throw Error('Visual host must be an element in this document');
-  if(_visualMount){
-    if(_visualMount.surface.contains(host))throw Error('Visual host cannot be inside its output');
-    if(_visualMount.host!==host){_visualMount.host=host;host.appendChild(_visualMount.clip);}
-    _fitVisualSurface();return _visualSnapshot();
-  }
-  var stage=document.getElementById('stage');if(!stage)throw Error('Visual stage unavailable');
-  if(stage===host||stage.contains(host))throw Error('Invalid visual host');
-  var live=!!selGame&&!!(Audio.started||(typeof _watchOnly!=='undefined'&&_watchOnly));
-  var width=live?(parseFloat(stage.style.width)||W||960):960;
-  var height=live?(parseFloat(stage.style.height)||H||540):540;
-  var clip=document.createElement('div'),surface=document.createElement('div'),style=document.createElement('style');
-  clip.className='ct-visual-viewport';clip.style.cssText='position:relative;width:100%;height:100%;overflow:hidden;isolation:isolate;background:#000;pointer-events:none';
-  surface.className='ct-visual-surface';
-  surface.style.cssText='position:absolute;left:0;top:0;transform-origin:0 0;width:'+width+'px;height:'+height+'px;overflow:hidden;isolation:isolate;--barh:0px';
-  style.textContent='.ct-visual-surface > #stage,.ct-visual-surface > .crt{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;pointer-events:none!important}';
-  var mask=document.createElement('div');mask.className='ct-visual-blackout';mask.hidden=true;
-  mask.style.cssText='position:absolute;inset:0;background:#000;z-index:100;pointer-events:none';
-  clip.appendChild(style);clip.appendChild(surface);clip.appendChild(mask);
-  _visualMount={host:host,clip:clip,surface:surface,mask:mask,origin:stage.parentNode,layers:[],width:width,height:height,dpr:window.devicePixelRatio||1,stageDpr:live?DPR:null,panels:{},stageStyle:{width:stage.style.width,height:stage.style.height}};
-  if(live){
-    if(typeof _dmg!=='undefined'&&_dmg&&_dmg.vw)_visualMount.panels.dmg={width:_dmg.vw,height:_dmg.vh};
-    if(typeof _nes!=='undefined'&&_nes&&_nes.vw)_visualMount.panels.nes={width:_nes.vw,height:_nes.vh};
-  }
-  Array.from(document.querySelectorAll('#stage,.crt')).forEach(_visualLayer);
-  host.appendChild(clip);clip.hidden=!_visualEnabled;
-  // Station-change snow is chrome, not part of the visual world. Never carry
-  // its full-page overlay or inherited stage filters into composition.
-  clearTimeout(_trackTransitionTimer);
-  var transition=document.getElementById('track-transition');if(transition)transition.classList.remove('on');
-  document.body.classList.remove('track-transition');
-  if(typeof ResizeObserver!=='undefined'){
-    _visualMount.observer=new ResizeObserver(_fitVisualSurface);_visualMount.observer.observe(clip);
-  }
-  _fitVisualSurface();
-  // Establish the cold viewport before making a world; live output is retained.
-  if(!live){
-    [typeof _dmg!=='undefined'&&_dmg,typeof _nes!=='undefined'&&_nes].forEach(function(panel){
-      if(panel){panel._sizeDirty=true;if(panel.ready&&!panel._asleep)panel.resize();}
-    });
-    resize();
-  }
-  if(!selGame)showGame(_fallbackGameKey()||'random');
-  _ensureVisualSession();_syncVisualSession();
-  if(window.__rrrCrtBuild)window.__rrrCrtBuild();
-  _syncCreateRendering();return _visualSnapshot();
-}
-function _unmountVisual(){
-  var v=_visualMount;if(!v)return _visualSnapshot();
-  if(_visualSession)_visualSession.observe(null);
-  if(v.observer)v.observer.disconnect();
-  v.layers.forEach(function(r){if(r.marker.parentNode){r.marker.parentNode.replaceChild(r.node,r.marker);}});
-  var stage=document.getElementById('stage');stage.style.width=v.stageStyle.width;stage.style.height=v.stageStyle.height;
-  v.clip.remove();_visualMount=null;
-  // No scene reset, framebuffer resize, screen-mode change or audio handover.
-  _syncCreateRendering();return _visualSnapshot();
-}
-function _musicPresentationState(){
-  if(!_musicWorkspaceOpen())return null;
-  var state=Audio.musicVisualState&&Audio.musicVisualState();
-  return state||{paused:true,revision:null,frame:0,status:'stopped',grid:{gstep:0,phase:0,beat:0,bar:0,bpm:120,spb:0.5,step16:0.125,paused:true},
-    clock:{paused:true,idle:true,energy:0,energyLevel:0,beat:0,bar:0,phrase:0,beatPulse:0,bands:{},roles:{},noteOns:[],primaryNotes:[]}};
-}
-// One draw consumer, separate from read-only transport/presentation snapshots.
-// Other visual renderers can request independent Audio.musicEventReader cursors.
-// Backlogs are bounded, old/inactive events are discarded explicitly, and one
-// onset cannot reappear merely because two frames examined the same chip frame.
-var _musicDrawReader=null,_musicDrawPending=[],_musicDrawDropped=0;
-function _musicPresentationFrame(state){
-  if(!state){
-    if(_musicDrawReader)_musicDrawReader.close();
-    _musicDrawReader=null;_musicDrawPending=[];_musicDrawDropped=0;return null;
-  }
-  var clock=state.clock,notes=[],roles={};
-  ['lead','counter','bass','perc','noise'].forEach(function(role){
-    roles[role]=Object.assign({},clock.roles[role]||{},{energy:0,onset:0,notes:[]});
-  });
-  var batch=null;
-  if(state.eventStream&&state.eventStream.available){
-    try{
-      if(!_musicDrawReader)_musicDrawReader=Audio.musicEventReader({replay:true});
-      batch=_musicDrawReader.read(512);
-      if(batch.reset){_musicDrawDropped+=_musicDrawPending.length;_musicDrawPending=[];}
-      _musicDrawDropped+=batch.dropped;
-      for(var i=0;i<batch.events.length;i++){
-        var e=batch.events[i];
-        // Authored NRx4 retriggers have no declared pitch/duration. Retain that
-        // honesty (kind/register, midi:null), but don't miss their real onset.
-        var registerTrigger=e.kind==='register'&&[0x14,0x19,0x1e,0x23].includes(e.register)&&(e.value&0x80);
-        if(e.kind!=='noteOn'&&e.kind!=='sample'&&!registerTrigger)continue;
-        if(_musicDrawPending.length===512){_musicDrawPending.shift();_musicDrawDropped++;}
-        _musicDrawPending.push(e);
-      }
-    }catch(_){if(_musicDrawReader)_musicDrawReader.close();_musicDrawReader=null;}
-  }
-  var pending=[];
-  for(var i=0;i<_musicDrawPending.length;i++){
-    var e=_musicDrawPending[i],age=state.renderContextTime-e.contextTime;
-    if(state.paused||e.epoch!==state.epoch||e.activation!==state.activation||e.discontinuity!==state.discontinuity||age>0.25){_musicDrawDropped++;continue;}
-    if(age<0){pending.push(e);continue;}
-    if(e.strength<=0)continue;
-    if(notes.length>=64){_musicDrawDropped++;continue;}
-    var role=e.kind==='sample'?'perc':['lead','counter','bass','noise'][e.channel];
-    if(!role)continue;
-    var note=Object.assign({},e,{hi:Math.max(0,Math.min(1,((e.midi==null?60:e.midi)-24)/84)),
-      mag:e.strength,role:role,source:'music',native:true});
-    notes.push(note);roles[role].notes.push(note);
-    roles[role].energy=Math.max(roles[role].energy,e.strength);roles[role].onset=roles[role].energy;
-  }
-  _musicDrawPending=pending;roles.primary=roles.lead;roles.melody=roles.lead;
-  return Object.assign({},clock,{roles:roles,noteOns:notes,primaryNotes:roles.lead.notes,
-    eventDelivery:{dropped:_musicDrawDropped,pending:pending.length,generation:batch?batch.generation:null},
-    musicActivation:[state.epoch,state.activation,state.discontinuity,_musicPresentationEpoch].join(':')});
-}
-function _syncCreateRendering(){
-  var on=_shouldBackgroundAudioOnly();
-  if(on!==_bgAudioOnly)lastFrame=_nowMs();
-  _bgAudioOnly=on;
-  document.documentElement.classList.toggle('audio-background',on);
-  document.body.classList.toggle('audio-background',on);
-  if(on)_stopFrameLoop();else _scheduleFrameLoop();
-  return on;
-}
-window.CT_CREATE_PRESENTATION=Object.freeze({mount:_mountVisual,unmount:_unmountVisual,snapshot:_visualSnapshot,setScene:function(id){
-  if(_ensureVisualSession()){_visualSession.setScene(id,_musicPresentationState());return _visualSnapshot();}
-  if(id!=='off'&&!GAMES.some(function(g){return g.key===id&&!g.hiddenFromRandom;}))throw Error('Unknown visual scene');
-  _visualEnabled=id!=='off';
-  if(_visualEnabled){randomMode=false;if(!selGame||curGameKey!==id)showGame(id);}
-  if(_visualMount)_visualMount.clip.hidden=!_visualEnabled;
-  _syncCreateRendering();return _visualSnapshot();
-},setVisualDraft:function(source){return _ensureVisualSession().setDraft(source);},
-  selectVisualDraft:function(id){return _ensureVisualSession().selectDraft(id);},
-  applyVisual:function(when){return _ensureVisualSession().apply(when||'now',_musicPresentationState());},
-  cancelVisual:function(){return _ensureVisualSession().cancel();},
-  setVisualControl:function(name,value){return _ensureVisualSession().setControl(name,value);},
-  freezeVisuals:function(value){return _ensureVisualSession().freeze(value);},
-  blackoutVisuals:function(value){return _ensureVisualSession().blackout(value);},
-  resetVisuals:function(){
-    var s=_ensureVisualSession();s.reset();
-    if(s.snapshot().scene.indexOf('visual:')!==0&&selGame){selState=_safeMake(selGame,fullArea(_gameUnit(W,H)),_gameUnit(W,H),selVar);gameT=0;}
-    return _visualSnapshot();
-  },panicVisuals:function(){return _ensureVisualSession().panic();},
-  // Portable visual composition data. Reading must never create a stage: a
-  // music-only session that never opened visuals has nothing to save.
-  // Measured visual work, so the budget is observable rather than asserted.
-  visualBudget:function(){return {budgetMs:VISUAL_BUDGET_MS,costMs:_visualCostMs,quality:_visualQuality};},
-  serializeVisuals:function(){return _visualSession?_visualSession.serialize():(_visualRestore||null);},
-  restoreVisuals:function(saved){
-    _visualRestore=saved||null;
-    if(_visualSession)return _visualSession.restoreSaved(_visualRestore);
-    return true;
-  },
-  setVisualizer:function(visible){
-  visible=!!visible&&_musicWorkspaceOpen();
-  document.body.classList.toggle('create-visualizer',visible);
-  // Workspace owns transparency, panes and focus. The original stage stays in
-  // place (and may remain inert); this API touches no player/project state.
-  if(visible&&!selGame)showGame(_fallbackGameKey()||'random');
-  _fitVisualSurface();
-  _syncCreateRendering();return visible;
-}});
 function _shouldBackgroundAudioOnly(){
   if(typeof document==='undefined') return false;
   // Stand down to audio-only ONLY when the page is truly hidden — minimised, another tab, or fully
@@ -308,8 +60,6 @@ function _shouldBackgroundAudioOnly(){
   // (Blur was never a reliable "background" signal anyway: touch devices, and any window with a playing
   // media element, report unfocused while fully visible.)
   if(document.hidden) return true;
-  if(_visualMount)return !_visualEnabled;
-  if(_musicWorkspaceOpen())return !(CT_MUSIC_WORKSPACE.isVisualizerOpen&&CT_MUSIC_WORKSPACE.isVisualizerOpen());
   // The Create editor is an opaque full-screen takeover: simulating and painting the stage
   // beneath it is pure waste, and it visibly drags the editor's own frame rate down.
   try{ if(typeof CT_CREATE!=='undefined' && CT_CREATE.isOpen()) return true; }catch(e){}
@@ -329,7 +79,6 @@ function _publishAudioOnlyMode(on, reason){
   }catch(e){}
 }
 function _syncBackgroundAudioOnly(){
-  if(_musicWorkspaceOpen())return _syncCreateRendering();
   var on=_shouldBackgroundAudioOnly();
   if(_bgAudioOnly!==on){
     _bgAudioOnly=on;
@@ -532,10 +281,7 @@ function makeCachedFrameSND(base, rx){
 function runGame(game, state, dt, U, A, events){
   const paused = (typeof _transportIsPaused === 'function' && _transportIsPaused());
   const snd = _frameSND || (paused ? quietPausedSND() : makeCachedFrameSND(Audio && Audio.SND, _frameRX));
-  if(paused||(_frameRX&&_frameRX.musicActivation!==undefined&&state&&
-    (state._musicActivation!==_frameRX.musicActivation||state._musicStep>snd.grid().gstep))) primePausedGameState(state, snd);
-  if(state&&_frameRX&&_frameRX.musicActivation!==undefined)state._musicActivation=_frameRX.musicActivation;
-  if(state&&_frameRX&&_frameRX.musicActivation!==undefined)state._musicStep=snd.grid().gstep;
+  if(paused) primePausedGameState(state, snd);
   if(state && typeof MV !== 'undefined' && MV.frame){
     state._mvFrame = MV.frame(snd, state, (game && (game.key || game.name)) || 'game');
   }
@@ -972,7 +718,7 @@ function _reelStart(){
   _reelTimer=setInterval(function(){
     try{
       if(!document.body || !document.body.classList.contains('awaiting-mood')){ _reelStop(); return; }
-      if(document.hidden||_musicWorkspaceOpen()) return; // workspace owns presentation, not the radio reel
+      if(document.hidden) return;            // no work while nobody is looking
       if(!_reelKeys || !_reelKeys.length){
         _reelKeys=(typeof _pickerGameKeys==='function' ? _pickerGameKeys() : []).filter(function(k){ return k && k!=='random'; });
         // start somewhere other than the top of the list every load
@@ -985,7 +731,6 @@ function _reelStart(){
   }, 2000);
 }
 function _syncReel(){
-  if(_musicWorkspaceOpen()){_reelStop();return;}
   var wait = !!(document.body && document.body.classList.contains('awaiting-mood'));
   if(wait) _reelStart(); else _reelStop();
 }
@@ -1194,9 +939,8 @@ function frame(now){
   // games, and freezing the simulation left every one of them drawing its empty
   // first frame: a flat fill, four colours on the stage, for as long as anybody
   // looked at it. Pausing a SONG stops the games; having no song yet does not.
-  const musicPresentation=_musicPresentationState();
-  const holding = !musicPresentation&&(function(){ try{ return !!(Audio.isHolding && Audio.isHolding()); }catch(e){ return false; } })();
-  const paused = musicPresentation?musicPresentation.paused:(typeof _transportIsPaused==='function' && _transportIsPaused()) && !holding;
+  const holding = (function(){ try{ return !!(Audio.isHolding && Audio.isHolding()); }catch(e){ return false; } })();
+  const paused = (typeof _transportIsPaused==='function' && _transportIsPaused()) && !holding;
   const simDt = paused ? 0 : dt;
   if(paused){
     if(typeof INP!=='undefined') INP.clickPulse = false;
@@ -1204,39 +948,23 @@ function frame(now){
   }
   const U = _gameUnit(W, H);
   if(_reseatScene){ _reseatScene=false;                    // returned from a long background stint: rebuild the scene so it plays live (no fast-forward catch-up)
-    if(!musicPresentation&&sceneKind==='game' && selGame){ try{ selState = selGame.make(fullArea(U), U, selVar); }catch(e){ selState = selState||{}; } } }
-  const silentWatch = !musicPresentation&&!!(_watchOnly && !_watchMicActive);
-  const cur = musicPresentation?{bpm:musicPresentation.grid.bpm,sect:null}:(Audio.started && !silentWatch) ? Audio.current() : null;
+    if(sceneKind==='game' && selGame){ try{ selState = selGame.make(fullArea(U), U, selVar); }catch(e){ selState = selState||{}; } } }
+  const silentWatch = !!(_watchOnly && !_watchMicActive);
+  const cur = (Audio.started && !silentWatch) ? Audio.current() : null;
   const bpm = cur?cur.bpm:120, sect = cur?cur.sect:'verse';
-  const events = (!musicPresentation&&!paused && Audio.started && !silentWatch) ? Audio.consumeEvents() : [];
+  const events = (!paused && Audio.started && !silentWatch) ? Audio.consumeEvents() : [];
   // HARD-RESET the context each frame: unwind any unbalanced save()/translate()/clip() a game
   // module may have leaked, then restore the base transform — so nothing accumulates across frames.
   for(let i=0;i<8;i++) g.restore();
   g.setTransform(DPR,0,0,DPR,0,0); g.globalAlpha = 1;
-  const musicFrame=_musicPresentationFrame(musicPresentation);
-  const RX = musicPresentation?musicFrame:(Audio.started && Audio.vis && !silentWatch) ? Audio.vis() : null;
-  const _visualStart=musicPresentation&&_visualSession&&typeof performance!=='undefined'?performance.now():null;
-  const visualOutput=musicPresentation&&_visualSession?_visualSession.tick(musicPresentation,musicFrame,_visualWorkQuality()):null;
-  if(_visualStart!==null)_recordVisualCost(performance.now()-_visualStart);
-  const visualState=musicPresentation&&_visualSession?_visualSession.snapshot():null;
-  const procedural=!!visualState&&visualState.scene.indexOf('visual:')===0;
-  const visualFrozen=!!visualState&&visualState.frozen;
-  const visualFailed=procedural&&visualOutput&&visualOutput.error;
-  const visualHeld=visualFrozen||visualFailed;
+  const RX = (Audio.started && Audio.vis && !silentWatch) ? Audio.vis() : null;   // the music bus, read ONCE per frame
   _frameRX = RX;
-  _frameSND = musicPresentation ? {grid:()=>musicPresentation.grid,clock:()=>RX,vis:()=>RX,energy:()=>RX.energy,
-    event(){},note(){},lead(){},fx(){},tone(){},drum(){},bass(){},act(){}}
-            : silentWatch ? watchClockSND()                                       // watch mode: wall-clock grid, games play FULLY, no AudioContext
+  _frameSND = silentWatch ? watchClockSND()                                       // watch mode: wall-clock grid, games play FULLY, no AudioContext
             : (paused ? quietPausedSND() : makeCachedFrameSND(Audio && Audio.SND, RX));
   _writeDiagnostics(RX, paused, now);
   // one field claim per frame (see dmg-palette.js): the pack's first
   // screen-covering fill is the Game Boy's reflector, the rest are art
   if(_panelMode() && typeof CT_PAL!=='undefined') CT_PAL.beginFrame();
-  if(!visualHeld&&procedural){
-    g.fillStyle='#000';g.fillRect(0,0,W,H);
-    if(visualOutput&&visualOutput.canvas)g.drawImage(visualOutput.canvas,0,0,W,H);
-  }
-  if(!visualHeld&&!procedural){
   if(RX && !paused) _beatPump(RX);                                // no camera pump while paused; games may still draw subtle idle state
   scnGame(simDt,U,bpm,sect,events);   // single scene path — games are always available; the no-game case renders black
   if(RX){ g.restore(); g.setTransform(DPR,0,0,DPR,0,0); g.globalAlpha=1;
@@ -1263,7 +991,6 @@ function frame(now){
   if(flash>0.01 && !_panelMode()){ g.fillStyle=`rgba(${flashColor},${0.10*flash})`; g.fillRect(0,0,W,H); }
   if(flash>0.01) flash=Math.max(0,flash-dt*3);
   if(!paused) drawParts(dt);
-  }
   var _pnl = _panel();
   if(_pnl){
     // the panel decides the framebuffer size; the stage follows it
@@ -1274,9 +1001,9 @@ function frame(now){
     // so the little that still moves while paused -- a decaying particle, a
     // flash tailing off -- flips whole blocks of output and the picture reads
     // as alive. Two more frames after the pause settle the tail, then hold.
-    if(!paused&&!visualHeld) _pnlHold = 2;
+    if(!paused) _pnlHold = 2;
     else if(_pnlHold > 0) _pnlHold--;
-    if(!visualFailed&&((!paused&&!visualFrozen) || _pnlHold > 0)){
+    if(!paused || _pnlHold > 0){
       try{ _pnl.frame(); }catch(e){ _screenMode='crt'; _applyScreenMode(); }
     }
   }
@@ -1429,14 +1156,6 @@ var _screenMode = (function(){
   _screenMix = true;
   return _tossScreen();
 })();
-function _nativePanelReady(panel){
-  if(panel!==_panel())return;
-  // Shader loading may finish after the stopped workspace's settling frames.
-  // Size once before drawing, then allow a few frames to present the ready
-  // panel. Do not reset the visual world or re-apply/sleep its screen mode.
-  panel._sizeDirty=true;panel.resize();resize();_pnlHold=3;
-  _syncCreateRendering();
-}
 function _applyScreenMode(){
   var stage = document.getElementById('stage');
   // Both of these used to be silent give-ups, and nothing ever came back to
@@ -1455,12 +1174,12 @@ function _applyScreenMode(){
     try{
       _dmg = new CT_DMG_SCREEN.DmgScreen(stage, {});
       if(!_dmg.ok){ _dmg = null; _screenMode='crt'; }
-      else { stage.parentNode.insertBefore(_dmg.canvas, stage.nextSibling);_visualLayer(_dmg.canvas);
-             _dmg.load().then(_nativePanelReady).catch(function(e){
+      else { stage.parentNode.insertBefore(_dmg.canvas, stage.nextSibling);
+             _dmg.load().catch(function(e){
                // Do not fail silently. This reverted the screen with no trace,
                // which is exactly how a broken shader path went unnoticed.
                try{ console.error('[chiptunes] Game Boy panel unavailable:', e && e.message || e); }catch(_){}
-               _dmg=null;if(_screenMode==='dmg'){_screenMode='crt'; _applyScreenMode();}
+               _dmg=null; _screenMode='crt'; _applyScreenMode();
                try{ if(window._syncGameBoyPill) window._syncGameBoyPill(); }catch(_){}
              }); }
     }catch(e){ _dmg = null; _screenMode = 'crt'; }
@@ -1472,10 +1191,10 @@ function _applyScreenMode(){
     try{
       _nes = new CT_NES_SCREEN.NesScreen(stage, {});
       if(!_nes.ok){ _nes = null; _screenMode='crt'; }
-      else { stage.parentNode.insertBefore(_nes.canvas, stage.nextSibling);_visualLayer(_nes.canvas);
-             _nes.load().then(_nativePanelReady).catch(function(e){
+      else { stage.parentNode.insertBefore(_nes.canvas, stage.nextSibling);
+             _nes.load().catch(function(e){
                try{ console.error('[chiptunes] NES panel unavailable:', e && e.message || e); }catch(_){}
-               _nes=null;if(_screenMode==='nes'){_screenMode='crt'; _applyScreenMode();}
+               _nes=null; _screenMode='crt'; _applyScreenMode();
                try{ if(window._syncGameBoyPill) window._syncGameBoyPill(); }catch(_){}
              }); }
     }catch(e){ _nes = null; _screenMode = 'crt'; }
@@ -1596,7 +1315,6 @@ if(typeof window!=='undefined'){
 // grid clock ran far ahead) flag the scene to re-seat — otherwise the game replays every missed beat-step in a visible fast-forward.
 document.addEventListener('visibilitychange', ()=>{
   if(_syncBackgroundAudioOnly()){ _hiddenAt = _nowMs(); _syncWakeLock(); return; }
-  if(_musicWorkspaceOpen()){_musicPresentationEpoch++;_hiddenAt=0;return;}
   const away = _hiddenAt ? _nowMs()-_hiddenAt : 0;
   lastFrame = _nowMs();
   if(Audio.resume) Audio.resume();                                                    // make sure the context didn't stay suspended
@@ -1613,7 +1331,6 @@ window.addEventListener('blur', function(){
 });
 window.addEventListener('focus', function(){
   if(_syncBackgroundAudioOnly()){ _syncWakeLock(); return; }
-  if(_musicWorkspaceOpen()){_musicPresentationEpoch++;_hiddenAt=0;return;}
   const away = _hiddenAt ? _nowMs()-_hiddenAt : 0;
   lastFrame = _nowMs();
   if(Audio.resume) Audio.resume();
@@ -1665,8 +1382,6 @@ function watchOnlyToast(){
   if(typeof _toast==='function') _toast('The games are the visualiser \u2014 they play themselves, to the music. Nothing to control: sit back and listen \ud83c\udfa7', { big:true, ms:dur });
 }
 function shortcutTargetBlocked(ev){
-  if(typeof CT_MUSIC_WORKSPACE!=='undefined' && CT_MUSIC_WORKSPACE.isOpen()) return true;
-  if(typeof CT_LSDJ_NATIVE_EDITOR!=='undefined' && CT_LSDJ_NATIVE_EDITOR.isOpen()) return true;
   var el=ev&&ev.target;
   if(!el) return false;
   if(el.closest && el.closest('input,textarea,select,[contenteditable=""],[contenteditable="true"],[role="textbox"],[data-shortcuts-off]')) return true;
@@ -1697,15 +1412,6 @@ function panelVisible(id){
   return !!(el && el.style.display!=='none' && !el.hidden && !el.classList.contains('hidden'));
 }
 function handleEscapeShortcut(ev){
-  if(ev && ev.key==='Escape' && !ev.metaKey && !ev.altKey && !ev.ctrlKey &&
-     typeof CT_LSDJ_NATIVE_EDITOR!=='undefined' && CT_LSDJ_NATIVE_EDITOR.isOpen()){
-    CT_LSDJ_NATIVE_EDITOR.close(); consumeKeyEvent(ev); return true; }
-  if(ev && ev.key==='Escape' && !ev.metaKey && !ev.altKey && !ev.ctrlKey &&
-     typeof CT_MUSIC_WORKSPACE!=='undefined' && CT_MUSIC_WORKSPACE.isOpen()){
-    // The primary workspace owns Escape in its root (focus/chat/dialogs).
-    // Fullscreen can restore focus to body: that is not permission to close
-    // the composition. Leave browser fullscreen and native dialog handling intact.
-    return false; }
   if(!ev || ev.key!=='Escape' || shortcutTargetBlocked(ev) || ev.metaKey || ev.altKey || ev.ctrlKey) return false;
   if(typeof CT_CREATE!=='undefined' && CT_CREATE.isOpen()){
     // the editor's own panels close first; Escape only leaves once nothing is open
@@ -2102,10 +1808,10 @@ function buildRadioUI(){
       var brand=document.createElement('span'); brand.className='rmood-brand landing-copy';
       brand.innerHTML='<b class="rmood-title">Chiptunes.app</b>'+ 
         '<span class="rmood-copy">'+
-          '<span class="rmood-section"><strong>CREATE OR LISTEN.</strong><p>Choose a mood for complete Game Boy songs, automatically, one after another. Or start from scratch.</p></span>'+
-          '<span class="rmood-section"><strong>COMPLETE SONGS.</strong><p>Full arrangements, not loops: pulse, wave and drums.</p></span>'+
-          '<span class="rmood-section"><strong>AUTHENTIC HARDWARE.</strong><p>Register-level chip emulation. Export a cartridge for a real Game Boy.</p></span>'+
-          '<span class="rmood-section"><strong>MAKE IT YOURS.</strong><p>Edit notes and sounds. Share a link or export audio. LSDj export is available; some sounds and effects still differ. AI agents can use <a class="rmood-link" href="/webmcp">WebMCP tools</a>.</p></span>'+
+          '<span class="rmood-section"><strong>CREATE OR LISTEN.</strong><p>Choose a mood and Chiptunes composes complete Game Boy songs for you, automatically, one after another. Or open the tracker and write your own \u2014 or let an AI agent drive it, through 15 <a class="rmood-link" href="/webmcp">WebMCP tools</a>.</p></span>'+
+          '<span class="rmood-section"><strong>COMPLETE SONGS.</strong><p>The composer writes full arrangements, not loops, from pulse and wave instruments, noise and sampled drums.</p></span>'+
+          '<span class="rmood-section"><strong>AUTHENTIC HARDWARE.</strong><p>Every note runs through register-level emulation of the original four-channel sound chip. Download a cartridge that boots on a real Game Boy.</p></span>'+
+          '<span class="rmood-section"><strong>MAKE IT YOURS.</strong><p>Edit every note, instrument and effect. Share it as a link, WAV or cartridge.</p></span>'+
           '<small class="rmood-legal">Game Boy is a trademark of Nintendo. Independent project; not affiliated with or endorsed by Nintendo.</small>'+
         '</span>';
       row.appendChild(brand);
@@ -2132,10 +1838,10 @@ function buildRadioUI(){
       });
       // ...or none of the above: an empty grid and your own hands.
       var scratch=mkRbtn('Start from scratch', function(){
-        location.assign('/create?mode=algorave');
+        if(typeof _openCreate==='function') _openCreate(true);
       });
       scratch.classList.add('rmood','rmood-scratch');
-      scratch.title='Open Strudel music and GLSL visuals';
+      scratch.title='Open the editor with an empty song';
       pills.appendChild(scratch);
       // HOW IT WORKS LIVES HERE, not in the left rail. The rail is desktop-only
       // (it is never built on a phone) and its copy of this button was
@@ -2392,7 +2098,7 @@ function _buildPlayerLinks(){
     else if(k==='wav'){ _downloadAudio('wav'); }
     else if(k==='try'){ _toggleGameBoyEmulator(); }
     else if(k==='how'){ _toggleHowModal(); }
-    else if(k==='create'){ location.assign('/create?mode=algorave'); }
+    else if(k==='create'){ _openCreate(); }
     else if(k==='screen'){ _toggleGameBoyScreen(); }
   });
   document.body.appendChild(wrap);
@@ -2406,15 +2112,8 @@ function _buildPlayerLinks(){
 // CREATE: the Mario-Paint-spirit editor (src/create.js). Entering hands the
 // chip to the user's song; leaving hands it back to the radio.
 var _createStandalone=false;      // true when /create booted without the radio behind it
-var _createEntryEpoch=0;
-window.addEventListener('popstate',function(){_createEntryEpoch++;});
-window.addEventListener('hashchange',function(){_createEntryEpoch++;});
 function _openCreate(blank){
-  if(typeof CT_CREATE==='undefined'||typeof CT_MUSIC_WORKSPACE==='undefined') return;
-  var epoch=++_createEntryEpoch;
-  var route=location.pathname+location.search+location.hash;
-  function current(){return epoch===_createEntryEpoch&&route===location.pathname+location.search+location.hash;}
-  function failed(e){if(current()){if(window._toast)window._toast(e.message);else console.error('Music workspace:',e.message);}}
+  if(typeof CT_CREATE==='undefined') return;
   if(document.body) document.body.classList.add('ai-visual');
   if(_createStandalone){
     if(typeof _stopHomeBackdrop==='function') _stopHomeBackdrop();
@@ -2425,18 +2124,23 @@ function _openCreate(blank){
   // whether it wanted it. Since the station is already playing this document,
   // opening the notes view usually needs to take nothing at all. The editor
   // calls enterCreate itself at the moment it actually takes the chip.
-  window._closeCreateReturn=function(options){
-    _createEntryEpoch++;
-    _unmountVisual();
-    if(options&&options.listen===true){
+  window._closeCreateReturn=function(){
+    if(_createStandalone){                       // the station has not played yet: start it now
       _createStandalone=false;
-      try{history.replaceState(null,'','/listen');}catch(e){}
-      _startEndlessRadio();
-      if(Audio.playScore)Audio.playScore();
-      resize();
+      try{ _startEndlessRadio(); }catch(e){}
+      // ...and take the chip back off the editor. This branch returned before
+      // the playScore() below, so closing a cold-booted /create left the
+      // worklet holding the editor's song and the station came back SILENT --
+      // pause and play could not rescue it, because neither reposts a score.
+      try{ if(typeof Audio!=='undefined'&&Audio.playScore) Audio.playScore(); }catch(e){}
+      try{ _syncBackgroundAudioOnly(); }catch(e){}
+      return;
     }
-    // Ordinary close/Escape is never permission to start or resume a station.
-    _syncCreateRendering();
+    try{ if(typeof Audio!=='undefined'&&Audio.playScore) Audio.playScore(); }catch(e){}
+    // The frame loop parked itself while the editor was open (audio-only mode); nothing
+    // else recalls the sync on close, and the game restarts live rather than mid-stumble.
+    if(sceneKind==='game' && selGame && selState) _reseatScene=true;
+    try{ _syncBackgroundAudioOnly(); }catch(e){}
   };
   // CLOSING A VIEW IS NOT A HANDOVER. When the editor never took the chip --
   // it was showing the song the station was already playing -- there is nothing
@@ -2446,30 +2150,12 @@ function _openCreate(blank){
     if(sceneKind==='game' && selGame && selState) _reseatScene=true;
     try{ _syncBackgroundAudioOnly(); }catch(e){}
   };
-  // Decode without mounting the legacy editor or starting its transport.
-  function songInput(code){
-    var state=CT_CREATE.docState(code),song=state&&CT_CREATE.songOf(code);
-    if(!song)throw Error('Cannot open this song document. Your saved draft is unchanged.');
-    return {gb:song.gb,settings:{tempo:song.bpm,bars:song.bars,title:song.title,
-      tempoAt:state.tempoAt||[],grid:state.grid||16,stepsPerBar:state.grid||16,swing:!!state.swing}};
-  }
-  var shared=_readSharedDoc();
-  if(shared){
-    return _unpackDoc(shared).then(function(code){
-      if(!current())return;
-      var initial=songInput(code);
-      var source=CT_MUSIC_LANGUAGE.materialize(initial.gb,initial.settings);
-      if(current())return CT_MUSIC_WORKSPACE.open({source:source,explicit:true});
-    }).catch(failed);
-  }
-  try{
-    var initial;
-    if(!blank&&!/^#music(?:=|$|-transfer=)/.test(location.hash)){
-      var code=typeof Audio!=='undefined'&&Audio.currentDoc&&Audio.currentDoc();
-      if(code)initial=songInput(code);
-    }
-    return (initial?CT_MUSIC_WORKSPACE.open(initial):CT_MUSIC_WORKSPACE.open()).catch(failed);
-  }catch(e){failed(e);}
+  // hand the editor the song that is playing, if there is one -- unless the
+  // whole point was to start from nothing
+  if(blank){ try{ CT_CREATE.openBlank(); }catch(e){ CT_CREATE.open(''); } return; }
+  var _doc=null;
+  try{ if(typeof Audio!=='undefined'&&Audio.currentDoc) _doc=Audio.currentDoc(); }catch(e){}
+  CT_CREATE.open(_doc||undefined);
 }
 window._openCreate=_openCreate;
 
@@ -3145,8 +2831,7 @@ function buildPlaybar(){ _pbEl=document.getElementById('playbar'); if(!_pbEl||_p
 }
 function _transportIsGated(){ return !!(_nowSource==='generated' && Audio.running && !Audio.running() && !(Audio.isPaused&&Audio.isPaused())); }
 function _transportNeedsResume(){ return !!(Audio.started && Audio.running && !Audio.running() && !(Audio.isPaused&&Audio.isPaused())); }
-function _transportIsPaused(){ var music=_musicPresentationState();if(music)return music.paused;
-  if(_watchOnly && !_watchMicActive) return false;
+function _transportIsPaused(){ if(_watchOnly && !_watchMicActive) return false;
   // waiting to be asked for a mood is a paused station: nothing is playing, so
   // the button must offer play and the game must not run
   try{ if(Audio.isHolding && Audio.isHolding()) return true; }catch(e){}
@@ -3459,7 +3144,7 @@ var LiveCtl = (function(){
     }
     try{ if(typeof Radio!=='undefined'&&Radio.setLive) Radio.setLive(true); }catch(e2){}
     if(!timer) timer=setInterval(tick, 1000);
-    try{ if(history.replaceState && !window.__RRR_BOOT_PLAYER_ROUTE) history.replaceState(null,'',_generatedRoute()+(typeof _routeQueryExtras==='function'?_routeQueryExtras():'')); }catch(e3){}
+    try{ if(history.replaceState && !window.__RRR_BOOT_PLAYER_ROUTE) history.replaceState(null,'','/'+(typeof _routeQueryExtras==='function'?_routeQueryExtras():'')); }catch(e3){}
     if(typeof _updatePlaybar==='function') _updatePlaybar();
     if(typeof _syncVisualChrome==='function') _syncVisualChrome();
     return true;
@@ -3785,7 +3470,7 @@ function _closeGameBoy(opts){
   document.body.classList.remove('gb-open');
   if(Audio.playScore) Audio.playScore();      // back to the composition, where it had got to
   _syncTryPill();
-  if(!opts.noRoute){ try{ if(history.pushState) history.pushState({},'',_generatedRoute()); }catch(e){} }
+  if(!opts.noRoute){ try{ if(history.pushState) history.pushState({},'','/'); }catch(e){} }
 }
 function _toggleGameBoyEmulator(){ if(_gbEmuOn) _closeGameBoy(); else _openGameBoy(); }
 // A cold load of /gameboy has no track yet: the station has to mint one first.
@@ -4322,13 +4007,12 @@ function setMediaMeta(){
     // baking it to the whole window put its vignette a bar's height too low
     var _bi=0;
     try{ _bi=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--barh'))||0; }catch(e){}
-    var viewport=window.__ctVisualViewport&&window.__ctVisualViewport();
-    var w=viewport?viewport.width:window.innerWidth, h=viewport?viewport.height:Math.max(160, window.innerHeight-_bi);
+    var w=window.innerWidth, h=Math.max(160, window.innerHeight-_bi);
     // The gain layer is a soft multiply mask over the whole window, composited
     // every frame -- at DPR 2 on a 1440p display that is five megapixels of
     // blending for a texture whose finest detail is a scanline. Capped at 1.5
     // it is indistinguishable and costs 44% fewer pixels.
-    var dpr=Math.min(1.5, viewport?viewport.dpr:(window.devicePixelRatio||1));
+    var dpr=Math.min(1.5, window.devicePixelRatio||1);
     var key=w+'x'+h+'@'+dpr+'#'+_RRR_SCANLINE_STRENGTH;
     if(key===_gainKey){ setMode(_mode==='legacy'?'legacy':'gain'); window.__rrrCrtReady=true; return; }
     window.__rrrCrtReady=false;
@@ -4353,7 +4037,6 @@ function setMediaMeta(){
         var vigEl=document.querySelector('.crt.vignette');
         if(vigEl && vigEl.parentNode) vigEl.parentNode.insertBefore(_gainCv, vigEl.nextSibling);
         else document.body.appendChild(_gainCv);
-        _visualLayer(_gainCv);
       }
       _gainCv.width=built.width; _gainCv.height=built.height;
       _gainCv.getContext('2d').drawImage(built,0,0);
@@ -4453,8 +4136,7 @@ function _pathParts(path){
 }
 function _generatedRoute(){
   var p=(location.pathname||'/');
-  if(_RRR_BROADCAST)return '/';
-  return p==='/watch' ? p : '/listen';
+  return p==='/watch' ? p : '/';
 }
 function _queryFlag(name){
   try{
@@ -4485,7 +4167,6 @@ function _routeQueryExtras(){                                 // ?game= survives
 }
 function syncRoute(slug){
   if(!slug || typeof history==='undefined' || !history.replaceState) return;
-  if(typeof CT_MUSIC_WORKSPACE!=='undefined'&&CT_MUSIC_WORKSPACE.isOpen())return;
   if(typeof LiveCtl!=='undefined' && LiveCtl.active()) return;   // LIVE owns the /radio route: reload rejoins the broadcast, not a /track replay
   if(Audio.extActive && Audio.extActive()) return;   // an external source (mic/file) owns the URL — don't overwrite it with the generated slug
   try{ if(typeof CT_CREATE!=='undefined' && CT_CREATE.isOpen()) return; }catch(eC){}  // the editor owns /create; a refresh must land back in it
@@ -4494,9 +4175,8 @@ function syncRoute(slug){
   var want = _generatedRoute() + _routeQueryExtras();
   if((location.pathname + (location.search||'')) !== want){ try{ history.replaceState(null,'',want); }catch(e){} }
 }
-window.addEventListener('popstate', ()=>{
+window.addEventListener('popstate', ()=>{ if(!bootDone) return;
   if(window._productRouteTo && _productRouteTo(location.pathname+location.search)) return; // / · /radio · /watch (+ legacy heads) are product routes, not track history
-  if(!bootDone)return;
   if(typeof Audio==='undefined' || !Audio.gotoTrack) return;
   var s=_readSlug(); if(s && s!==_curSlug){ _forkFromLive(); if(_watchOnly && typeof _exitWatchMode==='function') _exitWatchMode(); _trkHist=[s]; _trkI=0; Audio.gotoTrack(s); } });
 
@@ -4522,9 +4202,7 @@ function _onTrack(slug, gen){
 var _trackTransitionTimer=0;
 function _showTrackTransition(){
   var el=document.getElementById('track-transition'); if(!el || !document.body) return;
-  clearTimeout(_trackTransitionTimer); el.classList.remove('on');
-  if(_visualMount||_musicWorkspaceOpen()){document.body.classList.remove('track-transition');return;}
-  void el.offsetWidth;
+  clearTimeout(_trackTransitionTimer); el.classList.remove('on'); void el.offsetWidth;
   el.classList.add('on'); document.body.classList.add('track-transition');
   _trackTransitionTimer=setTimeout(function(){ el.classList.remove('on'); document.body.classList.remove('track-transition'); },310);
 }
@@ -4706,7 +4384,6 @@ function _resumePausedFromGesture(ev){
   return true;
 }
 function _firstGesture(ev){
-  if(_musicWorkspaceOpen()||(!_RRR_BROADCAST&&['','create'].includes(String(_pathParts(location.pathname)[0]||'').toLowerCase())))return;
   if(shortcutTargetBlocked(ev)) return;
   var intro=document.getElementById('intro');
   var awaitingChoice=!!(document.body && document.body.classList.contains('awaiting-mood'));
@@ -5168,36 +4845,23 @@ window.openProductHome=openProductHome;
 //  library/track routes. -----
 function _productRouteFromPath(path){
   var head=String(_pathParts(path)[0]||'').toLowerCase();
-  if(!head) return {mode:_RRR_BROADCAST?'radio':'create'};
+  if(!head) return {mode:'radio'};                 // '/' IS the player now
   if(head==='player') return {mode:'radio', legacy:true};
   if(head==='get') return {mode:'home'};
   if(head==='gameboy') return {mode:'gameboy'};
   if(head==='watch') return {mode:'watch'};
-  if(head==='listen'||head==='radio')return {mode:'radio'};
-  if(head==='play'||head==='wip') return {mode:'radio', legacy:true};
+  if(head==='listen'||head==='play'||head==='wip') return {mode:'radio', legacy:true};
   if(head==='create') return {mode:'create'};
   return null;
 }
 window._productRouteTo=function(path, opts){
-  _createEntryEpoch++;
   var r=_productRouteFromPath(path);
   if(!r) return false;
   opts=Object.assign({replace:true}, opts||{});
-  if(r.legacy && typeof history!=='undefined' && history.replaceState){ try{ history.replaceState(null,'','/listen'); }catch(e){} }
-  var closedWorkspace=r.mode!=='create'&&_musicWorkspaceOpen();
-  if(closedWorkspace){
-    // Close may restore its prior URL; the requested route remains authoritative.
-    var target=location.pathname+location.search+location.hash;
-    CT_MUSIC_WORKSPACE.close();
-    try{history.replaceState(null,'',target);}catch(e){}
-  }
+  if(r.legacy && typeof history!=='undefined' && history.replaceState){ try{ history.replaceState(null,'','/'); }catch(e){} }
   if(r.mode==='gameboy'){ _startEndlessRadio(); _openGameBoyWhenReady(); return true; }
-  if(r.mode==='create'){
-    if(window.CT_USES_SIMPLE_CREATE&&window.CT_USES_SIMPLE_CREATE(location)){location.reload();return true;}
-    _createStandalone=true; _openCreate(); return true;
-  }
-  if(r.mode==='radio'&&_readSharedDoc()){_createStandalone=true;_openCreate();return true;}
-  if(r.mode==='radio'){ _startEndlessRadio(); if(closedWorkspace&&Audio.playScore)Audio.playScore(); return true; }
+  if(r.mode==='create'){ _createStandalone=true; _openCreate(); return true; }
+  if(r.mode==='radio'){ _startEndlessRadio(); return true; }
   if(r.mode==='watch'){ enterWatchMode({noRoute:true}); return true; }
   openProductHome(Object.assign({noRoute:true}, opts));   // already ON /get; do not push it again
   return true;
@@ -5277,14 +4941,15 @@ if(String(_pathParts(location.pathname||'/')[0]||'').toLowerCase()==='get') buil
 (function(){
   var head=String(_pathParts(location.pathname||'/')[0]||'').toLowerCase();
   // 'create' left this retired-routes list 2026-08-26: it is the editor now
-  if(head==='player'||head==='play'||head==='wip'){
-    if(typeof history!=='undefined' && history.replaceState){ try{ history.replaceState(null,'','/listen'); }catch(e){} }
-    head='listen';
+  if(head==='player'||head==='listen'||head==='play'||head==='wip'){
+    if(typeof history!=='undefined' && history.replaceState){ try{ history.replaceState(null,'','/'); }catch(e){} }
+    head='';
   }
   if(head==='gameboy'){ if(document.body) document.body.classList.add('ai-visual');
     startAudio(false); _openGameBoyWhenReady(); return; }
-  // Shared documents belong to composition, before radio boot can play them.
-  if(head==='create'||(head===''&&!_RRR_BROADCAST)||((head==='listen'||head==='radio')&&_readSharedDoc())){ if(document.body) document.body.classList.add('ai-visual');
+  // Create is a bottom sheet over the game, including on a direct refresh.
+  if(head==='create'){ if(document.body) document.body.classList.add('ai-visual');
+    startAudio(false);
     document.body.classList.add('create-open');
     _createStandalone=true; _openCreate(); return; }
   if(head==='get') return;                                       // the platform page; #intro is already up
@@ -5295,7 +4960,7 @@ if(String(_pathParts(location.pathname||'/')[0]||'').toLowerCase()==='get') buil
   // no-gesture path reveals the game immediately and arms the first tap to
   // start the sound, which is the same thing a shared /track link has always
   // done -- so autoplay policy costs a tap, not the whole experience.
-  if(head===''||head==='listen'||head==='radio'){
+  if(head===''){
     if(document.body) document.body.classList.add('ai-visual');
     startAudio(false);                                           // holds for a choice; sound arms when the visitor starts something
   }

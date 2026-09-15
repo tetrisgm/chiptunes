@@ -18,19 +18,11 @@
 //     actually uses. High similarity across a batch means one harmonic world.
 //   * TEMPO SPREAD -- a generator collapsing onto one tempo is the first sign.
 //   * ACROSS vs WITHIN -- cues inside ONE soundtrack are meant to be related.
-//     Different soundtracks must not collapse to one composition; explicitly
-//     requested common constraints (such as D major) are not collapse.
+//     Two DIFFERENT soundtracks sharing anything is the actual bug.
 'use strict';
 const path = require('path');
 const api = require(path.join(__dirname, '..', 'src', 'api.js'));
 const CT = require(path.join(__dirname, '..', 'src', 'create.js'));
-const crypto = require('crypto');
-
-// Musical regression gates need replayable input, not a fresh lottery on each
-// run. These are hash-derived test inputs, never candidate-selected songs. Keep
-// the corpus and thresholds stable so a failure can be reproduced and fixed.
-const fixtureToken = (group, i) => crypto.createHash('sha256')
-  .update('diversity-v1:' + group + ':' + i).digest('hex').slice(0, 16);
 
 let fail = 0;
 const ok = (c, m) => { console.log((c ? '  ok   ' : '  FAIL ') + m); if (!c) fail++; };
@@ -75,8 +67,6 @@ function batch(docs) {
     openings: new Set(f.map(x => x.opening)).size,
     rhythms: new Set(f.map(x => x.rhythm)).size,
     tempos: new Set(f.map(x => x.bpm)).size,
-    bpmMin: Math.min.apply(null, f.map(x => x.bpm)),
-    bpmMax: Math.max.apply(null, f.map(x => x.bpm)),
     similarity: pairs ? sim / pairs : 0
   };
 }
@@ -84,7 +74,7 @@ const N = 30;
 
 console.log('free composition');
 {
-  const b = batch(Array.from({ length: N }, (_, i) => api.compose({ token: fixtureToken('free', i) }).doc));
+  const b = batch(Array.from({ length: N }, () => api.compose({}).doc));
   ok(b.openings === b.n, 'no two songs begin the same way (' + b.openings + '/' + b.n + ')');
   // NOT 100%, and demanding it would be wrong. Rhythm cells are mined from a
   // real corpus and reusing them is what makes the output sound like chip music
@@ -92,130 +82,45 @@ console.log('free composition');
   // pitch differs is a feature. Collapse is the thing to catch: a floor of 75%
   // fails long before a listener would notice repetition.
   ok(b.rhythms >= b.n * 0.75, 'and rhythms are reused but not collapsed (' + b.rhythms + '/' + b.n + ', floor ' + Math.ceil(b.n * 0.75) + ')');
-  // TEMPO IS A LADDER, AND THIS USED TO ASSUME IT WAS A RANGE. A step lasts a
-  // whole number of frames, so there are 32 playable tempi at a 16th grid, not
-  // a continuum -- and demanding 40% distinct out of 30 was demanding variety
-  // the machine cannot express. The composer reaches 27 of those 32 rungs;
-  // within any one batch of 30 the measured spread is 10 to 19 distinct, median
-  // 13. A floor of 8 fails long before the composer has collapsed, and never on
-  // an unlucky draw.
-  // The ladder shrank when lopsided grooves were removed -- a four-step pattern
-  // with one odd step out reaches any tempo, and is a LIMP you can hear on every
-  // bar. What is left is even steps plus a symmetric shuffle, which is eight
-  // even rungs and seven shuffled ones. Measured over 25 batches of 30: 6 to 10
-  // distinct, median 8. A floor of 5 fails long before the composer has
-  // collapsed and never on an unlucky draw.
-  ok(b.tempos >= 5, 'tempo is spread across the ladder, not collapsed (' +
-     b.tempos + ' distinct of ' + b.n + ', floor 5)');
-  // ...and spread ACROSS it rather than bunched on neighbouring rungs, which a
-  // count alone cannot tell you.
-  ok(b.bpmMax / b.bpmMin >= 1.5, 'and reaches both ends of it (' +
-     b.bpmMin + '-' + b.bpmMax + ' bpm)');
+  ok(b.tempos >= b.n * 0.4, 'tempo is spread, not collapsed (' + b.tempos + ' distinct of ' + b.n + ')');
   ok(b.similarity < 0.55, 'and they are not one harmonic world (similarity ' + b.similarity.toFixed(3) + ', ceiling 0.55)');
 }
 
 // A scene NARROWS the composer on purpose -- that is what asking for a boss
 // theme means. It must not narrow it to one song.
 console.log('scenes narrow without collapsing');
-// ASK THE COMPOSER WHAT IT CAN PLAY, do not go looking for it. This used to
-// build the ladder by composing 400 random songs and collecting the tempi that
-// turned up, then assert each scene's tempi were in that set -- which fails
-// whenever a rung is simply RARE. 75 bpm is one style's floor and comes up in
-// well under 1% of songs, so a 400-song sample misses it about one run in
-// sixteen, and the gate then reports a perfectly good tempo as not a real rung.
-// The composer publishes its ladder; that is the authority.
-const LADDER = (function () {
-  const C = require(path.join(__dirname, '..', 'src', 'composer.js'));
-  if (C.tempos) return C.tempos();
-  const seen = {}, out = [];
-  for (let i = 0; i < 400; i++) {
-    const t = CT.docState(api.compose({ token: fixtureToken('ladder', i) }).doc).bpm;
-    if (!seen[t]) { seen[t] = 1; out.push(t); }
-  }
-  return out;
-})();
-const sceneTempos = {};
 for (const scene of ['boss', 'title', 'cave']) {
-  const b = batch(Array.from({ length: N }, (_, i) => api.brief({ scene, seconds: 30, token: fixtureToken(scene, i) }).doc));
-  // ONE COLLISION IS ALLOWED, AND THE NUMBER IS MEASURED. Over a pool of 2400
-  // boss cues, 2360 openings were distinct; the pairwise collision probability
-  // is 1.8e-5, which gives a batch of thirty a 0.8% chance of containing one
-  // pair. Demanding 30/30 therefore fails about one run in 125 on nothing at
-  // all, and a gate that cries wolf at that rate is one people learn to re-run.
-  // Two collisions in a batch is a thousand times less likely than one, so this
-  // still catches any real collapse.
-  ok(b.openings >= b.n - 1, scene + ': every cue is a different song (' +
-     b.openings + '/' + b.n + ', floor ' + (b.n - 1) + ')');
+  const b = batch(Array.from({ length: N }, () => api.brief({ scene, seconds: 30 }).doc));
+  ok(b.openings === b.n, scene + ': every cue is a different song (' + b.openings + '/' + b.n + ')');
   ok(b.similarity < 0.6, scene + ': still varied harmonically (' + b.similarity.toFixed(3) + ', ceiling 0.6)');
-  // NOT A FIXED COUNT ANY MORE, because that was asserting variety the machine
-  // cannot supply. A scene's styles span a narrow bpm window, and on a quantised
-  // ladder some windows contain exactly one rung -- `title` is anthem and arcade,
-  // 140-158, which holds only 149.3. Demanding three tempi there is demanding
-  // the hardware be something else. What IS meaningful: every tempo is a real
-  // rung, and the cues are different songs, which the assertion above checks.
-  // TEMPI THE COMPOSER CAN ACTUALLY REACH. This said "real rungs" and meant a
-  // ladder of eight; there is no ladder any more, because LSDj plays every
-  // integer tempo and matching it means we do too. What is still worth checking
-  // is that a scene stays inside the band its styles declare rather than
-  // drifting somewhere nothing can play it.
-  ok(LADDER.indexOf(b.bpmMin) >= 0 && LADDER.indexOf(b.bpmMax) >= 0,
-     scene + ': its tempi are ones the composer reaches (' + b.bpmMin + '-' + b.bpmMax +
-     ', inside ' + LADDER[0] + '-' + LADDER[LADDER.length - 1] + ')');
-  sceneTempos[scene] = b.tempos;
+  ok(b.tempos >= 3, scene + ': more than a couple of tempos (' + b.tempos + ')');
 }
 
-// Across scenes there must still be real spread, even where any one scene is
-// pinned to a single rung by its own styles.
+// The one that matters most: two DIFFERENT soundtracks must share nothing.
+console.log('soundtracks do not share across games');
 {
-  const all = Object.values(sceneTempos).reduce((a, b2) => a + b2, 0);
-  ok(all >= 5, 'and across the scenes the tempi still spread (' +
-     Object.entries(sceneTempos).map(([k, v]) => k + ':' + v).join(' ') + ')');
-}
-
-// Stable tokens make regressions reproducible without selecting candidates.
-// Check free harmony separately from an explicit shared-key request: a pitch
-// histogram cannot distinguish two different pieces in the same scale.
-console.log('soundtracks remain varied across games');
-{
-  const tokens = Array.from({ length: 10 }, (_, i) => require('crypto')
-    .createHash('sha256').update('soundtrack-diversity-' + i).digest('hex').slice(0, 16));
-  const osts = tokens.map(token => api.soundtrack({ scenes: ['title', 'battle', 'boss'], token }));
+  const osts = Array.from({ length: 10 }, () => api.soundtrack({ scenes: ['title', 'battle', 'boss'], key: 'D' }));
   const first = batch(osts.map(o => o.cues[0].doc));
   ok(first.openings === first.n, 'ten different games, ten different title themes (' + first.openings + '/' + first.n + ')');
-  ok(first.similarity < 0.65, 'unconstrained games do not share one harmonic world (' + first.similarity.toFixed(3) + ', ceiling 0.65)');
-  ok(osts.every(o => o.cues.every(c => CT.docState(c.doc).key === api.midiOf(o.key + '4') % 12)),
-     'each soundtrack reports and consistently uses its generated key');
-  ok(osts.every(o => o.cues[0].doc === api.brief({ scene: 'title', token: o.cues[0].token }).doc),
-     'the default key preserves the first cue without an extra transposition');
-  const replay = api.soundtrack({ scenes: ['title', 'battle', 'boss'], token: osts[0].token });
-  ok(replay.cues.every((c, i) => c.doc === osts[0].cues[i].doc),
-     'the returned soundtrack token reproduces every cue');
-  ok(osts.every(o => new Set(o.cues.map(c => c.token)).size === o.cues.length),
-     'each cue has a distinct derived seed, without candidate selection');
-  const keyed = tokens.map(token => api.soundtrack({ scenes: ['title', 'battle', 'boss'], token, key: 'D' }));
-  ok(keyed.every(o => o.cues.every(c => CT.docState(c.doc).key === 2)),
-     'an explicit D request is honored by every cue');
-  const fixed = batch(keyed.map(o => o.cues[0].doc));
-  ok(fixed.openings === fixed.n, 'same-key games still have distinct openings (' + fixed.openings + '/' + fixed.n + ')');
-  ok(fixed.rhythms >= fixed.n * 0.75, 'same-key games retain rhythmic variety (' + fixed.rhythms + '/' + fixed.n + ', floor 8)');
+  ok(first.similarity < 0.65, 'and they are not one sound (' + first.similarity.toFixed(3) + ', ceiling 0.65)');
 
   // Within one soundtrack, cues are ALLOWED to be related -- that is the point.
   // They must still be different pieces of music.
-  ok(osts.concat(keyed).every(o => {
-    const within = batch(o.cues.map(c => c.doc));
-    return within.openings === within.n;
-  }), 'inside each of twenty seeded games the cues are still distinct songs');
+  const within = batch(osts[0].cues.map(c => c.doc));
+  ok(within.openings === within.n, 'inside one game the cues are still distinct songs');
 
   // motif:true is the strongest cohesion device here. It must relate the cues
   // without making them the same, and it is OFF unless asked for.
-  const off = api.soundtrack({ scenes: ['title', 'battle', 'boss'], key: 'D', token: fixtureToken('motif-off', 0) });
+  const off = api.soundtrack({ scenes: ['title', 'battle', 'boss'], key: 'D' });
   ok(!off.motif, 'a shared motif is opt-in, not the default');
-  // Fixed regression tokens, discovered by a reproducible collision audit.
-  // Both previously selected the identical D/F#/A/D tonic arpeggio at bar 0.
-  // Random pair selection hid that bug on most runs and gave no replay token
-  // when it failed. This pair must continue to exercise it, not be re-minted.
-  const on = api.soundtrack({ scenes: ['title', 'battle', 'boss'], key: 'D', motif: true,
-    token: 'f6c94f818d131520' });
+  // Ask a few times: a cue with no melodic phrase at all is a real outcome, and
+  // the API says so rather than sharing silence. What must never happen is a
+  // motif that is shared but identical across cues.
+  let on = null;
+  for (let i = 0; i < 5 && !(on && on.motif); i++) {
+    on = api.soundtrack({ scenes: ['title', 'battle', 'boss'], key: 'D', motif: true });
+    if (!on.motif) ok(!!on.motifSkipped, 'when there is no phrase to share it says why (' + on.motifSkipped + ')');
+  }
   ok(!!on.motif, 'and motif:true does share one (' + (on.motif ? on.motif.pitches.slice(0, 4).join(' ') + ' on ' + on.motif.lane : '') + ')');
   const withMotif = batch(on.cues.map(c => c.doc));
   ok(withMotif.openings === withMotif.n,
@@ -223,19 +128,18 @@ console.log('soundtracks remain varied across games');
   const shifts = on.cues.slice(1).map(c => c.motif && c.motif.transposedBy);
   ok(shifts.every(x => typeof x === 'number'), 'and each cue reports where it heard the figure (' + shifts.join(', ') + ')');
 
-  const on2 = api.soundtrack({ scenes: ['title', 'battle', 'boss'], key: 'D', motif: true,
-    token: 'bf7f5ae2f36b6741' });
+  // and two different games asking for a motif must not get the SAME motif
+  let on2 = null;
+  for (let i = 0; i < 5 && !(on2 && on2.motif); i++) on2 = api.soundtrack({ scenes: ['title', 'battle', 'boss'], key: 'D', motif: true });
   ok(on.motif && on2.motif && on.motif.pitches.join(',') !== on2.motif.pitches.join(','),
-     'the two arpeggio-collision regression games select different figures');
-  ok(on.motif && (on.motif.lane !== 'Melody' || on.motif.fromBar > 1),
-     'a clipped final repetition is not mistaken for a new motif');
+     'two games asking for a motif get different motifs');
 }
 
 // Mood recipes are transforms, so they must move the music without flattening
 // a batch into one thing.
 console.log('mood recipes do not flatten');
 {
-  const docs = Array.from({ length: N }, (_, i) => api.brief({ scene: 'battle', seconds: 25, token: fixtureToken('sadder', i) }).doc);
+  const docs = Array.from({ length: N }, () => api.brief({ scene: 'battle', seconds: 25 }).doc);
   const sad = docs.map(d => api.variant(d, { mood: 'sadder' }).doc);
   const b = batch(sad);
   // A FLOOR, NOT 100%, AND THIS ONE IS MEASURED. A mood recipe flattens: it

@@ -2,16 +2,14 @@
 // selection, critics, candidates, templates, and taste models do not.
 (function(){
 'use strict';
-var G=typeof globalThis!=='undefined'?globalThis:window,REV='musician-13',SEED_REV='musician-12';
+var G=typeof globalThis!=='undefined'?globalThis:window,REV='musician-12';
 if(typeof module!=='undefined'&&!G.CT_STYLE_CORPUS){try{require('./style-corpus.js');}catch(e){}}
 if(typeof module!=='undefined'&&module.exports&&!G.CT_CHIP_INSTRUMENTS)require('./chip-instruments.js');
 if(typeof module!=='undefined'&&module.exports&&!G.CT_MELODY)require('./melody.js');
 if(typeof module!=='undefined'&&module.exports&&!G.CT_GB)require('./gb-hardware.js');
 if(typeof module!=='undefined'&&module.exports&&!G.CT_GB_VOICES)require('./gb-voices.js');
 function hash(s){s=String(s);var h=2166136261>>>0;for(var i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
-// Report the new composition revision without reseeding unrelated style,
-// harmony, form and accompaniment streams during a melodic-writing change.
-function rng(seed,label){var a=hash(SEED_REV+':'+seed+':'+label);return function(){a=(a+0x6D2B79F5)|0;var t=Math.imul(a^(a>>>15),1|a);t=(t+Math.imul(t^(t>>>7),61|t))^t;return((t^(t>>>14))>>>0)/4294967296;};}
+function rng(seed,label){var a=hash(REV+':'+seed+':'+label);return function(){a=(a+0x6D2B79F5)|0;var t=Math.imul(a^(a>>>15),1|a);t=(t+Math.imul(t^(t>>>7),61|t))^t;return((t^(t>>>14))>>>0)/4294967296;};}
 function pick(r,a){return a[Math.floor(r()*a.length)%a.length];}function ri(r,a,b){return a+Math.floor(r()*(b-a+1));}
 function chance(r,p){return r()<p;}function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
 function mod(v,n){return((v%n)+n)%n;}function round(v){return Math.round(v*1000)/1000;}
@@ -45,28 +43,21 @@ function mutateRows(r,rows,amount){var out=rows.slice();if(chance(r,amount)&&out
 // two-step break for dnb, boom-bap swing, backbeat rock, funk syncopation).
 // Fourteen styles crossed with progression, rhythm-cell, pad and kit
 // variation puts the distinct-basis count in the hundreds.
-// These windows are a CONTINUUM again, and every integer inside one is
-// reachable. They were briefly widened to span several rungs of a tempo ladder
-// -- eight tempi whose rows divide evenly into whole frames -- on the belief
-// that the machine had nothing in between. The real LSDj disagreed when it was
-// finally asked: it runs an accumulator, reaches every integer tempo, and pays
-// for it with a mix of two whole frame counts per row. The widening did no harm
-// and the ladder is gone.
 var STYLES=[
- {id:'anthem', w:9,bpm:[128,152],sw:0,   kick:'four',    hats:'off8',   bass:'pump',   pads:'arp16', modes:'maj',prog:'anthem',mel:1.0},
- {id:'house',  w:7,bpm:[112,128],sw:0.56,kick:'four',    hats:'off8',   bass:'offbeat',pads:'arp8',  modes:'maj',prog:'vamp2', mel:0.8},
- {id:'trance', w:7,bpm:[128,152],sw:0,   kick:'four',    hats:'off8',   bass:'roll',   pads:'arp16', modes:'any',prog:'vamp2', mel:0.9},
- {id:'techno', w:6,bpm:[112,136],sw:0,   kick:'four',    hats:'roll16', bass:'roll',   pads:'arp16', modes:'min',prog:'static',mel:0.55},
- {id:'dnb',    w:6,bpm:[149,180],sw:0,   kick:'break',   hats:'roll16', bass:'roll',   pads:'echo',  modes:'min',prog:'vamp2', mel:0.7},
- {id:'breaks', w:6,bpm:[112,134],sw:0.56,kick:'break',   hats:'eighth', bass:'pump',   pads:'alberti',modes:'maj',prog:'func', mel:0.9},
- {id:'arcade', w:8,bpm:[128,180],sw:0,   kick:'sync',    hats:'eighth', bass:'pump',   pads:'arp8',  modes:'maj',prog:'func',  mel:1.1},
- {id:'rock',   w:7,bpm:[112,142],sw:0,   kick:'backbeat',hats:'eighth', bass:'root5',  pads:'none',  modes:'maj',prog:'func',  mel:1.0},
- {id:'punk',   w:5,bpm:[149,180],sw:0,   kick:'backbeat',hats:'eighth', bass:'root5',  pads:'none',  modes:'maj',prog:'func',  mel:1.1},
- {id:'funk',   w:5,bpm:[90,112],sw:0.56,kick:'sync',    hats:'off8',   bass:'offbeat',pads:'echo',  modes:'min',prog:'vamp2', mel:0.85},
- {id:'boombap',w:4,bpm:[81,100],  sw:0.60,kick:'boom',    hats:'eighth', bass:'walk',   pads:'held',  modes:'min',prog:'vamp2', mel:0.6},
- {id:'chill',  w:5,bpm:[90,112], sw:0,   kick:'half',    hats:'quarter',bass:'walk',   pads:'held',  modes:'maj',prog:'func',  mel:0.5},
- {id:'ballad', w:3,bpm:[74,90],  sw:0,   kick:'half',    hats:'sparse', bass:'walk',   pads:'held',  modes:'any',prog:'func',  mel:0.6},
- {id:'drone',  w:2,bpm:[70,90],  sw:0,   kick:'none',    hats:'sparse', bass:'walk',   pads:'held',  modes:'maj',prog:'static',mel:0.35}
+ {id:'anthem', w:9,bpm:[140,152],sw:0,   kick:'four',    hats:'off8',   bass:'pump',   pads:'arp16', modes:'maj',prog:'anthem',mel:1.0},
+ {id:'house',  w:7,bpm:[120,128],sw:0.56,kick:'four',    hats:'off8',   bass:'offbeat',pads:'arp8',  modes:'maj',prog:'vamp2', mel:0.8},
+ {id:'trance', w:7,bpm:[134,142],sw:0,   kick:'four',    hats:'off8',   bass:'roll',   pads:'arp16', modes:'any',prog:'vamp2', mel:0.9},
+ {id:'techno', w:6,bpm:[128,136],sw:0,   kick:'four',    hats:'roll16', bass:'roll',   pads:'arp16', modes:'min',prog:'static',mel:0.55},
+ {id:'dnb',    w:6,bpm:[160,172],sw:0,   kick:'break',   hats:'roll16', bass:'roll',   pads:'echo',  modes:'min',prog:'vamp2', mel:0.7},
+ {id:'breaks', w:6,bpm:[126,134],sw:0.56,kick:'break',   hats:'eighth', bass:'pump',   pads:'alberti',modes:'maj',prog:'func', mel:0.9},
+ {id:'arcade', w:8,bpm:[148,158],sw:0,   kick:'sync',    hats:'eighth', bass:'pump',   pads:'arp8',  modes:'maj',prog:'func',  mel:1.1},
+ {id:'rock',   w:7,bpm:[130,142],sw:0,   kick:'backbeat',hats:'eighth', bass:'root5',  pads:'none',  modes:'maj',prog:'func',  mel:1.0},
+ {id:'punk',   w:5,bpm:[150,162],sw:0,   kick:'backbeat',hats:'eighth', bass:'root5',  pads:'none',  modes:'maj',prog:'func',  mel:1.1},
+ {id:'funk',   w:5,bpm:[102,112],sw:0.56,kick:'sync',    hats:'off8',   bass:'offbeat',pads:'echo',  modes:'min',prog:'vamp2', mel:0.85},
+ {id:'boombap',w:4,bpm:[84,94],  sw:0.60,kick:'boom',    hats:'eighth', bass:'walk',   pads:'held',  modes:'min',prog:'vamp2', mel:0.6},
+ {id:'chill',  w:5,bpm:[96,108], sw:0,   kick:'half',    hats:'quarter',bass:'walk',   pads:'held',  modes:'maj',prog:'func',  mel:0.5},
+ {id:'ballad', w:3,bpm:[76,88],  sw:0,   kick:'half',    hats:'sparse', bass:'walk',   pads:'held',  modes:'any',prog:'func',  mel:0.6},
+ {id:'drone',  w:2,bpm:[70,82],  sw:0,   kick:'none',    hats:'sparse', bass:'walk',   pads:'held',  modes:'maj',prog:'static',mel:0.35}
 ];
 // Each style reads its pattern pools from the corpus bucket that matches its
 // feel: 74,552 VGM MIDI files mined on the PC into joint kit patterns
@@ -87,8 +78,6 @@ function pickPair(r,rows){
   for(i=0;i<rows.length;i++){at-=rows[i][1];if(at<=0)return rows[i][0];}
   return rows[rows.length-1][0];
 }
-// Bounded premise dials are clamped to [-1,1]; a non-finite value reads as 0.
-function premiseDial(v){return Number.isFinite(v)?Math.max(-1,Math.min(1,v)):0;}
 function normalizedPremise(raw){
   if(!raw||typeof raw!=='object')return null;
   var known={};STYLES.forEach(function(s){known[s.id]=1;});
@@ -96,15 +85,9 @@ function normalizedPremise(raw){
   var mode=raw.mode==='maj'||raw.mode==='min'?raw.mode:null;
   var bpmMin=Number.isFinite(raw.bpmMin)?Math.max(0,Math.round(raw.bpmMin)):0;
   var bpmMax=Number.isFinite(raw.bpmMax)?Math.max(0,Math.round(raw.bpmMax)):999;
-  // energy/density/motion are BOUNDED CHARACTER DIALS applied before generation:
-  // energy leans section intensity (never the tempo the band and caller already
-  // own), density scales how many melody and bass onsets are written, and motion
-  // widens or narrows the composed motif contour. All-zero is indistinguishable
-  // from no premise, so the unprompted station stays byte-for-byte identical.
-  var energy=premiseDial(raw.energy),density=premiseDial(raw.density),motion=premiseDial(raw.motion);
   if(!styles||!styles.length)styles=null;
-  if(!styles&&!mode&&bpmMin<=0&&bpmMax>=999&&!energy&&!density&&!motion)return null;
-  return{styles:styles,mode:mode,bpmMin:bpmMin,bpmMax:bpmMax,energy:energy,density:density,motion:motion};
+  if(!styles&&!mode&&bpmMin<=0&&bpmMax>=999)return null;
+  return{styles:styles,mode:mode,bpmMin:bpmMin,bpmMax:bpmMax};
 }
 function styleModes(style){
   if(style&&style.modes==='maj')return MODES.filter(function(m){return MAJ_MODES[m.name];});
@@ -113,10 +96,7 @@ function styleModes(style){
 }
 function styleAnswers(style,p){
   if(p.styles&&p.styles.indexOf(style.id)<0)return false;
-  // A named genre's mode set is a default, not a prohibition on explicit
-  // requests such as minor rock. Mode-only station premises retain their
-  // existing genre preferences.
-  if(p.mode&&!p.styles&&!styleModes(style).some(function(m){return (p.mode==='maj')===!!MAJ_MODES[m.name];}))return false;
+  if(p.mode&&!styleModes(style).some(function(m){return (p.mode==='maj')===!!MAJ_MODES[m.name];}))return false;
   return Math.max(style.bpm[0],p.bpmMin)<=Math.min(style.bpm[1],p.bpmMax);
 }
 function pickStyle(token,premise){
@@ -136,7 +116,7 @@ var MODES=[
 var MAJ_MODES={ionian:1,mixolydian:1,lydian:1,'pent-major':1};
 function pickMode(r,style,premise){
   var pool=styleModes(style);
-  if(premise&&premise.mode){var constrained=(premise.styles?MODES:pool).filter(function(m){return (premise.mode==='maj')===!!MAJ_MODES[m.name];});if(constrained.length)pool=constrained;}
+  if(premise&&premise.mode){var constrained=pool.filter(function(m){return (premise.mode==='maj')===!!MAJ_MODES[m.name];});if(constrained.length)pool=constrained;}
   var t=0,i;for(i=0;i<pool.length;i++)t+=pool[i].w;var at=r()*t;
   for(i=0;i<pool.length;i++){at-=pool[i].w;if(at<=0)return pool[i];}return pool[0];}
 // Sections used to differ only in drum-mutation rate and a velocity nudge, so
@@ -412,32 +392,8 @@ function pickBank(token,style){
     hat:at(hatPool,'v-hat'), snare:at(ns.slice(third,third*2),'v-snare'),
     kick:at(ns.slice(-third),'v-kick')}};
 }
-// The tempi a whole number of frames per step can hold, at the sixteenth grid
-// the composer writes on. Derived, not typed: 240*FPS/(16*ticks).
-// EVERY INTEGER TEMPO IN THE BAND, because that is what LSDj plays.
-//
-// There was a ladder here -- playableBpms() returned the eight tempi whose rows
-// divide evenly into whole frames, and nearestPlayableBpm() snapped every song
-// onto one. Measuring the real ROM in mGBA killed both: LSDj runs an
-// accumulator and reaches all of them, spending the remainder as a mix of two
-// whole frame counts. The ladder was ours, and it offered 8 tempi where the
-// machine offers 111.
-//
-// What is reported now is simply the reachable set -- the union of the style
-// bands, which is what a caller actually wants to know.
-function reachableBpms(){
-  var lo=999,hi=0,out=[],i;
-  for(i=0;i<STYLES.length;i++){lo=Math.min(lo,STYLES[i].bpm[0]);hi=Math.max(hi,STYLES[i].bpm[1]);}
-  for(i=lo;i<=hi;i++)out.push(i);
-  return out;
-}
-
 function compile(token,rawPremise){
   var premise=normalizedPremise(rawPremise);
-  // Pulled out once so the generation body can read them. Each is 0 for an
-  // ordinary premise, which is exactly what keeps the unprompted score
-  // identical: nothing below fires on a zero.
-  var pEnergy=premise?premise.energy:0,pDensity=premise?premise.density:0,pMotion=premise?premise.motion:0;
   token=String(token||'chiptunes');var pr=rng(token,'premise'),trained=trainedModel(pr),model=trained.model;
   var style=pickStyle(token,premise);
   if(!style)throw new Error('No composer style satisfies this premise');
@@ -448,78 +404,29 @@ function compile(token,rawPremise){
   // the style owns its tempo band; heat leans toward its top
   var bpmLo=style.bpm[0],bpmHi=style.bpm[1];
   if(premise){var lo=Math.max(bpmLo,premise.bpmMin),hi=Math.min(bpmHi,premise.bpmMax);if(lo<=hi){bpmLo=lo;bpmHi=hi;}}
-  // ANY INTEGER IN THE BAND. There was a ladder here -- eight tempi whose rows
-  // divide evenly into whole frames -- on the reasoning that a row has to be a
-  // whole number of frames and everything between had to be faked with an uneven
-  // groove nobody asked for.
-  //
-  // The first half of that is true and the conclusion was wrong, and the real
-  // LSDj settled it. Measured off the ROM in mGBA: LSDj runs an ACCUMULATOR, so
-  // at tempo 120 its rows come out as 7 frames and 8 frames interleaved, and it
-  // reaches every integer tempo that way. It has done this for twenty years and
-  // nobody has ever called it lopsided, because an accumulator has no short
-  // period -- unlike the four-step pattern with one odd step out that this
-  // project shipped briefly and that was audible on every bar.
-  //
-  // So the ladder was ours, not the machine's, and it offered 8 tempi where the
-  // machine offers 111. Parity means we do not get to be more restrictive than
-  // the thing we are matching.
   var bpm=Math.round(bpmLo+(bpmHi-bpmLo)*(((hash(token+':bpmf')%100)/100)*0.6+heat*0.4));
-  // ENERGY leans the intensity used for form, drums and accompaniment AFTER the
-  // tempo is fixed, so the band and caller keep sole ownership of bpm and no
-  // dimension is processed twice. Zero energy leaves heat exactly as drawn.
-  if(pEnergy)heat=clamp(heat+pEnergy*0.35,0.05,0.98);
   // "Tracks too long, sections too long": ~85 seconds, not two minutes.
-  // LENGTH MUST NOT BE A PURE FUNCTION OF TEMPO. This was a flat 88 seconds
-  // converted to bars, which was fine while tempo was continuous and became a
-  // problem the moment it was quantised: eight tempi gave four song lengths
-  // where there had been six, and consecutive bars started repeating their
-  // rhythm 14.6% of the time instead of 10.9%. Songs are not all exactly the
-  // same length anyway, so the target varies per token and the variety comes
-  // back without bending the tempo grid.
-  var wantSecs=80+(hash(token+':length')%17);
-  var bars=clamp(Math.round((wantSecs*bpm/240)/4)*4,36,56),form=makeForm(token,bars,model,bpm,heat),harm=makeHarmony(token,model,mode,style),groove=makeGroove(token,model,heat,style);
+  var bars=clamp(Math.round((88*bpm/240)/4)*4,36,56),form=makeForm(token,bars,model,bpm,heat),harm=makeHarmony(token,model,mode,style),groove=makeGroove(token,model,heat,style);
   var bassMotif=makeMotif(token,'bass-motif',3,6,model,'bass'),leadMotif=makeMotif(token,'lead-motif',5,10,model,'lead'),events=[],ordinal=0;
-  // DENSITY scales how many onsets are written; MOTION widens the composed
-  // contour. Both are post-draw transforms of deterministic values, so they
-  // never disturb the RNG streams -- a neutral dial reproduces the unprompted
-  // melody budget, bass onset count and motif exactly. The lead's own motion is
-  // carried into CT_MELODY.write below (the walking bass reads bassMotif here).
-  var melDensity=style.mel;
-  if(pDensity)melDensity=clamp(melDensity*(1+pDensity*0.5),0.2,1.6);
-  var bassCap=clamp((heat<0.5?3:4)+Math.round(pDensity*2),1,6);
-  if(pMotion){
-    var stretch=function(d){return clamp(Math.round(d*(1+pMotion*0.7)),-7,11);};
-    bassMotif={steps:bassMotif.steps,degrees:bassMotif.degrees.map(stretch),gaps:bassMotif.gaps};
-  }
   // The composer writes ONTO THE MACHINE. Every note is placed on one of the
   // four channels as it is thought of; a channel cannot hold two notes, so
   // nothing downstream ever removes anything and the browser and the ROM are
   // playing the same piece rather than two versions of it.
   var PLAN=PLANS[hash(token+':plan')%PLANS.length],GBB=pickBank(token,style);
-  // SWING IS THE GROOVE, not a nudge. Half the station shuffles, and this used
-  // to do it by sliding every offbeat eighth late by a fraction of a beat --
-  // which sounds right and cannot be written down. LSDj has no position between
-  // two rows, so 4514 of our 4894 un-exportable notes were this one line.
-  //
-  // A tracker swings by making the rows themselves uneven: a long-short pair of
-  // TICKS, summing to twice the base so the tempo does not move. [7,5] is the
-  // mild shuffle an LSDj musician reaches for, [8,4] the hard one, and those are
-  // the only shapes on offer because they are the only ones LSDj has.
-  //
-  // The tempo needs no adjusting: a shuffle keeps the same total, so bpm still
-  // means bpm. This is the whole reason to work in LSDj's units -- the number we
-  // write is the number it plays, with nothing converted on the way.
-  var tickGroove=G.CT_GB?G.CT_GB.lsdjGrooveTicks(style.sw||0,16):[6];
-  var V=(G.CT_GB_VOICES&&GBB)?new G.CT_GB_VOICES.Voices(bpm,tickGroove):null;
+  // SWING. Half the station shuffles: every offbeat eighth slides late by a
+  // fixed fraction of the beat. It is the single cheapest unit of fun the
+  // grid owns, and the NES songbook leaned on it constantly.
+  var SW=style.sw||0;
+  function sw8(t){ if(!SW)return t; var f=t-Math.floor(t); return Math.abs(f-0.5)<0.03?t+(SW-0.5):t; }
+  var V=(G.CT_GB_VOICES&&GBB)?new G.CT_GB_VOICES.Voices(bpm):null;
   var CH={lead:PLAN.mel,extra:PLAN.mel,arp:PLAN.harm>=0?PLAN.harm:PLAN.mel,
           pad:PLAN.harm,echo:PLAN.harm,bass:PLAN.bass,kick:3,snare:3,hat:3};
   var PRI={kick:9,snare:7,hat:3,lead:8,extra:6,arp:4,echo:3,pad:2,bass:5};
   var INS=GBB?{lead:GBB.inst.lead,extra:GBB.inst.lead,arp:GBB.inst.harm,pad:GBB.inst.harm,
                echo:GBB.inst.lead,bass:GBB.inst.bass,kick:GBB.inst.kick,snare:GBB.inst.snare,hat:GBB.inst.hat}:{};
-  function add(t,dur,ch,note,vel,artic,extra,instOv,sweep){var e={tBeat:round(t),dur:round(dur),ch:ch,vel:round(vel),seed:hash(token+':event:'+ordinal++)};
+  function add(t,dur,ch,note,vel,artic,extra,instOv,sweep){t=sw8(t);var e={tBeat:round(t),dur:round(dur),ch:ch,vel:round(vel),seed:hash(token+':event:'+ordinal++)};
     if(note!=null)e.midi=Math.round(note);if(artic)e.artic=artic;if(extra)Object.assign(e,extra);events.push(e);
-    if(V){var c=CH[ch];if(c!=null&&c>=0){var f=V.frameOf(t),fr=V.framesFor(dur);
+    if(V){var c=CH[ch];if(c!=null&&c>=0){var f=V.frameOf(t),fr=Math.max(1,V.frameOf(t+dur)-f);
       var ins=instOv!=null?instOv:INS[ch];
       // A plan can route harmony to the WAVE channel, and that role carries a
       // pulse instrument -- whose byte0 is a duty, not a wave slot. It played
@@ -601,33 +508,17 @@ function compile(token,rawPremise){
     // half of walking basses stride on onsets mined from real VGM bass lines
     var minedBass=(hash(token+':bass-mined')%2===0)?(function(){var B2=corpusBucket(style);
       var m=B2?pickPair(rng(token,'bass-mask'),B2.bass):null;
-      return m?maskRows(m).slice(0,bassCap):null;})():null;
-    var bassRows=!VC.bass?[]:FEEL==='half'?[0,8]:thin?[0]:(minedBass&&minedBass.length?minedBass:bassMotif.steps.map(function(x){return mod(x*2,16);}).filter(function(x,i,a){return a.indexOf(x)===i;}).sort(function(a,b){return a-b;}).slice(0,bassCap));
+      return m?maskRows(m).slice(0,heat<0.5?3:4):null;})():null;
+    var bassRows=!VC.bass?[]:FEEL==='half'?[0,8]:thin?[0]:(minedBass&&minedBass.length?minedBass:bassMotif.steps.map(function(x){return mod(x*2,16);}).filter(function(x,i,a){return a.indexOf(x)===i;}).sort(function(a,b){return a-b;}).slice(0,heat<0.5?3:4));
     bassRows.forEach(function(row,i){var md=bassMotif.degrees[i%bassMotif.degrees.length],degree=root+(i===bassRows.length-1&&row>=12?mod(nextRoot-root+3,SLEN)-3:md);
       var next=i+1<bassRows.length?bassRows[i+1]:16,art=i&&Math.abs(md-bassMotif.degrees[(i-1)%bassMotif.degrees.length])>2?{from:midi(root,key,mode.scale,36)}:null;
       add(bar*4+row/4,clamp((next-row)/4-.04,.1,1.7),'bass',midi(degree,key,mode.scale,36),.43+(sec.e-5)*.012,art);});
     }
     var gesture=hash(token+':gesture:'+Math.floor(bar/8))%4;
-    // The FIGURE is the block's texture and is meant to hold for eight bars.
-    // WHERE it lands is not, and stamping the same three onsets every other bar
-    // for eight bars running was 76% of every repeated bar in the arrangement.
-    // It reads worst on a plan with no free harmony channel, because there the
-    // arpeggio is written onto the LEAD and those bars are the whole tune. The
-    // anchor walks per firing instead; the texture survives, the bar breathes.
-    var fire=hash(token+':arpat:'+Math.floor(bar/2));
     if(VC.arp&&bar%(heat<0.45?4:2)===0){
-      // A CHORD, not three notes a frame and a half apart. This was written as
-      // three separate notes 0.05 beats apart -- which is a frame-rate stab, the
-      // right SOUND, but LSDj cannot hold two notes inside one row, let alone
-      // three. It is a chord there: one note, arpeggiated by the instrument.
-      // That is also what the machine does, so this is the same stab written
-      // the way the machine and the tracker both already understood it.
-      if(gesture===0){var a0=[1.5,2.5,1.5,3.5][fire%4];
-        add(bar*4+a0,.32,'arp',midi(root,key,mode.scale,48),.095,null,
-            {arp:[0,mode.scale[2],mode.scale[4]]});}
+      if(gesture===0)[0,2,4].forEach(function(d,i){add(bar*4+1.5+i*.05,.32,'arp',midi(root+d,key,mode.scale,48),.095);});
       else if(gesture===1)add(bar*4+.5,1.25,'arp',midi(root,key,mode.scale,48),.1,{arp:[0,mode.scale[2],mode.scale[4],12]});
-      else if(gesture===2){var a2=[0,0,.5,.25][fire%4],sp=fire%3===2?.75:.5;
-        [0,2,4].forEach(function(d,i){add(bar*4+a2+i*sp,.28,'arp',midi(root+d,key,mode.scale,48),.09);});}
+      else if(gesture===2)[0,2,4].forEach(function(d,i){add(bar*4+i*.5,.28,'arp',midi(root+d,key,mode.scale,48),.09);});
       else if(VC.pad)padTexture(bar*4,3.5,root);
     }else if(VC.pad&&bar%4===0)padTexture(bar*4,Math.min(7.5,(sec.bars-local)*4-.2),root);
   }
@@ -637,7 +528,7 @@ function compile(token,rawPremise){
     var rootFor=function(b){var ph=Math.floor(b/harm.roots.length),rr=ph%3===2?harm.altered:harm.roots;return rr[b%rr.length];};
     var mel=G.CT_MELODY.write({token:token,rng:rng(token,'melody'),hash:hash,model:model,
       semiDegree:semiDegree,bars:bars,sections:form,rootAt:rootFor,scaleLen:SLEN,
-      melDensity:melDensity,motion:pMotion});
+      melDensity:style.mel});
     var mr2=rng(token,'melody-art');
     // Three LSDJ habits land here. LEGATO: a note holds until the next one
     // arrives instead of stabbing and dying, which is most of the difference
@@ -691,22 +582,12 @@ function compile(token,rawPremise){
   var gbNotes=V?V.collect():[];
   var lastN=gbNotes.length?gbNotes[gbNotes.length-1]:null;
   var tracker={format:'CTRACK-1',hardware:'CHIP',mode:mode.name,trainedModel:trained.id,instrumentBank:G.CT_CHIP_INSTRUMENTS&&G.CT_CHIP_INSTRUMENTS.corpusFingerprint||''};
-  if(premise){tracker.premise={styles:premise.styles?premise.styles.slice():null,mode:premise.mode,bpmMin:premise.bpmMin,bpmMax:premise.bpmMax};
-    // Only surface the new dials when they are actually engaged, so a plain
-    // {styles,mode,bpmMin,bpmMax} premise still records exactly those four keys.
-    if(premise.energy)tracker.premise.energy=premise.energy;
-    if(premise.density)tracker.premise.density=premise.density;
-    if(premise.motion)tracker.premise.motion=premise.motion;}
-  // THE GROOVE TRAVELS WITH THE SONG. It is the clock: with swing the rows are
-  // uneven, so "which row is this note on" is unanswerable without it, and any
-  // reader that assumes a uniform row -- exporter, player, gate -- gets a
-  // different piece of music than the one that was written.
-  return{v:4,composerRevision:REV,token:token,bpm:bpm,groove:tickGroove.slice(),
-    gb:{plan:PLAN.id,fps:(G.CT_GB?G.CT_GB.FPS:59.7275),notes:gbNotes,groove:tickGroove.slice(),
+  if(premise)tracker.premise={styles:premise.styles?premise.styles.slice():null,mode:premise.mode,bpmMin:premise.bpmMin,bpmMax:premise.bpmMax};
+  return{v:4,composerRevision:REV,token:token,bpm:bpm,
+    gb:{plan:PLAN.id,fps:(G.CT_GB?G.CT_GB.FPS:59.7275),notes:gbNotes,
         bank:GBB?GBB.bank:null,instruments:GBB?GBB.inst:null,
         totalFrames:lastN?lastN.frame+lastN.frames:0},beatsPerBar:4,totalBars:bars,endsCleanAtBeat:end,transitionTailBeats:1.25,
-    gainScalar:.76,palette:palette(token,trained.id),sections:form,musical:{scale:mode.scale.slice(),rootMidi:60+key,motifDegs:leadMotif.degrees.slice(),leadHint:'lead',
-      phrasePlan:mel && mel.phrasePlan ? mel.phrasePlan : []},
+    gainScalar:.76,palette:palette(token,trained.id),sections:form,musical:{scale:mode.scale.slice(),rootMidi:60+key,motifDegs:leadMotif.degrees.slice(),leadHint:'lead'},
     form:form.formId,style:style.id,tracker:tracker,background:{attentionBudget:.1},events:events};
 }
 function duration(token){var s=compile(token);return s.totalBars*4*60/s.bpm;}
@@ -716,9 +597,7 @@ function duration(token){var s=compile(token);return s.totalBars*4*60/s.bpm;}
 // with an incompatible mode or tempo band leaves pickStyle() with an empty
 // pool -- and the caller's fallback then drops the styles, which is the one
 // part of the request it was least entitled to throw away.
-// `modes` describes defaults; an explicit named-style premise can override it.
 function styles(){return STYLES.map(function(s){return {id:s.id,bpm:s.bpm.slice(),modes:s.modes};});}
-function canCompose(rawPremise){return !!pickStyle('',normalizedPremise(rawPremise));}
-var API={V:3,id:'rrr_core',revision:REV,compile:compile,canCompose:canCompose,duration:duration,styles:styles,tempos:reachableBpms};
+var API={V:3,id:'rrr_core',revision:REV,compile:compile,duration:duration,styles:styles};
 G.CT_COMPOSERS=G.CT_COMPOSERS||{};G.CT_COMPOSERS.rrr_core=API;if(typeof module!=='undefined'&&module.exports)module.exports=API;
 })();
