@@ -39,7 +39,10 @@ and paired Apply/Undo plus stopped reload pass on `3d78fc0bf069`; Anthropic
 Apply/Undo and stopped saved reload pass on `5d59d4f4f9c2`.
 The captured Claude palette still cycles through warm colors despite its
 blue/violet explanation; guide updated, new provider output still unverified.
-Old soak receipts are historical.
+Old soak receipts are historical. The current harness now uses the explicit silent
+sink and alternates Strudel drawings; its 30-second check passes, but the new
+30-minute run is still pending. See the
+[performance checkpoint](algorave-runtime-decisions.md#upstream-performance-harness--2026-09-15).
 The public simpler app has not been deployed. Deployment of both
 site and gateway is already authorized; no box/desktop/store changes.
 

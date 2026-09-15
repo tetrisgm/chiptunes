@@ -241,6 +241,27 @@ during further checking, so native scope/Undo remains pending. Only the temporar
 test tab was closed and its replay server stopped. Final public acceptance and
 the new-runtime soak remain open.
 
+## Upstream performance harness — 2026-09-15
+
+The sustained harness now uses the same explicit Chromium silent sink as the
+other upstream-runtime tests and records that scope in its receipt. It alternates
+pianoroll/scope while replacing the playing bd sample, editing tempo/notes and
+changing GLSL/layout. It also counts live GL samplers and drawing canvases, in
+addition to textures/programs, blob URLs, workers, history, analyser silence,
+scheduled kicks, signal delivery and heaps. Audio remains real Web Audio DSP;
+`acousticAcceptance` is explicitly false.
+
+Receipts use `.algorave-preview/upstream-soak-<seconds>s-receipt.json`, preserving
+the old sample-worker receipts. Runs below 1800 seconds only validate the harness.
+The 30-second check on `d793b1d18718` passed with 57 scheduled kicks, maximum kick
+gap 1.036 seconds, signal gap 0.046 seconds, and analyser silence 0.102 seconds.
+It retained one program, three textures, four samplers, one drawing canvas and
+four audio-frame blob URLs, with no workers. This first iteration exercises the
+pianoroll; sustained alternation still requires the full run. A separate audio
+frame CDP heap session is unavailable in this browser configuration; that scope
+remains explicitly unmeasured. The 30-minute run and acoustic/native acceptance
+are not established by the short check.
+
 ## Cube texture inputs — 2026-09-15
 
 Channels now offers six-face cube textures alongside 2D images, audio, keyboard
