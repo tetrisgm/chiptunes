@@ -35,23 +35,26 @@ export class ProjectSession {
     return contract.context({ kind:'algorave', id:crypto.randomUUID(), request, target, conversation,
       project:snapshot, baseRevision:await contract.revision(snapshot) });
   }
-  async activate(value, { draftAfter = value, record = true } = {}) {
+  async activate(value, { draftAfter = value, historyDraft = this.draft, record = true, restore = false, checkpoint } = {}) {
     if (this.busy) throw Error('Wait for the current edit to finish.');
     const next = contract.project(value), draft = contract.project(draftAfter);
-    const previous = { draft:copy(this.draft), applied:copy(this.applied) }, generation = this.generation;
+    const previous = { draft:contract.project(historyDraft), applied:copy(this.applied) }, generation = this.generation;
+    if(this.checkpoint!==undefined)previous.checkpoint=this.checkpoint;
     this.busy = true;
     let prepared;
     try {
-      prepared = await this.runtime.prepare(next, previous.applied);
+      prepared = await this.runtime.prepare(next, previous.applied, {restore,checkpoint});
       if (generation !== this.generation) throw Error('The source changed. Review the edit again.');
       await prepared.apply();
       this.applied = next; this.draft = draft; this.generation++;
+      if(prepared.checkpoint!==undefined)this.checkpoint=prepared.checkpoint;
       // Play/Run still activates the runtime, but an unchanged project is not
       // an edit. Otherwise starting playback hides the last edit behind a
       // redundant Undo step.
       if (record && (JSON.stringify(previous.applied) !== JSON.stringify(next) || JSON.stringify(previous.draft) !== JSON.stringify(draft))) {
         this.history.push(previous); if (this.history.length > 20) this.history.shift();
       }
+      this.retainRuntime();
     } finally { prepared?.dispose(); this.busy = false; }
   }
   async accept(proposal, context) {
@@ -63,7 +66,9 @@ export class ProjectSession {
   async undo() {
     const previous = this.history.at(-1);
     if (!previous) return;
-    await this.activate(previous.applied, { draftAfter:previous.draft, record:false });
+    await this.activate(previous.applied, { draftAfter:previous.draft, record:false, restore:true, checkpoint:previous.checkpoint });
     this.history.pop();
+    this.retainRuntime();
   }
+  retainRuntime(){this.runtime.retain?.([this.checkpoint,...this.history.map(item=>item.checkpoint)].filter(Number.isSafeInteger));}
 }

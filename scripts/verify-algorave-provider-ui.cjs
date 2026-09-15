@@ -3,6 +3,7 @@
 // --serve <provider> exposes the same local replay for native Safari checks.
 const fs=require('node:fs'),path=require('node:path'),http=require('node:http'),assert=require('node:assert/strict');
 const root=path.resolve(__dirname,'..'),contract=require('../src/algorave/project.cjs');
+const {configureAudio}=require('./algorave-browser-audio.cjs');
 async function serve(provider){
   assert(['openai','anthropic'].includes(provider));
   const capture=JSON.parse(fs.readFileSync(path.join(root,'.algorave-preview',`provider-${provider}.json`)));
@@ -38,6 +39,7 @@ async function serve(provider){
     const {server,capture,url}=await serve(provider),browser=await chromium.launch({headless:true});
     try{
       const page=await browser.newPage({viewport:{width:1440,height:900}});page.setDefaultTimeout(15000);
+      await configureAudio(page);
       const errors=[];page.on('pageerror',e=>errors.push(e.message));
       await page.goto(url);await page.waitForFunction(()=>window.algoravePreview);
       await page.locator('#play').click();await page.waitForFunction(()=>algoravePreview.playing);

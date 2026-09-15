@@ -14,6 +14,31 @@ await session.activate(session.applied);
 assert.equal(disposed,2,'unchanged Play still activates the runtime');
 assert.equal(session.history.length,1,'unchanged Play must not bury the proposal in Undo history');
 await session.undo();assert.deepEqual(session.draft,contract.project(base));assert.deepEqual(active,session.draft);
+// Manual Run must revert its editor and keep the other editor's unrun draft.
+const visualDraft={...contract.project(base).visuals,Image:base.visuals.Image+' // unrun'};
+session.edit({...base,music:'s("missing_sample")',visuals:visualDraft});
+await session.activate({...base,music:session.draft.music},{draftAfter:session.draft,historyDraft:{...session.draft,music:base.music}});
+await session.undo();assert.equal(session.draft.music,base.music);assert.equal(session.applied.music,base.music);assert.deepEqual(session.draft.visuals,visualDraft);
+// Agent Undo retains manual drafts that existed before the proposal.
+session.edit({...base,music:'s("hh")'});
+const draftContext=await session.requestContext('Use snare');
+await session.accept({id:draftContext.id,baseRevision:draftContext.baseRevision,explanation:'Snare',edits:[{document:'music',from:0,to:session.draft.music.length,text:'s("sd")'}]},draftContext);
+await session.undo();assert.equal(session.draft.music,'s("hh")');assert.equal(session.applied.music,base.music);
+session.edit(base);
+// Runtime registrations need their own history: repeated Play must neither
+// consume document Undo nor release the sound checkpoint that Undo needs.
+let checkpointId=0,lastRestore,retained=[];
+const checkpointSession=new ProjectSession(base,{
+  retain(ids){retained=ids;},
+  async prepare(_next,_previous,options){lastRestore=options;let checkpoint;return {async apply(){checkpoint=++checkpointId;},get checkpoint(){return checkpoint;},dispose(){}};},
+});
+await checkpointSession.activate({...base,music:'s("sd")'});
+const savedCheckpoint=checkpointSession.checkpoint;
+await checkpointSession.activate({...base,music:'s("hh")'});
+for(let i=0;i<25;i++)await checkpointSession.activate(checkpointSession.applied);
+assert.equal(checkpointSession.history.length,2);assert(retained.includes(savedCheckpoint));
+await checkpointSession.undo();assert.deepEqual(lastRestore,{restore:true,checkpoint:savedCheckpoint});
+assert.equal(checkpointSession.applied.music,'s("sd")');
 session.edit({...session.draft,music:'unfinished('});session.save();
 const restored=new ProjectSession(base,runtime,storage);assert.equal(restored.draft.music,'unfinished(');assert.equal(restored.applied.music,base.music);
 const currentContext=await restored.requestContext('Repair');

@@ -20,20 +20,22 @@ const sampleStore=()=>sampleStorePromise||(sampleStorePromise=loadSamples().catc
 const initial = example();
 const signals = new MusicSignals(), agent = new AgentClient();
 const runtime = {
-  async prepare(next, previous) {
+  retain(checkpoints){void bridge.request('retain',undefined,{checkpoints}).catch(()=>{});},
+  async prepare(next, previous, {restore=false,checkpoint:restoreCheckpoint}={}) {
     const pendingSample=sampleAbort;
     const musicChanged = next.music !== previous.music || JSON.stringify(next.samples)!==JSON.stringify(previous.samples) || playRequested || openRequested;
     const shouldPlay = !openRequested && (playing || playRequested);
     const visualChanged = JSON.stringify(next.visuals) !== JSON.stringify(previous.visuals);
     const visualCandidate = visualChanged ? shader.prepare(next.visuals) : null;
-    let token;
+    let token,checkpoint;
     try { if (musicChanged) {
       const ids=sampleIds(next),store=ids.length?await sampleStore():null;
       const assets=ids.map(id=>({id,bytes:store.get(id)}));
-      ({ token } = await bridge.request('prepare', next.music,{samples:next.samples,assets}));
+      ({ token } = await bridge.request('prepare', next.music,{samples:next.samples,assets,restore:restore||openRequested,checkpoint:openRequested?0:restoreCheckpoint,defer:openRequested}));
     } }
     catch (error) { visualCandidate?.dispose(); throw error; }
     return {
+      get checkpoint(){return checkpoint;},
       async apply() {
         if(pendingSample?.signal.aborted)throw Error('Sample loading cancelled.');
         if(pendingSample)$('sample-cancel').disabled=true;
@@ -44,7 +46,7 @@ const runtime = {
           if (visualCandidate) { visualCandidate.apply(); visualApplied = true; }
           if (musicChanged) {
             const result = await bridge.request('commit', undefined, { token, play:shouldPlay });
-            playing = result.playing; token = undefined;
+            playing = result.playing; checkpoint=result.checkpoint; token = undefined;
           }
         } catch (error) {
           if (visualApplied) shader.set(previous.visuals);
@@ -96,6 +98,7 @@ music.oninput = changed; visual.oninput = changed;
 function lock(value) {
   uiBusy = value; music.readOnly = value; visual.readOnly = value;
   for (const id of ['run','play','apply','undo','pass','set-channels','channels','open','examples','sample-open','sample-add']) $(id).disabled = value;
+  $('play').disabled = value && !playing;
   $('undo').disabled = value || !session.history.length;
   $('agent-undo').disabled = $('undo').disabled;
   $('apply').disabled = value || !pendingProposal?.edits.length;
@@ -110,11 +113,16 @@ async function action(fn) {
 async function run() {
   await action(async () => {
     const next = structuredClone(session.applied);
+    const historyDraft = structuredClone(session.draft);
+    // Undo a manual Run restores the focused editor's last applied source,
+    // while retaining unrun work in the other editor.
+    if (focus === 'visual') historyDraft.visuals = structuredClone(session.applied.visuals);
+    else historyDraft.music = session.applied.music;
     if (focus === 'visual') next.visuals = structuredClone(session.draft.visuals);
     else { next.music = session.draft.music; playRequested = true; }
     try {
       if(playRequested&&!playing)await bridge.request('unlock');
-      await session.activate(next, {draftAfter:session.draft}); status.textContent = focus === 'visual' ? 'Visuals updated' : 'Music updated';
+      await session.activate(next, {draftAfter:session.draft,historyDraft}); status.textContent = focus === 'visual' ? 'Visuals updated' : 'Music updated';
     }
     catch (error) {
       const match = focus === 'visual' ? /(?:ERROR|WARNING):\s*0:(\d+):/.exec(error.message) : /\((\d+):(\d+)\)/.exec(error.message);
@@ -134,6 +142,10 @@ $('set-channels').onclick = () => {
 $('run').onclick = run;
 $('play').onclick = async () => {
   if (!playing) { focus = 'music'; await run(); return; }
+  if(uiBusy){
+    try{await bridge.request('stop');playing=false;$('play').textContent='Play';$('play').disabled=true;status.textContent='Stopped';}
+    catch(error){message(error);}return;
+  }
   await action(async () => { await bridge.request('stop'); playing = false; status.textContent = 'Stopped'; });
 };
 async function openProject(next) {
@@ -274,11 +286,12 @@ const response = await fetch('music-runtime.js');
 if (!response.ok) throw Error('Music engine could not load.');
 const script = await response.text();
 // Strudel embeds its built-in AudioWorklet modules as data scripts. Safari cannot
-// load blob worklets from this opaque origin. Source workers remain blob-only,
-// with no external network, application storage, credentials or parent access.
-frame.srcdoc = `<!doctype html><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' blob: data:; worker-src blob:; connect-src blob:; img-src 'none'; media-src blob:; style-src 'unsafe-inline'"><script>${script.replace(/<\/script/gi,'<\\/script')}<\/script>`;
+// load blob worklets from this opaque origin. Strudel's source-level samples()
+// and module APIs can load public resources; application storage and parent DOM
+// remain inaccessible because allow-same-origin is deliberately absent.
+frame.srcdoc = `<!doctype html><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' blob: data: https:; worker-src blob: data:; connect-src blob: data: https: http:; img-src blob: data: https:; media-src blob: data: https:; style-src 'unsafe-inline'"><script>${script.replace(/<\/script/gi,'<\\/script')}<\/script>`;
 await new Promise(resolve => { frame.onload = resolve; document.body.append(frame); });
-bridge = new MusicBridge(frame, next => { signal = next; signals.receive(next); }, error => { playing=false; $('play').textContent='Play'; message(error); });
+bridge = new MusicBridge(frame, next => { signal = next; signals.receive(next); }, error => { playing=false; $('play').textContent='Play'; message(error); }, message);
 await bridge.ready; lock(false);
 status.textContent = session.recoveryError || 'Ready · ⌘/Ctrl Enter to run'; $('build').textContent = BUILD_ID;
 function draw(now) {

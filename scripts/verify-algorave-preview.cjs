@@ -1,6 +1,7 @@
 'use strict';
 const assert=require('node:assert/strict'),http=require('node:http'),fs=require('node:fs'),path=require('node:path');
 const {chromium}=require('playwright');
+const {configureAudio}=require('./algorave-browser-audio.cjs');
 const root=path.resolve(__dirname,'../.algorave-preview');
 (async()=>{
   const server=http.createServer((req,res)=>{
@@ -12,14 +13,19 @@ const root=path.resolve(__dirname,'../.algorave-preview');
   const browser=await chromium.launch({headless:true,args:[]});
   try {
     const page=await browser.newPage({viewport:{width:1440,height:900}});
+    await configureAudio(page);
     const errors=[];page.on('pageerror',e=>errors.push(e.message));
     // The malformed-source fixture intentionally produces an upstream console error.
     await page.goto('http://127.0.0.1:'+server.address().port);
-    await page.waitForFunction(()=>window.algoravePreview,{timeout:30000});
+    await page.waitForFunction(()=>window.algoravePreview,{timeout:30000}).catch(async error=>{
+      console.error({errors,status:await page.locator('#status').textContent()});throw error;
+    });
     assert.equal(await page.evaluate(()=>algoravePreview.playing),false);
     await page.getByRole('button',{name:'Play',exact:true}).click();
     await page.waitForFunction(()=>algoravePreview.playing,{timeout:15000});
-    await page.waitForFunction(()=>algoravePreview.signal.frequency?.some(n=>n>0),{timeout:15000});
+    await page.waitForFunction(()=>algoravePreview.signal.frequency?.some(n=>n>0),null,{timeout:15000}).catch(async error=>{
+      console.error({errors,status:await page.locator('#status').textContent(),audio:await page.frames().find(f=>f!==page.mainFrame()).evaluate(()=>({state:getAudioContext().state,time:getAudioContext().currentTime}))});throw error;
+    });
     await page.waitForFunction(()=>algoravePreview.signals.at(performance.timeOrigin+performance.now()).kick>.1,{timeout:10000});
     const first=await page.evaluate(()=>({cycle:algoravePreview.signal.cycle,time:algoravePreview.signal.time}));
     assert(first.cycle>=0);

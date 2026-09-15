@@ -1,7 +1,7 @@
 // The parent accepts data only through its private MessageChannel. Runtime messages
 // are untrusted and never cause storage, network, source edits or HTML insertion.
 export class MusicBridge {
-  constructor(frame, onSignal = () => {}, onError = () => {}) {
+  constructor(frame, onSignal = () => {}, onError = () => {}, onDiagnostic = () => {}) {
     this.frame = frame;
     this.pending = new Map();
     this.nextId = 0;
@@ -14,10 +14,11 @@ export class MusicBridge {
         if (data.type === 'ready') { clearTimeout(this.readyTimer); resolve(data.version); }
         if (data.type === 'fatal') { clearTimeout(this.readyTimer); reject(Error(String(data.error).slice(0, 2000))); }
         if (data.type === 'runtime-error') onError(Error(String(data.error).slice(0,2000)));
+        if (data.type === 'diagnostic') onDiagnostic(Error(String(data.error).slice(0,2000)));
         if (data.type === 'reply' && this.pending.has(data.id)) {
           const pending = this.pending.get(data.id);
           this.pending.delete(data.id); clearTimeout(pending.timer);
-          data.error ? pending.reject(Error(String(data.error).slice(0, 2000))) : pending.resolve({ playing: data.playing === true, ...(Number.isSafeInteger(data.token) ? { token: data.token } : {}) });
+          data.error ? pending.reject(Error(String(data.error).slice(0, 2000))) : pending.resolve({ playing: data.playing === true, ...(Number.isSafeInteger(data.token) ? { token: data.token } : {}), ...(Number.isSafeInteger(data.checkpoint)?{checkpoint:data.checkpoint}:{}) });
         }
         if (data.type === 'signal' && Number.isSafeInteger(data.epoch) && Number.isFinite(data.observedAt) && Number.isFinite(data.time) && Number.isFinite(data.cycle)
           && Number.isFinite(data.cps) && Number.isFinite(data.sampleRate)
@@ -35,10 +36,10 @@ export class MusicBridge {
     await this.ready;
     const id = ++this.nextId;
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => { this.pending.delete(id); reject(Error('Music evaluation timed out. Stop and reload the engine.')); }, 15000);
+      const timer = setTimeout(() => { this.pending.delete(id); this.port.postMessage({id,type:'cancel'}); reject(Error('Music evaluation timed out. Stop and reload the engine.')); }, 15000);
       this.pending.set(id, { resolve, reject, timer });
       if(type==='unlock')this.frame.contentWindow.postMessage({id,type},'*');
-      else this.port.postMessage({ id, type, source, token: options.token, play: options.play === true, samples:options.samples,assets:options.assets });
+      else this.port.postMessage({ id, type, source, token: options.token, play: options.play === true, samples:options.samples,assets:options.assets,restore:options.restore===true,checkpoint:options.checkpoint,checkpoints:options.checkpoints,defer:options.defer===true });
     });
   }
   dispose() {

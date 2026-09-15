@@ -1,6 +1,6 @@
 'use strict';
 const fs=require('node:fs'),path=require('node:path');
-// Inventory only the packages actually present in the three browser bundles.
+// Inventory only the packages actually present in the browser bundles.
 // This is provenance/notice generation, not an automatic legal approval gate.
 function notices(out,inputs){
   const packages=new Map();

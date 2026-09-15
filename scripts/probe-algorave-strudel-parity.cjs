@@ -4,6 +4,7 @@
 // by translating its source to fit the workspace's current worker boundary.
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),http=require('node:http');
 const esbuild=require('esbuild'),{chromium}=require('playwright');
+const {configureAudio,audioSink}=require('./algorave-browser-audio.cjs');
 const root=path.resolve(__dirname,'..');
 const reference=esbuild.buildSync({stdin:{resolveDir:root,contents:`
   import {initStrudel,getAudioContext,initAudio,getSuperdoughAudioController} from '@strudel/web';
@@ -58,6 +59,7 @@ const reference=esbuild.buildSync({stdin:{resolveDir:root,contents:`
     for(const item of selected){
       const result={...item,reference:{},workspace:{}};
       const page=await browser.newPage();page.setDefaultTimeout(20000);
+      await configureAudio(page);
       const messages=[];page.on('console',message=>{messages.push(message.text().slice(0,300));if(messages.length>8)messages.shift();});
       try {
         await page.goto(origin+'/reference');await page.locator('#start').click();
@@ -70,6 +72,7 @@ const reference=esbuild.buildSync({stdin:{resolveDir:root,contents:`
       }catch(error){result.reference={plays:false,error:error.message,state:await page.evaluate(()=>reference.snapshot?.()),messages};}
       finally{await page.close();}
       const workspace=await browser.newPage();workspace.setDefaultTimeout(20000);
+      await configureAudio(workspace);
       try {
         await workspace.goto(origin+'/algorave/index.html');await workspace.waitForFunction(()=>window.algoravePreview);
         await workspace.getByLabel('Strudel music').fill(item.source);await workspace.locator('#play').click();
@@ -77,12 +80,13 @@ const reference=esbuild.buildSync({stdin:{resolveDir:root,contents:`
         const state=await workspace.evaluate(()=>({playing:algoravePreview.playing,status:document.getElementById('status').textContent}));
         if(!state.playing)throw Error(state.status);
         await workspace.waitForFunction(()=>algoravePreview.signal.frequency?.some(x=>x>0));
+        if(item.name==='onTrigger closure')await workspace.frames().find(f=>f!==workspace.mainFrame()).waitForFunction(()=>globalThis.probeHits>0,null,{polling:50});
         result.workspace={plays:true};
       }catch(error){result.workspace={plays:false,error:error.message};}
       finally{await workspace.close();}
       results.push(result);console.log(JSON.stringify(result));
     }
-    const receipt={reference:'@strudel/web 1.3.0 initStrudel, unmodified scheduler/output',build:fs.readFileSync(path.join(root,'dist/algorave/workspace.js'),'utf8').match(/Algorave [a-f0-9]{12}/)?.[0],results};
+    const receipt={audioSink,reference:'@strudel/web 1.3.0 initStrudel, unmodified scheduler/output',build:fs.readFileSync(path.join(root,'dist/algorave/workspace.js'),'utf8').match(/Algorave [a-f0-9]{12}/)?.[0],results};
     fs.writeFileSync(path.join(root,'.algorave-preview/strudel-parity-probe.json'),JSON.stringify(receipt,null,2)+'\n');
     assert(results.every(x=>x.reference.plays),'Reference failures prevent a useful parity comparison');
     console.log(`${results.filter(x=>x.reference.plays&&!x.workspace.plays).length} demonstrated workspace gaps; this probe does not claim full parity.`);

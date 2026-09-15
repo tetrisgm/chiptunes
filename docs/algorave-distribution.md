@@ -20,8 +20,10 @@ References checked on this date:
 
 `build.js` builds the same workspace into `dist/algorave`; the existing local
 preview command uses the same builder. `dependencies.json` inventories packages
-actually included by esbuild's input graph, including the embedded pattern worker.
-The current inventory has 76 package entries, declaring MIT, ISC, BSD-2-Clause,
+actually included by esbuild's input graph. The full runtime bundles upstream
+web.mjs source rather than its prebundled distribution, so transitive inputs and
+their notices remain visible. The pattern worker is no longer embedded.
+The current inventory has 81 package entries, declaring MIT, ISC, BSD-2-Clause,
 BSD-3-Clause or AGPL-3.0-or-later. `THIRD_PARTY_NOTICES.txt` preserves distributed
 license/notice files. This inventory is evidence about these installed packages,
 not a blanket legal assurance about future dependencies.
@@ -45,8 +47,8 @@ rebuilding with the pinned npm dependency lock. The archive is generated from th
 same working files as the browser bundle, rather than a potentially older HEAD.
 The source snapshot is available beside the bundle even when GitHub is unavailable.
 
-Public web deployment still requires the owner's explicit request. Neither this
-record nor a public Git commit authorizes deployment, paid provider calls, desktop
-reinstallation, broadcast changes or a license change to existing source files.
+The updated owner goal explicitly requests public web deployment. That request
+does not authorize desktop reinstallation, broadcast changes or a license change
+to existing source files. The earlier six provider calls were separately authorized.
 Native Safari, sustained performance, asset handling and live-provider acceptance
 remain separate goal requirements. Preserve this record in the release review.

@@ -6,7 +6,9 @@ try{
   execFileSync('/usr/bin/tar',['-xzf',path.join(artifact,'source.tar.gz'),'-C',temp]);
   const source=path.join(temp,'chiptunes-source'),manifest=JSON.parse(fs.readFileSync(path.join(source,'SOURCE.json'),'utf8'));
   assert(manifest.files.some(file=>file.path==='src/create-entry.js'));
-  assert(manifest.files.some(file=>file.path==='src/algorave/pattern-worker.mjs'));
+  assert(manifest.files.some(file=>file.path==='src/algorave/music-runtime.mjs'));
+  assert(manifest.files.some(file=>file.path==='node_modules/@strudel/web/web.mjs'));
+  assert(manifest.files.some(file=>file.path==='node_modules/@strudel/webaudio/webaudio.mjs'));
   assert(manifest.files.some(file=>file.path==='node_modules/@strudel/core/pattern.mjs'));
   assert(manifest.files.every(file=>!file.path.startsWith('dist/')&&!file.path.startsWith('.git/')));
   for(const file of manifest.files){

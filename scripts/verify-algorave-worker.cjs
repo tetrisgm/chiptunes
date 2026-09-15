@@ -1,4 +1,5 @@
 'use strict';
+throw Error('Retired serialized-worker acceptance. Run npm run test:algorave-runtime; its upstream runtime cannot preempt infinite JavaScript loops.');
 const assert=require('node:assert/strict'),http=require('node:http'),fs=require('node:fs'),path=require('node:path'),esbuild=require('esbuild');
 const {chromium}=require('playwright');
 const root=path.resolve(__dirname,'../.algorave-preview');

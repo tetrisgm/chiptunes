@@ -1,6 +1,7 @@
 'use strict';
 const assert=require('node:assert/strict'),http=require('node:http'),fs=require('node:fs'),path=require('node:path');
 const {chromium}=require('playwright');
+const {configureAudio}=require('./algorave-browser-audio.cjs');
 const root=path.resolve(__dirname,'../dist');
 (async()=>{
   const {drumWav}=await import('../src/algorave/drum-samples.mjs');
@@ -16,6 +17,7 @@ const root=path.resolve(__dirname,'../dist');
   const origin='http://127.0.0.1:'+server.address().port,browser=await chromium.launch({headless:true});
   try{
     const context=await browser.newContext({acceptDownloads:true}),page=await context.newPage();page.setDefaultTimeout(15000);
+    await configureAudio(page);
     await page.goto(origin+'/algorave/index.html');await page.waitForFunction(()=>window.algoravePreview);
     const snapshot=()=>page.evaluate(()=>structuredClone(algoravePreview.session.applied));
     async function add(name,buffer){
@@ -29,9 +31,15 @@ const root=path.resolve(__dirname,'../dist');
     await page.waitForFunction(()=>algoravePreview.playing&&algoravePreview.signal.frequency.some(x=>x>0));
     const before=await snapshot(),epoch=await page.evaluate(()=>algoravePreview.signal.epoch);
     await page.getByLabel('Strudel music').fill('s("missing_sample")');await page.getByRole('button',{name:'Run',exact:true}).click();
-    await page.waitForFunction(()=>document.getElementById('status').textContent.includes('Unknown sound'));
-    assert.deepEqual(await snapshot(),before);assert.equal(await page.evaluate(()=>algoravePreview.playing),true);
-    await page.getByLabel('Strudel music').fill(before.music);
+    // Upstream resolves sounds at the scheduled event, including dynamic
+    // registrations. A missing name is a visible runtime diagnostic, not a
+    // restricted compiler rejection. Undo must recover the previous sample.
+    await page.waitForFunction(()=>document.getElementById('status').textContent.includes('sound missing_sample not found'));
+    assert.equal((await snapshot()).music,'s("missing_sample")');assert.equal(await page.evaluate(()=>algoravePreview.playing),true);
+    await page.locator('#menu').evaluate(el=>el.open=true);await page.locator('#undo').click();
+    await page.waitForFunction(music=>algoravePreview.session.applied.music===music,before.music);
+    assert.deepEqual(await snapshot(),before);
+    assert.equal(await page.getByLabel('Strudel music').innerText(),before.music,'Run Undo restores the editor as well as playback');
     await add('clap',replacement);const changed=await snapshot();assert.notDeepEqual(changed.samples,before.samples);
     assert.equal(await page.evaluate(()=>algoravePreview.signal.epoch),epoch,'sample edit keeps audio phase');
     await page.locator('#menu').evaluate(el=>el.open=true);await page.locator('#undo').click();
@@ -50,7 +58,10 @@ const root=path.resolve(__dirname,'../dist');
     assert.deepEqual(agent.project.samples,before.samples);assert(!JSON.stringify(agent).includes(bytes.toString('base64')));
     await page.reload();await page.waitForFunction(()=>window.algoravePreview);
     assert.deepEqual(await snapshot(),before);assert.equal(await page.evaluate(()=>algoravePreview.playing),false);
-    await page.getByRole('button',{name:'Play',exact:true}).click();await page.waitForFunction(()=>algoravePreview.signal.frequency?.some(x=>x>0));
+    await page.getByRole('button',{name:'Play',exact:true}).click();await page.waitForFunction(()=>algoravePreview.signal.frequency?.some(x=>x>0)).catch(async error=>{
+      console.error(await page.evaluate(()=>({status:document.getElementById('status').textContent,playing:algoravePreview.playing})));
+      console.error(await page.frames().find(f=>f!==page.mainFrame()).evaluate(()=>({state:getAudioContext().state,time:getAudioContext().currentTime,sink:getAudioContext().sinkId})));throw error;
+    });
     await page.locator('#menu').evaluate(el=>el.open=true);
     const downloadPromise=page.waitForEvent('download');await page.locator('#download').click();const download=await downloadPromise;
     const archive=JSON.parse(fs.readFileSync(await download.path(),'utf8'));
@@ -58,6 +69,7 @@ const root=path.resolve(__dirname,'../dist');
     await page.getByRole('button',{name:'Stop',exact:true}).click();await page.waitForFunction(()=>!algoravePreview.playing);
     // A fresh storage partition must restore entirely from the downloaded file.
     const fresh=await browser.newContext(),other=await fresh.newPage();other.setDefaultTimeout(15000);
+    await configureAudio(other);
     await other.goto(origin+'/algorave/index.html');await other.waitForFunction(()=>window.algoravePreview);
     await other.locator('#project-file').setInputFiles({name:'project.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(archive))});
     await other.waitForFunction(()=>document.getElementById('status').textContent==='Project opened · press Play');

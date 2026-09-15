@@ -28,7 +28,7 @@
     "test:algorave-samples": "node build.js && node --test scripts/verify-algorave-sample-assets.mjs scripts/verify-algorave-sample-bank.mjs scripts/verify-algorave-sample-project.mjs && node scripts/verify-algorave-samples.cjs",
     "test:algorave-soak": "node build.js && node scripts/verify-algorave-soak.cjs",
     "test:algorave-entry": "node build.js && node scripts/verify-algorave-entry.cjs",
-    "test:algorave-worker": "node scripts/verify-algorave-transport.mjs && node build.js --algorave-preview && node scripts/verify-algorave-worker.cjs",
+    "test:algorave-runtime": "node build.js --algorave-preview && node scripts/verify-algorave-runtime.cjs",
     "test:algorave-editor": "node build.js --algorave-preview && node scripts/verify-algorave-editor.cjs",
     "test:algorave-workflow": "node scripts/verify-algorave-session.mjs && node build.js --algorave-preview && node scripts/verify-algorave-workflow.cjs",
     "test:algorave-agent": "node scripts/verify-algorave-agent.cjs && node scripts/verify-music-chat.js",

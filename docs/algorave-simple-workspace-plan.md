@@ -92,14 +92,15 @@ useful local work, not block research or prototypes.
 
 ### Full parity work after the owner's expanded requirement
 
-The current worker queries upstream patterns but serializes only ordinary event
-values into a custom transport. That excludes executable callbacks, custom Web
-Audio output and the upstream sample-loading API. Do not keep extending this
-serialization format as a substitute for the full runtime. Integrate upstream
-evaluation and Web Audio output together outside the privileged app context;
-prove candidate isolation, phase-preserving Apply and exact Undo there. Use the
-same program text in the reference engine and workspace. The differential probe
-is `scripts/probe-algorave-strudel-parity.cjs`; it reports gaps, not a parity pass.
+The serialized worker has been replaced by upstream evaluation, scheduling and
+Web Audio output together in the opaque sandbox frame. Executable callbacks,
+custom Web Audio nodes and samples() now run without translation. Preserve and
+verify candidate isolation, phase-preserving Apply and source/registry Undo.
+Arbitrary JavaScript side effects cannot be completely rolled back, and infinite
+loops no longer have the old worker termination boundary. Use the same program
+text in the reference engine and workspace. The differential probe is
+`scripts/probe-algorave-strudel-parity.cjs`; four passing programs establish those
+behaviors only, not full REPL parity.
 Add the reference REPL's sample banks and relevant sound/input packages, including
 their normal source-language APIs, rather than requiring rewritten examples.
 
@@ -178,14 +179,15 @@ remains open; fixture responses are not model-quality evidence.
   legacy composer/export/render-parity checks where affected. Update obsolete UI
   expectations to this brief rather than retaining clutter to satisfy old tests.
   Run browser/audio suites serially; record reruns and unresolved failures.
-- [x] Exercise a sustained 30-minute local performance with edits, bounded sample
+- [ ] Repeat the earlier sustained 30-minute local performance on the new upstream
+  runtime with edits, bounded sample
   resources and shader changes; observe audio continuity and resource growth.
 - [ ] Verify real provider behavior with bounded calls when authorized; otherwise
   identify that acceptance gate explicitly. Do not infer authorization from old
   release notes. Keep secrets out of logs, source and tool arguments.
 - [ ] Commit and push coherent, passing implementation on main. Prepare a concrete
-  web release with rollback references. Public deployment requires an explicit
-  release request; no desktop reinstall, broadcast restart or store upload.
+  web release with rollback references. The updated goal authorizes public
+  deployment; no desktop reinstall, broadcast restart or store upload.
 
 Complete means the demonstrably simple app, full music/visual runtime parity,
 agent support and persistence are verified and deployed at the public link.

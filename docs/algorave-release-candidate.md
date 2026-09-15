@@ -1,8 +1,8 @@
 # Simple workspace release preparation
 
-Implementation candidate: `fb20e3c03da9e3a545c38e9eedbcdfdba9b85091`, visible
-Algorave build `1c68b1666ee5`. This is a local candidate, not a release approval or
-a claim that production runs this build. The source archive reproduces both
+Historical implementation candidate:  `fb20e3c03da9e3a545c38e9eedbcdfdba9b85091`, visible
+Algorave build `1c68b1666ee5`. This earlier local candidate does not include the full upstream runtime
+replacement and is not the candidate for the expanded goal. The source archive reproduces both
 browser bundles with a fresh `npm ci`; the check passed after the Safari fix.
 
 The default Create surface contains Music / Visuals / Both, Run, Play/Stop and
@@ -10,6 +10,10 @@ optional agent chat. Secondary navigation retains chip documents and their
 applicable exports. See the [plan](algorave-simple-workspace-plan.md),
 [runtime evidence](algorave-runtime-decisions.md) and
 [distribution record](algorave-distribution.md).
+
+The updated goal authorizes public web deployment. Resolve a new tested commit
+after closing the Strudel ecosystem and Shadertoy input/pass gaps; see the latest
+runtime checkpoint. Earlier native and soak receipts do not cover the replacement.
 
 ## Remaining acceptance gates
 
@@ -24,7 +28,7 @@ applicable exports. See the [plan](algorave-simple-workspace-plan.md),
   on this candidate. Audio texture
   measurements and headless timing do not establish acoustic quality.
 - Audit every remaining plan checkbox against current evidence before calling
-  the candidate complete. Public deployment is a separate owner decision.
+  the candidate complete. Deployment is already authorized by the updated goal.
 
 ## Authorized release procedure
 
@@ -38,7 +42,7 @@ The web change includes the gateway's algorave schema/provider integration
 (`server/music-chat-handler.js`, `server/algorave-agent-guide.js`,
 `gateway/lib/chat-providers.mjs`, `src/algorave/project.cjs`) as well as static
 Pages assets. A static-only upload does not establish working agent service.
-Review and authorize both web components together, retaining legacy chat support.
+Review and deploy both authorized web components together, retaining legacy chat support.
 Do not use the aggregate `npm run deploy`: package.json also deploys the box.
 The existing site-only command targets Pages project `retro-rave-radio` and
 performs a cache purge; review its result rather than assuming the purge succeeded.

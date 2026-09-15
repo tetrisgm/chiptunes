@@ -24985,23 +24985,26 @@ var ProjectSession = class {
       baseRevision: await import_project2.default.revision(snapshot)
     });
   }
-  async activate(value, { draftAfter = value, record = true } = {}) {
+  async activate(value, { draftAfter = value, historyDraft = this.draft, record = true, restore = false, checkpoint } = {}) {
     if (this.busy) throw Error("Wait for the current edit to finish.");
     const next = import_project2.default.project(value), draft = import_project2.default.project(draftAfter);
-    const previous = { draft: copy(this.draft), applied: copy(this.applied) }, generation = this.generation;
+    const previous = { draft: import_project2.default.project(historyDraft), applied: copy(this.applied) }, generation = this.generation;
+    if (this.checkpoint !== void 0) previous.checkpoint = this.checkpoint;
     this.busy = true;
     let prepared;
     try {
-      prepared = await this.runtime.prepare(next, previous.applied);
+      prepared = await this.runtime.prepare(next, previous.applied, { restore, checkpoint });
       if (generation !== this.generation) throw Error("The source changed. Review the edit again.");
       await prepared.apply();
       this.applied = next;
       this.draft = draft;
       this.generation++;
+      if (prepared.checkpoint !== void 0) this.checkpoint = prepared.checkpoint;
       if (record && (JSON.stringify(previous.applied) !== JSON.stringify(next) || JSON.stringify(previous.draft) !== JSON.stringify(draft))) {
         this.history.push(previous);
         if (this.history.length > 20) this.history.shift();
       }
+      this.retainRuntime();
     } finally {
       prepared?.dispose();
       this.busy = false;
@@ -25016,8 +25019,12 @@ var ProjectSession = class {
   async undo() {
     const previous = this.history.at(-1);
     if (!previous) return;
-    await this.activate(previous.applied, { draftAfter: previous.draft, record: false });
+    await this.activate(previous.applied, { draftAfter: previous.draft, record: false, restore: true, checkpoint: previous.checkpoint });
     this.history.pop();
+    this.retainRuntime();
+  }
+  retainRuntime() {
+    this.runtime.retain?.([this.checkpoint, ...this.history.map((item) => item.checkpoint)].filter(Number.isSafeInteger));
   }
 };
 
@@ -25119,6 +25126,7 @@ var AgentClient = class {
 var MusicBridge = class {
   constructor(frame2, onSignal = () => {
   }, onError = () => {
+  }, onDiagnostic = () => {
   }) {
     this.frame = frame2;
     this.pending = /* @__PURE__ */ new Map();
@@ -25138,11 +25146,12 @@ var MusicBridge = class {
           reject(Error(String(data.error).slice(0, 2e3)));
         }
         if (data.type === "runtime-error") onError(Error(String(data.error).slice(0, 2e3)));
+        if (data.type === "diagnostic") onDiagnostic(Error(String(data.error).slice(0, 2e3)));
         if (data.type === "reply" && this.pending.has(data.id)) {
           const pending = this.pending.get(data.id);
           this.pending.delete(data.id);
           clearTimeout(pending.timer);
-          data.error ? pending.reject(Error(String(data.error).slice(0, 2e3))) : pending.resolve({ playing: data.playing === true, ...Number.isSafeInteger(data.token) ? { token: data.token } : {} });
+          data.error ? pending.reject(Error(String(data.error).slice(0, 2e3))) : pending.resolve({ playing: data.playing === true, ...Number.isSafeInteger(data.token) ? { token: data.token } : {}, ...Number.isSafeInteger(data.checkpoint) ? { checkpoint: data.checkpoint } : {} });
         }
         if (data.type === "signal" && Number.isSafeInteger(data.epoch) && Number.isFinite(data.observedAt) && Number.isFinite(data.time) && Number.isFinite(data.cycle) && Number.isFinite(data.cps) && Number.isFinite(data.sampleRate) && data.frequency instanceof Uint8Array && data.frequency.length === 512 && data.waveform instanceof Uint8Array && data.waveform.length === 512) {
           onSignal({
@@ -25168,11 +25177,12 @@ var MusicBridge = class {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id2);
+        this.port.postMessage({ id: id2, type: "cancel" });
         reject(Error("Music evaluation timed out. Stop and reload the engine."));
       }, 15e3);
       this.pending.set(id2, { resolve, reject, timer });
       if (type === "unlock") this.frame.contentWindow.postMessage({ id: id2, type }, "*");
-      else this.port.postMessage({ id: id2, type, source, token: options.token, play: options.play === true, samples: options.samples, assets: options.assets });
+      else this.port.postMessage({ id: id2, type, source, token: options.token, play: options.play === true, samples: options.samples, assets: options.assets, restore: options.restore === true, checkpoint: options.checkpoint, checkpoints: options.checkpoints, defer: options.defer === true });
     });
   }
   dispose() {
@@ -25796,24 +25806,31 @@ var initial = example();
 var signals = new MusicSignals();
 var agent = new AgentClient();
 var runtime = {
-  async prepare(next, previous) {
+  retain(checkpoints) {
+    void bridge.request("retain", void 0, { checkpoints }).catch(() => {
+    });
+  },
+  async prepare(next, previous, { restore = false, checkpoint: restoreCheckpoint } = {}) {
     const pendingSample = sampleAbort;
     const musicChanged = next.music !== previous.music || JSON.stringify(next.samples) !== JSON.stringify(previous.samples) || playRequested || openRequested;
     const shouldPlay = !openRequested && (playing || playRequested);
     const visualChanged = JSON.stringify(next.visuals) !== JSON.stringify(previous.visuals);
     const visualCandidate = visualChanged ? shader2.prepare(next.visuals) : null;
-    let token;
+    let token, checkpoint;
     try {
       if (musicChanged) {
         const ids = sampleIds(next), store = ids.length ? await sampleStore() : null;
         const assets = ids.map((id2) => ({ id: id2, bytes: store.get(id2) }));
-        ({ token } = await bridge.request("prepare", next.music, { samples: next.samples, assets }));
+        ({ token } = await bridge.request("prepare", next.music, { samples: next.samples, assets, restore: restore || openRequested, checkpoint: openRequested ? 0 : restoreCheckpoint, defer: openRequested }));
       }
     } catch (error) {
       visualCandidate?.dispose();
       throw error;
     }
     return {
+      get checkpoint() {
+        return checkpoint;
+      },
       async apply() {
         if (pendingSample?.signal.aborted) throw Error("Sample loading cancelled.");
         if (pendingSample) $("sample-cancel").disabled = true;
@@ -25826,6 +25843,7 @@ var runtime = {
           if (musicChanged) {
             const result = await bridge.request("commit", void 0, { token, play: shouldPlay });
             playing = result.playing;
+            checkpoint = result.checkpoint;
             token = void 0;
           }
         } catch (error) {
@@ -25910,6 +25928,7 @@ function lock(value) {
   music.readOnly = value;
   visual.readOnly = value;
   for (const id2 of ["run", "play", "apply", "undo", "pass", "set-channels", "channels", "open", "examples", "sample-open", "sample-add"]) $(id2).disabled = value;
+  $("play").disabled = value && !playing;
   $("undo").disabled = value || !session.history.length;
   $("agent-undo").disabled = $("undo").disabled;
   $("apply").disabled = value || !pendingProposal?.edits.length;
@@ -25931,6 +25950,9 @@ async function action(fn) {
 async function run() {
   await action(async () => {
     const next = structuredClone(session.applied);
+    const historyDraft = structuredClone(session.draft);
+    if (focus === "visual") historyDraft.visuals = structuredClone(session.applied.visuals);
+    else historyDraft.music = session.applied.music;
     if (focus === "visual") next.visuals = structuredClone(session.draft.visuals);
     else {
       next.music = session.draft.music;
@@ -25938,7 +25960,7 @@ async function run() {
     }
     try {
       if (playRequested && !playing) await bridge.request("unlock");
-      await session.activate(next, { draftAfter: session.draft });
+      await session.activate(next, { draftAfter: session.draft, historyDraft });
       status.textContent = focus === "visual" ? "Visuals updated" : "Music updated";
     } catch (error) {
       const match = focus === "visual" ? /(?:ERROR|WARNING):\s*0:(\d+):/.exec(error.message) : /\((\d+):(\d+)\)/.exec(error.message);
@@ -25976,6 +25998,18 @@ $("play").onclick = async () => {
   if (!playing) {
     focus = "music";
     await run();
+    return;
+  }
+  if (uiBusy) {
+    try {
+      await bridge.request("stop");
+      playing = false;
+      $("play").textContent = "Play";
+      $("play").disabled = true;
+      status.textContent = "Stopped";
+    } catch (error) {
+      message(error);
+    }
     return;
   }
   await action(async () => {
@@ -26202,7 +26236,7 @@ frame.title = "Isolated music engine";
 var response = await fetch("music-runtime.js");
 if (!response.ok) throw Error("Music engine could not load.");
 var script = await response.text();
-frame.srcdoc = `<!doctype html><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' blob: data:; worker-src blob:; connect-src blob:; img-src 'none'; media-src blob:; style-src 'unsafe-inline'"><script>${script.replace(/<\/script/gi, "<\\/script")}<\/script>`;
+frame.srcdoc = `<!doctype html><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' blob: data: https:; worker-src blob: data:; connect-src blob: data: https: http:; img-src blob: data: https:; media-src blob: data: https:; style-src 'unsafe-inline'"><script>${script.replace(/<\/script/gi, "<\\/script")}<\/script>`;
 await new Promise((resolve) => {
   frame.onload = resolve;
   document.body.append(frame);
@@ -26214,11 +26248,11 @@ bridge = new MusicBridge(frame, (next) => {
   playing = false;
   $("play").textContent = "Play";
   message(error);
-});
+}, message);
 await bridge.ready;
 lock(false);
 status.textContent = session.recoveryError || "Ready \xB7 \u2318/Ctrl Enter to run";
-$("build").textContent = "Algorave 57f1ee3f9b7d";
+$("build").textContent = "Algorave 3d78fc0bf069";
 function draw(now) {
   shader2.render({ time: now / 1e3, delta: last2 ? (now - last2) / 1e3 : 0, ...signals.at(performance.timeOrigin + now) });
   last2 = now;

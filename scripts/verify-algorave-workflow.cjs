@@ -1,6 +1,7 @@
 'use strict';
 const assert=require('node:assert/strict'),http=require('node:http'),fs=require('node:fs'),path=require('node:path');
 const {chromium}=require('playwright');
+const {configureAudio}=require('./algorave-browser-audio.cjs');
 const {createMusicChatHandler}=require('../server/music-chat-handler.js');
 const root=path.resolve(__dirname,'../.algorave-preview');
 (async()=>{
@@ -29,6 +30,7 @@ const root=path.resolve(__dirname,'../.algorave-preview');
     }}});
   try{
     const page=await browser.newPage({viewport:{width:1440,height:900}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
+    await configureAudio(page);
     await page.route('**/api/music/chat/access',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,authenticated:true,providers:[{id:'openai'}]})}));
     await page.route('**/api/music/chat',async route=>{
       const q=route.request(),r=await handler(new Request(q.url(),{method:'POST',headers:q.headers(),body:q.postData()}));

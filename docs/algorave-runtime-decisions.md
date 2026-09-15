@@ -1,3 +1,87 @@
+# Algorave runtime record
+
+## Current upstream runtime — 2026-09-15
+
+The current build executes upstream @strudel/web 1.3.0 evaluation, scheduling and
+Web Audio together in the opaque-origin sandbox. It replaces the serialized
+pattern worker and custom transport. Source is parsed during preparation and
+executed exactly once on Apply; executable onTrigger closures, registerSound,
+samples() and dough() retain their upstream JavaScript behavior. The output tap
+observes normal AudioContext destination connections, including custom nodes.
+No provider credentials, parent DOM, localStorage or IndexedDB are available in
+the music frame. HTTPS sample loading uses browser CORS and the frame CSP.
+
+Failure restores the last pattern, tempo, playing state and sound registry. Undo
+keeps bounded runtime registry checkpoints alongside source history. Immutable
+portable sample aliases survive registry restoration. Manual Run Undo restores
+the focused editor's prior applied source while preserving unrun work in the other
+editor; Agent Undo retains drafts that preceded its proposal. Opening a project
+parses and restores assets but defers source execution until Play. Stop cancels a
+pending asynchronous evaluation and prevents it from restarting playback later.
+Scheduled upstream diagnostics, including missing sounds, appear in the status
+area; missing sound names are no longer rejected by a custom preflight query.
+
+This is full upstream execution, not complete strudel.cc ecosystem parity yet.
+The reference REPL's default banks, soundfonts/ZZFX and additional input/drawing
+scope still need inventory and integration. Four original programs now play in
+both unmodified upstream and the workspace: core synth/mini-notation, custom
+Web Audio sound, onTrigger closure and samples() loading a local CORS WAV. This
+closes the three demonstrated failures recorded below, not every parity gap.
+
+There is no terminable worker around evaluation now. An infinite JavaScript loop
+can block the frame/event loop; asynchronous cancellation cannot preempt it.
+General JavaScript/network side effects and in-place mutations of arbitrary
+objects are not fully reversible through source/registry Undo. The retired worker
+verifier fails immediately with a pointer to `test:algorave-runtime`, avoiding its
+infinite-loop fixtures against the new architecture. Earlier worker isolation,
+30-minute soak and native browser receipts below do not cover this replacement.
+
+Chromium verification now explicitly selects the Web Audio silent sink through
+`scripts/algorave-browser-audio.cjs`. Real synthesis, scheduling and analyser data
+continue, but these checks make no speaker assertion. Set
+`ALGORAVE_AUDIO_DEVICE=default` for actual default-device checks. This test helper
+is absent from production and native Safari. Repeated headless default-device
+runs observed a suspended clock at zero; unmodified upstream also reported an
+audio-device/WebAudio-renderer error. No service restart or infrastructure repair
+was attempted. Native/default-device acceptance remains open.
+
+The new test entry is `npm run test:algorave-runtime`. Sample persistence and exact
+Run Undo, captured OpenAI/Anthropic chat → Apply → Undo → re-Apply → save/reload,
+four-program differential checks and agent contract/35 legacy chat groups passed
+on build `3d78fc0bf069`. The six saved real replies were reused with zero new API
+calls. Runtime/preview/workflow checks passed again after rebuilding that exact
+preview. All 16 sample unit groups passed. The source archive reproduced both
+browser bundles byte-for-byte with a fresh npm ci. Owned-source whitespace checks
+pass; generated upstream template-literal whitespace is intentionally preserved.
+
+Native Safari replay on visible local build `3d78fc0bf069` passed all three
+captured OpenAI replies: bass, kick-reactive tunnel, and paired darker music/blue
+visuals. Each proposal remained unapplied until Apply; Undo visibly restored its
+previous source(s). The music case included Stop → Play → one Undo. The saved
+post-Undo project reloaded with its bass source and tunnel output, showing Play
+and Ready without autoplay. Native Safari reported audio output, and screenshots
+showed the tunnel/color changes. There was no silent-sink injection, but no acoustic
+listening or latency measurement is claimed. Native input automation had clipboard
+timeouts and one incomplete prompt; exact text was inspected and replayed without
+any provider call. The temporary tab and local server were closed. Anthropic native
+replay on this replacement and final public/browser acceptance remain pending.
+
+The build follows upstream web.mjs source dependencies to preserve complete
+notices and corresponding source (81 packages), rather than hiding transitive
+inputs in a prebundle. See [distribution](algorave-distribution.md).
+
+Shadertoy still needs media/texture lifecycle, sampler settings, keyboard,
+cubemap inputs/passes, Sound and VR support. Existing Image/Common/A-D,
+floating-point feedback, standard uniform and high-resolution checks are a
+starting point. Finish native and Chromium acceptance on the final build and the
+new-runtime performance run, then deploy the authorized static site and gateway
+together. No public deployment has occurred.
+
+## Historical checkpoints
+
+The following records preserve evidence for earlier implementations. Their
+runtime boundaries, build identities and limitations apply only to those builds.
+
 # Algorave runtime checkpoint — 2026-09-14
 
 Implementation of [the simple workspace plan](algorave-simple-workspace-plan.md)

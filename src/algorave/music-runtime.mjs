@@ -1,115 +1,170 @@
-// Local integration with upstream Strudel. Distribution license review is tracked
-// in docs/algorave-runtime-decisions.md; this prototype is not a release artifact.
-import { createClock, registerSynthSounds, getAudioContext, initAudio, getSuperdoughAudioController, superdough, samples, loadBuffer, soundMap, getDefaultValue } from '@strudel/web';
-import { PatternClient } from './pattern-client.mjs';
-import { PatternTransport } from './pattern-transport.mjs';
+// Full upstream evaluation, scheduler and Web Audio share this opaque frame.
+// Only source/sample bytes enter; no application storage or credentials do.
+import { initStrudel, transpiler, getAudioContext, initAudio, getSuperdoughAudioController, webaudioOutput, samples, loadBuffer, soundMap } from '@strudel/web';
 import { drumWav } from './drum-samples.mjs';
-import {SampleByteStore} from './sample-assets.mjs';
-import {SampleBank} from './sample-bank.mjs';
+import { SampleByteStore } from './sample-assets.mjs';
+import { SampleBank } from './sample-bank.mjs';
 
-// This opaque-origin audio frame receives bounded event data from isolated
-// workers. User source never executes here or receives private app state.
 let connected = false;
-window.addEventListener('message', async function connect(event) {
+window.addEventListener('message', async event => {
   if (connected || event.source !== parent || event.data?.type !== 'connect' || event.ports.length !== 1) return;
   connected = true;
-  const port = event.ports[0];
-  const send = port.postMessage.bind(port);
-  let busy = false, analyser, timer, sequence = 0, epoch = 0;
-  const events = [];
+  const port=event.ports[0],send=port.postMessage.bind(port);
+  let busy=false,operation,candidate=null,candidateId=0,checkpoint=0,epoch=0,sequence=0,timer,evaluationBank;
+  const registries=new Map(),localAssets={};
+  const restoreRegistry=registry=>soundMap.set({...registry,...localAssets});
+  const events=[],bankKey=Symbol('local sample bank'),wrapped=Symbol('observed pattern');
+  document.addEventListener('strudel.log',event=>{
+    const detail=event.detail;
+    if(typeof detail?.message==='string'&&(detail.type==='error'||/^\[[^\]]+\] error:/.test(detail.message)))
+      send({type:'diagnostic',error:detail.message.slice(0,2000)});
+  });
   try {
-    const audio = getAudioContext();
-    // Use a parent window message for the early Safari audio unlock, before any
-    // storage work. Accept only that parent and reply on the private channel.
+    const audio=getAudioContext();
+    // Observe the context's complete output, including upstream dough() and
+    // custom nodes that connect directly to destination instead of an orbit.
+    const output=audio.createGain(),analyser=audio.createAnalyser();
+    analyser.fftSize=1024;analyser.smoothingTimeConstant=.5;
+    const connect=AudioNode.prototype.connect,disconnect=AudioNode.prototype.disconnect;
+    connect.call(output,audio.destination);connect.call(output,analyser);
+    AudioNode.prototype.connect=function(destination,...args){
+      const result=connect.call(this,destination===audio.destination?output:destination,...args);
+      return destination===audio.destination?destination:result;
+    };
+    AudioNode.prototype.disconnect=function(...args){
+      if(args[0]===audio.destination)args[0]=output;
+      return disconnect.apply(this,args);
+    };
     window.addEventListener('message',event=>{
-      const data=event.data;
-      if(event.source!==parent||data?.type!=='unlock'||!Number.isSafeInteger(data.id))return;
-      audio.resume().then(()=>send({type:'reply',id:data.id}),error=>send({type:'reply',id:data.id,error:String(error.message||error).slice(0,2000)}));
+      if(event.source!==parent||event.data?.type!=='unlock'||!Number.isSafeInteger(event.data.id))return;
+      const id=event.data.id;
+      audio.resume().then(()=>send({type:'reply',id}),error=>send({type:'reply',id,error:String(error.message||error).slice(0,2000)}));
     });
-    await registerSynthSounds();
-    getSuperdoughAudioController();
-    await initAudio();
-    const sampleBytes=new SampleByteStore(),sampleBank=new SampleBank({sampleRate:audio.sampleRate,loadBuffer:url=>loadBuffer(url,audio),registerSamples:samples});
-    const originals={};
-    for(const name of ['bd','sd','hh'])originals[name]=[(await sampleBytes.put(new Uint8Array(drumWav(name)))).id];
-    const defaultBank=await sampleBank.prepare(originals,id=>sampleBytes.get(id));
-    function soundValue(value,bank){
-      const resolved=bank.resolve(value),name=resolved.s===undefined?getDefaultValue('s'):resolved.s;
-      const full=resolved.bank&&name?`${resolved.bank}_${name}`:name;
-      if(typeof full!=='string'||(!['~','-','_'].includes(full)&&!soundMap.get()[full.toLowerCase()]))throw Error('Unknown sound "'+String(value.s).slice(0,64)+'". Use an available synth or Add sample.');
-      return resolved;
-    }
-    const transport = new PatternTransport({clockFactory:createClock,getTime:()=>audio.currentTime,
-      output(event, time, duration, cps, client) {
-        if (events.length < 256) events.push({time, sound:String(event.value.s || '').slice(0,64), cycle:event.begin});
-        return superdough(soundValue(event.value,client?.sampleBank||defaultBank), time, duration, cps, event.begin);
+    const engine=await initStrudel({
+      defaultOutput(hap,...args){
+        // Portable imported samples retain immutable names across live edits.
+        // samples() and registerSound() otherwise use upstream's normal scope.
+        hap.ensureObjectValue();const bank=hap.context[bankKey];
+        return webaudioOutput(bank?hap.withValue(value=>bank.resolve(value)):hap,...args);
       },
-      onError(error) { epoch++; events.length=0; send({type:'runtime-error',error:('Playback stopped. '+String(error.message||error)).slice(0,2000)}); },
+      editPattern(pattern){
+        if(pattern[wrapped])return pattern;
+        const bank=evaluationBank;
+        const observed=pattern.withHap(hap=>{
+          const original=hap.context.onTrigger;
+          const observedHap=hap.setContext({...hap.context,[bankKey]:bank,onTrigger:async(hap,now,cps,time)=>{
+            if(events.length<256)events.push({time,sound:String(hap.value?.s||'').slice(0,64)});
+            return original?.call(hap.context,hap,now,cps,time);
+          }});
+          observedHap.stateful=hap.stateful;return observedHap;
+        });
+        Object.defineProperty(observed,wrapped,{value:true});return observed;
+      },
     });
-    let candidate = null, candidateId = 0;
-    async function prepare(source, map={}, assets=[]) {
-      if (typeof source !== 'string' || source.length > 65536) throw Error('Music code is too large.');
-      candidate?.client.dispose(); candidate=null;
-      if(!map||typeof map!=='object'||Array.isArray(map)||!Array.isArray(assets)||assets.length>32)throw Error('Invalid sample collection.');
-      for(const asset of assets){if(!asset||(await sampleBytes.put(asset.bytes)).id!==asset.id)throw Error('Sample content does not match its identity.');}
-      const bank=await sampleBank.prepare({...originals,...map},id=>sampleBytes.get(id));
-      const client = new PatternClient(PATTERN_WORKER_SOURCE);
-      client.sampleBank=bank;
-      try {
-        const now=Math.max(0,transport.position(audio.currentTime).cycle);
-        await client.prepare(source,transport.cps,now);
-        for(const start of [0,now,now+1])for(const event of await client.query(start,start+1,client.cps))soundValue(event.value,bank);
-        const token=++candidateId;candidate={token,client};return token;
-      } catch(error) { client.dispose();throw error; }
-    }
-    async function commit(token, play) {
-      if (!candidate || candidate.token !== token) throw Error('Music candidate expired. Run again.');
-      await initAudio();
-      if (play) await audio.resume();
-      if (!analyser) {
-        analyser = audio.createAnalyser(); analyser.fftSize = 1024; analyser.smoothingTimeConstant = 0.5;
-        getSuperdoughAudioController().output.destinationGain.connect(analyser);
+    audio.addEventListener('statechange',()=>{
+      if(!busy&&engine.state.started&&audio.state!=='running'&&audio.state!=='closed'){
+        engine.pause();epoch++;events.length=0;
+        send({type:'runtime-error',error:'Audio output was interrupted. Press Play to resume.'});
       }
-      if (!transport.playing || !play) { epoch++; events.length=0; }
-      transport.set(candidate.client,play);candidate=null;
+    });
+    getSuperdoughAudioController();await initAudio();
+    const sampleBytes=new SampleByteStore(),sampleBank=new SampleBank({sampleRate:audio.sampleRate,loadBuffer:url=>loadBuffer(url,audio),registerSamples:async map=>{
+      await samples(map);for(const name of Object.keys(map))localAssets[name]=soundMap.get()[name];
+    }});
+    const originals={};
+    for(const name of ['bd','sd','hh']){
+      const asset=await sampleBytes.put(new Uint8Array(drumWav(name)));
+      originals[name]=[asset.id];
     }
-    const frequency = new Uint8Array(512), waveform = new Uint8Array(512);
-    port.onmessage = async ({ data }) => {
-      if (!data || !Number.isSafeInteger(data.id) || !['run', 'stop', 'prepare', 'commit', 'discard'].includes(data.type)) return;
-      if (busy) { send({ type: 'reply', id: data.id, error: 'Another edit is still running.' }); return; }
-      busy = true;
+    const originalBank=await sampleBank.prepare(originals,id=>sampleBytes.get(id));
+    // Register defaults under ordinary Strudel names, so source-level samples()
+    // can replace them exactly as it does in the upstream REPL.
+    for(const [name,alias] of Object.entries(originalBank.mapping)){
+      // Alias the registered sample source without changing the source language.
+      soundMap.setKey(name,soundMap.get()[alias]);
+    }
+    registries.set(0,{...soundMap.get()});
+    async function prepare(source,map={},assets=[],restore=false,restoreCheckpoint=0,defer=false){
+      if(typeof source!=='string'||source.length>65536)throw Error('Music code is too large.');
+      // Parse only: preparation must not run callbacks, fetch URLs or change a
+      // playing engine. The actual upstream evaluation happens once, on Apply.
+      transpiler(source);
+      if(!map||typeof map!=='object'||Array.isArray(map)||!Array.isArray(assets)||assets.length>32)throw Error('Invalid sample collection.');
+      for(const asset of assets)if(!asset||(await sampleBytes.put(asset.bytes)).id!==asset.id)throw Error('Sample content does not match its identity.');
+      const bank=await sampleBank.prepare(map,id=>sampleBytes.get(id));
+      const registry=restore?registries.get(restoreCheckpoint):undefined;
+      if(restore&&!registry)throw Error('Music Undo checkpoint expired.');
+      const token=++candidateId;candidate={token,source,bank,registry,defer};return token;
+    }
+    async function commit(token,play,current){
+      if(!candidate||candidate.token!==token)throw Error('Music candidate expired. Run again.');
+      const next=candidate;candidate=null;
+      if(next.defer&&play)throw Error('An opened project must remain stopped until Play.');
+      const previous={pattern:engine.state.pattern,activeCode:engine.state.activeCode,cps:engine.scheduler.cps,playing:engine.state.started,registry:{...soundMap.get()}};
       try {
-        if (data.type === 'stop') {
-          transport.stop(); epoch++; candidate?.client.dispose(); candidate = null;
-          events.length = 0;
-        } else if (data.type === 'discard') {
-          if (candidate?.token === data.token) { candidate.client.dispose(); candidate = null; }
-        } else if (data.type === 'prepare') {
-          const token = await prepare(data.source,data.samples,data.assets);
-          send({ type: 'reply', id: data.id, token, playing: transport.playing });
-          return;
-        } else if (data.type === 'commit') {
-          await commit(data.token, data.play === true);
-        } else {
-          await commit(await prepare(data.source,data.samples,data.assets), true);
+        if(!play)await audio.suspend();else{
+          await audio.resume();
+          if(audio.state!=='running')throw Error('Audio output is unavailable. Press Play again.');
         }
-        send({ type: 'reply', id: data.id, playing: transport.playing });
-      } catch (error) {
-        send({ type: 'reply', id: data.id, error: String(error.message || error).slice(0, 2000), playing: transport.playing });
-      } finally { busy = false; }
+        if(next.registry)restoreRegistry(next.registry);
+        evaluationBank=next.bank;
+        if(!next.defer)await engine.evaluate(next.source,false);
+        if(current.cancelled)throw Error('Music edit cancelled.');
+        if(!next.defer&&engine.state.error)throw engine.state.error;
+        if(play){if(!previous.playing){epoch++;events.length=0;}if(!engine.state.started)await engine.start();}
+        else{engine.stop();epoch++;events.length=0;}
+        registries.set(++checkpoint,{...soundMap.get()});
+      }catch(error){
+        restoreRegistry(previous.registry);
+        engine.setCps(previous.cps);
+        if(previous.pattern)await engine.setPattern(previous.pattern,false);
+        engine.state.pattern=previous.pattern;engine.state.activeCode=previous.activeCode;
+        engine.state.isDirty=engine.state.code!==previous.activeCode;
+        if(!previous.playing||current.stopped){engine.stop();await audio.suspend();}
+        else{await audio.resume();if(!engine.state.started)await engine.start();}
+        throw error;
+      }
+    }
+    port.onmessage=async({data})=>{
+      if(!data||!Number.isSafeInteger(data.id))return;
+      if(data.type==='cancel'){if(operation?.id===data.id)operation.cancelled=true;return;}
+      if(data.type==='retain'){
+        if(Array.isArray(data.checkpoints)&&data.checkpoints.length<=21&&data.checkpoints.every(Number.isSafeInteger)){
+          const keep=new Set([0,checkpoint,...data.checkpoints]);
+          for(const id of registries.keys())if(!keep.has(id))registries.delete(id);
+        }
+        send({type:'reply',id:data.id,playing:engine.state.started});return;
+      }
+      if(!['run','stop','prepare','commit','discard'].includes(data.type))return;
+      if(data.type==='stop'){
+        if(operation){operation.cancelled=true;operation.stopped=true;}
+        engine.stop();window.postMessage('strudel-stop','*');await audio.suspend();epoch++;events.length=0;candidate=null;
+        send({type:'reply',id:data.id,playing:false});return;
+      }
+      if(busy){send({type:'reply',id:data.id,error:'Another edit is still running.'});return;}
+      busy=true;const current={id:data.id,cancelled:false,stopped:false};operation=current;
+      try {
+        if(data.type==='discard'){if(candidate?.token===data.token)candidate=null;}
+        else if(data.type==='prepare'){
+          const token=await prepare(data.source,data.samples,data.assets,data.restore===true,data.checkpoint,data.defer===true);
+          send({type:'reply',id:data.id,token,playing:engine.state.started});return;
+        }else if(data.type==='commit')await commit(data.token,data.play===true,current);
+        else await commit(await prepare(data.source,data.samples,data.assets),true,current);
+        send({type:'reply',id:data.id,playing:engine.state.started,checkpoint});
+      }catch(error){send({type:'reply',id:data.id,error:String(error.message||error).slice(0,2000),playing:engine.state.started});}
+      finally{busy=false;if(operation===current)operation=null;}
     };
     port.start();
-    timer = setInterval(() => {
-      if (!analyser) return;
-      analyser.getByteFrequencyData(frequency);
-      analyser.getByteTimeDomainData(waveform);
-      const stamp = audio.getOutputTimestamp?.();
-      const lag = stamp?.contextTime > 0 ? Math.max(0, Math.min(.5, audio.currentTime - stamp.contextTime)) : Math.max(0, Math.min(.5, (audio.baseLatency || 0) + (audio.outputLatency || 0)));
-      send({ type: 'signal', sequence: ++sequence, epoch, observedAt: performance.timeOrigin + performance.now(), time: audio.currentTime - lag,
-        ...transport.position(audio.currentTime - lag), playing: transport.playing,
-        sampleRate: audio.sampleRate, frequency, waveform, events: events.splice(0) });
-    }, 1000 / 30);
-    window.addEventListener('pagehide', () => { clearInterval(timer); candidate?.client.dispose(); transport.dispose(); sampleBank.close(); audio.close(); });
-    send({ type: 'ready', version: 'strudel-web-1.3.0' });
-  } catch (error) { send({ type: 'fatal', error: String(error.message || error).slice(0, 2000) }); }
+    const frequency=new Uint8Array(512),waveform=new Uint8Array(512);
+    timer=setInterval(()=>{
+      analyser.getByteFrequencyData(frequency);analyser.getByteTimeDomainData(waveform);
+      const stamp=audio.getOutputTimestamp?.();
+      const lag=stamp?.contextTime>0?Math.max(0,Math.min(.5,audio.currentTime-stamp.contextTime)):Math.max(0,Math.min(.5,(audio.baseLatency||0)+(audio.outputLatency||0)));
+      send({type:'signal',sequence:++sequence,epoch,observedAt:performance.timeOrigin+performance.now(),time:audio.currentTime-lag,
+        cycle:engine.state.started?Math.max(0,engine.scheduler.now()-lag*engine.scheduler.cps):0,cps:engine.scheduler.cps,playing:engine.state.started,
+        sampleRate:audio.sampleRate,frequency,waveform,events:events.splice(0)});
+    },1000/30);
+    window.addEventListener('pagehide',()=>{clearInterval(timer);engine.stop();sampleBank.close();audio.close();});
+    send({type:'ready',version:'strudel-web-1.3.0'});
+  }catch(error){send({type:'fatal',error:String(error.message||error).slice(0,2000)});}
 });
