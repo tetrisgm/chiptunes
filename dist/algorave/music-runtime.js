@@ -21583,7 +21583,14 @@ Defaulting to 2020, but this will stop working in the future.`)), t.ecmaVersion 
         return resolved;
       };
       const audio = ve();
+      window.addEventListener("message", (event2) => {
+        const data = event2.data;
+        if (event2.source !== parent || data?.type !== "unlock" || !Number.isSafeInteger(data.id)) return;
+        audio.resume().then(() => send({ type: "reply", id: data.id }), (error) => send({ type: "reply", id: data.id, error: String(error.message || error).slice(0, 2e3) }));
+      });
       await mM();
+      Xr();
+      await ho();
       const sampleBytes = new SampleByteStore(), sampleBank = new SampleBank({ sampleRate: audio.sampleRate, loadBuffer: (url) => cr(url, audio), registerSamples: O2 });
       const originals = {};
       for (const name of ["bd", "sd", "hh"]) originals[name] = [(await sampleBytes.put(new Uint8Array(drumWav(name)))).id];

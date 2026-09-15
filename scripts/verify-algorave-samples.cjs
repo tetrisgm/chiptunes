@@ -25,7 +25,7 @@ const root=path.resolve(__dirname,'../dist');
     }
     await add('clap',bytes);assert.equal(await page.evaluate(()=>algoravePreview.playing),false,'import does not autoplay');
     const first=await snapshot();assert(first.samples.clap[0]);
-    await page.getByLabel('Strudel music').fill('setcpm(30); s("clap*4").gain(.5)');await page.getByRole('button',{name:'Play',exact:true}).click();
+    await page.getByLabel('Strudel music').fill('setcpm(30); s("clap*4").gain(.5).crush(4)');await page.getByRole('button',{name:'Play',exact:true}).click();
     await page.waitForFunction(()=>algoravePreview.playing&&algoravePreview.signal.frequency.some(x=>x>0));
     const before=await snapshot(),epoch=await page.evaluate(()=>algoravePreview.signal.epoch);
     await page.getByLabel('Strudel music').fill('s("missing_sample")');await page.getByRole('button',{name:'Run',exact:true}).click();

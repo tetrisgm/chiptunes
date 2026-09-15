@@ -112,7 +112,10 @@ async function run() {
     const next = structuredClone(session.applied);
     if (focus === 'visual') next.visuals = structuredClone(session.draft.visuals);
     else { next.music = session.draft.music; playRequested = true; }
-    try { await session.activate(next, {draftAfter:session.draft}); status.textContent = focus === 'visual' ? 'Visuals updated' : 'Music updated'; }
+    try {
+      if(playRequested&&!playing)await bridge.request('unlock');
+      await session.activate(next, {draftAfter:session.draft}); status.textContent = focus === 'visual' ? 'Visuals updated' : 'Music updated';
+    }
     catch (error) {
       const match = focus === 'visual' ? /(?:ERROR|WARNING):\s*0:(\d+):/.exec(error.message) : /\((\d+):(\d+)\)/.exec(error.message);
       if (match) (focus === 'visual' ? visual : music).error(error.message, {line:Number(match[1]),column:Number(match[2] || 0)});
@@ -270,7 +273,10 @@ frame.hidden = true; frame.setAttribute('sandbox','allow-scripts'); frame.setAtt
 const response = await fetch('music-runtime.js');
 if (!response.ok) throw Error('Music engine could not load.');
 const script = await response.text();
-frame.srcdoc = `<!doctype html><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' blob:; worker-src blob:; connect-src blob:; img-src 'none'; media-src blob:; style-src 'unsafe-inline'"><script>${script.replace(/<\/script/gi,'<\\/script')}<\/script>`;
+// Strudel embeds its built-in AudioWorklet modules as data scripts. Safari cannot
+// load blob worklets from this opaque origin. Source workers remain blob-only,
+// with no external network, application storage, credentials or parent access.
+frame.srcdoc = `<!doctype html><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' blob: data:; worker-src blob:; connect-src blob:; img-src 'none'; media-src blob:; style-src 'unsafe-inline'"><script>${script.replace(/<\/script/gi,'<\\/script')}<\/script>`;
 await new Promise(resolve => { frame.onload = resolve; document.body.append(frame); });
 bridge = new MusicBridge(frame, next => { signal = next; signals.receive(next); }, error => { playing=false; $('play').textContent='Play'; message(error); });
 await bridge.ready; lock(false);

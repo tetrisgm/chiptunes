@@ -492,3 +492,41 @@ The terminal receipt is `.algorave-preview/soak-receipt.json`; the runner stoppe
 audio and closed its browser/server. This establishes the fixed-bank baseline,
 not long-run acceptance of the subsequently changed sample path, acoustic glitch
 freedom, whole-browser/GPU memory, native Safari or an external display.
+
+## Native Safari sample startup and effects — 2026-09-15
+
+A fresh local Safari tab imported the public WAV linked by the upstream sample
+documentation (`tidalcycles/Dirt-Samples/master/bd/BT0AADA.wav` on GitHub raw).
+This was an actual CORS download, not the Chromium route fixture. A pattern using
+only that imported name produced nonzero audio texture data in a diagnostic GLSL
+shader. Reload retained source/sample identity and stayed stopped, but subsequent
+Play exposed an audio-startup stall in build `48aa463e6fd2`.
+
+An early resume alone did not reliably fix repeated reloads. Final startup creates
+the output graph and initializes built-in AudioWorklets before enabling Play.
+Play/keyboard Run sends an early parent-window unlock, with the reply on the
+private port, before reading IndexedDB or preparing the pattern. This initializes
+audio without scheduling music on reload.
+
+Safari also rejected Strudel's embedded data-script effects under the frame CSP.
+A blob-URL adaptation failed CORS from the opaque frame and was removed. The
+frame now allows data scripts for the bundled AudioWorklets. It remains opaque;
+source workers remain blob-only, connect-src remains blob-only, and neither
+credentials nor application storage is available to music code. Worker tests
+check both directives exactly and verify IndexedDB denial in addition to the
+existing private-state checks.
+
+Native build `88267011bb90` passed repeated reload -> Play and reload -> keyboard
+Run with the persisted sample and `.crush(4)`. The diagnostic output was green
+while playing and black after Stop. Inspector confirmed AudioWorklets loaded.
+The final `1c68b1666ee5` differs only by a comment clarification. The temporary
+tab/server were closed; the original production tab was left intact. This is
+local native evidence, not deployment, acoustic listening or external-display
+acceptance. Chromium sample tests now exercise `.crush(4)` too; preview, worker,
+workflow and entry regressions pass serially.
+
+The updated soak harness alternates two imported sample identities under bd,
+repeatedly applies bit crushing, and retains the previous music/shader/tempo
+checks. Its new receipt is `.algorave-preview/sample-soak-receipt.json`, preserving
+the completed fixed-bank baseline. It attempts a separate audio-frame CDP heap
+measurement and records whether that scope is available.

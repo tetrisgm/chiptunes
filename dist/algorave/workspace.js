@@ -25171,7 +25171,8 @@ var MusicBridge = class {
         reject(Error("Music evaluation timed out. Stop and reload the engine."));
       }, 15e3);
       this.pending.set(id2, { resolve, reject, timer });
-      this.port.postMessage({ id: id2, type, source, token: options.token, play: options.play === true, samples: options.samples, assets: options.assets });
+      if (type === "unlock") this.frame.contentWindow.postMessage({ id: id2, type }, "*");
+      else this.port.postMessage({ id: id2, type, source, token: options.token, play: options.play === true, samples: options.samples, assets: options.assets });
     });
   }
   dispose() {
@@ -25934,6 +25935,7 @@ async function run() {
       playRequested = true;
     }
     try {
+      if (playRequested && !playing) await bridge.request("unlock");
       await session.activate(next, { draftAfter: session.draft });
       status.textContent = focus === "visual" ? "Visuals updated" : "Music updated";
     } catch (error) {
@@ -26198,7 +26200,7 @@ frame.title = "Isolated music engine";
 var response = await fetch("music-runtime.js");
 if (!response.ok) throw Error("Music engine could not load.");
 var script = await response.text();
-frame.srcdoc = `<!doctype html><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' blob:; worker-src blob:; connect-src blob:; img-src 'none'; media-src blob:; style-src 'unsafe-inline'"><script>${script.replace(/<\/script/gi, "<\\/script")}<\/script>`;
+frame.srcdoc = `<!doctype html><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' blob: data:; worker-src blob:; connect-src blob:; img-src 'none'; media-src blob:; style-src 'unsafe-inline'"><script>${script.replace(/<\/script/gi, "<\\/script")}<\/script>`;
 await new Promise((resolve) => {
   frame.onload = resolve;
   document.body.append(frame);
@@ -26214,7 +26216,7 @@ bridge = new MusicBridge(frame, (next) => {
 await bridge.ready;
 lock(false);
 status.textContent = session.recoveryError || "Ready \xB7 \u2318/Ctrl Enter to run";
-$("build").textContent = "Algorave 48aa463e6fd2";
+$("build").textContent = "Algorave 1c68b1666ee5";
 function draw(now) {
   shader2.render({ time: now / 1e3, delta: last2 ? (now - last2) / 1e3 : 0, ...signals.at(performance.timeOrigin + now) });
   last2 = now;

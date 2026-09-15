@@ -16,14 +16,16 @@ No live provider request or public deployment occurred.
 Code-plus-output fullscreen now works in all layouts; native Safari and Chromium
 checks passed on build `869b21f502ab`, including editing and Stop inside fullscreen.
 
-Next: finish asset handling, the 30-minute performance run and full Mac/provider acceptance; review the recorded distribution details.
+Next: finish the sample-enabled 30-minute performance run and full Mac/provider acceptance; review the recorded distribution details.
 The baseline 1800-second run passed on build `869b21f502ab`; session `42681` is
 finished and its browser/server closed. See the runtime record for measurements.
 The newer sample-enabled build `48aa463e6fd2` now imports WAV files/public GitHub
 raw URLs from a secondary menu, persists bytes in IndexedDB and exports portable
 sample projects. Chromium import/playback/Undo/reload/fresh-context tests and the
 preview/workflow/editor/worker/entry regressions pass. Native Safari sample checks
-and a sustained run exercising the new sample path remain pending.
+found and fixed startup/effect-module issues; see the native Safari
+checkpoint in the runtime record. A sustained run exercising the new sample path
+remains pending. The updated harness passed its 60-second smoke check.
 The prepared six-call provider test is awaiting the owner's authorization.
 The production Safari warning was traced read-only to asset hash `5fba76c2aeb5e170`.
 The local build now accepts that exact observation-only APU update and preserves

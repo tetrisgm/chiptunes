@@ -35,6 +35,9 @@ const root=path.resolve(__dirname,'../.algorave-preview');
     // Query ordinary upstream patterns in the same opaque frame, with known
     // independent onset/duration expectations (including sustained notes).
     const frame=page.frames().find(f=>f!==page.mainFrame());
+    const policy=await frame.evaluate(()=>document.querySelector('meta[http-equiv="Content-Security-Policy"]').content);
+    assert.match(policy,/(?:^|;)\s*connect-src blob:\s*(?:;|$)/);
+    assert.match(policy,/(?:^|;)\s*worker-src blob:\s*(?:;|$)/);
     await frame.addScriptTag({content:probe});
     const events=await frame.evaluate(async()=>{
       const client=patternProbe();
@@ -46,7 +49,9 @@ const root=path.resolve(__dirname,'../.algorave-preview');
     assert.deepEqual(events.whole.map(e=>e.value.note),['c3','e3']);
     const isolation=await frame.evaluate(async()=>{
       const client=patternProbe();try{
-        await client.prepare(`if(typeof window!=='undefined' || typeof document!=='undefined' || typeof localStorage!=='undefined') throw Error('private state exposed'); s("bd")`,.5,0);
+        await client.prepare(`if(typeof window!=='undefined' || typeof document!=='undefined' || typeof localStorage!=='undefined') throw Error('private state exposed');
+          try { indexedDB.open('ct-algorave-samples-v1'); throw Error('private database exposed'); } catch(e) { if(e.name!=='SecurityError')throw e; }
+          s("bd")`,.5,0);
         return (await client.query(0,1,.5)).length;
       }finally{client.dispose();}
     });assert.equal(isolation,1);

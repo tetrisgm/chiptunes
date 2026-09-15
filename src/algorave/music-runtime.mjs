@@ -19,7 +19,16 @@ window.addEventListener('message', async function connect(event) {
   const events = [];
   try {
     const audio = getAudioContext();
+    // Use a parent window message for the early Safari audio unlock, before any
+    // storage work. Accept only that parent and reply on the private channel.
+    window.addEventListener('message',event=>{
+      const data=event.data;
+      if(event.source!==parent||data?.type!=='unlock'||!Number.isSafeInteger(data.id))return;
+      audio.resume().then(()=>send({type:'reply',id:data.id}),error=>send({type:'reply',id:data.id,error:String(error.message||error).slice(0,2000)}));
+    });
     await registerSynthSounds();
+    getSuperdoughAudioController();
+    await initAudio();
     const sampleBytes=new SampleByteStore(),sampleBank=new SampleBank({sampleRate:audio.sampleRate,loadBuffer:url=>loadBuffer(url,audio),registerSamples:samples});
     const originals={};
     for(const name of ['bd','sd','hh'])originals[name]=[(await sampleBytes.put(new Uint8Array(drumWav(name)))).id];
