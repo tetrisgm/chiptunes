@@ -1416,3 +1416,15 @@ retain executable closures and the upstream Web Audio scope together, outside
 the privileged app. The updated plan calls for replacing the serialization-only
 boundary rather than teaching the agent to avoid these normal Strudel programs.
 Default REPL banks, additional packages and wider reference programs remain open.
+
+## Shared FFT settings — 2026-09-15
+
+The Strudel output analyser now uses the same 2048-point FFT, 0.8 smoothing
+and -100/-30 dB range as file/microphone inputs. The shader receives the first
+512 spectrum bins and 512 waveform samples. Previously Strudel used a 1024-point
+FFT, putting a given frequency at half the expected texture position.
+
+`verify-algorave-runtime.cjs` checks a real 220 Hz dough DSP tone against
+`220 * 2048 / sampleRate`, as well as the waveform and fixed texture-row sizes.
+Chromium passes on `bdef744db0a3` with an explicit silent sink; this is analysis
+evidence, not speaker or native Safari acceptance. Sound output remains open.

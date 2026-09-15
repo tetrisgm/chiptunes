@@ -57,8 +57,8 @@ External file audio and microphone channels are integrated; file persistence,
 waveform/spectrum output and capture cleanup pass in Chromium and native Safari
 with controlled audio fixtures on `4a5ca1bf34ea`. See the
 [external-audio checkpoint](algorave-runtime-decisions.md#external-audio-inputs--2026-09-15).
-Reconcile the existing Strudel bridge FFT (1024 samples) with the external
-audio FFT (2048) during final visual acceptance.
+The Strudel bridge now matches the external audio FFT settings (2048 samples,
+512 exposed bins); a real 220 Hz DSP tone verifies the frequency-bin mapping.
 
 Next: complete the remaining Strudel input/drawing/module scope and Shadertoy
 media and Sound contracts; complete final browser/acoustic

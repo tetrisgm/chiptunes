@@ -46923,8 +46923,10 @@ registerProcessor('${n2}', MyProcessor);
     try {
       const audio = z2();
       const output = audio.createGain(), analyser = audio.createAnalyser();
-      analyser.fftSize = 1024;
-      analyser.smoothingTimeConstant = 0.5;
+      analyser.fftSize = 2048;
+      analyser.smoothingTimeConstant = 0.8;
+      analyser.minDecibels = -100;
+      analyser.maxDecibels = -30;
       const connect2 = AudioNode.prototype.connect, disconnect = AudioNode.prototype.disconnect;
       connect2.call(output, audio.destination);
       connect2.call(output, analyser);

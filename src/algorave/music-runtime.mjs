@@ -34,7 +34,7 @@ window.addEventListener('message', async event => {
     // Observe the context's complete output, including upstream dough() and
     // custom nodes that connect directly to destination instead of an orbit.
     const output=audio.createGain(),analyser=audio.createAnalyser();
-    analyser.fftSize=1024;analyser.smoothingTimeConstant=.5;
+    analyser.fftSize=2048;analyser.smoothingTimeConstant=.8;analyser.minDecibels=-100;analyser.maxDecibels=-30;
     const connect=AudioNode.prototype.connect,disconnect=AudioNode.prototype.disconnect;
     connect.call(output,audio.destination);connect.call(output,analyser);
     AudioNode.prototype.connect=function(destination,...args){

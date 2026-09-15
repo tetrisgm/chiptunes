@@ -76,6 +76,16 @@ const root=path.resolve(__dirname,'../.algorave-preview');
     // still supply the shader's waveform/spectrum for that upstream DSP path.
     await run("await dough('function trigger(v){} function dsp(t){return Math.sin(t*1382.3)*.1;}');");
     await page.waitForFunction(()=>algoravePreview.playing&&algoravePreview.signal.frequency?.some(x=>x>0));
+    // A known 220 Hz DSP tone must occupy the Shadertoy 2048-point FFT bin.
+    // A 1024-point analyser still produces nonzero bytes but puts it at half
+    // the expected index, visibly changing frequency-reactive shaders.
+    await page.waitForFunction(()=>{
+      const {frequency,waveform,sampleRate}=algoravePreview.signal;
+      const peak=frequency.indexOf(Math.max(...frequency));
+      return frequency.length===512&&waveform.length===512&&
+        Math.abs(peak-220*2048/sampleRate)<=1&&
+        Math.max(...waveform)-Math.min(...waveform)>10;
+    });
     await page.locator('#play').click();await page.waitForFunction(()=>!algoravePreview.playing);
     const beforeOpen=reads;
     await page.evaluate(async source=>{
