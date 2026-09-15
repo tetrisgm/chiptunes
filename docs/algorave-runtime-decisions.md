@@ -576,3 +576,29 @@ configuration. Hidden/minimized documents may have animation frames throttled or
 suspended; continuous visual output requires the presentation window to remain
 visible. No independent background-output window or hidden-rendering guarantee
 is claimed. Live-provider end-to-end acceptance remains separate.
+
+### Authorized live provider test — 2026-09-15
+
+The owner's explicit instruction to test with existing keys authorized the
+prepared bounded capture. Existing Keychain API keys were passed only through
+child-process environment, never source, logs or arguments. OpenAI
+`gpt-5.4-mini-2026-03-17` and Anthropic `claude-sonnet-4-6` each completed all three
+requests: syncopated bass, kick-reactive tunnel, coordinated darker music/colors.
+Six total requests, max 4096 output tokens each, zero retries. Captures are
+`.algorave-preview/provider-openai.json` and `provider-anthropic.json`.
+
+All replies passed the actual gateway proposal contract, revision and scope
+checks. A serial Chromium runtime check on build `1c68b1666ee5` activated all
+six candidates, allowed playback for 2.5 seconds per candidate, checked nonzero
+audio analysis, and verified exact restoration of the preceding project through
+Undo. Both providers passed all three cases. Runtime receipts are adjacent
+`provider-openai-runtime.json` and `provider-anthropic-runtime.json`. The first
+local harness attempt accessed frequency before the first signal and failed;
+an optional-chain guard corrected that harness race. No API call was repeated.
+
+This proves existing API keys authenticate and real generated Strudel/GLSL
+candidates compile and play. It does not establish acoustic quality, native
+Safari execution of these replies, or the full visible chat sequence. In
+particular, OpenAI's generated shader uses reversed smoothstep edges, so
+successful compilation is not a blanket shader-portability assurance. Captures
+remain original evidence; no generated source was silently repaired.

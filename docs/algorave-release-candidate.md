@@ -15,9 +15,10 @@ applicable exports. See the [plan](algorave-simple-workspace-plan.md),
 
 - The sample-enabled 1800-second run passed on this candidate; see the runtime
   record for resource measurements and the unmeasured audio-frame heap scope.
-- Obtain the requested bounded provider authorization, capture actual music,
-  visual and paired replies, then compile and exercise Apply/Undo with those
-  replies in Chromium and native Safari. Fixture results do not close this gate.
+- Six owner-authorized live requests succeeded; all music, visual and paired
+  candidates compiled, played and restored exact Undo in Chromium. Finish the
+  visible chat Apply/Undo sequence with these replies in native Safari and
+  Chromium; runtime activation alone does not prove the entire UI sequence.
 - Complete the Mac end-to-end sequence using those replies and representative
   acoustic listening. Native Safari external-display fullscreen passed locally
   on this candidate. Audio texture

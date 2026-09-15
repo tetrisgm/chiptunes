@@ -11,7 +11,7 @@ through secondary navigation; switching pages disposes the previous player.
 Entry, editor, workflow, preview, worker, source-rebuild and legacy preservation
 checks pass. Native Safari basic editing/audio-texture/fullscreen/reload checks
 passed on build `6e20fa4925dc`; full agent/external-display acceptance is incomplete.
-No live provider request or public deployment occurred.
+Live provider capture/runtime results are recorded below. No public deployment occurred.
 
 Code-plus-output fullscreen now works in all layouts; native Safari and Chromium
 checks passed on build `869b21f502ab`, including editing and Stop inside fullscreen.
@@ -28,9 +28,12 @@ checkpoint in the runtime record. The sample-enabled 1800-second run passed on
 build `1c68b1666ee5` / commit `fb20e3c`. Session `64814` exited successfully and
 closed its browser/server. Measurements and limitations are in the runtime record;
 the receipt is `.algorave-preview/sample-soak-receipt.json`.
-The prepared six-call provider test is awaiting the owner's authorization.
+The owner authorized testing with the existing keys. All six live requests
+succeeded (three OpenAI, three Anthropic), and all captured candidates compiled,
+played and restored exact Undo in Chromium. No retries. See the runtime record.
 Native Safari external-display fullscreen passed on `1c68b1666ee5`; the local
-test window/server are closed. Acoustic listening and live-provider acceptance
+test window/server are closed. Acoustic listening and the native end-to-end
+sequence using the captured provider replies
 remain open; see the runtime record for the display scope and limitations.
 The [release preparation](algorave-release-candidate.md) records the implementation
 candidate, remaining acceptance gates and coordinated web rollback requirements.
