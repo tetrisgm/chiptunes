@@ -25,7 +25,9 @@ sample projects. Chromium import/playback/Undo/reload/fresh-context tests and th
 preview/workflow/editor/worker/entry regressions pass. Native Safari sample checks
 found and fixed startup/effect-module issues; see the native Safari
 checkpoint in the runtime record. A sustained run exercising the new sample path
-remains pending. The updated harness passed its 60-second smoke check.
+is running against commit `fb20e3c` in exec session `64814`; its receipt is
+`.algorave-preview/sample-soak-receipt.json`. Poll that session before starting any
+other browser/audio checks. The updated harness passed its 60-second smoke check.
 The prepared six-call provider test is awaiting the owner's authorization.
 The production Safari warning was traced read-only to asset hash `5fba76c2aeb5e170`.
 The local build now accepts that exact observation-only APU update and preserves
