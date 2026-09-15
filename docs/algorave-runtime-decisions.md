@@ -1514,3 +1514,26 @@ fixture and a visible analysis meter. Its parent AudioNode connection wrapper
 inserts a zero-gain node at the output destination, leaving the Sound analyser
 active. This is native runtime/UI evidence, not an acoustic/speaker measurement,
 production-origin acceptance, dynamic-input verification or a real AI reply.
+
+## Motion module inventory — 2026-09-15
+
+The published `@strudel/motion` 1.2.6 package contains preferred source and
+AGPL licensing and depends on the already-used core 1.2.6. Its source imports
+`../core/signal.mjs`, requiring the same explicit package-source adaptation as
+other vendored integrations. The current upstream source exposes enableMotion,
+acceleration/gravity/rotation/orientation/absolute-orientation signals and aliases.
+
+Before integration, verify permission requests inside the opaque runtime iframe,
+the required accelerometer/gyroscope/magnetometer policy, unavailable API behavior,
+repeat enableMotion calls, and source-driven events against upstream formulas.
+The current implementation binds new event listeners on every enable call and
+uses an unguarded DeviceMotionEvent identifier; these require deliberate handling.
+No motion module has been integrated or physical sensor accessed at this checkpoint.
+Source: https://codeberg.org/uzu/strudel/src/branch/main/packages/motion/motion.mjs
+Package: https://registry.npmjs.org/@strudel/motion/-/motion-1.2.6.tgz
+
+The same inventory found shader-sound.mjs absent from the explicit build hash
+inputs. It is now included. Existing source archives already contained it; this
+fix makes future Sound-only changes alter the visible build ID. Official live
+Shadertoy Sound-input code remained inaccessible (challenge/402); third-party
+copies are insufficient to establish its current dynamic-input contract.

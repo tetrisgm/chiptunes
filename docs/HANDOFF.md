@@ -67,6 +67,11 @@ Safari Open/Play/Run/Undo/Stop/reload passes locally on `633dce6b3682` with mute
 output. Dynamic Sound inputs and production-origin acceptance remain pending. See the
 [Sound renderer checkpoint](algorave-runtime-decisions.md#sound-renderer-foundation--2026-09-15).
 
+The build fingerprint now includes `shader-sound.mjs`; earlier Sound checkpoint
+IDs identify the recorded tests but did not independently cover that source file.
+Motion module integration is next available Strudel work; see the
+[motion inventory](algorave-runtime-decisions.md#motion-module-inventory--2026-09-15).
+
 Next: complete the remaining Strudel input/drawing/module scope and Shadertoy
 media and Sound contracts; complete final browser/acoustic
 acceptance and check performance appropriate to subsequent changes. Chromium DSP checks use an explicit
