@@ -59929,9 +59929,58 @@ ${JSON.stringify(t2, null, 2)}`);
   // src/algorave/vendor/hydra-synth/src/hydra-synth.js
   var import_raf_loop = __toESM(require_raf_loop(), 1);
 
+  // src/algorave/vendor/hydra-synth/src/lib/media-stream.js
+  function mediaVideo(stream, signal) {
+    return new Promise((resolve, reject) => {
+      const video = document.createElement("video");
+      let released = false, settled = false;
+      const release = (error = new DOMException("Capture cancelled", "AbortError")) => {
+        if (released) return;
+        released = true;
+        stream.getTracks().forEach((track) => track.stop());
+        video.pause();
+        video.srcObject = null;
+        signal?.removeEventListener("abort", abort2);
+        video.removeEventListener("loadedmetadata", loaded);
+        video.removeEventListener("error", failed);
+        if (!settled) {
+          settled = true;
+          reject(error);
+        }
+      };
+      const abort2 = () => release();
+      const failed = () => release(new Error("Capture video could not load"));
+      const loaded = async () => {
+        try {
+          await video.play();
+          if (released || signal?.aborted) {
+            release();
+            return;
+          }
+          settled = true;
+          resolve({ video });
+        } catch (error) {
+          release(error);
+        }
+      };
+      if (signal?.aborted) {
+        release();
+        return;
+      }
+      signal?.addEventListener("abort", abort2, { once: true });
+      video.addEventListener("loadedmetadata", loaded, { once: true });
+      video.addEventListener("error", failed, { once: true });
+      video.autoplay = true;
+      video.muted = true;
+      video.playsInline = true;
+      video.srcObject = stream;
+    });
+  }
+
   // src/algorave/vendor/hydra-synth/src/lib/webcam.js
-  function webcam_default(deviceId) {
+  function webcam_default(deviceId, signal) {
     return navigator.mediaDevices.enumerateDevices().then((devices) => devices.filter((devices2) => devices2.kind === "videoinput")).then((cameras) => {
+      if (signal?.aborted) throw new DOMException("Capture cancelled", "AbortError");
       let constraints = { audio: false, video: true };
       if (cameras[deviceId]) {
         constraints["video"] = {
@@ -59939,32 +59988,13 @@ ${JSON.stringify(t2, null, 2)}`);
         };
       }
       return window.navigator.mediaDevices.getUserMedia(constraints);
-    }).then((stream) => {
-      const video = document.createElement("video");
-      video.setAttribute("autoplay", "");
-      video.setAttribute("muted", "");
-      video.setAttribute("playsinline", "");
-      video.srcObject = stream;
-      return new Promise((resolve, reject) => {
-        video.addEventListener("loadedmetadata", () => {
-          video.play().then(() => resolve({ video }));
-        });
-      });
-    }).catch(console.log.bind(console));
+    }).then((stream) => mediaVideo(stream, signal));
   }
 
   // src/algorave/vendor/hydra-synth/src/lib/screenmedia.js
-  function screenmedia_default(options) {
-    return new Promise(function(resolve, reject) {
-      navigator.mediaDevices.getDisplayMedia(options).then((stream) => {
-        const video = document.createElement("video");
-        video.srcObject = stream;
-        video.addEventListener("loadedmetadata", () => {
-          video.play();
-          resolve({ video });
-        });
-      }).catch((err2) => reject(err2));
-    });
+  function screenmedia_default(options, signal) {
+    if (signal?.aborted) return Promise.reject(new DOMException("Capture cancelled", "AbortError"));
+    return navigator.mediaDevices.getDisplayMedia(options).then((stream) => mediaVideo(stream, signal));
   }
 
   // src/algorave/vendor/hydra-synth/src/hydra-source.js
@@ -59984,6 +60014,7 @@ ${JSON.stringify(t2, null, 2)}`);
     }
     init(opts, params) {
       if ("src" in opts) {
+        this.stopCapture();
         this.src = opts.src;
         this.tex = this.regl.texture({ data: this.src, ...params });
       }
@@ -59991,13 +60022,19 @@ ${JSON.stringify(t2, null, 2)}`);
     }
     initCam(index, params) {
       const self2 = this;
-      webcam_default(index).then((response) => {
+      this.stopCapture();
+      const controller = this.captureController = new AbortController();
+      webcam_default(index, controller.signal).then((response) => {
+        if (controller.signal.aborted) return;
         self2.src = response.video;
         self2.dynamic = true;
         self2.tex = self2.regl.texture({ data: self2.src, ...params });
-      }).catch((err2) => console.log("could not get camera", err2));
+      }).catch((err2) => {
+        if (err2.name !== "AbortError") console.log("could not get camera", err2);
+      });
     }
     initVideo(url2 = "", params) {
+      this.stopCapture();
       const vid = document.createElement("video");
       vid.crossOrigin = "anonymous";
       vid.autoplay = true;
@@ -60012,6 +60049,7 @@ ${JSON.stringify(t2, null, 2)}`);
       vid.src = url2;
     }
     initImage(url2 = "", params) {
+      this.stopCapture();
       const img = document.createElement("img");
       img.crossOrigin = "anonymous";
       img.src = url2;
@@ -60022,6 +60060,7 @@ ${JSON.stringify(t2, null, 2)}`);
       };
     }
     initStream(streamName, params) {
+      this.stopCapture();
       let self2 = this;
       if (streamName && this.pb) {
         this.pb.initSource(streamName);
@@ -60037,11 +60076,16 @@ ${JSON.stringify(t2, null, 2)}`);
     // index only relevant in atom-hydra + desktop apps
     initScreen(index = 0, params) {
       const self2 = this;
-      screenmedia_default().then(function(response) {
+      this.stopCapture();
+      const controller = this.captureController = new AbortController();
+      screenmedia_default(void 0, controller.signal).then(function(response) {
+        if (controller.signal.aborted) return;
         self2.src = response.video;
         self2.tex = self2.regl.texture({ data: self2.src, ...params });
         self2.dynamic = true;
-      }).catch((err2) => console.log("could not get screen", err2));
+      }).catch((err2) => {
+        if (err2.name !== "AbortError") console.log("could not get screen", err2);
+      });
     }
     // cache for the canvases, so we don't create them every time
     canvases = {};
@@ -60069,7 +60113,15 @@ ${JSON.stringify(t2, null, 2)}`);
       this.width = width;
       this.height = height;
     }
+    stopCapture() {
+      if (!this.captureController) return;
+      const video = this.src;
+      this.captureController.abort();
+      this.captureController = void 0;
+      if (video instanceof HTMLVideoElement && !video.srcObject) this.src = null;
+    }
     clear() {
+      this.stopCapture();
       if (this.src && this.src.srcObject) {
         if (this.src.srcObject.getTracks) {
           this.src.srcObject.getTracks().forEach((track) => track.stop());
@@ -62649,7 +62701,8 @@ ${JSON.stringify(t2, null, 2)}`);
     cancelAnimationFrame(frame);
     frame = void 0;
   }
-  function stopHydraAudio(record = active) {
+  function stopHydraInputs(record = active) {
+    record?.hydra.s.forEach((source) => source.stopCapture ? source.stopCapture() : source.captureController?.abort());
     const audio = record?.hydra.synth.a;
     if (audio?.dispose) audio.dispose();
     else {
@@ -62686,7 +62739,7 @@ ${JSON.stringify(t2, null, 2)}`);
     if (previous) {
       restore(previous.globals);
       if (running) startHydra();
-      else stopHydraAudio();
+      else stopHydraInputs();
     }
   }
   function disposeHydra(record) {
@@ -62694,7 +62747,7 @@ ${JSON.stringify(t2, null, 2)}`);
     const h2 = record.hydra;
     h2.s.forEach((source) => source.clear());
     h2.captureStream?.getTracks().forEach((track) => track.stop());
-    stopHydraAudio(record);
+    stopHydraInputs(record);
     const gl2 = h2.canvas.getContext("webgl");
     h2.regl.destroy();
     gl2?.getExtension("WEBGL_lose_context")?.loseContext();
@@ -62875,8 +62928,8 @@ ${JSON.stringify(t2, null, 2)}`);
       pauseAnimation();
       stopHydra();
       if (releaseAudio) {
-        stopHydraAudio();
-        stopHydraAudio(pending?.hydra);
+        stopHydraInputs();
+        stopHydraInputs(pending?.hydra);
       }
     };
     const report = () => {

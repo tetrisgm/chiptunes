@@ -21,6 +21,7 @@ function build({out=path.join(root,'.algorave-preview')}={}){
   const hydraRoot=path.join(root,'src/algorave/vendor/hydra-synth');
   const hydraManifest=fs.readFileSync(path.join(hydraRoot,'UPSTREAM.json'));id.update(hydraManifest);
   for(const file of JSON.parse(hydraManifest).files)id.update(fs.readFileSync(path.join(hydraRoot,file.path)));
+  for(const file of JSON.parse(hydraManifest).added||[])id.update(fs.readFileSync(path.join(hydraRoot,file)));
   id.update(fs.readFileSync(__filename));
   id.update(fs.readFileSync(path.join(root,'package-lock.json')));
   for(const file of ['index.mjs','midi.mjs','UPSTREAM.json'])id.update(fs.readFileSync(path.join(root,'src/algorave/vendor/midi',file)));

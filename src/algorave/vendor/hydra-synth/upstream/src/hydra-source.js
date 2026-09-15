@@ -18,7 +18,6 @@ class HydraSource {
 
   init (opts, params) {
     if ('src' in opts) {
-      this.stopCapture()
       this.src = opts.src
       this.tex = this.regl.texture({ data: this.src, ...params })
     }
@@ -27,20 +26,16 @@ class HydraSource {
 
   initCam (index, params) {
     const self = this
-    this.stopCapture()
-    const controller = this.captureController = new AbortController()
-    Webcam(index, controller.signal)
+    Webcam(index)
       .then(response => {
-        if (controller.signal.aborted) return
         self.src = response.video
         self.dynamic = true
         self.tex = self.regl.texture({ data: self.src, ...params })
       })
-      .catch(err => { if (err.name !== 'AbortError') console.log('could not get camera', err) })
+      .catch(err => console.log('could not get camera', err))
   }
 
   initVideo (url = '', params) {
-    this.stopCapture()
     // const self = this
     const vid = document.createElement('video')
     vid.crossOrigin = 'anonymous'
@@ -57,7 +52,6 @@ class HydraSource {
   }
 
   initImage (url = '', params) {
-    this.stopCapture()
     const img = document.createElement('img')
     img.crossOrigin = 'anonymous'
     img.src = url
@@ -69,7 +63,6 @@ class HydraSource {
   }
 
   initStream (streamName, params) {
-    this.stopCapture()
     //  console.log("initing stream!", streamName)
     let self = this
     if (streamName && this.pb) {
@@ -88,17 +81,14 @@ class HydraSource {
   // index only relevant in atom-hydra + desktop apps
   initScreen (index = 0, params) {
     const self = this
-    this.stopCapture()
-    const controller = this.captureController = new AbortController()
-    Screen(undefined, controller.signal)
+    Screen()
       .then(function (response) {
-        if (controller.signal.aborted) return
         self.src = response.video
         self.tex = self.regl.texture({ data: self.src, ...params})
         self.dynamic = true
         //  console.log("received screen input")
       })
-      .catch(err => { if (err.name !== 'AbortError') console.log('could not get screen', err) })
+      .catch(err => console.log('could not get screen', err))
   }
 
   // cache for the canvases, so we don't create them every time
@@ -132,16 +122,7 @@ class HydraSource {
     this.height = height
   }
 
-  stopCapture () {
-    if (!this.captureController) return
-    const video = this.src
-    this.captureController.abort()
-    this.captureController = undefined
-    if (video instanceof HTMLVideoElement && !video.srcObject) this.src = null
-  }
-
   clear () {
-    this.stopCapture()
     if (this.src && this.src.srcObject) {
       if (this.src.srcObject.getTracks) {
         this.src.srcObject.getTracks().forEach(track => track.stop())

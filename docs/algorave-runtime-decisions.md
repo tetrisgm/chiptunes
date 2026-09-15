@@ -1717,7 +1717,7 @@ canvas-capture tracks, a frozen clock after Stop, and restoration of Strudel
 `shape` after removing Hydra. Existing drawing and runtime suites pass. Chromium
 uses the silent sink; this is not native Safari or speaker evidence.
 
-Remaining: native acceptance, broader Hydra programs/options, camera/screen/media-source lifecycle, native microphone permission checks,
+Remaining: native acceptance, broader Hydra programs/options, native camera/screen/microphone permission checks, URL/media-source lifecycle,
 repeated-resource/performance checks,
 and continuity expectations for feedback across source edits. Initial integration
 creates a candidate renderer for each source transaction; do not call this full
@@ -1740,3 +1740,20 @@ during a pending edit. The tests use a generated MediaStream and never request a
 physical microphone. Hydra rendering/feed/rollback regression checks also pass.
 Camera, screen and other source-input cleanup plus native permission acceptance
 remain separate unfinished work.
+
+
+### Hydra camera and screen lifecycle — 2026-09-15
+
+The vendored camera and screen helpers now use a per-source AbortController.
+Clearing/replacing a source, stopping playback, or disposing a renderer cancels
+its capture. A late media grant releases tracks before video initialization;
+active cancellation pauses the video, detaches its stream and removes listeners.
+The retained renderer is included when Stop occurs during a source transaction.
+Original source files and hashes remain in the vendor provenance record.
+
+`scripts/verify-algorave-hydra-capture.cjs` uses full Chromium with simulated
+permission promises and canvas-generated MediaStreams. Both `initCam` and
+`initScreen` release late grants, render actual cyan video pixels through Hydra,
+and end their active tracks on Stop. No physical camera or desktop capture was
+accessed. Microphone and renderer/feed/rollback regressions also pass. Native
+permission/device acceptance and URL-video/image/stream lifecycle remain pending.

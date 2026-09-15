@@ -1,14 +1,6 @@
+import mediaVideo from './media-stream.js'
 
-export default function (options) {
-  return new Promise(function(resolve, reject) {
-    //  async function startCapture(displayMediaOptions) {
-    navigator.mediaDevices.getDisplayMedia(options).then((stream) => {
-      const video = document.createElement('video')
-      video.srcObject = stream
-      video.addEventListener('loadedmetadata', () => {
-        video.play()
-        resolve({video: video})
-      })
-    }).catch((err) => reject(err))
-  })
+export default function (options, signal) {
+  if (signal?.aborted) return Promise.reject(new DOMException('Capture cancelled', 'AbortError'))
+  return navigator.mediaDevices.getDisplayMedia(options).then(stream => mediaVideo(stream, signal))
 }

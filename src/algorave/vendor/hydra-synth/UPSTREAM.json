@@ -3,7 +3,10 @@
   "version": "1.4.0",
   "source": "https://registry.npmjs.org/hydra-synth/-/hydra-synth-1.4.0.tgz",
   "modified": [
-    "src/lib/audio.js"
+    "src/lib/audio.js",
+    "src/hydra-source.js",
+    "src/lib/webcam.js",
+    "src/lib/screenmedia.js"
   ],
   "files": [
     {
@@ -103,5 +106,8 @@
       "sha256": "e12d4b089880f041ed8d338c79d88df20056eba941fbd825a2fddff967d25547"
     }
   ],
-  "adaptation": "Dispose microphone capture and reject late grants before creating an AudioContext."
+  "adaptation": "Dispose microphone capture and reject late grants before creating an AudioContext. Camera and screen helpers use per-source abort signals to release late or active capture.",
+  "added": [
+    "src/lib/media-stream.js"
+  ]
 }

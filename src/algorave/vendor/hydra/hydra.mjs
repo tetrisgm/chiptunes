@@ -8,7 +8,8 @@ let active,frame;
 function globals(record){return [...Object.keys(record.hydra.synth),'loadScript'];}
 function restore(values){for(const [name,descriptor] of values){if(descriptor)Object.defineProperty(globalThis,name,descriptor);else delete globalThis[name];}}
 export function stopHydra(){cancelAnimationFrame(frame);frame=undefined;}
-export function stopHydraAudio(record=active){
+export function stopHydraInputs(record=active){
+  record?.hydra.s.forEach(source=>source.stopCapture?source.stopCapture():source.captureController?.abort());
   const audio=record?.hydra.synth.a;
   if(audio?.dispose)audio.dispose();
   else{audio?.stream?.getTracks().forEach(track=>track.stop());audio?.meyda?.stop();void audio?.context?.close().catch(()=>{});}
@@ -24,13 +25,13 @@ export function pauseHydra(){
   if(previous){previous.globals=globals(previous).map(name=>[name,Object.getOwnPropertyDescriptor(globalThis,name)]);restore(globals(previous).map(name=>[name,previous.before[name]]));}
   return previous;
 }
-export function restoreHydra(previous,running){active=previous;if(previous){restore(previous.globals);if(running)startHydra();else stopHydraAudio();}}
+export function restoreHydra(previous,running){active=previous;if(previous){restore(previous.globals);if(running)startHydra();else stopHydraInputs();}}
 export function disposeHydra(record){
   if(!record)return;
   const h=record.hydra;
   h.s.forEach(source=>source.clear());
   h.captureStream?.getTracks().forEach(track=>track.stop());
-  stopHydraAudio(record);
+  stopHydraInputs(record);
   const gl=h.canvas.getContext('webgl');h.regl.destroy();gl?.getExtension('WEBGL_lose_context')?.loseContext();
 }
 export async function initHydra(options={}){
