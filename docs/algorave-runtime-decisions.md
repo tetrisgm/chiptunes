@@ -1600,3 +1600,19 @@ the single-character message g(s:3): 103,40,115,58,51,41,124,173,144,59. This
 remains fake-port evidence; real device unplug/reconnect and native permissions
 are unverified. The helper extends upstream's lifecycle API without changing
 .serial() message encoding.
+
+## Experimental Tidal helper — 2026-09-15
+
+Preferred source from @strudel/tidal 0.1.0 and hs2js 0.1.0 is vendored with
+provenance and licenses. It uses the existing Strudel core/mini instead of
+installing the older dependency copies. web-tree-sitter 0.20.8 is pinned. The
+parser receives bundled runtime/grammar WASM bytes, avoiding root-relative
+fetches from the opaque iframe. Parser loading remains explicit through
+await initTidal(). The helper remains upstream's experimental subset of Tidal,
+not a general Haskell implementation.
+
+On c092ac0bb8b6 Chromium verifies exact s("bd sd")-equivalent values and half-cycle
+timing, actual drum audio, changed source Run, exact Undo and Stop. This is a
+silent-sink check; native Safari and wider operator/interpreter parity remain
+pending. Node-only fs/path branches of the tree-sitter loader stay external in
+the browser bundle; the tested browser/WASM path does not execute them.

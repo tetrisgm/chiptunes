@@ -100,3 +100,7 @@ remain separate goal requirements. Preserve this record in the release review.
 The motion input module uses @strudel/motion 1.2.6 preferred source under
 AGPL-3.0-or-later. Its original checksums and import/lifecycle adaptations are
 recorded in src/algorave/vendor/motion/UPSTREAM.json.
+
+The optional experimental Tidal helper includes preferred @strudel/tidal 0.1.0
+and hs2js 0.1.0 source (AGPL-3.0-or-later), with pinned web-tree-sitter 0.20.8
+and bundled WASM assets. Their provenance is in src/algorave/vendor.

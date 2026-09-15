@@ -77,6 +77,9 @@ Serial output is integrated with fake-port message and Stop/late-grant checks.
 Chromium workspace Play/Run/Undo/Stop/reload now passes with a fake port.
 Native permission and hardware remain unverified.
 
+The upstream experimental Tidal helper is integrated with local WASM assets;
+Chromium pattern/audio/Run/Undo checks pass. Native acceptance remains pending.
+
 Next: complete the remaining Strudel input/drawing/module scope and Shadertoy
 media and Sound contracts; complete final browser/acoustic
 acceptance and check performance appropriate to subsequent changes. Chromium DSP checks use an explicit

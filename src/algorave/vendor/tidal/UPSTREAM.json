@@ -1,0 +1,19 @@
+{
+  "package": "@strudel/tidal",
+  "version": "0.1.0",
+  "license": "AGPL-3.0-or-later",
+  "files": [
+    {
+      "path": "tidal.mjs",
+      "sha256": "1174047e456b06683a4f255217ddeda7aa6ab4657d1ba3ce967589bc30f9a81d"
+    },
+    {
+      "path": "package.json",
+      "sha256": "4c3b7c5ae9ce7d6d5f8bd235527e4a301c9c657824d465f23e57d6bbe3bfb870"
+    }
+  ],
+  "changes": [
+    "Use bundled parser/WASM assets and the existing core/mini runtime."
+  ],
+  "licenseSource": "Strudel root AGPL text"
+}

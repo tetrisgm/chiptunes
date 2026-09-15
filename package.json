@@ -37,6 +37,7 @@
     "test:algorave-drawing": "node build.js --algorave-preview && node scripts/verify-algorave-drawing.cjs",
     "test:algorave-image-project": "node scripts/verify-algorave-image-project.mjs && node build.js --algorave-preview && node scripts/verify-algorave-image-project.cjs",
     "test:algorave-audio-input": "node build.js --algorave-preview && node scripts/verify-algorave-audio-input.cjs",
+    "test:algorave-tidal": "node build.js --algorave-preview && node scripts/verify-algorave-tidal.cjs",
     "test:algorave-serial": "node scripts/verify-algorave-serial.cjs && node build.js --algorave-preview && node scripts/verify-algorave-serial-workspace.cjs",
     "test:algorave-motion": "node build.js --algorave-preview && node scripts/verify-algorave-motion.cjs",
     "test:algorave-sound": "node scripts/verify-algorave-sound.cjs && node build.js --algorave-preview && node scripts/verify-algorave-sound-workspace.cjs",
@@ -109,7 +110,8 @@
     "@strudel/xen": "1.2.6",
     "node-web-audio-api": "2.0.0",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "web-tree-sitter": "0.20.8"
   },
   "devDependencies": {
     "@codemirror/autocomplete": "6.20.3",

@@ -10,6 +10,7 @@ import * as osc from '@strudel/osc';
 import * as gamepad from './vendor/gamepad/index.mjs';
 import * as motion from './vendor/motion/index.mjs';
 import * as serial from './vendor/serial/serial.mjs';
+import * as tidal from './vendor/tidal/tidal.mjs';
 
 export const CDN = 'https://strudel.b-cdn.net';
 export const BANKS = [
@@ -48,7 +49,7 @@ async function catalog(name) {
 }
 
 export async function registerDefaultSounds() {
-  await evalScope(soundfonts, xen, edo, gamepad, osc, midi, motion, serial);
+  await evalScope(soundfonts, xen, edo, gamepad, osc, midi, motion, serial, tidal);
   registerZZFXSounds(); soundfonts.registerSoundfonts();
   await samples(DIRT, `${CDN}/Dirt-Samples/`, {prebake:true});
   const tasks = BANKS.map(async ([name, base, tag]) => samples(await catalog(name), `${CDN}/${base}`, {prebake:true,tag}));
