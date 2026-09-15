@@ -1486,3 +1486,16 @@ An original local red texture also generates the expected waveform through an
 actual 180-second Sound buffer. Chromium uses a silent sink. Native Safari,
 additional channel types, cancellation/rollback stress and final production
 acceptance remain pending.
+
+### Stop during Sound preparation
+
+On `633dce6b3682`, the workspace test clicks Stop while a real 180-second Sound
+render is in progress. Stop aborts shader preparation before awaiting the music
+bridge, and activation rejects a changed stop generation. The test confirms
+that the old applied source and actual Sound resource remain, transport stops,
+and pending loads/candidates are empty. Reload stays stopped.
+
+This closes the gap between the independent renderer cancellation test and the
+user-facing Stop action. Dynamic Sound input behavior still needs authoritative
+contract verification and implementation; search results alone did not establish
+the reference application's handling of each dynamic input type.

@@ -24,7 +24,15 @@ const source='vec2 mainSound(int samp,float time){return vec2(sin(6.2831853*440.
   await page.getByLabel('GLSL visual').fill('broken GLSL');await page.locator('#run').click();await page.waitForFunction(()=>!algoravePreview.session.busy&&document.getElementById('status').textContent.includes('Sound:'));
   assert.equal(await page.evaluate(()=>algoravePreview.shader.passes.find(p=>p.name==='Sound').images[0].media===window.previousSound),true,'failed compile keeps the actual playing resource');
   assert.equal(await page.evaluate(()=>algoravePreview.session.applied.visuals.Sound),source);assert.equal(await page.evaluate(()=>algoravePreview.playing),true);
-  await page.locator('#play').click();await page.waitForFunction(()=>!algoravePreview.playing);
+  // Stop while the real 180-second GPU render is yielding between blocks.
+  // The current resource must survive and the candidate must never apply later.
+  await page.getByLabel('GLSL visual').fill(changed);await page.locator('#run').click();
+  await page.waitForFunction(()=>algoravePreview.session.busy&&algoravePreview.shader.loads.size>0);
+  await page.locator('#play').click();
+  await page.waitForFunction(()=>!algoravePreview.session.busy&&!algoravePreview.playing);
+  assert.equal(await page.evaluate(()=>algoravePreview.session.applied.visuals.Sound),source);
+  assert.deepEqual(await page.evaluate(()=>({loads:algoravePreview.shader.loads.size,candidates:algoravePreview.shader.candidates.size,same:algoravePreview.shader.passes.find(p=>p.name==='Sound').images[0].media===previousSound})),{loads:0,candidates:0,same:true});
+
   await page.reload();await page.waitForFunction(()=>window.algoravePreview&&!document.getElementById('play').disabled);assert.equal(await page.evaluate(()=>algoravePreview.playing),false);
   assert.equal(await page.evaluate(()=>algoravePreview.session.applied.visuals.Sound),source);
   const textureResult=await page.evaluate(async()=>{
@@ -37,6 +45,6 @@ const source='vec2 mainSound(int samp,float time){return vec2(sin(6.2831853*440.
     }finally{runtime.dispose();}
   });
   assert(Math.abs(textureResult.wave-191)<=2,JSON.stringify(textureResult));assert.equal(textureResult.samples,180*44100*2);
-  console.log('PASS: Sound project Open stopped, pass editor, Play, Run, Undo, compile failure retains applied source/playback, Stop and saved reload. Silent sink; native and channel acceptance remain pending.');
+  console.log('PASS: Sound project Open stopped, pass editor, Play, Run, Undo, compile failure retains applied source/playback, Stop during GPU generation with resource retention/cleanup and saved reload. Silent sink; native and channel acceptance remain pending.');
  }finally{await browser.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
 })().catch(error=>{console.error(error);process.exitCode=1;});

@@ -27148,6 +27148,7 @@ var runtime = {
         return checkpoint;
       },
       async apply() {
+        if (stopVersion !== stopGeneration) throw Error("Stopped before the edit was applied.");
         if (pendingSample?.signal.aborted) throw Error("Sample loading cancelled.");
         if (pendingSample) $("sample-cancel").disabled = true;
         let visualApplied = false;
@@ -27334,6 +27335,7 @@ $("play").onclick = async () => {
     return;
   }
   stopGeneration++;
+  shader2.setPlaying(false);
   if (uiBusy) {
     try {
       await bridge.request("stop");
@@ -27605,7 +27607,7 @@ bridge = new MusicBridge(frame, (next) => {
 await bridge.ready;
 lock(false);
 status.textContent = session.recoveryError || initialVisualError || "Ready \xB7 \u2318/Ctrl Enter to run";
-$("build").textContent = "Algorave 65b84585aad5";
+$("build").textContent = "Algorave 633dce6b3682";
 function draw(now) {
   shader2.render({ playing, time: now / 1e3, delta: last2 ? (now - last2) / 1e3 : 0, ...signals.at(performance.timeOrigin + now) });
   last2 = now;

@@ -63,6 +63,7 @@ const runtime = {
     return {
       get checkpoint(){return checkpoint;},
       async apply() {
+        if(stopVersion!==stopGeneration)throw Error('Stopped before the edit was applied.');
         if(pendingSample?.signal.aborted)throw Error('Sample loading cancelled.');
         if(pendingSample)$('sample-cancel').disabled=true;
         // Both candidates have been validated. Apply the visual transaction first;
@@ -175,6 +176,7 @@ $('run').onclick = run;
 $('play').onclick = async () => {
   if (!playing) { focus = 'music'; await run(); return; }
   stopGeneration++;
+  shader.setPlaying(false);
   if(uiBusy){
     try{await bridge.request('stop');playing=false;shader.setPlaying(false);$('play').textContent='Play';$('play').disabled=true;status.textContent='Stopped';}
     catch(error){message(error);}return;
