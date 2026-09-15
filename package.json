@@ -34,6 +34,7 @@
     "test:algorave-edo": "node build.js --algorave-preview && node scripts/verify-algorave-edo.cjs",
     "test:algorave-drawing": "node build.js --algorave-preview && node scripts/verify-algorave-drawing.cjs",
     "test:algorave-image-project": "node scripts/verify-algorave-image-project.mjs && node build.js --algorave-preview && node scripts/verify-algorave-image-project.cjs",
+    "test:algorave-volume": "node build.js --algorave-preview && node scripts/verify-algorave-volume.cjs",
     "test:algorave-cube-output": "node build.js --algorave-preview && node scripts/verify-algorave-cube-output.cjs",
     "test:algorave-cubemap": "node build.js --algorave-preview && node scripts/verify-algorave-cubemap.cjs",
     "test:algorave-shader-inputs": "node build.js --algorave-preview && node scripts/verify-algorave-shader-inputs.cjs",

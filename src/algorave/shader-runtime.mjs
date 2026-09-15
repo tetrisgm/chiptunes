@@ -1,12 +1,14 @@
 // A shader owns no transport. The caller supplies time, audio and event signals.
 import contract from './project.cjs';
 import {loadShaderImage,decodeShaderImage,imageKey,IMAGE_PIXELS} from './shader-images.mjs';
+import {loadShaderVolume,decodeShaderVolume} from './shader-volume.mjs';
 const inputInfo=input=>typeof input==='string'?{type:['audio','keyboard'].includes(input)?input:'buffer',source:input}:input||{type:'empty'};
 const VERTEX = `#version 300 es
 void main(){vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.-1.,0.,1.);}`;
 const HEADER = `#version 300 es
 precision highp float;
 precision highp int;
+precision highp sampler3D;
 uniform vec3 iResolution;
 uniform float iTime, iTimeDelta, iFrameRate, iSampleRate;
 uniform int iFrame;
@@ -168,6 +170,24 @@ export class ShaderRuntime {
       return {texture,width:size,height:size,target:g.TEXTURE_CUBE_MAP};
     }catch(error){g.deleteTexture(texture);throw error;}
   }
+  volumeTexture(volume,srgb=false){
+    const g=this.gl,{width,height,depth,components}=volume;
+    if(Math.max(width,height,depth)>g.getParameter(g.MAX_3D_TEXTURE_SIZE))throw Error('Volume exceeds this graphics device’s size limit.');
+    let data=volume.data,format=[g.RED,g.RG,g.RGB,g.RGBA][components-1],internal=[g.R8,g.RG8,g.RGB8,g.RGBA8][components-1];
+    if(srgb){
+      internal=g.SRGB8_ALPHA8;format=g.RGBA;
+      if(components!==4){data=new Uint8Array(width*height*depth*4);for(let i=0;i<width*height*depth;i++){data.set(volume.data.subarray(i*components,(i+1)*components),i*4);data[i*4+3]=255;}}
+    }
+    const texture=g.createTexture();g.bindTexture(g.TEXTURE_3D,texture);
+    try{
+      g.pixelStorei(g.UNPACK_ALIGNMENT,1);g.pixelStorei(g.UNPACK_FLIP_Y_WEBGL,false);g.pixelStorei(g.UNPACK_PREMULTIPLY_ALPHA_WEBGL,false);
+      g.texImage3D(g.TEXTURE_3D,0,internal,width,height,depth,0,format,g.UNSIGNED_BYTE,data);
+      if(g.getError()!==g.NO_ERROR)throw Error('Volume texture allocation failed.');
+      g.texParameteri(g.TEXTURE_3D,g.TEXTURE_MIN_FILTER,g.LINEAR);g.texParameteri(g.TEXTURE_3D,g.TEXTURE_MAG_FILTER,g.LINEAR);
+      for(const axis of [g.TEXTURE_WRAP_S,g.TEXTURE_WRAP_T,g.TEXTURE_WRAP_R])g.texParameteri(g.TEXTURE_3D,axis,g.CLAMP_TO_EDGE);
+      return {texture,width,height,depth,target:g.TEXTURE_3D};
+    }catch(error){g.deleteTexture(texture);throw error;}
+  }
   sampler(input){
     const g=this.gl,info=inputInfo(input),sampler=g.createSampler();
     const filter=info.filter||(info.type==='keyboard'?'nearest':'linear'),wrap=info.wrap||'clamp';
@@ -216,7 +236,7 @@ export class ShaderRuntime {
     const shaders = [], program = g.createProgram();
     try {
       for (const [kind, code] of [[g.VERTEX_SHADER, VERTEX], [g.FRAGMENT_SHADER,
-        HEADER + Array.from({length:4},(_,i)=>`uniform ${cubeInput(channels[i])?'samplerCube':'sampler2D'} iChannel${i};\n`).join('') + '\n#line 1 1\n' + common + '\n#line 1 0\n' + source + (cube?CUBE_MAIN:'\nvoid main(){mainImage(outputColor,gl_FragCoord.xy);}') ]]) {
+        HEADER + Array.from({length:4},(_,i)=>`uniform ${cubeInput(channels[i])?'samplerCube':inputInfo(channels[i]).type==='volume'?'sampler3D':'sampler2D'} iChannel${i};\n`).join('') + '\n#line 1 1\n' + common + '\n#line 1 0\n' + source + (cube?CUBE_MAIN:'\nvoid main(){mainImage(outputColor,gl_FragCoord.xy);}') ]]) {
         const shader = g.createShader(kind); shaders.push(shader);
         g.shaderSource(shader, code); g.compileShader(shader);
         if (!g.getShaderParameter(shader, g.COMPILE_STATUS)) throw Error(g.getShaderInfoLog(shader) || 'Graphics context became unavailable during compilation.');
@@ -249,13 +269,13 @@ export class ShaderRuntime {
         next.push(pass);
         for(let i=0;i<4;i++){
           const input=inputInfo(channels[i]);pass.samplers.push(this.sampler(channels[i]));
-          if(input.type==='texture'||input.type==='cubemap'){
-            const sources=contract.textureSources(input),bitmaps=sources.map(src=>images.get(imageKey({src,vflip:input.vflip})));
+          if(input.type==='texture'||input.type==='cubemap'||input.type==='volume'){
+            const sources=contract.textureSources(input),bitmaps=sources.map(src=>images.get(imageKey({src,vflip:input.vflip,type:input.type})));
             if(bitmaps.some(bitmap=>!bitmap))throw Error('Texture is not loaded. Use asynchronous preparation.');
             const key=JSON.stringify([input.type,sources,input.vflip===true,input.srgb===true]);
             if(!imageTextures.has(key)){
-              imagePixels+=bitmaps.reduce((sum,b)=>sum+b.width*b.height,0);if(imagePixels>IMAGE_PIXELS*4)throw Error('Combined texture resolution exceeds 64 megapixels.');
-              imageTextures.set(key,input.type==='cubemap'?this.cubeTexture(bitmaps,input.srgb===true):this.imageTexture(bitmaps[0],input.srgb===true));
+              imagePixels+=bitmaps.reduce((sum,b)=>sum+b.width*b.height*(b.depth||1),0);if(imagePixels>IMAGE_PIXELS*4)throw Error('Combined texture resolution exceeds 64 million pixels/voxels.');
+              imageTextures.set(key,input.type==='cubemap'?this.cubeTexture(bitmaps,input.srgb===true):input.type==='volume'?this.volumeTexture(bitmaps[0],input.srgb===true):this.imageTexture(bitmaps[0],input.srgb===true));
             }
             pass.images[i]=imageTextures.get(key);
           }
@@ -295,7 +315,7 @@ export class ShaderRuntime {
   }
   async prepareAsync(document){
     const normalized=contract.project({version:1,runtime:contract.RUNTIME,music:'',visuals:document}).visuals;
-    const inputs=Object.values(normalized.channels).flat().flatMap(input=>contract.textureSources(input).map(src=>({src,vflip:input.vflip})));
+    const inputs=Object.values(normalized.channels).flat().flatMap(input=>contract.textureSources(input).map(src=>({src,vflip:input.vflip,type:input.type})));
     if(!inputs.length)return this.prepare(normalized);
     const generation=this.generation,controller=new AbortController(),images=new Map();this.loads.add(controller);
     const timer=setTimeout(()=>controller.abort(),15000);let pixels=0;
@@ -304,8 +324,9 @@ export class ShaderRuntime {
       for(const input of inputs){
         const key=imageKey(input);if(images.has(key))continue;
         const options={signal:controller.signal,vflip:input.vflip},id=contract.imageId(input.src);
-        const bitmap=id?await decodeShaderImage(await this.resolveImage(id),options):await loadShaderImage(input.src,options);images.set(key,bitmap);
-        pixels+=bitmap.width*bitmap.height;if(pixels>IMAGE_PIXELS*4)throw Error('Combined texture resolution exceeds 64 megapixels.');
+        const decode=input.type==='volume'?decodeShaderVolume:decodeShaderImage,load=input.type==='volume'?loadShaderVolume:loadShaderImage;
+        const bitmap=id?await decode(await this.resolveImage(id),options):await load(input.src,options);images.set(key,bitmap);
+        pixels+=bitmap.width*bitmap.height*(bitmap.depth||1);if(pixels>IMAGE_PIXELS*4)throw Error('Combined texture resolution exceeds 64 million pixels/voxels.');
       }
       if(controller.signal.aborted||generation!==this.generation||this.disposed||this.lost)throw Error('Visual output changed while textures loaded. Run again.');
       return this.prepare(normalized,images);
@@ -350,7 +371,7 @@ export class ShaderRuntime {
         if(input.filter==='mipmap'&&!texture.mipmaps){g.generateMipmap(target);texture.mipmaps=true;}
         g.bindSampler(i,pass.samplers[i]);
         this.uniform(pass,`iChannel${i}`,'uniform1i',i);
-        this.uniform(pass,`iChannelResolution[${i}]`,'uniform3f',texture.width,texture.height,1);
+        this.uniform(pass,`iChannelResolution[${i}]`,'uniform3f',texture.width,texture.height,texture.depth||1);
         this.uniform(pass,`iChannelTime[${i}]`,'uniform1f',input.type === 'audio' ? time : 0);
       }
       if(pass.name==='Cube'){

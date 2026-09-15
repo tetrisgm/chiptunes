@@ -72,7 +72,7 @@ notices and corresponding source (81 packages), rather than hiding transitive
 inputs in a prebundle. See [distribution](algorave-distribution.md).
 
 Shadertoy still needs media lifecycles,
-volume inputs, Sound and VR support. Cubemap output is now integrated (see below). HTTPS image textures,
+Sound and VR support. Volume inputs and Cubemap output are now integrated (see below). HTTPS image textures,
 sampler settings, keyboard and local image imports are covered by the newer checkpoints below. Image/Common/A-D,
 floating-point feedback, standard uniform and high-resolution checks are a
 starting point. Finish native and Chromium acceptance on the final build and the
@@ -272,6 +272,48 @@ server cleanup completed before starting the next shader suite. This establishes
 the sustained DSP/resource check for that build, not separate audio-frame heap,
 speaker quality or later shader additions. Receipt:
 `.algorave-preview/upstream-soak-1800s-receipt.json`.
+
+## Volume texture inputs — 2026-09-15
+
+Channels now offers Volume texture with HTTPS or local `.bin` input. The renderer
+provides sampler3D without changing the GLSL language; texture, textureLod and
+texelFetch operate on real WebGL 3D textures. iChannelResolution includes depth.
+Unsigned-byte R, RG, RGB and RGBA data use tightly packed rows, including odd
+widths. Per-channel nearest/linear/mipmap filtering and S/T/R wrap apply normally.
+Vertical flip reverses rows within each depth slice; sRGB conversion preserves
+missing-channel defaults and alpha. Shared assets allocate one texture across
+passes; cube, 2D and volume samplers can coexist in the same shader.
+
+The file layout is `BIN` plus newline, four little-endian uint32 values for
+width/height/depth/components, then x-fastest unsigned-byte voxels. This follows
+the [volume reader in Tellusim's Shadertoy renderer](https://github.com/Tellusim/Shadertoy/blob/main/main.py)
+and the [reported Shadertoy file header](https://shadertoyunofficial.wordpress.com/2019/07/23/shadertoy-media-files/).
+Direct Shadertoy asset requests returned 402/403, so current hosted preset files
+were not downloaded or used as parity evidence. Fixtures are original 3D grids.
+
+Volume bytes use the existing immutable visual-asset store and portable archive.
+Validation rejects a bad signature, unsupported component count, zero/overflowing
+dimensions, truncated/trailing bytes and files over 16 MiB. Images and volumes
+share the existing 32-file/64-MiB collection bound. CPU/GPU volume totals count
+voxels, with a 64-million pixel/voxel combined bound and the actual device's 3D
+texture dimension limit. Failed preparation retains the current passes; rollback,
+context recovery and disposal follow the existing image lifecycle. A volume file
+cannot be imported as an image (or vice versa) through the channel picker.
+
+Build `6e2c54863c46` passes `test:algorave-volume`: byte/header/archive validation,
+all eight voxel corners, R/RG/RGB/RGBA row alignment, interpolation/mipmaps/depth
+wrap/sRGB, uniforms, mixed/shared passes, failed download retention, rollback,
+context recovery/disposal, actual local picker import, Run/Undo, download, fresh
+profile Open, stopped reload and narrow layout. Image input, cube-image input,
+Cube output, image persistence and all six captured provider UI flows also pass;
+agent and image archive unit checks pass. These are zero-provider-call checks.
+
+Native Safari on visible local `6e2c54863c46` opened the portable volume archive,
+rendered a magenta voxel, changed Flip vertically via the channel controls and
+Run to produce white, then restored magenta and the unchecked setting with Undo.
+Reload retained magenta with Play/Ready. The temporary native tab/server closed.
+Full parity still requires media channels, Sound/VR and remaining Strudel modules,
+followed by final acceptance and the authorized public site/gateway deployment.
 
 ## Cubemap output pass — 2026-09-15
 

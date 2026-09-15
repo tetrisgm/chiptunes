@@ -32,9 +32,12 @@ Six-face cube inputs now use samplerCube without rewriting GLSL; see the
 Generated Cubemap A passes now support standard mainCubemap, feedback, editor
 Run/Undo and portable projects; Chromium and native Safari pass on `e5092eb0e567`.
 See the [cube-output checkpoint](algorave-runtime-decisions.md#cubemap-output-pass--2026-09-15).
+Volume inputs now support standard sampler3D, local/HTTPS .bin data and portable
+projects, verified in Chromium and native Safari on `6e2c54863c46`; see the
+[volume checkpoint](algorave-runtime-decisions.md#volume-texture-inputs--2026-09-15).
 
 Next: complete the remaining Strudel input/drawing/module scope and Shadertoy
-media, volume textures, Sound and VR contracts; complete final browser/acoustic
+media, Sound and VR contracts; complete final browser/acoustic
 acceptance and check performance appropriate to subsequent changes. Chromium DSP checks use an explicit
 silent sink after default-device failures also affected upstream. Six saved real
 provider replies are available for zero-call replay. Native OpenAI music, visual

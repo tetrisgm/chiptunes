@@ -12,7 +12,8 @@ import {loadSamples,saveSamples} from './sample-persistence.mjs';
 import {sampleIds} from './sample-project.mjs';
 import {imageIds,exportProject,importProject,PROJECT_BYTES} from './project-assets.mjs';
 import {loadImages,saveImages} from './image-persistence.mjs';
-import {decodeShaderImage,IMAGE_BYTES} from './shader-images.mjs';
+import {IMAGE_BYTES} from './shader-images.mjs';
+import {validateVisualAsset} from './image-assets.mjs';
 const $ = id => document.getElementById(id);
 const status = $('status');
 const music = codeEditor($('music'), {language:'music',label:'Strudel music'});
@@ -27,15 +28,16 @@ async function resolveImage(id){
   if(!store.has(id)){imageStorePromise=null;store=await imageStore();}
   return store.blob(id);
 }
-async function importImage(file){
+async function importImage(file,{volume=false}={}){
   if(uiBusy)throw Error('Wait for the current edit to finish.');
   lock(true);
   try{
-    if(file.size>IMAGE_BYTES)throw Error('Image files must be at most 16 MiB.');
+    if(file.size>IMAGE_BYTES)throw Error('Texture files must be at most 16 MiB.');
     const store=(await imageStore()).fork(),{id}=await store.put(new Uint8Array(await file.arrayBuffer()));
-    (await decodeShaderImage(store.blob(id))).close();
+    const type=await validateVisualAsset(store.blob(id));
+    if(volume===type.startsWith('image/'))throw Error(volume?'Choose a Shadertoy .bin volume.':'Choose an image for this channel.');
     await saveImages(store);imageStorePromise=Promise.resolve(store);
-    status.textContent='Image imported · Set channels, then Run visuals';
+    status.textContent=(type.startsWith('image/')?'Image':'Volume')+' imported · Set channels, then Run visuals';
     return 'asset:'+id;
   }finally{lock(false);}
 }
@@ -199,7 +201,7 @@ $('project-file').onchange = async () => {
     if(imported.images){
       const store=(await imageStore()).fork();
       for(const {id} of imported.images.snapshot().assets){
-        (await decodeShaderImage(imported.images.blob(id))).close();
+        await validateVisualAsset(imported.images.blob(id));
         await store.put(imported.images.get(id));
       }
       await saveImages(store);imageStorePromise=Promise.resolve(store);

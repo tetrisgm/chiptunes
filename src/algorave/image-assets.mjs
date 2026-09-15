@@ -1,9 +1,11 @@
-import {IMAGE_BYTES} from './shader-images.mjs';
+import {IMAGE_BYTES,decodeShaderImage} from './shader-images.mjs';
+import {isVolume,parseVolume,VOLUME_TYPE} from './shader-volume.mjs';
 export const IMAGE_LIMITS=Object.freeze({fileBytes:IMAGE_BYTES,totalBytes:64*1024*1024,count:32});
 // Identify encoded content independently of the filename or the archive metadata.
 // A browser decode is still required before activating or saving imported content.
 export function imageType(bytes){
   if(!(bytes instanceof Uint8Array)||bytes.length<12||bytes.length>IMAGE_BYTES)throw Error('Invalid image file size (16 MiB maximum).');
+  if(isVolume(bytes)){parseVolume(bytes);return VOLUME_TYPE;}
   const word=(start,length)=>String.fromCharCode(...bytes.subarray(start,start+length));
   if([137,80,78,71,13,10,26,10].every((v,i)=>bytes[i]===v))return 'image/png';
   if(bytes[0]===255&&bytes[1]===216&&bytes[2]===255)return 'image/jpeg';
@@ -16,7 +18,7 @@ export function imageType(bytes){
       for(let offset=8;offset<size;offset+=4)if(offset!==12&&['avif','avis'].includes(word(offset,4)))return 'image/avif';
     }
   }
-  throw Error('Use a PNG, JPEG, WebP, AVIF, GIF or BMP image.');
+  throw Error('Use a PNG, JPEG, WebP, AVIF, GIF, BMP image or Shadertoy .bin volume.');
 }
 export class ImageByteStore {
   #items=new Map();#total=0;
@@ -34,4 +36,10 @@ export class ImageByteStore {
   blob(id){const bytes=this.get(id);return new Blob([bytes],{type:imageType(bytes)});}
   fork(){const store=new ImageByteStore();store.#items=new Map(this.#items);store.#total=this.#total;return store;}
   snapshot(){return {count:this.#items.size,byteLength:this.#total,assets:[...this.#items].map(([id,bytes])=>({id,byteLength:bytes.length}))};}
+}
+
+export async function validateVisualAsset(blob){
+  const type=imageType(new Uint8Array(await blob.arrayBuffer()));
+  if(type!==VOLUME_TYPE)(await decodeShaderImage(blob)).close();
+  return type;
 }

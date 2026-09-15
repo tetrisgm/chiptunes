@@ -12,7 +12,7 @@ function text(v, limit) {
   return typeof v === 'string' && bytes(v) <= limit && !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(v);
 }
 const imageId = src => typeof src === 'string' && /^asset:[a-f0-9]{64}$/.test(src) ? src.slice(6) : null;
-const textureSources = input => input?.type === 'cubemap' ? input.faces : input?.type === 'texture' ? [input.src] : [];
+const textureSources = input => input?.type === 'cubemap' ? input.faces : ['texture','volume'].includes(input?.type) ? [input.src] : [];
 function textureSource(src){
   need(text(src,4096),'Invalid texture URL.');
   if(imageId(src))return src;
@@ -26,14 +26,14 @@ function channel(value, visuals) {
     need(Object.hasOwn(visuals,value),'Channel names a missing buffer.');return value;
   }
   need(keys(value,['type','source','src','faces','filter','wrap','vflip','srgb'],['type']),'Invalid visual input.');
-  need(['audio','keyboard','buffer','texture','cubemap'].includes(value.type),'Unsupported visual input type.');
+  need(['audio','keyboard','buffer','texture','cubemap','volume'].includes(value.type),'Unsupported visual input type.');
   const result={type:value.type};
   if(value.type==='buffer'){
     need(['A','B','C','D','Cube'].includes(value.source)&&Object.hasOwn(visuals,value.source),'Channel names a missing buffer.');
     result.source=value.source;
   }else need(!Object.hasOwn(value,'source'),'Only buffers have a source pass.');
-  if(value.type==='texture'||value.type==='cubemap'){
-    if(value.type==='texture'){
+  if(value.type==='texture'||value.type==='cubemap'||value.type==='volume'){
+    if(value.type!=='cubemap'){
       need(!Object.hasOwn(value,'faces'),'Only cube textures have faces.');result.src=textureSource(value.src);
     }else{
       need(!Object.hasOwn(value,'src')&&Array.isArray(value.faces)&&value.faces.length===6,'A cube texture needs six faces: +X, -X, +Y, -Y, +Z, -Z.');
