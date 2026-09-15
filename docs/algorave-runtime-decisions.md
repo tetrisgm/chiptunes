@@ -1616,3 +1616,13 @@ timing, actual drum audio, changed source Run, exact Undo and Stop. This is a
 silent-sink check; native Safari and wider operator/interpreter parity remain
 pending. Node-only fs/path branches of the tree-sitter loader stay external in
 the browser bundle; the tested browser/WASM path does not execute them.
+
+### Tidal syntax-tree lifetime
+
+The interpreter now detaches the node fields used by its evaluator before
+deleting the WASM syntax tree. Returned curried functions retain ordinary
+JavaScript node data, not live WASM nodes. A Chromium test counts 22 tree
+deletions across valid and invalid inputs, then calls a previously returned
+(+ 1) function successfully. An invalid Tidal Run retains the complete applied
+project and keeps playback running. These checks pass on 45618c164703.
+The adaptation is recorded in hs2js provenance.

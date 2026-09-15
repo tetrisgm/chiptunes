@@ -132,5 +132,13 @@ export function run(node, scope, ops = {}) {
 
 export function evaluate(haskellCode, scope = globalThis, ops) {
   const ast = parse(haskellCode);
-  return run(ast.rootNode, scope, ops);
+  // Returned curried functions retain nodes. Detach the node data they use
+  // before releasing the WASM tree so those closures remain valid.
+  const detach = node => ({type:node.type,text:node.text,startIndex:node.startIndex,
+    endIndex:node.endIndex,startPosition:node.startPosition,endPosition:node.endPosition,
+    children:node.children.map(detach)});
+  let root;
+  try { root = detach(ast.rootNode); }
+  finally { ast.delete(); }
+  return run(root, scope, ops);
 }

@@ -14,6 +14,17 @@ const root=path.resolve(__dirname,'../.algorave-preview');
   await page.waitForFunction(()=>algoravePreview.playing&&algoravePreview.signal.frequency?.some(v=>v>0)).catch(async error=>{console.error(await page.locator('#status').innerText());throw error;});
   const values=await frame.evaluate(()=>tidal('s "bd sd"').queryArc(0,1).map(h=>({s:h.value.s,time:Number(h.whole.begin)})));
   assert.deepEqual(values,[{s:'bd',time:0},{s:'sd',time:.5}]);
+  const lifecycle=await frame.evaluate(async()=>{
+    const parser=await initTidal(),parse=parser.parse.bind(parser);let deleted=0;
+    Object.defineProperty(parser,'parse',{configurable:true,value:(...args)=>{const tree=parse(...args),dispose=tree.delete.bind(tree);Object.defineProperty(tree,'delete',{value:()=>{deleted++;dispose();}});return tree;}});
+    const fn=tidal('(+ 1)');for(let i=0;i<20;i++)tidal('s "bd"');
+    let invalid=false;try{tidal('s (');}catch{invalid=true;}
+    return {deleted,invalid,value:fn(2).queryArc(0,1)[0].value};
+  });
+  assert.deepEqual(lifecycle,{deleted:22,invalid:true,value:3});
+  const applied=await page.evaluate(()=>structuredClone(algoravePreview.session.applied));
+  await page.getByLabel('Strudel music').fill('await initTidal(); tidal(\'s (\')');await page.locator('#run').click();await page.waitForFunction(()=>!algoravePreview.session.busy&&!document.getElementById('run').disabled);
+  assert.deepEqual(await page.evaluate(()=>algoravePreview.session.applied),applied);assert.equal(await page.evaluate(()=>algoravePreview.playing),true);
   const changed='await initTidal(); tidal(\'s "hh*8"\')';await page.getByLabel('Strudel music').fill(changed);await page.locator('#run').click();await page.waitForFunction(source=>algoravePreview.session.applied.music===source,changed);
   await page.locator('#menu summary').click();await page.locator('#undo').click();await page.waitForFunction(()=>document.getElementById('status').textContent==='Undone');assert.equal(await page.evaluate(()=>algoravePreview.session.applied.music),source);await page.locator('#menu summary').click();
   await page.locator('#play').click();await page.waitForFunction(()=>!algoravePreview.playing);

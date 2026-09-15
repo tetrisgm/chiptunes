@@ -48951,7 +48951,22 @@ ${JSON.stringify(t2, null, 2)}`);
   }
   function evaluate2(haskellCode, scope = globalThis, ops2) {
     const ast = parse5(haskellCode);
-    return run2(ast.rootNode, scope, ops2);
+    const detach = (node) => ({
+      type: node.type,
+      text: node.text,
+      startIndex: node.startIndex,
+      endIndex: node.endIndex,
+      startPosition: node.startPosition,
+      endPosition: node.endPosition,
+      children: node.children.map(detach)
+    });
+    let root;
+    try {
+      root = detach(ast.rootNode);
+    } finally {
+      ast.delete();
+    }
+    return run2(root, scope, ops2);
   }
 
   // src/algorave/vendor/tidal/tidal.mjs

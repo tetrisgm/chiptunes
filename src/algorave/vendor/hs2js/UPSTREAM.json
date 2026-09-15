@@ -33,7 +33,8 @@
     }
   ],
   "changes": [
-    "Use bundled parser/WASM assets and the existing core/mini runtime."
+    "Use bundled parser/WASM assets and the existing core/mini runtime.",
+    "Detach interpreter node data and delete each WASM syntax tree after parsing, preserving returned closures."
   ],
   "licenseSource": "published package"
 }
