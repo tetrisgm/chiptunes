@@ -1626,3 +1626,18 @@ deletions across valid and invalid inputs, then calls a previously returned
 (+ 1) function successfully. An invalid Tidal Run retains the complete applied
 project and keeps playback running. These checks pass on 45618c164703.
 The adaptation is recorded in hs2js provenance.
+
+## Mondo integration — 2026-09-15
+
+@strudel/mondo 1.1.6 and mondolang 1.1.2 are pinned. The build uses preferred
+parser source and a vendored Strudel adapter, registering mondo, mondi and
+mondolang with the upstream evalScope/transpiler. The adapter wraps generated
+CSS in pure() so core reify treats it as a literal value rather than mini-notation.
+Original hashes and this adaptation are recorded in vendor provenance. markcss
+is registered exactly as a normal control, as in @strudel/codemirror 1.2.6.
+
+Chromium on faaaf5e7ea74 verifies mondo tagged-template execution, exact bd/sd
+half-cycle values, actual audio, invalid-input retention, Run, Undo and Stop.
+The output uses a silent sink. Highlight metadata is retained but active editor
+mark rendering is still missing; native Safari and broader language cases remain
+unverified. This does not complete the editor parity requirement.

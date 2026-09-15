@@ -15,6 +15,7 @@ function build({out=path.join(root,'.algorave-preview')}={}){
   for(const file of ['index.mjs','motion.mjs','UPSTREAM.json'])id.update(fs.readFileSync(path.join(root,'src/algorave/vendor/motion',file)));
   for(const file of ['serial.mjs','UPSTREAM.json'])id.update(fs.readFileSync(path.join(root,'src/algorave/vendor/serial',file)));
   for(const file of ['tidal/tidal.mjs','tidal/UPSTREAM.json','hs2js/src/index.mjs','hs2js/src/parser.mjs','hs2js/src/hs2js.mjs','hs2js/dist/tree-sitter.wasm','hs2js/dist/tree-sitter-haskell.wasm','hs2js/UPSTREAM.json'])id.update(fs.readFileSync(path.join(root,'src/algorave/vendor',file)));
+  for(const file of ['mondough.mjs','UPSTREAM.json'])id.update(fs.readFileSync(path.join(root,'src/algorave/vendor/mondo',file)));
   id.update(fs.readFileSync(__filename));
   id.update(fs.readFileSync(path.join(root,'package-lock.json')));
   for(const file of ['index.mjs','midi.mjs','UPSTREAM.json'])id.update(fs.readFileSync(path.join(root,'src/algorave/vendor/midi',file)));
@@ -25,7 +26,7 @@ function build({out=path.join(root,'.algorave-preview')}={}){
       loader:{'.wasm':'binary'},external:['fs','path'],format:entry==='preview.mjs'?'esm':'iife',platform:'browser',target:'es2022',minify:false,legalComments:'inline',
       // Bundle upstream source, not its prebundled distribution, so the input
       // graph records every dependency for notices and corresponding source.
-      alias:{'@strudel/osc':path.join(root,'node_modules/@strudel/osc/osc.mjs'),'@strudel/web':path.join(root,'node_modules/@strudel/web/web.mjs'),'@strudel/soundfonts':path.join(root,'node_modules/@strudel/soundfonts/index.mjs'),'@strudel/xen':path.join(root,'node_modules/@strudel/xen/index.mjs'),'@strudel/draw':path.join(root,'src/algorave/vendor/draw/index.mjs')},
+      alias:{'@strudel/mondo':path.join(root,'src/algorave/vendor/mondo/mondough.mjs'),'mondolang':path.join(root,'node_modules/mondolang/mondo.mjs'),'@strudel/osc':path.join(root,'node_modules/@strudel/osc/osc.mjs'),'@strudel/web':path.join(root,'node_modules/@strudel/web/web.mjs'),'@strudel/soundfonts':path.join(root,'node_modules/@strudel/soundfonts/index.mjs'),'@strudel/xen':path.join(root,'node_modules/@strudel/xen/index.mjs'),'@strudel/draw':path.join(root,'src/algorave/vendor/draw/index.mjs')},
       define:{BUILD_ID:JSON.stringify('Algorave '+buildId)}});
     Object.keys(result.metafile.inputs).forEach(file=>inputs.add(file));
   }

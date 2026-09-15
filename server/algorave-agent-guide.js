@@ -145,6 +145,9 @@ void mainImage(out vec4 c, in vec2 p) {
   float rings = sin(length(uv)*20.-iTime*3.-ctKick*4.);
   c = vec4(vec3(.3,.7,1.)*smoothstep(0.,.2,rings),1.);
 }
+Upstream Mondo notation is available through mondo tagged templates, mondo(code),
+mondi(code), and mondolang(code). Use normal Strudel unless Mondo is requested.
+
 The upstream experimental Tidal helper is available with await initTidal();
 then tidal('s "bd*4"'). Its parser is bundled locally. This is the upstream
 limited interpreter, not general Haskell. Use normal Strudel unless requested.

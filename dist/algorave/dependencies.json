@@ -271,6 +271,19 @@
   },
   {
     "supplementalNotice": null,
+    "name": "@strudel/mondo",
+    "version": "1.1.6",
+    "license": "AGPL-3.0-or-later",
+    "repository": {
+      "type": "git",
+      "url": "git+https://github.com/tidalcycles/strudel.git"
+    },
+    "noticeFiles": [
+      "LICENSE"
+    ]
+  },
+  {
+    "supplementalNotice": null,
     "name": "@strudel/motion",
     "version": "1.2.6",
     "license": "AGPL-3.0-or-later",
@@ -956,6 +969,19 @@
     "supplementalNotice": null,
     "name": "hs2js",
     "version": "0.1.0",
+    "license": "AGPL-3.0-or-later",
+    "repository": {
+      "type": "git",
+      "url": "git+https://github.com/tidalcycles/strudel.git"
+    },
+    "noticeFiles": [
+      "LICENSE"
+    ]
+  },
+  {
+    "supplementalNotice": null,
+    "name": "mondolang",
+    "version": "1.1.2",
     "license": "AGPL-3.0-or-later",
     "repository": {
       "type": "git",

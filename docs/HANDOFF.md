@@ -80,6 +80,10 @@ Native permission and hardware remain unverified.
 The upstream experimental Tidal helper is integrated with local WASM assets;
 Chromium pattern/audio/Run/Undo checks pass. Native acceptance remains pending.
 
+Mondo tagged templates now run with the upstream parser and retain markcss
+metadata. Chromium timing/audio/Run/Undo tests pass; editor highlighting and
+native verification remain pending.
+
 Next: complete the remaining Strudel input/drawing/module scope and Shadertoy
 media and Sound contracts; complete final browser/acoustic
 acceptance and check performance appropriate to subsequent changes. Chromium DSP checks use an explicit

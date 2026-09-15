@@ -12087,7 +12087,7 @@ registerProcessor('${n2}', MyProcessor);
   }
   function Mr2(t, i2) {
     i2 = i2 !== void 0 ? i2 : {};
-    var e = {}, f4 = i2.grammarSource, l2 = { start: Uu2 }, a2 = Uu2, D6 = ".", v2 = "-", g3 = "0", c4 = ",", F5 = "|", p2 = "[", w7 = "]", P4 = "{", R5 = "}", su2 = "%", iu2 = "<", re7 = ">", ne5 = "!", se4 = "(", ie6 = ")", fe5 = "/", oe4 = "*", ae5 = "?", le4 = ":", Eu2 = "..", ce7 = "^", vu2 = "struct", $u2 = "target", mu2 = "euclid", _u2 = "slow", yu2 = "rotL", wu2 = "rotR", bu2 = "fast", xu2 = "scale", Iu2 = "//", ku2 = "cat", Ae4 = "$", Nu2 = "setcps", Pu2 = "setbpm", qu2 = "hush", pe6 = /^[1-9]/, ge5 = /^[eE]/, Fe4 = /^[+\-]/, he4 = /^[0-9]/, ju2 = /^[ \n\r\t\xA0]/, Be4 = /^["']/, Ce5 = /^[#\--.0-9A-Z\^-_a-z~\xAA\xB5\xBA\xC0-\xD6\xD8-\xF6\xF8-\u02C1\u02C6-\u02D1\u02E0-\u02E4\u02EC\u02EE\u0370-\u0374\u0376-\u0377\u037A-\u037D\u037F\u0386\u0388-\u038A\u038C\u038E-\u03A1\u03A3-\u03F5\u03F7-\u0481\u048A-\u052F\u0531-\u0556\u0559\u0560-\u0588\u05D0-\u05EA\u05EF-\u05F2\u0620-\u064A\u066E-\u066F\u0671-\u06D3\u06D5\u06E5-\u06E6\u06EE-\u06EF\u06FA-\u06FC\u06FF\u0710\u0712-\u072F\u074D-\u07A5\u07B1\u07CA-\u07EA\u07F4-\u07F5\u07FA\u0800-\u0815\u081A\u0824\u0828\u0840-\u0858\u0860-\u086A\u08A0-\u08B4\u08B6-\u08BD\u0904-\u0939\u093D\u0950\u0958-\u0961\u0971-\u0980\u0985-\u098C\u098F-\u0990\u0993-\u09A8\u09AA-\u09B0\u09B2\u09B6-\u09B9\u09BD\u09CE\u09DC-\u09DD\u09DF-\u09E1\u09F0-\u09F1\u09FC\u0A05-\u0A0A\u0A0F-\u0A10\u0A13-\u0A28\u0A2A-\u0A30\u0A32-\u0A33\u0A35-\u0A36\u0A38-\u0A39\u0A59-\u0A5C\u0A5E\u0A72-\u0A74\u0A85-\u0A8D\u0A8F-\u0A91\u0A93-\u0AA8\u0AAA-\u0AB0\u0AB2-\u0AB3\u0AB5-\u0AB9\u0ABD\u0AD0\u0AE0-\u0AE1\u0AF9\u0B05-\u0B0C\u0B0F-\u0B10\u0B13-\u0B28\u0B2A-\u0B30\u0B32-\u0B33\u0B35-\u0B39\u0B3D\u0B5C-\u0B5D\u0B5F-\u0B61\u0B71\u0B83\u0B85-\u0B8A\u0B8E-\u0B90\u0B92-\u0B95\u0B99-\u0B9A\u0B9C\u0B9E-\u0B9F\u0BA3-\u0BA4\u0BA8-\u0BAA\u0BAE-\u0BB9\u0BD0\u0C05-\u0C0C\u0C0E-\u0C10\u0C12-\u0C28\u0C2A-\u0C39\u0C3D\u0C58-\u0C5A\u0C60-\u0C61\u0C80\u0C85-\u0C8C\u0C8E-\u0C90\u0C92-\u0CA8\u0CAA-\u0CB3\u0CB5-\u0CB9\u0CBD\u0CDE\u0CE0-\u0CE1\u0CF1-\u0CF2\u0D05-\u0D0C\u0D0E-\u0D10\u0D12-\u0D3A\u0D3D\u0D4E\u0D54-\u0D56\u0D5F-\u0D61\u0D7A-\u0D7F\u0D85-\u0D96\u0D9A-\u0DB1\u0DB3-\u0DBB\u0DBD\u0DC0-\u0DC6\u0E01-\u0E30\u0E32-\u0E33\u0E40-\u0E46\u0E81-\u0E82\u0E84\u0E87-\u0E88\u0E8A\u0E8D\u0E94-\u0E97\u0E99-\u0E9F\u0EA1-\u0EA3\u0EA5\u0EA7\u0EAA-\u0EAB\u0EAD-\u0EB0\u0EB2-\u0EB3\u0EBD\u0EC0-\u0EC4\u0EC6\u0EDC-\u0EDF\u0F00\u0F40-\u0F47\u0F49-\u0F6C\u0F88-\u0F8C\u1000-\u102A\u103F\u1050-\u1055\u105A-\u105D\u1061\u1065-\u1066\u106E-\u1070\u1075-\u1081\u108E\u10A0-\u10C5\u10C7\u10CD\u10D0-\u10FA\u10FC-\u1248\u124A-\u124D\u1250-\u1256\u1258\u125A-\u125D\u1260-\u1288\u128A-\u128D\u1290-\u12B0\u12B2-\u12B5\u12B8-\u12BE\u12C0\u12C2-\u12C5\u12C8-\u12D6\u12D8-\u1310\u1312-\u1315\u1318-\u135A\u1380-\u138F\u13A0-\u13F5\u13F8-\u13FD\u1401-\u166C\u166F-\u167F\u1681-\u169A\u16A0-\u16EA\u16EE-\u16F8\u1700-\u170C\u170E-\u1711\u1720-\u1731\u1740-\u1751\u1760-\u176C\u176E-\u1770\u1780-\u17B3\u17D7\u17DC\u1820-\u1878\u1880-\u1884\u1887-\u18A8\u18AA\u18B0-\u18F5\u1900-\u191E\u1950-\u196D\u1970-\u1974\u1980-\u19AB\u19B0-\u19C9\u1A00-\u1A16\u1A20-\u1A54\u1AA7\u1B05-\u1B33\u1B45-\u1B4B\u1B83-\u1BA0\u1BAE-\u1BAF\u1BBA-\u1BE5\u1C00-\u1C23\u1C4D-\u1C4F\u1C5A-\u1C7D\u1C80-\u1C88\u1C90-\u1CBA\u1CBD-\u1CBF\u1CE9-\u1CEC\u1CEE-\u1CF1\u1CF5-\u1CF6\u1D00-\u1DBF\u1E00-\u1F15\u1F18-\u1F1D\u1F20-\u1F45\u1F48-\u1F4D\u1F50-\u1F57\u1F59\u1F5B\u1F5D\u1F5F-\u1F7D\u1F80-\u1FB4\u1FB6-\u1FBC\u1FBE\u1FC2-\u1FC4\u1FC6-\u1FCC\u1FD0-\u1FD3\u1FD6-\u1FDB\u1FE0-\u1FEC\u1FF2-\u1FF4\u1FF6-\u1FFC\u2071\u207F\u2090-\u209C\u2102\u2107\u210A-\u2113\u2115\u2119-\u211D\u2124\u2126\u2128\u212A-\u212D\u212F-\u2139\u213C-\u213F\u2145-\u2149\u214E\u2160-\u2188\u2C00-\u2C2E\u2C30-\u2C5E\u2C60-\u2CE4\u2CEB-\u2CEE\u2CF2-\u2CF3\u2D00-\u2D25\u2D27\u2D2D\u2D30-\u2D67\u2D6F\u2D80-\u2D96\u2DA0-\u2DA6\u2DA8-\u2DAE\u2DB0-\u2DB6\u2DB8-\u2DBE\u2DC0-\u2DC6\u2DC8-\u2DCE\u2DD0-\u2DD6\u2DD8-\u2DDE\u2E2F\u3005-\u3007\u3021-\u3029\u3031-\u3035\u3038-\u303C\u3041-\u3096\u309D-\u309F\u30A1-\u30FA\u30FC-\u30FF\u3105-\u312F\u3131-\u318E\u31A0-\u31BA\u31F0-\u31FF\u3400-\u4DB5\u4E00-\u9FEF\uA000-\uA48C\uA4D0-\uA4FD\uA500-\uA60C\uA610-\uA61F\uA62A-\uA62B\uA640-\uA66E\uA67F-\uA69D\uA6A0-\uA6EF\uA717-\uA71F\uA722-\uA788\uA78B-\uA7B9\uA7F7-\uA801\uA803-\uA805\uA807-\uA80A\uA80C-\uA822\uA840-\uA873\uA882-\uA8B3\uA8F2-\uA8F7\uA8FB\uA8FD-\uA8FE\uA90A-\uA925\uA930-\uA946\uA960-\uA97C\uA984-\uA9B2\uA9CF\uA9E0-\uA9E4\uA9E6-\uA9EF\uA9FA-\uA9FE\uAA00-\uAA28\uAA40-\uAA42\uAA44-\uAA4B\uAA60-\uAA76\uAA7A\uAA7E-\uAAAF\uAAB1\uAAB5-\uAAB6\uAAB9-\uAABD\uAAC0\uAAC2\uAADB-\uAADD\uAAE0-\uAAEA\uAAF2-\uAAF4\uAB01-\uAB06\uAB09-\uAB0E\uAB11-\uAB16\uAB20-\uAB26\uAB28-\uAB2E\uAB30-\uAB5A\uAB5C-\uAB65\uAB70-\uABE2\uAC00-\uD7A3\uD7B0-\uD7C6\uD7CB-\uD7FB\uF900-\uFA6D\uFA70-\uFAD9\uFB00-\uFB06\uFB13-\uFB17\uFB1D\uFB1F-\uFB28\uFB2A-\uFB36\uFB38-\uFB3C\uFB3E\uFB40-\uFB41\uFB43-\uFB44\uFB46-\uFBB1\uFBD3-\uFD3D\uFD50-\uFD8F\uFD92-\uFDC7\uFDF0-\uFDFB\uFE70-\uFE74\uFE76-\uFEFC\uFF21-\uFF3A\uFF41-\uFF5A\uFF66-\uFFBE\uFFC2-\uFFC7\uFFCA-\uFFCF\uFFD2-\uFFD7\uFFDA-\uFFDC]/, De3 = /^[@_]/, Su2 = /^[^\n]/, de4 = pu2("number"), Ru2 = _7(".", false), Ee4 = O2([["1", "9"]], false, false), ve4 = O2(["e", "E"], false, false), $e4 = O2(["+", "-"], false, false), me4 = _7("-", false), _e4 = _7("0", false), ye5 = O2([["0", "9"]], false, false), we5 = pu2("whitespace"), Lu2 = O2([" ", `
+    var e = {}, f4 = i2.grammarSource, l2 = { start: Uu2 }, a2 = Uu2, D6 = ".", v2 = "-", g3 = "0", c4 = ",", F5 = "|", p2 = "[", w7 = "]", P4 = "{", R5 = "}", su2 = "%", iu2 = "<", re7 = ">", ne5 = "!", se4 = "(", ie6 = ")", fe5 = "/", oe4 = "*", ae5 = "?", le4 = ":", Eu2 = "..", ce7 = "^", vu2 = "struct", $u2 = "target", mu2 = "euclid", _u2 = "slow", yu2 = "rotL", wu2 = "rotR", bu2 = "fast", xu2 = "scale", Iu2 = "//", ku2 = "cat", Ae4 = "$", Nu2 = "setcps", Pu2 = "setbpm", qu2 = "hush", pe6 = /^[1-9]/, ge5 = /^[eE]/, Fe4 = /^[+\-]/, he4 = /^[0-9]/, ju2 = /^[ \n\r\t\xA0]/, Be4 = /^["']/, Ce5 = /^[#\--.0-9A-Z\^-_a-z~\xAA\xB5\xBA\xC0-\xD6\xD8-\xF6\xF8-\u02C1\u02C6-\u02D1\u02E0-\u02E4\u02EC\u02EE\u0370-\u0374\u0376-\u0377\u037A-\u037D\u037F\u0386\u0388-\u038A\u038C\u038E-\u03A1\u03A3-\u03F5\u03F7-\u0481\u048A-\u052F\u0531-\u0556\u0559\u0560-\u0588\u05D0-\u05EA\u05EF-\u05F2\u0620-\u064A\u066E-\u066F\u0671-\u06D3\u06D5\u06E5-\u06E6\u06EE-\u06EF\u06FA-\u06FC\u06FF\u0710\u0712-\u072F\u074D-\u07A5\u07B1\u07CA-\u07EA\u07F4-\u07F5\u07FA\u0800-\u0815\u081A\u0824\u0828\u0840-\u0858\u0860-\u086A\u08A0-\u08B4\u08B6-\u08BD\u0904-\u0939\u093D\u0950\u0958-\u0961\u0971-\u0980\u0985-\u098C\u098F-\u0990\u0993-\u09A8\u09AA-\u09B0\u09B2\u09B6-\u09B9\u09BD\u09CE\u09DC-\u09DD\u09DF-\u09E1\u09F0-\u09F1\u09FC\u0A05-\u0A0A\u0A0F-\u0A10\u0A13-\u0A28\u0A2A-\u0A30\u0A32-\u0A33\u0A35-\u0A36\u0A38-\u0A39\u0A59-\u0A5C\u0A5E\u0A72-\u0A74\u0A85-\u0A8D\u0A8F-\u0A91\u0A93-\u0AA8\u0AAA-\u0AB0\u0AB2-\u0AB3\u0AB5-\u0AB9\u0ABD\u0AD0\u0AE0-\u0AE1\u0AF9\u0B05-\u0B0C\u0B0F-\u0B10\u0B13-\u0B28\u0B2A-\u0B30\u0B32-\u0B33\u0B35-\u0B39\u0B3D\u0B5C-\u0B5D\u0B5F-\u0B61\u0B71\u0B83\u0B85-\u0B8A\u0B8E-\u0B90\u0B92-\u0B95\u0B99-\u0B9A\u0B9C\u0B9E-\u0B9F\u0BA3-\u0BA4\u0BA8-\u0BAA\u0BAE-\u0BB9\u0BD0\u0C05-\u0C0C\u0C0E-\u0C10\u0C12-\u0C28\u0C2A-\u0C39\u0C3D\u0C58-\u0C5A\u0C60-\u0C61\u0C80\u0C85-\u0C8C\u0C8E-\u0C90\u0C92-\u0CA8\u0CAA-\u0CB3\u0CB5-\u0CB9\u0CBD\u0CDE\u0CE0-\u0CE1\u0CF1-\u0CF2\u0D05-\u0D0C\u0D0E-\u0D10\u0D12-\u0D3A\u0D3D\u0D4E\u0D54-\u0D56\u0D5F-\u0D61\u0D7A-\u0D7F\u0D85-\u0D96\u0D9A-\u0DB1\u0DB3-\u0DBB\u0DBD\u0DC0-\u0DC6\u0E01-\u0E30\u0E32-\u0E33\u0E40-\u0E46\u0E81-\u0E82\u0E84\u0E87-\u0E88\u0E8A\u0E8D\u0E94-\u0E97\u0E99-\u0E9F\u0EA1-\u0EA3\u0EA5\u0EA7\u0EAA-\u0EAB\u0EAD-\u0EB0\u0EB2-\u0EB3\u0EBD\u0EC0-\u0EC4\u0EC6\u0EDC-\u0EDF\u0F00\u0F40-\u0F47\u0F49-\u0F6C\u0F88-\u0F8C\u1000-\u102A\u103F\u1050-\u1055\u105A-\u105D\u1061\u1065-\u1066\u106E-\u1070\u1075-\u1081\u108E\u10A0-\u10C5\u10C7\u10CD\u10D0-\u10FA\u10FC-\u1248\u124A-\u124D\u1250-\u1256\u1258\u125A-\u125D\u1260-\u1288\u128A-\u128D\u1290-\u12B0\u12B2-\u12B5\u12B8-\u12BE\u12C0\u12C2-\u12C5\u12C8-\u12D6\u12D8-\u1310\u1312-\u1315\u1318-\u135A\u1380-\u138F\u13A0-\u13F5\u13F8-\u13FD\u1401-\u166C\u166F-\u167F\u1681-\u169A\u16A0-\u16EA\u16EE-\u16F8\u1700-\u170C\u170E-\u1711\u1720-\u1731\u1740-\u1751\u1760-\u176C\u176E-\u1770\u1780-\u17B3\u17D7\u17DC\u1820-\u1878\u1880-\u1884\u1887-\u18A8\u18AA\u18B0-\u18F5\u1900-\u191E\u1950-\u196D\u1970-\u1974\u1980-\u19AB\u19B0-\u19C9\u1A00-\u1A16\u1A20-\u1A54\u1AA7\u1B05-\u1B33\u1B45-\u1B4B\u1B83-\u1BA0\u1BAE-\u1BAF\u1BBA-\u1BE5\u1C00-\u1C23\u1C4D-\u1C4F\u1C5A-\u1C7D\u1C80-\u1C88\u1C90-\u1CBA\u1CBD-\u1CBF\u1CE9-\u1CEC\u1CEE-\u1CF1\u1CF5-\u1CF6\u1D00-\u1DBF\u1E00-\u1F15\u1F18-\u1F1D\u1F20-\u1F45\u1F48-\u1F4D\u1F50-\u1F57\u1F59\u1F5B\u1F5D\u1F5F-\u1F7D\u1F80-\u1FB4\u1FB6-\u1FBC\u1FBE\u1FC2-\u1FC4\u1FC6-\u1FCC\u1FD0-\u1FD3\u1FD6-\u1FDB\u1FE0-\u1FEC\u1FF2-\u1FF4\u1FF6-\u1FFC\u2071\u207F\u2090-\u209C\u2102\u2107\u210A-\u2113\u2115\u2119-\u211D\u2124\u2126\u2128\u212A-\u212D\u212F-\u2139\u213C-\u213F\u2145-\u2149\u214E\u2160-\u2188\u2C00-\u2C2E\u2C30-\u2C5E\u2C60-\u2CE4\u2CEB-\u2CEE\u2CF2-\u2CF3\u2D00-\u2D25\u2D27\u2D2D\u2D30-\u2D67\u2D6F\u2D80-\u2D96\u2DA0-\u2DA6\u2DA8-\u2DAE\u2DB0-\u2DB6\u2DB8-\u2DBE\u2DC0-\u2DC6\u2DC8-\u2DCE\u2DD0-\u2DD6\u2DD8-\u2DDE\u2E2F\u3005-\u3007\u3021-\u3029\u3031-\u3035\u3038-\u303C\u3041-\u3096\u309D-\u309F\u30A1-\u30FA\u30FC-\u30FF\u3105-\u312F\u3131-\u318E\u31A0-\u31BA\u31F0-\u31FF\u3400-\u4DB5\u4E00-\u9FEF\uA000-\uA48C\uA4D0-\uA4FD\uA500-\uA60C\uA610-\uA61F\uA62A-\uA62B\uA640-\uA66E\uA67F-\uA69D\uA6A0-\uA6EF\uA717-\uA71F\uA722-\uA788\uA78B-\uA7B9\uA7F7-\uA801\uA803-\uA805\uA807-\uA80A\uA80C-\uA822\uA840-\uA873\uA882-\uA8B3\uA8F2-\uA8F7\uA8FB\uA8FD-\uA8FE\uA90A-\uA925\uA930-\uA946\uA960-\uA97C\uA984-\uA9B2\uA9CF\uA9E0-\uA9E4\uA9E6-\uA9EF\uA9FA-\uA9FE\uAA00-\uAA28\uAA40-\uAA42\uAA44-\uAA4B\uAA60-\uAA76\uAA7A\uAA7E-\uAAAF\uAAB1\uAAB5-\uAAB6\uAAB9-\uAABD\uAAC0\uAAC2\uAADB-\uAADD\uAAE0-\uAAEA\uAAF2-\uAAF4\uAB01-\uAB06\uAB09-\uAB0E\uAB11-\uAB16\uAB20-\uAB26\uAB28-\uAB2E\uAB30-\uAB5A\uAB5C-\uAB65\uAB70-\uABE2\uAC00-\uD7A3\uD7B0-\uD7C6\uD7CB-\uD7FB\uF900-\uFA6D\uFA70-\uFAD9\uFB00-\uFB06\uFB13-\uFB17\uFB1D\uFB1F-\uFB28\uFB2A-\uFB36\uFB38-\uFB3C\uFB3E\uFB40-\uFB41\uFB43-\uFB44\uFB46-\uFBB1\uFBD3-\uFD3D\uFD50-\uFD8F\uFD92-\uFDC7\uFDF0-\uFDFB\uFE70-\uFE74\uFE76-\uFEFC\uFF21-\uFF3A\uFF41-\uFF5A\uFF66-\uFFBE\uFFC2-\uFFC7\uFFCA-\uFFCF\uFFD2-\uFFD7\uFFDA-\uFFDC]/, De3 = /^[@_]/, Su2 = /^[^\n]/, de4 = pu2("number"), Ru2 = _7(".", false), Ee4 = O2([["1", "9"]], false, false), ve4 = O2(["e", "E"], false, false), $e4 = O2(["+", "-"], false, false), me4 = _7("-", false), _e4 = _7("0", false), ye5 = O2([["0", "9"]], false, false), we6 = pu2("whitespace"), Lu2 = O2([" ", `
 `, "\r", "	", "\xA0"], false, false), be4 = _7(",", false), xe5 = _7("|", false), Ie2 = O2(['"', "'"], false, false), ke4 = pu2('a letter, a number, "-", "#", ".", "^", "_"'), Ne4 = O2(["#", ["-", "."], ["0", "9"], ["A", "Z"], ["^", "_"], ["a", "z"], "~", "\xAA", "\xB5", "\xBA", ["\xC0", "\xD6"], ["\xD8", "\xF6"], ["\xF8", "\u02C1"], ["\u02C6", "\u02D1"], ["\u02E0", "\u02E4"], "\u02EC", "\u02EE", ["\u0370", "\u0374"], ["\u0376", "\u0377"], ["\u037A", "\u037D"], "\u037F", "\u0386", ["\u0388", "\u038A"], "\u038C", ["\u038E", "\u03A1"], ["\u03A3", "\u03F5"], ["\u03F7", "\u0481"], ["\u048A", "\u052F"], ["\u0531", "\u0556"], "\u0559", ["\u0560", "\u0588"], ["\u05D0", "\u05EA"], ["\u05EF", "\u05F2"], ["\u0620", "\u064A"], ["\u066E", "\u066F"], ["\u0671", "\u06D3"], "\u06D5", ["\u06E5", "\u06E6"], ["\u06EE", "\u06EF"], ["\u06FA", "\u06FC"], "\u06FF", "\u0710", ["\u0712", "\u072F"], ["\u074D", "\u07A5"], "\u07B1", ["\u07CA", "\u07EA"], ["\u07F4", "\u07F5"], "\u07FA", ["\u0800", "\u0815"], "\u081A", "\u0824", "\u0828", ["\u0840", "\u0858"], ["\u0860", "\u086A"], ["\u08A0", "\u08B4"], ["\u08B6", "\u08BD"], ["\u0904", "\u0939"], "\u093D", "\u0950", ["\u0958", "\u0961"], ["\u0971", "\u0980"], ["\u0985", "\u098C"], ["\u098F", "\u0990"], ["\u0993", "\u09A8"], ["\u09AA", "\u09B0"], "\u09B2", ["\u09B6", "\u09B9"], "\u09BD", "\u09CE", ["\u09DC", "\u09DD"], ["\u09DF", "\u09E1"], ["\u09F0", "\u09F1"], "\u09FC", ["\u0A05", "\u0A0A"], ["\u0A0F", "\u0A10"], ["\u0A13", "\u0A28"], ["\u0A2A", "\u0A30"], ["\u0A32", "\u0A33"], ["\u0A35", "\u0A36"], ["\u0A38", "\u0A39"], ["\u0A59", "\u0A5C"], "\u0A5E", ["\u0A72", "\u0A74"], ["\u0A85", "\u0A8D"], ["\u0A8F", "\u0A91"], ["\u0A93", "\u0AA8"], ["\u0AAA", "\u0AB0"], ["\u0AB2", "\u0AB3"], ["\u0AB5", "\u0AB9"], "\u0ABD", "\u0AD0", ["\u0AE0", "\u0AE1"], "\u0AF9", ["\u0B05", "\u0B0C"], ["\u0B0F", "\u0B10"], ["\u0B13", "\u0B28"], ["\u0B2A", "\u0B30"], ["\u0B32", "\u0B33"], ["\u0B35", "\u0B39"], "\u0B3D", ["\u0B5C", "\u0B5D"], ["\u0B5F", "\u0B61"], "\u0B71", "\u0B83", ["\u0B85", "\u0B8A"], ["\u0B8E", "\u0B90"], ["\u0B92", "\u0B95"], ["\u0B99", "\u0B9A"], "\u0B9C", ["\u0B9E", "\u0B9F"], ["\u0BA3", "\u0BA4"], ["\u0BA8", "\u0BAA"], ["\u0BAE", "\u0BB9"], "\u0BD0", ["\u0C05", "\u0C0C"], ["\u0C0E", "\u0C10"], ["\u0C12", "\u0C28"], ["\u0C2A", "\u0C39"], "\u0C3D", ["\u0C58", "\u0C5A"], ["\u0C60", "\u0C61"], "\u0C80", ["\u0C85", "\u0C8C"], ["\u0C8E", "\u0C90"], ["\u0C92", "\u0CA8"], ["\u0CAA", "\u0CB3"], ["\u0CB5", "\u0CB9"], "\u0CBD", "\u0CDE", ["\u0CE0", "\u0CE1"], ["\u0CF1", "\u0CF2"], ["\u0D05", "\u0D0C"], ["\u0D0E", "\u0D10"], ["\u0D12", "\u0D3A"], "\u0D3D", "\u0D4E", ["\u0D54", "\u0D56"], ["\u0D5F", "\u0D61"], ["\u0D7A", "\u0D7F"], ["\u0D85", "\u0D96"], ["\u0D9A", "\u0DB1"], ["\u0DB3", "\u0DBB"], "\u0DBD", ["\u0DC0", "\u0DC6"], ["\u0E01", "\u0E30"], ["\u0E32", "\u0E33"], ["\u0E40", "\u0E46"], ["\u0E81", "\u0E82"], "\u0E84", ["\u0E87", "\u0E88"], "\u0E8A", "\u0E8D", ["\u0E94", "\u0E97"], ["\u0E99", "\u0E9F"], ["\u0EA1", "\u0EA3"], "\u0EA5", "\u0EA7", ["\u0EAA", "\u0EAB"], ["\u0EAD", "\u0EB0"], ["\u0EB2", "\u0EB3"], "\u0EBD", ["\u0EC0", "\u0EC4"], "\u0EC6", ["\u0EDC", "\u0EDF"], "\u0F00", ["\u0F40", "\u0F47"], ["\u0F49", "\u0F6C"], ["\u0F88", "\u0F8C"], ["\u1000", "\u102A"], "\u103F", ["\u1050", "\u1055"], ["\u105A", "\u105D"], "\u1061", ["\u1065", "\u1066"], ["\u106E", "\u1070"], ["\u1075", "\u1081"], "\u108E", ["\u10A0", "\u10C5"], "\u10C7", "\u10CD", ["\u10D0", "\u10FA"], ["\u10FC", "\u1248"], ["\u124A", "\u124D"], ["\u1250", "\u1256"], "\u1258", ["\u125A", "\u125D"], ["\u1260", "\u1288"], ["\u128A", "\u128D"], ["\u1290", "\u12B0"], ["\u12B2", "\u12B5"], ["\u12B8", "\u12BE"], "\u12C0", ["\u12C2", "\u12C5"], ["\u12C8", "\u12D6"], ["\u12D8", "\u1310"], ["\u1312", "\u1315"], ["\u1318", "\u135A"], ["\u1380", "\u138F"], ["\u13A0", "\u13F5"], ["\u13F8", "\u13FD"], ["\u1401", "\u166C"], ["\u166F", "\u167F"], ["\u1681", "\u169A"], ["\u16A0", "\u16EA"], ["\u16EE", "\u16F8"], ["\u1700", "\u170C"], ["\u170E", "\u1711"], ["\u1720", "\u1731"], ["\u1740", "\u1751"], ["\u1760", "\u176C"], ["\u176E", "\u1770"], ["\u1780", "\u17B3"], "\u17D7", "\u17DC", ["\u1820", "\u1878"], ["\u1880", "\u1884"], ["\u1887", "\u18A8"], "\u18AA", ["\u18B0", "\u18F5"], ["\u1900", "\u191E"], ["\u1950", "\u196D"], ["\u1970", "\u1974"], ["\u1980", "\u19AB"], ["\u19B0", "\u19C9"], ["\u1A00", "\u1A16"], ["\u1A20", "\u1A54"], "\u1AA7", ["\u1B05", "\u1B33"], ["\u1B45", "\u1B4B"], ["\u1B83", "\u1BA0"], ["\u1BAE", "\u1BAF"], ["\u1BBA", "\u1BE5"], ["\u1C00", "\u1C23"], ["\u1C4D", "\u1C4F"], ["\u1C5A", "\u1C7D"], ["\u1C80", "\u1C88"], ["\u1C90", "\u1CBA"], ["\u1CBD", "\u1CBF"], ["\u1CE9", "\u1CEC"], ["\u1CEE", "\u1CF1"], ["\u1CF5", "\u1CF6"], ["\u1D00", "\u1DBF"], ["\u1E00", "\u1F15"], ["\u1F18", "\u1F1D"], ["\u1F20", "\u1F45"], ["\u1F48", "\u1F4D"], ["\u1F50", "\u1F57"], "\u1F59", "\u1F5B", "\u1F5D", ["\u1F5F", "\u1F7D"], ["\u1F80", "\u1FB4"], ["\u1FB6", "\u1FBC"], "\u1FBE", ["\u1FC2", "\u1FC4"], ["\u1FC6", "\u1FCC"], ["\u1FD0", "\u1FD3"], ["\u1FD6", "\u1FDB"], ["\u1FE0", "\u1FEC"], ["\u1FF2", "\u1FF4"], ["\u1FF6", "\u1FFC"], "\u2071", "\u207F", ["\u2090", "\u209C"], "\u2102", "\u2107", ["\u210A", "\u2113"], "\u2115", ["\u2119", "\u211D"], "\u2124", "\u2126", "\u2128", ["\u212A", "\u212D"], ["\u212F", "\u2139"], ["\u213C", "\u213F"], ["\u2145", "\u2149"], "\u214E", ["\u2160", "\u2188"], ["\u2C00", "\u2C2E"], ["\u2C30", "\u2C5E"], ["\u2C60", "\u2CE4"], ["\u2CEB", "\u2CEE"], ["\u2CF2", "\u2CF3"], ["\u2D00", "\u2D25"], "\u2D27", "\u2D2D", ["\u2D30", "\u2D67"], "\u2D6F", ["\u2D80", "\u2D96"], ["\u2DA0", "\u2DA6"], ["\u2DA8", "\u2DAE"], ["\u2DB0", "\u2DB6"], ["\u2DB8", "\u2DBE"], ["\u2DC0", "\u2DC6"], ["\u2DC8", "\u2DCE"], ["\u2DD0", "\u2DD6"], ["\u2DD8", "\u2DDE"], "\u2E2F", ["\u3005", "\u3007"], ["\u3021", "\u3029"], ["\u3031", "\u3035"], ["\u3038", "\u303C"], ["\u3041", "\u3096"], ["\u309D", "\u309F"], ["\u30A1", "\u30FA"], ["\u30FC", "\u30FF"], ["\u3105", "\u312F"], ["\u3131", "\u318E"], ["\u31A0", "\u31BA"], ["\u31F0", "\u31FF"], ["\u3400", "\u4DB5"], ["\u4E00", "\u9FEF"], ["\uA000", "\uA48C"], ["\uA4D0", "\uA4FD"], ["\uA500", "\uA60C"], ["\uA610", "\uA61F"], ["\uA62A", "\uA62B"], ["\uA640", "\uA66E"], ["\uA67F", "\uA69D"], ["\uA6A0", "\uA6EF"], ["\uA717", "\uA71F"], ["\uA722", "\uA788"], ["\uA78B", "\uA7B9"], ["\uA7F7", "\uA801"], ["\uA803", "\uA805"], ["\uA807", "\uA80A"], ["\uA80C", "\uA822"], ["\uA840", "\uA873"], ["\uA882", "\uA8B3"], ["\uA8F2", "\uA8F7"], "\uA8FB", ["\uA8FD", "\uA8FE"], ["\uA90A", "\uA925"], ["\uA930", "\uA946"], ["\uA960", "\uA97C"], ["\uA984", "\uA9B2"], "\uA9CF", ["\uA9E0", "\uA9E4"], ["\uA9E6", "\uA9EF"], ["\uA9FA", "\uA9FE"], ["\uAA00", "\uAA28"], ["\uAA40", "\uAA42"], ["\uAA44", "\uAA4B"], ["\uAA60", "\uAA76"], "\uAA7A", ["\uAA7E", "\uAAAF"], "\uAAB1", ["\uAAB5", "\uAAB6"], ["\uAAB9", "\uAABD"], "\uAAC0", "\uAAC2", ["\uAADB", "\uAADD"], ["\uAAE0", "\uAAEA"], ["\uAAF2", "\uAAF4"], ["\uAB01", "\uAB06"], ["\uAB09", "\uAB0E"], ["\uAB11", "\uAB16"], ["\uAB20", "\uAB26"], ["\uAB28", "\uAB2E"], ["\uAB30", "\uAB5A"], ["\uAB5C", "\uAB65"], ["\uAB70", "\uABE2"], ["\uAC00", "\uD7A3"], ["\uD7B0", "\uD7C6"], ["\uD7CB", "\uD7FB"], ["\uF900", "\uFA6D"], ["\uFA70", "\uFAD9"], ["\uFB00", "\uFB06"], ["\uFB13", "\uFB17"], "\uFB1D", ["\uFB1F", "\uFB28"], ["\uFB2A", "\uFB36"], ["\uFB38", "\uFB3C"], "\uFB3E", ["\uFB40", "\uFB41"], ["\uFB43", "\uFB44"], ["\uFB46", "\uFBB1"], ["\uFBD3", "\uFD3D"], ["\uFD50", "\uFD8F"], ["\uFD92", "\uFDC7"], ["\uFDF0", "\uFDFB"], ["\uFE70", "\uFE74"], ["\uFE76", "\uFEFC"], ["\uFF21", "\uFF3A"], ["\uFF41", "\uFF5A"], ["\uFF66", "\uFFBE"], ["\uFFC2", "\uFFC7"], ["\uFFCA", "\uFFCF"], ["\uFFD2", "\uFFD7"], ["\uFFDA", "\uFFDC"]], false, false), Ou2 = _7("[", false), Mu2 = _7("]", false), Pe3 = _7("{", false), qe4 = _7("}", false), je5 = _7("%", false), Se4 = _7("<", false), Re3 = _7(">", false), Le4 = O2(["@", "_"], false, false), Oe4 = _7("!", false), Me5 = _7("(", false), ze5 = _7(")", false), Te5 = _7("/", false), Ze3 = _7("*", false), We3 = _7("?", false), Ue5 = _7(":", false), Ve4 = _7("..", false), Xe4 = _7("^", false), Ge2 = _7("struct", false), Ye3 = _7("target", false), He3 = _7("euclid", false), Je3 = _7("slow", false), Ke3 = _7("rotL", false), Qe3 = _7("rotR", false), ut4 = _7("fast", false), et4 = _7("scale", false), tt3 = _7("//", false), zu2 = O2([`
 `], true, false), rt4 = _7("cat", false), nt3 = _7("$", false), st3 = _7("setcps", false), it4 = _7("setbpm", false), ft2 = _7("hush", false), ot4 = function() {
       return parseFloat(Xt4());
@@ -12316,7 +12316,7 @@ registerProcessor('${n2}', MyProcessor);
       var u3, r2;
       for (h2++, u3 = [], r2 = t.charAt(n2), ju2.test(r2) ? n2++ : (r2 = e, h2 === 0 && d2(Lu2)); r2 !== e; )
         u3.push(r2), r2 = t.charAt(n2), ju2.test(r2) ? n2++ : (r2 = e, h2 === 0 && d2(Lu2));
-      return h2--, r2 = e, h2 === 0 && d2(we5), u3;
+      return h2--, r2 = e, h2 === 0 && d2(we6), u3;
     }
     function G5() {
       var u3, r2, s2, o;
@@ -16774,15 +16774,15 @@ registerProcessor('${n2}', MyProcessor);
           return "/*" + comment.value + "*/";
         }
         function addComments(stmt, result) {
-          var i2, len, comment, save, tailingToStatement, specialBase, fragment, extRange, range2, prevRange, prefix, infix, suffix, count;
+          var i2, len, comment, save, tailingToStatement, specialBase, fragment, extRange, range3, prevRange, prefix, infix, suffix, count;
           if (stmt.leadingComments && stmt.leadingComments.length > 0) {
             save = result;
             if (preserveBlankLines) {
               comment = stmt.leadingComments[0];
               result = [];
               extRange = comment.extendedRange;
-              range2 = comment.range;
-              prefix = sourceCode.substring(extRange[0], range2[0]);
+              range3 = comment.range;
+              prefix = sourceCode.substring(extRange[0], range3[0]);
               count = (prefix.match(/\n/g) || []).length;
               if (count > 0) {
                 result.push(stringRepeat("\n", count));
@@ -16791,17 +16791,17 @@ registerProcessor('${n2}', MyProcessor);
                 result.push(prefix);
                 result.push(generateComment(comment));
               }
-              prevRange = range2;
+              prevRange = range3;
               for (i2 = 1, len = stmt.leadingComments.length; i2 < len; i2++) {
                 comment = stmt.leadingComments[i2];
-                range2 = comment.range;
-                infix = sourceCode.substring(prevRange[1], range2[0]);
+                range3 = comment.range;
+                infix = sourceCode.substring(prevRange[1], range3[0]);
                 count = (infix.match(/\n/g) || []).length;
                 result.push(stringRepeat("\n", count));
                 result.push(addIndent(generateComment(comment)));
-                prevRange = range2;
+                prevRange = range3;
               }
-              suffix = sourceCode.substring(range2[1], extRange[1]);
+              suffix = sourceCode.substring(range3[1], extRange[1]);
               count = (suffix.match(/\n/g) || []).length;
               result.push(stringRepeat("\n", count));
             } else {
@@ -16829,8 +16829,8 @@ registerProcessor('${n2}', MyProcessor);
             if (preserveBlankLines) {
               comment = stmt.trailingComments[0];
               extRange = comment.extendedRange;
-              range2 = comment.range;
-              prefix = sourceCode.substring(extRange[0], range2[0]);
+              range3 = comment.range;
+              prefix = sourceCode.substring(extRange[0], range3[0]);
               count = (prefix.match(/\n/g) || []).length;
               if (count > 0) {
                 result.push(stringRepeat("\n", count));
@@ -17058,12 +17058,12 @@ registerProcessor('${n2}', MyProcessor);
         };
         CodeGenerator.Statement = {
           BlockStatement: function(stmt, flags2) {
-            var range2, content, result = ["{", newline], that = this;
+            var range3, content, result = ["{", newline], that = this;
             withIndent(function() {
               if (stmt.body.length === 0 && preserveBlankLines) {
-                range2 = stmt.range;
-                if (range2[1] - range2[0] > 2) {
-                  content = sourceCode.substring(range2[0] + 1, range2[1] - 1);
+                range3 = stmt.range;
+                if (range3[1] - range3[0] > 2) {
+                  content = sourceCode.substring(range3[0] + 1, range3[1] - 1);
                   if (content[0] === "\n") {
                     result = ["{"];
                   }
@@ -17079,8 +17079,8 @@ registerProcessor('${n2}', MyProcessor);
                 if (preserveBlankLines) {
                   if (i2 === 0) {
                     if (stmt.body[0].leadingComments) {
-                      range2 = stmt.body[0].leadingComments[0].extendedRange;
-                      content = sourceCode.substring(range2[0], range2[1]);
+                      range3 = stmt.body[0].leadingComments[0].extendedRange;
+                      content = sourceCode.substring(range3[0], range3[1]);
                       if (content[0] === "\n") {
                         result = ["{"];
                       }
@@ -18971,7 +18971,7 @@ registerProcessor('${n2}', MyProcessor);
       __export2(array_exports, {
         compact: () => compact,
         permutations: () => permutations,
-        range: () => range2,
+        range: () => range3,
         rotate: () => rotate,
         shuffle: () => shuffle,
         sortedNoteNames: () => sortedNoteNames,
@@ -18989,7 +18989,7 @@ registerProcessor('${n2}', MyProcessor);
         for (; n2--; a2[n2] = b2 - n2) ;
         return a2;
       }
-      function range2(from, to3) {
+      function range3(from, to3) {
         return from < to3 ? ascR(from, to3 - from + 1) : descR(from, from - to3 + 1);
       }
       function rotate(times, arr) {
@@ -19062,7 +19062,7 @@ registerProcessor('${n2}', MyProcessor);
         compact: () => compact,
         default: () => collection_default,
         permutations: () => permutations,
-        range: () => range2,
+        range: () => range3,
         rotate: () => rotate,
         shuffle: () => shuffle
       });
@@ -19077,7 +19077,7 @@ registerProcessor('${n2}', MyProcessor);
         for (; n2--; a2[n2] = b2 - n2) ;
         return a2;
       }
-      function range2(from, to3) {
+      function range3(from, to3) {
         return from < to3 ? ascR(from, to3 - from + 1) : descR(from, from - to3 + 1);
       }
       function rotate(times, arr) {
@@ -19117,7 +19117,7 @@ registerProcessor('${n2}', MyProcessor);
       var collection_default = {
         compact,
         permutations,
-        range: range2,
+        range: range3,
         rotate,
         shuffle
       };
@@ -20324,7 +20324,7 @@ registerProcessor('${n2}', MyProcessor);
         symbols: () => symbols
       });
       module2.exports = __toCommonJS(chord_type_exports);
-      var import_core22 = require_dist18();
+      var import_core23 = require_dist18();
       var import_pcset = require_dist11();
       var CHORDS = [
         ["1P 3M 5P", "major", "M ^  maj"],
@@ -20463,7 +20463,7 @@ registerProcessor('${n2}', MyProcessor);
       function get(type) {
         return index[type] || NoChordType;
       }
-      var chordType = (0, import_core22.deprecate)("ChordType.chordType", "ChordType.get", get);
+      var chordType = (0, import_core23.deprecate)("ChordType.chordType", "ChordType.get", get);
       function names() {
         return dictionary.map((chord) => chord.name).filter((x4) => x4);
       }
@@ -20476,7 +20476,7 @@ registerProcessor('${n2}', MyProcessor);
       function all() {
         return dictionary.slice();
       }
-      var entries = (0, import_core22.deprecate)("ChordType.entries", "ChordType.all", all);
+      var entries = (0, import_core23.deprecate)("ChordType.entries", "ChordType.all", all);
       function removeAll() {
         dictionary = [];
         index = {};
@@ -20800,8 +20800,8 @@ registerProcessor('${n2}', MyProcessor);
       module2.exports = __toCommonJS(chord_exports);
       var import_chord_detect = require_dist13();
       var import_chord_type = require_dist19();
-      var import_core22 = require_dist18();
       var import_core23 = require_dist18();
+      var import_core24 = require_dist18();
       var import_pcset = require_dist11();
       var import_scale_type = require_dist20();
       var import_chord_detect2 = require_dist13();
@@ -20822,7 +20822,7 @@ registerProcessor('${n2}', MyProcessor);
         intervals: []
       };
       function tokenize(name2) {
-        const [letter, acc, oct, type] = (0, import_core23.tokenizeNote)(name2);
+        const [letter, acc, oct, type] = (0, import_core24.tokenizeNote)(name2);
         if (letter === "") {
           return ["", name2];
         }
@@ -20845,12 +20845,12 @@ registerProcessor('${n2}', MyProcessor);
       }
       function getChord(typeName, optionalTonic, optionalRoot) {
         const type = (0, import_chord_type.get)(typeName);
-        const tonic = (0, import_core23.note)(optionalTonic || "");
-        const root = (0, import_core23.note)(optionalRoot || "");
+        const tonic = (0, import_core24.note)(optionalTonic || "");
+        const root = (0, import_core24.note)(optionalRoot || "");
         if (type.empty || optionalTonic && tonic.empty || optionalRoot && root.empty) {
           return NoChord;
         }
-        const rootInterval = (0, import_core23.distance)(tonic.pc, root.pc);
+        const rootInterval = (0, import_core24.distance)(tonic.pc, root.pc);
         const rootDegree = type.intervals.indexOf(rootInterval) + 1;
         if (!root.empty && !rootDegree) {
           return NoChord;
@@ -20863,7 +20863,7 @@ registerProcessor('${n2}', MyProcessor);
           intervals.push(`${newNum}${quality}`);
           intervals.shift();
         }
-        const notes = tonic.empty ? [] : intervals.map((i2) => (0, import_core23.transpose)(tonic, i2));
+        const notes = tonic.empty ? [] : intervals.map((i2) => (0, import_core24.transpose)(tonic, i2));
         typeName = type.aliases.indexOf(typeName) !== -1 ? typeName : type.aliases[0];
         const symbol = `${tonic.empty ? "" : tonic.pc}${typeName}${root.empty || rootDegree <= 1 ? "" : "/" + root.pc}`;
         const name2 = `${optionalTonic ? tonic.pc + " " : ""}${type.name}${rootDegree > 1 && optionalRoot ? " over " + root.pc : ""}`;
@@ -20879,13 +20879,13 @@ registerProcessor('${n2}', MyProcessor);
           notes
         };
       }
-      var chord = (0, import_core23.deprecate)("Chord.chord", "Chord.get", get);
+      var chord = (0, import_core24.deprecate)("Chord.chord", "Chord.get", get);
       function transpose(chordName, interval) {
         const [tonic, type] = tokenize(chordName);
         if (!tonic) {
           return chordName;
         }
-        return (0, import_core23.transpose)(tonic, interval) + type;
+        return (0, import_core24.transpose)(tonic, interval) + type;
       }
       function chordScales(name2) {
         const s2 = get(name2);
@@ -20904,12 +20904,12 @@ registerProcessor('${n2}', MyProcessor);
       }
       function degrees(chordName) {
         const { intervals, tonic } = get(chordName);
-        const transpose2 = (0, import_core22.tonicIntervalsTransposer)(intervals, tonic);
+        const transpose2 = (0, import_core23.tonicIntervalsTransposer)(intervals, tonic);
         return (degree) => degree ? transpose2(degree > 0 ? degree - 1 : degree) : "";
       }
       function steps(chordName) {
         const { intervals, tonic } = get(chordName);
-        return (0, import_core22.tonicIntervalsTransposer)(intervals, tonic);
+        return (0, import_core23.tonicIntervalsTransposer)(intervals, tonic);
       }
       var chord_default = {
         getChord,
@@ -23947,8 +23947,8 @@ registerProcessor('${n2}', MyProcessor);
       exports2.__esModule = true;
       exports2.getBestVoicing = void 0;
       function getBestVoicing(voicingOptions) {
-        var chord = voicingOptions.chord, range2 = voicingOptions.range, finder = voicingOptions.finder, picker = voicingOptions.picker, lastVoicing = voicingOptions.lastVoicing;
-        var voicings = finder(chord, range2);
+        var chord = voicingOptions.chord, range3 = voicingOptions.range, finder = voicingOptions.finder, picker = voicingOptions.picker, lastVoicing = voicingOptions.lastVoicing;
+        var voicings = finder(chord, range3);
         if (!voicings.length) {
           return [];
         }
@@ -23984,12 +23984,12 @@ registerProcessor('${n2}', MyProcessor);
       var tonal_1 = require_dist44();
       var dictionaryVoicing_1 = require_dictionaryVoicing();
       var tokenizeChord_1 = require_tokenizeChord();
-      function voicingsInRange(chord, dictionary, range2) {
+      function voicingsInRange(chord, dictionary, range3) {
         if (dictionary === void 0) {
           dictionary = dictionaryVoicing_1.lefthand;
         }
-        if (range2 === void 0) {
-          range2 = ["D3", "A4"];
+        if (range3 === void 0) {
+          range3 = ["D3", "A4"];
         }
         var _a2 = (0, tokenizeChord_1.tokenizeChord)(chord), tonic = _a2[0], symbol = _a2[1];
         if (!dictionary[symbol]) {
@@ -23998,7 +23998,7 @@ registerProcessor('${n2}', MyProcessor);
         var voicings = dictionary[symbol].map(function(intervals) {
           return intervals.split(" ");
         });
-        var notesInRange = tonal_1.Range.chromatic(range2);
+        var notesInRange = tonal_1.Range.chromatic(range3);
         return voicings.reduce(function(voiced, voicing) {
           var relativeIntervals = voicing.map(function(interval) {
             return tonal_1.Interval.substract(interval, voicing[0]);
@@ -24007,7 +24007,7 @@ registerProcessor('${n2}', MyProcessor);
           var starts = notesInRange.filter(function(note) {
             return tonal_1.Note.chroma(note) === tonal_1.Note.chroma(bottomPitchClass);
           }).filter(function(note) {
-            return tonal_1.Note.midi(tonal_1.Note.transpose(note, relativeIntervals[relativeIntervals.length - 1])) <= tonal_1.Note.midi(range2[1]);
+            return tonal_1.Note.midi(tonal_1.Note.transpose(note, relativeIntervals[relativeIntervals.length - 1])) <= tonal_1.Note.midi(range3[1]);
           }).map(function(note) {
             return tonal_1.Note.enharmonic(note, bottomPitchClass);
           });
@@ -24091,14 +24091,14 @@ registerProcessor('${n2}', MyProcessor);
         aug: ["1P 3m 5A", "3m 5A 8P", "5A 8P 10m"]
       };
       var dictionaryVoicingFinder = function(dictionary) {
-        return function(chordSymbol, range2) {
-          return (0, voicingsInRange_1.voicingsInRange)(chordSymbol, dictionary, range2);
+        return function(chordSymbol, range3) {
+          return (0, voicingsInRange_1.voicingsInRange)(chordSymbol, dictionary, range3);
         };
       };
       exports2.dictionaryVoicingFinder = dictionaryVoicingFinder;
       var dictionaryVoicing = function(props) {
-        var dictionary = props.dictionary, range2 = props.range, rest = __rest(props, ["dictionary", "range"]);
-        return (0, getBestVoicing_1.getBestVoicing)(__assign(__assign({}, rest), { range: range2, finder: (0, exports2.dictionaryVoicingFinder)(dictionary) }));
+        var dictionary = props.dictionary, range3 = props.range, rest = __rest(props, ["dictionary", "range"]);
+        return (0, getBestVoicing_1.getBestVoicing)(__assign(__assign({}, rest), { range: range3, finder: (0, exports2.dictionaryVoicingFinder)(dictionary) }));
       };
       exports2.dictionaryVoicing = dictionaryVoicing;
     }
@@ -33695,6 +33695,9 @@ ${JSON.stringify(t2, null, 2)}`);
   // node_modules/@strudel/transpiler/dist/index.mjs
   var P3 = [];
   var E4 = /* @__PURE__ */ new Map();
+  function we5(e, t) {
+    E4.set(e, t);
+  }
   function F4(e, t = {}) {
     const { wrapAsync: n2 = false, addReturn: a2 = true, emitMiniLocations: i2 = true, emitWidgets: p2 = true } = t, f4 = [];
     let l2 = parse4(e, {
@@ -49024,7 +49027,532 @@ ${JSON.stringify(t2, null, 2)}`);
     });
   }
 
+  // src/algorave/vendor/mondo/mondough.mjs
+  var mondough_exports = {};
+  __export(mondough_exports, {
+    getLocations: () => getLocations,
+    mondi: () => mondi,
+    mondo: () => mondo,
+    mondolang: () => mondolang
+  });
+  init_dist2();
+
+  // node_modules/mondolang/mondo.mjs
+  var MondoParser = class {
+    // these are the tokens we expect
+    token_types = {
+      comment: /^\/\/(.*?)(?=\n|$)/,
+      quotes_double: /^"(.*?)"/,
+      quotes_single: /^'(.*?)'/,
+      open_list: /^\(/,
+      close_list: /^\)/,
+      open_angle: /^</,
+      close_angle: /^>/,
+      open_square: /^\[/,
+      close_square: /^\]/,
+      open_curly: /^\{/,
+      close_curly: /^\}/,
+      number: /^-?[0-9]*\.?[0-9]+/,
+      // before pipe!
+      // TODO: better error handling when "-" is used as rest, e.g "s [- bd]"
+      op: /^[*/:!@%?+\-&]|^\.{2}/,
+      // * / : ! @ % ? ..
+      // dollar: /^\$/,
+      pipe: /^#/,
+      stack: /^[,$]/,
+      or: /^[|]/,
+      plain: /^[a-zA-Z0-9-~_^#]+/
+    };
+    op_precedence = [["*", "/", ":", "!", "@", "%", "?", "+", "-", ".."], ["&"]];
+    // matches next token
+    next_token(code, offset2 = 0) {
+      for (let type in this.token_types) {
+        const match = code.match(this.token_types[type]);
+        if (match) {
+          let token = { type, value: match[0] };
+          if (offset2 !== -1) {
+            token.loc = [offset2, offset2 + match[0].length];
+          }
+          return token;
+        }
+      }
+      throw new Error(`mondo: could not match '${code}'`);
+    }
+    // takes code string, returns list of matched tokens (if valid)
+    tokenize(code, offset2 = 0) {
+      let tokens = [];
+      let locEnabled = offset2 !== -1;
+      let trim = () => {
+        offset2 += code.length - code.trimStart().length;
+        return code.trim();
+      };
+      code = trim();
+      while (code.length > 0) {
+        code = trim();
+        const token = this.next_token(code, locEnabled ? offset2 : -1);
+        code = code.slice(token.value.length);
+        offset2 += token.value.length;
+        tokens.push(token);
+      }
+      return tokens;
+    }
+    // take code, return abstract syntax tree
+    parse(code, offset2) {
+      this.code = code;
+      this.offset = offset2;
+      this.tokens = this.tokenize(code, offset2);
+      const expressions = [];
+      while (this.tokens.length) {
+        expressions.push(this.parse_expr());
+      }
+      if (expressions.length === 0) {
+        return { type: "list", children: [] };
+      }
+      if (expressions.length > 1 || expressions[0].type !== "list") {
+        return {
+          type: "list",
+          children: this.desugar(expressions)
+        };
+      }
+      return expressions[0];
+    }
+    // parses any valid expression
+    parse_expr() {
+      if (!this.tokens[0]) {
+        throw new Error(`unexpected end of file`);
+      }
+      let next = this.tokens[0]?.type;
+      if (next === "open_list") {
+        return this.parse_list();
+      }
+      if (next === "open_angle") {
+        return this.parse_angle();
+      }
+      if (next === "open_square") {
+        return this.parse_square();
+      }
+      if (next === "open_curly") {
+        return this.parse_curly();
+      }
+      return this.consume(next);
+    }
+    // Token[] => Token[][], e.g. (x , y z) => [['x'],['y','z']]
+    split_children(children, split_type) {
+      const chunks = [];
+      while (true) {
+        let splitIndex = children.findIndex((child) => child.type === split_type);
+        if (splitIndex === -1) break;
+        const chunk = children.slice(0, splitIndex);
+        chunks.push(chunk);
+        children = children.slice(splitIndex + 1);
+      }
+      chunks.push(children);
+      return chunks;
+    }
+    desugar_split(children, split_type, next) {
+      const chunks = this.split_children(children, split_type);
+      if (chunks.length === 1) {
+        return next(children);
+      }
+      const args2 = chunks.map((chunk) => {
+        if (!chunk.length) {
+          return;
+        }
+        if (chunk.length === 1) {
+          return chunk[0];
+        }
+        chunk = next(chunk);
+        return { type: "list", children: chunk };
+      }).filter(Boolean);
+      return [{ type: "plain", value: split_type }, ...args2];
+    }
+    // prevents to get a list, e.g. ((x y)) => (x y)
+    unwrap_children(children) {
+      if (children.length === 1) {
+        return children[0].children;
+      }
+      return children;
+    }
+    desugar_ops(children, types2) {
+      while (true) {
+        let opIndex = children.findIndex((child) => child.type === "op" && types2.includes(child.value));
+        if (opIndex === -1) break;
+        const op2 = { type: "plain", value: children[opIndex].value };
+        if (opIndex === children.length - 1) {
+          children[opIndex] = op2;
+          continue;
+        }
+        if (opIndex === 0) {
+          children[opIndex] = op2;
+          continue;
+        }
+        const left = children[opIndex - 1];
+        const right = children[opIndex + 1];
+        if (left.type === "pipe") {
+          children[opIndex] = op2;
+          continue;
+        }
+        if (left.type === "op") {
+          throw new Error(`got 2 ops in a row: "${left.value}${op2.value}"`);
+        }
+        if (right.type === "op") {
+          let err2 = `got 2 ops in a row: "${op2.value}${right.value}"`;
+          if (op2.value === "-") {
+            err2 += '. you probably want a rest, which is "_" in mondo!';
+          }
+          throw new Error(err2);
+        }
+        const call = { type: "list", children: [op2, right, left] };
+        children = [...children.slice(0, opIndex - 1), call, ...children.slice(opIndex + 2)];
+        children = this.unwrap_children(children);
+      }
+      return children;
+    }
+    get_lambda(args2, children) {
+      children = this.desugar(children);
+      const body2 = children.length === 1 ? children[0] : { type: "list", children };
+      return [{ type: "plain", value: "fn" }, { type: "list", children: args2 }, body2];
+    }
+    // returns location range of given ast (even if desugared)
+    get_range(ast, range3 = [Infinity, 0]) {
+      let union = (a2, b2) => [Math.min(a2[0], b2[0]), Math.max(a2[1], b2[1])];
+      if (ast.loc) {
+        return union(range3, ast.loc);
+      }
+      if (ast.type !== "list") {
+        return range3;
+      }
+      return ast.children.reduce((range4, child) => {
+        const childrange = this.get_range(child, range4);
+        return union(range4, childrange);
+      }, range3);
+    }
+    errorhead(ast) {
+      return `[mondo ${this.get_range(ast)?.join(":") || "?"}]`;
+    }
+    // returns original user code where the given ast originates (even if desugared)
+    get_code_snippet(ast) {
+      const [min, max] = this.get_range(ast);
+      return this.code.slice(min - this.offset, max - this.offset);
+    }
+    desugar_pipes(children) {
+      let chunks = this.split_children(children, "pipe");
+      while (chunks.length > 1) {
+        let [left, right, ...rest] = chunks;
+        if (!left.length) {
+          const arg = { type: "plain", value: "_" };
+          return this.get_lambda([arg], [arg, ...children]);
+        }
+        const call = left.length > 1 ? { type: "list", children: left } : left[0];
+        chunks = [[...right, call], ...rest];
+      }
+      return chunks[0];
+    }
+    parse_pair(open_type, close_type) {
+      const begin = this.tokens[0].loc?.[0];
+      this.consume(open_type);
+      const children = [];
+      while (this.tokens[0]?.type !== close_type) {
+        children.push(this.parse_expr());
+      }
+      const end = this.tokens[0].loc?.[1];
+      this.consume(close_type);
+      const node = { type: "list", children };
+      if (begin !== void 0) {
+        node.loc = [begin, end];
+        node.raw = this.code.slice(begin, end);
+      }
+      return node;
+    }
+    desugar(children, type) {
+      children = type ? children.slice(1) : children;
+      children = this.desugar_split(
+        children,
+        "stack",
+        (children2) => this.desugar_split(children2, "or", (children3) => {
+          if (type) {
+            children3 = [{ type: "plain", value: type }, ...children3];
+          }
+          this.op_precedence.forEach((ops2) => {
+            children3 = this.desugar_ops(children3, ops2);
+          });
+          children3 = this.desugar_pipes(children3);
+          return children3;
+        })
+      );
+      return children;
+    }
+    parse_list() {
+      let node = this.parse_pair("open_list", "close_list");
+      node.children = this.desugar(node.children);
+      return node;
+    }
+    parse_angle() {
+      let node = this.parse_pair("open_angle", "close_angle");
+      node.children.unshift({ type: "plain", value: "angle" });
+      node.children = this.desugar(node.children, "angle");
+      return node;
+    }
+    parse_square() {
+      let node = this.parse_pair("open_square", "close_square");
+      node.children.unshift({ type: "plain", value: "square" });
+      node.children = this.desugar(node.children, "square");
+      return node;
+    }
+    parse_curly() {
+      let node = this.parse_pair("open_curly", "close_curly");
+      node.children.unshift({ type: "plain", value: "curly" });
+      node.children = this.desugar(node.children, "curly");
+      return node;
+    }
+    consume(type) {
+      const token = this.tokens.shift();
+      if (token.type !== type) {
+        throw new Error(`expected token type ${type}, got ${token.type}`);
+      }
+      return token;
+    }
+    get_locations(code, offset2 = 0) {
+      let walk2 = (ast2, locations2 = []) => {
+        if (ast2.type === "list") {
+          return ast2.children.forEach((child) => walk2(child, locations2));
+        }
+        if (ast2.loc) {
+          locations2.push(ast2.loc);
+        }
+      };
+      const ast = this.parse(code, offset2);
+      let locations = [];
+      walk2(ast, locations);
+      return locations;
+    }
+  };
+  var MondoRunner = class {
+    constructor({ evaluator: evaluator2 } = {}) {
+      this.parser = new MondoParser();
+      this.evaluator = evaluator2;
+      this.assert(typeof evaluator2 === "function", `expected an evaluator function to be passed to new MondoRunner`);
+    }
+    // a helper to check conditions and throw if they are not met
+    assert(condition, error) {
+      if (!condition) {
+        throw new Error(error);
+      }
+    }
+    run(code, scope, offset2 = 0) {
+      const ast = this.parser.parse(code, offset2);
+      return this.evaluate(ast, scope);
+    }
+    evaluate_let(ast, scope) {
+      const defs = ast.children[1].children;
+      const args2 = defs.map((pair) => pair.children[0]);
+      const vals = defs.map((pair) => pair.children[1]);
+      const body2 = ast.children.slice(2);
+      const lambda = {
+        type: "list",
+        children: [{ type: "plain", value: "fn" }, { type: "list", children: args2 }, ...body2]
+      };
+      return this.evaluate({ type: "list", children: [lambda, ...vals] }, scope);
+    }
+    evaluate_def(ast, scope) {
+      if (ast.children[1].type === "list") {
+        const args2 = ast.children[1].children.slice(1);
+        const lambda = {
+          // lambda
+          type: "list",
+          children: [
+            { type: "plain", value: "fn" },
+            { type: "list", children: args2 },
+            ...ast.children.slice(2)
+            // body
+          ]
+        };
+        ast.children[1] = ast.children[1].children[0];
+        ast.children[2] = lambda;
+        ast.children = ast.children.slice(0, 3);
+      }
+      if (ast.children.length !== 3) {
+        throw new Error(`expected "def" to have 3 children, but got ${ast.children.length}`);
+      }
+      const name2 = ast.children[1].value;
+      const body2 = this.evaluate(ast.children[2], scope);
+      scope[name2] = body2;
+    }
+    evaluate_match(ast, scope) {
+      if (ast.children.length < 2) {
+        return;
+      }
+      const [_7, ...body2] = ast.children;
+      for (let i2 = 0; i2 < body2.length; ++i2) {
+        const [predicate, exp] = body2[i2].children;
+        if (predicate.value === "else") {
+          return this.evaluate(exp, scope);
+        }
+        const outcome = this.evaluate(predicate, scope);
+        if (outcome) {
+          return this.evaluate(exp, scope);
+        }
+      }
+      return void 0;
+    }
+    evaluate_if(ast, scope) {
+      if (ast.children.length !== 4) {
+        return;
+      }
+      const [_7, predicate, consequent, alternative] = ast.children;
+      const matcher = {
+        type: "list",
+        children: [
+          { type: "plain", value: "match" },
+          { type: "list", children: [predicate, consequent] },
+          { type: "list", children: [{ type: "plain", value: "else" }, alternative] }
+        ]
+      };
+      return this.evaluate_match(matcher, scope);
+    }
+    evaluate_lambda(ast, scope) {
+      const [_7, formalArgs, ...body2] = ast.children;
+      return (...args2) => {
+        const params = Object.fromEntries(formalArgs.children.map((arg, i2) => [arg.value, args2[i2]]));
+        const closure = {
+          ...scope,
+          ...params
+        };
+        const res = body2.map((exp) => this.evaluate(exp, closure));
+        return res[res.length - 1];
+      };
+    }
+    evaluate_list(ast, scope) {
+      const args2 = ast.children.filter((child) => child.type !== "comment").map((arg) => this.evaluate(arg, scope));
+      const node = { type: "list", children: args2 };
+      return this.evaluator(node, scope);
+    }
+    evaluate_leaf(ast, scope) {
+      if (ast.type === "number") {
+        ast.value = Number(ast.value);
+      } else if (["quotes_double", "quotes_single"].includes(ast.type)) {
+        ast.value = ast.value.slice(1, -1);
+        ast.type = "string";
+      }
+      return this.evaluator(ast, scope);
+    }
+    evaluate(ast, scope = {}) {
+      if (ast.type !== "list") {
+        return this.evaluate_leaf(ast, scope);
+      }
+      const name2 = ast.children[0]?.value;
+      if (name2 === "fn") {
+        return this.evaluate_lambda(ast, scope);
+      }
+      if (name2 === "match") {
+        return this.evaluate_match(ast, scope);
+      }
+      if (name2 === "if") {
+        return this.evaluate_if(ast, scope);
+      }
+      if (name2 === "let") {
+        return this.evaluate_let(ast, scope);
+      }
+      if (name2 === "def") {
+        this.evaluate_def(ast, scope);
+      }
+      return this.evaluate_list(ast, scope);
+    }
+  };
+
+  // src/algorave/vendor/mondo/mondough.mjs
+  var tail = (friend, pat) => pat.fmap((a2) => (b2) => Array.isArray(a2) ? [...a2, b2] : [a2, b2]).appLeft(friend);
+  var arrayRange = (start2, stop2, step = 1) => Array.from(
+    { length: Math.abs(stop2 - start2) / step + 1 },
+    (_7, index) => start2 < stop2 ? start2 + index * step : start2 - index * step
+  );
+  var range = (max, min) => min.squeezeBind((a2) => max.bind((b2) => Nn(...arrayRange(a2, b2))));
+  var nope = (...args2) => args2[args2.length - 1];
+  var lib = {};
+  lib["nope"] = nope;
+  lib["-"] = (a2, b2) => b2.early(a2);
+  lib["+"] = (a2, b2) => b2.late(a2);
+  lib["_"] = q2;
+  lib["~"] = q2;
+  lib.curly = $2;
+  lib.square = (...args2) => $2(...args2).setSteps(1);
+  lib.angle = (...args2) => $2(...args2).pace(1);
+  lib["*"] = qd;
+  lib["/"] = Td;
+  lib["!"] = Em;
+  lib["@"] = Xn;
+  lib["%"] = Vn;
+  lib["?"] = Aw;
+  lib["&"] = _y;
+  lib[":"] = tail;
+  lib[".."] = range;
+  lib["def"] = () => q2;
+  lib["or"] = (...children) => ww(...children);
+  function evaluator(node, scope) {
+    const { type } = node;
+    if (type === "list") {
+      const { children } = node;
+      const [name2, ...args2] = children;
+      if (typeof name2 === "function") {
+        return name2(...args2);
+      }
+      if (name2.value === "def") {
+        return q2;
+      }
+      const first = name2.firstCycle(true)[0];
+      const type2 = typeof first?.value;
+      if (type2 !== "function") {
+        throw new Error(`[mondough] expected function, got "${first?.value}"`);
+      }
+      return name2.fmap((fn3) => {
+        if (typeof fn3 !== "function") {
+          throw new Error(`[mondough] "${fn3}" is not a function b`);
+        }
+        return fn3(...args2);
+      }).innerJoin();
+    }
+    let { value } = node;
+    if (type === "plain" && scope[value]) {
+      return d(scope[value]);
+    }
+    const variable = lib[value] ?? le[value];
+    let pat;
+    if (type === "plain" && typeof variable !== "undefined") {
+      if (["!", "extend", "@", "expand", "square", "angle", "all", "setcpm", "setcps"].includes(value)) {
+        return variable;
+      }
+      pat = d(variable);
+    } else {
+      pat = d(value);
+    }
+    if (node.loc) {
+      pat = pat.withLoc(node.loc[0], node.loc[1]);
+    }
+    return pat;
+  }
+  var runner = new MondoRunner({ evaluator });
+  function mondo(code, offset2 = 0) {
+    if (Array.isArray(code)) {
+      code = code.join("");
+    }
+    const pat = runner.run(code, void 0, offset2);
+    return pat.markcss(C3("color: var(--caret,--foreground);text-decoration:underline"));
+  }
+  var getLocations = (code, offset2) => runner.parser.get_locations(code, offset2);
+  var mondi = (str, offset2) => {
+    const code = `[${str}]`;
+    return mondo(code, offset2);
+  };
+  we5("mondo", {
+    getLocations
+  });
+  var mondolang = (code) => mondo(code, 0);
+  we5("mondolang", {
+    getLocations: (code) => getLocations(code, 0)
+  });
+
   // src/algorave/strudel-prebake.mjs
+  var markcss = c2("markcss");
   var CDN = "https://strudel.b-cdn.net";
   var BANKS = [
     ["piano", "piano/"],
@@ -49035,18 +49563,18 @@ ${JSON.stringify(t2, null, 2)}`);
     ["mridangam", "mrid/", "drum-machines"]
   ];
   var numbered = (name2, files) => files.map((file) => `${name2}/${file}.wav`);
-  var range = (count) => Array.from({ length: count }, (_7, i2) => i2);
+  var range2 = (count) => Array.from({ length: count }, (_7, i2) => i2);
   var DIRT = {
     casio: numbered("casio", ["high", "low", "noise"]),
     crow: numbered("crow", ["000_crow", "001_crow2", "002_crow3", "003_crow4"]),
     insect: numbered("insect", ["000_everglades_conehead", "001_robust_shieldback", "002_seashore_meadow_katydid"]),
     wind: numbered("wind", ["000_wind1", "001_wind10", "002_wind2", "003_wind3", "004_wind4", "005_wind5", "006_wind6", "007_wind7", "008_wind8", "009_wind9"]),
     jazz: numbered("jazz", ["000_BD", "001_CB", "002_FX", "003_HH", "004_OH", "005_P1", "006_P2", "007_SN"]),
-    metal: numbered("metal", range(10).map((i2) => `${String(i2).padStart(3, "0")}_${i2}`)),
+    metal: numbered("metal", range2(10).map((i2) => `${String(i2).padStart(3, "0")}_${i2}`)),
     east: numbered("east", ["000_nipon_wood_block", "001_ohkawa_mute", "002_ohkawa_open", "003_shime_hi", "004_shime_hi_2", "005_shime_mute", "006_taiko_1", "007_taiko_2", "008_taiko_3"]),
     space: numbered("space", [0, 1, 11, 12, 13, 14, 15, 16, 17, 18, 2, 3, 4, 5, 6, 7, 8, 9].map((n2, i2) => `${String(i2).padStart(3, "0")}_${n2}`)),
-    numbers: numbered("numbers", range(9)),
-    num: numbered("num", range(21).map((i2) => String(i2).padStart(2, "0")))
+    numbers: numbered("numbers", range2(9)),
+    num: numbered("num", range2(21).map((i2) => String(i2).padStart(2, "0")))
   };
   var maxPan = gt2("C8");
   f2.prototype.piano = function() {
@@ -49058,7 +49586,7 @@ ${JSON.stringify(t2, null, 2)}`);
     return response.json();
   }
   async function registerDefaultSounds() {
-    await xn(soundfonts_exports, xen_exports, edo_exports, gamepad_exports, osc_exports, midi_exports, motion_exports, serial_exports, tidal_exports);
+    await xn(soundfonts_exports, xen_exports, edo_exports, gamepad_exports, osc_exports, midi_exports, motion_exports, serial_exports, tidal_exports, mondough_exports, { markcss });
     hc2();
     registerSoundfonts();
     await ao2(DIRT, `${CDN}/Dirt-Samples/`, { prebake: true });

@@ -1,0 +1,26 @@
+{
+  "package": "@strudel/mondo",
+  "version": "1.1.6",
+  "files": [
+    {
+      "path": "mondough.mjs",
+      "sha256": "3c79b16a2c0f60dff4ce68ffa0e2d5955517c2a31611c10f2e5c4790bb9f25b9"
+    },
+    {
+      "path": "package.json",
+      "sha256": "d6c2784b746ef712129ae2214423eb84053f3459ecfa38b593745161b9e26584"
+    },
+    {
+      "path": "LICENSE",
+      "sha256": "0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0"
+    },
+    {
+      "path": "README.md",
+      "sha256": "b0999f0516a1a64986394760618076a394f50d5dc3cd198e29e164a5a286692c"
+    }
+  ],
+  "license": "AGPL-3.0-or-later",
+  "changes": [
+    "Wrap generated CSS in pure() so core reify does not interpret it as mini-notation."
+  ]
+}
