@@ -60006,17 +60006,22 @@ ${JSON.stringify(t2, null, 2)}`);
       this.dynamic = true;
       this.width = width;
       this.height = height;
-      this.tex = this.regl.texture({
+      this.replaceTexture({
         //  shape: [width, height]
         shape: [1, 1]
       });
       this.pb = pb;
     }
+    replaceTexture(options) {
+      const next = this.regl.texture(options);
+      this.tex?.destroy();
+      this.tex = next;
+    }
     init(opts, params) {
       if ("src" in opts) {
         this.stopCapture();
         this.src = opts.src;
-        this.tex = this.regl.texture({ data: this.src, ...params });
+        this.replaceTexture({ data: this.src, ...params });
       }
       if ("dynamic" in opts) this.dynamic = opts.dynamic;
     }
@@ -60028,7 +60033,7 @@ ${JSON.stringify(t2, null, 2)}`);
         if (controller.signal.aborted) return;
         self2.src = response.video;
         self2.dynamic = true;
-        self2.tex = self2.regl.texture({ data: self2.src, ...params });
+        self2.replaceTexture({ data: self2.src, ...params });
       }).catch((err2) => {
         if (err2.name !== "AbortError") console.log("could not get camera", err2);
       });
@@ -60043,7 +60048,7 @@ ${JSON.stringify(t2, null, 2)}`);
       const onload = vid.addEventListener("loadeddata", () => {
         this.src = vid;
         vid.play();
-        this.tex = this.regl.texture({ data: this.src, ...params });
+        this.replaceTexture({ data: this.src, ...params });
         this.dynamic = true;
       });
       vid.src = url2;
@@ -60056,7 +60061,7 @@ ${JSON.stringify(t2, null, 2)}`);
       img.onload = () => {
         this.src = img;
         this.dynamic = false;
-        this.tex = this.regl.texture({ data: this.src, ...params });
+        this.replaceTexture({ data: this.src, ...params });
       };
     }
     initStream(streamName, params) {
@@ -60068,7 +60073,7 @@ ${JSON.stringify(t2, null, 2)}`);
           if (nick === streamName) {
             self2.src = video;
             self2.dynamic = true;
-            self2.tex = self2.regl.texture({ data: self2.src, ...params });
+            self2.replaceTexture({ data: self2.src, ...params });
           }
         });
       }
@@ -60081,7 +60086,7 @@ ${JSON.stringify(t2, null, 2)}`);
       screenmedia_default(void 0, controller.signal).then(function(response) {
         if (controller.signal.aborted) return;
         self2.src = response.video;
-        self2.tex = self2.regl.texture({ data: self2.src, ...params });
+        self2.replaceTexture({ data: self2.src, ...params });
         self2.dynamic = true;
       }).catch((err2) => {
         if (err2.name !== "AbortError") console.log("could not get screen", err2);
@@ -60099,7 +60104,7 @@ ${JSON.stringify(t2, null, 2)}`);
       }
       const ctx = this.canvases[this.label];
       const canvas = ctx.canvas;
-      if (canvas.width !== width && canvas.height !== height) {
+      if (canvas.width !== width || canvas.height !== height) {
         canvas.width = width;
         canvas.height = height;
       } else {
@@ -60128,11 +60133,11 @@ ${JSON.stringify(t2, null, 2)}`);
         }
       }
       this.src = null;
-      this.tex = this.regl.texture({ shape: [1, 1] });
+      this.replaceTexture({ shape: [1, 1] });
     }
     tick(time) {
       if (this.src && this.dynamic === true) {
-        if (this.src.videoWidth && this.src.videoWidth !== this.tex.width) {
+        if (this.src.videoWidth && (this.src.videoWidth !== this.tex.width || this.src.videoHeight !== this.tex.height)) {
           console.log(
             this.src.videoWidth,
             this.src.videoHeight,
@@ -60141,7 +60146,7 @@ ${JSON.stringify(t2, null, 2)}`);
           );
           this.tex.resize(this.src.videoWidth, this.src.videoHeight);
         }
-        if (this.src.width && this.src.width !== this.tex.width) {
+        if (this.src.width && (this.src.width !== this.tex.width || this.src.height !== this.tex.height)) {
           this.tex.resize(this.src.width, this.src.height);
         }
         this.tex.subimage(this.src);

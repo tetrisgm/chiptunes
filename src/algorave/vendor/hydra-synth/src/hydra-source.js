@@ -9,18 +9,24 @@ class HydraSource {
     this.dynamic = true
     this.width = width
     this.height = height
-    this.tex = this.regl.texture({
+    this.replaceTexture({
       //  shape: [width, height]
       shape: [ 1, 1 ]
     })
     this.pb = pb
   }
 
+  replaceTexture (options) {
+    const next = this.regl.texture(options)
+    this.tex?.destroy()
+    this.tex = next
+  }
+
   init (opts, params) {
     if ('src' in opts) {
       this.stopCapture()
       this.src = opts.src
-      this.tex = this.regl.texture({ data: this.src, ...params })
+      this.replaceTexture({ data: this.src, ...params })
     }
     if ('dynamic' in opts) this.dynamic = opts.dynamic
   }
@@ -34,7 +40,7 @@ class HydraSource {
         if (controller.signal.aborted) return
         self.src = response.video
         self.dynamic = true
-        self.tex = self.regl.texture({ data: self.src, ...params })
+        self.replaceTexture({ data: self.src, ...params })
       })
       .catch(err => { if (err.name !== 'AbortError') console.log('could not get camera', err) })
   }
@@ -50,7 +56,7 @@ class HydraSource {
     const onload = vid.addEventListener('loadeddata', () => {
       this.src = vid
       vid.play()
-      this.tex = this.regl.texture({ data: this.src, ...params})
+      this.replaceTexture({ data: this.src, ...params})
       this.dynamic = true
     })
     vid.src = url
@@ -64,7 +70,7 @@ class HydraSource {
     img.onload = () => {
       this.src = img
       this.dynamic = false
-      this.tex = this.regl.texture({ data: this.src, ...params})
+      this.replaceTexture({ data: this.src, ...params})
     }
   }
 
@@ -79,7 +85,7 @@ class HydraSource {
         if (nick === streamName) {
           self.src = video
           self.dynamic = true
-          self.tex = self.regl.texture({ data: self.src, ...params})
+          self.replaceTexture({ data: self.src, ...params})
         }
       })
     }
@@ -94,7 +100,7 @@ class HydraSource {
       .then(function (response) {
         if (controller.signal.aborted) return
         self.src = response.video
-        self.tex = self.regl.texture({ data: self.src, ...params})
+        self.replaceTexture({ data: self.src, ...params})
         self.dynamic = true
         //  console.log("received screen input")
       })
@@ -115,7 +121,7 @@ class HydraSource {
 
     const ctx = this.canvases[this.label]
     const canvas = ctx.canvas
-    if (canvas.width !== width && canvas.height !== height) {
+    if (canvas.width !== width || canvas.height !== height) {
       canvas.width = width
       canvas.height = height
     } else {
@@ -148,13 +154,13 @@ class HydraSource {
       }
     }
     this.src = null
-    this.tex = this.regl.texture({ shape: [ 1, 1 ] })
+    this.replaceTexture({ shape: [ 1, 1 ] })
   }
 
   tick (time) {
     //  console.log(this.src, this.tex.width, this.tex.height)
     if (this.src && this.dynamic === true) {
-      if (this.src.videoWidth && this.src.videoWidth !== this.tex.width) {
+      if (this.src.videoWidth && (this.src.videoWidth !== this.tex.width || this.src.videoHeight !== this.tex.height)) {
         console.log(
           this.src.videoWidth,
           this.src.videoHeight,
@@ -164,7 +170,7 @@ class HydraSource {
         this.tex.resize(this.src.videoWidth, this.src.videoHeight)
       }
 
-      if (this.src.width && this.src.width !== this.tex.width) {
+      if (this.src.width && (this.src.width !== this.tex.width || this.src.height !== this.tex.height)) {
         this.tex.resize(this.src.width, this.src.height)
       }
 

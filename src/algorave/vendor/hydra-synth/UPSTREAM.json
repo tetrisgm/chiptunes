@@ -106,7 +106,7 @@
       "sha256": "e12d4b089880f041ed8d338c79d88df20056eba941fbd825a2fddff967d25547"
     }
   ],
-  "adaptation": "Dispose microphone capture and reject late grants before creating an AudioContext. Camera and screen helpers use per-source abort signals to release late or active capture.",
+  "adaptation": "Dispose microphone capture and reject late grants before creating an AudioContext. Camera and screen helpers use per-source abort signals to release late or active capture. Source texture replacement destroys the previous texture; canvas/video resizing handles either changed dimension.",
   "added": [
     "src/lib/media-stream.js"
   ]

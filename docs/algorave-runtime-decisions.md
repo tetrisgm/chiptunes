@@ -1757,3 +1757,18 @@ permission promises and canvas-generated MediaStreams. Both `initCam` and
 and end their active tracks on Stop. No physical camera or desktop capture was
 accessed. Microphone and renderer/feed/rollback regressions also pass. Native
 permission/device acceptance and URL-video/image/stream lifecycle remain pending.
+
+
+### Hydra source texture lifetime — 2026-09-15
+
+All source texture replacements now allocate the replacement successfully before
+destroying the previous texture. Repeated source initialization and clearing no
+longer accumulate old textures. `initCanvas` and dynamic texture updates now
+handle changes in either dimension, including height-only changes.
+
+`scripts/verify-algorave-hydra-textures.cjs` performs forty source replacements
+and forty clears against the real renderer: the live texture count stays at 12.
+It verifies width-only/height-only canvas resizing, dynamic height-only texture
+resizing to 71×96, and cyan shader pixels from the resized input. Camera/screen
+synthetic capture regressions pass. This is a bounded GPU-resource check, not a
+claim that sustained performance or asynchronous URL-media lifecycle is complete.

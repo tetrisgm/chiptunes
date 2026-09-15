@@ -109,7 +109,9 @@ Hydra is now integrated from pinned upstream source with local rendering, `H`,
 feed, Run/Undo and disposal checks pass. Synthetic microphone tests now verify
 active/late-grant cleanup, including Stop during a pending edit.
 Camera/screen late-grant and active-Stop checks also pass with synthetic streams.
-Native device permissions, URL media and broader continuity/performance remain
+Source texture replacement now releases old textures and handles one-axis
+resizing; a real-renderer check retains 12 textures across forty replacements and
+forty clears. Native device permissions, URL media and broader continuity/performance remain
 pending. See the
 [Hydra checkpoint](algorave-runtime-decisions.md#hydra-integration--2026-09-15).
 
