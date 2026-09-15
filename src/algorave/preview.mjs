@@ -291,7 +291,7 @@ visual.onRun = () => { focus = 'visual'; run(); };
 
 // Only user-written music enters the opaque frame. No auth, storage or chat data.
 const frame = document.createElement('iframe');
-frame.hidden = true; frame.setAttribute('sandbox','allow-scripts'); frame.setAttribute('allow','autoplay'); frame.title = 'Isolated music engine';
+frame.hidden = true; frame.id='music-drawing'; frame.setAttribute('sandbox','allow-scripts'); frame.setAttribute('allow','autoplay'); frame.title = 'Strudel music drawing';
 const response = await fetch('music-runtime.js');
 if (!response.ok) throw Error('Music engine could not load.');
 const script = await response.text();
@@ -299,9 +299,9 @@ const script = await response.text();
 // load blob worklets from this opaque origin. Strudel's source-level samples()
 // and module APIs can load public resources; application storage and parent DOM
 // remain inaccessible because allow-same-origin is deliberately absent.
-frame.srcdoc = `<!doctype html><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' blob: data: https:; worker-src blob: data:; connect-src blob: data: https: http:; img-src blob: data: https:; media-src blob: data: https:; style-src 'unsafe-inline'"><script>${script.replace(/<\/script/gi,'<\\/script')}<\/script>`;
-await new Promise(resolve => { frame.onload = resolve; document.body.append(frame); });
-bridge = new MusicBridge(frame, next => { signal = next; signals.receive(next); }, error => { playing=false; $('play').textContent='Play'; message(error); }, message);
+frame.srcdoc = `<!doctype html><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' blob: data: https:; worker-src blob: data:; connect-src blob: data: https: http:; img-src blob: data: https:; media-src blob: data: https:; style-src 'unsafe-inline'"><style>body{margin:0;background:#161821;color:#dbdbe9;overflow:hidden}body[data-drawing-pending] canvas:not([data-drawing-preview]){visibility:hidden!important}</style><body><script>${script.replace(/<\/script/gi,'<\\/script')}<\/script>`;
+await new Promise(resolve => { frame.onload = resolve; $('music-editor').append(frame); });
+bridge = new MusicBridge(frame, next => { signal = next; signals.receive(next); }, error => { playing=false; $('play').textContent='Play'; message(error); }, message,visible=>{frame.hidden=!visible;});
 await bridge.ready; lock(false);
 status.textContent = session.recoveryError || initialVisualError || 'Ready · ⌘/Ctrl Enter to run'; $('build').textContent = BUILD_ID;
 function draw(now) {

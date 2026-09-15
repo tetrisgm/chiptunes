@@ -6,6 +6,8 @@ function build({out=path.join(root,'.algorave-preview')}={}){
   const files=['preview.mjs','preview.html','music-runtime.mjs','music-bridge.mjs','shader-runtime.mjs','music-signals.mjs','drum-samples.mjs','sample-assets.mjs','sample-bank.mjs','sample-persistence.mjs','sample-project.mjs','project.cjs','session.mjs','agent-client.mjs','code-editor.mjs','examples.mjs'];
   const id=crypto.createHash('sha256');for(const file of files)id.update(fs.readFileSync(path.join(root,'src/algorave',file)));
   id.update(fs.readFileSync(path.join(root,'src/algorave/strudel-prebake.mjs')));
+  id.update(fs.readFileSync(path.join(root,'src/algorave/strudel-drawing.mjs')));
+  for(const file of fs.readdirSync(path.join(root,'src/algorave/vendor/draw')).filter(file=>file.endsWith('.mjs')).sort())id.update(fs.readFileSync(path.join(root,'src/algorave/vendor/draw',file)));
   id.update(fs.readFileSync(path.join(root,'src/algorave/vendor/edo/UPSTREAM.json')));
   id.update(fs.readFileSync(path.join(root,'src/algorave/shader-images.mjs')));
   id.update(fs.readFileSync(path.join(root,'src/algorave/shader-channel-editor.mjs')));
@@ -18,7 +20,7 @@ function build({out=path.join(root,'.algorave-preview')}={}){
       format:entry==='preview.mjs'?'esm':'iife',platform:'browser',target:'es2022',minify:false,legalComments:'inline',
       // Bundle upstream source, not its prebundled distribution, so the input
       // graph records every dependency for notices and corresponding source.
-      alias:{'@strudel/web':path.join(root,'node_modules/@strudel/web/web.mjs'),'@strudel/soundfonts':path.join(root,'node_modules/@strudel/soundfonts/index.mjs'),'@strudel/xen':path.join(root,'node_modules/@strudel/xen/index.mjs')},
+      alias:{'@strudel/web':path.join(root,'node_modules/@strudel/web/web.mjs'),'@strudel/soundfonts':path.join(root,'node_modules/@strudel/soundfonts/index.mjs'),'@strudel/xen':path.join(root,'node_modules/@strudel/xen/index.mjs'),'@strudel/draw':path.join(root,'src/algorave/vendor/draw/index.mjs')},
       define:{BUILD_ID:JSON.stringify('Algorave '+buildId)}});
     Object.keys(result.metafile.inputs).forEach(file=>inputs.add(file));
   }

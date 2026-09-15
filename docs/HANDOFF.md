@@ -18,6 +18,8 @@ Standard Strudel catalogs, ZZFX, GM soundfonts, the piano helper and xen tuning
 are integrated; see the [sound-library checkpoint](algorave-runtime-decisions.md#standard-sound-libraries--2026-09-15).
 The upstream `edoScale` module is also integrated from pinned source; see the
 [EDO checkpoint](algorave-runtime-decisions.md#edo-scale-module--2026-09-15).
+Strudel drawing APIs now display their canvas below the music editor and retain
+it across failed edits; see the [drawing checkpoint](algorave-runtime-decisions.md#visible-strudel-drawing--2026-09-15).
 
 Image texture and keyboard inputs plus per-channel sampler controls are now
 implemented; see the [image/keyboard checkpoint](algorave-runtime-decisions.md#image-and-keyboard-channels--2026-09-15).

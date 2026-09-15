@@ -5,6 +5,7 @@ import { drumWav } from './drum-samples.mjs';
 import { SampleByteStore } from './sample-assets.mjs';
 import { SampleBank } from './sample-bank.mjs';
 import { registerDefaultSounds } from './strudel-prebake.mjs';
+import { createDrawingHost } from './strudel-drawing.mjs';
 
 let connected = false;
 window.addEventListener('message', async event => {
@@ -62,9 +63,10 @@ window.addEventListener('message', async event => {
         Object.defineProperty(observed,wrapped,{value:true});return observed;
       },
     });
+    const drawing=await createDrawingHost(engine,visible=>send({type:'drawing',visible}));
     audio.addEventListener('statechange',()=>{
       if(!busy&&engine.state.started&&audio.state!=='running'&&audio.state!=='closed'){
-        engine.pause();epoch++;events.length=0;
+        engine.pause();drawing.stop();epoch++;events.length=0;
         send({type:'runtime-error',error:'Audio output was interrupted. Press Play to resume.'});
       }
     });
@@ -103,6 +105,7 @@ window.addEventListener('message', async event => {
       const next=candidate;candidate=null;
       if(next.defer&&play)throw Error('An opened project must remain stopped until Play.');
       const previous={pattern:engine.state.pattern,activeCode:engine.state.activeCode,cps:engine.scheduler.cps,playing:engine.state.started,registry:{...soundMap.get()}};
+      const visual=drawing.prepare();
       try {
         if(!play)await audio.suspend();else{
           await audio.resume();
@@ -116,14 +119,18 @@ window.addEventListener('message', async event => {
         if(play){if(!previous.playing){epoch++;events.length=0;}if(!engine.state.started)await engine.start();}
         else{engine.stop();epoch++;events.length=0;}
         registries.set(++checkpoint,{...soundMap.get()});
+        visual.complete(play,next.defer?null:engine.state.pattern);
       }catch(error){
-        restoreRegistry(previous.registry);
-        engine.setCps(previous.cps);
-        if(previous.pattern)await engine.setPattern(previous.pattern,false);
-        engine.state.pattern=previous.pattern;engine.state.activeCode=previous.activeCode;
-        engine.state.isDirty=engine.state.code!==previous.activeCode;
-        if(!previous.playing||current.stopped){engine.stop();await audio.suspend();}
-        else{await audio.resume();if(!engine.state.started)await engine.start();}
+        let resumed=false;
+        try{
+          restoreRegistry(previous.registry);
+          engine.setCps(previous.cps);
+          if(previous.pattern)await engine.setPattern(previous.pattern,false);
+          engine.state.pattern=previous.pattern;engine.state.activeCode=previous.activeCode;
+          engine.state.isDirty=engine.state.code!==previous.activeCode;
+          if(!previous.playing||current.stopped){engine.stop();await audio.suspend();}
+          else{await audio.resume();if(!engine.state.started)await engine.start();resumed=audio.state==='running';}
+        }finally{visual.rollback(resumed);}
         throw error;
       }
     }
@@ -140,7 +147,7 @@ window.addEventListener('message', async event => {
       if(!['run','stop','prepare','commit','discard'].includes(data.type))return;
       if(data.type==='stop'){
         if(operation){operation.cancelled=true;operation.stopped=true;}
-        engine.stop();window.postMessage('strudel-stop','*');await audio.suspend();epoch++;events.length=0;candidate=null;
+        engine.stop();drawing.stop();window.postMessage('strudel-stop','*');await audio.suspend();epoch++;events.length=0;candidate=null;
         send({type:'reply',id:data.id,playing:false});return;
       }
       if(busy){send({type:'reply',id:data.id,error:'Another edit is still running.'});return;}
@@ -166,7 +173,7 @@ window.addEventListener('message', async event => {
         cycle:engine.state.started?Math.max(0,engine.scheduler.now()-lag*engine.scheduler.cps):0,cps:engine.scheduler.cps,playing:engine.state.started,
         sampleRate:audio.sampleRate,frequency,waveform,events:events.splice(0)});
     },1000/30);
-    window.addEventListener('pagehide',()=>{clearInterval(timer);engine.stop();sampleBank.close();audio.close();});
+    window.addEventListener('pagehide',()=>{clearInterval(timer);engine.stop();drawing.dispose();sampleBank.close();audio.close();});
     send({type:'ready',version:'strudel-web-1.3.0'});
     if(unavailableBanks.length)send({type:'diagnostic',error:'Could not load sound libraries: '+unavailableBanks.join(', ')+'. Local sounds remain available; reload to retry.'});
   }catch(error){send({type:'fatal',error:String(error.message||error).slice(0,2000)});}

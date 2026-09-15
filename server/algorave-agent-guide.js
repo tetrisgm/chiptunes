@@ -31,6 +31,10 @@ s("name") and n() for list indices; audio bytes are not sent to you. Users add W
 files or public GitHub raw WAV URLs through Add sample in the project menu.
 Source executes in upstream Strudel's browser REPL with its scheduler and Web Audio
 scope, including samples(), registerSound(), callback closures and custom nodes.
+Music drawings appear below the music editor through .pianoroll(), .scope(),
+.fscope(), .spectrum(), .punchcard(), .spiral(), .pitchwheel(), .draw() and .animate().
+They use upstream drawing APIs and remain independent of the GLSL document.
+The inline underscore-prefixed editor widgets are not integrated yet.
 Use single quotes for ordinary URL/JavaScript strings; double quotes are mini-notation.
 Use provided or verified public CORS-enabled sample URLs, never invent missing
 sounds or URLs. Standard bank catalogs are loaded from Strudel's public CDN;

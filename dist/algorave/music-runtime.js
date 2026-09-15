@@ -50,8 +50,8 @@
     }
     return n2 * s2;
   }
-  function ifloor(x3) {
-    return typeof x3 === "bigint" ? x3 : Math.floor(x3);
+  function ifloor(x4) {
+    return typeof x4 === "bigint" ? x4 : Math.floor(x4);
   }
   function newFraction(n2, d2) {
     if (d2 === C_ZERO) {
@@ -98,13 +98,13 @@
     return factors;
   }
   function modpow(b2, e, m4) {
-    let r = C_ONE;
+    let r2 = C_ONE;
     for (; e > C_ZERO; b2 = b2 * b2 % m4, e >>= C_ONE) {
       if (e & C_ONE) {
-        r = r * b2 % m4;
+        r2 = r2 * b2 % m4;
       }
     }
-    return r;
+    return r2;
   }
   function cycleLen(n2, d2) {
     for (; d2 % C_TWO === C_ZERO; d2 /= C_TWO) {
@@ -274,7 +274,7 @@
           }
         } else if (typeof p12 === "string") {
           let ndx = 0;
-          let v2 = C_ZERO, w6 = C_ZERO, x3 = C_ZERO, y3 = C_ONE, z5 = C_ONE;
+          let v2 = C_ZERO, w7 = C_ZERO, x4 = C_ZERO, y4 = C_ONE, z5 = C_ONE;
           let match = p12.replace(/_/g, "").match(/\d+|./g);
           if (match === null)
             throw InvalidParameter();
@@ -285,36 +285,36 @@
             ndx++;
           }
           if (match.length === ndx + 1) {
-            w6 = assign(match[ndx++], s2);
+            w7 = assign(match[ndx++], s2);
           } else if (match[ndx + 1] === "." || match[ndx] === ".") {
             if (match[ndx] !== ".") {
               v2 = assign(match[ndx++], s2);
             }
             ndx++;
             if (ndx + 1 === match.length || match[ndx + 1] === "(" && match[ndx + 3] === ")" || match[ndx + 1] === "'" && match[ndx + 3] === "'") {
-              w6 = assign(match[ndx], s2);
-              y3 = C_TEN ** BigInt(match[ndx].length);
+              w7 = assign(match[ndx], s2);
+              y4 = C_TEN ** BigInt(match[ndx].length);
               ndx++;
             }
             if (match[ndx] === "(" && match[ndx + 2] === ")" || match[ndx] === "'" && match[ndx + 2] === "'") {
-              x3 = assign(match[ndx + 1], s2);
+              x4 = assign(match[ndx + 1], s2);
               z5 = C_TEN ** BigInt(match[ndx + 1].length) - C_ONE;
               ndx += 3;
             }
           } else if (match[ndx + 1] === "/" || match[ndx + 1] === ":") {
-            w6 = assign(match[ndx], s2);
-            y3 = assign(match[ndx + 2], C_ONE);
+            w7 = assign(match[ndx], s2);
+            y4 = assign(match[ndx + 2], C_ONE);
             ndx += 3;
           } else if (match[ndx + 3] === "/" && match[ndx + 1] === " ") {
             v2 = assign(match[ndx], s2);
-            w6 = assign(match[ndx + 2], s2);
-            y3 = assign(match[ndx + 4], C_ONE);
+            w7 = assign(match[ndx + 2], s2);
+            y4 = assign(match[ndx + 4], C_ONE);
             ndx += 5;
           }
           if (match.length <= ndx) {
-            d2 = y3 * z5;
+            d2 = y4 * z5;
             s2 = /* void */
-            n2 = x3 + d2 * v2 + z5 * w6;
+            n2 = x4 + d2 * v2 + z5 * w7;
           } else {
             throw InvalidParameter();
           }
@@ -664,9 +664,9 @@
           parse(a2, b2);
           const n2 = this["n"] * P["d"];
           const d2 = this["d"] * P["n"];
-          const r = n2 % d2;
+          const r2 = n2 % d2;
           let k6 = ifloor(n2 / d2);
-          if (r + r >= d2) {
+          if (r2 + r2 >= d2) {
             k6++;
           }
           return newFraction(this["s"] * k6 * P["n"], P["d"]);
@@ -840,8 +840,8 @@
       return x(Y).withIns(...l2);
     }
     const n2 = Array.from({ length: i2 }, (l2, o) => {
-      const d2 = new c(e), G6 = t.map((p2) => p2.type === Z ? c.parseInput(p2.ins[o % p2.ins.length], d2).inherit(p2) : (p2 = c.parseInput(p2, d2), p2.type === Z && (p2 = p2.ins[o]), p2));
-      return d2.withIns(...G6);
+      const d2 = new c(e), G5 = t.map((p2) => p2.type === Z ? c.parseInput(p2.ins[o % p2.ins.length], d2).inherit(p2) : (p2 = c.parseInput(p2, d2), p2.type === Z && (p2 = p2.ins[o]), p2));
+      return d2.withIns(...G5);
     });
     return new c(Z).withIns(...n2);
   }
@@ -895,36 +895,36 @@
       lang: n2 = "js",
       fallbackType: l2 = "thru",
       constType: o = "n",
-      getRegister: d2 = (h) => `r[${h}]`,
-      getOutput: G6 = (h) => `o[${h}]`,
-      getSource: p2 = (h) => `s[${h}]`
+      getRegister: d2 = (h2) => `r[${h2}]`,
+      getOutput: G5 = (h2) => `o[${h2}]`,
+      getSource: p2 = (h2) => `s[${h2}]`
     } = t;
     i2 && console.log("compile", e);
     const m4 = ue(e);
-    let r = [], R6 = (h) => m4[h].type !== o ? d2(h) : typeof m4[h].value == "string" ? `"${m4[h].value}"` : m4[h].value;
+    let r2 = [], R5 = (h2) => m4[h2].type !== o ? d2(h2) : typeof m4[h2].value == "string" ? `"${m4[h2].value}"` : m4[h2].value;
     const X3 = [];
-    for (let h in m4) {
-      const v2 = m4[h], I4 = m4[h].ins.map((ae5) => R6(m4.indexOf(ae5))), se4 = X3.length;
+    for (let h2 in m4) {
+      const v2 = m4[h2], I4 = m4[h2].ins.map((ae5) => R5(m4.indexOf(ae5))), se4 = X3.length;
       let b2 = y.get(v2.type);
       b2 || (console.warn(
-        `unhandled node type "${m4[h].type}". falling back to "${l2}"`
+        `unhandled node type "${m4[h2].type}". falling back to "${l2}"`
       ), b2 = y.get(l2));
       const le4 = {
         vars: I4,
         node: v2,
         nodes: m4,
-        id: h,
+        id: h2,
         ugenIndex: se4,
         ugen: b2.ugen,
-        name: R6(h),
+        name: R5(h2),
         lang: n2,
         getRegister: d2,
-        getOutput: G6,
+        getOutput: G5,
         getSource: p2
       };
-      b2.compile && r.push(b2.compile(le4)), b2.ugen && X3.push({ type: b2.ugen, inputs: I4 });
+      b2.compile && r2.push(b2.compile(le4)), b2.ugen && X3.push({ type: b2.ugen, inputs: I4 });
     }
-    const z5 = r.join(`
+    const z5 = r2.join(`
 `);
     return i2 && (console.log("compiled code:"), console.log(z5)), { src: z5, ugens: X3, registers: m4.length };
   }
@@ -963,11 +963,11 @@
     if (e.length < 1)
       return;
     e[0];
-    const n2 = 3, l2 = 32, o = e.map((X3) => X3.length).reduce((X3, z5) => X3 + z5, 0), d2 = l2 / 8, G6 = i2 * d2, p2 = 44, m4 = new ArrayBuffer(p2 + o * d2), r = new DataView(m4);
-    V(r, 0, "RIFF"), r.setUint32(4, 36 + o * d2, true), V(r, 8, "WAVE"), V(r, 12, "fmt "), r.setUint32(16, 16, true), r.setUint16(20, n2, true), r.setUint16(22, i2, true), r.setUint32(24, t, true), r.setUint32(28, t * G6, true), r.setUint16(32, G6, true), r.setUint16(34, l2, true), V(r, 36, "data"), r.setUint32(40, o * d2, true);
-    let R6 = 44;
+    const n2 = 3, l2 = 32, o = e.map((X3) => X3.length).reduce((X3, z5) => X3 + z5, 0), d2 = l2 / 8, G5 = i2 * d2, p2 = 44, m4 = new ArrayBuffer(p2 + o * d2), r2 = new DataView(m4);
+    V(r2, 0, "RIFF"), r2.setUint32(4, 36 + o * d2, true), V(r2, 8, "WAVE"), V(r2, 12, "fmt "), r2.setUint32(16, 16, true), r2.setUint16(20, n2, true), r2.setUint16(22, i2, true), r2.setUint32(24, t, true), r2.setUint32(28, t * G5, true), r2.setUint16(32, G5, true), r2.setUint16(34, l2, true), V(r2, 36, "data"), r2.setUint32(40, o * d2, true);
+    let R5 = 44;
     for (const X3 of e)
-      ge(r, R6, X3), R6 += X3.length * d2;
+      ge(r2, R5, X3), R5 += X3.length * d2;
     return m4;
   }
   function V(e, t, i2) {
@@ -2121,8 +2121,8 @@ const ${i2} = ((${t.value}) & 255) / 127.5 - 1; // bytebeat`
         ins: [{ name: "in" }, { name: "min" }, { name: "max" }],
         examples: ["sine(440.5).clamp(-.6,.6).out()"],
         compile: ({ vars: [e = 0, t = -1, i2 = 1], name: n2, lang: l2 }) => {
-          const o = s[l2].min(t, i2), d2 = s[l2].max(t, i2), G6 = s[l2].min(s[l2].max(e, o), d2);
-          return s[l2].def(n2, G6);
+          const o = s[l2].min(t, i2), d2 = s[l2].max(t, i2), G5 = s[l2].min(s[l2].max(e, o), d2);
+          return s[l2].def(n2, G5);
         }
       });
       ni = a("floor", {
@@ -2259,7 +2259,7 @@ const ${i2} = ((${t.value}) & 255) / 127.5 - 1; // bytebeat`
         examples: ["sine(.5).range(.25,1).mul(sine(440)).out()"],
         ins: [{ name: "in" }, { name: "min" }, { name: "max" }],
         compile: ({ vars: e, name: t, lang: i2 }) => {
-          const [n2, l2, o, d2 = 1] = e, G6 = `((${n2} + 1) * 0.5)`, p2 = d2 === 1 ? G6 : s[i2].pow(G6, d2);
+          const [n2, l2, o, d2 = 1] = e, G5 = `((${n2} + 1) * 0.5)`, p2 = d2 === 1 ? G5 : s[i2].pow(G5, d2);
           return s[i2].def(t, `${p2} * (${o} - ${l2}) + ${l2}`);
         }
       });
@@ -2580,8 +2580,8 @@ const ${i2} = ((${t.value}) & 255) / 127.5 - 1; // bytebeat`
             return e;
           if (t === 2) {
             const i2 = e.ins.map((n2, l2, o) => {
-              const G6 = (l2 / (o.length - 1) * 2 - 1 + 1) * Math.PI / 4;
-              return n2.mul([Math.cos(G6), Math.sin(G6)]).inherit(e);
+              const G5 = (l2 / (o.length - 1) * 2 - 1 + 1) * Math.PI / 4;
+              return n2.mul([Math.cos(G5), Math.sin(G5)]).inherit(e);
             });
             return C(...i2);
           }
@@ -2757,9 +2757,9 @@ When mixing down to 2 channels, the input channels are equally distributed over 
           this.outputNode = d2, this.audio = new Fe(this.outputNode), this.onToggle = t, this.transpiler = l2, this.onToggleRecording = i2, this.beforeEval = n2, this.localScope = o, typeof window < "u" && (o || (Object.assign(globalThis, k), Object.assign(globalThis, P2), Object.assign(globalThis, U), Object.assign(globalThis, { repl: this })), window.addEventListener("message", (p2) => {
             p2.data.type === "KABELSALAT_SET_CONTROL" && this.audio.setControl(p2.data.id, p2.data.value);
           }));
-          const G6 = this;
+          const G5 = this;
           c.prototype.spawn = function(p2 = [0, 1], m4) {
-            G6.audio.spawn(this.output(p2).exit(), m4);
+            G5.audio.spawn(this.output(p2).exit(), m4);
           };
         }
         registerUgen(t, i2) {
@@ -3705,12 +3705,12 @@ When mixing down to 2 channels, the input channels are equally distributed over 
     return isNaN(Number(t)) ? (E2(`"${t}" is not a number, falling back to ${e}`, "warning"), e) : t;
   }
   function w2(t, e, n2 = t.length) {
-    const s2 = function r(...o) {
+    const s2 = function r2(...o) {
       if (o.length >= n2)
         return t.apply(this, o);
       {
         const i2 = function(...a2) {
-          return r.apply(this, o.concat(a2));
+          return r2.apply(this, o.concat(a2));
         };
         return e && e(i2, o), i2;
       }
@@ -3783,7 +3783,7 @@ When mixing down to 2 channels, the input channels are equally distributed over 
     return gn(decodeURIComponent(t));
   }
   function bn(t, e) {
-    return Array.isArray(t) ? t.map(e) : Object.fromEntries(Object.entries(t).map(([n2, s2], r) => [n2, e(s2, n2, r)]));
+    return Array.isArray(t) ? t.map(e) : Object.fromEntries(Object.entries(t).map(([n2, s2], r2) => [n2, e(s2, n2, r2)]));
   }
   function Kt2(t, e) {
     return t / e;
@@ -3812,20 +3812,20 @@ When mixing down to 2 channels, the input channels are equally distributed over 
   function Tn(t, e, n2) {
     if (e?.value !== void 0 && Object.keys(e).length === 1)
       return E2("[warn]: Can't do arithmetic on control pattern."), t;
-    const s2 = Object.keys(t).filter((r) => Object.keys(e).includes(r));
-    return Object.assign({}, t, e, Object.fromEntries(s2.map((r) => [r, n2(t[r], e[r])])));
+    const s2 = Object.keys(t).filter((r2) => Object.keys(e).includes(r2));
+    return Object.assign({}, t, e, Object.fromEntries(s2.map((r2) => [r2, n2(t[r2], e[r2])])));
   }
   function Cn(t, e = 60) {
-    let n2 = 0, s2 = m(0), r = [""], o = "";
-    for (; r[0].length < e; ) {
-      const i2 = t.queryArc(n2, n2 + 1), a2 = i2.filter((h) => h.hasOnset()).map((h) => h.duration), u3 = Sn(...a2), p2 = u3.inverse();
-      r = r.map((h) => h + "|"), o += "|";
-      for (let h = 0; h < p2; h++) {
-        const [y3, g3] = [s2, s2.add(u3)], v2 = i2.filter((O2) => O2.whole.begin.lte(y3) && O2.whole.end.gte(g3)), _7 = v2.length - r.length;
-        _7 > 0 && (r = r.concat(Array(_7).fill(o))), r = r.map((O2, A5) => {
+    let n2 = 0, s2 = m(0), r2 = [""], o = "";
+    for (; r2[0].length < e; ) {
+      const i2 = t.queryArc(n2, n2 + 1), a2 = i2.filter((h2) => h2.hasOnset()).map((h2) => h2.duration), u3 = Sn(...a2), p2 = u3.inverse();
+      r2 = r2.map((h2) => h2 + "|"), o += "|";
+      for (let h2 = 0; h2 < p2; h2++) {
+        const [y4, g3] = [s2, s2.add(u3)], v2 = i2.filter((O2) => O2.whole.begin.lte(y4) && O2.whole.end.gte(g3)), _7 = v2.length - r2.length;
+        _7 > 0 && (r2 = r2.concat(Array(_7).fill(o))), r2 = r2.map((O2, A5) => {
           const I4 = v2[A5];
           if (I4) {
-            const P4 = I4.whole.begin.eq(y3) ? "" + I4.value : "-";
+            const P4 = I4.whole.begin.eq(y4) ? "" + I4.value : "-";
             return O2 + P4;
           }
           return O2 + ".";
@@ -3833,20 +3833,20 @@ When mixing down to 2 channels, the input channels are equally distributed over 
       }
       n2++;
     }
-    return r.join(`
+    return r2.join(`
 `);
   }
   function Bn(t, e = {}) {
     const { wrapExpression: n2 = true, wrapAsync: s2 = true } = e;
     n2 && (t = `{${t}}`), s2 && (t = `(async ()=>${t})()`);
-    const r = `"use strict";return (${t})`;
-    return Function(r)();
+    const r2 = `"use strict";return (${t})`;
+    return Function(r2)();
   }
   function zn(t, e) {
     let n2 = [];
     return e.forEach((s2) => {
-      const r = n2.findIndex(([o]) => t(s2, o));
-      r === -1 ? n2.push([s2]) : n2[r].push(s2);
+      const r2 = n2.findIndex(([o]) => t(s2, o));
+      r2 === -1 ? n2.push([s2]) : n2[r2].push(s2);
     }), n2;
   }
   function dt2(t) {
@@ -3857,7 +3857,7 @@ When mixing down to 2 channels, the input channels are equally distributed over 
   }
   function C2(t) {
     function e(s2) {
-      return s2.span.spanCycles.map((r) => new S2(m(r.begin).wholeCycle(), r, t));
+      return s2.span.spanCycles.map((r2) => new S2(m(r2.begin).wholeCycle(), r2, t));
     }
     const n2 = new f2(e, 1);
     return n2.__pure = t, n2;
@@ -3871,12 +3871,12 @@ When mixing down to 2 channels, the input channels are equally distributed over 
   function En(t) {
     let e = C2([]);
     for (const n2 of t)
-      e = e.bind((s2) => n2.fmap((r) => s2.concat([r])));
+      e = e.bind((s2) => n2.fmap((r2) => s2.concat([r2])));
     return e;
   }
   function z(...t) {
     t = t.map((s2) => Array.isArray(s2) ? Q2(...s2) : d(s2));
-    const e = (s2) => G(t.map((r) => r.query(s2))), n2 = new f2(e);
+    const e = (s2) => G(t.map((r2) => r2.query(s2))), n2 = new f2(e);
     return J2 && (n2._steps = Y2(...t.map((s2) => s2._steps))), n2;
   }
   function Et2(t, e) {
@@ -3884,8 +3884,8 @@ When mixing down to 2 channels, the input channels are equally distributed over 
       return q2;
     if (e.length === 1)
       return e[0];
-    const [n2, ...s2] = e.map((o) => o._steps), r = J2 ? n2.maximum(...s2) : void 0;
-    return z(...t(r, e));
+    const [n2, ...s2] = e.map((o) => o._steps), r2 = J2 ? n2.maximum(...s2) : void 0;
+    return z(...t(r2, e));
   }
   function jn(...t) {
     return Et2(
@@ -3904,31 +3904,31 @@ When mixing down to 2 channels, the input channels are equally distributed over 
       (e, n2) => n2.map((s2) => {
         if (s2._steps.eq(e))
           return s2;
-        const r = pt2(e.sub(s2._steps).div(2));
-        return $2(r, s2, r);
+        const r2 = pt2(e.sub(s2._steps).div(2));
+        return $2(r2, s2, r2);
       }),
       t
     );
   }
   function vh(t, ...e) {
-    const [n2, ...s2] = e.map((i2) => i2._steps), r = n2.maximum(...s2), o = {
+    const [n2, ...s2] = e.map((i2) => i2._steps), r2 = n2.maximum(...s2), o = {
       centre: $n,
       left: jn,
       right: Jn,
       expand: z,
-      repeat: (...i2) => $t2(...i2).steps(r)
+      repeat: (...i2) => $t2(...i2).steps(r2)
     };
-    return t.inhabit(o).fmap((i2) => i2(...e)).innerJoin().setSteps(r);
+    return t.inhabit(o).fmap((i2) => i2(...e)).innerJoin().setSteps(r2);
   }
   function Z2(...t) {
     if (t = t.map((s2) => Array.isArray(s2) ? N2(...s2) : d(s2)), t.length == 1)
       return t[0];
     const e = function(s2) {
-      const r = s2.span, o = bt2(r.begin.sam(), t.length), i2 = t[o];
+      const r2 = s2.span, o = bt2(r2.begin.sam(), t.length), i2 = t[o];
       if (!i2)
         return [];
-      const a2 = r.begin.floor().sub(r.begin.div(t.length).floor());
-      return i2.withHapTime((u3) => u3.add(a2)).query(s2.setSpan(r.withTime((u3) => u3.sub(a2))));
+      const a2 = r2.begin.floor().sub(r2.begin.div(t.length).floor());
+      return i2.withHapTime((u3) => u3.add(a2)).query(s2.setSpan(r2.withTime((u3) => u3.sub(a2))));
     }, n2 = J2 ? Y2(...t.map((s2) => s2._steps)) : void 0;
     return new f2(e).splitQueries().setSteps(n2);
   }
@@ -3953,7 +3953,7 @@ When mixing down to 2 channels, the input channels are equally distributed over 
       n2.length == 2 && n2.unshift(e), e = n2[1];
     return z(
       ...t.map(
-        ([n2, s2, r]) => C2(d(r)).compress(m(n2).div(e), m(s2).div(e))
+        ([n2, s2, r2]) => C2(d(r2)).compress(m(n2).div(e), m(s2).div(e))
       )
     ).slow(e).innerJoin();
   }
@@ -3970,11 +3970,11 @@ When mixing down to 2 channels, the input channels are equally distributed over 
   function xt2(t) {
     return Array.isArray(t) ? t.length == 0 ? [q2, 0] : t.length == 1 ? xt2(t[0]) : [N2(...t.map((e) => xt2(e)[0])), t.length] : [d(t), 1];
   }
-  function l(t, e, n2 = true, s2 = false, r = (o) => o.innerJoin()) {
+  function l(t, e, n2 = true, s2 = false, r2 = (o) => o.innerJoin()) {
     if (Array.isArray(t)) {
       const u3 = {};
       for (const p2 of t)
-        u3[p2] = l(p2, e, n2, s2, r);
+        u3[p2] = l(p2, e, n2, s2, r2);
       return u3;
     }
     const o = e.length;
@@ -3982,24 +3982,24 @@ When mixing down to 2 channels, the input channels are equally distributed over 
     n2 ? i2 = function(...u3) {
       u3 = u3.map(d);
       const p2 = u3[u3.length - 1];
-      let h;
+      let h2;
       if (o === 1)
-        h = e(p2);
+        h2 = e(p2);
       else {
-        const y3 = u3.slice(0, -1);
-        if (y3.every((g3) => g3.__pure != null)) {
-          const g3 = y3.map((_7) => _7.__pure), v2 = y3.filter((_7) => _7.__pure_loc).map((_7) => _7.__pure_loc);
-          h = e(...g3, p2), h = h.withContext((_7) => {
+        const y4 = u3.slice(0, -1);
+        if (y4.every((g3) => g3.__pure != null)) {
+          const g3 = y4.map((_7) => _7.__pure), v2 = y4.filter((_7) => _7.__pure_loc).map((_7) => _7.__pure_loc);
+          h2 = e(...g3, p2), h2 = h2.withContext((_7) => {
             const O2 = (_7.locations || []).concat(v2);
             return { ..._7, locations: O2 };
           });
         } else {
-          const [g3, ...v2] = y3;
+          const [g3, ...v2] = y4;
           let _7 = (...O2) => e(...O2, p2);
-          _7 = w2(_7, null, o - 1), h = r(v2.reduce((O2, A5) => O2.appLeft(A5), g3.fmap(_7)));
+          _7 = w2(_7, null, o - 1), h2 = r2(v2.reduce((O2, A5) => O2.appLeft(A5), g3.fmap(_7)));
         }
       }
-      return s2 && (h._steps = p2._steps), h;
+      return s2 && (h2._steps = p2._steps), h2;
     } : i2 = function(...u3) {
       u3 = u3.map(d);
       const p2 = e(...u3);
@@ -4017,24 +4017,24 @@ When mixing down to 2 channels, the input channels are equally distributed over 
     const a2 = w2(i2, null, o);
     return le[t] = a2, a2;
   }
-  function et2(t, e, n2 = true, s2 = false, r = (o) => o.stepJoin()) {
-    return l(t, e, n2, s2, r);
+  function et2(t, e, n2 = true, s2 = false, r2 = (o) => o.stepJoin()) {
+    return l(t, e, n2, s2, r2);
   }
   function Yt2(t) {
     const e = t.filter((o, i2) => i2.hasSteps).reduce((o, i2) => o.add(i2), m(0)), n2 = lt2(t.map((o, i2) => i2._steps)).reduce(
       (o, i2) => o.add(i2),
       m(0)
     ), s2 = e.eq(0) ? void 0 : n2.div(e);
-    function r(o, i2) {
+    function r2(o, i2) {
       return i2._steps === void 0 ? [o.mulmaybe(s2), i2] : [i2._steps, i2];
     }
-    return t.map((o) => r(...o));
+    return t.map((o) => r2(...o));
   }
   function Zt2(t) {
-    const e = G(t.map((r) => [r.part.begin, r.part.end])), n2 = yn([m(0), m(1), ...e]);
-    return un(n2).map((r) => [
-      r[1].sub(r[0]),
-      z(...Fn(new B2(...r), t).map((o) => o.value.withHap((i2) => i2.setContext(i2.combineContext(o)))))
+    const e = G(t.map((r2) => [r2.part.begin, r2.part.end])), n2 = yn([m(0), m(1), ...e]);
+    return un(n2).map((r2) => [
+      r2[1].sub(r2[0]),
+      z(...Fn(new B2(...r2), t).map((o) => o.value.withHap((i2) => i2.setContext(i2.combineContext(o)))))
     ]);
   }
   function Fn(t, e) {
@@ -4046,13 +4046,13 @@ When mixing down to 2 channels, the input channels are equally distributed over 
       return new S2(e.whole, n2, e.value, e.context);
   }
   function Hn(t, ...e) {
-    const n2 = e.map((r) => xt2(r));
+    const n2 = e.map((r2) => xt2(r2));
     if (n2.length == 0)
       return q2;
     t == 0 && (t = n2[0][1]);
     const s2 = [];
-    for (const r of n2)
-      r[1] != 0 && (t == r[1] ? s2.push(r[0]) : s2.push(r[0]._fast(m(t).div(m(r[1])))));
+    for (const r2 of n2)
+      r2[1] != 0 && (t == r2[1] ? s2.push(r2[0]) : s2.push(r2[0]._fast(m(t).div(m(r2[1])))));
     return z(...s2);
   }
   function $t2(...t) {
@@ -4084,24 +4084,24 @@ When mixing down to 2 channels, the input channels are equally distributed over 
       return d(t[0][1]).withSteps((a2) => t[0][0]);
     const n2 = t.map((i2) => i2[0]).reduce((i2, a2) => i2.add(a2), m(0));
     let s2 = m(0);
-    const r = [];
+    const r2 = [];
     for (const [i2, a2] of t) {
       if (m(i2).eq(0))
         continue;
       const u3 = s2.add(i2);
-      r.push(d(a2)._compress(s2.div(n2), u3.div(n2))), s2 = u3;
+      r2.push(d(a2)._compress(s2.div(n2), u3.div(n2))), s2 = u3;
     }
-    const o = z(...r);
+    const o = z(...r2);
     return o._steps = n2, o;
   }
   function Dn(...t) {
-    t = t.map((r) => Array.isArray(r) ? r.map(d) : [d(r)]);
-    const e = Y2(...t.map((r) => m(r.length)));
+    t = t.map((r2) => Array.isArray(r2) ? r2.map(d) : [d(r2)]);
+    const e = Y2(...t.map((r2) => m(r2.length)));
     let n2 = [];
-    for (let r = 0; r < e; ++r)
-      n2.push(...t.map((o) => o.length == 0 ? q2 : o[r % o.length]));
-    n2 = n2.filter((r) => r.hasSteps && r._steps > 0);
-    const s2 = n2.reduce((r, o) => r.add(o._steps), m(0));
+    for (let r2 = 0; r2 < e; ++r2)
+      n2.push(...t.map((o) => o.length == 0 ? q2 : o[r2 % o.length]));
+    n2 = n2.filter((r2) => r2.hasSteps && r2._steps > 0);
+    const s2 = n2.reduce((r2, o) => r2.add(o._steps), m(0));
     return n2 = $2(...n2), n2._steps = s2, n2;
   }
   function Nt2(t) {
@@ -4115,12 +4115,12 @@ When mixing down to 2 channels, the input channels are equally distributed over 
           p2 < t.length && (a2[t[p2]] = u3);
         }), a2;
       } else return i2 ? (i2[n2] = o, i2) : { [n2]: o };
-    }, r = function(o, i2) {
+    }, r2 = function(o, i2) {
       return i2 ? typeof o > "u" ? i2.fmap(s2) : i2.set(d(o).withValue(s2)) : d(o).withValue(s2);
     };
     return f2.prototype[n2] = function(o) {
-      return r(o, this);
-    }, r;
+      return r2(o, this);
+    }, r2;
   }
   function is(t) {
     return at2.has(t);
@@ -4128,33 +4128,33 @@ When mixing down to 2 channels, the input channels are equally distributed over 
   function c2(t, ...e) {
     const n2 = Array.isArray(t) ? t[0] : t;
     let s2 = {};
-    return s2[n2] = Nt2(t), at2.set(n2, n2), e.forEach((r) => {
-      s2[r] = s2[n2], at2.set(r, n2), f2.prototype[r] = f2.prototype[n2];
+    return s2[n2] = Nt2(t), at2.set(n2, n2), e.forEach((r2) => {
+      s2[r2] = s2[n2], at2.set(r2, n2), f2.prototype[r2] = f2.prototype[n2];
     }), s2;
   }
   function V2(t, e, ...n2) {
     t = Array.isArray(t) ? t : [t];
     let s2 = {};
-    for (let r = 1; r <= e; r++) {
+    for (let r2 = 1; r2 <= e; r2++) {
       let o = [...n2], i2 = [...t];
-      if (r === 1) {
-        const u3 = o.map((h) => `${h}1`), p2 = i2.map((h) => `${h}1`);
+      if (r2 === 1) {
+        const u3 = o.map((h2) => `${h2}1`), p2 = i2.map((h2) => `${h2}1`);
         o = o.concat(u3).concat(p2);
       } else
-        o = o.map((u3) => `${u3}${r}`), i2 = i2.map((u3) => `${u3}${r}`);
+        o = o.map((u3) => `${u3}${r2}`), i2 = i2.map((u3) => `${u3}${r2}`);
       const a2 = c2(i2, ...o);
       s2 = { ...s2, ...a2 };
     }
     return s2;
   }
-  function ff(t, e, n2 = 0.05, s2 = 0.1, r = 0.1, o = globalThis.setInterval, i2 = globalThis.clearInterval, a2 = true) {
-    let u3 = 0, p2 = 0, h = 10 ** 4, y3 = 0.01;
-    const g3 = (x3) => n2 = x3(n2);
-    r = r || s2 / 2;
+  function ff(t, e, n2 = 0.05, s2 = 0.1, r2 = 0.1, o = globalThis.setInterval, i2 = globalThis.clearInterval, a2 = true) {
+    let u3 = 0, p2 = 0, h2 = 10 ** 4, y4 = 0.01;
+    const g3 = (x4) => n2 = x4(n2);
+    r2 = r2 || s2 / 2;
     const v2 = () => {
-      const x3 = t(), D6 = x3 + s2 + r;
-      for (p2 === 0 && (p2 = x3 + y3); p2 < D6; )
-        p2 = a2 ? Math.round(p2 * h) / h : p2, e(p2, n2, u3, x3), p2 += n2, u3++;
+      const x4 = t(), D6 = x4 + s2 + r2;
+      for (p2 === 0 && (p2 = x4 + y4); p2 < D6; )
+        p2 = a2 ? Math.round(p2 * h2) / h2 : p2, e(p2, n2, u3, x4), p2 += n2, u3++;
     };
     let _7;
     const O2 = () => {
@@ -4164,7 +4164,7 @@ When mixing down to 2 channels, the input channels are equally distributed over 
     };
     return { setDuration: g3, start: O2, stop: () => {
       u3 = 0, p2 = 0, A5();
-    }, pause: () => A5(), duration: n2, interval: s2, getPhase: () => p2, minLatency: y3 };
+    }, pause: () => A5(), duration: n2, interval: s2, getPhase: () => p2, minLatency: y4 };
   }
   function Wy() {
     if (!Ot2)
@@ -4203,14 +4203,14 @@ When mixing down to 2 channels, the input channels are equally distributed over 
     onEvalError: e,
     beforeEval: n2,
     beforeStart: s2,
-    afterEval: r,
+    afterEval: r2,
     getTime: o,
     transpiler: i2,
     onToggle: a2,
     editPattern: u3,
     onUpdateState: p2,
-    sync: h = false,
-    setInterval: y3,
+    sync: h2 = false,
+    setInterval: y4,
     clearInterval: g3,
     id: v2,
     mondo: _7 = false
@@ -4235,29 +4235,29 @@ When mixing down to 2 channels, the input channels are equally distributed over 
       onToggle: (b2) => {
         H6({ started: b2 }), qf(b2), a2?.(b2), b2 || df();
       },
-      setInterval: y3,
+      setInterval: y4,
       clearInterval: g3,
       beforeStart: s2
-    }, x3 = h && typeof SharedWorker < "u" ? new bf(P4) : new hf(P4);
-    kf(P4.onTrigger), _f(() => x3.cps);
-    let D6 = {}, nt4 = 0, tt4;
+    }, x4 = h2 && typeof SharedWorker < "u" ? new bf(P4) : new hf(P4);
+    kf(P4.onTrigger), _f(() => x4.cps);
+    let D6 = {}, nt3 = 0, tt3;
     const Vt3 = function() {
-      return D6 = {}, nt4 = 0, tt4 = void 0, q2;
+      return D6 = {}, nt3 = 0, tt3 = void 0, q2;
     }, Je3 = (b2) => O2.evaluate(b2).compile({ log: false });
     function Ht3(b2) {
       return b2._Pattern ? b2.__pure : b2;
     }
-    const Dt3 = async (b2, k6 = true) => (b2 = u3?.(b2) || b2, await x3.setPattern(b2, k6), vf(b2), b2);
-    ee2(() => x3.now());
-    const $e4 = () => x3.stop(), Ne4 = () => x3.start(), Le4 = () => x3.pause(), Re3 = () => x3.toggle(), St3 = (b2) => (x3.setCps(Ht3(b2)), q2), Gt3 = (b2) => (x3.setCps(Ht3(b2) / 60), q2);
+    const Dt3 = async (b2, k6 = true) => (b2 = u3?.(b2) || b2, await x4.setPattern(b2, k6), vf(b2), b2);
+    ee2(() => x4.now());
+    const $e4 = () => x4.stop(), Ne4 = () => x4.start(), Le4 = () => x4.pause(), Re3 = () => x4.toggle(), St3 = (b2) => (x4.setCps(Ht3(b2)), q2), Gt3 = (b2) => (x4.setCps(Ht3(b2) / 60), q2);
     let ft2 = [];
     const We3 = function(b2) {
       return ft2.push(b2), q2;
     }, Fe4 = function(b2) {
-      return tt4 = b2, q2;
+      return tt3 = b2, q2;
     }, Ie2 = () => {
       f2.prototype.p = function(k6) {
-        return typeof k6 == "string" && (k6.startsWith("_") || k6.endsWith("_")) ? q2 : (k6.includes("$") && (k6 = `${k6}${nt4}`, nt4++), D6[k6] = this, this);
+        return typeof k6 == "string" && (k6.startsWith("_") || k6.endsWith("_")) ? q2 : (k6.includes("$") && (k6 = `${k6}${nt3}`, nt3++), D6[k6] = this, this);
       }, f2.prototype.q = function(k6) {
         return q2;
       };
@@ -4278,7 +4278,7 @@ When mixing down to 2 channels, the input channels are equally distributed over 
         console.warn("injectPatternMethods: error:", k6);
       }
       const b2 = l("cpm", function(k6, At3) {
-        return At3._fast(k6 / 60 / x3.cps);
+        return At3._fast(k6 / 60 / x4.cps);
       });
       return xn({
         all: We3,
@@ -4292,23 +4292,23 @@ When mixing down to 2 channels, the input channels are equally distributed over 
         compileKabel: Je3
       });
     };
-    return { scheduler: x3, evaluate: async (b2, k6 = true, At3 = true) => {
+    return { scheduler: x4, evaluate: async (b2, k6 = true, At3 = true) => {
       if (!b2)
         throw new Error("no code to evaluate");
       try {
-        H6({ code: b2, pending: true }), await Ie2(), ee2(() => x3.now()), await n2?.({ code: b2 }), ft2 = [], At3 && Vt3(), _7 && (b2 = `mondolang\`${b2}\``);
+        H6({ code: b2, pending: true }), await Ie2(), ee2(() => x4.now()), await n2?.({ code: b2 }), ft2 = [], At3 && Vt3(), _7 && (b2 = `mondolang\`${b2}\``);
         let { pattern: M3, meta: Tt3 } = await On(b2, i2, I4);
         if (Object.keys(D6).length) {
           let X3 = [], ht3 = false;
-          for (const [st4, Ve5] of Object.entries(D6)) {
-            const Qt3 = st4.length > 1 && st4.startsWith("S");
+          for (const [st3, Ve4] of Object.entries(D6)) {
+            const Qt3 = st3.length > 1 && st3.startsWith("S");
             if (Qt3 && ht3 === false && (X3 = [], ht3 = true), !ht3 || ht3 && Qt3) {
-              const He3 = Ve5.withState((De3) => De3.setControls({ id: st4 }));
+              const He3 = Ve4.withState((De3) => De3.setControls({ id: st3 }));
               X3.push(He3);
             }
           }
-          tt4 && (X3 = X3.map((st4) => tt4(st4))), M3 = z(...X3);
-        } else tt4 && (M3 = tt4(M3));
+          tt3 && (X3 = X3.map((st3) => tt3(st3))), M3 = z(...X3);
+        } else tt3 && (M3 = tt3(M3));
         if (ft2.length)
           for (const X3 of ft2)
             M3 = X3(M3);
@@ -4320,7 +4320,7 @@ When mixing down to 2 channels, the input channels are equally distributed over 
           evalError: void 0,
           schedulerError: void 0,
           pending: false
-        }), r?.({ code: b2, pattern: M3, meta: Tt3 }), M3;
+        }), r2?.({ code: b2, pattern: M3, meta: Tt3 }), M3;
       } catch (M3) {
         E2(`[eval] error: ${M3.message}`, "error"), console.error(M3), H6({ evalError: M3, pending: false }), e?.(M3);
       }
@@ -4331,12 +4331,12 @@ When mixing down to 2 channels, the input channels are equally distributed over 
   }
   function Vf(t, e = 0) {
     let n2 = Math.floor(t), s2 = n2 + 1;
-    const r = (p2) => 6 * p2 ** 5 - 15 * p2 ** 4 + 10 * p2 ** 3, o = (p2) => (h) => (y3) => h + r(p2) * (y3 - h), i2 = K2(n2, 1, e), a2 = K2(s2, 1, e);
+    const r2 = (p2) => 6 * p2 ** 5 - 15 * p2 ** 4 + 10 * p2 ** 3, o = (p2) => (h2) => (y4) => h2 + r2(p2) * (y4 - h2), i2 = K2(n2, 1, e), a2 = K2(s2, 1, e);
     return o(t - n2)(i2)(a2);
   }
   function Hf(t, e = 0) {
-    const n2 = Math.floor(t), s2 = n2 + 1, r = K2(n2, 1, e), o = K2(s2, 1, e), i2 = r + o, a2 = (t - n2) / (s2 - n2);
-    return ((p2, h, y3) => p2 + y3 * (h - p2))(r, i2, a2) / 2;
+    const n2 = Math.floor(t), s2 = n2 + 1, r2 = K2(n2, 1, e), o = K2(s2, 1, e), i2 = r2 + o, a2 = (t - n2) / (s2 - n2);
+    return ((p2, h2, y4) => p2 + y4 * (h2 - p2))(r2, i2, a2) / 2;
   }
   function je2(t) {
     Array.isArray(t) === false && (t = [t]);
@@ -4350,8 +4350,8 @@ When mixing down to 2 channels, the input channels are equally distributed over 
     wt2.cancel();
     const s2 = new SpeechSynthesisUtterance(t);
     s2.lang = e, re2 = wt2.getVoices();
-    const r = re2.filter((o) => o.lang.includes(e));
-    typeof n2 == "number" ? s2.voice = r[n2 % r.length] : typeof n2 == "string" && (s2.voice = r.find((o) => o.name === o)), speechSynthesis.speak(s2);
+    const r2 = re2.filter((o) => o.lang.includes(e));
+    typeof n2 == "number" ? s2.voice = r2[n2 % r2.length] : typeof n2 == "string" && (s2.voice = r2.find((o) => o.name === o)), speechSynthesis.speak(s2);
   }
   var import_meta, oe2, Qe2, Ut2, Xt2, Yf, Mt2, Ue2, Xe2, Ke2, Ye2, gt2, it2, Ze2, Zf, th, tn, en2, eh, bt2, nn, nh, sh, rh, rn, on, oh, lt2, G, ot2, ch, _t2, ih, ue2, Pt2, un, an, ln, pn, fn, hn, dn, mn, uh, _n, kn, rt2, m, Sn, Y2, An, B2, S2, ut2, le, xn, On, Ct2, J2, dh, mh, f2, Mn, yh, wh, gh, bh, _h, pt2, q2, R, Sh, Ah, Th, Ch, xh, Bh, Oh, zh, Mh, Ph, Eh, jh, Jh, $h, Nh, Lh, Rh, Wh, Fh, Ih, Vh, Hh, Dh, Gh, Qh, Uh, Xh, Kh, Yh, Zh, td, ed, nd, sd, rd, od, cd, id, ud, ad, ld, pd, fd, hd, dd, md, yd, wd, gd, bd, _d, vd, kd, qd, Sd, Ad, Td, Cd, xd, Bd, Od, zd, Md, Pd, Ed, jd, Ln, Jd, $d, Nd, Ld, Rd, Wd, Fd, Id, Vd, Hd, Dd, Gd, Qd, Ud, Rn, Xd, Kd, Yd, Zd, tm, em, nm, sm, rm, om, cm, im, um, Wn, am, lm, jt2, pm, fm, hm, dm, Jt2, mm, ym, wm, gm, bm, _m, vm, km, qm, Sm, Am, Tm, Cm, xm, Bm, Om, zm, Mm, Pm, Vn, Gn, Qn, Un, Em, Xn, Kn, Yn, Zn, jm, ts, es, Jm, ns, $m, Nm, Lm, Rm, Wm, Fm, Im, Vm, Hm, Dm, Gm, Qm, Um, Xm, Km, he2, ss, Ym, Zm, ty, ey, ny, sy, ry, te2, rs, os, oy, de2, cy, U2, iy, uy, ay, ly, py, fy, hy, dy, me2, vt2, my, yy, cs, wy, at2, us, as, ls, ps, fs, hs, ds, ms, ys, ws, gs, bs, _s, vs, ks, qs, Ss, As, Ts, Cs, xs, Bs, Os, zs, Ms, Ps, Es, js, Js, $s, Ns, Ls, Rs, Ws, Fs, Is, Vs, Hs, Ds, Gs, Qs, Us, Xs, Ks, Ys, Zs, tr, er, nr, sr, rr, or, cr, ir, ur, ar, lr, pr, fr, hr, dr, mr, yr, wr, gr, br, _r, vr, kr, qr, Sr, Ar, Tr, Cr, xr, Br, Or, zr, Mr, Pr, Er, jr, Jr, $r, Nr, Lr, Rr, Wr, Fr, Ir, Vr, Hr, Dr, Gr, Qr, Ur, Xr, Kr, Yr, Zr, to, eo, no, so, ro, oo, co, io, uo, ao, lo, po, fo, ho, mo, yo, wo, go, bo, _o, vo, ko, qo, So, Ao, To, Co, xo, Bo, Oo, zo, Mo, Po, Eo, jo, Jo, $o, No, Lo, Ro, Wo, Fo, Io, Vo, Ho, Do, Go, Qo, Uo, Xo, Ko, Yo, Zo, tc, ec, nc, sc, rc, oc, cc, ic, uc, ac, lc, pc, fc, hc, dc, mc, yc, wc, gc, bc, _c, vc, kc, qc, Sc, Ac, Tc, Cc, xc, Bc, Oc, zc, Mc, Pc, Ec, jc, Jc, $c, Nc, Lc, Rc, Wc, Fc, Ic, Vc, Hc, Dc, Gc, Qc, Uc, Xc, Kc, Yc, Zc, ti2, ei2, ni2, si2, ri2, oi2, ci2, ii2, ui2, ai2, li2, pi2, fi2, hi2, di2, mi2, yi2, wi2, gi2, bi2, _i2, vi2, ki2, qi2, Si2, Ai2, Ti2, Ci2, xi2, Bi2, Oi2, zi2, Mi2, Pi2, Ei2, ji2, Ji2, $i2, Ni2, Li2, Ri2, Wi2, Fi2, Ii2, Vi2, Hi2, Di2, Gi2, Qi2, Ui2, Xi2, Ki2, Yi2, Zi2, tu, eu, nu, su, ru, ou, cu, iu, uu, au, lu, pu, fu, hu, du, mu, yu, wu, gu, bu, _u, vu, ku, qu, Su, Au, Tu, Cu, xu, Bu, Ou, zu, Mu, Pu, Eu, ju, Ju, $u, Nu, Lu, Ru, Wu, Fu, Iu, Vu, Hu, Du, Gu, Qu, Uu, Xu, Ku, Yu, Zu, ta, ea, na, sa, ra, oa, ca, ia, ua, aa, la, pa, fa, ha, da, ma, ya, wa, ga, ba, _a, va, ka, qa, Sa, Aa, Ta, Ca, xa, Ba, Oa, za, Ma, Pa, Ea, ja, Ja, $a, Na, La, Ra, Wa, Fa, Ia, Va, Ha, Da, Ga, Qa, Ua, Xa, Ka, Ya, Za, tl, el, nl, sl, rl, ol, cl, il, ul, al, ll, pl, fl, hl, dl, ml, yl, wl, gl, bl, _l, vl, kl, ql, ye2, Sl, Al, Tl, Cl, xl, Bl, Ol, zl, Ml, Pl, El, jl, Jl, $l, Nl, Ll, Rl, Wl, Fl, Il, Vl, Hl, Dl, Gl, Ql, Ul, Xl, Kl, Yl, Zl, tp, ep, np, sp, rp, op, cp, ip, up, ap, lp, pp, fp, hp, dp, mp, yp, wp, gp, bp, _p, vp, kp, qp, Sp, Ap, Tp, Cp, xp, Bp, Op, zp, Mp, Pp, Ep, jp, Jp, $p, Np, Lp, Rp, Wp, Fp, Ip, Vp, Hp, Dp, Gp, Qp, Up, Xp, yt2, Kp, Yp, Bt2, Zp, Lt2, tf, ef, nf, sf, rf, of, cf, uf, af, gy, lf, pf, we2, ge2, kt2, by, _y, vy, ky, be2, qy, Sy, Ay, Ty, hf, ct2, df, mf, Cy, F2, yf, wf, gf, xy, By, Oy, zy, My, Py, Ey, jy, Jy, $y, Ny, Ly, Ry, bf, Ot2, _e2, ve2, ke2, qe2, Sf, j2, qt2, Se2, Rt2, Ae2, Te2, Af, Qy, Uy, Tf, Xy, Ky, Yy, Zy, tw, ew, Wt2, Ft2, nw, sw, rw, ow, Cf, xf, Bf, ne2, Of, Ce2, zf, Mf, se, Pf, Ef, xe2, K2, cw, jf, iw, Jf, uw, $f, aw, Nf, Be2, lw, pw, Lf, fw, W2, hw, Oe2, dw, mw, ze2, yw, Me2, It2, Pe2, Rf, ww, gw, Wf, bw, Ee2, Ff, _w, If, vw, kw, qw, Sw, Aw, Tw, Cw, xw, Bw, Ow, zw, Mw, Pw, Ew, jw, Jw, $w, Nw, Lw, Rw, Ww, Df, Fw, Iw, wt2, re2, Vw, Hw, Dw;
   var init_dist2 = __esm({
@@ -4374,11 +4374,11 @@ When mixing down to 2 channels, the input channels are equally distributed over 
       Ke2 = { "#": 1, b: -1, s: 1, f: -1 };
       Ye2 = (t) => t?.split("").reduce((e, n2) => e + Ke2[n2], 0) || 0;
       gt2 = (t, e = 3) => {
-        const [n2, s2, r = e] = Ue2(t);
+        const [n2, s2, r2 = e] = Ue2(t);
         if (!n2)
           throw new Error('not a note: "' + t + '"');
         const o = Xe2[n2.toLowerCase()], i2 = Ye2(s2);
-        return (Number(r) + 1) * 12 + o + i2;
+        return (Number(r2) + 1) * 12 + o + i2;
       };
       it2 = (t) => Math.pow(2, (t - 69) / 12) * 440;
       Ze2 = (t) => 12 * Math.log(t / 440) / Math.LN2 + 69;
@@ -4445,7 +4445,7 @@ When mixing down to 2 channels, the input channels are equally distributed over 
       ue2 = function(t, e) {
         return [e.slice(0, t), e.slice(t)];
       };
-      Pt2 = (t, e, n2) => e.map((s2, r) => t(s2, n2[r]));
+      Pt2 = (t, e, n2) => e.map((s2, r2) => t(s2, n2[r2]));
       un = function(t) {
         const e = [];
         for (let n2 = 0; n2 < t.length - 1; ++n2)
@@ -4489,24 +4489,24 @@ When mixing down to 2 channels, the input channels are equally distributed over 
       ];
       mn = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
       uh = (t, e = "letters") => {
-        const s2 = (e === "solfeggio" ? ln : e === "indian" ? pn : e === "german" ? fn : e === "byzantine" ? hn : e === "japanese" ? dn : mn)[t % 12], r = Math.floor(t / 12) - 1;
-        return s2 + r;
+        const s2 = (e === "solfeggio" ? ln : e === "indian" ? pn : e === "german" ? fn : e === "byzantine" ? hn : e === "japanese" ? dn : mn)[t % 12], r2 = Math.floor(t / 12) - 1;
+        return s2 + r2;
       };
       _n = class {
         constructor({
           getTargetClockTime: e = vn,
           weight: n2 = 16,
           offsetDelta: s2 = 5e-3,
-          checkAfterTime: r = 2,
+          checkAfterTime: r2 = 2,
           resetAfterTime: o = 8
         }) {
-          this.offsetTime, this.timeAtPrevOffsetSample, this.prevOffsetTimes = [], this.getTargetClockTime = e, this.weight = n2, this.offsetDelta = s2, this.checkAfterTime = r, this.resetAfterTime = o, this.reset = () => {
+          this.offsetTime, this.timeAtPrevOffsetSample, this.prevOffsetTimes = [], this.getTargetClockTime = e, this.weight = n2, this.offsetDelta = s2, this.checkAfterTime = r2, this.resetAfterTime = o, this.reset = () => {
             this.prevOffsetTimes = [], this.offsetTime = null, this.timeAtPrevOffsetSample = null;
           };
         }
         calculateOffset(e) {
-          const n2 = this.getTargetClockTime(), s2 = n2 - this.timeAtPrevOffsetSample, r = n2 - e;
-          if (s2 > this.resetAfterTime && this.reset(), this.offsetTime == null && (this.offsetTime = r), this.prevOffsetTimes.push(r), this.prevOffsetTimes.length > this.weight && this.prevOffsetTimes.shift(), this.timeAtPrevOffsetSample == null || s2 > this.checkAfterTime) {
+          const n2 = this.getTargetClockTime(), s2 = n2 - this.timeAtPrevOffsetSample, r2 = n2 - e;
+          if (s2 > this.resetAfterTime && this.reset(), this.offsetTime == null && (this.offsetTime = r2), this.prevOffsetTimes.push(r2), this.prevOffsetTimes.length > this.weight && this.prevOffsetTimes.shift(), this.timeAtPrevOffsetSample == null || s2 > this.checkAfterTime) {
             this.timeAtPrevOffsetSample = n2;
             const o = nn(this.prevOffsetTimes);
             Math.abs(o - this.offsetTime) > this.offsetDelta && (this.offsetTime = o);
@@ -4607,11 +4607,11 @@ When mixing down to 2 channels, the input channels are equally distributed over 
         get spanCycles() {
           const e = [];
           var n2 = this.begin;
-          const s2 = this.end, r = s2.sam();
+          const s2 = this.end, r2 = s2.sam();
           if (n2.equals(s2))
             return [new _B(n2, s2)];
           for (; s2.gt(n2); ) {
-            if (n2.sam().equals(r)) {
+            if (n2.sam().equals(r2)) {
               e.push(new _B(n2, this.end));
               break;
             }
@@ -4634,8 +4634,8 @@ When mixing down to 2 channels, the input channels are equally distributed over 
           return new _B(this.begin, e(this.end));
         }
         withCycle(e) {
-          const n2 = this.begin.sam(), s2 = n2.add(e(this.begin.sub(n2))), r = n2.add(e(this.end.sub(n2)));
-          return new _B(s2, r);
+          const n2 = this.begin.sam(), s2 = n2.add(e(this.begin.sub(n2))), r2 = n2.add(e(this.end.sub(n2)));
+          return new _B(s2, r2);
         }
         intersection(e) {
           const n2 = this.begin.max(e.begin), s2 = this.end.min(e.end);
@@ -4673,8 +4673,8 @@ When mixing down to 2 channels, the input channels are equally distributed over 
               The word 'Event' is more or less a reserved word in javascript, hence this
               class is named called 'Hap'.
               */
-        constructor(e, n2, s2, r = {}, o = false) {
-          this.whole = e, this.part = n2, this.value = s2, this.context = r, this.stateful = o, o && console.assert(typeof this.value == "function", "Stateful values must be functions");
+        constructor(e, n2, s2, r2 = {}, o = false) {
+          this.whole = e, this.part = n2, this.value = s2, this.context = r2, this.stateful = o, o && console.assert(typeof this.value == "function", "Stateful values must be functions");
         }
         get duration() {
           let e;
@@ -4720,8 +4720,8 @@ When mixing down to 2 channels, the input channels are equally distributed over 
         resolveState(e) {
           if (this.stateful && this.hasOnset()) {
             console.log("stateful");
-            const n2 = this.value, [s2, r] = n2(e);
-            return [s2, new _S(this.whole, this.part, r, this.context, false)];
+            const n2 = this.value, [s2, r2] = n2(e);
+            return [s2, new _S(this.whole, this.part, r2, this.context, false)];
           }
           return [e, this];
         }
@@ -4738,8 +4738,8 @@ When mixing down to 2 channels, the input channels are equally distributed over 
           if (this.whole == null)
             s2 = "~" + this.part.show;
           else {
-            var r = this.whole.begin.equals(this.part.begin) && this.whole.end.equals(this.part.end);
-            this.whole.begin.equals(this.part.begin) || (s2 = this.whole.begin.show() + " \u21DC "), r || (s2 += "("), s2 += this.part.show(), r || (s2 += ")"), this.whole.end.equals(this.part.end) || (s2 += " \u21DD " + this.whole.end.show());
+            var r2 = this.whole.begin.equals(this.part.begin) && this.whole.end.equals(this.part.end);
+            this.whole.begin.equals(this.part.begin) || (s2 = this.whole.begin.show() + " \u21DC "), r2 || (s2 += "("), s2 += this.part.show(), r2 || (s2 += ")"), this.whole.end.equals(this.part.end) || (s2 += " \u21DD " + this.whole.end.show());
           }
           return "[ " + s2 + " | " + n2 + " ]";
         }
@@ -4782,11 +4782,11 @@ When mixing down to 2 channels, the input channels are equally distributed over 
       le = {};
       xn = async (...t) => {
         const e = await Promise.allSettled(t), n2 = e.filter((s2) => s2.status === "fulfilled").map((s2) => s2.value);
-        return e.forEach((s2, r) => {
-          s2.status === "rejected" && console.warn(`evalScope: module with index ${r} could not be loaded:`, s2.reason);
+        return e.forEach((s2, r2) => {
+          s2.status === "rejected" && console.warn(`evalScope: module with index ${r2} could not be loaded:`, s2.reason);
         }), n2.forEach((s2) => {
-          Object.entries(s2).forEach(([r, o]) => {
-            globalThis[r] = o, le[r] = o;
+          Object.entries(s2).forEach(([r2, o]) => {
+            globalThis[r2] = o, le[r2] = o;
           });
         }), n2;
       };
@@ -4840,7 +4840,7 @@ When mixing down to 2 channels, the input channels are equally distributed over 
          * "0 1 2".withValue(v => v + 10).log()
          */
         withValue(e) {
-          const n2 = new _f2((s2) => this.query(s2).map((r) => r.withValue(e)));
+          const n2 = new _f2((s2) => this.query(s2).map((r2) => r2.withValue(e)));
           return n2._steps = this._steps, n2;
         }
         // runs func on query state
@@ -4864,22 +4864,22 @@ When mixing down to 2 channels, the input channels are equally distributed over 
          * @returns Pattern
          */
         appWhole(e, n2) {
-          const s2 = this, r = function(o) {
-            const i2 = s2.query(o), a2 = n2.query(o), u3 = function(p2, h) {
-              const y3 = p2.part.intersection(h.part);
-              if (y3 != null)
+          const s2 = this, r2 = function(o) {
+            const i2 = s2.query(o), a2 = n2.query(o), u3 = function(p2, h2) {
+              const y4 = p2.part.intersection(h2.part);
+              if (y4 != null)
                 return new S2(
-                  e(p2.whole, h.whole),
-                  y3,
-                  p2.value(h.value),
-                  h.combineContext(p2)
+                  e(p2.whole, h2.whole),
+                  y4,
+                  p2.value(h2.value),
+                  h2.combineContext(p2)
                 );
             };
             return G(
-              i2.map((p2) => lt2(a2.map((h) => u3(p2, h))))
+              i2.map((p2) => lt2(a2.map((h2) => u3(p2, h2))))
             );
           };
-          return new _f2(r);
+          return new _f2(r2);
         }
         /**
          * When this method is called on a pattern of functions, it matches its haps
@@ -4897,8 +4897,8 @@ When mixing down to 2 channels, the input channels are equally distributed over 
           const n2 = this, s2 = function(o, i2) {
             if (!(o == null || i2 == null))
               return o.intersection_e(i2);
-          }, r = n2.appWhole(s2, e);
-          return J2 && (r._steps = Y2(e._steps, n2._steps)), r;
+          }, r2 = n2.appWhole(s2, e);
+          return J2 && (r2._steps = Y2(e._steps, n2._steps)), r2;
         }
         /**
          * As with `appBoth`, but the `whole` timespan is not the intersection,
@@ -4916,16 +4916,16 @@ When mixing down to 2 channels, the input channels are equally distributed over 
             for (const a2 of n2.query(o)) {
               const u3 = e.query(o.setSpan(a2.wholeOrPart()));
               for (const p2 of u3) {
-                const h = a2.whole, y3 = a2.part.intersection(p2.part);
-                if (y3) {
-                  const g3 = a2.value(p2.value), v2 = p2.combineContext(a2), _7 = new S2(h, y3, g3, v2);
+                const h2 = a2.whole, y4 = a2.part.intersection(p2.part);
+                if (y4) {
+                  const g3 = a2.value(p2.value), v2 = p2.combineContext(a2), _7 = new S2(h2, y4, g3, v2);
                   i2.push(_7);
                 }
               }
             }
             return i2;
-          }, r = new _f2(s2);
-          return r._steps = this._steps, r;
+          }, r2 = new _f2(s2);
+          return r2._steps = this._steps, r2;
         }
         /**
          * As with `appLeft`, but `whole` timespans are instead taken from the
@@ -4941,19 +4941,19 @@ When mixing down to 2 channels, the input channels are equally distributed over 
             for (const a2 of e.query(o)) {
               const u3 = n2.query(o.setSpan(a2.wholeOrPart()));
               for (const p2 of u3) {
-                const h = a2.whole, y3 = p2.part.intersection(a2.part);
-                if (y3) {
-                  const g3 = p2.value(a2.value), v2 = a2.combineContext(p2), _7 = new S2(h, y3, g3, v2);
+                const h2 = a2.whole, y4 = p2.part.intersection(a2.part);
+                if (y4) {
+                  const g3 = p2.value(a2.value), v2 = a2.combineContext(p2), _7 = new S2(h2, y4, g3, v2);
                   i2.push(_7);
                 }
               }
             }
             return i2;
-          }, r = new _f2(s2);
-          return r._steps = e._steps, r;
+          }, r2 = new _f2(s2);
+          return r2._steps = e._steps, r2;
         }
         bindWhole(e, n2) {
-          const s2 = this, r = function(o) {
+          const s2 = this, r2 = function(o) {
             const i2 = function(u3, p2) {
               return new S2(
                 e(u3.whole, p2.whole),
@@ -4968,12 +4968,12 @@ When mixing down to 2 channels, the input channels are equally distributed over 
             };
             return G(s2.query(o).map((u3) => a2(u3)));
           };
-          return new _f2(r);
+          return new _f2(r2);
         }
         bind(e) {
-          const n2 = function(s2, r) {
-            if (!(s2 == null || r == null))
-              return s2.intersection_e(r);
+          const n2 = function(s2, r2) {
+            if (!(s2 == null || r2 == null))
+              return s2.intersection_e(r2);
           };
           return this.bindWhole(n2, e);
         }
@@ -4995,13 +4995,13 @@ When mixing down to 2 channels, the input channels are equally distributed over 
         // Flatterns patterns of patterns, by retriggering/resetting inner patterns at onsets of outer pattern haps
         resetJoin(e = false) {
           const n2 = this;
-          return new _f2((s2) => n2.discreteOnly().query(s2).map((r) => r.value.late(e ? r.whole.begin : r.whole.begin.cyclePos()).query(s2).map(
+          return new _f2((s2) => n2.discreteOnly().query(s2).map((r2) => r2.value.late(e ? r2.whole.begin : r2.whole.begin.cyclePos()).query(s2).map(
             (o) => new S2(
               // Supports continuous haps in the inner pattern
-              o.whole ? o.whole.intersection(r.whole) : void 0,
-              o.part.intersection(r.part),
+              o.whole ? o.whole.intersection(r2.whole) : void 0,
+              o.part.intersection(r2.part),
               o.value
-            ).setContext(r.combineContext(o))
+            ).setContext(r2.combineContext(o))
           ).filter((o) => o.part)).flat());
         }
         restartJoin() {
@@ -5013,22 +5013,22 @@ When mixing down to 2 channels, the input channels are equally distributed over 
         squeezeJoin() {
           const e = this;
           function n2(s2) {
-            const r = e.discreteOnly().query(s2);
+            const r2 = e.discreteOnly().query(s2);
             function o(a2) {
               const p2 = a2.value._focusSpan(a2.wholeOrPart()).query(s2.setSpan(a2.part));
-              function h(y3, g3) {
+              function h2(y4, g3) {
                 let v2;
-                if (g3.whole && y3.whole && (v2 = g3.whole.intersection(y3.whole), !v2))
+                if (g3.whole && y4.whole && (v2 = g3.whole.intersection(y4.whole), !v2))
                   return;
-                const _7 = g3.part.intersection(y3.part);
+                const _7 = g3.part.intersection(y4.part);
                 if (!_7)
                   return;
-                const O2 = g3.combineContext(y3);
+                const O2 = g3.combineContext(y4);
                 return new S2(v2, _7, g3.value, O2);
               }
-              return p2.map((y3) => h(a2, y3));
+              return p2.map((y4) => h2(a2, y4));
             }
-            return G(r.map(o)).filter((a2) => a2);
+            return G(r2.map(o)).filter((a2) => a2);
           }
           return new _f2(n2);
         }
@@ -5060,8 +5060,8 @@ When mixing down to 2 channels, the input channels are equally distributed over 
         queryArc(e, n2, s2 = {}) {
           try {
             return this.query(new ut2(new B2(e, n2), s2));
-          } catch (r) {
-            return zt2(r, "query"), [];
+          } catch (r2) {
+            return zt2(r2, "query"), [];
           }
         }
         /**
@@ -5072,7 +5072,7 @@ When mixing down to 2 channels, the input channels are equally distributed over 
          * @noAutocomplete
          */
         splitQueries() {
-          const e = this, n2 = (s2) => G(s2.span.spanCycles.map((r) => e.query(s2.setSpan(r))));
+          const e = this, n2 = (s2) => G(s2.span.spanCycles.map((r2) => e.query(s2.setSpan(r2))));
           return new _f2(n2);
         }
         /**
@@ -5088,8 +5088,8 @@ When mixing down to 2 channels, the input channels are equally distributed over 
         withQuerySpanMaybe(e) {
           const n2 = this;
           return new _f2((s2) => {
-            const r = s2.withSpan(e);
-            return r.span ? n2.query(r) : [];
+            const r2 = s2.withSpan(e);
+            return r2.span ? n2.query(r2) : [];
           });
         }
         /**
@@ -5181,11 +5181,11 @@ When mixing down to 2 channels, the input channels are equally distributed over 
           const s2 = {
             start: e,
             end: n2
-          }, r = this.withContext((o) => {
+          }, r2 = this.withContext((o) => {
             const i2 = (o.locations || []).concat([s2]);
             return { ...o, locations: i2 };
           });
-          return this.__pure && (r.__pure = this.__pure, r.__pure_loc = s2), r;
+          return this.__pure && (r2.__pure = this.__pure, r2.__pure_loc = s2), r2;
         }
         /**
          * Returns a new Pattern, which only returns haps that meet the given test.
@@ -5247,19 +5247,19 @@ When mixing down to 2 channels, the input channels are equally distributed over 
         defragmentHaps() {
           return this.discreteOnly().withHaps((n2) => {
             const s2 = [];
-            for (var r = 0; r < n2.length; ++r) {
-              for (var o = true, i2 = n2[r]; o; ) {
-                const p2 = JSON.stringify(n2[r].value);
-                for (var a2 = false, u3 = r + 1; u3 < n2.length; u3++) {
-                  const h = n2[u3];
-                  if (i2.whole.equals(h.whole)) {
-                    if (i2.part.begin.eq(h.part.end)) {
-                      if (p2 === JSON.stringify(h.value)) {
-                        i2 = new S2(i2.whole, new B2(h.part.begin, i2.part.end), i2.value), n2.splice(u3, 1), a2 = true;
+            for (var r2 = 0; r2 < n2.length; ++r2) {
+              for (var o = true, i2 = n2[r2]; o; ) {
+                const p2 = JSON.stringify(n2[r2].value);
+                for (var a2 = false, u3 = r2 + 1; u3 < n2.length; u3++) {
+                  const h2 = n2[u3];
+                  if (i2.whole.equals(h2.whole)) {
+                    if (i2.part.begin.eq(h2.part.end)) {
+                      if (p2 === JSON.stringify(h2.value)) {
+                        i2 = new S2(i2.whole, new B2(h2.part.begin, i2.part.end), i2.value), n2.splice(u3, 1), a2 = true;
                         break;
                       }
-                    } else if (h.part.begin.eq(i2.part.end) && p2 == JSON.stringify(h.value)) {
-                      i2 = new S2(i2.whole, new B2(i2.part.begin, h.part.end), i2.value), n2.splice(u3, 1), a2 = true;
+                    } else if (h2.part.begin.eq(i2.part.end) && p2 == JSON.stringify(h2.value)) {
+                      i2 = new S2(i2.whole, new B2(i2.part.begin, h2.part.end), i2.value), n2.splice(u3, 1), a2 = true;
                       break;
                     }
                   }
@@ -5328,21 +5328,21 @@ When mixing down to 2 channels, the input channels are equally distributed over 
         }
         _opSqueeze(e, n2) {
           const s2 = d(e);
-          return this.fmap((r) => s2.fmap((o) => n2(r)(o))).squeezeJoin();
+          return this.fmap((r2) => s2.fmap((o) => n2(r2)(o))).squeezeJoin();
         }
         _opSqueezeOut(e, n2) {
           const s2 = this;
           return d(e).fmap((o) => s2.fmap((i2) => n2(i2)(o))).squeezeJoin();
         }
         _opReset(e, n2) {
-          return d(e).fmap((r) => this.fmap((o) => n2(o)(r))).resetJoin();
+          return d(e).fmap((r2) => this.fmap((o) => n2(o)(r2))).resetJoin();
         }
         _opRestart(e, n2) {
-          return d(e).fmap((r) => this.fmap((o) => n2(o)(r))).restartJoin();
+          return d(e).fmap((r2) => this.fmap((o) => n2(o)(r2))).restartJoin();
         }
         _opPoly(e, n2) {
           const s2 = d(e);
-          return this.fmap((r) => s2.fmap((o) => n2(o)(r))).polyJoin();
+          return this.fmap((r2) => s2.fmap((o) => n2(o)(r2))).polyJoin();
         }
         //////////////////////////////////////////////////////////////////////
         // End-user methods.
@@ -5404,8 +5404,8 @@ When mixing down to 2 channels, the input channels are equally distributed over 
           return this.withHap(
             (s2) => s2.setContext({
               ...s2.context,
-              onTrigger: (...r) => {
-                s2.context.onTrigger?.(...r), e(...r);
+              onTrigger: (...r2) => {
+                s2.context.onTrigger?.(...r2), e(...r2);
               },
               // if dominantTrigger is set to true, the default output (webaudio) will be disabled
               // when using multiple triggers, you cannot flip this flag to false again!
@@ -5447,7 +5447,7 @@ When mixing down to 2 channels, the input channels are equally distributed over 
         // Breaks a pattern into a pattern of patterns, according to the structure of the given binary pattern.
         unjoin(e, n2 = ot2) {
           return e.withHap(
-            (s2) => s2.withValue((r) => r ? n2(this.ribbon(s2.whole.begin, s2.whole.duration)) : this)
+            (s2) => s2.withValue((r2) => r2 ? n2(this.ribbon(s2.whole.begin, s2.whole.duration)) : this)
           );
         }
         /**
@@ -5549,7 +5549,7 @@ When mixing down to 2 channels, the input channels are equally distributed over 
           //  bitwise ops
           func: [(n2, s2) => s2(n2)]
         }, e = ["In", "Out", "Mix", "Squeeze", "SqueezeOut", "Reset", "Restart", "Poly"];
-        for (const [n2, [s2, r]] of Object.entries(t)) {
+        for (const [n2, [s2, r2]] of Object.entries(t)) {
           f2.prototype["_" + n2] = function(o) {
             return this.fmap((i2) => s2(i2, o));
           }, Object.defineProperty(f2.prototype, n2, {
@@ -5560,9 +5560,9 @@ When mixing down to 2 channels, the input channels are equally distributed over 
               for (const a2 of e)
                 i2[a2.toLowerCase()] = function(...u3) {
                   var p2 = o;
-                  u3 = Q2(u3), r && (p2 = r(p2), u3 = r(u3));
-                  var h;
-                  return n2 === "keepif" ? (h = p2["_op" + a2](u3, (y3) => (g3) => s2(y3, g3)), h = h.removeUndefineds()) : h = p2["_op" + a2](u3, (y3) => (g3) => Pn(y3, g3, s2)), h;
+                  u3 = Q2(u3), r2 && (p2 = r2(p2), u3 = r2(u3));
+                  var h2;
+                  return n2 === "keepif" ? (h2 = p2["_op" + a2](u3, (y4) => (g3) => s2(y4, g3)), h2 = h2.removeUndefineds()) : h2 = p2["_op" + a2](u3, (y4) => (g3) => Pn(y4, g3, s2)), h2;
                 };
               return i2.squeezein = i2.squeeze, i2;
             }
@@ -5666,16 +5666,16 @@ When mixing down to 2 channels, the input channels are equally distributed over 
         return e._compress(t.begin, t.end);
       }));
       ({ fastGap: wd, fastgap: gd } = l(["fastGap", "fastgap"], function(t, e) {
-        const n2 = function(r) {
-          const o = r.begin.sam(), i2 = r.begin.sub(o).mul(t).min(1), a2 = r.end.sub(o).mul(t).min(1);
+        const n2 = function(r2) {
+          const o = r2.begin.sam(), i2 = r2.begin.sub(o).mul(t).min(1), a2 = r2.end.sub(o).mul(t).min(1);
           if (!(i2 >= 1))
             return new B2(o.add(i2), o.add(a2));
-        }, s2 = function(r) {
-          const o = r.part.begin, i2 = r.part.end, a2 = o.sam(), u3 = o.sub(a2).div(t).min(1), p2 = i2.sub(a2).div(t).min(1), h = new B2(a2.add(u3), a2.add(p2)), y3 = r.whole ? new B2(
-            h.begin.sub(o.sub(r.whole.begin).div(t)),
-            h.end.add(r.whole.end.sub(i2).div(t))
+        }, s2 = function(r2) {
+          const o = r2.part.begin, i2 = r2.part.end, a2 = o.sam(), u3 = o.sub(a2).div(t).min(1), p2 = i2.sub(a2).div(t).min(1), h2 = new B2(a2.add(u3), a2.add(p2)), y4 = r2.whole ? new B2(
+            h2.begin.sub(o.sub(r2.whole.begin).div(t)),
+            h2.end.add(r2.whole.end.sub(i2).div(t))
           ) : void 0;
-          return new S2(y3, h, r.value, r.context);
+          return new S2(y4, h2, r2.value, r2.context);
         };
         return e.withQuerySpanMaybe(n2).withHap(s2).splitQueries();
       }));
@@ -5742,16 +5742,16 @@ When mixing down to 2 channels, the input channels are equally distributed over 
       Jd = l("zoom", function(t, e, n2) {
         if (e = m(e), t = m(t), t.gte(e))
           return R;
-        const s2 = e.sub(t), r = J2 ? n2._steps?.mulmaybe(s2) : void 0;
-        return n2.withQuerySpan((o) => o.withCycle((i2) => i2.mul(s2).add(t))).withHapSpan((o) => o.withCycle((i2) => i2.sub(t).div(s2))).splitQueries().setSteps(r);
+        const s2 = e.sub(t), r2 = J2 ? n2._steps?.mulmaybe(s2) : void 0;
+        return n2.withQuerySpan((o) => o.withCycle((i2) => i2.mul(s2).add(t))).withHapSpan((o) => o.withCycle((i2) => i2.sub(t).div(s2))).splitQueries().setSteps(r2);
       });
       ({ zoomArc: $d, zoomarc: Nd } = l(["zoomArc", "zoomarc"], function(t, e) {
         return e.zoom(t.begin, t.end);
       }));
       Ld = l(
         "bite",
-        (t, e, n2) => e.fmap((s2) => (r) => {
-          const o = m(s2).div(r).mod(1), i2 = o.add(m(1).div(r));
+        (t, e, n2) => e.fmap((s2) => (r2) => {
+          const o = m(s2).div(r2).mod(1), i2 = o.add(m(1).div(r2));
           return n2.zoom(o, i2);
         }).appLeft(t).squeezeJoin(),
         false
@@ -5790,9 +5790,9 @@ When mixing down to 2 channels, the input channels are equally distributed over 
         "rev",
         function(t) {
           const e = function(n2) {
-            const s2 = n2.span, r = s2.begin.sam(), o = s2.begin.nextSam(), i2 = function(u3) {
-              const p2 = u3.withTime((y3) => r.add(o.sub(y3))), h = p2.begin;
-              return p2.begin = p2.end, p2.end = h, p2;
+            const s2 = n2.span, r2 = s2.begin.sam(), o = s2.begin.nextSam(), i2 = function(u3) {
+              const p2 = u3.withTime((y4) => r2.add(o.sub(y4))), h2 = p2.begin;
+              return p2.begin = p2.end, p2.end = h2, p2;
             };
             return t.query(n2.setSpan(i2(s2))).map((u3) => u3.withSpan(i2));
           };
@@ -5826,8 +5826,8 @@ When mixing down to 2 channels, the input channels are equally distributed over 
         t /= 2;
         const s2 = function(i2, a2, u3) {
           return a2 in i2 ? i2[a2] : u3;
-        }, r = n2.withValue((i2) => Object.assign({}, i2, { pan: s2(i2, "pan", 0.5) - t })), o = e(n2.withValue((i2) => Object.assign({}, i2, { pan: s2(i2, "pan", 0.5) + t })));
-        return z(r, o).setSteps(J2 ? Y2(r._steps, o._steps) : void 0);
+        }, r2 = n2.withValue((i2) => Object.assign({}, i2, { pan: s2(i2, "pan", 0.5) - t })), o = e(n2.withValue((i2) => Object.assign({}, i2, { pan: s2(i2, "pan", 0.5) + t })));
+        return z(r2, o).setSteps(J2 ? Y2(r2._steps, o._steps) : void 0);
       }));
       nm = l("jux", function(t, e) {
         return e._juxBy(1, t, e);
@@ -5835,27 +5835,27 @@ When mixing down to 2 channels, the input channels are equally distributed over 
       ({ echoWith: sm, echowith: rm, stutWith: om, stutwith: cm } = l(
         ["echoWith", "echowith", "stutWith", "stutwith"],
         function(t, e, n2, s2) {
-          return z(..._t2(0, t - 1).map((r) => n2(s2.late(m(e).mul(r)), r)));
+          return z(..._t2(0, t - 1).map((r2) => n2(s2.late(m(e).mul(r2)), r2)));
         }
       ));
       im = l("echo", function(t, e, n2, s2) {
-        return s2._echoWith(t, e, (r, o) => r.gain(Math.pow(n2, o)));
+        return s2._echoWith(t, e, (r2, o) => r2.gain(Math.pow(n2, o)));
       });
       um = l("stut", function(t, e, n2, s2) {
-        return s2._echoWith(t, n2, (r, o) => r.gain(Math.pow(e, o)));
+        return s2._echoWith(t, n2, (r2, o) => r2.gain(Math.pow(e, o)));
       });
       Wn = l("applyN", function(t, e, n2) {
         let s2 = n2;
-        for (let r = 0; r < t; r++)
+        for (let r2 = 0; r2 < t; r2++)
           s2 = e(s2);
         return s2;
       });
       am = l(["plyWith", "plywith"], function(t, e, n2) {
-        const s2 = n2.fmap((r) => mt2(..._t2(0, t - 1).map((o) => Wn(o, e, r)))._fast(t)).squeezeJoin();
+        const s2 = n2.fmap((r2) => mt2(..._t2(0, t - 1).map((o) => Wn(o, e, r2)))._fast(t)).squeezeJoin();
         return J2 && (s2._steps = m(t).mulmaybe(n2._steps)), s2;
       });
       lm = l(["plyForEach", "plyforeach"], function(t, e, n2) {
-        const s2 = n2.fmap((r) => mt2(mt2(C2(r), ..._t2(1, t - 1).map((o) => e(C2(r), o))))._fast(t)).squeezeJoin();
+        const s2 = n2.fmap((r2) => mt2(mt2(C2(r2), ..._t2(1, t - 1).map((o) => e(C2(r2), o))))._fast(t)).squeezeJoin();
         return J2 && (s2._steps = m(t).mulmaybe(n2._steps)), s2;
       });
       jt2 = function(t, e, n2 = false) {
@@ -5885,18 +5885,18 @@ When mixing down to 2 channels, the input channels are equally distributed over 
         "repeatCycles",
         function(t, e) {
           return new f2(function(n2) {
-            const s2 = n2.span.begin.sam(), r = s2.div(t).sam(), o = s2.sub(r);
+            const s2 = n2.span.begin.sam(), r2 = s2.div(t).sam(), o = s2.sub(r2);
             return n2 = n2.withSpan((i2) => i2.withTime((a2) => a2.sub(o))), e.query(n2).map((i2) => i2.withSpan((a2) => a2.withTime((u3) => u3.add(o))));
           }).splitQueries();
         },
         true,
         true
       ));
-      Jt2 = function(t, e, n2, s2 = false, r = false) {
+      Jt2 = function(t, e, n2, s2 = false, r2 = false) {
         const o = Array(t - 1).fill(false);
         o.unshift(true);
         const i2 = jt2(t, Q2(...o), !s2);
-        return r || (n2 = n2.repeatCycles(t)), n2.when(i2, e);
+        return r2 || (n2 = n2.repeatCycles(t)), n2.when(i2, e);
       };
       ({ chunk: mm, slowchunk: ym, slowChunk: wm } = l(
         ["chunk", "slowchunk", "slowChunk"],
@@ -5943,7 +5943,7 @@ When mixing down to 2 channels, the input channels are equally distributed over 
         ["ribbon", "rib"],
         (t, e, n2) => n2.early(t).restart(C2(1).slow(e))
       ));
-      Bm = l("hsla", (t, e, n2, s2, r) => r.color(`hsla(${t}turn,${e * 100}%,${n2 * 100}%,${s2})`));
+      Bm = l("hsla", (t, e, n2, s2, r2) => r2.color(`hsla(${t}turn,${e * 100}%,${n2 * 100}%,${s2})`));
       Om = l("hsl", (t, e, n2, s2) => s2.color(`hsl(${t}turn,${e * 100}%,${n2 * 100}%)`));
       f2.prototype.tag = function(t) {
         return this.withContext((e) => ({ ...e, tags: (e.tags || []).concat([t]) }));
@@ -5953,8 +5953,8 @@ When mixing down to 2 channels, the input channels are equally distributed over 
       Pm = l(
         "within",
         (t, e, n2, s2) => z(
-          n2(s2.filterWhen((r) => r.cyclePos() >= t && r.cyclePos() <= e)),
-          s2.filterWhen((r) => r.cyclePos() < t || r.cyclePos() > e)
+          n2(s2.filterWhen((r2) => r2.cyclePos() >= t && r2.cyclePos() <= e)),
+          s2.filterWhen((r2) => r2.cyclePos() < t || r2.cyclePos() > e)
         )
       );
       f2.prototype.stepJoin = function() {
@@ -6000,8 +6000,8 @@ When mixing down to 2 channels, the input channels are equally distributed over 
         let [n2, s2] = Array.isArray(t) ? t : [t, e._steps];
         if (n2 = m(n2), s2 === 0 || n2 === 0)
           return [e];
-        const r = n2 > 0, o = [];
-        if (r) {
+        const r2 = n2 > 0, o = [];
+        if (r2) {
           const i2 = m(1).div(e._steps).mul(n2);
           for (let a2 = 0; a2 < s2; ++a2) {
             const u3 = i2.mul(a2);
@@ -6028,7 +6028,7 @@ When mixing down to 2 channels, the input channels are equally distributed over 
           if (!e.hasSteps)
             return R;
           const n2 = e.shrinklist(t), s2 = $2(...n2);
-          return s2._steps = n2.reduce((r, o) => r.add(o._steps), m(0)), s2;
+          return s2._steps = n2.reduce((r2, o) => r2.add(o._steps), m(0)), s2;
         },
         true,
         false,
@@ -6042,7 +6042,7 @@ When mixing down to 2 channels, the input channels are equally distributed over 
           const n2 = e.shrinklist(m(0).sub(t));
           n2.reverse();
           const s2 = $2(...n2);
-          return s2._steps = n2.reduce((r, o) => r.add(o._steps), m(0)), s2;
+          return s2._steps = n2.reduce((r2, o) => r2.add(o._steps), m(0)), s2;
         },
         true,
         false,
@@ -6092,20 +6092,20 @@ When mixing down to 2 channels, the input channels are equally distributed over 
       Um = Vn;
       f2.prototype.steps = f2.prototype.pace;
       Xm = l("chop", function(t, e) {
-        const s2 = Array.from({ length: t }, (i2, a2) => a2).map((i2) => ({ begin: i2 / t, end: (i2 + 1) / t })), r = function(i2, a2) {
+        const s2 = Array.from({ length: t }, (i2, a2) => a2).map((i2) => ({ begin: i2 / t, end: (i2 + 1) / t })), r2 = function(i2, a2) {
           if ("begin" in i2 && "end" in i2 && i2.begin !== void 0 && i2.end !== void 0) {
             const u3 = i2.end - i2.begin;
             a2 = { begin: i2.begin + a2.begin * u3, end: i2.begin + a2.end * u3 };
           }
           return Object.assign({}, i2, a2);
         }, o = function(i2) {
-          return Q2(s2.map((a2) => r(i2, a2)));
+          return Q2(s2.map((a2) => r2(i2, a2)));
         };
         return e.squeezeBind(o).setSteps(J2 ? m(t).mulmaybe(e._steps) : void 0);
       });
       Km = l("striate", function(t, e) {
-        const s2 = Array.from({ length: t }, (o, i2) => i2).map((o) => ({ begin: o / t, end: (o + 1) / t })), r = Z2(...s2);
-        return e.set(r)._fast(t).setSteps(J2 ? m(t).mulmaybe(e._steps) : void 0);
+        const s2 = Array.from({ length: t }, (o, i2) => i2).map((o) => ({ begin: o / t, end: (o + 1) / t })), r2 = Z2(...s2);
+        return e.set(r2)._fast(t).setSteps(J2 ? m(t).mulmaybe(e._steps) : void 0);
       });
       he2 = function(t, e, n2 = 0.5) {
         return e.speed(1 / t * n2).unit("c").slow(t);
@@ -6115,9 +6115,9 @@ When mixing down to 2 channels, the input channels are equally distributed over 
         function(t, e, n2) {
           return t.innerBind(
             (s2) => e.outerBind(
-              (r) => n2.outerBind((o) => {
+              (r2) => n2.outerBind((o) => {
                 o = o instanceof Object ? o : { s: o };
-                const i2 = Array.isArray(s2) ? s2[r] : r / s2, a2 = Array.isArray(s2) ? s2[r + 1] : (r + 1) / s2;
+                const i2 = Array.isArray(s2) ? s2[r2] : r2 / s2, a2 = Array.isArray(s2) ? s2[r2 + 1] : (r2 + 1) / s2;
                 return C2({ begin: i2, end: a2, _slices: s2, ...o });
               })
             )
@@ -6127,8 +6127,8 @@ When mixing down to 2 channels, the input channels are equally distributed over 
         // turns off auto-patternification
       );
       f2.prototype.onTriggerTime = function(t) {
-        return this.onTrigger((e, n2, s2, r) => {
-          const o = r - n2;
+        return this.onTrigger((e, n2, s2, r2) => {
+          const o = r2 - n2;
           window.setTimeout(() => {
             t(e);
           }, o * 1e3);
@@ -6138,9 +6138,9 @@ When mixing down to 2 channels, the input channels are equally distributed over 
         "splice",
         function(t, e, n2) {
           const s2 = ss(t, e, n2);
-          return new f2((r) => {
-            const o = r.controls._cps || 1;
-            return s2.query(r).map(
+          return new f2((r2) => {
+            const o = r2.controls._cps || 1;
+            return s2.query(r2).map(
               (a2) => a2.withValue((u3) => ({
                 speed: o / u3._slices / a2.whole.duration * (u3.speed || 1),
                 unit: "c",
@@ -6160,10 +6160,10 @@ When mixing down to 2 channels, the input channels are equally distributed over 
         "fit",
         (t) => t.withHaps(
           (e, n2) => e.map(
-            (s2) => s2.withValue((r) => {
-              const o = ("end" in r ? r.end : 1) - ("begin" in r ? r.begin : 0);
+            (s2) => s2.withValue((r2) => {
+              const o = ("end" in r2 ? r2.end : 1) - ("begin" in r2 ? r2.begin : 0);
               return {
-                ...r,
+                ...r2,
                 speed: (n2.controls._cps || 1) / s2.whole.duration * o,
                 unit: "c"
               };
@@ -6178,16 +6178,16 @@ When mixing down to 2 channels, the input channels are equally distributed over 
       te2 = (t) => t < 0.5 ? 1 : 1 - (t - 0.5) / 0.5;
       rs = (t, e, n2) => {
         e = d(e), t = d(t), n2 = d(n2);
-        let s2 = e.fmap((o) => ({ gain: te2(o) })), r = e.fmap((o) => ({ gain: te2(1 - o) }));
-        return z(t.mul(s2), n2.mul(r));
+        let s2 = e.fmap((o) => ({ gain: te2(o) })), r2 = e.fmap((o) => ({ gain: te2(1 - o) }));
+        return z(t.mul(s2), n2.mul(r2));
       };
       f2.prototype.xfade = function(t, e) {
         return rs(this, t, e);
       };
       os = (t) => (e, n2, s2) => {
         e = m(e).mod(n2), n2 = m(n2);
-        const r = e.div(n2), o = e.add(1).div(n2);
-        return t(s2.fmap((i2) => C2(i2)._compress(r, o)));
+        const r2 = e.div(n2), o = e.add(1).div(n2);
+        return t(s2.fmap((i2) => C2(i2)._compress(r2, o)));
       };
       ({ beat: oy } = l(
         ["beat"],
@@ -6195,40 +6195,40 @@ When mixing down to 2 channels, the input channels are equally distributed over 
       ));
       de2 = (t, e, n2) => {
         n2 = m(n2);
-        const s2 = m(1).div(t.length), r = (a2) => {
+        const s2 = m(1).div(t.length), r2 = (a2) => {
           const u3 = [];
-          for (const [p2, h] of a2.entries())
-            h && u3.push([m(p2).div(a2.length), h]);
+          for (const [p2, h2] of a2.entries())
+            h2 && u3.push([m(p2).div(a2.length), h2]);
           return u3;
         }, o = Pt2(
-          ([a2, u3], [p2, h]) => {
-            const y3 = n2.mul(p2 - a2).add(a2), g3 = y3.add(s2);
-            return new B2(y3, g3);
+          ([a2, u3], [p2, h2]) => {
+            const y4 = n2.mul(p2 - a2).add(a2), g3 = y4.add(s2);
+            return new B2(y4, g3);
           },
-          r(t),
-          r(e)
+          r2(t),
+          r2(e)
         );
         function i2(a2) {
-          const u3 = a2.span.begin.sam(), p2 = a2.span.cycleArc(), h = [];
-          for (const y3 of o) {
-            const g3 = y3.intersection(p2);
-            g3 !== void 0 && h.push(
+          const u3 = a2.span.begin.sam(), p2 = a2.span.cycleArc(), h2 = [];
+          for (const y4 of o) {
+            const g3 = y4.intersection(p2);
+            g3 !== void 0 && h2.push(
               new S2(
-                y3.withTime((v2) => v2.add(u3)),
+                y4.withTime((v2) => v2.add(u3)),
                 g3.withTime((v2) => v2.add(u3)),
                 true
               )
             );
           }
-          return h;
+          return h2;
         }
         return new f2(i2).splitQueries();
       };
-      cy = (t, e, n2) => (t = d(t), e = d(e), n2 = d(n2), t.innerBind((s2) => e.innerBind((r) => n2.innerBind((o) => de2(s2, r, o)))));
+      cy = (t, e, n2) => (t = d(t), e = d(e), n2 = d(n2), t.innerBind((s2) => e.innerBind((r2) => n2.innerBind((o) => de2(s2, r2, o)))));
       U2 = function(t) {
         const e = function(n2, s2) {
-          const r = d(n2).fmap((o) => Array.isArray(o) ? [...o, t] : [o, 1, t]);
-          return s2 ? s2.distort(r) : C2({}).distort(r);
+          const r2 = d(n2).fmap((o) => Array.isArray(o) ? [...o, t] : [o, 1, t]);
+          return s2 ? s2.distort(r2) : C2({}).distort(r2);
         };
         return f2.prototype[t] = function(n2) {
           return e(n2, this);
@@ -6269,8 +6269,8 @@ When mixing down to 2 channels, the input channels are equally distributed over 
       };
       f2.prototype.worklet = function(t, ...e) {
         return e = e.map(d), this.outerBind((n2) => cs(e).withValue((s2) => {
-          const r = n2.workletInputs ?? [];
-          return { ...n2, workletSrc: t, workletInputs: r.concat(s2) };
+          const r2 = n2.workletInputs ?? [];
+          return { ...n2, workletSrc: t, workletInputs: r2.concat(s2) };
         }));
       };
       wy = (...t) => C2({}).worklet(...t);
@@ -6631,8 +6631,8 @@ When mixing down to 2 channels, the input channels are equally distributed over 
       Cp = (...t) => t.reduce((e, n2) => Object.assign(e, { [n2]: Nt2(n2) }), {});
       xp = l("adsr", (t, e) => {
         t = Array.isArray(t) ? t : [t];
-        const [n2, s2, r, o] = t;
-        return e.set({ attack: n2, decay: s2, sustain: r, release: o });
+        const [n2, s2, r2, o] = t;
+        return e.set({ attack: n2, decay: s2, sustain: r2, release: o });
       });
       Bp = l("ad", (t, e) => {
         t = Array.isArray(t) ? t : [t];
@@ -6682,23 +6682,23 @@ When mixing down to 2 channels, the input channels are equally distributed over 
       Kp = l("as", (t, e) => (t = Array.isArray(t) ? t : [t], e.fmap((n2) => {
         n2 = Array.isArray(n2) ? n2 : [n2];
         const s2 = [];
-        for (let r = 0; r < t.length; ++r)
-          n2[r] !== void 0 && s2.push([yt2(t[r]), n2[r]]);
+        for (let r2 = 0; r2 < t.length; ++r2)
+          n2[r2] !== void 0 && s2.push([yt2(t[r2]), n2[r2]]);
         return Object.fromEntries(s2);
       })));
       Yp = l(
         "scrub",
         (t, e) => t.outerBind((n2) => {
           Array.isArray(n2) || (n2 = [n2]);
-          const [s2, r = 1] = n2;
-          return e.begin(s2).mul(ye2(r)).clip(1);
+          const [s2, r2 = 1] = n2;
+          return e.begin(s2).mul(ye2(r2)).clip(1);
         }),
         false
       );
       Bt2 = /* @__PURE__ */ new Map();
       Zp = (t, e, ...n2) => {
-        const s2 = Bt2.get(t) ?? /* @__PURE__ */ new Map(), r = /* @__PURE__ */ new Set([e, ...n2]);
-        for (const o of r)
+        const s2 = Bt2.get(t) ?? /* @__PURE__ */ new Map(), r2 = /* @__PURE__ */ new Set([e, ...n2]);
+        for (const o of r2)
           s2.set(String(o).toLowerCase(), e);
         Bt2.set(t, s2);
       };
@@ -6751,21 +6751,21 @@ When mixing down to 2 channels, the input channels are equally distributed over 
         const s2 = ["lfo", "env", "bmod"];
         if (!s2.includes(t))
           return E2(`[core] Modulation type ${t} not found. Please use one of 'lfo', 'env', 'bmod'`), this;
-        let r = this, o;
-        r = r.fmap((i2) => (a2) => ({ v: i2, id: a2 })).appLeft(d(n2));
+        let r2 = this, o;
+        r2 = r2.fmap((i2) => (a2) => ({ v: i2, id: a2 })).appLeft(d(n2));
         for (const [i2, a2] of Object.entries(e)) {
           const u3 = tf(t, i2), p2 = d(a2);
-          r = r.fmap(({ v: h, id: y3 }) => (g3) => {
+          r2 = r2.fmap(({ v: h2, id: y4 }) => (g3) => {
             if (o === void 0) {
-              let _7 = yt2(Object.keys(h).at(-1));
-              s2.includes(_7) && (_7 = `${_7}_${[...h[_7].__ids].at(-1)}`), o = _7;
+              let _7 = yt2(Object.keys(h2).at(-1));
+              s2.includes(_7) && (_7 = `${_7}_${[...h2[_7].__ids].at(-1)}`), o = _7;
             }
-            h[t] ??= { __ids: /* @__PURE__ */ new Set() };
-            const v2 = h[t];
-            return y3 ??= v2.__ids.size, v2[y3] ??= { control: o }, v2.__ids.add(y3), g3 === void 0 ? { v: h, id: y3 } : (u3 === "control" || u3 === "subControl" ? v2[y3][u3] = yt2(g3) : v2[y3][u3] = g3, { v: h, id: y3 });
+            h2[t] ??= { __ids: /* @__PURE__ */ new Set() };
+            const v2 = h2[t];
+            return y4 ??= v2.__ids.size, v2[y4] ??= { control: o }, v2.__ids.add(y4), g3 === void 0 ? { v: h2, id: y4 } : (u3 === "control" || u3 === "subControl" ? v2[y4][u3] = yt2(g3) : v2[y4][u3] = g3, { v: h2, id: y4 });
           }).appLeft(p2);
         }
-        return r.fmap(({ v: i2 }) => i2);
+        return r2.fmap(({ v: i2 }) => i2);
       };
       f2.prototype.lfo = function(t, e) {
         return this.modulate("lfo", t, e);
@@ -7275,17 +7275,17 @@ When mixing down to 2 channels, the input channels are equally distributed over 
         zzfx: Sp
       }, Symbol.toStringTag, { value: "Module" }));
       lf = function(t, e) {
-        const [n2, s2] = t, [r, o] = e, [i2, a2] = ue2(s2, r);
+        const [n2, s2] = t, [r2, o] = e, [i2, a2] = ue2(s2, r2);
         return [
           [s2, n2 - s2],
           [Pt2((u3, p2) => u3.concat(p2), i2, o), a2]
         ];
       };
       pf = function(t, e) {
-        const [n2, s2] = t, [r, o] = e, [i2, a2] = ue2(n2, o);
+        const [n2, s2] = t, [r2, o] = e, [i2, a2] = ue2(n2, o);
         return [
           [n2, s2 - n2],
-          [Pt2((p2, h) => p2.concat(h), r, i2), a2]
+          [Pt2((p2, h2) => p2.concat(h2), r2, i2), a2]
         ];
       };
       we2 = function(t, e) {
@@ -7293,7 +7293,7 @@ When mixing down to 2 channels, the input channels are equally distributed over 
         return Math.min(n2, s2) <= 1 ? [t, e] : we2(...n2 > s2 ? lf(t, e) : pf(t, e));
       };
       ge2 = function(t, e) {
-        const n2 = t < 0, s2 = Math.abs(t), r = e - s2, o = Array(s2).fill([1]), i2 = Array(r).fill([0]), a2 = we2([s2, r], [o, i2]), u3 = G(a2[1][0]).concat(G(a2[1][1]));
+        const n2 = t < 0, s2 = Math.abs(t), r2 = e - s2, o = Array(s2).fill([1]), i2 = Array(r2).fill([0]), a2 = we2([s2, r2], [o, i2]), u3 = G(a2[1][0]).concat(G(a2[1][1]));
         return n2 ? u3.map((p2) => 1 - p2) : u3;
       };
       kt2 = function(t, e, n2) {
@@ -7305,8 +7305,8 @@ When mixing down to 2 channels, the input channels are equally distributed over 
       });
       _y = l("bjork", function(t, e) {
         Array.isArray(t) || (t = [t]);
-        const [n2, s2 = n2, r = 0] = t;
-        return e.struct(kt2(n2, s2, r));
+        const [n2, s2 = n2, r2 = 0] = t;
+        return e.struct(kt2(n2, s2, r2));
       });
       ({ euclidrot: vy, euclidRot: ky } = l(["euclidrot", "euclidRot"], function(t, e, n2, s2) {
         return s2.struct(kt2(t, e, n2));
@@ -7324,15 +7324,15 @@ When mixing down to 2 channels, the input channels are equally distributed over 
         return be2(t, e, n2, s2);
       });
       ({ euclidish: Ay, eish: Ty } = l(["euclidish", "eish"], function(t, e, n2, s2) {
-        const r = de2(ge2(t, e), new Array(t).fill(1), n2);
-        return s2.struct(r).setSteps(e);
+        const r2 = de2(ge2(t, e), new Array(t).fill(1), n2);
+        return s2.struct(r2).setSteps(e);
       }));
       hf = class {
         constructor({
           interval: e,
           onTrigger: n2,
           onToggle: s2,
-          onError: r,
+          onError: r2,
           getTime: o,
           latency: i2 = 0.1,
           setInterval: a2,
@@ -7342,25 +7342,25 @@ When mixing down to 2 channels, the input channels are equally distributed over 
           this.started = false, this.beforeStart = p2, this.cps = 0.5, this.num_ticks_since_cps_change = 0, this.lastTick = 0, this.lastBegin = 0, this.lastEnd = 0, this.getTime = o, this.num_cycles_at_cps_change = 0, this.seconds_at_cps_change, this.onToggle = s2, this.latency = i2, this.clock = ff(
             o,
             // called slightly before each cycle
-            (h, y3, g3, v2) => {
-              this.num_ticks_since_cps_change === 0 && (this.num_cycles_at_cps_change = this.lastEnd, this.seconds_at_cps_change = h), this.num_ticks_since_cps_change++;
-              const O2 = this.num_ticks_since_cps_change * y3 * this.cps;
+            (h2, y4, g3, v2) => {
+              this.num_ticks_since_cps_change === 0 && (this.num_cycles_at_cps_change = this.lastEnd, this.seconds_at_cps_change = h2), this.num_ticks_since_cps_change++;
+              const O2 = this.num_ticks_since_cps_change * y4 * this.cps;
               try {
                 const A5 = this.lastEnd;
                 this.lastBegin = A5;
                 const I4 = this.num_cycles_at_cps_change + O2;
-                if (this.lastEnd = I4, this.lastTick = h, h < v2) {
+                if (this.lastEnd = I4, this.lastTick = h2, h2 < v2) {
                   console.log("skip query: too late");
                   return;
                 }
                 this.pattern.queryArc(A5, I4, { _cps: this.cps, cyclist: "cyclist" }).forEach((P4) => {
                   if (P4.hasOnset()) {
-                    const x3 = (P4.whole.begin - this.num_cycles_at_cps_change) / this.cps + this.seconds_at_cps_change + i2, D6 = P4.duration / this.cps, nt4 = x3 - h;
-                    n2?.(P4, nt4, D6, this.cps, x3), P4.value.cps !== void 0 && this.cps != P4.value.cps && (this.cps = P4.value.cps, this.num_ticks_since_cps_change = 0);
+                    const x4 = (P4.whole.begin - this.num_cycles_at_cps_change) / this.cps + this.seconds_at_cps_change + i2, D6 = P4.duration / this.cps, nt3 = x4 - h2;
+                    n2?.(P4, nt3, D6, this.cps, x4), P4.value.cps !== void 0 && this.cps != P4.value.cps && (this.cps = P4.value.cps, this.num_ticks_since_cps_change = 0);
                   }
                 });
               } catch (A5) {
-                zt2(A5), r?.(A5);
+                zt2(A5), r2?.(A5);
               }
             },
             e,
@@ -7398,8 +7398,8 @@ When mixing down to 2 channels, the input channels are equally distributed over 
           this.cps !== e && (this.cps = e, this.num_ticks_since_cps_change = 0);
         }
         log(e, n2, s2) {
-          const r = s2.filter((o) => o.hasOnset());
-          console.log(`${e.toFixed(4)} - ${n2.toFixed(4)} ${Array(r.length).fill("I").join("")}`);
+          const r2 = s2.filter((o) => o.hasOnset());
+          console.log(`${e.toFixed(4)} - ${n2.toFixed(4)} ${Array(r2.length).fill("I").join("")}`);
         }
       };
       ct2 = {};
@@ -7414,7 +7414,7 @@ When mixing down to 2 channels, the input channels are equally distributed over 
         function(t, e) {
           t = d(t);
           const n2 = function(s2) {
-            const r = !!s2.controls.cyclist, o = t.query(s2), i2 = [];
+            const r2 = !!s2.controls.cyclist, o = t.query(s2), i2 = [];
             for (const a2 of o) {
               const u3 = a2.value;
               let p2;
@@ -7423,12 +7423,12 @@ When mixing down to 2 channels, the input channels are equally distributed over 
               else if (u3 in ct2)
                 p2 = ct2[u3];
               else {
-                const y3 = a2.wholeOrPart();
-                !r || s2.span.begin.lt(y3.midpoint()) ? p2 = y3.begin : p2 = y3.end;
+                const y4 = a2.wholeOrPart();
+                !r2 || s2.span.begin.lt(y4.midpoint()) ? p2 = y4.begin : p2 = y4.end;
               }
-              r && (ct2[u3] = p2, u3 !== 0 && delete ct2[-u3]);
-              const h = e.late(p2).query(s2.setSpan(a2.part)).map((y3) => y3.setContext(y3.combineContext(a2)));
-              i2.push(...h);
+              r2 && (ct2[u3] = p2, u3 !== 0 && delete ct2[-u3]);
+              const h2 = e.late(p2).query(s2.setSpan(a2.part)).map((y4) => y4.setContext(y4.combineContext(a2)));
+              i2.push(...h2);
             }
             return i2;
           };
@@ -7437,10 +7437,10 @@ When mixing down to 2 channels, the input channels are equally distributed over 
         false
       );
       F2 = function(t, e, n2 = true) {
-        const s2 = Array.isArray(t), r = Object.keys(t).length;
-        return t = bn(t, d), r === 0 ? q2 : e.fmap((o) => {
+        const s2 = Array.isArray(t), r2 = Object.keys(t).length;
+        return t = bn(t, d), r2 === 0 ? q2 : e.fmap((o) => {
           let i2 = o;
-          return s2 && (i2 = n2 ? Math.round(i2) % r : an(Math.round(i2), 0, t.length - 1)), t[i2];
+          return s2 && (i2 = n2 ? Math.round(i2) % r2 : an(Math.round(i2), 0, t.length - 1)), t[i2];
         });
       };
       yf = function(t, e) {
@@ -7493,18 +7493,18 @@ When mixing down to 2 channels, the input channels are equally distributed over 
             "" + new URL("assets/clockworker-ZDiUtESR.js", import_meta.url).href,
             import_meta.url
           )), this.worker.port.start(), this.channel = new BroadcastChannel("strudeltick");
-          const r = (i2) => {
-            const { cps: a2, begin: u3, end: p2, cycle: h, time: y3 } = i2;
-            this.cps = a2, this.cycle = h;
-            const g3 = this.collator.calculateOffset(y3) + y3;
+          const r2 = (i2) => {
+            const { cps: a2, begin: u3, end: p2, cycle: h2, time: y4 } = i2;
+            this.cps = a2, this.cycle = h2;
+            const g3 = this.collator.calculateOffset(y4) + y4;
             o(u3, p2, g3), this.time_at_last_tick_message = g3;
           }, o = (i2, a2, u3) => {
             if (this.started === false)
               return;
-            this.pattern.queryArc(i2, a2, { _cps: this.cps, cyclist: "neocyclist" }).forEach((h) => {
-              if (h.hasOnset()) {
-                const g3 = Kt2(h.whole.begin - this.cycle, this.cps) + u3 + this.latency, v2 = Kt2(h.duration, this.cps);
-                e?.(h, 0, v2, this.cps, g3);
+            this.pattern.queryArc(i2, a2, { _cps: this.cps, cyclist: "neocyclist" }).forEach((h2) => {
+              if (h2.hasOnset()) {
+                const g3 = Kt2(h2.whole.begin - this.cycle, this.cps) + u3 + this.latency, v2 = Kt2(h2.duration, this.cps);
+                e?.(h2, 0, v2, this.cps, g3);
               }
             });
           };
@@ -7514,7 +7514,7 @@ When mixing down to 2 channels, the input channels are equally distributed over 
             const { payload: a2, type: u3 } = i2.data;
             switch (u3) {
               case "tick":
-                r(a2);
+                r2(a2);
             }
           };
         }
@@ -7544,13 +7544,13 @@ When mixing down to 2 channels, the input channels are equally distributed over 
           this.pattern = e, n2 && !this.started && this.start();
         }
         log(e, n2, s2) {
-          const r = s2.filter((o) => o.hasOnset());
-          console.log(`${e.toFixed(4)} - ${n2.toFixed(4)} ${Array(r.length).fill("I").join("")}`);
+          const r2 = s2.filter((o) => o.hasOnset());
+          console.log(`${e.toFixed(4)} - ${n2.toFixed(4)} ${Array(r2.length).fill("I").join("")}`);
         }
       };
-      Sf = ({ getTime: t, defaultOutput: e }) => async (n2, s2, r, o, i2) => {
+      Sf = ({ getTime: t, defaultOutput: e }) => async (n2, s2, r2, o, i2) => {
         try {
-          (!n2.context.onTrigger || !n2.context.dominantTrigger) && await e(n2, s2, r, o, i2), n2.context.onTrigger && await n2.context.onTrigger(n2, t(), o, i2);
+          (!n2.context.onTrigger || !n2.context.dominantTrigger) && await e(n2, s2, r2, o, i2), n2.context.onTrigger && await n2.context.onTrigger(n2, t(), o, i2);
         } catch (a2) {
           zt2(a2, "getTrigger");
         }
@@ -7586,8 +7586,8 @@ When mixing down to 2 channels, the input channels are equally distributed over 
       Cf = (t) => (t |= 0, t ^= t >>> 16, t = Math.imul(t, 2246822507), t ^= t >>> 13, t = Math.imul(t, 3266489909), t ^= t >>> 16, t >>> 0);
       xf = (t) => Math.floor(t * 536870912);
       Bf = (t, e = 0, n2 = 0) => {
-        const s2 = t >>> 0 >>> 0, r = Math.floor(t / 4294967296) >>> 0;
-        let o = s2 ^ Math.imul(r ^ 2246822507, 3266489909);
+        const s2 = t >>> 0 >>> 0, r2 = Math.floor(t / 4294967296) >>> 0;
+        let o = s2 ^ Math.imul(r2 ^ 2246822507, 3266489909);
         return o ^= Math.imul(e ^ 2135587861, 2654435769), o ^= Math.imul(n2 ^ 374761393, 668265261), o >>> 0;
       };
       ne2 = (t, e = 0, n2 = 0) => Cf(Bf(t, e, n2)) / 4294967296;
@@ -7595,9 +7595,9 @@ When mixing down to 2 channels, the input channels are equally distributed over 
         const s2 = xf(t);
         if (e === 1)
           return ne2(s2, 0, n2);
-        const r = new Array(e);
-        for (let o = 0; o < e; o++) r[o] = ne2(s2, o, n2);
-        return r;
+        const r2 = new Array(e);
+        for (let o = 0; o < e; o++) r2[o] = ne2(s2, o, n2);
+        return r2;
       };
       Ce2 = (t) => {
         const e = t << 13 ^ t, n2 = e >> 17 ^ e;
@@ -7633,25 +7633,25 @@ When mixing down to 2 channels, the input channels are equally distributed over 
         return $f(t, e);
       };
       $f = (t, e = 16) => d(t).withValue((n2) => (s2) => {
-        const r = [];
+        const r2 = [];
         for (let o = s2 - 1; o >= 0; o--)
-          r.push(n2 >> o & 1);
-        return r;
+          r2.push(n2 >> o & 1);
+        return r2;
       }).appLeft(d(e));
       aw = (t) => j2((e) => (n2) => K2(e, n2).map(Math.abs)).appLeft(d(t));
       Nf = (t) => j2((e, n2) => {
-        const r = K2(e.floor().add(0.5), t, n2.randSeed).map((i2, a2) => [i2, a2]).sort((i2, a2) => (i2[0] > a2[0]) - (i2[0] < a2[0])).map((i2) => i2[1]), o = e.cyclePos().mul(t).floor() % t;
-        return r[o];
+        const r2 = K2(e.floor().add(0.5), t, n2.randSeed).map((i2, a2) => [i2, a2]).sort((i2, a2) => (i2[0] > a2[0]) - (i2[0] < a2[0])).map((i2) => i2[1]), o = e.cyclePos().mul(t).floor() % t;
+        return r2[o];
       })._segment(t);
       Be2 = (t, e, n2) => {
-        const s2 = [...Array(e).keys()].map((r) => n2.zoom(m(r).div(e), m(r + 1).div(e)));
-        return t.fmap((r) => s2[r].repeatCycles(e)._fast(e)).innerJoin();
+        const s2 = [...Array(e).keys()].map((r2) => n2.zoom(m(r2).div(e), m(r2 + 1).div(e)));
+        return t.fmap((r2) => s2[r2].repeatCycles(e)._fast(e)).innerJoin();
       };
       lw = l("shuffle", (t, e) => Be2(Nf(t), t, e));
       pw = l("scramble", (t, e) => Be2(ze2(t)._segment(t), t, e));
       Lf = (t, e) => new f2((n2) => {
-        let { randSeed: s2, ...r } = n2.controls;
-        return s2 = t(s2), e.query(n2.setControls({ ...r, randSeed: s2 }));
+        let { randSeed: s2, ...r2 } = n2.controls;
+        return s2 = t(s2), e.query(n2.setControls({ ...r2, randSeed: s2 }));
       }, e._steps);
       fw = l("seed", (t, e) => Lf(() => t, e));
       W2 = j2((t, e) => K2(t, 1, e.randSeed));
@@ -7680,12 +7680,12 @@ When mixing down to 2 channels, the input channels are equally distributed over 
       bw = Wf;
       Ee2 = function(t, ...e) {
         const n2 = e.map((a2) => d(a2[0])), s2 = [];
-        let r = C2(0);
+        let r2 = C2(0);
         for (const a2 of e)
-          r = r.add(a2[1]), s2.push(r);
+          r2 = r2.add(a2[1]), s2.push(r2);
         const o = En(s2), i2 = function(a2) {
-          const u3 = r.mul(a2);
-          return o.fmap((p2) => (h) => n2[p2.findIndex((y3) => y3 > h, p2)]).appLeft(u3);
+          const u3 = r2.mul(a2);
+          return o.fmap((p2) => (h2) => n2[p2.findIndex((y4) => y4 > h2, p2)]).appLeft(u3);
         };
         return t.bind(i2);
       };
@@ -7697,7 +7697,7 @@ When mixing down to 2 channels, the input channels are equally distributed over 
       qw = j2((t, e) => Hf(t, e.randSeed));
       Sw = l(
         "degradeByWith",
-        (t, e, n2) => n2.fmap((s2) => (r) => s2).appLeft(t.filterValues((s2) => s2 > e)),
+        (t, e, n2) => n2.fmap((s2) => (r2) => s2).appLeft(t.filterValues((s2) => s2 > e)),
         true,
         true
       );
@@ -7732,7 +7732,7 @@ When mixing down to 2 channels, the input channels are equally distributed over 
         return d(t).fmap(
           (s2) => z(
             n2._degradeByWith(W2._segment(1), s2),
-            e(n2._degradeByWith(W2.fmap((r) => 1 - r)._segment(1), 1 - s2))
+            e(n2._degradeByWith(W2.fmap((r2) => 1 - r2)._segment(1), 1 - s2))
           )
         ).innerJoin();
       });
@@ -7788,10 +7788,10 @@ When mixing down to 2 channels, the input channels are equally distributed over 
       Hw = function(t, e = {}) {
         const n2 = document.getElementById("code"), s2 = "background-image:url(" + t + ");background-size:contain;";
         n2.style = s2;
-        const { className: r } = n2, o = (u3, p2) => {
+        const { className: r2 } = n2, o = (u3, p2) => {
           ({
             style: () => n2.style = s2 + ";" + p2,
-            className: () => n2.className = p2 + " " + r
+            className: () => n2.className = p2 + " " + r2
           })[u3]();
         }, i2 = Object.entries(e).filter(([u3, p2]) => typeof p2 == "function");
         Object.entries(e).filter(([u3, p2]) => typeof p2 == "string").forEach(([u3, p2]) => o(u3, p2)), i2.length;
@@ -7951,21 +7951,21 @@ Please check with "npm ls @strudel/core".`
     const n2 = z2();
     if ($e2[e])
       return $e2[e];
-    const o = 2 * n2.sampleRate, a2 = n2.createBuffer(1, o, n2.sampleRate), c3 = a2.getChannelData(0);
-    let s2 = 0, d2, l2, i2, p2, r, h, u3;
-    d2 = l2 = i2 = p2 = r = h = u3 = 0;
+    const o = 2 * n2.sampleRate, a2 = n2.createBuffer(1, o, n2.sampleRate), c4 = a2.getChannelData(0);
+    let s2 = 0, d2, l2, i2, p2, r2, h2, u3;
+    d2 = l2 = i2 = p2 = r2 = h2 = u3 = 0;
     for (let m4 = 0; m4 < o; m4++)
       if (e === "white")
-        c3[m4] = Math.random() * 2 - 1;
+        c4[m4] = Math.random() * 2 - 1;
       else if (e === "brown") {
-        let G6 = Math.random() * 2 - 1;
-        c3[m4] = (s2 + 0.02 * G6) / 1.02, s2 = c3[m4];
+        let G5 = Math.random() * 2 - 1;
+        c4[m4] = (s2 + 0.02 * G5) / 1.02, s2 = c4[m4];
       } else if (e === "pink") {
-        let G6 = Math.random() * 2 - 1;
-        d2 = 0.99886 * d2 + G6 * 0.0555179, l2 = 0.99332 * l2 + G6 * 0.0750759, i2 = 0.969 * i2 + G6 * 0.153852, p2 = 0.8665 * p2 + G6 * 0.3104856, r = 0.55 * r + G6 * 0.5329522, h = -0.7616 * h - G6 * 0.016898, c3[m4] = d2 + l2 + i2 + p2 + r + h + u3 + G6 * 0.5362, c3[m4] *= 0.11, u3 = G6 * 0.115926;
+        let G5 = Math.random() * 2 - 1;
+        d2 = 0.99886 * d2 + G5 * 0.0555179, l2 = 0.99332 * l2 + G5 * 0.0750759, i2 = 0.969 * i2 + G5 * 0.153852, p2 = 0.8665 * p2 + G5 * 0.3104856, r2 = 0.55 * r2 + G5 * 0.5329522, h2 = -0.7616 * h2 - G5 * 0.016898, c4[m4] = d2 + l2 + i2 + p2 + r2 + h2 + u3 + G5 * 0.5362, c4[m4] *= 0.11, u3 = G5 * 0.115926;
       } else if (e === "crackle") {
-        const G6 = t * 0.01;
-        Math.random() < G6 ? c3[m4] = Math.random() * 2 - 1 : c3[m4] = 0;
+        const G5 = t * 0.01;
+        Math.random() < G5 ? c4[m4] = Math.random() * 2 - 1 : c4[m4] = 0;
       }
     return e !== "crackle" && ($e2[e] = a2), a2;
   }
@@ -7973,7 +7973,7 @@ Please check with "npm ls @strudel/core".`
     const a2 = z2().createBufferSource();
     return a2.buffer = Ft3(e, n2), a2.loop = true, a2.start(t), {
       node: a2,
-      stop: (c3) => a2.stop(c3)
+      stop: (c4) => a2.stop(c4)
     };
   }
   function un2(e, t, n2) {
@@ -7982,7 +7982,7 @@ Please check with "npm ls @strudel/core".`
       Y3(o.node);
     }), {
       node: a2.node,
-      stop: (c3) => o?.stop(c3),
+      stop: (c4) => o?.stop(c4),
       teardown: a2.teardown
     };
   }
@@ -7994,18 +7994,18 @@ Please check with "npm ls @strudel/core".`
   }
   function It3(e, t) {
     const { s: n2, n: o = 0 } = e;
-    let a2 = fn2(e, 36), c3 = a2 - 36, s2, d2 = 0;
+    let a2 = fn2(e, 36), c4 = a2 - 36, s2, d2 = 0;
     if (Array.isArray(t))
       d2 = Vt2(o, t.length), s2 = t[d2];
     else {
-      const i2 = (r) => Be3(r) - a2, p2 = Object.keys(t).filter((r) => !r.startsWith("_")).reduce(
-        (r, h, u3) => !r || Math.abs(i2(h)) < Math.abs(i2(r)) ? h : r,
+      const i2 = (r2) => Be3(r2) - a2, p2 = Object.keys(t).filter((r2) => !r2.startsWith("_")).reduce(
+        (r2, h2, u3) => !r2 || Math.abs(i2(h2)) < Math.abs(i2(r2)) ? h2 : r2,
         null
       );
-      c3 = -i2(p2), d2 = Vt2(o, t[p2].length), s2 = t[p2][d2];
+      c4 = -i2(p2), d2 = Vt2(o, t[p2].length), s2 = t[p2][d2];
     }
     const l2 = `${n2}:${d2}`;
-    return { transpose: c3, url: s2, index: d2, midi: a2, label: l2 };
+    return { transpose: c4, url: s2, index: d2, midi: a2, label: l2 };
   }
   function T2(e) {
     const t = z2().createGain();
@@ -8017,8 +8017,8 @@ Please check with "npm ls @strudel/core".`
   }
   function q3(e, t, n2, o) {
     const a2 = new AudioWorkletNode(e, t, o);
-    return Object.entries(n2).forEach(([c3, s2]) => {
-      s2 !== void 0 && (a2.parameters.get(c3).value = s2);
+    return Object.entries(n2).forEach(([c4, s2]) => {
+      s2 !== void 0 && (a2.parameters.get(c4).value = s2);
     }), a2;
   }
   function Mn2(e) {
@@ -8032,48 +8032,48 @@ Please check with "npm ls @strudel/core".`
       shape: n2 = 0,
       begin: o = 0,
       end: a2 = 0,
-      time: c3,
+      time: c4,
       depth: s2 = 1,
       dcoffset: d2 = -0.5,
       frequency: l2 = 1,
       skew: i2 = 0.5,
       phaseoffset: p2 = 0,
-      curve: r = 1,
-      min: h,
+      curve: r2 = 1,
+      min: h2,
       max: u3,
       ...m4
-    } = t, G6 = {
+    } = t, G5 = {
       begin: o,
       end: a2,
-      time: c3 ?? o,
+      time: c4 ?? o,
       depth: s2,
       dcoffset: d2,
       frequency: l2,
       skew: i2,
       phaseoffset: p2,
-      curve: r,
+      curve: r2,
       shape: Mn2(n2),
-      min: h ?? d2 * s2,
+      min: h2 ?? d2 * s2,
       max: u3 ?? d2 * s2 + s2,
       ...m4
     };
-    return q3(e, "lfo-processor", G6);
+    return q3(e, "lfo-processor", G5);
   }
-  function Ln2(e, t, n2, o, a2, c3) {
+  function Ln2(e, t, n2, o, a2, c4) {
     const s2 = we3("compressor", () => new DynamicsCompressorNode(e, {}));
     return Object.entries({
       threshold: t ?? -3,
       ratio: n2 ?? 10,
       knee: o ?? 10,
       attack: a2 ?? 5e-3,
-      release: c3 ?? 0.05
+      release: c4 ?? 0.05
     }).forEach(([l2, i2]) => {
       s2[l2].value = i2;
     }), s2;
   }
   function jt3(e, t, n2, o, a2) {
-    let { defaultDepth: c3 = 1, depth: s2, dcoffset: d2, ...l2 } = a2;
-    s2 == null && (s2 = Object.values(l2).some((r) => r != null) ? c3 : 0);
+    let { defaultDepth: c4 = 1, depth: s2, dcoffset: d2, ...l2 } = a2;
+    s2 == null && (s2 = Object.values(l2).some((r2) => r2 != null) ? c4 : 0);
     let i2;
     return s2 && (i2 = Fe2(e, {
       begin: n2,
@@ -8083,98 +8083,98 @@ Please check with "npm ls @strudel/core".`
       ...l2
     }), i2.connect(t)), i2;
   }
-  function zt3(e, t, n2, o, a2, c3) {
-    let { amount: s2, offset: d2, defaultAmount: l2 = 1, curve: i2 = "linear", values: p2, holdEnd: r, defaultValues: h } = a2;
-    s2 == null && (s2 = p2.some((y3) => y3 != null) ? l2 : 0);
+  function zt3(e, t, n2, o, a2, c4) {
+    let { amount: s2, offset: d2, defaultAmount: l2 = 1, curve: i2 = "linear", values: p2, holdEnd: r2, defaultValues: h2 } = a2;
+    s2 == null && (s2 = p2.some((y4) => y4 != null) ? l2 : 0);
     const u3 = d2 ?? 0, m4 = s2 + u3;
     if (Math.abs(m4 - u3)) {
-      const [f4, y3, M3, Z6] = $3(p2, i2, h);
-      _3(t, f4, y3, M3, Z6, u3, m4, n2, r, i2);
+      const [f4, y4, M3, Z5] = $3(p2, i2, h2);
+      _3(t, f4, y4, M3, Z5, u3, m4, n2, r2, i2);
     }
-    return jt3(e, t, n2, o, c3);
+    return jt3(e, t, n2, o, c4);
   }
-  function xn2(e, t, n2, o, a2, c3) {
+  function xn2(e, t, n2, o, a2, c4) {
     let {
       frequency: s2,
       anchor: d2,
       env: l2,
       type: i2,
       model: p2,
-      q: r = 1,
-      drive: h = 0.69,
+      q: r2 = 1,
+      drive: h2 = 0.69,
       depth: u3,
       depthfrequency: m4,
-      dcoffset: G6 = -0.5,
+      dcoffset: G5 = -0.5,
       skew: b2,
       shape: f4,
-      rate: y3,
+      rate: y4,
       sync: M3
-    } = o, Z6, W8;
-    p2 === "ladder" ? (W8 = q3(e, "ladder-processor", { frequency: s2, q: r, drive: h }), Z6 = W8.parameters.get("frequency")) : (W8 = we3("filter", () => e.createBiquadFilter()), W8.type = i2, Object.entries({ Q: r, frequency: s2 }).forEach(([O2, w6]) => {
-      W8[O2].value = w6;
-    }), Z6 = W8.frequency);
+    } = o, Z5, W7;
+    p2 === "ladder" ? (W7 = q3(e, "ladder-processor", { frequency: s2, q: r2, drive: h2 }), Z5 = W7.parameters.get("frequency")) : (W7 = we3("filter", () => e.createBiquadFilter()), W7.type = i2, Object.entries({ Q: r2, frequency: s2 }).forEach(([O2, w7]) => {
+      W7[O2].value = w7;
+    }), Z5 = W7.frequency);
     const S7 = [o.attack, o.decay, o.sustain, o.release], [Q6, F5, N5, g3] = $3(S7, "exponential", [5e-3, 0.14, 0, 0.1]);
     if ([...S7, l2].some((k6) => k6 !== void 0)) {
       l2 = re3(l2, 1, true), d2 = re3(d2, 0, true);
       const k6 = Math.abs(l2), O2 = k6 * d2;
-      let w6 = se2(2 ** -O2 * s2, 0, 2e4), E5 = se2(2 ** (k6 - O2) * s2, 0, 2e4);
-      l2 < 0 && ([w6, E5] = [E5, w6]), _3(Z6, Q6, F5, N5, g3, w6, E5, t, n2, "exponential");
+      let w7 = se2(2 ** -O2 * s2, 0, 2e4), E5 = se2(2 ** (k6 - O2) * s2, 0, 2e4);
+      l2 < 0 && ([w7, E5] = [E5, w7]), _3(Z5, Q6, F5, N5, g3, w7, E5, t, n2, "exponential");
     }
-    M3 != null && (y3 = a2 * M3);
-    const K4 = [u3, m4, b2, f4, y3].some((k6) => k6 !== void 0);
+    M3 != null && (y4 = a2 * M3);
+    const K4 = [u3, m4, b2, f4, y4].some((k6) => k6 !== void 0);
     let I4;
     if (K4) {
       u3 = u3 ?? 1;
-      const k6 = c3 / a2, w6 = {
+      const k6 = c4 / a2, w7 = {
         depth: m4 ?? (u3 ?? 1) * s2,
-        dcoffset: G6,
+        dcoffset: G5,
         skew: b2,
         shape: f4,
-        frequency: y3 ?? a2,
+        frequency: y4 ?? a2,
         min: -s2 + 30,
         max: 2e4 - s2,
         time: k6,
         curve: 1
       };
-      I4 = jt3(e, Z6, t, n2, w6);
+      I4 = jt3(e, Z5, t, n2, w7);
     }
-    return { filter: W8, lfo: I4 };
+    return { filter: W7, lfo: I4 };
   }
   function zn2(e, t, n2 = 0) {
     const o = z2();
     if (!n2)
       return e;
-    let a2 = o.createGain(), c3 = o.createGain();
-    e.connect(a2), t.connect(c3), a2.gain.value = Rt3(n2), c3.gain.value = Rt3(1 - n2);
+    let a2 = o.createGain(), c4 = o.createGain();
+    e.connect(a2), t.connect(c4), a2.gain.value = Rt3(n2), c4.gain.value = Rt3(1 - n2);
     let s2 = o.createGain();
-    return a2.connect(s2), c3.connect(s2), {
+    return a2.connect(s2), c4.connect(s2), {
       node: s2,
       teardown: () => {
-        Y3(a2), Y3(c3), e.disconnect(a2), t.disconnect(c3);
+        Y3(a2), Y3(c4), e.disconnect(a2), t.disconnect(c4);
       }
     };
   }
   function He2(e, t, n2, o) {
     if ((t.pattack ?? t.pdecay ?? t.psustain ?? t.prelease ?? t.penv) === void 0)
       return;
-    const c3 = re3(t.penv, 1, true), s2 = Rn2[t.pcurve ?? 0];
+    const c4 = re3(t.penv, 1, true), s2 = Rn2[t.pcurve ?? 0];
     let [d2, l2, i2, p2] = $3(
       [t.pattack, t.pdecay, t.psustain, t.prelease],
       s2,
       [0.2, 1e-3, 1, 1e-3]
-    ), r = t.panchor ?? i2;
-    const h = c3 * 100, u3 = 0 - h * r, m4 = h - h * r;
+    ), r2 = t.panchor ?? i2;
+    const h2 = c4 * 100, u3 = 0 - h2 * r2, m4 = h2 - h2 * r2;
     _3(e, d2, l2, i2, p2, u3, m4, n2, o, s2);
   }
   function Te3(e, t, n2) {
     const { vibmod: o = 0.5, vib: a2 } = t;
-    let c3;
+    let c4;
     if (a2 > 0) {
-      c3 = z2().createOscillator(), c3.frequency.value = a2;
+      c4 = z2().createOscillator(), c4.frequency.value = a2;
       const s2 = z2().createGain();
-      return s2.gain.value = o * 100, c3.connect(s2), s2.connect(e), ue3(c3, () => {
-        Y3(s2), Y3(c3);
-      }), c3.start(n2), { stop: (d2) => c3.stop(d2), nodes: { vib: [c3], vib_gain: [s2] } };
+      return s2.gain.value = o * 100, c4.connect(s2), s2.connect(e), ue3(c4, () => {
+        Y3(s2), Y3(c4);
+      }), c4.start(n2), { stop: (d2) => c4.stop(d2), nodes: { vib: [c4], vib_gain: [s2] } };
     }
   }
   function Qo2(e, t, n2 = z2()) {
@@ -8182,37 +8182,37 @@ Please check with "npm ls @strudel/core".`
     pe3(n2, e, o, t);
   }
   function pe3(e, t, n2, o) {
-    const a2 = new ConstantSourceNode(e), c3 = T2(0);
-    return c3.connect(e.destination), a2.connect(c3), ue3(a2, () => {
-      Y3(c3), Y3(a2), t();
+    const a2 = new ConstantSourceNode(e), c4 = T2(0);
+    return c4.connect(e.destination), a2.connect(c4), ue3(a2, () => {
+      Y3(c4), Y3(a2), t();
     }), a2.start(n2), a2.stop(o), a2;
   }
   function je3(e, t, n2) {
-    const o = z2(), a2 = [], c3 = {}, s2 = {};
+    const o = z2(), a2 = [], c4 = {}, s2 = {};
     for (let d2 = 1; d2 <= 8; d2++)
       for (let l2 = 0; l2 <= 8; l2++) {
         let i2;
         d2 === l2 + 1 ? i2 = `fmi${d2 === 1 ? "" : d2}` : i2 = `fmi${d2}${l2}`;
         const p2 = t[i2];
         if (!p2) continue;
-        let r = [];
-        for (let [h, u3] of [
+        let r2 = [];
+        for (let [h2, u3] of [
           [true, d2],
           // source
           [false, l2]
           // target
         ]) {
           if (u3 === 0) {
-            r.push(e);
+            r2.push(e);
             continue;
           }
-          if (!c3[u3]) {
-            const W8 = u3 === 1 ? "" : u3, { osc: S7, freq: Q6 } = Sn2(e, t[`fmh${W8}`] ?? 1, t[`fmwave${W8}`] ?? "sine");
+          if (!c4[u3]) {
+            const W7 = u3 === 1 ? "" : u3, { osc: S7, freq: Q6 } = Sn2(e, t[`fmh${W7}`] ?? 1, t[`fmwave${W7}`] ?? "sine");
             a2.push(S7);
-            const F5 = [S7], N5 = ["attack", "decay", "sustain", "release"].map((C7) => t[`fm${C7}${W8}`]);
+            const F5 = [S7], N5 = ["attack", "decay", "sustain", "release"].map((C7) => t[`fm${C7}${W7}`]);
             let g3 = S7;
             if (N5.some((C7) => C7 !== void 0)) {
-              const C7 = o.createGain(), [K4, I4, k6, O2] = $3(N5), w6 = n2 + t.duration, E5 = t[`fmenv${W8}`] ?? "exp";
+              const C7 = o.createGain(), [K4, I4, k6, O2] = $3(N5), w7 = n2 + t.duration, E5 = t[`fmenv${W7}`] ?? "exp";
               _3(
                 C7.gain,
                 K4,
@@ -8222,23 +8222,23 @@ Please check with "npm ls @strudel/core".`
                 0,
                 1,
                 n2,
-                w6,
+                w7,
                 E5 === "exp" ? "exponential" : "linear"
               ), F5.push(C7), g3 = S7.connect(C7);
             }
-            c3[u3] = { input: S7.frequency, output: g3, freq: Q6, osc: S7, toCleanup: F5 }, s2[`fm_${u3}`] = [S7];
+            c4[u3] = { input: S7.frequency, output: g3, freq: Q6, osc: S7, toCleanup: F5 }, s2[`fm_${u3}`] = [S7];
           }
-          const { input: m4, output: G6, freq: b2, osc: f4, toCleanup: y3 } = c3[u3], M3 = T2(p2), Z6 = T2(b2);
-          r.push(h ? G6.connect(M3).connect(Z6) : m4), kn2(f4, [...y3, M3, Z6]), s2[`fm_${u3}_gain`] = [M3];
+          const { input: m4, output: G5, freq: b2, osc: f4, toCleanup: y4 } = c4[u3], M3 = T2(p2), Z5 = T2(b2);
+          r2.push(h2 ? G5.connect(M3).connect(Z5) : m4), kn2(f4, [...y4, M3, Z5]), s2[`fm_${u3}_gain`] = [M3];
         }
-        if (!r[1]) {
+        if (!r2[1]) {
           j3(
             `[superdough] control ${i2} failed to connect FM ${d2} to target ${l2} due to missing frequency parameter (likely because fm${l2} is noise)`,
             "warning"
           );
           continue;
         }
-        r[0].connect(r[1]);
+        r2[0].connect(r2[1]);
       }
     return {
       nodes: s2,
@@ -8258,9 +8258,9 @@ Please check with "npm ls @strudel/core".`
     return e.toFixed(1) + " " + o[a2];
   }
   function _n2(e, t) {
-    const { speed: n2 = 1 } = e, { transpose: o, url: a2, index: c3, midi: s2, label: d2 } = It3(e, t);
+    const { speed: n2 = 1 } = e, { transpose: o, url: a2, index: c4, midi: s2, label: d2 } = It3(e, t);
     let l2 = Math.abs(n2) * Math.pow(2, o / 12);
-    return { transpose: o, url: a2, index: c3, midi: s2, label: d2, playbackRate: l2 };
+    return { transpose: o, url: a2, index: c4, midi: s2, label: d2, playbackRate: l2 };
   }
   function to2(e) {
     const t = z2(), n2 = t.createBuffer(e.numberOfChannels, e.length, t.sampleRate);
@@ -8280,8 +8280,8 @@ Please check with "npm ls @strudel/core".`
       throw new Error('expected "github:" at the start of pseudoUrl');
     let n2 = e.slice(7);
     n2 = n2.endsWith("/") ? n2.slice(0, -1) : n2;
-    let o = n2.split("/"), a2 = o[0], c3 = o.length >= 2 ? o[1] : "samples", s2 = o.length >= 3 ? o[2] : "main", d2 = o.slice(3);
-    return d2.push(t || ""), d2 = d2.join("/"), `https://raw.githubusercontent.com/${a2}/${c3}/${s2}/${d2}`;
+    let o = n2.split("/"), a2 = o[0], c4 = o.length >= 2 ? o[1] : "samples", s2 = o.length >= 3 ? o[2] : "main", d2 = o.slice(3);
+    return d2.push(t || ""), d2 = d2.join("/"), `https://raw.githubusercontent.com/${a2}/${c4}/${s2}/${d2}`;
   }
   function Do2(e, t) {
     At2[e] = t;
@@ -8296,13 +8296,13 @@ Please check with "npm ls @strudel/core".`
     if (t)
       return t(e);
     if (e = Ot3(e), e.startsWith("github:") && (e = Dt2(e, "strudel.json")), e.startsWith("local:") && (e = "http://localhost:5432"), e.startsWith("shabda:")) {
-      let [a2, c3] = e.split("shabda:");
-      e = `https://shabda.ndre.gr/${c3}.json?strudel=1`;
+      let [a2, c4] = e.split("shabda:");
+      e = `https://shabda.ndre.gr/${c4}.json?strudel=1`;
     }
     if (e.startsWith("shabda/speech")) {
-      let [a2, c3] = e.split("shabda/speech");
-      c3 = c3.startsWith("/") ? c3.substring(1) : c3;
-      let [s2, d2] = c3.split(":"), l2 = "f", i2 = "en-GB";
+      let [a2, c4] = e.split("shabda/speech");
+      c4 = c4.startsWith("/") ? c4.substring(1) : c4;
+      let [s2, d2] = c4.split(":"), l2 = "f", i2 = "en-GB";
       s2 && ([i2, l2] = s2.split("/")), e = `https://shabda.ndre.gr/speech/${d2}.json?gender=${l2}&language=${i2}&strudel=1'`;
     }
     if (typeof fetch != "function")
@@ -8317,7 +8317,7 @@ Please check with "npm ls @strudel/core".`
   }
   async function so2(e, t, n2, o, a2) {
     let {
-      s: c3,
+      s: c4,
       nudge: s2 = 0,
       // TODO: is this in seconds?
       cut: d2,
@@ -8325,38 +8325,38 @@ Please check with "npm ls @strudel/core".`
       clip: i2 = void 0,
       // if set, samples will be cut off when the hap ends
       n: p2 = 0,
-      speed: r = 1,
+      speed: r2 = 1,
       // sample playback speed
-      duration: h
+      duration: h2
     } = t;
-    if (r === 0)
+    if (r2 === 0)
       return;
     const u3 = z2();
-    let [m4, G6, b2, f4] = $3([t.attack, t.decay, t.sustain, t.release]);
-    const { bufferSource: y3, sliceDuration: M3, offset: Z6 } = await eo2(t, o, a2);
-    if (!y3) {
-      j3(`[sampler] could not load "${c3}:${p2}"`, "error");
+    let [m4, G5, b2, f4] = $3([t.attack, t.decay, t.sustain, t.release]);
+    const { bufferSource: y4, sliceDuration: M3, offset: Z5 } = await eo2(t, o, a2);
+    if (!y4) {
+      j3(`[sampler] could not load "${c4}:${p2}"`, "error");
       return;
     }
     if (u3.currentTime > e) {
-      j3(`[sampler] loading sound "${c3}:${p2}" took too long`, "highlight"), Y3(y3);
+      j3(`[sampler] loading sound "${c4}:${p2}" took too long`, "highlight"), Y3(y4);
       return;
     }
-    const W8 = Te3(y3.detune, t, e), S7 = e + s2;
-    y3.start(S7, Z6);
-    const Q6 = u3.createGain(), F5 = y3.connect(Q6);
-    i2 == null && l2 == null && t.release == null && (h = M3);
-    let N5 = e + h;
-    _3(F5.gain, m4, G6, b2, f4, 0, 1, e, N5, "linear"), He2(y3.detune, t, e, N5);
+    const W7 = Te3(y4.detune, t, e), S7 = e + s2;
+    y4.start(S7, Z5);
+    const Q6 = u3.createGain(), F5 = y4.connect(Q6);
+    i2 == null && l2 == null && t.release == null && (h2 = M3);
+    let N5 = e + h2;
+    _3(F5.gain, m4, G5, b2, f4, 0, 1, e, N5, "linear"), He2(y4.detune, t, e, N5);
     const g3 = u3.createGain();
-    F5.connect(g3), ue3(y3, function() {
-      Y3(y3), W8?.stop(), Y3(F5), Y3(g3), n2();
+    F5.connect(g3), ue3(y4, function() {
+      Y3(y4), W7?.stop(), Y3(F5), Y3(g3), n2();
     });
     let C7 = N5 + f4 + 0.01;
-    y3.stop(C7);
+    y4.stop(C7);
     const K4 = (k6) => {
-      y3.stop(k6);
-    }, I4 = { node: g3, nodes: { source: [y3], ...W8?.nodes }, stop: K4 };
+      y4.stop(k6);
+    }, I4 = { node: g3, nodes: { source: [y4], ...W7?.nodes }, stop: K4 };
     if (d2 !== void 0) {
       const k6 = Kt3[d2];
       k6 && (k6.node.gain.setValueAtTime(1, S7), k6.node.gain.linearRampToValueAtTime(0, S7 + 0.01)), Kt3[d2] = I4;
@@ -8364,7 +8364,7 @@ Please check with "npm ls @strudel/core".`
     return I4;
   }
   function lo2(e, t, n2) {
-    ce3(e, (o, a2, c3) => so2(o, a2, c3, t), {
+    ce3(e, (o, a2, c4) => so2(o, a2, c4, t), {
       type: "sample",
       samples: t,
       ...n2
@@ -8379,10 +8379,10 @@ Please check with "npm ls @strudel/core".`
   async function mo2(e, t, n2 = 2048) {
     const o = `${e},${n2}`;
     if (!it3.has(o)) {
-      const c3 = (await bo2(e, t)).getChannelData(0), s2 = c3.length, d2 = Math.max(1, Math.floor(s2 / n2)), l2 = new Array(d2);
+      const c4 = (await bo2(e, t)).getChannelData(0), s2 = c4.length, d2 = Math.max(1, Math.floor(s2 / n2)), l2 = new Array(d2);
       for (let i2 = 0; i2 < d2; i2++) {
         const p2 = i2 * n2;
-        l2[i2] = c3.subarray(p2, p2 + n2);
+        l2[i2] = c4.subarray(p2, p2 + n2);
       }
       return it3.add(o), { frames: l2, frameLen: n2, numFrames: d2, key: o };
     }
@@ -8421,7 +8421,7 @@ Please check with "npm ls @strudel/core".`
   function _t3(e, t, n2) {
     ce3(
       e,
-      (o, a2, c3, s2) => Zo2(o, a2, c3, t, s2, n2?.frameLen ?? 2048),
+      (o, a2, c4, s2) => Zo2(o, a2, c4, t, s2, n2?.frameLen ?? 2048),
       {
         type: "wavetable",
         tables: t,
@@ -8429,28 +8429,28 @@ Please check with "npm ls @strudel/core".`
       }
     );
   }
-  async function Zo2(e, t, n2, o, a2, c3) {
-    const { s: s2, n: d2 = 0, duration: l2, clip: i2 } = t, p2 = z2(), [r, h, u3, m4] = $3([t.attack, t.decay, t.sustain, t.release]);
-    let { warpmode: G6 } = t;
-    typeof G6 == "string" && (G6 = gt3[G6.toUpperCase()] ?? gt3.NONE);
-    const b2 = Xe3(t), { url: f4, label: y3 } = It3(t, o), M3 = await mo2(f4, y3, c3);
-    let Z6 = e + l2;
-    i2 !== void 0 && (Z6 = Math.min(e + i2 * l2, Z6));
-    const W8 = Z6 + m4, S7 = W8 + 0.01, Q6 = {
+  async function Zo2(e, t, n2, o, a2, c4) {
+    const { s: s2, n: d2 = 0, duration: l2, clip: i2 } = t, p2 = z2(), [r2, h2, u3, m4] = $3([t.attack, t.decay, t.sustain, t.release]);
+    let { warpmode: G5 } = t;
+    typeof G5 == "string" && (G5 = gt3[G5.toUpperCase()] ?? gt3.NONE);
+    const b2 = Xe3(t), { url: f4, label: y4 } = It3(t, o), M3 = await mo2(f4, y4, c4);
+    let Z5 = e + l2;
+    i2 !== void 0 && (Z5 = Math.min(e + i2 * l2, Z5));
+    const W7 = Z5 + m4, S7 = W7 + 0.01, Q6 = {
       begin: e,
       end: S7,
       frequency: b2,
       freqspread: t.detune,
       position: t.wt,
       warp: t.warp,
-      warpMode: G6,
+      warpMode: G5,
       voices: Math.max(t.unison ?? 1, 1),
       panspread: t.spread,
       phaserand: t.wtphaserand ?? t.unison > 1 ? 1 : 0
     }, N5 = we3("wavetable", () => new AudioWorkletNode(p2, "wavetable-oscillator-processor", { outputChannelCount: [2] }));
-    if (Object.entries(Q6).forEach(([Ye4, oe4]) => {
-      const me5 = N5.parameters.get(Ye4), Ee4 = oe4 !== void 0 ? oe4 : me5.defaultValue;
-      me5.value = Ee4;
+    if (Object.entries(Q6).forEach(([Ye3, oe4]) => {
+      const me4 = N5.parameters.get(Ye3), Ee4 = oe4 !== void 0 ? oe4 : me4.defaultValue;
+      me4.value = Ee4;
     }), N5.port.postMessage({ type: "initialize", payload: M3 }), p2.currentTime > e) {
       j3(`[wavetable] still loading sound "${s2}:${d2}"`, "highlight");
       return;
@@ -8458,18 +8458,18 @@ Please check with "npm ls @strudel/core".`
     const g3 = [t.wtattack, t.wtdecay, t.wtsustain, t.wtrelease], C7 = [t.warpattack, t.warpdecay, t.warpsustain, t.warprelease], K4 = N5.parameters, I4 = K4.get("position"), k6 = K4.get("warp");
     let O2 = t.wtrate;
     t.wtsync != null && (O2 = a2 * t.wtsync);
-    const w6 = zt3(
+    const w7 = zt3(
       p2,
       I4,
       e,
-      W8,
+      W7,
       {
         offset: t.wt,
         amount: t.wtenv,
         defaultAmount: 0.5,
         shape: "linear",
         values: g3,
-        holdEnd: Z6,
+        holdEnd: Z5,
         defaultValues: [0, 0.5, 0, 0.1]
       },
       {
@@ -8483,18 +8483,18 @@ Please check with "npm ls @strudel/core".`
     );
     let E5 = t.warprate;
     t.warpsync != null && (E5 = E5 = a2 * t.warpsync);
-    const ee6 = zt3(
+    const ee5 = zt3(
       p2,
       k6,
       e,
-      W8,
+      W7,
       {
         offset: t.warp,
         amount: t.warpenv,
         defaultAmount: 0.5,
         shape: "linear",
         values: C7,
-        holdEnd: Z6,
+        holdEnd: Z5,
         defaultValues: [0, 0.5, 0, 0.1]
       },
       {
@@ -8505,28 +8505,28 @@ Please check with "npm ls @strudel/core".`
         skew: t.warpskew,
         dcoffset: t.warpdc ?? 0
       }
-    ), he5 = Te3(N5.parameters.get("detune"), t, e), Re3 = je3(N5.parameters.get("frequency"), t, e), Qe3 = p2.createGain(), de4 = N5.connect(Qe3);
-    _3(de4.gain, r, h, u3, m4, 0, 0.3, e, Z6, "linear"), He2(N5.parameters.get("detune"), t, e, Z6);
-    const be5 = {
+    ), he4 = Te3(N5.parameters.get("detune"), t, e), Re3 = je3(N5.parameters.get("frequency"), t, e), Qe3 = p2.createGain(), de4 = N5.connect(Qe3);
+    _3(de4.gain, r2, h2, u3, m4, 0, 0.3, e, Z5, "linear"), He2(N5.parameters.get("detune"), t, e, Z5);
+    const be4 = {
       node: de4,
       nodes: {
         source: [N5],
-        wt_lfo: [w6],
-        warp_lfo: [ee6],
+        wt_lfo: [w7],
+        warp_lfo: [ee5],
         ...Re3?.nodes,
-        ...he5?.nodes
+        ...he4?.nodes
       }
-    }, ve5 = pe3(
+    }, ve4 = pe3(
       p2,
       () => {
-        ht2(N5), he5?.stop(), Re3?.stop(), Y3(w6), Y3(ee6), n2();
+        ht2(N5), he4?.stop(), Re3?.stop(), Y3(w7), Y3(ee5), n2();
       },
       e,
       S7
     );
-    return be5.stop = (Ye4) => {
-      ve5.stop(Ye4);
-    }, be5;
+    return be4.stop = (Ye3) => {
+      ve4.stop(Ye3);
+    }, be4;
   }
   function Wo2(e) {
     en3 = parseInt(e) ?? $t3;
@@ -8550,12 +8550,12 @@ Please check with "npm ls @strudel/core".`
     for (const n2 in t) {
       const [o, a2] = n2.split("_");
       if (!a2) continue;
-      const c3 = e[o];
-      if (c3) {
-        if (typeof c3 == "string")
-          t[`${c3}_${a2}`.toLowerCase()] = t[n2];
-        else if (Array.isArray(c3))
-          for (const s2 of c3)
+      const c4 = e[o];
+      if (c4) {
+        if (typeof c4 == "string")
+          t[`${c4}_${a2}`.toLowerCase()] = t[n2];
+        else if (Array.isArray(c4))
+          for (const s2 of c4)
             t[`${s2}_${a2}`.toLowerCase()] = t[n2];
       }
     }
@@ -8629,17 +8629,17 @@ Please check with "npm ls @strudel/core".`
     } = e;
     if (Wo2(n2), fo2(a2), ho2(), typeof window > "u")
       return;
-    const c3 = z2();
+    const c4 = z2();
     if (o != null && o != rt3)
       try {
         const d2 = (await Vo2()).get(o), l2 = (d2 ?? "").length > 0;
-        c3.sinkId !== d2 && l2 && await c3.setSinkId(d2), j3(
+        c4.sinkId !== d2 && l2 && await c4.setSinkId(d2), j3(
           `[superdough] Audio Device set to ${o}, it might take a few seconds before audio plays on all output channels`
         );
       } catch {
         j3("[superdough] failed to set audio interface", "warning");
       }
-    if (!c3 instanceof OfflineAudioContext && await c3.resume(), t) {
+    if (!c4 instanceof OfflineAudioContext && await c4.resume(), t) {
       j3("[superdough]: AudioWorklets disabled with disableWorklets");
       return;
     }
@@ -8666,13 +8666,13 @@ Please check with "npm ls @strudel/core".`
   function lc2(e, t) {
     Zt3().output.connectToDestination(e, t);
   }
-  function Yo2(e, t, n2 = 1, o = 0.5, a2 = 1e3, c3 = 2e3) {
-    const s2 = z2(), d2 = Fe2(s2, { frequency: n2, depth: c3 * 2, begin: e, end: t }), l2 = 1;
+  function Yo2(e, t, n2 = 1, o = 0.5, a2 = 1e3, c4 = 2e3) {
+    const s2 = z2(), d2 = Fe2(s2, { frequency: n2, depth: c4 * 2, begin: e, end: t }), l2 = 1;
     let i2 = 282;
     const p2 = [];
-    for (let r = 0; r < l2; r++) {
-      const h = we3("filter", () => s2.createBiquadFilter());
-      h.type = "notch", h.gain.value = 1, h.frequency.value = a2 + i2, h.Q.value = 2 - Math.min(Math.max(o * 2, 0), 1.9), d2.connect(h.detune), i2 += 282, p2.push(h);
+    for (let r2 = 0; r2 < l2; r2++) {
+      const h2 = we3("filter", () => s2.createBiquadFilter());
+      h2.type = "notch", h2.gain.value = 1, h2.frequency.value = a2 + i2, h2.Q.value = 2 - Math.min(Math.max(o * 2, 0), 1.9), d2.connect(h2.detune), i2 += 282, p2.push(h2);
     }
     return { filterChain: p2, lfo: d2 };
   }
@@ -8706,8 +8706,8 @@ Please check with "npm ls @strudel/core".`
   function wo2(e, t) {
     const n2 = e, o = new Float32Array(t);
     for (let a2 = 0; a2 < t; a2++) {
-      const c3 = a2 * 2 / t - 1;
-      o[a2] = Math.tanh(c3 * n2);
+      const c4 = a2 * 2 / t - 1;
+      o[a2] = Math.tanh(c4 * n2);
     }
     return o;
   }
@@ -8716,20 +8716,20 @@ Please check with "npm ls @strudel/core".`
       ce3(
         e,
         (t, n2, o) => {
-          const [a2, c3, s2, d2] = $3(
+          const [a2, c4, s2, d2] = $3(
             [n2.attack, n2.decay, n2.sustain, n2.release],
             "linear",
             [1e-3, 0.05, 0.6, 0.01]
           ), l2 = T2(0.3), i2 = Co2(e, t, n2, () => {
             Y3(l2), o();
-          }), { node: p2, nodes: r, stop: h, triggerRelease: u3 } = i2, { duration: m4 } = n2, G6 = T2(1), b2 = p2.connect(l2).connect(G6), f4 = t + m4;
-          _3(b2.gain, a2, c3, s2, d2, 0, 1, t, f4, "linear");
-          const y3 = f4 + d2 + 0.01;
-          return u3?.(y3), h(y3), {
+          }), { node: p2, nodes: r2, stop: h2, triggerRelease: u3 } = i2, { duration: m4 } = n2, G5 = T2(1), b2 = p2.connect(l2).connect(G5), f4 = t + m4;
+          _3(b2.gain, a2, c4, s2, d2, 0, 1, t, f4, "linear");
+          const y4 = f4 + d2 + 0.01;
+          return u3?.(y4), h2(y4), {
             node: b2,
-            nodes: r,
+            nodes: r2,
             stop: (M3) => {
-              h(M3);
+              h2(M3);
             }
           };
         },
@@ -8738,22 +8738,22 @@ Please check with "npm ls @strudel/core".`
     }), ce3(
       "sbd",
       (e, t, n2) => {
-        const { duration: o, decay: a2 = 0.5, pdecay: c3 = 0.5, penv: s2 = 36, clip: d2 } = t, l2 = z2(), i2 = 0.02, p2 = 1.2, r = 0.025, h = 1, u3 = l2.createOscillator();
-        u3.type = "triangle", u3.frequency.value = Xe3(t, 29), u3.detune.setValueAtTime(s2 * 100, 0), u3.detune.setValueAtTime(s2 * 100, e), u3.detune.exponentialRampToValueAtTime(1e-3, e + c3);
+        const { duration: o, decay: a2 = 0.5, pdecay: c4 = 0.5, penv: s2 = 36, clip: d2 } = t, l2 = z2(), i2 = 0.02, p2 = 1.2, r2 = 0.025, h2 = 1, u3 = l2.createOscillator();
+        u3.type = "triangle", u3.frequency.value = Xe3(t, 29), u3.detune.setValueAtTime(s2 * 100, 0), u3.detune.setValueAtTime(s2 * 100, e), u3.detune.exponentialRampToValueAtTime(1e-3, e + c4);
         const m4 = T2(1);
         m4.gain.setValueAtTime(1, e + i2), m4.gain.exponentialRampToValueAtTime(1e-3, e + i2 + a2), u3.start(e);
-        const G6 = at3("brown", e, 2), b2 = T2(1);
-        b2.gain.setValueAtTime(p2, e), b2.gain.exponentialRampToValueAtTime(1e-3, e + r);
+        const G5 = at3("brown", e, 2), b2 = T2(1);
+        b2.gain.setValueAtTime(p2, e), b2.gain.exponentialRampToValueAtTime(1e-3, e + r2);
         const f4 = new WaveShaperNode(l2);
         f4.curve = wo2(2, l2.sampleRate);
-        const y3 = T2(h);
+        const y4 = T2(h2);
         ue3(u3, () => {
-          Y3(u3), Y3(m4), Y3(f4), Y3(G6.node), Y3(b2), Y3(y3), n2();
+          Y3(u3), Y3(m4), Y3(f4), Y3(G5.node), Y3(b2), Y3(y4), n2();
         });
-        const M3 = u3.connect(f4).connect(m4).connect(y3);
-        G6.node.connect(b2).connect(y3);
-        let W8 = e + a2 + 0.01;
-        return d2 != null && (W8 = Math.min(e + d2 * o, W8)), y3.gain.setValueAtTime(h, W8 - 0.01), y3.gain.linearRampToValueAtTime(0, W8), u3.stop(W8), G6.stop(W8), {
+        const M3 = u3.connect(f4).connect(m4).connect(y4);
+        G5.node.connect(b2).connect(y4);
+        let W7 = e + a2 + 0.01;
+        return d2 != null && (W7 = Math.min(e + d2 * o, W7)), y4.gain.setValueAtTime(h2, W7 - 0.01), y4.gain.linearRampToValueAtTime(0, W7), u3.stop(W7), G5.stop(W7), {
           node: M3,
           nodes: { source: [u3] },
           stop: (S7) => {
@@ -8766,42 +8766,42 @@ Please check with "npm ls @strudel/core".`
       "supersaw",
       (e, t, n2) => {
         const o = z2();
-        let { duration: a2, n: c3, unison: s2 = 5, spread: d2 = 0.6, detune: l2 } = t;
-        l2 = l2 ?? c3 ?? 0.18;
-        const i2 = Xe3(t), [p2, r, h, u3] = $3(
+        let { duration: a2, n: c4, unison: s2 = 5, spread: d2 = 0.6, detune: l2 } = t;
+        l2 = l2 ?? c4 ?? 0.18;
+        const i2 = Xe3(t), [p2, r2, h2, u3] = $3(
           [t.attack, t.decay, t.sustain, t.release],
           "linear",
           [1e-3, 0.05, 0.6, 0.01]
-        ), m4 = e + a2, G6 = m4 + u3 + 0.01, b2 = se2(s2, 1, 100);
+        ), m4 = e + a2, G5 = m4 + u3 + 0.01, b2 = se2(s2, 1, 100);
         let f4 = b2 > 1 ? se2(d2, 0, 1) : 0;
-        const y3 = {
+        const y4 = {
           frequency: i2,
           begin: e,
-          end: G6,
+          end: G5,
           freqspread: l2,
           voices: b2,
           panspread: f4
-        }, Z6 = we3("supersaw", () => new AudioWorkletNode(o, "supersaw-oscillator", { outputChannelCount: [2] }));
-        Object.entries(y3).forEach(([g3, C7]) => {
-          const K4 = Z6.parameters.get(g3), I4 = C7 !== void 0 ? C7 : K4.defaultValue;
+        }, Z5 = we3("supersaw", () => new AudioWorkletNode(o, "supersaw-oscillator", { outputChannelCount: [2] }));
+        Object.entries(y4).forEach(([g3, C7]) => {
+          const K4 = Z5.parameters.get(g3), I4 = C7 !== void 0 ? C7 : K4.defaultValue;
           K4.value = I4;
-        }), Z6.port.postMessage({ type: "initialize" });
-        const W8 = 1 / Math.sqrt(b2);
-        He2(Z6.parameters.get("detune"), t, e, m4);
-        const S7 = Te3(Z6.parameters.get("detune"), t, e), Q6 = je3(Z6.parameters.get("frequency"), t, e);
+        }), Z5.port.postMessage({ type: "initialize" });
+        const W7 = 1 / Math.sqrt(b2);
+        He2(Z5.parameters.get("detune"), t, e, m4);
+        const S7 = Te3(Z5.parameters.get("detune"), t, e), Q6 = je3(Z5.parameters.get("frequency"), t, e);
         let F5 = T2(1);
-        F5 = Z6.connect(F5), _3(F5.gain, p2, r, h, u3, 0, 0.3 * W8, e, m4, "linear");
+        F5 = Z5.connect(F5), _3(F5.gain, p2, r2, h2, u3, 0, 0.3 * W7, e, m4, "linear");
         let N5 = pe3(
           o,
           () => {
-            ht2(Z6), n2(), Q6?.stop(), S7?.stop();
+            ht2(Z5), n2(), Q6?.stop(), S7?.stop();
           },
           e,
-          G6
+          G5
         );
         return {
           node: F5,
-          nodes: { source: [Z6], ...Q6?.nodes, ...S7?.nodes },
+          nodes: { source: [Z5], ...Q6?.nodes, ...S7?.nodes },
           stop: (g3) => {
             N5.stop(g3);
           }
@@ -8827,41 +8827,41 @@ Please check with "npm ls @strudel/core".`
           "((t^t/2+t+64)%128*2)",
           "(((t * .25)^(t * .25)/100+(t * .25))%128)*2",
           "((t^t/2+t+64)%7 * 24)"
-        ], { n: a2 = 0 } = t, c3 = Xe3(t), { byteBeatExpression: s2 = o[a2 % o.length], byteBeatStartTime: d2 } = t, l2 = z2();
+        ], { n: a2 = 0 } = t, c4 = Xe3(t), { byteBeatExpression: s2 = o[a2 % o.length], byteBeatStartTime: d2 } = t, l2 = z2();
         let { duration: i2 } = t;
-        const [p2, r, h, u3] = $3(
+        const [p2, r2, h2, u3] = $3(
           [t.attack, t.decay, t.sustain, t.release],
           "linear",
           [1e-3, 0.05, 0.6, 0.01]
-        ), m4 = e + i2, G6 = m4 + u3 + 0.01;
+        ), m4 = e + i2, G5 = m4 + u3 + 0.01;
         let b2 = q3(
           l2,
           "byte-beat-processor",
           {
-            frequency: c3,
+            frequency: c4,
             begin: e,
-            end: G6
+            end: G5
           },
           {
             outputChannelCount: [2]
           }
         );
-        b2.port.postMessage({ codeText: s2, byteBeatStartTime: d2, frequency: c3 });
+        b2.port.postMessage({ codeText: s2, byteBeatStartTime: d2, frequency: c4 });
         let f4 = T2(1);
-        f4 = b2.connect(f4), _3(f4.gain, p2, r, h, u3, 0, 1, e, m4, "linear");
-        let y3 = pe3(
+        f4 = b2.connect(f4), _3(f4.gain, p2, r2, h2, u3, 0, 1, e, m4, "linear");
+        let y4 = pe3(
           l2,
           () => {
             Y3(b2), n2();
           },
           e,
-          G6
+          G5
         );
         return {
           node: f4,
           source: b2,
           stop: (M3) => {
-            y3.stop(M3);
+            y4.stop(M3);
           }
         };
       },
@@ -8870,15 +8870,15 @@ Please check with "npm ls @strudel/core".`
       "pulse",
       (e, t, n2) => {
         const o = z2();
-        let { pwrate: a2, pwsweep: c3 } = t;
-        c3 == null && (a2 != null ? c3 = 0.3 : c3 = 0), a2 == null && c3 != null && (a2 = 1);
+        let { pwrate: a2, pwsweep: c4 } = t;
+        c4 == null && (a2 != null ? c4 = 0.3 : c4 = 0), a2 == null && c4 != null && (a2 = 1);
         let { duration: s2, pw: d2 = 0.5 } = t;
-        const l2 = Xe3(t), [i2, p2, r, h] = $3(
+        const l2 = Xe3(t), [i2, p2, r2, h2] = $3(
           [t.attack, t.decay, t.sustain, t.release],
           "linear",
           [1e-3, 0.05, 0.6, 0.01]
-        ), u3 = e + s2, m4 = u3 + h + 0.01;
-        let G6 = q3(
+        ), u3 = e + s2, m4 = u3 + h2 + 0.01;
+        let G5 = q3(
           o,
           "pulse-oscillator",
           {
@@ -8891,25 +8891,25 @@ Please check with "npm ls @strudel/core".`
             outputChannelCount: [2]
           }
         );
-        He2(G6.parameters.get("detune"), t, e, u3);
-        const b2 = Te3(G6.parameters.get("detune"), t, e), f4 = je3(G6.parameters.get("frequency"), t, e);
-        let y3 = T2(1);
-        y3 = G6.connect(y3), _3(y3.gain, i2, p2, r, h, 0, 1, e, u3, "linear");
+        He2(G5.parameters.get("detune"), t, e, u3);
+        const b2 = Te3(G5.parameters.get("detune"), t, e), f4 = je3(G5.parameters.get("frequency"), t, e);
+        let y4 = T2(1);
+        y4 = G5.connect(y4), _3(y4.gain, i2, p2, r2, h2, 0, 1, e, u3, "linear");
         let M3;
-        c3 != 0 && (M3 = Fe2(o, { frequency: a2, depth: c3, begin: e, end: m4 }), M3.connect(G6.parameters.get("pulsewidth")));
-        let Z6 = pe3(
+        c4 != 0 && (M3 = Fe2(o, { frequency: a2, depth: c4, begin: e, end: m4 }), M3.connect(G5.parameters.get("pulsewidth")));
+        let Z5 = pe3(
           o,
           () => {
-            Y3(G6), Y3(M3), n2(), f4?.stop(), b2?.stop();
+            Y3(G5), Y3(M3), n2(), f4?.stop(), b2?.stop();
           },
           e,
           m4
         );
         return {
-          node: y3,
-          nodes: { source: [G6], pw_lfo: [M3], ...f4?.nodes, ...b2?.nodes },
-          stop: (W8) => {
-            Z6.stop(W8);
+          node: y4,
+          nodes: { source: [G5], pw_lfo: [M3], ...f4?.nodes, ...b2?.nodes },
+          stop: (W7) => {
+            Z5.stop(W7);
           }
         };
       },
@@ -8917,25 +8917,25 @@ Please check with "npm ls @strudel/core".`
     ), ce3(
       "bus",
       (e, t, n2) => {
-        const o = z2(), [a2, c3, s2, d2] = $3(
+        const o = z2(), [a2, c4, s2, d2] = $3(
           [t.attack, t.decay, t.sustain, t.release],
           "linear",
           [1e-3, 0.05, 1, 0.01]
-        ), l2 = e + t.duration, i2 = l2 + d2 + 0.01, p2 = Zt3().getBus(t.n ?? 0), r = p2.connect(T2(0));
-        _3(r.gain, a2, c3, s2, d2, 0, 1, e, l2, "linear");
-        const h = pe3(
+        ), l2 = e + t.duration, i2 = l2 + d2 + 0.01, p2 = Zt3().getBus(t.n ?? 0), r2 = p2.connect(T2(0));
+        _3(r2.gain, a2, c4, s2, d2, 0, 1, e, l2, "linear");
+        const h2 = pe3(
           o,
           () => {
-            p2.disconnect(r), n2();
+            p2.disconnect(r2), n2();
           },
           e,
           i2
         );
         return {
-          node: r,
+          node: r2,
           nodes: { source: [p2] },
           stop: (u3) => {
-            h.stop(u3);
+            h2.stop(u3);
           }
         };
       },
@@ -8944,28 +8944,28 @@ Please check with "npm ls @strudel/core".`
       ce3(
         e,
         (t, n2, o) => {
-          const [a2, c3, s2, d2] = $3(
+          const [a2, c4, s2, d2] = $3(
             [n2.attack, n2.decay, n2.sustain, n2.release],
             "linear",
             [1e-3, 0.05, 0.6, 0.01]
           );
           let l2, { density: i2 } = n2;
           l2 = at3(e, t, i2);
-          let { node: p2, stop: r, triggerRelease: h } = l2;
+          let { node: p2, stop: r2, triggerRelease: h2 } = l2;
           const u3 = T2(0.3), { duration: m4 } = n2;
           ue3(p2, () => {
             Y3(p2), Y3(u3), o();
           });
-          const G6 = T2(1);
-          let b2 = p2.connect(u3).connect(G6);
+          const G5 = T2(1);
+          let b2 = p2.connect(u3).connect(G5);
           const f4 = t + m4;
-          _3(b2.gain, a2, c3, s2, d2, 0, 1, t, f4, "linear");
-          const y3 = f4 + d2 + 0.01;
-          return h?.(y3), r(y3), {
+          _3(b2.gain, a2, c4, s2, d2, 0, 1, t, f4, "linear");
+          const y4 = f4 + d2 + 0.01;
+          return h2?.(y4), r2(y4), {
             node: b2,
             nodes: { source: [p2] },
             stop: (M3) => {
-              r(M3);
+              r2(M3);
             }
           };
         },
@@ -8975,28 +8975,28 @@ Please check with "npm ls @strudel/core".`
   }
   function Fo2(e, t, n2) {
     e = typeof e == "object" ? e : new Float32Array(e).fill(1);
-    const a2 = e.length, c3 = new Float32Array(a2 + 1), s2 = new Float32Array(a2 + 1), d2 = z2(), l2 = d2.createOscillator(), i2 = {
-      sawtooth: (r) => [0, -1 / r],
-      square: (r) => [0, r % 2 === 0 ? 0 : 1 / r],
-      triangle: (r) => [r % 2 === 0 ? 0 : 1 / (r * r), 0],
-      user: (r) => [0, 1]
+    const a2 = e.length, c4 = new Float32Array(a2 + 1), s2 = new Float32Array(a2 + 1), d2 = z2(), l2 = d2.createOscillator(), i2 = {
+      sawtooth: (r2) => [0, -1 / r2],
+      square: (r2) => [0, r2 % 2 === 0 ? 0 : 1 / r2],
+      triangle: (r2) => [r2 % 2 === 0 ? 0 : 1 / (r2 * r2), 0],
+      user: (r2) => [0, 1]
     };
     if (!i2[n2])
       throw new Error(`unknown wave type ${n2}`);
-    for (let r = 0; r < a2; r++) {
-      const h = e[r], [u3, m4] = i2[n2](r + 1), G6 = t?.[r] ?? 0;
-      let b2 = u3 * h, f4 = m4 * h;
-      if (G6 !== 0) {
-        const y3 = Math.cos(Tt2 * G6), M3 = Math.sin(Tt2 * G6);
-        b2 = y3 * b2 - M3 * f4, f4 = M3 * b2 + y3 * f4;
+    for (let r2 = 0; r2 < a2; r2++) {
+      const h2 = e[r2], [u3, m4] = i2[n2](r2 + 1), G5 = t?.[r2] ?? 0;
+      let b2 = u3 * h2, f4 = m4 * h2;
+      if (G5 !== 0) {
+        const y4 = Math.cos(Tt2 * G5), M3 = Math.sin(Tt2 * G5);
+        b2 = y4 * b2 - M3 * f4, f4 = M3 * b2 + y4 * f4;
       }
-      c3[r + 1] = b2, s2[r + 1] = f4;
+      c4[r2 + 1] = b2, s2[r2 + 1] = f4;
     }
-    const p2 = d2.createPeriodicWave(c3, s2);
+    const p2 = d2.createPeriodicWave(c4, s2);
     return l2.setPeriodicWave(p2), l2;
   }
   function Co2(e, t, n2, o) {
-    const { duration: a2, noise: c3 = 0 } = n2, s2 = n2.partials ?? n2.n;
+    const { duration: a2, noise: c4 = 0 } = n2, s2 = n2.partials ?? n2.n;
     let d2;
     if (e === "user" && !s2 && (j3(
       "[superdough] Synth 'user' was selected, but partials not specified. Defaulting to triangle. Use pat.partials to setup custom waveform"
@@ -9004,34 +9004,34 @@ Please check with "npm ls @strudel/core".`
       return d2 = new ConstantSourceNode(z2(), { offset: 1 }), d2.start(t), {
         node: d2,
         nodes: { source: d2 },
-        stop: (r) => d2?.stop(r)
+        stop: (r2) => d2?.stop(r2)
       };
     !s2 || s2?.length === 0 || e === "sine" ? (d2 = z2().createOscillator(), d2.type = e || "triangle") : d2 = Fo2(s2, n2.phases, e), d2.frequency.value = Xe3(n2);
     const l2 = Te3(d2.detune, n2, t);
     He2(d2.detune, n2, t, t + a2);
     const i2 = je3(d2.frequency, n2, t);
     let p2;
-    return c3 && (p2 = un2(d2, c3, t)), ue3(d2, () => {
+    return c4 && (p2 = un2(d2, c4, t)), ue3(d2, () => {
       p2?.teardown(), Y3(d2), Y3(p2?.node), o();
     }), d2.start(t), {
       node: p2?.node || d2,
       nodes: { source: [d2], ...l2?.nodes, ...i2?.nodes },
-      stop: (r) => {
-        i2.stop(r), l2?.stop(r), p2?.stop(r), d2.stop(r);
+      stop: (r2) => {
+        i2.stop(r2), l2?.stop(r2), p2?.stop(r2), d2.stop(r2);
       },
-      triggerRelease: (r) => {
+      triggerRelease: (r2) => {
       }
     };
   }
-  function ko2(e = 1, t = 0.05, n2 = 220, o = 0, a2 = 0, c3 = 0.1, s2 = 0, d2 = 1, l2 = 0, i2 = 0, p2 = 0, r = 0, h = 0, u3 = 0, m4 = 0, G6 = 0, b2 = 0, f4 = 1, y3 = 0, M3 = 0) {
-    let Z6 = Math.PI * 2, W8 = z2().sampleRate, S7 = (he5) => he5 > 0 ? 1 : -1, Q6 = l2 *= 500 * Z6 / W8 / W8, F5 = n2 *= (1 + t * 2 * Math.random() - t) * Z6 / W8, N5 = [], g3 = 0, C7 = 0, K4 = 0, I4 = 1, k6 = 0, O2 = 0, w6 = 0, E5, ee6;
-    for (o = o * W8 + 9, y3 *= W8, a2 *= W8, c3 *= W8, b2 *= W8, i2 *= 500 * Z6 / W8 ** 3, m4 *= Z6 / W8, p2 *= Z6 / W8, r *= W8, h = h * W8 | 0, ee6 = o + y3 + a2 + c3 + b2 | 0; K4 < ee6; N5[K4++] = w6)
-      ++O2 % (G6 * 100 | 0) || (w6 = s2 ? s2 > 1 ? s2 > 2 ? s2 > 3 ? Math.sin((g3 % Z6) ** 3) : Math.max(Math.min(Math.tan(g3), 1), -1) : 1 - (2 * g3 / Z6 % 2 + 2) % 2 : 1 - 4 * Math.abs(Math.round(g3 / Z6) - g3 / Z6) : Math.sin(g3), w6 = (h ? 1 - M3 + M3 * Math.sin(Z6 * K4 / h) : 1) * S7(w6) * Math.abs(w6) ** d2 * // curve 0=square, 2=pointy
+  function ko2(e = 1, t = 0.05, n2 = 220, o = 0, a2 = 0, c4 = 0.1, s2 = 0, d2 = 1, l2 = 0, i2 = 0, p2 = 0, r2 = 0, h2 = 0, u3 = 0, m4 = 0, G5 = 0, b2 = 0, f4 = 1, y4 = 0, M3 = 0) {
+    let Z5 = Math.PI * 2, W7 = z2().sampleRate, S7 = (he4) => he4 > 0 ? 1 : -1, Q6 = l2 *= 500 * Z5 / W7 / W7, F5 = n2 *= (1 + t * 2 * Math.random() - t) * Z5 / W7, N5 = [], g3 = 0, C7 = 0, K4 = 0, I4 = 1, k6 = 0, O2 = 0, w7 = 0, E5, ee5;
+    for (o = o * W7 + 9, y4 *= W7, a2 *= W7, c4 *= W7, b2 *= W7, i2 *= 500 * Z5 / W7 ** 3, m4 *= Z5 / W7, p2 *= Z5 / W7, r2 *= W7, h2 = h2 * W7 | 0, ee5 = o + y4 + a2 + c4 + b2 | 0; K4 < ee5; N5[K4++] = w7)
+      ++O2 % (G5 * 100 | 0) || (w7 = s2 ? s2 > 1 ? s2 > 2 ? s2 > 3 ? Math.sin((g3 % Z5) ** 3) : Math.max(Math.min(Math.tan(g3), 1), -1) : 1 - (2 * g3 / Z5 % 2 + 2) % 2 : 1 - 4 * Math.abs(Math.round(g3 / Z5) - g3 / Z5) : Math.sin(g3), w7 = (h2 ? 1 - M3 + M3 * Math.sin(Z5 * K4 / h2) : 1) * S7(w7) * Math.abs(w7) ** d2 * // curve 0=square, 2=pointy
       e * 1 * // envelope
-      (K4 < o ? K4 / o : K4 < o + y3 ? 1 - (K4 - o) / y3 * (1 - f4) : K4 < o + y3 + a2 ? f4 : K4 < ee6 - b2 ? (ee6 - K4 - b2) / c3 * // release falloff
-      f4 : 0), w6 = b2 ? w6 / 2 + (b2 > K4 ? 0 : (K4 < ee6 - b2 ? 1 : (ee6 - K4) / b2) * // release delay
-      N5[K4 - b2 | 0] / 2) : w6), E5 = (n2 += l2 += i2) * // frequency
-      Math.cos(m4 * C7++), g3 += E5 - E5 * u3 * (1 - (Math.sin(K4) + 1) * 1e9 % 2), I4 && ++I4 > r && (n2 += p2, F5 += p2, I4 = 0), h && !(++k6 % h) && (n2 = F5, l2 = Q6, I4 ||= 1);
+      (K4 < o ? K4 / o : K4 < o + y4 ? 1 - (K4 - o) / y4 * (1 - f4) : K4 < o + y4 + a2 ? f4 : K4 < ee5 - b2 ? (ee5 - K4 - b2) / c4 * // release falloff
+      f4 : 0), w7 = b2 ? w7 / 2 + (b2 > K4 ? 0 : (K4 < ee5 - b2 ? 1 : (ee5 - K4) / b2) * // release delay
+      N5[K4 - b2 | 0] / 2) : w7), E5 = (n2 += l2 += i2) * // frequency
+      Math.cos(m4 * C7++), g3 += E5 - E5 * u3 * (1 - (Math.sin(K4) + 1) * 1e9 % 2), I4 && ++I4 > r2 && (n2 += p2, F5 += p2, I4 = 0), h2 && !(++k6 % h2) && (n2 = F5, l2 = Q6, I4 ||= 1);
     return N5;
   }
   function hc2() {
@@ -9093,8 +9093,8 @@ class MyProcessor extends AudioWorkletProcessor {
   }
 }
 registerProcessor('${n2}', MyProcessor);
-`, c3 = `data:text/javascript;base64,${btoa(o)}`;
-    await e.audioWorklet.addModule(c3);
+`, c4 = `data:text/javascript;base64,${btoa(o)}`;
+    await e.audioWorklet.addModule(c4);
     const s2 = new AudioWorkletNode(e, n2);
     return { node: s2, stop: () => s2.port.postMessage("stop") };
   }
@@ -9107,8 +9107,8 @@ registerProcessor('${n2}', MyProcessor);
       init_nanostores();
       if (typeof DelayNode < "u") {
         class e extends DelayNode {
-          constructor(n2, o, a2, c3) {
-            return super(n2), o = Math.abs(o), this.delayTime.value = a2, this.feedbackGain = n2.createGain(), this.feedbackGain.gain.value = Math.min(Math.abs(c3), 0.995), this.feedback = this.feedbackGain.gain, this.delayGain = n2.createGain(), this.delayGain.gain.value = o, this.connect(this.feedbackGain), this.connect(this.delayGain), this.feedbackGain.connect(this), this.connect = (s2) => this.delayGain.connect(s2), this;
+          constructor(n2, o, a2, c4) {
+            return super(n2), o = Math.abs(o), this.delayTime.value = a2, this.feedbackGain = n2.createGain(), this.feedbackGain.gain.value = Math.min(Math.abs(c4), 0.995), this.feedback = this.feedbackGain.gain, this.delayGain = n2.createGain(), this.delayGain.gain.value = o, this.connect(this.feedbackGain), this.connect(this.delayGain), this.feedbackGain.connect(this), this.connect = (s2) => this.delayGain.connect(s2), this;
           }
           start(n2) {
             this.delayGain.gain.setValueAtTime(this.delayGain.gain.value, n2 + this.delayTime.value);
@@ -9140,8 +9140,8 @@ registerProcessor('${n2}', MyProcessor);
           for (const a2 of Object.getOwnPropertyNames(o)) {
             if (n2.has(a2)) continue;
             n2.add(a2);
-            const c3 = e[a2];
-            c3 instanceof AudioParam && t.add(c3);
+            const c4 = e[a2];
+            c4 instanceof AudioParam && t.add(c4);
           }
           o = Object.getPrototypeOf(o);
         }
@@ -9185,8 +9185,8 @@ registerProcessor('${n2}', MyProcessor);
         const [n2, o, a2 = t] = Xn2(e);
         if (!n2)
           throw new Error('not a note: "' + e + '"');
-        const c3 = yn2[n2.toLowerCase()], s2 = Zn2(o);
-        return (Number(a2) + 1) * 12 + c3 + s2;
+        const c4 = yn2[n2.toLowerCase()], s2 = Zn2(o);
+        return (Number(a2) + 1) * 12 + c4 + s2;
       };
       kt3 = (e) => Math.pow(2, (e - 69) / 12) * 440;
       se2 = (e, t, n2) => Math.min(Math.max(e, t), n2);
@@ -9209,15 +9209,15 @@ registerProcessor('${n2}', MyProcessor);
       };
       Ut3 = ["pink", "white", "brown", "crackle"];
       xt3 = (e, t, n2, o) => o - n2 === 0 ? 0 : (t - e) / (o - n2);
-      _3 = (e, t, n2, o, a2, c3, s2, d2, l2, i2 = "exponential") => {
+      _3 = (e, t, n2, o, a2, c4, s2, d2, l2, i2 = "exponential") => {
         t = re3(t), n2 = re3(n2), o = re3(o), a2 = re3(a2);
         const p2 = i2 === "exponential" ? "exponentialRampToValueAtTime" : "linearRampToValueAtTime";
-        i2 === "exponential" && (c3 = c3 === 0 ? 1e-3 : c3, s2 = s2 === 0 ? 1e-3 : s2);
-        const r = s2 - c3, h = c3 + o * r, u3 = l2 - d2, m4 = (G6) => {
+        i2 === "exponential" && (c4 = c4 === 0 ? 1e-3 : c4, s2 = s2 === 0 ? 1e-3 : s2);
+        const r2 = s2 - c4, h2 = c4 + o * r2, u3 = l2 - d2, m4 = (G5) => {
           let b2;
-          return t > G6 ? b2 = G6 * xt3(c3, s2, 0, t) + c3 : b2 = (G6 - t) * xt3(s2, h, 0, n2) + s2, i2 === "exponential" && (b2 = b2 || 1e-3), b2;
+          return t > G5 ? b2 = G5 * xt3(c4, s2, 0, t) + c4 : b2 = (G5 - t) * xt3(s2, h2, 0, n2) + s2, i2 === "exponential" && (b2 = b2 || 1e-3), b2;
         };
-        e.setValueAtTime(c3, d2), t > u3 ? e[p2](m4(u3), l2) : t + n2 > u3 ? (e[p2](m4(t), d2 + t), e[p2](m4(u3), l2)) : (e[p2](m4(t), d2 + t), e[p2](m4(t + n2), d2 + t + n2), e.setValueAtTime(h, l2)), e[p2](c3, l2 + a2);
+        e.setValueAtTime(c4, d2), t > u3 ? e[p2](m4(u3), l2) : t + n2 > u3 ? (e[p2](m4(t), d2 + t), e[p2](m4(u3), l2)) : (e[p2](m4(t), d2 + t), e[p2](m4(t + n2), d2 + t + n2), e.setValueAtTime(h2, l2)), e[p2](c4, l2 + a2);
       };
       $3 = (e, t = "linear", n2) => {
         const [s2, d2, l2, i2] = e;
@@ -9253,19 +9253,19 @@ registerProcessor('${n2}', MyProcessor);
         return Ve2(o, t);
       };
       vt3 = (e, t, n2 = false) => {
-        const o = 1 + 2 * t, c3 = 0.07 * Bt3(Math.log1p(t)), s2 = Ve2(e + c3, 2 * t), d2 = Ve2(n2 ? c3 : -e + c3, 2 * t), l2 = s2 - d2, i2 = 1 / Math.cosh(o * c3), p2 = i2 * i2, r = Math.max(1e-8, (n2 ? 1 : 2) * o * p2);
-        return Ve2(l2 / r, t);
+        const o = 1 + 2 * t, c4 = 0.07 * Bt3(Math.log1p(t)), s2 = Ve2(e + c4, 2 * t), d2 = Ve2(n2 ? c4 : -e + c4, 2 * t), l2 = s2 - d2, i2 = 1 / Math.cosh(o * c4), p2 = i2 * i2, r2 = Math.max(1e-8, (n2 ? 1 : 2) * o * p2);
+        return Ve2(l2 / r2, t);
       };
       wn2 = (e, t) => vt3(e, t, true);
       Fn2 = (e, t) => {
         const n2 = 10 * Math.log1p(t);
-        let o = 1, a2 = e, c3, s2 = 0;
+        let o = 1, a2 = e, c4, s2 = 0;
         for (let d2 = 1; d2 < 64; d2++) {
           if (d2 < 2) {
             s2 += d2 == 0 ? o : a2;
             continue;
           }
-          c3 = 2 * e * o - a2, a2 = o, o = c3, d2 % 2 === 0 && (s2 += Math.min(1.3 * n2 / d2, 2) * c3);
+          c4 = 2 * e * o - a2, a2 = o, o = c4, d2 % 2 === 0 && (s2 += Math.min(1.3 * n2 / d2, 2) * c4);
         }
         return Ve2(s2, n2 / 20);
       };
@@ -9322,29 +9322,29 @@ registerProcessor('${n2}', MyProcessor);
       };
       mt3 = {};
       mt3.generateReverb = function(e, t) {
-        for (var n2 = e.audioContext || new AudioContext(), o = n2.sampleRate, a2 = e.numChannels || 2, c3 = e.decayTime * 1.5, s2 = Math.round(e.decayTime * o), d2 = Math.round(c3 * o), l2 = Math.round((e.fadeInTime || 0) * o), i2 = Math.pow(1 / 1e3, 1 / s2), p2 = n2.createBuffer(a2, d2, o), r = 0; r < a2; r++) {
-          for (var h = p2.getChannelData(r), u3 = 0; u3 < d2; u3++)
-            h[u3] = Jn2() * Math.pow(i2, u3);
+        for (var n2 = e.audioContext || new AudioContext(), o = n2.sampleRate, a2 = e.numChannels || 2, c4 = e.decayTime * 1.5, s2 = Math.round(e.decayTime * o), d2 = Math.round(c4 * o), l2 = Math.round((e.fadeInTime || 0) * o), i2 = Math.pow(1 / 1e3, 1 / s2), p2 = n2.createBuffer(a2, d2, o), r2 = 0; r2 < a2; r2++) {
+          for (var h2 = p2.getChannelData(r2), u3 = 0; u3 < d2; u3++)
+            h2[u3] = Jn2() * Math.pow(i2, u3);
           for (var u3 = 0; u3 < l2; u3++)
-            h[u3] *= u3 / l2;
+            h2[u3] *= u3 / l2;
         }
         Pn2(p2, e.lpFreqStart || 0, e.lpFreqEnd || 0, e.decayTime, t);
       };
       mt3.generateGraph = function(e, t, n2, o, a2) {
-        var c3 = document.createElement("canvas");
-        c3.width = t, c3.height = n2;
-        var s2 = c3.getContext("2d");
-        s2.fillStyle = "#000", s2.fillRect(0, 0, c3.width, c3.height), s2.fillStyle = "#fff";
+        var c4 = document.createElement("canvas");
+        c4.width = t, c4.height = n2;
+        var s2 = c4.getContext("2d");
+        s2.fillStyle = "#000", s2.fillRect(0, 0, c4.width, c4.height), s2.fillStyle = "#fff";
         for (var d2 = t / e.length, l2 = n2 / (a2 - o), i2 = 0; i2 < e.length; i2++)
           s2.fillRect(i2 * d2, n2 - (e[i2] - o) * l2, 1, 1);
-        return c3;
+        return c4;
       };
       Pn2 = function(e, t, n2, o, a2) {
         if (t == 0) {
           a2(e);
           return;
         }
-        var c3 = In2(e), s2 = new OfflineAudioContext(e.numberOfChannels, c3[0].length, e.sampleRate), d2 = s2.createBufferSource();
+        var c4 = In2(e), s2 = new OfflineAudioContext(e.numberOfChannels, c4[0].length, e.sampleRate), d2 = s2.createBufferSource();
         d2.buffer = e;
         var l2 = s2.createBiquadFilter();
         t = Math.min(t, e.sampleRate / 2), n2 = Math.min(n2, e.sampleRate / 2), l2.type = "lowpass", l2.Q.value = 1e-4, l2.frequency.setValueAtTime(t, 0), l2.frequency.linearRampToValueAtTime(n2, o), d2.connect(l2), l2.connect(s2.destination), d2.start(), s2.oncomplete = function(i2) {
@@ -9360,32 +9360,32 @@ registerProcessor('${n2}', MyProcessor);
         return Math.random() * 2 - 1;
       };
       typeof AudioContext < "u" && (BaseAudioContext.prototype.adjustLength = function(e, t, n2 = 1, o = 0) {
-        const a2 = Math.floor(se2(o, 0, 1) * t.length), c3 = t.sampleRate * e, s2 = this.createBuffer(t.numberOfChannels, t.length, t.sampleRate);
+        const a2 = Math.floor(se2(o, 0, 1) * t.length), c4 = t.sampleRate * e, s2 = this.createBuffer(t.numberOfChannels, t.length, t.sampleRate);
         for (let d2 = 0; d2 < t.numberOfChannels; d2++) {
           let l2 = t.getChannelData(d2), i2 = s2.getChannelData(d2);
-          for (let p2 = 0; p2 < c3; p2++) {
-            let r = (a2 + p2 * Math.abs(n2)) % l2.length;
-            n2 < 1 && (r = r * -1), i2[p2] = l2.at(r) || 0;
+          for (let p2 = 0; p2 < c4; p2++) {
+            let r2 = (a2 + p2 * Math.abs(n2)) % l2.length;
+            n2 < 1 && (r2 = r2 * -1), i2[p2] = l2.at(r2) || 0;
           }
         }
         return s2;
-      }, BaseAudioContext.prototype.createReverb = function(e, t, n2, o, a2, c3, s2) {
+      }, BaseAudioContext.prototype.createReverb = function(e, t, n2, o, a2, c4, s2) {
         const d2 = this.createConvolver();
-        return d2.generate = (l2 = 2, i2 = 0.1, p2 = 15e3, r = 1e3, h, u3, m4) => {
-          d2.duration = l2, d2.fade = i2, d2.lp = p2, d2.dim = r, d2.ir = h, d2.irspeed = u3, d2.irbegin = m4, h ? d2.buffer = this.adjustLength(l2, h, u3, m4) : mt3.generateReverb(
+        return d2.generate = (l2 = 2, i2 = 0.1, p2 = 15e3, r2 = 1e3, h2, u3, m4) => {
+          d2.duration = l2, d2.fade = i2, d2.lp = p2, d2.dim = r2, d2.ir = h2, d2.irspeed = u3, d2.irbegin = m4, h2 ? d2.buffer = this.adjustLength(l2, h2, u3, m4) : mt3.generateReverb(
             {
               audioContext: this,
               numChannels: 2,
               decayTime: l2,
               fadeInTime: i2,
               lpFreqStart: p2,
-              lpFreqEnd: r
+              lpFreqEnd: r2
             },
-            (G6) => {
-              d2.buffer = G6;
+            (G5) => {
+              d2.buffer = G5;
             }
           );
-        }, d2.generate(e, t, n2, o, a2, c3, s2), d2;
+        }, d2.generate(e, t, n2, o, a2, c4, s2), d2;
       });
       Yt3 = {
         a: { freqs: [660, 1120, 2750, 3e3, 3350], gains: [1, 0.5012, 0.0708, 0.0631, 0.0126], qs: [80, 90, 120, 130, 140] },
@@ -9430,13 +9430,13 @@ registerProcessor('${n2}', MyProcessor);
           constructor(n2, o) {
             if (super(n2), !Yt3[o])
               throw new Error("vowel: unknown vowel " + o);
-            const { gains: a2, qs: c3, freqs: s2 } = Yt3[o];
+            const { gains: a2, qs: c4, freqs: s2 } = Yt3[o];
             this.makeupGain = n2.createGain(), this.filters = [], this.gains = [];
             for (let d2 = 0; d2 < 5; d2++) {
               const l2 = n2.createGain();
               l2.gain.value = a2[d2];
               const i2 = n2.createBiquadFilter();
-              i2.type = "bandpass", i2.Q.value = c3[d2], i2.frequency.value = s2[d2], super.connect(i2), i2.connect(l2), this.filters.push(i2), l2.connect(this.makeupGain), this.gains.push(l2);
+              i2.type = "bandpass", i2.Q.value = c4[d2], i2.frequency.value = s2[d2], super.connect(i2), i2.connect(l2), this.filters.push(i2), l2.connect(this.makeupGain), this.gains.push(l2);
             }
             return this.makeupGain.gain.value = 8, this;
           }
@@ -9603,8 +9603,8 @@ registerProcessor('${n2}', MyProcessor);
           const l2 = d2 / (a2.length - 1) * 2 - 1;
           a2[d2] = se2(l2 * n2, t, n2);
         }
-        const c3 = new WaveShaperNode(o, { curve: a2 }), s2 = T2(1 / n2);
-        return e.connect(s2).connect(c3), { modulator: e, toCleanup: [c3, s2] };
+        const c4 = new WaveShaperNode(o, { curve: a2 }), s2 = T2(1 / n2);
+        return e.connect(s2).connect(c4), { modulator: e, toCleanup: [c4, s2] };
       };
       Xt3 = (e, t, n2) => {
         const o = vn2(e, n2);
@@ -9613,11 +9613,11 @@ registerProcessor('${n2}', MyProcessor);
             new Error(`Could not find control data for target '${e}'. It may not be modulatable.`),
             "superdough"
           ), { targetParams: [], paramName: e };
-        const a2 = o.param, c3 = t[o.node] ? o.node : e, s2 = t[c3];
+        const a2 = o.param, c4 = t[o.node] ? o.node : e, s2 = t[c4];
         if (!s2) {
           const l2 = Object.keys(t);
           return ct3(
-            new Error(`Could not connect to target '${c3}' \u2014 it does not exist. Available targets: ${l2.join(", ")}`),
+            new Error(`Could not connect to target '${c4}' \u2014 it does not exist. Available targets: ${l2.join(", ")}`),
             "superdough"
           ), { targetParams: [], paramName: a2 };
         }
@@ -9631,94 +9631,94 @@ registerProcessor('${n2}', MyProcessor);
         const {
           rate: o = 1,
           sync: a2,
-          cps: c3,
+          cps: c4,
           cycle: s2,
           control: d2 = "lfo",
           subControl: l2,
           fxi: i2 = "main",
           depth: p2 = 1,
-          depthabs: r,
-          ...h
+          depthabs: r2,
+          ...h2
         } = t, { targetParams: u3, paramName: m4 } = Xt3(d2, n2[i2], l2);
         if (!u3.length) return;
-        let G6 = u3[0].value;
-        G6 = G6 === 0 ? 1 : G6;
-        const { min: b2, max: f4 } = Gt2(m4, G6), y3 = r ?? p2 * G6, M3 = {
-          ...h,
-          frequency: a2 !== void 0 ? a2 * c3 : o,
-          time: s2 / c3,
-          depth: y3,
+        let G5 = u3[0].value;
+        G5 = G5 === 0 ? 1 : G5;
+        const { min: b2, max: f4 } = Gt2(m4, G5), y4 = r2 ?? p2 * G5, M3 = {
+          ...h2,
+          frequency: a2 !== void 0 ? a2 * c4 : o,
+          time: s2 / c4,
+          depth: y4,
           min: b2,
           max: f4
-        }, Z6 = Fe2(z2(), M3);
-        return n2.main[`lfo_${e}`] = [Z6], u3.forEach((W8) => Z6.connect(W8)), Z6;
+        }, Z5 = Fe2(z2(), M3);
+        return n2.main[`lfo_${e}`] = [Z5], u3.forEach((W7) => Z5.connect(W7)), Z5;
       };
       Dn2 = (e, t, n2) => {
-        const { control: o, subControl: a2, acurve: c3, dcurve: s2, rcurve: d2, depth: l2 = 1, depthabs: i2, fxi: p2 = "main", ...r } = t, { targetParams: h, paramName: u3 } = Xt3(o, n2[p2], a2);
-        if (!h.length) return;
-        let m4 = h[0].value;
+        const { control: o, subControl: a2, acurve: c4, dcurve: s2, rcurve: d2, depth: l2 = 1, depthabs: i2, fxi: p2 = "main", ...r2 } = t, { targetParams: h2, paramName: u3 } = Xt3(o, n2[p2], a2);
+        if (!h2.length) return;
+        let m4 = h2[0].value;
         m4 = m4 === 0 ? 1 : m4;
-        const { min: G6, max: b2 } = Gt2(u3, m4), f4 = i2 ?? l2 * m4, y3 = Vn2(z2(), {
-          ...r,
+        const { min: G5, max: b2 } = Gt2(u3, m4), f4 = i2 ?? l2 * m4, y4 = Vn2(z2(), {
+          ...r2,
           depth: f4,
-          min: G6,
+          min: G5,
           max: b2,
-          attackCurve: c3,
+          attackCurve: c4,
           decayCurve: s2,
           releaseCurve: d2
         });
-        return n2.main[`env_${e}`] = [y3], h.forEach((M3) => y3.connect(M3)), y3;
+        return n2.main[`env_${e}`] = [y4], h2.forEach((M3) => y4.connect(M3)), y4;
       };
       An2 = (e, t, n2) => {
-        const o = z2(), { control: a2, subControl: c3, depth: s2 = 1, depthabs: d2, fxi: l2 = "main" } = e, { targetParams: i2, paramName: p2 } = Xt3(a2, t[l2], c3);
+        const o = z2(), { control: a2, subControl: c4, depth: s2 = 1, depthabs: d2, fxi: l2 = "main" } = e, { targetParams: i2, paramName: p2 } = Xt3(a2, t[l2], c4);
         if (!i2.length) return { toCleanup: [] };
-        const r = n2.getBus(e.bus), h = new ConstantSourceNode(o, { offset: e.dc ?? 0 });
-        h.start(e.begin);
-        const u3 = h.connect(T2(1));
-        r.connect(u3);
+        const r2 = n2.getBus(e.bus), h2 = new ConstantSourceNode(o, { offset: e.dc ?? 0 });
+        h2.start(e.begin);
+        const u3 = h2.connect(T2(1));
+        r2.connect(u3);
         let m4 = i2[0].value;
         m4 = m4 === 0 ? 1 : m4;
-        const { min: G6, max: b2 } = Gt2(p2, m4), f4 = d2 ?? s2 * m4, y3 = T2(Math.sign(f4) * Math.abs(f4) / 0.3), M3 = u3.connect(y3), Z6 = [];
-        let W8 = M3;
-        if (G6 !== void 0 && b2 !== void 0) {
-          const S7 = En2(M3, G6, b2);
-          W8 = S7.modulator, Z6.push(...S7.toCleanup);
+        const { min: G5, max: b2 } = Gt2(p2, m4), f4 = d2 ?? s2 * m4, y4 = T2(Math.sign(f4) * Math.abs(f4) / 0.3), M3 = u3.connect(y4), Z5 = [];
+        let W7 = M3;
+        if (G5 !== void 0 && b2 !== void 0) {
+          const S7 = En2(M3, G5, b2);
+          W7 = S7.modulator, Z5.push(...S7.toCleanup);
         }
         return pe3(
           o,
           () => {
-            i2.forEach((S7) => W8.connect(S7));
+            i2.forEach((S7) => W7.connect(S7));
           },
           0,
           e.begin
-        ), Z6.push(h, u3, y3), { modulator: W8, toCleanup: Z6 };
+        ), Z5.push(h2, u3, y4), { modulator: W7, toCleanup: Z5 };
       };
       yt3 = {};
       tt2 = {};
       Eo2 = (e) => yt3[e];
       $n2 = async (e, t, n2) => {
-        let { url: o, label: a2, playbackRate: c3 } = _n2(e, t);
+        let { url: o, label: a2, playbackRate: c4 } = _n2(e, t);
         n2 && (o = await n2(o));
         const s2 = z2(), d2 = await dt3(o, s2, a2);
-        return e.unit === "c" && (c3 = c3 * d2.duration), { buffer: d2, playbackRate: c3 };
+        return e.unit === "c" && (c4 = c4 * d2.duration), { buffer: d2, playbackRate: c4 };
       };
       eo2 = async (e, t, n2) => {
         let { buffer: o, playbackRate: a2 } = await $n2(e, t, n2);
         e.speed < 0 && (o = to2(o));
         const s2 = z2().createBufferSource();
         s2.buffer = o, s2.playbackRate.value = a2;
-        const { loopBegin: d2 = 0, loopEnd: l2 = 1, begin: i2 = 0, end: p2 = 1 } = e, r = s2.buffer.duration, h = i2 * r;
-        e.loop && (s2.loop = true, s2.loopStart = d2 * r, s2.loopEnd = l2 * r);
-        const m4 = r / s2.playbackRate.value, G6 = (p2 - i2) * m4;
-        return { bufferSource: s2, offset: h, bufferDuration: r, playbackDuration: m4, sliceDuration: G6 };
+        const { loopBegin: d2 = 0, loopEnd: l2 = 1, begin: i2 = 0, end: p2 = 1 } = e, r2 = s2.buffer.duration, h2 = i2 * r2;
+        e.loop && (s2.loop = true, s2.loopStart = d2 * r2, s2.loopEnd = l2 * r2);
+        const m4 = r2 / s2.playbackRate.value, G5 = (p2 - i2) * m4;
+        return { bufferSource: s2, offset: h2, bufferDuration: r2, playbackDuration: m4, sliceDuration: G5 };
       };
       dt3 = (e, t, n2, o = 0) => {
         const a2 = n2 ? `sound "${n2}:${o}"` : "sample";
         if (e = e.replace("#", "%23"), !tt2[e]) {
           j3(`[sampler] load ${a2}..`, "load-sample", { url: e });
-          const c3 = Date.now();
+          const c4 = Date.now();
           tt2[e] = fetch(e).then((s2) => s2.arrayBuffer()).then(async (s2) => {
-            const d2 = Date.now() - c3, l2 = qn2(s2.byteLength);
+            const d2 = Date.now() - c4, l2 = qn2(s2.byteLength);
             j3(`[sampler] load ${a2}... done! loaded ${l2} in ${d2}ms`, "loaded-sample", { url: e });
             const i2 = await t.decodeAudioData(s2);
             return yt3[e] = i2, i2;
@@ -9731,22 +9731,22 @@ registerProcessor('${n2}', MyProcessor);
         if (typeof a2 == "string" && (a2 = [a2]), typeof a2 != "object")
           throw new Error("wrong sample map format for " + o);
         n2 = a2._base || n2, n2 = Ot3(n2), n2.startsWith("github:") && (n2 = Dt2(n2, ""));
-        const c3 = (s2) => n2 + s2;
-        Array.isArray(a2) ? a2 = a2.map(c3) : a2 = Object.fromEntries(
-          Object.entries(a2).map(([s2, d2]) => [s2, (typeof d2 == "string" ? [d2] : d2).map(c3)])
+        const c4 = (s2) => n2 + s2;
+        Array.isArray(a2) ? a2 = a2.map(c4) : a2 = Object.fromEntries(
+          Object.entries(a2).map(([s2, d2]) => [s2, (typeof d2 == "string" ? [d2] : d2).map(c4)])
         ), t(o, a2);
       });
       At2 = {};
       ao2 = async (e, t = e._base || "", n2 = {}) => {
         if (typeof e == "string") {
-          const [c3, s2] = await co2(e);
-          return ao2(c3, t || s2, n2);
+          const [c4, s2] = await co2(e);
+          return ao2(c4, t || s2, n2);
         }
         const { prebake: o, tag: a2 } = n2;
         no2(
           e,
-          (c3, s2) => {
-            io2(c3, s2, { baseUrl: t, prebake: o, tag: a2 });
+          (c4, s2) => {
+            io2(c4, s2, { baseUrl: t, prebake: o, tag: a2 });
           },
           t
         );
@@ -9773,8 +9773,8 @@ registerProcessor('${n2}', MyProcessor);
         getDelay(t = 0, n2 = 0.5, o) {
           return n2 = se2(n2, 0, 0.98), this.delayNode == null && (this.delayNode = this.audioContext.createFeedbackDelay(1, t, n2), this.delayNode.connect(this.summingNode), this.delayNode.start?.(o)), this.delayNode.delayTime.value !== t && this.delayNode.delayTime.setValueAtTime(t, o), this.delayNode.feedback.value !== n2 && this.delayNode.feedback.setValueAtTime(n2, o), this.delayNode;
         }
-        getReverb(t, n2, o, a2, c3, s2, d2) {
-          return this.reverbNode == null && (this.reverbNode = this.audioContext.createReverb(t, n2, o, a2, c3, s2, d2), this.reverbNode.connect(this.summingNode)), (fe3(t, this.reverbNode.duration) || fe3(n2, this.reverbNode.fade) || fe3(o, this.reverbNode.lp) || fe3(a2, this.reverbNode.dim) || fe3(s2, this.reverbNode.irspeed) || fe3(d2, this.reverbNode.irbegin) || this.reverbNode.ir !== c3) && this.reverbNode.generate(t, n2, o, a2, c3, s2, d2), this.reverbNode;
+        getReverb(t, n2, o, a2, c4, s2, d2) {
+          return this.reverbNode == null && (this.reverbNode = this.audioContext.createReverb(t, n2, o, a2, c4, s2, d2), this.reverbNode.connect(this.summingNode)), (fe3(t, this.reverbNode.duration) || fe3(n2, this.reverbNode.fade) || fe3(o, this.reverbNode.lp) || fe3(a2, this.reverbNode.dim) || fe3(s2, this.reverbNode.irspeed) || fe3(d2, this.reverbNode.irbegin) || this.reverbNode.ir !== c4) && this.reverbNode.generate(t, n2, o, a2, c4, s2, d2), this.reverbNode;
         }
         sendReverb(t, n2) {
           return Ue3(t, this.reverbNode, n2);
@@ -9783,14 +9783,14 @@ registerProcessor('${n2}', MyProcessor);
           return Ue3(t, this.delayNode, n2);
         }
         duck(t, n2 = 0, o = 0.1, a2 = 1) {
-          const c3 = n2, s2 = Math.max(o, 2e-3), d2 = this.output.gain;
+          const c4 = n2, s2 = Math.max(o, 2e-3), d2 = this.output.gain;
           pe3(
             this.audioContext,
             () => {
               const l2 = this.audioContext.currentTime, i2 = d2.value;
               d2.cancelScheduledValues(l2), d2.setValueAtTime(i2, l2);
-              const p2 = Math.max(t, l2), r = se2(1 - Math.sqrt(a2), 0.01, i2);
-              d2.exponentialRampToValueAtTime(r, p2 + c3), d2.exponentialRampToValueAtTime(1, p2 + c3 + s2);
+              const p2 = Math.max(t, l2), r2 = se2(1 - Math.sqrt(a2), 0.01, i2);
+              d2.exponentialRampToValueAtTime(r2, p2 + c4), d2.exponentialRampToValueAtTime(1, p2 + c4 + s2);
             },
             0,
             t - 0.01
@@ -9822,8 +9822,8 @@ registerProcessor('${n2}', MyProcessor);
           const a2 = new ChannelSplitterNode(this.audioContext, {
             numberOfOutputs: o.channelCount
           });
-          o.connect(a2), n2.forEach((c3, s2) => {
-            a2.connect(this.channelMerger, s2 % o.channelCount, c3 % this.audioContext.destination.channelCount);
+          o.connect(a2), n2.forEach((c4, s2) => {
+            a2.connect(this.channelMerger, s2 % o.channelCount, c4 % this.audioContext.destination.channelCount);
           });
         };
       };
@@ -9842,16 +9842,16 @@ registerProcessor('${n2}', MyProcessor);
             t.disconnect();
           }), this.nodes = {}, this.buses = {}, this.output.reset();
         }
-        duck(t, n2, o = 0, a2 = 0.1, c3 = 1) {
-          const s2 = [t].flat(), d2 = [o].flat(), l2 = [a2].flat(), i2 = [c3].flat();
-          s2.forEach((p2, r) => {
-            const h = this.nodes[p2];
-            if (h == null) {
+        duck(t, n2, o = 0, a2 = 0.1, c4 = 1) {
+          const s2 = [t].flat(), d2 = [o].flat(), l2 = [a2].flat(), i2 = [c4].flat();
+          s2.forEach((p2, r2) => {
+            const h2 = this.nodes[p2];
+            if (h2 == null) {
               ct3(new Error(`duck target orbit ${p2} does not exist`), "superdough");
               return;
             }
-            const u3 = d2[r] ?? d2[0], m4 = Math.max(l2[r] ?? l2[0], 2e-3), G6 = i2[r] ?? i2[0];
-            h.duck(n2, u3, m4, G6);
+            const u3 = d2[r2] ?? d2[0], m4 = Math.max(l2[r2] ?? l2[0], 2e-3), G5 = i2[r2] ?? i2[0];
+            h2.duck(n2, u3, m4, G5);
           });
         }
         getOrbit(t, n2) {
@@ -9892,26 +9892,26 @@ registerProcessor('${n2}', MyProcessor);
           j3(`[wavetable] load table ${t}..`, "load-table", { url: e });
           const n2 = Date.now();
           nt2[e] = fetch(e).then((o) => o.arrayBuffer()).then(async (o) => {
-            const a2 = Date.now() - n2, c3 = Go2(o.byteLength);
-            return j3(`[wavetable] load table ${t}... done! loaded ${c3} in ${a2}ms`, "loaded-table", { url: e }), await yo2(o);
+            const a2 = Date.now() - n2, c4 = Go2(o.byteLength);
+            return j3(`[wavetable] load table ${t}... done! loaded ${c4} in ${a2}ms`, "loaded-table", { url: e }), await yo2(o);
           });
         }
         return nt2[e];
       };
-      Nt3 = (e, t, n2, o = {}) => (t = e._base || t, Object.entries(e).forEach(([a2, c3]) => {
+      Nt3 = (e, t, n2, o = {}) => (t = e._base || t, Object.entries(e).forEach(([a2, c4]) => {
         if (a2 === "_base") return false;
-        if (typeof c3 == "string" && (c3 = [c3]), typeof c3 != "object")
+        if (typeof c4 == "string" && (c4 = [c4]), typeof c4 != "object")
           throw new Error("wrong json format for " + a2);
         let s2 = t;
-        s2.startsWith("github:") && (s2 = qt3(s2, "")), c3 = c3.map((d2) => s2 + d2).filter((d2) => d2.toLowerCase().endsWith(".wav") ? true : (j3(`[wavetable] skipping ${d2} -- wavetables must be ".wav" format`), false)), c3.length && _t3(a2, c3, { baseUrl: t, frameLen: n2 });
+        s2.startsWith("github:") && (s2 = qt3(s2, "")), c4 = c4.map((d2) => s2 + d2).filter((d2) => d2.toLowerCase().endsWith(".wav") ? true : (j3(`[wavetable] skipping ${d2} -- wavetables must be ".wav" format`), false)), c4.length && _t3(a2, c4, { baseUrl: t, frameLen: n2 });
       }));
       Ao2 = async (e, t, n2, o = {}) => {
         if (n2 !== void 0) return Nt3(n2, e, t);
         e.startsWith("github:") && (e = qt3(e, "strudel.json")), e.startsWith("local:") && (e = "http://localhost:5432");
         const a2 = Jt3(e);
         if (typeof fetch == "function" && !(typeof fetch > "u"))
-          return fetch(e).then((c3) => c3.json()).then((c3) => Nt3(c3, a2, t, o)).catch((c3) => {
-            throw console.error(c3), new Error(`error loading "${e}"`);
+          return fetch(e).then((c4) => c4.json()).then((c4) => Nt3(c4, a2, t, o)).catch((c4) => {
+            throw console.error(c4), new Error(`error loading "${e}"`);
           });
       };
       $t3 = 128;
@@ -9978,7 +9978,7 @@ registerProcessor('${n2}', MyProcessor);
         }
       };
       No2 = async (e, t, n2, o = 0.5, a2 = 0.5) => {
-        const c3 = { main: {} }, s2 = z2(), d2 = Zt3();
+        const c4 = { main: {} }, s2 = z2(), d2 = Zt3();
         let { stretch: l2 } = e;
         if (l2 != null && (t = t - 0.04), typeof e != "object")
           throw new Error(
@@ -9994,17 +9994,17 @@ registerProcessor('${n2}', MyProcessor);
         let {
           s: i2 = U3("s"),
           bank: p2,
-          source: r,
-          postgain: h = U3("postgain"),
+          source: r2,
+          postgain: h2 = U3("postgain"),
           duckorbit: u3,
           duckonset: m4,
-          duckattack: G6,
+          duckattack: G5,
           duckdepth: b2,
           djf: f4,
-          release: y3 = U3("release"),
+          release: y4 = U3("release"),
           dry: M3,
-          delay: Z6 = U3("delay"),
-          delayfeedback: W8 = U3("delayfeedback"),
+          delay: Z5 = U3("delay"),
+          delayfeedback: W7 = U3("delayfeedback"),
           delaysync: S7 = U3("delaysync"),
           delaytime: Q6,
           orbit: F5 = U3("orbit"),
@@ -10015,44 +10015,44 @@ registerProcessor('${n2}', MyProcessor);
           roomlp: I4,
           roomdim: k6,
           roomsize: O2,
-          ir: w6,
+          ir: w7,
           irspeed: E5,
-          irbegin: ee6,
-          i: he5 = U3("i"),
+          irbegin: ee5,
+          i: he4 = U3("i"),
           analyze: Re3,
           // analyser wet
           fft: Qe3 = U3("fft"),
           // fftSize 0 - 10
           FX: de4 = [],
-          FXrelease: be5
+          FXrelease: be4
         } = e;
         Q6 = Q6 ?? Lt3(S7, o);
-        const ve5 = Ht2(
+        const ve4 = Ht2(
           tn2 && F5 > 0 ? [F5 * 2 - 1, F5 * 2] : U3("channels")
-        ), Ye4 = e.channels != null ? Ht2(e.channels) : ve5, oe4 = d2.getOrbit(F5, Ye4);
-        u3 != null && d2.duck(u3, t, m4, G6, b2), h = ie3(h), Z6 = ie3(Z6), g3 = ie3(g3);
-        const me5 = t + n2, Ee4 = Math.max(y3, be5 ?? 0), le4 = me5 + Ee4, Oe4 = Math.round(Math.random() * 1e6);
-        for (let R6 = 0; R6 <= Ne2.size - en3; R6++) {
+        ), Ye3 = e.channels != null ? Ht2(e.channels) : ve4, oe4 = d2.getOrbit(F5, Ye3);
+        u3 != null && d2.duck(u3, t, m4, G5, b2), h2 = ie3(h2), Z5 = ie3(Z5), g3 = ie3(g3);
+        const me4 = t + n2, Ee4 = Math.max(y4, be4 ?? 0), le4 = me4 + Ee4, Oe4 = Math.round(Math.random() * 1e6);
+        for (let R5 = 0; R5 <= Ne2.size - en3; R5++) {
           const X3 = Ne2.entries().next(), v2 = X3.value[1].deref(), L6 = X3.value[0], P4 = t + 0.25;
           v2?.node?.gain?.linearRampToValueAtTime(0, P4), v2?.stop?.(P4), Ne2.delete(L6);
         }
         if (["-", "~", "_"].includes(i2))
           return;
         p2 && i2 && (i2 = `${p2}_${i2}`, e.s = i2);
-        const x3 = new go2();
+        const x4 = new go2();
         let Se4;
-        if (r)
-          Se4 = r(t, e, n2, o), c3.main.source = [Se4];
+        if (r2)
+          Se4 = r2(t, e, n2, o), c4.main.source = [Se4];
         else if (Me3(i2)) {
-          const { onTrigger: R6 } = Me3(i2), v2 = await R6(t, e, () => pe3(
+          const { onTrigger: R5 } = Me3(i2), v2 = await R5(t, e, () => pe3(
             s2,
             () => {
-              x3.releaseNodes(), Ne2.delete(Oe4);
+              x4.releaseNodes(), Ne2.delete(Oe4);
             },
             0,
             le4
           ), o);
-          v2 && (Se4 = v2.node, Ne2.set(Oe4, new WeakRef(v2)), c3.main = { ...c3.main, ...v2.nodes });
+          v2 && (Se4 = v2.node, Ne2.set(Oe4, new WeakRef(v2)), c4.main = { ...c4.main, ...v2.nodes });
         } else
           throw new Error(`sound ${i2} not found! Is it loaded?`);
         if (!Se4)
@@ -10061,11 +10061,11 @@ registerProcessor('${n2}', MyProcessor);
           j3("[webaudio] skip hap: still loading", s2.currentTime - t);
           return;
         }
-        x3.connect(Se4), de4 = [...de4, e];
-        for (let [R6, X3] of Object.entries(de4)) {
-          const v2 = R6 == de4.length - 1 ? "main" : R6;
-          c3[v2] ??= {};
-          const L6 = c3[v2];
+        x4.connect(Se4), de4 = [...de4, e];
+        for (let [R5, X3] of Object.entries(de4)) {
+          const v2 = R5 == de4.length - 1 ? "main" : R5;
+          c4[v2] ??= {};
+          const L6 = c4[v2];
           let {
             gain: P4 = U3("gain"),
             velocity: te5 = U3("velocity"),
@@ -10082,13 +10082,13 @@ registerProcessor('${n2}', MyProcessor);
           } = X3;
           if (P4 = ie3(re3(P4, 1)), De3 = ie3(De3), Ae4 = ie3(Ae4), te5 = ie3(te5), ke4 = ie3(ke4), P4 *= te5, Ie2 = Ie2 ?? Lt3(dn2, o), X3.workletSrc !== void 0) {
             const V5 = q3(s2, "generic-processor", {}, { outputChannelCount: [2] });
-            x3.connect(V5);
+            x4.connect(V5);
             const H6 = X3.workletSrc.replace(/\bpat\[(\d+)\]/g, (A5, Ke3) => X3.workletInputs[Ke3]).replaceAll("sFreq", Xe3(e)).replaceAll("sGate", `cc('strudel-gate-${Oe4}')`), { src: B6, ugens: J6, registers: D6 } = compileKabel(H6);
-            V5.port.postMessage({ src: B6, schema: { ugens: J6, registers: D6 }, start: t, gateEnd: me5, end: le4 });
+            V5.port.postMessage({ src: B6, schema: { ugens: J6, registers: D6 }, start: t, gateEnd: me4, end: le4 });
           }
           if (X3.stretch !== void 0) {
             const V5 = q3(s2, "phase-vocoder-processor", { pitchFactor: X3.stretch });
-            x3.connect(V5), L6.stretch = [V5];
+            x4.connect(V5), L6.stretch = [V5];
           }
           if (X3.transient !== void 0) {
             const V5 = q3(
@@ -10104,11 +10104,11 @@ registerProcessor('${n2}', MyProcessor);
                 }
               }
             );
-            x3.connect(V5), L6.transient = V5;
+            x4.connect(V5), L6.transient = V5;
           }
           const Mt3 = T2(P4);
-          L6.gain = [Mt3], x3.connect(Mt3);
-          const qe4 = So2(e.ftype), Ze3 = (V5) => xn2(s2, t, me5, V5, o, a2);
+          L6.gain = [Mt3], x4.connect(Mt3);
+          const qe4 = So2(e.ftype), Ze3 = (V5) => xn2(s2, t, me4, V5, o, a2);
           if (X3.cutoff !== void 0) {
             const H6 = et3(X3, {
               frequency: "cutoff",
@@ -10131,9 +10131,9 @@ registerProcessor('${n2}', MyProcessor);
             });
             H6.type = "lowpass";
             const { filter: B6, lfo: J6 } = Ze3(H6);
-            if (L6.lpf = [B6], L6.lpf_lfo = [J6], x3.connect(B6), J6 && x3.audioNodes.push(J6), qe4 === "24db") {
+            if (L6.lpf = [B6], L6.lpf_lfo = [J6], x4.connect(B6), J6 && x4.audioNodes.push(J6), qe4 === "24db") {
               const { filter: D6, lfo: A5 } = Ze3(H6);
-              L6.lpf.push(D6), L6.lpf_lfo.push(A5), x3.connect(D6), A5 && x3.audioNodes.push(A5);
+              L6.lpf.push(D6), L6.lpf_lfo.push(A5), x4.connect(D6), A5 && x4.audioNodes.push(A5);
             }
           }
           if (X3.hcutoff !== void 0) {
@@ -10158,9 +10158,9 @@ registerProcessor('${n2}', MyProcessor);
             });
             H6.type = "highpass";
             const { filter: B6, lfo: J6 } = Ze3(H6);
-            if (L6.hpf = [B6], L6.hpf_lfo = [J6], J6 && x3.audioNodes.push(J6), x3.connect(B6), qe4 === "24db") {
+            if (L6.hpf = [B6], L6.hpf_lfo = [J6], J6 && x4.audioNodes.push(J6), x4.connect(B6), qe4 === "24db") {
               const { filter: D6, lfo: A5 } = Ze3(H6);
-              L6.hpf.push(D6), L6.hpf_lfo.push(A5), x3.connect(D6), A5 && x3.audioNodes.push(A5);
+              L6.hpf.push(D6), L6.hpf_lfo.push(A5), x4.connect(D6), A5 && x4.audioNodes.push(A5);
             }
           }
           if (X3.bandf !== void 0) {
@@ -10185,30 +10185,30 @@ registerProcessor('${n2}', MyProcessor);
             });
             H6.type = "bandpass";
             const { filter: B6, lfo: J6 } = Ze3(H6);
-            if (L6.bpf = [B6], L6.bpf_lfo = [J6], x3.connect(B6), J6 && x3.audioNodes.push(J6), qe4 === "24db") {
+            if (L6.bpf = [B6], L6.bpf_lfo = [J6], x4.connect(B6), J6 && x4.audioNodes.push(J6), qe4 === "24db") {
               const { filter: D6, lfo: A5 } = Ze3(H6);
-              L6.bpf.push(D6), L6.bpf_lfo.push(A5), x3.connect(D6), A5 && x3.audioNodes.push(A5);
+              L6.bpf.push(D6), L6.bpf_lfo.push(A5), x4.connect(D6), A5 && x4.audioNodes.push(A5);
             }
           }
           if (X3.vowel !== void 0) {
             const V5 = s2.createVowelFilter(X3.vowel);
-            L6.vowel = V5.filters, x3.connect(V5);
+            L6.vowel = V5.filters, x4.connect(V5);
           }
           if (X3.coarse !== void 0) {
             const V5 = q3(s2, "coarse-processor", { coarse: X3.coarse });
-            L6.coarse = [V5], x3.connect(V5);
+            L6.coarse = [V5], x4.connect(V5);
           }
           if (X3.crush !== void 0) {
             const V5 = q3(s2, "crush-processor", { crush: X3.crush });
-            L6.crush = [V5], x3.connect(V5);
+            L6.crush = [V5], x4.connect(V5);
           }
           if (X3.shape !== void 0) {
             const V5 = q3(s2, "shape-processor", { shape: X3.shape, postgain: De3 });
-            L6.shape = [V5], x3.connect(V5);
+            L6.shape = [V5], x4.connect(V5);
           }
           if (X3.distort !== void 0) {
             const V5 = Cn2(X3.distort, Ae4, sn2);
-            L6.distort = [V5], x3.connect(V5);
+            L6.distort = [V5], x4.connect(V5);
           }
           let _e4 = X3.tremolo;
           if (X3.tremolosync != null && (_e4 = o * X3.tremolosync), _e4 !== void 0) {
@@ -10226,7 +10226,7 @@ registerProcessor('${n2}', MyProcessor);
               begin: t,
               end: le4
             });
-            L6.tremolo = [J6], L6.tremolo_gain = [H6], J6.connect(H6.gain), x3.audioNodes.push(J6), x3.connect(H6);
+            L6.tremolo = [J6], L6.tremolo_gain = [H6], J6.connect(H6.gain), x4.audioNodes.push(J6), x4.connect(H6);
           }
           if (X3.compressor !== void 0) {
             const V5 = Ln2(
@@ -10237,11 +10237,11 @@ registerProcessor('${n2}', MyProcessor);
               X3.compressorAttack,
               X3.compressorRelease
             );
-            L6.compressor = [V5], x3.connect(V5);
+            L6.compressor = [V5], x4.connect(V5);
           }
           if (X3.pan !== void 0) {
             const V5 = s2.createStereoPanner();
-            L6.pan = [V5], V5.pan.value = 2 * X3.pan - 1, x3.connect(V5);
+            L6.pan = [V5], V5.pan.value = 2 * X3.pan - 1, x4.connect(V5);
           }
           if (X3.phaserrate !== void 0 && Wt3 > 0) {
             const { filterChain: V5, lfo: H6 } = Yo2(
@@ -10252,13 +10252,13 @@ registerProcessor('${n2}', MyProcessor);
               X3.phasercenter,
               X3.phasersweep
             );
-            L6.phaser = [...V5], L6.phaser_lfo = [H6], V5.forEach((B6) => x3.connect(B6)), x3.audioNodes.push(H6);
+            L6.phaser = [...V5], L6.phaser_lfo = [H6], V5.forEach((B6) => x4.connect(B6)), x4.audioNodes.push(H6);
           }
           if (v2 !== "main" && ft2 > 0 && Ie2 > 0 && Pe3 > 0) {
             const V5 = T2(1);
             Pe3 = se2(Pe3, 0, 0.98);
             const H6 = s2.createFeedbackDelay(1, Ie2, Pe3), B6 = T2(ft2), J6 = T2(X3.dry ?? 1), D6 = new GainNode(s2, { gain: 1, channelCount: 2, channelCountMode: "explicit" });
-            x3.connect(V5).connect(J6, H6).connectOne(1, B6).connect(D6), x3.audioNodes.push(H6.feedbackGain, H6.delayGain), L6.delay = [H6], L6.delay_mix = [B6];
+            x4.connect(V5).connect(J6, H6).connectOne(1, B6).connect(D6), x4.audioNodes.push(H6.feedbackGain, H6.delayGain), L6.delay = [H6], L6.delay_mix = [B6];
           }
           if (v2 !== "main" && X3.room > 0) {
             let V5;
@@ -10275,54 +10275,54 @@ registerProcessor('${n2}', MyProcessor);
               X3.irspeed,
               X3.irbegin
             ), J6 = T2(X3.room), D6 = T2(X3.dry ?? 1), A5 = new GainNode(s2, { gain: 1, channelCount: 2, channelCountMode: "explicit" });
-            x3.connect(H6).connect(D6, B6).connectOne(1, J6).connect(A5), L6.room = [B6], L6.room_mix = [J6];
+            x4.connect(H6).connect(D6, B6).connectOne(1, J6).connect(A5), L6.room = [B6], L6.room_mix = [J6];
           }
         }
-        if (be5 !== void 0 && be5 > y3) {
-          const R6 = T2(1);
-          R6.gain.setValueAtTime(1, me5 + y3), R6.gain.linearRampToValueAtTime(0, le4), x3.connect(R6);
+        if (be4 !== void 0 && be4 > y4) {
+          const R5 = T2(1);
+          R5.gain.setValueAtTime(1, me4 + y4), R5.gain.linearRampToValueAtTime(0, le4), x4.connect(R5);
         }
-        const Ge2 = new GainNode(s2, { gain: h });
-        if (c3.main.post = [Ge2], x3.connect(Ge2), Z6 > 0 && Q6 > 0 && W8 > 0) {
-          const R6 = oe4.getDelay(Q6, W8, t);
-          c3.main.delay = [R6];
-          const X3 = oe4.sendDelay(Ge2, Z6);
-          c3.main.delay_mix = [X3], x3.audioNodes.push(X3);
+        const Ge2 = new GainNode(s2, { gain: h2 });
+        if (c4.main.post = [Ge2], x4.connect(Ge2), Z5 > 0 && Q6 > 0 && W7 > 0) {
+          const R5 = oe4.getDelay(Q6, W7, t);
+          c4.main.delay = [R5];
+          const X3 = oe4.sendDelay(Ge2, Z5);
+          c4.main.delay_mix = [X3], x4.audioNodes.push(X3);
         }
         if (C7 > 0) {
-          let R6;
-          if (w6 !== void 0) {
-            let L6, P4 = Me3(w6);
-            Array.isArray(P4) ? L6 = P4.data.samples[he5 % P4.data.samples.length] : typeof P4 == "object" && (L6 = Object.values(P4.data.samples).flat()[he5 % Object.values(P4.data.samples).length]), R6 = await dt3(L6, s2, w6, 0);
+          let R5;
+          if (w7 !== void 0) {
+            let L6, P4 = Me3(w7);
+            Array.isArray(P4) ? L6 = P4.data.samples[he4 % P4.data.samples.length] : typeof P4 == "object" && (L6 = Object.values(P4.data.samples).flat()[he4 % Object.values(P4.data.samples).length]), R5 = await dt3(L6, s2, w7, 0);
           }
-          const X3 = oe4.getReverb(O2, K4, I4, k6, R6, E5, ee6);
-          c3.main.room = [X3];
+          const X3 = oe4.getReverb(O2, K4, I4, k6, R5, E5, ee5);
+          c4.main.room = [X3];
           const v2 = oe4.sendReverb(Ge2, C7);
-          c3.main.room_mix = [v2], x3.audioNodes.push(v2);
+          c4.main.room_mix = [v2], x4.audioNodes.push(v2);
         }
         if (N5 != null) {
-          const R6 = d2.getBus(N5), X3 = Ue3(Ge2, R6, g3);
-          x3.audioNodes.push(X3);
+          const R5 = d2.getBus(N5), X3 = Ue3(Ge2, R5, g3);
+          x4.audioNodes.push(X3);
         }
         if (f4 != null) {
-          const R6 = oe4.getDjf(f4, t);
-          c3.main.djf = [R6];
+          const R5 = oe4.getDjf(f4, t);
+          c4.main.djf = [R5];
         }
         if (Re3 && !(s2 instanceof OfflineAudioContext)) {
-          const R6 = Ko2(Re3, 2 ** (Qe3 + 5)), X3 = Ue3(Ge2, R6, 1);
-          x3.audioNodes.push(X3);
+          const R5 = Ko2(Re3, 2 ** (Qe3 + 5)), X3 = Ue3(Ge2, R5, 1);
+          x4.audioNodes.push(X3);
         }
         if (M3 != null) {
           M3 = ie3(M3);
-          const R6 = new GainNode(s2, { gain: M3 });
-          x3.connect(R6), oe4.connectToOutput(R6);
+          const R5 = new GainNode(s2, { gain: M3 });
+          x4.connect(R5), oe4.connectToOutput(R5);
         } else
           oe4.connectToOutput(Ge2);
-        de4.forEach((R6, X3) => {
+        de4.forEach((R5, X3) => {
           const v2 = X3 === de4.length - 1 ? "main" : X3;
-          if (R6.lfo)
-            for (const L6 of R6.lfo.__ids) {
-              const P4 = R6.lfo[L6];
+          if (R5.lfo)
+            for (const L6 of R5.lfo.__ids) {
+              const P4 = R5.lfo[L6];
               P4.fxi ??= v2;
               const te5 = On2(
                 L6,
@@ -10333,13 +10333,13 @@ registerProcessor('${n2}', MyProcessor);
                   begin: t,
                   end: le4
                 },
-                c3
+                c4
               );
-              te5 && x3.audioNodes.push(te5);
+              te5 && x4.audioNodes.push(te5);
             }
-          if (R6.env)
-            for (const L6 of R6.env.__ids) {
-              const P4 = R6.env[L6];
+          if (R5.env)
+            for (const L6 of R5.env.__ids) {
+              const P4 = R5.env[L6];
               P4.fxi ??= v2;
               const te5 = Dn2(
                 L6,
@@ -10348,16 +10348,16 @@ registerProcessor('${n2}', MyProcessor);
                   begin: t,
                   end: le4
                 },
-                c3
+                c4
               );
-              te5 && x3.audioNodes.push(te5);
+              te5 && x4.audioNodes.push(te5);
             }
-          if (R6.bmod)
-            for (const L6 of R6.bmod.__ids) {
-              const P4 = R6.bmod[L6];
+          if (R5.bmod)
+            for (const L6 of R5.bmod.__ids) {
+              const P4 = R5.bmod[L6];
               P4.fxi ??= v2;
-              const { toCleanup: te5 } = An2({ ...P4, begin: t, end: le4 }, c3, ye3);
-              x3.audioNodes.push(...te5);
+              const { toCleanup: te5 } = An2({ ...P4, begin: t, end: le4 }, c4, ye3);
+              x4.audioNodes.push(...te5);
             }
         });
       };
@@ -10378,26 +10378,26 @@ registerProcessor('${n2}', MyProcessor);
           note: o = 36,
           freq: a2,
           //
-          zrand: c3 = 0,
+          zrand: c4 = 0,
           attack: s2 = 0,
           decay: d2 = 0,
           sustain: l2 = 0.8,
           release: i2 = 0.1,
           curve: p2 = 1,
-          slide: r = 0,
-          deltaSlide: h = 0,
+          slide: r2 = 0,
+          deltaSlide: h2 = 0,
           pitchJump: u3 = 0,
           pitchJumpTime: m4 = 0,
-          lfo: G6 = 0,
+          lfo: G5 = 0,
           znoise: b2 = 0,
           zmod: f4 = 0,
-          zcrush: y3 = 0,
+          zcrush: y4 = 0,
           zdelay: M3 = 0,
-          tremolo: Z6 = 0,
-          duration: W8 = 0.2,
+          tremolo: Z5 = 0,
+          duration: W7 = 0.2,
           zzfx: S7
         } = e;
-        const Q6 = Math.max(W8 - s2 - d2, 0);
+        const Q6 = Math.max(W7 - s2 - d2, 0);
         typeof o == "string" && (o = Be3(o)), !a2 && typeof o == "number" && (a2 = kt3(o)), n2 = n2.replace("z_", "");
         const F5 = ["sine", "triangle", "sawtooth", "tan", "noise"].indexOf(n2) || 0;
         p2 = n2 === "square" ? 0 : p2;
@@ -10406,26 +10406,26 @@ registerProcessor('${n2}', MyProcessor);
           ko2(...S7 || [
             0.25,
             // volume
-            c3,
+            c4,
             a2,
             s2,
             Q6,
             i2,
             F5,
             p2,
-            r,
-            h,
+            r2,
+            h2,
             u3,
             m4,
-            G6,
+            G5,
             b2,
             f4,
-            y3,
+            y4,
             M3,
             l2,
             // sustain volume!
             d2,
-            Z6
+            Z5
           ])
         ), C7 = z2(), K4 = C7.createBuffer(1, g3.length, C7.sampleRate);
         K4.getChannelData(0).set(g3);
@@ -10459,284 +10459,218 @@ registerProcessor('${n2}', MyProcessor);
     }
   });
 
-  // node_modules/@strudel/draw/dist/index.mjs
-  function pe4(t) {
-    $4[t] !== void 0 && (cancelAnimationFrame($4[t]), delete $4[t]);
-  }
-  function W3() {
-    return ye4;
-  }
-  function ee3({
-    time: t,
-    haps: e,
-    cycles: n2 = 4,
-    playhead: o = 0.5,
-    flipTime: a2 = 0,
-    flipValues: r = 0,
-    hideNegative: l2 = false,
-    inactive: f4 = W3().foreground,
-    active: i2 = W3().foreground,
-    background: g3 = "transparent",
-    smear: u3 = 0,
-    playheadColor: c3 = W3().foreground,
-    minMidi: b2 = 10,
-    maxMidi: d2 = 90,
-    autorange: w6 = 0,
-    timeframe: p2,
-    fold: k6 = 1,
-    vertical: h = 0,
-    labels: S7 = false,
-    fill: A5 = 1,
-    fillActive: v2 = false,
-    strokeActive: y3 = true,
-    stroke: P4,
-    hideInactive: H6 = 0,
-    colorizeInactive: q8 = 1,
-    fontFamily: C7,
-    ctx: s2,
-    id: _7
-  } = {}) {
-    const T7 = s2.canvas.width, I4 = s2.canvas.height;
-    let z5 = -n2 * o, j7 = n2 * (1 - o);
-    _7 && (e = e.filter((m4) => m4.hasTag(_7))), p2 && (console.warn("timeframe is deprecated! use from/to instead"), z5 = 0, j7 = p2);
-    const N5 = h ? I4 : T7, E5 = h ? T7 : I4;
-    let L6 = h ? [N5, 0] : [0, N5];
-    const J6 = j7 - z5, te5 = h ? [0, E5] : [E5, 0];
-    let K4 = d2 - b2 + 1, D6 = E5 / K4, Q6 = [];
-    a2 && L6.reverse(), r && te5.reverse();
-    const { min: ke4, max: Pe3, values: Te5 } = e.reduce(
-      ({ min: m4, max: F5, values: X3 }, Y6) => {
-        const M3 = he3(Y6);
-        return {
-          min: M3 < m4 ? M3 : m4,
-          max: M3 > F5 ? M3 : F5,
-          values: X3.includes(M3) ? X3 : [...X3, M3]
-        };
-      },
-      { min: 1 / 0, max: -1 / 0, values: [] }
-    );
-    w6 && (b2 = ke4, d2 = Pe3, K4 = d2 - b2 + 1), Q6 = Te5.sort(
-      (m4, F5) => typeof m4 == "number" && typeof F5 == "number" ? m4 - F5 : typeof m4 == "number" ? 1 : String(m4).localeCompare(String(F5))
-    ), D6 = k6 ? E5 / Q6.length : E5 / K4, s2.fillStyle = g3, s2.globalAlpha = 1, u3 || (s2.clearRect(0, 0, T7, I4), s2.fillRect(0, 0, T7, I4)), e.forEach((m4) => {
-      const F5 = m4.whole.begin <= t && m4.endClipped > t;
-      let X3 = P4 ?? (y3 && F5), Y6 = !F5 && A5 || F5 && v2;
-      if (H6 && !F5)
-        return;
-      let M3 = m4.value?.color;
-      i2 = M3 || i2, f4 = q8 && M3 || f4, M3 = F5 ? i2 : f4, s2.fillStyle = Y6 ? M3 : "transparent", s2.strokeStyle = M3;
-      const { velocity: Ae4 = 1, gain: qe4 = 1 } = m4.value || {};
-      s2.globalAlpha = Ae4 * qe4;
-      const Fe4 = (m4.whole.begin - (a2 ? j7 : z5)) / J6, ne5 = G2(Fe4, ...L6);
-      let B6 = G2(m4.duration / J6, 0, N5);
-      const re7 = he3(m4), Me5 = k6 ? Q6.indexOf(re7) / Q6.length : (Number(re7) - b2) / K4, ae5 = G2(Me5, ...te5);
-      let oe4 = 0;
-      const ie6 = G2(t / J6, ...L6);
-      let V5;
-      if (h ? V5 = [
-        ae5 + 1 - (r ? D6 : 0),
-        // x
-        N5 - ie6 + ne5 + oe4 + 1 - (a2 ? 0 : B6),
-        // y
-        D6 - 2,
-        // width
-        B6 - 2
-        // height
-      ] : V5 = [
-        ne5 - ie6 + oe4 + 1 - (a2 ? B6 : 0),
-        // x
-        ae5 + 1 - (r ? 0 : D6),
-        // y
-        B6 - 2,
-        // widith
-        D6 - 2
-        // height
-      ], X3 && s2.strokeRect(...V5), Y6 && s2.fillRect(...V5), S7) {
-        const Se4 = m4.value.note ?? m4.value.s + (m4.value.n ? `:${m4.value.n}` : ""), { label: le4, activeLabel: Ce5 } = m4.value, He3 = (F5 && Ce5 || le4) ?? Se4;
-        let Ie2 = h ? B6 : D6 * 0.75;
-        s2.font = `${Ie2}px ${C7 || "monospace"}`, s2.fillStyle = /* isActive &&  */
-        Y6 ? "black" : M3, s2.textBaseline = "top", s2.fillText(He3, ...V5);
-      }
-    }), s2.globalAlpha = 1;
-    const U8 = G2(-z5 / J6, ...L6);
-    return s2.strokeStyle = c3, s2.beginPath(), h ? (s2.moveTo(0, U8), s2.lineTo(E5, U8)) : (s2.moveTo(U8, 0), s2.lineTo(U8, E5)), s2.stroke(), this;
-  }
-  function ve3(t, e = {}) {
-    let [n2, o] = t;
-    n2 = Math.abs(n2);
-    const a2 = o + n2, r = a2 !== 0 ? n2 / a2 : 0;
-    return { fold: 1, ...e, cycles: a2, playhead: r };
-  }
-  function Xe4(t, e, n2, o) {
-    const a2 = (t - 90) * Math.PI / 180;
-    return [n2 + Math.cos(a2) * e, o + Math.sin(a2) * e];
-  }
-  function me3(t) {
-    let {
-      ctx: e,
-      from: n2 = 0,
-      to: o = 3,
-      margin: a2 = 50,
-      cx: r = 100,
-      cy: l2 = 100,
-      rotate: f4 = 0,
-      thickness: i2 = a2 / 2,
-      color: g3 = W3().foreground,
-      cap: u3 = "round",
-      stretch: c3 = 1,
-      fromOpacity: b2 = 1,
-      toOpacity: d2 = 1
-    } = t;
-    n2 *= c3, o *= c3, f4 *= c3, e.lineWidth = i2, e.lineCap = u3, e.strokeStyle = g3, e.globalAlpha = b2, e.beginPath();
-    let [w6, p2] = ue4(n2, a2, r, l2, f4);
-    e.moveTo(w6, p2);
-    const k6 = 1 / 60;
-    let h = n2;
-    for (; h <= o; ) {
-      const [S7, A5] = ue4(h, a2, r, l2, f4);
-      e.globalAlpha = (h - n2) / (o - n2) * d2, e.lineTo(S7, A5), h += k6;
+  // src/algorave/vendor/draw/draw.mjs
+  function stopAnimationFrame(id2) {
+    if (animationFrames[id2] !== void 0) {
+      cancelAnimationFrame(animationFrames[id2]);
+      delete animationFrames[id2];
     }
-    e.stroke();
+    delete animationCallbacks[id2];
   }
-  function Ye3(t) {
-    let {
-      stretch: e = 1,
-      size: n2 = 80,
-      thickness: o = n2 / 2,
-      cap: a2 = "butt",
-      // round butt squar,
-      inset: r = 3,
-      // start angl,
-      playheadColor: l2 = "#ffffff",
-      playheadLength: f4 = 0.02,
-      playheadThickness: i2 = o,
-      padding: g3 = 0,
-      steady: u3 = 1,
-      activeColor: c3 = W3().foreground,
-      inactiveColor: b2 = W3().gutterForeground,
-      colorizeInactive: d2 = 0,
-      fade: w6 = true,
-      // logSpiral = true,
-      ctx: p2,
-      time: k6,
-      haps: h,
-      drawTime: S7,
-      id: A5
-    } = t;
-    A5 && (h = h.filter((T7) => T7.hasTag(A5)));
-    const [v2, y3] = [p2.canvas.width, p2.canvas.height];
-    p2.clearRect(0, 0, v2 * 2, y3 * 2);
-    const [P4, H6] = [v2 / 2, y3 / 2], q8 = {
-      margin: n2 / e,
-      cx: P4,
-      cy: H6,
-      stretch: e,
-      cap: a2,
-      thickness: o
-    }, C7 = {
-      ...q8,
-      thickness: i2,
-      from: r - f4,
-      to: r,
-      color: l2
-    }, [s2] = S7, _7 = u3 * k6;
-    h.forEach((T7) => {
-      const I4 = T7.whole.begin <= k6 && T7.endClipped > k6, z5 = T7.whole.begin - k6 + r, j7 = T7.endClipped - k6 + r - g3, N5 = T7.value?.color || c3, E5 = d2 || I4 ? N5 : b2, L6 = w6 ? 1 - Math.abs((T7.whole.begin - k6) / s2) : 1;
-      me3({
-        ctx: p2,
-        ...q8,
-        from: z5,
-        to: j7,
-        rotate: _7,
-        color: E5,
-        fromOpacity: L6,
-        toOpacity: L6
-      });
-    }), me3({
-      ctx: p2,
-      ...C7,
-      rotate: _7
-    });
+  function stopAllAnimations(replID) {
+    Object.keys(animationFrames).forEach((id2) => (!replID || id2.startsWith(replID)) && stopAnimationFrame(id2));
   }
-  function Ve3({
-    haps: t,
-    ctx: e,
-    id: n2,
-    hapcircles: o = 1,
-    circle: a2 = 0,
-    edo: r = 12,
-    root: l2 = Be4,
-    thickness: f4 = 3,
-    hapRadius: i2 = 6,
-    mode: g3 = "flake",
-    margin: u3 = 10
-  } = {}) {
-    const c3 = g3 === "polygon", b2 = g3 === "flake", d2 = e.canvas.width, w6 = e.canvas.height;
-    e.clearRect(0, 0, d2, w6);
-    const p2 = W3().foreground, h = Math.min(d2, w6) / 2 - f4 / 2 - i2 - u3, S7 = d2 / 2, A5 = w6 / 2;
-    n2 && (t = t.filter((y3) => y3.hasTag(n2))), e.strokeStyle = p2, e.fillStyle = p2, e.globalAlpha = 1, e.lineWidth = f4, a2 && (e.beginPath(), e.arc(S7, A5, h, 0, 2 * Math.PI), e.stroke()), r && (Array.from({ length: r }, (y3, P4) => {
-      const H6 = be3(l2 * Math.pow(2, P4 / r), l2), [q8, C7] = ge4(S7, A5, h, H6);
-      e.beginPath(), e.arc(q8, C7, i2, 0, 2 * Math.PI), e.fill();
-    }), e.stroke());
-    let v2 = [];
-    e.lineWidth = i2, t.forEach((y3) => {
-      let P4;
-      try {
-        P4 = rh(y3);
-      } catch {
-        return;
-      }
-      const H6 = be3(P4, l2), [q8, C7] = ge4(S7, A5, h, H6), s2 = y3.value.color || p2;
-      e.strokeStyle = s2, e.fillStyle = s2;
-      const { velocity: _7 = 1, gain: T7 = 1 } = y3.value || {}, I4 = _7 * T7;
-      e.globalAlpha = I4, v2.push([q8, C7, H6, s2, I4]), e.beginPath(), o && (e.moveTo(q8 + i2, C7), e.arc(q8, C7, i2, 0, 2 * Math.PI), e.fill()), b2 && (e.moveTo(S7, A5), e.lineTo(q8, C7)), e.stroke();
-    }), e.strokeStyle = p2, e.globalAlpha = 1, c3 && v2.length && (v2 = v2.sort((y3, P4) => y3[2] - P4[2]), e.beginPath(), e.moveTo(v2[0][0], v2[0][1]), v2.forEach(([y3, P4, H6, q8, C7]) => {
-      e.strokeStyle = q8, e.globalAlpha = C7, e.lineTo(y3, P4);
-    }), e.lineTo(v2[0][0], v2[0][1]), e.stroke());
+  function pauseDraw() {
+    const snapshot = { callbacks: { ...animationCallbacks }, memory, theme: { ...theme } };
+    stopAllAnimations();
+    memory = {};
+    return snapshot;
   }
-  var Z3, $4, R2, ye4, fe4, we4, xe4, et4, tt3, nt3, rt4, at4, ot4, it4, lt4, st3, G2, he3, je4, ue4, Be4, ge4, be3;
-  var init_dist5 = __esm({
-    "node_modules/@strudel/draw/dist/index.mjs"() {
+  function restoreDraw(snapshot, running = true) {
+    stopAllAnimations();
+    memory = snapshot.memory;
+    theme = snapshot.theme;
+    if (running) for (const [id2, callback] of Object.entries(snapshot.callbacks)) {
+      animationCallbacks[id2] = callback;
+      animationFrames[id2] = requestAnimationFrame(callback);
+    }
+  }
+  function disposeDrawCanvases(canvases) {
+    for (const canvas of canvases) {
+      canvasDisposers.get(canvas)?.();
+      canvasDisposers.delete(canvas);
+      canvas.remove();
+    }
+  }
+  function getComputedPropertyValue(name2) {
+    if (typeof window === "undefined") {
+      return "#fff";
+    }
+    return getComputedStyle(document.documentElement).getPropertyValue(name2);
+  }
+  function getTheme() {
+    return theme;
+  }
+  function setTheme(_theme) {
+    theme = _theme;
+  }
+  var canvasDisposers, getDrawContext, animationFrames, animationCallbacks, hasDrawCallbacks, memory, cleanupDraw, Framer, Drawer, theme;
+  var init_draw = __esm({
+    "src/algorave/vendor/draw/draw.mjs"() {
       init_dist2();
-      Z3 = (t = "test-canvas", e) => {
-        let { contextType: n2 = "2d", pixelated: o = false, pixelRatio: a2 = window.devicePixelRatio } = e || {}, r = document.querySelector("#" + t);
-        if (!r) {
-          r = document.createElement("canvas"), r.id = t, r.width = window.innerWidth * a2, r.height = window.innerHeight * a2, r.style = "pointer-events:none;width:100%;height:100%;position:fixed;top:0;left:0", o && (r.style.imageRendering = "pixelated"), document.body.prepend(r);
-          let l2;
-          window.addEventListener("resize", () => {
-            l2 && clearTimeout(l2), l2 = setTimeout(() => {
-              r.width = window.innerWidth * a2, r.height = window.innerHeight * a2;
+      canvasDisposers = /* @__PURE__ */ new WeakMap();
+      getDrawContext = (id2 = "test-canvas", options) => {
+        let { contextType = "2d", pixelated = false, pixelRatio = window.devicePixelRatio } = options || {};
+        let canvas = document.querySelector("#" + id2);
+        if (!canvas) {
+          canvas = document.createElement("canvas");
+          canvas.id = id2;
+          canvas.setAttribute("role", "img");
+          canvas.setAttribute("aria-label", "Strudel drawing");
+          canvas.width = window.innerWidth * pixelRatio;
+          canvas.height = window.innerHeight * pixelRatio;
+          canvas.style = "pointer-events:none;width:100%;height:100%;position:fixed;top:0;left:0";
+          pixelated && (canvas.style.imageRendering = "pixelated");
+          document.body.prepend(canvas);
+          let timeout;
+          const resize = () => {
+            timeout && clearTimeout(timeout);
+            timeout = setTimeout(() => {
+              canvas.width = window.innerWidth * pixelRatio;
+              canvas.height = window.innerHeight * pixelRatio;
             }, 200);
+          };
+          window.addEventListener("resize", resize);
+          canvasDisposers.set(canvas, () => {
+            clearTimeout(timeout);
+            window.removeEventListener("resize", resize);
           });
         }
-        return r.getContext(n2, { willReadFrequently: true });
+        return canvas.getContext(contextType, { willReadFrequently: true });
       };
-      $4 = {};
-      R2 = {};
-      f2.prototype.draw = function(t, e) {
-        if (typeof window > "u")
+      animationFrames = {};
+      animationCallbacks = {};
+      hasDrawCallbacks = () => Object.keys(animationCallbacks).length > 0;
+      memory = {};
+      f2.prototype.draw = function(fn3, options) {
+        if (typeof window === "undefined") {
           return this;
-        let { id: n2 = 1, lookbehind: o = 0, lookahead: a2 = 0 } = e, r = Math.max(Wy(), 0);
-        pe4(n2), o = Math.abs(o), R2[n2] = (R2[n2] || []).filter((g3) => !g3.isInFuture(r));
-        let l2 = this.queryArc(r, r + a2).filter((g3) => g3.hasOnset());
-        R2[n2] = R2[n2].concat(l2);
-        let f4;
-        const i2 = () => {
-          const g3 = Wy(), u3 = g3 + a2;
-          R2[n2] = R2[n2].filter((d2) => d2.isInNearPast(o, g3));
-          let c3 = Math.max(f4 || u3, u3 - 1 / 10);
-          const b2 = this.queryArc(c3, u3).filter((d2) => d2.hasOnset());
-          R2[n2] = R2[n2].concat(b2), f4 = u3, t(R2[n2], g3, u3, this), $4[n2] = requestAnimationFrame(i2);
+        }
+        let { id: id2 = 1, lookbehind = 0, lookahead: lookahead2 = 0 } = options;
+        let __t = Math.max(Wy(), 0);
+        stopAnimationFrame(id2);
+        lookbehind = Math.abs(lookbehind);
+        memory[id2] = (memory[id2] || []).filter((h2) => !h2.isInFuture(__t));
+        let newFuture = this.queryArc(__t, __t + lookahead2).filter((h2) => h2.hasOnset());
+        memory[id2] = memory[id2].concat(newFuture);
+        let last;
+        const animate = () => {
+          const _t4 = Wy();
+          const t = _t4 + lookahead2;
+          memory[id2] = memory[id2].filter((h2) => h2.isInNearPast(lookbehind, _t4));
+          let begin = Math.max(last || t, t - 1 / 10);
+          const haps = this.queryArc(begin, t).filter((h2) => h2.hasOnset());
+          memory[id2] = memory[id2].concat(haps);
+          last = t;
+          fn3(memory[id2], _t4, t, this);
+          animationFrames[id2] = requestAnimationFrame(animate);
         };
-        return $4[n2] = requestAnimationFrame(i2), this;
+        animationCallbacks[id2] = animate;
+        animationFrames[id2] = requestAnimationFrame(animate);
+        return this;
       };
-      f2.prototype.onPaint = function(t) {
-        return this.withState((e) => (e.controls.painters || (e.controls.painters = []), e.controls.painters.push(t), e));
+      cleanupDraw = (clearScreen = true, id2) => {
+        const ctx = getDrawContext();
+        clearScreen && ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        stopAllAnimations(id2);
+      };
+      f2.prototype.onPaint = function(painter) {
+        return this.withState((state) => {
+          if (!state.controls.painters) {
+            state.controls.painters = [];
+          }
+          state.controls.painters.push(painter);
+          return state;
+        });
       };
       f2.prototype.getPainters = function() {
-        let t = [];
-        return this.queryArc(0, 0, { painters: t }), t;
+        let painters = [];
+        this.queryArc(0, 0, { painters });
+        return painters;
       };
-      ye4 = {
+      Framer = class {
+        constructor(onFrame, onError) {
+          this.onFrame = onFrame;
+          this.onError = onError;
+        }
+        start() {
+          const self = this;
+          let frame = requestAnimationFrame(function updateHighlights(time) {
+            try {
+              self.onFrame(time);
+            } catch (err) {
+              self.onError(err);
+            }
+            frame = requestAnimationFrame(updateHighlights);
+          });
+          self.cancel = () => {
+            cancelAnimationFrame(frame);
+          };
+        }
+        stop() {
+          if (this.cancel) {
+            this.cancel();
+          }
+        }
+      };
+      Drawer = class {
+        constructor(onDraw, drawTime) {
+          this.visibleHaps = [];
+          this.lastFrame = null;
+          this.drawTime = drawTime;
+          this.painters = [];
+          this.framer = new Framer(
+            () => {
+              if (!this.scheduler) {
+                console.warn("Drawer: no scheduler");
+                return;
+              }
+              const lookbehind = Math.abs(this.drawTime[0]);
+              const lookahead2 = this.drawTime[1];
+              const phase = this.scheduler.now() + lookahead2;
+              if (this.lastFrame === null) {
+                this.lastFrame = phase;
+                return;
+              }
+              const haps = this.scheduler.pattern.queryArc(Math.max(this.lastFrame, phase - 1 / 10), phase);
+              this.lastFrame = phase;
+              this.visibleHaps = (this.visibleHaps || []).filter((h2) => h2.whole && h2.endClipped >= phase - lookbehind - lookahead2).concat(haps.filter((h2) => h2.hasOnset()));
+              const time = phase - lookahead2;
+              onDraw(this.visibleHaps, time, this, this.painters);
+            },
+            (err) => {
+              console.warn("draw error", err);
+            }
+          );
+        }
+        setDrawTime(drawTime) {
+          this.drawTime = drawTime;
+        }
+        invalidate(scheduler = this.scheduler, t) {
+          if (!scheduler) {
+            return;
+          }
+          t = t ?? scheduler.now();
+          this.scheduler = scheduler;
+          let [_7, lookahead2] = this.drawTime;
+          const [begin, end] = [Math.max(t, 0), t + lookahead2 + 0.1];
+          this.visibleHaps = this.visibleHaps.filter((h2) => h2.whole?.begin < t);
+          this.painters = [];
+          const futureHaps = scheduler.pattern.queryArc(begin, end, { painters: this.painters });
+          this.visibleHaps = this.visibleHaps.concat(futureHaps);
+        }
+        start(scheduler) {
+          this.scheduler = scheduler;
+          this.invalidate();
+          this.framer.start();
+        }
+        stop() {
+          if (this.framer) {
+            this.framer.stop();
+          }
+        }
+      };
+      theme = {
         background: "#222",
         foreground: "#75baff",
         caret: "#ffcc00",
@@ -10746,104 +10680,791 @@ registerProcessor('${n2}', MyProcessor);
         gutterBackground: "transparent",
         gutterForeground: "#8a919966"
       };
-      fe4 = "#22222210";
-      f2.prototype.animate = function({ callback: t, sync: e = false, smear: n2 = 0.5 } = {}) {
+    }
+  });
+
+  // src/algorave/vendor/draw/animate.mjs
+  function pauseAnimation() {
+    window.frame && cancelAnimationFrame(window.frame);
+    window.frame = void 0;
+    const snapshot = { render: currentRender, clearColor };
+    currentRender = void 0;
+    return snapshot;
+  }
+  function restoreAnimation(snapshot, running = true) {
+    pauseAnimation();
+    clearColor = snapshot.clearColor;
+    currentRender = snapshot.render;
+    if (running && currentRender) window.frame = requestAnimationFrame(currentRender);
+  }
+  var clearColor, currentRender, hasAnimation, x2, y2, w3, h, angle, r, fill, smear, rescale, moveXY, zoomIn;
+  var init_animate = __esm({
+    "src/algorave/vendor/draw/animate.mjs"() {
+      init_dist2();
+      init_draw();
+      clearColor = "#22222210";
+      hasAnimation = () => !!currentRender;
+      f2.prototype.animate = function({ callback, sync = false, smear: smear2 = 0.5 } = {}) {
         window.frame && cancelAnimationFrame(window.frame);
-        const o = Z3();
-        let { clientWidth: a2, clientHeight: r } = o.canvas;
-        a2 *= window.devicePixelRatio, r *= window.devicePixelRatio;
-        let l2 = n2 === 0 ? "99" : Number((1 - n2) * 100).toFixed(0);
-        l2 = l2.length === 1 ? `0${l2}` : l2, fe4 = `#200010${l2}`;
-        const f4 = (i2) => {
-          let g3;
-          i2 = Math.round(i2), g3 = this.slow(1e3).queryArc(i2, i2), o.fillStyle = fe4, o.fillRect(0, 0, a2, r), g3.forEach((u3) => {
-            let { x: c3, y: b2, w: d2, h: w6, s: p2, r: k6, angle: h = 0, fill: S7 = "darkseagreen" } = u3.value;
-            if (d2 *= a2, w6 *= r, k6 !== void 0 && h !== void 0) {
-              const v2 = h * 2 * Math.PI, [y3, P4] = [(a2 - d2) / 2, (r - w6) / 2];
-              c3 = y3 + Math.cos(v2) * k6 * y3, b2 = P4 + Math.sin(v2) * k6 * P4;
-            } else
-              c3 *= a2 - d2, b2 *= r - w6;
-            const A5 = { ...u3.value, x: c3, y: b2, w: d2, h: w6 };
-            o.fillStyle = S7, p2 === "rect" ? o.fillRect(c3, b2, d2, w6) : p2 === "ellipse" && (o.beginPath(), o.ellipse(c3 + d2 / 2, b2 + w6 / 2, d2 / 2, w6 / 2, 0, 0, 2 * Math.PI), o.fill()), t && t(o, A5, u3);
-          }), window.frame = requestAnimationFrame(f4);
+        const ctx = getDrawContext();
+        let smearPart = smear2 === 0 ? "99" : Number((1 - smear2) * 100).toFixed(0);
+        smearPart = smearPart.length === 1 ? `0${smearPart}` : smearPart;
+        clearColor = `#200010${smearPart}`;
+        const render = (t) => {
+          let { clientWidth: ww2, clientHeight: wh2 } = ctx.canvas;
+          ww2 *= window.devicePixelRatio;
+          wh2 *= window.devicePixelRatio;
+          let frame;
+          t = Math.round(t);
+          frame = this.slow(1e3).queryArc(t, t);
+          ctx.fillStyle = clearColor;
+          ctx.fillRect(0, 0, ww2, wh2);
+          frame.forEach((f4) => {
+            let { x: x4, y: y4, w: w7, h: h2, s: s2, r: r2, angle: angle2 = 0, fill: fill2 = "darkseagreen" } = f4.value;
+            w7 *= ww2;
+            h2 *= wh2;
+            if (r2 !== void 0 && angle2 !== void 0) {
+              const radians = angle2 * 2 * Math.PI;
+              const [cx, cy2] = [(ww2 - w7) / 2, (wh2 - h2) / 2];
+              x4 = cx + Math.cos(radians) * r2 * cx;
+              y4 = cy2 + Math.sin(radians) * r2 * cy2;
+            } else {
+              x4 *= ww2 - w7;
+              y4 *= wh2 - h2;
+            }
+            const val = { ...f4.value, x: x4, y: y4, w: w7, h: h2 };
+            ctx.fillStyle = fill2;
+            if (s2 === "rect") {
+              ctx.fillRect(x4, y4, w7, h2);
+            } else if (s2 === "ellipse") {
+              ctx.beginPath();
+              ctx.ellipse(x4 + w7 / 2, y4 + h2 / 2, w7 / 2, h2 / 2, 0, 0, 2 * Math.PI);
+              ctx.fill();
+            }
+            callback && callback(ctx, val, f4);
+          });
+          window.frame = requestAnimationFrame(render);
         };
-        return window.frame = requestAnimationFrame(f4), q2;
+        currentRender = render;
+        window.frame = requestAnimationFrame(render);
+        return q2;
       };
-      ({ x: we4, y: xe4, w: et4, h: tt3, angle: nt3, r: rt4, fill: at4, smear: ot4 } = Cp("x", "y", "w", "h", "angle", "r", "fill", "smear"));
-      it4 = l("rescale", function(t, e) {
-        return e.mul(we4(t).w(t).y(t).h(t));
+      ({ x: x2, y: y2, w: w3, h, angle, r, fill, smear } = Cp("x", "y", "w", "h", "angle", "r", "fill", "smear"));
+      rescale = l("rescale", function(f4, pat) {
+        return pat.mul(x2(f4).w(f4).y(f4).h(f4));
       });
-      lt4 = l("moveXY", function(t, e, n2) {
-        return n2.add(we4(t).y(e));
+      moveXY = l("moveXY", function(dx, dy2, pat) {
+        return pat.add(x2(dx).y(dy2));
       });
-      st3 = l("zoomIn", function(t, e) {
-        const n2 = C2(1).sub(t).div(2);
-        return e.rescale(t).move(n2, n2);
+      zoomIn = l("zoomIn", function(f4, pat) {
+        const d2 = C2(1).sub(f4).div(2);
+        return pat.rescale(f4).move(d2, d2);
       });
-      G2 = (t, e, n2) => t * (n2 - e) + e;
-      he3 = (t) => {
-        let { value: e } = t;
-        typeof t.value != "object" && (e = { value: e });
-        let { note: n2, n: o, freq: a2, s: r } = e;
-        if (a2)
-          return Ze2(a2);
-        if (n2 = n2 ?? o, typeof n2 == "string")
+    }
+  });
+
+  // src/algorave/vendor/draw/color.mjs
+  function convertColorToNumber(color) {
+    color = color.toLowerCase();
+    if (color[0] === "#") {
+      return convertHexToNumber(color);
+    }
+    if (colorMap[color] !== void 0) {
+      return convertHexToNumber(colorMap[color]);
+    }
+    return -1;
+  }
+  function convertHexToNumber(hex) {
+    hex = hex.slice(1);
+    return parseInt(hex, 16);
+  }
+  var colorMap;
+  var init_color = __esm({
+    "src/algorave/vendor/draw/color.mjs"() {
+      colorMap = {
+        aliceblue: "#f0f8ff",
+        antiquewhite: "#faebd7",
+        aqua: "#00ffff",
+        aquamarine: "#7fffd4",
+        azure: "#f0ffff",
+        beige: "#f5f5dc",
+        bisque: "#ffe4c4",
+        black: "#000000",
+        blanchedalmond: "#ffebcd",
+        blue: "#0000ff",
+        blueviolet: "#8a2be2",
+        brown: "#a52a2a",
+        burlywood: "#deb887",
+        cadetblue: "#5f9ea0",
+        chartreuse: "#7fff00",
+        chocolate: "#d2691e",
+        coral: "#ff7f50",
+        cornflowerblue: "#6495ed",
+        cornsilk: "#fff8dc",
+        crimson: "#dc143c",
+        cyan: "#00ffff",
+        darkblue: "#00008b",
+        darkcyan: "#008b8b",
+        darkgoldenrod: "#b8860b",
+        darkgray: "#a9a9a9",
+        darkgreen: "#006400",
+        darkgrey: "#a9a9a9",
+        darkkhaki: "#bdb76b",
+        darkmagenta: "#8b008b",
+        darkolivegreen: "#556b2f",
+        darkorange: "#ff8c00",
+        darkorchid: "#9932cc",
+        darkred: "#8b0000",
+        darksalmon: "#e9967a",
+        darkseagreen: "#8fbc8f",
+        darkslateblue: "#483d8b",
+        darkslategray: "#2f4f4f",
+        darkslategrey: "#2f4f4f",
+        darkturquoise: "#00ced1",
+        darkviolet: "#9400d3",
+        deeppink: "#ff1493",
+        deepskyblue: "#00bfff",
+        dimgray: "#696969",
+        dimgrey: "#696969",
+        dodgerblue: "#1e90ff",
+        firebrick: "#b22222",
+        floralwhite: "#fffaf0",
+        forestgreen: "#228b22",
+        fuchsia: "#ff00ff",
+        gainsboro: "#dcdcdc",
+        ghostwhite: "#f8f8ff",
+        gold: "#ffd700",
+        goldenrod: "#daa520",
+        gray: "#808080",
+        green: "#008000",
+        greenyellow: "#adff2f",
+        grey: "#808080",
+        honeydew: "#f0fff0",
+        hotpink: "#ff69b4",
+        indianred: "#cd5c5c",
+        indigo: "#4b0082",
+        ivory: "#fffff0",
+        khaki: "#f0e68c",
+        lavender: "#e6e6fa",
+        lavenderblush: "#fff0f5",
+        lawngreen: "#7cfc00",
+        lemonchiffon: "#fffacd",
+        lightblue: "#add8e6",
+        lightcoral: "#f08080",
+        lightcyan: "#e0ffff",
+        lightgoldenrodyellow: "#fafad2",
+        lightgray: "#d3d3d3",
+        lightgreen: "#90ee90",
+        lightgrey: "#d3d3d3",
+        lightpink: "#ffb6c1",
+        lightsalmon: "#ffa07a",
+        lightseagreen: "#20b2aa",
+        lightskyblue: "#87cefa",
+        lightslategray: "#778899",
+        lightslategrey: "#778899",
+        lightsteelblue: "#b0c4de",
+        lightyellow: "#ffffe0",
+        lime: "#00ff00",
+        limegreen: "#32cd32",
+        linen: "#faf0e6",
+        magenta: "#ff00ff",
+        maroon: "#800000",
+        mediumaquamarine: "#66cdaa",
+        mediumblue: "#0000cd",
+        mediumorchid: "#ba55d3",
+        mediumpurple: "#9370db",
+        mediumseagreen: "#3cb371",
+        mediumslateblue: "#7b68ee",
+        mediumspringgreen: "#00fa9a",
+        mediumturquoise: "#48d1cc",
+        mediumvioletred: "#c71585",
+        midnightblue: "#191970",
+        mintcream: "#f5fffa",
+        mistyrose: "#ffe4e1",
+        moccasin: "#ffe4b5",
+        navajowhite: "#ffdead",
+        navy: "#000080",
+        oldlace: "#fdf5e6",
+        olive: "#808000",
+        olivedrab: "#6b8e23",
+        orange: "#ffa500",
+        orangered: "#ff4500",
+        orchid: "#da70d6",
+        palegoldenrod: "#eee8aa",
+        palegreen: "#98fb98",
+        paleturquoise: "#afeeee",
+        palevioletred: "#db7093",
+        papayawhip: "#ffefd5",
+        peachpuff: "#ffdab9",
+        peru: "#cd853f",
+        pink: "#ffc0cb",
+        plum: "#dda0dd",
+        powderblue: "#b0e0e6",
+        purple: "#800080",
+        red: "#ff0000",
+        rosybrown: "#bc8f8f",
+        royalblue: "#4169e1",
+        saddlebrown: "#8b4513",
+        salmon: "#fa8072",
+        sandybrown: "#f4a460",
+        seagreen: "#2e8b57",
+        seashell: "#fff5ee",
+        sienna: "#a0522d",
+        silver: "#c0c0c0",
+        skyblue: "#87ceeb",
+        slateblue: "#6a5acd",
+        slategray: "#708090",
+        slategrey: "#708090",
+        snow: "#fffafa",
+        springgreen: "#00ff7f",
+        steelblue: "#4682b4",
+        tan: "#d2b48c",
+        teal: "#008080",
+        thistle: "#d8bfd8",
+        tomato: "#ff6347",
+        turquoise: "#40e0d0",
+        violet: "#ee82ee",
+        wheat: "#f5deb3",
+        white: "#ffffff",
+        whitesmoke: "#f5f5f5",
+        yellow: "#ffff00",
+        yellowgreen: "#9acd32"
+      };
+    }
+  });
+
+  // src/algorave/vendor/draw/pianoroll.mjs
+  function pianoroll(arg) {
+    if (pe2(arg)) {
+      return arg.pianoroll();
+    }
+    return (pat) => pat.pianoroll(arg);
+  }
+  function __pianoroll({
+    time,
+    haps,
+    cycles = 4,
+    playhead = 0.5,
+    flipTime = 0,
+    flipValues = 0,
+    hideNegative = false,
+    inactive = getTheme().foreground,
+    active = getTheme().foreground,
+    background = "transparent",
+    smear: smear2 = 0,
+    playheadColor = getTheme().foreground,
+    minMidi = 10,
+    maxMidi = 90,
+    autorange = 0,
+    timeframe: timeframeProp,
+    fold = 1,
+    vertical = 0,
+    labels = false,
+    fill: fill2 = 1,
+    fillActive = false,
+    strokeActive = true,
+    stroke,
+    hideInactive = 0,
+    colorizeInactive = 1,
+    fontFamily,
+    ctx,
+    id: id2
+  } = {}) {
+    const w7 = ctx.canvas.width;
+    const h2 = ctx.canvas.height;
+    let from = -cycles * playhead;
+    let to3 = cycles * (1 - playhead);
+    if (id2) {
+      haps = haps.filter((hap) => hap.hasTag(id2));
+    }
+    if (timeframeProp) {
+      console.warn("timeframe is deprecated! use from/to instead");
+      from = 0;
+      to3 = timeframeProp;
+    }
+    const timeAxis = vertical ? h2 : w7;
+    const valueAxis = vertical ? w7 : h2;
+    let timeRange = vertical ? [timeAxis, 0] : [0, timeAxis];
+    const timeExtent = to3 - from;
+    const valueRange = vertical ? [0, valueAxis] : [valueAxis, 0];
+    let valueExtent = maxMidi - minMidi + 1;
+    let barThickness = valueAxis / valueExtent;
+    let foldValues = [];
+    flipTime && timeRange.reverse();
+    flipValues && valueRange.reverse();
+    const { min, max, values } = haps.reduce(
+      ({ min: min2, max: max2, values: values2 }, e) => {
+        const v2 = getValue(e);
+        return {
+          min: v2 < min2 ? v2 : min2,
+          max: v2 > max2 ? v2 : max2,
+          values: values2.includes(v2) ? values2 : [...values2, v2]
+        };
+      },
+      { min: Infinity, max: -Infinity, values: [] }
+    );
+    if (autorange) {
+      minMidi = min;
+      maxMidi = max;
+      valueExtent = maxMidi - minMidi + 1;
+    }
+    foldValues = values.sort(
+      (a2, b2) => typeof a2 === "number" && typeof b2 === "number" ? a2 - b2 : typeof a2 === "number" ? 1 : String(a2).localeCompare(String(b2))
+    );
+    barThickness = fold ? valueAxis / foldValues.length : valueAxis / valueExtent;
+    ctx.fillStyle = background;
+    ctx.globalAlpha = 1;
+    if (!smear2) {
+      ctx.clearRect(0, 0, w7, h2);
+      ctx.fillRect(0, 0, w7, h2);
+    }
+    haps.forEach((event) => {
+      const isActive = event.whole.begin <= time && event.endClipped > time;
+      let strokeCurrent = stroke ?? (strokeActive && isActive);
+      let fillCurrent = !isActive && fill2 || isActive && fillActive;
+      if (hideInactive && !isActive) {
+        return;
+      }
+      let color = event.value?.color;
+      active = color || active;
+      inactive = colorizeInactive ? color || inactive : inactive;
+      color = isActive ? active : inactive;
+      ctx.fillStyle = fillCurrent ? color : "transparent";
+      ctx.strokeStyle = color;
+      const { velocity = 1, gain = 1 } = event.value || {};
+      ctx.globalAlpha = velocity * gain;
+      const timeProgress = (event.whole.begin - (flipTime ? to3 : from)) / timeExtent;
+      const timePx = scale(timeProgress, ...timeRange);
+      let durationPx = scale(event.duration / timeExtent, 0, timeAxis);
+      const value = getValue(event);
+      const valueProgress = fold ? foldValues.indexOf(value) / foldValues.length : (Number(value) - minMidi) / valueExtent;
+      const valuePx = scale(valueProgress, ...valueRange);
+      let margin = 0;
+      const offset2 = scale(time / timeExtent, ...timeRange);
+      let coords;
+      if (vertical) {
+        coords = [
+          valuePx + 1 - (flipValues ? barThickness : 0),
+          // x
+          timeAxis - offset2 + timePx + margin + 1 - (flipTime ? 0 : durationPx),
+          // y
+          barThickness - 2,
+          // width
+          durationPx - 2
+          // height
+        ];
+      } else {
+        coords = [
+          timePx - offset2 + margin + 1 - (flipTime ? durationPx : 0),
+          // x
+          valuePx + 1 - (flipValues ? 0 : barThickness),
+          // y
+          durationPx - 2,
+          // widith
+          barThickness - 2
+          // height
+        ];
+      }
+      if (strokeCurrent) {
+        ctx.strokeRect(...coords);
+      }
+      if (fillCurrent) {
+        ctx.fillRect(...coords);
+      }
+      if (labels) {
+        const defaultLabel = event.value.note ?? event.value.s + (event.value.n ? `:${event.value.n}` : "");
+        const { label: inactiveLabel, activeLabel } = event.value;
+        const customLabel = isActive ? activeLabel || inactiveLabel : inactiveLabel;
+        const label = customLabel ?? defaultLabel;
+        let measure = vertical ? durationPx : barThickness * 0.75;
+        ctx.font = `${measure}px ${fontFamily || "monospace"}`;
+        ctx.fillStyle = /* isActive &&  */
+        !fillCurrent ? color : "black";
+        ctx.textBaseline = "top";
+        ctx.fillText(label, ...coords);
+      }
+    });
+    ctx.globalAlpha = 1;
+    const playheadPosition = scale(-from / timeExtent, ...timeRange);
+    ctx.strokeStyle = playheadColor;
+    ctx.beginPath();
+    if (vertical) {
+      ctx.moveTo(0, playheadPosition);
+      ctx.lineTo(valueAxis, playheadPosition);
+    } else {
+      ctx.moveTo(playheadPosition, 0);
+      ctx.lineTo(playheadPosition, valueAxis);
+    }
+    ctx.stroke();
+    return this;
+  }
+  function getDrawOptions(drawTime, options = {}) {
+    let [lookbehind, lookahead2] = drawTime;
+    lookbehind = Math.abs(lookbehind);
+    const cycles = lookahead2 + lookbehind;
+    const playhead = cycles !== 0 ? lookbehind / cycles : 0;
+    return { fold: 1, ...options, cycles, playhead };
+  }
+  function drawPianoroll(options) {
+    const { drawTime, ...rest } = options;
+    __pianoroll({ ...getDrawOptions(drawTime), ...rest });
+  }
+  var scale, getValue, getPunchcardPainter;
+  var init_pianoroll = __esm({
+    "src/algorave/vendor/draw/pianoroll.mjs"() {
+      init_dist2();
+      init_draw();
+      scale = (normalized, min, max) => normalized * (max - min) + min;
+      getValue = (e) => {
+        let { value } = e;
+        if (typeof e.value !== "object") {
+          value = { value };
+        }
+        let { note, n: n2, freq, s: s2 } = value;
+        if (freq) {
+          return Ze2(freq);
+        }
+        note = note ?? n2;
+        if (typeof note === "string") {
           try {
-            return gt2(n2);
-          } catch {
+            return gt2(note);
+          } catch (err) {
             return 0;
           }
-        return typeof n2 == "number" ? n2 : r ? "_" + r : e;
+        }
+        if (typeof note === "number") {
+          return note;
+        }
+        if (s2) {
+          return "_" + s2;
+        }
+        return value;
       };
-      f2.prototype.pianoroll = function(t = {}) {
-        let { cycles: e = 4, playhead: n2 = 0.5, overscan: o = 0, hideNegative: a2 = false, ctx: r = Z3(), id: l2 = 1 } = t, f4 = -e * n2, i2 = e * (1 - n2);
-        const g3 = (u3, c3) => (!a2 || u3.whole.begin >= 0) && u3.isWithinTime(c3 + f4, c3 + i2);
-        return this.draw(
-          (u3, c3) => {
-            ee3({
-              ...t,
-              time: c3,
-              ctx: r,
-              haps: u3.filter((b2) => g3(b2, c3))
+      f2.prototype.pianoroll = function(options = {}) {
+        let { cycles = 4, playhead = 0.5, overscan = 0, hideNegative = false, ctx = getDrawContext(), id: id2 = 1 } = options;
+        let from = -cycles * playhead;
+        let to3 = cycles * (1 - playhead);
+        const inFrame = (hap, t) => (!hideNegative || hap.whole.begin >= 0) && hap.isWithinTime(t + from, t + to3);
+        this.draw(
+          (haps, time) => {
+            __pianoroll({
+              ...options,
+              time,
+              ctx,
+              haps: haps.filter((hap) => inFrame(hap, time))
             });
           },
           {
-            lookbehind: f4 - o,
-            lookahead: i2 + o,
-            id: l2
+            lookbehind: from - overscan,
+            lookahead: to3 + overscan,
+            id: id2
           }
-        ), this;
+        );
+        return this;
       };
-      je4 = (t = {}) => (e, n2, o, a2) => ee3({ ctx: e, time: n2, haps: o, ...ve3(a2, t) });
-      f2.prototype.punchcard = function(t) {
-        return this.onPaint(je4(t));
+      getPunchcardPainter = (options = {}) => (ctx, time, haps, drawTime) => __pianoroll({ ctx, time, haps, ...getDrawOptions(drawTime, options) });
+      f2.prototype.punchcard = function(options) {
+        return this.onPaint(getPunchcardPainter(options));
       };
-      f2.prototype.wordfall = function(t) {
-        return this.punchcard({ vertical: 1, labels: 1, stroke: 0, fillActive: 1, active: "white", ...t });
+      f2.prototype.wordfall = function(options) {
+        return this.punchcard({ vertical: 1, labels: 1, stroke: 0, fillActive: 1, active: "white", ...options });
       };
-      ue4 = (t, e, n2, o, a2 = 0) => Xe4((t + a2) * 360, e * t, n2, o);
-      f2.prototype.spiral = function(t = {}) {
-        return this.onPaint((e, n2, o, a2) => Ye3({ ctx: e, time: n2, haps: o, drawTime: a2, ...t }));
+    }
+  });
+
+  // src/algorave/vendor/draw/spiral.mjs
+  function fromPolar(angle2, radius, cx, cy2) {
+    const radians = (angle2 - 90) * Math.PI / 180;
+    return [cx + Math.cos(radians) * radius, cy2 + Math.sin(radians) * radius];
+  }
+  function spiralSegment(options) {
+    let {
+      ctx,
+      from = 0,
+      to: to3 = 3,
+      margin = 50,
+      cx = 100,
+      cy: cy2 = 100,
+      rotate = 0,
+      thickness = margin / 2,
+      color = getTheme().foreground,
+      cap = "round",
+      stretch = 1,
+      fromOpacity = 1,
+      toOpacity = 1
+    } = options;
+    from *= stretch;
+    to3 *= stretch;
+    rotate *= stretch;
+    ctx.lineWidth = thickness;
+    ctx.lineCap = cap;
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = fromOpacity;
+    ctx.beginPath();
+    let [sx, sy2] = xyOnSpiral(from, margin, cx, cy2, rotate);
+    ctx.moveTo(sx, sy2);
+    const increment = 1 / 60;
+    let angle2 = from;
+    while (angle2 <= to3) {
+      const [x4, y4] = xyOnSpiral(angle2, margin, cx, cy2, rotate);
+      ctx.globalAlpha = (angle2 - from) / (to3 - from) * toOpacity;
+      ctx.lineTo(x4, y4);
+      angle2 += increment;
+    }
+    ctx.stroke();
+  }
+  function drawSpiral(options) {
+    let {
+      stretch = 1,
+      size = 80,
+      thickness = size / 2,
+      cap = "butt",
+      // round butt squar,
+      inset = 3,
+      // start angl,
+      playheadColor = "#ffffff",
+      playheadLength = 0.02,
+      playheadThickness = thickness,
+      padding = 0,
+      steady = 1,
+      activeColor = getTheme().foreground,
+      inactiveColor = getTheme().gutterForeground,
+      colorizeInactive = 0,
+      fade = true,
+      // logSpiral = true,
+      ctx,
+      time,
+      haps,
+      drawTime,
+      id: id2
+    } = options;
+    if (id2) {
+      haps = haps.filter((hap) => hap.hasTag(id2));
+    }
+    const [w7, h2] = [ctx.canvas.width, ctx.canvas.height];
+    ctx.clearRect(0, 0, w7 * 2, h2 * 2);
+    const [cx, cy2] = [w7 / 2, h2 / 2];
+    const settings = {
+      margin: size / stretch,
+      cx,
+      cy: cy2,
+      stretch,
+      cap,
+      thickness
+    };
+    const playhead = {
+      ...settings,
+      thickness: playheadThickness,
+      from: inset - playheadLength,
+      to: inset,
+      color: playheadColor
+    };
+    const [min] = drawTime;
+    const rotate = steady * time;
+    haps.forEach((hap) => {
+      const isActive = hap.whole.begin <= time && hap.endClipped > time;
+      const from = hap.whole.begin - time + inset;
+      const to3 = hap.endClipped - time + inset - padding;
+      const hapColor = hap.value?.color || activeColor;
+      const color = colorizeInactive || isActive ? hapColor : inactiveColor;
+      const opacity = fade ? 1 - Math.abs((hap.whole.begin - time) / min) : 1;
+      spiralSegment({
+        ctx,
+        ...settings,
+        from,
+        to: to3,
+        rotate,
+        color,
+        fromOpacity: opacity,
+        toOpacity: opacity
+      });
+    });
+    spiralSegment({
+      ctx,
+      ...playhead,
+      rotate
+    });
+  }
+  var xyOnSpiral;
+  var init_spiral = __esm({
+    "src/algorave/vendor/draw/spiral.mjs"() {
+      init_dist2();
+      init_draw();
+      xyOnSpiral = (angle2, margin, cx, cy2, rotate = 0) => fromPolar((angle2 + rotate) * 360, margin * angle2, cx, cy2);
+      f2.prototype.spiral = function(options = {}) {
+        return this.onPaint((ctx, time, haps, drawTime) => drawSpiral({ ctx, time, haps, drawTime, ...options }));
       };
-      Be4 = it2(36);
-      ge4 = (t, e, n2, o) => {
-        o = o * Math.PI * 2;
-        const a2 = Math.sin(o) * n2 + t, r = Math.cos(o) * n2 + e;
-        return [a2, r];
+    }
+  });
+
+  // src/algorave/vendor/draw/pitchwheel.mjs
+  function pitchwheel({
+    haps,
+    ctx,
+    id: id2,
+    hapcircles = 1,
+    circle = 0,
+    edo: edo2 = 12,
+    root = c3,
+    thickness = 3,
+    hapRadius = 6,
+    mode = "flake",
+    margin = 10
+  } = {}) {
+    const connectdots = mode === "polygon";
+    const centerlines = mode === "flake";
+    const w7 = ctx.canvas.width;
+    const h2 = ctx.canvas.height;
+    ctx.clearRect(0, 0, w7, h2);
+    const color = getTheme().foreground;
+    const size = Math.min(w7, h2);
+    const radius = size / 2 - thickness / 2 - hapRadius - margin;
+    const centerX = w7 / 2;
+    const centerY = h2 / 2;
+    if (id2) {
+      haps = haps.filter((hap) => hap.hasTag(id2));
+    }
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = thickness;
+    if (circle) {
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+      ctx.stroke();
+    }
+    if (edo2) {
+      Array.from({ length: edo2 }, (_7, i2) => {
+        const angle2 = freq2angle(root * Math.pow(2, i2 / edo2), root);
+        const [x4, y4] = circlePos(centerX, centerY, radius, angle2);
+        ctx.beginPath();
+        ctx.arc(x4, y4, hapRadius, 0, 2 * Math.PI);
+        ctx.fill();
+      });
+      ctx.stroke();
+    }
+    let shape = [];
+    ctx.lineWidth = hapRadius;
+    haps.forEach((hap) => {
+      let freq;
+      try {
+        freq = rh(hap);
+      } catch (err) {
+        return;
+      }
+      const angle2 = freq2angle(freq, root);
+      const [x4, y4] = circlePos(centerX, centerY, radius, angle2);
+      const hapColor = hap.value.color || color;
+      ctx.strokeStyle = hapColor;
+      ctx.fillStyle = hapColor;
+      const { velocity = 1, gain = 1 } = hap.value || {};
+      const alpha = velocity * gain;
+      ctx.globalAlpha = alpha;
+      shape.push([x4, y4, angle2, hapColor, alpha]);
+      ctx.beginPath();
+      if (hapcircles) {
+        ctx.moveTo(x4 + hapRadius, y4);
+        ctx.arc(x4, y4, hapRadius, 0, 2 * Math.PI);
+        ctx.fill();
+      }
+      if (centerlines) {
+        ctx.moveTo(centerX, centerY);
+        ctx.lineTo(x4, y4);
+      }
+      ctx.stroke();
+    });
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = 1;
+    if (connectdots && shape.length) {
+      shape = shape.sort((a2, b2) => a2[2] - b2[2]);
+      ctx.beginPath();
+      ctx.moveTo(shape[0][0], shape[0][1]);
+      shape.forEach(([x4, y4, _7, color2, alpha]) => {
+        ctx.strokeStyle = color2;
+        ctx.globalAlpha = alpha;
+        ctx.lineTo(x4, y4);
+      });
+      ctx.lineTo(shape[0][0], shape[0][1]);
+      ctx.stroke();
+    }
+    return;
+  }
+  var c3, circlePos, freq2angle;
+  var init_pitchwheel = __esm({
+    "src/algorave/vendor/draw/pitchwheel.mjs"() {
+      init_dist2();
+      init_draw();
+      c3 = it2(36);
+      circlePos = (cx, cy2, radius, angle2) => {
+        angle2 = angle2 * Math.PI * 2;
+        const x4 = Math.sin(angle2) * radius + cx;
+        const y4 = Math.cos(angle2) * radius + cy2;
+        return [x4, y4];
       };
-      be3 = (t, e) => 0.5 - Math.log2(t / e) % 1;
-      f2.prototype.pitchwheel = function(t = {}) {
-        let { ctx: e = Z3(), id: n2 = 1 } = t;
-        return this.tag(n2).onPaint(
-          (o, a2, r) => Ve3({
-            ...t,
-            time: a2,
-            ctx: e,
-            haps: r.filter((l2) => l2.isActive(a2)),
-            id: n2
+      freq2angle = (freq, root) => {
+        return 0.5 - Math.log2(freq / root) % 1;
+      };
+      f2.prototype.pitchwheel = function(options = {}) {
+        let { ctx = getDrawContext(), id: id2 = 1 } = options;
+        return this.tag(id2).onPaint(
+          (_7, time, haps) => pitchwheel({
+            ...options,
+            time,
+            ctx,
+            haps: haps.filter((hap) => hap.isActive(time)),
+            id: id2
           })
         );
       };
+    }
+  });
+
+  // src/algorave/vendor/draw/index.mjs
+  var draw_exports = {};
+  __export(draw_exports, {
+    Drawer: () => Drawer,
+    Framer: () => Framer,
+    __pianoroll: () => __pianoroll,
+    angle: () => angle,
+    cleanupDraw: () => cleanupDraw,
+    colorMap: () => colorMap,
+    convertColorToNumber: () => convertColorToNumber,
+    convertHexToNumber: () => convertHexToNumber,
+    disposeDrawCanvases: () => disposeDrawCanvases,
+    drawPianoroll: () => drawPianoroll,
+    fill: () => fill,
+    getComputedPropertyValue: () => getComputedPropertyValue,
+    getDrawContext: () => getDrawContext,
+    getDrawOptions: () => getDrawOptions,
+    getPunchcardPainter: () => getPunchcardPainter,
+    getTheme: () => getTheme,
+    h: () => h,
+    hasAnimation: () => hasAnimation,
+    hasDrawCallbacks: () => hasDrawCallbacks,
+    moveXY: () => moveXY,
+    pauseAnimation: () => pauseAnimation,
+    pauseDraw: () => pauseDraw,
+    pianoroll: () => pianoroll,
+    pitchwheel: () => pitchwheel,
+    r: () => r,
+    rescale: () => rescale,
+    restoreAnimation: () => restoreAnimation,
+    restoreDraw: () => restoreDraw,
+    setTheme: () => setTheme,
+    smear: () => smear,
+    w: () => w3,
+    x: () => x2,
+    y: () => y2,
+    zoomIn: () => zoomIn
+  });
+  var init_draw2 = __esm({
+    "src/algorave/vendor/draw/index.mjs"() {
+      init_animate();
+      init_color();
+      init_draw();
+      init_pianoroll();
+      init_spiral();
+      init_pitchwheel();
     }
   });
 
@@ -10868,7 +11489,7 @@ registerProcessor('${n2}', MyProcessor);
     dough: () => mc2,
     doughTrigger: () => Gc2,
     doughsamples: () => le2,
-    drawFrequencyScope: () => Ve4,
+    drawFrequencyScope: () => Ve3,
     drawTimeScope: () => Ue4,
     drywet: () => zn2,
     dspWorklet: () => Io2,
@@ -10978,8 +11599,8 @@ registerProcessor('${n2}', MyProcessor);
     if (e.startsWith("shabda/speech")) {
       let [o, s2] = e.split("shabda/speech");
       s2 = s2.startsWith("/") ? s2.substring(1) : s2;
-      let [a2, r] = s2.split(":"), i2 = "f", c3 = "en-GB";
-      a2 && ([c3, i2] = a2.split("/")), e = `https://shabda.ndre.gr/speech/${r}.json?gender=${i2}&language=${c3}&strudel=1'`;
+      let [a2, r2] = s2.split(":"), i2 = "f", c4 = "en-GB";
+      a2 && ([c4, i2] = a2.split("/")), e = `https://shabda.ndre.gr/speech/${r2}.json?gender=${i2}&language=${c4}&strudel=1'`;
     }
     if (typeof fetch != "function")
       return;
@@ -10991,7 +11612,7 @@ registerProcessor('${n2}', MyProcessor);
     });
     return [n2, n2._base || t];
   }
-  async function ue5(e) {
+  async function ue4(e) {
     const t = await fetch(e).then((o) => o.arrayBuffer()).then((o) => z2().decodeAudioData(o));
     let n2 = [];
     for (let o = 0; o < t.numberOfChannels; o++)
@@ -11007,37 +11628,37 @@ registerProcessor('${n2}', MyProcessor);
       n2 !== "_base" && (o = o.map((s2) => t + s2), A2.set(n2, o));
     });
   }
-  function ge5(e, t = "superdough") {
+  function ge4(e, t = "superdough") {
     console.error(e), B3(`[${t}] error: ${e.message}`);
   }
   function I(e) {
-    const t = he4().createGain();
+    const t = he3().createGain();
     return t.gain.value = e, t;
   }
-  function R3(e, t, n2) {
+  function R2(e, t, n2) {
     const o = I(n2);
     return e.connect(o), o.connect(t), o;
   }
-  function pe5(e, t, n2, o) {
+  function pe4(e, t, n2, o) {
     const s2 = new AudioWorkletNode(e, t, o);
-    return Object.entries(n2).forEach(([a2, r]) => {
-      r !== void 0 && (s2.parameters.get(a2).value = r);
+    return Object.entries(n2).forEach(([a2, r2]) => {
+      r2 !== void 0 && (s2.parameters.get(a2).value = r2);
     }), s2;
   }
-  function me4(e, t, n2, o) {
+  function me3(e, t, n2, o) {
     const s2 = new ConstantSourceNode(e), a2 = I(0);
     return a2.connect(e.destination), s2.connect(a2), Te4(s2, () => {
       U4(a2), U4(s2), t();
     }), s2.start(n2), s2.stop(o), s2;
   }
-  async function qe3(e, t, n2, o, s2, a2, r, i2 = void 0) {
-    let c3 = z2();
-    await c3.close(), c3 = new OfflineAudioContext(2, (o - n2) / t * s2, s2), Uo2(c3), dc2(new _e3(c3)), await Ro2({
+  async function qe3(e, t, n2, o, s2, a2, r2, i2 = void 0) {
+    let c4 = z2();
+    await c4.close(), c4 = new OfflineAudioContext(2, (o - n2) / t * s2, s2), Uo2(c4), dc2(new _e3(c4)), await Ro2({
       maxPolyphony: a2,
-      multiChannelOrbits: r
+      multiChannelOrbits: r2
     }), k3("[webaudio] preloading");
-    let h = e.queryArc(n2, o, { _cps: t }).sort((u3, l2) => u3.whole.begin.valueOf() - l2.whole.begin.valueOf());
-    for (const u3 of h)
+    let h2 = e.queryArc(n2, o, { _cps: t }).sort((u3, l2) => u3.whole.begin.valueOf() - l2.whole.begin.valueOf());
+    for (const u3 of h2)
       if (u3.hasOnset())
         try {
           await No2(
@@ -11050,7 +11671,7 @@ registerProcessor('${n2}', MyProcessor);
         } catch (l2) {
           ct3(l2, "webaudio");
         }
-    return k3("[webaudio] start rendering"), c3.startRendering().then((u3) => {
+    return k3("[webaudio] start rendering"), c4.startRendering().then((u3) => {
       const l2 = ke3(u3), f4 = new Blob([l2], { type: "audio/wav" }), p2 = URL.createObjectURL(f4), d2 = document.createElement("a");
       d2.href = p2, i2 = i2 ? `${i2}.wav` : `${(/* @__PURE__ */ new Date()).toISOString()}.wav`, d2.download = `${i2}`, document.body.appendChild(d2), d2.click(), document.body.removeChild(d2), URL.revokeObjectURL(p2);
     }).finally(async () => {
@@ -11063,16 +11684,16 @@ registerProcessor('${n2}', MyProcessor);
       getTime: () => t.currentTime,
       defaultOutput: De2,
       ...e
-    }, je5(e);
+    }, je4(e);
   }
   function ke3(e, t) {
     t = t || {};
-    var n2 = e.numberOfChannels, o = e.sampleRate, s2 = t.float32 ? 3 : 1, a2 = s2 === 3 ? 32 : 16, r;
-    return n2 === 2 ? r = ze4(e.getChannelData(0), e.getChannelData(1)) : r = e.getChannelData(0), We2(r, s2, o, n2, a2);
+    var n2 = e.numberOfChannels, o = e.sampleRate, s2 = t.float32 ? 3 : 1, a2 = s2 === 3 ? 32 : 16, r2;
+    return n2 === 2 ? r2 = ze4(e.getChannelData(0), e.getChannelData(1)) : r2 = e.getChannelData(0), We2(r2, s2, o, n2, a2);
   }
   function We2(e, t, n2, o, s2) {
-    var a2 = s2 / 8, r = o * a2, i2 = new ArrayBuffer(44 + e.length * a2), c3 = new DataView(i2);
-    return N3(c3, 0, "RIFF"), c3.setUint32(4, 36 + e.length * a2, true), N3(c3, 8, "WAVE"), N3(c3, 12, "fmt "), c3.setUint32(16, 16, true), c3.setUint16(20, t, true), c3.setUint16(22, o, true), c3.setUint32(24, n2, true), c3.setUint32(28, n2 * r, true), c3.setUint16(32, r, true), c3.setUint16(34, s2, true), N3(c3, 36, "data"), c3.setUint32(40, e.length * a2, true), t === 1 ? Re2(c3, 44, e) : Ee3(c3, 44, e), i2;
+    var a2 = s2 / 8, r2 = o * a2, i2 = new ArrayBuffer(44 + e.length * a2), c4 = new DataView(i2);
+    return N3(c4, 0, "RIFF"), c4.setUint32(4, 36 + e.length * a2, true), N3(c4, 8, "WAVE"), N3(c4, 12, "fmt "), c4.setUint32(16, 16, true), c4.setUint16(20, t, true), c4.setUint16(22, o, true), c4.setUint32(24, n2, true), c4.setUint32(28, n2 * r2, true), c4.setUint16(32, r2, true), c4.setUint16(34, s2, true), N3(c4, 36, "data"), c4.setUint32(40, e.length * a2, true), t === 1 ? Re2(c4, 44, e) : Ee3(c4, 44, e), i2;
   }
   function ze4(e, t) {
     for (var n2 = e.length + t.length, o = new Float32Array(n2), s2 = 0, a2 = 0; s2 < n2; )
@@ -11099,89 +11720,89 @@ registerProcessor('${n2}', MyProcessor);
     thickness: o = 3,
     scale: s2 = 0.25,
     pos: a2 = 0.75,
-    trigger: r = 0,
-    ctx: i2 = Z3(),
-    id: c3 = 1
+    trigger: r2 = 0,
+    ctx: i2 = getDrawContext(),
+    id: c4 = 1
   } = {}) {
     i2.lineWidth = o, i2.strokeStyle = n2;
-    let h = i2.canvas;
+    let h2 = i2.canvas;
     if (!e) {
       i2.beginPath();
-      let g3 = a2 * h.height;
-      i2.moveTo(0, g3), i2.lineTo(h.width, g3), i2.stroke();
+      let g3 = a2 * h2.height;
+      i2.moveTo(0, g3), i2.lineTo(h2.width, g3), i2.stroke();
       return;
     }
-    const u3 = ic2("time", c3);
+    const u3 = ic2("time", c4);
     i2.beginPath();
     const l2 = e.frequencyBinCount;
-    let f4 = t ? Array.from(u3).findIndex((g3, m4, b2) => m4 && b2[m4 - 1] > -r && g3 <= -r) : 0;
+    let f4 = t ? Array.from(u3).findIndex((g3, m4, b2) => m4 && b2[m4 - 1] > -r2 && g3 <= -r2) : 0;
     f4 = Math.max(f4, 0);
-    const p2 = h.width * 1 / l2;
+    const p2 = h2.width * 1 / l2;
     let d2 = 0;
     for (let g3 = f4; g3 < l2; g3++) {
-      const m4 = u3[g3] + 1, b2 = (a2 - s2 * (m4 - 1)) * h.height;
+      const m4 = u3[g3] + 1, b2 = (a2 - s2 * (m4 - 1)) * h2.height;
       g3 === 0 ? i2.moveTo(d2, b2) : i2.lineTo(d2, b2), d2 += p2;
     }
     i2.stroke();
   }
-  function Ve4(e, { color: t = "white", scale: n2 = 0.25, pos: o = 0.75, lean: s2 = 0.5, min: a2 = -150, max: r = 0, ctx: i2 = Z3(), id: c3 = 1 } = {}) {
+  function Ve3(e, { color: t = "white", scale: n2 = 0.25, pos: o = 0.75, lean: s2 = 0.5, min: a2 = -150, max: r2 = 0, ctx: i2 = getDrawContext(), id: c4 = 1 } = {}) {
     if (!e) {
       i2.beginPath();
       let d2 = o * u3.height;
       i2.moveTo(0, d2), i2.lineTo(u3.width, d2), i2.stroke();
       return;
     }
-    const h = ic2("frequency", c3), u3 = i2.canvas;
+    const h2 = ic2("frequency", c4), u3 = i2.canvas;
     i2.fillStyle = t;
     const l2 = e.frequencyBinCount, f4 = u3.width * 1 / l2;
     let p2 = 0;
     for (let d2 = 0; d2 < l2; d2++) {
-      const m4 = an((h[d2] - a2) / (r - a2), 0, 1) * n2, b2 = m4 * u3.height, J6 = (o - m4 * s2) * u3.height;
+      const m4 = an((h2[d2] - a2) / (r2 - a2), 0, 1) * n2, b2 = m4 * u3.height, J6 = (o - m4 * s2) * u3.height;
       i2.fillRect(p2, J6, Math.max(f4, 1), b2), p2 += f4;
     }
   }
-  function H3(e = 0, t = "0,0,0", n2 = Z3()) {
+  function H3(e = 0, t = "0,0,0", n2 = getDrawContext()) {
     e ? (n2.fillStyle = `rgba(${t},${1 - e})`, n2.fillRect(0, 0, n2.canvas.width, n2.canvas.height)) : n2.clearRect(0, 0, n2.canvas.width, n2.canvas.height);
   }
-  function xe5(e, { thickness: t = 3, speed: n2 = 1, min: o = -80, max: s2 = 0, ctx: a2 = Z3(), id: r = 1, color: i2 } = {}) {
+  function xe4(e, { thickness: t = 3, speed: n2 = 1, min: o = -80, max: s2 = 0, ctx: a2 = getDrawContext(), id: r2 = 1, color: i2 } = {}) {
     if (a2.lineWidth = t, a2.strokeStyle = i2, !e)
       return;
-    const c3 = n2, h = ic2("frequency", r), u3 = a2.canvas;
+    const c4 = n2, h2 = ic2("frequency", r2), u3 = a2.canvas;
     a2.fillStyle = i2;
     const l2 = e.frequencyBinCount;
-    let f4 = _4.get(r) || a2.getImageData(0, 0, u3.width, u3.height);
-    _4.set(r, f4), a2.clearRect(0, 0, a2.canvas.width, a2.canvas.height), a2.putImageData(f4, -c3, 0);
+    let f4 = _4.get(r2) || a2.getImageData(0, 0, u3.width, u3.height);
+    _4.set(r2, f4), a2.clearRect(0, 0, a2.canvas.width, a2.canvas.height), a2.putImageData(f4, -c4, 0);
     let p2 = u3.width - n2;
     for (let d2 = 0; d2 < l2; d2++) {
-      const g3 = an((h[d2] - o) / (s2 - o), 0, 1);
+      const g3 = an((h2[d2] - o) / (s2 - o), 0, 1);
       a2.globalAlpha = g3;
       const m4 = Math.log(d2 + 1) / Math.log(l2) * u3.height;
-      a2.fillRect(p2, u3.height - m4, c3, 2);
+      a2.fillRect(p2, u3.height - m4, c4, 2);
     }
-    _4.set(r, a2.getImageData(0, 0, u3.width, u3.height));
+    _4.set(r2, a2.getImageData(0, 0, u3.width, u3.height));
   }
-  var C3, A2, E3, T3, de3, he4, fe5, B3, j4, q4, ve4, be4, y2, we5, F3, ye5, Ce4, L3, Ne3, Ae3, Me4, Te4, U4, w3, D2, Se3, Oe3, _e3, $e3, k3, je5, K3, De2, V3, _4;
-  var init_dist6 = __esm({
+  var C3, A2, E3, T3, de3, he3, fe4, B3, j4, q4, ve3, be3, y3, we4, F3, ye4, Ce4, L3, Ne3, Ae3, Me4, Te4, U4, w4, D2, Se3, Oe3, _e3, $e3, k3, je4, K3, De2, V3, _4;
+  var init_dist5 = __esm({
     "node_modules/@strudel/webaudio/dist/index.mjs"() {
       init_dist2();
       init_dist2();
       init_dist3();
       init_dist3();
       init_dist4();
-      init_dist5();
+      init_draw2();
       A2 = /* @__PURE__ */ new Map();
       E3 = /* @__PURE__ */ new Map();
       f2.prototype.supradough = function() {
         return this.onTrigger((e, t, n2, o) => {
           e.value._begin = o, e.value._duration = e.duration / n2, !C3 && ie4();
-          const s2 = (e.value.bank ? e.value.bank + "_" : "") + e.value.s, a2 = e.value.n ?? 0, r = `${s2}:${a2}`;
-          if (A2.has(s2) && (e.value.s = r), A2.has(s2) && !E3.has(r)) {
-            const i2 = A2.get(s2), c3 = i2[a2 % i2.length];
-            console.log(`load ${r} from ${c3}`);
-            const h = ue5(c3);
-            E3.set(r, h), h.then(
+          const s2 = (e.value.bank ? e.value.bank + "_" : "") + e.value.s, a2 = e.value.n ?? 0, r2 = `${s2}:${a2}`;
+          if (A2.has(s2) && (e.value.s = r2), A2.has(s2) && !E3.has(r2)) {
+            const i2 = A2.get(s2), c4 = i2[a2 % i2.length];
+            console.log(`load ${r2} from ${c4}`);
+            const h2 = ue4(c4);
+            E3.set(r2, h2), h2.then(
               ({ channels: u3, sampleRate: l2 }) => C3.port.postMessage({
-                sample: r,
+                sample: r2,
                 channels: u3,
                 sampleRate: l2
               })
@@ -11191,51 +11812,51 @@ registerProcessor('${n2}', MyProcessor);
         }, 1);
       };
       de3 = () => (T3 = new AudioContext(), T3);
-      he4 = () => T3 || de3();
-      fe5 = (e) => console.log(e);
-      B3 = (...e) => fe5(...e);
+      he3 = () => T3 || de3();
+      fe4 = (e) => console.log(e);
+      B3 = (...e) => fe4(...e);
       j4 = (e, t, n2) => Math.min(Math.max(e, t), n2);
       q4 = (e) => e / (1 + e);
-      ve4 = (e, t) => (e % t + t) % t;
-      be4 = (e, t) => (1 + t) * e / (1 + t * Math.abs(e));
-      y2 = (e, t) => Math.tanh(e * (1 + t));
-      we5 = (e, t) => j4((1 + t) * e, -1, 1);
+      ve3 = (e, t) => (e % t + t) % t;
+      be3 = (e, t) => (1 + t) * e / (1 + t * Math.abs(e));
+      y3 = (e, t) => Math.tanh(e * (1 + t));
+      we4 = (e, t) => j4((1 + t) * e, -1, 1);
       F3 = (e, t) => {
         let n2 = (1 + 0.5 * t) * e;
-        const o = ve4(n2 + 1, 4);
+        const o = ve3(n2 + 1, 4);
         return 1 - Math.abs(o - 2);
       };
-      ye5 = (e, t) => Math.sin(Math.PI / 2 * F3(e, t));
+      ye4 = (e, t) => Math.sin(Math.PI / 2 * F3(e, t));
       Ce4 = (e, t) => {
         const n2 = q4(Math.log1p(t)), o = (e - n2 / 3 * e * e * e) / (1 - n2 / 3);
-        return y2(o, t);
+        return y3(o, t);
       };
       L3 = (e, t, n2 = false) => {
-        const o = 1 + 2 * t, a2 = 0.07 * q4(Math.log1p(t)), r = y2(e + a2, 2 * t), i2 = y2(n2 ? a2 : -e + a2, 2 * t), c3 = r - i2, h = 1 / Math.cosh(o * a2), u3 = h * h, l2 = Math.max(1e-8, (n2 ? 1 : 2) * o * u3);
-        return y2(c3 / l2, t);
+        const o = 1 + 2 * t, a2 = 0.07 * q4(Math.log1p(t)), r2 = y3(e + a2, 2 * t), i2 = y3(n2 ? a2 : -e + a2, 2 * t), c4 = r2 - i2, h2 = 1 / Math.cosh(o * a2), u3 = h2 * h2, l2 = Math.max(1e-8, (n2 ? 1 : 2) * o * u3);
+        return y3(c4 / l2, t);
       };
       Ne3 = (e, t) => L3(e, t, true);
       Ae3 = (e, t) => {
         const n2 = 10 * Math.log1p(t);
-        let o = 1, s2 = e, a2, r = 0;
+        let o = 1, s2 = e, a2, r2 = 0;
         for (let i2 = 1; i2 < 64; i2++) {
           if (i2 < 2) {
-            r += i2 == 0 ? o : s2;
+            r2 += i2 == 0 ? o : s2;
             continue;
           }
-          a2 = 2 * e * o - s2, s2 = o, o = a2, i2 % 2 === 0 && (r += Math.min(1.3 * n2 / i2, 2) * a2);
+          a2 = 2 * e * o - s2, s2 = o, o = a2, i2 % 2 === 0 && (r2 += Math.min(1.3 * n2 / i2, 2) * a2);
         }
-        return y2(r, n2 / 20);
+        return y3(r2, n2 / 20);
       };
       Me4 = {
-        scurve: be4,
-        soft: y2,
-        hard: we5,
+        scurve: be3,
+        soft: y3,
+        hard: we4,
         cubic: Ce4,
         diode: L3,
         asym: Ne3,
         fold: F3,
-        sinefold: ye5,
+        sinefold: ye4,
         chebyshev: Ae3
       };
       Object.freeze(Object.keys(Me4));
@@ -11262,7 +11883,7 @@ registerProcessor('${n2}', MyProcessor);
           e instanceof AudioWorkletNode && e.parameters.get("end")?.setValueAtTime(0, 0);
         }
       };
-      w3 = (e, t) => e !== void 0 && e !== t;
+      w4 = (e, t) => e !== void 0 && e !== t;
       D2 = (e) => new GainNode(e, { gain: 1, channelCount: 2, channelCountMode: "explicit" });
       Se3 = class {
         reverbNode;
@@ -11278,29 +11899,29 @@ registerProcessor('${n2}', MyProcessor);
           this.output.disconnect(), this.summingNode.disconnect(), this.delayNode?.disconnect(), this.reverbNode?.disconnect();
         }
         getDjf(t, n2 = 0) {
-          return this.djfNode == null && (this.djfNode = pe5(this.audioContext, "djf-processor", { value: t }), this.summingNode.disconnect(), this.summingNode.connect(this.djfNode), this.djfNode.connect(this.output)), this.djfNode.parameters.get("value").setValueAtTime(t, n2), this.djfNode;
+          return this.djfNode == null && (this.djfNode = pe4(this.audioContext, "djf-processor", { value: t }), this.summingNode.disconnect(), this.summingNode.connect(this.djfNode), this.djfNode.connect(this.output)), this.djfNode.parameters.get("value").setValueAtTime(t, n2), this.djfNode;
         }
         getDelay(t = 0, n2 = 0.5, o) {
           return n2 = j4(n2, 0, 0.98), this.delayNode == null && (this.delayNode = this.audioContext.createFeedbackDelay(1, t, n2), this.delayNode.connect(this.summingNode), this.delayNode.start?.(o)), this.delayNode.delayTime.value !== t && this.delayNode.delayTime.setValueAtTime(t, o), this.delayNode.feedback.value !== n2 && this.delayNode.feedback.setValueAtTime(n2, o), this.delayNode;
         }
-        getReverb(t, n2, o, s2, a2, r, i2) {
-          return this.reverbNode == null && (this.reverbNode = this.audioContext.createReverb(t, n2, o, s2, a2, r, i2), this.reverbNode.connect(this.summingNode)), (w3(t, this.reverbNode.duration) || w3(n2, this.reverbNode.fade) || w3(o, this.reverbNode.lp) || w3(s2, this.reverbNode.dim) || w3(r, this.reverbNode.irspeed) || w3(i2, this.reverbNode.irbegin) || this.reverbNode.ir !== a2) && this.reverbNode.generate(t, n2, o, s2, a2, r, i2), this.reverbNode;
+        getReverb(t, n2, o, s2, a2, r2, i2) {
+          return this.reverbNode == null && (this.reverbNode = this.audioContext.createReverb(t, n2, o, s2, a2, r2, i2), this.reverbNode.connect(this.summingNode)), (w4(t, this.reverbNode.duration) || w4(n2, this.reverbNode.fade) || w4(o, this.reverbNode.lp) || w4(s2, this.reverbNode.dim) || w4(r2, this.reverbNode.irspeed) || w4(i2, this.reverbNode.irbegin) || this.reverbNode.ir !== a2) && this.reverbNode.generate(t, n2, o, s2, a2, r2, i2), this.reverbNode;
         }
         sendReverb(t, n2) {
-          return R3(t, this.reverbNode, n2);
+          return R2(t, this.reverbNode, n2);
         }
         sendDelay(t, n2) {
-          return R3(t, this.delayNode, n2);
+          return R2(t, this.delayNode, n2);
         }
         duck(t, n2 = 0, o = 0.1, s2 = 1) {
-          const a2 = n2, r = Math.max(o, 2e-3), i2 = this.output.gain;
-          me4(
+          const a2 = n2, r2 = Math.max(o, 2e-3), i2 = this.output.gain;
+          me3(
             this.audioContext,
             () => {
-              const c3 = this.audioContext.currentTime, h = i2.value;
-              i2.cancelScheduledValues(c3), i2.setValueAtTime(h, c3);
-              const u3 = Math.max(t, c3), l2 = j4(1 - Math.sqrt(s2), 0.01, h);
-              i2.exponentialRampToValueAtTime(l2, u3 + a2), i2.exponentialRampToValueAtTime(1, u3 + a2 + r);
+              const c4 = this.audioContext.currentTime, h2 = i2.value;
+              i2.cancelScheduledValues(c4), i2.setValueAtTime(h2, c4);
+              const u3 = Math.max(t, c4), l2 = j4(1 - Math.sqrt(s2), 0.01, h2);
+              i2.exponentialRampToValueAtTime(l2, u3 + a2), i2.exponentialRampToValueAtTime(1, u3 + a2 + r2);
             },
             0,
             t - 0.01
@@ -11332,8 +11953,8 @@ registerProcessor('${n2}', MyProcessor);
           const s2 = new ChannelSplitterNode(this.audioContext, {
             numberOfOutputs: o.channelCount
           });
-          o.connect(s2), n2.forEach((a2, r) => {
-            s2.connect(this.channelMerger, r % o.channelCount, a2 % this.audioContext.destination.channelCount);
+          o.connect(s2), n2.forEach((a2, r2) => {
+            s2.connect(this.channelMerger, r2 % o.channelCount, a2 % this.audioContext.destination.channelCount);
           });
         };
       };
@@ -11353,14 +11974,14 @@ registerProcessor('${n2}', MyProcessor);
           }), this.nodes = {}, this.buses = {}, this.output.reset();
         }
         duck(t, n2, o = 0, s2 = 0.1, a2 = 1) {
-          const r = [t].flat(), i2 = [o].flat(), c3 = [s2].flat(), h = [a2].flat();
-          r.forEach((u3, l2) => {
+          const r2 = [t].flat(), i2 = [o].flat(), c4 = [s2].flat(), h2 = [a2].flat();
+          r2.forEach((u3, l2) => {
             const f4 = this.nodes[u3];
             if (f4 == null) {
-              ge5(new Error(`duck target orbit ${u3} does not exist`), "superdough");
+              ge4(new Error(`duck target orbit ${u3} does not exist`), "superdough");
               return;
             }
-            const p2 = i2[l2] ?? i2[0], d2 = Math.max(c3[l2] ?? c3[0], 2e-3), g3 = h[l2] ?? h[0];
+            const p2 = i2[l2] ?? i2[0], d2 = Math.max(c4[l2] ?? c4[0], 2e-3), g3 = h2[l2] ?? h2[0];
             f4.duck(n2, p2, d2, g3);
           });
         }
@@ -11372,7 +11993,7 @@ registerProcessor('${n2}', MyProcessor);
         }
       };
       ac2(us2);
-      ({ Pattern: $e3, logger: k3, repl: je5 } = dist_exports);
+      ({ Pattern: $e3, logger: k3, repl: je4 } = dist_exports);
       Bo2(k3);
       K3 = (e) => (e.ensureObjectValue(), e.value);
       De2 = (e, t, n2, o, s2) => No2(K3(e), s2, n2, o, e.whole?.begin.valueOf());
@@ -11383,7 +12004,7 @@ registerProcessor('${n2}', MyProcessor);
         let t = e.id ?? 1;
         return this.analyze(t).draw(
           () => {
-            H3(e.smear, "0,0,0", e.ctx), ne3[t] && Ve4(ne3[t], e);
+            H3(e.smear, "0,0,0", e.ctx), ne3[t] && Ve3(ne3[t], e);
           },
           { id: t }
         );
@@ -11392,7 +12013,7 @@ registerProcessor('${n2}', MyProcessor);
         let t = e.id ?? 1;
         return this.analyze(t).draw(
           (n2) => {
-            e.color = n2[0]?.value?.color || W3().foreground, e.color, H3(e.smear, "0,0,0", e.ctx), Ue4(ne3[t], e);
+            e.color = n2[0]?.value?.color || getTheme().foreground, e.color, H3(e.smear, "0,0,0", e.ctx), Ue4(ne3[t], e);
           },
           { id: t }
         );
@@ -11403,7 +12024,7 @@ registerProcessor('${n2}', MyProcessor);
         let t = e.id ?? 1;
         return this.analyze(t).draw(
           (n2) => {
-            e.color = n2[0]?.value?.color || V3[t] || W3().foreground, V3[t] = e.color, xe5(ne3[t], e);
+            e.color = n2[0]?.value?.color || V3[t] || getTheme().foreground, V3[t] = e.color, xe4(ne3[t], e);
           },
           { id: t }
         );
@@ -11418,7 +12039,7 @@ registerProcessor('${n2}', MyProcessor);
   __export(dist_exports3, {
     StartRules: () => Gr2,
     SyntaxError: () => uu2,
-    getLeafLocation: () => ee4,
+    getLeafLocation: () => ee3,
     getLeafLocations: () => Yr2,
     getLeaves: () => Xr2,
     h: () => Jr2,
@@ -11445,67 +12066,67 @@ registerProcessor('${n2}', MyProcessor);
   }
   function Mr2(t, i2) {
     i2 = i2 !== void 0 ? i2 : {};
-    var e = {}, f4 = i2.grammarSource, l2 = { start: Uu2 }, a2 = Uu2, D6 = ".", v2 = "-", g3 = "0", c3 = ",", F5 = "|", p2 = "[", w6 = "]", P4 = "{", R6 = "}", su2 = "%", iu2 = "<", re7 = ">", ne5 = "!", se4 = "(", ie6 = ")", fe6 = "/", oe4 = "*", ae5 = "?", le4 = ":", Eu2 = "..", ce7 = "^", vu2 = "struct", $u2 = "target", mu2 = "euclid", _u2 = "slow", yu2 = "rotL", wu2 = "rotR", bu2 = "fast", xu2 = "scale", Iu2 = "//", ku2 = "cat", Ae4 = "$", Nu2 = "setcps", Pu2 = "setbpm", qu2 = "hush", pe7 = /^[1-9]/, ge6 = /^[eE]/, Fe4 = /^[+\-]/, he5 = /^[0-9]/, ju2 = /^[ \n\r\t\xA0]/, Be5 = /^["']/, Ce5 = /^[#\--.0-9A-Z\^-_a-z~\xAA\xB5\xBA\xC0-\xD6\xD8-\xF6\xF8-\u02C1\u02C6-\u02D1\u02E0-\u02E4\u02EC\u02EE\u0370-\u0374\u0376-\u0377\u037A-\u037D\u037F\u0386\u0388-\u038A\u038C\u038E-\u03A1\u03A3-\u03F5\u03F7-\u0481\u048A-\u052F\u0531-\u0556\u0559\u0560-\u0588\u05D0-\u05EA\u05EF-\u05F2\u0620-\u064A\u066E-\u066F\u0671-\u06D3\u06D5\u06E5-\u06E6\u06EE-\u06EF\u06FA-\u06FC\u06FF\u0710\u0712-\u072F\u074D-\u07A5\u07B1\u07CA-\u07EA\u07F4-\u07F5\u07FA\u0800-\u0815\u081A\u0824\u0828\u0840-\u0858\u0860-\u086A\u08A0-\u08B4\u08B6-\u08BD\u0904-\u0939\u093D\u0950\u0958-\u0961\u0971-\u0980\u0985-\u098C\u098F-\u0990\u0993-\u09A8\u09AA-\u09B0\u09B2\u09B6-\u09B9\u09BD\u09CE\u09DC-\u09DD\u09DF-\u09E1\u09F0-\u09F1\u09FC\u0A05-\u0A0A\u0A0F-\u0A10\u0A13-\u0A28\u0A2A-\u0A30\u0A32-\u0A33\u0A35-\u0A36\u0A38-\u0A39\u0A59-\u0A5C\u0A5E\u0A72-\u0A74\u0A85-\u0A8D\u0A8F-\u0A91\u0A93-\u0AA8\u0AAA-\u0AB0\u0AB2-\u0AB3\u0AB5-\u0AB9\u0ABD\u0AD0\u0AE0-\u0AE1\u0AF9\u0B05-\u0B0C\u0B0F-\u0B10\u0B13-\u0B28\u0B2A-\u0B30\u0B32-\u0B33\u0B35-\u0B39\u0B3D\u0B5C-\u0B5D\u0B5F-\u0B61\u0B71\u0B83\u0B85-\u0B8A\u0B8E-\u0B90\u0B92-\u0B95\u0B99-\u0B9A\u0B9C\u0B9E-\u0B9F\u0BA3-\u0BA4\u0BA8-\u0BAA\u0BAE-\u0BB9\u0BD0\u0C05-\u0C0C\u0C0E-\u0C10\u0C12-\u0C28\u0C2A-\u0C39\u0C3D\u0C58-\u0C5A\u0C60-\u0C61\u0C80\u0C85-\u0C8C\u0C8E-\u0C90\u0C92-\u0CA8\u0CAA-\u0CB3\u0CB5-\u0CB9\u0CBD\u0CDE\u0CE0-\u0CE1\u0CF1-\u0CF2\u0D05-\u0D0C\u0D0E-\u0D10\u0D12-\u0D3A\u0D3D\u0D4E\u0D54-\u0D56\u0D5F-\u0D61\u0D7A-\u0D7F\u0D85-\u0D96\u0D9A-\u0DB1\u0DB3-\u0DBB\u0DBD\u0DC0-\u0DC6\u0E01-\u0E30\u0E32-\u0E33\u0E40-\u0E46\u0E81-\u0E82\u0E84\u0E87-\u0E88\u0E8A\u0E8D\u0E94-\u0E97\u0E99-\u0E9F\u0EA1-\u0EA3\u0EA5\u0EA7\u0EAA-\u0EAB\u0EAD-\u0EB0\u0EB2-\u0EB3\u0EBD\u0EC0-\u0EC4\u0EC6\u0EDC-\u0EDF\u0F00\u0F40-\u0F47\u0F49-\u0F6C\u0F88-\u0F8C\u1000-\u102A\u103F\u1050-\u1055\u105A-\u105D\u1061\u1065-\u1066\u106E-\u1070\u1075-\u1081\u108E\u10A0-\u10C5\u10C7\u10CD\u10D0-\u10FA\u10FC-\u1248\u124A-\u124D\u1250-\u1256\u1258\u125A-\u125D\u1260-\u1288\u128A-\u128D\u1290-\u12B0\u12B2-\u12B5\u12B8-\u12BE\u12C0\u12C2-\u12C5\u12C8-\u12D6\u12D8-\u1310\u1312-\u1315\u1318-\u135A\u1380-\u138F\u13A0-\u13F5\u13F8-\u13FD\u1401-\u166C\u166F-\u167F\u1681-\u169A\u16A0-\u16EA\u16EE-\u16F8\u1700-\u170C\u170E-\u1711\u1720-\u1731\u1740-\u1751\u1760-\u176C\u176E-\u1770\u1780-\u17B3\u17D7\u17DC\u1820-\u1878\u1880-\u1884\u1887-\u18A8\u18AA\u18B0-\u18F5\u1900-\u191E\u1950-\u196D\u1970-\u1974\u1980-\u19AB\u19B0-\u19C9\u1A00-\u1A16\u1A20-\u1A54\u1AA7\u1B05-\u1B33\u1B45-\u1B4B\u1B83-\u1BA0\u1BAE-\u1BAF\u1BBA-\u1BE5\u1C00-\u1C23\u1C4D-\u1C4F\u1C5A-\u1C7D\u1C80-\u1C88\u1C90-\u1CBA\u1CBD-\u1CBF\u1CE9-\u1CEC\u1CEE-\u1CF1\u1CF5-\u1CF6\u1D00-\u1DBF\u1E00-\u1F15\u1F18-\u1F1D\u1F20-\u1F45\u1F48-\u1F4D\u1F50-\u1F57\u1F59\u1F5B\u1F5D\u1F5F-\u1F7D\u1F80-\u1FB4\u1FB6-\u1FBC\u1FBE\u1FC2-\u1FC4\u1FC6-\u1FCC\u1FD0-\u1FD3\u1FD6-\u1FDB\u1FE0-\u1FEC\u1FF2-\u1FF4\u1FF6-\u1FFC\u2071\u207F\u2090-\u209C\u2102\u2107\u210A-\u2113\u2115\u2119-\u211D\u2124\u2126\u2128\u212A-\u212D\u212F-\u2139\u213C-\u213F\u2145-\u2149\u214E\u2160-\u2188\u2C00-\u2C2E\u2C30-\u2C5E\u2C60-\u2CE4\u2CEB-\u2CEE\u2CF2-\u2CF3\u2D00-\u2D25\u2D27\u2D2D\u2D30-\u2D67\u2D6F\u2D80-\u2D96\u2DA0-\u2DA6\u2DA8-\u2DAE\u2DB0-\u2DB6\u2DB8-\u2DBE\u2DC0-\u2DC6\u2DC8-\u2DCE\u2DD0-\u2DD6\u2DD8-\u2DDE\u2E2F\u3005-\u3007\u3021-\u3029\u3031-\u3035\u3038-\u303C\u3041-\u3096\u309D-\u309F\u30A1-\u30FA\u30FC-\u30FF\u3105-\u312F\u3131-\u318E\u31A0-\u31BA\u31F0-\u31FF\u3400-\u4DB5\u4E00-\u9FEF\uA000-\uA48C\uA4D0-\uA4FD\uA500-\uA60C\uA610-\uA61F\uA62A-\uA62B\uA640-\uA66E\uA67F-\uA69D\uA6A0-\uA6EF\uA717-\uA71F\uA722-\uA788\uA78B-\uA7B9\uA7F7-\uA801\uA803-\uA805\uA807-\uA80A\uA80C-\uA822\uA840-\uA873\uA882-\uA8B3\uA8F2-\uA8F7\uA8FB\uA8FD-\uA8FE\uA90A-\uA925\uA930-\uA946\uA960-\uA97C\uA984-\uA9B2\uA9CF\uA9E0-\uA9E4\uA9E6-\uA9EF\uA9FA-\uA9FE\uAA00-\uAA28\uAA40-\uAA42\uAA44-\uAA4B\uAA60-\uAA76\uAA7A\uAA7E-\uAAAF\uAAB1\uAAB5-\uAAB6\uAAB9-\uAABD\uAAC0\uAAC2\uAADB-\uAADD\uAAE0-\uAAEA\uAAF2-\uAAF4\uAB01-\uAB06\uAB09-\uAB0E\uAB11-\uAB16\uAB20-\uAB26\uAB28-\uAB2E\uAB30-\uAB5A\uAB5C-\uAB65\uAB70-\uABE2\uAC00-\uD7A3\uD7B0-\uD7C6\uD7CB-\uD7FB\uF900-\uFA6D\uFA70-\uFAD9\uFB00-\uFB06\uFB13-\uFB17\uFB1D\uFB1F-\uFB28\uFB2A-\uFB36\uFB38-\uFB3C\uFB3E\uFB40-\uFB41\uFB43-\uFB44\uFB46-\uFBB1\uFBD3-\uFD3D\uFD50-\uFD8F\uFD92-\uFDC7\uFDF0-\uFDFB\uFE70-\uFE74\uFE76-\uFEFC\uFF21-\uFF3A\uFF41-\uFF5A\uFF66-\uFFBE\uFFC2-\uFFC7\uFFCA-\uFFCF\uFFD2-\uFFD7\uFFDA-\uFFDC]/, De3 = /^[@_]/, Su2 = /^[^\n]/, de4 = pu2("number"), Ru2 = _7(".", false), Ee4 = O2([["1", "9"]], false, false), ve5 = O2(["e", "E"], false, false), $e4 = O2(["+", "-"], false, false), me5 = _7("-", false), _e4 = _7("0", false), ye6 = O2([["0", "9"]], false, false), we6 = pu2("whitespace"), Lu2 = O2([" ", `
-`, "\r", "	", "\xA0"], false, false), be5 = _7(",", false), xe6 = _7("|", false), Ie2 = O2(['"', "'"], false, false), ke4 = pu2('a letter, a number, "-", "#", ".", "^", "_"'), Ne4 = O2(["#", ["-", "."], ["0", "9"], ["A", "Z"], ["^", "_"], ["a", "z"], "~", "\xAA", "\xB5", "\xBA", ["\xC0", "\xD6"], ["\xD8", "\xF6"], ["\xF8", "\u02C1"], ["\u02C6", "\u02D1"], ["\u02E0", "\u02E4"], "\u02EC", "\u02EE", ["\u0370", "\u0374"], ["\u0376", "\u0377"], ["\u037A", "\u037D"], "\u037F", "\u0386", ["\u0388", "\u038A"], "\u038C", ["\u038E", "\u03A1"], ["\u03A3", "\u03F5"], ["\u03F7", "\u0481"], ["\u048A", "\u052F"], ["\u0531", "\u0556"], "\u0559", ["\u0560", "\u0588"], ["\u05D0", "\u05EA"], ["\u05EF", "\u05F2"], ["\u0620", "\u064A"], ["\u066E", "\u066F"], ["\u0671", "\u06D3"], "\u06D5", ["\u06E5", "\u06E6"], ["\u06EE", "\u06EF"], ["\u06FA", "\u06FC"], "\u06FF", "\u0710", ["\u0712", "\u072F"], ["\u074D", "\u07A5"], "\u07B1", ["\u07CA", "\u07EA"], ["\u07F4", "\u07F5"], "\u07FA", ["\u0800", "\u0815"], "\u081A", "\u0824", "\u0828", ["\u0840", "\u0858"], ["\u0860", "\u086A"], ["\u08A0", "\u08B4"], ["\u08B6", "\u08BD"], ["\u0904", "\u0939"], "\u093D", "\u0950", ["\u0958", "\u0961"], ["\u0971", "\u0980"], ["\u0985", "\u098C"], ["\u098F", "\u0990"], ["\u0993", "\u09A8"], ["\u09AA", "\u09B0"], "\u09B2", ["\u09B6", "\u09B9"], "\u09BD", "\u09CE", ["\u09DC", "\u09DD"], ["\u09DF", "\u09E1"], ["\u09F0", "\u09F1"], "\u09FC", ["\u0A05", "\u0A0A"], ["\u0A0F", "\u0A10"], ["\u0A13", "\u0A28"], ["\u0A2A", "\u0A30"], ["\u0A32", "\u0A33"], ["\u0A35", "\u0A36"], ["\u0A38", "\u0A39"], ["\u0A59", "\u0A5C"], "\u0A5E", ["\u0A72", "\u0A74"], ["\u0A85", "\u0A8D"], ["\u0A8F", "\u0A91"], ["\u0A93", "\u0AA8"], ["\u0AAA", "\u0AB0"], ["\u0AB2", "\u0AB3"], ["\u0AB5", "\u0AB9"], "\u0ABD", "\u0AD0", ["\u0AE0", "\u0AE1"], "\u0AF9", ["\u0B05", "\u0B0C"], ["\u0B0F", "\u0B10"], ["\u0B13", "\u0B28"], ["\u0B2A", "\u0B30"], ["\u0B32", "\u0B33"], ["\u0B35", "\u0B39"], "\u0B3D", ["\u0B5C", "\u0B5D"], ["\u0B5F", "\u0B61"], "\u0B71", "\u0B83", ["\u0B85", "\u0B8A"], ["\u0B8E", "\u0B90"], ["\u0B92", "\u0B95"], ["\u0B99", "\u0B9A"], "\u0B9C", ["\u0B9E", "\u0B9F"], ["\u0BA3", "\u0BA4"], ["\u0BA8", "\u0BAA"], ["\u0BAE", "\u0BB9"], "\u0BD0", ["\u0C05", "\u0C0C"], ["\u0C0E", "\u0C10"], ["\u0C12", "\u0C28"], ["\u0C2A", "\u0C39"], "\u0C3D", ["\u0C58", "\u0C5A"], ["\u0C60", "\u0C61"], "\u0C80", ["\u0C85", "\u0C8C"], ["\u0C8E", "\u0C90"], ["\u0C92", "\u0CA8"], ["\u0CAA", "\u0CB3"], ["\u0CB5", "\u0CB9"], "\u0CBD", "\u0CDE", ["\u0CE0", "\u0CE1"], ["\u0CF1", "\u0CF2"], ["\u0D05", "\u0D0C"], ["\u0D0E", "\u0D10"], ["\u0D12", "\u0D3A"], "\u0D3D", "\u0D4E", ["\u0D54", "\u0D56"], ["\u0D5F", "\u0D61"], ["\u0D7A", "\u0D7F"], ["\u0D85", "\u0D96"], ["\u0D9A", "\u0DB1"], ["\u0DB3", "\u0DBB"], "\u0DBD", ["\u0DC0", "\u0DC6"], ["\u0E01", "\u0E30"], ["\u0E32", "\u0E33"], ["\u0E40", "\u0E46"], ["\u0E81", "\u0E82"], "\u0E84", ["\u0E87", "\u0E88"], "\u0E8A", "\u0E8D", ["\u0E94", "\u0E97"], ["\u0E99", "\u0E9F"], ["\u0EA1", "\u0EA3"], "\u0EA5", "\u0EA7", ["\u0EAA", "\u0EAB"], ["\u0EAD", "\u0EB0"], ["\u0EB2", "\u0EB3"], "\u0EBD", ["\u0EC0", "\u0EC4"], "\u0EC6", ["\u0EDC", "\u0EDF"], "\u0F00", ["\u0F40", "\u0F47"], ["\u0F49", "\u0F6C"], ["\u0F88", "\u0F8C"], ["\u1000", "\u102A"], "\u103F", ["\u1050", "\u1055"], ["\u105A", "\u105D"], "\u1061", ["\u1065", "\u1066"], ["\u106E", "\u1070"], ["\u1075", "\u1081"], "\u108E", ["\u10A0", "\u10C5"], "\u10C7", "\u10CD", ["\u10D0", "\u10FA"], ["\u10FC", "\u1248"], ["\u124A", "\u124D"], ["\u1250", "\u1256"], "\u1258", ["\u125A", "\u125D"], ["\u1260", "\u1288"], ["\u128A", "\u128D"], ["\u1290", "\u12B0"], ["\u12B2", "\u12B5"], ["\u12B8", "\u12BE"], "\u12C0", ["\u12C2", "\u12C5"], ["\u12C8", "\u12D6"], ["\u12D8", "\u1310"], ["\u1312", "\u1315"], ["\u1318", "\u135A"], ["\u1380", "\u138F"], ["\u13A0", "\u13F5"], ["\u13F8", "\u13FD"], ["\u1401", "\u166C"], ["\u166F", "\u167F"], ["\u1681", "\u169A"], ["\u16A0", "\u16EA"], ["\u16EE", "\u16F8"], ["\u1700", "\u170C"], ["\u170E", "\u1711"], ["\u1720", "\u1731"], ["\u1740", "\u1751"], ["\u1760", "\u176C"], ["\u176E", "\u1770"], ["\u1780", "\u17B3"], "\u17D7", "\u17DC", ["\u1820", "\u1878"], ["\u1880", "\u1884"], ["\u1887", "\u18A8"], "\u18AA", ["\u18B0", "\u18F5"], ["\u1900", "\u191E"], ["\u1950", "\u196D"], ["\u1970", "\u1974"], ["\u1980", "\u19AB"], ["\u19B0", "\u19C9"], ["\u1A00", "\u1A16"], ["\u1A20", "\u1A54"], "\u1AA7", ["\u1B05", "\u1B33"], ["\u1B45", "\u1B4B"], ["\u1B83", "\u1BA0"], ["\u1BAE", "\u1BAF"], ["\u1BBA", "\u1BE5"], ["\u1C00", "\u1C23"], ["\u1C4D", "\u1C4F"], ["\u1C5A", "\u1C7D"], ["\u1C80", "\u1C88"], ["\u1C90", "\u1CBA"], ["\u1CBD", "\u1CBF"], ["\u1CE9", "\u1CEC"], ["\u1CEE", "\u1CF1"], ["\u1CF5", "\u1CF6"], ["\u1D00", "\u1DBF"], ["\u1E00", "\u1F15"], ["\u1F18", "\u1F1D"], ["\u1F20", "\u1F45"], ["\u1F48", "\u1F4D"], ["\u1F50", "\u1F57"], "\u1F59", "\u1F5B", "\u1F5D", ["\u1F5F", "\u1F7D"], ["\u1F80", "\u1FB4"], ["\u1FB6", "\u1FBC"], "\u1FBE", ["\u1FC2", "\u1FC4"], ["\u1FC6", "\u1FCC"], ["\u1FD0", "\u1FD3"], ["\u1FD6", "\u1FDB"], ["\u1FE0", "\u1FEC"], ["\u1FF2", "\u1FF4"], ["\u1FF6", "\u1FFC"], "\u2071", "\u207F", ["\u2090", "\u209C"], "\u2102", "\u2107", ["\u210A", "\u2113"], "\u2115", ["\u2119", "\u211D"], "\u2124", "\u2126", "\u2128", ["\u212A", "\u212D"], ["\u212F", "\u2139"], ["\u213C", "\u213F"], ["\u2145", "\u2149"], "\u214E", ["\u2160", "\u2188"], ["\u2C00", "\u2C2E"], ["\u2C30", "\u2C5E"], ["\u2C60", "\u2CE4"], ["\u2CEB", "\u2CEE"], ["\u2CF2", "\u2CF3"], ["\u2D00", "\u2D25"], "\u2D27", "\u2D2D", ["\u2D30", "\u2D67"], "\u2D6F", ["\u2D80", "\u2D96"], ["\u2DA0", "\u2DA6"], ["\u2DA8", "\u2DAE"], ["\u2DB0", "\u2DB6"], ["\u2DB8", "\u2DBE"], ["\u2DC0", "\u2DC6"], ["\u2DC8", "\u2DCE"], ["\u2DD0", "\u2DD6"], ["\u2DD8", "\u2DDE"], "\u2E2F", ["\u3005", "\u3007"], ["\u3021", "\u3029"], ["\u3031", "\u3035"], ["\u3038", "\u303C"], ["\u3041", "\u3096"], ["\u309D", "\u309F"], ["\u30A1", "\u30FA"], ["\u30FC", "\u30FF"], ["\u3105", "\u312F"], ["\u3131", "\u318E"], ["\u31A0", "\u31BA"], ["\u31F0", "\u31FF"], ["\u3400", "\u4DB5"], ["\u4E00", "\u9FEF"], ["\uA000", "\uA48C"], ["\uA4D0", "\uA4FD"], ["\uA500", "\uA60C"], ["\uA610", "\uA61F"], ["\uA62A", "\uA62B"], ["\uA640", "\uA66E"], ["\uA67F", "\uA69D"], ["\uA6A0", "\uA6EF"], ["\uA717", "\uA71F"], ["\uA722", "\uA788"], ["\uA78B", "\uA7B9"], ["\uA7F7", "\uA801"], ["\uA803", "\uA805"], ["\uA807", "\uA80A"], ["\uA80C", "\uA822"], ["\uA840", "\uA873"], ["\uA882", "\uA8B3"], ["\uA8F2", "\uA8F7"], "\uA8FB", ["\uA8FD", "\uA8FE"], ["\uA90A", "\uA925"], ["\uA930", "\uA946"], ["\uA960", "\uA97C"], ["\uA984", "\uA9B2"], "\uA9CF", ["\uA9E0", "\uA9E4"], ["\uA9E6", "\uA9EF"], ["\uA9FA", "\uA9FE"], ["\uAA00", "\uAA28"], ["\uAA40", "\uAA42"], ["\uAA44", "\uAA4B"], ["\uAA60", "\uAA76"], "\uAA7A", ["\uAA7E", "\uAAAF"], "\uAAB1", ["\uAAB5", "\uAAB6"], ["\uAAB9", "\uAABD"], "\uAAC0", "\uAAC2", ["\uAADB", "\uAADD"], ["\uAAE0", "\uAAEA"], ["\uAAF2", "\uAAF4"], ["\uAB01", "\uAB06"], ["\uAB09", "\uAB0E"], ["\uAB11", "\uAB16"], ["\uAB20", "\uAB26"], ["\uAB28", "\uAB2E"], ["\uAB30", "\uAB5A"], ["\uAB5C", "\uAB65"], ["\uAB70", "\uABE2"], ["\uAC00", "\uD7A3"], ["\uD7B0", "\uD7C6"], ["\uD7CB", "\uD7FB"], ["\uF900", "\uFA6D"], ["\uFA70", "\uFAD9"], ["\uFB00", "\uFB06"], ["\uFB13", "\uFB17"], "\uFB1D", ["\uFB1F", "\uFB28"], ["\uFB2A", "\uFB36"], ["\uFB38", "\uFB3C"], "\uFB3E", ["\uFB40", "\uFB41"], ["\uFB43", "\uFB44"], ["\uFB46", "\uFBB1"], ["\uFBD3", "\uFD3D"], ["\uFD50", "\uFD8F"], ["\uFD92", "\uFDC7"], ["\uFDF0", "\uFDFB"], ["\uFE70", "\uFE74"], ["\uFE76", "\uFEFC"], ["\uFF21", "\uFF3A"], ["\uFF41", "\uFF5A"], ["\uFF66", "\uFFBE"], ["\uFFC2", "\uFFC7"], ["\uFFCA", "\uFFCF"], ["\uFFD2", "\uFFD7"], ["\uFFDA", "\uFFDC"]], false, false), Ou2 = _7("[", false), Mu2 = _7("]", false), Pe3 = _7("{", false), qe4 = _7("}", false), je6 = _7("%", false), Se4 = _7("<", false), Re3 = _7(">", false), Le4 = O2(["@", "_"], false, false), Oe4 = _7("!", false), Me5 = _7("(", false), ze5 = _7(")", false), Te5 = _7("/", false), Ze3 = _7("*", false), We3 = _7("?", false), Ue5 = _7(":", false), Ve5 = _7("..", false), Xe5 = _7("^", false), Ge2 = _7("struct", false), Ye4 = _7("target", false), He3 = _7("euclid", false), Je3 = _7("slow", false), Ke3 = _7("rotL", false), Qe3 = _7("rotR", false), ut4 = _7("fast", false), et5 = _7("scale", false), tt4 = _7("//", false), zu2 = O2([`
-`], true, false), rt5 = _7("cat", false), nt4 = _7("$", false), st4 = _7("setcps", false), it5 = _7("setbpm", false), ft2 = _7("hush", false), ot5 = function() {
+    var e = {}, f4 = i2.grammarSource, l2 = { start: Uu2 }, a2 = Uu2, D6 = ".", v2 = "-", g3 = "0", c4 = ",", F5 = "|", p2 = "[", w7 = "]", P4 = "{", R5 = "}", su2 = "%", iu2 = "<", re7 = ">", ne5 = "!", se4 = "(", ie6 = ")", fe5 = "/", oe4 = "*", ae5 = "?", le4 = ":", Eu2 = "..", ce7 = "^", vu2 = "struct", $u2 = "target", mu2 = "euclid", _u2 = "slow", yu2 = "rotL", wu2 = "rotR", bu2 = "fast", xu2 = "scale", Iu2 = "//", ku2 = "cat", Ae4 = "$", Nu2 = "setcps", Pu2 = "setbpm", qu2 = "hush", pe6 = /^[1-9]/, ge5 = /^[eE]/, Fe4 = /^[+\-]/, he4 = /^[0-9]/, ju2 = /^[ \n\r\t\xA0]/, Be4 = /^["']/, Ce5 = /^[#\--.0-9A-Z\^-_a-z~\xAA\xB5\xBA\xC0-\xD6\xD8-\xF6\xF8-\u02C1\u02C6-\u02D1\u02E0-\u02E4\u02EC\u02EE\u0370-\u0374\u0376-\u0377\u037A-\u037D\u037F\u0386\u0388-\u038A\u038C\u038E-\u03A1\u03A3-\u03F5\u03F7-\u0481\u048A-\u052F\u0531-\u0556\u0559\u0560-\u0588\u05D0-\u05EA\u05EF-\u05F2\u0620-\u064A\u066E-\u066F\u0671-\u06D3\u06D5\u06E5-\u06E6\u06EE-\u06EF\u06FA-\u06FC\u06FF\u0710\u0712-\u072F\u074D-\u07A5\u07B1\u07CA-\u07EA\u07F4-\u07F5\u07FA\u0800-\u0815\u081A\u0824\u0828\u0840-\u0858\u0860-\u086A\u08A0-\u08B4\u08B6-\u08BD\u0904-\u0939\u093D\u0950\u0958-\u0961\u0971-\u0980\u0985-\u098C\u098F-\u0990\u0993-\u09A8\u09AA-\u09B0\u09B2\u09B6-\u09B9\u09BD\u09CE\u09DC-\u09DD\u09DF-\u09E1\u09F0-\u09F1\u09FC\u0A05-\u0A0A\u0A0F-\u0A10\u0A13-\u0A28\u0A2A-\u0A30\u0A32-\u0A33\u0A35-\u0A36\u0A38-\u0A39\u0A59-\u0A5C\u0A5E\u0A72-\u0A74\u0A85-\u0A8D\u0A8F-\u0A91\u0A93-\u0AA8\u0AAA-\u0AB0\u0AB2-\u0AB3\u0AB5-\u0AB9\u0ABD\u0AD0\u0AE0-\u0AE1\u0AF9\u0B05-\u0B0C\u0B0F-\u0B10\u0B13-\u0B28\u0B2A-\u0B30\u0B32-\u0B33\u0B35-\u0B39\u0B3D\u0B5C-\u0B5D\u0B5F-\u0B61\u0B71\u0B83\u0B85-\u0B8A\u0B8E-\u0B90\u0B92-\u0B95\u0B99-\u0B9A\u0B9C\u0B9E-\u0B9F\u0BA3-\u0BA4\u0BA8-\u0BAA\u0BAE-\u0BB9\u0BD0\u0C05-\u0C0C\u0C0E-\u0C10\u0C12-\u0C28\u0C2A-\u0C39\u0C3D\u0C58-\u0C5A\u0C60-\u0C61\u0C80\u0C85-\u0C8C\u0C8E-\u0C90\u0C92-\u0CA8\u0CAA-\u0CB3\u0CB5-\u0CB9\u0CBD\u0CDE\u0CE0-\u0CE1\u0CF1-\u0CF2\u0D05-\u0D0C\u0D0E-\u0D10\u0D12-\u0D3A\u0D3D\u0D4E\u0D54-\u0D56\u0D5F-\u0D61\u0D7A-\u0D7F\u0D85-\u0D96\u0D9A-\u0DB1\u0DB3-\u0DBB\u0DBD\u0DC0-\u0DC6\u0E01-\u0E30\u0E32-\u0E33\u0E40-\u0E46\u0E81-\u0E82\u0E84\u0E87-\u0E88\u0E8A\u0E8D\u0E94-\u0E97\u0E99-\u0E9F\u0EA1-\u0EA3\u0EA5\u0EA7\u0EAA-\u0EAB\u0EAD-\u0EB0\u0EB2-\u0EB3\u0EBD\u0EC0-\u0EC4\u0EC6\u0EDC-\u0EDF\u0F00\u0F40-\u0F47\u0F49-\u0F6C\u0F88-\u0F8C\u1000-\u102A\u103F\u1050-\u1055\u105A-\u105D\u1061\u1065-\u1066\u106E-\u1070\u1075-\u1081\u108E\u10A0-\u10C5\u10C7\u10CD\u10D0-\u10FA\u10FC-\u1248\u124A-\u124D\u1250-\u1256\u1258\u125A-\u125D\u1260-\u1288\u128A-\u128D\u1290-\u12B0\u12B2-\u12B5\u12B8-\u12BE\u12C0\u12C2-\u12C5\u12C8-\u12D6\u12D8-\u1310\u1312-\u1315\u1318-\u135A\u1380-\u138F\u13A0-\u13F5\u13F8-\u13FD\u1401-\u166C\u166F-\u167F\u1681-\u169A\u16A0-\u16EA\u16EE-\u16F8\u1700-\u170C\u170E-\u1711\u1720-\u1731\u1740-\u1751\u1760-\u176C\u176E-\u1770\u1780-\u17B3\u17D7\u17DC\u1820-\u1878\u1880-\u1884\u1887-\u18A8\u18AA\u18B0-\u18F5\u1900-\u191E\u1950-\u196D\u1970-\u1974\u1980-\u19AB\u19B0-\u19C9\u1A00-\u1A16\u1A20-\u1A54\u1AA7\u1B05-\u1B33\u1B45-\u1B4B\u1B83-\u1BA0\u1BAE-\u1BAF\u1BBA-\u1BE5\u1C00-\u1C23\u1C4D-\u1C4F\u1C5A-\u1C7D\u1C80-\u1C88\u1C90-\u1CBA\u1CBD-\u1CBF\u1CE9-\u1CEC\u1CEE-\u1CF1\u1CF5-\u1CF6\u1D00-\u1DBF\u1E00-\u1F15\u1F18-\u1F1D\u1F20-\u1F45\u1F48-\u1F4D\u1F50-\u1F57\u1F59\u1F5B\u1F5D\u1F5F-\u1F7D\u1F80-\u1FB4\u1FB6-\u1FBC\u1FBE\u1FC2-\u1FC4\u1FC6-\u1FCC\u1FD0-\u1FD3\u1FD6-\u1FDB\u1FE0-\u1FEC\u1FF2-\u1FF4\u1FF6-\u1FFC\u2071\u207F\u2090-\u209C\u2102\u2107\u210A-\u2113\u2115\u2119-\u211D\u2124\u2126\u2128\u212A-\u212D\u212F-\u2139\u213C-\u213F\u2145-\u2149\u214E\u2160-\u2188\u2C00-\u2C2E\u2C30-\u2C5E\u2C60-\u2CE4\u2CEB-\u2CEE\u2CF2-\u2CF3\u2D00-\u2D25\u2D27\u2D2D\u2D30-\u2D67\u2D6F\u2D80-\u2D96\u2DA0-\u2DA6\u2DA8-\u2DAE\u2DB0-\u2DB6\u2DB8-\u2DBE\u2DC0-\u2DC6\u2DC8-\u2DCE\u2DD0-\u2DD6\u2DD8-\u2DDE\u2E2F\u3005-\u3007\u3021-\u3029\u3031-\u3035\u3038-\u303C\u3041-\u3096\u309D-\u309F\u30A1-\u30FA\u30FC-\u30FF\u3105-\u312F\u3131-\u318E\u31A0-\u31BA\u31F0-\u31FF\u3400-\u4DB5\u4E00-\u9FEF\uA000-\uA48C\uA4D0-\uA4FD\uA500-\uA60C\uA610-\uA61F\uA62A-\uA62B\uA640-\uA66E\uA67F-\uA69D\uA6A0-\uA6EF\uA717-\uA71F\uA722-\uA788\uA78B-\uA7B9\uA7F7-\uA801\uA803-\uA805\uA807-\uA80A\uA80C-\uA822\uA840-\uA873\uA882-\uA8B3\uA8F2-\uA8F7\uA8FB\uA8FD-\uA8FE\uA90A-\uA925\uA930-\uA946\uA960-\uA97C\uA984-\uA9B2\uA9CF\uA9E0-\uA9E4\uA9E6-\uA9EF\uA9FA-\uA9FE\uAA00-\uAA28\uAA40-\uAA42\uAA44-\uAA4B\uAA60-\uAA76\uAA7A\uAA7E-\uAAAF\uAAB1\uAAB5-\uAAB6\uAAB9-\uAABD\uAAC0\uAAC2\uAADB-\uAADD\uAAE0-\uAAEA\uAAF2-\uAAF4\uAB01-\uAB06\uAB09-\uAB0E\uAB11-\uAB16\uAB20-\uAB26\uAB28-\uAB2E\uAB30-\uAB5A\uAB5C-\uAB65\uAB70-\uABE2\uAC00-\uD7A3\uD7B0-\uD7C6\uD7CB-\uD7FB\uF900-\uFA6D\uFA70-\uFAD9\uFB00-\uFB06\uFB13-\uFB17\uFB1D\uFB1F-\uFB28\uFB2A-\uFB36\uFB38-\uFB3C\uFB3E\uFB40-\uFB41\uFB43-\uFB44\uFB46-\uFBB1\uFBD3-\uFD3D\uFD50-\uFD8F\uFD92-\uFDC7\uFDF0-\uFDFB\uFE70-\uFE74\uFE76-\uFEFC\uFF21-\uFF3A\uFF41-\uFF5A\uFF66-\uFFBE\uFFC2-\uFFC7\uFFCA-\uFFCF\uFFD2-\uFFD7\uFFDA-\uFFDC]/, De3 = /^[@_]/, Su2 = /^[^\n]/, de4 = pu2("number"), Ru2 = _7(".", false), Ee4 = O2([["1", "9"]], false, false), ve4 = O2(["e", "E"], false, false), $e4 = O2(["+", "-"], false, false), me4 = _7("-", false), _e4 = _7("0", false), ye5 = O2([["0", "9"]], false, false), we5 = pu2("whitespace"), Lu2 = O2([" ", `
+`, "\r", "	", "\xA0"], false, false), be4 = _7(",", false), xe5 = _7("|", false), Ie2 = O2(['"', "'"], false, false), ke4 = pu2('a letter, a number, "-", "#", ".", "^", "_"'), Ne4 = O2(["#", ["-", "."], ["0", "9"], ["A", "Z"], ["^", "_"], ["a", "z"], "~", "\xAA", "\xB5", "\xBA", ["\xC0", "\xD6"], ["\xD8", "\xF6"], ["\xF8", "\u02C1"], ["\u02C6", "\u02D1"], ["\u02E0", "\u02E4"], "\u02EC", "\u02EE", ["\u0370", "\u0374"], ["\u0376", "\u0377"], ["\u037A", "\u037D"], "\u037F", "\u0386", ["\u0388", "\u038A"], "\u038C", ["\u038E", "\u03A1"], ["\u03A3", "\u03F5"], ["\u03F7", "\u0481"], ["\u048A", "\u052F"], ["\u0531", "\u0556"], "\u0559", ["\u0560", "\u0588"], ["\u05D0", "\u05EA"], ["\u05EF", "\u05F2"], ["\u0620", "\u064A"], ["\u066E", "\u066F"], ["\u0671", "\u06D3"], "\u06D5", ["\u06E5", "\u06E6"], ["\u06EE", "\u06EF"], ["\u06FA", "\u06FC"], "\u06FF", "\u0710", ["\u0712", "\u072F"], ["\u074D", "\u07A5"], "\u07B1", ["\u07CA", "\u07EA"], ["\u07F4", "\u07F5"], "\u07FA", ["\u0800", "\u0815"], "\u081A", "\u0824", "\u0828", ["\u0840", "\u0858"], ["\u0860", "\u086A"], ["\u08A0", "\u08B4"], ["\u08B6", "\u08BD"], ["\u0904", "\u0939"], "\u093D", "\u0950", ["\u0958", "\u0961"], ["\u0971", "\u0980"], ["\u0985", "\u098C"], ["\u098F", "\u0990"], ["\u0993", "\u09A8"], ["\u09AA", "\u09B0"], "\u09B2", ["\u09B6", "\u09B9"], "\u09BD", "\u09CE", ["\u09DC", "\u09DD"], ["\u09DF", "\u09E1"], ["\u09F0", "\u09F1"], "\u09FC", ["\u0A05", "\u0A0A"], ["\u0A0F", "\u0A10"], ["\u0A13", "\u0A28"], ["\u0A2A", "\u0A30"], ["\u0A32", "\u0A33"], ["\u0A35", "\u0A36"], ["\u0A38", "\u0A39"], ["\u0A59", "\u0A5C"], "\u0A5E", ["\u0A72", "\u0A74"], ["\u0A85", "\u0A8D"], ["\u0A8F", "\u0A91"], ["\u0A93", "\u0AA8"], ["\u0AAA", "\u0AB0"], ["\u0AB2", "\u0AB3"], ["\u0AB5", "\u0AB9"], "\u0ABD", "\u0AD0", ["\u0AE0", "\u0AE1"], "\u0AF9", ["\u0B05", "\u0B0C"], ["\u0B0F", "\u0B10"], ["\u0B13", "\u0B28"], ["\u0B2A", "\u0B30"], ["\u0B32", "\u0B33"], ["\u0B35", "\u0B39"], "\u0B3D", ["\u0B5C", "\u0B5D"], ["\u0B5F", "\u0B61"], "\u0B71", "\u0B83", ["\u0B85", "\u0B8A"], ["\u0B8E", "\u0B90"], ["\u0B92", "\u0B95"], ["\u0B99", "\u0B9A"], "\u0B9C", ["\u0B9E", "\u0B9F"], ["\u0BA3", "\u0BA4"], ["\u0BA8", "\u0BAA"], ["\u0BAE", "\u0BB9"], "\u0BD0", ["\u0C05", "\u0C0C"], ["\u0C0E", "\u0C10"], ["\u0C12", "\u0C28"], ["\u0C2A", "\u0C39"], "\u0C3D", ["\u0C58", "\u0C5A"], ["\u0C60", "\u0C61"], "\u0C80", ["\u0C85", "\u0C8C"], ["\u0C8E", "\u0C90"], ["\u0C92", "\u0CA8"], ["\u0CAA", "\u0CB3"], ["\u0CB5", "\u0CB9"], "\u0CBD", "\u0CDE", ["\u0CE0", "\u0CE1"], ["\u0CF1", "\u0CF2"], ["\u0D05", "\u0D0C"], ["\u0D0E", "\u0D10"], ["\u0D12", "\u0D3A"], "\u0D3D", "\u0D4E", ["\u0D54", "\u0D56"], ["\u0D5F", "\u0D61"], ["\u0D7A", "\u0D7F"], ["\u0D85", "\u0D96"], ["\u0D9A", "\u0DB1"], ["\u0DB3", "\u0DBB"], "\u0DBD", ["\u0DC0", "\u0DC6"], ["\u0E01", "\u0E30"], ["\u0E32", "\u0E33"], ["\u0E40", "\u0E46"], ["\u0E81", "\u0E82"], "\u0E84", ["\u0E87", "\u0E88"], "\u0E8A", "\u0E8D", ["\u0E94", "\u0E97"], ["\u0E99", "\u0E9F"], ["\u0EA1", "\u0EA3"], "\u0EA5", "\u0EA7", ["\u0EAA", "\u0EAB"], ["\u0EAD", "\u0EB0"], ["\u0EB2", "\u0EB3"], "\u0EBD", ["\u0EC0", "\u0EC4"], "\u0EC6", ["\u0EDC", "\u0EDF"], "\u0F00", ["\u0F40", "\u0F47"], ["\u0F49", "\u0F6C"], ["\u0F88", "\u0F8C"], ["\u1000", "\u102A"], "\u103F", ["\u1050", "\u1055"], ["\u105A", "\u105D"], "\u1061", ["\u1065", "\u1066"], ["\u106E", "\u1070"], ["\u1075", "\u1081"], "\u108E", ["\u10A0", "\u10C5"], "\u10C7", "\u10CD", ["\u10D0", "\u10FA"], ["\u10FC", "\u1248"], ["\u124A", "\u124D"], ["\u1250", "\u1256"], "\u1258", ["\u125A", "\u125D"], ["\u1260", "\u1288"], ["\u128A", "\u128D"], ["\u1290", "\u12B0"], ["\u12B2", "\u12B5"], ["\u12B8", "\u12BE"], "\u12C0", ["\u12C2", "\u12C5"], ["\u12C8", "\u12D6"], ["\u12D8", "\u1310"], ["\u1312", "\u1315"], ["\u1318", "\u135A"], ["\u1380", "\u138F"], ["\u13A0", "\u13F5"], ["\u13F8", "\u13FD"], ["\u1401", "\u166C"], ["\u166F", "\u167F"], ["\u1681", "\u169A"], ["\u16A0", "\u16EA"], ["\u16EE", "\u16F8"], ["\u1700", "\u170C"], ["\u170E", "\u1711"], ["\u1720", "\u1731"], ["\u1740", "\u1751"], ["\u1760", "\u176C"], ["\u176E", "\u1770"], ["\u1780", "\u17B3"], "\u17D7", "\u17DC", ["\u1820", "\u1878"], ["\u1880", "\u1884"], ["\u1887", "\u18A8"], "\u18AA", ["\u18B0", "\u18F5"], ["\u1900", "\u191E"], ["\u1950", "\u196D"], ["\u1970", "\u1974"], ["\u1980", "\u19AB"], ["\u19B0", "\u19C9"], ["\u1A00", "\u1A16"], ["\u1A20", "\u1A54"], "\u1AA7", ["\u1B05", "\u1B33"], ["\u1B45", "\u1B4B"], ["\u1B83", "\u1BA0"], ["\u1BAE", "\u1BAF"], ["\u1BBA", "\u1BE5"], ["\u1C00", "\u1C23"], ["\u1C4D", "\u1C4F"], ["\u1C5A", "\u1C7D"], ["\u1C80", "\u1C88"], ["\u1C90", "\u1CBA"], ["\u1CBD", "\u1CBF"], ["\u1CE9", "\u1CEC"], ["\u1CEE", "\u1CF1"], ["\u1CF5", "\u1CF6"], ["\u1D00", "\u1DBF"], ["\u1E00", "\u1F15"], ["\u1F18", "\u1F1D"], ["\u1F20", "\u1F45"], ["\u1F48", "\u1F4D"], ["\u1F50", "\u1F57"], "\u1F59", "\u1F5B", "\u1F5D", ["\u1F5F", "\u1F7D"], ["\u1F80", "\u1FB4"], ["\u1FB6", "\u1FBC"], "\u1FBE", ["\u1FC2", "\u1FC4"], ["\u1FC6", "\u1FCC"], ["\u1FD0", "\u1FD3"], ["\u1FD6", "\u1FDB"], ["\u1FE0", "\u1FEC"], ["\u1FF2", "\u1FF4"], ["\u1FF6", "\u1FFC"], "\u2071", "\u207F", ["\u2090", "\u209C"], "\u2102", "\u2107", ["\u210A", "\u2113"], "\u2115", ["\u2119", "\u211D"], "\u2124", "\u2126", "\u2128", ["\u212A", "\u212D"], ["\u212F", "\u2139"], ["\u213C", "\u213F"], ["\u2145", "\u2149"], "\u214E", ["\u2160", "\u2188"], ["\u2C00", "\u2C2E"], ["\u2C30", "\u2C5E"], ["\u2C60", "\u2CE4"], ["\u2CEB", "\u2CEE"], ["\u2CF2", "\u2CF3"], ["\u2D00", "\u2D25"], "\u2D27", "\u2D2D", ["\u2D30", "\u2D67"], "\u2D6F", ["\u2D80", "\u2D96"], ["\u2DA0", "\u2DA6"], ["\u2DA8", "\u2DAE"], ["\u2DB0", "\u2DB6"], ["\u2DB8", "\u2DBE"], ["\u2DC0", "\u2DC6"], ["\u2DC8", "\u2DCE"], ["\u2DD0", "\u2DD6"], ["\u2DD8", "\u2DDE"], "\u2E2F", ["\u3005", "\u3007"], ["\u3021", "\u3029"], ["\u3031", "\u3035"], ["\u3038", "\u303C"], ["\u3041", "\u3096"], ["\u309D", "\u309F"], ["\u30A1", "\u30FA"], ["\u30FC", "\u30FF"], ["\u3105", "\u312F"], ["\u3131", "\u318E"], ["\u31A0", "\u31BA"], ["\u31F0", "\u31FF"], ["\u3400", "\u4DB5"], ["\u4E00", "\u9FEF"], ["\uA000", "\uA48C"], ["\uA4D0", "\uA4FD"], ["\uA500", "\uA60C"], ["\uA610", "\uA61F"], ["\uA62A", "\uA62B"], ["\uA640", "\uA66E"], ["\uA67F", "\uA69D"], ["\uA6A0", "\uA6EF"], ["\uA717", "\uA71F"], ["\uA722", "\uA788"], ["\uA78B", "\uA7B9"], ["\uA7F7", "\uA801"], ["\uA803", "\uA805"], ["\uA807", "\uA80A"], ["\uA80C", "\uA822"], ["\uA840", "\uA873"], ["\uA882", "\uA8B3"], ["\uA8F2", "\uA8F7"], "\uA8FB", ["\uA8FD", "\uA8FE"], ["\uA90A", "\uA925"], ["\uA930", "\uA946"], ["\uA960", "\uA97C"], ["\uA984", "\uA9B2"], "\uA9CF", ["\uA9E0", "\uA9E4"], ["\uA9E6", "\uA9EF"], ["\uA9FA", "\uA9FE"], ["\uAA00", "\uAA28"], ["\uAA40", "\uAA42"], ["\uAA44", "\uAA4B"], ["\uAA60", "\uAA76"], "\uAA7A", ["\uAA7E", "\uAAAF"], "\uAAB1", ["\uAAB5", "\uAAB6"], ["\uAAB9", "\uAABD"], "\uAAC0", "\uAAC2", ["\uAADB", "\uAADD"], ["\uAAE0", "\uAAEA"], ["\uAAF2", "\uAAF4"], ["\uAB01", "\uAB06"], ["\uAB09", "\uAB0E"], ["\uAB11", "\uAB16"], ["\uAB20", "\uAB26"], ["\uAB28", "\uAB2E"], ["\uAB30", "\uAB5A"], ["\uAB5C", "\uAB65"], ["\uAB70", "\uABE2"], ["\uAC00", "\uD7A3"], ["\uD7B0", "\uD7C6"], ["\uD7CB", "\uD7FB"], ["\uF900", "\uFA6D"], ["\uFA70", "\uFAD9"], ["\uFB00", "\uFB06"], ["\uFB13", "\uFB17"], "\uFB1D", ["\uFB1F", "\uFB28"], ["\uFB2A", "\uFB36"], ["\uFB38", "\uFB3C"], "\uFB3E", ["\uFB40", "\uFB41"], ["\uFB43", "\uFB44"], ["\uFB46", "\uFBB1"], ["\uFBD3", "\uFD3D"], ["\uFD50", "\uFD8F"], ["\uFD92", "\uFDC7"], ["\uFDF0", "\uFDFB"], ["\uFE70", "\uFE74"], ["\uFE76", "\uFEFC"], ["\uFF21", "\uFF3A"], ["\uFF41", "\uFF5A"], ["\uFF66", "\uFFBE"], ["\uFFC2", "\uFFC7"], ["\uFFCA", "\uFFCF"], ["\uFFD2", "\uFFD7"], ["\uFFDA", "\uFFDC"]], false, false), Ou2 = _7("[", false), Mu2 = _7("]", false), Pe3 = _7("{", false), qe4 = _7("}", false), je5 = _7("%", false), Se4 = _7("<", false), Re3 = _7(">", false), Le4 = O2(["@", "_"], false, false), Oe4 = _7("!", false), Me5 = _7("(", false), ze5 = _7(")", false), Te5 = _7("/", false), Ze3 = _7("*", false), We3 = _7("?", false), Ue5 = _7(":", false), Ve4 = _7("..", false), Xe4 = _7("^", false), Ge2 = _7("struct", false), Ye3 = _7("target", false), He3 = _7("euclid", false), Je3 = _7("slow", false), Ke3 = _7("rotL", false), Qe3 = _7("rotR", false), ut4 = _7("fast", false), et4 = _7("scale", false), tt3 = _7("//", false), zu2 = O2([`
+`], true, false), rt4 = _7("cat", false), nt3 = _7("$", false), st3 = _7("setcps", false), it4 = _7("setbpm", false), ft2 = _7("hush", false), ot4 = function() {
       return parseFloat(Xt4());
-    }, at6 = function(u3) {
-      const r = u3.join("");
-      return r === "." || r === "_";
-    }, lt5 = function(u3) {
+    }, at5 = function(u3) {
+      const r2 = u3.join("");
+      return r2 === "." || r2 === "_";
+    }, lt4 = function(u3) {
       return new Sr2(u3.join(""));
     }, ct4 = function(u3) {
       return u3;
-    }, At3 = function(u3, r) {
-      return u3.arguments_.stepsPerCycle = r, u3;
+    }, At3 = function(u3, r2) {
+      return u3.arguments_.stepsPerCycle = r2, u3;
     }, pt4 = function(u3) {
       return u3;
     }, gt4 = function(u3) {
       return u3.arguments_.alignment = "polymeter_slowcat", u3;
     }, Ft4 = function(u3) {
-      return (r) => r.options_.weight = (r.options_.weight ?? 1) + (u3 ?? 2) - 1;
+      return (r2) => r2.options_.weight = (r2.options_.weight ?? 1) + (u3 ?? 2) - 1;
     }, ht3 = function(u3) {
-      return (r) => {
-        const s2 = (r.options_.reps ?? 1) + (u3 ?? 2) - 1;
-        r.options_.reps = s2, r.options_.ops = r.options_.ops.filter((o) => o.type_ !== "replicate"), r.options_.ops.push({ type_: "replicate", arguments_: { amount: s2 } }), r.options_.weight = s2;
+      return (r2) => {
+        const s2 = (r2.options_.reps ?? 1) + (u3 ?? 2) - 1;
+        r2.options_.reps = s2, r2.options_.ops = r2.options_.ops.filter((o) => o.type_ !== "replicate"), r2.options_.ops.push({ type_: "replicate", arguments_: { amount: s2 } }), r2.options_.weight = s2;
       };
-    }, Bt4 = function(u3, r, s2) {
-      return (o) => o.options_.ops.push({ type_: "bjorklund", arguments_: { pulse: u3, step: r, rotation: s2 } });
+    }, Bt4 = function(u3, r2, s2) {
+      return (o) => o.options_.ops.push({ type_: "bjorklund", arguments_: { pulse: u3, step: r2, rotation: s2 } });
     }, Ct4 = function(u3) {
-      return (r) => r.options_.ops.push({ type_: "stretch", arguments_: { amount: u3, type: "slow" } });
+      return (r2) => r2.options_.ops.push({ type_: "stretch", arguments_: { amount: u3, type: "slow" } });
     }, Dt3 = function(u3) {
-      return (r) => r.options_.ops.push({ type_: "stretch", arguments_: { amount: u3, type: "fast" } });
+      return (r2) => r2.options_.ops.push({ type_: "stretch", arguments_: { amount: u3, type: "fast" } });
     }, dt4 = function(u3) {
-      return (r) => r.options_.ops.push({ type_: "degradeBy", arguments_: { amount: u3, seed: Bu2++ } });
+      return (r2) => r2.options_.ops.push({ type_: "degradeBy", arguments_: { amount: u3, seed: Bu2++ } });
     }, Et4 = function(u3) {
-      return (r) => r.options_.ops.push({ type_: "tail", arguments_: { element: u3 } });
+      return (r2) => r2.options_.ops.push({ type_: "tail", arguments_: { element: u3 } });
     }, vt4 = function(u3) {
-      return (r) => r.options_.ops.push({ type_: "range", arguments_: { element: u3 } });
-    }, $t4 = function(u3, r) {
+      return (r2) => r2.options_.ops.push({ type_: "range", arguments_: { element: u3 } });
+    }, $t4 = function(u3, r2) {
       const s2 = new Lr2(u3, { ops: [], weight: 1, reps: 1 });
-      for (const o of r)
+      for (const o of r2)
         o(s2);
       return s2;
-    }, mt4 = function(u3, r) {
-      return new lu2(r, "fastcat", void 0, !!u3);
+    }, mt4 = function(u3, r2) {
+      return new lu2(r2, "fastcat", void 0, !!u3);
     }, _t4 = function(u3) {
       return { alignment: "stack", list: u3 };
     }, yt4 = function(u3) {
       return { alignment: "rand", list: u3, seed: Bu2++ };
     }, wt4 = function(u3) {
       return { alignment: "feet", list: u3, seed: Bu2++ };
-    }, bt4 = function(u3, r) {
-      return r && r.list.length > 0 ? new lu2([u3, ...r.list], r.alignment, r.seed) : u3;
-    }, xt4 = function(u3, r) {
-      return new lu2(r ? [u3, ...r.list] : [u3], "polymeter");
+    }, bt4 = function(u3, r2) {
+      return r2 && r2.list.length > 0 ? new lu2([u3, ...r2.list], r2.alignment, r2.seed) : u3;
+    }, xt4 = function(u3, r2) {
+      return new lu2(r2 ? [u3, ...r2.list] : [u3], "polymeter");
     }, It4 = function(u3) {
       return u3;
     }, kt4 = function(u3) {
       return { name: "struct", args: { mini: u3 } };
     }, Nt4 = function(u3) {
       return { name: "target", args: { name: u3 } };
-    }, Pt4 = function(u3, r, s2) {
-      return { name: "bjorklund", args: { pulse: u3, step: parseInt(r) } };
+    }, Pt4 = function(u3, r2, s2) {
+      return { name: "bjorklund", args: { pulse: u3, step: parseInt(r2) } };
     }, qt4 = function(u3) {
       return { name: "stretch", args: { amount: u3 } };
     }, jt4 = function(u3) {
@@ -11516,14 +12137,14 @@ registerProcessor('${n2}', MyProcessor);
       return { name: "stretch", args: { amount: "1/" + u3 } };
     }, Lt4 = function(u3) {
       return { name: "scale", args: { scale: u3.join("") } };
-    }, Tu2 = function(u3, r) {
-      return r;
-    }, Ot4 = function(u3, r) {
-      return r.unshift(u3), new lu2(r, "slowcat");
+    }, Tu2 = function(u3, r2) {
+      return r2;
+    }, Ot4 = function(u3, r2) {
+      return r2.unshift(u3), new lu2(r2, "slowcat");
     }, Mt3 = function(u3) {
       return u3;
-    }, zt4 = function(u3, r) {
-      return new Rr2(u3.name, u3.args, r);
+    }, zt4 = function(u3, r2) {
+      return new Rr2(u3.name, u3.args, r2);
     }, Tt3 = function(u3) {
       return u3;
     }, Zt4 = function(u3) {
@@ -11534,23 +12155,23 @@ registerProcessor('${n2}', MyProcessor);
       return new hu2("setcps", { value: u3 / 120 / 2 });
     }, Vt3 = function() {
       return new hu2("hush");
-    }, n2 = i2.peg$currPos | 0, $5 = n2, V5 = [{ line: 1, column: 1 }], q8 = n2, fu2 = i2.peg$maxFailExpected || [], h = i2.peg$silentFails | 0, eu2;
+    }, n2 = i2.peg$currPos | 0, $4 = n2, V5 = [{ line: 1, column: 1 }], q8 = n2, fu2 = i2.peg$maxFailExpected || [], h2 = i2.peg$silentFails | 0, eu2;
     if (i2.startRule) {
       if (!(i2.startRule in l2))
         throw new Error(`Can't start parsing from rule "` + i2.startRule + '".');
       a2 = l2[i2.startRule];
     }
     function Xt4() {
-      return t.substring($5, n2);
+      return t.substring($4, n2);
     }
     function Zu2() {
-      return gu2($5, n2);
+      return gu2($4, n2);
     }
-    function _7(u3, r) {
-      return { type: "literal", text: u3, ignoreCase: r };
+    function _7(u3, r2) {
+      return { type: "literal", text: u3, ignoreCase: r2 };
     }
-    function O2(u3, r, s2) {
-      return { type: "class", parts: u3, inverted: r, ignoreCase: s2 };
+    function O2(u3, r2, s2) {
+      return { type: "class", parts: u3, inverted: r2, ignoreCase: s2 };
     }
     function Gt3() {
       return { type: "end" };
@@ -11559,23 +12180,23 @@ registerProcessor('${n2}', MyProcessor);
       return { type: "other", description: u3 };
     }
     function Wu2(u3) {
-      var r = V5[u3], s2;
-      if (r)
-        return r;
+      var r2 = V5[u3], s2;
+      if (r2)
+        return r2;
       if (u3 >= V5.length)
         s2 = V5.length - 1;
       else
         for (s2 = u3; !V5[--s2]; )
           ;
-      for (r = V5[s2], r = {
-        line: r.line,
-        column: r.column
+      for (r2 = V5[s2], r2 = {
+        line: r2.line,
+        column: r2.column
       }; s2 < u3; )
-        t.charCodeAt(s2) === 10 ? (r.line++, r.column = 1) : r.column++, s2++;
-      return V5[u3] = r, r;
+        t.charCodeAt(s2) === 10 ? (r2.line++, r2.column = 1) : r2.column++, s2++;
+      return V5[u3] = r2, r2;
     }
-    function gu2(u3, r, s2) {
-      var o = Wu2(u3), B6 = Wu2(r), x3 = {
+    function gu2(u3, r2, s2) {
+      var o = Wu2(u3), B6 = Wu2(r2), x4 = {
         source: f4,
         start: {
           offset: u3,
@@ -11583,21 +12204,21 @@ registerProcessor('${n2}', MyProcessor);
           column: o.column
         },
         end: {
-          offset: r,
+          offset: r2,
           line: B6.line,
           column: B6.column
         }
       };
-      return x3;
+      return x4;
     }
     function d2(u3) {
       n2 < q8 || (n2 > q8 && (q8 = n2, fu2 = []), fu2.push(u3));
     }
-    function Yt4(u3, r, s2) {
+    function Yt4(u3, r2, s2) {
       return new uu2(
-        uu2.buildMessage(u3, r),
+        uu2.buildMessage(u3, r2),
         u3,
-        r,
+        r2,
         s2
       );
     }
@@ -11606,120 +12227,120 @@ registerProcessor('${n2}', MyProcessor);
       return u3 = jr2(), u3;
     }
     function M3() {
-      var u3, r;
-      return h++, u3 = n2, er2(), r = ou2(), r !== e ? (ur2(), Qt3(), $5 = u3, u3 = ot5()) : (n2 = u3, u3 = e), h--, u3 === e && h === 0 && d2(de4), u3;
+      var u3, r2;
+      return h2++, u3 = n2, er2(), r2 = ou2(), r2 !== e ? (ur2(), Qt3(), $4 = u3, u3 = ot4()) : (n2 = u3, u3 = e), h2--, u3 === e && h2 === 0 && d2(de4), u3;
     }
     function Ht3() {
       var u3;
-      return t.charCodeAt(n2) === 46 ? (u3 = D6, n2++) : (u3 = e, h === 0 && d2(Ru2)), u3;
+      return t.charCodeAt(n2) === 46 ? (u3 = D6, n2++) : (u3 = e, h2 === 0 && d2(Ru2)), u3;
     }
     function Jt4() {
       var u3;
-      return u3 = t.charAt(n2), pe7.test(u3) ? n2++ : (u3 = e, h === 0 && d2(Ee4)), u3;
+      return u3 = t.charAt(n2), pe6.test(u3) ? n2++ : (u3 = e, h2 === 0 && d2(Ee4)), u3;
     }
     function Kt4() {
       var u3;
-      return u3 = t.charAt(n2), ge6.test(u3) ? n2++ : (u3 = e, h === 0 && d2(ve5)), u3;
+      return u3 = t.charAt(n2), ge5.test(u3) ? n2++ : (u3 = e, h2 === 0 && d2(ve4)), u3;
     }
     function Qt3() {
-      var u3, r, s2, o, B6;
-      if (u3 = n2, r = Kt4(), r !== e) {
-        if (s2 = t.charAt(n2), Fe4.test(s2) ? n2++ : (s2 = e, h === 0 && d2($e4)), s2 === e && (s2 = null), o = [], B6 = X3(), B6 !== e)
+      var u3, r2, s2, o, B6;
+      if (u3 = n2, r2 = Kt4(), r2 !== e) {
+        if (s2 = t.charAt(n2), Fe4.test(s2) ? n2++ : (s2 = e, h2 === 0 && d2($e4)), s2 === e && (s2 = null), o = [], B6 = X3(), B6 !== e)
           for (; B6 !== e; )
             o.push(B6), B6 = X3();
         else
           o = e;
-        o !== e ? (r = [r, s2, o], u3 = r) : (n2 = u3, u3 = e);
+        o !== e ? (r2 = [r2, s2, o], u3 = r2) : (n2 = u3, u3 = e);
       } else
         n2 = u3, u3 = e;
       return u3;
     }
     function ur2() {
-      var u3, r, s2, o;
-      if (u3 = n2, r = Ht3(), r !== e) {
+      var u3, r2, s2, o;
+      if (u3 = n2, r2 = Ht3(), r2 !== e) {
         if (s2 = [], o = X3(), o !== e)
           for (; o !== e; )
             s2.push(o), o = X3();
         else
           s2 = e;
-        s2 !== e ? (r = [r, s2], u3 = r) : (n2 = u3, u3 = e);
+        s2 !== e ? (r2 = [r2, s2], u3 = r2) : (n2 = u3, u3 = e);
       } else
         n2 = u3, u3 = e;
       return u3;
     }
     function ou2() {
-      var u3, r, s2, o;
+      var u3, r2, s2, o;
       if (u3 = tr2(), u3 === e)
-        if (u3 = n2, r = Jt4(), r !== e) {
+        if (u3 = n2, r2 = Jt4(), r2 !== e) {
           for (s2 = [], o = X3(); o !== e; )
             s2.push(o), o = X3();
-          r = [r, s2], u3 = r;
+          r2 = [r2, s2], u3 = r2;
         } else
           n2 = u3, u3 = e;
       return u3;
     }
     function er2() {
       var u3;
-      return t.charCodeAt(n2) === 45 ? (u3 = v2, n2++) : (u3 = e, h === 0 && d2(me5)), u3;
+      return t.charCodeAt(n2) === 45 ? (u3 = v2, n2++) : (u3 = e, h2 === 0 && d2(me4)), u3;
     }
     function tr2() {
       var u3;
-      return t.charCodeAt(n2) === 48 ? (u3 = g3, n2++) : (u3 = e, h === 0 && d2(_e4)), u3;
+      return t.charCodeAt(n2) === 48 ? (u3 = g3, n2++) : (u3 = e, h2 === 0 && d2(_e4)), u3;
     }
     function X3() {
       var u3;
-      return u3 = t.charAt(n2), he5.test(u3) ? n2++ : (u3 = e, h === 0 && d2(ye6)), u3;
+      return u3 = t.charAt(n2), he4.test(u3) ? n2++ : (u3 = e, h2 === 0 && d2(ye5)), u3;
     }
     function E5() {
-      var u3, r;
-      for (h++, u3 = [], r = t.charAt(n2), ju2.test(r) ? n2++ : (r = e, h === 0 && d2(Lu2)); r !== e; )
-        u3.push(r), r = t.charAt(n2), ju2.test(r) ? n2++ : (r = e, h === 0 && d2(Lu2));
-      return h--, r = e, h === 0 && d2(we6), u3;
+      var u3, r2;
+      for (h2++, u3 = [], r2 = t.charAt(n2), ju2.test(r2) ? n2++ : (r2 = e, h2 === 0 && d2(Lu2)); r2 !== e; )
+        u3.push(r2), r2 = t.charAt(n2), ju2.test(r2) ? n2++ : (r2 = e, h2 === 0 && d2(Lu2));
+      return h2--, r2 = e, h2 === 0 && d2(we5), u3;
     }
-    function G6() {
-      var u3, r, s2, o;
-      return u3 = n2, r = E5(), t.charCodeAt(n2) === 44 ? (s2 = c3, n2++) : (s2 = e, h === 0 && d2(be5)), s2 !== e ? (o = E5(), r = [r, s2, o], u3 = r) : (n2 = u3, u3 = e), u3;
+    function G5() {
+      var u3, r2, s2, o;
+      return u3 = n2, r2 = E5(), t.charCodeAt(n2) === 44 ? (s2 = c4, n2++) : (s2 = e, h2 === 0 && d2(be4)), s2 !== e ? (o = E5(), r2 = [r2, s2, o], u3 = r2) : (n2 = u3, u3 = e), u3;
     }
     function Vu2() {
-      var u3, r, s2, o;
-      return u3 = n2, r = E5(), t.charCodeAt(n2) === 124 ? (s2 = F5, n2++) : (s2 = e, h === 0 && d2(xe6)), s2 !== e ? (o = E5(), r = [r, s2, o], u3 = r) : (n2 = u3, u3 = e), u3;
+      var u3, r2, s2, o;
+      return u3 = n2, r2 = E5(), t.charCodeAt(n2) === 124 ? (s2 = F5, n2++) : (s2 = e, h2 === 0 && d2(xe5)), s2 !== e ? (o = E5(), r2 = [r2, s2, o], u3 = r2) : (n2 = u3, u3 = e), u3;
     }
     function Xu2() {
-      var u3, r, s2, o;
-      return u3 = n2, r = E5(), t.charCodeAt(n2) === 46 ? (s2 = D6, n2++) : (s2 = e, h === 0 && d2(Ru2)), s2 !== e ? (o = E5(), r = [r, s2, o], u3 = r) : (n2 = u3, u3 = e), u3;
+      var u3, r2, s2, o;
+      return u3 = n2, r2 = E5(), t.charCodeAt(n2) === 46 ? (s2 = D6, n2++) : (s2 = e, h2 === 0 && d2(Ru2)), s2 !== e ? (o = E5(), r2 = [r2, s2, o], u3 = r2) : (n2 = u3, u3 = e), u3;
     }
     function Y6() {
       var u3;
-      return u3 = t.charAt(n2), Be5.test(u3) ? n2++ : (u3 = e, h === 0 && d2(Ie2)), u3;
+      return u3 = t.charAt(n2), Be4.test(u3) ? n2++ : (u3 = e, h2 === 0 && d2(Ie2)), u3;
     }
     function au2() {
       var u3;
-      return h++, u3 = t.charAt(n2), Ce5.test(u3) ? n2++ : (u3 = e, h === 0 && d2(Ne4)), h--, u3 === e && h === 0 && d2(ke4), u3;
+      return h2++, u3 = t.charAt(n2), Ce5.test(u3) ? n2++ : (u3 = e, h2 === 0 && d2(Ne4)), h2--, u3 === e && h2 === 0 && d2(ke4), u3;
     }
     function Gu2() {
-      var u3, r, s2, o;
-      if (u3 = n2, E5(), r = [], s2 = au2(), s2 !== e)
+      var u3, r2, s2, o;
+      if (u3 = n2, E5(), r2 = [], s2 = au2(), s2 !== e)
         for (; s2 !== e; )
-          r.push(s2), s2 = au2();
+          r2.push(s2), s2 = au2();
       else
-        r = e;
-      return r !== e ? (s2 = E5(), $5 = n2, o = at6(r), o ? o = e : o = void 0, o !== e ? ($5 = u3, u3 = lt5(r)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
+        r2 = e;
+      return r2 !== e ? (s2 = E5(), $4 = n2, o = at5(r2), o ? o = e : o = void 0, o !== e ? ($4 = u3, u3 = lt4(r2)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
     }
     function rr2() {
-      var u3, r, s2, o;
-      return u3 = n2, E5(), t.charCodeAt(n2) === 91 ? (r = p2, n2++) : (r = e, h === 0 && d2(Ou2)), r !== e ? (E5(), s2 = Ju2(), s2 !== e ? (E5(), t.charCodeAt(n2) === 93 ? (o = w6, n2++) : (o = e, h === 0 && d2(Mu2)), o !== e ? (E5(), $5 = u3, u3 = ct4(s2)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
+      var u3, r2, s2, o;
+      return u3 = n2, E5(), t.charCodeAt(n2) === 91 ? (r2 = p2, n2++) : (r2 = e, h2 === 0 && d2(Ou2)), r2 !== e ? (E5(), s2 = Ju2(), s2 !== e ? (E5(), t.charCodeAt(n2) === 93 ? (o = w7, n2++) : (o = e, h2 === 0 && d2(Mu2)), o !== e ? (E5(), $4 = u3, u3 = ct4(s2)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
     }
     function nr2() {
-      var u3, r, s2, o, B6;
-      return u3 = n2, E5(), t.charCodeAt(n2) === 123 ? (r = P4, n2++) : (r = e, h === 0 && d2(Pe3)), r !== e ? (E5(), s2 = Ku2(), s2 !== e ? (E5(), t.charCodeAt(n2) === 125 ? (o = R6, n2++) : (o = e, h === 0 && d2(qe4)), o !== e ? (B6 = sr2(), B6 === e && (B6 = null), E5(), $5 = u3, u3 = At3(s2, B6)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
+      var u3, r2, s2, o, B6;
+      return u3 = n2, E5(), t.charCodeAt(n2) === 123 ? (r2 = P4, n2++) : (r2 = e, h2 === 0 && d2(Pe3)), r2 !== e ? (E5(), s2 = Ku2(), s2 !== e ? (E5(), t.charCodeAt(n2) === 125 ? (o = R5, n2++) : (o = e, h2 === 0 && d2(qe4)), o !== e ? (B6 = sr2(), B6 === e && (B6 = null), E5(), $4 = u3, u3 = At3(s2, B6)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
     }
     function sr2() {
-      var u3, r, s2;
-      return u3 = n2, t.charCodeAt(n2) === 37 ? (r = su2, n2++) : (r = e, h === 0 && d2(je6)), r !== e ? (s2 = H6(), s2 !== e ? ($5 = u3, u3 = pt4(s2)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
+      var u3, r2, s2;
+      return u3 = n2, t.charCodeAt(n2) === 37 ? (r2 = su2, n2++) : (r2 = e, h2 === 0 && d2(je5)), r2 !== e ? (s2 = H6(), s2 !== e ? ($4 = u3, u3 = pt4(s2)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
     }
     function ir2() {
-      var u3, r, s2, o;
-      return u3 = n2, E5(), t.charCodeAt(n2) === 60 ? (r = iu2, n2++) : (r = e, h === 0 && d2(Se4)), r !== e ? (E5(), s2 = Ku2(), s2 !== e ? (E5(), t.charCodeAt(n2) === 62 ? (o = re7, n2++) : (o = e, h === 0 && d2(Re3)), o !== e ? (E5(), $5 = u3, u3 = gt4(s2)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
+      var u3, r2, s2, o;
+      return u3 = n2, E5(), t.charCodeAt(n2) === 60 ? (r2 = iu2, n2++) : (r2 = e, h2 === 0 && d2(Se4)), r2 !== e ? (E5(), s2 = Ku2(), s2 !== e ? (E5(), t.charCodeAt(n2) === 62 ? (o = re7, n2++) : (o = e, h2 === 0 && d2(Re3)), o !== e ? (E5(), $4 = u3, u3 = gt4(s2)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
     }
     function H6() {
       var u3;
@@ -11730,137 +12351,137 @@ registerProcessor('${n2}', MyProcessor);
       return u3 = fr2(), u3 === e && (u3 = ar2(), u3 === e && (u3 = lr2(), u3 === e && (u3 = cr2(), u3 === e && (u3 = or2(), u3 === e && (u3 = Ar2(), u3 === e && (u3 = pr2(), u3 === e && (u3 = gr2()))))))), u3;
     }
     function fr2() {
-      var u3, r, s2;
-      return u3 = n2, E5(), r = t.charAt(n2), De3.test(r) ? n2++ : (r = e, h === 0 && d2(Le4)), r !== e ? (s2 = M3(), s2 === e && (s2 = null), $5 = u3, u3 = Ft4(s2)) : (n2 = u3, u3 = e), u3;
+      var u3, r2, s2;
+      return u3 = n2, E5(), r2 = t.charAt(n2), De3.test(r2) ? n2++ : (r2 = e, h2 === 0 && d2(Le4)), r2 !== e ? (s2 = M3(), s2 === e && (s2 = null), $4 = u3, u3 = Ft4(s2)) : (n2 = u3, u3 = e), u3;
     }
     function or2() {
-      var u3, r, s2;
-      return u3 = n2, E5(), t.charCodeAt(n2) === 33 ? (r = ne5, n2++) : (r = e, h === 0 && d2(Oe4)), r !== e ? (s2 = M3(), s2 === e && (s2 = null), $5 = u3, u3 = ht3(s2)) : (n2 = u3, u3 = e), u3;
+      var u3, r2, s2;
+      return u3 = n2, E5(), t.charCodeAt(n2) === 33 ? (r2 = ne5, n2++) : (r2 = e, h2 === 0 && d2(Oe4)), r2 !== e ? (s2 = M3(), s2 === e && (s2 = null), $4 = u3, u3 = ht3(s2)) : (n2 = u3, u3 = e), u3;
     }
     function ar2() {
-      var u3, r, s2, o, B6, x3, j7;
-      return u3 = n2, t.charCodeAt(n2) === 40 ? (r = se4, n2++) : (r = e, h === 0 && d2(Me5)), r !== e ? (E5(), s2 = tu2(), s2 !== e ? (E5(), o = G6(), o !== e ? (E5(), B6 = tu2(), B6 !== e ? (E5(), G6(), E5(), x3 = tu2(), x3 === e && (x3 = null), E5(), t.charCodeAt(n2) === 41 ? (j7 = ie6, n2++) : (j7 = e, h === 0 && d2(ze5)), j7 !== e ? ($5 = u3, u3 = Bt4(s2, B6, x3)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
+      var u3, r2, s2, o, B6, x4, j7;
+      return u3 = n2, t.charCodeAt(n2) === 40 ? (r2 = se4, n2++) : (r2 = e, h2 === 0 && d2(Me5)), r2 !== e ? (E5(), s2 = tu2(), s2 !== e ? (E5(), o = G5(), o !== e ? (E5(), B6 = tu2(), B6 !== e ? (E5(), G5(), E5(), x4 = tu2(), x4 === e && (x4 = null), E5(), t.charCodeAt(n2) === 41 ? (j7 = ie6, n2++) : (j7 = e, h2 === 0 && d2(ze5)), j7 !== e ? ($4 = u3, u3 = Bt4(s2, B6, x4)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
     }
     function lr2() {
-      var u3, r, s2;
-      return u3 = n2, t.charCodeAt(n2) === 47 ? (r = fe6, n2++) : (r = e, h === 0 && d2(Te5)), r !== e ? (s2 = H6(), s2 !== e ? ($5 = u3, u3 = Ct4(s2)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
+      var u3, r2, s2;
+      return u3 = n2, t.charCodeAt(n2) === 47 ? (r2 = fe5, n2++) : (r2 = e, h2 === 0 && d2(Te5)), r2 !== e ? (s2 = H6(), s2 !== e ? ($4 = u3, u3 = Ct4(s2)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
     }
     function cr2() {
-      var u3, r, s2;
-      return u3 = n2, t.charCodeAt(n2) === 42 ? (r = oe4, n2++) : (r = e, h === 0 && d2(Ze3)), r !== e ? (s2 = H6(), s2 !== e ? ($5 = u3, u3 = Dt3(s2)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
+      var u3, r2, s2;
+      return u3 = n2, t.charCodeAt(n2) === 42 ? (r2 = oe4, n2++) : (r2 = e, h2 === 0 && d2(Ze3)), r2 !== e ? (s2 = H6(), s2 !== e ? ($4 = u3, u3 = Dt3(s2)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
     }
     function Ar2() {
-      var u3, r, s2;
-      return u3 = n2, t.charCodeAt(n2) === 63 ? (r = ae5, n2++) : (r = e, h === 0 && d2(We3)), r !== e ? (s2 = M3(), s2 === e && (s2 = null), $5 = u3, u3 = dt4(s2)) : (n2 = u3, u3 = e), u3;
+      var u3, r2, s2;
+      return u3 = n2, t.charCodeAt(n2) === 63 ? (r2 = ae5, n2++) : (r2 = e, h2 === 0 && d2(We3)), r2 !== e ? (s2 = M3(), s2 === e && (s2 = null), $4 = u3, u3 = dt4(s2)) : (n2 = u3, u3 = e), u3;
     }
     function pr2() {
-      var u3, r, s2;
-      return u3 = n2, t.charCodeAt(n2) === 58 ? (r = le4, n2++) : (r = e, h === 0 && d2(Ue5)), r !== e ? (s2 = H6(), s2 !== e ? ($5 = u3, u3 = Et4(s2)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
+      var u3, r2, s2;
+      return u3 = n2, t.charCodeAt(n2) === 58 ? (r2 = le4, n2++) : (r2 = e, h2 === 0 && d2(Ue5)), r2 !== e ? (s2 = H6(), s2 !== e ? ($4 = u3, u3 = Et4(s2)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
     }
     function gr2() {
-      var u3, r, s2;
-      return u3 = n2, t.substr(n2, 2) === Eu2 ? (r = Eu2, n2 += 2) : (r = e, h === 0 && d2(Ve5)), r !== e ? (s2 = H6(), s2 !== e ? ($5 = u3, u3 = vt4(s2)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
+      var u3, r2, s2;
+      return u3 = n2, t.substr(n2, 2) === Eu2 ? (r2 = Eu2, n2 += 2) : (r2 = e, h2 === 0 && d2(Ve4)), r2 !== e ? (s2 = H6(), s2 !== e ? ($4 = u3, u3 = vt4(s2)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
     }
     function tu2() {
-      var u3, r, s2, o;
-      if (u3 = n2, r = H6(), r !== e) {
+      var u3, r2, s2, o;
+      if (u3 = n2, r2 = H6(), r2 !== e) {
         for (s2 = [], o = Yu2(); o !== e; )
           s2.push(o), o = Yu2();
-        $5 = u3, u3 = $t4(r, s2);
+        $4 = u3, u3 = $t4(r2, s2);
       } else
         n2 = u3, u3 = e;
       return u3;
     }
     function T7() {
-      var u3, r, s2, o;
-      if (u3 = n2, t.charCodeAt(n2) === 94 ? (r = ce7, n2++) : (r = e, h === 0 && d2(Xe5)), r === e && (r = null), s2 = [], o = tu2(), o !== e)
+      var u3, r2, s2, o;
+      if (u3 = n2, t.charCodeAt(n2) === 94 ? (r2 = ce7, n2++) : (r2 = e, h2 === 0 && d2(Xe4)), r2 === e && (r2 = null), s2 = [], o = tu2(), o !== e)
         for (; o !== e; )
           s2.push(o), o = tu2();
       else
         s2 = e;
-      return s2 !== e ? ($5 = u3, u3 = mt4(r, s2)) : (n2 = u3, u3 = e), u3;
+      return s2 !== e ? ($4 = u3, u3 = mt4(r2, s2)) : (n2 = u3, u3 = e), u3;
     }
     function Hu2() {
-      var u3, r, s2, o, B6;
-      if (u3 = n2, r = [], s2 = n2, o = G6(), o !== e ? (B6 = T7(), B6 !== e ? s2 = B6 : (n2 = s2, s2 = e)) : (n2 = s2, s2 = e), s2 !== e)
+      var u3, r2, s2, o, B6;
+      if (u3 = n2, r2 = [], s2 = n2, o = G5(), o !== e ? (B6 = T7(), B6 !== e ? s2 = B6 : (n2 = s2, s2 = e)) : (n2 = s2, s2 = e), s2 !== e)
         for (; s2 !== e; )
-          r.push(s2), s2 = n2, o = G6(), o !== e ? (B6 = T7(), B6 !== e ? s2 = B6 : (n2 = s2, s2 = e)) : (n2 = s2, s2 = e);
+          r2.push(s2), s2 = n2, o = G5(), o !== e ? (B6 = T7(), B6 !== e ? s2 = B6 : (n2 = s2, s2 = e)) : (n2 = s2, s2 = e);
       else
-        r = e;
-      return r !== e && ($5 = u3, r = _t4(r)), u3 = r, u3;
+        r2 = e;
+      return r2 !== e && ($4 = u3, r2 = _t4(r2)), u3 = r2, u3;
     }
     function Fr2() {
-      var u3, r, s2, o, B6;
-      if (u3 = n2, r = [], s2 = n2, o = Vu2(), o !== e ? (B6 = T7(), B6 !== e ? s2 = B6 : (n2 = s2, s2 = e)) : (n2 = s2, s2 = e), s2 !== e)
+      var u3, r2, s2, o, B6;
+      if (u3 = n2, r2 = [], s2 = n2, o = Vu2(), o !== e ? (B6 = T7(), B6 !== e ? s2 = B6 : (n2 = s2, s2 = e)) : (n2 = s2, s2 = e), s2 !== e)
         for (; s2 !== e; )
-          r.push(s2), s2 = n2, o = Vu2(), o !== e ? (B6 = T7(), B6 !== e ? s2 = B6 : (n2 = s2, s2 = e)) : (n2 = s2, s2 = e);
+          r2.push(s2), s2 = n2, o = Vu2(), o !== e ? (B6 = T7(), B6 !== e ? s2 = B6 : (n2 = s2, s2 = e)) : (n2 = s2, s2 = e);
       else
-        r = e;
-      return r !== e && ($5 = u3, r = yt4(r)), u3 = r, u3;
+        r2 = e;
+      return r2 !== e && ($4 = u3, r2 = yt4(r2)), u3 = r2, u3;
     }
     function hr2() {
-      var u3, r, s2, o, B6;
-      if (u3 = n2, r = [], s2 = n2, o = Xu2(), o !== e ? (B6 = T7(), B6 !== e ? s2 = B6 : (n2 = s2, s2 = e)) : (n2 = s2, s2 = e), s2 !== e)
+      var u3, r2, s2, o, B6;
+      if (u3 = n2, r2 = [], s2 = n2, o = Xu2(), o !== e ? (B6 = T7(), B6 !== e ? s2 = B6 : (n2 = s2, s2 = e)) : (n2 = s2, s2 = e), s2 !== e)
         for (; s2 !== e; )
-          r.push(s2), s2 = n2, o = Xu2(), o !== e ? (B6 = T7(), B6 !== e ? s2 = B6 : (n2 = s2, s2 = e)) : (n2 = s2, s2 = e);
+          r2.push(s2), s2 = n2, o = Xu2(), o !== e ? (B6 = T7(), B6 !== e ? s2 = B6 : (n2 = s2, s2 = e)) : (n2 = s2, s2 = e);
       else
-        r = e;
-      return r !== e && ($5 = u3, r = wt4(r)), u3 = r, u3;
+        r2 = e;
+      return r2 !== e && ($4 = u3, r2 = wt4(r2)), u3 = r2, u3;
     }
     function Ju2() {
-      var u3, r, s2;
-      return u3 = n2, r = T7(), r !== e ? (s2 = Hu2(), s2 === e && (s2 = Fr2(), s2 === e && (s2 = hr2())), s2 === e && (s2 = null), $5 = u3, u3 = bt4(r, s2)) : (n2 = u3, u3 = e), u3;
+      var u3, r2, s2;
+      return u3 = n2, r2 = T7(), r2 !== e ? (s2 = Hu2(), s2 === e && (s2 = Fr2(), s2 === e && (s2 = hr2())), s2 === e && (s2 = null), $4 = u3, u3 = bt4(r2, s2)) : (n2 = u3, u3 = e), u3;
     }
     function Ku2() {
-      var u3, r, s2;
-      return u3 = n2, r = T7(), r !== e ? (s2 = Hu2(), s2 === e && (s2 = null), $5 = u3, u3 = xt4(r, s2)) : (n2 = u3, u3 = e), u3;
+      var u3, r2, s2;
+      return u3 = n2, r2 = T7(), r2 !== e ? (s2 = Hu2(), s2 === e && (s2 = null), $4 = u3, u3 = xt4(r2, s2)) : (n2 = u3, u3 = e), u3;
     }
     function Br2() {
-      var u3, r, s2, o;
-      return u3 = n2, E5(), r = Y6(), r !== e ? (E5(), s2 = Ju2(), s2 !== e ? (E5(), o = Y6(), o !== e ? ($5 = u3, u3 = It4(s2)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
+      var u3, r2, s2, o;
+      return u3 = n2, E5(), r2 = Y6(), r2 !== e ? (E5(), s2 = Ju2(), s2 !== e ? (E5(), o = Y6(), o !== e ? ($4 = u3, u3 = It4(s2)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
     }
     function Cr2() {
       var u3;
       return u3 = yr2(), u3 === e && (u3 = vr2(), u3 === e && (u3 = _r2(), u3 === e && (u3 = dr2(), u3 === e && (u3 = Er2(), u3 === e && (u3 = Dr2(), u3 === e && (u3 = mr2(), u3 === e && (u3 = $r2()))))))), u3;
     }
     function Dr2() {
-      var u3, r, s2;
-      return u3 = n2, t.substr(n2, 6) === vu2 ? (r = vu2, n2 += 6) : (r = e, h === 0 && d2(Ge2)), r !== e ? (E5(), s2 = J6(), s2 !== e ? ($5 = u3, u3 = kt4(s2)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
+      var u3, r2, s2;
+      return u3 = n2, t.substr(n2, 6) === vu2 ? (r2 = vu2, n2 += 6) : (r2 = e, h2 === 0 && d2(Ge2)), r2 !== e ? (E5(), s2 = J6(), s2 !== e ? ($4 = u3, u3 = kt4(s2)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
     }
     function dr2() {
-      var u3, r, s2, o, B6;
-      return u3 = n2, t.substr(n2, 6) === $u2 ? (r = $u2, n2 += 6) : (r = e, h === 0 && d2(Ye4)), r !== e ? (E5(), s2 = Y6(), s2 !== e ? (o = Gu2(), o !== e ? (B6 = Y6(), B6 !== e ? ($5 = u3, u3 = Nt4(o)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
+      var u3, r2, s2, o, B6;
+      return u3 = n2, t.substr(n2, 6) === $u2 ? (r2 = $u2, n2 += 6) : (r2 = e, h2 === 0 && d2(Ye3)), r2 !== e ? (E5(), s2 = Y6(), s2 !== e ? (o = Gu2(), o !== e ? (B6 = Y6(), B6 !== e ? ($4 = u3, u3 = Nt4(o)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
     }
     function Er2() {
-      var u3, r, s2, o;
-      return u3 = n2, t.substr(n2, 6) === mu2 ? (r = mu2, n2 += 6) : (r = e, h === 0 && d2(He3)), r !== e ? (E5(), s2 = ou2(), s2 !== e ? (E5(), o = ou2(), o !== e ? (E5(), ou2(), $5 = u3, u3 = Pt4(s2, o)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
+      var u3, r2, s2, o;
+      return u3 = n2, t.substr(n2, 6) === mu2 ? (r2 = mu2, n2 += 6) : (r2 = e, h2 === 0 && d2(He3)), r2 !== e ? (E5(), s2 = ou2(), s2 !== e ? (E5(), o = ou2(), o !== e ? (E5(), ou2(), $4 = u3, u3 = Pt4(s2, o)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
     }
     function vr2() {
-      var u3, r, s2;
-      return u3 = n2, t.substr(n2, 4) === _u2 ? (r = _u2, n2 += 4) : (r = e, h === 0 && d2(Je3)), r !== e ? (E5(), s2 = M3(), s2 !== e ? ($5 = u3, u3 = qt4(s2)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
+      var u3, r2, s2;
+      return u3 = n2, t.substr(n2, 4) === _u2 ? (r2 = _u2, n2 += 4) : (r2 = e, h2 === 0 && d2(Je3)), r2 !== e ? (E5(), s2 = M3(), s2 !== e ? ($4 = u3, u3 = qt4(s2)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
     }
     function $r2() {
-      var u3, r, s2;
-      return u3 = n2, t.substr(n2, 4) === yu2 ? (r = yu2, n2 += 4) : (r = e, h === 0 && d2(Ke3)), r !== e ? (E5(), s2 = M3(), s2 !== e ? ($5 = u3, u3 = jt4(s2)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
+      var u3, r2, s2;
+      return u3 = n2, t.substr(n2, 4) === yu2 ? (r2 = yu2, n2 += 4) : (r2 = e, h2 === 0 && d2(Ke3)), r2 !== e ? (E5(), s2 = M3(), s2 !== e ? ($4 = u3, u3 = jt4(s2)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
     }
     function mr2() {
-      var u3, r, s2;
-      return u3 = n2, t.substr(n2, 4) === wu2 ? (r = wu2, n2 += 4) : (r = e, h === 0 && d2(Qe3)), r !== e ? (E5(), s2 = M3(), s2 !== e ? ($5 = u3, u3 = St3(s2)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
+      var u3, r2, s2;
+      return u3 = n2, t.substr(n2, 4) === wu2 ? (r2 = wu2, n2 += 4) : (r2 = e, h2 === 0 && d2(Qe3)), r2 !== e ? (E5(), s2 = M3(), s2 !== e ? ($4 = u3, u3 = St3(s2)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
     }
     function _r2() {
-      var u3, r, s2;
-      return u3 = n2, t.substr(n2, 4) === bu2 ? (r = bu2, n2 += 4) : (r = e, h === 0 && d2(ut4)), r !== e ? (E5(), s2 = M3(), s2 !== e ? ($5 = u3, u3 = Rt4(s2)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
+      var u3, r2, s2;
+      return u3 = n2, t.substr(n2, 4) === bu2 ? (r2 = bu2, n2 += 4) : (r2 = e, h2 === 0 && d2(ut4)), r2 !== e ? (E5(), s2 = M3(), s2 !== e ? ($4 = u3, u3 = Rt4(s2)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
     }
     function yr2() {
-      var u3, r, s2, o, B6;
-      if (u3 = n2, t.substr(n2, 5) === xu2 ? (r = xu2, n2 += 5) : (r = e, h === 0 && d2(et5)), r !== e)
+      var u3, r2, s2, o, B6;
+      if (u3 = n2, t.substr(n2, 5) === xu2 ? (r2 = xu2, n2 += 5) : (r2 = e, h2 === 0 && d2(et4)), r2 !== e)
         if (E5(), s2 = Y6(), s2 !== e) {
           if (o = [], B6 = au2(), B6 !== e)
             for (; B6 !== e; )
               o.push(B6), B6 = au2();
           else
             o = e;
-          o !== e ? (B6 = Y6(), B6 !== e ? ($5 = u3, u3 = Lt4(o)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e);
+          o !== e ? (B6 = Y6(), B6 !== e ? ($4 = u3, u3 = Lt4(o)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e);
         } else
           n2 = u3, u3 = e;
       else
@@ -11868,23 +12489,23 @@ registerProcessor('${n2}', MyProcessor);
       return u3;
     }
     function Fu2() {
-      var u3, r, s2, o;
-      if (u3 = n2, t.substr(n2, 2) === Iu2 ? (r = Iu2, n2 += 2) : (r = e, h === 0 && d2(tt4)), r !== e) {
-        for (s2 = [], o = t.charAt(n2), Su2.test(o) ? n2++ : (o = e, h === 0 && d2(zu2)); o !== e; )
-          s2.push(o), o = t.charAt(n2), Su2.test(o) ? n2++ : (o = e, h === 0 && d2(zu2));
-        r = [r, s2], u3 = r;
+      var u3, r2, s2, o;
+      if (u3 = n2, t.substr(n2, 2) === Iu2 ? (r2 = Iu2, n2 += 2) : (r2 = e, h2 === 0 && d2(tt3)), r2 !== e) {
+        for (s2 = [], o = t.charAt(n2), Su2.test(o) ? n2++ : (o = e, h2 === 0 && d2(zu2)); o !== e; )
+          s2.push(o), o = t.charAt(n2), Su2.test(o) ? n2++ : (o = e, h2 === 0 && d2(zu2));
+        r2 = [r2, s2], u3 = r2;
       } else
         n2 = u3, u3 = e;
       return u3;
     }
     function wr2() {
-      var u3, r, s2, o, B6, x3, j7, K4;
-      if (u3 = n2, t.substr(n2, 3) === ku2 ? (r = ku2, n2 += 3) : (r = e, h === 0 && d2(rt5)), r !== e)
-        if (E5(), t.charCodeAt(n2) === 91 ? (s2 = p2, n2++) : (s2 = e, h === 0 && d2(Ou2)), s2 !== e)
+      var u3, r2, s2, o, B6, x4, j7, K4;
+      if (u3 = n2, t.substr(n2, 3) === ku2 ? (r2 = ku2, n2 += 3) : (r2 = e, h2 === 0 && d2(rt4)), r2 !== e)
+        if (E5(), t.charCodeAt(n2) === 91 ? (s2 = p2, n2++) : (s2 = e, h2 === 0 && d2(Ou2)), s2 !== e)
           if (E5(), o = J6(), o !== e) {
-            for (B6 = [], x3 = n2, j7 = G6(), j7 !== e ? (K4 = J6(), K4 !== e ? ($5 = x3, x3 = Tu2(o, K4)) : (n2 = x3, x3 = e)) : (n2 = x3, x3 = e); x3 !== e; )
-              B6.push(x3), x3 = n2, j7 = G6(), j7 !== e ? (K4 = J6(), K4 !== e ? ($5 = x3, x3 = Tu2(o, K4)) : (n2 = x3, x3 = e)) : (n2 = x3, x3 = e);
-            x3 = E5(), t.charCodeAt(n2) === 93 ? (j7 = w6, n2++) : (j7 = e, h === 0 && d2(Mu2)), j7 !== e ? ($5 = u3, u3 = Ot4(o, B6)) : (n2 = u3, u3 = e);
+            for (B6 = [], x4 = n2, j7 = G5(), j7 !== e ? (K4 = J6(), K4 !== e ? ($4 = x4, x4 = Tu2(o, K4)) : (n2 = x4, x4 = e)) : (n2 = x4, x4 = e); x4 !== e; )
+              B6.push(x4), x4 = n2, j7 = G5(), j7 !== e ? (K4 = J6(), K4 !== e ? ($4 = x4, x4 = Tu2(o, K4)) : (n2 = x4, x4 = e)) : (n2 = x4, x4 = e);
+            x4 = E5(), t.charCodeAt(n2) === 93 ? (j7 = w7, n2++) : (j7 = e, h2 === 0 && d2(Mu2)), j7 !== e ? ($4 = u3, u3 = Ot4(o, B6)) : (n2 = u3, u3 = e);
           } else
             n2 = u3, u3 = e;
         else
@@ -11898,38 +12519,38 @@ registerProcessor('${n2}', MyProcessor);
       return u3 = wr2(), u3 === e && (u3 = Br2()), u3;
     }
     function J6() {
-      var u3, r, s2, o, B6;
-      if (u3 = n2, r = br2(), r !== e) {
+      var u3, r2, s2, o, B6;
+      if (u3 = n2, r2 = br2(), r2 !== e) {
         for (E5(), s2 = [], o = Fu2(); o !== e; )
           s2.push(o), o = Fu2();
-        $5 = u3, u3 = Mt3(r);
+        $4 = u3, u3 = Mt3(r2);
       } else
         n2 = u3, u3 = e;
-      return u3 === e && (u3 = n2, r = Cr2(), r !== e ? (E5(), t.charCodeAt(n2) === 36 ? (s2 = Ae4, n2++) : (s2 = e, h === 0 && d2(nt4)), s2 !== e ? (o = E5(), B6 = J6(), B6 !== e ? ($5 = u3, u3 = zt4(r, B6)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e)), u3;
+      return u3 === e && (u3 = n2, r2 = Cr2(), r2 !== e ? (E5(), t.charCodeAt(n2) === 36 ? (s2 = Ae4, n2++) : (s2 = e, h2 === 0 && d2(nt3)), s2 !== e ? (o = E5(), B6 = J6(), B6 !== e ? ($4 = u3, u3 = zt4(r2, B6)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e)), u3;
     }
     function xr2() {
-      var u3, r;
-      return u3 = n2, r = J6(), r !== e && ($5 = u3, r = Tt3(r)), u3 = r, u3 === e && (u3 = Fu2()), u3;
+      var u3, r2;
+      return u3 = n2, r2 = J6(), r2 !== e && ($4 = u3, r2 = Tt3(r2)), u3 = r2, u3 === e && (u3 = Fu2()), u3;
     }
     function Ir2() {
       var u3;
       return u3 = xr2(), u3;
     }
     function kr2() {
-      var u3, r;
-      return u3 = n2, E5(), r = Nr2(), r === e && (r = Pr2(), r === e && (r = qr2())), r !== e ? (E5(), $5 = u3, u3 = Zt4(r)) : (n2 = u3, u3 = e), u3;
+      var u3, r2;
+      return u3 = n2, E5(), r2 = Nr2(), r2 === e && (r2 = Pr2(), r2 === e && (r2 = qr2())), r2 !== e ? (E5(), $4 = u3, u3 = Zt4(r2)) : (n2 = u3, u3 = e), u3;
     }
     function Nr2() {
-      var u3, r, s2;
-      return u3 = n2, t.substr(n2, 6) === Nu2 ? (r = Nu2, n2 += 6) : (r = e, h === 0 && d2(st4)), r !== e ? (E5(), s2 = M3(), s2 !== e ? ($5 = u3, u3 = Wt3(s2)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
+      var u3, r2, s2;
+      return u3 = n2, t.substr(n2, 6) === Nu2 ? (r2 = Nu2, n2 += 6) : (r2 = e, h2 === 0 && d2(st3)), r2 !== e ? (E5(), s2 = M3(), s2 !== e ? ($4 = u3, u3 = Wt3(s2)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
     }
     function Pr2() {
-      var u3, r, s2;
-      return u3 = n2, t.substr(n2, 6) === Pu2 ? (r = Pu2, n2 += 6) : (r = e, h === 0 && d2(it5)), r !== e ? (E5(), s2 = M3(), s2 !== e ? ($5 = u3, u3 = Ut4(s2)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
+      var u3, r2, s2;
+      return u3 = n2, t.substr(n2, 6) === Pu2 ? (r2 = Pu2, n2 += 6) : (r2 = e, h2 === 0 && d2(it4)), r2 !== e ? (E5(), s2 = M3(), s2 !== e ? ($4 = u3, u3 = Ut4(s2)) : (n2 = u3, u3 = e)) : (n2 = u3, u3 = e), u3;
     }
     function qr2() {
-      var u3, r;
-      return u3 = n2, t.substr(n2, 4) === qu2 ? (r = qu2, n2 += 4) : (r = e, h === 0 && d2(ft2)), r !== e && ($5 = u3, r = Vt3()), u3 = r, u3;
+      var u3, r2;
+      return u3 = n2, t.substr(n2, 4) === qu2 ? (r2 = qu2, n2 += 4) : (r2 = e, h2 === 0 && d2(ft2)), r2 !== e && ($4 = u3, r2 = Vt3()), u3 = r2, u3;
     }
     function jr2() {
       var u3;
@@ -11937,14 +12558,14 @@ registerProcessor('${n2}', MyProcessor);
     }
     var Sr2 = function(u3) {
       this.type_ = "atom", this.source_ = u3, this.location_ = Zu2();
-    }, lu2 = function(u3, r, s2, o) {
-      this.type_ = "pattern", this.arguments_ = { alignment: r, _steps: o }, s2 !== void 0 && (this.arguments_.seed = s2), this.source_ = u3;
-    }, Rr2 = function(u3, r, s2) {
-      this.type_ = u3, this.arguments_ = r, this.source_ = s2;
-    }, Lr2 = function(u3, r) {
-      this.type_ = "element", this.source_ = u3, this.options_ = r, this.location_ = Zu2();
-    }, hu2 = function(u3, r) {
-      this.type_ = "command", this.name_ = u3, this.options_ = r;
+    }, lu2 = function(u3, r2, s2, o) {
+      this.type_ = "pattern", this.arguments_ = { alignment: r2, _steps: o }, s2 !== void 0 && (this.arguments_.seed = s2), this.source_ = u3;
+    }, Rr2 = function(u3, r2, s2) {
+      this.type_ = u3, this.arguments_ = r2, this.source_ = s2;
+    }, Lr2 = function(u3, r2) {
+      this.type_ = "element", this.source_ = u3, this.options_ = r2, this.location_ = Zu2();
+    }, hu2 = function(u3, r2) {
+      this.type_ = "command", this.name_ = u3, this.options_ = r2;
     }, Bu2 = 0;
     if (eu2 = a2(), i2.peg$library)
       return (
@@ -11969,7 +12590,7 @@ registerProcessor('${n2}', MyProcessor);
     try {
       t = BigInt(t);
     } catch {
-      throw Z4();
+      throw Z3();
     }
     return t * i2;
   }
@@ -12045,24 +12666,24 @@ registerProcessor('${n2}', MyProcessor);
     const l2 = (a2) => nu2(a2, i2, e, f4);
     switch (t.type_) {
       case "pattern": {
-        const a2 = t.source_.map((c3) => l2(c3)).map(Vr2(t, l2)), D6 = t.arguments_.alignment, v2 = a2.filter((c3) => c3.__steps_source);
+        const a2 = t.source_.map((c4) => l2(c4)).map(Vr2(t, l2)), D6 = t.arguments_.alignment, v2 = a2.filter((c4) => c4.__steps_source);
         let g3;
         switch (D6) {
           case "stack": {
-            g3 = z(...a2), v2.length && (g3._steps = cu2(...v2.map((c3) => W4(c3._steps))));
+            g3 = z(...a2), v2.length && (g3._steps = cu2(...v2.map((c4) => W3(c4._steps))));
             break;
           }
           case "polymeter_slowcat": {
-            g3 = z(...a2.map((c3) => c3._slow(c3.__weight))), v2.length && (g3._steps = cu2(...v2.map((c3) => W4(c3._steps))));
+            g3 = z(...a2.map((c4) => c4._slow(c4.__weight))), v2.length && (g3._steps = cu2(...v2.map((c4) => W3(c4._steps))));
             break;
           }
           case "polymeter": {
-            const c3 = t.arguments_.stepsPerCycle ? l2(t.arguments_.stepsPerCycle).fmap((p2) => m(p2)) : C2(m(a2.length > 0 ? a2[0].__weight : 1)), F5 = a2.map((p2) => p2.fast(c3.fmap((w6) => w6.div(p2.__weight))));
+            const c4 = t.arguments_.stepsPerCycle ? l2(t.arguments_.stepsPerCycle).fmap((p2) => m(p2)) : C2(m(a2.length > 0 ? a2[0].__weight : 1)), F5 = a2.map((p2) => p2.fast(c4.fmap((w7) => w7.div(p2.__weight))));
             g3 = z(...F5);
             break;
           }
           case "rand": {
-            g3 = Pe2(W2.early(ue6 * t.arguments_.seed).segment(1), a2), v2.length && (g3._steps = cu2(...v2.map((c3) => W4(c3._steps))));
+            g3 = Pe2(W2.early(ue5 * t.arguments_.seed).segment(1), a2), v2.length && (g3._steps = cu2(...v2.map((c4) => W3(c4._steps))));
             break;
           }
           case "feet": {
@@ -12072,12 +12693,12 @@ registerProcessor('${n2}', MyProcessor);
           default: {
             if (t.source_.some((F5) => !!F5.options_?.weight)) {
               const F5 = t.source_.reduce(
-                (p2, w6) => p2.add(w6.options_?.weight || m(1)),
+                (p2, w7) => p2.add(w7.options_?.weight || m(1)),
                 m(0)
               );
               g3 = ns(
-                ...t.source_.map((p2, w6) => [p2.options_?.weight || m(1), a2[w6]])
-              ), g3.__weight = F5, g3._steps = F5, v2.length && (g3._steps = g3._steps.mul(cu2(...v2.map((p2) => W4(p2._steps)))));
+                ...t.source_.map((p2, w7) => [p2.options_?.weight || m(1), a2[w7]])
+              ), g3.__weight = F5, g3._steps = F5, v2.length && (g3._steps = g3._steps.mul(cu2(...v2.map((p2) => W3(p2._steps)))));
             } else
               g3 = Q2(...a2), g3._steps = a2.length;
             t.arguments_._steps && (g3.__steps_source = true);
@@ -12095,7 +12716,7 @@ registerProcessor('${n2}', MyProcessor);
         const a2 = isNaN(Number(t.source_)) ? t.source_ : Number(t.source_);
         if (f4 === -1)
           return C2(a2);
-        const [D6, v2] = ee4(i2, t, f4);
+        const [D6, v2] = ee3(i2, t, f4);
         return C2(a2).withLoc(D6, v2);
       }
       case "stretch":
@@ -12110,8 +12731,8 @@ registerProcessor('${n2}', MyProcessor);
   function Qr2() {
     mh(te3);
   }
-  var Gr2, C4, m2, ru2, Du2, N4, zr2, A3, k4, du2, Z4, Qu2, L4, Ur2, W4, cu2, ue6, Vr2, ee4, Au2, Xr2, Yr2, te3, Hr2, Jr2;
-  var init_dist7 = __esm({
+  var Gr2, C4, m2, ru2, Du2, N4, zr2, A3, k4, du2, Z3, Qu2, L4, Ur2, W3, cu2, ue5, Vr2, ee3, Au2, Xr2, Yr2, te3, Hr2, Jr2;
+  var init_dist6 = __esm({
     "node_modules/@strudel/mini/dist/index.mjs"() {
       init_dist2();
       Or2(uu2, Error);
@@ -12126,11 +12747,11 @@ registerProcessor('${n2}', MyProcessor);
             }
           var l2 = this.location.start, a2 = this.location.source && typeof this.location.source.offset == "function" ? this.location.source.offset(l2) : l2, D6 = this.location.source + ":" + a2.line + ":" + a2.column;
           if (e) {
-            var v2 = this.location.end, g3 = Cu2("", a2.line.toString().length, " "), c3 = e[l2.line - 1], F5 = l2.line === v2.line ? v2.column : c3.length + 1, p2 = F5 - l2.column || 1;
+            var v2 = this.location.end, g3 = Cu2("", a2.line.toString().length, " "), c4 = e[l2.line - 1], F5 = l2.line === v2.line ? v2.column : c4.length + 1, p2 = F5 - l2.column || 1;
             i2 += `
  --> ` + D6 + `
 ` + g3 + ` |
-` + a2.line + " | " + c3 + `
+` + a2.line + " | " + c4 + `
 ` + g3 + " | " + Cu2("", l2.column - 1, " ") + Cu2("", p2, "^");
           } else
             i2 += `
@@ -12140,14 +12761,14 @@ registerProcessor('${n2}', MyProcessor);
       };
       uu2.buildMessage = function(t, i2) {
         var e = {
-          literal: function(c3) {
-            return '"' + l2(c3.text) + '"';
+          literal: function(c4) {
+            return '"' + l2(c4.text) + '"';
           },
-          class: function(c3) {
-            var F5 = c3.parts.map(function(p2) {
+          class: function(c4) {
+            var F5 = c4.parts.map(function(p2) {
               return Array.isArray(p2) ? a2(p2[0]) + "-" + a2(p2[1]) : a2(p2);
             });
-            return "[" + (c3.inverted ? "^" : "") + F5.join("") + "]";
+            return "[" + (c4.inverted ? "^" : "") + F5.join("") + "]";
           },
           any: function() {
             return "any character";
@@ -12155,36 +12776,36 @@ registerProcessor('${n2}', MyProcessor);
           end: function() {
             return "end of input";
           },
-          other: function(c3) {
-            return c3.description;
+          other: function(c4) {
+            return c4.description;
           }
         };
-        function f4(c3) {
-          return c3.charCodeAt(0).toString(16).toUpperCase();
+        function f4(c4) {
+          return c4.charCodeAt(0).toString(16).toUpperCase();
         }
-        function l2(c3) {
-          return c3.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\0/g, "\\0").replace(/\t/g, "\\t").replace(/\n/g, "\\n").replace(/\r/g, "\\r").replace(/[\x00-\x0F]/g, function(F5) {
+        function l2(c4) {
+          return c4.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\0/g, "\\0").replace(/\t/g, "\\t").replace(/\n/g, "\\n").replace(/\r/g, "\\r").replace(/[\x00-\x0F]/g, function(F5) {
             return "\\x0" + f4(F5);
           }).replace(/[\x10-\x1F\x7F-\x9F]/g, function(F5) {
             return "\\x" + f4(F5);
           });
         }
-        function a2(c3) {
-          return c3.replace(/\\/g, "\\\\").replace(/\]/g, "\\]").replace(/\^/g, "\\^").replace(/-/g, "\\-").replace(/\0/g, "\\0").replace(/\t/g, "\\t").replace(/\n/g, "\\n").replace(/\r/g, "\\r").replace(/[\x00-\x0F]/g, function(F5) {
+        function a2(c4) {
+          return c4.replace(/\\/g, "\\\\").replace(/\]/g, "\\]").replace(/\^/g, "\\^").replace(/-/g, "\\-").replace(/\0/g, "\\0").replace(/\t/g, "\\t").replace(/\n/g, "\\n").replace(/\r/g, "\\r").replace(/[\x00-\x0F]/g, function(F5) {
             return "\\x0" + f4(F5);
           }).replace(/[\x10-\x1F\x7F-\x9F]/g, function(F5) {
             return "\\x" + f4(F5);
           });
         }
-        function D6(c3) {
-          return e[c3.type](c3);
+        function D6(c4) {
+          return e[c4.type](c4);
         }
-        function v2(c3) {
-          var F5 = c3.map(D6), p2, w6;
+        function v2(c4) {
+          var F5 = c4.map(D6), p2, w7;
           if (F5.sort(), F5.length > 0) {
-            for (p2 = 1, w6 = 1; p2 < F5.length; p2++)
-              F5[p2 - 1] !== F5[p2] && (F5[w6] = F5[p2], w6++);
-            F5.length = w6;
+            for (p2 = 1, w7 = 1; p2 < F5.length; p2++)
+              F5[p2 - 1] !== F5[p2] && (F5[w7] = F5[p2], w7++);
+            F5.length = w7;
           }
           switch (F5.length) {
             case 1:
@@ -12195,8 +12816,8 @@ registerProcessor('${n2}', MyProcessor);
               return F5.slice(0, -1).join(", ") + ", or " + F5[F5.length - 1];
           }
         }
-        function g3(c3) {
-          return c3 ? '"' + l2(c3) + '"' : "end of input";
+        function g3(c4) {
+          return c4 ? '"' + l2(c4) + '"' : "end of input";
         }
         return "Expected " + v2(t) + " but " + g3(i2) + " found.";
       };
@@ -12225,7 +12846,7 @@ registerProcessor('${n2}', MyProcessor);
             e = t;
           else {
             if (isNaN(t))
-              throw Z4();
+              throw Z3();
             if (t % 1 !== 0)
               throw Qu2();
             e = BigInt(t);
@@ -12234,7 +12855,7 @@ registerProcessor('${n2}', MyProcessor);
             f4 = i2;
           else {
             if (isNaN(i2))
-              throw Z4();
+              throw Z3();
             if (i2 % 1 !== 0)
               throw Qu2();
             f4 = BigInt(i2);
@@ -12248,38 +12869,38 @@ registerProcessor('${n2}', MyProcessor);
           else if (typeof t == "bigint")
             e = t;
           else
-            throw Z4();
+            throw Z3();
           l2 = e * f4;
         } else if (typeof t == "number") {
           if (isNaN(t))
-            throw Z4();
+            throw Z3();
           if (t < 0 && (l2 = -m2, t = -t), t % 1 === 0)
             e = BigInt(t);
           else if (t > 0) {
-            let a2 = 1, D6 = 0, v2 = 1, g3 = 1, c3 = 1, F5 = 1e7;
-            for (t >= 1 && (a2 = 10 ** Math.floor(1 + Math.log10(t)), t /= a2); v2 <= F5 && c3 <= F5; ) {
-              let p2 = (D6 + g3) / (v2 + c3);
+            let a2 = 1, D6 = 0, v2 = 1, g3 = 1, c4 = 1, F5 = 1e7;
+            for (t >= 1 && (a2 = 10 ** Math.floor(1 + Math.log10(t)), t /= a2); v2 <= F5 && c4 <= F5; ) {
+              let p2 = (D6 + g3) / (v2 + c4);
               if (t === p2) {
-                v2 + c3 <= F5 ? (e = D6 + g3, f4 = v2 + c3) : c3 > v2 ? (e = g3, f4 = c3) : (e = D6, f4 = v2);
+                v2 + c4 <= F5 ? (e = D6 + g3, f4 = v2 + c4) : c4 > v2 ? (e = g3, f4 = c4) : (e = D6, f4 = v2);
                 break;
               } else
-                t > p2 ? (D6 += g3, v2 += c3) : (g3 += D6, c3 += v2), v2 > F5 ? (e = g3, f4 = c3) : (e = D6, f4 = v2);
+                t > p2 ? (D6 += g3, v2 += c4) : (g3 += D6, c4 += v2), v2 > F5 ? (e = g3, f4 = c4) : (e = D6, f4 = v2);
             }
             e = BigInt(e) * BigInt(a2), f4 = BigInt(f4);
           }
         } else if (typeof t == "string") {
-          let a2 = 0, D6 = C4, v2 = C4, g3 = C4, c3 = m2, F5 = m2, p2 = t.replace(/_/g, "").match(/\d+|./g);
+          let a2 = 0, D6 = C4, v2 = C4, g3 = C4, c4 = m2, F5 = m2, p2 = t.replace(/_/g, "").match(/\d+|./g);
           if (p2 === null)
-            throw Z4();
-          if (p2[a2] === "-" ? (l2 = -m2, a2++) : p2[a2] === "+" && a2++, p2.length === a2 + 1 ? v2 = z3(p2[a2++], l2) : p2[a2 + 1] === "." || p2[a2] === "." ? (p2[a2] !== "." && (D6 = z3(p2[a2++], l2)), a2++, (a2 + 1 === p2.length || p2[a2 + 1] === "(" && p2[a2 + 3] === ")" || p2[a2 + 1] === "'" && p2[a2 + 3] === "'") && (v2 = z3(p2[a2], l2), c3 = N4 ** BigInt(p2[a2].length), a2++), (p2[a2] === "(" && p2[a2 + 2] === ")" || p2[a2] === "'" && p2[a2 + 2] === "'") && (g3 = z3(p2[a2 + 1], l2), F5 = N4 ** BigInt(p2[a2 + 1].length) - m2, a2 += 3)) : p2[a2 + 1] === "/" || p2[a2 + 1] === ":" ? (v2 = z3(p2[a2], l2), c3 = z3(p2[a2 + 2], m2), a2 += 3) : p2[a2 + 3] === "/" && p2[a2 + 1] === " " && (D6 = z3(p2[a2], l2), v2 = z3(p2[a2 + 2], l2), c3 = z3(p2[a2 + 4], m2), a2 += 5), p2.length <= a2)
-            f4 = c3 * F5, l2 = /* void */
+            throw Z3();
+          if (p2[a2] === "-" ? (l2 = -m2, a2++) : p2[a2] === "+" && a2++, p2.length === a2 + 1 ? v2 = z3(p2[a2++], l2) : p2[a2 + 1] === "." || p2[a2] === "." ? (p2[a2] !== "." && (D6 = z3(p2[a2++], l2)), a2++, (a2 + 1 === p2.length || p2[a2 + 1] === "(" && p2[a2 + 3] === ")" || p2[a2 + 1] === "'" && p2[a2 + 3] === "'") && (v2 = z3(p2[a2], l2), c4 = N4 ** BigInt(p2[a2].length), a2++), (p2[a2] === "(" && p2[a2 + 2] === ")" || p2[a2] === "'" && p2[a2 + 2] === "'") && (g3 = z3(p2[a2 + 1], l2), F5 = N4 ** BigInt(p2[a2 + 1].length) - m2, a2 += 3)) : p2[a2 + 1] === "/" || p2[a2 + 1] === ":" ? (v2 = z3(p2[a2], l2), c4 = z3(p2[a2 + 2], m2), a2 += 3) : p2[a2 + 3] === "/" && p2[a2 + 1] === " " && (D6 = z3(p2[a2], l2), v2 = z3(p2[a2 + 2], l2), c4 = z3(p2[a2 + 4], m2), a2 += 5), p2.length <= a2)
+            f4 = c4 * F5, l2 = /* void */
             e = g3 + f4 * D6 + F5 * v2;
           else
-            throw Z4();
+            throw Z3();
         } else if (typeof t == "bigint")
           e = t, l2 = t, f4 = m2;
         else
-          throw Z4();
+          throw Z3();
         if (f4 === C4)
           throw du2();
         A3.s = l2 < C4 ? -m2 : m2, A3.n = e < C4 ? -e : e, A3.d = f4 < C4 ? -f4 : f4;
@@ -12287,7 +12908,7 @@ registerProcessor('${n2}', MyProcessor);
       du2 = function() {
         return new Error("Division by Zero");
       };
-      Z4 = function() {
+      Z3 = function() {
         return new Error("Invalid argument");
       };
       Qu2 = function() {
@@ -12443,27 +13064,27 @@ registerProcessor('${n2}', MyProcessor);
         log: function(t, i2) {
           if (k4(t, i2), this.s <= C4 || A3.s <= C4) return null;
           const e = {}, f4 = Q3(A3.n), l2 = Q3(A3.d), a2 = Q3(this.n), D6 = Q3(this.d);
-          for (const c3 in l2)
-            f4[c3] = (f4[c3] || C4) - l2[c3];
-          for (const c3 in D6)
-            a2[c3] = (a2[c3] || C4) - D6[c3];
-          for (const c3 in f4)
-            c3 !== "1" && (e[c3] = true);
-          for (const c3 in a2)
-            c3 !== "1" && (e[c3] = true);
+          for (const c4 in l2)
+            f4[c4] = (f4[c4] || C4) - l2[c4];
+          for (const c4 in D6)
+            a2[c4] = (a2[c4] || C4) - D6[c4];
+          for (const c4 in f4)
+            c4 !== "1" && (e[c4] = true);
+          for (const c4 in a2)
+            c4 !== "1" && (e[c4] = true);
           let v2 = null, g3 = null;
-          for (const c3 in e) {
-            const F5 = f4[c3] || C4, p2 = a2[c3] || C4;
+          for (const c4 in e) {
+            const F5 = f4[c4] || C4, p2 = a2[c4] || C4;
             if (F5 === C4) {
               if (p2 !== C4)
                 return null;
               continue;
             }
-            let w6 = p2, P4 = F5;
-            const R6 = U5(w6, P4);
-            if (w6 /= R6, P4 /= R6, v2 === null && g3 === null)
-              v2 = w6, g3 = P4;
-            else if (w6 * g3 !== v2 * P4)
+            let w7 = p2, P4 = F5;
+            const R5 = U5(w7, P4);
+            if (w7 /= R5, P4 /= R5, v2 === null && g3 === null)
+              v2 = w7, g3 = P4;
+            else if (w7 * g3 !== v2 * P4)
               return null;
           }
           return v2 !== null && g3 !== null ? I2(v2, g3) : null;
@@ -12661,7 +13282,7 @@ registerProcessor('${n2}', MyProcessor);
       };
       L4 = class _L {
         constructor(i2, e) {
-          this.begin = W4(i2), this.end = W4(e);
+          this.begin = W3(i2), this.end = W3(e);
         }
         get spanCycles() {
           const i2 = [];
@@ -12708,7 +13329,7 @@ registerProcessor('${n2}', MyProcessor);
           return e;
         }
         midpoint() {
-          return this.begin.add(this.duration.div(W4(2)));
+          return this.begin.add(this.duration.div(W3(2)));
         }
         equals(i2) {
           return this.begin.equals(i2.begin) && this.end.equals(i2.end);
@@ -12775,7 +13396,7 @@ registerProcessor('${n2}', MyProcessor);
       b.prototype.or = function(t) {
         return this.eq(0) ? t : this;
       };
-      W4 = (t) => b(t);
+      W3 = (t) => b(t);
       cu2 = (...t) => {
         if (t = Ur2(t), t.length === 0)
           return;
@@ -12785,23 +13406,23 @@ registerProcessor('${n2}', MyProcessor);
           i2
         );
       };
-      W4._original = b;
-      ue6 = 3e-4;
+      W3._original = b;
+      ue5 = 3e-4;
       Vr2 = (t, i2) => (e, f4) => {
         const D6 = t.source_[f4].options_?.ops, v2 = e.__steps_source;
         if (D6)
           for (const g3 of D6)
             switch (g3.type_) {
               case "stretch": {
-                const c3 = ["fast", "slow"], { type: F5, amount: p2 } = g3.arguments_;
-                if (!c3.includes(F5))
-                  throw new Error(`mini: stretch: type must be one of ${c3.join("|")} but got ${F5}`);
+                const c4 = ["fast", "slow"], { type: F5, amount: p2 } = g3.arguments_;
+                if (!c4.includes(F5))
+                  throw new Error(`mini: stretch: type must be one of ${c4.join("|")} but got ${F5}`);
                 e = d(e)[F5](i2(p2));
                 break;
               }
               case "replicate": {
-                const { amount: c3 } = g3.arguments_;
-                e = d(e), e = e._repeatCycles(c3)._fast(c3);
+                const { amount: c4 } = g3.arguments_;
+                e = d(e), e = e._repeatCycles(c4)._fast(c4);
                 break;
               }
               case "bjorklund": {
@@ -12809,22 +13430,22 @@ registerProcessor('${n2}', MyProcessor);
                 break;
               }
               case "degradeBy": {
-                e = d(e)._degradeByWith(W2.early(ue6 * g3.arguments_.seed), g3.arguments_.amount ?? 0.5);
+                e = d(e)._degradeByWith(W2.early(ue5 * g3.arguments_.seed), g3.arguments_.amount ?? 0.5);
                 break;
               }
               case "tail": {
-                const c3 = i2(g3.arguments_.element);
-                e = e.fmap((F5) => (p2) => Array.isArray(F5) ? [...F5, p2] : [F5, p2]).appLeft(c3);
+                const c4 = i2(g3.arguments_.element);
+                e = e.fmap((F5) => (p2) => Array.isArray(F5) ? [...F5, p2] : [F5, p2]).appLeft(c4);
                 break;
               }
               case "range": {
-                const c3 = i2(g3.arguments_.element);
+                const c4 = i2(g3.arguments_.element);
                 e = d(e);
-                const F5 = (w6, P4, R6 = 1) => Array.from(
-                  { length: Math.abs(P4 - w6) / R6 + 1 },
-                  (su2, iu2) => w6 < P4 ? w6 + iu2 * R6 : w6 - iu2 * R6
+                const F5 = (w7, P4, R5 = 1) => Array.from(
+                  { length: Math.abs(P4 - w7) / R5 + 1 },
+                  (su2, iu2) => w7 < P4 ? w7 + iu2 * R5 : w7 - iu2 * R5
                 );
-                e = ((w6, P4) => w6.squeezeBind((R6) => P4.bind((su2) => N2(...F5(R6, su2)))))(e, c3);
+                e = ((w7, P4) => w7.squeezeBind((R5) => P4.bind((su2) => N2(...F5(R5, su2)))))(e, c4);
                 break;
               }
               default:
@@ -12832,8 +13453,8 @@ registerProcessor('${n2}', MyProcessor);
             }
         return e.__steps_source = e.__steps_source || v2, e;
       };
-      ee4 = (t, i2, e = 0) => {
-        const { start: f4, end: l2 } = i2.location_, a2 = t?.split("").slice(f4.offset, l2.offset).join(""), [D6 = 0, v2 = 0] = a2 ? a2.split(i2.source_).map((g3) => g3.split("").filter((c3) => c3 === " ").length) : [];
+      ee3 = (t, i2, e = 0) => {
+        const { start: f4, end: l2 } = i2.location_, a2 = t?.split("").slice(f4.offset, l2.offset).join(""), [D6 = 0, v2 = 0] = a2 ? a2.split(i2.source_).map((g3) => g3.split("").filter((c4) => c4 === " ").length) : [];
         return [f4.offset + D6 + e, l2.offset - v2 + e];
       };
       Au2 = (t, i2 = 0, e = t) => {
@@ -12857,7 +13478,7 @@ registerProcessor('${n2}', MyProcessor);
           -1
         ), l2;
       };
-      Yr2 = (t, i2 = 0, e) => Xr2(t, i2, e).map((f4) => ee4(t, f4, i2));
+      Yr2 = (t, i2 = 0, e) => Xr2(t, i2, e).map((f4) => ee3(t, f4, i2));
       te3 = (...t) => {
         const i2 = t.map((e) => {
           const f4 = `"${e}"`, l2 = Au2(f4);
@@ -14693,21 +15314,21 @@ registerProcessor('${n2}', MyProcessor);
   // node_modules/source-map/lib/quick-sort.js
   var require_quick_sort = __commonJS({
     "node_modules/source-map/lib/quick-sort.js"(exports) {
-      function swap(ary, x3, y3) {
-        var temp = ary[x3];
-        ary[x3] = ary[y3];
-        ary[y3] = temp;
+      function swap(ary, x4, y4) {
+        var temp = ary[x4];
+        ary[x4] = ary[y4];
+        ary[y4] = temp;
       }
       function randomIntInRange(low, high) {
         return Math.round(low + Math.random() * (high - low));
       }
-      function doQuickSort(ary, comparator, p2, r) {
-        if (p2 < r) {
-          var pivotIndex = randomIntInRange(p2, r);
+      function doQuickSort(ary, comparator, p2, r2) {
+        if (p2 < r2) {
+          var pivotIndex = randomIntInRange(p2, r2);
           var i2 = p2 - 1;
-          swap(ary, pivotIndex, r);
-          var pivot = ary[r];
-          for (var j7 = p2; j7 < r; j7++) {
+          swap(ary, pivotIndex, r2);
+          var pivot = ary[r2];
+          for (var j7 = p2; j7 < r2; j7++) {
             if (comparator(ary[j7], pivot) <= 0) {
               i2 += 1;
               swap(ary, i2, j7);
@@ -14716,7 +15337,7 @@ registerProcessor('${n2}', MyProcessor);
           swap(ary, i2 + 1, j7);
           var q8 = i2 + 1;
           doQuickSort(ary, comparator, p2, q8 - 1);
-          doQuickSort(ary, comparator, q8 + 1, r);
+          doQuickSort(ary, comparator, q8 + 1, r2);
         }
       }
       exports.quickSort = function(ary, comparator) {
@@ -14767,8 +15388,8 @@ registerProcessor('${n2}', MyProcessor);
         }
       });
       SourceMapConsumer.prototype._charIsMappingSeparator = function SourceMapConsumer_charIsMappingSeparator(aStr, index) {
-        var c3 = aStr.charAt(index);
-        return c3 === ";" || c3 === ",";
+        var c4 = aStr.charAt(index);
+        return c4 === ";" || c4 === ",";
       };
       SourceMapConsumer.prototype._parseMappings = function SourceMapConsumer_parseMappings(aStr, aSourceRoot) {
         throw new Error("Subclasses must implement _parseMappings");
@@ -17792,8 +18413,8 @@ registerProcessor('${n2}', MyProcessor);
       var chroma = ({ step, alt }) => (SIZES[step] + alt + 120) % 12;
       var height = ({ step, alt, oct, dir = 1 }) => dir * (SIZES[step] + alt + 12 * (oct === void 0 ? -100 : oct));
       var midi2 = (pitch2) => {
-        const h = height(pitch2);
-        return pitch2.oct !== void 0 && h >= -12 && h <= 115 ? h + 12 : null;
+        const h2 = height(pitch2);
+        return pitch2.oct !== void 0 && h2 >= -12 && h2 <= 115 ? h2 + 12 : null;
       };
       function isPitch(pitch2) {
         return pitch2 !== null && typeof pitch2 === "object" && "step" in pitch2 && typeof pitch2.step === "number" && "alt" in pitch2 && typeof pitch2.alt === "number" && !isNaN(pitch2.step) && !isNaN(pitch2.alt) ? true : false;
@@ -18003,8 +18624,8 @@ registerProcessor('${n2}', MyProcessor);
       var chroma = ({ step, alt }) => (SIZES[step] + alt + 120) % 12;
       var height = ({ step, alt, oct, dir = 1 }) => dir * (SIZES[step] + alt + 12 * (oct === void 0 ? -100 : oct));
       var midi2 = (pitch2) => {
-        const h = height(pitch2);
-        return pitch2.oct !== void 0 && h >= -12 && h <= 115 ? h + 12 : null;
+        const h2 = height(pitch2);
+        return pitch2.oct !== void 0 && h2 >= -12 && h2 <= 115 ? h2 + 12 : null;
       };
       function isPitch(pitch2) {
         return pitch2 !== null && typeof pitch2 === "object" && "step" in pitch2 && typeof pitch2.step === "number" && "alt" in pitch2 && typeof pitch2.alt === "number" && !isNaN(pitch2.step) && !isNaN(pitch2.alt) ? true : false;
@@ -18521,8 +19142,8 @@ registerProcessor('${n2}', MyProcessor);
       var chroma = ({ step, alt }) => (SIZES[step] + alt + 120) % 12;
       var height = ({ step, alt, oct, dir = 1 }) => dir * (SIZES[step] + alt + 12 * (oct === void 0 ? -100 : oct));
       var midi2 = (pitch2) => {
-        const h = height(pitch2);
-        return pitch2.oct !== void 0 && h >= -12 && h <= 115 ? h + 12 : null;
+        const h2 = height(pitch2);
+        return pitch2.oct !== void 0 && h2 >= -12 && h2 <= 115 ? h2 + 12 : null;
       };
       function isPitch(pitch2) {
         return pitch2 !== null && typeof pitch2 === "object" && "step" in pitch2 && typeof pitch2.step === "number" && "alt" in pitch2 && typeof pitch2.alt === "number" && !isNaN(pitch2.step) && !isNaN(pitch2.alt) ? true : false;
@@ -18796,8 +19417,8 @@ registerProcessor('${n2}', MyProcessor);
         const binary = pcs.chroma.split("");
         return (0, import_collection.compact)(
           binary.map((_7, i2) => {
-            const r = (0, import_collection.rotate)(i2, binary);
-            return normalize && r[0] === "0" ? null : r.join("");
+            const r2 = (0, import_collection.rotate)(i2, binary);
+            return normalize && r2[0] === "0" ? null : r2.join("");
           })
         );
       }
@@ -19068,10 +19689,10 @@ registerProcessor('${n2}', MyProcessor);
       }
       var chordType = get;
       function names() {
-        return dictionary.map((chord) => chord.name).filter((x3) => x3);
+        return dictionary.map((chord) => chord.name).filter((x4) => x4);
       }
       function symbols() {
-        return dictionary.map((chord) => chord.aliases[0]).filter((x3) => x3);
+        return dictionary.map((chord) => chord.aliases[0]).filter((x4) => x4);
       }
       function keys() {
         return Object.keys(index);
@@ -19168,7 +19789,7 @@ registerProcessor('${n2}', MyProcessor);
         return (chroma) => pcToName[chroma];
       };
       function detect2(source, options = {}) {
-        const notes = source.map((n2) => (0, import_pitch_note.note)(n2).pc).filter((x3) => x3);
+        const notes = source.map((n2) => (0, import_pitch_note.note)(n2).pc).filter((x4) => x4);
         if (import_pitch_note.note.length === 0) {
           return [];
         }
@@ -19272,8 +19893,8 @@ registerProcessor('${n2}', MyProcessor);
       var chroma = ({ step, alt }) => (SIZES[step] + alt + 120) % 12;
       var height = ({ step, alt, oct, dir = 1 }) => dir * (SIZES[step] + alt + 12 * (oct === void 0 ? -100 : oct));
       var midi2 = (pitch2) => {
-        const h = height(pitch2);
-        return pitch2.oct !== void 0 && h >= -12 && h <= 115 ? h + 12 : null;
+        const h2 = height(pitch2);
+        return pitch2.oct !== void 0 && h2 >= -12 && h2 <= 115 ? h2 + 12 : null;
       };
       function isPitch(pitch2) {
         return pitch2 !== null && typeof pitch2 === "object" && "step" in pitch2 && typeof pitch2.step === "number" && "alt" in pitch2 && typeof pitch2.alt === "number" ? true : false;
@@ -19682,7 +20303,7 @@ registerProcessor('${n2}', MyProcessor);
         symbols: () => symbols
       });
       module.exports = __toCommonJS(chord_type_exports);
-      var import_core11 = require_dist18();
+      var import_core15 = require_dist18();
       var import_pcset = require_dist11();
       var CHORDS = [
         ["1P 3M 5P", "major", "M ^  maj"],
@@ -19821,12 +20442,12 @@ registerProcessor('${n2}', MyProcessor);
       function get(type) {
         return index[type] || NoChordType;
       }
-      var chordType = (0, import_core11.deprecate)("ChordType.chordType", "ChordType.get", get);
+      var chordType = (0, import_core15.deprecate)("ChordType.chordType", "ChordType.get", get);
       function names() {
-        return dictionary.map((chord) => chord.name).filter((x3) => x3);
+        return dictionary.map((chord) => chord.name).filter((x4) => x4);
       }
       function symbols() {
-        return dictionary.map((chord) => chord.aliases[0]).filter((x3) => x3);
+        return dictionary.map((chord) => chord.aliases[0]).filter((x4) => x4);
       }
       function keys() {
         return Object.keys(index);
@@ -19834,7 +20455,7 @@ registerProcessor('${n2}', MyProcessor);
       function all() {
         return dictionary.slice();
       }
-      var entries = (0, import_core11.deprecate)("ChordType.entries", "ChordType.all", all);
+      var entries = (0, import_core15.deprecate)("ChordType.entries", "ChordType.all", all);
       function removeAll() {
         dictionary = [];
         index = {};
@@ -20073,7 +20694,7 @@ registerProcessor('${n2}', MyProcessor);
       var dictionary = [];
       var index = {};
       function names() {
-        return dictionary.map((scale) => scale.name);
+        return dictionary.map((scale2) => scale2.name);
       }
       function get(type) {
         return index[type] || NoScaleType;
@@ -20091,16 +20712,16 @@ registerProcessor('${n2}', MyProcessor);
         index = {};
       }
       function add2(intervals, name2, aliases = []) {
-        const scale = { ...(0, import_pcset.get)(intervals), name: name2, intervals, aliases };
-        dictionary.push(scale);
-        index[scale.name] = scale;
-        index[scale.setNum] = scale;
-        index[scale.chroma] = scale;
-        scale.aliases.forEach((alias) => addAlias(scale, alias));
-        return scale;
+        const scale2 = { ...(0, import_pcset.get)(intervals), name: name2, intervals, aliases };
+        dictionary.push(scale2);
+        index[scale2.name] = scale2;
+        index[scale2.setNum] = scale2;
+        index[scale2.chroma] = scale2;
+        scale2.aliases.forEach((alias) => addAlias(scale2, alias));
+        return scale2;
       }
-      function addAlias(scale, alias) {
-        index[alias] = scale;
+      function addAlias(scale2, alias) {
+        index[alias] = scale2;
       }
       data_default.forEach(
         ([ivls, name2, ...aliases]) => add2(ivls.split(" "), name2, aliases)
@@ -20158,7 +20779,7 @@ registerProcessor('${n2}', MyProcessor);
       module.exports = __toCommonJS(chord_exports);
       var import_chord_detect = require_dist13();
       var import_chord_type = require_dist19();
-      var import_core11 = require_dist18();
+      var import_core15 = require_dist18();
       var import_core22 = require_dist18();
       var import_pcset = require_dist11();
       var import_scale_type = require_dist20();
@@ -20248,7 +20869,7 @@ registerProcessor('${n2}', MyProcessor);
       function chordScales(name2) {
         const s2 = get(name2);
         const isChordIncluded = (0, import_pcset.isSupersetOf)(s2.chroma);
-        return (0, import_scale_type.all)().filter((scale) => isChordIncluded(scale.chroma)).map((scale) => scale.name);
+        return (0, import_scale_type.all)().filter((scale2) => isChordIncluded(scale2.chroma)).map((scale2) => scale2.name);
       }
       function extended(chordName) {
         const s2 = get(chordName);
@@ -20262,12 +20883,12 @@ registerProcessor('${n2}', MyProcessor);
       }
       function degrees(chordName) {
         const { intervals, tonic } = get(chordName);
-        const transpose2 = (0, import_core11.tonicIntervalsTransposer)(intervals, tonic);
+        const transpose2 = (0, import_core15.tonicIntervalsTransposer)(intervals, tonic);
         return (degree) => degree ? transpose2(degree > 0 ? degree - 1 : degree) : "";
       }
       function steps(chordName) {
         const { intervals, tonic } = get(chordName);
-        return (0, import_core11.tonicIntervalsTransposer)(intervals, tonic);
+        return (0, import_core15.tonicIntervalsTransposer)(intervals, tonic);
       }
       var chord_default = {
         getChord,
@@ -20469,9 +21090,9 @@ registerProcessor('${n2}', MyProcessor);
       function fromSemitones(semitones2) {
         const d2 = semitones2 < 0 ? -1 : 1;
         const n2 = Math.abs(semitones2);
-        const c3 = n2 % 12;
+        const c4 = n2 % 12;
         const o = Math.floor(n2 / 12);
-        return d2 * (IN[c3] + 7 * o) + IQ[c3];
+        return d2 * (IN[c4] + 7 * o) + IQ[c4];
       }
       var distance = import_pitch_distance.distance;
       var add2 = combinator((a2, b2) => [a2[0] + b2[0], a2[1] + b2[1]]);
@@ -20860,8 +21481,8 @@ registerProcessor('${n2}', MyProcessor);
       var chroma = ({ step, alt }) => (SIZES[step] + alt + 120) % 12;
       var height = ({ step, alt, oct, dir = 1 }) => dir * (SIZES[step] + alt + 12 * (oct === void 0 ? -100 : oct));
       var midi2 = (pitch2) => {
-        const h = height(pitch2);
-        return pitch2.oct !== void 0 && h >= -12 && h <= 115 ? h + 12 : null;
+        const h2 = height(pitch2);
+        return pitch2.oct !== void 0 && h2 >= -12 && h2 <= 115 ? h2 + 12 : null;
       };
       function isPitch(pitch2) {
         return pitch2 !== null && typeof pitch2 === "object" && "step" in pitch2 && typeof pitch2.step === "number" && "alt" in pitch2 && typeof pitch2.alt === "number" && !isNaN(pitch2.step) && !isNaN(pitch2.alt) ? true : false;
@@ -21191,18 +21812,18 @@ registerProcessor('${n2}', MyProcessor);
         harmonic: NoKeyScale,
         melodic: NoKeyScale
       };
-      var mapScaleToType = (scale, list2, sep = "") => list2.map((type, i2) => `${scale[i2]}${sep}${type}`);
+      var mapScaleToType = (scale2, list2, sep = "") => list2.map((type, i2) => `${scale2[i2]}${sep}${type}`);
       function keyScale(grades, triads, chordTypes, harmonicFunctions, chordScales) {
         return (tonic) => {
           const intervals = grades.map((gr2) => (0, import_roman_numeral.get)(gr2).interval || "");
-          const scale = intervals.map((interval) => (0, import_note.transpose)(tonic, interval));
-          const chords = mapScaleToType(scale, chordTypes);
-          const secondaryDominants = scale.map((note2) => (0, import_note.transpose)(note2, "5P")).map(
+          const scale2 = intervals.map((interval) => (0, import_note.transpose)(tonic, interval));
+          const chords = mapScaleToType(scale2, chordTypes);
+          const secondaryDominants = scale2.map((note2) => (0, import_note.transpose)(note2, "5P")).map(
             (note2) => (
               // A secondary dominant is a V chord which:
               // 1. is not diatonic to the key,
               // 2. it must have a diatonic root.
-              scale.includes(note2) && !chords.includes(note2 + "7") ? note2 + "7" : ""
+              scale2.includes(note2) && !chords.includes(note2 + "7") ? note2 + "7" : ""
             )
           );
           const secondaryDominantSupertonics = supertonics(
@@ -21223,11 +21844,11 @@ registerProcessor('${n2}', MyProcessor);
             tonic,
             grades,
             intervals,
-            scale,
-            triads: mapScaleToType(scale, triads),
+            scale: scale2,
+            triads: mapScaleToType(scale2, triads),
             chords,
             chordsHarmonicFunction: harmonicFunctions.slice(),
-            chordScales: mapScaleToType(scale, chordScales, " "),
+            chordScales: mapScaleToType(scale2, chordScales, " "),
             secondaryDominants,
             secondaryDominantSupertonics,
             substituteDominants,
@@ -21407,8 +22028,8 @@ registerProcessor('${n2}', MyProcessor);
       var chroma = ({ step, alt }) => (SIZES[step] + alt + 120) % 12;
       var height = ({ step, alt, oct, dir = 1 }) => dir * (SIZES[step] + alt + 12 * (oct === void 0 ? -100 : oct));
       var midi2 = (pitch2) => {
-        const h = height(pitch2);
-        return pitch2.oct !== void 0 && h >= -12 && h <= 115 ? h + 12 : null;
+        const h2 = height(pitch2);
+        return pitch2.oct !== void 0 && h2 >= -12 && h2 <= 115 ? h2 + 12 : null;
       };
       function isPitch(pitch2) {
         return pitch2 !== null && typeof pitch2 === "object" && "step" in pitch2 && typeof pitch2.step === "number" && "alt" in pitch2 && typeof pitch2.alt === "number" && !isNaN(pitch2.step) && !isNaN(pitch2.alt) ? true : false;
@@ -21647,9 +22268,9 @@ registerProcessor('${n2}', MyProcessor);
       function fromSemitones(semitones2) {
         const d2 = semitones2 < 0 ? -1 : 1;
         const n2 = Math.abs(semitones2);
-        const c3 = n2 % 12;
+        const c4 = n2 % 12;
         const o = Math.floor(n2 / 12);
-        return d2 * (IN[c3] + 7 * o) + IQ[c3];
+        return d2 * (IN[c4] + 7 * o) + IQ[c4];
       }
       var distance = import_pitch_distance.distance;
       var add2 = combinator((a2, b2) => [a2[0] + b2[0], a2[1] + b2[1]]);
@@ -21799,8 +22420,8 @@ registerProcessor('${n2}', MyProcessor);
           return triads2.map((triad, i2) => tonics[i2] + triad);
         };
       }
-      var triads = chords(MODES.map((x3) => x3[4]));
-      var seventhChords = chords(MODES.map((x3) => x3[5]));
+      var triads = chords(MODES.map((x4) => x4[4]));
+      var seventhChords = chords(MODES.map((x4) => x4[5]));
       function distance(destination, source) {
         const from = get(source);
         const to3 = get(destination);
@@ -22012,10 +22633,10 @@ registerProcessor('${n2}', MyProcessor);
       }
       var chordType = get;
       function names() {
-        return dictionary.map((chord) => chord.name).filter((x3) => x3);
+        return dictionary.map((chord) => chord.name).filter((x4) => x4);
       }
       function symbols() {
-        return dictionary.map((chord) => chord.aliases[0]).filter((x3) => x3);
+        return dictionary.map((chord) => chord.aliases[0]).filter((x4) => x4);
       }
       function keys() {
         return Object.keys(index);
@@ -22110,8 +22731,8 @@ registerProcessor('${n2}', MyProcessor);
       var chroma = ({ step, alt }) => (SIZES[step] + alt + 120) % 12;
       var height = ({ step, alt, oct, dir = 1 }) => dir * (SIZES[step] + alt + 12 * (oct === void 0 ? -100 : oct));
       var midi2 = (pitch2) => {
-        const h = height(pitch2);
-        return pitch2.oct !== void 0 && h >= -12 && h <= 115 ? h + 12 : null;
+        const h2 = height(pitch2);
+        return pitch2.oct !== void 0 && h2 >= -12 && h2 <= 115 ? h2 + 12 : null;
       };
       function isPitch(pitch2) {
         return pitch2 !== null && typeof pitch2 === "object" && "step" in pitch2 && typeof pitch2.step === "number" && "alt" in pitch2 && typeof pitch2.alt === "number" && !isNaN(pitch2.step) && !isNaN(pitch2.alt) ? true : false;
@@ -22350,9 +22971,9 @@ registerProcessor('${n2}', MyProcessor);
       function fromSemitones(semitones2) {
         const d2 = semitones2 < 0 ? -1 : 1;
         const n2 = Math.abs(semitones2);
-        const c3 = n2 % 12;
+        const c4 = n2 % 12;
         const o = Math.floor(n2 / 12);
-        return d2 * (IN[c3] + 7 * o) + IQ[c3];
+        return d2 * (IN[c4] + 7 * o) + IQ[c4];
       }
       var distance = import_pitch_distance.distance;
       var add2 = combinator((a2, b2) => [a2[0] + b2[0], a2[1] + b2[1]]);
@@ -22545,7 +23166,7 @@ registerProcessor('${n2}', MyProcessor);
       function chordScales(name2) {
         const s2 = get(name2);
         const isChordIncluded = (0, import_pcset.isSupersetOf)(s2.chroma);
-        return (0, import_scale_type.all)().filter((scale) => isChordIncluded(scale.chroma)).map((scale) => scale.name);
+        return (0, import_scale_type.all)().filter((scale2) => isChordIncluded(scale2.chroma)).map((scale2) => scale2.name);
       }
       function extended(chordName) {
         const s2 = get(chordName);
@@ -22879,10 +23500,10 @@ registerProcessor('${n2}', MyProcessor);
       }
       var chordType = get;
       function names() {
-        return dictionary.map((chord) => chord.name).filter((x3) => x3);
+        return dictionary.map((chord) => chord.name).filter((x4) => x4);
       }
       function symbols() {
-        return dictionary.map((chord) => chord.aliases[0]).filter((x3) => x3);
+        return dictionary.map((chord) => chord.aliases[0]).filter((x4) => x4);
       }
       function keys() {
         return Object.keys(index);
@@ -22970,7 +23591,7 @@ registerProcessor('${n2}', MyProcessor);
         names: () => names,
         rangeOf: () => rangeOf,
         reduced: () => reduced,
-        scale: () => scale,
+        scale: () => scale2,
         scaleChords: () => scaleChords,
         scaleNotes: () => scaleNotes,
         steps: () => steps,
@@ -23013,16 +23634,16 @@ registerProcessor('${n2}', MyProcessor);
       function get(src) {
         const tokens = Array.isArray(src) ? src : tokenize(src);
         const tonic = (0, import_pitch_note.note)(tokens[0]).name;
-        const st4 = (0, import_scale_type.get)(tokens[1]);
-        if (st4.empty) {
+        const st3 = (0, import_scale_type.get)(tokens[1]);
+        if (st3.empty) {
           return NoScale;
         }
-        const type = st4.name;
-        const notes = tonic ? st4.intervals.map((i2) => (0, import_pitch_distance.transpose)(tonic, i2)) : [];
+        const type = st3.name;
+        const notes = tonic ? st3.intervals.map((i2) => (0, import_pitch_distance.transpose)(tonic, i2)) : [];
         const name2 = tonic ? tonic + " " + type : type;
-        return { ...st4, name: name2, type, tonic, notes };
+        return { ...st3, name: name2, type, tonic, notes };
       }
-      var scale = get;
+      var scale2 = get;
       function detect2(notes, options = {}) {
         const notesChroma = (0, import_pcset.chroma)(notes);
         const tonic = (0, import_pitch_note.note)(options.tonic ?? notes[0] ?? "");
@@ -23054,17 +23675,17 @@ registerProcessor('${n2}', MyProcessor);
       function extended(name2) {
         const chroma2 = (0, import_pcset.isChroma)(name2) ? name2 : get(name2).chroma;
         const isSuperset = (0, import_pcset.isSupersetOf)(chroma2);
-        return (0, import_scale_type.all)().filter((scale2) => isSuperset(scale2.chroma)).map((scale2) => scale2.name);
+        return (0, import_scale_type.all)().filter((scale22) => isSuperset(scale22.chroma)).map((scale22) => scale22.name);
       }
       function reduced(name2) {
         const isSubset = (0, import_pcset.isSubsetOf)(get(name2).chroma);
-        return (0, import_scale_type.all)().filter((scale2) => isSubset(scale2.chroma)).map((scale2) => scale2.name);
+        return (0, import_scale_type.all)().filter((scale22) => isSubset(scale22.chroma)).map((scale22) => scale22.name);
       }
       function scaleNotes(notes) {
-        const pcset = notes.map((n2) => (0, import_pitch_note.note)(n2).pc).filter((x3) => x3);
+        const pcset = notes.map((n2) => (0, import_pitch_note.note)(n2).pc).filter((x4) => x4);
         const tonic = pcset[0];
-        const scale2 = (0, import_note.sortedUniqNames)(pcset);
-        return (0, import_collection.rotate)(scale2.indexOf(tonic), scale2);
+        const scale22 = (0, import_note.sortedUniqNames)(pcset);
+        return (0, import_collection.rotate)(scale22.indexOf(tonic), scale22);
       }
       function modeNames(name2) {
         const s2 = get(name2);
@@ -23075,10 +23696,10 @@ registerProcessor('${n2}', MyProcessor);
         return (0, import_pcset.modes)(s2.chroma).map((chroma2, i2) => {
           const modeName = get(chroma2).name;
           return modeName ? [tonics[i2], modeName] : ["", ""];
-        }).filter((x3) => x3[0]);
+        }).filter((x4) => x4[0]);
       }
-      function getNoteNameOf(scale2) {
-        const names2 = Array.isArray(scale2) ? scaleNotes(scale2) : get(scale2).notes;
+      function getNoteNameOf(scale22) {
+        const names2 = Array.isArray(scale22) ? scaleNotes(scale22) : get(scale22).notes;
         const chromas = names2.map((name2) => (0, import_pitch_note.note)(name2).chroma);
         return (noteOrMidi) => {
           const currNote = typeof noteOrMidi === "number" ? (0, import_pitch_note.note)((0, import_note.fromMidi)(noteOrMidi)) : (0, import_pitch_note.note)(noteOrMidi);
@@ -23090,13 +23711,13 @@ registerProcessor('${n2}', MyProcessor);
           return (0, import_note.enharmonic)(currNote.name, names2[position]);
         };
       }
-      function rangeOf(scale2) {
-        const getName = getNoteNameOf(scale2);
+      function rangeOf(scale22) {
+        const getName = getNoteNameOf(scale22);
         return (fromNote, toNote) => {
           const from = (0, import_pitch_note.note)(fromNote).height;
           const to3 = (0, import_pitch_note.note)(toNote).height;
           if (from === void 0 || to3 === void 0) return [];
-          return (0, import_collection.range)(from, to3).map(getName).filter((x3) => x3);
+          return (0, import_collection.range)(from, to3).map(getName).filter((x4) => x4);
         };
       }
       function degrees(scaleName) {
@@ -23122,7 +23743,7 @@ registerProcessor('${n2}', MyProcessor);
         steps,
         tokenize,
         // deprecated
-        scale
+        scale: scale2
       };
     }
   });
@@ -23194,7 +23815,7 @@ registerProcessor('${n2}', MyProcessor);
         return list2.length === 1 ? [list2[0], denominator] : [list2, denominator];
       }
       var time_signature_default = { names, parse: parse5, get };
-      var isPowerOfTwo = (x3) => Math.log(x3) / Math.log(2) % 1 === 0;
+      var isPowerOfTwo = (x4) => Math.log(x4) / Math.log(2) % 1 === 0;
       function build([up2, down]) {
         const upper = Array.isArray(up2) ? up2.reduce((a2, b2) => a2 + b2, 0) : up2;
         const lower = down;
@@ -23510,7 +24131,7 @@ registerProcessor('${n2}', MyProcessor);
   var dist_exports4 = {};
   __export(dist_exports4, {
     addVoicings: () => A1,
-    complex: () => w4,
+    complex: () => w5,
     packageName: () => _1,
     registerVoicings: () => q6,
     resetVoicings: () => O1,
@@ -23546,37 +24167,37 @@ registerProcessor('${n2}', MyProcessor);
     }), t;
   }
   function c1(m4, M3, P4, t) {
-    const [e, n2] = import_tonal.Scale.tokenize(M3), s2 = G4(e), o = S5(s2);
+    const [e, n2] = import_tonal.Scale.tokenize(M3), s2 = G3(e), o = S5(s2);
     if (!j6[n2]) {
       const { intervals: a2 } = import_tonal.Scale.get(`C ${n2}`);
-      j6[n2] = a2.map(R5);
+      j6[n2] = a2.map(R4);
     }
     const d2 = j6[n2];
     if (!d2)
       return null;
     let i2 = s2;
     if (P4) {
-      P4 = G4(P4, 3);
-      const a2 = S5(P4), l2 = bt2(a2 - o, 12), y3 = U7(l2, d2, t);
-      m4 = m4 + y3, i2 = P4 - l2;
+      P4 = G3(P4, 3);
+      const a2 = S5(P4), l2 = bt2(a2 - o, 12), y4 = U7(l2, d2, t);
+      m4 = m4 + y4, i2 = P4 - l2;
     }
-    const c3 = Math.floor(m4 / d2.length) * 12;
-    return m4 = bt2(m4, d2.length), d2[m4] + i2 + c3;
+    const c4 = Math.floor(m4 / d2.length) * 12;
+    return m4 = bt2(m4, d2.length), d2[m4] + i2 + c4;
   }
   function i1({ chord: m4, dictionary: M3, offset: P4 = 0, n: t, mode: e = "below", anchor: n2 = "c5", octaves: s2 = 1 }) {
     const [o, d2] = d1(m4), i2 = o1(o);
-    n2 = G4(n2?.note || n2, 4);
-    const c3 = S5(n2), r = M3[d2].map(
-      (u3) => (typeof u3 == "string" ? u3.split(" ") : u3).map(R5)
+    n2 = G3(n2?.note || n2, 4);
+    const c4 = S5(n2), r2 = M3[d2].map(
+      (u3) => (typeof u3 == "string" ? u3.split(" ") : u3).map(R4)
     );
-    let a2, l2, y3 = r.map((u3, $5) => {
-      const X3 = H5[e](u3), E5 = bt2(c3 - X3 - i2, 12);
-      return (a2 === void 0 || E5 < a2) && (a2 = E5, l2 = $5), E5;
+    let a2, l2, y4 = r2.map((u3, $4) => {
+      const X3 = H5[e](u3), E5 = bt2(c4 - X3 - i2, 12);
+      return (a2 === void 0 || E5 < a2) && (a2 = E5, l2 = $4), E5;
     });
     e === "root" && (l2 = 0);
-    const A5 = Math.ceil(P4 / r.length) * 12, N5 = bt2(l2 + P4, r.length), x3 = r[N5], K4 = H5[e](x3), Q6 = n2 - y3[N5] + A5, z5 = x3.map((u3) => Q6 - K4 + u3);
+    const A5 = Math.ceil(P4 / r2.length) * 12, N5 = bt2(l2 + P4, r2.length), x4 = r2[N5], K4 = H5[e](x4), Q6 = n2 - y4[N5] + A5, z5 = x4.map((u3) => Q6 - K4 + u3);
     let V5 = z5.map((u3) => r1(u3));
-    return e === "duck" && (V5 = V5.filter((u3, $5) => z5[$5] !== n2)), t !== void 0 ? [s1(V5, t, s2)] : V5;
+    return e === "duck" && (V5 = V5.filter((u3, $4) => z5[$4] !== n2)), t !== void 0 ? [s1(V5, t, s2)] : V5;
   }
   function _6(m4) {
     m4 = m4.replaceAll(":", " ");
@@ -23598,17 +24219,17 @@ registerProcessor('${n2}', MyProcessor);
   }
   function J4(m4, M3, P4) {
     let { notes: t } = _6(m4);
-    if (t = t.map((r) => import_tonal.Note.get(r).pc), M3 = Number(M3), isNaN(M3))
+    if (t = t.map((r2) => import_tonal.Note.get(r2).pc), M3 = Number(M3), isNaN(M3))
       throw new Error(`scale offset "${M3}" not a number`);
     const { pc: e, oct: n2 = 3 } = import_tonal.Note.get(P4), s2 = t.indexOf(e);
     if (s2 === -1)
       throw new Error(`note "${P4}" is not in scale "${m4}"`);
     let o = s2, d2 = n2, i2 = e;
-    const c3 = Math.sign(M3);
+    const c4 = Math.sign(M3);
     for (; Math.abs(o - s2) < Math.abs(M3); ) {
-      o += c3;
-      const r = bt2(o, t.length);
-      c3 < 0 && i2[0] === "C" && (d2 += c3), i2 = t[r], c3 > 0 && i2[0] === "C" && (d2 += c3);
+      o += c4;
+      const r2 = bt2(o, t.length);
+      c4 < 0 && i2[0] === "C" && (d2 += c4), i2 = t[r2], c4 > 0 && i2[0] === "C" && (d2 += c4);
     }
     return i2 + d2;
   }
@@ -23628,11 +24249,11 @@ registerProcessor('${n2}', MyProcessor);
   function f1(m4, M3, P4 = true) {
     let t = typeof M3 == "string" ? gt2(M3) : M3;
     if (k5[m4] === void 0) {
-      const { intervals: r, tonic: a2 } = _6(m4), { pc: l2 } = import_tonal.Note.get(a2), A5 = r.concat("8P").map((x3) => import_tonal.Note.transpose(l2 + "0", x3)), N5 = A5.map(gt2);
+      const { intervals: r2, tonic: a2 } = _6(m4), { pc: l2 } = import_tonal.Note.get(a2), A5 = r2.concat("8P").map((x4) => import_tonal.Note.transpose(l2 + "0", x4)), N5 = A5.map(gt2);
       k5[m4] = [N5, A5];
     }
-    const [e, n2] = k5[m4], s2 = e[0], o = Math.floor((t - s2) / 12), d2 = e.map((r) => r + 12 * o), i2 = U7(t, d2, P4), c3 = n2[i2];
-    return import_tonal.Note.transpose(c3, import_tonal.Interval.fromSemitones(12 * o));
+    const [e, n2] = k5[m4], s2 = e[0], o = Math.floor((t - s2) / 12), d2 = e.map((r2) => r2 + 12 * o), i2 = U7(t, d2, P4), c4 = n2[i2];
+    return import_tonal.Note.transpose(c4, import_tonal.Interval.fromSemitones(12 * o));
   }
   function D4(m4, M3, P4) {
     P4 = Array.isArray(P4) ? P4 : [P4], P4.forEach((t) => {
@@ -23642,8 +24263,8 @@ registerProcessor('${n2}', MyProcessor);
   function O1() {
     C5 = void 0, y1("ireal");
   }
-  var import_tonal, import_chord_voicings, P1, t1, e1, n1, o1, S5, R5, G4, r1, j6, H5, a1, D1, I1, $1, E1, j1, k5, k1, g2, w4, b1, g1, p1, h1, w1, v1, v, W6, y1, T1, A1, q6, N1, C5, S1, G1, F1, _1;
-  var init_dist8 = __esm({
+  var import_tonal, import_chord_voicings, P1, t1, e1, n1, o1, S5, R4, G3, r1, j6, H5, a1, D1, I1, $1, E1, j1, k5, k1, g2, w5, b1, g1, p1, h1, w1, v1, v, W5, y1, T1, A1, q6, N1, C5, S1, G1, F1, _1;
+  var init_dist7 = __esm({
     "node_modules/@strudel/tonal/dist/index.mjs"() {
       import_tonal = __toESM(require_dist44(), 1);
       init_dist2();
@@ -23657,11 +24278,11 @@ registerProcessor('${n2}', MyProcessor);
         return t1.indexOf(M3.toLowerCase()) + P4.reduce((t, e) => t + n1[e], 0);
       };
       S5 = (m4) => m4 % 12;
-      R5 = (m4) => {
+      R4 = (m4) => {
         let M3 = Number(m4);
         return isNaN(M3) ? import_tonal.Interval.semitones(m4) : M3;
       };
-      G4 = (m4, M3) => {
+      G3 = (m4, M3) => {
         if (typeof m4 == "number")
           return m4;
         if (typeof m4 == "string")
@@ -23719,24 +24340,24 @@ registerProcessor('${n2}', MyProcessor);
             let e = t.value;
             const n2 = typeof e == "object";
             e = n2 ? e : { n: e };
-            const { note: s2, n: o, value: d2, ...i2 } = e, c3 = s2 ?? o ?? d2;
-            if (c3 === void 0)
+            const { note: s2, n: o, value: d2, ...i2 } = e, c4 = s2 ?? o ?? d2;
+            if (c4 === void 0)
               return E2(
                 `[tonal] Invalid value format for 'scale'. Value must contain n, note, or value but received keys [${Object.keys(e).join(", ")}]`,
                 "error"
               ), t;
-            let r;
-            if (Mt2(c3))
-              r = f1(m4, c3), t.value = { ...i2, note: r };
+            let r2;
+            if (Mt2(c4))
+              r2 = f1(m4, c4), t.value = { ...i2, note: r2 };
             else
               try {
-                const [a2, l2] = u1(c3);
-                i2.anchor ? r = c1(a2, m4, i2.anchor) : r = l1(a2, m4), l2 != 0 && (r = import_tonal.Note.transpose(r, import_tonal.Interval.fromSemitones(l2)));
+                const [a2, l2] = u1(c4);
+                i2.anchor ? r2 = c1(a2, m4, i2.anchor) : r2 = l1(a2, m4), l2 != 0 && (r2 = import_tonal.Note.transpose(r2, import_tonal.Interval.fromSemitones(l2)));
               } catch (a2) {
                 zt2(a2, "tonal");
                 return;
               }
-            return t.value = n2 ? { ...i2, note: r } : r, t.setContext({ ...t.context, scale: m4 });
+            return t.value = n2 ? { ...i2, note: r2 } : r2, t.setContext({ ...t.context, scale: m4 });
           }), lt2(P4)));
         },
         true,
@@ -23922,7 +24543,7 @@ registerProcessor('${n2}', MyProcessor);
         "13sus": ["1P 4P 6M 7m 9M", "1P 7m 9M 11P 13M", "5P 7m 9M 11P 13M", "7m 9M 11P 13M 15P"],
         "7b13sus": ["1P 5P 7m 11P 13m", "5P 7m 8P 11P 13m", "7m 11P 13m 14m 15P"]
       };
-      w4 = {
+      w5 = {
         2: ["1P 5P 6M 8P 9M", "1P 5P 8P 9M 12P", "5P 8P 9M 12P 13M", "5P 8P 9M 12P 15P"],
         5: ["1P 5P 8P 12P", "1P 5P 8P 9M 12P", "5P 8P 12P 15P", "5P 8P 12P 15P 16M"],
         6: ["1P 5P 6M 9M 10M", "1P 5P 9M 10M 13M", "3M 5P 9M 10M 13M", "5P 8P 9M 10M 13M", "3M 6M 9M 12P 15P"],
@@ -24328,8 +24949,8 @@ registerProcessor('${n2}', MyProcessor);
         guidetones: { dictionary: h1, mode: "above", anchor: "a4" },
         legacy: { dictionary: v1, mode: "below", anchor: "a4" }
       };
-      W6 = "ireal";
-      y1 = (m4) => W6 = m4;
+      W5 = "ireal";
+      y1 = (m4) => W5 = m4;
       T1 = (m4, M3) => A1(m4, v[m4].dictionary, M3);
       A1 = (m4, M3, P4 = ["F3", "A4"]) => {
         Object.assign(v, { [m4]: { dictionary: M3, range: P4 } });
@@ -24359,33 +24980,33 @@ registerProcessor('${n2}', MyProcessor);
       F1 = l("voicing", function(m4) {
         return m4.fmap((M3) => {
           M3 = typeof M3 == "string" ? { chord: M3 } : M3;
-          let { dictionary: P4 = W6, chord: t, anchor: e, offset: n2, mode: s2, n: o, octaves: d2, ...i2 } = M3;
+          let { dictionary: P4 = W5, chord: t, anchor: e, offset: n2, mode: s2, n: o, octaves: d2, ...i2 } = M3;
           P4 = typeof P4 == "string" ? v[P4] : { dictionary: P4, mode: "below", anchor: "c5" };
           try {
-            let c3 = i1({ ...P4, chord: t, anchor: e, offset: n2, mode: s2, n: o, octaves: d2 });
-            return z(...c3).note().set(i2);
+            let c4 = i1({ ...P4, chord: t, anchor: e, offset: n2, mode: s2, n: o, octaves: d2 });
+            return z(...c4).note().set(i2);
           } catch {
             return E2(`[voicing]: unknown chord "${t}"`), q2;
           }
         }).outerJoin();
       });
-      D4("^", "", [g2, w4]);
+      D4("^", "", [g2, w5]);
       Object.keys(g2).forEach((m4) => {
         if (m4.includes("-")) {
           let M3 = m4.replace("-", "m");
-          D4(m4, M3, [w4, g2]);
+          D4(m4, M3, [w5, g2]);
         }
         if (m4.includes("^")) {
           let M3 = m4.replace("^", "M");
-          D4(m4, M3, [w4, g2]);
+          D4(m4, M3, [w5, g2]);
         }
         if (m4.includes("+")) {
           let M3 = m4.replace("+", "aug");
-          D4(m4, M3, [w4, g2]);
+          D4(m4, M3, [w5, g2]);
         }
       });
       q6("ireal", g2);
-      q6("ireal-ext", w4);
+      q6("ireal-ext", w5);
       _1 = "@strudel/tonal";
     }
   });
@@ -24398,50 +25019,50 @@ registerProcessor('${n2}', MyProcessor);
       })(window, function() {
         return (function(e) {
           var t = {};
-          function r(n2) {
+          function r2(n2) {
             if (t[n2]) return t[n2].exports;
             var o = t[n2] = { i: n2, l: false, exports: {} };
-            return e[n2].call(o.exports, o, o.exports, r), o.l = true, o.exports;
+            return e[n2].call(o.exports, o, o.exports, r2), o.l = true, o.exports;
           }
-          return r.m = e, r.c = t, r.d = function(e2, t2, n2) {
-            r.o(e2, t2) || Object.defineProperty(e2, t2, { enumerable: true, get: n2 });
-          }, r.r = function(e2) {
+          return r2.m = e, r2.c = t, r2.d = function(e2, t2, n2) {
+            r2.o(e2, t2) || Object.defineProperty(e2, t2, { enumerable: true, get: n2 });
+          }, r2.r = function(e2) {
             "undefined" != typeof Symbol && Symbol.toStringTag && Object.defineProperty(e2, Symbol.toStringTag, { value: "Module" }), Object.defineProperty(e2, "__esModule", { value: true });
-          }, r.t = function(e2, t2) {
-            if (1 & t2 && (e2 = r(e2)), 8 & t2) return e2;
+          }, r2.t = function(e2, t2) {
+            if (1 & t2 && (e2 = r2(e2)), 8 & t2) return e2;
             if (4 & t2 && "object" == typeof e2 && e2 && e2.__esModule) return e2;
             var n2 = /* @__PURE__ */ Object.create(null);
-            if (r.r(n2), Object.defineProperty(n2, "default", { enumerable: true, value: e2 }), 2 & t2 && "string" != typeof e2) for (var o in e2) r.d(n2, o, function(t3) {
+            if (r2.r(n2), Object.defineProperty(n2, "default", { enumerable: true, value: e2 }), 2 & t2 && "string" != typeof e2) for (var o in e2) r2.d(n2, o, function(t3) {
               return e2[t3];
             }.bind(null, o));
             return n2;
-          }, r.n = function(e2) {
+          }, r2.n = function(e2) {
             var t2 = e2 && e2.__esModule ? function() {
               return e2.default;
             } : function() {
               return e2;
             };
-            return r.d(t2, "a", t2), t2;
-          }, r.o = function(e2, t2) {
+            return r2.d(t2, "a", t2), t2;
+          }, r2.o = function(e2, t2) {
             return Object.prototype.hasOwnProperty.call(e2, t2);
-          }, r.p = "", r(r.s = "./src/index.ts");
+          }, r2.p = "", r2(r2.s = "./src/index.ts");
         })({ "./src/chunk.ts": (
           /*!**********************!*\
             !*** ./src/chunk.ts ***!
             \**********************/
           /*! exports provided: SF2Chunk */
-          function(e, t, r) {
+          function(e, t, r2) {
             "use strict";
-            r.r(t), r.d(t, "SF2Chunk", function() {
+            r2.r(t), r2.d(t, "SF2Chunk", function() {
               return f4;
             });
-            var n2 = r(
+            var n2 = r2(
               /*! ./riff */
               "./src/riff/index.ts"
-            ), o = r(
+            ), o = r2(
               /*! ./constants */
               "./src/constants.ts"
-            ), i2 = r(
+            ), i2 = r2(
               /*! ./chunks */
               "./src/chunks/index.ts"
             );
@@ -24453,8 +25074,8 @@ registerProcessor('${n2}', MyProcessor);
               })(e2);
             }
             function u3(e2, t2) {
-              for (var r2 = 0; r2 < t2.length; r2++) {
-                var n3 = t2[r2];
+              for (var r3 = 0; r3 < t2.length; r3++) {
+                var n3 = t2[r3];
                 n3.enumerable = n3.enumerable || false, n3.configurable = true, "value" in n3 && (n3.writable = true), Object.defineProperty(e2, n3.key, n3);
               }
             }
@@ -24463,8 +25084,8 @@ registerProcessor('${n2}', MyProcessor);
                 return e3.__proto__ || Object.getPrototypeOf(e3);
               })(e2);
             }
-            function c3(e2, t2) {
-              return (c3 = Object.setPrototypeOf || function(e3, t3) {
+            function c4(e2, t2) {
+              return (c4 = Object.setPrototypeOf || function(e3, t3) {
                 return e3.__proto__ = t3, e3;
               })(e2, t2);
             }
@@ -24474,18 +25095,18 @@ registerProcessor('${n2}', MyProcessor);
             }
             var f4 = (function(e2) {
               function t2(e3) {
-                var r3, n3, o2, i3, u4, c4;
+                var r4, n3, o2, i3, u4, c5;
                 return (function(e4, t3) {
                   if (!(e4 instanceof t3)) throw new TypeError("Cannot call a class as a function");
-                })(this, t2), n3 = this, r3 = !(o2 = a2(t2).call(this, e3.id, e3.length, e3.buffer, e3.subChunks)) || "object" !== s2(o2) && "function" != typeof o2 ? l2(n3) : o2, i3 = l2(l2(r3)), c4 = void 0, (u4 = "subChunks") in i3 ? Object.defineProperty(i3, u4, { value: c4, enumerable: true, configurable: true, writable: true }) : i3[u4] = c4, r3.subChunks = e3.subChunks.map(function(e4) {
+                })(this, t2), n3 = this, r4 = !(o2 = a2(t2).call(this, e3.id, e3.length, e3.buffer, e3.subChunks)) || "object" !== s2(o2) && "function" != typeof o2 ? l2(n3) : o2, i3 = l2(l2(r4)), c5 = void 0, (u4 = "subChunks") in i3 ? Object.defineProperty(i3, u4, { value: c5, enumerable: true, configurable: true, writable: true }) : i3[u4] = c5, r4.subChunks = e3.subChunks.map(function(e4) {
                   return new t2(e4);
-                }), r3;
+                }), r4;
               }
-              var r2, f5, d2;
+              var r3, f5, d2;
               return (function(e3, t3) {
                 if ("function" != typeof t3 && null !== t3) throw new TypeError("Super expression must either be null or a function");
-                e3.prototype = Object.create(t3 && t3.prototype, { constructor: { value: e3, writable: true, configurable: true } }), t3 && c3(e3, t3);
-              })(t2, n2["RIFFChunk"]), r2 = t2, (f5 = [{ key: "getMetaData", value: function() {
+                e3.prototype = Object.create(t3 && t3.prototype, { constructor: { value: e3, writable: true, configurable: true } }), t3 && c4(e3, t3);
+              })(t2, n2["RIFFChunk"]), r3 = t2, (f5 = [{ key: "getMetaData", value: function() {
                 if ("LIST" !== this.id) throw new n2.ParseError("Unexpected chunk ID", "'LIST'", "'".concat(this.id, "'"));
                 var e3 = this.subChunks.reduce(function(e4, t3) {
                   if ("ifil" === t3.id || "iver" === t3.id) {
@@ -24505,7 +25126,7 @@ registerProcessor('${n2}', MyProcessor);
               } }, { key: "getPresetData", value: function() {
                 if ("LIST" !== this.id) throw new n2.ParseError("Unexpected chunk ID", "'LIST'", "'".concat(this.id, "'"));
                 return { presetHeaders: Object(i2.getPresetHeaders)(this.subChunks[0]), presetZones: Object(i2.getZones)(this.subChunks[1], "pbag"), presetModulators: Object(i2.getModulators)(this.subChunks[2], "pmod"), presetGenerators: Object(i2.getGenerators)(this.subChunks[3], "pgen"), instrumentHeaders: Object(i2.getInstrumentHeaders)(this.subChunks[4]), instrumentZones: Object(i2.getZones)(this.subChunks[5], "ibag"), instrumentModulators: Object(i2.getModulators)(this.subChunks[6], "imod"), instrumentGenerators: Object(i2.getGenerators)(this.subChunks[7], "igen"), sampleHeaders: Object(i2.getSampleHeaders)(this.subChunks[8]) };
-              } }]) && u3(r2.prototype, f5), d2 && u3(r2, d2), t2;
+              } }]) && u3(r3.prototype, f5), d2 && u3(r3, d2), t2;
             })();
           }
         ), "./src/chunks/generators.ts": (
@@ -24513,26 +25134,26 @@ registerProcessor('${n2}', MyProcessor);
             !*** ./src/chunks/generators.ts ***!
             \**********************************/
           /*! exports provided: getGenerators */
-          function(e, t, r) {
+          function(e, t, r2) {
             "use strict";
-            r.r(t), r.d(t, "getGenerators", function() {
-              return c3;
+            r2.r(t), r2.d(t, "getGenerators", function() {
+              return c4;
             });
-            var n2 = r(
+            var n2 = r2(
               /*! ~/riff */
               "./src/riff/index.ts"
-            ), o = r(
+            ), o = r2(
               /*! ~/types */
               "./src/types/index.ts"
-            ), i2 = r(
+            ), i2 = r2(
               /*! ~/constants */
               "./src/constants.ts"
-            ), s2 = [o.GeneratorType.StartAddrsOffset, o.GeneratorType.EndAddrsOffset, o.GeneratorType.StartLoopAddrsOffset, o.GeneratorType.EndLoopAddrsOffset, o.GeneratorType.StartAddrsCoarseOffset, o.GeneratorType.EndAddrsCoarseOffset, o.GeneratorType.StartLoopAddrsCoarseOffset, o.GeneratorType.KeyNum, o.GeneratorType.Velocity, o.GeneratorType.EndLoopAddrsCoarseOffset, o.GeneratorType.SampleModes, o.GeneratorType.ExclusiveClass, o.GeneratorType.OverridingRootKey], u3 = [o.GeneratorType.Unused1, o.GeneratorType.Unused2, o.GeneratorType.Unused3, o.GeneratorType.Unused4, o.GeneratorType.Reserved1, o.GeneratorType.Reserved2, o.GeneratorType.Reserved3], a2 = [o.GeneratorType.KeyRange, o.GeneratorType.VelRange], c3 = function(e2, t2) {
+            ), s2 = [o.GeneratorType.StartAddrsOffset, o.GeneratorType.EndAddrsOffset, o.GeneratorType.StartLoopAddrsOffset, o.GeneratorType.EndLoopAddrsOffset, o.GeneratorType.StartAddrsCoarseOffset, o.GeneratorType.EndAddrsCoarseOffset, o.GeneratorType.StartLoopAddrsCoarseOffset, o.GeneratorType.KeyNum, o.GeneratorType.Velocity, o.GeneratorType.EndLoopAddrsCoarseOffset, o.GeneratorType.SampleModes, o.GeneratorType.ExclusiveClass, o.GeneratorType.OverridingRootKey], u3 = [o.GeneratorType.Unused1, o.GeneratorType.Unused2, o.GeneratorType.Unused3, o.GeneratorType.Unused4, o.GeneratorType.Reserved1, o.GeneratorType.Reserved2, o.GeneratorType.Reserved3], a2 = [o.GeneratorType.KeyRange, o.GeneratorType.VelRange], c4 = function(e2, t2) {
               if (e2.id !== t2) throw new n2.ParseError("Unexpected chunk ID", "'".concat(t2, "'"), "'".concat(e2.id, "'"));
               if (e2.length % i2.SF_GENERATOR_SIZE) throw new n2.ParseError("Invalid size for the '".concat(t2, "' sub-chunk"));
               return e2.iterate(function(e3) {
-                var r2 = e3.getInt16();
-                return o.GeneratorType[r2] ? "pgen" === t2 && s2.includes(r2) ? null : "igen" === t2 && u3.includes(r2) ? null : a2.includes(r2) ? { id: r2, range: { lo: e3.getByte(), hi: e3.getByte() } } : { id: r2, value: e3.getInt16BE() } : null;
+                var r3 = e3.getInt16();
+                return o.GeneratorType[r3] ? "pgen" === t2 && s2.includes(r3) ? null : "igen" === t2 && u3.includes(r3) ? null : a2.includes(r3) ? { id: r3, range: { lo: e3.getByte(), hi: e3.getByte() } } : { id: r3, value: e3.getInt16BE() } : null;
               });
             };
           }
@@ -24541,51 +25162,51 @@ registerProcessor('${n2}', MyProcessor);
             !*** ./src/chunks/index.ts ***!
             \*****************************/
           /*! exports provided: getGenerators, getModulators, getZones, getItemsInZone, getInstrumentHeaders, getPresetHeaders, getSampleHeaders */
-          function(e, t, r) {
+          function(e, t, r2) {
             "use strict";
-            r.r(t);
-            var n2 = r(
+            r2.r(t);
+            var n2 = r2(
               /*! ./instruments */
               "./src/chunks/instruments/index.ts"
             );
-            r.d(t, "getInstrumentHeaders", function() {
+            r2.d(t, "getInstrumentHeaders", function() {
               return n2.getInstrumentHeaders;
             });
-            var o = r(
+            var o = r2(
               /*! ./presets */
               "./src/chunks/presets/index.ts"
             );
-            r.d(t, "getPresetHeaders", function() {
+            r2.d(t, "getPresetHeaders", function() {
               return o.getPresetHeaders;
             });
-            var i2 = r(
+            var i2 = r2(
               /*! ./samples */
               "./src/chunks/samples/index.ts"
             );
-            r.d(t, "getSampleHeaders", function() {
+            r2.d(t, "getSampleHeaders", function() {
               return i2.getSampleHeaders;
             });
-            var s2 = r(
+            var s2 = r2(
               /*! ./generators */
               "./src/chunks/generators.ts"
             );
-            r.d(t, "getGenerators", function() {
+            r2.d(t, "getGenerators", function() {
               return s2.getGenerators;
             });
-            var u3 = r(
+            var u3 = r2(
               /*! ./modulators */
               "./src/chunks/modulators.ts"
             );
-            r.d(t, "getModulators", function() {
+            r2.d(t, "getModulators", function() {
               return u3.getModulators;
             });
-            var a2 = r(
+            var a2 = r2(
               /*! ./zones */
               "./src/chunks/zones.ts"
             );
-            r.d(t, "getZones", function() {
+            r2.d(t, "getZones", function() {
               return a2.getZones;
-            }), r.d(t, "getItemsInZone", function() {
+            }), r2.d(t, "getItemsInZone", function() {
               return a2.getItemsInZone;
             });
           }
@@ -24594,15 +25215,15 @@ registerProcessor('${n2}', MyProcessor);
             !*** ./src/chunks/instruments/headers.ts ***!
             \*******************************************/
           /*! exports provided: getInstrumentHeaders */
-          function(e, t, r) {
+          function(e, t, r2) {
             "use strict";
-            r.r(t), r.d(t, "getInstrumentHeaders", function() {
+            r2.r(t), r2.d(t, "getInstrumentHeaders", function() {
               return i2;
             });
-            var n2 = r(
+            var n2 = r2(
               /*! ~/riff */
               "./src/riff/index.ts"
-            ), o = r(
+            ), o = r2(
               /*! ~/constants */
               "./src/constants.ts"
             ), i2 = function(e2) {
@@ -24618,14 +25239,14 @@ registerProcessor('${n2}', MyProcessor);
             !*** ./src/chunks/instruments/index.ts ***!
             \*****************************************/
           /*! exports provided: getInstrumentHeaders */
-          function(e, t, r) {
+          function(e, t, r2) {
             "use strict";
-            r.r(t);
-            var n2 = r(
+            r2.r(t);
+            var n2 = r2(
               /*! ./headers */
               "./src/chunks/instruments/headers.ts"
             );
-            r.d(t, "getInstrumentHeaders", function() {
+            r2.d(t, "getInstrumentHeaders", function() {
               return n2.getInstrumentHeaders;
             });
           }
@@ -24634,15 +25255,15 @@ registerProcessor('${n2}', MyProcessor);
             !*** ./src/chunks/modulators.ts ***!
             \**********************************/
           /*! exports provided: getModulators */
-          function(e, t, r) {
+          function(e, t, r2) {
             "use strict";
-            r.r(t), r.d(t, "getModulators", function() {
+            r2.r(t), r2.d(t, "getModulators", function() {
               return s2;
             });
-            var n2 = r(
+            var n2 = r2(
               /*! ~/riff */
               "./src/riff/index.ts"
-            ), o = r(
+            ), o = r2(
               /*! ~/constants */
               "./src/constants.ts"
             ), i2 = function(e2) {
@@ -24660,15 +25281,15 @@ registerProcessor('${n2}', MyProcessor);
             !*** ./src/chunks/presets/headers.ts ***!
             \***************************************/
           /*! exports provided: getPresetHeaders */
-          function(e, t, r) {
+          function(e, t, r2) {
             "use strict";
-            r.r(t), r.d(t, "getPresetHeaders", function() {
+            r2.r(t), r2.d(t, "getPresetHeaders", function() {
               return i2;
             });
-            var n2 = r(
+            var n2 = r2(
               /*! ~/riff */
               "./src/riff/index.ts"
-            ), o = r(
+            ), o = r2(
               /*! ~/constants */
               "./src/constants.ts"
             ), i2 = function(e2) {
@@ -24684,14 +25305,14 @@ registerProcessor('${n2}', MyProcessor);
             !*** ./src/chunks/presets/index.ts ***!
             \*************************************/
           /*! exports provided: getPresetHeaders */
-          function(e, t, r) {
+          function(e, t, r2) {
             "use strict";
-            r.r(t);
-            var n2 = r(
+            r2.r(t);
+            var n2 = r2(
               /*! ./headers */
               "./src/chunks/presets/headers.ts"
             );
-            r.d(t, "getPresetHeaders", function() {
+            r2.d(t, "getPresetHeaders", function() {
               return n2.getPresetHeaders;
             });
           }
@@ -24700,15 +25321,15 @@ registerProcessor('${n2}', MyProcessor);
             !*** ./src/chunks/samples/headers.ts ***!
             \***************************************/
           /*! exports provided: getSampleHeaders */
-          function(e, t, r) {
+          function(e, t, r2) {
             "use strict";
-            r.r(t), r.d(t, "getSampleHeaders", function() {
+            r2.r(t), r2.d(t, "getSampleHeaders", function() {
               return i2;
             });
-            var n2 = r(
+            var n2 = r2(
               /*! ~/riff */
               "./src/riff/index.ts"
-            ), o = r(
+            ), o = r2(
               /*! ~/constants */
               "./src/constants.ts"
             ), i2 = function(e2) {
@@ -24724,14 +25345,14 @@ registerProcessor('${n2}', MyProcessor);
             !*** ./src/chunks/samples/index.ts ***!
             \*************************************/
           /*! exports provided: getSampleHeaders */
-          function(e, t, r) {
+          function(e, t, r2) {
             "use strict";
-            r.r(t);
-            var n2 = r(
+            r2.r(t);
+            var n2 = r2(
               /*! ./headers */
               "./src/chunks/samples/headers.ts"
             );
-            r.d(t, "getSampleHeaders", function() {
+            r2.d(t, "getSampleHeaders", function() {
               return n2.getSampleHeaders;
             });
           }
@@ -24740,20 +25361,20 @@ registerProcessor('${n2}', MyProcessor);
             !*** ./src/chunks/zones.ts ***!
             \*****************************/
           /*! exports provided: getZones, getItemsInZone */
-          function(e, t, r) {
+          function(e, t, r2) {
             "use strict";
-            r.r(t), r.d(t, "getZones", function() {
+            r2.r(t), r2.d(t, "getZones", function() {
               return s2;
-            }), r.d(t, "getItemsInZone", function() {
+            }), r2.d(t, "getItemsInZone", function() {
               return u3;
             });
-            var n2 = r(
+            var n2 = r2(
               /*! ~/riff */
               "./src/riff/index.ts"
-            ), o = r(
+            ), o = r2(
               /*! ~/constants */
               "./src/constants.ts"
-            ), i2 = r(
+            ), i2 = r2(
               /*! ~/types */
               "./src/types/index.ts"
             ), s2 = function(e2, t2) {
@@ -24762,27 +25383,27 @@ registerProcessor('${n2}', MyProcessor);
               return e2.iterate(function(e3) {
                 return { generatorIndex: e3.getInt16(), modulatorIndex: e3.getInt16() };
               });
-            }, u3 = function(e2, t2, r2, n3, o2, s3) {
+            }, u3 = function(e2, t2, r3, n3, o2, s3) {
               for (var u4 = [], l3 = 0; l3 < e2.length; l3++) {
-                for (var f4 = e2[l3], d2 = e2[l3 + 1], p2 = f4.bagIndex, h = d2 ? d2.bagIndex : t2.length, y3 = [], v2 = void 0, g3 = p2; g3 < h; g3++) {
-                  var E5 = a2(g3, t2, r2), m4 = c3(g3, t2, n3), b2 = m4[i2.GeneratorType.KeyRange] && m4[i2.GeneratorType.KeyRange].range, S7 = m4[s3];
+                for (var f4 = e2[l3], d2 = e2[l3 + 1], p2 = f4.bagIndex, h2 = d2 ? d2.bagIndex : t2.length, y4 = [], v2 = void 0, g3 = p2; g3 < h2; g3++) {
+                  var E5 = a2(g3, t2, r3), m4 = c4(g3, t2, n3), b2 = m4[i2.GeneratorType.KeyRange] && m4[i2.GeneratorType.KeyRange].range, S7 = m4[s3];
                   if (S7) {
                     var T7 = o2[S7.value];
-                    T7 && y3.push({ keyRange: b2, modulators: E5, generators: m4, reference: T7 });
+                    T7 && y4.push({ keyRange: b2, modulators: E5, generators: m4, reference: T7 });
                   } else g3 - p2 == 0 && (v2 = { keyRange: b2, modulators: E5, generators: m4 });
                 }
-                u4.push({ header: f4, globalZone: v2, zones: y3 });
+                u4.push({ header: f4, globalZone: v2, zones: y4 });
               }
               return u4;
-            }, a2 = function(e2, t2, r2) {
+            }, a2 = function(e2, t2, r3) {
               var n3 = t2[e2], o2 = t2[e2 + 1], i3 = n3.modulatorIndex, s3 = o2 ? o2.modulatorIndex : t2.length;
-              return l2(i3, s3, r2);
-            }, c3 = function(e2, t2, r2) {
+              return l2(i3, s3, r3);
+            }, c4 = function(e2, t2, r3) {
               var n3 = t2[e2], o2 = t2[e2 + 1], i3 = n3.generatorIndex, s3 = o2 ? o2.generatorIndex : t2.length;
-              return l2(i3, s3, r2);
-            }, l2 = function(e2, t2, r2) {
+              return l2(i3, s3, r3);
+            }, l2 = function(e2, t2, r3) {
               for (var n3 = {}, o2 = e2; o2 < t2; o2++) {
-                var i3 = r2[o2];
+                var i3 = r3[o2];
                 i3 && (n3[i3.id] = i3);
               }
               return n3;
@@ -24793,77 +25414,77 @@ registerProcessor('${n2}', MyProcessor);
             !*** ./src/constants.ts ***!
             \**************************/
           /*! exports provided: SF_VERSION_LENGTH, SF_PRESET_HEADER_SIZE, SF_BAG_SIZE, SF_MODULATOR_SIZE, SF_GENERATOR_SIZE, SF_INSTRUMENT_HEADER_SIZE, SF_SAMPLE_HEADER_SIZE, DEFAULT_SAMPLE_RATE */
-          function(e, t, r) {
+          function(e, t, r2) {
             "use strict";
-            r.r(t), r.d(t, "SF_VERSION_LENGTH", function() {
+            r2.r(t), r2.d(t, "SF_VERSION_LENGTH", function() {
               return n2;
-            }), r.d(t, "SF_PRESET_HEADER_SIZE", function() {
+            }), r2.d(t, "SF_PRESET_HEADER_SIZE", function() {
               return o;
-            }), r.d(t, "SF_BAG_SIZE", function() {
+            }), r2.d(t, "SF_BAG_SIZE", function() {
               return i2;
-            }), r.d(t, "SF_MODULATOR_SIZE", function() {
+            }), r2.d(t, "SF_MODULATOR_SIZE", function() {
               return s2;
-            }), r.d(t, "SF_GENERATOR_SIZE", function() {
+            }), r2.d(t, "SF_GENERATOR_SIZE", function() {
               return u3;
-            }), r.d(t, "SF_INSTRUMENT_HEADER_SIZE", function() {
+            }), r2.d(t, "SF_INSTRUMENT_HEADER_SIZE", function() {
               return a2;
-            }), r.d(t, "SF_SAMPLE_HEADER_SIZE", function() {
-              return c3;
-            }), r.d(t, "DEFAULT_SAMPLE_RATE", function() {
+            }), r2.d(t, "SF_SAMPLE_HEADER_SIZE", function() {
+              return c4;
+            }), r2.d(t, "DEFAULT_SAMPLE_RATE", function() {
               return l2;
             });
-            var n2 = 4, o = 38, i2 = 4, s2 = 10, u3 = 4, a2 = 22, c3 = 46, l2 = 22050;
+            var n2 = 4, o = 38, i2 = 4, s2 = 10, u3 = 4, a2 = 22, c4 = 46, l2 = 22050;
           }
         ), "./src/index.ts": (
           /*!**********************!*\
             !*** ./src/index.ts ***!
             \**********************/
           /*! no static exports found */
-          function(e, t, r) {
+          function(e, t, r2) {
             "use strict";
-            r.r(t);
-            var n2 = r(
+            r2.r(t);
+            var n2 = r2(
               /*! ./types */
               "./src/types/index.ts"
             );
             for (var o in n2) "default" !== o && (function(e2) {
-              r.d(t, e2, function() {
+              r2.d(t, e2, function() {
                 return n2[e2];
               });
             })(o);
-            var i2 = r(
+            var i2 = r2(
               /*! ./chunk */
               "./src/chunk.ts"
             );
-            r.d(t, "SF2Chunk", function() {
+            r2.d(t, "SF2Chunk", function() {
               return i2.SF2Chunk;
             });
-            var s2 = r(
+            var s2 = r2(
               /*! ./constants */
               "./src/constants.ts"
             );
-            r.d(t, "SF_VERSION_LENGTH", function() {
+            r2.d(t, "SF_VERSION_LENGTH", function() {
               return s2.SF_VERSION_LENGTH;
-            }), r.d(t, "SF_PRESET_HEADER_SIZE", function() {
+            }), r2.d(t, "SF_PRESET_HEADER_SIZE", function() {
               return s2.SF_PRESET_HEADER_SIZE;
-            }), r.d(t, "SF_BAG_SIZE", function() {
+            }), r2.d(t, "SF_BAG_SIZE", function() {
               return s2.SF_BAG_SIZE;
-            }), r.d(t, "SF_MODULATOR_SIZE", function() {
+            }), r2.d(t, "SF_MODULATOR_SIZE", function() {
               return s2.SF_MODULATOR_SIZE;
-            }), r.d(t, "SF_GENERATOR_SIZE", function() {
+            }), r2.d(t, "SF_GENERATOR_SIZE", function() {
               return s2.SF_GENERATOR_SIZE;
-            }), r.d(t, "SF_INSTRUMENT_HEADER_SIZE", function() {
+            }), r2.d(t, "SF_INSTRUMENT_HEADER_SIZE", function() {
               return s2.SF_INSTRUMENT_HEADER_SIZE;
-            }), r.d(t, "SF_SAMPLE_HEADER_SIZE", function() {
+            }), r2.d(t, "SF_SAMPLE_HEADER_SIZE", function() {
               return s2.SF_SAMPLE_HEADER_SIZE;
-            }), r.d(t, "DEFAULT_SAMPLE_RATE", function() {
+            }), r2.d(t, "DEFAULT_SAMPLE_RATE", function() {
               return s2.DEFAULT_SAMPLE_RATE;
             });
-            var u3 = r(
+            var u3 = r2(
               /*! ./soundFont2 */
               "./src/soundFont2.ts"
             );
-            r.d(t, "SoundFont2", function() {
+            r2.d(t, "SoundFont2", function() {
               return u3.SoundFont2;
             });
           }
@@ -24872,33 +25493,33 @@ registerProcessor('${n2}', MyProcessor);
             !*** ./src/riff/chunkIterator.ts ***!
             \***********************************/
           /*! exports provided: ChunkIterator */
-          function(e, t, r) {
+          function(e, t, r2) {
             "use strict";
-            r.r(t), r.d(t, "ChunkIterator", function() {
+            r2.r(t), r2.d(t, "ChunkIterator", function() {
               return s2;
             });
-            var n2 = r(
+            var n2 = r2(
               /*! ~/utils */
               "./src/utils/index.ts"
             );
             function o(e2, t2) {
-              for (var r2 = 0; r2 < t2.length; r2++) {
-                var n3 = t2[r2];
+              for (var r3 = 0; r3 < t2.length; r3++) {
+                var n3 = t2[r3];
                 n3.enumerable = n3.enumerable || false, n3.configurable = true, "value" in n3 && (n3.writable = true), Object.defineProperty(e2, n3.key, n3);
               }
             }
-            function i2(e2, t2, r2) {
-              return t2 in e2 ? Object.defineProperty(e2, t2, { value: r2, enumerable: true, configurable: true, writable: true }) : e2[t2] = r2, e2;
+            function i2(e2, t2, r3) {
+              return t2 in e2 ? Object.defineProperty(e2, t2, { value: r3, enumerable: true, configurable: true, writable: true }) : e2[t2] = r3, e2;
             }
             var s2 = (function() {
               function e2(t3) {
-                var r3 = arguments.length > 1 && void 0 !== arguments[1] ? arguments[1] : 0;
+                var r4 = arguments.length > 1 && void 0 !== arguments[1] ? arguments[1] : 0;
                 !(function(e3, t4) {
                   if (!(e3 instanceof t4)) throw new TypeError("Cannot call a class as a function");
-                })(this, e2), i2(this, "target", []), i2(this, "chunk", void 0), i2(this, "position", 0), this.chunk = t3, this.position = r3;
+                })(this, e2), i2(this, "target", []), i2(this, "chunk", void 0), i2(this, "position", 0), this.chunk = t3, this.position = r4;
               }
-              var t2, r2, s3;
-              return t2 = e2, (r2 = [{ key: "iterate", value: function(e3) {
+              var t2, r3, s3;
+              return t2 = e2, (r3 = [{ key: "iterate", value: function(e3) {
                 for (; this.position < this.chunk.length; ) {
                   var t3 = e3(this);
                   t3 && this.target.push(t3);
@@ -24922,7 +25543,7 @@ registerProcessor('${n2}', MyProcessor);
                 return this.chunk.buffer.subarray(e3, e3 + t3);
               } }, { key: "currentPosition", get: function() {
                 return this.position;
-              } }]) && o(t2.prototype, r2), s3 && o(t2, s3), e2;
+              } }]) && o(t2.prototype, r3), s3 && o(t2, s3), e2;
             })();
           }
         ), "./src/riff/index.ts": (
@@ -24930,43 +25551,43 @@ registerProcessor('${n2}', MyProcessor);
             !*** ./src/riff/index.ts ***!
             \***************************/
           /*! exports provided: ChunkIterator, ParseError, parseBuffer, getChunk, getChunkLength, getSubChunks, getChunkId, RIFFChunk */
-          function(e, t, r) {
+          function(e, t, r2) {
             "use strict";
-            r.r(t);
-            var n2 = r(
+            r2.r(t);
+            var n2 = r2(
               /*! ./chunkIterator */
               "./src/riff/chunkIterator.ts"
             );
-            r.d(t, "ChunkIterator", function() {
+            r2.d(t, "ChunkIterator", function() {
               return n2.ChunkIterator;
             });
-            var o = r(
+            var o = r2(
               /*! ./parseError */
               "./src/riff/parseError.ts"
             );
-            r.d(t, "ParseError", function() {
+            r2.d(t, "ParseError", function() {
               return o.ParseError;
             });
-            var i2 = r(
+            var i2 = r2(
               /*! ./parser */
               "./src/riff/parser.ts"
             );
-            r.d(t, "parseBuffer", function() {
+            r2.d(t, "parseBuffer", function() {
               return i2.parseBuffer;
-            }), r.d(t, "getChunk", function() {
+            }), r2.d(t, "getChunk", function() {
               return i2.getChunk;
-            }), r.d(t, "getChunkLength", function() {
+            }), r2.d(t, "getChunkLength", function() {
               return i2.getChunkLength;
-            }), r.d(t, "getSubChunks", function() {
+            }), r2.d(t, "getSubChunks", function() {
               return i2.getSubChunks;
-            }), r.d(t, "getChunkId", function() {
+            }), r2.d(t, "getChunkId", function() {
               return i2.getChunkId;
             });
-            var s2 = r(
+            var s2 = r2(
               /*! ./riffChunk */
               "./src/riff/riffChunk.ts"
             );
-            r.d(t, "RIFFChunk", function() {
+            r2.d(t, "RIFFChunk", function() {
               return s2.RIFFChunk;
             });
           }
@@ -24975,7 +25596,7 @@ registerProcessor('${n2}', MyProcessor);
             !*** ./src/riff/parseError.ts ***!
             \********************************/
           /*! exports provided: ParseError */
-          function(e, t, r) {
+          function(e, t, r2) {
             "use strict";
             function n2(e2) {
               return (n2 = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function(e3) {
@@ -24993,8 +25614,8 @@ registerProcessor('${n2}', MyProcessor);
             function i2(e2) {
               var t2 = "function" == typeof Map ? /* @__PURE__ */ new Map() : void 0;
               return (i2 = function(e3) {
-                if (null === e3 || (r2 = e3, -1 === Function.toString.call(r2).indexOf("[native code]"))) return e3;
-                var r2;
+                if (null === e3 || (r3 = e3, -1 === Function.toString.call(r3).indexOf("[native code]"))) return e3;
+                var r3;
                 if ("function" != typeof e3) throw new TypeError("Super expression must either be null or a function");
                 if (void 0 !== t2) {
                   if (t2.has(e3)) return t2.get(e3);
@@ -25006,7 +25627,7 @@ registerProcessor('${n2}', MyProcessor);
                 return n3.prototype = Object.create(e3.prototype, { constructor: { value: n3, enumerable: false, writable: true, configurable: true } }), u3(n3, e3);
               })(e2);
             }
-            function s2(e2, t2, r2) {
+            function s2(e2, t2, r3) {
               return (s2 = (function() {
                 if ("undefined" == typeof Reflect || !Reflect.construct) return false;
                 if (Reflect.construct.sham) return false;
@@ -25017,11 +25638,11 @@ registerProcessor('${n2}', MyProcessor);
                 } catch (e3) {
                   return false;
                 }
-              })() ? Reflect.construct : function(e3, t3, r3) {
+              })() ? Reflect.construct : function(e3, t3, r4) {
                 var n3 = [null];
                 n3.push.apply(n3, t3);
                 var o2 = new (Function.bind.apply(e3, n3))();
-                return r3 && u3(o2, r3.prototype), o2;
+                return r4 && u3(o2, r4.prototype), o2;
               }).apply(null, arguments);
             }
             function u3(e2, t2) {
@@ -25034,14 +25655,14 @@ registerProcessor('${n2}', MyProcessor);
                 return e3.__proto__ || Object.getPrototypeOf(e3);
               })(e2);
             }
-            r.r(t), r.d(t, "ParseError", function() {
-              return c3;
+            r2.r(t), r2.d(t, "ParseError", function() {
+              return c4;
             });
-            var c3 = (function(e2) {
-              function t2(e3, r2, n3) {
+            var c4 = (function(e2) {
+              function t2(e3, r3, n3) {
                 return (function(e4, t3) {
                   if (!(e4 instanceof t3)) throw new TypeError("Cannot call a class as a function");
-                })(this, t2), o(this, a2(t2).call(this, "".concat(e3).concat(r2 && n3 ? ", expected ".concat(r2, ", received ").concat(n3) : "")));
+                })(this, t2), o(this, a2(t2).call(this, "".concat(e3).concat(r3 && n3 ? ", expected ".concat(r3, ", received ").concat(n3) : "")));
               }
               return (function(e3, t3) {
                 if ("function" != typeof t3 && null !== t3) throw new TypeError("Super expression must either be null or a function");
@@ -25054,44 +25675,44 @@ registerProcessor('${n2}', MyProcessor);
             !*** ./src/riff/parser.ts ***!
             \****************************/
           /*! exports provided: parseBuffer, getChunk, getChunkLength, getSubChunks, getChunkId */
-          function(e, t, r) {
+          function(e, t, r2) {
             "use strict";
-            r.r(t), r.d(t, "parseBuffer", function() {
+            r2.r(t), r2.d(t, "parseBuffer", function() {
               return s2;
-            }), r.d(t, "getChunk", function() {
+            }), r2.d(t, "getChunk", function() {
               return u3;
-            }), r.d(t, "getChunkLength", function() {
+            }), r2.d(t, "getChunkLength", function() {
               return a2;
-            }), r.d(t, "getSubChunks", function() {
-              return c3;
-            }), r.d(t, "getChunkId", function() {
+            }), r2.d(t, "getSubChunks", function() {
+              return c4;
+            }), r2.d(t, "getChunkId", function() {
               return l2;
             });
-            var n2 = r(
+            var n2 = r2(
               /*! ./parseError */
               "./src/riff/parseError.ts"
-            ), o = r(
+            ), o = r2(
               /*! ~/utils/buffer */
               "./src/utils/buffer.ts"
-            ), i2 = r(
+            ), i2 = r2(
               /*! ./riffChunk */
               "./src/riff/riffChunk.ts"
             ), s2 = function(e2) {
               var t2 = l2(e2);
               if ("RIFF" !== t2) throw new n2.ParseError("Invalid file format", "RIFF", t2);
-              var r2 = l2(e2, 8);
-              if ("sfbk" !== r2) throw new n2.ParseError("Invalid signature", "sfbk", r2);
-              var o2 = e2.subarray(8), s3 = c3(o2.subarray(4));
+              var r3 = l2(e2, 8);
+              if ("sfbk" !== r3) throw new n2.ParseError("Invalid signature", "sfbk", r3);
+              var o2 = e2.subarray(8), s3 = c4(o2.subarray(4));
               return new i2.RIFFChunk(t2, o2.length, o2, s3);
             }, u3 = function(e2, t2) {
-              var r2 = l2(e2, t2), n3 = a2(e2, t2 + 4), o2 = [];
-              return "RIFF" !== r2 && "LIST" !== r2 || (o2 = c3(e2.subarray(t2 + 12))), new i2.RIFFChunk(r2, n3, e2.subarray(t2 + 8), o2);
+              var r3 = l2(e2, t2), n3 = a2(e2, t2 + 4), o2 = [];
+              return "RIFF" !== r3 && "LIST" !== r3 || (o2 = c4(e2.subarray(t2 + 12))), new i2.RIFFChunk(r3, n3, e2.subarray(t2 + 8), o2);
             }, a2 = function(e2, t2) {
               return ((e2 = e2.subarray(t2, t2 + 4))[0] | e2[1] << 8 | e2[2] << 16 | e2[3] << 24) >>> 0;
-            }, c3 = function(e2) {
-              for (var t2 = [], r2 = 0; r2 <= e2.length - 8; ) {
-                var n3 = u3(e2, r2);
-                t2.push(n3), r2 = (r2 += 8 + n3.length) % 2 ? r2 + 1 : r2;
+            }, c4 = function(e2) {
+              for (var t2 = [], r3 = 0; r3 <= e2.length - 8; ) {
+                var n3 = u3(e2, r3);
+                t2.push(n3), r3 = (r3 += 8 + n3.length) % 2 ? r3 + 1 : r3;
               }
               return t2;
             }, l2 = function(e2) {
@@ -25104,35 +25725,35 @@ registerProcessor('${n2}', MyProcessor);
             !*** ./src/riff/riffChunk.ts ***!
             \*******************************/
           /*! exports provided: RIFFChunk */
-          function(e, t, r) {
+          function(e, t, r2) {
             "use strict";
-            r.r(t), r.d(t, "RIFFChunk", function() {
+            r2.r(t), r2.d(t, "RIFFChunk", function() {
               return u3;
             });
-            var n2 = r(
+            var n2 = r2(
               /*! ./chunkIterator */
               "./src/riff/chunkIterator.ts"
-            ), o = r(
+            ), o = r2(
               /*! ~/utils */
               "./src/utils/index.ts"
             );
             function i2(e2, t2) {
-              for (var r2 = 0; r2 < t2.length; r2++) {
-                var n3 = t2[r2];
+              for (var r3 = 0; r3 < t2.length; r3++) {
+                var n3 = t2[r3];
                 n3.enumerable = n3.enumerable || false, n3.configurable = true, "value" in n3 && (n3.writable = true), Object.defineProperty(e2, n3.key, n3);
               }
             }
-            function s2(e2, t2, r2) {
-              return t2 in e2 ? Object.defineProperty(e2, t2, { value: r2, enumerable: true, configurable: true, writable: true }) : e2[t2] = r2, e2;
+            function s2(e2, t2, r3) {
+              return t2 in e2 ? Object.defineProperty(e2, t2, { value: r3, enumerable: true, configurable: true, writable: true }) : e2[t2] = r3, e2;
             }
             var u3 = (function() {
-              function e2(t3, r3, n3, o2) {
+              function e2(t3, r4, n3, o2) {
                 !(function(e3, t4) {
                   if (!(e3 instanceof t4)) throw new TypeError("Cannot call a class as a function");
-                })(this, e2), s2(this, "id", void 0), s2(this, "length", void 0), s2(this, "buffer", void 0), s2(this, "subChunks", void 0), this.id = t3, this.length = r3, this.buffer = n3, this.subChunks = o2;
+                })(this, e2), s2(this, "id", void 0), s2(this, "length", void 0), s2(this, "buffer", void 0), s2(this, "subChunks", void 0), this.id = t3, this.length = r4, this.buffer = n3, this.subChunks = o2;
               }
-              var t2, r2, u4;
-              return t2 = e2, (r2 = [{ key: "getString", value: function() {
+              var t2, r3, u4;
+              return t2 = e2, (r3 = [{ key: "getString", value: function() {
                 var e3 = arguments.length > 0 && void 0 !== arguments[0] ? arguments[0] : 0, t3 = arguments.length > 1 ? arguments[1] : void 0;
                 return Object(o.getStringFromBuffer)(this.getBuffer(e3, t3 || this.length - e3));
               } }, { key: "getInt16", value: function() {
@@ -25151,11 +25772,11 @@ registerProcessor('${n2}', MyProcessor);
                 var e3 = arguments.length > 0 && void 0 !== arguments[0] ? arguments[0] : 0;
                 return new n2.ChunkIterator(this, e3);
               } }, { key: "iterate", value: function(e3) {
-                var t3 = arguments.length > 1 && void 0 !== arguments[1] ? arguments[1] : 0, r3 = new n2.ChunkIterator(this, t3);
-                return r3.iterate(e3), r3.target;
+                var t3 = arguments.length > 1 && void 0 !== arguments[1] ? arguments[1] : 0, r4 = new n2.ChunkIterator(this, t3);
+                return r4.iterate(e3), r4.target;
               } }, { key: "getBuffer", value: function(e3, t3) {
                 return this.buffer.subarray(e3, e3 + t3);
-              } }]) && i2(t2.prototype, r2), u4 && i2(t2, u4), e2;
+              } }]) && i2(t2.prototype, r3), u4 && i2(t2, u4), e2;
             })();
           }
         ), "./src/soundFont2.ts": (
@@ -25163,57 +25784,57 @@ registerProcessor('${n2}', MyProcessor);
             !*** ./src/soundFont2.ts ***!
             \***************************/
           /*! exports provided: SoundFont2 */
-          function(e, t, r) {
+          function(e, t, r2) {
             "use strict";
-            r.r(t), r.d(t, "SoundFont2", function() {
+            r2.r(t), r2.d(t, "SoundFont2", function() {
               return d2;
             });
-            var n2 = r(
+            var n2 = r2(
               /*! ./types */
               "./src/types/index.ts"
-            ), o = r(
+            ), o = r2(
               /*! ./chunk */
               "./src/chunk.ts"
-            ), i2 = r(
+            ), i2 = r2(
               /*! ./riff */
               "./src/riff/index.ts"
-            ), s2 = r(
+            ), s2 = r2(
               /*! ./chunks */
               "./src/chunks/index.ts"
-            ), u3 = r(
+            ), u3 = r2(
               /*! ./utils */
               "./src/utils/index.ts"
             );
             function a2(e2) {
               for (var t2 = 1; t2 < arguments.length; t2++) {
-                var r2 = null != arguments[t2] ? arguments[t2] : {}, n3 = Object.keys(r2);
-                "function" == typeof Object.getOwnPropertySymbols && (n3 = n3.concat(Object.getOwnPropertySymbols(r2).filter(function(e3) {
-                  return Object.getOwnPropertyDescriptor(r2, e3).enumerable;
+                var r3 = null != arguments[t2] ? arguments[t2] : {}, n3 = Object.keys(r3);
+                "function" == typeof Object.getOwnPropertySymbols && (n3 = n3.concat(Object.getOwnPropertySymbols(r3).filter(function(e3) {
+                  return Object.getOwnPropertyDescriptor(r3, e3).enumerable;
                 }))), n3.forEach(function(t3) {
-                  f4(e2, t3, r2[t3]);
+                  f4(e2, t3, r3[t3]);
                 });
               }
               return e2;
             }
-            function c3(e2, t2) {
-              for (var r2 = 0; r2 < t2.length; r2++) {
-                var n3 = t2[r2];
+            function c4(e2, t2) {
+              for (var r3 = 0; r3 < t2.length; r3++) {
+                var n3 = t2[r3];
                 n3.enumerable = n3.enumerable || false, n3.configurable = true, "value" in n3 && (n3.writable = true), Object.defineProperty(e2, n3.key, n3);
               }
             }
-            function l2(e2, t2, r2) {
-              return t2 && c3(e2.prototype, t2), r2 && c3(e2, r2), e2;
+            function l2(e2, t2, r3) {
+              return t2 && c4(e2.prototype, t2), r3 && c4(e2, r3), e2;
             }
-            function f4(e2, t2, r2) {
-              return t2 in e2 ? Object.defineProperty(e2, t2, { value: r2, enumerable: true, configurable: true, writable: true }) : e2[t2] = r2, e2;
+            function f4(e2, t2, r3) {
+              return t2 in e2 ? Object.defineProperty(e2, t2, { value: r3, enumerable: true, configurable: true, writable: true }) : e2[t2] = r3, e2;
             }
             var d2 = (function() {
               function e2(t2) {
                 if ((function(e3, t3) {
                   if (!(e3 instanceof t3)) throw new TypeError("Cannot call a class as a function");
                 })(this, e2), f4(this, "chunk", void 0), f4(this, "metaData", void 0), f4(this, "sampleData", void 0), f4(this, "samples", void 0), f4(this, "presetData", void 0), f4(this, "instruments", void 0), f4(this, "presets", void 0), f4(this, "banks", void 0), !(t2 instanceof o.SF2Chunk)) {
-                  var r2 = Object(i2.parseBuffer)(t2);
-                  t2 = new o.SF2Chunk(r2);
+                  var r3 = Object(i2.parseBuffer)(t2);
+                  t2 = new o.SF2Chunk(r3);
                 }
                 if (3 !== t2.subChunks.length) throw new i2.ParseError("Invalid sfbk structure", "3 chunks", "".concat(t2.subChunks.length, " chunks"));
                 this.chunk = t2, this.metaData = t2.subChunks[0].getMetaData(), this.sampleData = t2.subChunks[1].getSampleData(), this.presetData = t2.subChunks[2].getPresetData(), this.samples = this.getSamples(), this.instruments = this.getInstruments(), this.presets = this.getPresets(), this.banks = this.getBanks();
@@ -25221,38 +25842,38 @@ registerProcessor('${n2}', MyProcessor);
               return l2(e2, null, [{ key: "from", value: function(t2) {
                 return new e2(t2);
               } }]), l2(e2, [{ key: "getKeyData", value: function(e3) {
-                var t2 = this, r2 = arguments.length > 1 && void 0 !== arguments[1] ? arguments[1] : 0, n3 = arguments.length > 2 && void 0 !== arguments[2] ? arguments[2] : 0;
-                return Object(u3.memoize)(function(e4, r3, n4) {
-                  var o2 = t2.banks[r3];
+                var t2 = this, r3 = arguments.length > 1 && void 0 !== arguments[1] ? arguments[1] : 0, n3 = arguments.length > 2 && void 0 !== arguments[2] ? arguments[2] : 0;
+                return Object(u3.memoize)(function(e4, r4, n4) {
+                  var o2 = t2.banks[r4];
                   if (o2) {
                     var i3 = o2.presets[n4];
                     if (i3) {
-                      var s3 = i3.zones.find(function(r4) {
-                        return t2.isKeyInRange(r4, e4);
+                      var s3 = i3.zones.find(function(r5) {
+                        return t2.isKeyInRange(r5, e4);
                       });
                       if (s3) {
-                        var u4 = s3.instrument, c4 = u4.zones.find(function(r4) {
-                          return t2.isKeyInRange(r4, e4);
+                        var u4 = s3.instrument, c5 = u4.zones.find(function(r5) {
+                          return t2.isKeyInRange(r5, e4);
                         });
-                        if (c4) {
-                          var l3 = c4.sample, f5 = a2({}, s3.generators, c4.generators), d3 = a2({}, s3.modulators, c4.modulators);
+                        if (c5) {
+                          var l3 = c5.sample, f5 = a2({}, s3.generators, c5.generators), d3 = a2({}, s3.modulators, c5.modulators);
                           return { keyNumber: e4, preset: i3, instrument: u4, sample: l3, generators: f5, modulators: d3 };
                         }
                       }
                     }
                   }
                   return null;
-                })(e3, r2, n3);
+                })(e3, r3, n3);
               } }, { key: "isKeyInRange", value: function(e3, t2) {
                 return void 0 === e3.keyRange || e3.keyRange.lo <= t2 && e3.keyRange.hi >= t2;
               } }, { key: "getBanks", value: function() {
                 return this.presets.reduce(function(e3, t2) {
-                  var r2 = t2.header.bank;
-                  return e3[r2] || (e3[r2] = { presets: [] }), e3[r2].presets[t2.header.preset] = t2, e3;
+                  var r3 = t2.header.bank;
+                  return e3[r3] || (e3[r3] = { presets: [] }), e3[r3].presets[t2.header.preset] = t2, e3;
                 }, []);
               } }, { key: "getPresets", value: function() {
-                var e3 = this.presetData, t2 = e3.presetHeaders, r2 = e3.presetZones, o2 = e3.presetGenerators, i3 = e3.presetModulators;
-                return Object(s2.getItemsInZone)(t2, r2, i3, o2, this.instruments, n2.GeneratorType.Instrument).filter(function(e4) {
+                var e3 = this.presetData, t2 = e3.presetHeaders, r3 = e3.presetZones, o2 = e3.presetGenerators, i3 = e3.presetModulators;
+                return Object(s2.getItemsInZone)(t2, r3, i3, o2, this.instruments, n2.GeneratorType.Instrument).filter(function(e4) {
                   return "EOP" !== e4.header.name;
                 }).map(function(e4) {
                   return { header: e4.header, globalZone: e4.globalZone, zones: e4.zones.map(function(e5) {
@@ -25260,8 +25881,8 @@ registerProcessor('${n2}', MyProcessor);
                   }) };
                 });
               } }, { key: "getInstruments", value: function() {
-                var e3 = this.presetData, t2 = e3.instrumentHeaders, r2 = e3.instrumentZones, o2 = e3.instrumentModulators, i3 = e3.instrumentGenerators;
-                return Object(s2.getItemsInZone)(t2, r2, o2, i3, this.samples, n2.GeneratorType.SampleId).filter(function(e4) {
+                var e3 = this.presetData, t2 = e3.instrumentHeaders, r3 = e3.instrumentZones, o2 = e3.instrumentModulators, i3 = e3.instrumentGenerators;
+                return Object(s2.getItemsInZone)(t2, r3, o2, i3, this.samples, n2.GeneratorType.SampleId).filter(function(e4) {
                   return "EOI" !== e4.header.name;
                 }).map(function(e4) {
                   return { header: e4.header, globalZone: e4.globalZone, zones: e4.zones.map(function(e5) {
@@ -25291,15 +25912,15 @@ registerProcessor('${n2}', MyProcessor);
             !*** ./src/types/generator.ts ***!
             \********************************/
           /*! exports provided: GeneratorType, DEFAULT_GENERATOR_VALUES */
-          function(e, t, r) {
+          function(e, t, r2) {
             "use strict";
             var n2, o;
-            function i2(e2, t2, r2) {
-              return t2 in e2 ? Object.defineProperty(e2, t2, { value: r2, enumerable: true, configurable: true, writable: true }) : e2[t2] = r2, e2;
+            function i2(e2, t2, r3) {
+              return t2 in e2 ? Object.defineProperty(e2, t2, { value: r3, enumerable: true, configurable: true, writable: true }) : e2[t2] = r3, e2;
             }
-            r.r(t), r.d(t, "GeneratorType", function() {
+            r2.r(t), r2.d(t, "GeneratorType", function() {
               return o;
-            }), r.d(t, "DEFAULT_GENERATOR_VALUES", function() {
+            }), r2.d(t, "DEFAULT_GENERATOR_VALUES", function() {
               return s2;
             }), (function(e2) {
               e2[e2.StartAddrsOffset = 0] = "StartAddrsOffset", e2[e2.EndAddrsOffset = 1] = "EndAddrsOffset", e2[e2.StartLoopAddrsOffset = 2] = "StartLoopAddrsOffset", e2[e2.EndLoopAddrsOffset = 3] = "EndLoopAddrsOffset", e2[e2.StartAddrsCoarseOffset = 4] = "StartAddrsCoarseOffset", e2[e2.ModLFOToPitch = 5] = "ModLFOToPitch", e2[e2.VibLFOToPitch = 6] = "VibLFOToPitch", e2[e2.ModEnvToPitch = 7] = "ModEnvToPitch", e2[e2.InitialFilterFc = 8] = "InitialFilterFc", e2[e2.InitialFilterQ = 9] = "InitialFilterQ", e2[e2.ModLFOToFilterFc = 10] = "ModLFOToFilterFc", e2[e2.ModEnvToFilterFc = 11] = "ModEnvToFilterFc", e2[e2.EndAddrsCoarseOffset = 12] = "EndAddrsCoarseOffset", e2[e2.ModLFOToVolume = 13] = "ModLFOToVolume", e2[e2.Unused1 = 14] = "Unused1", e2[e2.ChorusEffectsSend = 15] = "ChorusEffectsSend", e2[e2.ReverbEffectsSend = 16] = "ReverbEffectsSend", e2[e2.Pan = 17] = "Pan", e2[e2.Unused2 = 18] = "Unused2", e2[e2.Unused3 = 19] = "Unused3", e2[e2.Unused4 = 20] = "Unused4", e2[e2.DelayModLFO = 21] = "DelayModLFO", e2[e2.FreqModLFO = 22] = "FreqModLFO", e2[e2.DelayVibLFO = 23] = "DelayVibLFO", e2[e2.FreqVibLFO = 24] = "FreqVibLFO", e2[e2.DelayModEnv = 25] = "DelayModEnv", e2[e2.AttackModEnv = 26] = "AttackModEnv", e2[e2.HoldModEnv = 27] = "HoldModEnv", e2[e2.DecayModEnv = 28] = "DecayModEnv", e2[e2.SustainModEnv = 29] = "SustainModEnv", e2[e2.ReleaseModEnv = 30] = "ReleaseModEnv", e2[e2.KeyNumToModEnvHold = 31] = "KeyNumToModEnvHold", e2[e2.KeyNumToModEnvDecay = 32] = "KeyNumToModEnvDecay", e2[e2.DelayVolEnv = 33] = "DelayVolEnv", e2[e2.AttackVolEnv = 34] = "AttackVolEnv", e2[e2.HoldVolEnv = 35] = "HoldVolEnv", e2[e2.DecayVolEnv = 36] = "DecayVolEnv", e2[e2.SustainVolEnv = 37] = "SustainVolEnv", e2[e2.ReleaseVolEnv = 38] = "ReleaseVolEnv", e2[e2.KeyNumToVolEnvHold = 39] = "KeyNumToVolEnvHold", e2[e2.KeyNumToVolEnvDecay = 40] = "KeyNumToVolEnvDecay", e2[e2.Instrument = 41] = "Instrument", e2[e2.Reserved1 = 42] = "Reserved1", e2[e2.KeyRange = 43] = "KeyRange", e2[e2.VelRange = 44] = "VelRange", e2[e2.StartLoopAddrsCoarseOffset = 45] = "StartLoopAddrsCoarseOffset", e2[e2.KeyNum = 46] = "KeyNum", e2[e2.Velocity = 47] = "Velocity", e2[e2.InitialAttenuation = 48] = "InitialAttenuation", e2[e2.Reserved2 = 49] = "Reserved2", e2[e2.EndLoopAddrsCoarseOffset = 50] = "EndLoopAddrsCoarseOffset", e2[e2.CoarseTune = 51] = "CoarseTune", e2[e2.FineTune = 52] = "FineTune", e2[e2.SampleId = 53] = "SampleId", e2[e2.SampleModes = 54] = "SampleModes", e2[e2.Reserved3 = 55] = "Reserved3", e2[e2.ScaleTuning = 56] = "ScaleTuning", e2[e2.ExclusiveClass = 57] = "ExclusiveClass", e2[e2.OverridingRootKey = 58] = "OverridingRootKey", e2[e2.Unused5 = 59] = "Unused5", e2[e2.EndOper = 60] = "EndOper";
@@ -25311,104 +25932,104 @@ registerProcessor('${n2}', MyProcessor);
             !*** ./src/types/index.ts ***!
             \****************************/
           /*! no static exports found */
-          function(e, t, r) {
+          function(e, t, r2) {
             "use strict";
-            r.r(t);
-            var n2 = r(
+            r2.r(t);
+            var n2 = r2(
               /*! ./bank */
               "./src/types/bank.ts"
             );
             for (var o in n2) "default" !== o && (function(e2) {
-              r.d(t, e2, function() {
+              r2.d(t, e2, function() {
                 return n2[e2];
               });
             })(o);
-            var i2 = r(
+            var i2 = r2(
               /*! ./generator */
               "./src/types/generator.ts"
             );
-            r.d(t, "GeneratorType", function() {
+            r2.d(t, "GeneratorType", function() {
               return i2.GeneratorType;
-            }), r.d(t, "DEFAULT_GENERATOR_VALUES", function() {
+            }), r2.d(t, "DEFAULT_GENERATOR_VALUES", function() {
               return i2.DEFAULT_GENERATOR_VALUES;
             });
-            var s2 = r(
+            var s2 = r2(
               /*! ./instrument */
               "./src/types/instrument.ts"
             );
             for (var o in s2) ["GeneratorType", "DEFAULT_GENERATOR_VALUES", "default"].indexOf(o) < 0 && (function(e2) {
-              r.d(t, e2, function() {
+              r2.d(t, e2, function() {
                 return s2[e2];
               });
             })(o);
-            var u3 = r(
+            var u3 = r2(
               /*! ./key */
               "./src/types/key.ts"
             );
             for (var o in u3) ["GeneratorType", "DEFAULT_GENERATOR_VALUES", "default"].indexOf(o) < 0 && (function(e2) {
-              r.d(t, e2, function() {
+              r2.d(t, e2, function() {
                 return u3[e2];
               });
             })(o);
-            var a2 = r(
+            var a2 = r2(
               /*! ./metaData */
               "./src/types/metaData.ts"
             );
             for (var o in a2) ["GeneratorType", "DEFAULT_GENERATOR_VALUES", "default"].indexOf(o) < 0 && (function(e2) {
-              r.d(t, e2, function() {
+              r2.d(t, e2, function() {
                 return a2[e2];
               });
             })(o);
-            var c3 = r(
+            var c4 = r2(
               /*! ./modulator */
               "./src/types/modulator.ts"
             );
-            r.d(t, "ControllerType", function() {
-              return c3.ControllerType;
-            }), r.d(t, "ControllerPolarity", function() {
-              return c3.ControllerPolarity;
-            }), r.d(t, "ControllerDirection", function() {
-              return c3.ControllerDirection;
-            }), r.d(t, "ControllerPalette", function() {
-              return c3.ControllerPalette;
-            }), r.d(t, "Controller", function() {
-              return c3.Controller;
-            }), r.d(t, "TransformType", function() {
-              return c3.TransformType;
-            }), r.d(t, "DEFAULT_INSTRUMENT_MODULATORS", function() {
-              return c3.DEFAULT_INSTRUMENT_MODULATORS;
+            r2.d(t, "ControllerType", function() {
+              return c4.ControllerType;
+            }), r2.d(t, "ControllerPolarity", function() {
+              return c4.ControllerPolarity;
+            }), r2.d(t, "ControllerDirection", function() {
+              return c4.ControllerDirection;
+            }), r2.d(t, "ControllerPalette", function() {
+              return c4.ControllerPalette;
+            }), r2.d(t, "Controller", function() {
+              return c4.Controller;
+            }), r2.d(t, "TransformType", function() {
+              return c4.TransformType;
+            }), r2.d(t, "DEFAULT_INSTRUMENT_MODULATORS", function() {
+              return c4.DEFAULT_INSTRUMENT_MODULATORS;
             });
-            var l2 = r(
+            var l2 = r2(
               /*! ./preset */
               "./src/types/preset.ts"
             );
             for (var o in l2) ["GeneratorType", "DEFAULT_GENERATOR_VALUES", "ControllerType", "ControllerPolarity", "ControllerDirection", "ControllerPalette", "Controller", "TransformType", "DEFAULT_INSTRUMENT_MODULATORS", "default"].indexOf(o) < 0 && (function(e2) {
-              r.d(t, e2, function() {
+              r2.d(t, e2, function() {
                 return l2[e2];
               });
             })(o);
-            var f4 = r(
+            var f4 = r2(
               /*! ./presetData */
               "./src/types/presetData.ts"
             );
             for (var o in f4) ["GeneratorType", "DEFAULT_GENERATOR_VALUES", "ControllerType", "ControllerPolarity", "ControllerDirection", "ControllerPalette", "Controller", "TransformType", "DEFAULT_INSTRUMENT_MODULATORS", "default"].indexOf(o) < 0 && (function(e2) {
-              r.d(t, e2, function() {
+              r2.d(t, e2, function() {
                 return f4[e2];
               });
             })(o);
-            var d2 = r(
+            var d2 = r2(
               /*! ./sample */
               "./src/types/sample.ts"
             );
-            r.d(t, "SampleType", function() {
+            r2.d(t, "SampleType", function() {
               return d2.SampleType;
             });
-            var p2 = r(
+            var p2 = r2(
               /*! ./zone */
               "./src/types/zone.ts"
             );
             for (var o in p2) ["GeneratorType", "DEFAULT_GENERATOR_VALUES", "ControllerType", "ControllerPolarity", "ControllerDirection", "ControllerPalette", "Controller", "TransformType", "DEFAULT_INSTRUMENT_MODULATORS", "SampleType", "default"].indexOf(o) < 0 && (function(e2) {
-              r.d(t, e2, function() {
+              r2.d(t, e2, function() {
                 return p2[e2];
               });
             })(o);
@@ -25439,24 +26060,24 @@ registerProcessor('${n2}', MyProcessor);
             !*** ./src/types/modulator.ts ***!
             \********************************/
           /*! exports provided: ControllerType, ControllerPolarity, ControllerDirection, ControllerPalette, Controller, TransformType, DEFAULT_INSTRUMENT_MODULATORS */
-          function(e, t, r) {
+          function(e, t, r2) {
             "use strict";
-            r.r(t), r.d(t, "ControllerType", function() {
+            r2.r(t), r2.d(t, "ControllerType", function() {
               return n2;
-            }), r.d(t, "ControllerPolarity", function() {
+            }), r2.d(t, "ControllerPolarity", function() {
               return o;
-            }), r.d(t, "ControllerDirection", function() {
+            }), r2.d(t, "ControllerDirection", function() {
               return i2;
-            }), r.d(t, "ControllerPalette", function() {
+            }), r2.d(t, "ControllerPalette", function() {
               return s2;
-            }), r.d(t, "Controller", function() {
+            }), r2.d(t, "Controller", function() {
               return u3;
-            }), r.d(t, "TransformType", function() {
+            }), r2.d(t, "TransformType", function() {
               return a2;
-            }), r.d(t, "DEFAULT_INSTRUMENT_MODULATORS", function() {
+            }), r2.d(t, "DEFAULT_INSTRUMENT_MODULATORS", function() {
               return l2;
             });
-            var n2, o, i2, s2, u3, a2, c3 = r(
+            var n2, o, i2, s2, u3, a2, c4 = r2(
               /*! ./generator */
               "./src/types/generator.ts"
             );
@@ -25473,7 +26094,7 @@ registerProcessor('${n2}', MyProcessor);
             })(u3 || (u3 = {})), (function(e2) {
               e2[e2.Linear = 0] = "Linear", e2[e2.Absolute = 2] = "Absolute";
             })(a2 || (a2 = {}));
-            var l2 = [{ id: c3.GeneratorType.InitialAttenuation, source: { type: n2.Concave, polarity: o.Unipolar, direction: i2.Decreasing, palette: s2.GeneralController, index: u3.NoteOnVelocity }, value: 960, valueSource: { type: n2.Linear, polarity: o.Unipolar, direction: i2.Increasing, palette: s2.GeneralController, index: u3.NoController }, transform: a2.Linear }, { id: c3.GeneratorType.InitialFilterFc, source: { type: n2.Linear, polarity: o.Unipolar, direction: i2.Decreasing, palette: s2.GeneralController, index: u3.NoteOnVelocity }, value: -2400, valueSource: { type: n2.Linear, polarity: o.Unipolar, direction: i2.Increasing, palette: s2.GeneralController, index: u3.NoController }, transform: a2.Linear }, { id: c3.GeneratorType.VibLFOToPitch, source: { type: n2.Linear, polarity: o.Unipolar, direction: i2.Increasing, palette: s2.GeneralController, index: u3.ChannelPressure }, value: 50, valueSource: { type: n2.Linear, polarity: o.Unipolar, direction: i2.Increasing, palette: s2.GeneralController, index: u3.NoController }, transform: a2.Linear }, { id: c3.GeneratorType.VibLFOToPitch, source: { type: n2.Linear, polarity: o.Unipolar, direction: i2.Increasing, palette: s2.MidiController, index: 1 }, value: 50, valueSource: { type: n2.Linear, polarity: o.Unipolar, direction: i2.Increasing, palette: s2.GeneralController, index: u3.NoController }, transform: a2.Linear }, { id: c3.GeneratorType.InitialAttenuation, source: { type: n2.Concave, polarity: o.Unipolar, direction: i2.Decreasing, palette: s2.MidiController, index: 7 }, value: 960, valueSource: { type: n2.Linear, polarity: o.Unipolar, direction: i2.Increasing, palette: s2.GeneralController, index: u3.NoController }, transform: a2.Linear }, { id: c3.GeneratorType.InitialAttenuation, source: { type: n2.Linear, polarity: o.Bipolar, direction: i2.Increasing, palette: s2.MidiController, index: 10 }, value: 1e3, valueSource: { type: n2.Linear, polarity: o.Unipolar, direction: i2.Increasing, palette: s2.GeneralController, index: u3.NoController }, transform: a2.Linear }, { id: c3.GeneratorType.InitialAttenuation, source: { type: n2.Concave, polarity: o.Unipolar, direction: i2.Decreasing, palette: s2.MidiController, index: 11 }, value: 960, valueSource: { type: n2.Linear, polarity: o.Unipolar, direction: i2.Increasing, palette: s2.GeneralController, index: u3.NoController }, transform: a2.Linear }, { id: c3.GeneratorType.ReverbEffectsSend, source: { type: n2.Linear, polarity: o.Unipolar, direction: i2.Increasing, palette: s2.MidiController, index: 91 }, value: 200, valueSource: { type: n2.Linear, polarity: o.Unipolar, direction: i2.Increasing, palette: s2.GeneralController, index: u3.NoController }, transform: a2.Linear }, { id: c3.GeneratorType.ChorusEffectsSend, source: { type: n2.Linear, polarity: o.Unipolar, direction: i2.Increasing, palette: s2.MidiController, index: 93 }, value: 200, valueSource: { type: n2.Linear, polarity: o.Unipolar, direction: i2.Increasing, palette: s2.GeneralController, index: u3.NoController }, transform: a2.Linear }, { id: c3.GeneratorType.CoarseTune, source: { type: n2.Linear, polarity: o.Bipolar, direction: i2.Increasing, palette: s2.GeneralController, index: u3.PitchWheel }, value: 12700, valueSource: { type: n2.Linear, polarity: o.Unipolar, direction: i2.Increasing, palette: s2.GeneralController, index: u3.PitchWheelSensitivity }, transform: a2.Linear }];
+            var l2 = [{ id: c4.GeneratorType.InitialAttenuation, source: { type: n2.Concave, polarity: o.Unipolar, direction: i2.Decreasing, palette: s2.GeneralController, index: u3.NoteOnVelocity }, value: 960, valueSource: { type: n2.Linear, polarity: o.Unipolar, direction: i2.Increasing, palette: s2.GeneralController, index: u3.NoController }, transform: a2.Linear }, { id: c4.GeneratorType.InitialFilterFc, source: { type: n2.Linear, polarity: o.Unipolar, direction: i2.Decreasing, palette: s2.GeneralController, index: u3.NoteOnVelocity }, value: -2400, valueSource: { type: n2.Linear, polarity: o.Unipolar, direction: i2.Increasing, palette: s2.GeneralController, index: u3.NoController }, transform: a2.Linear }, { id: c4.GeneratorType.VibLFOToPitch, source: { type: n2.Linear, polarity: o.Unipolar, direction: i2.Increasing, palette: s2.GeneralController, index: u3.ChannelPressure }, value: 50, valueSource: { type: n2.Linear, polarity: o.Unipolar, direction: i2.Increasing, palette: s2.GeneralController, index: u3.NoController }, transform: a2.Linear }, { id: c4.GeneratorType.VibLFOToPitch, source: { type: n2.Linear, polarity: o.Unipolar, direction: i2.Increasing, palette: s2.MidiController, index: 1 }, value: 50, valueSource: { type: n2.Linear, polarity: o.Unipolar, direction: i2.Increasing, palette: s2.GeneralController, index: u3.NoController }, transform: a2.Linear }, { id: c4.GeneratorType.InitialAttenuation, source: { type: n2.Concave, polarity: o.Unipolar, direction: i2.Decreasing, palette: s2.MidiController, index: 7 }, value: 960, valueSource: { type: n2.Linear, polarity: o.Unipolar, direction: i2.Increasing, palette: s2.GeneralController, index: u3.NoController }, transform: a2.Linear }, { id: c4.GeneratorType.InitialAttenuation, source: { type: n2.Linear, polarity: o.Bipolar, direction: i2.Increasing, palette: s2.MidiController, index: 10 }, value: 1e3, valueSource: { type: n2.Linear, polarity: o.Unipolar, direction: i2.Increasing, palette: s2.GeneralController, index: u3.NoController }, transform: a2.Linear }, { id: c4.GeneratorType.InitialAttenuation, source: { type: n2.Concave, polarity: o.Unipolar, direction: i2.Decreasing, palette: s2.MidiController, index: 11 }, value: 960, valueSource: { type: n2.Linear, polarity: o.Unipolar, direction: i2.Increasing, palette: s2.GeneralController, index: u3.NoController }, transform: a2.Linear }, { id: c4.GeneratorType.ReverbEffectsSend, source: { type: n2.Linear, polarity: o.Unipolar, direction: i2.Increasing, palette: s2.MidiController, index: 91 }, value: 200, valueSource: { type: n2.Linear, polarity: o.Unipolar, direction: i2.Increasing, palette: s2.GeneralController, index: u3.NoController }, transform: a2.Linear }, { id: c4.GeneratorType.ChorusEffectsSend, source: { type: n2.Linear, polarity: o.Unipolar, direction: i2.Increasing, palette: s2.MidiController, index: 93 }, value: 200, valueSource: { type: n2.Linear, polarity: o.Unipolar, direction: i2.Increasing, palette: s2.GeneralController, index: u3.NoController }, transform: a2.Linear }, { id: c4.GeneratorType.CoarseTune, source: { type: n2.Linear, polarity: o.Bipolar, direction: i2.Increasing, palette: s2.GeneralController, index: u3.PitchWheel }, value: 12700, valueSource: { type: n2.Linear, polarity: o.Unipolar, direction: i2.Increasing, palette: s2.GeneralController, index: u3.PitchWheelSensitivity }, transform: a2.Linear }];
           }
         ), "./src/types/preset.ts": (
           /*!*****************************!*\
@@ -25494,10 +26115,10 @@ registerProcessor('${n2}', MyProcessor);
             !*** ./src/types/sample.ts ***!
             \*****************************/
           /*! exports provided: SampleType */
-          function(e, t, r) {
+          function(e, t, r2) {
             "use strict";
             var n2;
-            r.r(t), r.d(t, "SampleType", function() {
+            r2.r(t), r2.d(t, "SampleType", function() {
               return n2;
             }), (function(e2) {
               e2[e2.EOS = 0] = "EOS", e2[e2.Mono = 1] = "Mono", e2[e2.Right = 2] = "Right", e2[e2.Left = 4] = "Left", e2[e2.Linked = 8] = "Linked", e2[e2.RomMono = 32769] = "RomMono", e2[e2.RomRight = 32770] = "RomRight", e2[e2.RomLeft = 32772] = "RomLeft", e2[e2.RomLinked = 32776] = "RomLinked";
@@ -25515,9 +26136,9 @@ registerProcessor('${n2}', MyProcessor);
             !*** ./src/utils/buffer.ts ***!
             \*****************************/
           /*! exports provided: getStringFromBuffer */
-          function(e, t, r) {
+          function(e, t, r2) {
             "use strict";
-            r.r(t), r.d(t, "getStringFromBuffer", function() {
+            r2.r(t), r2.d(t, "getStringFromBuffer", function() {
               return n2;
             });
             var n2 = function(e2) {
@@ -25529,21 +26150,21 @@ registerProcessor('${n2}', MyProcessor);
             !*** ./src/utils/index.ts ***!
             \****************************/
           /*! exports provided: getStringFromBuffer, memoize */
-          function(e, t, r) {
+          function(e, t, r2) {
             "use strict";
-            r.r(t);
-            var n2 = r(
+            r2.r(t);
+            var n2 = r2(
               /*! ./buffer */
               "./src/utils/buffer.ts"
             );
-            r.d(t, "getStringFromBuffer", function() {
+            r2.d(t, "getStringFromBuffer", function() {
               return n2.getStringFromBuffer;
             });
-            var o = r(
+            var o = r2(
               /*! ./memoize */
               "./src/utils/memoize.ts"
             );
-            r.d(t, "memoize", function() {
+            r2.d(t, "memoize", function() {
               return o.memoize;
             });
           }
@@ -25552,15 +26173,15 @@ registerProcessor('${n2}', MyProcessor);
             !*** ./src/utils/memoize.ts ***!
             \******************************/
           /*! exports provided: memoize */
-          function(e, t, r) {
+          function(e, t, r2) {
             "use strict";
-            r.r(t), r.d(t, "memoize", function() {
+            r2.r(t), r2.d(t, "memoize", function() {
               return n2;
             });
             var n2 = function(e2) {
               var t2 = {};
               return function() {
-                for (var r2 = arguments.length, n3 = new Array(r2), o = 0; o < r2; o++) n3[o] = arguments[o];
+                for (var r3 = arguments.length, n3 = new Array(r3), o = 0; o < r3; o++) n3[o] = arguments[o];
                 var i2 = JSON.stringify(n3);
                 if (i2 in t2) return t2[i2];
                 var s2 = e2.apply(void 0, n3);
@@ -25575,11 +26196,11 @@ registerProcessor('${n2}', MyProcessor);
 
   // node_modules/@strudel/web/web.mjs
   init_dist2();
-  init_dist6();
+  init_dist5();
 
   // node_modules/@strudel/transpiler/dist/index.mjs
   init_dist2();
-  init_dist7();
+  init_dist6();
 
   // node_modules/acorn/dist/acorn.mjs
   var astralIdentifierCodes = [509, 0, 227, 0, 150, 4, 294, 9, 1368, 2, 2, 1, 6, 3, 41, 2, 5, 0, 166, 1, 574, 3, 9, 9, 7, 9, 32, 4, 318, 1, 78, 5, 71, 10, 50, 3, 123, 2, 54, 14, 32, 10, 3, 1, 11, 3, 46, 10, 8, 0, 46, 9, 7, 2, 37, 13, 2, 9, 6, 1, 45, 0, 13, 2, 49, 13, 9, 3, 2, 11, 83, 11, 7, 0, 3, 0, 158, 11, 6, 9, 7, 3, 56, 1, 2, 6, 3, 1, 3, 2, 10, 0, 11, 1, 3, 6, 4, 4, 68, 8, 2, 0, 3, 0, 2, 3, 2, 4, 2, 0, 15, 1, 83, 17, 10, 9, 5, 0, 82, 19, 13, 9, 214, 6, 3, 8, 28, 1, 83, 16, 16, 9, 82, 12, 9, 9, 7, 19, 58, 14, 5, 9, 243, 14, 166, 9, 71, 5, 2, 1, 3, 3, 2, 0, 2, 1, 13, 9, 120, 6, 3, 6, 4, 0, 29, 9, 41, 6, 2, 3, 9, 0, 10, 10, 47, 15, 199, 7, 137, 9, 54, 7, 2, 7, 17, 9, 57, 21, 2, 13, 123, 5, 4, 0, 2, 1, 2, 6, 2, 0, 9, 9, 49, 4, 2, 1, 2, 4, 9, 9, 55, 9, 266, 3, 10, 1, 2, 0, 49, 6, 4, 4, 14, 10, 5350, 0, 7, 14, 11465, 27, 2343, 9, 87, 9, 39, 4, 60, 6, 26, 9, 535, 9, 470, 0, 2, 54, 8, 3, 82, 0, 12, 1, 19628, 1, 4178, 9, 519, 45, 3, 22, 543, 4, 4, 5, 9, 7, 3, 6, 31, 3, 149, 2, 1418, 49, 513, 54, 5, 49, 9, 0, 15, 0, 23, 4, 2, 14, 1361, 6, 2, 16, 3, 6, 2, 1, 2, 4, 101, 0, 161, 6, 10, 9, 357, 0, 62, 13, 499, 13, 245, 1, 2, 9, 233, 0, 3, 0, 8, 1, 6, 0, 475, 6, 110, 6, 6, 9, 4759, 9, 787719, 239];
@@ -29169,19 +29790,19 @@ registerProcessor('${n2}', MyProcessor);
   RegExpValidationState.prototype.raise = function raise(message) {
     this.parser.raiseRecoverable(this.start, "Invalid regular expression: /" + this.source + "/: " + message);
   };
-  RegExpValidationState.prototype.at = function at5(i2, forceU) {
+  RegExpValidationState.prototype.at = function at4(i2, forceU) {
     if (forceU === void 0) forceU = false;
     var s2 = this.source;
     var l2 = s2.length;
     if (i2 >= l2) {
       return -1;
     }
-    var c3 = s2.charCodeAt(i2);
-    if (!(forceU || this.switchU) || c3 <= 55295 || c3 >= 57344 || i2 + 1 >= l2) {
-      return c3;
+    var c4 = s2.charCodeAt(i2);
+    if (!(forceU || this.switchU) || c4 <= 55295 || c4 >= 57344 || i2 + 1 >= l2) {
+      return c4;
     }
     var next = s2.charCodeAt(i2 + 1);
-    return next >= 56320 && next <= 57343 ? (c3 << 10) + next - 56613888 : c3;
+    return next >= 56320 && next <= 57343 ? (c4 << 10) + next - 56613888 : c4;
   };
   RegExpValidationState.prototype.nextIndex = function nextIndex(i2, forceU) {
     if (forceU === void 0) forceU = false;
@@ -29190,8 +29811,8 @@ registerProcessor('${n2}', MyProcessor);
     if (i2 >= l2) {
       return l2;
     }
-    var c3 = s2.charCodeAt(i2), next;
-    if (!(forceU || this.switchU) || c3 <= 55295 || c3 >= 57344 || i2 + 1 >= l2 || (next = s2.charCodeAt(i2 + 1)) < 56320 || next > 57343) {
+    var c4 = s2.charCodeAt(i2), next;
+    if (!(forceU || this.switchU) || c4 <= 55295 || c4 >= 57344 || i2 + 1 >= l2 || (next = s2.charCodeAt(i2 + 1)) < 56320 || next > 57343) {
       return i2 + 1;
     }
     return i2 + 2;
@@ -31445,76 +32066,76 @@ registerProcessor('${n2}', MyProcessor);
       onComment: f4
     });
     const m4 = ce5(f4, e.length);
-    let c3 = [];
-    const b2 = (r, x3) => {
+    let c4 = [];
+    const b2 = (r2, x4) => {
       const s2 = E4.get("minilang");
       if (s2) {
-        const u3 = `[${r}]`, o = s2.getLocations(u3, x3.start);
-        c3 = c3.concat(o);
+        const u3 = `[${r2}]`, o = s2.getLocations(u3, x4.start);
+        c4 = c4.concat(o);
       } else {
-        const u3 = Yr2(`"${r}"`, x3.start, e);
-        c3 = c3.concat(u3);
+        const u3 = Yr2(`"${r2}"`, x4.start, e);
+        c4 = c4.concat(u3);
       }
     };
-    let y3 = [];
+    let y4 = [];
     walk(l2, {
-      enter(r, x3) {
-        if (se3(r)) {
-          const { name: s2 } = r.tag, u3 = E4.get(s2), o = r.quasi.quasis[0].value.raw, h = r.quasi.start + 1;
+      enter(r2, x4) {
+        if (se3(r2)) {
+          const { name: s2 } = r2.tag, u3 = E4.get(s2), o = r2.quasi.quasis[0].value.raw, h2 = r2.quasi.start + 1;
           if (i2) {
-            const C7 = u3.getLocations(o, h);
-            c3 = c3.concat(C7);
+            const C7 = u3.getLocations(o, h2);
+            c4 = c4.concat(C7);
           }
-          return this.skip(), this.replace(ue7(s2, o, h));
+          return this.skip(), this.replace(ue6(s2, o, h2));
         }
-        if (le3(r, "tidal")) {
-          const s2 = r.quasi.quasis[0].value.raw, u3 = r.quasi.start + 1;
+        if (le3(r2, "tidal")) {
+          const s2 = r2.quasi.quasis[0].value.raw, u3 = r2.quasi.start + 1;
           if (i2) {
             const o = oe3(s2, u3);
-            c3 = c3.concat(o);
+            c4 = c4.concat(o);
           }
-          return this.skip(), this.replace(pe6(s2, u3));
+          return this.skip(), this.replace(pe5(s2, u3));
         }
-        if (U6(r, x3)) {
-          if (q5(r.start, m4))
+        if (U6(r2, x4)) {
+          if (q5(r2.start, m4))
             return;
-          const { quasis: s2 } = r, { raw: u3 } = s2[0].value;
-          return this.skip(), i2 && b2(u3, r), this.replace(T4(u3, r));
+          const { quasis: s2 } = r2, { raw: u3 } = s2[0].value;
+          return this.skip(), i2 && b2(u3, r2), this.replace(T4(u3, r2));
         }
-        if (G3(r)) {
-          if (q5(r.start, m4))
+        if (G2(r2)) {
+          if (q5(r2.start, m4))
             return;
-          const { value: s2 } = r;
-          return this.skip(), i2 && b2(s2, r), this.replace(T4(s2, r));
+          const { value: s2 } = r2;
+          return this.skip(), i2 && b2(s2, r2), this.replace(T4(s2, r2));
         }
-        if (X(r))
-          return p2 && y3.push({
-            from: r.arguments[0].start,
-            to: r.arguments[0].end,
-            value: r.arguments[0].raw,
+        if (X(r2))
+          return p2 && y4.push({
+            from: r2.arguments[0].start,
+            to: r2.arguments[0].end,
+            value: r2.arguments[0].raw,
             // don't use value!
-            min: r.arguments[1]?.value ?? 0,
-            max: r.arguments[2]?.value ?? 1,
-            step: r.arguments[3]?.value,
+            min: r2.arguments[1]?.value ?? 0,
+            max: r2.arguments[2]?.value ?? 1,
+            step: r2.arguments[3]?.value,
             type: "slider"
-          }), this.replace(Z5(r));
-        if (Y4(r)) {
-          const s2 = r.callee.property.name, u3 = y3.filter((h) => h.type === s2).length, o = {
-            to: r.end,
+          }), this.replace(Z4(r2));
+        if (Y4(r2)) {
+          const s2 = r2.callee.property.name, u3 = y4.filter((h2) => h2.type === s2).length, o = {
+            to: r2.end,
             index: u3,
             type: s2,
             id: t.id
           };
-          return p2 && y3.push(o), this.replace(te4(r, o));
+          return p2 && y4.push(o), this.replace(te4(r2, o));
         }
-        if (re5(r, x3))
-          return this.replace(ne4(r));
-        if (ie5(r))
-          return this.replace(ae3(r));
+        if (re5(r2, x4))
+          return this.replace(ne4(r2));
+        if (ie5(r2))
+          return this.replace(ae3(r2));
       },
-      leave(r, x3, s2, u3) {
-        if (!R4(r)) return;
-        let [o, ...h] = r.arguments;
+      leave(r2, x4, s2, u3) {
+        if (!R3(r2)) return;
+        let [o, ...h2] = r2.arguments;
         if (!o) throw new Error("K(...) requires an expression");
         _5(o) && (o = {
           type: "CallExpression",
@@ -31524,11 +32145,11 @@ registerProcessor('${n2}', MyProcessor);
         });
         const { template: C7, patternExprs: k6 } = B4(o);
         if (k6.length) {
-          const d2 = [{ type: "Literal", value: C7 }, ...k6, ...h];
-          let L6 = r.callee;
+          const d2 = [{ type: "Literal", value: C7 }, ...k6, ...h2];
+          let L6 = r2.callee;
           return L6.type === "ChainExpression" && (L6 = L6.expression), L6.type === "MemberExpression" ? this.replace({
             type: "CallExpression",
-            callee: W5(L6.object),
+            callee: W4(L6.object),
             arguments: d2,
             optional: false
           }) : this.replace({
@@ -31538,11 +32159,11 @@ registerProcessor('${n2}', MyProcessor);
             optional: false
           });
         }
-        const M3 = [{ type: "Literal", value: S4(o) }, ...h];
-        let w6 = r.callee;
-        return w6.type === "ChainExpression" && (w6 = w6.expression), w6.type === "MemberExpression" ? this.replace({
+        const M3 = [{ type: "Literal", value: S4(o) }, ...h2];
+        let w7 = r2.callee;
+        return w7.type === "ChainExpression" && (w7 = w7.expression), w7.type === "MemberExpression" ? this.replace({
           type: "CallExpression",
-          callee: W5(w6.object),
+          callee: W4(w7.object),
           arguments: M3,
           optional: false
         }) : this.replace({
@@ -31565,16 +32186,16 @@ registerProcessor('${n2}', MyProcessor);
     else if (!g3?.[g3.length - 1]?.expression)
       throw new Error("unexpected ast format without body expression");
     if (a2) {
-      const { expression: r } = g3[g3.length - 1];
+      const { expression: r2 } = g3[g3.length - 1];
       g3[g3.length - 1] = {
         type: "ReturnStatement",
-        argument: r
+        argument: r2
       };
     }
     let v2 = import_escodegen.default.generate(l2);
-    return n2 && (v2 = `(async ()=>{${v2}})()`), i2 ? { output: v2, miniLocations: c3, widgets: y3 } : { output: v2 };
+    return n2 && (v2 = `(async ()=>{${v2}})()`), i2 ? { output: v2, miniLocations: c4, widgets: y4 } : { output: v2 };
   }
-  function R4(e) {
+  function R3(e) {
     if (e.type !== "CallExpression") return false;
     let t = e.callee;
     return t.type === "ChainExpression" && (t = t.expression), t.type === "MemberExpression" ? !t.computed && t.property?.name === "K" : t.type === "Identifier" && t.name === "K";
@@ -31588,10 +32209,10 @@ registerProcessor('${n2}', MyProcessor);
   function B4(e) {
     const t = I3(e), n2 = /* @__PURE__ */ new Map(), a2 = [];
     if (walk(t, {
-      enter(l2, m4, c3, b2) {
-        n2.set(l2, { parent: m4, prop: c3, index: b2 });
-        const y3 = J3(l2);
-        y3 && (a2.push({ node: l2, patternExpr: y3 }), this.skip());
+      enter(l2, m4, c4, b2) {
+        n2.set(l2, { parent: m4, prop: c4, index: b2 });
+        const y4 = J3(l2);
+        y4 && (a2.push({ node: l2, patternExpr: y4 }), this.skip());
       }
     }), !a2.length)
       return { template: S4(t), patternExprs: [] };
@@ -31658,7 +32279,7 @@ registerProcessor('${n2}', MyProcessor);
   function I3(e) {
     return JSON.parse(JSON.stringify(e));
   }
-  function W5(e) {
+  function W4(e) {
     return {
       type: "MemberExpression",
       object: e,
@@ -31667,7 +32288,7 @@ registerProcessor('${n2}', MyProcessor);
       optional: false
     };
   }
-  function G3(e, t, n2) {
+  function G2(e, t, n2) {
     return e.type !== "Literal" ? false : e.raw[0] === '"';
   }
   function U6(e, t) {
@@ -31695,7 +32316,7 @@ registerProcessor('${n2}', MyProcessor);
   function Y4(e) {
     return e.type === "CallExpression" && P3.includes(e.callee.property?.name);
   }
-  function Z5(e) {
+  function Z4(e) {
     const t = "slider_" + e.arguments[0].start;
     return e.arguments.unshift({
       type: "Literal",
@@ -31703,11 +32324,11 @@ registerProcessor('${n2}', MyProcessor);
       raw: t
     }), e.callee.name = "sliderWithID", e;
   }
-  function ee5(e) {
+  function ee4(e) {
     return `${e.id || ""}_widget_${e.type}_${e.index}`;
   }
   function te4(e, t) {
-    const n2 = ee5(t);
+    const n2 = ee4(t);
     return e.arguments.unshift({
       type: "Literal",
       value: n2,
@@ -31761,7 +32382,7 @@ registerProcessor('${n2}', MyProcessor);
       return Yr2(`"${i2}"`, t + n2 - 1);
     }).flat();
   }
-  function pe6(e, t) {
+  function pe5(e, t) {
     return {
       type: "CallExpression",
       callee: {
@@ -31775,7 +32396,7 @@ registerProcessor('${n2}', MyProcessor);
       optional: false
     };
   }
-  function ue7(e, t, n2) {
+  function ue6(e, t, n2) {
     return {
       type: "CallExpression",
       callee: {
@@ -31814,19 +32435,19 @@ registerProcessor('${n2}', MyProcessor);
   }
 
   // node_modules/@strudel/web/web.mjs
-  init_dist7();
-  init_dist8();
   init_dist6();
+  init_dist7();
+  init_dist5();
   init_dist2();
+  init_dist5();
   init_dist6();
-  init_dist7();
   async function defaultPrebake() {
     const loadModules = xn(
       xn,
       Promise.resolve().then(() => (init_dist2(), dist_exports)),
-      Promise.resolve().then(() => (init_dist7(), dist_exports3)),
-      Promise.resolve().then(() => (init_dist8(), dist_exports4)),
-      Promise.resolve().then(() => (init_dist6(), dist_exports2)),
+      Promise.resolve().then(() => (init_dist6(), dist_exports3)),
+      Promise.resolve().then(() => (init_dist7(), dist_exports4)),
+      Promise.resolve().then(() => (init_dist5(), dist_exports2)),
       { hush, evaluate }
     );
     await Promise.all([
@@ -31874,7 +32495,7 @@ registerProcessor('${n2}', MyProcessor);
     const duration = kind === "bd" ? 0.45 : kind === "sd" ? 0.22 : 0.09;
     const count = Math.ceil(duration * sampleRate2);
     const data3 = new ArrayBuffer(44 + count * 2), view = new DataView(data3);
-    const word = (offset2, text) => [...text].forEach((c3, i2) => view.setUint8(offset2 + i2, c3.charCodeAt(0)));
+    const word = (offset2, text) => [...text].forEach((c4, i2) => view.setUint8(offset2 + i2, c4.charCodeAt(0)));
     word(0, "RIFF");
     view.setUint32(4, 36 + count * 2, true);
     word(8, "WAVE");
@@ -32056,7 +32677,7 @@ registerProcessor('${n2}', MyProcessor);
 
   // node_modules/@strudel/soundfonts/fontloader.mjs
   init_dist2();
-  init_dist6();
+  init_dist5();
 
   // node_modules/@strudel/soundfonts/gm.mjs
   var gm_default = {
@@ -36056,14 +36677,14 @@ registerProcessor('${n2}', MyProcessor);
   var import_soundfont2 = __toESM(require_SoundFont2(), 1);
   var m3 = (e) => Math.pow(2, e / 1200);
   var Q5 = (e) => e / 1e3;
-  var G5 = (e, t) => {
+  var G4 = (e, t) => {
     const n2 = Math.pow(10, t);
     return Math.round(e * n2) / n2;
   };
-  typeof AudioParam < "u" && (AudioParam.prototype.dahdsr = function(e, t, n2, o, r, s2, a2, c3, i2) {
-    r = Math.max(G5(r, 4), 1e-3), a2 = Math.max(G5(a2, 4), 1e-3), i2 = G5(i2, 4), t = Math.max(t, 1e-3);
+  typeof AudioParam < "u" && (AudioParam.prototype.dahdsr = function(e, t, n2, o, r2, s2, a2, c4, i2) {
+    r2 = Math.max(G4(r2, 4), 1e-3), a2 = Math.max(G4(a2, 4), 1e-3), i2 = G4(i2, 4), t = Math.max(t, 1e-3);
     let l2 = e;
-    return this.setValueAtTime(t, l2), this.setValueAtTime(t, l2 += o), this.exponentialRampToValueAtTime(n2, l2 += r), this.setValueAtTime(n2, l2 += s2), this.exponentialRampToValueAtTime(Math.max(c3 * n2, 1e-3), l2 += a2), (d2, u3) => {
+    return this.setValueAtTime(t, l2), this.setValueAtTime(t, l2 += o), this.exponentialRampToValueAtTime(n2, l2 += r2), this.setValueAtTime(n2, l2 += s2), this.exponentialRampToValueAtTime(Math.max(c4 * n2, 1e-3), l2 += a2), (d2, u3) => {
       this.cancelAndHoldAtTime(d2);
       const f4 = Math.max(u3 != null ? u3 : t, 1e-3);
       this.exponentialRampToValueAtTime(f4, d2 + i2);
@@ -36135,28 +36756,28 @@ registerProcessor('${n2}', MyProcessor);
   var re6 = Object.fromEntries(
     Object.entries(import_soundfont2.DEFAULT_GENERATOR_VALUES).map(([e, t]) => [T6[e], t])
   );
-  var D5 = (e, t, n2, o, r) => {
-    var h, g3, y3, E5, b2, A5, O2;
+  var D5 = (e, t, n2, o, r2) => {
+    var h2, g3, y4, E5, b2, A5, O2;
     const s2 = import_soundfont2.DEFAULT_GENERATOR_VALUES[e];
     if (typeof s2 != "number")
       throw new Error(`no default value found for generator with index ${e}`);
-    const a2 = t.generators[e], c3 = (g3 = (h = n2.globalZone) == null ? void 0 : h.generators) == null ? void 0 : g3[e], i2 = (y3 = o == null ? void 0 : o.generators) == null ? void 0 : y3[e], l2 = (b2 = (E5 = r.globalZone) == null ? void 0 : E5.generators) == null ? void 0 : b2[e], d2 = a2 && "value" in a2 ? a2.value : void 0, u3 = c3 && "value" in c3 ? c3.value : void 0, f4 = i2 && "value" in i2 ? i2.value : void 0, v2 = l2 && "value" in l2 ? l2.value : void 0, p2 = (A5 = d2 != null ? d2 : u3) != null ? A5 : s2, M3 = (O2 = f4 != null ? f4 : v2) != null ? O2 : 0;
+    const a2 = t.generators[e], c4 = (g3 = (h2 = n2.globalZone) == null ? void 0 : h2.generators) == null ? void 0 : g3[e], i2 = (y4 = o == null ? void 0 : o.generators) == null ? void 0 : y4[e], l2 = (b2 = (E5 = r2.globalZone) == null ? void 0 : E5.generators) == null ? void 0 : b2[e], d2 = a2 && "value" in a2 ? a2.value : void 0, u3 = c4 && "value" in c4 ? c4.value : void 0, f4 = i2 && "value" in i2 ? i2.value : void 0, v2 = l2 && "value" in l2 ? l2.value : void 0, p2 = (A5 = d2 != null ? d2 : u3) != null ? A5 : s2, M3 = (O2 = f4 != null ? f4 : v2) != null ? O2 : 0;
     return p2 + M3;
   };
   var J5 = (e) => import_soundfont2.DEFAULT_GENERATOR_VALUES[e] !== void 0;
-  var W7 = (e, t, n2) => {
-    var o, r, s2, a2;
+  var W6 = (e, t, n2) => {
+    var o, r2, s2, a2;
     return Object.fromEntries(
       Array.from(
         new Set(
           [
-            Object.keys((r = (o = n2.globalZone) == null ? void 0 : o.generators) != null ? r : {}),
+            Object.keys((r2 = (o = n2.globalZone) == null ? void 0 : o.generators) != null ? r2 : {}),
             Object.keys(t.generators),
             Object.keys((a2 = (s2 = t.instrument.globalZone) == null ? void 0 : s2.generators) != null ? a2 : {}),
             Object.keys(e.generators)
           ].flat()
         )
-      ).filter(J5).map((c3) => [T6[c3], D5(parseInt(c3), e, t.instrument, t, n2)])
+      ).filter(J5).map((c4) => [T6[c4], D5(parseInt(c4), e, t.instrument, t, n2)])
     );
   };
   async function ae4(e) {
@@ -36166,10 +36787,10 @@ registerProcessor('${n2}', MyProcessor);
   function X2(e, t, n2) {
     let { time: o = e.currentTime } = n2;
     const {
-      midi: r,
+      midi: r2,
       start: s2,
       velocity: a2 = 0.3,
-      startLoop: c3,
+      startLoop: c4,
       endLoop: i2,
       sampleRate: l2,
       originalPitch: d2,
@@ -36178,9 +36799,9 @@ registerProcessor('${n2}', MyProcessor);
       sampleModes: v2 = 0,
       overridingRootKey: p2,
       fineTune: M3 = 0,
-      startloopAddrsOffset: h = 0,
+      startloopAddrsOffset: h2 = 0,
       startloopAddrsCoarseOffset: g3 = 0,
-      endloopAddrsOffset: y3 = 0,
+      endloopAddrsOffset: y4 = 0,
       endloopAddrsCoarseOffset: E5 = 0,
       delayVolEnv: b2 = -12e3,
       attackVolEnv: A5 = -12e3,
@@ -36189,11 +36810,11 @@ registerProcessor('${n2}', MyProcessor);
       sustainVolEnv: F5 = 0,
       releaseVolEnv: L6 = -12e3,
       pan: P4 = 0,
-      ...Z6
-    } = n2, B6 = 100 * (p2 !== void 0 && p2 !== -1 ? p2 : d2) + u3 - M3, I4 = r * 100 - B6, K4 = 1 * Math.pow(2, I4 / 1200);
+      ...Z5
+    } = n2, B6 = 100 * (p2 !== void 0 && p2 !== -1 ? p2 : d2) + u3 - M3, I4 = r2 * 100 - B6, K4 = 1 * Math.pow(2, I4 / 1200);
     t.playbackRate.value = K4;
-    const j7 = c3 + h + g3 * 32768, S7 = i2 + y3 + E5 * 32768;
-    S7 > j7 && v2 === 1 ? (t.loopStart = j7 / l2, t.loopEnd = S7 / l2, t.loop = true) : v2 === 3 && console.warn("unimplemented sampleMode 3 (play till end on note off)"), Object.keys(Z6).filter(
+    const j7 = c4 + h2 + g3 * 32768, S7 = i2 + y4 + E5 * 32768;
+    S7 > j7 && v2 === 1 ? (t.loopStart = j7 / l2, t.loopEnd = S7 / l2, t.loop = true) : v2 === 3 && console.warn("unimplemented sampleMode 3 (play till end on note off)"), Object.keys(Z5).filter(
       (V5) => !["name", "instrument", "keyRange", "sampleID", "end"].includes(V5)
     ).length;
     const k6 = e.createGain(), H6 = [
@@ -36206,30 +36827,30 @@ registerProcessor('${n2}', MyProcessor);
       m3(N5),
       F5 >= 960 ? 0 : 1 - Q5(F5),
       m3(L6)
-    ], U8 = k6.gain.dahdsr(...H6), R6 = e.createStereoPanner();
-    return R6.pan.value = P4 / 1e3, k6.connect(R6), t.connect(k6), R6.connect(e.destination), t.start(o), (V5 = e.currentTime) => {
+    ], U8 = k6.gain.dahdsr(...H6), R5 = e.createStereoPanner();
+    return R5.pan.value = P4 / 1e3, k6.connect(R5), t.connect(k6), R5.connect(e.destination), t.start(o), (V5 = e.currentTime) => {
       t.stop(V5 + m3(L6)), U8(V5);
     };
   }
   function Y5(e, t, n2 = {}) {
-    const { header: o, data: r } = t, s2 = new Float32Array(r.length);
-    for (let l2 = 0; l2 < r.length; l2++)
-      s2[l2] = r[l2] / 32768;
+    const { header: o, data: r2 } = t, s2 = new Float32Array(r2.length);
+    for (let l2 = 0; l2 < r2.length; l2++)
+      s2[l2] = r2[l2] / 32768;
     const a2 = e.createBuffer(1, s2.length, o.sampleRate);
     a2.getChannelData(0).set(s2);
     const i2 = e.createBufferSource();
     return i2.buffer = a2, n2 = { ...o, ...n2 }, X2(e, i2, n2);
   }
   var C6 = (e, t) => !e.keyRange || e.keyRange.lo <= t && t <= e.keyRange.hi;
-  var x2 = (e, t) => e.zones.filter((o) => C6(o, t) && o.instrument).map((o) => o.instrument.zones.filter((r) => C6(r, t)).map((r) => {
-    const s2 = W7(r, o, e);
+  var x3 = (e, t) => e.zones.filter((o) => C6(o, t) && o.instrument).map((o) => o.instrument.zones.filter((r2) => C6(r2, t)).map((r2) => {
+    const s2 = W6(r2, o, e);
     return {
-      ...r,
+      ...r2,
       mergedGenerators: s2
     };
   })).flat();
   var ce6 = (e, t, n2, o = e.currentTime) => {
-    const s2 = x2(t, n2).map(
+    const s2 = x3(t, n2).map(
       (a2) => Y5(e, a2.sample, {
         ...a2.mergedGenerators,
         midi: n2,
@@ -36237,22 +36858,22 @@ registerProcessor('${n2}', MyProcessor);
       })
     );
     return (a2 = e.currentTime) => {
-      s2.forEach((c3) => c3(a2));
+      s2.forEach((c4) => c4(a2));
     };
   };
 
   // node_modules/@strudel/soundfonts/sfumato.mjs
   init_dist2();
-  init_dist6();
+  init_dist5();
   f2.prototype.soundfont = function(sf2, n2 = 0) {
-    return this.onTrigger((h, ct4, cps, targetTime) => {
+    return this.onTrigger((h2, ct4, cps, targetTime) => {
       const ctx = z2();
-      const note = sh(h);
+      const note = sh(h2);
       const preset2 = sf2.presets[n2 % sf2.presets.length];
       const deadline = targetTime;
       const args = [ctx, preset2, gt2(note), deadline];
       const stop = ce6(...args);
-      stop(deadline + h.duration);
+      stop(deadline + h2.duration);
     });
   };
   var soundfontCache = /* @__PURE__ */ new Map();
@@ -36285,25 +36906,25 @@ registerProcessor('${n2}', MyProcessor);
   var presets = {
     "12ji": [1 / 1, 16 / 15, 9 / 8, 6 / 5, 5 / 4, 4 / 3, 45 / 32, 3 / 2, 8 / 5, 5 / 3, 16 / 9, 15 / 8]
   };
-  function withBase(freq, scale) {
-    return scale.map((r) => r * freq);
+  function withBase(freq, scale2) {
+    return scale2.map((r2) => r2 * freq);
   }
   var defaultBase = 220;
-  function getXenScale(scale, indices) {
-    if (typeof scale === "string") {
-      if (/^[1-9]+[0-9]*edo$/.test(scale)) {
-        scale = edo(scale);
-      } else if (presets[scale]) {
-        scale = presets[scale];
+  function getXenScale(scale2, indices) {
+    if (typeof scale2 === "string") {
+      if (/^[1-9]+[0-9]*edo$/.test(scale2)) {
+        scale2 = edo(scale2);
+      } else if (presets[scale2]) {
+        scale2 = presets[scale2];
       } else {
-        throw new Error('unknown scale name: "' + scale + '"');
+        throw new Error('unknown scale name: "' + scale2 + '"');
       }
     }
-    scale = withBase(defaultBase, scale);
+    scale2 = withBase(defaultBase, scale2);
     if (!indices) {
-      return scale;
+      return scale2;
     }
-    return scale.filter((_7, i2) => indices.includes(i2));
+    return scale2.filter((_7, i2) => indices.includes(i2));
   }
   function xenOffset(xenScale, offset2, index = 0) {
     const i2 = bt2(index + offset2, xenScale.length);
@@ -36312,8 +36933,8 @@ registerProcessor('${n2}', MyProcessor);
   }
   var xen = l("xen", function(scaleNameOrRatios, pat) {
     return pat.withHap((hap) => {
-      const scale = getXenScale(scaleNameOrRatios);
-      const frequency = xenOffset(scale, ce2(hap.value));
+      const scale2 = getXenScale(scaleNameOrRatios);
+      const frequency = xenOffset(scale2, ce2(hap.value));
       return hap.withValue(() => frequency);
     });
   });
@@ -36395,8 +37016,8 @@ registerProcessor('${n2}', MyProcessor);
     n2 = Math.floor(n2 * 1e9) / 1e9;
     return n2;
   };
-  Tune.prototype.loadScale = function(scale) {
-    var freqs = isArrayOfNumbers(scale) ? scale : TuningList[scale].frequencies;
+  Tune.prototype.loadScale = function(scale2) {
+    var freqs = isArrayOfNumbers(scale2) ? scale2 : TuningList[scale2].frequencies;
     this.scale = [];
     for (var i2 = 0; i2 < freqs.length - 1; i2++) {
       this.scale.push(freqs[i2] / freqs[0]);
@@ -36446,8 +37067,8 @@ registerProcessor('${n2}', MyProcessor);
   function isArrayOfNumbers(arg) {
     return Array.isArray(arg) && arg.length > 0 && arg.every((item) => typeof item === "number" && !isNaN(item));
   }
-  Tune.prototype.isValidScale = function(scale) {
-    return !!TuningList[scale] || isArrayOfNumbers(scale);
+  Tune.prototype.isValidScale = function(scale2) {
+    return !!TuningList[scale2] || isArrayOfNumbers(scale2);
   };
   Tune.prototype.chord = function(midis) {
     var output = [];
@@ -36463,12 +37084,12 @@ registerProcessor('${n2}', MyProcessor);
 
   // node_modules/@strudel/xen/tune.mjs
   init_dist2();
-  var tune = l("tune", (scale, pat) => {
+  var tune = l("tune", (scale2, pat) => {
     const tune2 = new Tune();
-    if (!tune2.isValidScale(scale)) {
-      throw new Error('not a valid tune.js scale name: "' + scale + '". See http://abbernie.github.io/tune/scales.html');
+    if (!tune2.isValidScale(scale2)) {
+      throw new Error('not a valid tune.js scale name: "' + scale2 + '". See http://abbernie.github.io/tune/scales.html');
     }
-    tune2.loadScale(scale);
+    tune2.loadScale(scale2);
     tune2.tonicize(1);
     return pat.withHap((hap) => {
       return hap.withValue(() => tune2.note(hap.value));
@@ -36798,8 +37419,8 @@ registerProcessor('${n2}', MyProcessor);
     return division === 0 ? 1 : Math.pow(2, division / edivisions);
   }
   var Intervals = class {
-    constructor(scale) {
-      this.scale = scale;
+    constructor(scale2) {
+      this.scale = scale2;
       this.intLabels = [];
       this.intNoms = [];
       this.intRatios = [];
@@ -36811,10 +37432,10 @@ registerProcessor('${n2}', MyProcessor);
       const labToErr = {};
       const labToInd = {};
       this.ratios[0] = 1;
-      for (let i2 = 0; i2 < scale.length; i2++) {
-        division += scale.stepValue(i2);
-        this.ratios[i2 + 1] = ratio(division, scale.edivisions);
-        if (i2 < scale.length) {
+      for (let i2 = 0; i2 < scale2.length; i2++) {
+        division += scale2.stepValue(i2);
+        this.ratios[i2 + 1] = ratio(division, scale2.edivisions);
+        if (i2 < scale2.length) {
           const nearest = ratios_default.nearestInterval(this.ratios[i2 + 1]);
           const closeness = nearest[0];
           const ratio3 = nearest[1];
@@ -36857,11 +37478,11 @@ registerProcessor('${n2}', MyProcessor);
     intervalError(i2) {
       return this.intErrors[i2];
     }
-    nearestDegreeTo(r, threshold) {
+    nearestDegreeTo(r2, threshold) {
       let min = 1;
       let degree = null;
       for (const [i2, v2] of Object.entries(this.ratios)) {
-        const diff = Math.abs((r - v2) / r);
+        const diff = Math.abs((r2 - v2) / r2);
         if (diff < min) {
           min = diff;
           degree = parseInt(i2, 10);
@@ -36896,8 +37517,8 @@ registerProcessor('${n2}', MyProcessor);
     return 12 * (Math.log(freq / tuning2) / denom) + 69;
   }
   var Pitches = class {
-    constructor(scale, intervals, tuning2, midi_start, root_octave) {
-      this.scale = scale;
+    constructor(scale2, intervals, tuning2, midi_start, root_octave) {
+      this.scale = scale2;
       this.intervals = intervals;
       this.base_freq = midi_to_hz(midi_start, tuning2);
       this.root_octave = root_octave;
@@ -36911,8 +37532,8 @@ registerProcessor('${n2}', MyProcessor);
       for (let oct = 0; oct <= 8; oct++) {
         this.octdegfreqs[oct] = {};
         this.octdegmidis[oct] = {};
-        f4 = get_freq(this.base_freq, scale.edivisions, scale.tonic, oct, this.root_octave);
-        for (let deg = 0; deg < scale.length; deg++) {
+        f4 = get_freq(this.base_freq, scale2.edivisions, scale2.tonic, oct, this.root_octave);
+        for (let deg = 0; deg < scale2.length; deg++) {
           index = index + 1;
           this.freqs[index] = parseFloat((f4 * intervals.ratio(deg)).toFixed(3));
           this.midis[index] = parseFloat(hz_to_midi(f4 * intervals.ratio(deg), tuning2).toFixed(4));
@@ -36966,9 +37587,9 @@ registerProcessor('${n2}', MyProcessor);
       } else {
         const [base_note, sequence, large, small] = scaleDefinition;
         const root_octave = Ue2(base_note)[2] || 3;
-        const scale = new EdoScale(large, small, sequence);
-        const intervals = new Intervals(scale);
-        pitches = new Pitches(scale, intervals, 440, gt2(base_note), root_octave);
+        const scale2 = new EdoScale(large, small, sequence);
+        const intervals = new Intervals(scale2);
+        pitches = new Pitches(scale2, intervals, 440, gt2(base_note), root_octave);
         pitchesCache.set(key, pitches);
       }
       return pat.fmap((value) => {
@@ -37045,6 +37666,90 @@ registerProcessor('${n2}', MyProcessor);
     return results.flatMap((result, index) => result.status === "rejected" ? [BANKS[index]?.[0] || "drum-machine aliases"] : []);
   }
 
+  // src/algorave/strudel-drawing.mjs
+  init_draw2();
+  async function createDrawingHost(engine, visibility) {
+    await xn(draw_exports);
+    const canvases = () => [...document.querySelectorAll("canvas:not([data-drawing-preview])")];
+    let drawer, pending;
+    const stop = () => {
+      drawer?.stop();
+      pauseDraw();
+      pauseAnimation();
+    };
+    const report = () => visibility(canvases().length > 0);
+    const observer = new MutationObserver(() => {
+      if (!pending) report();
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    function prepare() {
+      if (pending) throw Error("A drawing transaction is already active.");
+      drawer?.stop();
+      document.body.dataset.drawingPending = "";
+      const snapshot = {
+        draw: pauseDraw(),
+        animation: pauseAnimation(),
+        drawer,
+        nodes: canvases().map((canvas) => {
+          const marker = canvas.cloneNode(false);
+          marker.removeAttribute("id");
+          marker.dataset.drawingPreview = "";
+          if (canvas.width && canvas.height) marker.getContext("2d").drawImage(canvas, 0, 0);
+          canvas.replaceWith(marker);
+          return { canvas, marker };
+        })
+      };
+      drawer = void 0;
+      pending = snapshot;
+      return {
+        complete(running, pattern = engine.state.pattern) {
+          if (pattern) {
+            const next = new Drawer((haps, time, state, painters) => {
+              const ctx = getDrawContext();
+              ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+              for (const painter of painters) painter(ctx, time, haps, state.drawTime);
+            }, [-2, 2]);
+            next.invalidate(engine.scheduler);
+            if (next.painters.length) {
+              drawer = next;
+              getDrawContext();
+              if (running) drawer.framer.start();
+            }
+          }
+          if (hasDrawCallbacks() || hasAnimation()) getDrawContext();
+          if (!running) stop();
+          disposeDrawCanvases(snapshot.nodes.map((node) => node.canvas));
+          snapshot.nodes.forEach((node) => node.marker.remove());
+          pending = void 0;
+          report();
+          delete document.body.dataset.drawingPending;
+        },
+        rollback(running) {
+          stop();
+          disposeDrawCanvases(canvases());
+          snapshot.nodes.forEach(({ canvas, marker }) => marker.replaceWith(canvas));
+          drawer = snapshot.drawer;
+          restoreDraw(snapshot.draw, running);
+          restoreAnimation(snapshot.animation, running);
+          if (running) drawer?.framer.start();
+          pending = void 0;
+          report();
+          delete document.body.dataset.drawingPending;
+        }
+      };
+    }
+    return { prepare, stop, dispose() {
+      observer.disconnect();
+      stop();
+      disposeDrawCanvases(canvases());
+      if (pending) {
+        disposeDrawCanvases(pending.nodes.map((node) => node.canvas));
+        pending.nodes.forEach((node) => node.marker.remove());
+      }
+      pending = void 0;
+    } };
+  }
+
   // src/algorave/music-runtime.mjs
   var connected = false;
   window.addEventListener("message", async (event) => {
@@ -37103,9 +37808,11 @@ registerProcessor('${n2}', MyProcessor);
           return observed;
         }
       });
+      const drawing = await createDrawingHost(engine, (visible) => send({ type: "drawing", visible }));
       audio.addEventListener("statechange", () => {
         if (!busy && engine.state.started && audio.state !== "running" && audio.state !== "closed") {
           engine.pause();
+          drawing.stop();
           epoch2++;
           events.length = 0;
           send({ type: "runtime-error", error: "Audio output was interrupted. Press Play to resume." });
@@ -37146,6 +37853,7 @@ registerProcessor('${n2}', MyProcessor);
         candidate = null;
         if (next.defer && play) throw Error("An opened project must remain stopped until Play.");
         const previous = { pattern: engine.state.pattern, activeCode: engine.state.activeCode, cps: engine.scheduler.cps, playing: engine.state.started, registry: { ...ae2.get() } };
+        const visual = drawing.prepare();
         try {
           if (!play) await audio.suspend();
           else {
@@ -37169,19 +37877,26 @@ registerProcessor('${n2}', MyProcessor);
             events.length = 0;
           }
           registries.set(++checkpoint, { ...ae2.get() });
+          visual.complete(play, next.defer ? null : engine.state.pattern);
         } catch (error) {
-          restoreRegistry(previous.registry);
-          engine.setCps(previous.cps);
-          if (previous.pattern) await engine.setPattern(previous.pattern, false);
-          engine.state.pattern = previous.pattern;
-          engine.state.activeCode = previous.activeCode;
-          engine.state.isDirty = engine.state.code !== previous.activeCode;
-          if (!previous.playing || current2.stopped) {
-            engine.stop();
-            await audio.suspend();
-          } else {
-            await audio.resume();
-            if (!engine.state.started) await engine.start();
+          let resumed = false;
+          try {
+            restoreRegistry(previous.registry);
+            engine.setCps(previous.cps);
+            if (previous.pattern) await engine.setPattern(previous.pattern, false);
+            engine.state.pattern = previous.pattern;
+            engine.state.activeCode = previous.activeCode;
+            engine.state.isDirty = engine.state.code !== previous.activeCode;
+            if (!previous.playing || current2.stopped) {
+              engine.stop();
+              await audio.suspend();
+            } else {
+              await audio.resume();
+              if (!engine.state.started) await engine.start();
+              resumed = audio.state === "running";
+            }
+          } finally {
+            visual.rollback(resumed);
           }
           throw error;
         }
@@ -37207,6 +37922,7 @@ registerProcessor('${n2}', MyProcessor);
             operation.stopped = true;
           }
           engine.stop();
+          drawing.stop();
           window.postMessage("strudel-stop", "*");
           await audio.suspend();
           epoch2++;
@@ -37264,6 +37980,7 @@ registerProcessor('${n2}', MyProcessor);
       window.addEventListener("pagehide", () => {
         clearInterval(timer);
         engine.stop();
+        drawing.dispose();
         sampleBank.close();
         audio.close();
       });

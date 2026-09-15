@@ -1,7 +1,7 @@
 // The parent accepts data only through its private MessageChannel. Runtime messages
 // are untrusted and never cause storage, network, source edits or HTML insertion.
 export class MusicBridge {
-  constructor(frame, onSignal = () => {}, onError = () => {}, onDiagnostic = () => {}) {
+  constructor(frame, onSignal = () => {}, onError = () => {}, onDiagnostic = () => {}, onDrawing = () => {}) {
     this.frame = frame;
     this.pending = new Map();
     this.nextId = 0;
@@ -15,6 +15,7 @@ export class MusicBridge {
         if (data.type === 'fatal') { clearTimeout(this.readyTimer); reject(Error(String(data.error).slice(0, 2000))); }
         if (data.type === 'runtime-error') onError(Error(String(data.error).slice(0,2000)));
         if (data.type === 'diagnostic') onDiagnostic(Error(String(data.error).slice(0,2000)));
+        if (data.type === 'drawing' && typeof data.visible === 'boolean') onDrawing(data.visible);
         if (data.type === 'reply' && this.pending.has(data.id)) {
           const pending = this.pending.get(data.id);
           this.pending.delete(data.id); clearTimeout(pending.timer);

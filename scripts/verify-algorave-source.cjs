@@ -14,6 +14,8 @@ try{
   assert(manifest.files.some(file=>file.path==='src/algorave/vendor/sfumato/src/index.ts'));
   assert(manifest.files.some(file=>file.path==='src/algorave/vendor/edo/edo.mjs'));
   assert(manifest.files.some(file=>file.path==='src/algorave/vendor/edo/UPSTREAM.json'));
+  assert(manifest.files.some(file=>file.path==='src/algorave/vendor/draw/draw.mjs'));
+  assert(manifest.files.some(file=>file.path==='src/algorave/vendor/draw/upstream/draw.mjs'));
   assert(manifest.files.some(file=>file.path==='node_modules/sfumato/node_modules/soundfont2/src/index.ts'));
   assert(manifest.files.every(file=>!file.path.startsWith('dist/')&&!file.path.startsWith('.git/')));
   for(const file of manifest.files){

@@ -36,6 +36,13 @@ notices, and the source archive includes those exact files. Its original package
 metadata retains workspace dependency declarations; the enclosing application's
 lockfile supplies the actual bundled dependencies.
 
+@strudel/draw 1.2.6 is now bundled from `src/algorave/vendor/draw`, copied from
+the pinned npm package. Its drawing algorithms remain upstream; draw.mjs and
+animate.mjs add lifecycle checkpoint hooks, canvas resize-listener disposal and
+current-size animation rendering. Their original files are preserved in upstream/,
+with all original package-file SHA-256 hashes in UPSTREAM.json. The modified
+source, originals, metadata and AGPL license are included in the source archive.
+
 Three npm packages omit a standalone license file:
 - @tonaljs/progression 4.9.2 declares MIT. Supplement its notices with Tonal's
   umbrella MIT notice, verified at https://github.com/tonaljs/tonal/blob/main/docs/LICENSE

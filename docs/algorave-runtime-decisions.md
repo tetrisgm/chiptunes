@@ -162,12 +162,55 @@ guard interruption, Save → reload also passed: the restored bass source and
 tunnel returned with Play/Ready and no autoplay. The temporary tab was closed.
 No new provider call was made.
 
-Drawing is still unfinished: upstream scope/pianoroll functions can create a
-canvas in the isolated music frame, but that frame is hidden. The next drawing
-integration must display that canvas and handle its animation lifecycle through
-Run/Undo/Stop; exporting names alone would not make the feature usable. Remaining
-REPL modules, Shadertoy inputs/passes, native acceptance, soak and deployment
-remain part of the full goal.
+The subsequent drawing checkpoint below makes the music canvas visible and
+handles Run/Undo/Stop. Inline editor widgets and the remaining REPL modules,
+Shadertoy inputs/passes, native acceptance, soak and deployment remain in scope.
+
+## Visible Strudel drawing — 2026-09-15
+
+Upstream pianoroll, scope/fscope/spectrum, punchcard, spiral, pitchwheel, draw and
+animate now render below the music editor, without modifying GLSL. The isolated
+music frame is revealed only when source creates a drawing. Only a boolean
+visibility message crosses into the parent; callbacks and DOM stay in the opaque
+frame. The draw module is exposed in the normal source evaluation scope.
+
+Drawing callbacks, accumulated haps, theme and canvas nodes are checkpointed
+before evaluation. The previous image stays visible as a frozen canvas copy
+during asynchronous evaluation. On failure, the original canvases/callbacks are
+restored without evaluating the old source again. On success, retired canvases'
+resize listeners are released. Stop pauses both drawing and shape-animation
+callbacks; Play evaluates the current source normally. Open remains deferred and
+stopped. Undo reconstructs the restored source once, like music Undo.
+
+onPaint functions use upstream Drawer with the scheduler's haps and painters.
+Shape animations read current dimensions on each frame so first activation from
+a hidden frame and subsequent resizing do not lock them to zero/stale dimensions.
+These are lifecycle additions to the pinned draw package; original sources and
+hashes are preserved as described in the [distribution record](algorave-distribution.md).
+
+`test:algorave-drawing` exercises all seven standard drawing methods, cyan-pixel
+output from a first-run shape animation, original-file hashes, failed async Run
+with retained pixels/canvas/callbacks, source execution counts, removing drawings
+and Undo, Stop/Play, deferred Open, animation stop and narrow layout. These are
+Chromium checks with an explicit silent audio sink; native/public acceptance is
+separate. Inline underscore widgets, editor highlighting/markcss integration,
+and other upstream REPL modules remain unfinished. This checkpoint does not
+establish full Strudel parity or general JavaScript side-effect reversibility.
+
+Build `b7a618362b2a` passes drawing, runtime and workflow checks, the exact-source
+archive rebuild, both providers' six captured Apply/Undo/re-Apply/reload cases,
+and agent contract checks. Editor/preview checks passed on the preceding drawing
+build `ac3bc95d381f`; later changes add retained pending pixels and unconditional
+drawing rollback after audio restoration. No new provider calls were made.
+
+Native Safari on the visibly identified local `b7a618362b2a` rendered the cyan
+shape animation as its first drawing and then a labeled c3/eb3/g3/bb3 pianoroll.
+Screenshots show both beneath the music editor alongside the separate GLSL rings.
+Safari reported audio output for the pianoroll, without silent-sink injection;
+no acoustic or latency measurement is claimed. The active Safari tab changed
+during further checking, so native scope/Undo remains pending. Only the temporary
+test tab was closed and its replay server stopped. Final public acceptance and
+the new-runtime soak remain open.
 
 ## Image and keyboard channels — 2026-09-15
 
