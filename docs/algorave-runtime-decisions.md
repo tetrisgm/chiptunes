@@ -1788,3 +1788,12 @@ clear, and paused/unloaded video after Stop. The MP4 is generated locally and
 served through a controlled HTTPS route, respecting the runtime media CSP.
 Camera/screen regressions pass. Native URL-media behavior, peer-stream listeners,
 and broader error/continuity/performance acceptance remain pending.
+
+### Hydra peer-stream lifecycle — 2026-09-15
+
+`initStream` now attaches its listener before requesting the stream, so immediate
+responses are accepted. Source changes and Stop detach the listener through
+`off` or `removeListener`; generation checks reject callbacks already queued.
+The existing texture verifier renders a synthetic magenta peer source, checks
+forty replacements retain one listener, and verifies Clear/Stop cancellation.
+This verifies renderer integration and event lifecycle, not a network peer service.

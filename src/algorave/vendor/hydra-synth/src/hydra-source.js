@@ -87,18 +87,21 @@ class HydraSource {
 
   initStream (streamName, params) {
     this.stopCapture()
-    //  console.log("initing stream!", streamName)
-    let self = this
+    const version = this.sourceVersion
     if (streamName && this.pb) {
-      this.pb.initSource(streamName)
-
-      this.pb.on('got video', function (nick, video) {
-        if (nick === streamName) {
-          self.src = video
-          self.dynamic = true
-          self.replaceTexture({ data: self.src, ...params})
-        }
-      })
+      const peer = this.pb
+      const loaded = (nick, video) => {
+        if (version !== this.sourceVersion || nick !== streamName) return
+        this.replaceTexture({ data: video, ...params })
+        this.src = video
+        this.dynamic = true
+      }
+      this.pendingCleanup = () => {
+        if (peer.off) peer.off('got video', loaded)
+        else peer.removeListener?.('got video', loaded)
+      }
+      peer.on('got video', loaded)
+      peer.initSource(streamName)
     }
   }
 

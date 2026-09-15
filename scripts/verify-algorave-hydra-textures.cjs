@@ -24,7 +24,29 @@ for(const file of provenance.files){const target=path.join(vendor,provenance.mod
     return {initial,final:hydraProbe.regl.stats.textureCount,dimensions,pixel:[...pixel]};
   });
   assert.equal(result.initial,result.final);assert.deepEqual(result.dimensions,[71,96]);assert(result.pixel[0]<10&&result.pixel[1]>240&&result.pixel[2]>240,JSON.stringify(result));
+  await frame.evaluate(()=>{
+    const source=hydraProbe.s[0],listeners=new Set();
+    const canvas=document.createElement('canvas');canvas.width=canvas.height=32;
+    const ctx=canvas.getContext('2d');ctx.fillStyle='magenta';ctx.fillRect(0,0,32,32);
+    source.pb={on:(event,fn)=>listeners.add(fn),off:(event,fn)=>listeners.delete(fn),initSource:name=>{for(const fn of listeners)fn(name,canvas)}};
+    for(let i=0;i<40;i++)source.initStream('fixture');
+    if(listeners.size!==1||source.src!==canvas)throw Error('Peer listeners grew or synchronous stream was missed');
+    hydraProbe.tick(0);
+    const gl=hydraProbe.canvas.getContext('webgl'),pixel=new Uint8Array(4);gl.readPixels(0,0,1,1,gl.RGBA,gl.UNSIGNED_BYTE,pixel);
+    if(pixel[0]<240||pixel[1]>10||pixel[2]<240)throw Error('Peer source did not render');
+    const late=[...listeners][0];source.clear();late('fixture',canvas);
+    if(listeners.size||source.src!==null)throw Error('Cleared peer source was replaced');
+    source.pb.removeListener=source.pb.off;delete source.pb.off;
+    source.initStream('fixture');
+    globalThis.peerProbe={source,listeners,late:[...listeners][0],canvas};
+  });
   await page.locator('#play').click();await page.waitForFunction(()=>!algoravePreview.playing);
-  console.log('PASS: 40 Hydra source replacements and clears retain '+result.initial+' textures; width-only and height-only canvas/texture resizing render actual cyan pixels.');
+  await frame.evaluate(()=>{
+    const {source,listeners,late,canvas}=peerProbe;
+    if(listeners.size)throw Error('Stop retained peer listener');
+    source.src=null;late('fixture',canvas);
+    if(source.src!==null)throw Error('Stopped peer callback remained active');
+  });
+  console.log('PASS: 40 Hydra source replacements and clears retain '+result.initial+' textures; width-only and height-only canvas/texture resizing render actual cyan pixels; peer sources render magenta, retain one listener, and cancel on clear/Stop.');
  }finally{await browser.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
 })().catch(e=>{console.error(e);process.exitCode=1;});

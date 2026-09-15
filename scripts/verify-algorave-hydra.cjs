@@ -17,7 +17,7 @@ const root=path.resolve(__dirname,'../.algorave-preview');
   await frame.waitForFunction(()=>time>0,null,{polling:50});
   await frame.evaluate(()=>{globalThis.oldHydra=hydraProbe;globalThis.oldGL=hydraProbe.canvas.getContext('webgl');});
   const changed=source.replace('1,0,0,1','0,1,0,1');await page.getByLabel('Strudel music').fill(changed);await page.locator('#run').click();
-  await page.waitForFunction(source=>algoravePreview.session.applied.music===source,changed);
+  await page.waitForFunction(source=>algoravePreview.session.applied.music===source,changed).catch(async e=>{console.error(await page.locator("#status").innerText());throw e;});
   await frame.waitForFunction(()=>{tick(0);const gl=document.getElementById('hydra-canvas').getContext('webgl'),p=new Uint8Array(4);gl.readPixels(0,0,1,1,gl.RGBA,gl.UNSIGNED_BYTE,p);return p[1]>240&&p[0]<10;},null,{polling:50});
   assert(await frame.evaluate(()=>oldGL.isContextLost()&&oldHydra.captureStream.getTracks().every(t=>t.readyState==='ended')));
   await frame.evaluate(()=>{globalThis.goodCanvas=hydraProbe.canvas;globalThis.goodSolid=solid;});

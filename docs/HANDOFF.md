@@ -112,8 +112,10 @@ Camera/screen late-grant and active-Stop checks also pass with synthetic streams
 Source texture replacement now releases old textures and handles one-axis
 resizing; a real-renderer check retains 12 textures across forty replacements and
 forty clears. URL image/video callbacks now cancel on source changes, and Stop
-unloads owned videos; real image/MP4 pixel and stale-callback checks pass. Native
-device/URL-media acceptance, peer-stream listeners and broader continuity/performance remain
+unloads owned videos; real image/MP4 pixel and stale-callback checks pass. Peer
+listeners now detach on source changes/Stop; synthetic peer pixels, synchronous
+delivery and late-callback checks pass. Native
+device/URL-media acceptance and broader continuity/performance remain
 pending. See the
 [Hydra checkpoint](algorave-runtime-decisions.md#hydra-integration--2026-09-15).
 

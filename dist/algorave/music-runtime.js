@@ -60085,16 +60085,21 @@ ${JSON.stringify(t2, null, 2)}`);
     }
     initStream(streamName, params) {
       this.stopCapture();
-      let self2 = this;
+      const version2 = this.sourceVersion;
       if (streamName && this.pb) {
-        this.pb.initSource(streamName);
-        this.pb.on("got video", function(nick, video) {
-          if (nick === streamName) {
-            self2.src = video;
-            self2.dynamic = true;
-            self2.replaceTexture({ data: self2.src, ...params });
-          }
-        });
+        const peer = this.pb;
+        const loaded = (nick, video) => {
+          if (version2 !== this.sourceVersion || nick !== streamName) return;
+          this.replaceTexture({ data: video, ...params });
+          this.src = video;
+          this.dynamic = true;
+        };
+        this.pendingCleanup = () => {
+          if (peer.off) peer.off("got video", loaded);
+          else peer.removeListener?.("got video", loaded);
+        };
+        peer.on("got video", loaded);
+        peer.initSource(streamName);
       }
     }
     // index only relevant in atom-hydra + desktop apps
