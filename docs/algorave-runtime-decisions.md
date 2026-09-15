@@ -1450,3 +1450,19 @@ retain previous audio when a candidate fails. Verify the complete UI and native
 Safari before claiming Sound support. Legacy one-argument mainSound remains
 unverified. Reference: [Shadertoy Sound help](https://www.shadertoy.com/view/XsfcWj)
 and an [independent native renderer](https://gist.github.com/camthesaxman/0af28359307a2f122417010e5ddecfb2).
+
+### Finite Sound playback
+
+The shared audio resource accepts `loop:false` for generated Sound buffers.
+It preserves the offset on Stop, resumes on Play, stops at buffer duration,
+clears the analysis texture when ended, and restarts after a Stop/Play cycle.
+Existing external file inputs keep their looping behavior. The Sound renderer's
+`iDate` month now matches the existing visual runtime's zero-based month.
+
+The Sound test renders an original one-second sine shader, plays its actual
+AudioBuffer into Chromium's explicit silent sink, verifies nonzero FFT output,
+then checks exact stopped offset, resume, finite end, silence and replay.
+The full external-audio/microphone suite also passes on `c98f4e88d40d`, including
+channel Run/Undo, permission fixture cleanup and saved reload. No physical
+microphone or speaker verification was performed. The editor and transactional
+Sound integration remain pending; this is not a user-facing Sound release.

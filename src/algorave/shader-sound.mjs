@@ -47,7 +47,7 @@ void main(){
     g.disable(g.DITHER);g.disable(g.BLEND);g.viewport(0,0,SIZE,SIZE);g.useProgram(program);
     g.uniform1f(g.getUniformLocation(program,'iSampleRate'),sampleRate);
     for(let i=0;i<4;i++)g.uniform1i(g.getUniformLocation(program,'iChannel'+i),i);
-    const date=new Date();g.uniform4f(g.getUniformLocation(program,'iDate'),date.getFullYear(),date.getMonth()+1,date.getDate(),date.getHours()*3600+date.getMinutes()*60+date.getSeconds()+date.getMilliseconds()/1000);
+    const date=new Date();g.uniform4f(g.getUniformLocation(program,'iDate'),date.getFullYear(),date.getMonth(),date.getDate(),date.getHours()*3600+date.getMinutes()*60+date.getSeconds()+date.getMilliseconds()/1000);
     const buffer=new AudioBuffer({numberOfChannels:2,length:Math.ceil(sampleRate*duration),sampleRate});
     const left=buffer.getChannelData(0),right=buffer.getChannelData(1),bytes=new Uint8Array(BLOCK*4),offset=g.getUniformLocation(program,'ctSampleOffset');
     for(let start=0;start<buffer.length;start+=BLOCK){

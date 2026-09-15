@@ -25390,11 +25390,16 @@ async function decodeShaderAudio(blob, { signal: signal2 } = {}) {
 async function loadShaderAudio(src, options = {}) {
   return decodeShaderAudio(await fetchShaderBlob(src, { signal: options.signal, types: AUDIO_TYPES }), options);
 }
-function createShaderAudio(hub, { buffer = null, microphone = false } = {}) {
+function createShaderAudio(hub, { buffer = null, microphone = false, loop = true } = {}) {
   let refs = 1, closed = false, wanted = false, generation = 0, source = null, stream = null, analyser = null, started = 0, offset = 0;
   const bytes = new Uint8Array(1024);
   bytes.fill(128, 512);
-  const clock = () => source ? microphone ? hub.context.currentTime - started : (offset + hub.context.currentTime - started) % buffer.duration : offset;
+  const clock = () => {
+    if (!source) return offset;
+    const elapsed = hub.context.currentTime - started;
+    if (microphone) return elapsed;
+    return loop ? (offset + elapsed) % buffer.duration : Math.min(buffer.duration, offset + elapsed);
+  };
   const stop = () => {
     generation++;
     if (source) {
@@ -25409,7 +25414,7 @@ function createShaderAudio(hub, { buffer = null, microphone = false } = {}) {
     bytes.fill(128, 512);
   };
   const resource = {
-    kind: microphone ? "mic" : "music",
+    kind: microphone ? "mic" : loop ? "music" : "sound",
     width: 512,
     height: 2,
     bytes,
@@ -25466,8 +25471,18 @@ function createShaderAudio(hub, { buffer = null, microphone = false } = {}) {
         } else {
           source = context.createBufferSource();
           source.buffer = buffer;
-          source.loop = true;
+          source.loop = loop;
+          if (!loop && offset >= buffer.duration) offset = 0;
           connect();
+          const active = source;
+          active.onended = () => {
+            if (source !== active || token !== generation) return;
+            offset = buffer.duration;
+            active.disconnect();
+            source = null;
+            bytes.fill(0, 0, 512);
+            bytes.fill(128, 512);
+          };
           source.start(0, offset);
         }
       };
@@ -27436,7 +27451,7 @@ bridge = new MusicBridge(frame, (next) => {
 await bridge.ready;
 lock(false);
 status.textContent = session.recoveryError || initialVisualError || "Ready \xB7 \u2318/Ctrl Enter to run";
-$("build").textContent = "Algorave bdef744db0a3";
+$("build").textContent = "Algorave f02f9dbebb5a";
 function draw(now) {
   shader2.render({ playing, time: now / 1e3, delta: last2 ? (now - last2) / 1e3 : 0, ...signals.at(performance.timeOrigin + now) });
   last2 = now;

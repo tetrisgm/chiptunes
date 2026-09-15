@@ -16,12 +16,17 @@ export async function decodeShaderAudio(blob,{signal}={}){
   return buffer;
 }
 export async function loadShaderAudio(src,options={}){return decodeShaderAudio(await fetchShaderBlob(src,{signal:options.signal,types:AUDIO_TYPES}),options);}
-export function createShaderAudio(hub,{buffer=null,microphone=false}={}){
+export function createShaderAudio(hub,{buffer=null,microphone=false,loop=true}={}){
   let refs=1,closed=false,wanted=false,generation=0,source=null,stream=null,analyser=null,started=0,offset=0;
   const bytes=new Uint8Array(1024);bytes.fill(128,512);
-  const clock=()=>source?(microphone?hub.context.currentTime-started:(offset+hub.context.currentTime-started)%buffer.duration):offset;
+  const clock=()=>{
+    if(!source)return offset;
+    const elapsed=hub.context.currentTime-started;
+    if(microphone)return elapsed;
+    return loop?(offset+elapsed)%buffer.duration:Math.min(buffer.duration,offset+elapsed);
+  };
   const stop=()=>{generation++;if(source){offset=clock();if(!microphone)source.stop();source.disconnect();source=null;}if(stream)stream.getTracks().forEach(track=>track.stop());stream=null;bytes.fill(0,0,512);bytes.fill(128,512);};
-  const resource={kind:microphone?'mic':'music',width:512,height:2,bytes,sampleCount:buffer?buffer.length*buffer.numberOfChannels:0,get time(){return clock();},
+  const resource={kind:microphone?'mic':loop?'music':'sound',width:512,height:2,bytes,sampleCount:buffer?buffer.length*buffer.numberOfChannels:0,get time(){return clock();},
     retain(){if(closed)throw Error('Audio input was released.');refs++;return resource;},
     setPlaying(value,onError=()=>{}){
       if(closed||wanted===value)return;wanted=value;if(!value){stop();return;}
@@ -39,7 +44,7 @@ export function createShaderAudio(hub,{buffer=null,microphone=false}={}){
           if(closed||token!==generation||!wanted){acquired.getTracks().forEach(track=>track.stop());return;}
           stream=acquired;source=context.createMediaStreamSource(stream);offset=0;
           stream.getTracks().forEach(track=>track.addEventListener('ended',()=>fail(Error('microphone access ended')),{once:true}));connect();
-        }else{source=context.createBufferSource();source.buffer=buffer;source.loop=true;connect();source.start(0,offset);}
+        }else{source=context.createBufferSource();source.buffer=buffer;source.loop=loop;if(!loop&&offset>=buffer.duration)offset=0;connect();const active=source;active.onended=()=>{if(source!==active||token!==generation)return;offset=buffer.duration;active.disconnect();source=null;bytes.fill(0,0,512);bytes.fill(128,512);};source.start(0,offset);}
       };
       begin().catch(fail);
     },
