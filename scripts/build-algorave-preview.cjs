@@ -21,7 +21,7 @@ function build({out=path.join(root,'.algorave-preview')}={}){
       format:entry==='preview.mjs'?'esm':'iife',platform:'browser',target:'es2022',minify:false,legalComments:'inline',
       // Bundle upstream source, not its prebundled distribution, so the input
       // graph records every dependency for notices and corresponding source.
-      alias:{'@strudel/web':path.join(root,'node_modules/@strudel/web/web.mjs'),'@strudel/soundfonts':path.join(root,'node_modules/@strudel/soundfonts/index.mjs'),'@strudel/xen':path.join(root,'node_modules/@strudel/xen/index.mjs'),'@strudel/draw':path.join(root,'src/algorave/vendor/draw/index.mjs')},
+      alias:{'@strudel/osc':path.join(root,'node_modules/@strudel/osc/osc.mjs'),'@strudel/web':path.join(root,'node_modules/@strudel/web/web.mjs'),'@strudel/soundfonts':path.join(root,'node_modules/@strudel/soundfonts/index.mjs'),'@strudel/xen':path.join(root,'node_modules/@strudel/xen/index.mjs'),'@strudel/draw':path.join(root,'src/algorave/vendor/draw/index.mjs')},
       define:{BUILD_ID:JSON.stringify('Algorave '+buildId)}});
     Object.keys(result.metafile.inputs).forEach(file=>inputs.add(file));
   }

@@ -9,6 +9,8 @@ try{
   assert(manifest.files.some(file=>file.path==='src/algorave/music-runtime.mjs'));
   for(const name of ['image-assets','image-persistence','project-assets','shader-volume'])assert(manifest.files.some(file=>file.path==='src/algorave/'+name+'.mjs'));
   assert(manifest.files.some(file=>file.path==='node_modules/@strudel/web/web.mjs'));
+  assert(manifest.files.some(file=>file.path==='node_modules/@strudel/osc/osc.mjs'));
+  assert(manifest.files.some(file=>file.path==='node_modules/@strudel/osc/server.js'));
   assert(manifest.files.some(file=>file.path==='node_modules/@strudel/webaudio/webaudio.mjs'));
   assert(manifest.files.some(file=>file.path==='node_modules/@strudel/core/pattern.mjs'));
   assert(manifest.files.some(file=>file.path==='node_modules/@strudel/soundfonts/fontloader.mjs'));

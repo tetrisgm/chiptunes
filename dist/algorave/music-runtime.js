@@ -20303,7 +20303,7 @@ registerProcessor('${n2}', MyProcessor);
         symbols: () => symbols
       });
       module.exports = __toCommonJS(chord_type_exports);
-      var import_core16 = require_dist18();
+      var import_core17 = require_dist18();
       var import_pcset = require_dist11();
       var CHORDS = [
         ["1P 3M 5P", "major", "M ^  maj"],
@@ -20442,7 +20442,7 @@ registerProcessor('${n2}', MyProcessor);
       function get(type) {
         return index[type] || NoChordType;
       }
-      var chordType = (0, import_core16.deprecate)("ChordType.chordType", "ChordType.get", get);
+      var chordType = (0, import_core17.deprecate)("ChordType.chordType", "ChordType.get", get);
       function names() {
         return dictionary.map((chord) => chord.name).filter((x4) => x4);
       }
@@ -20455,7 +20455,7 @@ registerProcessor('${n2}', MyProcessor);
       function all() {
         return dictionary.slice();
       }
-      var entries = (0, import_core16.deprecate)("ChordType.entries", "ChordType.all", all);
+      var entries = (0, import_core17.deprecate)("ChordType.entries", "ChordType.all", all);
       function removeAll() {
         dictionary = [];
         index = {};
@@ -20779,7 +20779,7 @@ registerProcessor('${n2}', MyProcessor);
       module.exports = __toCommonJS(chord_exports);
       var import_chord_detect = require_dist13();
       var import_chord_type = require_dist19();
-      var import_core16 = require_dist18();
+      var import_core17 = require_dist18();
       var import_core22 = require_dist18();
       var import_pcset = require_dist11();
       var import_scale_type = require_dist20();
@@ -20883,12 +20883,12 @@ registerProcessor('${n2}', MyProcessor);
       }
       function degrees(chordName) {
         const { intervals, tonic } = get(chordName);
-        const transpose2 = (0, import_core16.tonicIntervalsTransposer)(intervals, tonic);
+        const transpose2 = (0, import_core17.tonicIntervalsTransposer)(intervals, tonic);
         return (degree) => degree ? transpose2(degree > 0 ? degree - 1 : degree) : "";
       }
       function steps(chordName) {
         const { intervals, tonic } = get(chordName);
-        return (0, import_core16.tonicIntervalsTransposer)(intervals, tonic);
+        return (0, import_core17.tonicIntervalsTransposer)(intervals, tonic);
       }
       var chord_default = {
         getChord,
@@ -37621,6 +37621,74 @@ registerProcessor('${n2}', MyProcessor);
   // src/algorave/vendor/edo/index.mjs
   var packageName = "@strudel/edo";
 
+  // node_modules/@strudel/osc/osc.mjs
+  var osc_exports = {};
+  __export(osc_exports, {
+    osc: () => osc,
+    oscTrigger: () => oscTrigger,
+    parseControlsFromHap: () => parseControlsFromHap
+  });
+  init_dist2();
+  var connection;
+  function connect() {
+    if (!connection) {
+      connection = new Promise((resolve, reject) => {
+        const ws2 = new WebSocket("ws://localhost:8080");
+        ws2.addEventListener("open", (event) => {
+          E2(`[osc] websocket connected`);
+          resolve(ws2);
+        });
+        ws2.addEventListener("close", (event) => {
+          E2(`[osc] websocket closed`);
+          connection = void 0;
+          console.log("[osc] disconnected");
+          reject("OSC connection closed");
+        });
+        ws2.addEventListener("error", (err) => reject(err));
+      }).catch((err) => {
+        connection = void 0;
+        throw new Error("Could not connect to OSC server. Is it running?");
+      });
+    }
+    return connection;
+  }
+  function parseControlsFromHap(hap, cps) {
+    hap.ensureObjectValue();
+    const cycle = hap.wholeOrPart().begin.valueOf();
+    const delta = hap.duration.valueOf() / cps;
+    const controls = Object.assign({}, { cps, cycle, delta }, hap.value);
+    controls.n && (controls.n = ce2(controls.n));
+    if (typeof controls.note !== "undefined") {
+      if (Mt2(controls.note)) {
+        controls.midinote = gt2(controls.note, controls.octave || 3);
+      } else {
+        controls.note = ce2(controls.note);
+      }
+    }
+    controls.bank && (controls.s = controls.bank + controls.s);
+    controls.roomsize && (controls.size = ce2(controls.roomsize));
+    controls.unit === "c" && controls.speed != null && (controls.speed = controls.speed / cps);
+    const channels = controls.channels;
+    channels != void 0 && (controls.channels = JSON.stringify(channels));
+    return controls;
+  }
+  var collator = new _n({});
+  async function oscTrigger(hap, currentTime, cps = 1, targetTime) {
+    const ws2 = await connect();
+    const controls = parseControlsFromHap(hap, cps);
+    const keyvals = Object.entries(controls).flat();
+    const ts2 = collator.calculateTimestamp(currentTime, targetTime) * 1e3;
+    const msg = { address: "/dirt/play", args: keyvals, timestamp: ts2 };
+    if ("oschost" in hap.value) {
+      msg["host"] = hap.value["oschost"];
+    }
+    if ("oscport" in hap.value) {
+      msg["port"] = hap.value["oscport"];
+    }
+    ws2.send(JSON.stringify(msg));
+  }
+  var osc = l("osc", (pat) => pat.onTrigger(oscTrigger));
+
   // src/algorave/vendor/gamepad/index.mjs
   var gamepad_exports = {};
   __export(gamepad_exports, {
@@ -37836,7 +37904,7 @@ registerProcessor('${n2}', MyProcessor);
     return response.json();
   }
   async function registerDefaultSounds() {
-    await xn(soundfonts_exports, xen_exports, edo_exports, gamepad_exports);
+    await xn(soundfonts_exports, xen_exports, edo_exports, gamepad_exports, osc_exports);
     hc2();
     registerSoundfonts();
     await ao2(DIRT, `${CDN}/Dirt-Samples/`, { prebake: true });
@@ -37946,16 +38014,22 @@ registerProcessor('${n2}', MyProcessor);
       if (typeof detail?.message === "string" && (detail.type === "error" || /^\[[^\]]+\] error:/.test(detail.message)))
         send({ type: "diagnostic", error: detail.message.slice(0, 2e3) });
     });
+    window.addEventListener("unhandledrejection", (event2) => {
+      let error = String(event2.reason?.message || event2.reason || "Asynchronous music error.").slice(0, 1800);
+      if (error.includes("Could not connect to OSC server")) error += " Check the bridge and your browser\u2019s local-network permission.";
+      send({ type: "diagnostic", error });
+      event2.preventDefault();
+    });
     try {
       const audio = z2();
       const output = audio.createGain(), analyser = audio.createAnalyser();
       analyser.fftSize = 1024;
       analyser.smoothingTimeConstant = 0.5;
-      const connect = AudioNode.prototype.connect, disconnect = AudioNode.prototype.disconnect;
-      connect.call(output, audio.destination);
-      connect.call(output, analyser);
+      const connect2 = AudioNode.prototype.connect, disconnect = AudioNode.prototype.disconnect;
+      connect2.call(output, audio.destination);
+      connect2.call(output, analyser);
       AudioNode.prototype.connect = function(destination, ...args) {
-        const result = connect.call(this, destination === audio.destination ? output : destination, ...args);
+        const result = connect2.call(this, destination === audio.destination ? output : destination, ...args);
         return destination === audio.destination ? destination : result;
       };
       AudioNode.prototype.disconnect = function(...args) {

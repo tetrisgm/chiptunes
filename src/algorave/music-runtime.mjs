@@ -21,6 +21,14 @@ window.addEventListener('message', async event => {
     if(typeof detail?.message==='string'&&(detail.type==='error'||/^\[[^\]]+\] error:/.test(detail.message)))
       send({type:'diagnostic',error:detail.message.slice(0,2000)});
   });
+  // Some upstream onTrigger integrations launch promises without returning them.
+  // Keep asynchronous connection failures visible in the same status area.
+  window.addEventListener('unhandledrejection',event=>{
+    let error=String(event.reason?.message||event.reason||'Asynchronous music error.').slice(0,1800);
+    if(error.includes('Could not connect to OSC server'))error+=' Check the bridge and your browser’s local-network permission.';
+    send({type:'diagnostic',error});
+    event.preventDefault();
+  });
   try {
     const audio=getAudioContext();
     // Observe the context's complete output, including upstream dough() and

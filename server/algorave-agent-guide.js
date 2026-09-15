@@ -53,6 +53,12 @@ Example:
 setcpm(30)
 $: s("bd*4, [~ hh]*4, ~ sd ~ sd").gain(.5)
 $: note("<c2 eb2 f2 g2>").s("sawtooth").lpf(700).gain(.2)
+OSC output uses the upstream .osc() pattern method and parseControlsFromHap/oscTrigger.
+It connects to the user’s separately running Strudel OSC bridge at localhost:8080;
+the app does not install or start that bridge. Browsers may require local-network
+permission for this site. Use only when the user requests OSC
+or external synthesis. Normal patterns use Web Audio. .oschost()/.oscport() select
+the bridge’s destination; never invent a remote destination.
 Use .fast(2), .slow(2), .rev(), .gain(), .lpf(), .decay(), .sustain() and normal
 Strudel transforms; keep code compact enough to perform. Never manufacture an
 unrelated fixed oscillator clock to approximate a requested pattern.

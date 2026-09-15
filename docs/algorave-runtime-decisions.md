@@ -166,6 +166,53 @@ The subsequent drawing checkpoint below makes the music canvas visible and
 handles Run/Undo/Stop. Inline editor widgets and the remaining REPL modules,
 Shadertoy inputs/passes, native acceptance, soak and deployment remain in scope.
 
+## OSC output — 2026-09-15
+
+The music scope now exposes the unchanged published @strudel/osc 1.3.2 module,
+including .osc(), oscTrigger and parseControlsFromHap. Its dependency is the same
+@strudel/core 1.2.6 used by this runtime. Current repository-main OSC source instead
+requires newer Web Audio clock APIs absent from the published audio package; the
+published matching module is used without approximating those APIs. The build
+bundles its preferred osc.mjs source, and the corresponding source archive also
+contains its server.js. No OSC bridge or persistent service is installed/started.
+
+The module opens ws://localhost:8080 only when an OSC pattern triggers. Its
+/dirt/play payload, control conversion, destination fields and clock-collated
+Unix-millisecond timestamps retain upstream behavior. External SuperDirt/
+SuperCollider setup remains the same prerequisite described in
+[Strudel's OSC documentation](https://strudel.cc/learn/input-output/).
+A source Undo changes future events; it cannot retract already transmitted
+messages or reverse state in external instruments.
+
+The opaque frame retains sandbox=allow-scripts. Its CSP admits that fixed loopback
+WebSocket endpoint, and its allow policy delegates the browser's loopback-network
+and legacy local-network-access permission. This does not grant permission on the
+user's behalf. Chromium's denial was observed as
+ERR_BLOCKED_BY_LOCAL_NETWORK_ACCESS_CHECKS; granting permission to the top-level
+test origin allowed real traffic from the opaque frame. See the
+[Local Network Access specification](https://wicg.github.io/local-network-access/).
+Asynchronous rejected trigger promises now reach the status area, including a
+bridge/browser-permission hint for an unavailable OSC connection.
+
+Build `324ab00cd821` passes `test:algorave-osc`: actual secure-page WebSocket
+traffic to a temporary loopback receiver, opaque origin, control conversion,
+timestamps/destinations, denied permission with no traffic followed by a granted
+permission, connection reuse/reconnect, Run/Undo note changes, Stop, deferred
+reload, resumed output and visible unavailable-bridge errors. The test binds its
+own receiver before playing; if port 8080 is occupied it fails without connecting
+to the existing service. It never forwards UDP or drives a synthesizer.
+Runtime isolation/cancellation/rollback, all six real captured provider UI flows
+and the agent contract also pass. No new provider calls were made.
+
+Native Safari on local visible `324ab00cd821` sent the original c3/e3/g3/b3
+pattern to that temporary receiver, changed to c4/e4/g4/b4 with Run, then restored
+the prior source and transmitted notes with Undo. Receiver logs confirmed the
+changes. Stop and reload produced no further messages; reload retained source
+with Play/Ready. The temporary native tab and both local listeners closed.
+This proves local Safari and secure Chromium integration, not physical synth
+output or final production-origin permission acceptance. Full remaining scope
+includes other Strudel REPL modules, shader media/Sound/VR and public deployment.
+
 ## Gamepad pattern inputs — 2026-09-15
 
 The music scope now exposes the unchanged upstream @strudel/gamepad 1.2.6 module

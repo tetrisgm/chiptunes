@@ -26995,12 +26995,12 @@ var frame = document.createElement("iframe");
 frame.hidden = true;
 frame.id = "music-drawing";
 frame.setAttribute("sandbox", "allow-scripts");
-frame.setAttribute("allow", "autoplay; gamepad *");
+frame.setAttribute("allow", "autoplay; gamepad *; local-network-access *; loopback-network *");
 frame.title = "Strudel music drawing";
 var response = await fetch("music-runtime.js");
 if (!response.ok) throw Error("Music engine could not load.");
 var script = await response.text();
-frame.srcdoc = `<!doctype html><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' blob: data: https:; worker-src blob: data:; connect-src blob: data: https: http:; img-src blob: data: https:; media-src blob: data: https:; style-src 'unsafe-inline'"><style>body{margin:0;background:#161821;color:#dbdbe9;overflow:hidden}body[data-drawing-pending] canvas:not([data-drawing-preview]){visibility:hidden!important}</style><body><script>${script.replace(/<\/script/gi, "<\\/script")}<\/script>`;
+frame.srcdoc = `<!doctype html><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' blob: data: https:; worker-src blob: data:; connect-src blob: data: https: http: ws://localhost:8080; img-src blob: data: https:; media-src blob: data: https:; style-src 'unsafe-inline'"><style>body{margin:0;background:#161821;color:#dbdbe9;overflow:hidden}body[data-drawing-pending] canvas:not([data-drawing-preview]){visibility:hidden!important}</style><body><script>${script.replace(/<\/script/gi, "<\\/script")}<\/script>`;
 await new Promise((resolve) => {
   frame.onload = resolve;
   $("music-editor").append(frame);
@@ -27018,7 +27018,7 @@ bridge = new MusicBridge(frame, (next) => {
 await bridge.ready;
 lock(false);
 status.textContent = session.recoveryError || initialVisualError || "Ready \xB7 \u2318/Ctrl Enter to run";
-$("build").textContent = "Algorave 6e2c54863c46";
+$("build").textContent = "Algorave 324ab00cd821";
 function draw(now) {
   shader2.render({ time: now / 1e3, delta: last2 ? (now - last2) / 1e3 : 0, ...signals.at(performance.timeOrigin + now) });
   last2 = now;
