@@ -1,0 +1,7 @@
+{
+  "package": "@strudel/codemirror",
+  "version": "1.2.6",
+  "source": "https://registry.npmjs.org/@strudel/codemirror/-/codemirror-1.2.6.tgz",
+  "widgetSha256": "c6bcc1ff9ce0ccc3cf2e4a6812f293b21aec775c5a3802de71f3147dbe135378",
+  "adaptation": "Drawing registrations extracted; canvases remain inside the isolated runtime and participate in drawing transactions. Inline placement pending."
+}

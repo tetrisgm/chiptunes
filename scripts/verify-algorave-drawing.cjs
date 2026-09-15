@@ -34,6 +34,21 @@ for(const file of upstream.files){
       assert.equal(await frame.evaluate(()=>document.querySelectorAll('canvas').length),1);
       console.log('PASS upstream drawing: '+method);
     }
+    for(const method of ['_pianoroll','_scope','_spectrum','_punchcard','_spiral','_pitchwheel']){
+      await run('setcpm(120); note("c3 eb3 g3 bb3").s("sawtooth").gain(.15).'+method+'()');
+      assert.equal(await page.locator('#status').textContent(),'Music updated',method);
+      await frame.waitForFunction(()=>{const c=document.querySelector('canvas[data-inline-drawing]');return c&&c.width>0&&c.getContext('2d').getImageData(0,0,c.width,c.height).data.some((n,i)=>i%4===3&&n>0);},null,{polling:50});
+      assert.equal(await frame.evaluate(()=>document.querySelectorAll('canvas[data-inline-drawing]').length),1);
+      console.log('PASS upstream widget drawing: '+method);
+    }
+    const pair='stack(note("c3*4").s("sawtooth")._scope(), note("g3*4").s("triangle")._scope())';
+    await run(pair);
+    await frame.waitForFunction(()=>{const cs=[...document.querySelectorAll('canvas[data-inline-drawing]')];return cs.length===2&&cs.every(c=>c.getContext('2d').getImageData(0,0,c.width,c.height).data.some((v,i)=>i%4===3&&v>0));},null,{polling:50});
+    const ids=await frame.evaluate(()=>[...document.querySelectorAll('canvas[data-inline-drawing]')].map(c=>c.id));assert.equal(new Set(ids).size,2);
+    await frame.evaluate(()=>window.widgetCanvases=[...document.querySelectorAll('canvas[data-inline-drawing]')]);
+    await run(pair+'; missingDrawingFunction()');
+    assert.equal(await page.evaluate(()=>algoravePreview.session.applied.music),pair);
+    assert(await frame.evaluate(()=>widgetCanvases.every(c=>c.isConnected)&&document.querySelectorAll('canvas[data-inline-drawing]').length===2));
     const source="globalThis.evaluations=(globalThis.evaluations||0)+1; const ctx=getDrawContext(); note(\"c3*4\").s(\"triangle\").draw(()=>{globalThis.paints=(globalThis.paints||0)+1;ctx.fillStyle='red';ctx.fillRect(0,0,ctx.canvas.width,ctx.canvas.height);},{id:'custom'})";
     await run(source);await frame.waitForFunction(()=>globalThis.paints>2);await frame.evaluate(()=>globalThis.oldCanvas=document.querySelector('canvas'));
     const good=await page.evaluate(()=>algoravePreview.session.applied);

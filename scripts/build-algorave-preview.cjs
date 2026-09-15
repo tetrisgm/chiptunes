@@ -16,6 +16,7 @@ function build({out=path.join(root,'.algorave-preview')}={}){
   for(const file of ['serial.mjs','UPSTREAM.json'])id.update(fs.readFileSync(path.join(root,'src/algorave/vendor/serial',file)));
   for(const file of ['tidal/tidal.mjs','tidal/UPSTREAM.json','hs2js/src/index.mjs','hs2js/src/parser.mjs','hs2js/src/hs2js.mjs','hs2js/dist/tree-sitter.wasm','hs2js/dist/tree-sitter-haskell.wasm','hs2js/UPSTREAM.json'])id.update(fs.readFileSync(path.join(root,'src/algorave/vendor',file)));
   for(const file of ['mondough.mjs','UPSTREAM.json'])id.update(fs.readFileSync(path.join(root,'src/algorave/vendor/mondo',file)));
+  for(const file of ['drawing-widgets.mjs','UPSTREAM.json'])id.update(fs.readFileSync(path.join(root,'src/algorave/vendor/codemirror',file)));
   id.update(fs.readFileSync(__filename));
   id.update(fs.readFileSync(path.join(root,'package-lock.json')));
   for(const file of ['index.mjs','midi.mjs','UPSTREAM.json'])id.update(fs.readFileSync(path.join(root,'src/algorave/vendor/midi',file)));

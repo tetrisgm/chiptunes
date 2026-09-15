@@ -91,6 +91,10 @@ Inline slider controls now change source and live values; Chromium keyboard,
 unrun insertion, Run and Undo checks pass. Native acceptance remains unfinished. See
 `scripts/verify-algorave-slider.cjs`.
 
+The six upstream underscore drawing methods now render in the isolated music
+frame. Chromium checks cover each method, two independent scopes and failed-edit
+canvas retention. Positioning those canvases inline in the editor remains pending.
+
 Next: complete the remaining Strudel input/drawing/module scope and Shadertoy
 media and Sound contracts; complete final browser/acoustic
 acceptance and check performance appropriate to subsequent changes. Chromium DSP checks use an explicit

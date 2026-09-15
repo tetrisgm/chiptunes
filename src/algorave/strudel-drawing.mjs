@@ -1,5 +1,7 @@
 import * as draw from '@strudel/draw';
 import { evalScope } from '@strudel/web';
+import './vendor/codemirror/drawing-widgets.mjs';
+
 
 // The visible canvas stays inside the opaque music frame. Only a boolean crosses
 // to the parent; source callbacks cannot insert DOM into the surrounding app.
