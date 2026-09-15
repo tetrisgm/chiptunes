@@ -24800,7 +24800,10 @@ var dart = clike({
 var musicHelp = {
   setcpm: "Cycles per minute. setcpm(30) gives four-beat cycles at 120 BPM.",
   note: 'Pitched pattern, for example note("c3 [eb3 g3] ~ bb3").',
-  s: "Sound pattern. Bundled drums: bd, sd, hh. Synths: sine, triangle, sawtooth, square.",
+  s: "Sound pattern. Drums: bd, sd, hh, oh. Synths include sine and triangle; standard sample libraries load online.",
+  bank: 'Select a drum machine, for example s("bd*4").bank("tr909").',
+  piano: 'Play the standard sampled piano with pitch-aware panning, for example note("c4 e4 g4").piano().',
+  xen: 'Microtonal pitch sequence, for example freq("0 5 10".xen("19edo")).',
   gain: "Amplitude. Start quietly, for example .gain(.2).",
   fast: "Run a pattern faster, for example .fast(2).",
   slow: "Stretch a pattern in time, for example .slow(2).",
@@ -26252,7 +26255,7 @@ bridge = new MusicBridge(frame, (next) => {
 await bridge.ready;
 lock(false);
 status.textContent = session.recoveryError || "Ready \xB7 \u2318/Ctrl Enter to run";
-$("build").textContent = "Algorave 3d78fc0bf069";
+$("build").textContent = "Algorave 92b46347ca27";
 function draw(now) {
   shader2.render({ time: now / 1e3, delta: last2 ? (now - last2) / 1e3 : 0, ...signals.at(performance.timeOrigin + now) });
   last2 = now;

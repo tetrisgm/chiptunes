@@ -1,0 +1,12 @@
+sfumato 0.1.2
+Declared package license: ISC
+Package author: Felix Roos <flix91@gmail.com>
+Repository: https://github.com/felixroos/sfumato
+Published gitHead: b5100e4b39345dbee1ed8c2ac13200ff73604585
+
+The published package and its published upstream revision contain no standalone
+license/notice file. This records upstream metadata; it does not invent a
+copyright statement. Preserve the npm package and the corresponding preferred
+TypeScript source/build files under src/algorave/vendor/sfumato in source delivery.
+Those files were checked against the Git blob hashes at the published revision.
+soundfont2 is a separate MIT dependency; its distributed LICENSE is included.

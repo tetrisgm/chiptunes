@@ -11,7 +11,10 @@ import { setDiagnostics } from '@codemirror/lint';
 const musicHelp = {
   setcpm:'Cycles per minute. setcpm(30) gives four-beat cycles at 120 BPM.',
   note:'Pitched pattern, for example note("c3 [eb3 g3] ~ bb3").',
-  s:'Sound pattern. Bundled drums: bd, sd, hh. Synths: sine, triangle, sawtooth, square.',
+  s:'Sound pattern. Drums: bd, sd, hh, oh. Synths include sine and triangle; standard sample libraries load online.',
+  bank:'Select a drum machine, for example s("bd*4").bank("tr909").',
+  piano:'Play the standard sampled piano with pitch-aware panning, for example note("c4 e4 g4").piano().',
+  xen:'Microtonal pitch sequence, for example freq("0 5 10".xen("19edo")).',
   gain:'Amplitude. Start quietly, for example .gain(.2).',
   fast:'Run a pattern faster, for example .fast(2).', slow:'Stretch a pattern in time, for example .slow(2).',
   lpf:'Low-pass cutoff in Hz, for example .lpf(800).', rev:'Reverse a pattern within its cycle.',

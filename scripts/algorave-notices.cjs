@@ -19,7 +19,7 @@ function notices(out,inputs){
   const records=[],sections=[];
   for(const [directory,data]of [...packages].sort((a,b)=>a[1].name.localeCompare(b[1].name))){
     const files=fs.readdirSync(directory).filter(name=>/^(LICENSE|LICENCE|COPYING|NOTICE)(\.|$)/i.test(name)&&fs.statSync(path.join(directory,name)).isFile());
-    const supplement=data.name==='@tonaljs/progression'?'tonal-MIT.txt':data.name==='chord-voicings'?'chord-voicings.txt':null;
+    const supplement=data.name==='@tonaljs/progression'?'tonal-MIT.txt':data.name==='chord-voicings'?'chord-voicings.txt':data.name==='sfumato'?'sfumato.txt':null;
     const extra=supplement?fs.readFileSync(path.join(__dirname,'../src/algorave/licenses',supplement),'utf8'):'';
     const record={supplementalNotice:supplement,name:data.name,version:data.version,license:data.license||data.licenses||'UNDECLARED',repository:data.repository||null,noticeFiles:files};
     records.push(record);

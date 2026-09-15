@@ -10,6 +10,9 @@ try{
   assert(manifest.files.some(file=>file.path==='node_modules/@strudel/web/web.mjs'));
   assert(manifest.files.some(file=>file.path==='node_modules/@strudel/webaudio/webaudio.mjs'));
   assert(manifest.files.some(file=>file.path==='node_modules/@strudel/core/pattern.mjs'));
+  assert(manifest.files.some(file=>file.path==='node_modules/@strudel/soundfonts/fontloader.mjs'));
+  assert(manifest.files.some(file=>file.path==='src/algorave/vendor/sfumato/src/index.ts'));
+  assert(manifest.files.some(file=>file.path==='node_modules/sfumato/node_modules/soundfont2/src/index.ts'));
   assert(manifest.files.every(file=>!file.path.startsWith('dist/')&&!file.path.startsWith('.git/')));
   for(const file of manifest.files){
     assert.equal(crypto.createHash('sha256').update(fs.readFileSync(path.join(source,file.path))).digest('hex'),file.sha256,file.path);

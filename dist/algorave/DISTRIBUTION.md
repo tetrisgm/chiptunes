@@ -23,12 +23,12 @@ preview command uses the same builder. `dependencies.json` inventories packages
 actually included by esbuild's input graph. The full runtime bundles upstream
 web.mjs source rather than its prebundled distribution, so transitive inputs and
 their notices remain visible. The pattern worker is no longer embedded.
-The current inventory has 81 package entries, declaring MIT, ISC, BSD-2-Clause,
+The current inventory has 85 package entries, declaring MIT, ISC, BSD-2-Clause,
 BSD-3-Clause or AGPL-3.0-or-later. `THIRD_PARTY_NOTICES.txt` preserves distributed
 license/notice files. This inventory is evidence about these installed packages,
 not a blanket legal assurance about future dependencies.
 
-Two npm packages omit a standalone license file:
+Three npm packages omit a standalone license file:
 - @tonaljs/progression 4.9.2 declares MIT. Supplement its notices with Tonal's
   umbrella MIT notice, verified at https://github.com/tonaljs/tonal/blob/main/docs/LICENSE
   (Git blob 77ac35ab560a93e9c939409f86f9704f49daf66e).
@@ -37,6 +37,29 @@ Two npm packages omit a standalone license file:
   has no standalone license. Preserve this exact metadata and the package source;
   do not invent an upstream copyright statement. This omission remains visible
   in the dependency report for release review.
+
+- sfumato 0.1.2 declares ISC and names Felix Roos as author. Its published
+  gitHead is b5100e4b39345dbee1ed8c2ac13200ff73604585; both npm and that repository
+  revision omit a standalone license. Preserve the metadata supplement and exact
+  package. The seven preferred TypeScript/build files are additionally supplied
+  in src/algorave/vendor/sfumato, checked against their upstream Git blob hashes.
+  Its nested soundfont2 0.4.0 dependency includes its MIT license and source.
+
+The standard sound setup loads Strudel's public bank catalogs and sample audio on
+request; remote audio bytes are not embedded in the distribution. Its catalog
+selection and piano helper follow Strudel's AGPL REPL prebake.mjs, attributed in
+src/algorave/strudel-prebake.mjs. Piano recordings are Alexander Holm's Salamander
+Grand Piano (CC BY 3.0); VCSL is CC0. Preserve the source/credit links below rather
+than making a blanket license claim for every sample in an upstream collection:
+- https://codeberg.org/uzu/strudel/src/branch/main/website/src/repl/prebake.mjs
+- https://archive.org/details/SalamanderGrandPianoV3
+- https://github.com/sgossner/VCSL
+- https://github.com/ritchse/tidal-drum-machines
+- https://github.com/tidalcycles/uzu-drumkit
+- https://github.com/tidalcycles/uzu-wavetables
+- https://github.com/yaxu/mrid
+- https://github.com/tidalcycles/Dirt-Samples
+- https://github.com/felixroos/webaudiofontdata
 
 `source.tar.gz` contains a source allowlist from the Git working tree and the exact
 npm package directories present in the algorave input graph. It includes their

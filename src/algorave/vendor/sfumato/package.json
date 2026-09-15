@@ -1,0 +1,40 @@
+{
+  "name": "sfumato",
+  "version": "0.1.2",
+  "description": "This library is able to play soundfonts (sf2 files) with the Web Audio API.",
+  "main": "dist/sfumato.js",
+  "type": "module",
+  "scripts": {
+    "test": "vitest",
+    "coverage": "vitest run --coverage",
+    "build": "vite build",
+    "prepublishOnly": "npm test --mode run && npm run build",
+    "demo": "cd demo && npm run dev"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/felixroos/sfumato.git"
+  },
+  "keywords": [
+    "Soundfonts",
+    "sf2",
+    "web",
+    "audio",
+    "api",
+    "music",
+    "javascript"
+  ],
+  "author": "Felix Roos <flix91@gmail.com>",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/felixroos/sfumato/issues"
+  },
+  "homepage": "https://github.com/felixroos/sfumato#readme",
+  "dependencies": {
+    "soundfont2": "^0.4.0"
+  },
+  "devDependencies": {
+    "vite": "^3.0.4",
+    "vitest": "^0.19.1"
+  }
+}

@@ -14,13 +14,17 @@ editor as well as playback. This architecture no longer preempts infinite loops;
 see the [current runtime checkpoint](algorave-runtime-decisions.md#current-upstream-runtime--2026-09-15)
 for limits, exact verification scopes and remaining work.
 
-Next: complete the Strudel reference REPL banks/additional scope and Shadertoy
+Standard Strudel catalogs, ZZFX, GM soundfonts, the piano helper and xen tuning
+are integrated; see the [sound-library checkpoint](algorave-runtime-decisions.md#standard-sound-libraries--2026-09-15).
+
+Next: complete the remaining Strudel input/drawing/module scope and Shadertoy
 media, sampler, keyboard, cubemap, Sound and VR contracts; repeat native acceptance
 and sustained performance on the replacement. Chromium DSP checks use an explicit
 silent sink after default-device failures also affected upstream. Six saved real
 provider replies are available for zero-call replay. Native OpenAI music, visual
 and paired Apply/Undo plus stopped reload now pass on `3d78fc0bf069`; Anthropic
-replay on the replacement remains open. Old soak receipts are historical. The public simpler app has not been deployed. Deployment of both
+replay on the replacement remains open. Old soak receipts are historical.
+The public simpler app has not been deployed. Deployment of both
 site and gateway is already authorized; no box/desktop/store changes.
 
 References: [plan](algorave-simple-workspace-plan.md),

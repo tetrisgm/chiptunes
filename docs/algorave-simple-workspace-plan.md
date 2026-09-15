@@ -101,8 +101,9 @@ loops no longer have the old worker termination boundary. Use the same program
 text in the reference engine and workspace. The differential probe is
 `scripts/probe-algorave-strudel-parity.cjs`; four passing programs establish those
 behaviors only, not full REPL parity.
-Add the reference REPL's sample banks and relevant sound/input packages, including
-their normal source-language APIs, rather than requiring rewritten examples.
+The standard REPL sample banks, soundfonts, ZZFX, piano helper and xen tuning are
+now integrated. Finish the remaining sound/input/drawing modules, including their
+normal source-language APIs, rather than requiring rewritten examples.
 
 The visual runtime still lacks texture/media input lifecycles, sampler settings,
 keyboard input, cube textures/passes, Sound and VR support. Implement and test

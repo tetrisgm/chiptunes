@@ -22,8 +22,9 @@ Scheduled upstream diagnostics, including missing sounds, appear in the status
 area; missing sound names are no longer rejected by a custom preflight query.
 
 This is full upstream execution, not complete strudel.cc ecosystem parity yet.
-The reference REPL's default banks, soundfonts/ZZFX and additional input/drawing
-scope still need inventory and integration. Four original programs now play in
+The reference REPL's default banks, soundfonts/ZZFX and xen tuning are now
+integrated (see the sound-library checkpoint below). Additional input/drawing
+scope remains open. Four original programs now play in
 both unmodified upstream and the workspace: core synth/mini-notation, custom
 Web Audio sound, onTrigger closure and samples() loading a local CORS WAV. This
 closes the three demonstrated failures recorded below, not every parity gap.
@@ -76,6 +77,47 @@ floating-point feedback, standard uniform and high-resolution checks are a
 starting point. Finish native and Chromium acceptance on the final build and the
 new-runtime performance run, then deploy the authorized static site and gateway
 together. No public deployment has occurred.
+
+## Standard sound libraries — 2026-09-15
+
+The runtime now registers Strudel's standard piano, VCSL, drum-machine, uzu drum,
+wavetable and mridangam catalogs, its Dirt subset and drum-machine aliases. It
+uses the same public CDN bases as upstream prebake.mjs. Catalogs load once at
+startup; actual sound bytes load through upstream on demand. Each catalog fetch
+has an eight-second deadline. Failed catalogs produce a visible diagnostic while
+local synths, portable imports and original fallback drums remain usable. When
+online, the normal bd/sd/hh names use upstream's uzu bank; the fallback does not
+replace or rename those sounds. Registry Undo snapshots are taken after prebake.
+
+@strudel/soundfonts 1.3.0 registers GM instruments and exposes its ordinary source
+APIs, including setSoundfontUrl/loadSoundfont and .soundfont(). ZZFX is registered
+through upstream. The REPL piano helper preserves its default clip, release and
+pitch-aware pan. @strudel/xen 1.2.6 supplies edo/xen/tuning and Pattern.tune, with
+no new language or note translation. Agent guidance, editor help and sound credits
+now describe the available banks. Source/notice delivery includes these packages
+and the preferred sfumato TypeScript source missing from its npm distribution.
+
+`test:algorave-default-sounds` verifies catalog/alias registration, piano control
+values, 19-EDO frequencies and actual playback from each sound family. The live
+portion uses real CDN audio and GM font responses; a separate blocked-CDN fixture
+checks the visible startup diagnostic and local synth recovery. It uses the
+Chromium silent sink and is not an acoustic or native Safari assertion. The
+initial nine-family sound check passed on 796453bf744f; preview, workflow, sample
+persistence, all six saved real reply UI flows and agent/35 legacy chat groups
+also passed on that build. All ten families, including microtonal tuning, plus
+runtime cancellation/isolation/Undo passed on ac0fff50d0c8. The final editor/help
+build 92b46347ca27 passed exact archive rebuild, editor keyboard/completion/import
+checks and agent/35 legacy chat groups. The editor suite used the default audio
+device and measured signal for its examples; this does not establish acoustic
+quality or broad native acceptance. All browsers and local test servers closed.
+
+Upstream website/src/repl/util.mjs additionally loads draw, edoScale, codemirror
+helpers, hydra, serial, csound, tidal, gamepad, motion, mqtt, mondo, dough, MIDI and
+OSC modules. Inventory their user-facing APIs and integrate the remaining runtime
+scope with appropriate browser/device boundaries. The @strudel/edo package is
+not published on npm; its upstream source is available. Native bank acceptance,
+new-runtime soak, Shadertoy inputs/passes and public site/gateway deployment still
+remain. This library checkpoint does not establish full parity by itself.
 
 ## Historical checkpoints
 

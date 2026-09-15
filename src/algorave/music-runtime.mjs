@@ -4,6 +4,7 @@ import { initStrudel, transpiler, getAudioContext, initAudio, getSuperdoughAudio
 import { drumWav } from './drum-samples.mjs';
 import { SampleByteStore } from './sample-assets.mjs';
 import { SampleBank } from './sample-bank.mjs';
+import { registerDefaultSounds } from './strudel-prebake.mjs';
 
 let connected = false;
 window.addEventListener('message', async event => {
@@ -83,6 +84,7 @@ window.addEventListener('message', async event => {
       // Alias the registered sample source without changing the source language.
       soundMap.setKey(name,soundMap.get()[alias]);
     }
+    const unavailableBanks=await registerDefaultSounds();
     registries.set(0,{...soundMap.get()});
     async function prepare(source,map={},assets=[],restore=false,restoreCheckpoint=0,defer=false){
       if(typeof source!=='string'||source.length>65536)throw Error('Music code is too large.');
@@ -166,5 +168,6 @@ window.addEventListener('message', async event => {
     },1000/30);
     window.addEventListener('pagehide',()=>{clearInterval(timer);engine.stop();sampleBank.close();audio.close();});
     send({type:'ready',version:'strudel-web-1.3.0'});
+    if(unavailableBanks.length)send({type:'diagnostic',error:'Could not load sound libraries: '+unavailableBanks.join(', ')+'. Local sounds remain available; reload to retry.'});
   }catch(error){send({type:'fatal',error:String(error.message||error).slice(0,2000)});}
 });

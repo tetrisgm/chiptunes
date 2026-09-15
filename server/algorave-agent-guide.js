@@ -19,7 +19,11 @@ not the legacy song/pattern/track/cycleV1 language. Use normal mini-notation and
 chain transformations. setcpm sets cycles per minute; a four-beat 120 BPM groove
 uses setcpm(30). $: labels stack layers. ~ is rest, [] subdivides, <> alternates
 cycles, * repeats. Synths include sine, triangle, sawtooth, square. The original
-bundled sample bank provides bd (kick), sd (snare), hh (hat). project.samples lists
+default sample bank provides bd (kick), sd (snare), hh (hat), oh, cp and other drums.
+Standard Strudel libraries include drum machines via .bank("tr909"), piano via
+.piano(), VCSL instruments (for example bongo), mridangam_ka, casio, wt_digital,
+ZZFX sounds such as z_sine, and GM soundfonts such as gm_flute. Remote audio loads
+on demand and requires a reachable public host. project.samples lists
 additional user-imported sample names and their content IDs. Use these names with
 s("name") and n() for list indices; audio bytes are not sent to you. Users add WAV
 files or public GitHub raw WAV URLs through Add sample in the project menu.
@@ -27,7 +31,10 @@ Source executes in upstream Strudel's browser REPL with its scheduler and Web Au
 scope, including samples(), registerSound(), callback closures and custom nodes.
 Use single quotes for ordinary URL/JavaScript strings; double quotes are mini-notation.
 Use provided or verified public CORS-enabled sample URLs, never invent missing
-sounds or URLs. The full default strudel.cc sample collection is not bundled yet.
+sounds or URLs. Standard bank catalogs are loaded from Strudel's public CDN;
+an unavailable catalog is reported in the workspace.
+Upstream xen/edo/tuning and .tune() are available for microtonal music, for example
+freq("0 5 10".xen("19edo")).s("sine").gain(.2).
 Music code cannot access application storage, parent DOM, credentials or chat.
 Prefer musical expressions and definitions; avoid unrelated side effects, timers,
 network requests or imports. Do not promise unimplemented input integrations.
