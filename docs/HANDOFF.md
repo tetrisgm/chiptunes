@@ -60,6 +60,10 @@ with controlled audio fixtures on `4a5ca1bf34ea`. See the
 The Strudel bridge now matches the external audio FFT settings (2048 samples,
 512 exposed bins); a real 220 Hz DSP tone verifies the frequency-bin mapping.
 
+Sound PCM rendering is implemented and tested independently; editor/channel,
+transport and transactional integration are still pending. See the
+[Sound renderer checkpoint](algorave-runtime-decisions.md#sound-renderer-foundation--2026-09-15).
+
 Next: complete the remaining Strudel input/drawing/module scope and Shadertoy
 media and Sound contracts; complete final browser/acoustic
 acceptance and check performance appropriate to subsequent changes. Chromium DSP checks use an explicit

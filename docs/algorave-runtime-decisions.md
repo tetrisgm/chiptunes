@@ -1428,3 +1428,25 @@ FFT, putting a given frequency at half the expected texture position.
 `220 * 2048 / sampleRate`, as well as the waveform and fixed texture-row sizes.
 Chromium passes on `bdef744db0a3` with an explicit silent sink; this is analysis
 evidence, not speaker or native Safari acceptance. Sound output remains open.
+
+## Sound renderer foundation — 2026-09-15
+
+`shader-sound.mjs` compiles the modern `vec2 mainSound(int samp,float time)`
+entry point and Common code in a separate temporary WebGL 2 context. It renders
+stereo PCM in 65,536-sample blocks, yielding for cancellation between blocks,
+and releases the context after success or failure. Default duration is 180 seconds.
+An AudioBuffer is returned without opening a live audio context or playing it.
+
+`npm run test:algorave-sound` verifies original sine/ramp programs against CPU
+reference samples across block boundaries at 48 kHz, stereo separation, clipping,
+Common, cancellation, compile errors and subsequent recovery in Chromium.
+The error bounds are 0.001 for the sine and 0.00004 for the sample-index ramp.
+This does not prove upstream differential fidelity, native Safari or playback.
+
+The implementation remains unconnected to the editor and transport. Next wire
+Sound documents, input textures and uniforms, transactional prepare/rollback,
+Play/Stop and finite playback. Preserve existing visuals while rendering and
+retain previous audio when a candidate fails. Verify the complete UI and native
+Safari before claiming Sound support. Legacy one-argument mainSound remains
+unverified. Reference: [Shadertoy Sound help](https://www.shadertoy.com/view/XsfcWj)
+and an [independent native renderer](https://gist.github.com/camthesaxman/0af28359307a2f122417010e5ddecfb2).
