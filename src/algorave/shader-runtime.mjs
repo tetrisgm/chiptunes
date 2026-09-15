@@ -1,6 +1,7 @@
 // A shader owns no transport. The caller supplies time, audio and event signals.
 import contract from './project.cjs';
 import {loadShaderImage,decodeShaderImage,imageKey,IMAGE_PIXELS} from './shader-images.mjs';
+import {createShaderCamera} from './shader-camera.mjs';
 import {loadShaderVideo,decodeShaderVideo} from './shader-video.mjs';
 import {loadShaderVolume,decodeShaderVolume} from './shader-volume.mjs';
 const inputInfo=input=>typeof input==='string'?{type:['audio','keyboard'].includes(input)?input:'buffer',source:input}:input||{type:'empty'};
@@ -161,7 +162,7 @@ export class ShaderRuntime {
   videoTexture(media,input){
     const g=this.gl;
     if(media.width>g.getParameter(g.MAX_TEXTURE_SIZE)||media.height>g.getParameter(g.MAX_TEXTURE_SIZE))throw Error('Video exceeds this graphics device’s size limit.');
-    const result={texture:g.createTexture(),width:media.width,height:media.height,media:media.retain(),source:input.src,vflip:input.vflip===true,srgb:input.srgb===true};
+    const result={...this.texture(1,1,new Uint8Array([0])),width:media.width,height:media.height,media:media.retain(),source:input.src,vflip:input.vflip===true,srgb:input.srgb===true};
     try{this.updateVideo(result);return result;}catch(error){this.deleteTarget(result);throw error;}
   }
   updateVideo(texture){
@@ -287,7 +288,15 @@ export class ShaderRuntime {
         next.push(pass);
         for(let i=0;i<4;i++){
           const input=inputInfo(channels[i]);pass.samplers.push(this.sampler(channels[i]));
-          if(input.type==='texture'||input.type==='cubemap'||input.type==='volume'||input.type==='video'){
+          if(input.type==='webcam'){
+            const key=JSON.stringify(['webcam',input.vflip===true,input.srgb===true]);
+            if(!imageTextures.has(key)){
+              const shared=[...imageTextures.values(),...this.passes.flatMap(p=>p.images)].find(t=>t.media?.kind==='webcam');
+              const media=shared?shared.media.retain():createShaderCamera({maxSize:Math.min(4096,this.gl.getParameter(this.gl.MAX_TEXTURE_SIZE))});
+              try{imageTextures.set(key,this.videoTexture(media,input));}finally{media.close();}
+            }
+            pass.images[i]=imageTextures.get(key);
+          }else if(input.type==='texture'||input.type==='cubemap'||input.type==='volume'||input.type==='video'){
             const sources=contract.textureSources(input),bitmaps=sources.map(src=>images.get(imageKey({src,vflip:input.vflip,type:input.type})));
             if(bitmaps.some(bitmap=>!bitmap))throw Error('Texture is not loaded. Use asynchronous preparation.');
             const key=JSON.stringify([input.type,sources,input.vflip===true,input.srgb===true]);
@@ -308,7 +317,8 @@ export class ShaderRuntime {
           candidate.dispose(); throw Error('The visual output changed. Run this edit again.');
         }
         settled = true; this.candidates.delete(candidate);
-        for(const texture of new Set(this.passes.flatMap(p=>p.images)))texture.media?.setPlaying(false);
+        const nextMedia=new Set(next.flatMap(p=>p.images).map(t=>t.media));
+        for(const texture of new Set(this.passes.flatMap(p=>p.images)))if(!nextMedia.has(texture.media))texture.media?.setPlaying(false);
         if(retainPrevious){previous={passes:this.passes,frame:this.frame,document:this.document};this.retained.add(previous);}else this.deletePasses(this.passes);
         this.passes = next; this.frame = 0; this.document = document;
       },

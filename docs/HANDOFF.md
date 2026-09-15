@@ -48,6 +48,11 @@ Run/Undo and portable persistence. Chromium passes on `0555234bba84`; native Saf
 playback/editing and final stopped reload pass locally. See the
 [video checkpoint](algorave-runtime-decisions.md#video-texture-inputs--2026-09-15).
 
+Camera inputs are integrated with Play-only permission, shared capture, and track
+release on Stop. Full Chromium fixture capture and native Safari denial/synthetic
+stream checks pass locally on `9c8e3981729b`; no physical camera was used. See the
+[camera checkpoint](algorave-runtime-decisions.md#camera-texture-input--2026-09-15).
+
 Next: complete the remaining Strudel input/drawing/module scope and Shadertoy
 media and Sound contracts; complete final browser/acoustic
 acceptance and check performance appropriate to subsequent changes. Chromium DSP checks use an explicit

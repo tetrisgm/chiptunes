@@ -75,8 +75,12 @@ or an existing imported asset reference. They are sampler2D textures: use textur
 iChannelResolution and iChannelTime normally. Video is muted, loops with Play and
 pauses with Stop. Use provided CORS-enabled MP4/WebM/Ogg URLs or imported files;
 do not invent media URLs. Codecs depend on the browser. Local videos are saved in
-portable projects; video files have a 16 MiB limit. Camera and external audio
-inputs are not yet integrated.
+portable projects; video files have a 16 MiB limit. Camera uses {type:'webcam',filter:'linear',wrap:'clamp',vflip:false,srgb:false}
+with a standard sampler2D, iChannelResolution and iChannelTime. It has no URL or
+saved device ID. Select it only when the user requests camera visuals. Play requests
+browser permission; Stop releases the camera. Camera frames stay local and are
+not sent to the agent or saved in a project. Browser/device availability applies.
+External audio inputs are not yet integrated.
 
 VISUALS: GLSL ES 3.00 fragment code with
 void mainImage(out vec4 color, in vec2 pixel). The host supplies the version,

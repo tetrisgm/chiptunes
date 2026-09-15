@@ -10,7 +10,7 @@ export function shaderChannelEditor(root,textarea,{importImage,onError=()=>{}}={
     for(let index=0;index<4;index++){
       const raw=row[index],input=typeof raw==='string'?{type:['audio','keyboard'].includes(raw)?raw:'buffer',source:raw}:raw||{};
       const group=documentElement('fieldset'),legend=documentElement('legend');legend.textContent=`iChannel${index}`;group.append(legend);
-      const source=select('Input',['none','audio','keyboard','texture','cubemap','volume','video',...['A','B','C','D','Cube'].filter(name=>document[name])],input.type==='buffer'?input.source:input.type||'none');group.append(source.label);
+      const source=select('Input',['none','audio','keyboard','texture','cubemap','volume','video','webcam',...['A','B','C','D','Cube'].filter(name=>document[name])],input.type==='buffer'?input.source:input.type||'none');group.append(source.label);
       const image=imageControl('Image URL','Import image',input.src);
       const volume=imageControl('Volume URL','Import volume',input.type==='volume'?input.src:undefined,true);
       const video=imageControl('Video URL','Import video',input.type==='video'?input.src:undefined,false,true);
@@ -19,8 +19,8 @@ export function shaderChannelEditor(root,textarea,{importImage,onError=()=>{}}={
       const wrap=select('Wrap',['clamp','repeat','mirror'],input.wrap||'clamp');group.append(wrap.label);
       const flip=field('Flip vertically','checkbox'),srgb=field('sRGB','checkbox');flip.input.checked=input.vflip===true;srgb.input.checked=input.srgb===true;group.append(flip.label,srgb.label);
       function visibility(){
-        const texture=source.input.value==='texture',cube=source.input.value==='cubemap',vol=source.input.value==='volume',vid=source.input.value==='video',empty=source.input.value==='none';
-        image.show(texture);volume.show(vol);video.show(vid);faces.forEach(face=>face.show(cube));flip.label.hidden=srgb.label.hidden=!texture&&!cube&&!vol&&!vid;filter.label.hidden=wrap.label.hidden=empty;
+        const texture=source.input.value==='texture',cube=source.input.value==='cubemap',vol=source.input.value==='volume',vid=source.input.value==='video',camera=source.input.value==='webcam',empty=source.input.value==='none';
+        image.show(texture);volume.show(vol);video.show(vid);faces.forEach(face=>face.show(cube));flip.label.hidden=srgb.label.hidden=!texture&&!cube&&!vol&&!vid&&!camera;filter.label.hidden=wrap.label.hidden=empty;
       }
       function update(){
         let current;try{current=JSON.parse(textarea.value);}catch{return;}
@@ -32,7 +32,7 @@ export function shaderChannelEditor(root,textarea,{importImage,onError=()=>{}}={
           if(chosen==='volume')value.src=volume.value();
           if(chosen==='video')value.src=video.value();
           if(chosen==='cubemap')value.faces=faces.map(face=>face.value());
-          if(chosen==='texture'||chosen==='cubemap'||chosen==='volume'||chosen==='video')Object.assign(value,{vflip:flip.input.checked,srgb:srgb.input.checked});
+          if(chosen==='texture'||chosen==='cubemap'||chosen==='volume'||chosen==='video'||chosen==='webcam')Object.assign(value,{vflip:flip.input.checked,srgb:srgb.input.checked});
         }
         const inputs=[...(current[pass]||[])];while(inputs.length<=index)inputs.push(null);inputs[index]=value;
         current[pass]=inputs;textarea.value=JSON.stringify(current);visibility();
@@ -57,6 +57,6 @@ export function shaderChannelEditor(root,textarea,{importImage,onError=()=>{}}={
   }
   function documentElement(tag){return root.ownerDocument.createElement(tag);}
   function field(name,type){const label=documentElement('label'),input=documentElement('input');input.type=type;input.setAttribute('aria-label',`${pass} ${name}`);label.append(name,input);return {label,input};}
-  function select(name,values,value){const label=documentElement('label'),input=documentElement('select');input.setAttribute('aria-label',`${pass} ${name}`);for(const item of values){const option=documentElement('option');option.value=item;option.textContent={none:'None',audio:'Music audio',keyboard:'Keyboard',texture:'Image texture',cubemap:'Cube texture',volume:'Volume texture',video:'Video',Cube:'Cubemap A'}[item]||item;input.append(option);}input.value=value;label.append(name,input);return {label,input};}
+  function select(name,values,value){const label=documentElement('label'),input=documentElement('select');input.setAttribute('aria-label',`${pass} ${name}`);for(const item of values){const option=documentElement('option');option.value=item;option.textContent={none:'None',audio:'Music audio',keyboard:'Keyboard',texture:'Image texture',cubemap:'Cube texture',volume:'Volume texture',video:'Video',webcam:'Camera',Cube:'Cubemap A'}[item]||item;input.append(option);}input.value=value;label.append(name,input);return {label,input};}
   return {render};
 }

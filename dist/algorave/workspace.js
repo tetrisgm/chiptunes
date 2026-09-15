@@ -66,13 +66,19 @@ var require_project = __commonJS({
         return value;
       }
       need(keys(value, ["type", "source", "src", "faces", "filter", "wrap", "vflip", "srgb"], ["type"]), "Invalid visual input.");
-      need(["audio", "keyboard", "buffer", "texture", "cubemap", "volume", "video"].includes(value.type), "Unsupported visual input type.");
+      need(["audio", "keyboard", "buffer", "texture", "cubemap", "volume", "video", "webcam"].includes(value.type), "Unsupported visual input type.");
       const result = { type: value.type };
       if (value.type === "buffer") {
         need(["A", "B", "C", "D", "Cube"].includes(value.source) && Object.hasOwn(visuals, value.source), "Channel names a missing buffer.");
         result.source = value.source;
       } else need(!Object.hasOwn(value, "source"), "Only buffers have a source pass.");
-      if (value.type === "texture" || value.type === "cubemap" || value.type === "volume" || value.type === "video") {
+      if (value.type === "webcam") {
+        need(!Object.hasOwn(value, "src") && !Object.hasOwn(value, "faces"), "Camera input does not have a URL.");
+        for (const option of ["vflip", "srgb"]) if (Object.hasOwn(value, option)) {
+          need(typeof value[option] === "boolean");
+          result[option] = value[option];
+        }
+      } else if (value.type === "texture" || value.type === "cubemap" || value.type === "volume" || value.type === "video") {
         if (value.type !== "cubemap") {
           need(!Object.hasOwn(value, "faces"), "Only cube textures have faces.");
           result.src = textureSource(value.src);
@@ -25344,6 +25350,77 @@ async function decodeShaderImage(blob, { signal: signal2, vflip = false } = {}) 
 }
 var imageKey = (input) => JSON.stringify([["volume", "video"].includes(input.type) ? input.type : "image", input.src, input.vflip === true]);
 
+// src/algorave/shader-camera.mjs
+function createShaderCamera({ maxSize = 4096 } = {}) {
+  const video = document.createElement("video");
+  video.muted = true;
+  video.defaultMuted = true;
+  video.playsInline = true;
+  let refs = 1, closed = false, wanted = false, generation = 0, stream = null;
+  const stop = () => {
+    generation++;
+    video.pause();
+    if (stream) for (const track of stream.getTracks()) track.stop();
+    stream = null;
+    video.srcObject = null;
+  };
+  const resource = {
+    kind: "webcam",
+    video,
+    get width() {
+      return video.videoWidth || 1;
+    },
+    get height() {
+      return video.videoHeight || 1;
+    },
+    retain() {
+      if (closed) throw Error("Camera was released.");
+      refs++;
+      return resource;
+    },
+    setPlaying(value, onError = () => {
+    }) {
+      if (closed || wanted === value) return;
+      wanted = value;
+      if (!value) {
+        stop();
+        return;
+      }
+      const token = ++generation;
+      const fail = (error) => {
+        if (closed || token !== generation || !wanted) return;
+        stop();
+        onError("Camera unavailable: " + (error.message || error) + ". Stop and Play to try again.");
+      };
+      if (!navigator.mediaDevices?.getUserMedia) {
+        fail(Error("this browser needs a secure page with camera support"));
+        return;
+      }
+      navigator.mediaDevices.getUserMedia({ audio: false, video: { width: { ideal: 1280, max: maxSize }, height: { ideal: 720, max: maxSize } } }).then(async (acquired) => {
+        if (closed || token !== generation || !wanted) {
+          for (const track of acquired.getTracks()) track.stop();
+          return;
+        }
+        stream = acquired;
+        video.srcObject = stream;
+        for (const track of stream.getVideoTracks()) track.addEventListener("ended", () => fail(Error("camera access ended")), { once: true });
+        try {
+          await video.play();
+        } catch (error) {
+          fail(error);
+        }
+      }, fail);
+    },
+    close() {
+      if (closed || --refs > 0) return;
+      closed = true;
+      wanted = false;
+      stop();
+    }
+  };
+  return resource;
+}
+
 // src/algorave/shader-video.mjs
 var VIDEO_TYPES = ["video/mp4", "video/webm", "video/ogg"];
 async function loadShaderVideo(src, options = {}) {
@@ -25667,7 +25744,7 @@ var ShaderRuntime = class {
   videoTexture(media, input) {
     const g = this.gl;
     if (media.width > g.getParameter(g.MAX_TEXTURE_SIZE) || media.height > g.getParameter(g.MAX_TEXTURE_SIZE)) throw Error("Video exceeds this graphics device\u2019s size limit.");
-    const result = { texture: g.createTexture(), width: media.width, height: media.height, media: media.retain(), source: input.src, vflip: input.vflip === true, srgb: input.srgb === true };
+    const result = { ...this.texture(1, 1, new Uint8Array([0])), width: media.width, height: media.height, media: media.retain(), source: input.src, vflip: input.vflip === true, srgb: input.srgb === true };
     try {
       this.updateVideo(result);
       return result;
@@ -25846,7 +25923,19 @@ var ShaderRuntime = class {
         for (let i2 = 0; i2 < 4; i2++) {
           const input = inputInfo(channels[i2]);
           pass.samplers.push(this.sampler(channels[i2]));
-          if (input.type === "texture" || input.type === "cubemap" || input.type === "volume" || input.type === "video") {
+          if (input.type === "webcam") {
+            const key = JSON.stringify(["webcam", input.vflip === true, input.srgb === true]);
+            if (!imageTextures.has(key)) {
+              const shared = [...imageTextures.values(), ...this.passes.flatMap((p) => p.images)].find((t2) => t2.media?.kind === "webcam");
+              const media = shared ? shared.media.retain() : createShaderCamera({ maxSize: Math.min(4096, this.gl.getParameter(this.gl.MAX_TEXTURE_SIZE)) });
+              try {
+                imageTextures.set(key, this.videoTexture(media, input));
+              } finally {
+                media.close();
+              }
+            }
+            pass.images[i2] = imageTextures.get(key);
+          } else if (input.type === "texture" || input.type === "cubemap" || input.type === "volume" || input.type === "video") {
             const sources = import_project4.default.textureSources(input), bitmaps = sources.map((src) => images.get(imageKey({ src, vflip: input.vflip, type: input.type })));
             if (bitmaps.some((bitmap) => !bitmap)) throw Error("Texture is not loaded. Use asynchronous preparation.");
             const key = JSON.stringify([input.type, sources, input.vflip === true, input.srgb === true]);
@@ -25876,7 +25965,8 @@ var ShaderRuntime = class {
         }
         settled = true;
         this.candidates.delete(candidate);
-        for (const texture of new Set(this.passes.flatMap((p) => p.images))) texture.media?.setPlaying(false);
+        const nextMedia = new Set(next.flatMap((p) => p.images).map((t2) => t2.media));
+        for (const texture of new Set(this.passes.flatMap((p) => p.images))) if (!nextMedia.has(texture.media)) texture.media?.setPlaying(false);
         if (retainPrevious) {
           previous = { passes: this.passes, frame: this.frame, document: this.document };
           this.retained.add(previous);
@@ -26086,12 +26176,12 @@ function shaderChannelEditor(root, textarea, { importImage: importImage2, onErro
     const row = channels?.[pass] || [];
     for (let index = 0; index < 4; index++) {
       let visibility = function() {
-        const texture = source.input.value === "texture", cube = source.input.value === "cubemap", vol = source.input.value === "volume", vid = source.input.value === "video", empty = source.input.value === "none";
+        const texture = source.input.value === "texture", cube = source.input.value === "cubemap", vol = source.input.value === "volume", vid = source.input.value === "video", camera = source.input.value === "webcam", empty = source.input.value === "none";
         image.show(texture);
         volume.show(vol);
         video.show(vid);
         faces.forEach((face) => face.show(cube));
-        flip.label.hidden = srgb.label.hidden = !texture && !cube && !vol && !vid;
+        flip.label.hidden = srgb.label.hidden = !texture && !cube && !vol && !vid && !camera;
         filter.label.hidden = wrap.label.hidden = empty;
       }, update = function() {
         let current;
@@ -26109,7 +26199,7 @@ function shaderChannelEditor(root, textarea, { importImage: importImage2, onErro
           if (chosen === "volume") value.src = volume.value();
           if (chosen === "video") value.src = video.value();
           if (chosen === "cubemap") value.faces = faces.map((face) => face.value());
-          if (chosen === "texture" || chosen === "cubemap" || chosen === "volume" || chosen === "video") Object.assign(value, { vflip: flip.input.checked, srgb: srgb.input.checked });
+          if (chosen === "texture" || chosen === "cubemap" || chosen === "volume" || chosen === "video" || chosen === "webcam") Object.assign(value, { vflip: flip.input.checked, srgb: srgb.input.checked });
         }
         const inputs = [...current[pass] || []];
         while (inputs.length <= index) inputs.push(null);
@@ -26158,7 +26248,7 @@ function shaderChannelEditor(root, textarea, { importImage: importImage2, onErro
       const group = documentElement("fieldset"), legend = documentElement("legend");
       legend.textContent = `iChannel${index}`;
       group.append(legend);
-      const source = select("Input", ["none", "audio", "keyboard", "texture", "cubemap", "volume", "video", ...["A", "B", "C", "D", "Cube"].filter((name2) => document2[name2])], input.type === "buffer" ? input.source : input.type || "none");
+      const source = select("Input", ["none", "audio", "keyboard", "texture", "cubemap", "volume", "video", "webcam", ...["A", "B", "C", "D", "Cube"].filter((name2) => document2[name2])], input.type === "buffer" ? input.source : input.type || "none");
       group.append(source.label);
       const image = imageControl("Image URL", "Import image", input.src);
       const volume = imageControl("Volume URL", "Import volume", input.type === "volume" ? input.src : void 0, true);
@@ -26197,7 +26287,7 @@ function shaderChannelEditor(root, textarea, { importImage: importImage2, onErro
     for (const item of values) {
       const option = documentElement("option");
       option.value = item;
-      option.textContent = { none: "None", audio: "Music audio", keyboard: "Keyboard", texture: "Image texture", cubemap: "Cube texture", volume: "Volume texture", video: "Video", Cube: "Cubemap A" }[item] || item;
+      option.textContent = { none: "None", audio: "Music audio", keyboard: "Keyboard", texture: "Image texture", cubemap: "Cube texture", volume: "Volume texture", video: "Video", webcam: "Camera", Cube: "Cubemap A" }[item] || item;
       input.append(option);
     }
     input.value = value;
@@ -27152,7 +27242,7 @@ bridge = new MusicBridge(frame, (next) => {
 await bridge.ready;
 lock(false);
 status.textContent = session.recoveryError || initialVisualError || "Ready \xB7 \u2318/Ctrl Enter to run";
-$("build").textContent = "Algorave 0555234bba84";
+$("build").textContent = "Algorave 9c8e3981729b";
 function draw(now) {
   shader2.render({ playing, time: now / 1e3, delta: last2 ? (now - last2) / 1e3 : 0, ...signals.at(performance.timeOrigin + now) });
   last2 = now;

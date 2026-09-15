@@ -3,7 +3,7 @@ const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypt
 const root=path.resolve(__dirname,'..');
 function build({out=path.join(root,'.algorave-preview')}={}){
   fs.mkdirSync(out,{recursive:true});
-  const files=['preview.mjs','preview.html','music-runtime.mjs','music-bridge.mjs','shader-runtime.mjs','shader-volume.mjs','shader-video.mjs','music-signals.mjs','drum-samples.mjs','sample-assets.mjs','sample-bank.mjs','sample-persistence.mjs','sample-project.mjs','image-assets.mjs','image-persistence.mjs','project-assets.mjs','project.cjs','session.mjs','agent-client.mjs','code-editor.mjs','examples.mjs'];
+  const files=['preview.mjs','preview.html','music-runtime.mjs','music-bridge.mjs','shader-runtime.mjs','shader-volume.mjs','shader-video.mjs','shader-camera.mjs','music-signals.mjs','drum-samples.mjs','sample-assets.mjs','sample-bank.mjs','sample-persistence.mjs','sample-project.mjs','image-assets.mjs','image-persistence.mjs','project-assets.mjs','project.cjs','session.mjs','agent-client.mjs','code-editor.mjs','examples.mjs'];
   const id=crypto.createHash('sha256');for(const file of files)id.update(fs.readFileSync(path.join(root,'src/algorave',file)));
   id.update(fs.readFileSync(path.join(root,'src/algorave/strudel-prebake.mjs')));
   id.update(fs.readFileSync(path.join(root,'src/algorave/strudel-drawing.mjs')));

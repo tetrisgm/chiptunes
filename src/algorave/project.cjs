@@ -26,13 +26,16 @@ function channel(value, visuals) {
     need(Object.hasOwn(visuals,value),'Channel names a missing buffer.');return value;
   }
   need(keys(value,['type','source','src','faces','filter','wrap','vflip','srgb'],['type']),'Invalid visual input.');
-  need(['audio','keyboard','buffer','texture','cubemap','volume','video'].includes(value.type),'Unsupported visual input type.');
+  need(['audio','keyboard','buffer','texture','cubemap','volume','video','webcam'].includes(value.type),'Unsupported visual input type.');
   const result={type:value.type};
   if(value.type==='buffer'){
     need(['A','B','C','D','Cube'].includes(value.source)&&Object.hasOwn(visuals,value.source),'Channel names a missing buffer.');
     result.source=value.source;
   }else need(!Object.hasOwn(value,'source'),'Only buffers have a source pass.');
-  if(value.type==='texture'||value.type==='cubemap'||value.type==='volume'||value.type==='video'){
+  if(value.type==='webcam'){
+    need(!Object.hasOwn(value,'src')&&!Object.hasOwn(value,'faces'),'Camera input does not have a URL.');
+    for(const option of ['vflip','srgb'])if(Object.hasOwn(value,option)){need(typeof value[option]==='boolean');result[option]=value[option];}
+  }else if(value.type==='texture'||value.type==='cubemap'||value.type==='volume'||value.type==='video'){
     if(value.type!=='cubemap'){
       need(!Object.hasOwn(value,'faces'),'Only cube textures have faces.');result.src=textureSource(value.src);
     }else{

@@ -359,6 +359,44 @@ the sustained DSP/resource check for that build, not separate audio-frame heap,
 speaker quality or later shader additions. Receipt:
 `.algorave-preview/upstream-soak-1800s-receipt.json`.
 
+## Camera texture input — 2026-09-15
+
+`{type:'webcam'}` now supplies a standard sampler2D camera texture, channel
+resolution/time, flip, sRGB and sampler settings. Camera is an option inside the
+existing Channels disclosure; its descriptor contains no URL, device ID or image
+bytes. Only Play requests browser permission, with audio disabled. Stop releases
+all capture tracks. Loading/preparing/opening a project does not request capture.
+Frames remain local to WebGL and are not included in project or agent payloads.
+
+Camera ownership is shared across pass/sampler variants and unchanged inputs
+retain the stream across live shader edits and Undo. Discarded candidates do not
+start capture. Late permission results after Stop/disposal are immediately
+released. Permission denial is reported once, with an explicit Stop/Play retry;
+ended tracks, graphics-context loss and runtime disposal release capture too.
+
+`node scripts/verify-algorave-camera.cjs` passes on `9c8e3981729b`. It uses full
+Chromium (`channel: 'chromium'`) with a generated Y4M capture fixture; the lightweight
+headless shell returns NotSupportedError even with fake-device flags. Tests cover
+actual browser permission denial/grant and capture, GL pixels/flip, shared streams,
+Run/rollback continuity, late-result cancellation, Stop, context loss/disposal,
+workspace channel Run/Undo and stopped reload. No physical camera/microphone is
+used. The video regression and six captured provider UI replays also pass; the
+provider checks make zero additional API calls.
+
+Native Safari on the same local build displayed a genuine camera permission
+prompt, which was declined; the app displayed the denial without activating a
+camera. The separate `--serve` harness replaces only the camera-request call in
+its served workspace with an original canvas stream and displays request/live
+track counts. In that harness, Open/reload showed 0 requests/0 active tracks;
+Play showed moving colors and 1/1; a live inverted-color Run and Undo kept 1/1;
+Stop changed to 1/0. This proves Safari media-stream/WebGL/UI behavior, not actual
+hardware capture or a granted Safari camera permission. An initial deferred music
+Open timed out; reloading the test tab and reopening succeeded after other browser
+checks had finished. The owned Safari tab and temporary servers were closed.
+
+Reference: [Media Capture and Streams](https://www.w3.org/TR/mediacapture-streams/).
+External audio inputs and Sound output remain open; VR is explicitly excluded.
+
 ## Video texture inputs — 2026-09-15
 
 Video channels now accept HTTPS URLs or portable imported assets, with standard
