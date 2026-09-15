@@ -45,6 +45,44 @@ var require_project = __commonJS({
     function text(v, limit) {
       return typeof v === "string" && bytes(v) <= limit && !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(v);
     }
+    function channel(value, visuals) {
+      if (value === null || value === "audio" || value === "keyboard") return value;
+      if (["A", "B", "C", "D"].includes(value)) {
+        need(Object.hasOwn(visuals, value), "Channel names a missing buffer.");
+        return value;
+      }
+      need(keys(value, ["type", "source", "src", "filter", "wrap", "vflip", "srgb"], ["type"]), "Invalid visual input.");
+      need(["audio", "keyboard", "buffer", "texture"].includes(value.type), "Unsupported visual input type.");
+      const result = { type: value.type };
+      if (value.type === "buffer") {
+        need(["A", "B", "C", "D"].includes(value.source) && Object.hasOwn(visuals, value.source), "Channel names a missing buffer.");
+        result.source = value.source;
+      } else need(!Object.hasOwn(value, "source"), "Only buffers have a source pass.");
+      if (value.type === "texture") {
+        need(text(value.src, 4096), "Invalid texture URL.");
+        let url;
+        try {
+          url = new URL(value.src);
+        } catch {
+          throw Error("Use an HTTPS texture URL.");
+        }
+        need(url.protocol === "https:" && !url.username && !url.password && !url.hash, "Use an HTTPS texture URL without credentials or a fragment.");
+        result.src = url.href;
+        for (const option of ["vflip", "srgb"]) if (Object.hasOwn(value, option)) {
+          need(typeof value[option] === "boolean");
+          result[option] = value[option];
+        }
+      } else need(!["src", "vflip", "srgb"].some((key) => Object.hasOwn(value, key)), "Image options need a texture input.");
+      if (Object.hasOwn(value, "filter")) {
+        need(["nearest", "linear", "mipmap"].includes(value.filter), "Invalid texture filter.");
+        result.filter = value.filter;
+      }
+      if (Object.hasOwn(value, "wrap")) {
+        need(["clamp", "repeat", "mirror"].includes(value.wrap), "Invalid texture wrap.");
+        result.wrap = value.wrap;
+      }
+      return result;
+    }
     function project(value) {
       need(keys(value, ["version", "runtime", "music", "visuals", "samples"], ["version", "runtime", "music", "visuals"]));
       need(value.version === 1 && keys(value.runtime, ["music", "visual"], ["music", "visual"]));
@@ -65,8 +103,7 @@ var require_project = __commonJS({
         need(Object.hasOwn(visuals, name2), "Channel configuration names a missing pass.");
         const row = inputs[name2];
         need(Array.isArray(row) && row.length <= 4);
-        need(row.every((c2) => c2 === null || c2 === "audio" || ["A", "B", "C", "D"].includes(c2) && Object.hasOwn(visuals, c2)), "Channel names a missing buffer.");
-        visuals.channels[name2] = [...row];
+        visuals.channels[name2] = row.map((c2) => channel(c2, visuals));
       }
       const result = { version: 1, runtime: { ...RUNTIME }, music: value.music, visuals };
       if (Object.hasOwn(value, "samples")) {
@@ -157,7 +194,7 @@ var require_project = __commonJS({
       need(count <= 16384);
       return { kind: "algorave", id: value.id, request: value.request, baseRevision: value.baseRevision, project: normalized, target, conversation };
     }
-    module.exports = { DOCUMENTS, RUNTIME, project, revision, sourceFor, candidateFrom, context };
+    module.exports = { DOCUMENTS, RUNTIME, project, revision, sourceFor, candidateFrom, context, channel };
   }
 });
 
@@ -24930,7 +24967,7 @@ function codeEditor(parent, { language: language2, label }) {
 }
 
 // src/algorave/preview.mjs
-var import_project5 = __toESM(require_project(), 1);
+var import_project6 = __toESM(require_project(), 1);
 
 // src/algorave/session.mjs
 var import_project2 = __toESM(require_project(), 1);
@@ -25239,6 +25276,55 @@ var MusicSignals = class {
 };
 
 // src/algorave/shader-runtime.mjs
+var import_project4 = __toESM(require_project(), 1);
+
+// src/algorave/shader-images.mjs
+var IMAGE_BYTES = 16 * 1024 * 1024;
+var IMAGE_PIXELS = 16 * 1024 * 1024;
+async function loadShaderImage(src, { signal: signal2, vflip = false } = {}) {
+  const response2 = await fetch(src, { mode: "cors", credentials: "omit", referrerPolicy: "no-referrer", redirect: "error", signal: signal2 });
+  const reject = async (message2) => {
+    await response2.body?.cancel().catch(() => {
+    });
+    throw Error(message2);
+  };
+  if (!response2.ok) return reject("Texture download failed: HTTP " + response2.status);
+  const type = response2.headers.get("content-type")?.split(";")[0].trim();
+  if (!["image/png", "image/jpeg", "image/webp", "image/avif", "image/gif", "image/bmp"].includes(type)) return reject("Texture must be a PNG, JPEG, WebP, AVIF, GIF or BMP image.");
+  const size = Number(response2.headers.get("content-length"));
+  if (size > IMAGE_BYTES) return reject("Texture file is too large (16 MiB maximum).");
+  const reader = response2.body?.getReader();
+  if (!reader) throw Error("Texture download has no body.");
+  const chunks = [];
+  let length = 0, complete = false;
+  try {
+    for (; ; ) {
+      const { value, done } = await reader.read();
+      if (done) {
+        complete = true;
+        break;
+      }
+      length += value.byteLength;
+      if (length > IMAGE_BYTES) throw Error("Texture file is too large (16 MiB maximum).");
+      chunks.push(value);
+    }
+  } finally {
+    if (!complete) await reader.cancel().catch(() => {
+    });
+    reader.releaseLock();
+  }
+  if (signal2?.aborted) throw Error("Texture loading cancelled.");
+  const bitmap = await createImageBitmap(new Blob(chunks, { type }), { imageOrientation: vflip ? "flipY" : "none", premultiplyAlpha: "none", colorSpaceConversion: "none" });
+  if (signal2?.aborted || bitmap.width * bitmap.height > IMAGE_PIXELS) {
+    bitmap.close();
+    throw Error(signal2?.aborted ? "Texture loading cancelled." : "Texture resolution is too large (16 megapixels maximum).");
+  }
+  return bitmap;
+}
+var imageKey = (input) => JSON.stringify([input.src, input.vflip === true]);
+
+// src/algorave/shader-runtime.mjs
+var inputInfo = (input) => typeof input === "string" ? { type: ["audio", "keyboard"].includes(input) ? input : "buffer", source: input } : input || { type: "empty" };
 var VERTEX = `#version 300 es
 void main(){vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.-1.,0.,1.);}`;
 var HEADER = `#version 300 es
@@ -25266,6 +25352,8 @@ var ShaderRuntime = class {
     this.candidates = /* @__PURE__ */ new Set();
     this.document = null;
     this.lost = false;
+    this.loads = /* @__PURE__ */ new Set();
+    this.retained = /* @__PURE__ */ new Set();
     this.gl = canvas.getContext("webgl2", { antialias: false, preserveDrawingBuffer: true });
     if (!this.gl) throw Error("Visuals need WebGL 2.");
     this.floatBuffers = this.gl.getExtension("EXT_color_buffer_float");
@@ -25276,12 +25364,36 @@ var ShaderRuntime = class {
     this.audioBytes.fill(128, 512);
     this.audio = this.texture(512, 2, this.audioBytes);
     this.empty = this.texture(1, 1, new Uint8Array(1));
+    this.keyboardBytes = new Uint8Array(768);
+    this.keyboard = this.texture(256, 3, this.keyboardBytes);
+    this.keyHandlers = {
+      keydown: (event) => {
+        if (document.activeElement !== canvas || !this.passes.some((pass) => pass.channels.some((input) => inputInfo(input).type === "keyboard"))) return;
+        const key = event.keyCode;
+        if (key < 0 || key > 255 || !Number.isInteger(key)) return;
+        if (!this.keyboardBytes[key] && !event.repeat) {
+          this.keyboardBytes[key] = 255;
+          this.keyboardBytes[256 + key] = 255;
+          this.keyboardBytes[512 + key] ^= 255;
+        }
+        if ([32, 37, 38, 39, 40].includes(key)) event.preventDefault();
+      },
+      keyup: (event) => {
+        if (event.keyCode >= 0 && event.keyCode < 256) this.keyboardBytes[event.keyCode] = 0;
+      },
+      blur: () => this.keyboardBytes.fill(0, 0, 512)
+    };
+    this.previousTabIndex = canvas.getAttribute("tabindex");
+    canvas.tabIndex = 0;
+    for (const [name2, handler] of Object.entries(this.keyHandlers)) window.addEventListener(name2, handler);
     this.mouse = [0, 0, 0, 0];
     this.handlers = {
       webglcontextlost: (event) => {
         event.preventDefault();
         this.lost = true;
         this.generation++;
+        for (const controller of this.loads) controller.abort();
+        for (const previous of this.retained) previous.invalid = true;
         for (const candidate of [...this.candidates]) candidate.dispose();
         this.onStatus("Visuals paused while the graphics context recovers. Music continues.");
       },
@@ -25293,17 +25405,19 @@ var ShaderRuntime = class {
         this.floatBuffers = this.gl.getExtension("EXT_color_buffer_float");
         this.audio = this.texture(512, 2, this.audioBytes);
         this.empty = this.texture(1, 1, new Uint8Array(1));
-        try {
-          if (saved) this.set(saved);
+        this.keyboard = this.texture(256, 3, this.keyboardBytes);
+        if (saved) this.prepareAsync(saved).then((candidate) => {
+          candidate.apply();
           this.onStatus("Visuals recovered");
-        } catch (error) {
-          this.onStatus("Visual recovery failed: " + error.message);
-        }
+        }).catch((error) => {
+          if (!this.disposed) this.onStatus("Visual recovery failed: " + error.message);
+        });
       },
       pointerdown: (event) => {
         if (event.button !== 0) return;
         this.pointer = event.pointerId;
         canvas.setPointerCapture(event.pointerId);
+        canvas.focus({ preventScroll: true });
         this.position(event);
         this.mouse[2] = Math.max(1e-4, this.mouse[0]);
         this.mouse[3] = Math.max(1e-4, this.mouse[1]);
@@ -25339,7 +25453,7 @@ var ShaderRuntime = class {
     if (width === this.canvas.width && height === this.canvas.height) return false;
     const replacements = [];
     try {
-      for (const pass of this.passes) {
+      for (const pass of [...this.passes, ...[...this.retained].filter((previous) => !previous.invalid).flatMap((previous) => previous.passes)]) {
         if (!pass.targets.length) continue;
         const pair2 = [];
         replacements.push({ pass, pair: pair2 });
@@ -25376,6 +25490,36 @@ var ShaderRuntime = class {
     g.pixelStorei(g.UNPACK_ALIGNMENT, 1);
     g.texImage2D(g.TEXTURE_2D, 0, bytes ? g.R8 : g.RGBA16F, width, height, 0, bytes ? g.RED : g.RGBA, bytes ? g.UNSIGNED_BYTE : g.HALF_FLOAT, bytes);
     return { texture, width, height };
+  }
+  imageTexture(bitmap, srgb = false) {
+    const g = this.gl, limit = g.getParameter(g.MAX_TEXTURE_SIZE);
+    if (bitmap.width > limit || bitmap.height > limit) throw Error("Texture exceeds this graphics device\u2019s size limit.");
+    const texture = g.createTexture();
+    g.bindTexture(g.TEXTURE_2D, texture);
+    try {
+      g.pixelStorei(g.UNPACK_FLIP_Y_WEBGL, false);
+      g.pixelStorei(g.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+      g.texImage2D(g.TEXTURE_2D, 0, srgb ? g.SRGB8_ALPHA8 : g.RGBA8, g.RGBA, g.UNSIGNED_BYTE, bitmap);
+      if (g.getError() !== g.NO_ERROR) throw Error("Visual texture allocation failed.");
+      g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MIN_FILTER, g.LINEAR);
+      g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MAG_FILTER, g.LINEAR);
+      g.texParameteri(g.TEXTURE_2D, g.TEXTURE_WRAP_S, g.CLAMP_TO_EDGE);
+      g.texParameteri(g.TEXTURE_2D, g.TEXTURE_WRAP_T, g.CLAMP_TO_EDGE);
+      return { texture, width: bitmap.width, height: bitmap.height };
+    } catch (error) {
+      g.deleteTexture(texture);
+      throw error;
+    }
+  }
+  sampler(input) {
+    const g = this.gl, info = inputInfo(input), sampler = g.createSampler();
+    const filter = info.filter || (info.type === "keyboard" ? "nearest" : "linear"), wrap = info.wrap || "clamp";
+    g.samplerParameteri(sampler, g.TEXTURE_MIN_FILTER, filter === "nearest" ? g.NEAREST : filter === "mipmap" ? g.LINEAR_MIPMAP_LINEAR : g.LINEAR);
+    g.samplerParameteri(sampler, g.TEXTURE_MAG_FILTER, filter === "nearest" ? g.NEAREST : g.LINEAR);
+    const edge = wrap === "repeat" ? g.REPEAT : wrap === "mirror" ? g.MIRRORED_REPEAT : g.CLAMP_TO_EDGE;
+    g.samplerParameteri(sampler, g.TEXTURE_WRAP_S, edge);
+    g.samplerParameteri(sampler, g.TEXTURE_WRAP_T, edge);
+    return sampler;
   }
   target(width = this.canvas.width, height = this.canvas.height) {
     if (!this.floatBuffers) throw Error("Feedback buffers need floating-point WebGL support.");
@@ -25418,27 +25562,43 @@ var ShaderRuntime = class {
     }
   }
   // Transactional prepare: a bad pass never replaces any working pass.
-  prepare(document2) {
+  prepare(document2, images = /* @__PURE__ */ new Map()) {
     if (!document2 || typeof document2.Image !== "string") throw Error("An Image shader is required.");
     document2 = structuredClone(document2);
-    const common = document2.Common || "", next = [], generation = this.generation;
+    const common = document2.Common || "", next = [], generation = this.generation, imageTextures = /* @__PURE__ */ new Map();
+    let imagePixels = 0;
     if (typeof common !== "string" || common.length > 65536) throw Error("Common code is too large.");
     try {
       for (const name2 of ORDER) {
         const source = document2[name2];
         if (source === void 0) continue;
         if (typeof source !== "string" || source.length > 65536) throw Error(`${name2} code is too large.`);
-        const channels = document2.channels?.[name2] || (name2 === "Image" ? ["audio"] : []);
-        if (!Array.isArray(channels) || channels.length > 4 || channels.some((c2) => c2 !== null && c2 !== "audio" && !ORDER.slice(0, 4).includes(c2))) throw Error(`${name2}: unsupported channel.`);
-        for (const c2 of channels) if (c2 && c2 !== "audio" && typeof document2[c2] !== "string") throw Error(`${name2}: missing Buffer ${c2}.`);
+        const row = document2.channels?.[name2] || (name2 === "Image" ? ["audio"] : []);
+        if (!Array.isArray(row) || row.length > 4) throw Error(`${name2}: unsupported channel.`);
+        const channels = row.map((input) => import_project4.default.channel(input, document2));
         let program;
         try {
           program = this.compile(source, common);
         } catch (e) {
           throw Error(`${name2}: ${e.message}`);
         }
-        const pass = { name: name2, program, channels, uniforms: /* @__PURE__ */ new Map(), targets: [], read: 0 };
+        const pass = { name: name2, program, channels, uniforms: /* @__PURE__ */ new Map(), targets: [], images: [], samplers: [], read: 0 };
         next.push(pass);
+        for (let i2 = 0; i2 < 4; i2++) {
+          const input = inputInfo(channels[i2]);
+          pass.samplers.push(this.sampler(channels[i2]));
+          if (input.type === "texture") {
+            const bitmap = images.get(imageKey(input));
+            if (!bitmap) throw Error("Texture is not loaded. Use asynchronous preparation.");
+            const key = imageKey(input) + ":" + (input.srgb === true);
+            if (!imageTextures.has(key)) {
+              imagePixels += bitmap.width * bitmap.height;
+              if (imagePixels > IMAGE_PIXELS * 4) throw Error("Combined texture resolution exceeds 64 megapixels.");
+              imageTextures.set(key, this.imageTexture(bitmap, input.srgb === true));
+            }
+            pass.images[i2] = imageTextures.get(key);
+          }
+        }
         if (name2 !== "Image") {
           pass.targets.push(this.target());
           pass.targets.push(this.target());
@@ -25448,21 +25608,48 @@ var ShaderRuntime = class {
       this.deletePasses(next);
       throw error;
     }
-    let settled = false;
+    let settled = false, previous;
     const candidate = {
-      apply: () => {
+      apply: ({ retainPrevious = false } = {}) => {
         if (settled || generation !== this.generation || this.lost || this.disposed || this.gl.isContextLost()) {
           candidate.dispose();
           throw Error("The visual output changed. Run this edit again.");
         }
         settled = true;
         this.candidates.delete(candidate);
-        this.deletePasses(this.passes);
+        if (retainPrevious) {
+          previous = { passes: this.passes, frame: this.frame, document: this.document };
+          this.retained.add(previous);
+        } else this.deletePasses(this.passes);
         this.passes = next;
         this.frame = 0;
         this.document = document2;
       },
+      rollback: async () => {
+        if (!previous) return;
+        const restore = previous;
+        previous = void 0;
+        this.retained.delete(restore);
+        if (restore.invalid) {
+          this.generation++;
+          for (const controller of this.loads) controller.abort();
+          if (!this.lost) this.deletePasses(this.passes);
+          this.passes = [];
+          this.document = restore.document;
+          if (!this.lost && !this.disposed) (await this.prepareAsync(restore.document)).apply();
+        } else {
+          this.deletePasses(next);
+          this.passes = restore.passes;
+          this.frame = restore.frame;
+          this.document = restore.document;
+        }
+      },
       dispose: () => {
+        if (previous) {
+          this.retained.delete(previous);
+          if (!previous.invalid) this.deletePasses(previous.passes);
+          previous = void 0;
+        }
         if (!settled) {
           settled = true;
           this.candidates.delete(candidate);
@@ -25472,6 +25659,31 @@ var ShaderRuntime = class {
     };
     this.candidates.add(candidate);
     return candidate;
+  }
+  async prepareAsync(document2) {
+    const normalized = import_project4.default.project({ version: 1, runtime: import_project4.default.RUNTIME, music: "", visuals: document2 }).visuals;
+    const inputs = Object.values(normalized.channels).flat().filter((input) => inputInfo(input).type === "texture");
+    if (!inputs.length) return this.prepare(normalized);
+    const generation = this.generation, controller = new AbortController(), images = /* @__PURE__ */ new Map();
+    this.loads.add(controller);
+    const timer = setTimeout(() => controller.abort(), 15e3);
+    let pixels = 0;
+    try {
+      for (const input of inputs) {
+        const key = imageKey(input);
+        if (images.has(key)) continue;
+        const bitmap = await loadShaderImage(input.src, { signal: controller.signal, vflip: input.vflip });
+        images.set(key, bitmap);
+        pixels += bitmap.width * bitmap.height;
+        if (pixels > IMAGE_PIXELS * 4) throw Error("Combined texture resolution exceeds 64 megapixels.");
+      }
+      if (controller.signal.aborted || generation !== this.generation || this.disposed || this.lost) throw Error("Visual output changed while textures loaded. Run again.");
+      return this.prepare(normalized, images);
+    } finally {
+      clearTimeout(timer);
+      this.loads.delete(controller);
+      for (const bitmap of images.values()) bitmap.close();
+    }
   }
   set(document2) {
     this.prepare(document2).apply();
@@ -25488,7 +25700,11 @@ var ShaderRuntime = class {
       this.audioBytes.set(waveform, 512);
       g.bindTexture(g.TEXTURE_2D, this.audio.texture);
       g.texSubImage2D(g.TEXTURE_2D, 0, 0, 0, 512, 2, g.RED, g.UNSIGNED_BYTE, this.audioBytes);
+      this.audio.mipmaps = false;
     }
+    g.bindTexture(g.TEXTURE_2D, this.keyboard.texture);
+    g.texSubImage2D(g.TEXTURE_2D, 0, 0, 0, 256, 3, g.RED, g.UNSIGNED_BYTE, this.keyboardBytes);
+    this.keyboard.mipmaps = false;
     const completed = /* @__PURE__ */ new Map();
     for (const pass of this.passes) {
       const write = pass.targets[1 - pass.read];
@@ -25507,22 +25723,31 @@ var ShaderRuntime = class {
       this.uniform(pass, "ctBeat", "uniform1f", (cycle * 4 % 1 + 1) % 1);
       this.uniform(pass, "ctKick", "uniform1f", kick);
       for (let i2 = 0; i2 < 4; i2++) {
-        const input = pass.channels[i2];
-        const buffer = this.passes.find((p) => p.name === input);
-        const texture = input === "audio" ? this.audio : completed.get(input) || buffer?.targets[buffer.read] || this.empty;
+        const input = inputInfo(pass.channels[i2]);
+        const buffer = this.passes.find((p) => p.name === input.source);
+        const texture = input.type === "audio" ? this.audio : input.type === "keyboard" ? this.keyboard : pass.images[i2] || completed.get(input.source) || buffer?.targets[buffer.read] || this.empty;
         g.activeTexture(g.TEXTURE0 + i2);
         g.bindTexture(g.TEXTURE_2D, texture.texture);
+        if (input.filter === "mipmap" && !texture.mipmaps) {
+          g.generateMipmap(g.TEXTURE_2D);
+          texture.mipmaps = true;
+        }
+        g.bindSampler(i2, pass.samplers[i2]);
         this.uniform(pass, `iChannel${i2}`, "uniform1i", i2);
         this.uniform(pass, `iChannelResolution[${i2}]`, "uniform3f", texture.width, texture.height, 1);
-        this.uniform(pass, `iChannelTime[${i2}]`, "uniform1f", input === "audio" ? time : 0);
+        this.uniform(pass, `iChannelTime[${i2}]`, "uniform1f", input.type === "audio" ? time : 0);
       }
       g.drawArrays(g.TRIANGLES, 0, 3);
-      if (write) completed.set(pass.name, write);
+      if (write) {
+        write.mipmaps = false;
+        completed.set(pass.name, write);
+      }
     }
     this.passes.forEach((p) => {
       if (p.targets.length) p.read = 1 - p.read;
     });
     this.frame++;
+    this.keyboardBytes.fill(0, 256, 512);
     return true;
   }
   deleteTarget(target) {
@@ -25530,22 +25755,132 @@ var ShaderRuntime = class {
     if (target.fbo) this.gl.deleteFramebuffer(target.fbo);
   }
   deletePasses(passes) {
+    const images = /* @__PURE__ */ new Set();
     for (const pass of passes) {
       this.gl.deleteProgram(pass.program);
       pass.targets.forEach((t2) => this.deleteTarget(t2));
+      pass.images.forEach((t2) => images.add(t2));
+      pass.samplers.forEach((s) => this.gl.deleteSampler(s));
     }
+    images.forEach((image) => this.deleteTarget(image));
   }
   dispose() {
     if (this.disposed) return;
     for (const [name2, handler] of Object.entries(this.handlers)) this.canvas.removeEventListener(name2, handler);
+    for (const [name2, handler] of Object.entries(this.keyHandlers)) window.removeEventListener(name2, handler);
+    if (this.previousTabIndex === null) this.canvas.removeAttribute("tabindex");
+    else this.canvas.setAttribute("tabindex", this.previousTabIndex);
+    for (const controller of this.loads) controller.abort();
+    for (const previous of this.retained) if (!previous.invalid) this.deletePasses(previous.passes);
+    this.retained.clear();
     for (const candidate of [...this.candidates]) candidate.dispose();
     this.disposed = true;
     this.deletePasses(this.passes);
     this.deleteTarget(this.audio);
     this.deleteTarget(this.empty);
+    this.deleteTarget(this.keyboard);
     this.passes = [];
   }
 };
+
+// src/algorave/shader-channel-editor.mjs
+function shaderChannelEditor(root, textarea) {
+  let document2, pass;
+  function render(nextDocument, nextPass) {
+    document2 = nextDocument;
+    pass = nextPass;
+    root.replaceChildren();
+    if (pass === "Common") {
+      root.textContent = "Select Image or a buffer to configure its inputs.";
+      return;
+    }
+    let channels;
+    try {
+      channels = JSON.parse(textarea.value);
+    } catch {
+      root.textContent = "Correct the channel JSON below to use the input controls.";
+      return;
+    }
+    const row = channels?.[pass] || [];
+    for (let index = 0; index < 4; index++) {
+      let visibility = function() {
+        const texture = source.input.value === "texture", empty = source.input.value === "none";
+        src.label.hidden = flip.label.hidden = srgb.label.hidden = !texture;
+        filter.label.hidden = wrap.label.hidden = empty;
+      };
+      const raw = row[index], input = typeof raw === "string" ? { type: ["audio", "keyboard"].includes(raw) ? raw : "buffer", source: raw } : raw || {};
+      const group = documentElement("fieldset"), legend = documentElement("legend");
+      legend.textContent = `iChannel${index}`;
+      group.append(legend);
+      const source = select("Input", ["none", "audio", "keyboard", "texture", ...["A", "B", "C", "D"].filter((name2) => document2[name2])], input.type === "buffer" ? input.source : input.type || "none");
+      group.append(source.label);
+      const src = field("Image URL", "url");
+      src.input.value = input.src || "";
+      src.input.placeholder = "https://\u2026";
+      group.append(src.label);
+      const filter = select("Filter", ["nearest", "linear", "mipmap"], input.filter || (input.type === "keyboard" ? "nearest" : "linear"));
+      group.append(filter.label);
+      const wrap = select("Wrap", ["clamp", "repeat", "mirror"], input.wrap || "clamp");
+      group.append(wrap.label);
+      const flip = field("Flip vertically", "checkbox"), srgb = field("sRGB", "checkbox");
+      flip.input.checked = input.vflip === true;
+      srgb.input.checked = input.srgb === true;
+      group.append(flip.label, srgb.label);
+      const update = () => {
+        let current;
+        try {
+          current = JSON.parse(textarea.value);
+        } catch {
+          return;
+        }
+        const chosen = source.input.value;
+        let value = null;
+        if (chosen !== "none") {
+          value = { type: ["A", "B", "C", "D"].includes(chosen) ? "buffer" : chosen, filter: filter.input.value, wrap: wrap.input.value };
+          if (value.type === "buffer") value.source = chosen;
+          if (chosen === "texture") Object.assign(value, { src: src.input.value, vflip: flip.input.checked, srgb: srgb.input.checked });
+        }
+        const inputs = [...current[pass] || []];
+        while (inputs.length <= index) inputs.push(null);
+        inputs[index] = value;
+        current[pass] = inputs;
+        textarea.value = JSON.stringify(current);
+        visibility();
+      };
+      source.input.onchange = () => {
+        if (source.input.value === "keyboard") filter.input.value = "nearest";
+        update();
+      };
+      for (const control of [src, filter, wrap, flip, srgb]) control.input.onchange = update;
+      visibility();
+      root.append(group);
+    }
+  }
+  function documentElement(tag) {
+    return root.ownerDocument.createElement(tag);
+  }
+  function field(name2, type) {
+    const label = documentElement("label"), input = documentElement("input");
+    input.type = type;
+    input.setAttribute("aria-label", `${pass} ${name2}`);
+    label.append(name2, input);
+    return { label, input };
+  }
+  function select(name2, values, value) {
+    const label = documentElement("label"), input = documentElement("select");
+    input.setAttribute("aria-label", `${pass} ${name2}`);
+    for (const item of values) {
+      const option = documentElement("option");
+      option.value = item;
+      option.textContent = { none: "None", audio: "Music audio", keyboard: "Keyboard", texture: "Image texture" }[item] || item;
+      input.append(option);
+    }
+    input.value = value;
+    label.append(name2, input);
+    return { label, input };
+  }
+  return { render };
+}
 
 // src/algorave/sample-assets.mjs
 var SAMPLE_LIMITS = Object.freeze({ fileBytes: 4 * 1024 * 1024, totalBytes: 16 * 1024 * 1024, count: 32, timeoutMs: 1e4 });
@@ -25753,7 +26088,7 @@ async function saveSamples(store) {
 }
 
 // src/algorave/sample-project.mjs
-var import_project4 = __toESM(require_project(), 1);
+var import_project5 = __toESM(require_project(), 1);
 var SAMPLE_PROJECT_BYTES = 24 * 1024 * 1024;
 var sampleIds = (project) => [...new Set(Object.values(project.samples || {}).flat())];
 var encode = (bytes) => {
@@ -25762,14 +26097,14 @@ var encode = (bytes) => {
   return btoa(text);
 };
 function exportSampleProject(value, store) {
-  const project = import_project4.default.project(value), ids = sampleIds(project);
+  const project = import_project5.default.project(value), ids = sampleIds(project);
   if (!ids.length) return project;
   return { format: "ct-algorave-samples", version: 1, project, assets: ids.map((id2) => ({ id: id2, data: encode(store.get(id2)) })) };
 }
 async function importSampleProject(value) {
-  if (value?.format !== "ct-algorave-samples") return { project: import_project4.default.project(value), store: null };
+  if (value?.format !== "ct-algorave-samples") return { project: import_project5.default.project(value), store: null };
   if (value.version !== 1 || Object.keys(value).length !== 4 || !["format", "version", "project", "assets"].every((k) => Object.hasOwn(value, k)) || !Array.isArray(value.assets) || value.assets.length > 32) throw Error("Invalid project sample archive.");
-  const project = import_project4.default.project(value.project), ids = new Set(sampleIds(project)), store = new SampleByteStore();
+  const project = import_project5.default.project(value.project), ids = new Set(sampleIds(project)), store = new SampleByteStore();
   if (value.assets.length !== ids.size) throw Error("Project sample archive has missing or duplicate content.");
   for (const record of value.assets) {
     if (!record || Object.keys(record).length !== 2 || !ids.has(record.id) || typeof record.data !== "string" || record.data.length > Math.ceil(SAMPLE_LIMITS.fileBytes / 3) * 4 || (record.data.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(record.data))) throw Error("Invalid project sample content.");
@@ -25786,6 +26121,7 @@ var $ = (id2) => document.getElementById(id2);
 var status = $("status");
 var music = codeEditor($("music"), { language: "music", label: "Strudel music" });
 var visual = codeEditor($("visual"), { language: "visual", label: "GLSL visual" });
+var channelEditor = shaderChannelEditor($("channel-editor"), $("channels"));
 var signal = {};
 var playing = false;
 var last2 = 0;
@@ -25799,6 +26135,9 @@ var pendingProposal;
 var pendingContext;
 var uiBusy = false;
 var saveTimer;
+var stopGeneration = 0;
+var visualRunRequested = false;
+var initialVisualError;
 var sampleStorePromise;
 var sampleAbort;
 var sampleStore = () => sampleStorePromise || (sampleStorePromise = loadSamples().catch((error) => {
@@ -25817,8 +26156,9 @@ var runtime = {
     const pendingSample = sampleAbort;
     const musicChanged = next.music !== previous.music || JSON.stringify(next.samples) !== JSON.stringify(previous.samples) || playRequested || openRequested;
     const shouldPlay = !openRequested && (playing || playRequested);
-    const visualChanged = JSON.stringify(next.visuals) !== JSON.stringify(previous.visuals);
-    const visualCandidate = visualChanged ? shader2.prepare(next.visuals) : null;
+    const stopVersion = stopGeneration;
+    const visualChanged = JSON.stringify(next.visuals) !== JSON.stringify(previous.visuals) || openRequested || visualRunRequested;
+    const visualCandidate = visualChanged ? await shader2.prepareAsync(next.visuals) : null;
     let token, checkpoint;
     try {
       if (musicChanged) {
@@ -25840,17 +26180,17 @@ var runtime = {
         let visualApplied = false;
         try {
           if (visualCandidate) {
-            visualCandidate.apply();
+            visualCandidate.apply({ retainPrevious: true });
             visualApplied = true;
           }
           if (musicChanged) {
-            const result = await bridge.request("commit", void 0, { token, play: shouldPlay });
+            const result = await bridge.request("commit", void 0, { token, play: shouldPlay && stopVersion === stopGeneration });
             playing = result.playing;
             checkpoint = result.checkpoint;
             token = void 0;
           }
         } catch (error) {
-          if (visualApplied) shader2.set(previous.visuals);
+          if (visualApplied) await visualCandidate.rollback();
           throw error;
         }
       },
@@ -25872,6 +26212,7 @@ function showProject() {
   music.value = session.draft.music;
   visual.switchDocument(session.draft.visuals[visualPass] || "", visualPass);
   $("channels").value = JSON.stringify(session.draft.visuals.channels);
+  channelEditor.render(session.draft.visuals, visualPass);
   $("undo").disabled = !session.history.length || uiBusy;
   $("agent-undo").disabled = $("undo").disabled;
 }
@@ -25879,7 +26220,12 @@ showProject();
 shader2 = new ShaderRuntime($("canvas"), { onStatus: (text) => {
   status.textContent = text;
 } });
-shader2.set(session.applied.visuals);
+try {
+  (await shader2.prepareAsync(session.applied.visuals)).apply();
+} catch (error) {
+  shader2.set(initial.visuals);
+  initialVisualError = "Saved visual could not load: " + error.message;
+}
 var resize = new ResizeObserver(() => {
   try {
     const rect = $("canvas").getBoundingClientRect();
@@ -25930,6 +26276,8 @@ function lock(value) {
   uiBusy = value;
   music.readOnly = value;
   visual.readOnly = value;
+  for (const field of $("channel-editor").querySelectorAll("fieldset")) field.disabled = value;
+  $("channels").readOnly = value;
   for (const id2 of ["run", "play", "apply", "undo", "pass", "set-channels", "channels", "open", "examples", "sample-open", "sample-add"]) $(id2).disabled = value;
   $("play").disabled = value && !playing;
   $("undo").disabled = value || !session.history.length;
@@ -25952,6 +26300,7 @@ async function action(fn) {
 }
 async function run() {
   await action(async () => {
+    visualRunRequested = focus === "visual";
     const next = structuredClone(session.applied);
     const historyDraft = structuredClone(session.draft);
     if (focus === "visual") historyDraft.visuals = structuredClone(session.applied.visuals);
@@ -25971,6 +26320,7 @@ async function run() {
       throw error;
     } finally {
       playRequested = false;
+      visualRunRequested = false;
     }
   });
 }
@@ -25983,13 +26333,16 @@ visual.onfocus = () => focus = "visual";
 $("pass").onchange = () => {
   visualPass = $("pass").value;
   visual.switchDocument(session.draft.visuals[visualPass] || "", visualPass);
+  channelEditor.render(session.draft.visuals, visualPass);
   focus = "visual";
 };
+$("channels").onchange = () => channelEditor.render(session.draft.visuals, visualPass);
 $("set-channels").onclick = () => {
   try {
     const next = structuredClone(session.draft);
     next.visuals.channels = JSON.parse($("channels").value);
     session.edit(next);
+    focus = "visual";
     save();
     status.textContent = "Channel draft updated \xB7 Run visuals to apply";
   } catch (error) {
@@ -26003,6 +26356,7 @@ $("play").onclick = async () => {
     await run();
     return;
   }
+  stopGeneration++;
   if (uiBusy) {
     try {
       await bridge.request("stop");
@@ -26026,7 +26380,7 @@ async function openProject(next) {
     status.textContent = "Opening project\u2026";
     openRequested = true;
     try {
-      await session.activate(import_project5.default.project(next));
+      await session.activate(import_project6.default.project(next));
       music.resetHistory();
       visual.resetHistory();
       visualPass = "Image";
@@ -26081,7 +26435,7 @@ $("help-close").onclick = () => $("help").close();
 $("save").onclick = () => save(true);
 $("download").onclick = async () => {
   try {
-    const snapshot = import_project5.default.project(session.draft), store = sampleIds(snapshot).length ? await sampleStore() : null;
+    const snapshot = import_project6.default.project(session.draft), store = sampleIds(snapshot).length ? await sampleStore() : null;
     const url = URL.createObjectURL(new Blob([JSON.stringify(exportSampleProject(snapshot, store), null, 2)], { type: "application/json" }));
     const link = document.createElement("a");
     link.href = url;
@@ -26122,7 +26476,7 @@ $("sample-add").onclick = () => action(async () => {
     await saveSamples(store);
     if (sampleAbort.signal.aborted) throw Error("Sample loading cancelled.");
     if (generation !== session.generation) throw Error("The project changed while the sample loaded. Try again.");
-    const next = import_project5.default.project({ ...session.draft, samples: { ...session.draft.samples, [name2]: [id2] } });
+    const next = import_project6.default.project({ ...session.draft, samples: { ...session.draft.samples, [name2]: [id2] } });
     await session.activate(next);
     $("sample-dialog").close();
     $("sample-file").value = "";
@@ -26208,7 +26562,7 @@ $("ask-form").onsubmit = async (event) => {
     const context = await session.requestContext($("prompt").value);
     $("agent-status").textContent = "Writing a proposal\u2026";
     const proposal = await agent.request(context, $("provider").value);
-    if (await import_project5.default.revision(session.draft) !== context.baseRevision) throw Error("The source changed while the agent was writing. Ask again.");
+    if (await import_project6.default.revision(session.draft) !== context.baseRevision) throw Error("The source changed while the agent was writing. Ask again.");
     pendingContext = context;
     pendingProposal = proposal;
     $("explanation").textContent = proposal.explanation;
@@ -26254,8 +26608,8 @@ bridge = new MusicBridge(frame, (next) => {
 }, message);
 await bridge.ready;
 lock(false);
-status.textContent = session.recoveryError || "Ready \xB7 \u2318/Ctrl Enter to run";
-$("build").textContent = "Algorave 92b46347ca27";
+status.textContent = session.recoveryError || initialVisualError || "Ready \xB7 \u2318/Ctrl Enter to run";
+$("build").textContent = "Algorave d7b050ab6d65";
 function draw(now) {
   shader2.render({ time: now / 1e3, delta: last2 ? (now - last2) / 1e3 : 0, ...signals.at(performance.timeOrigin + now) });
   last2 = now;

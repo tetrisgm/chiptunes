@@ -17,8 +17,11 @@ for limits, exact verification scopes and remaining work.
 Standard Strudel catalogs, ZZFX, GM soundfonts, the piano helper and xen tuning
 are integrated; see the [sound-library checkpoint](algorave-runtime-decisions.md#standard-sound-libraries--2026-09-15).
 
+Image texture and keyboard inputs plus per-channel sampler controls are now
+implemented; see the [image/keyboard checkpoint](algorave-runtime-decisions.md#image-and-keyboard-channels--2026-09-15).
+
 Next: complete the remaining Strudel input/drawing/module scope and Shadertoy
-media, sampler, keyboard, cubemap, Sound and VR contracts; repeat native acceptance
+local imports, media, cube/volume textures, Cubemap, Sound and VR contracts; repeat native acceptance
 and sustained performance on the replacement. Chromium DSP checks use an explicit
 silent sink after default-device failures also affected upstream. Six saved real
 provider replies are available for zero-call replay. Native OpenAI music, visual

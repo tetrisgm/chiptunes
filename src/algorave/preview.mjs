@@ -6,6 +6,7 @@ import { AgentClient } from './agent-client.mjs';
 import { MusicBridge } from './music-bridge.mjs';
 import { MusicSignals } from './music-signals.mjs';
 import { ShaderRuntime } from './shader-runtime.mjs';
+import { shaderChannelEditor } from './shader-channel-editor.mjs';
 import {fetchSample,inspectSampleWav,SAMPLE_LIMITS} from './sample-assets.mjs';
 import {loadSamples,saveSamples} from './sample-persistence.mjs';
 import {sampleIds,exportSampleProject,importSampleProject,SAMPLE_PROJECT_BYTES} from './sample-project.mjs';
@@ -13,8 +14,9 @@ const $ = id => document.getElementById(id);
 const status = $('status');
 const music = codeEditor($('music'), {language:'music',label:'Strudel music'});
 const visual = codeEditor($('visual'), {language:'visual',label:'GLSL visual'});
+const channelEditor=shaderChannelEditor($('channel-editor'),$('channels'));
 let signal = {}, playing = false, last = 0, focus = 'music', playRequested = false, openRequested = false, visualPass = 'Image';
-let bridge, shader, pendingProposal, pendingContext, uiBusy = false, saveTimer;
+let bridge, shader, pendingProposal, pendingContext, uiBusy = false, saveTimer,stopGeneration=0,visualRunRequested=false,initialVisualError;
 let sampleStorePromise,sampleAbort;
 const sampleStore=()=>sampleStorePromise||(sampleStorePromise=loadSamples().catch(error=>{sampleStorePromise=null;throw error;}));
 const initial = example();
@@ -25,8 +27,9 @@ const runtime = {
     const pendingSample=sampleAbort;
     const musicChanged = next.music !== previous.music || JSON.stringify(next.samples)!==JSON.stringify(previous.samples) || playRequested || openRequested;
     const shouldPlay = !openRequested && (playing || playRequested);
-    const visualChanged = JSON.stringify(next.visuals) !== JSON.stringify(previous.visuals);
-    const visualCandidate = visualChanged ? shader.prepare(next.visuals) : null;
+    const stopVersion=stopGeneration;
+    const visualChanged = JSON.stringify(next.visuals) !== JSON.stringify(previous.visuals)||openRequested||visualRunRequested;
+    const visualCandidate = visualChanged ? await shader.prepareAsync(next.visuals) : null;
     let token,checkpoint;
     try { if (musicChanged) {
       const ids=sampleIds(next),store=ids.length?await sampleStore():null;
@@ -43,13 +46,13 @@ const runtime = {
         // if audio activation fails, restore the previous applied visual source.
         let visualApplied = false;
         try {
-          if (visualCandidate) { visualCandidate.apply(); visualApplied = true; }
+          if (visualCandidate) { visualCandidate.apply({retainPrevious:true}); visualApplied = true; }
           if (musicChanged) {
-            const result = await bridge.request('commit', undefined, { token, play:shouldPlay });
+            const result = await bridge.request('commit', undefined, { token, play:shouldPlay&&stopVersion===stopGeneration });
             playing = result.playing; checkpoint=result.checkpoint; token = undefined;
           }
         } catch (error) {
-          if (visualApplied) shader.set(previous.visuals);
+          if (visualApplied) await visualCandidate.rollback();
           throw error;
         }
       },
@@ -67,12 +70,14 @@ function showProject() {
   music.value = session.draft.music;
   visual.switchDocument(session.draft.visuals[visualPass] || '', visualPass);
   $('channels').value = JSON.stringify(session.draft.visuals.channels);
+  channelEditor.render(session.draft.visuals,visualPass);
   $('undo').disabled = !session.history.length || uiBusy;
   $('agent-undo').disabled = $('undo').disabled;
 }
 showProject();
 shader = new ShaderRuntime($('canvas'), { onStatus: text => { status.textContent = text; } });
-shader.set(session.applied.visuals);
+try{(await shader.prepareAsync(session.applied.visuals)).apply();}
+catch(error){shader.set(initial.visuals);initialVisualError='Saved visual could not load: '+error.message;}
 const resize = new ResizeObserver(() => {
   try { const rect = $('canvas').getBoundingClientRect(); shader.resize(rect.width * devicePixelRatio, rect.height * devicePixelRatio); }
   catch (error) { status.textContent = error.message; }
@@ -97,6 +102,8 @@ function changed() {
 music.oninput = changed; visual.oninput = changed;
 function lock(value) {
   uiBusy = value; music.readOnly = value; visual.readOnly = value;
+  for(const field of $('channel-editor').querySelectorAll('fieldset'))field.disabled=value;
+  $('channels').readOnly=value;
   for (const id of ['run','play','apply','undo','pass','set-channels','channels','open','examples','sample-open','sample-add']) $(id).disabled = value;
   $('play').disabled = value && !playing;
   $('undo').disabled = value || !session.history.length;
@@ -112,6 +119,7 @@ async function action(fn) {
 }
 async function run() {
   await action(async () => {
+    visualRunRequested=focus==='visual';
     const next = structuredClone(session.applied);
     const historyDraft = structuredClone(session.draft);
     // Undo a manual Run restores the focused editor's last applied source,
@@ -129,19 +137,21 @@ async function run() {
       if (match) (focus === 'visual' ? visual : music).error(error.message, {line:Number(match[1]),column:Number(match[2] || 0)});
       throw error;
     }
-    finally { playRequested = false; }
+    finally { playRequested = false;visualRunRequested=false; }
   });
 }
 $('mode').onchange = () => { document.body.dataset.mode = $('mode').value; focus = $('mode').value === 'visuals' ? 'visual' : 'music'; };
 music.onfocus = () => focus = 'music'; visual.onfocus = () => focus = 'visual';
-$('pass').onchange = () => { visualPass = $('pass').value; visual.switchDocument(session.draft.visuals[visualPass] || '', visualPass); focus = 'visual'; };
+$('pass').onchange = () => { visualPass = $('pass').value; visual.switchDocument(session.draft.visuals[visualPass] || '', visualPass);channelEditor.render(session.draft.visuals,visualPass); focus = 'visual'; };
+$('channels').onchange=()=>channelEditor.render(session.draft.visuals,visualPass);
 $('set-channels').onclick = () => {
-  try { const next = structuredClone(session.draft); next.visuals.channels = JSON.parse($('channels').value); session.edit(next); save(); status.textContent = 'Channel draft updated · Run visuals to apply'; }
+  try { const next = structuredClone(session.draft); next.visuals.channels = JSON.parse($('channels').value); session.edit(next);focus='visual'; save(); status.textContent = 'Channel draft updated · Run visuals to apply'; }
   catch (error) { message(error); }
 };
 $('run').onclick = run;
 $('play').onclick = async () => {
   if (!playing) { focus = 'music'; await run(); return; }
+  stopGeneration++;
   if(uiBusy){
     try{await bridge.request('stop');playing=false;$('play').textContent='Play';$('play').disabled=true;status.textContent='Stopped';}
     catch(error){message(error);}return;
@@ -293,7 +303,7 @@ frame.srcdoc = `<!doctype html><meta http-equiv="Content-Security-Policy" conten
 await new Promise(resolve => { frame.onload = resolve; document.body.append(frame); });
 bridge = new MusicBridge(frame, next => { signal = next; signals.receive(next); }, error => { playing=false; $('play').textContent='Play'; message(error); }, message);
 await bridge.ready; lock(false);
-status.textContent = session.recoveryError || 'Ready · ⌘/Ctrl Enter to run'; $('build').textContent = BUILD_ID;
+status.textContent = session.recoveryError || initialVisualError || 'Ready · ⌘/Ctrl Enter to run'; $('build').textContent = BUILD_ID;
 function draw(now) {
   shader.render({time:now/1000,delta:last?(now-last)/1000:0,...signals.at(performance.timeOrigin + now)});
   last = now; requestAnimationFrame(draw);

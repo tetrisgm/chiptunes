@@ -1,4 +1,7 @@
 // A shader owns no transport. The caller supplies time, audio and event signals.
+import contract from './project.cjs';
+import {loadShaderImage,imageKey,IMAGE_PIXELS} from './shader-images.mjs';
+const inputInfo=input=>typeof input==='string'?{type:['audio','keyboard'].includes(input)?input:'buffer',source:input}:input||{type:'empty'};
 const VERTEX = `#version 300 es
 void main(){vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.-1.,0.,1.);}`;
 const HEADER = `#version 300 es
@@ -21,6 +24,7 @@ export class ShaderRuntime {
   constructor(canvas, { onStatus = () => {} } = {}) {
     this.canvas = canvas; this.onStatus = onStatus; this.generation = 0; this.candidates = new Set();
     this.document = null; this.lost = false;
+    this.loads=new Set();this.retained=new Set();
     this.gl = canvas.getContext('webgl2', { antialias: false, preserveDrawingBuffer: true });
     if (!this.gl) throw Error('Visuals need WebGL 2.');
     this.floatBuffers = this.gl.getExtension('EXT_color_buffer_float');
@@ -28,10 +32,25 @@ export class ShaderRuntime {
     this.audioBytes = new Uint8Array(1024); this.audioBytes.fill(128, 512);
     this.audio = this.texture(512, 2, this.audioBytes);
     this.empty = this.texture(1, 1, new Uint8Array(1));
+    this.keyboardBytes=new Uint8Array(768);this.keyboard=this.texture(256,3,this.keyboardBytes);
+    this.keyHandlers={
+      keydown:event=>{
+        if(document.activeElement!==canvas||!this.passes.some(pass=>pass.channels.some(input=>inputInfo(input).type==='keyboard')))return;
+        const key=event.keyCode;if(key<0||key>255||!Number.isInteger(key))return;
+        if(!this.keyboardBytes[key]&&!event.repeat){this.keyboardBytes[key]=255;this.keyboardBytes[256+key]=255;this.keyboardBytes[512+key]^=255;}
+        if([32,37,38,39,40].includes(key))event.preventDefault();
+      },
+      keyup:event=>{if(event.keyCode>=0&&event.keyCode<256)this.keyboardBytes[event.keyCode]=0;},
+      blur:()=>this.keyboardBytes.fill(0,0,512),
+    };
+    this.previousTabIndex=canvas.getAttribute('tabindex');canvas.tabIndex=0;
+    for(const [name,handler]of Object.entries(this.keyHandlers))window.addEventListener(name,handler);
     this.mouse = [0,0,0,0];
     this.handlers = {
       webglcontextlost: event => {
         event.preventDefault(); this.lost = true; this.generation++;
+        for(const controller of this.loads)controller.abort();
+        for(const previous of this.retained)previous.invalid=true;
         for (const candidate of [...this.candidates]) candidate.dispose();
         this.onStatus('Visuals paused while the graphics context recovers. Music continues.');
       },
@@ -42,12 +61,13 @@ export class ShaderRuntime {
         this.floatBuffers = this.gl.getExtension('EXT_color_buffer_float');
         this.audio = this.texture(512, 2, this.audioBytes);
         this.empty = this.texture(1, 1, new Uint8Array(1));
-        try { if (saved) this.set(saved); this.onStatus('Visuals recovered'); }
-        catch (error) { this.onStatus('Visual recovery failed: ' + error.message); }
+        this.keyboard=this.texture(256,3,this.keyboardBytes);
+        if(saved)this.prepareAsync(saved).then(candidate=>{candidate.apply();this.onStatus('Visuals recovered');}).catch(error=>{if(!this.disposed)this.onStatus('Visual recovery failed: '+error.message);});
       },
       pointerdown: event => {
         if (event.button !== 0) return;
         this.pointer = event.pointerId; canvas.setPointerCapture(event.pointerId);
+        canvas.focus({preventScroll:true});
         this.position(event); this.mouse[2] = Math.max(.0001, this.mouse[0]); this.mouse[3] = Math.max(.0001, this.mouse[1]);
       },
       pointermove: event => { if (event.pointerId === this.pointer) this.position(event); },
@@ -78,7 +98,7 @@ export class ShaderRuntime {
     if (width === this.canvas.width && height === this.canvas.height) return false;
     const replacements = [];
     try {
-      for (const pass of this.passes) {
+      for (const pass of [...this.passes,...[...this.retained].filter(previous=>!previous.invalid).flatMap(previous=>previous.passes)]) {
         if (!pass.targets.length) continue;
         const pair = []; replacements.push({ pass, pair });
         for (const old of pass.targets) {
@@ -106,6 +126,28 @@ export class ShaderRuntime {
     g.pixelStorei(g.UNPACK_ALIGNMENT, 1);
     g.texImage2D(g.TEXTURE_2D, 0, bytes ? g.R8 : g.RGBA16F, width, height, 0, bytes ? g.RED : g.RGBA, bytes ? g.UNSIGNED_BYTE : g.HALF_FLOAT, bytes);
     return { texture, width, height };
+  }
+  imageTexture(bitmap,srgb=false){
+    const g=this.gl,limit=g.getParameter(g.MAX_TEXTURE_SIZE);
+    if(bitmap.width>limit||bitmap.height>limit)throw Error('Texture exceeds this graphics device’s size limit.');
+    const texture=g.createTexture();g.bindTexture(g.TEXTURE_2D,texture);
+    try{
+      g.pixelStorei(g.UNPACK_FLIP_Y_WEBGL,false);g.pixelStorei(g.UNPACK_PREMULTIPLY_ALPHA_WEBGL,false);
+      g.texImage2D(g.TEXTURE_2D,0,srgb?g.SRGB8_ALPHA8:g.RGBA8,g.RGBA,g.UNSIGNED_BYTE,bitmap);
+      if(g.getError()!==g.NO_ERROR)throw Error('Visual texture allocation failed.');
+      g.texParameteri(g.TEXTURE_2D,g.TEXTURE_MIN_FILTER,g.LINEAR);g.texParameteri(g.TEXTURE_2D,g.TEXTURE_MAG_FILTER,g.LINEAR);
+      g.texParameteri(g.TEXTURE_2D,g.TEXTURE_WRAP_S,g.CLAMP_TO_EDGE);g.texParameteri(g.TEXTURE_2D,g.TEXTURE_WRAP_T,g.CLAMP_TO_EDGE);
+      return {texture,width:bitmap.width,height:bitmap.height};
+    }catch(error){g.deleteTexture(texture);throw error;}
+  }
+  sampler(input){
+    const g=this.gl,info=inputInfo(input),sampler=g.createSampler();
+    const filter=info.filter||(info.type==='keyboard'?'nearest':'linear'),wrap=info.wrap||'clamp';
+    g.samplerParameteri(sampler,g.TEXTURE_MIN_FILTER,filter==='nearest'?g.NEAREST:filter==='mipmap'?g.LINEAR_MIPMAP_LINEAR:g.LINEAR);
+    g.samplerParameteri(sampler,g.TEXTURE_MAG_FILTER,filter==='nearest'?g.NEAREST:g.LINEAR);
+    const edge=wrap==='repeat'?g.REPEAT:wrap==='mirror'?g.MIRRORED_REPEAT:g.CLAMP_TO_EDGE;
+    g.samplerParameteri(sampler,g.TEXTURE_WRAP_S,edge);g.samplerParameteri(sampler,g.TEXTURE_WRAP_T,edge);
+    return sampler;
   }
   target(width = this.canvas.width, height = this.canvas.height) {
     if (!this.floatBuffers) throw Error('Feedback buffers need floating-point WebGL support.');
@@ -138,38 +180,85 @@ export class ShaderRuntime {
     finally { shaders.forEach(s => g.deleteShader(s)); }
   }
   // Transactional prepare: a bad pass never replaces any working pass.
-  prepare(document) {
+  prepare(document, images=new Map()) {
     if (!document || typeof document.Image !== 'string') throw Error('An Image shader is required.');
     document = structuredClone(document);
-    const common = document.Common || '', next = [], generation = this.generation;
+    const common = document.Common || '', next = [], generation = this.generation, imageTextures=new Map();
+    let imagePixels=0;
     if (typeof common !== 'string' || common.length > 65536) throw Error('Common code is too large.');
     try {
       for (const name of ORDER) {
         const source = document[name];
         if (source === undefined) continue;
         if (typeof source !== 'string' || source.length > 65536) throw Error(`${name} code is too large.`);
-        const channels = document.channels?.[name] || (name === 'Image' ? ['audio'] : []);
-        if (!Array.isArray(channels) || channels.length > 4 || channels.some(c => c !== null && c !== 'audio' && !ORDER.slice(0,4).includes(c))) throw Error(`${name}: unsupported channel.`);
-        for (const c of channels) if (c && c !== 'audio' && typeof document[c] !== 'string') throw Error(`${name}: missing Buffer ${c}.`);
+        const row = document.channels?.[name] || (name === 'Image' ? ['audio'] : []);
+        if (!Array.isArray(row) || row.length > 4) throw Error(`${name}: unsupported channel.`);
+        const channels=row.map(input=>contract.channel(input,document));
         let program;
         try { program = this.compile(source, common); } catch (e) { throw Error(`${name}: ${e.message}`); }
-        const pass = { name, program, channels, uniforms: new Map(), targets: [], read: 0 };
+        const pass = { name, program, channels, uniforms: new Map(), targets: [], images:[],samplers:[],read: 0 };
         next.push(pass);
+        for(let i=0;i<4;i++){
+          const input=inputInfo(channels[i]);pass.samplers.push(this.sampler(channels[i]));
+          if(input.type==='texture'){
+            const bitmap=images.get(imageKey(input));if(!bitmap)throw Error('Texture is not loaded. Use asynchronous preparation.');
+            const key=imageKey(input)+':'+(input.srgb===true);
+            if(!imageTextures.has(key)){
+              imagePixels+=bitmap.width*bitmap.height;if(imagePixels>IMAGE_PIXELS*4)throw Error('Combined texture resolution exceeds 64 megapixels.');
+              imageTextures.set(key,this.imageTexture(bitmap,input.srgb===true));
+            }
+            pass.images[i]=imageTextures.get(key);
+          }
+        }
         if (name !== 'Image') { pass.targets.push(this.target()); pass.targets.push(this.target()); }
       }
     } catch (error) { this.deletePasses(next); throw error; }
-    let settled = false;
+    let settled = false,previous;
     const candidate = {
-      apply: () => {
+      apply: ({retainPrevious=false}={}) => {
         if (settled || generation !== this.generation || this.lost || this.disposed || this.gl.isContextLost()) {
           candidate.dispose(); throw Error('The visual output changed. Run this edit again.');
         }
-        settled = true; this.candidates.delete(candidate); this.deletePasses(this.passes); this.passes = next; this.frame = 0; this.document = document;
+        settled = true; this.candidates.delete(candidate);
+        if(retainPrevious){previous={passes:this.passes,frame:this.frame,document:this.document};this.retained.add(previous);}else this.deletePasses(this.passes);
+        this.passes = next; this.frame = 0; this.document = document;
       },
-      dispose: () => { if (!settled) { settled = true; this.candidates.delete(candidate); this.deletePasses(next); } },
+      rollback:async()=>{
+        if(!previous)return;
+        const restore=previous;previous=undefined;this.retained.delete(restore);
+        if(restore.invalid){
+          this.generation++;for(const controller of this.loads)controller.abort();
+          // A lost context already released its resources. Passing those stale
+          // handles to the restored context creates INVALID_OPERATION errors.
+          if(!this.lost)this.deletePasses(this.passes);
+          this.passes=[];this.document=restore.document;
+          if(!this.lost&&!this.disposed)(await this.prepareAsync(restore.document)).apply();
+        }else{this.deletePasses(next);this.passes=restore.passes;this.frame=restore.frame;this.document=restore.document;}
+      },
+      dispose: () => {
+        if(previous){this.retained.delete(previous);if(!previous.invalid)this.deletePasses(previous.passes);previous=undefined;}
+        if (!settled) { settled = true; this.candidates.delete(candidate); this.deletePasses(next); }
+      },
     };
     this.candidates.add(candidate);
     return candidate;
+  }
+  async prepareAsync(document){
+    const normalized=contract.project({version:1,runtime:contract.RUNTIME,music:'',visuals:document}).visuals;
+    const inputs=Object.values(normalized.channels).flat().filter(input=>inputInfo(input).type==='texture');
+    if(!inputs.length)return this.prepare(normalized);
+    const generation=this.generation,controller=new AbortController(),images=new Map();this.loads.add(controller);
+    const timer=setTimeout(()=>controller.abort(),15000);let pixels=0;
+    try{
+      // Sequential decoding bounds in-flight allocations; identical inputs are shared.
+      for(const input of inputs){
+        const key=imageKey(input);if(images.has(key))continue;
+        const bitmap=await loadShaderImage(input.src,{signal:controller.signal,vflip:input.vflip});images.set(key,bitmap);
+        pixels+=bitmap.width*bitmap.height;if(pixels>IMAGE_PIXELS*4)throw Error('Combined texture resolution exceeds 64 megapixels.');
+      }
+      if(controller.signal.aborted||generation!==this.generation||this.disposed||this.lost)throw Error('Visual output changed while textures loaded. Run again.');
+      return this.prepare(normalized,images);
+    }finally{clearTimeout(timer);this.loads.delete(controller);for(const bitmap of images.values())bitmap.close();}
   }
   set(document) { this.prepare(document).apply(); }
   uniform(pass, name, kind, ...values) {
@@ -183,7 +272,9 @@ export class ShaderRuntime {
       this.audioBytes.set(frequency); this.audioBytes.set(waveform,512);
       g.bindTexture(g.TEXTURE_2D, this.audio.texture);
       g.texSubImage2D(g.TEXTURE_2D, 0, 0, 0, 512, 2, g.RED, g.UNSIGNED_BYTE, this.audioBytes);
+      this.audio.mipmaps=false;
     }
+    g.bindTexture(g.TEXTURE_2D,this.keyboard.texture);g.texSubImage2D(g.TEXTURE_2D,0,0,0,256,3,g.RED,g.UNSIGNED_BYTE,this.keyboardBytes);this.keyboard.mipmaps=false;
     const completed = new Map();
     for (const pass of this.passes) {
       const write = pass.targets[1-pass.read];
@@ -198,27 +289,38 @@ export class ShaderRuntime {
       this.uniform(pass,'ctCycle','uniform1f',cycle); this.uniform(pass,'ctBeat','uniform1f',((cycle*4)%1+1)%1);
       this.uniform(pass,'ctKick','uniform1f',kick);
       for (let i=0;i<4;i++) {
-        const input = pass.channels[i];
-        const buffer = this.passes.find(p => p.name === input);
+        const input = inputInfo(pass.channels[i]);
+        const buffer = this.passes.find(p => p.name === input.source);
         // Earlier passes are current-frame; self/later references are previous-frame.
-        const texture = input === 'audio' ? this.audio : completed.get(input) || buffer?.targets[buffer.read] || this.empty;
+        const texture = input.type === 'audio' ? this.audio : input.type==='keyboard'?this.keyboard:pass.images[i]||completed.get(input.source)||buffer?.targets[buffer.read]||this.empty;
         g.activeTexture(g.TEXTURE0+i); g.bindTexture(g.TEXTURE_2D,texture.texture);
+        if(input.filter==='mipmap'&&!texture.mipmaps){g.generateMipmap(g.TEXTURE_2D);texture.mipmaps=true;}
+        g.bindSampler(i,pass.samplers[i]);
         this.uniform(pass,`iChannel${i}`,'uniform1i',i);
         this.uniform(pass,`iChannelResolution[${i}]`,'uniform3f',texture.width,texture.height,1);
-        this.uniform(pass,`iChannelTime[${i}]`,'uniform1f',input === 'audio' ? time : 0);
+        this.uniform(pass,`iChannelTime[${i}]`,'uniform1f',input.type === 'audio' ? time : 0);
       }
       g.drawArrays(g.TRIANGLES,0,3);
-      if (write) completed.set(pass.name,write);
+      if (write) {write.mipmaps=false;completed.set(pass.name,write);}
     }
     this.passes.forEach(p => { if (p.targets.length) p.read = 1-p.read; });
     this.frame++;
+    this.keyboardBytes.fill(0,256,512);
     return true;
   }
   deleteTarget(target) { this.gl.deleteTexture(target.texture); if (target.fbo) this.gl.deleteFramebuffer(target.fbo); }
-  deletePasses(passes) { for (const pass of passes) { this.gl.deleteProgram(pass.program); pass.targets.forEach(t => this.deleteTarget(t)); } }
+  deletePasses(passes) {
+    const images=new Set();
+    for (const pass of passes) { this.gl.deleteProgram(pass.program); pass.targets.forEach(t => this.deleteTarget(t));pass.images.forEach(t=>images.add(t));pass.samplers.forEach(s=>this.gl.deleteSampler(s)); }
+    images.forEach(image=>this.deleteTarget(image));
+  }
   dispose() {
     if (this.disposed) return;
     for (const [name, handler] of Object.entries(this.handlers)) this.canvas.removeEventListener(name, handler);
+    for(const [name,handler]of Object.entries(this.keyHandlers))window.removeEventListener(name,handler);
+    if(this.previousTabIndex===null)this.canvas.removeAttribute('tabindex');else this.canvas.setAttribute('tabindex',this.previousTabIndex);
+    for(const controller of this.loads)controller.abort();
+    for(const previous of this.retained)if(!previous.invalid)this.deletePasses(previous.passes);this.retained.clear();
     for (const candidate of [...this.candidates]) candidate.dispose();
-    this.disposed = true; this.deletePasses(this.passes); this.deleteTarget(this.audio); this.deleteTarget(this.empty); this.passes=[]; }
+    this.disposed = true; this.deletePasses(this.passes); this.deleteTarget(this.audio); this.deleteTarget(this.empty);this.deleteTarget(this.keyboard);this.passes=[]; }
 }

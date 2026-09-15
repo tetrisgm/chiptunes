@@ -51,7 +51,18 @@ void mainImage(out vec4 color, in vec2 pixel). The host supplies the version,
 precision, uniforms and main wrapper; do not redeclare them. Image is required.
 Optional Common code is prepended to every pass. A-D are floating-point feedback
 buffers; earlier passes are current-frame, self/later inputs are previous-frame.
-Channel JSON maps pass names to up to four inputs, each null, "audio", or A-D.
+Channel JSON maps pass names to up to four inputs. Legacy inputs null, "audio",
+"keyboard", or A-D work. Descriptors allow {type:"audio"}, {type:"keyboard"},
+{type:"buffer",source:"A"}, or {type:"texture",src:"https://..."}.
+Every descriptor can set filter:"nearest"|"linear"|"mipmap" and
+wrap:"clamp"|"repeat"|"mirror". Image textures additionally accept vflip and srgb
+booleans; they load public CORS-enabled PNG/JPEG/WebP/AVIF/GIF/BMP images (GIF is
+its first decoded frame). Use provided or verified URLs, never invent assets.
+The keyboard is a 256x3 red-channel texture indexed by browser keyCode: row 0
+held, row 1 a one-frame press, row 2 toggled on each press. Click the output to
+focus keyboard input; typing in the editors is not captured. Static image and
+keyboard iChannelTime is zero. Audio defaults to linear filtering; keyboard to
+nearest; image options default to linear/clamp with no flip or sRGB conversion.
 Only refer to present buffers. Creating/removing a buffer may require a channels
 edit too. Do not create a custom visual DSL, HTML, JS or a second music player.
 Uniforms: iResolution(vec3), iTime/iTimeDelta/iFrameRate/iSampleRate(float),

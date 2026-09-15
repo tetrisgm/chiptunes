@@ -71,8 +71,9 @@ The build follows upstream web.mjs source dependencies to preserve complete
 notices and corresponding source (81 packages), rather than hiding transitive
 inputs in a prebundle. See [distribution](algorave-distribution.md).
 
-Shadertoy still needs media/texture lifecycle, sampler settings, keyboard,
-cubemap inputs/passes, Sound and VR support. Existing Image/Common/A-D,
+Shadertoy still needs local texture imports, media lifecycles,
+cube/volume inputs, Cubemap passes, Sound and VR support. HTTPS image textures,
+sampler settings and keyboard are covered by the newer checkpoint below. Image/Common/A-D,
 floating-point feedback, standard uniform and high-resolution checks are a
 starting point. Finish native and Chromium acceptance on the final build and the
 new-runtime performance run, then deploy the authorized static site and gateway
@@ -118,6 +119,62 @@ scope with appropriate browser/device boundaries. The @strudel/edo package is
 not published on npm; its upstream source is available. Native bank acceptance,
 new-runtime soak, Shadertoy inputs/passes and public site/gateway deployment still
 remain. This library checkpoint does not establish full parity by itself.
+
+## Image and keyboard channels — 2026-09-15
+
+The renderer now supports public HTTPS image textures and a 256×3 keyboard input
+alongside audio and A-D buffers. Existing string channel configurations remain
+valid. Typed descriptors carry image URLs or buffer names and per-channel
+nearest/linear/mipmap filtering and clamp/repeat/mirror wrapping. Image options
+also include vertical flip and sRGB decoding. Four input controls for the selected
+pass live inside Channels; raw channel JSON is in a nested optional disclosure.
+The GLSL stays unchanged. Keyboard input requires output focus and ignores editor
+typing; rows represent held, one-frame press and toggle state by browser keyCode.
+
+Images load and decode before GL activation using credential-free, referrer-free
+CORS fetches without redirects. Limits are 16 MiB per encoded image, 16 megapixels
+per decoded bitmap and 64 megapixels for combined decoded/uploaded textures, with
+a 15-second candidate deadline. Dimension checks happen after browser decoding;
+these limits are not a claim of a preemptive decoder memory bound. Duplicate
+images within a candidate share decoding and texture storage. Per-channel WebGL
+samplers prevent one input's filtering from changing another view of a buffer.
+Dynamic mipmaps are refreshed after writes. Static image/keyboard channel clocks
+are zero and their resolutions reflect their actual texture sizes.
+
+Apply retains the prior GL passes until the paired music transaction succeeds.
+Failure can restore those passes without another download, including their
+feedback state. Retained targets resize with the canvas. After context loss,
+rollback rebuilds the prior document and does not pass dead handles into the new
+context. Prepared downloads abort on disposal/context loss and decoded bitmaps,
+textures and samplers are released. A missing saved image on reload keeps the
+saved source, reports the failure and shows the default visual so music can still
+start. Pressing Stop during texture preparation prevents a later paired commit
+from restarting music. Manual visual Run retries unchanged texture URLs.
+
+`test:algorave-shader-inputs` uses original 2×2 and gray PNG fixtures for independent
+pixel expectations: orientation, linear/nearest, wrap, mip levels, sRGB conversion,
+channel dimensions/clocks, distinct samplers on one buffer, keyboard edges/repeat
+and editor isolation. It also exercises failed fetch retention, rollback/context
+recovery, actual input controls, saved reload/Undo and Stop during a delayed
+paired agent fixture. It does not call a provider or count fixture images as
+real Shadertoy gallery content. Native Safari and the official reference-site
+comparison remain unverified for these additions. Automated retrieval of
+shadertoy.com/howto and its client source returned 402/403 during this work; the
+implemented keyboard semantics still require final reference/browser acceptance.
+
+Build `d7b050ab6d65` passes the input pixel/lifecycle suite, preview, workflow,
+editor and upstream runtime checks. Session and agent contract checks plus all
+35 legacy chat groups pass. The normal distribution was rebuilt, and its source
+archive reproduced both browser bundles byte-for-byte after a fresh npm ci.
+All six captured real OpenAI/Anthropic replies also pass chat → Apply → exact Undo
+→ re-Apply → save/reload on this build, with zero new provider calls.
+Chromium audio checks use the explicit silent sink; native acceptance and speaker
+output are not established by these results.
+
+Image URLs remain external references in saved/downloaded projects. Local image
+imports, videos/camera/audio media lifecycles, cube/volume textures, Cubemap/Sound/VR
+passes and their controls are still outstanding. This is progress toward the
+expanded visual goal, not a revised final compatibility boundary.
 
 ## Historical checkpoints
 
