@@ -82,8 +82,8 @@ Chromium pattern/audio/Run/Undo checks pass. Native acceptance remains pending.
 
 Mondo tagged templates now run with the upstream parser and retain markcss
 metadata. Chromium timing/audio/Run/Undo tests pass. Live event highlighting and
-markcss now pass Chromium checks; native verification and remapping during
-unrun edits remain pending.
+markcss now pass Chromium checks, including remapping after an unrun insertion.
+Native highlighting verification remains pending.
 
 Next: complete the remaining Strudel input/drawing/module scope and Shadertoy
 media and Sound contracts; complete final browser/acoustic

@@ -24915,7 +24915,7 @@ var theme2 = EditorView.theme({
 }, { dark: true });
 function codeEditor(parent, { language: language2, label }) {
   const readonly = new Compartment(), help = language2 === "music" ? musicHelp : visualHelp;
-  let previousMarks = "";
+  let previousMarks = "", highlightSource = null, highlightChanges = null;
   let muted = false, destroyed = false, serial = 0, readOnly2 = false, documentKey = "default";
   const documents = /* @__PURE__ */ new Map();
   const editor = { oninput: null, onfocus: null, onRun: null };
@@ -24950,6 +24950,7 @@ function codeEditor(parent, { language: language2, label }) {
     EditorView.updateListener.of((update) => {
       if (!update.docChanged) return;
       previousMarks = "";
+      if (highlightChanges) highlightChanges = highlightChanges.compose(update.changes);
       const ticket = ++serial;
       if (!muted) editor.oninput?.();
       queueMicrotask(() => {
@@ -24965,6 +24966,8 @@ function codeEditor(parent, { language: language2, label }) {
     const cached = documents.get(key);
     const state = key !== documentKey && cached?.doc.toString() === source ? cached : stateFor(source);
     previousMarks = "";
+    highlightSource = null;
+    highlightChanges = null;
     serial++;
     muted = true;
     try {
@@ -24979,6 +24982,9 @@ function codeEditor(parent, { language: language2, label }) {
   editor.resetHistory = () => {
     documents.clear();
     serial++;
+    previousMarks = "";
+    highlightSource = null;
+    highlightChanges = null;
     view.setState(stateFor(view.state.doc.toString()));
     view.dispatch({ effects: readonly.reconfigure([EditorState.readOnly.of(readOnly2), EditorView.editable.of(!readOnly2)]) });
   };
@@ -24995,7 +25001,17 @@ function codeEditor(parent, { language: language2, label }) {
     const row = view.state.doc.line(line), from = Math.min(row.to, row.from + Math.max(0, column));
     view.dispatch(setDiagnostics(view.state, [{ from, to: Math.min(row.to, from + 1), severity: "error", message: message2 }]));
   };
-  editor.highlight = (marks2) => {
+  editor.highlight = (marks2, source = view.state.doc.toString()) => {
+    if (source !== highlightSource) {
+      const current = view.state.doc.toString();
+      let start = 0, end = 0;
+      while (start < source.length && start < current.length && source[start] === current[start]) start++;
+      while (end < source.length - start && end < current.length - start && source[source.length - 1 - end] === current[current.length - 1 - end]) end++;
+      highlightChanges = ChangeSet.of({ from: start, to: source.length - end, insert: current.slice(start, current.length - end) }, source.length);
+      highlightSource = source;
+      previousMarks = "";
+    }
+    marks2 = marks2.filter((mark) => mark.start >= 0 && mark.end <= source.length).map((mark) => ({ ...mark, start: highlightChanges.mapPos(mark.start, 1), end: highlightChanges.mapPos(mark.end, -1) })).filter((mark) => mark.end > mark.start);
     const key = JSON.stringify(marks2);
     if (key === previousMarks) return;
     previousMarks = key;
@@ -27632,10 +27648,10 @@ bridge = new MusicBridge(frame, (next) => {
 await bridge.ready;
 lock(false);
 status.textContent = session.recoveryError || initialVisualError || "Ready \xB7 \u2318/Ctrl Enter to run";
-$("build").textContent = "Algorave af248034b4cb";
+$("build").textContent = "Algorave 7376fffe6eb9";
 function draw(now) {
   shader2.render({ playing, time: now / 1e3, delta: last2 ? (now - last2) / 1e3 : 0, ...signals.at(performance.timeOrigin + now) });
-  music.highlight(playing && music.value === session.applied.music ? signals.highlights(performance.timeOrigin + now) : []);
+  music.highlight(playing ? signals.highlights(performance.timeOrigin + now) : [], session.applied.music);
   last2 = now;
   requestAnimationFrame(draw);
 }

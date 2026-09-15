@@ -14,9 +14,13 @@ const root=path.resolve(__dirname,'../.algorave-preview');
   const seen=new Set();for(let i=0;i<12;i++){for(const text of await page.locator('.cm-playing-note').allTextContents())seen.add(text);await page.waitForTimeout(100);}
   assert(seen.has('bd')&&seen.has('sd'),JSON.stringify([...seen]));
   assert.equal(await page.locator('.cm-playing-note').first().evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(255, 0, 0)');
-  await page.getByLabel('Strudel music').fill(source+' // unrun');await page.waitForFunction(()=>!document.querySelector('.cm-playing-note'));
+  await page.getByLabel('Strudel music').press('ControlOrMeta+Home');await page.getByLabel('Strudel music').press('Enter');
+  await page.waitForFunction(()=>[...document.querySelectorAll('.cm-playing-note')].some(el=>['bd','sd'].includes(el.textContent)));
+  assert.equal(await page.evaluate(()=>algoravePreview.editors.music.value),'\n'+source);
+  const afterInsert=await page.locator('.cm-playing-note').allTextContents();assert(afterInsert.every(text=>['bd','sd'].includes(text)),JSON.stringify(afterInsert));
+  assert.equal(await page.evaluate(()=>algoravePreview.session.applied.music),source,'typing does not apply code');
   await page.locator('#run').click();await page.waitForFunction(()=>document.querySelector('.cm-playing-note'));
   await page.locator('#play').click();await page.waitForFunction(()=>!algoravePreview.playing&&!document.querySelector('.cm-playing-note'));
-  console.log('PASS: real Strudel event locations highlight both alternating sounds, markcss applies, unrun edits clear stale positions, Run restores marks and Stop clears them. Silent sink; native acceptance pending.');
+  console.log('PASS: real Strudel event locations highlight both alternating sounds, markcss applies, unrun insertion remaps token positions, Run restores marks and Stop clears them. Silent sink; native acceptance pending.');
  }finally{await browser.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
 })().catch(e=>{console.error(e);process.exitCode=1;});

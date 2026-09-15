@@ -1656,3 +1656,13 @@ clearing after Stop. Signal and Mondo regressions pass. Source edits currently
 hide marks until Run; upstream-style remapping while editing is still missing.
 Native visual acceptance, inline widgets and long-session performance remain
 pending. This checkpoint does not establish full editor parity.
+
+### Highlight remapping during edits
+
+CodeMirror ChangeSets now map active-source positions through unrun editor
+changes. Inserting a newline before a running pattern preserves highlights on
+the original bd/sd tokens without applying the draft. A new applied source
+reanchors mapping; document/history replacement resets its cached state.
+Chromium verifies the actual insertion, preserved token text, unchanged applied
+source, Run and Stop. Native Safari and broader editing/performance acceptance
+remain pending. This supersedes the earlier hide-until-Run behavior.

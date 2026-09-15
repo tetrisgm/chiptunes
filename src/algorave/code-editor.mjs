@@ -1,6 +1,6 @@
 import { minimalSetup } from 'codemirror';
 import { EditorView, Decoration, keymap, lineNumbers } from '@codemirror/view';
-import { EditorState, StateEffect, StateField, Compartment, Prec } from '@codemirror/state';
+import { EditorState, ChangeSet, StateEffect, StateField, Compartment, Prec } from '@codemirror/state';
 import { javascript } from '@codemirror/lang-javascript';
 import { StreamLanguage, bracketMatching, syntaxHighlighting, HighlightStyle } from '@codemirror/language';
 import { shader as glsl } from '@codemirror/legacy-modes/mode/clike';
@@ -58,7 +58,7 @@ const theme = EditorView.theme({
 
 export function codeEditor(parent, { language, label }) {
   const readonly = new Compartment(), help = language === 'music' ? musicHelp : visualHelp;
-  let previousMarks='';
+  let previousMarks='',highlightSource=null,highlightChanges=null;
   let muted = false, destroyed = false, serial = 0, readOnly = false, documentKey = 'default';
   const documents = new Map();
   const editor = { oninput:null, onfocus:null, onRun:null };
@@ -81,6 +81,7 @@ export function codeEditor(parent, { language, label }) {
     EditorView.updateListener.of(update => {
       if (!update.docChanged) return;
       previousMarks='';
+      if(highlightChanges)highlightChanges=highlightChanges.compose(update.changes);
       const ticket = ++serial;
       if (!muted) editor.oninput?.();
       queueMicrotask(() => { if (!destroyed && ticket === serial) view.dispatch(setDiagnostics(view.state,[])); });
@@ -93,7 +94,7 @@ export function codeEditor(parent, { language, label }) {
     documents.set(documentKey, view.state);
     const cached = documents.get(key);
     const state = key !== documentKey && cached?.doc.toString() === source ? cached : stateFor(source);
-    previousMarks='';serial++; muted = true;
+    previousMarks='';highlightSource=null;highlightChanges=null;serial++; muted = true;
     try {
       view.setState(state); documentKey = key;
       view.dispatch({effects:readonly.reconfigure([EditorState.readOnly.of(readOnly),EditorView.editable.of(!readOnly)])});
@@ -101,7 +102,7 @@ export function codeEditor(parent, { language, label }) {
   }
   editor.switchDocument = replace;
   editor.resetHistory = () => {
-    documents.clear(); serial++;
+    documents.clear(); serial++;previousMarks='';highlightSource=null;highlightChanges=null;
     view.setState(stateFor(view.state.doc.toString()));
     view.dispatch({effects:readonly.reconfigure([EditorState.readOnly.of(readOnly),EditorView.editable.of(!readOnly)])});
   };
@@ -115,7 +116,15 @@ export function codeEditor(parent, { language, label }) {
     const row = view.state.doc.line(line),from=Math.min(row.to,row.from+Math.max(0,column));
     view.dispatch(setDiagnostics(view.state,[{from,to:Math.min(row.to,from+1),severity:'error',message}]));
   };
-  editor.highlight=marks=>{
+  editor.highlight=(marks,source=view.state.doc.toString())=>{
+    if(source!==highlightSource){
+      const current=view.state.doc.toString();let start=0,end=0;
+      while(start<source.length&&start<current.length&&source[start]===current[start])start++;
+      while(end<source.length-start&&end<current.length-start&&source[source.length-1-end]===current[current.length-1-end])end++;
+      highlightChanges=ChangeSet.of({from:start,to:source.length-end,insert:current.slice(start,current.length-end)},source.length);
+      highlightSource=source;previousMarks='';
+    }
+    marks=marks.filter(mark=>mark.start>=0&&mark.end<=source.length).map(mark=>({...mark,start:highlightChanges.mapPos(mark.start,1),end:highlightChanges.mapPos(mark.end,-1)})).filter(mark=>mark.end>mark.start);
     const key=JSON.stringify(marks);if(key===previousMarks)return;previousMarks=key;
     view.dispatch({effects:activeNotes.of(marks)});
   };
