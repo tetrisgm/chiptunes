@@ -10,7 +10,7 @@ export async function createDrawingHost(engine, visibility) {
   const canvases = () => [...document.querySelectorAll('canvas:not([data-drawing-preview])')];
   let drawer, pending;
   const stop = () => { drawer?.stop(); draw.pauseDraw(); draw.pauseAnimation(); };
-  const report = () => {const nodes=canvases();visibility(nodes.length>0,nodes.length>0&&nodes.every(canvas=>canvas.dataset.inlineDrawing!==undefined));};
+  const report = () => {const nodes=canvases();visibility(nodes.length>0,nodes.length>0&&nodes.every(canvas=>canvas.dataset.inlineDrawing!==undefined),nodes.some(canvas=>canvas.dataset.inlineDrawing!==undefined));};
   const observer = new MutationObserver(() => { if (!pending) report(); });
   observer.observe(document.body, { childList: true, subtree: true });
   function prepare() {

@@ -15,7 +15,7 @@ export class MusicBridge {
         if (data.type === 'fatal') { clearTimeout(this.readyTimer); reject(Error(String(data.error).slice(0, 2000))); }
         if (data.type === 'runtime-error') onError(Error(String(data.error).slice(0,2000)));
         if (data.type === 'diagnostic') onDiagnostic(Error(String(data.error).slice(0,2000)));
-        if (data.type === 'drawing' && typeof data.visible === 'boolean') onDrawing(data.visible,data.inlineOnly===true);
+        if (data.type === 'drawing' && typeof data.visible === 'boolean') onDrawing(data.visible,data.inlineOnly===true,data.hasInline===true);
         if (data.type === 'reply' && this.pending.has(data.id)) {
           const pending = this.pending.get(data.id);
           this.pending.delete(data.id); clearTimeout(pending.timer);

@@ -49696,7 +49696,7 @@ ${JSON.stringify(t2, null, 2)}`);
     };
     const report = () => {
       const nodes = canvases();
-      visibility(nodes.length > 0, nodes.length > 0 && nodes.every((canvas) => canvas.dataset.inlineDrawing !== void 0));
+      visibility(nodes.length > 0, nodes.length > 0 && nodes.every((canvas) => canvas.dataset.inlineDrawing !== void 0), nodes.some((canvas) => canvas.dataset.inlineDrawing !== void 0));
     };
     const observer = new MutationObserver(() => {
       if (!pending) report();
@@ -49843,7 +49843,7 @@ ${JSON.stringify(t2, null, 2)}`);
           return observed;
         }
       });
-      const drawing = await createDrawingHost(engine, (visible, inlineOnly) => send({ type: "drawing", visible, inlineOnly }));
+      const drawing = await createDrawingHost(engine, (visible, inlineOnly, hasInline) => send({ type: "drawing", visible, inlineOnly, hasInline }));
       audio.addEventListener("statechange", () => {
         if (!busy && engine.state.started && audio.state !== "running" && audio.state !== "closed") {
           engine.pause();

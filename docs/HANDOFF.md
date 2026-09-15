@@ -95,7 +95,11 @@ The six upstream underscore drawing methods now render in the isolated music
 frame. Chromium checks cover each method, two independent scopes and failed-edit
 canvas retention. Bitmap snapshots now place the canvases inline in the editor. Chromium checks
 cover pixels, multiple widgets, unrun insertion, removal and narrow layout.
-Native Safari and sustained performance acceptance remain pending.
+A sustained-tone check verifies a non-flat inline waveform and matching analyser
+ID. Twenty source edits retain one runtime/editor canvas and close every received
+bitmap; stopped and non-widget playback avoid repeated snapshot requests. See
+`scripts/verify-algorave-inline-audio.cjs`. Native Safari and sustained performance
+acceptance remain pending.
 
 Next: complete the remaining Strudel input/drawing/module scope and Shadertoy
 media and Sound contracts; complete final browser/acoustic

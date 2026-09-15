@@ -74,7 +74,7 @@ window.addEventListener('message', async event => {
         Object.defineProperty(observed,wrapped,{value:true});return observed;
       },
     });
-    const drawing=await createDrawingHost(engine,(visible,inlineOnly)=>send({type:'drawing',visible,inlineOnly}));
+    const drawing=await createDrawingHost(engine,(visible,inlineOnly,hasInline)=>send({type:'drawing',visible,inlineOnly,hasInline}));
     audio.addEventListener('statechange',()=>{
       if(!busy&&engine.state.started&&audio.state!=='running'&&audio.state!=='closed'){
         engine.pause();drawing.stop();epoch++;events.length=0;

@@ -31093,7 +31093,7 @@ var MusicBridge = class {
         }
         if (data2.type === "runtime-error") onError(Error(String(data2.error).slice(0, 2e3)));
         if (data2.type === "diagnostic") onDiagnostic(Error(String(data2.error).slice(0, 2e3)));
-        if (data2.type === "drawing" && typeof data2.visible === "boolean") onDrawing(data2.visible, data2.inlineOnly === true);
+        if (data2.type === "drawing" && typeof data2.visible === "boolean") onDrawing(data2.visible, data2.inlineOnly === true, data2.hasInline === true);
         if (data2.type === "reply" && this.pending.has(data2.id)) {
           const pending = this.pending.get(data2.id);
           this.pending.delete(data2.id);
@@ -32978,6 +32978,7 @@ var saveTimer;
 var stopGeneration = 0;
 var visualRunRequested = false;
 var initialVisualError;
+var drawingAvailable = false;
 var sampleStorePromise;
 var sampleAbort;
 var imageStorePromise;
@@ -33497,7 +33498,8 @@ bridge = new MusicBridge(frame, (next) => {
   shader2.setPlaying(false);
   $("play").textContent = "Play";
   message(error);
-}, message, (visible, inlineOnly) => {
+}, message, (visible, inlineOnly, hasInline) => {
+  drawingAvailable = hasInline;
   frame.hidden = !visible;
   frame.classList.toggle("inline-only", inlineOnly);
 });
@@ -33507,14 +33509,14 @@ music.onSlider = (sliderId, value) => {
   void bridge.request("slider", void 0, { sliderId, value }).catch(message);
 };
 status.textContent = session.recoveryError || initialVisualError || "Ready \xB7 \u2318/Ctrl Enter to run";
-$("build").textContent = "Algorave 6ccf1dabb04b";
+$("build").textContent = "Algorave 142c577260bc";
 var drawingRequest = false;
 var drawingState = "";
 function draw(now) {
   shader2.render({ playing, time: now / 1e3, delta: last2 ? (now - last2) / 1e3 : 0, ...signals.at(performance.timeOrigin + now) });
   music.highlight(playing ? signals.highlights(performance.timeOrigin + now) : [], session.applied.music);
   music.sliders(session.applied.music);
-  if (!drawingRequest && !uiBusy && (playing || drawingState !== playing + session.applied.music)) {
+  if (!drawingRequest && !uiBusy && (playing && drawingAvailable || drawingState !== playing + session.applied.music)) {
     drawingRequest = true;
     drawingState = playing + session.applied.music;
     const source = session.applied.music;
