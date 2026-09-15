@@ -16,8 +16,12 @@ export async function loadShaderImage(src, {signal,vflip=false}={}) {
       length+=value.byteLength;if(length>IMAGE_BYTES)throw Error('Texture file is too large (16 MiB maximum).');chunks.push(value);
     }
   }finally{if(!complete)await reader.cancel().catch(()=>{});reader.releaseLock();}
+  return decodeShaderImage(new Blob(chunks,{type}),{signal,vflip});
+}
+export async function decodeShaderImage(blob,{signal,vflip=false}={}){
   if(signal?.aborted)throw Error('Texture loading cancelled.');
-  const bitmap=await createImageBitmap(new Blob(chunks,{type}),{imageOrientation:vflip?'flipY':'none',premultiplyAlpha:'none',colorSpaceConversion:'none'});
+  if(!blob.size||blob.size>IMAGE_BYTES)throw Error('Texture file must contain between 1 byte and 16 MiB.');
+  const bitmap=await createImageBitmap(blob,{imageOrientation:vflip?'flipY':'none',premultiplyAlpha:'none',colorSpaceConversion:'none'});
   if(signal?.aborted||bitmap.width*bitmap.height>IMAGE_PIXELS){bitmap.close();throw Error(signal?.aborted?'Texture loading cancelled.':'Texture resolution is too large (16 megapixels maximum).');}
   return bitmap;
 }

@@ -71,9 +71,9 @@ The build follows upstream web.mjs source dependencies to preserve complete
 notices and corresponding source (81 packages), rather than hiding transitive
 inputs in a prebundle. See [distribution](algorave-distribution.md).
 
-Shadertoy still needs local texture imports, media lifecycles,
+Shadertoy still needs media lifecycles,
 cube/volume inputs, Cubemap passes, Sound and VR support. HTTPS image textures,
-sampler settings and keyboard are covered by the newer checkpoint below. Image/Common/A-D,
+sampler settings, keyboard and local image imports are covered by the newer checkpoints below. Image/Common/A-D,
 floating-point feedback, standard uniform and high-resolution checks are a
 starting point. Finish native and Chromium acceptance on the final build and the
 new-runtime performance run, then deploy the authorized static site and gateway
@@ -211,6 +211,46 @@ no acoustic or latency measurement is claimed. The active Safari tab changed
 during further checking, so native scope/Undo remains pending. Only the temporary
 test tab was closed and its replay server stopped. Final public acceptance and
 the new-runtime soak remain open.
+
+## Local image projects — 2026-09-15
+
+Channels now accepts local PNG/JPEG/WebP/AVIF/GIF/BMP files. Imports use the same
+GLSL sampler and options as HTTPS textures. Bytes are identified by SHA-256,
+validated by their signature and a browser decode, then stored immutably in
+IndexedDB. Project channels carry `asset:<hash>` references; the agent sees those
+references without image bytes. The normal controls show “Imported image (saved)”
+instead of displaying hashes. Set channels stages the input; Run applies it.
+
+The image collection allows 32 files/64 MiB encoded, with the existing 16 MiB and
+16-megapixel individual-image limits. Saves merge immutable records across tabs
+and retain old images for Undo. A missing cached reference refreshes storage once.
+Invalid imports leave the current visual active. Project downloads with local
+images include exactly their referenced images and WAV samples in a versioned
+asset archive, bounded to 112 MiB. Older plain and sample-only projects retain
+their format and import behavior. Imported archive images are fully decoded
+before persistence or project activation; no image upload service is involved.
+
+Build `03ea27fdf73d` passes `test:algorave-image-project`'s data and Chromium checks:
+byte identity/isolation, mixed WAV/image archive restoration, malformed and missing
+content rejection, agent context, real file input, sampled pixels and flip,
+Run/Undo, reload, fresh-profile portable Open, stopped restoration and WAV playback,
+failed-decode retention, multi-tab immutable merge and narrow layout. Chromium
+uses the explicit silent sink; these are DSP checks, not acoustic evidence.
+Workflow and both providers' six saved real chat → Apply → Undo → re-Apply → reload
+cases pass on this build, with zero new provider calls. The agent contract and
+older sample archive checks pass. The broader image/keyboard/sampler/context-loss
+suite passed on the preceding `b830f601d214`; the final changes only make input
+byte copying safe for Node Buffers and include new modules in the build hash.
+Exact source checksums and a fresh-npm-ci byte-for-byte browser rebuild pass.
+
+Native Safari on visibly identified local `03ea27fdf73d` passed the macOS file
+picker, Set channels → Run, vertical flip → Run, project Undo and reload. The
+original 2×2 PNG produced red, then blue, then red again; reload retained red with
+Play/Ready and no autoplay. One clipboard timeout in the file picker was recovered
+through its native path field. The temporary Safari tab and replay server closed.
+This covers local-image interaction; final public acceptance, remaining Shadertoy
+media/texture/pass scope, remaining Strudel modules and the new-runtime soak are
+still required. Nothing has been deployed by this checkpoint.
 
 ## Image and keyboard channels — 2026-09-15
 

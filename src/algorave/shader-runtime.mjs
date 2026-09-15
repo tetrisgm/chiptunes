@@ -1,6 +1,6 @@
 // A shader owns no transport. The caller supplies time, audio and event signals.
 import contract from './project.cjs';
-import {loadShaderImage,imageKey,IMAGE_PIXELS} from './shader-images.mjs';
+import {loadShaderImage,decodeShaderImage,imageKey,IMAGE_PIXELS} from './shader-images.mjs';
 const inputInfo=input=>typeof input==='string'?{type:['audio','keyboard'].includes(input)?input:'buffer',source:input}:input||{type:'empty'};
 const VERTEX = `#version 300 es
 void main(){vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.-1.,0.,1.);}`;
@@ -21,8 +21,8 @@ out vec4 outputColor;
 `;
 const ORDER = ['A', 'B', 'C', 'D', 'Image'];
 export class ShaderRuntime {
-  constructor(canvas, { onStatus = () => {} } = {}) {
-    this.canvas = canvas; this.onStatus = onStatus; this.generation = 0; this.candidates = new Set();
+  constructor(canvas, { onStatus = () => {}, resolveImage = async () => {throw Error('Imported image content is missing.');} } = {}) {
+    this.resolveImage = resolveImage; this.canvas = canvas; this.onStatus = onStatus; this.generation = 0; this.candidates = new Set();
     this.document = null; this.lost = false;
     this.loads=new Set();this.retained=new Set();
     this.gl = canvas.getContext('webgl2', { antialias: false, preserveDrawingBuffer: true });
@@ -253,7 +253,8 @@ export class ShaderRuntime {
       // Sequential decoding bounds in-flight allocations; identical inputs are shared.
       for(const input of inputs){
         const key=imageKey(input);if(images.has(key))continue;
-        const bitmap=await loadShaderImage(input.src,{signal:controller.signal,vflip:input.vflip});images.set(key,bitmap);
+        const options={signal:controller.signal,vflip:input.vflip},id=contract.imageId(input.src);
+        const bitmap=id?await decodeShaderImage(await this.resolveImage(id),options):await loadShaderImage(input.src,options);images.set(key,bitmap);
         pixels+=bitmap.width*bitmap.height;if(pixels>IMAGE_PIXELS*4)throw Error('Combined texture resolution exceeds 64 megapixels.');
       }
       if(controller.signal.aborted||generation!==this.generation||this.disposed||this.lost)throw Error('Visual output changed while textures loaded. Run again.');

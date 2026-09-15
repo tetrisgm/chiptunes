@@ -63,7 +63,10 @@ Channel JSON maps pass names to up to four inputs. Legacy inputs null, "audio",
 Every descriptor can set filter:"nearest"|"linear"|"mipmap" and
 wrap:"clamp"|"repeat"|"mirror". Image textures additionally accept vflip and srgb
 booleans; they load public CORS-enabled PNG/JPEG/WebP/AVIF/GIF/BMP images (GIF is
-its first decoded frame). Use provided or verified URLs, never invent assets.
+its first decoded frame). Local imports use src:"asset:<64 lowercase SHA-256 hex>".
+Preserve or reuse provided asset references; never invent a hash. Image bytes stay
+on the device and in downloaded projects, and are not included in this context.
+Use provided or verified URLs, never invent assets.
 The keyboard is a 256x3 red-channel texture indexed by browser keyCode: row 0
 held, row 1 a one-frame press, row 2 toggled on each press. Click the output to
 focus keyboard input; typing in the editors is not captured. Static image and

@@ -105,8 +105,8 @@ The standard REPL sample banks, soundfonts, ZZFX, piano helper and xen tuning ar
 now integrated. Finish the remaining sound/input/drawing modules, including their
 normal source-language APIs, rather than requiring rewritten examples.
 
-The visual runtime now has HTTPS image textures, sampler settings and keyboard
-input. Local imports, media input lifecycles, cube/volume textures and Cubemap,
+The visual runtime now has HTTPS and portable local image textures, sampler
+settings and keyboard input. Media input lifecycles, cube/volume textures and Cubemap,
 Sound and VR passes remain outstanding. Implement and test
 those against the official contracts, including persistence and resource cleanup;
 do not turn their absence into the final product specification. A valid shader

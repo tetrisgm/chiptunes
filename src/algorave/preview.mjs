@@ -9,15 +9,36 @@ import { ShaderRuntime } from './shader-runtime.mjs';
 import { shaderChannelEditor } from './shader-channel-editor.mjs';
 import {fetchSample,inspectSampleWav,SAMPLE_LIMITS} from './sample-assets.mjs';
 import {loadSamples,saveSamples} from './sample-persistence.mjs';
-import {sampleIds,exportSampleProject,importSampleProject,SAMPLE_PROJECT_BYTES} from './sample-project.mjs';
+import {sampleIds} from './sample-project.mjs';
+import {imageIds,exportProject,importProject,PROJECT_BYTES} from './project-assets.mjs';
+import {loadImages,saveImages} from './image-persistence.mjs';
+import {decodeShaderImage,IMAGE_BYTES} from './shader-images.mjs';
 const $ = id => document.getElementById(id);
 const status = $('status');
 const music = codeEditor($('music'), {language:'music',label:'Strudel music'});
 const visual = codeEditor($('visual'), {language:'visual',label:'GLSL visual'});
-const channelEditor=shaderChannelEditor($('channel-editor'),$('channels'));
+const channelEditor=shaderChannelEditor($('channel-editor'),$('channels'),{importImage,onError:message});
 let signal = {}, playing = false, last = 0, focus = 'music', playRequested = false, openRequested = false, visualPass = 'Image';
 let bridge, shader, pendingProposal, pendingContext, uiBusy = false, saveTimer,stopGeneration=0,visualRunRequested=false,initialVisualError;
-let sampleStorePromise,sampleAbort;
+let sampleStorePromise,sampleAbort,imageStorePromise;
+const imageStore=()=>imageStorePromise||(imageStorePromise=loadImages().catch(error=>{imageStorePromise=null;throw error;}));
+async function resolveImage(id){
+  let store=await imageStore();
+  if(!store.has(id)){imageStorePromise=null;store=await imageStore();}
+  return store.blob(id);
+}
+async function importImage(file){
+  if(uiBusy)throw Error('Wait for the current edit to finish.');
+  lock(true);
+  try{
+    if(file.size>IMAGE_BYTES)throw Error('Image files must be at most 16 MiB.');
+    const store=(await imageStore()).fork(),{id}=await store.put(new Uint8Array(await file.arrayBuffer()));
+    (await decodeShaderImage(store.blob(id))).close();
+    await saveImages(store);imageStorePromise=Promise.resolve(store);
+    status.textContent='Image imported · Set channels, then Run visuals';
+    return 'asset:'+id;
+  }finally{lock(false);}
+}
 const sampleStore=()=>sampleStorePromise||(sampleStorePromise=loadSamples().catch(error=>{sampleStorePromise=null;throw error;}));
 const initial = example();
 const signals = new MusicSignals(), agent = new AgentClient();
@@ -75,7 +96,7 @@ function showProject() {
   $('agent-undo').disabled = $('undo').disabled;
 }
 showProject();
-shader = new ShaderRuntime($('canvas'), { onStatus: text => { status.textContent = text; } });
+shader = new ShaderRuntime($('canvas'), { resolveImage, onStatus: text => { status.textContent = text; } });
 try{(await shader.prepareAsync(session.applied.visuals)).apply();}
 catch(error){shader.set(initial.visuals);initialVisualError='Saved visual could not load: '+error.message;}
 const resize = new ResizeObserver(() => {
@@ -172,9 +193,18 @@ $('project-file').onchange = async () => {
   if (!file) return;
   const generation = session.generation;
   try {
-    if (file.size > SAMPLE_PROJECT_BYTES) throw Error('Project files must be at most 24 MiB including samples.');
-    const imported = await importSampleProject(JSON.parse(await file.text()));
+    if (file.size > PROJECT_BYTES) throw Error('Project files must be at most 112 MiB including images and samples.');
+    const imported = await importProject(JSON.parse(await file.text()));
     if (generation !== session.generation) throw Error('The draft changed while the file was being read. Open it again.');
+    if(imported.images){
+      const store=(await imageStore()).fork();
+      for(const {id} of imported.images.snapshot().assets){
+        (await decodeShaderImage(imported.images.blob(id))).close();
+        await store.put(imported.images.get(id));
+      }
+      await saveImages(store);imageStorePromise=Promise.resolve(store);
+      if(generation!==session.generation)throw Error('The draft changed while images were being saved. Open it again.');
+    }
     if(imported.store){
       const store=await sampleStore();
       for(const {id} of imported.store.snapshot().assets)await store.put(imported.store.get(id));
@@ -205,7 +235,9 @@ $('save').onclick = () => save(true);
 $('download').onclick = async () => {
   try{
   const snapshot=contract.project(session.draft),store=sampleIds(snapshot).length?await sampleStore():null;
-  const url = URL.createObjectURL(new Blob([JSON.stringify(exportSampleProject(snapshot,store),null,2)], {type:'application/json'}));
+  for(const id of imageIds(snapshot))await resolveImage(id);
+  const images=imageIds(snapshot).length?await imageStore():null;
+  const url = URL.createObjectURL(new Blob([JSON.stringify(exportProject(snapshot,{samples:store,images}),null,2)], {type:'application/json'}));
   const link = document.createElement('a'); link.href = url; link.download = 'chiptunes-algorave.json'; link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
   }catch(error){message(error);}

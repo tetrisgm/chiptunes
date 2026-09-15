@@ -11,6 +11,7 @@ function keys(v, allowed, required = []) {
 function text(v, limit) {
   return typeof v === 'string' && bytes(v) <= limit && !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(v);
 }
+const imageId = src => typeof src === 'string' && /^asset:[a-f0-9]{64}$/.test(src) ? src.slice(6) : null;
 function channel(value, visuals) {
   if(value===null||value==='audio'||value==='keyboard')return value;
   if(['A','B','C','D'].includes(value)){
@@ -24,10 +25,12 @@ function channel(value, visuals) {
     result.source=value.source;
   }else need(!Object.hasOwn(value,'source'),'Only buffers have a source pass.');
   if(value.type==='texture'){
-    need(text(value.src,4096),'Invalid texture URL.');let url;
+    need(text(value.src,4096),'Invalid texture URL.');
+    if(imageId(value.src))result.src=value.src;
+    else {let url;
     try{url=new URL(value.src);}catch{throw Error('Use an HTTPS texture URL.');}
     need(url.protocol==='https:'&&!url.username&&!url.password&&!url.hash,'Use an HTTPS texture URL without credentials or a fragment.');
-    result.src=url.href;
+    result.src=url.href;}
     for(const option of ['vflip','srgb'])if(Object.hasOwn(value,option)){need(typeof value[option]==='boolean');result[option]=value[option];}
   }else need(!['src','vflip','srgb'].some(key=>Object.hasOwn(value,key)),'Image options need a texture input.');
   if(Object.hasOwn(value,'filter')){need(['nearest','linear','mipmap'].includes(value.filter),'Invalid texture filter.');result.filter=value.filter;}
@@ -130,4 +133,4 @@ async function context(value) {
   need(count<=16384);
   return {kind:'algorave',id:value.id,request:value.request,baseRevision:value.baseRevision,project:normalized,target,conversation};
 }
-module.exports={DOCUMENTS,RUNTIME,project,revision,sourceFor,candidateFrom,context,channel};
+module.exports={DOCUMENTS,RUNTIME,project,revision,sourceFor,candidateFrom,context,channel,imageId};

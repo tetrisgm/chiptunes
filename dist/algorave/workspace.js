@@ -45,6 +45,7 @@ var require_project = __commonJS({
     function text(v, limit) {
       return typeof v === "string" && bytes(v) <= limit && !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(v);
     }
+    var imageId = (src) => typeof src === "string" && /^asset:[a-f0-9]{64}$/.test(src) ? src.slice(6) : null;
     function channel(value, visuals) {
       if (value === null || value === "audio" || value === "keyboard") return value;
       if (["A", "B", "C", "D"].includes(value)) {
@@ -60,14 +61,17 @@ var require_project = __commonJS({
       } else need(!Object.hasOwn(value, "source"), "Only buffers have a source pass.");
       if (value.type === "texture") {
         need(text(value.src, 4096), "Invalid texture URL.");
-        let url;
-        try {
-          url = new URL(value.src);
-        } catch {
-          throw Error("Use an HTTPS texture URL.");
+        if (imageId(value.src)) result.src = value.src;
+        else {
+          let url;
+          try {
+            url = new URL(value.src);
+          } catch {
+            throw Error("Use an HTTPS texture URL.");
+          }
+          need(url.protocol === "https:" && !url.username && !url.password && !url.hash, "Use an HTTPS texture URL without credentials or a fragment.");
+          result.src = url.href;
         }
-        need(url.protocol === "https:" && !url.username && !url.password && !url.hash, "Use an HTTPS texture URL without credentials or a fragment.");
-        result.src = url.href;
         for (const option of ["vflip", "srgb"]) if (Object.hasOwn(value, option)) {
           need(typeof value[option] === "boolean");
           result[option] = value[option];
@@ -194,7 +198,7 @@ var require_project = __commonJS({
       need(count <= 16384);
       return { kind: "algorave", id: value.id, request: value.request, baseRevision: value.baseRevision, project: normalized, target, conversation };
     }
-    module.exports = { DOCUMENTS, RUNTIME, project, revision, sourceFor, candidateFrom, context, channel };
+    module.exports = { DOCUMENTS, RUNTIME, project, revision, sourceFor, candidateFrom, context, channel, imageId };
   }
 });
 
@@ -24967,7 +24971,7 @@ function codeEditor(parent, { language: language2, label }) {
 }
 
 // src/algorave/preview.mjs
-var import_project6 = __toESM(require_project(), 1);
+var import_project8 = __toESM(require_project(), 1);
 
 // src/algorave/session.mjs
 var import_project2 = __toESM(require_project(), 1);
@@ -25315,8 +25319,12 @@ async function loadShaderImage(src, { signal: signal2, vflip = false } = {}) {
     });
     reader.releaseLock();
   }
+  return decodeShaderImage(new Blob(chunks, { type }), { signal: signal2, vflip });
+}
+async function decodeShaderImage(blob, { signal: signal2, vflip = false } = {}) {
   if (signal2?.aborted) throw Error("Texture loading cancelled.");
-  const bitmap = await createImageBitmap(new Blob(chunks, { type }), { imageOrientation: vflip ? "flipY" : "none", premultiplyAlpha: "none", colorSpaceConversion: "none" });
+  if (!blob.size || blob.size > IMAGE_BYTES) throw Error("Texture file must contain between 1 byte and 16 MiB.");
+  const bitmap = await createImageBitmap(blob, { imageOrientation: vflip ? "flipY" : "none", premultiplyAlpha: "none", colorSpaceConversion: "none" });
   if (signal2?.aborted || bitmap.width * bitmap.height > IMAGE_PIXELS) {
     bitmap.close();
     throw Error(signal2?.aborted ? "Texture loading cancelled." : "Texture resolution is too large (16 megapixels maximum).");
@@ -25347,7 +25355,10 @@ out vec4 outputColor;
 var ORDER = ["A", "B", "C", "D", "Image"];
 var ShaderRuntime = class {
   constructor(canvas, { onStatus = () => {
+  }, resolveImage: resolveImage2 = async () => {
+    throw Error("Imported image content is missing.");
   } } = {}) {
+    this.resolveImage = resolveImage2;
     this.canvas = canvas;
     this.onStatus = onStatus;
     this.generation = 0;
@@ -25674,7 +25685,8 @@ var ShaderRuntime = class {
       for (const input of inputs) {
         const key = imageKey(input);
         if (images.has(key)) continue;
-        const bitmap = await loadShaderImage(input.src, { signal: controller.signal, vflip: input.vflip });
+        const options = { signal: controller.signal, vflip: input.vflip }, id2 = import_project4.default.imageId(input.src);
+        const bitmap = id2 ? await decodeShaderImage(await this.resolveImage(id2), options) : await loadShaderImage(input.src, options);
         images.set(key, bitmap);
         pixels += bitmap.width * bitmap.height;
         if (pixels > IMAGE_PIXELS * 4) throw Error("Combined texture resolution exceeds 64 megapixels.");
@@ -25786,9 +25798,12 @@ var ShaderRuntime = class {
 };
 
 // src/algorave/shader-channel-editor.mjs
-function shaderChannelEditor(root, textarea) {
-  let document2, pass;
+var import_project5 = __toESM(require_project(), 1);
+function shaderChannelEditor(root, textarea, { importImage: importImage2, onError = () => {
+} } = {}) {
+  let document2, pass, version = 0;
   function render(nextDocument, nextPass) {
+    const rendered = ++version;
     document2 = nextDocument;
     pass = nextPass;
     root.replaceChildren();
@@ -25807,6 +25822,7 @@ function shaderChannelEditor(root, textarea) {
     for (let index = 0; index < 4; index++) {
       let visibility = function() {
         const texture = source.input.value === "texture", empty = source.input.value === "none";
+        file.label.hidden = !texture || !importImage2;
         src.label.hidden = flip.label.hidden = srgb.label.hidden = !texture;
         filter.label.hidden = wrap.label.hidden = empty;
       };
@@ -25816,10 +25832,14 @@ function shaderChannelEditor(root, textarea) {
       group.append(legend);
       const source = select("Input", ["none", "audio", "keyboard", "texture", ...["A", "B", "C", "D"].filter((name2) => document2[name2])], input.type === "buffer" ? input.source : input.type || "none");
       group.append(source.label);
+      let imported = import_project5.default.imageId(input.src) ? input.src : "";
       const src = field("Image URL", "url");
-      src.input.value = input.src || "";
-      src.input.placeholder = "https://\u2026";
+      src.input.value = imported ? "" : input.src || "";
+      src.input.placeholder = imported ? "Imported image (saved)" : "https://\u2026";
       group.append(src.label);
+      const file = field("Import image", "file");
+      file.input.accept = "image/png,image/jpeg,image/webp,image/avif,image/gif,image/bmp";
+      group.append(file.label);
       const filter = select("Filter", ["nearest", "linear", "mipmap"], input.filter || (input.type === "keyboard" ? "nearest" : "linear"));
       group.append(filter.label);
       const wrap = select("Wrap", ["clamp", "repeat", "mirror"], input.wrap || "clamp");
@@ -25840,7 +25860,7 @@ function shaderChannelEditor(root, textarea) {
         if (chosen !== "none") {
           value = { type: ["A", "B", "C", "D"].includes(chosen) ? "buffer" : chosen, filter: filter.input.value, wrap: wrap.input.value };
           if (value.type === "buffer") value.source = chosen;
-          if (chosen === "texture") Object.assign(value, { src: src.input.value, vflip: flip.input.checked, srgb: srgb.input.checked });
+          if (chosen === "texture") Object.assign(value, { src: imported || src.input.value, vflip: flip.input.checked, srgb: srgb.input.checked });
         }
         const inputs = [...current[pass] || []];
         while (inputs.length <= index) inputs.push(null);
@@ -25854,6 +25874,27 @@ function shaderChannelEditor(root, textarea) {
         update();
       };
       for (const control of [src, filter, wrap, flip, srgb]) control.input.onchange = update;
+      src.input.oninput = () => {
+        imported = "";
+        src.input.placeholder = "https://\u2026";
+        update();
+      };
+      file.input.onchange = async () => {
+        const selected = file.input.files[0];
+        if (!selected) return;
+        try {
+          const reference = await importImage2(selected);
+          if (rendered !== version) return;
+          imported = reference;
+          src.input.value = "";
+          src.input.placeholder = "Imported image (saved)";
+          update();
+        } catch (error) {
+          onError(error);
+        } finally {
+          file.input.value = "";
+        }
+      };
       visibility();
       root.append(group);
     }
@@ -26090,7 +26131,7 @@ async function saveSamples(store) {
 }
 
 // src/algorave/sample-project.mjs
-var import_project5 = __toESM(require_project(), 1);
+var import_project6 = __toESM(require_project(), 1);
 var SAMPLE_PROJECT_BYTES = 24 * 1024 * 1024;
 var sampleIds = (project) => [...new Set(Object.values(project.samples || {}).flat())];
 var encode = (bytes) => {
@@ -26099,14 +26140,14 @@ var encode = (bytes) => {
   return btoa(text);
 };
 function exportSampleProject(value, store) {
-  const project = import_project5.default.project(value), ids = sampleIds(project);
+  const project = import_project6.default.project(value), ids = sampleIds(project);
   if (!ids.length) return project;
   return { format: "ct-algorave-samples", version: 1, project, assets: ids.map((id2) => ({ id: id2, data: encode(store.get(id2)) })) };
 }
 async function importSampleProject(value) {
-  if (value?.format !== "ct-algorave-samples") return { project: import_project5.default.project(value), store: null };
+  if (value?.format !== "ct-algorave-samples") return { project: import_project6.default.project(value), store: null };
   if (value.version !== 1 || Object.keys(value).length !== 4 || !["format", "version", "project", "assets"].every((k) => Object.hasOwn(value, k)) || !Array.isArray(value.assets) || value.assets.length > 32) throw Error("Invalid project sample archive.");
-  const project = import_project5.default.project(value.project), ids = new Set(sampleIds(project)), store = new SampleByteStore();
+  const project = import_project6.default.project(value.project), ids = new Set(sampleIds(project)), store = new SampleByteStore();
   if (value.assets.length !== ids.size) throw Error("Project sample archive has missing or duplicate content.");
   for (const record of value.assets) {
     if (!record || Object.keys(record).length !== 2 || !ids.has(record.id) || typeof record.data !== "string" || record.data.length > Math.ceil(SAMPLE_LIMITS.fileBytes / 3) * 4 || (record.data.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(record.data))) throw Error("Invalid project sample content.");
@@ -26118,12 +26159,169 @@ async function importSampleProject(value) {
   return { project, store };
 }
 
+// src/algorave/project-assets.mjs
+var import_project7 = __toESM(require_project(), 1);
+
+// src/algorave/image-assets.mjs
+var IMAGE_LIMITS = Object.freeze({ fileBytes: IMAGE_BYTES, totalBytes: 64 * 1024 * 1024, count: 32 });
+function imageType(bytes) {
+  if (!(bytes instanceof Uint8Array) || bytes.length < 12 || bytes.length > IMAGE_BYTES) throw Error("Invalid image file size (16 MiB maximum).");
+  const word = (start, length) => String.fromCharCode(...bytes.subarray(start, start + length));
+  if ([137, 80, 78, 71, 13, 10, 26, 10].every((v, i2) => bytes[i2] === v)) return "image/png";
+  if (bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255) return "image/jpeg";
+  if (word(0, 4) === "RIFF" && word(8, 4) === "WEBP") return "image/webp";
+  if (["GIF87a", "GIF89a"].includes(word(0, 6))) return "image/gif";
+  if (word(0, 2) === "BM") return "image/bmp";
+  if (word(4, 4) === "ftyp") {
+    const size = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint32(0);
+    if (size >= 16 && size <= bytes.length && size % 4 === 0) {
+      for (let offset = 8; offset < size; offset += 4) if (offset !== 12 && ["avif", "avis"].includes(word(offset, 4))) return "image/avif";
+    }
+  }
+  throw Error("Use a PNG, JPEG, WebP, AVIF, GIF or BMP image.");
+}
+var ImageByteStore = class _ImageByteStore {
+  #items = /* @__PURE__ */ new Map();
+  #total = 0;
+  async put(input) {
+    const bytes = input instanceof Uint8Array ? Uint8Array.from(input) : input;
+    imageType(bytes);
+    const id2 = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map((n) => n.toString(16).padStart(2, "0")).join("");
+    if (!this.#items.has(id2)) {
+      if (this.#items.size >= IMAGE_LIMITS.count || this.#total + bytes.length > IMAGE_LIMITS.totalBytes) throw Error("Image collection is full (32 files or 64 MiB).");
+      this.#items.set(id2, bytes);
+      this.#total += bytes.length;
+    }
+    return Object.freeze({ id: id2, byteLength: bytes.length });
+  }
+  has(id2) {
+    return this.#items.has(id2);
+  }
+  get(id2) {
+    const bytes = this.#items.get(id2);
+    if (!bytes) throw Error("Imported image content is missing.");
+    return bytes.slice();
+  }
+  blob(id2) {
+    const bytes = this.get(id2);
+    return new Blob([bytes], { type: imageType(bytes) });
+  }
+  fork() {
+    const store = new _ImageByteStore();
+    store.#items = new Map(this.#items);
+    store.#total = this.#total;
+    return store;
+  }
+  snapshot() {
+    return { count: this.#items.size, byteLength: this.#total, assets: [...this.#items].map(([id2, bytes]) => ({ id: id2, byteLength: bytes.length })) };
+  }
+};
+
+// src/algorave/project-assets.mjs
+var PROJECT_BYTES = 112 * 1024 * 1024;
+var imageIds = (project) => [...new Set(Object.values(project.visuals.channels || {}).flat().map((input) => import_project7.default.imageId(input?.src)).filter(Boolean))];
+var encode2 = (bytes) => {
+  let text = "";
+  for (let i2 = 0; i2 < bytes.length; i2 += 32768) text += String.fromCharCode(...bytes.subarray(i2, i2 + 32768));
+  return btoa(text);
+};
+function exportProject(value, { samples, images } = {}) {
+  const project = import_project7.default.project(value), ids = imageIds(project), previous = exportSampleProject(project, samples);
+  if (!ids.length) return previous;
+  return { format: "ct-algorave-assets", version: 1, project, samples: previous.assets || [], images: ids.map((id2) => ({ id: id2, data: encode2(images.get(id2)) })) };
+}
+async function importProject(value) {
+  if (value?.format !== "ct-algorave-assets") return { ...await importSampleProject(value), images: null };
+  if (value.version !== 1 || Object.keys(value).length !== 5 || !["format", "version", "project", "samples", "images"].every((k) => Object.hasOwn(value, k)) || !Array.isArray(value.images) || value.images.length > IMAGE_LIMITS.count) throw Error("Invalid project asset archive.");
+  const { project, store } = await importSampleProject({ format: "ct-algorave-samples", version: 1, project: value.project, assets: value.samples });
+  const ids = new Set(imageIds(project)), images = new ImageByteStore();
+  if (value.images.length !== ids.size) throw Error("Project images have missing or duplicate content.");
+  for (const record of value.images) {
+    if (!record || Object.keys(record).length !== 2 || !ids.has(record.id) || typeof record.data !== "string" || record.data.length > Math.ceil(IMAGE_LIMITS.fileBytes / 3) * 4 || record.data.length % 4 || !/^[A-Za-z0-9+/]*={0,2}$/.test(record.data)) throw Error("Invalid project image content.");
+    const bytes = Uint8Array.from(atob(record.data), (c2) => c2.charCodeAt(0));
+    if ((await images.put(bytes)).id !== record.id) throw Error("Project image content does not match its saved identity.");
+    ids.delete(record.id);
+  }
+  return { project, store, images };
+}
+
+// src/algorave/image-persistence.mjs
+var NAME2 = "ct-algorave-images-v1";
+async function database2() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(NAME2, 1);
+    let blocked = false;
+    request.onupgradeneeded = () => request.result.createObjectStore("images", { keyPath: "id" });
+    request.onerror = () => reject(Error("Could not open image storage."));
+    request.onblocked = () => {
+      blocked = true;
+      reject(Error("Image storage is busy in another tab."));
+    };
+    request.onsuccess = () => {
+      if (blocked) request.result.close();
+      else resolve(request.result);
+    };
+  });
+}
+async function loadImages() {
+  const db = await database2();
+  try {
+    const records = await new Promise((resolve, reject) => {
+      const tx = db.transaction("images", "readonly"), request = tx.objectStore("images").getAll(void 0, IMAGE_LIMITS.count + 1);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(Error("Could not read saved images."));
+    });
+    if (records.length > IMAGE_LIMITS.count) throw Error("Saved image collection exceeds its limit.");
+    const store = new ImageByteStore();
+    for (const record of records) {
+      const item = await store.put(record.bytes);
+      if (item.id !== record.id) throw Error("Saved image content is damaged.");
+    }
+    return store;
+  } finally {
+    db.close();
+  }
+}
+async function saveImages(store) {
+  const records = store.snapshot().assets.map(({ id: id2 }) => ({ id: id2, bytes: store.get(id2) })), db = await database2();
+  try {
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction("images", "readwrite"), table = tx.objectStore("images"), request = table.getAll(void 0, IMAGE_LIMITS.count + 1);
+      let failure;
+      tx.oncomplete = () => resolve();
+      tx.onabort = tx.onerror = () => reject(failure || Error("Could not save images."));
+      request.onsuccess = () => {
+        try {
+          const existing = new Map(request.result.map((item) => [item.id, item.bytes]));
+          for (const record of records) {
+            const previous = existing.get(record.id);
+            if (previous && (!(previous instanceof Uint8Array) || previous.length !== record.bytes.length || previous.some((v, i2) => v !== record.bytes[i2]))) throw Error("Saved image identity conflicts with existing data.");
+            existing.set(record.id, record.bytes);
+          }
+          let total = 0;
+          for (const bytes of existing.values()) {
+            if (!(bytes instanceof Uint8Array) || !bytes.length || bytes.length > IMAGE_LIMITS.fileBytes) throw Error("Saved image data is invalid.");
+            total += bytes.length;
+          }
+          if (existing.size > IMAGE_LIMITS.count || total > IMAGE_LIMITS.totalBytes) throw Error("Saved image collection is full (32 files or 64 MiB).");
+          for (const record of records) if (!request.result.some((item) => item.id === record.id)) table.add(record);
+        } catch (error) {
+          failure = error;
+          tx.abort();
+        }
+      };
+    });
+  } finally {
+    db.close();
+  }
+}
+
 // src/algorave/preview.mjs
 var $ = (id2) => document.getElementById(id2);
 var status = $("status");
 var music = codeEditor($("music"), { language: "music", label: "Strudel music" });
 var visual = codeEditor($("visual"), { language: "visual", label: "GLSL visual" });
-var channelEditor = shaderChannelEditor($("channel-editor"), $("channels"));
+var channelEditor = shaderChannelEditor($("channel-editor"), $("channels"), { importImage, onError: message });
 var signal = {};
 var playing = false;
 var last2 = 0;
@@ -26142,6 +26340,34 @@ var visualRunRequested = false;
 var initialVisualError;
 var sampleStorePromise;
 var sampleAbort;
+var imageStorePromise;
+var imageStore = () => imageStorePromise || (imageStorePromise = loadImages().catch((error) => {
+  imageStorePromise = null;
+  throw error;
+}));
+async function resolveImage(id2) {
+  let store = await imageStore();
+  if (!store.has(id2)) {
+    imageStorePromise = null;
+    store = await imageStore();
+  }
+  return store.blob(id2);
+}
+async function importImage(file) {
+  if (uiBusy) throw Error("Wait for the current edit to finish.");
+  lock(true);
+  try {
+    if (file.size > IMAGE_BYTES) throw Error("Image files must be at most 16 MiB.");
+    const store = (await imageStore()).fork(), { id: id2 } = await store.put(new Uint8Array(await file.arrayBuffer()));
+    (await decodeShaderImage(store.blob(id2))).close();
+    await saveImages(store);
+    imageStorePromise = Promise.resolve(store);
+    status.textContent = "Image imported \xB7 Set channels, then Run visuals";
+    return "asset:" + id2;
+  } finally {
+    lock(false);
+  }
+}
 var sampleStore = () => sampleStorePromise || (sampleStorePromise = loadSamples().catch((error) => {
   sampleStorePromise = null;
   throw error;
@@ -26219,7 +26445,7 @@ function showProject() {
   $("agent-undo").disabled = $("undo").disabled;
 }
 showProject();
-shader2 = new ShaderRuntime($("canvas"), { onStatus: (text) => {
+shader2 = new ShaderRuntime($("canvas"), { resolveImage, onStatus: (text) => {
   status.textContent = text;
 } });
 try {
@@ -26382,7 +26608,7 @@ async function openProject(next) {
     status.textContent = "Opening project\u2026";
     openRequested = true;
     try {
-      await session.activate(import_project6.default.project(next));
+      await session.activate(import_project8.default.project(next));
       music.resetHistory();
       visual.resetHistory();
       visualPass = "Image";
@@ -26402,9 +26628,19 @@ $("project-file").onchange = async () => {
   if (!file) return;
   const generation = session.generation;
   try {
-    if (file.size > SAMPLE_PROJECT_BYTES) throw Error("Project files must be at most 24 MiB including samples.");
-    const imported = await importSampleProject(JSON.parse(await file.text()));
+    if (file.size > PROJECT_BYTES) throw Error("Project files must be at most 112 MiB including images and samples.");
+    const imported = await importProject(JSON.parse(await file.text()));
     if (generation !== session.generation) throw Error("The draft changed while the file was being read. Open it again.");
+    if (imported.images) {
+      const store = (await imageStore()).fork();
+      for (const { id: id2 } of imported.images.snapshot().assets) {
+        (await decodeShaderImage(imported.images.blob(id2))).close();
+        await store.put(imported.images.get(id2));
+      }
+      await saveImages(store);
+      imageStorePromise = Promise.resolve(store);
+      if (generation !== session.generation) throw Error("The draft changed while images were being saved. Open it again.");
+    }
     if (imported.store) {
       const store = await sampleStore();
       for (const { id: id2 } of imported.store.snapshot().assets) await store.put(imported.store.get(id2));
@@ -26437,8 +26673,10 @@ $("help-close").onclick = () => $("help").close();
 $("save").onclick = () => save(true);
 $("download").onclick = async () => {
   try {
-    const snapshot = import_project6.default.project(session.draft), store = sampleIds(snapshot).length ? await sampleStore() : null;
-    const url = URL.createObjectURL(new Blob([JSON.stringify(exportSampleProject(snapshot, store), null, 2)], { type: "application/json" }));
+    const snapshot = import_project8.default.project(session.draft), store = sampleIds(snapshot).length ? await sampleStore() : null;
+    for (const id2 of imageIds(snapshot)) await resolveImage(id2);
+    const images = imageIds(snapshot).length ? await imageStore() : null;
+    const url = URL.createObjectURL(new Blob([JSON.stringify(exportProject(snapshot, { samples: store, images }), null, 2)], { type: "application/json" }));
     const link = document.createElement("a");
     link.href = url;
     link.download = "chiptunes-algorave.json";
@@ -26478,7 +26716,7 @@ $("sample-add").onclick = () => action(async () => {
     await saveSamples(store);
     if (sampleAbort.signal.aborted) throw Error("Sample loading cancelled.");
     if (generation !== session.generation) throw Error("The project changed while the sample loaded. Try again.");
-    const next = import_project6.default.project({ ...session.draft, samples: { ...session.draft.samples, [name2]: [id2] } });
+    const next = import_project8.default.project({ ...session.draft, samples: { ...session.draft.samples, [name2]: [id2] } });
     await session.activate(next);
     $("sample-dialog").close();
     $("sample-file").value = "";
@@ -26564,7 +26802,7 @@ $("ask-form").onsubmit = async (event) => {
     const context = await session.requestContext($("prompt").value);
     $("agent-status").textContent = "Writing a proposal\u2026";
     const proposal = await agent.request(context, $("provider").value);
-    if (await import_project6.default.revision(session.draft) !== context.baseRevision) throw Error("The source changed while the agent was writing. Ask again.");
+    if (await import_project8.default.revision(session.draft) !== context.baseRevision) throw Error("The source changed while the agent was writing. Ask again.");
     pendingContext = context;
     pendingProposal = proposal;
     $("explanation").textContent = proposal.explanation;
@@ -26614,7 +26852,7 @@ bridge = new MusicBridge(frame, (next) => {
 await bridge.ready;
 lock(false);
 status.textContent = session.recoveryError || initialVisualError || "Ready \xB7 \u2318/Ctrl Enter to run";
-$("build").textContent = "Algorave b7a618362b2a";
+$("build").textContent = "Algorave 03ea27fdf73d";
 function draw(now) {
   shader2.render({ time: now / 1e3, delta: last2 ? (now - last2) / 1e3 : 0, ...signals.at(performance.timeOrigin + now) });
   last2 = now;
