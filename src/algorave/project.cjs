@@ -1,6 +1,6 @@
 'use strict';
 // Shared data-only contract. Never evaluates Strudel or GLSL on the server.
-const DOCUMENTS = Object.freeze(['music', 'Image', 'Common', 'A', 'B', 'C', 'D', 'channels']);
+const DOCUMENTS = Object.freeze(['music', 'Image', 'Common', 'A', 'B', 'C', 'D', 'Cube', 'channels']);
 const RUNTIME = Object.freeze({ music: 'strudel-web-1.3.0', visual: 'shadertoy-webgl2-v1' });
 const bytes = value => new TextEncoder().encode(value).length;
 const plain = v => v && typeof v === 'object' && !Array.isArray(v);
@@ -22,14 +22,14 @@ function textureSource(src){
 }
 function channel(value, visuals) {
   if(value===null||value==='audio'||value==='keyboard')return value;
-  if(['A','B','C','D'].includes(value)){
+  if(['A','B','C','D','Cube'].includes(value)){
     need(Object.hasOwn(visuals,value),'Channel names a missing buffer.');return value;
   }
   need(keys(value,['type','source','src','faces','filter','wrap','vflip','srgb'],['type']),'Invalid visual input.');
   need(['audio','keyboard','buffer','texture','cubemap'].includes(value.type),'Unsupported visual input type.');
   const result={type:value.type};
   if(value.type==='buffer'){
-    need(['A','B','C','D'].includes(value.source)&&Object.hasOwn(visuals,value.source),'Channel names a missing buffer.');
+    need(['A','B','C','D','Cube'].includes(value.source)&&Object.hasOwn(visuals,value.source),'Channel names a missing buffer.');
     result.source=value.source;
   }else need(!Object.hasOwn(value,'source'),'Only buffers have a source pass.');
   if(value.type==='texture'||value.type==='cubemap'){
@@ -50,17 +50,17 @@ function project(value) {
   need(value.version === 1 && keys(value.runtime,['music','visual'],['music','visual']));
   need(value.runtime.music === RUNTIME.music && value.runtime.visual === RUNTIME.visual,'Unsupported project runtime.');
   need(text(value.music,65536));
-  need(keys(value.visuals,['Image','Common','A','B','C','D','channels'],['Image']));
+  need(keys(value.visuals,['Image','Common','A','B','C','D','Cube','channels'],['Image']));
   const visuals = {};
-  for (const name of ['Image','Common','A','B','C','D']) {
+  for (const name of ['Image','Common','A','B','C','D','Cube']) {
     if (!Object.hasOwn(value.visuals,name)) continue;
     need(text(value.visuals[name],65536));
     if (name === 'Image' || value.visuals[name] !== '') visuals[name] = value.visuals[name];
   }
   const inputs = Object.hasOwn(value.visuals, 'channels') ? value.visuals.channels : { Image: ['audio'] };
-  need(keys(inputs,['Image','A','B','C','D']));
+  need(keys(inputs,['Image','A','B','C','D','Cube']));
   visuals.channels = {};
-  for (const name of ['Image','A','B','C','D']) {
+  for (const name of ['Image','A','B','C','D','Cube']) {
     if (!Object.hasOwn(inputs,name)) continue;
     need(Object.hasOwn(visuals,name),'Channel configuration names a missing pass.');
     const row = inputs[name];

@@ -7,7 +7,7 @@ Choose music, visuals or both to satisfy the user's request. Honor an explicit
 music-only or visuals-only target. Preserve unaffected code and channels. Return
 edits:[] to answer a question without changing code. Never claim changes are applied.
 Return exactly {id,baseRevision,edits,explanation}, echoing the supplied identity.
-Each edit has document, from, to, text. Documents: music, Image, Common, A, B, C, D,
+Each edit has document, from, to, text. Documents: music, Image, Common, A, B, C, D, Cube,
 channels. Offsets are UTF-16 half-open ranges in that document's source, sorted
 and nonoverlapping within each document. channels is the JSON-serialized channel
 map. Missing optional passes have empty source; insert at 0 to add one. Prefer
@@ -62,6 +62,12 @@ void mainImage(out vec4 color, in vec2 pixel). The host supplies the version,
 precision, uniforms and main wrapper; do not redeclare them. Image is required.
 Optional Common code is prepended to every pass. A-D are floating-point feedback
 buffers; earlier passes are current-frame, self/later inputs are previous-frame.
+Cube (shown as Cubemap A) generates a floating-point cube texture using
+void mainCubemap(out vec4 color,in vec2 pixel,in vec3 rayOri,in vec3 rayDir).
+Its six square faces are 1024 pixels per side (or the device limit), independent
+of the window size. rayOri is zero; rayDir is a normalized cube-face direction.
+Order is A, B, C, D, Cube, Image. Use "Cube" or {type:"buffer",source:"Cube"}
+as a channel to sample it with samplerCube, including previous-frame self-feedback.
 Channel JSON maps pass names to up to four inputs. Legacy inputs null, "audio",
 "keyboard", or A-D work. Descriptors allow {type:"audio"}, {type:"keyboard"},
 {type:"buffer",source:"A"}, {type:"texture",src:"https://..."}, or
@@ -101,6 +107,6 @@ void mainImage(out vec4 c, in vec2 p) {
   float rings = sin(length(uv)*20.-iTime*3.-ctKick*4.);
   c = vec4(vec3(.3,.7,1.)*smoothstep(0.,.2,rings),1.);
 }
-Sound/VR/Cubemap output passes, volume textures and video channels are not supported yet.
+Sound/VR output passes, volume textures and video channels are not supported yet.
 Do not promise full Shadertoy URL import. Candidates will be validated locally;
 explain errors honestly, never claim code was compiled or heard by you.`;

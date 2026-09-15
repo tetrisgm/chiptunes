@@ -19,7 +19,20 @@ out vec4 outputColor;
 #define texture2D texture
 #define textureCube texture
 `;
-const ORDER = ['A', 'B', 'C', 'D', 'Image'];
+const ORDER = ['A', 'B', 'C', 'D', 'Cube', 'Image'];
+const cubeInput = input => {const info=inputInfo(input);return info.type==='cubemap'||info.type==='buffer'&&info.source==='Cube';};
+// OpenGL cube face directions, inverse to the samplerCube face/UV mapping.
+const CUBE_MAIN = `
+uniform int ctCubeFace;
+void main(){
+  vec2 p=2.*gl_FragCoord.xy/iResolution.xy-1.;
+  vec3 d=ctCubeFace==0?vec3(1.,-p.y,-p.x):
+    ctCubeFace==1?vec3(-1.,-p.y,p.x):
+    ctCubeFace==2?vec3(p.x,1.,p.y):
+    ctCubeFace==3?vec3(p.x,-1.,-p.y):
+    ctCubeFace==4?vec3(p.x,-p.y,1.):vec3(-p.x,-p.y,-1.);
+  mainCubemap(outputColor,gl_FragCoord.xy,vec3(0.),normalize(d));
+}`;
 export class ShaderRuntime {
   constructor(canvas, { onStatus = () => {}, resolveImage = async () => {throw Error('Imported image content is missing.');} } = {}) {
     this.resolveImage = resolveImage; this.canvas = canvas; this.onStatus = onStatus; this.generation = 0; this.candidates = new Set();
@@ -99,7 +112,8 @@ export class ShaderRuntime {
     const replacements = [];
     try {
       for (const pass of [...this.passes,...[...this.retained].filter(previous=>!previous.invalid).flatMap(previous=>previous.passes)]) {
-        if (!pass.targets.length) continue;
+        // Cubemap output is a fixed square, independent of the display viewport.
+        if (!pass.targets.length || pass.name==='Cube') continue;
         const pair = []; replacements.push({ pass, pair });
         for (const old of pass.targets) {
           const next = this.target(width, height); pair.push(next);
@@ -175,13 +189,34 @@ export class ShaderRuntime {
     g.clearColor(0,0,0,0); g.clear(g.COLOR_BUFFER_BIT);
     return result;
   }
-  compile(source, common = '', channels = []) {
+  cubeTarget() {
+    if(!this.floatBuffers)throw Error('Cubemap output needs floating-point WebGL support.');
+    const g=this.gl,size=Math.min(1024,g.getParameter(g.MAX_CUBE_MAP_TEXTURE_SIZE),g.getParameter(g.MAX_RENDERBUFFER_SIZE));
+    const result={texture:g.createTexture(),fbo:g.createFramebuffer(),width:size,height:size,target:g.TEXTURE_CUBE_MAP};
+    try{
+      g.bindTexture(g.TEXTURE_CUBE_MAP,result.texture);
+      g.texParameteri(g.TEXTURE_CUBE_MAP,g.TEXTURE_MIN_FILTER,g.LINEAR);
+      g.texParameteri(g.TEXTURE_CUBE_MAP,g.TEXTURE_MAG_FILTER,g.LINEAR);
+      for(const axis of [g.TEXTURE_WRAP_S,g.TEXTURE_WRAP_T,g.TEXTURE_WRAP_R])g.texParameteri(g.TEXTURE_CUBE_MAP,axis,g.CLAMP_TO_EDGE);
+      // A framebuffer attachment must belong to a complete cube texture.
+      for(let face=0;face<6;face++)g.texImage2D(g.TEXTURE_CUBE_MAP_POSITIVE_X+face,0,g.RGBA16F,size,size,0,g.RGBA,g.HALF_FLOAT,null);
+      g.bindFramebuffer(g.FRAMEBUFFER,result.fbo);
+      for(let face=0;face<6;face++){
+        g.framebufferTexture2D(g.FRAMEBUFFER,g.COLOR_ATTACHMENT0,g.TEXTURE_CUBE_MAP_POSITIVE_X+face,result.texture,0);
+        if(g.checkFramebufferStatus(g.FRAMEBUFFER)!==g.FRAMEBUFFER_COMPLETE)throw Error('Cubemap output allocation failed.');
+        g.clearColor(0,0,0,0);g.clear(g.COLOR_BUFFER_BIT);
+      }
+      if(g.getError()!==g.NO_ERROR)throw Error('Cubemap output allocation failed.');
+      return result;
+    }catch(error){this.deleteTarget(result);throw error;}
+  }
+  compile(source, common = '', channels = [], cube = false) {
     const g = this.gl;
     if (this.disposed || this.lost || g.isContextLost()) throw Error('Visuals are waiting for the graphics context.');
     const shaders = [], program = g.createProgram();
     try {
       for (const [kind, code] of [[g.VERTEX_SHADER, VERTEX], [g.FRAGMENT_SHADER,
-        HEADER + Array.from({length:4},(_,i)=>`uniform ${inputInfo(channels[i]).type==='cubemap'?'samplerCube':'sampler2D'} iChannel${i};\n`).join('') + '\n#line 1 1\n' + common + '\n#line 1 0\n' + source + '\nvoid main(){mainImage(outputColor,gl_FragCoord.xy);}' ]]) {
+        HEADER + Array.from({length:4},(_,i)=>`uniform ${cubeInput(channels[i])?'samplerCube':'sampler2D'} iChannel${i};\n`).join('') + '\n#line 1 1\n' + common + '\n#line 1 0\n' + source + (cube?CUBE_MAIN:'\nvoid main(){mainImage(outputColor,gl_FragCoord.xy);}') ]]) {
         const shader = g.createShader(kind); shaders.push(shader);
         g.shaderSource(shader, code); g.compileShader(shader);
         if (!g.getShaderParameter(shader, g.COMPILE_STATUS)) throw Error(g.getShaderInfoLog(shader) || 'Graphics context became unavailable during compilation.');
@@ -209,7 +244,7 @@ export class ShaderRuntime {
         if (!Array.isArray(row) || row.length > 4) throw Error(`${name}: unsupported channel.`);
         const channels=row.map(input=>contract.channel(input,document));
         let program;
-        try { program = this.compile(source, common, channels); } catch (e) { throw Error(`${name}: ${e.message}`); }
+        try { program = this.compile(source, common, channels, name==='Cube'); } catch (e) { throw Error(`${name}: ${e.message}`); }
         const pass = { name, program, channels, uniforms: new Map(), targets: [], images:[],samplers:[],read: 0 };
         next.push(pass);
         for(let i=0;i<4;i++){
@@ -225,7 +260,7 @@ export class ShaderRuntime {
             pass.images[i]=imageTextures.get(key);
           }
         }
-        if (name !== 'Image') { pass.targets.push(this.target()); pass.targets.push(this.target()); }
+        if (name !== 'Image') { pass.targets.push(name==='Cube'?this.cubeTarget():this.target()); pass.targets.push(name==='Cube'?this.cubeTarget():this.target()); }
       }
     } catch (error) { this.deletePasses(next); throw error; }
     let settled = false,previous;
@@ -295,8 +330,9 @@ export class ShaderRuntime {
     for (const pass of this.passes) {
       const write = pass.targets[1-pass.read];
       g.bindFramebuffer(g.FRAMEBUFFER, write?.fbo || null);
-      g.viewport(0,0,this.canvas.width,this.canvas.height); g.useProgram(pass.program);
-      this.uniform(pass,'iResolution','uniform3f',this.canvas.width,this.canvas.height,1);
+      const width=write?.width||this.canvas.width,height=write?.height||this.canvas.height;
+      g.viewport(0,0,width,height); g.useProgram(pass.program);
+      this.uniform(pass,'iResolution','uniform3f',width,height,1);
       this.uniform(pass,'iTime','uniform1f',time); this.uniform(pass,'iTimeDelta','uniform1f',delta);
       this.uniform(pass,'iFrameRate','uniform1f',delta > 0 ? 1/delta : 0);
       this.uniform(pass,'iFrame','uniform1i',this.frame); this.uniform(pass,'iSampleRate','uniform1f',sampleRate);
@@ -317,7 +353,12 @@ export class ShaderRuntime {
         this.uniform(pass,`iChannelResolution[${i}]`,'uniform3f',texture.width,texture.height,1);
         this.uniform(pass,`iChannelTime[${i}]`,'uniform1f',input.type === 'audio' ? time : 0);
       }
-      g.drawArrays(g.TRIANGLES,0,3);
+      if(pass.name==='Cube'){
+        for(let face=0;face<6;face++){
+          g.framebufferTexture2D(g.FRAMEBUFFER,g.COLOR_ATTACHMENT0,g.TEXTURE_CUBE_MAP_POSITIVE_X+face,write.texture,0);
+          this.uniform(pass,'ctCubeFace','uniform1i',face);g.drawArrays(g.TRIANGLES,0,3);
+        }
+      }else g.drawArrays(g.TRIANGLES,0,3);
       if (write) {write.mipmaps=false;completed.set(pass.name,write);}
     }
     this.passes.forEach(p => { if (p.targets.length) p.read = 1-p.read; });

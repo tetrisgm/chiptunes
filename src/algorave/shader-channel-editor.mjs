@@ -10,7 +10,7 @@ export function shaderChannelEditor(root,textarea,{importImage,onError=()=>{}}={
     for(let index=0;index<4;index++){
       const raw=row[index],input=typeof raw==='string'?{type:['audio','keyboard'].includes(raw)?raw:'buffer',source:raw}:raw||{};
       const group=documentElement('fieldset'),legend=documentElement('legend');legend.textContent=`iChannel${index}`;group.append(legend);
-      const source=select('Input',['none','audio','keyboard','texture','cubemap',...['A','B','C','D'].filter(name=>document[name])],input.type==='buffer'?input.source:input.type||'none');group.append(source.label);
+      const source=select('Input',['none','audio','keyboard','texture','cubemap',...['A','B','C','D','Cube'].filter(name=>document[name])],input.type==='buffer'?input.source:input.type||'none');group.append(source.label);
       const image=imageControl('Image URL','Import image',input.src);
       const faces=['+X','-X','+Y','-Y','+Z','-Z'].map((name,i)=>imageControl(name+' URL','Import '+name,input.faces?.[i]));
       const filter=select('Filter',['nearest','linear','mipmap'],input.filter||(input.type==='keyboard'?'nearest':'linear'));group.append(filter.label);
@@ -24,7 +24,7 @@ export function shaderChannelEditor(root,textarea,{importImage,onError=()=>{}}={
         let current;try{current=JSON.parse(textarea.value);}catch{return;}
         const chosen=source.input.value;let value=null;
         if(chosen!=='none'){
-          value={type:['A','B','C','D'].includes(chosen)?'buffer':chosen,filter:filter.input.value,wrap:wrap.input.value};
+          value={type:['A','B','C','D','Cube'].includes(chosen)?'buffer':chosen,filter:filter.input.value,wrap:wrap.input.value};
           if(value.type==='buffer')value.source=chosen;
           if(chosen==='texture')value.src=image.value();
           if(chosen==='cubemap')value.faces=faces.map(face=>face.value());
@@ -52,6 +52,6 @@ export function shaderChannelEditor(root,textarea,{importImage,onError=()=>{}}={
   }
   function documentElement(tag){return root.ownerDocument.createElement(tag);}
   function field(name,type){const label=documentElement('label'),input=documentElement('input');input.type=type;input.setAttribute('aria-label',`${pass} ${name}`);label.append(name,input);return {label,input};}
-  function select(name,values,value){const label=documentElement('label'),input=documentElement('select');input.setAttribute('aria-label',`${pass} ${name}`);for(const item of values){const option=documentElement('option');option.value=item;option.textContent={none:'None',audio:'Music audio',keyboard:'Keyboard',texture:'Image texture',cubemap:'Cube texture'}[item]||item;input.append(option);}input.value=value;label.append(name,input);return {label,input};}
+  function select(name,values,value){const label=documentElement('label'),input=documentElement('select');input.setAttribute('aria-label',`${pass} ${name}`);for(const item of values){const option=documentElement('option');option.value=item;option.textContent={none:'None',audio:'Music audio',keyboard:'Keyboard',texture:'Image texture',cubemap:'Cube texture',Cube:'Cubemap A'}[item]||item;input.append(option);}input.value=value;label.append(name,input);return {label,input};}
   return {render};
 }

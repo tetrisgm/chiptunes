@@ -32,7 +32,7 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 var require_project = __commonJS({
   "src/algorave/project.cjs"(exports, module) {
     "use strict";
-    var DOCUMENTS = Object.freeze(["music", "Image", "Common", "A", "B", "C", "D", "channels"]);
+    var DOCUMENTS = Object.freeze(["music", "Image", "Common", "A", "B", "C", "D", "Cube", "channels"]);
     var RUNTIME = Object.freeze({ music: "strudel-web-1.3.0", visual: "shadertoy-webgl2-v1" });
     var bytes = (value) => new TextEncoder().encode(value).length;
     var plain = (v) => v && typeof v === "object" && !Array.isArray(v);
@@ -61,7 +61,7 @@ var require_project = __commonJS({
     }
     function channel(value, visuals) {
       if (value === null || value === "audio" || value === "keyboard") return value;
-      if (["A", "B", "C", "D"].includes(value)) {
+      if (["A", "B", "C", "D", "Cube"].includes(value)) {
         need(Object.hasOwn(visuals, value), "Channel names a missing buffer.");
         return value;
       }
@@ -69,7 +69,7 @@ var require_project = __commonJS({
       need(["audio", "keyboard", "buffer", "texture", "cubemap"].includes(value.type), "Unsupported visual input type.");
       const result = { type: value.type };
       if (value.type === "buffer") {
-        need(["A", "B", "C", "D"].includes(value.source) && Object.hasOwn(visuals, value.source), "Channel names a missing buffer.");
+        need(["A", "B", "C", "D", "Cube"].includes(value.source) && Object.hasOwn(visuals, value.source), "Channel names a missing buffer.");
         result.source = value.source;
       } else need(!Object.hasOwn(value, "source"), "Only buffers have a source pass.");
       if (value.type === "texture" || value.type === "cubemap") {
@@ -100,17 +100,17 @@ var require_project = __commonJS({
       need(value.version === 1 && keys(value.runtime, ["music", "visual"], ["music", "visual"]));
       need(value.runtime.music === RUNTIME.music && value.runtime.visual === RUNTIME.visual, "Unsupported project runtime.");
       need(text(value.music, 65536));
-      need(keys(value.visuals, ["Image", "Common", "A", "B", "C", "D", "channels"], ["Image"]));
+      need(keys(value.visuals, ["Image", "Common", "A", "B", "C", "D", "Cube", "channels"], ["Image"]));
       const visuals = {};
-      for (const name2 of ["Image", "Common", "A", "B", "C", "D"]) {
+      for (const name2 of ["Image", "Common", "A", "B", "C", "D", "Cube"]) {
         if (!Object.hasOwn(value.visuals, name2)) continue;
         need(text(value.visuals[name2], 65536));
         if (name2 === "Image" || value.visuals[name2] !== "") visuals[name2] = value.visuals[name2];
       }
       const inputs = Object.hasOwn(value.visuals, "channels") ? value.visuals.channels : { Image: ["audio"] };
-      need(keys(inputs, ["Image", "A", "B", "C", "D"]));
+      need(keys(inputs, ["Image", "A", "B", "C", "D", "Cube"]));
       visuals.channels = {};
-      for (const name2 of ["Image", "A", "B", "C", "D"]) {
+      for (const name2 of ["Image", "A", "B", "C", "D", "Cube"]) {
         if (!Object.hasOwn(inputs, name2)) continue;
         need(Object.hasOwn(visuals, name2), "Channel configuration names a missing pass.");
         const row = inputs[name2];
@@ -25360,7 +25360,22 @@ out vec4 outputColor;
 #define texture2D texture
 #define textureCube texture
 `;
-var ORDER = ["A", "B", "C", "D", "Image"];
+var ORDER = ["A", "B", "C", "D", "Cube", "Image"];
+var cubeInput = (input) => {
+  const info = inputInfo(input);
+  return info.type === "cubemap" || info.type === "buffer" && info.source === "Cube";
+};
+var CUBE_MAIN = `
+uniform int ctCubeFace;
+void main(){
+  vec2 p=2.*gl_FragCoord.xy/iResolution.xy-1.;
+  vec3 d=ctCubeFace==0?vec3(1.,-p.y,-p.x):
+    ctCubeFace==1?vec3(-1.,-p.y,p.x):
+    ctCubeFace==2?vec3(p.x,1.,p.y):
+    ctCubeFace==3?vec3(p.x,-1.,-p.y):
+    ctCubeFace==4?vec3(p.x,-p.y,1.):vec3(-p.x,-p.y,-1.);
+  mainCubemap(outputColor,gl_FragCoord.xy,vec3(0.),normalize(d));
+}`;
 var ShaderRuntime = class {
   constructor(canvas, { onStatus = () => {
   }, resolveImage: resolveImage2 = async () => {
@@ -25475,7 +25490,7 @@ var ShaderRuntime = class {
     const replacements = [];
     try {
       for (const pass of [...this.passes, ...[...this.retained].filter((previous) => !previous.invalid).flatMap((previous) => previous.passes)]) {
-        if (!pass.targets.length) continue;
+        if (!pass.targets.length || pass.name === "Cube") continue;
         const pair2 = [];
         replacements.push({ pass, pair: pair2 });
         for (const old of pass.targets) {
@@ -25577,15 +25592,39 @@ var ShaderRuntime = class {
     g.clear(g.COLOR_BUFFER_BIT);
     return result;
   }
-  compile(source, common = "", channels = []) {
+  cubeTarget() {
+    if (!this.floatBuffers) throw Error("Cubemap output needs floating-point WebGL support.");
+    const g = this.gl, size = Math.min(1024, g.getParameter(g.MAX_CUBE_MAP_TEXTURE_SIZE), g.getParameter(g.MAX_RENDERBUFFER_SIZE));
+    const result = { texture: g.createTexture(), fbo: g.createFramebuffer(), width: size, height: size, target: g.TEXTURE_CUBE_MAP };
+    try {
+      g.bindTexture(g.TEXTURE_CUBE_MAP, result.texture);
+      g.texParameteri(g.TEXTURE_CUBE_MAP, g.TEXTURE_MIN_FILTER, g.LINEAR);
+      g.texParameteri(g.TEXTURE_CUBE_MAP, g.TEXTURE_MAG_FILTER, g.LINEAR);
+      for (const axis of [g.TEXTURE_WRAP_S, g.TEXTURE_WRAP_T, g.TEXTURE_WRAP_R]) g.texParameteri(g.TEXTURE_CUBE_MAP, axis, g.CLAMP_TO_EDGE);
+      for (let face = 0; face < 6; face++) g.texImage2D(g.TEXTURE_CUBE_MAP_POSITIVE_X + face, 0, g.RGBA16F, size, size, 0, g.RGBA, g.HALF_FLOAT, null);
+      g.bindFramebuffer(g.FRAMEBUFFER, result.fbo);
+      for (let face = 0; face < 6; face++) {
+        g.framebufferTexture2D(g.FRAMEBUFFER, g.COLOR_ATTACHMENT0, g.TEXTURE_CUBE_MAP_POSITIVE_X + face, result.texture, 0);
+        if (g.checkFramebufferStatus(g.FRAMEBUFFER) !== g.FRAMEBUFFER_COMPLETE) throw Error("Cubemap output allocation failed.");
+        g.clearColor(0, 0, 0, 0);
+        g.clear(g.COLOR_BUFFER_BIT);
+      }
+      if (g.getError() !== g.NO_ERROR) throw Error("Cubemap output allocation failed.");
+      return result;
+    } catch (error) {
+      this.deleteTarget(result);
+      throw error;
+    }
+  }
+  compile(source, common = "", channels = [], cube = false) {
     const g = this.gl;
     if (this.disposed || this.lost || g.isContextLost()) throw Error("Visuals are waiting for the graphics context.");
     const shaders = [], program = g.createProgram();
     try {
       for (const [kind, code2] of [[g.VERTEX_SHADER, VERTEX], [
         g.FRAGMENT_SHADER,
-        HEADER + Array.from({ length: 4 }, (_, i2) => `uniform ${inputInfo(channels[i2]).type === "cubemap" ? "samplerCube" : "sampler2D"} iChannel${i2};
-`).join("") + "\n#line 1 1\n" + common + "\n#line 1 0\n" + source + "\nvoid main(){mainImage(outputColor,gl_FragCoord.xy);}"
+        HEADER + Array.from({ length: 4 }, (_, i2) => `uniform ${cubeInput(channels[i2]) ? "samplerCube" : "sampler2D"} iChannel${i2};
+`).join("") + "\n#line 1 1\n" + common + "\n#line 1 0\n" + source + (cube ? CUBE_MAIN : "\nvoid main(){mainImage(outputColor,gl_FragCoord.xy);}")
       ]]) {
         const shader3 = g.createShader(kind);
         shaders.push(shader3);
@@ -25621,7 +25660,7 @@ var ShaderRuntime = class {
         const channels = row.map((input) => import_project4.default.channel(input, document2));
         let program;
         try {
-          program = this.compile(source, common, channels);
+          program = this.compile(source, common, channels, name2 === "Cube");
         } catch (e) {
           throw Error(`${name2}: ${e.message}`);
         }
@@ -25643,8 +25682,8 @@ var ShaderRuntime = class {
           }
         }
         if (name2 !== "Image") {
-          pass.targets.push(this.target());
-          pass.targets.push(this.target());
+          pass.targets.push(name2 === "Cube" ? this.cubeTarget() : this.target());
+          pass.targets.push(name2 === "Cube" ? this.cubeTarget() : this.target());
         }
       }
     } catch (error) {
@@ -25753,9 +25792,10 @@ var ShaderRuntime = class {
     for (const pass of this.passes) {
       const write = pass.targets[1 - pass.read];
       g.bindFramebuffer(g.FRAMEBUFFER, write?.fbo || null);
-      g.viewport(0, 0, this.canvas.width, this.canvas.height);
+      const width = write?.width || this.canvas.width, height = write?.height || this.canvas.height;
+      g.viewport(0, 0, width, height);
       g.useProgram(pass.program);
-      this.uniform(pass, "iResolution", "uniform3f", this.canvas.width, this.canvas.height, 1);
+      this.uniform(pass, "iResolution", "uniform3f", width, height, 1);
       this.uniform(pass, "iTime", "uniform1f", time);
       this.uniform(pass, "iTimeDelta", "uniform1f", delta);
       this.uniform(pass, "iFrameRate", "uniform1f", delta > 0 ? 1 / delta : 0);
@@ -25782,7 +25822,13 @@ var ShaderRuntime = class {
         this.uniform(pass, `iChannelResolution[${i2}]`, "uniform3f", texture.width, texture.height, 1);
         this.uniform(pass, `iChannelTime[${i2}]`, "uniform1f", input.type === "audio" ? time : 0);
       }
-      g.drawArrays(g.TRIANGLES, 0, 3);
+      if (pass.name === "Cube") {
+        for (let face = 0; face < 6; face++) {
+          g.framebufferTexture2D(g.FRAMEBUFFER, g.COLOR_ATTACHMENT0, g.TEXTURE_CUBE_MAP_POSITIVE_X + face, write.texture, 0);
+          this.uniform(pass, "ctCubeFace", "uniform1i", face);
+          g.drawArrays(g.TRIANGLES, 0, 3);
+        }
+      } else g.drawArrays(g.TRIANGLES, 0, 3);
       if (write) {
         write.mipmaps = false;
         completed.set(pass.name, write);
@@ -25867,7 +25913,7 @@ function shaderChannelEditor(root, textarea, { importImage: importImage2, onErro
         const chosen = source.input.value;
         let value = null;
         if (chosen !== "none") {
-          value = { type: ["A", "B", "C", "D"].includes(chosen) ? "buffer" : chosen, filter: filter.input.value, wrap: wrap.input.value };
+          value = { type: ["A", "B", "C", "D", "Cube"].includes(chosen) ? "buffer" : chosen, filter: filter.input.value, wrap: wrap.input.value };
           if (value.type === "buffer") value.source = chosen;
           if (chosen === "texture") value.src = image.value();
           if (chosen === "cubemap") value.faces = faces.map((face) => face.value());
@@ -25919,7 +25965,7 @@ function shaderChannelEditor(root, textarea, { importImage: importImage2, onErro
       const group = documentElement("fieldset"), legend = documentElement("legend");
       legend.textContent = `iChannel${index}`;
       group.append(legend);
-      const source = select("Input", ["none", "audio", "keyboard", "texture", "cubemap", ...["A", "B", "C", "D"].filter((name2) => document2[name2])], input.type === "buffer" ? input.source : input.type || "none");
+      const source = select("Input", ["none", "audio", "keyboard", "texture", "cubemap", ...["A", "B", "C", "D", "Cube"].filter((name2) => document2[name2])], input.type === "buffer" ? input.source : input.type || "none");
       group.append(source.label);
       const image = imageControl("Image URL", "Import image", input.src);
       const faces = ["+X", "-X", "+Y", "-Y", "+Z", "-Z"].map((name2, i2) => imageControl(name2 + " URL", "Import " + name2, input.faces?.[i2]));
@@ -25956,7 +26002,7 @@ function shaderChannelEditor(root, textarea, { importImage: importImage2, onErro
     for (const item of values) {
       const option = documentElement("option");
       option.value = item;
-      option.textContent = { none: "None", audio: "Music audio", keyboard: "Keyboard", texture: "Image texture", cubemap: "Cube texture" }[item] || item;
+      option.textContent = { none: "None", audio: "Music audio", keyboard: "Keyboard", texture: "Image texture", cubemap: "Cube texture", Cube: "Cubemap A" }[item] || item;
       input.append(option);
     }
     input.value = value;
@@ -26893,7 +26939,7 @@ bridge = new MusicBridge(frame, (next) => {
 await bridge.ready;
 lock(false);
 status.textContent = session.recoveryError || initialVisualError || "Ready \xB7 \u2318/Ctrl Enter to run";
-$("build").textContent = "Algorave d793b1d18718";
+$("build").textContent = "Algorave e5092eb0e567";
 function draw(now) {
   shader2.render({ time: now / 1e3, delta: last2 ? (now - last2) / 1e3 : 0, ...signals.at(performance.timeOrigin + now) });
   last2 = now;

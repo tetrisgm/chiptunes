@@ -72,7 +72,7 @@ notices and corresponding source (81 packages), rather than hiding transitive
 inputs in a prebundle. See [distribution](algorave-distribution.md).
 
 Shadertoy still needs media lifecycles,
-volume inputs, Cubemap output passes, Sound and VR support. HTTPS image textures,
+volume inputs, Sound and VR support. Cubemap output is now integrated (see below). HTTPS image textures,
 sampler settings, keyboard and local image imports are covered by the newer checkpoints below. Image/Common/A-D,
 floating-point feedback, standard uniform and high-resolution checks are a
 starting point. Finish native and Chromium acceptance on the final build and the
@@ -261,6 +261,59 @@ pianoroll; sustained alternation still requires the full run. A separate audio
 frame CDP heap session is unavailable in this browser configuration; that scope
 remains explicitly unmeasured. The 30-minute run and acoustic/native acceptance
 are not established by the short check.
+
+The full 1800-second run on `d793b1d18718` subsequently passed and exited cleanly.
+Its receipt records 3599 kicks in one epoch, maximum kick gap 0.536 seconds,
+signal gap 0.115 seconds and analyser silence 0.200 seconds. Post-warmup observed
+main-frame heap range was 10.31 MiB. Final resources were three textures, one
+program, four samplers, one drawing canvas and five audio-frame blob URLs;
+history reached its bound of 20 and no workers were created. Stop and browser/
+server cleanup completed before starting the next shader suite. This establishes
+the sustained DSP/resource check for that build, not separate audio-frame heap,
+speaker quality or later shader additions. Receipt:
+`.algorave-preview/upstream-soak-1800s-receipt.json`.
+
+## Cubemap output pass — 2026-09-15
+
+The optional `Cube` source document appears as Cubemap A in the existing pass
+selector. It uses `mainCubemap(out vec4, in vec2, in vec3, in vec3)` and supplies
+pixel coordinates, zero ray origin and a normalized direction for each cube face.
+Common and the usual uniforms remain available. A `Cube` channel reference or
+`{type:"buffer",source:"Cube"}` declares samplerCube. Static six-face image inputs
+remain a separate channel type; neither requires a different shader language.
+
+Two RGBA16F cube targets retain negative/HDR data and previous-frame feedback.
+Each face is 1024 square, reduced only by the device's cube/renderbuffer limit.
+Display resize preserves the cube targets. Pass order is A–D, Cube, Image; earlier
+inputs use the current frame, self/later inputs use the previous frame. All six
+faces finish before the new cube becomes visible to Image. Filtering and mipmaps
+use the existing per-channel samplers. Compile failure, retained transactions,
+context recovery and disposal share the existing pass lifecycle.
+
+The direction construction inverts the cube selection coordinates documented by
+[OpenGL ES 3.0, table 3.21](https://registry.khronos.org/OpenGL/specs/es/3.0/es_spec_3.0.pdf#page=164).
+Shadertoy's how-to and runtime source returned 402/403 during this checkpoint;
+there is no claim of a live differential test against its current renderer.
+
+`test:algorave-cube-output` covers original GLSL fixtures for axes and off-axis
+orientation, Common/uniforms, HDR values, mipmaps, mixed cube/2D dependencies,
+self-feedback, resize, failure retention, transaction rollback and context loss.
+It also exercises agent pass creation, the real editor's Run/Undo, portable Open,
+download, stopped reload and narrow layout. It passes on `e5092eb0e567`, alongside
+cube-image inputs, the existing runtime/feedback preview suite, both providers'
+six captured real chat/Apply/Undo flows, image archive unit tests and agent checks.
+The exact source archive rebuild reproduces both browser bundles. No new provider
+calls were made. An initial framebuffer allocation check exposed that all six
+faces must be allocated before checking completeness; this is fixed. A verifier
+read of the contenteditable editor was corrected to use its visible text.
+
+Native Safari on the visibly identified local `e5092eb0e567` opened the original
+project through the macOS picker, displayed its green +Y sample, selected Cubemap
+A, edited and ran the cube source to produce purple, then restored the prior
+source and green output with Undo. Reload retained green with Play/Ready and no
+autoplay. Only the temporary native tab/server were closed. These checks establish
+local functionality; full ecosystem parity and final public acceptance remain
+open, including media/volume/Sound/VR, remaining Strudel modules and deployment.
 
 ## Cube texture inputs — 2026-09-15
 

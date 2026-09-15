@@ -29,19 +29,22 @@ Local image files now survive Run/Undo, reload and portable project transfer; se
 the [local-image checkpoint](algorave-runtime-decisions.md#local-image-projects--2026-09-15).
 Six-face cube inputs now use samplerCube without rewriting GLSL; see the
 [cube-texture checkpoint](algorave-runtime-decisions.md#cube-texture-inputs--2026-09-15).
+Generated Cubemap A passes now support standard mainCubemap, feedback, editor
+Run/Undo and portable projects; Chromium and native Safari pass on `e5092eb0e567`.
+See the [cube-output checkpoint](algorave-runtime-decisions.md#cubemap-output-pass--2026-09-15).
 
 Next: complete the remaining Strudel input/drawing/module scope and Shadertoy
-media, volume textures, Cubemap output, Sound and VR contracts; repeat native acceptance
-and sustained performance on the replacement. Chromium DSP checks use an explicit
+media, volume textures, Sound and VR contracts; complete final browser/acoustic
+acceptance and check performance appropriate to subsequent changes. Chromium DSP checks use an explicit
 silent sink after default-device failures also affected upstream. Six saved real
 provider replies are available for zero-call replay. Native OpenAI music, visual
 and paired Apply/Undo plus stopped reload pass on `3d78fc0bf069`; Anthropic
 Apply/Undo and stopped saved reload pass on `5d59d4f4f9c2`.
 The captured Claude palette still cycles through warm colors despite its
 blue/violet explanation; guide updated, new provider output still unverified.
-Old soak receipts are historical. The current harness now uses the explicit silent
-sink and alternates Strudel drawings; its 30-second check passes, but the new
-30-minute run is still pending. See the
+The 30-minute upstream runtime check passed on `d793b1d18718`, including changing
+samples, Strudel drawings, tempo, GLSL and layout. It uses an explicit silent sink;
+speaker quality and separate audio-frame heap remain unmeasured. See the
 [performance checkpoint](algorave-runtime-decisions.md#upstream-performance-harness--2026-09-15).
 The public simpler app has not been deployed. Deployment of both
 site and gateway is already authorized; no box/desktop/store changes.
