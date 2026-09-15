@@ -1553,3 +1553,14 @@ enabling, fifteen formula outputs, aliases and source-driven audible DSP. Sensor
 subscriptions and permission functions are replaced in the fixture; the actual
 Web Audio output uses a silent sink. Native Safari/iOS, user activation transfer,
 physical sensor behavior and device permission acceptance remain unverified.
+
+### Motion permission failure handling
+
+Permission denial or request failure now rejects enableMotion with a visible
+diagnostic, allowing the normal source transaction to retain the previous
+applied project. Both permission requests start together; this does not by
+itself establish native iOS activation/permission compatibility. The fixture
+workspace test verifies denial leaves playback stopped and source unchanged,
+then verifies granted retry and sensor-driven playback. Original sensor formulas
+remain unchanged; the deviation from upstream's console-only error handling is
+recorded in the vendor provenance.

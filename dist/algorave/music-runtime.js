@@ -46864,13 +46864,16 @@ registerProcessor('${n2}', MyProcessor);
       if (typeof globalThis.DeviceMotionEvent === "undefined") throw Error("Device motion is unavailable in this browser.");
       if (typeof globalThis.DeviceMotionEvent.requestPermission === "function") {
         try {
-          const motionPermission = await DeviceMotionEvent.requestPermission();
-          const orientationPermission = await DeviceOrientationEvent.requestPermission();
+          const [motionPermission, orientationPermission] = await Promise.all([
+            DeviceMotionEvent.requestPermission(),
+            globalThis.DeviceOrientationEvent?.requestPermission?.() ?? "denied"
+          ]);
           this._permissionStatus = motionPermission === "granted" && orientationPermission === "granted" ? "granted" : "denied";
+          if (this._permissionStatus !== "granted") throw Error("Motion permission was denied.");
           this.setupEventListeners();
         } catch (error) {
-          console.error("Permission request failed:", error);
           this._permissionStatus = "denied";
+          throw Error("Could not enable motion: " + (error.message || error));
         }
       } else {
         this._permissionStatus = "granted";

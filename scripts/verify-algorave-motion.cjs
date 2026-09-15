@@ -8,6 +8,12 @@ const root=path.resolve(__dirname,'../.algorave-preview');
  try{
   const page=await browser.newPage();await configureAudio(page);await page.goto('http://127.0.0.1:'+server.address().port);await page.waitForFunction(()=>window.algoravePreview);
   const frame=page.frames().find(f=>f!==page.mainFrame());
+  const original=await page.evaluate(()=>structuredClone(algoravePreview.session.applied));
+  await frame.evaluate(()=>{Object.defineProperty(window,'DeviceMotionEvent',{configurable:true,value:{requestPermission:async()=>'denied'}});Object.defineProperty(window,'DeviceOrientationEvent',{configurable:true,value:{requestPermission:async()=>'denied'}});});
+  await page.getByLabel('Strudel music').fill('await enableMotion(); note("c3").s("triangle")');await page.locator('#play').click();
+  await page.waitForFunction(()=>!algoravePreview.session.busy&&document.getElementById('status').textContent.includes('Motion permission was denied'));
+  assert.deepEqual(await page.evaluate(()=>algoravePreview.session.applied),original,'permission failure does not apply the candidate');
+  assert.equal(await page.evaluate(()=>algoravePreview.playing),false);
   const result=await frame.evaluate(async()=>{
    const policy=document.permissionsPolicy||document.featurePolicy;
    const allowed=['accelerometer','gyroscope','magnetometer'].map(name=>policy.allowsFeature(name));
@@ -16,7 +22,7 @@ const root=path.resolve(__dirname,'../.algorave-preview');
    // Replace only the three sensor subscriptions with a fixture registry. No
    // browser sensor listener or physical permission request occurs in this test.
    const add=window.addEventListener.bind(window),listeners={};window.addEventListener=(type,handler,...args)=>{if(['devicemotion','deviceorientation','deviceorientationabsolute'].includes(type)){(listeners[type]??=[]).push(handler);return;}return add(type,handler,...args);};
-   await enableMotion();const denied=Object.keys(listeners).length===0;permission='granted';await enableMotion();await enableMotion();
+   let rejected=false;try{await enableMotion();}catch(e){rejected=e.message.includes('permission was denied');}const denied=rejected&&Object.keys(listeners).length===0;permission='granted';await enableMotion();await enableMotion();
    listeners.devicemotion[0]({acceleration:{x:-1,y:0,z:1},accelerationIncludingGravity:{x:-9.81,y:0,z:9.81},rotationRate:{alpha:-180,beta:0,gamma:180}});
    listeners.deviceorientation[0]({alpha:90,beta:0,gamma:90});listeners.deviceorientationabsolute[0]({alpha:180,beta:-180,gamma:0});
    const value=p=>p.queryArc(0,1)[0].value;

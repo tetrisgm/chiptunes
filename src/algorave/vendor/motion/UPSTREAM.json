@@ -28,6 +28,7 @@
   ],
   "changes": [
     "Resolve signal through @strudel/core instead of monorepo-relative path.",
-    "Report missing DeviceMotionEvent explicitly and avoid duplicate listener installation."
+    "Report missing DeviceMotionEvent explicitly and avoid duplicate listener installation.",
+    "Propagate permission failures to source evaluation and start both permission requests together."
   ]
 }
