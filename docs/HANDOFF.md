@@ -29,6 +29,8 @@ is running against commit `fb20e3c` in exec session `64814`; its receipt is
 `.algorave-preview/sample-soak-receipt.json`. Poll that session before starting any
 other browser/audio checks. The updated harness passed its 60-second smoke check.
 The prepared six-call provider test is awaiting the owner's authorization.
+The [release preparation](algorave-release-candidate.md) records the implementation
+candidate, remaining acceptance gates and coordinated web rollback requirements.
 The production Safari warning was traced read-only to asset hash `5fba76c2aeb5e170`.
 The local build now accepts that exact observation-only APU update and preserves
 the complete old record; see the historical recovery evidence in the runtime record.
