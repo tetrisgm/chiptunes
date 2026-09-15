@@ -166,6 +166,42 @@ The subsequent drawing checkpoint below makes the music canvas visible and
 handles Run/Undo/Stop. Inline editor widgets and the remaining REPL modules,
 Shadertoy inputs/passes, native acceptance, soak and deployment remain in scope.
 
+## MIDI input/output — 2026-09-15
+
+Published `@strudel/midi` 1.3.0 now shares the installed Strudel core and Web Audio
+engine. Its `.midi()`, `midin()`, `midikeys()`, maps and controller helpers are in
+the music evaluation scope. The only upstream source change resolves the broken
+monorepo-relative `scheduleAtTime` import to the installed `superdough` package;
+`src/algorave/vendor/midi/UPSTREAM.json` records original hashes and the change.
+The exact dependency is locked and the modified preferred source and license
+are included in the source archive/notices.
+
+The opaque frame delegates browser MIDI permission without changing its origin
+or application isolation. No permission is requested merely by loading a project;
+MIDI expressions trigger the upstream request. Permission denial reaches the
+existing status area. Stop uses the existing `strudel-stop` event to send MIDI
+Stop, and reload retains source without activating ports.
+
+`node scripts/verify-algorave-midi.cjs` passes on `fbc2ea1f320f`: actual secure
+Chromium API/permission policy and denial, then simulated MIDIAccess ports through
+unmodified WebMidi message conversion. It checks channel/velocity/note bytes,
+CC values, scheduled note-off, channel-specific controller input, keyboard input,
+Run/Undo output changes, Stop and stopped reload. It checks the one-line source
+difference against the published module. No real device is enumerated or sent
+messages in this test. Physical devices, hot-plug behavior and acoustic output
+have not been verified. Upstream midikeys retains its fixed-duration limitation.
+
+Native Safari on the same local build displays “Your Browser does not support
+WebMIDI.” for `note('c3').midi()`. Replacing it with a normal sine pattern and Run
+recovers to Stop/Music updated; Stop/reload retains that source with Play/Ready.
+The owned native tab and temporary listener were closed. This is browser fallback
+verification, not a claim that Safari supports MIDI or a production-origin test.
+
+The upstream runtime regression, six captured real-provider UI replays (zero new
+API calls), agent contract and source-archive rebuild checks also pass. This is
+a module checkpoint; remaining Strudel/Shadertoy scope and public deployment
+remain open.
+
 ## OSC output — 2026-09-15
 
 The music scope now exposes the unchanged published @strudel/osc 1.3.2 module,

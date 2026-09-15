@@ -1,8 +1,8 @@
 globalThis.CT_MUSIC_ASSETS_VERSION="e84045bcb7186729";
-globalThis.CT_MUSIC_EDITOR_VERSION="275dc7b55e6d";
-globalThis.CT_MUSIC_CHAT_UI_VERSION="d3cbbe5369a3";
+globalThis.CT_MUSIC_EDITOR_VERSION="35c0bebf1506";
+globalThis.CT_MUSIC_CHAT_UI_VERSION="81db45d34b52";
 globalThis.CT_MUSIC_PREVIEW_VERSION="155578e509d1";
-globalThis.CT_MUSIC_BUILD_VERSION="24d573843df0";
+globalThis.CT_MUSIC_BUILD_VERSION="865e7f416e73";
 /* ===== src/seed.js ===== */
 // ===== seed.js — deterministic generated-track identity. =====
 // Loads FIRST (before composer.js/audio.js) so any composer can seed itself from a URL token.

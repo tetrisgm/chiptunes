@@ -20,6 +20,9 @@ The upstream `edoScale` module is also integrated from pinned source; see the
 [EDO checkpoint](algorave-runtime-decisions.md#edo-scale-module--2026-09-15).
 Upstream gamepad pattern inputs are integrated; see the
 [gamepad checkpoint](algorave-runtime-decisions.md#gamepad-pattern-inputs--2026-09-15).
+Published upstream MIDI input/output is integrated; Chromium simulated-port checks
+and native Safari unsupported-browser recovery pass on `fbc2ea1f320f`. See the
+[MIDI checkpoint](algorave-runtime-decisions.md#midi-inputoutput--2026-09-15).
 Published upstream OSC output is integrated with browser loopback permission and
 visible connection errors; secure Chromium and native Safari wire tests pass on
 `324ab00cd821`. See the [OSC checkpoint](algorave-runtime-decisions.md#osc-output--2026-09-15).

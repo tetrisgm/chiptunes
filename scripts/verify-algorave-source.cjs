@@ -17,6 +17,8 @@ try{
   assert(manifest.files.some(file=>file.path==='src/algorave/vendor/sfumato/src/index.ts'));
   assert(manifest.files.some(file=>file.path==='src/algorave/vendor/edo/edo.mjs'));
   assert(manifest.files.some(file=>file.path==='src/algorave/vendor/edo/UPSTREAM.json'));
+  assert(manifest.files.some(file=>file.path==='src/algorave/vendor/midi/midi.mjs'));
+  assert(manifest.files.some(file=>file.path==='src/algorave/vendor/midi/UPSTREAM.json'));
   assert(manifest.files.some(file=>file.path==='src/algorave/vendor/gamepad/gamepad.mjs'));
   assert(manifest.files.some(file=>file.path==='src/algorave/vendor/gamepad/UPSTREAM.json'));
   assert(manifest.files.some(file=>file.path==='src/algorave/vendor/draw/draw.mjs'));
