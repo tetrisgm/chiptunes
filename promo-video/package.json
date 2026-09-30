@@ -10,10 +10,10 @@
     "logo": "remotion still src/index.ts Logo out/logo.png"
   },
   "dependencies": {
-    "@remotion/cli": "4.0.374",
+    "@remotion/cli": "4.0.531",
     "react": "19.1.1",
     "react-dom": "19.1.1",
-    "remotion": "4.0.374"
+    "remotion": "4.0.531"
   },
   "devDependencies": {
     "typescript": "5.9.2"
