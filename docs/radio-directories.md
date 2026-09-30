@@ -1,5 +1,9 @@
 # Listing the station in radio directories
 
+**Retired 2026-09-30.** The stream (radio.chiptunes.app, stream.chiptunes.app) is off, the
+playlists are gone and /radio serves the player. Directory listings below point at a dead
+stream until they are removed.
+
 Everything a directory asks for, ready to paste. The values below are the ones
 the live stream actually advertises — read off its ICY headers on 2026-08-29,
 not invented for the form.

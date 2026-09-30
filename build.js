@@ -197,9 +197,6 @@ let pageHtml;
 }
 fs.writeFileSync(path.join(DIST, 'index.html'), pageHtml);
 
-// /radio is the public “listen anywhere” page.
-const radioHtml = fs.readFileSync(path.join(ROOT, 'src', 'listen-anywhere.html'), 'utf8');
-
 // route entrypoints + stale-route cleanup
 // '/' is the player; /get is the platform page; /radio is the player under its own
 // name (kept: it is in links people have shared).
@@ -210,6 +207,10 @@ const radioHtml = fs.readFileSync(path.join(ROOT, 'src', 'listen-anywhere.html')
 const ROUTES = ['get', 'gameboy', 'create', 'webmcp'];
 for (const stale of ['player', 'create', 'listen', 'play', 'wip', 'watch']) {
   fs.rmSync(path.join(DIST, stale), { recursive: true, force: true });
+}
+// The radio stream is retired; its playlists and QR code must not linger in dist.
+for (const stale of ['listen.m3u', 'listen.pls', 'radio.m3u', 'radio.pls', 'radio-qr.png']) {
+  fs.rmSync(path.join(DIST, stale), { force: true });
 }
 
 // serve docs/ so the Browse empty-state + packs-panel authoring links resolve
@@ -230,7 +231,8 @@ for (const route of ROUTES) {
                    pageHtml.replace('src="' + bundleName + '"', 'src="../' + bundleName + '"'));
 }
 fs.mkdirSync(path.join(DIST, 'radio'), { recursive: true });
-fs.writeFileSync(path.join(DIST, 'radio', 'index.html'), radioHtml);
+// The radio stream is retired; /radio stays reachable for shared links and is the player.
+fs.writeFileSync(path.join(DIST, 'radio', 'index.html'), pageHtml);
 
 // worklets + workers (+ anything else under src/lib) → dist/lib/, recursively:
 // lib/shaders/brickboy holds the vendored .slang passes + grain texture, which

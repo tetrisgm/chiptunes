@@ -1395,9 +1395,6 @@
     background:rgba(94,224,138,.09); border:1px solid rgba(94,224,138,.22); border-radius:11px; padding:0 13px; height:42px; display:flex; align-items:center; }
   /* Radio: the stream URL over a Copy + Listen row, pinned to the card bottom (wraps neatly in the
      narrower three-across column). */
-  .pc-radiorow{ display:flex; flex-wrap:wrap; align-items:center; gap:9px; margin-top:auto; }
-  .pc-radiorow .pc-url{ flex:1 1 100%; }
-  .pc-radiorow .pc-copy, .pc-radiorow .pc-btn{ flex:1 1 auto; }
   .pc-actions{ display:flex; flex-wrap:wrap; gap:10px; margin-top:auto; padding-top:2px; }
   /* One button system — Apple-clean filled accent, identical size + shape across every card */
   .pc-btn{ all:unset; box-sizing:border-box; cursor:pointer; height:44px; min-width:92px; padding:0 20px;
@@ -1443,7 +1440,6 @@
     color:#dbd6ee; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.14); transition:filter .15s ease, transform .1s ease, background .15s ease; }
   .pc-copy:hover{ background:rgba(255,255,255,.12); } .pc-copy:active{ transform:scale(.97); } .pc-copy:focus-visible{ outline:2px solid #fff; outline-offset:2px; }
   /* Radio-row action button (Listen) — compact, matches the URL/Copy height. */
-  .pc-radiorow .pc-btn{ flex:0 0 auto; height:42px; min-width:0; padding:0 16px; border-radius:11px; font-size:13.5px; }
   .pc-hint{ margin:0; font:400 13.5px/1.5 var(--ui); color:#948dad; letter-spacing:-.008em; }
   #intro.product-home{ justify-content:flex-start; align-items:center; gap:20px; overflow-y:auto; overflow-x:hidden; padding:0 22px 72px; }
   /* Hero owns the top of the viewport so the live game plays in full view before you reach the
@@ -1473,9 +1469,6 @@
     .pc-desc{ font-size:14px; line-height:1.5; }
     .pc-actions{ gap:8px; }
     .pc-actions .pc-btn{ height:44px; min-width:0; flex:1 1 auto; padding:0 14px; font-size:14px; }
-    .pc-radiorow{ flex-wrap:wrap; }
-    .pc-radiorow .pc-url{ flex:1 1 100%; }
-    .pc-radiorow .pc-btn{ flex:1 1 auto; }
   }
   /* ===== WATCH CHROME: pointer-reveal strip (Home · game picker · mic), auto-hides via controls-active ===== */
   #watchbar{
@@ -3043,7 +3036,7 @@
     <button id="start" hidden></button>
   </div>
 
-<script src="../app.a41aa43f43dc.js" defer></script>
+<script src="../app.18d868b4a820.js" defer></script>
 
 </body>
 </html>

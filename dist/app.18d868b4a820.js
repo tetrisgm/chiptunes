@@ -36406,8 +36406,8 @@ function _buildPlayerLinks(){
     {k:'wav',   ic:_IC_WAVE,  t:'Download this track as an uncompressed WAV', l:'Download WAV'},
     // The YouTube Live link is retired for now (owner 2026-08-26): the video
     // leg is off and the box is being freed for other work. The channel, its
-    // tokens and the go-live tooling all remain for when it returns.
-    {k:'radio', ic:_IC_RADIO, t:'Listen on any radio app', l:'Web radio'}
+    // tokens and the go-live tooling all remain for when it returns. The radio
+    // stream was retired on 2026-09-30, so there is no radio row either.
   ];   // no GitHub row: the credit below carries it, with the other two
   // X's mark, drawn rather than fetched: nothing here loads a third-party asset
   // Hacker News: the Y, drawn as strokes rather than the orange box, so it sits
@@ -36473,7 +36473,6 @@ function _buildPlayerLinks(){
     var k=b.dataset.k;
     if(k==='yt') window.open(YT_HANDLE+'/live','_blank','noopener');
     else if(k==='gh') window.open(GITHUB_URL,'_blank','noopener');
-    else if(k==='radio'){ location.href='/radio'; }
     else if(k==='rom'){ _downloadRom(); }
     else if(k==='wav'){ _downloadAudio('wav'); }
     else if(k==='try'){ _toggleGameBoyEmulator(); }
@@ -36711,9 +36710,6 @@ function _ensureNavMenu(){
     else if(k==='home'){ if(window.openProductHome) openProductHome(); }
     else if(k==='how'){ _toggleHowModal(); }
     else if(k==='yt'){ window.open(YT_HANDLE+'/live','_blank','noopener'); }
-    else if(k==='radio-open'){ _openRadioInApp(); }
-    else if(k==='radio-listen'){ window.open(RADIO_STREAM_URL,'_blank','noopener'); }
-    else if(k==='radio-copy'){ try{ if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(RADIO_STREAM_URL); }catch(e){} if(window._toast) _toast('Radio stream URL copied. Paste it into any radio app 👾'); }
   });
   document.addEventListener('keydown', function(ev){ if(ev.key==='Escape') closeNavMenu(); });
   window.addEventListener('resize', function(){ if(!_homeIsMobile()) closeNavMenu(); });
@@ -36733,8 +36729,6 @@ function openNavMenu(){
     // On mobile the pills are hidden, so the cartridge export needs a way in here.
     _navRow('rom',_IC_ROM,'Download .gb ROM','This track as a 32 KB cartridge')+
 
-    _navRow('radio-open',_IC_RADIO,'Add to your radio app','Open it in a radio app')+
-    _navRow('radio-copy',_NAV_LINK_IC,'Copy stream URL','radio.chiptunes.app')+
     // The old 'Home' row led to a landing page that no longer exists as a
     // landing page. Same destination, named for what is actually there: the
     _navRow('how',_IC_INFO,'How it works','What this is, in a minute')+
@@ -39091,8 +39085,6 @@ var _IC_INFO='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-
 var _IC_CREATE='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/><path d="M17 4v6M14 7h6M4 17h6" stroke-linecap="round"/></svg>';
 var _IC_MON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2.5" y="3.5" width="19" height="13" rx="1.5"/><path d="M9 20.5h6M12 16.5v4" stroke-linecap="round"/></svg>';
 var _IC_YT='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M22.5 7.2a2.8 2.8 0 0 0-2-2C18.8 4.7 12 4.7 12 4.7s-6.8 0-8.5.5a2.8 2.8 0 0 0-2 2A29 29 0 0 0 1 12a29 29 0 0 0 .5 4.8 2.8 2.8 0 0 0 2 2c1.7.5 8.5.5 8.5.5s6.8 0 8.5-.5a2.8 2.8 0 0 0 2-2A29 29 0 0 0 23 12a29 29 0 0 0-.5-4.8zM9.8 15.3V8.7l5.7 3.3z"/></svg>';
-var _IC_RADIO='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="8" cy="14" r="3"/><rect x="2.5" y="8.5" width="19" height="12" rx="1.5"/><path d="M16 4.5l3 4M14 13h4M14 16.5h4"/></svg>';
-var RADIO_STREAM_URL='https://radio.chiptunes.app';   // bare root is a first-class stream alias (see broadcaster PRIMARY_ALIASES) — cleaner to paste than /radio.mp3
 var YT_HANDLE='https://www.youtube.com/@chiptunesapp';
 // Immutable channel id (an @handle can be renamed/reassigned; the UC id never rots).
 var YT_CHANNEL_ID='UCck8mz53plGiDjR3Ar5Ytgg';
@@ -39103,19 +39095,12 @@ var YT_SUB_URL='https://www.youtube.com/channel/'+YT_CHANNEL_ID+'?sub_confirmati
 // the tiny watermark/LIVE badge (baked in). referrerpolicy on the iframe is the real "Error 153" fix.
 var YT_LIVE_EMBED='https://www.youtube-nocookie.com/embed/live_stream?channel='+YT_CHANNEL_ID+'&autoplay=1&mute=1&playsinline=1&controls=0&rel=0&iv_load_policy=3&fs=0&disablekb=1&modestbranding=1';
 // Ordered for a balanced 2×2 grid: the two media-rich cards (browser moods · live embed) on top,
-// The browser card is the hero (full-width top row — it's the primary, most-obvious way to listen);
-// desktop · YouTube · radio sit three-across beneath it. No leading icon tiles — Apple-clean text cards.
+// The browser card is the one way to listen now that the YouTube leg and the radio stream are
+// retired. No leading icon tiles: Apple-clean text cards.
 var PLATFORMS = [
   { plat:'web', accent:'#27d9e8', title:'In your browser',
-    desc:'One endless station: a shuffle of every mood of generative chiptune, the exact same stream you get on YouTube and the radio. Plays instantly, nothing to install.',
+    desc:'One endless station: a shuffle of every mood of generative chiptune. Plays instantly, nothing to install.',
     actions:[{k:'web-listen', label:'Listen now'}] },            // the single shared LIVE station (same everywhere)
-  { plat:'radio', accent:'#5ee08a', title:'On any radio app',
-    desc:'A real internet radio station. Paste the stream into your radio app, or listen right here.',
-    url:'radio.chiptunes.app', copy:true,
-    actions:[
-      {k:'radio-listen', label:'Listen now'},                    // opens the bare stream (browser plays the MP3)
-      {k:'radio-open', label:'Add to radio app', only:'mobile'},     // iOS Broadcasts / Android intent chooser
-    ] },
 ];
 function _homeIsMobile(){ try{ return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent||'') || ('ontouchstart' in window) || (navigator.maxTouchPoints||0)>0; }catch(e){ return false; } }
 // Detect the visitor's desktop OS so we can highlight their download (the Apple-landing convention).
@@ -39144,12 +39129,7 @@ function _platCard(p){
       '<iframe src="'+_homeEsc(p.embed)+'" title="'+_homeEsc(p.title)+' (live)" loading="lazy" allow="autoplay; encrypted-media; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin"></iframe>'+
       '<a class="pc-embed-open" href="'+_homeEsc(YT_HANDLE)+'/live" target="_blank" rel="noopener" aria-label="Watch on YouTube Live: open the channel to subscribe"></a></div>';
   }
-  // Radio: one compact line — the stream URL, a Copy button, and the listen/add action right beside it.
-  if(p.url){
-    body += '<div class="pc-radiorow"><code class="pc-url">'+_homeEsc(p.url)+'</code>'+
-      (p.copy?'<button class="pc-copy" type="button" data-k="radio-copy" aria-label="Copy stream URL">Copy</button>':'')+
-      acts.map(_platBtn).join('')+'</div>';
-  } else if(acts.length){
+  if(acts.length){
     // desktop downloads (and the mobile-only YouTube button) — pinned to the card bottom for alignment
     body += '<div class="pc-actions">'+acts.map(_platBtn).join('')+'</div>';
   }
@@ -39157,38 +39137,9 @@ function _platCard(p){
     '<h3 class="pc-title">'+_homeEsc(p.title)+badge+'</h3>'+
     '<p class="pc-desc">'+p.desc+'</p>'+body+'</div>';
 }
-// "Open in your radio app" — no OS has a canonical internet-radio app, so this is best-effort per
-// platform: Android raises the audio-app chooser via an intent (with a .pls fallback baked in); iOS
-// tries Broadcasts (the most popular iOS radio app) and falls back to the .pls playlist if it's not
-// installed; anything else just gets the .pls. Always paired with a copy-URL button that never fails.
-function _openRadioInApp(){
-  var stream=RADIO_STREAM_URL, ua=navigator.userAgent||'';
-  if(/Android/i.test(ua)){
-    location.href='intent://radio.chiptunes.app/#Intent;scheme=https;action=android.intent.action.VIEW;type=audio/mpeg;S.browser_fallback_url=https%3A%2F%2Fchiptunes.app%2Fradio.pls;end';
-    return;
-  }
-  if(/iPhone|iPad|iPod/i.test(ua)){
-    var t=setTimeout(function(){ location.href='/listen.m3u'; }, 1400);   // Broadcasts not installed -> generic playlist
-    var vis=function(){ if(document.hidden){ clearTimeout(t); document.removeEventListener('visibilitychange',vis); } };
-    document.addEventListener('visibilitychange',vis);   // app opened -> page hides -> cancel the fallback
-    // artwork too: Broadcasts shows it in the station list, on the lock screen
-    // and in CarPlay, and a station added without one is a grey square there
-    location.href='broadcasts://add?name=Chiptunes.app&address='+encodeURIComponent(stream)+
-      '&artworkAddress='+encodeURIComponent('https://chiptunes.app/station-icon.png');
-    return;
-  }
-  location.href='/listen.m3u';
-}
 function _homeAction(k, btnEl){
   if(k==='web-listen'){ if(typeof enterStation==='function') enterStation('st-any'); return; }   // the one shared LIVE station
   if(k==='yt-live'){ window.open(YT_HANDLE+'/live','_blank','noopener'); return; }   // channel/live — unmute, full-screen, subscribe there
-  if(k==='radio-listen'){ window.open(RADIO_STREAM_URL,'_blank','noopener'); return; }   // open the bare stream — the browser plays the MP3
-  if(k==='radio-open'){ _openRadioInApp(); return; }
-  if(k==='radio-copy'){
-    var flash=function(){ if(!btnEl) return; if(!btnEl.dataset.label) btnEl.dataset.label=btnEl.textContent; btnEl.textContent='Copied'; setTimeout(function(){ btnEl.textContent=btnEl.dataset.label; },1500); };
-    if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(RADIO_STREAM_URL).then(flash,flash); else flash();
-    return;
-  }
 }
 // There is ONE station — the shared LIVE broadcast. The old station-picker overlay is gone.
 function buildHomeTiles(){ var el=_showProductHomeShell(); if(!el) return;
