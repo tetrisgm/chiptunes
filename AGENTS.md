@@ -16,9 +16,11 @@ Finite songs accompany a fixed 14-game roster: seed → `src/composer.js` → Sc
 
 - Pushing to `main` deploys nothing. From the Mac, only when the owner asks:
   `npm run deploy` publishes the site to the Cloudflare Pages project
-  `retro-rave-radio` and the box (`scripts/deploy-box.mjs`); `npm run ship`
-  releases the app. The `radio-presence` (`cloudflare/`) and `chiptunes-monitor`
-  (`monitor/`) Workers deploy with wrangler.
+  `retro-rave-radio`; `npm run ship` releases the app. The `radio-presence`
+  (`cloudflare/`) Worker deploys with wrangler.
+- The radio stream (stream.chiptunes.app, the Oracle box) was retired on
+  2026-09-30: its `rrr-*` units and `cloudflared-rrr` tunnel are disabled, the
+  monitor has no schedule, and `scripts/deploy-box.mjs` refuses to run.
 - Cloud sessions cannot deploy: that needs the Mac's wrangler login, keys and
   Keychain. Push a branch or open a PR and say what needs shipping.
 - Nothing from the owner's Mac reaches cloud sessions: not their global

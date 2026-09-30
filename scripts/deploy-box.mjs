@@ -25,6 +25,12 @@
 'use strict';
 import { spawnSync } from 'node:child_process';
 
+// The radio was retired on 2026-09-30: the box's rrr-* units and the
+// cloudflared-rrr tunnel are disabled, and a sync here would restart the stream.
+if (process.env.RRR_RADIO !== 'on') {
+  console.error('[deploy-box] the radio is retired; set RRR_RADIO=on only to bring it back deliberately');
+  process.exit(1);
+}
 const BOX = process.env.CHIPTUNES_BOX || process.env.RRR_BOX || '';
 if (!BOX) { console.error('[deploy-box] set CHIPTUNES_BOX=user@host'); process.exit(1); }
 const REPO = process.env.CHIPTUNES_BOX_PATH || process.env.RRR_BOX_PATH || '/opt/retro-rave-radio';

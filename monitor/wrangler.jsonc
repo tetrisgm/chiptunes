@@ -8,7 +8,7 @@
   // account_id comes from the CLOUDFLARE_ACCOUNT_ID environment variable so this
   // repository carries no account identifiers. wrangler reads it automatically.
   "workers_dev": true,
-  "triggers": { "crons": ["*/2 * * * *"] },
+  "triggers": { "crons": [] }, // radio retired 2026-09-30; deployed as rrr-monitor, schedule removed
 
   // Debounce state + outage history. id filled by `wrangler kv namespace create STATE`.
   "kv_namespaces": [

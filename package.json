@@ -13,7 +13,7 @@
   "scripts": {
     "build": "node build.js",
     "postbuild": "node scripts/health/report-build.mjs",
-    "deploy": "npm run deploy:site && npm run deploy:box",
+    "deploy": "npm run deploy:site",
     "deploy:site": "node build.js && npx wrangler pages deploy dist --project-name retro-rave-radio --branch main --commit-dirty=true && node scripts/purge-cache.mjs",
     "deploy:box": "node scripts/deploy-box.mjs",
     "health": "node scripts/health/run.js",
