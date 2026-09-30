@@ -11,3 +11,16 @@ Finite songs accompany a fixed 14-game roster: seed → `src/composer.js` → Sc
 - Never delete YouTube videos; make them private through the API.
 - Release/store upload only when asked. `scripts/ship.sh` (`npm run ship`) stays manually invoked. No automatic build/sign/notarize/publish/deploy/reinstall jobs, commit triggers, or installers for them. Do not restart or reinstall the owner's app as a development side effect. Debug locally, never through stores/update feeds.
 - No GitHub Actions workflows, secrets, or runners.
+
+## Deploys
+
+- Pushing to `main` deploys nothing. From the Mac, only when the owner asks:
+  `npm run deploy` publishes the site to the Cloudflare Pages project
+  `retro-rave-radio` and the box (`scripts/deploy-box.mjs`); `npm run ship`
+  releases the app. The `radio-presence` (`cloudflare/`) and `chiptunes-monitor`
+  (`monitor/`) Workers deploy with wrangler.
+- Cloud sessions cannot deploy: that needs the Mac's wrangler login, keys and
+  Keychain. Push a branch or open a PR and say what needs shipping.
+- Nothing from the owner's Mac reaches cloud sessions: not their global
+  instructions, logins, Keychain, or `~/dev/stack` (retired). Do not go looking
+  for them.
