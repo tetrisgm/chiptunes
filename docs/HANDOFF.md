@@ -27,6 +27,6 @@ No remaining rollback work. 2026-09-30: the owner retired the hosted MCP
 gateway. The Vercel project `chiptunes-agent-gateway` was deleted, and the
 local leftovers it had in this checkout (`gateway/`, `.vercel/`, `.env.local`)
 were removed; the product never tracked them, and the in-page WebMCP tools
-are unaffected. The `chiptunes-agent-sessions` Neon store still exists on the
-Vercel team with no project attached; the owner decides on it.
+are unaffected. The `chiptunes-agent-sessions` Neon store was deleted from the
+Vercel team the same evening.
 `.algorave-preview/` is unrelated and stays untracked.
