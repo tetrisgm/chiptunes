@@ -23,6 +23,10 @@ Live WebMCP verification passed, including all 15 tools, cold orientation,
 late-host registration and real tool execution. Production HTML and
 `app.a41aa43f43dc.js` match the local restored artifact byte for byte.
 
-No remaining rollback work. Later-work local artifacts (`.algorave-preview/`,
-`.env.local`, `.vercel/`, and residual `gateway/`) were left untouched and are
-untracked under the restored ignore rules; do not add them to commits.
+No remaining rollback work. 2026-09-30: the owner retired the hosted MCP
+gateway. The Vercel project `chiptunes-agent-gateway` was deleted, and the
+local leftovers it had in this checkout (`gateway/`, `.vercel/`, `.env.local`)
+were removed; the product never tracked them, and the in-page WebMCP tools
+are unaffected. The `chiptunes-agent-sessions` Neon store still exists on the
+Vercel team with no project attached; the owner decides on it.
+`.algorave-preview/` is unrelated and stays untracked.
